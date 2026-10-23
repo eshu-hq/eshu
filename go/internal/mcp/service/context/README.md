@@ -80,17 +80,29 @@ the shared API request duration and error metrics (`request.go` in
 - `get_service_context` requires `workload_id`; a `service_name` argument is
   rejected before dispatch to avoid a ServeMux redirect on a mismatched
   selector shape, matching the pre-extraction root switch.
-- `get_service_story` and `get_service_intelligence_report` accept
-  `workload_id` or `service_name`. `investigate_service` reads only
-  `service_name` -- its registered schema exposes no `workload_id`, and the
-  route ignores one if a caller supplies it, so advertising both here would
-  send callers down a selector that is silently dropped. These forward a
+- `get_service_story` accepts `service_id`, `workload_id`, or `service_name`,
+  checked in that order (#8797): the exact id is the most specific selector, so
+  adding it to an ambiguous name call resolves the call. It wins over
+  `workload_id` and `service_name` when more than one is given, even a bare-name
+  `service_id` over an exact `workload_id`. A blank `service_id`
+  falls through to the next selector. A `service_id` that is not a
+  `workload:` handle or full scoped id is only a name: it becomes the path
+  segment and is not forwarded as the `service_id` query. A repository selector
+  separates only services in different repositories, so the story's
+  `ambiguous` details name each candidate's `service_id` as the next selector.
+- `get_service_intelligence_report` accepts `service_id`, `workload_id`, or
+  `service_name`, in that order (#8797). `investigate_service` accepts
+  `service_id` or `service_name`, in that order -- its registered schema exposes
+  no `workload_id`, and the route ignores one if a caller supplies it, so
+  advertising both here would send callers down a selector that is silently
+  dropped. All three tools use one `firstSelector` helper. These forward a
   repository selector (`repo`, `repository_id`, or `repo_id`, checked in that
   order) as the `repo` query parameter when the caller starts from
   repository-scoped context.
-- `investigate_service` does not validate its selector: an absent
-  `service_name` reaches the query handler as an empty path segment, matching
-  the pre-extraction root switch arm this replaces.
+- `investigate_service` validates its selector since #8797. Its schema marks
+  neither `service_id` nor `service_name` required (either may stand alone), so
+  an absent selector is refused with `investigate_service requires service_id or
+  service_name` instead of reaching the handler as an empty path segment.
 - The **route-serves-data registry** (`route_serves_data_registry*.go` in the
   parent package) does not cite any of these four tools or their `internal/query`
   / `internal/serviceintelhttp` handlers, confirmed by searching the registry

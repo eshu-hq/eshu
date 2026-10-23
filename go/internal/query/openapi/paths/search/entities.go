@@ -214,13 +214,13 @@ const Entities = `
       "get": {
         "tags": ["entities"],
         "summary": "Get service story",
-        "description": "Returns the one-call service dossier for the service.",
+        "description": "Returns the one-call service dossier for the service. An ambiguous selector answers 409 with error.code ambiguous; each candidate in error.details.candidates carries next_selector, the argument (service_id) and value to pass next.",
         "operationId": "getServiceStory",
         "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/ServiceName"},
           {"name": "service_id", "in": "query", "description": "Exact workload or service id selector. When supplied, the route resolves this id before service-name candidates.", "schema": {"type": "string"}},
-          {"name": "repo", "in": "query", "description": "Repository selector used to disambiguate duplicate service names. Accepts canonical repository id, repository name, slug, path, or remote URL.", "schema": {"type": "string"}},
+          {"name": "repo", "in": "query", "description": "Repository selector that separates only services in different repositories; two same-named services in one repository stay ambiguous and need service_id. Accepts canonical repository id, repository name, slug, path, or remote URL.", "schema": {"type": "string"}},
           {"name": "environment", "in": "query", "description": "Runtime environment selector used to disambiguate duplicate service names by workload instance environment.", "schema": {"type": "string"}}
         ],
         "responses": {

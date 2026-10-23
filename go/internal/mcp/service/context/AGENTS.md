@@ -38,14 +38,27 @@
 - Preserve each tool's exact method, path, and query keys. All four requests
   are `GET` with a query map and no body.
 - `get_service_context` defaults `evidence_detail` to `handles` and forwards an explicit value untouched; the story route never carries it. Keep the default here and the HTTP default (`full`) in the handler distinct (#7129).
+- `get_service_story` checks `service_id`, then `workload_id`, then
+  `service_name` (#8797). Keep that order: the `ambiguous` answer tells the
+  caller to pass `service_id`, so it must win over a `workload_id` or
+  `service_name` the caller already sent. The tool schema forbids a top-level
+  `anyOf`, so the "one of" rule lives in the description and in this route's
+  validation error.
 - Preserve `get_service_context`'s and `get_service_story`'s selector
   validation: `Route` reports `handled=true` with a non-nil error and a zero
   `routecontract.Request` when the caller supplied no usable selector. Do not
   collapse this to the two-value `(routecontract.Request, bool)` shape the
   other route-selector siblings use -- that shape cannot carry this error, and
   silently building a request with an empty selector segment changes callers'
-  observable behavior. `investigate_service` deliberately does not validate
-  its selector, matching the pre-extraction root switch.
+  observable behavior. `investigate_service` validates too since #8797: its
+  schema no longer marks `service_name` required (`service_id` may stand
+  alone), so the route refuses a missing selector by name instead of sending an
+  empty path segment.
+- `get_service_intelligence_report` and `investigate_service` take the same
+  `service_id` selector, through the one `firstSelector` helper that holds the
+  precedence (`service_id`, then `workload_id`, then `service_name`;
+  `investigate_service` has no `workload_id`). Change the order in that helper
+  only.
 - Preserve `normalizeQualifiedIdentifier` and `canonicalWorkloadIdentifier`
   exactly: they are used only by this package now (confirmed with
   `rg -n canonicalWorkloadIdentifier\|normalizeQualifiedIdentifier` across

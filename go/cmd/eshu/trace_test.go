@@ -301,7 +301,7 @@ func TestRunTraceServiceRendersAmbiguousCandidates(t *testing.T) {
 	reset := stubTraceServiceFetch(t, trace.ServiceEnvelope{
 		Error: &trace.ServiceError{
 			Code:    "ambiguous",
-			Message: "service selector \"checkout\" matched multiple services; add --service-id, --repo, or --env",
+			Message: "service selector \"checkout\" matched multiple services; pass the service_id of one candidate (repo separates only services in different repositories)",
 			Details: map[string]any{
 				"status": "ambiguous",
 				"candidates": []any{

@@ -118,7 +118,7 @@ type egressCase struct {
 // this file's error cases stop meaning anything.
 func composedAmbiguousMessage(selector string) string {
 	return fmt.Sprintf(
-		"service selector %q matched multiple services; add service_id, repo, or environment",
+		"service selector %q matched multiple services; pass the service_id of one candidate (repo separates only services in different repositories)",
 		selector,
 	)
 }

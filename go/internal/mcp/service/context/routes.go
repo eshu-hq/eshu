@@ -35,7 +35,8 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 		request, err := serviceIntelligenceReportRoute(args)
 		return request, true, err
 	case "investigate_service":
-		return investigateServiceRoute(args), true, nil
+		request, err := investigateServiceRoute(args)
+		return request, true, err
 	default:
 		return routecontract.Request{}, false, nil
 	}
@@ -43,16 +44,13 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 
 // serviceIntelligenceReportRoute resolves the get_service_intelligence_report
 // tool to GET /api/v0/services/{service_name}/intelligence-report, mirroring
-// the service-story selector (workload_id or service_name, plus optional
-// service_id, repo, and environment) so the report and the story address the
-// same service.
+// the service-story selector (service_id, workload_id, or service_name, plus
+// optional repo and environment) so the report and the story address the same
+// service.
 func serviceIntelligenceReportRoute(args routecontract.Arguments) (routecontract.Request, error) {
-	selector := strings.TrimSpace(args.String("workload_id"))
+	selector := firstSelector(args, "service_id", "workload_id", "service_name")
 	if selector == "" {
-		selector = strings.TrimSpace(args.String("service_name"))
-	}
-	if selector == "" {
-		return routecontract.Request{}, fmt.Errorf("get_service_intelligence_report requires workload_id or service_name")
+		return routecontract.Request{}, fmt.Errorf("get_service_intelligence_report requires service_id, workload_id, or service_name")
 	}
 	q := map[string]string{}
 	if env := args.String("environment"); env != "" {
@@ -73,19 +71,22 @@ func serviceIntelligenceReportRoute(args routecontract.Arguments) (routecontract
 
 // serviceSelectorRoute resolves get_service_context (suffix "context") and
 // get_service_story (suffix "story") to GET /api/v0/services/{selector}/...
-// get_service_context accepts only workload_id; get_service_story also
-// falls back to service_name, and additionally forwards a canonical
-// workload:* selector as service_id and a repository selector (repo,
-// repository_id, or repo_id) as repo, so a repository-scoped caller gets the
-// same disambiguation path as API callers.
+// get_service_context accepts only workload_id. get_service_story accepts
+// service_id, workload_id, or service_name, checked in that order: the exact
+// id is the most specific selector, so adding it to an ambiguous name call
+// resolves the call. A workload:* selector is also forwarded as the service_id
+// query, and a repository selector (repo, repository_id, or repo_id) as repo,
+// so a repository-scoped caller gets the same disambiguation path as API
+// callers.
 func serviceSelectorRoute(args routecontract.Arguments, toolName string, suffix string) (routecontract.Request, error) {
-	selector := strings.TrimSpace(args.String("workload_id"))
-	if selector == "" && suffix == "story" {
-		selector = strings.TrimSpace(args.String("service_name"))
+	keys := []string{"workload_id"}
+	if suffix == "story" {
+		keys = []string{"service_id", "workload_id", "service_name"}
 	}
+	selector := firstSelector(args, keys...)
 	if selector == "" {
 		if suffix == "story" {
-			return routecontract.Request{}, fmt.Errorf("%s requires workload_id or service_name", toolName)
+			return routecontract.Request{}, fmt.Errorf("%s requires service_id, workload_id, or service_name", toolName)
 		}
 		return routecontract.Request{}, fmt.Errorf("%s requires workload_id", toolName)
 	}
@@ -118,13 +119,17 @@ func serviceSelectorRoute(args routecontract.Arguments, toolName string, suffix 
 }
 
 // investigateServiceRoute resolves investigate_service to GET
-// /api/v0/investigations/services/{service_name}. Unlike
-// serviceSelectorRoute and serviceIntelligenceReportRoute, it does not
-// require a non-empty selector -- a blank service_name reaches the query
-// handler as an empty path segment, matching the pre-extraction root switch
-// arm this replaces.
-func investigateServiceRoute(args routecontract.Arguments) routecontract.Request {
-	serviceName := args.String("service_name")
+// /api/v0/investigations/services/{service_name}. It accepts service_id or
+// service_name, checked in that order. workload_id is deliberately not an
+// investigate_service argument (its schema does not advertise it). The schema
+// marks neither required, since service_id may stand alone, so a missing
+// selector is refused here by name instead of reaching the handler as an empty
+// path segment.
+func investigateServiceRoute(args routecontract.Arguments) (routecontract.Request, error) {
+	serviceName := firstSelector(args, "service_id", "service_name")
+	if serviceName == "" {
+		return routecontract.Request{}, fmt.Errorf("investigate_service requires service_id or service_name")
+	}
 	q := map[string]string{
 		"environment": args.String("environment"),
 		"intent":      args.String("intent"),
@@ -140,7 +145,19 @@ func investigateServiceRoute(args routecontract.Arguments) routecontract.Request
 		Method: "GET",
 		Path:   "/api/v0/investigations/services/" + url.PathEscape(normalizeQualifiedIdentifier(serviceName)),
 		Query:  q,
+	}, nil
+}
+
+// firstSelector returns the first non-blank argument among keys, trimmed. It is
+// the one place the service tools' selector precedence lives: service_id, then
+// workload_id, then service_name, for the tools that accept each.
+func firstSelector(args routecontract.Arguments, keys ...string) string {
+	for _, key := range keys {
+		if selector := strings.TrimSpace(args.String(key)); selector != "" {
+			return selector
+		}
 	}
+	return ""
 }
 
 // serviceStoryRepositorySelector returns the first non-blank repository

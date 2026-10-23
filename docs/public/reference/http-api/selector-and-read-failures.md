@@ -295,3 +295,21 @@ does not page at ERROR. The suppression mutation has no stage timer and writes
 neither line. A `context.Canceled` from an inner context while the request is
 still live is a server fault and answers `500` with `stage_failed`. See
 [Logging](../logging.md) for both events.
+
+## Service story ambiguity (#8797)
+
+`GET /api/v0/services/{service_name}/story` answers `409` with
+`error.code=ambiguous` when the selector matches more than one workload. The
+resolver does not pick one. `repo` filters candidates by repository, so it
+separates only services that live in different repositories; two workloads with
+the same name in one repository stay ambiguous under `repo`, and `service_id`
+is the argument that separates them.
+
+Each entry in `error.details.candidates` keeps `service_id`, `service_name`,
+`kind`, `repo_id`, `repo_name`, `environment`, and `match_basis`, and adds
+`next_selector`, for example `{"argument": "service_id", "value": "<candidate
+id>"}`. The `value` is the candidate's id (a full scoped id, or a handle for a legacy
+node), which the route matches exactly. `GET /api/v0/investigations/services/{service_name}` and
+`GET /api/v0/services/{service_name}/intelligence-report` return the same candidates. An unknown `service_id` still answers `404`. The MCP tool
+`get_service_story` accepts `service_id` on its own and checks it before
+`workload_id` and `service_name`.

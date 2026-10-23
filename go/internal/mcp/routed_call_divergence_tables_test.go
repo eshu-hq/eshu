@@ -18,7 +18,7 @@ type requiredFieldRow struct {
 }
 
 // handlerRejectedRequired (class C): the handler refuses the call too, or the
-// route 404s (investigate_service's trailing empty segment), which direct
+// route 404s on an empty path segment, which direct
 // dispatch reports as an error as well. Rows whose evidence starts with
 // "direct dispatch:" are path ids: resolveRoute refuses the empty segment
 // before any request is built (#8772), so no handler runs and the call never
@@ -59,7 +59,6 @@ var handlerRejectedRequired = []requiredFieldRow{
 	{"investigate_code_divergence", []string{"fingerprint", "kind"}, "POST /api/v0/code/divergence/investigate: 400 kind must be one of: "},
 	{"investigate_code_divergence", []string{"fingerprint", "kind", "repo_id"}, "POST /api/v0/code/divergence/investigate: 400 repo_id is required"},
 	{"investigate_code_topic", []string{"topic"}, "POST /api/v0/code/topics/investigate: 400 topic is required"},
-	{"investigate_service", []string{"service_name"}, "GET /api/v0/investigations/services/: empty path segment, the mux answers 404 and no handler runs"},
 	{"list_admission_decisions", []string{"domain", "generation_id", "scope_id"}, "GET /api/v0/evidence/admission-decisions: 400 domain, scope_id, and generation_id are required"},
 	{"list_codeowners_ownership", []string{"repository_id"}, "GET /api/v0/codeowners/ownership: 400 repository_id is required"},
 	{"list_container_image_tag_history", []string{"repository_id", "tag"}, "GET /api/v0/images/tag-history: 400 repository_id and tag are required and repository_id must be an oci-registry:// id"},

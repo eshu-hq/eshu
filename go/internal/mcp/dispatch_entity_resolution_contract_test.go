@@ -194,12 +194,13 @@ func TestEntityResolutionDispatchKeepsEveryWireShape(t *testing.T) {
 func TestResolveRouteStillOwnsItsArmsAfterEntityResolution(t *testing.T) {
 	t.Parallel()
 
-	// The two service arms reject empty selectors by design, so they carry
+	// The service arms reject empty selectors by design, so they carry
 	// the minimal selector their root builders require; every other arm
 	// resolves on empty arguments as before.
 	neighbourArgs := map[string]map[string]any{
 		"get_service_context": {"workload_id": "workload:checkout"},
 		"get_service_story":   {"service_name": "checkout"},
+		"investigate_service": {"service_name": "checkout"},
 		// Empty path ids are refused before dispatch (#8772), so the
 		// id-in-path arms carry their required id too.
 		"get_workload_context": {"workload_id": "workload:checkout"},

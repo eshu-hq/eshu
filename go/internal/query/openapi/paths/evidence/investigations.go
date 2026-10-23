@@ -92,7 +92,7 @@ const Investigations = `
       "get": {
         "tags": ["entities"],
         "summary": "Investigate service",
-        "description": "Returns a bounded service investigation packet with repositories considered, evidence coverage, findings, and recommended follow-up calls.",
+        "description": "Returns a bounded service investigation packet with repositories considered, evidence coverage, findings, and recommended follow-up calls. An ambiguous selector answers 409 with error.code ambiguous; each candidate in error.details.candidates carries next_selector, the argument (service_id) and value to pass next.",
         "operationId": "investigateService",
         "x-scoped-token-support": true,
         "parameters": [
@@ -109,7 +109,7 @@ const Investigations = `
             "in": "query",
             "required": false,
             "schema": {"type": "string"},
-            "description": "Optional repository selector used to disambiguate the service"
+            "description": "Optional repository selector. It separates only services in different repositories; two same-named services in one repository stay ambiguous and need service_id"
           },
           {
             "name": "repository_id",
