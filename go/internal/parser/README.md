@@ -248,10 +248,8 @@ parser path.
 ## Exported surface
 
 - `Engine` — dispatch hub; constructed via `DefaultEngine()` or `NewEngine(registry, runtime)`
-- `DefaultEngine()` — builds an engine from the built-in registry and a fresh
-  tree-sitter runtime
-- `NewEngine(registry, runtime)` — constructs an engine from provided `Registry`
-  and `Runtime`
+- `DefaultEngine()` — engine from the built-in registry and a fresh tree-sitter runtime
+- `NewEngine(registry, runtime)` — engine from a provided `Registry` and `Runtime`
 - `Engine.ParsePath(repoRoot, path, isDependency, options)` — parse one file;
   returns `map[string]any`
 - `Engine.PreScanPaths(paths)` — import-map contract for collector prescan
@@ -267,13 +265,15 @@ parser path.
   `.tfvars.json` routes to the `hcl` definition, and Java metadata files under
   META-INF/services, META-INF/spring, and META-INF/spring.factories
   route to `java_metadata`
-- `Registry.LookupByExtension(extension)` — direct extension lookup
-- `Registry.LookupByParserKey(parserKey)` — direct key lookup
-- `Registry.Definitions()` — cloned definitions in deterministic parser-key order
-- `Registry.ParserKeys()` — registered keys in deterministic order
-- `Registry.Extensions()` — registered extensions in sorted order
+- `Registry.LookupByExtension(extension)` / `LookupByParserKey(parserKey)` — direct lookups
+- `Registry.Definitions()` — cloned definitions in deterministic parser-key order;
+  `ParserKeys()` and `Extensions()` return keys and extensions in sorted order
 - `Definition` — `ParserKey`, `Language`, `Extensions`, `ExactNames`,
-  `PrefixNames`, and optional `LanguageProvider`
+  `PrefixNames`, optional `LanguageProvider`, plus `Ecosystem` (ledger language
+  key) and `Admission` (`AdmissionContentText` L1, `AdmissionStructuredFact` L2;
+  L0 is the default for unbound names). The labels feed only the generated table
+  in `docs/public/languages/admitted-files.md` (`AdmissionTableMarkdown`,
+  `scripts/generate-parser-admission-doc.sh`), never lookup or `Registry.Fingerprint`.
 - `LanguageProvider` — language-owned parse, pre-scan, and capability contract
 - `Runtime` — tree-sitter language handle cache; `Language(name)` returns a
   cached `*tree_sitter.Language`

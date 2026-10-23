@@ -401,12 +401,16 @@ func AdmissionTableMarkdown(registry Registry) string {
 
 // ReplaceAdmissionTable returns doc with the text between the admission table
 // markers replaced by table. It returns an error when either marker is missing
-// or they are out of order, so a stale or hand-damaged page fails loudly.
+// or they are out of order or repeated, so a stale or hand-damaged page fails
+// loudly.
 func ReplaceAdmissionTable(doc, table string) (string, error) {
 	begin := strings.Index(doc, AdmissionTableBegin)
 	end := strings.Index(doc, AdmissionTableEnd)
 	if begin < 0 || end < 0 || end < begin {
 		return "", fmt.Errorf("admission table markers %q and %q not found in order", AdmissionTableBegin, AdmissionTableEnd)
+	}
+	if strings.Count(doc, AdmissionTableBegin) != 1 || strings.Count(doc, AdmissionTableEnd) != 1 {
+		return "", fmt.Errorf("admission table markers must each appear exactly once")
 	}
 	return doc[:begin+len(AdmissionTableBegin)] + "\n" + table + doc[end:], nil
 }

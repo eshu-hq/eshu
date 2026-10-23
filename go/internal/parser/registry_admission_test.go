@@ -154,3 +154,54 @@ func TestReplaceAdmissionTableRequiresMarkers(t *testing.T) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
+
+func TestReplaceAdmissionTableRejectsReversedAndDuplicateMarkers(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"reversed":         AdmissionTableEnd + "\nx\n" + AdmissionTableBegin + "\n",
+		"duplicate begin":  AdmissionTableBegin + "\n" + AdmissionTableBegin + "\n" + AdmissionTableEnd + "\n",
+		"duplicate end":    AdmissionTableBegin + "\n" + AdmissionTableEnd + "\n" + AdmissionTableEnd + "\n",
+		"duplicate region": strings.Repeat(AdmissionTableBegin+"\nold\n"+AdmissionTableEnd+"\n", 2),
+		"begin only":       AdmissionTableBegin + "\nold\n",
+	}
+	for name, doc := range cases {
+		if _, err := ReplaceAdmissionTable(doc, "new\n"); err == nil {
+			t.Errorf("%s: expected an error, got none", name)
+		}
+	}
+}
+
+func TestAnchorDefinitionsKeepTheirAdmissionLevel(t *testing.T) {
+	t.Parallel()
+
+	want := map[string]struct {
+		ecosystem string
+		admission Admission
+	}{
+		"gomod":               {"go", AdmissionStructuredFact},
+		"json":                {"json", AdmissionStructuredFact},
+		"yaml":                {"yaml", AdmissionStructuredFact},
+		"python_requirements": {"python", AdmissionStructuredFact},
+		"node_lockfile":       {"javascript", AdmissionStructuredFact},
+		"__dockerfile__":      {"dockerfile", AdmissionStructuredFact},
+		"raw_text":            {"raw_text", AdmissionContentText},
+	}
+	registry := DefaultRegistry()
+	for key, expected := range want {
+		definition, ok := registry.LookupByParserKey(key)
+		if !ok {
+			t.Errorf("%s is not registered", key)
+			continue
+		}
+		if definition.Ecosystem != expected.ecosystem || definition.Admission != expected.admission {
+			t.Errorf("%s labels = %q/%q, want %q/%q", key,
+				definition.Ecosystem, definition.Admission, expected.ecosystem, expected.admission)
+		}
+	}
+	for _, definition := range registry.Definitions() {
+		if definition.Admission == AdmissionContentText && definition.ParserKey != "raw_text" {
+			t.Errorf("%s is L1; only raw_text is expected to be content-text only", definition.ParserKey)
+		}
+	}
+}
