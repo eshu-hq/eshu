@@ -108,6 +108,31 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: mcp-router-eval
+    name: MCP router eval report
+    category: exactness
+    layer: contract
+    purpose: "Fails on a malformed router eval corpus or an unregistered expected tool; prints top-1 and top-5 routing accuracy and misses, report-only (#8756)."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/ask/catalog/**"
+      - "go/internal/mcp/**"
+      - "go/internal/capabilitycatalog/data/surface-inventory.generated.json"
+      - "scripts/go-test-run-guard.sh"
+      - "scripts/lib/go-test-run-guard.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/mcp-schema-drift.yml"
+    local:
+      command: "cd go && go test ./internal/mcp/router/eval/ -count=1 -v"
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "MCP router eval report"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: capability-inventory
     name: Capability Inventory Verify
     category: exactness

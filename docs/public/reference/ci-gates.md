@@ -107,7 +107,7 @@ results are derived from the inputs rather than written by hand. See
 - `code-coverage-report` (advisory): Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only.
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
-### Contract: Do declared or generated artifacts match the code? (57 gates)
+### Contract: Do declared or generated artifacts match the code? (58 gates)
 
 - `slim-collector-entrypoints` (blocking): Fails the queue entry when the generated collector entrypoints file drifts from the collector fact contract spec.
 - `openapi-surface` (blocking): Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa.
@@ -126,6 +126,7 @@ results are derived from the inputs rather than written by hand. See
 - `sdk-go-factschema` (blocking): Builds, tests, and regenerates the factschema SDK module, failing if generated artifacts don't match committed source.
 - `mcp-schema-drift` (blocking): Fails when MCP tool or capability schemas drift from the capability catalog and surface-inventory specs.
 - `mcp-tool-count` (blocking): Fails when the number of read-only MCP tools differs from the count the contract test pins.
+- `mcp-router-eval` (blocking): Fails on a malformed router eval corpus or an unregistered expected tool; prints top-1 and top-5 routing accuracy and misses, report-only (#8756).
 - `capability-inventory` (blocking): Runs the capability-inventory tool in verify mode to check the capability catalog matches the code.
 - `capability-inventory-docs` (blocking): Runs the capability-inventory tool in docs mode to check public docs and README match the capability catalog.
 - `parser-relationship-kit` (blocking): Checks parser-documented test commands, language-parity ledgers, and dead-code maturity data still match the parser code.
@@ -263,6 +264,7 @@ results are derived from the inputs rather than written by hand. See
 | `mcp-schema-drift` | MCP Schema Drift | exactness | pre-pr | true | `bash scripts/dev/precommit-go.sh surface` | mcp-schema-drift.yml / Verify capability inventory | 8 path(s): go/internal/mcp/**, specs/capability-catalog.v1.yaml, specs/capability-matrix.v1.yaml, … |
 | `mcp-tool-count` | MCP ReadOnlyTools count | exactness | pre-pr | true | `cd go && go test ./internal/mcp/ -run '^TestReadOnlyTools$' -count=1` | mcp-schema-drift.yml / Verify ReadOnlyTools count | 6 path(s): go/**, sdk/go/**, scripts/go-test-run-guard.sh, … |
 | `mcp-test-suite` | Full MCP test suite | exactness | pre-pr | true | `cd go && go test ./internal/mcp/... -count=1 -timeout 120s` | mcp-schema-drift.yml / Full MCP test suite | 4 path(s): go/**, sdk/go/**, scripts/ci/go-mod-download-retry.sh, … |
+| `mcp-router-eval` | MCP router eval report | exactness | pre-pr | true | `cd go && go test ./internal/mcp/router/eval/ -count=1 -v` | mcp-schema-drift.yml / MCP router eval report | 7 path(s): go/internal/ask/catalog/**, go/internal/mcp/**, go/internal/capabilitycatalog/data/surface-inventory.generated.json, … |
 | `capability-inventory` | Capability Inventory Verify | exactness | pre-pr | true | `cd go && go run ./cmd/capability-inventory -mode verify` | mcp-schema-drift.yml / Verify capability inventory | 8 path(s): go/cmd/capability-inventory/**, go/internal/capabilitycatalog/**, go/internal/mcp/**, … |
 | `capability-inventory-docs` | Capability Inventory Docs/Product Claims Verify | exactness | pre-pr | true | `cd go && go run ./cmd/capability-inventory -mode docs` | mcp-schema-drift.yml / Verify capability inventory | 8 path(s): go/cmd/capability-inventory/**, go/internal/capabilitycatalog/**, specs/capability-catalog.v1.yaml, … |
 | `parser-relationship-kit` | Verify Parser Relationship Kit | exactness | pre-pr | true | `bash scripts/verify-parser-relationship-kit.sh`<br>then self-test: `bash scripts/test-verify-parser-relationship-kit.sh` | static-contract-gates.yml / Verify parser relationship kit gate | 25 path(s): .github/workflows/static-contract-gates.yml, specs/ci-gates.v1.yaml, specs/ci-gates.d/**, … |

@@ -445,7 +445,7 @@ gated_jobs_for() {
 	case "$1" in
 	test.yml) printf '%s\n' "go-core|verify-contracts|go-race-complete" ;;
 	security-scan.yml) printf '%s\n' "gosec (Go static analysis)|govulncheck (Go vulnerability database)|nancy (Sonatype dep CVE + license scan)" ;;
-	mcp-schema-drift.yml) printf '%s\n' "Verify ReadOnlyTools count|Full MCP test suite" ;;
+	mcp-schema-drift.yml) printf '%s\n' "Verify ReadOnlyTools count|Full MCP test suite|MCP router eval report" ;;
 	esac
 }
 # Negations are parsed from test.yml's own code: filter (this check runs

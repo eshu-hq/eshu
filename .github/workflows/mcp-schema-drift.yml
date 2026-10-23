@@ -267,3 +267,50 @@ jobs:
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Full MCP test suite')) }}
         working-directory: go
         run: go test ./internal/mcp/... -count=1 -timeout 120s
+
+  # ── Gate 4: Router eval corpus and routing accuracy report ──
+  # Report-only for accuracy (#8756): the test prints top-1 and top-5 routing
+  # accuracy and every miss to the job summary and never fails on them. It does
+  # fail on a malformed corpus or an expected tool that is not registered.
+  mcp-router-eval:
+    name: MCP router eval report
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    needs: [queue-selection, changes]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
+    steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
+      - name: Checkout repository
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP router eval report')) }}
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP router eval report')) }}
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Pre-warm Go modules
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP router eval report')) }}
+        run: scripts/ci/go-mod-download-retry.sh
+
+      - name: Run router eval and publish the report
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP router eval report')) }}
+        working-directory: go
+        env:
+          ESHU_ROUTER_EVAL_REPORT: ${{ runner.temp }}/router-eval-report.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          # go_test_run_guard (#6055) fails loudly if the pattern matches
+          # fewer than the expected 3 tests instead of a zero-match exit 0.
+          ../scripts/go-test-run-guard.sh 3 '^(TestCorpusMatchesRegistry|TestUnregisteredExpectedToolFailsTheGate|TestRoutingAccuracyReport)$' -- ./internal/mcp/router/eval/ -count=1
+          {
+            echo '### MCP router routing accuracy (report-only)'
+            echo '```text'
+            cat "${ESHU_ROUTER_EVAL_REPORT}"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
