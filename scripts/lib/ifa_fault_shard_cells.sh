@@ -174,6 +174,12 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_observability_coverage
 	cell_killworker_observability_coverage
 	cell_failgraphwrite_observability_coverage
+	# incident_routing_evidence (#6228 incident_routing_evidence live leaf):
+	# seventeenth direct-materialization family, same trio shape (atomic
+	# group below).
+	cell_baseline_incident_routing_evidence
+	cell_killworker_incident_routing_evidence
+	cell_failgraphwrite_incident_routing_evidence
 	cell_baseline_inheritance
 	cell_killworker_inheritance
 	cell_failgraphwrite_inheritance
@@ -242,6 +248,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_code_interproc_evidence cell_killworker_code_interproc_evidence cell_failgraphwrite_code_interproc_evidence"
 	"cell_baseline_code_taint_evidence cell_killworker_code_taint_evidence cell_failgraphwrite_code_taint_evidence"
 	"cell_baseline_observability_coverage cell_killworker_observability_coverage cell_failgraphwrite_observability_coverage"
+	"cell_baseline_incident_routing_evidence cell_killworker_incident_routing_evidence cell_failgraphwrite_incident_routing_evidence"
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"
 	"cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec"
 	"cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency"
@@ -354,6 +361,10 @@ declare -gA IFA_FAULT_CELL_WEIGHT_SECONDS=(
 	[cell_baseline_observability_coverage]=72
 	[cell_killworker_observability_coverage]=78
 	[cell_failgraphwrite_observability_coverage]=75
+	# incident_routing_evidence: one run so far (39973541904, shard 4/4).
+	[cell_baseline_incident_routing_evidence]=11
+	[cell_killworker_incident_routing_evidence]=69
+	[cell_failgraphwrite_incident_routing_evidence]=69
 	[cell_baseline_inheritance]=44
 	[cell_killworker_inheritance]=110
 	[cell_failgraphwrite_inheritance]=16

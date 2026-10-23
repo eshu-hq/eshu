@@ -8,10 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/parser/hcl"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
@@ -68,8 +70,18 @@ func resolveIncidentRoutingEvidenceMaterializedEdges(odu ifa.Odu, expectedEdgesP
 	if problem != "" {
 		return false, fmt.Sprintf("odù %q: %s", odu.Name, problem)
 	}
+	// Stamp the replay fact_ids the live drive assigns: the reducer keys
+	// incident-routing evidence identity off the envelope fact_id, and the
+	// drive derives it per envelope as DeriveFactID over scope, generation,
+	// and stable fact key (committed cassettes carry no fact_id field, so
+	// the drive always takes that branch). Proving the fixture's literal
+	// fact names instead would certify an edge set no live drive
+	// reproduces -- the literal-vs-canonical identity gap the #6228 live
+	// leaf exists to close. Cloned, never mutated in place: catalog Odù
+	// facts are immutable inputs shared across every guard that resolves
+	// this Odù.
 	inputs, quarantined, err := incident.BuildIncidentRoutingEvidenceInputs(
-		incident.IncidentRoutingRawEvidence{Facts: odu.Facts, Declared: declared},
+		incident.IncidentRoutingRawEvidence{Facts: incidentRoutingEvidenceStampedFacts(odu), Declared: declared},
 	)
 	if err != nil {
 		return false, fmt.Sprintf("odù %q: BuildIncidentRoutingEvidenceInputs failed: %v", odu.Name, err)
@@ -101,6 +113,22 @@ func resolveIncidentRoutingEvidenceMaterializedEdges(odu ifa.Odu, expectedEdgesP
 		"odù %q: production builder plus extractor reproduces the expected %d-edge incident-routing set exactly across all %d registry type(s) and %d fact envelope(s); the tombstoned applied fact produced no spurious row",
 		odu.Name, len(expected), len(registry), len(odu.Facts),
 	)
+}
+
+// incidentRoutingEvidenceStampedFacts clones the Odù's envelopes with the
+// replay fact_id stamped on each, in order. The stamp is the same
+// cassette.DeriveFactID derivation the drive applies to every cassette fact,
+// so the builder decodes the same evidence identity the live load carries.
+// The tombstoned envelope is stamped too and still skipped: the builder
+// continues tombstones before decoding, so the stamp cannot resurrect it.
+func incidentRoutingEvidenceStampedFacts(odu ifa.Odu) []facts.Envelope {
+	stamped := make([]facts.Envelope, 0, len(odu.Facts))
+	for _, env := range odu.Facts {
+		clone := env
+		clone.FactID = cassette.DeriveFactID(env.ScopeID, env.GenerationID, env.StableFactKey)
+		stamped = append(stamped, clone)
+	}
+	return stamped
 }
 
 // incidentRoutingEvidenceDeclaredFromTerraformFixture runs the production

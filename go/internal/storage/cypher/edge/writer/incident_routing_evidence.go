@@ -29,6 +29,31 @@ var incidentRoutingSlotRelationshipTypes = map[string]string{
 	"live_routing":     string(edgetype.HasLiveRouting),
 }
 
+// canonicalIncidentRoutingEvidenceIncidentUpsertCypher commits the incident
+// anchor nodes BEFORE the edge group runs. The edge statements re-MERGE the
+// same incident uid once per slot, so without this phase the group would
+// need read-your-writes across statements inside one transaction to see the
+// first statement's create -- which NornicDB does not provide for the write
+// path (its documented gap covers the whole-materialization transaction
+// shape, and the phase-group executor's cross-chunk safety rests on
+// disjoint MERGE keys). Committed first, every later MERGE only ever
+// matches; the edge group then shares the key safely because nothing in it
+// creates.
+const canonicalIncidentRoutingEvidenceIncidentUpsertCypher = `UNWIND $incidents AS row
+MERGE (incident:IncidentRoutingEvidence {uid: row.incident_uid})
+ON CREATE SET incident.node_kind = 'incident'
+SET incident.id = row.incident_uid,
+    incident.node_kind = 'incident',
+    incident.provider = row.provider,
+    incident.provider_incident_id = row.provider_incident_id,
+    incident.service_id = row.service_id,
+    incident.service_url = row.service_url,
+    incident.service_name_hash = row.service_name_hash,
+    incident.incident_fact_id = row.incident_fact_id,
+    incident.scope_id = row.scope_id,
+    incident.generation_id = row.generation_id,
+    incident.evidence_source = row.evidence_source`
+
 const canonicalIncidentRoutingEvidenceUpsertCypherFormat = `UNWIND $rows AS row
 MERGE (incident:IncidentRoutingEvidence {uid: row.incident_uid})
 ON CREATE SET incident.node_kind = 'incident'
@@ -92,6 +117,9 @@ DETACH DELETE n`
 const (
 	// CanonicalIncidentRoutingEvidenceUpsertCypherFormat is the production write template.
 	CanonicalIncidentRoutingEvidenceUpsertCypherFormat = canonicalIncidentRoutingEvidenceUpsertCypherFormat
+	// CanonicalIncidentRoutingEvidenceIncidentUpsertCypher is the production
+	// incident-anchor commit the edge group depends on.
+	CanonicalIncidentRoutingEvidenceIncidentUpsertCypher = canonicalIncidentRoutingEvidenceIncidentUpsertCypher
 	// RetractIncidentRoutingEvidenceCypher is the production full-scope retract.
 	RetractIncidentRoutingEvidenceCypher = retractIncidentRoutingEvidenceCypher
 )
@@ -138,6 +166,15 @@ func NewIncidentRoutingEvidenceWriter(executor sourcecypher.Executor, batchSize 
 // WriteIncidentRoutingEvidence upserts reducer-owned incident-routing evidence
 // nodes and relationships. Rows are grouped by closed routing slot so the Cypher
 // relationship type is static and cannot be data-injected.
+//
+// The write runs in two phases. Phase one commits the distinct incident
+// anchor nodes on their own; phase two upserts the per-slot routing nodes
+// and edges in one group. The edge statements re-MERGE the same incident
+// uid once per slot, so committing the anchor first is what keeps the group
+// safe: NornicDB does not provide read-your-writes across statements inside
+// one transaction, and a group that creates the shared anchor would fail
+// deterministically with a UNIQUE violation on commit instead of matching
+// it. Committed first, every later MERGE only ever matches.
 func (w *IncidentRoutingEvidenceWriter) WriteIncidentRoutingEvidence(
 	ctx context.Context,
 	rows []map[string]any,
@@ -170,6 +207,53 @@ func (w *IncidentRoutingEvidenceWriter) WriteIncidentRoutingEvidence(
 		grouped[slot] = append(grouped[slot], cloned)
 	}
 	sort.Strings(slots)
+
+	// Distinct incident anchors in sorted uid order: deterministic across
+	// runs, and one row per uid so the anchor commit never shares a MERGE
+	// key with itself. Every row of one incident carries the same incident
+	// fields (they decode from the same incident record), so first-seen
+	// wins without loss.
+	incidentUIDs := make([]string, 0, len(rows))
+	incidentByUID := make(map[string]map[string]any, len(rows))
+	for _, slot := range slots {
+		for _, row := range grouped[slot] {
+			uid, _ := row["incident_uid"].(string)
+			if _, seen := incidentByUID[uid]; seen {
+				continue
+			}
+			incidentByUID[uid] = map[string]any{
+				"incident_uid":         uid,
+				"provider":             row["provider"],
+				"provider_incident_id": row["provider_incident_id"],
+				"service_id":           row["service_id"],
+				"service_url":          row["service_url"],
+				"service_name_hash":    row["service_name_hash"],
+				"incident_fact_id":     row["incident_fact_id"],
+				"scope_id":             scopeID,
+				"generation_id":        generationID,
+				"evidence_source":      evidenceSource,
+			}
+			incidentUIDs = append(incidentUIDs, uid)
+		}
+	}
+	sort.Strings(incidentUIDs)
+	incidents := make([]map[string]any, 0, len(incidentUIDs))
+	for _, uid := range incidentUIDs {
+		incidents = append(incidents, incidentByUID[uid])
+	}
+	anchor := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalUpsert,
+		Cypher:    canonicalIncidentRoutingEvidenceIncidentUpsertCypher,
+		Parameters: map[string]any{
+			"incidents":                                  incidents,
+			sourcecypher.StatementMetadataPhaseKey:       canonicalPhaseIncidentRoutingEvidence,
+			sourcecypher.StatementMetadataEntityLabelKey: incidentRoutingEvidenceLabel,
+			sourcecypher.StatementMetadataSummaryKey:     fmt.Sprintf("label=%s anchors=%d", incidentRoutingEvidenceLabel, len(incidents)),
+		},
+	}
+	if err := w.executor.Execute(ctx, anchor); err != nil {
+		return fmt.Errorf("write incident routing anchor nodes: %w", err)
+	}
 
 	var stmts []sourcecypher.Statement
 	for _, slot := range slots {

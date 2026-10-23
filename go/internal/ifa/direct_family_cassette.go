@@ -47,8 +47,9 @@ const (
 	// codeInterprocEvidenceFamilyCassettePath,
 	// builtFromFamilyCassettePath,
 	// cloudResourceContainerImageFamilyCassettePath,
-	// crossplaneSatisfiedByFamilyCassettePath, and
-	// derivedFromFamilyCassettePath are repo-root-relative so the
+	// crossplaneSatisfiedByFamilyCassettePath,
+	// derivedFromFamilyCassettePath, and
+	// incidentRoutingEvidenceFamilyCassettePath are repo-root-relative so the
 	// constants stay machine-independent; callers join a repo root onto
 	// them through the exported helpers below.
 	kubernetesNamespaceEnvironmentFamilyCassettePath = "testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
@@ -71,6 +72,7 @@ const (
 	codeInterprocEvidenceFamilyCassettePath          = "testdata/cassettes/codeinterproc/ifa-code-interproc-evidence-family.json"
 	crossplaneSatisfiedByFamilyCassettePath          = "testdata/cassettes/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family.json"
 	derivedFromFamilyCassettePath                    = "testdata/cassettes/derivedfrom/ifa-derived-from-family.json"
+	incidentRoutingEvidenceFamilyCassettePath        = "testdata/cassettes/incidentrouting/ifa-incident-routing-evidence-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -430,6 +432,24 @@ func DerivedFromFamilyCassetteFullPath(repoRoot string) string {
 // deploy-only Kubernetes reference, mirroring the handler's own-scope load.
 func LoadDerivedFromFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, DerivedFromFamilyOduName)
+}
+
+// IncidentRoutingEvidenceFamilyCassetteFullPath joins repoRoot onto the
+// committed incident_routing_evidence family cassette path.
+func IncidentRoutingEvidenceFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, incidentRoutingEvidenceFamilyCassettePath)
+}
+
+// LoadIncidentRoutingEvidenceFamilyOdu reads the committed cassette and
+// projects it onto the fact envelopes the reducer's extractor consumes, the
+// incident_routing_evidence counterpart to LoadDerivedFromFamilyOdu: the
+// family's single PagerDuty scope holds the incident anchor, the applied
+// and observed service facts (plus the tombstoned applied negative
+// control), and the PagerDutyDeclaration content_entity fact the production
+// loader reads out of content_entities, mirroring the handler's own-scope
+// fact load plus its service-name-scoped declared read.
+func LoadIncidentRoutingEvidenceFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, IncidentRoutingEvidenceFamilyOduName)
 }
 
 // parseDirectFamilyCassette is the shared strict decode behind the loaders.

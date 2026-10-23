@@ -78,3 +78,13 @@ ifa_live_gate_common_seams+=(
 	'go/internal/ifa/testdata/codetaint/**|go/internal/ifa/testdata/codetaint/ifa-code-taint-evidence-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_code_taint_evidence_cells.sh|scripts/lib/ifa_fault_injection_code_taint_evidence_cells.sh'
 )
+# incident_routing_evidence (#6228 incident_routing_evidence live leaf):
+# writer, cassette, expected-edge set, and cells are new common seams
+# beside the siblings; the Odù stays in the determinism-only table (the
+# fault cells drive the committed cassette JSON, never the Odù source).
+ifa_live_gate_common_seams+=(
+	'go/internal/storage/cypher/edge/writer/incident_routing_evidence.go|go/internal/storage/cypher/edge/writer/incident_routing_evidence.go'
+	'testdata/cassettes/incidentrouting/**|testdata/cassettes/incidentrouting/ifa-incident-routing-evidence-family.json'
+	'go/internal/ifa/testdata/incidentroutingevidence/**|go/internal/ifa/testdata/incidentroutingevidence/ifa-incident-routing-evidence-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_incident_routing_evidence_cells.sh|scripts/lib/ifa_fault_injection_incident_routing_evidence_cells.sh'
+)

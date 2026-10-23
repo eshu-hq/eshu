@@ -169,6 +169,15 @@ code_interproc_evidence_edge_operation_match="MERGE (s)-[rel:TAINT_FLOWS_TO"
 # above it -- either way the fault would fire outside the upsert the cell
 # asserts.
 code_taint_evidence_edge_operation_match="MERGE (f)-[rel:HAS_TAINT_EVIDENCE]->(ev)"
+# The HAS_*_ROUTING MERGE anchor cell_failgraphwrite_incident_routing_evidence
+# (#6228 incident_routing_evidence live leaf) targets:
+# go/internal/storage/cypher/edge/writer/incident_routing_evidence.go:73 emits
+# MERGE (incident)-[rel:%s]->(routing) with one statement per slot from the
+# closed 3-member routing-slot vocabulary, so the anchor carries the PREFIX
+# form (the same rationale as the built_from pin). A full `]->(routing)`
+# spelling matches no single executed statement, and pinning one filled type
+# would leave the other two slots unfaulted.
+incident_routing_evidence_edge_operation_match="MERGE (incident)-[rel:HAS_"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical/node/documentation_edges.go's
