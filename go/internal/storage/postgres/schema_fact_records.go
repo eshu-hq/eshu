@@ -338,6 +338,28 @@ CREATE INDEX IF NOT EXISTS fact_records_workload_identity_entity_keys_idx
     WHERE fact_kind = 'reducer_workload_identity'
       AND is_tombstone = FALSE;
 
+-- #8835: normalized fallback indexes match the five immutable concurrent
+-- migrations. Exact-value reads still use the existing raw indexes.
+CREATE INDEX IF NOT EXISTS fact_records_workload_identity_workload_trim_idx
+    ON fact_records (BTRIM(payload->>'workload_id'))
+    WHERE fact_kind = 'reducer_workload_identity' AND is_tombstone = FALSE AND jsonb_typeof(payload->'workload_id') = 'string' AND payload->>'workload_id' IS DISTINCT FROM BTRIM(payload->>'workload_id');
+
+CREATE INDEX IF NOT EXISTS fact_records_workload_identity_entity_trim_idx
+    ON fact_records (fact_id)
+    WHERE fact_kind = 'reducer_workload_identity' AND is_tombstone = FALSE AND jsonb_path_exists(payload->'entity_keys', 'lax $[*] ? (@.type() == "string" && @ like_regex "(^ | $)")');
+
+CREATE INDEX IF NOT EXISTS fact_records_service_catalog_workload_trim_idx
+    ON fact_records (BTRIM(payload->>'workload_id'))
+    WHERE fact_kind = 'reducer_service_catalog_correlation' AND is_tombstone = FALSE AND jsonb_typeof(payload->'workload_id') = 'string' AND payload->>'workload_id' IS DISTINCT FROM BTRIM(payload->>'workload_id');
+
+CREATE INDEX IF NOT EXISTS fact_records_service_catalog_service_trim_idx
+    ON fact_records (BTRIM(payload->>'service_id'))
+    WHERE fact_kind = 'reducer_service_catalog_correlation' AND is_tombstone = FALSE AND jsonb_typeof(payload->'service_id') = 'string' AND payload->>'service_id' IS DISTINCT FROM BTRIM(payload->>'service_id');
+
+CREATE INDEX IF NOT EXISTS fact_records_ci_cd_environment_trim_idx
+    ON fact_records (BTRIM(payload->>'environment'))
+    WHERE fact_kind = 'reducer_ci_cd_run_correlation' AND is_tombstone = FALSE AND jsonb_typeof(payload->'environment') = 'string' AND payload->>'environment' IS DISTINCT FROM BTRIM(payload->>'environment');
+
 CREATE INDEX IF NOT EXISTS fact_records_security_alert_repository_lookup_idx
     ON fact_records (
         (payload->>'repository_id'),

@@ -402,6 +402,7 @@ FROM generate_series(1, 100000) AS sample`,
 			t.Fatalf("explain plan missing index %q:\n%s", wantIndex, explainPlan)
 		}
 	}
+	assertSupplyChainPaddedRuntimePlans(t, ctx, tx, baseFilter)
 }
 
 func withSupplyChainRuntimeFilterDimensions(
@@ -469,24 +470,6 @@ func supplyChainRuntimeFilterAggregateArgs(filter impact.AggregateFilter) []any 
 		filter.MinPriorityScore,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
-		filter.ImageRef,
-		array.Of(filter.AllowedRepositoryIDs),
-		array.Of(filter.AllowedScopeIDs),
-		impact.SuppressionReadAt(nil),
-	}
-}
-
-func supplyChainRuntimeFilterExplainArgs(filter impact.ExplanationFilter) []any {
-	return []any{
-		impact.FindingFactKind,
-		filter.FindingID,
-		filter.AdvisoryID,
-		filter.CVEID,
-		filter.PackageID,
-		filter.RepositoryID,
-		filter.SubjectDigest,
-		filter.WorkloadID,
-		filter.ServiceID,
 		filter.ImageRef,
 		array.Of(filter.AllowedRepositoryIDs),
 		array.Of(filter.AllowedScopeIDs),

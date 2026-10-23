@@ -8,6 +8,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 type supplyChainRuntimePlan struct {
@@ -109,4 +112,22 @@ func supplyChainRuntimePlanIndexRows(
 		}
 	}
 	return 0, false
+}
+
+func supplyChainRuntimeFilterExplainArgs(filter impact.ExplanationFilter) []any {
+	return []any{
+		impact.FindingFactKind,
+		filter.FindingID,
+		filter.AdvisoryID,
+		filter.CVEID,
+		filter.PackageID,
+		filter.RepositoryID,
+		filter.SubjectDigest,
+		filter.WorkloadID,
+		filter.ServiceID,
+		filter.ImageRef,
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
+		impact.SuppressionReadAt(nil),
+	}
 }
