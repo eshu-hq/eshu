@@ -269,7 +269,7 @@ func TestCaptureKeepsTheErrorMessageAroundTheCredential(t *testing.T) {
 	for _, keep := range []string{
 		"service selector",
 		"checkout",
-		"matched multiple services; add service_id, repo, or environment",
+		"matched multiple services; pass the service_id of one candidate (repo separates only services in different repositories)",
 	} {
 		if !strings.Contains(message, keep) {
 			t.Errorf("Response.Error.Message lost %q; got: %s", keep, message)

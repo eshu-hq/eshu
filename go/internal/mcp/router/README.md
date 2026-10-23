@@ -220,9 +220,8 @@ surface.
 | F, handler-optional required field | `analyze_code_relationships` and `analyze_infra_relationships` without `query_type`, `build_evidence_citation_packet` without `handles`, `list_package_registry_packages` without `limit` | the field is required | the route sends an empty or default value and the handler serves it; each row cites its handler |
 
 Class C is not a divergence: the handler answers 400 for the same call (each
-row records the handler's message), or the route answers 404
-(`investigate_service` without `service_name`), which direct dispatch reports
-as an error too. A path id left empty is also class C: `resolveRoute` refuses
+row records the handler's message), or the route answers 404 on an empty path
+segment, which direct dispatch reports as an error too. A path id left empty is also class C: `resolveRoute` refuses
 the `//` route with `<field> is required` before any request is built, so no
 handler runs (#8772; `get_entity_context`, `get_incident_context`,
 `get_repository_coverage`, `get_workload_context`, `get_workload_story`, and

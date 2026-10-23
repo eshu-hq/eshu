@@ -182,14 +182,14 @@ func TestRouteMapsGetServiceStoryRepositoryScopedServiceName(t *testing.T) {
 	}
 }
 
-func TestRouteGetServiceStoryRequiresWorkloadIDOrServiceName(t *testing.T) {
+func TestRouteGetServiceStoryRequiresAnySelector(t *testing.T) {
 	t.Parallel()
 
 	request, handled, err := Route("get_service_story", routecontract.Arguments{})
 	if !handled {
 		t.Fatal("Route() handled = false, want true")
 	}
-	const wantError = "get_service_story requires workload_id or service_name"
+	const wantError = "get_service_story requires service_id, workload_id, or service_name"
 	if err == nil || err.Error() != wantError {
 		t.Fatalf("Route() error = %v, want %q", err, wantError)
 	}
@@ -228,7 +228,7 @@ func TestRouteGetServiceIntelligenceReportRequiresSelector(t *testing.T) {
 	// Assert the message, not just that an error exists. This route builds its
 	// own string rather than sharing the %s-formatted one the context and story
 	// routes use, so a reword here is caught by nothing else.
-	const wantError = "get_service_intelligence_report requires workload_id or service_name"
+	const wantError = "get_service_intelligence_report requires service_id, workload_id, or service_name"
 	if err == nil || err.Error() != wantError {
 		t.Fatalf("Route() error = %v, want %q", err, wantError)
 	}
@@ -255,18 +255,6 @@ func TestRouteMapsInvestigateService(t *testing.T) {
 	}
 	if !reflect.DeepEqual(request, want) {
 		t.Fatalf("Route() = %#v, want %#v", request, want)
-	}
-}
-
-func TestRouteInvestigateServiceDoesNotRequireSelector(t *testing.T) {
-	t.Parallel()
-
-	request, handled, err := Route("investigate_service", routecontract.Arguments{})
-	if !handled || err != nil {
-		t.Fatalf("Route() = (_, %v, %v), want handled without error even with no service_name", handled, err)
-	}
-	if got, want := request.Path, "/api/v0/investigations/services/"; got != want {
-		t.Fatalf("Route() path = %q, want %q", got, want)
 	}
 }
 

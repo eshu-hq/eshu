@@ -46,8 +46,8 @@ Service story supports disambiguation with:
 - `environment` for environment-scoped disambiguation
 
 When a service name matches multiple workloads, service story returns HTTP 409
-with envelope `error.code=ambiguous`, `data=null`, and candidate details. It
-does not choose the first match.
+with envelope `error.code=ambiguous`, `data=null`, and candidates that each carry a
+`next_selector` (the `service_id` to pass next). It never chooses the first match; `repo` separates only services in different repositories.
 
 Service and repository story `documentation_overview` may include
 `target_documentation` when the documentation read model has admissible

@@ -33,10 +33,10 @@ func TestToolsPreserveServiceRegistrationContract(t *testing.T) {
 
 	tools := combinedServiceTools()
 	encoded := marshalServiceDefinitions(t, tools)
-	if got, want := len(encoded), 5863; got != want {
+	if got, want := len(encoded), 8090; got != want {
 		t.Fatalf("serialized service definitions length = %d, want %d", got, want)
 	}
-	const wantDefinitionsHash = "adcf88a0269a05ead855e90ae2f805d790912c8659fb4ccbbd057c6ce4807369"
+	const wantDefinitionsHash = "a2d8d78a7345fbee8a8f081b5b1fc407ed2fe5798b47b7f55d14e1048dad942f"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("service definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}
@@ -121,11 +121,16 @@ func requireServiceSchemaTypes(
 		}
 	}
 
-	for _, index := range []int{0, 2} {
-		schema := requireServiceSchemaMap(t, fmt.Sprintf("context tool %d", index), contextTools[index].InputSchema)
-		if _, ok := schema["required"].([]string); !ok {
-			t.Fatalf("context tool %d required type = %T, want []string", index, schema["required"])
-		}
+	// get_service_context requires workload_id. investigate_service marks no
+	// field required, so service_id may stand alone; its route refuses a call
+	// with neither selector.
+	contextSchema := requireServiceSchemaMap(t, "context tool 0", contextTools[0].InputSchema)
+	if _, ok := contextSchema["required"].([]string); !ok {
+		t.Fatalf("context tool 0 required type = %T, want []string", contextSchema["required"])
+	}
+	investigateSchema := requireServiceSchemaMap(t, "context tool 2", contextTools[2].InputSchema)
+	if required, present := investigateSchema["required"]; present {
+		t.Fatalf("investigate_service required = %v, want none so service_id can stand alone", required)
 	}
 }
 

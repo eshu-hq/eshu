@@ -15,10 +15,14 @@ func IntelligenceTools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		{
 			Name:        "get_service_intelligence_report",
-			Description: "Compose the one-call service intelligence report for a service: identity, code-to-runtime trace, deployment/config influence, supply-chain, and incidents, each with preserved truth labels, evidence handles, limitations, and bounded next calls, plus deterministic suggested investigations. Returns schema service_intelligence_report.v1.",
+			Description: "Compose the one-call service intelligence report for a service: identity, code-to-runtime trace, deployment/config influence, supply-chain, and incidents, each with preserved truth labels, evidence handles, limitations, and bounded next calls, plus deterministic suggested investigations. Returns schema service_intelligence_report.v1. Select the service with one of service_id, workload_id, or service_name; the first one given wins in that order. repo separates only services that live in different repositories. When the answer is ambiguous, call again with service_id set to a candidate's next_selector value.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"service_id": map[string]any{
+						"type":        "string",
+						"description": "Exact service identifier: a full scoped id (workload:repository:<repo_id>:<name>) or a workload:<name> handle, as listed in the candidates of an ambiguous answer. Selects one service on its own and wins over workload_id and service_name",
+					},
 					"workload_id": map[string]any{
 						"type":        "string",
 						"description": "Service workload identifier, or a service name passed through the workload_id field",
@@ -29,15 +33,15 @@ func IntelligenceTools() []toolcontract.ToolDefinition {
 					},
 					"repo": map[string]any{
 						"type":        "string",
-						"description": "Optional repository selector used with service_name to disambiguate the service",
+						"description": "Optional repository selector used with service_name. It separates only services in different repositories; use service_id for the rest",
 					},
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Optional repository selector alias used with service_name to disambiguate the service",
+						"description": "Optional repository selector alias used with service_name. It separates only services in different repositories; use service_id for the rest",
 					},
 					"repo_id": map[string]any{
 						"type":        "string",
-						"description": "Optional repository selector alias used with service_name to disambiguate the service",
+						"description": "Optional repository selector alias used with service_name. It separates only services in different repositories; use service_id for the rest",
 					},
 					"environment": map[string]any{
 						"type":        "string",

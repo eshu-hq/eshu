@@ -34,6 +34,19 @@ repository selector together:
 { "service_name": "payments-api", "repository_id": "repository:r_payments", "environment": "prod" }
 ```
 
+The repository selector separates only services that live in different
+repositories. When a name still matches several workloads, the `ambiguous`
+answer lists each candidate with a `next_selector`; pass that `service_id` on
+the next call:
+
+```json
+{ "service_id": "workload:repository:r_payments:payments-api", "environment": "prod" }
+```
+
+`investigate_service` and `get_service_intelligence_report` take the same
+`service_id` argument and return the same `next_selector` on an ambiguous
+answer.
+
 Use the investigation tool for evidence-first onboarding or a scoped question:
 
 **Tool:** `investigate_service`

@@ -34,10 +34,14 @@ func ContextTools() []toolcontract.ToolDefinition {
 		},
 		{
 			Name:        "get_service_story",
-			Description: "Get the one-call service dossier for a service: identity, API surface, deployment lanes, dependencies, consumers, and evidence graph.",
+			Description: "Get the one-call service dossier for a service: identity, API surface, deployment lanes, dependencies, consumers, and evidence graph. Select the service with one of service_id, workload_id, or service_name; the first one given wins in that order. repo separates only services that live in different repositories, so two same-named services in one repository stay ambiguous. When the answer is ambiguous, call again with service_id set to a candidate's next_selector value.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"service_id": map[string]any{
+						"type":        "string",
+						"description": "Exact service identifier: a full scoped id (workload:repository:<repo_id>:<name>) or a workload:<name> handle, as listed in the candidates of an ambiguous answer. Selects one service on its own and wins over workload_id and service_name",
+					},
 					"workload_id": map[string]any{
 						"type":        "string",
 						"description": "Service workload identifier, or a service name passed through the workload_id field",
@@ -48,15 +52,15 @@ func ContextTools() []toolcontract.ToolDefinition {
 					},
 					"repo": map[string]any{
 						"type":        "string",
-						"description": "Optional repository selector used with service_name to disambiguate service story readback",
+						"description": "Optional repository selector used with service_name. It separates only services in different repositories, not two services in the same repository; use service_id for those",
 					},
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Optional repository selector alias used with service_name to disambiguate service story readback",
+						"description": "Optional repository selector alias used with service_name. It separates only services in different repositories; use service_id for the rest",
 					},
 					"repo_id": map[string]any{
 						"type":        "string",
-						"description": "Optional repository selector alias used with service_name to disambiguate service story readback",
+						"description": "Optional repository selector alias used with service_name. It separates only services in different repositories; use service_id for the rest",
 					},
 					"environment": map[string]any{
 						"type":        "string",
@@ -67,25 +71,29 @@ func ContextTools() []toolcontract.ToolDefinition {
 		},
 		{
 			Name:        "investigate_service",
-			Description: "Plan a service investigation across related repositories, deployment sources, indexed docs, and evidence drilldowns.",
+			Description: "Plan a service investigation across related repositories, deployment sources, indexed docs, and evidence drilldowns. Select the service with service_id or service_name; service_id wins. repo separates only services that live in different repositories. When the answer is ambiguous, call again with service_id set to a candidate's next_selector value.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"service_id": map[string]any{
+						"type":        "string",
+						"description": "Exact service identifier: a full scoped id (workload:repository:<repo_id>:<name>) or a workload:<name> handle, as listed in the candidates of an ambiguous answer. Selects one service on its own and wins over service_name",
+					},
 					"service_name": map[string]any{
 						"type":        "string",
-						"description": "Service name or canonical workload identifier to investigate",
+						"description": "Service name or canonical workload identifier to investigate. Optional when service_id is given",
 					},
 					"repo": map[string]any{
 						"type":        "string",
-						"description": "Optional repository selector used with service_name to disambiguate service investigation readback",
+						"description": "Optional repository selector used with service_name. It separates only services in different repositories; use service_id for the rest",
 					},
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Optional repository selector alias used with service_name to disambiguate service investigation readback",
+						"description": "Optional repository selector alias used with service_name. It separates only services in different repositories; use service_id for the rest",
 					},
 					"repo_id": map[string]any{
 						"type":        "string",
-						"description": "Optional repository selector alias used with service_name to disambiguate service investigation readback",
+						"description": "Optional repository selector alias used with service_name. It separates only services in different repositories; use service_id for the rest",
 					},
 					"environment": map[string]any{
 						"type":        "string",
@@ -100,7 +108,6 @@ func ContextTools() []toolcontract.ToolDefinition {
 						"description": "Optional user question to preserve in the investigation packet",
 					},
 				},
-				"required": []string{"service_name"},
 			},
 		},
 	}

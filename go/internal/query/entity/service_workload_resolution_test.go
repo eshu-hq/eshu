@@ -79,8 +79,8 @@ func TestServiceWorkloadAmbiguousErrorUsesAPINeutralSelectorGuidance(t *testing.
 	if strings.Contains(message, "--") {
 		t.Fatalf("message = %q, want API-neutral selector names instead of CLI flags", message)
 	}
-	if !strings.Contains(message, "service_id, repo, or environment") {
-		t.Fatalf("message = %q, want service_id, repo, or environment guidance", message)
+	if !strings.Contains(message, "service_id") {
+		t.Fatalf("message = %q, want service_id guidance", message)
 	}
 }
 

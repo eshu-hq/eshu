@@ -25,17 +25,6 @@ const ServiceWorkloadCandidateLimit = 10
 // established name. See #6060.
 type ServiceWorkloadSelector = service.WorkloadSelector
 
-// ServiceWorkloadCandidate is one service-workload candidate row. Exported as the result element of QueryServiceWorkloadCandidates; see #6060.
-type ServiceWorkloadCandidate struct {
-	ID          string
-	Name        string
-	Kind        string
-	RepoID      string
-	RepoName    string
-	Environment string
-	MatchBasis  string
-}
-
 type serviceWorkloadAmbiguousError struct {
 	Selector   string
 	Candidates []ServiceWorkloadCandidate
@@ -44,7 +33,7 @@ type serviceWorkloadAmbiguousError struct {
 
 func (e serviceWorkloadAmbiguousError) Error() string {
 	return fmt.Sprintf(
-		"service selector %q matched multiple services; add service_id, repo, or environment",
+		"service selector %q matched multiple services; pass the service_id of one candidate (repo separates only services in different repositories)",
 		e.Selector,
 	)
 }
@@ -396,20 +385,4 @@ func traceServiceSelectorDisplay(selector ServiceWorkloadSelector) string {
 		return selector.ServiceID
 	}
 	return selector.ServiceName
-}
-
-func serviceWorkloadCandidateMaps(candidates []ServiceWorkloadCandidate) []map[string]any {
-	rows := make([]map[string]any, 0, len(candidates))
-	for _, candidate := range candidates {
-		rows = append(rows, map[string]any{
-			"service_id":   candidate.ID,
-			"service_name": candidate.Name,
-			"kind":         candidate.Kind,
-			"repo_id":      candidate.RepoID,
-			"repo_name":    candidate.RepoName,
-			"environment":  candidate.Environment,
-			"match_basis":  candidate.MatchBasis,
-		})
-	}
-	return rows
 }
