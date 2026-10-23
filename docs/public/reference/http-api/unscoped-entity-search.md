@@ -60,7 +60,7 @@ exact page carries the same rows, in the same order, with the same payload
 (`source_cache`, `metadata`) as the old unbounded statement.
 
 The budget is `ESHU_CONTENT_SEARCH_BUDGET_MS` (default 800, accepted
-100..10000; see [Environment Variable Reference](../env-registry.md)), shared
+100..10000; see [Environment Variable Reference](../env-registry/api-and-auth.md#api)), shared
 with the unscoped file search. Every internal timeout scales with it.
 
 ## Partial results

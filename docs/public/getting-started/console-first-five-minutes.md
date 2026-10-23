@@ -201,7 +201,7 @@ of the wizard is skipped for you — you sign in directly instead
 skip local admin seeding entirely for a deployment that only ever signs in
 through SSO.
 
-See [Environment Variable Reference](../reference/env-registry.md#auth) for
+See [Environment Variable Reference](../reference/env-registry/api-and-auth.md#auth) for
 every bootstrap-related variable, its default, and its exact accepted values.
 
 ## Insecure-origin cookie note
@@ -213,7 +213,7 @@ plain-HTTP origin still gets a `Secure` cookie, which the browser refuses to
 store — the session will not persist, and the Console shows a diagnostic
 banner rather than a confusing silent sign-out
 (`ESHU_AUTH_COOKIE_SECURE`, default `auto`; see
-[Environment Variable Reference](../reference/env-registry.md#api)). If you
+[Environment Variable Reference](../reference/env-registry/api-and-auth.md#api)). If you
 need to reach the Console from a non-loopback plain-HTTP address, put a
 TLS-terminating tunnel or proxy in front of it, or serve it over HTTPS
 directly.
@@ -228,7 +228,7 @@ directly.
 | Session does not stay signed in | Console reached over a non-loopback plain-HTTP origin | See [Insecure-origin cookie note](#insecure-origin-cookie-note) above. |
 | "The provider cannot be enabled: connection test did not pass" | Save was clicked before Run test sign-in passed for the current fields | Click **Run test sign-in** again, confirm it passes, then Save without editing the fields in between. |
 | Console shows "Providers unavailable from this source" | The Console is not connected to a live API (demo mode, or the API is unreachable) | Confirm `docker compose ps` shows the `eshu` service healthy and the Console's proxy target matches its published port. |
-| GitHub provider shows **active**, but no GitHub button appears and `GET /api/v0/auth/github/login` 404s | An active DB provider alone does not mount the route (issue #5605) | Set `ESHU_AUTH_GITHUB_ENABLED=true` and restart the API — see [Dashboard browser sessions](../reference/http-api/dashboard-sessions.md) and [Environment Variable Reference](../reference/env-registry.md#api). |
+| GitHub provider shows **active**, but no GitHub button appears and `GET /api/v0/auth/github/login` 404s | An active DB provider alone does not mount the route (issue #5605) | Set `ESHU_AUTH_GITHUB_ENABLED=true` and restart the API — see [Dashboard browser sessions](../reference/http-api/dashboard-sessions.md) and [Environment Variable Reference](../reference/env-registry/api-and-auth.md#api). |
 
 ## Related docs
 

@@ -88,6 +88,7 @@ gates:
       - ".github/static-contract-filters.yml"
       - "go/internal/envregistry/**"
       - "docs/public/reference/env-registry.md"
+      - "docs/public/reference/env-registry/**"
       - "go/internal/envregistry/README.md"
       - "scripts/generate-env-registry-doc.sh"
       - "scripts/verify-env-registry-doc.sh"

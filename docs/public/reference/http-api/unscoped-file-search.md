@@ -39,7 +39,7 @@ complete. The page is the first `limit` matches in key order after `offset`
 matches; the server reads `offset + limit + 1` matches to set `truncated`.
 
 The budget is `ESHU_CONTENT_SEARCH_BUDGET_MS` (default 800, accepted
-100..10000; see [Environment Variable Reference](../env-registry.md)). Every
+100..10000; see [Environment Variable Reference](../env-registry/api-and-auth.md#api)). Every
 internal timeout scales with it.
 
 ## Partial results
