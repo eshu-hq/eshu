@@ -126,10 +126,13 @@ Each pass writes one line. A successful pass logs at INFO with the message
 `workflow work item retention pass`. A failed pass logs at ERROR with the
 message `workflow work item retention pass failed` and an `error` field. A
 pass stopped by coordinator shutdown logs at INFO with the message
-`workflow work item retention pass canceled`. All three carry `outcome`, `deleted_completed`, `deleted_failed_terminal`,
-`scanned_rows`, `batches`, `wrapped`, `longest_batch_ms`, `duration_ms`,
-`retention_age`, `batch_size`, `max_batches`, and `table_bytes` with
-`table_estimated_rows` (or `table_size_error`).
+`workflow work item retention pass canceled`. All three carry `outcome`,
+`deleted_completed`, `deleted_failed_terminal`, `scanned_rows`, `batches`,
+`wrapped`, `longest_batch_ms`, `duration_ms`, `retention_age`,
+`batch_size`, and `max_batches`. The success and failure lines also carry
+`table_bytes` with `table_estimated_rows`, or `table_size_error` when the
+catalog read failed. The canceled line carries no table size field: a
+canceled pass skips the size read.
 
 ## Runbook
 
@@ -151,8 +154,12 @@ next tick.
 **`work_items_table_bytes` keeps growing with retention on.** Deleted rows
 free space only after autovacuum. Check `n_dead_tup` and `last_autovacuum`
 for `workflow_work_items` in `pg_stat_user_tables`. If `deleted_total` is
-flat, the remaining rows are protected: open runs that never closed, or one
-newest row per target. Check run status counts for runs stuck open.
+flat, the remaining rows are protected. Retention keeps every row of a run
+that is still open, every row younger than the age, and, for each
+`(collector_kind, collector_instance_id, scope_id)` target, up to three
+rows: its newest row, its newest `completed` row, and its newest
+`failed_terminal` row. It also keeps each scope's active-generation row.
+Check run status counts for runs stuck open.
 
 **`batch_duration_seconds` p99 above about 1 s.** Batches are measured at
 11 to 63 ms per 1,000 rows on a 300,000-row table, depending on how the

@@ -38,12 +38,13 @@ package items
 // with the (updated_at, work_item_id) comparison as an index condition and the
 // status as a heap filter. 11 to 63 ms and 10k to 45k shared buffers per
 // 1,000-row batch across two id layouts, no slower than the earlier two-probe
-// statement in any measured window (median of three runs). The OFFSET 0 fence keeps that check per-row: without it the
-// planner turned it into a hash semi-join over a full sequential scan
-// (127 ms with a temp spill). The worst case is a target whose newest
-// completed row is older than the cutoff and followed by many failures: its
-// probe heap-checks every newer row of the target, so it costs at most the
-// target's row count once per walk.
+// statement in any measured window (median of three runs). The OFFSET 0
+// fence keeps that check per-row: without it the planner turned it into a
+// hash semi-join over a full sequential scan (127 ms with a temp spill).
+// The worst case is a target whose newest completed row is older than the
+// cutoff and followed by many failures: its probe heap-checks every newer
+// row of the target, so it costs at most the target's row count once per
+// walk.
 //
 // Locking: FOR UPDATE OF item SKIP LOCKED. Lifecycle writers (claim,
 // heartbeat, complete, fail, release, reap) only lock rows in status claimed
