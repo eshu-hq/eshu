@@ -25,18 +25,7 @@ func readCurrentCalledChecks(ctx context.Context, runner ghRunner, repo string, 
 		return nil, fmt.Errorf("list current Build Test run: %w", err)
 	}
 	var pages []struct {
-		WorkflowRuns []struct {
-			ID           int64  `json:"id"`
-			Name         string `json:"name"`
-			Path         string `json:"path"`
-			Event        string `json:"event"`
-			HeadSHA      string `json:"head_sha"`
-			HeadBranch   string `json:"head_branch"`
-			RunAttempt   int    `json:"run_attempt"`
-			PullRequests []struct {
-				Number int `json:"number"`
-			} `json:"pull_requests"`
-		} `json:"workflow_runs"`
+		WorkflowRuns []calledWorkflowRun `json:"workflow_runs"`
 	}
 	if err := json.Unmarshal(output, &pages); err != nil {
 		return nil, fmt.Errorf("decode Build Test runs: %w", err)
@@ -44,11 +33,18 @@ func readCurrentCalledChecks(ctx context.Context, runner ghRunner, repo string, 
 	var id int64
 	var attempt int
 	var branch string
+	commits := make(map[string]error)
 	for _, page := range pages {
 		for _, run := range page.WorkflowRuns {
 			if run.Name != "Build Test" || run.Path != ".github/workflows/test.yml" ||
-				run.Event != eventPullRequest || run.HeadSHA != headSHA ||
-				len(run.PullRequests) != 1 || run.PullRequests[0].Number != pr {
+				run.Event != eventPullRequest || run.HeadSHA != headSHA {
+				continue
+			}
+			bound, bindErr := calledRunBelongsToPR(ctx, runner, repo, pr, headSHA, run, commits)
+			if bindErr != nil {
+				return nil, bindErr
+			}
+			if !bound {
 				continue
 			}
 			if run.ID > id || run.ID == id && run.RunAttempt > attempt {
