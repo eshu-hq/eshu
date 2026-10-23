@@ -172,12 +172,12 @@ asserted from recorded runs in the resolve tests.
 
 ## Symlink admission (#8809)
 
-Discovery tests the link name but the content read follows the link.
-`symlinkTargetAdmitted` keeps a symlink only when it resolves to a regular file
-inside the repository, outside ignored directories, in the same admission
-category as the link (same parser definition, or both terraform state,
+Discovery tests the link name but the content read follows the link. In both
+sync modes `symlinkAdmission` keeps a symlink only when it resolves to a regular
+file inside the repository that `discovery.PathRules` admits, in the same
+admission category as the link (same parser definition, or both terraform state,
 documentation, `.gitmodules`, or CODEOWNERS). `.nvmrc -> .env` is dropped, as
-are dangling links, cycles, and directory links. This covers every admitted name.
+are dangling links, cycles, and directory links. Limits are in `AGENTS.md`.
 
 ## Directory size
 

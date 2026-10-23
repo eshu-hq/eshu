@@ -8,6 +8,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/discovery"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
@@ -50,7 +51,8 @@ func discoverThroughSymlinkedRoot(t *testing.T, repoRoot string) []string {
 // caller hands in a repo root reached through a symlinked directory (#8809
 // review). Targets resolve under the real root, so CODEOWNERS and .gitmodules
 // detection must be measured from the real root too. A legitimate same-category
-// link stays admitted; a credential link still drops.
+// link stays admitted; a credential link still drops. The --file-targets path
+// gets the same root and must reach the same decision.
 func TestResolveNativeSnapshotFileSetSymlinkedRepoRootKeepsSameCategoryLinks(t *testing.T) {
 	t.Parallel()
 
@@ -124,6 +126,16 @@ func TestResolveNativeSnapshotFileSetSymlinkedRepoRootKeepsSameCategoryLinks(t *
 			got := discoverThroughSymlinkedRoot(t, aliasRoot)
 			if containsPath(got, tt.link) != tt.admits {
 				t.Fatalf("link %q admitted = %v, want %v (discovered %v)", tt.link, !tt.admits, tt.admits, got)
+			}
+			var stats discovery.DiscoveryStats
+			deltaSet, err := resolveNativeSnapshotFileSetForTargets(aliasRoot,
+				[]string{filepath.Join(aliasRoot, filepath.FromSlash(tt.link))},
+				parser.DefaultRegistry(), NativeRepositorySnapshotter{}.discoveryOptions(), &stats)
+			if err != nil {
+				t.Fatalf("resolveNativeSnapshotFileSetForTargets() error = %v", err)
+			}
+			if got := len(deltaSet.Files) == 1; got != tt.admits {
+				t.Fatalf("delta link %q admitted = %v, want %v (files %+v)", tt.link, got, tt.admits, deltaSet.Files)
 			}
 		})
 	}

@@ -89,7 +89,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		// reads. The filter still has to run here, because the delta file set
 		// is built from the targets rather than from fullFileSet.
 		var deltaFilterStats discovery.DiscoveryStats
-		fileSet, err = resolveNativeSnapshotFileSetForTargets(repoPath, repository.FileTargets, registry, &deltaFilterStats)
+		fileSet, err = resolveNativeSnapshotFileSetForTargets(repoPath, repository.FileTargets, registry, discoveryOpts, &deltaFilterStats)
 	}
 	if err != nil {
 		return RepositorySnapshot{}, err

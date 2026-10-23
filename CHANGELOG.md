@@ -65,11 +65,14 @@ recent shipped work grouped by feature area.
   up. Per-repository cost is in the
   [reconciliation sweep](docs/public/reference/reconciliation-sweep.md); watch
   the ingester queue and the reducer backlog while the sweep drains.
-- **Hardening for every admitted name:** discovery now drops a symlink unless
-  its resolved target is a regular file inside the repository in the same
-  admission category (same parser definition, outside ignored directories), so
+- **Hardening for every admitted name:** full and delta (`--file-targets`)
+  discovery now drop a symlink unless its resolved target is a regular file
+  inside the repository in the same admission category (same parser
+  definition), at a path discovery would admit as a regular file (no ignored or
+  hidden directory, ignored extension, or ignored path glob). So
   `.nvmrc -> .env` or a link into `.git/config` no longer stores the target's
-  text. Dangling links, cycles, and directory links are dropped too. Each
+  text. `.gitignore` and `.eshuignore` are not re-applied to the target.
+  Dangling links, cycles, and directory links are dropped too. Each
   dropped link is counted as `skip_reason=content:symlink_target` on
   `eshu_dp_discovery_files_skipped_total` and logged in the `discovery stats`
   line as `files_skipped.content.symlink_target`; a repository that relied on

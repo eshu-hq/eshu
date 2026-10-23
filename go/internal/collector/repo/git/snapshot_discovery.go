@@ -325,35 +325,18 @@ func resolveNativeSnapshotFileSet(
 	if err != nil {
 		return discovery.RepoFileSet{}, discovery.DiscoveryStats{}, err
 	}
-	category := func(path string) string {
-		if isTerraformStateCandidateName(filepath.Base(path)) {
-			return "terraform_state"
-		}
-		if definition, ok := registry.LookupByPath(path); ok {
-			return "registry:" + definition.ParserKey
-		}
-		if docs.IsGitDocumentationPath(path) {
-			return "documentation"
-		}
-		if submodule.IsGitmodulesCandidatePath(repoPath, path) {
-			return "gitmodules"
-		}
-		if codeowners.IsCodeownersCandidatePath(repoPath, path) {
-			return "codeowners"
-		}
-		return ""
-	}
+	admission := newSymlinkAdmission(repoPath, registry, opts)
 	// The walk calls the matcher once per file from one goroutine, so a plain
 	// counter is safe. Dropped links join the content skip stats after the walk.
 	droppedLinks := 0
 	stats, fileSets, err := discovery.ResolveRepositoryFileSetsWithStats(
 		repoPath,
 		func(path string) bool {
-			linkCategory := category(path)
+			linkCategory := admission.category(path)
 			if linkCategory == "" {
 				return false
 			}
-			admitted, linkDropped := symlinkTargetAdmitted(repoPath, path, linkCategory, opts.IgnoredDirs, category)
+			admitted, linkDropped := admission.symlinkTargetAdmitted(path, linkCategory)
 			if linkDropped {
 				droppedLinks++
 			}
@@ -361,12 +344,7 @@ func resolveNativeSnapshotFileSet(
 		},
 		opts,
 	)
-	if droppedLinks > 0 {
-		if stats.FilesSkippedByContent == nil {
-			stats.FilesSkippedByContent = make(map[string]int)
-		}
-		stats.FilesSkippedByContent[symlinkTargetSkipReason] += droppedLinks
-	}
+	addDroppedSymlinks(&stats, droppedLinks)
 	if err != nil {
 		return discovery.RepoFileSet{}, stats, fmt.Errorf("resolve repository file sets: %w", err)
 	}
@@ -379,30 +357,73 @@ func resolveNativeSnapshotFileSet(
 	return discovery.RepoFileSet{RepoRoot: repoPath}, stats, nil
 }
 
+// addDroppedSymlinks records n links the target check dropped under the
+// content skip reason symlinkTargetSkipReason.
+func addDroppedSymlinks(stats *discovery.DiscoveryStats, n int) {
+	if n == 0 {
+		return
+	}
+	if stats.FilesSkippedByContent == nil {
+		stats.FilesSkippedByContent = make(map[string]int)
+	}
+	stats.FilesSkippedByContent[symlinkTargetSkipReason] += n
+}
+
+// symlinkAdmission is the one symlink rule both sync modes apply: full
+// discovery calls it from the walk matcher and the --file-targets path calls it
+// for each target, so a link cannot be dropped by one mode and indexed by the
+// other (#8809). repoPath must already be resolved with filepath.EvalSymlinks;
+// both callers resolve it once at the top, and the containment check compares
+// resolved targets against it without resolving it again.
+type symlinkAdmission struct {
+	repoPath string
+	registry parser.Registry
+	rules    discovery.PathRules
+}
+
+func newSymlinkAdmission(resolvedRepoPath string, registry parser.Registry, opts discovery.Options) symlinkAdmission {
+	return symlinkAdmission{repoPath: resolvedRepoPath, registry: registry, rules: discovery.NewPathRules(opts)}
+}
+
+// category names the admission category of path's own name: the parser
+// definition for registry names, or terraform state, documentation,
+// .gitmodules, or CODEOWNERS. An empty result means the name is not admitted.
+func (a symlinkAdmission) category(path string) string {
+	if isTerraformStateCandidateName(filepath.Base(path)) {
+		return "terraform_state"
+	}
+	if definition, ok := a.registry.LookupByPath(path); ok {
+		return "registry:" + definition.ParserKey
+	}
+	if docs.IsGitDocumentationPath(path) {
+		return "documentation"
+	}
+	if submodule.IsGitmodulesCandidatePath(a.repoPath, path) {
+		return "gitmodules"
+	}
+	if codeowners.IsCodeownersCandidatePath(a.repoPath, path) {
+		return "codeowners"
+	}
+	return ""
+}
+
 // symlinkTargetAdmitted keeps a symlink from smuggling a file its name would
 // never earn. Discovery tests only the link name and the content read follows
 // the link, so `.nvmrc -> .env`, `.nvmrc -> .git/config`, or
 // `.nvmrc -> terraform.tfstate` would store text the content store cannot
-// redact. A regular file passes unchanged. A symlink passes only when it
-// resolves to a regular file inside repoPath, under no ignored directory, and
-// the target falls in the same admission category as the link (the same parser
-// definition for registry names; terraform state, documentation, .gitmodules,
-// and CODEOWNERS each match only their own kind). Dangling links, link cycles,
-// directory links, and links that leave the repository fail closed. This
-// mirrors the --file-targets path, which resolves symlinks before it asks the
-// registry. Gitignore and eshuignore rules are not re-applied to the target:
-// an operator-excluded path can still surface through an in-root link whose
-// name is admitted, the same as before this check existed.
+// redact. A regular file passes unchanged. A symlink passes only when its
+// target is a file full discovery would admit by location and by name: a
+// regular file inside repoPath that discovery.PathRules does not exclude (no
+// ignored or hidden directory, no ignored extension or hidden name, no ignored
+// path glob), in the same admission category as the link. Dangling links, link
+// cycles, directory links, and links that leave the repository fail closed.
+// Repo-local .gitignore and .eshuignore rules are not re-applied to the
+// target: an operator-excluded path can still surface through an in-root link
+// whose name is admitted.
 //
 // The second result is true only when path is a symlink that was rejected, so
 // the caller can count dropped links without counting a vanished file.
-func symlinkTargetAdmitted(
-	repoPath string,
-	path string,
-	linkCategory string,
-	ignoredDirs []string,
-	category func(string) string,
-) (admitted bool, linkDropped bool) {
+func (a symlinkAdmission) symlinkTargetAdmitted(path string, linkCategory string) (admitted bool, linkDropped bool) {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return false, false
@@ -410,56 +431,30 @@ func symlinkTargetAdmitted(
 	if info.Mode()&os.ModeSymlink == 0 {
 		return true, false
 	}
-	if symlinkResolvesToAdmittedTarget(repoPath, path, linkCategory, ignoredDirs, category) {
+	if a.symlinkResolvesToAdmittedTarget(path, linkCategory) {
 		return true, false
 	}
 	return false, true
 }
 
 // symlinkResolvesToAdmittedTarget reports whether the symlink at path resolves
-// to a regular file inside repoPath, under no ignored directory, in the same
+// to a regular file inside repoPath that the location rules admit, in the same
 // admission category as the link.
-func symlinkResolvesToAdmittedTarget(
-	repoPath string,
-	path string,
-	linkCategory string,
-	ignoredDirs []string,
-	category func(string) string,
-) bool {
+func (a symlinkAdmission) symlinkResolvesToAdmittedTarget(path string, linkCategory string) bool {
 	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return false
 	}
-	resolvedRoot, err := filepath.EvalSymlinks(repoPath)
-	if err != nil {
-		resolvedRoot = repoPath
-	}
-	rel, err := filepath.Rel(resolvedRoot, resolved)
+	rel, err := filepath.Rel(a.repoPath, resolved)
 	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(filepath.ToSlash(rel), "../") {
 		return false
 	}
-	if pathUnderIgnoredDir(filepath.Dir(filepath.ToSlash(rel)), ignoredDirs) {
+	if a.rules.ExcludesFile(filepath.ToSlash(rel)) {
 		return false
 	}
 	target, err := os.Stat(resolved)
 	if err != nil || !target.Mode().IsRegular() {
 		return false
 	}
-	return category(resolved) == linkCategory
-}
-
-// pathUnderIgnoredDir reports whether any directory component of the
-// slash-separated relative directory dir is an ignored directory name.
-func pathUnderIgnoredDir(dir string, ignoredDirs []string) bool {
-	if dir == "." {
-		return false
-	}
-	for _, segment := range strings.Split(dir, "/") {
-		for _, ignored := range ignoredDirs {
-			if strings.EqualFold(segment, ignored) {
-				return true
-			}
-		}
-	}
-	return false
+	return a.category(resolved) == linkCategory
 }

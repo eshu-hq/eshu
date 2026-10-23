@@ -33,7 +33,14 @@ import (
 // entities reached the graph depended on which sync mode happened to run
 // (#4782).
 //
-// stats receives the skip counts. Callers decide whether those counts are new
+// A target that is itself a symlink must pass the same symlinkAdmission rule
+// full discovery applies, built from the same repo-merged opts, so a link into
+// .git, an ignored directory, an operator path glob, or another admission
+// category is dropped in both modes (#8809). The admitted entry keeps the
+// resolved target path this function has always recorded.
+//
+// stats receives the skip counts, including dropped links under
+// symlinkTargetSkipReason. Callers decide whether those counts are new
 // information: the production caller passes a throwaway value, because the full
 // discovery it runs first has already counted the same files. See the comment
 // at that call site.
@@ -41,13 +48,29 @@ func resolveNativeSnapshotFileSetForTargets(
 	repoPath string,
 	fileTargets []string,
 	registry parser.Registry,
+	opts discovery.Options,
 	stats *discovery.DiscoveryStats,
 ) (discovery.RepoFileSet, error) {
+	if resolvedRoot, evalErr := filepath.EvalSymlinks(repoPath); evalErr == nil {
+		repoPath = resolvedRoot
+	}
+	opts, err := discoveryOptionsWithRepoDiscoveryConfig(repoPath, opts)
+	if err != nil {
+		return discovery.RepoFileSet{}, err
+	}
+	admission := newSymlinkAdmission(repoPath, registry, opts)
+	droppedLinks := 0
 	files := make([]discovery.FileWithSize, 0, len(fileTargets))
 	for _, target := range fileTargets {
 		absoluteTarget, err := filepath.Abs(target)
 		if err != nil {
 			return discovery.RepoFileSet{}, fmt.Errorf("resolve file target %q: %w", target, err)
+		}
+		if admitted, linkDropped := admitTargetSymlink(admission, absoluteTarget); !admitted {
+			if linkDropped {
+				droppedLinks++
+			}
+			continue
 		}
 		if resolvedTarget, resolveErr := filepath.EvalSymlinks(absoluteTarget); resolveErr == nil {
 			absoluteTarget = resolvedTarget
@@ -82,10 +105,37 @@ func resolveNativeSnapshotFileSetForTargets(
 		}
 		files = append(files, fileEntry)
 	}
+	addDroppedSymlinks(stats, droppedLinks)
 	return discovery.RepoFileSet{
 		RepoRoot: repoPath,
 		Files:    filterGeneratedNativeSnapshotFiles(files, stats),
 	}, nil
+}
+
+// admitTargetSymlink applies the full-discovery symlink rule to one file
+// target. A target that is not a symlink, or cannot be read, passes so the
+// existing target checks below decide it. Only the leaf is examined: the
+// target's directory is resolved first, the same way full discovery walks
+// under a resolved root. A symlink whose own name is not admitted is dropped
+// without counting, as full discovery's matcher drops it; one whose resolved
+// target fails the rule is dropped and reported through linkDropped.
+func admitTargetSymlink(admission symlinkAdmission, absoluteTarget string) (admitted bool, linkDropped bool) {
+	linkPath := absoluteTarget
+	if resolvedDir, err := filepath.EvalSymlinks(filepath.Dir(absoluteTarget)); err == nil {
+		linkPath = filepath.Join(resolvedDir, filepath.Base(absoluteTarget))
+	}
+	info, err := os.Lstat(linkPath)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		return true, false
+	}
+	linkCategory := admission.category(linkPath)
+	if linkCategory == "" {
+		return false, false
+	}
+	if admission.symlinkResolvesToAdmittedTarget(linkPath, linkCategory) {
+		return true, false
+	}
+	return false, true
 }
 
 func entityBucketsFromParsed(payload map[string]any) map[string][]shape.Entity {

@@ -129,6 +129,7 @@ func TestResolveNativeSnapshotFileSetForTargetsSkipsGeneratedBundles(t *testing.
 		resolvedRepoRoot,
 		[]string{bundlePath, sourcePath},
 		parser.DefaultRegistry(),
+		NativeRepositorySnapshotter{}.discoveryOptions(),
 		&stats,
 	)
 	if err != nil {

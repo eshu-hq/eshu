@@ -240,8 +240,8 @@ func TestSnapshotRepositoryStoresNoContentThroughCredentialSymlink(t *testing.T)
 }
 
 // TestResolveNativeSnapshotFileSetForTargetsDropsCredentialSymlink proves the
-// --file-targets path already agrees with full discovery: it resolves a
-// symlink before asking the registry, so a link to .env is dropped (#8809).
+// --file-targets path drops a link to .env through the same symlinkAdmission
+// rule full discovery applies, while a regular pin target stays (#8809).
 func TestResolveNativeSnapshotFileSetForTargetsDropsCredentialSymlink(t *testing.T) {
 	t.Parallel()
 
@@ -259,6 +259,7 @@ func TestResolveNativeSnapshotFileSetForTargetsDropsCredentialSymlink(t *testing
 		resolved,
 		[]string{filepath.Join(resolved, ".nvmrc"), filepath.Join(resolved, ".python-version")},
 		parser.DefaultRegistry(),
+		NativeRepositorySnapshotter{}.discoveryOptions(),
 		&stats,
 	)
 	if err != nil {

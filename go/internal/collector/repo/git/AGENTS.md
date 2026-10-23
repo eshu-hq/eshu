@@ -250,32 +250,51 @@ silent yield loss, and the existing sweep logs for the sweep period.
 
 ## Symlink admission evidence (#8809)
 
-`symlinkTargetAdmitted` runs once per file whose name discovery already
-admitted. Performance Evidence: the figures below are matcher microbenchmarks,
-not an end-to-end discovery before/after. On a 16-thread Linux dev host,
-20,000 iterations cost 949 ns per regular file (one `Lstat`) and 15.5 µs per
-symlink (`EvalSymlinks` plus `Stat`), against zero before. Both are far below
-the parse and read cost of the file they guard, and no queue, graph, or SQL path
-changes. A repository-scale discovery comparison is NOT_CHECKED.
+`symlinkAdmission` is the one symlink rule both sync modes apply. Full
+discovery calls `symlinkTargetAdmitted` from the walk matcher, and
+`resolveNativeSnapshotFileSetForTargets` calls `admitTargetSymlink` for each
+`--file-targets` entry, so a link dropped by one mode is dropped by the other
+(`TestSymlinkTargetAdmissionAgreesAcrossSyncModes`). A target must be a regular
+file inside the root, in the link's admission category, and not excluded by
+`discovery.PathRules` built from the repo-merged options. The delta path still
+records an admitted link under its resolved target path, as before.
+
+Both callers resolve `repoPath` with `EvalSymlinks` once at the top, and
+`newSymlinkAdmission` requires that resolved root: the containment check does
+not resolve it again. CODEOWNERS and `.gitmodules` detection, containment, and
+the returned `RepoRoot` all use one root
+(`TestResolveNativeSnapshotFileSetSymlinkedRepoRootKeepsSameCategoryLinks`
+covers both modes).
+
+Performance Evidence: `BenchmarkSymlinkTargetAdmitted` (committed in
+`snapshot_native_symlink_cost_test.go`) measures the matcher, not an end-to-end
+discovery before/after. `go test -run '^$' -bench BenchmarkSymlinkTargetAdmitted
+-benchtime=20000x -count=5 ./internal/collector/repo/git/` on a loaded 16-thread
+arm64 Linux host gave 0.82 to 1.40 µs per regular file (one `Lstat`) and 14.0 to
+16.4 µs per symlink (`EvalSymlinks`, the location rules, and `Stat`), against
+zero before. Both are far below the parse and read cost of the file they guard,
+and no queue, graph, or SQL path changes. A repository-scale discovery
+comparison is NOT_CHECKED.
 
 Observability Evidence: each dropped link adds one to
 `DiscoveryStats.FilesSkippedByContent["symlink_target"]`. That map already
 feeds `eshu_dp_discovery_files_skipped_total` as
 `skip_reason=content:symlink_target`, the `discovery stats` log key
 `files_skipped.content.symlink_target`, and the discovery advisory report's
-content breakdown. No instrument, label set, span, or status field is added. The
-matcher runs once per file on one goroutine, so the counter needs no lock. The
-`symlink admission` tests pin the dropped paths and
+content breakdown. The delta path counts into its own stats value, which the
+production caller discards because full discovery already counted the same
+link. No instrument, label set, span, or status field is added. The matcher
+runs once per file on one goroutine, so the counter needs no lock. The walk
+asks the matcher before it checks path globs, so a rejected link whose own path
+matches an operator glob counts as `content:symlink_target`, not `user:`.
 `TestResolveNativeSnapshotFileSetCountsDroppedSymlinks` pins the count.
 
-`resolveNativeSnapshotFileSet` resolves `repoPath` with `EvalSymlinks` once at
-the top, so CODEOWNERS and `.gitmodules` target detection, the containment
-check, and the returned `RepoRoot` all use one root. A caller that passes a
-symlinked root gets the same admission as one that resolved it first
-(`TestResolveNativeSnapshotFileSetSymlinkedRepoRootKeepsSameCategoryLinks`).
-
-Known limit: `.gitignore` and `.eshuignore` rules are not re-applied to a link
-target, only the ignored-directory names are. An operator-excluded path can
-still surface through an in-root link whose own name is admitted. Every
-admitted name had the same hole before this check, which now narrows it to
-regular files in the link's own admission category.
+Known limits: the target check re-applies ignored directory names, hidden
+paths and preserved hidden prefixes, ignored extensions, and ignored and
+preserved path globs (including `.eshu/discovery.json`, vendor roots, and
+`ESHU_DISCOVERY_IGNORED_PATH_GLOBS`). It does not re-apply `.gitignore` or
+`.eshuignore`, so a path excluded only by those files can still surface through
+an in-root link whose own name is admitted. The delta path checks only the
+target's leaf. Git refuses a path beyond a symbolic link, so a git-diff target
+never reaches a file through a directory link; an explicit operator
+`--file-targets` path can, and is then judged as the regular file it reaches.
