@@ -1,17 +1,20 @@
-# Redact `.yarnrc.yml` and `*.tfvars` in the content store instead of keeping them verbatim (#8813)
+# Redact `.yarnrc.yml` and store no body for `*.tfvars` (#8813)
 
-Status: Proposed. Research only. This record approves no code, schema change,
-or deployment action. Part of #8807. The implementation depends on the
-per-definition `ContentStore` policy in #8812. Citations are at commit
-`238b4015a9` and cite the function name, so they survive small line drift.
+Status: Accepted for the file rules (arbiter ruling relayed by the coordinator,
+2026-10-23). Two items still need a ruling (see "Decisions for the arbiter").
+This record approves no code, schema change, or deployment action. Part of
+#8807. The implementation depends on the per-definition `ContentStore` policy
+in #8812. Citations are at commit `238b4015a9` and name the function, so they
+survive small line drift.
 
-**Decision (recommended).** Neither file stays "store the body verbatim". Give
-both the `redact` policy from #8812: `.yarnrc.yml` and `*.tfvars` (plus
-`*.tfvars.json`, which the registry already routes to the same parser) are
-stored with credential values replaced at the collector write boundary, and
-bodies already stored are rewritten by a bounded, idempotent backfill. Choose
-metadata-only only if the arbiter rules that a best-effort denylist is not
-acceptable for `*.tfvars` (Decision 1).
+**Decision.** `.yarnrc.yml` gets the `redact` policy from #8812: credential
+values are replaced at the collector write boundary. `*.tfvars` and
+`*.tfvars.json` (which the registry already routes to the `hcl` parser) store
+no body. A key denylist is complete only against a closed schema, and tfvars is
+an open schema: whether a variable is secret is declared in `variables.tf`
+(`sensitive = true`), not in the name, so a redacted tfvars body can still hold
+a credential. Rows already stored are fixed by the one-time re-collect that the
+policy-aware registry fingerprint triggers, not by a rewrite loop.
 
 ## Context
 
@@ -72,7 +75,7 @@ What the two files can hold:
   `user:password@` userinfo in `npmRegistryServer`, `httpProxy`, `httpsProxy`.
 - `*.tfvars`: variable values, including database passwords, API keys, and
   private keys, plus the non-secret environment shape (module versions,
-  sizing, PagerDuty declarations) that is the reason to index it.
+  sizing, PagerDuty declarations).
 
 ### Evidence on how common it is
 
@@ -97,30 +100,47 @@ Three findings from the code. Each one defeats a "just stop storing it" fix.
    `repository_refs.go`). The reap (`staleContentFilePaths` in
    `content_writer_reap.go`) treats a retained path as present and keeps its
    stored content. A `store nothing` policy that only omits the content fact
-   therefore leaves the old body in place. #8812's "zero rows" test, written
-   against a fresh database, would pass while an upgraded database keeps the
-   literal.
+   leaves the old body in place, and #8812's "zero rows" test, run against a
+   fresh database, would still pass.
 2. **The parser fingerprint does not see a policy.** `Registry.Fingerprint`
    hashes key, language, extensions, exact names, and prefix names only
    (`registry.go`). The freshness hint in `snapshot_freshness.go` folds that
-   fingerprint into the generation identity. Adding a policy field leaves the
-   hint unchanged, so unchanged repositories are not re-collected and keep
-   their stored bodies until the file next changes.
+   fingerprint into the generation identity. A policy field leaves the hint
+   unchanged, so unchanged repositories are not re-collected and keep their
+   stored bodies until the file next changes.
 3. **Delta generations never reap.** `FullSnapshot` is set only for a
-   repository-scoped, non-delta generation (`content/writer.go`).
+   repository-scoped, non-delta generation (`content/writer.go`). Editing
+   `RetainedPaths` therefore cannot be the fix: a delta never consults it.
 
-A `redact` policy avoids finding 1 for the rewritten path, because the content
-record is still emitted and the upsert overwrites the body. Findings 2 and 3
-still need the backfill below.
+### What reads `content_files` or the content fact besides the file tools
+
+These decide what "store no body" costs for `*.tfvars`.
+
+- **Repository tree, file counts, language inventory, and coverage** are read
+  from `content_files` rows (`go/internal/query/repository/tree.go`,
+  `stats.go`, `language_inventory.go`, `coverage.go`). A deleted row removes the
+  path from all four.
+- **Relationship evidence** is discovered by the reducer from the `content`
+  fact bodies (`relationships.DiscoverEvidence`,
+  `envelopeContentIdentity` in `evidence_content_index.go`).
+  `isTerraformArtifact` in `terraform_evidence.go` and the catalog matcher in
+  `catalog_matcher.go` explicitly accept `.tfvars` and `.tfvars.json`. If the
+  collector stops putting the body in the fact, this evidence disappears for
+  tfvars. Whether real tfvars files yield any is unmeasured.
+- **`content_file_references`** rows are derived from the file body
+  (`contentReferencesForFiles` in `content_writer_references.go`).
+- **Parser facts and config-artifact rows** come from the original file before
+  any store policy applies (`content/artifacts/hcl.go`: the tfvars row is built
+  from the path alone; `hcl/pagerduty_declarations.go`).
 
 ## Options
 
 | Option | Cost | Verdict |
 | --- | --- | --- |
-| A. Keep both verbatim (status quo) | Zero work. Credentials stay searchable and returnable. | Rejected as the end state. Acceptable only until #8812 lands. |
-| B. Metadata-only for both | Safest. Loses the readable registry URLs, scopes, and environment shape that are the reason to index them. Needs the finding-1 fix. | Fallback if Decision 1 goes against redaction. |
-| C. Redact both, backfill stored rows | Keeps the useful content. Redaction is a denylist, so some values can escape (see below). | Recommended. |
-| D. Operator `.eshuignore` for both files | Works today (`docs/public/reference/eshuignore.md` already shows `*.tfvars`). Per repository, opt-in, and drops the file's parser facts too. | Document as the interim mitigation. Not a policy. |
+| A. Keep both verbatim (status quo) | Zero work. Credentials stay searchable and returnable. | Rejected as the end state. |
+| B. Redact both | Keeps tfvars shape. A denylist cannot cover an open schema, so a credential can still be stored. | Rejected for tfvars. Chosen for `.yarnrc.yml`, whose key set is closed and small. |
+| C. `.yarnrc.yml` redacted, tfvars no body | Cannot leak a tfvars value. Loses readable tfvars shape and, unless handled, three dependents (see above). | Chosen. |
+| D. Operator `.eshuignore` for either file | Works today (`docs/public/reference/eshuignore.md` shows `*.tfvars`). Per repository, opt-in, and drops the file's parser facts too. | Stays the override. Not a policy. |
 
 ## Decision
 
@@ -128,126 +148,124 @@ still need the backfill below.
 
 | File | Policy | Notes |
 | --- | --- | --- |
-| `.yarnrc.yml` | `redact` | Base patterns plus extras for `npmAuthIdent` and URL userinfo. |
-| `*.tfvars`, `*.tfvars.json` | `redact` | Base patterns plus block-aware redaction and a JSON-quoted-key pattern. |
+| `.yarnrc.yml` | `redact` | Detector extras below, then collector redactor bound to the same constant. |
+| `*.tfvars`, `*.tfvars.json` | no body (`store nothing`) | Parser facts and config-artifact rows keep coming from the original file. `.eshuignore` stays the override. |
 
-Parser facts are unaffected: the parser runs on the original file before the
-store policy applies, so PagerDuty declarations and config artifacts built from
-`tfvars` (`hcl/pagerduty_declarations.go`, `content/artifacts/hcl.go`) keep
-working. The policy governs what is persisted, not what is parsed.
+A future `redact` for tfvars is allowed only with an **allowlist-shaped value
+redactor**: keep booleans, numbers, `var.`, `local.`, and `module.` references,
+and version strings; redact every other string literal. A denylist, including a
+longer one, never qualifies.
 
-### Redaction contract these two files need from #8812
+### `.yarnrc.yml` redaction contract (for #8812 and the follow-up)
 
 1. **Marker.** Replace the value with `REDACTED_<finding_kind>`, for example
-   `db_password = "REDACTED_password_literal"`. Measured against the migration
-   138 expressions: this marker still matches the detector and is not
-   suppressed, so `investigate_hardcoded_secrets` keeps reporting the finding.
-   `[redacted]` and `***` do not match, so they would silently blind it. The
-   marker is also a fixed point: redacting an already redacted line gives the
-   same line, which makes the backfill idempotent.
-2. **Pattern source.** The base set is the migration 138 `finding_kind`
-   expressions, bound by a test as #8812 already requires. Definitions may add
-   collector-side extras. The sync test asserts the 138 set is a subset of the
-   collector set. Extras for these files are listed under "Gaps" below.
+   `npmAuthToken: REDACTED_api_token`. Measured against the migration 138
+   expressions, this marker still matches the detector and is not suppressed, so
+   `investigate_hardcoded_secrets` keeps reporting the line. `[redacted]` and
+   `***` do not match and would blind it. The marker is a fixed point:
+   redacting a redacted line returns the same line.
+2. **One pattern constant.** The collector redactor binds to the same Go
+   constant as the SQL detector (`hardcodedSecretSQLPattern` in
+   `go/internal/query`), not to a copy.
 3. **Fail closed.** If the redactor errors, or the file is not valid UTF-8 text,
    store nothing for that path and count it. Never fall back to the raw body.
-4. **Block-aware.** When a redacted line opens a `{`, `[`, or heredoc (`<<`),
-   redact every line through the matching close.
-5. **Scope.** The policy must cover `content_entities.source_cache` and the
-   body copies in fact payloads for the path, not only `content_files.content`.
-   Otherwise the bytes survive in the derived copies listed above.
-6. **Store-nothing needs a tombstone.** For #8812's third policy, emit a content
-   tombstone (or drop the path from `RetainedPaths`) so the reap removes an
-   existing row. This is a defect in #8812's current plan, found here.
-7. **Fold the policy into the generation identity.** Include each definition's
-   `ContentStore` value in `Registry.Fingerprint`, or bump
-   `gitGenerationContentVersion`, so a policy change is visible to freshness.
-   Account for the side effect: a fingerprint change mints a new generation for
-   every repository (the documented behavior of the fingerprint). Prefer the
-   targeted backfill below for these two files to avoid a fleet re-collect.
+4. **Scope.** Blank `content_entities.source_cache` for a redact-policy path.
+   The entity builder slices `file.Body`, so the entity rows are the second
+   copy. This is mandatory in #8812 (ruling 3). `content_lower` and
+   `content_file_secret_lines` derive from the stored body by trigger and
+   generated column, so they follow with no code; the follow-up adds a negative
+   test only.
 
-### Gaps measured against the migration 138 patterns
+### One new detector migration
 
-Each line was classified with the migration 138 `CASE` and detector run in a
-local Postgres 18 (`SELECT` only; fabricated values; see `<details>`).
+Migration 138 never gets edited. One new migration replaces
+`eshu_secret_line_findings` with an extended `CASE`, re-derives
+`content_file_secret_lines`, and carries these extras, all ASCII keys:
 
-| Line shape | Detected by 138 | Consequence |
+| Shape | Today (measured) | Extra |
 | --- | --- | --- |
-| `npmAuthToken: <literal>` | yes (`api_token`) | Covered. |
-| `npmAuthToken: "${NPM_TOKEN}"` | no | Correct: an env reference is not a secret. |
-| `npmAuthIdent: "<base64>"` | no | Needs a yarnrc extra. |
-| `npmRegistryServer` / `httpsProxy` with `user:pass@` | no | Needs a userinfo extra. |
-| `db_password = "<literal>"` | yes (`password_literal`) | Covered. |
-| `"db_password": "<literal>"` (`.tfvars.json`) | no | Needs a quoted-key extra. |
-| `access_key = ...`, `connection_string = ...` | no | Key names outside the denylist. Extras or accept the gap. |
-| `app_secrets = {` then `stripe = "<literal>"` | no, no | Block-aware rule 4 closes the inner lines only if the opener is flagged, so add a secret-key opener extra. |
-| `db_password = var.db_password` | yes (false positive) | Redacted needlessly. Acceptable: conservative. |
-| `api_token = "abc"` (under 6 characters) | no | Below the detector's minimum length. |
+| `npmAuthIdent: "<base64>"` | not detected | key `npmauthident` |
+| `user:pass@` in `npmRegistryServer`, `httpProxy`, `httpsProxy` | not detected | URL userinfo |
+| `"password": "<literal>"` (JSON-quoted key) | not detected | quoted key form |
+| `app_secrets = {` (secret-named block opener) | not detected | opener form |
 
-The denylist is best effort. It does not make `*.tfvars` safe to store; it
-lowers the exposure. That is the substance of Decision 1.
+Values under six characters stay out. Moving to the new migration number
+bumps `hardcodedSecretSQLPattern`,
+`hardcoded_secret_migration_binding_test.go`, and the collector redactor in one
+change. The sync test is an engine-parity test: the Go RE2 patterns and the
+Postgres ARE patterns classify the same corpus (the gap table in the
+`<details>` block) identically. A subset check is not enough, because the two
+engines case-fold and match differently.
+
+Prove the theory before the migration ships (repository rule): measure the
+finding-count delta on a representative corpus, and measure the re-derive lock
+window. Migration 138 recorded about 0.27 ms per file under a share-row-exclusive
+lock that blocks content writes (38 s at 145k files); this one re-derives the
+same table and needs its own number.
+
+The extras lose their tfvars use once tfvars stores no body, but they still
+apply to every other stored file type, which is why they belong in the detector
+and not in a yarnrc-only list.
 
 ### Rows already stored
 
-Rule: rewrite in place with the same redactor the collector uses. Do not
-delete: the path stays searchable by name and its parser-derived facts stay
-valid.
+No rewrite loop. Two existing mechanisms do the work once #8812 adds the policy
+to `Registry.Fingerprint` (ruling: the fleet-wide re-collect is the accepted
+effect):
 
-Mechanism, following the reducer-hosted loop in
-`go/cmd/reducer/package_manifest_backfill.go` (advisory-lock election, so one
-replica runs a pass) and the batching of `secret/lines/backfill.go`:
+- **`.yarnrc.yml`:** the new generation re-emits the content record, redacted.
+  The upsert overwrites the stored body (`ON CONFLICT DO UPDATE` in
+  `content_writer_sql.go`).
+- **`*.tfvars`:** the collector emits a content tombstone (a `Deleted` record)
+  for the path, not an edit to `RetainedPaths`. The writer then deletes the
+  `content_files`, `content_entities`, and `content_file_references` rows for
+  it. `content_file_secret_lines` goes by foreign-key cascade. Entity deletes
+  run before entity upserts in `ContentWriter.Write`, so parser-derived entities
+  in the same write are written back (inferred; the follow-up proves it).
 
-1. **Order.** Ship the redacting writer first. If the backfill runs first, the
-   next collection rewrites the literal.
-2. **Candidates.** Keyset-paginate `content_files` on `(repo_id, relative_path)`
-   where the path matches `\.tfvars(\.json)?$` or `(^|/)\.yarnrc\.yml$`.
-   Batch of 500 rows, the same bound migration 138's backfill uses.
-3. **Rewrite.** For each row, compute the redacted body. Skip the row when it
-   equals the stored body (idempotence). Otherwise
-   `UPDATE content_files SET content = $new WHERE repo_id = $1 AND
-   relative_path = $2 AND content_hash = $3`. The `content_hash` guard makes a
-   concurrent collector write win; the loser retries on the next pass. Keep the
-   original digest as the freshness key.
-4. **Derived copies.** The statement-level triggers re-derive
-   `content_file_secret_lines` on a content change (see
-   `secret/lines/README.md`, "Operations"), and `content_lower` is a stored
-   generated column, so both follow the UPDATE. The backfill must also rewrite
-   `content_entities.source_cache` for the same paths (existence for these two
-   files is unmeasured; see Decision 3).
-5. **Fact payloads.** Old `content` facts keep `content_body` until generation
-   retention removes them. Defaults are in `generation_retention.go`
+Gaps the follow-up closes:
+
+1. **Repositories not scheduled for collection** keep their bodies. Ship a
+   one-shot operator SQL: repo-scoped, bounded to 500 rows per statement,
+   idempotent, deleting the path-matched rows and the entity and reference rows
+   with them. It is run by an operator, not by a loop.
+2. **Residue.** Dead tuples, WAL, and backups keep the old bytes until vacuum
+   and backup expiry. The operator note says so.
+3. **Fact payloads.** Superseded `content` facts keep `content_body` until
+   generation retention prunes them. Defaults are in `generation_retention.go`
    (`defaultGenerationRetentionMinSuperseded = 24`, `MaxAge = 7 days`,
-   `HardMaxAge = 90 days`). Recommendation: accept the retention window and
-   document it; do not scrub immutable fact payloads unless the census finds a
-   literal credential (Decision 2).
-6. **Residue.** Dead tuples, WAL, and backups keep the old bytes until vacuum
-   and backup expiry. State this in the operator note. It is not a bug in the
-   backfill.
-7. **Telemetry.** Counter `eshu_dp_content_policy_backfill_rows_total{policy,outcome}`
-   with outcomes `rewritten`, `unchanged`, `skipped_conflict`, `failed`; a
-   histogram for batch duration; a structured log per pass with candidate,
-   rewritten, and remaining counts; and a gauge of rows whose path matches the
-   candidate predicate and whose body still matches a 138 detector. At 3 AM the
-   gauge answers "is anything still exposed".
+   `HardMaxAge = 90 days`). Ruling: do not scrub; accept the window and write an
+   operator note. Condition: the follow-up executes the retention path against a
+   `content` fact and records whether superseded content facts are pruned by
+   default policy. If they are exempt, this decision reopens.
+
+Operator signals (3 AM): a gauge of rows whose path matches the policy predicate
+and still hold a body; counters for `redacted`, `tombstoned`, and
+`redactor_failed` by policy; a structured log per collection with the same
+counts. Before and after census numbers go in the follow-up's PR.
 
 ## Consequences
 
 Good:
 
-- Closes the stored-credential exposure for the two admitted files while
-  keeping registry URLs, scopes, and tfvars shape readable.
-- `investigate_hardcoded_secrets` keeps working on the redacted rows.
-- Closes the substring oracle for these paths, because `content_lower` is
-  derived from the redacted body.
-- Surfaces three defects in #8812's plan (finding 1, finding 2, derived copies).
+- A tfvars value cannot be stored or searched, whatever its name.
+- `.yarnrc.yml` keeps its registry URLs and scopes readable, and
+  `investigate_hardcoded_secrets` keeps working on the redacted rows.
+- The substring oracle closes for both files, because `content_lower` derives
+  from what is stored.
+- Surfaces defects in #8812's plan (RetainedPaths, fingerprint, derived copies).
+- No new background job.
 
 Bad:
 
-- Redaction is a denylist; some values escape (table above).
-- One more bounded backfill loop to run and observe.
-- Old bytes persist in superseded fact payloads, dead tuples, and backups for
-  a bounded time.
-- `var.*` references and short values are treated imprecisely.
+- One fleet-wide re-collect when the fingerprint changes.
+- Old bytes persist in superseded fact payloads, dead tuples, and backups for a
+  bounded time.
+- tfvars loses its readable body. The three dependents above (tree and counts,
+  relationship evidence, references) must be handled or accepted. See the open
+  decisions.
+- `investigate_hardcoded_secrets` can no longer report a committed tfvars secret,
+  because the derived table has nothing to scan.
 
 Follow-up issue: to be filed by the coordinator (draft in the handoff report),
 depends on #8812, part of #8807.
@@ -255,57 +273,70 @@ depends on #8812, part of #8807.
 ## Implementation plan
 
 Paths (verify before editing): `go/internal/parser/registry*.go` (policy field
-and fingerprint, owned by #8812), `go/internal/collector/git/content/` (redactor
-and emit), `go/internal/collector/repo/git/fact_builder.go` (call site),
-`go/internal/projector/runtime/repository_refs.go` and `projection.go`
-(`RetainedPaths`), `go/cmd/reducer/` (backfill loop), `go/internal/storage/postgres/`
-(guarded UPDATE), docs under `docs/public/`.
+and fingerprint, #8812), `go/internal/collector/git/content/` (redactor, emit,
+tombstone), `go/internal/collector/repo/git/fact_builder.go` (call site),
+`go/internal/storage/postgres/migrations/` (detector migration),
+`go/internal/query/hardcoded_secret_migration_binding_test.go` and
+`content_reader_security_secrets.go` (constant and binding), docs under
+`docs/public/`.
 
-Prove the theory first (repository rule): before writing the candidate query,
-run `EXPLAIN ANALYZE` of the keyset-plus-suffix predicate against a
-representative `content_files` corpus. The path trigram index (migration 134)
-may serve it, but that is unmeasured here, and the lock and concurrency proof
-against the live writer is required before the backfill ships.
+Prove first: the finding-count delta and lock window for the migration; the
+retention check on a `content` fact; the tombstone test showing parser-derived
+entities survive the same write.
 
 Avoid: query-layer redaction (search and exports bypass it), `[redacted]` or
-`***` markers, any raw-body fallback, and a fleet-wide fingerprint bump used
-only to refresh two file types.
+`***` markers, any raw-body fallback, editing `RetainedPaths`, and a denylist
+for tfvars.
 
 ## Acceptance criteria
 
-- [ ] Seeded fixture `.yarnrc.yml` with a literal `npmAuthToken` and a
-  `user:pass@` registry URL: stored body has neither value, still has the
-  registry host, and `investigate_hardcoded_secrets` still reports the token line.
-- [ ] Seeded `terraform.tfvars` with a literal password, a secret-named block,
-  and a `.tfvars.json` quoted key: stored body has none of the values.
-- [ ] Upgrade test: an existing row holding a literal is redacted by the next
-  pass, a second pass reports `unchanged`, and a concurrent collector write is
-  not overwritten.
-- [ ] For `store nothing`, an upgraded database loses the old row (guards finding 1).
-- [ ] A test fails if a redact-policy path reaches `content_files`,
-  `content_entities.source_cache`, or `content_lower` with a seeded value.
-- [ ] Redactor error produces no row and increments the failure counter.
-- [ ] Gap table cases each have a test, including the cases that stay open.
-- [ ] Census SQL run on a deployment and recorded as counts.
+- [ ] Seeded `.yarnrc.yml` with a literal `npmAuthToken`, an `npmAuthIdent`, and
+  a `user:pass@` registry URL: stored body has none of the values and keeps the
+  registry host; `investigate_hardcoded_secrets` still reports the token line.
+- [ ] Seeded `terraform.tfvars` and `.tfvars.json` with literal values: zero
+  `content_files`, `source_cache`, and `content_lower` bytes of any value.
+- [ ] Upgraded database: after one collection cycle, zero rows hold a body for a
+  policy path (the exposure gauge reads 0).
+- [ ] Parser-derived entities and config-artifact rows for the tfvars path
+  survive the tombstone write.
+- [ ] Engine-parity test: Go RE2 and Postgres ARE classify the gap corpus alike.
+- [ ] Redactor error produces no row and increments `redactor_failed`.
+- [ ] Retention check recorded for a `content` fact.
+- [ ] One-shot operator SQL is bounded, idempotent, and tested on a seeded copy.
+- [ ] Census before and after recorded as counts.
 
 ## Decisions for the arbiter
 
-1. **Redact or metadata-only for `*.tfvars`?** Redact keeps value and loses
-   some secrets to the denylist gaps; metadata-only loses the readable shape
-   but cannot leak. Recommendation: redact, with the block-aware and
-   quoted-key extras, because the hosted and local samples show no exposure and
-   the shape is the point of indexing the file.
-2. **Scrub superseded fact payloads?** Accept the retention window (7 to 90
-   days) or run a bounded scrub of `content_body` on matching old facts.
-   Recommendation: accept, and revisit only if the deployment census finds a
-   literal credential.
-3. **Do `content_entities` rows exist for these paths?** Unmeasured. Run the
-   second census query before sizing the backfill. If they do, rule 5 is a
-   hard requirement, not a nicety.
-4. **Should the collector-side extras (`npmAuthIdent`, userinfo, quoted keys)
-   also be added to the migration 138 detector by a new migration?** Without
-   it, `investigate_hardcoded_secrets` and the store disagree on those shapes,
-   which #8812 sets out to prevent. Recommendation: yes, in the same epic.
+Resolved by the 2026-10-23 ruling:
+
+1. `.yarnrc.yml` redacts; tfvars and tfvars.json store no body; a future tfvars
+   redact needs an allowlist-shaped value redactor.
+2. Superseded fact payloads are not scrubbed; the retention window is accepted,
+   conditional on the retention check.
+3. The `content_entities` census is not a gate; `source_cache` blanking is
+   mandatory in #8812.
+4. Detector extras ship in one new migration with an engine-parity test; short
+   values stay out.
+
+Open, found while applying the ruling:
+
+5. **What does "store no body" mean for the `content_files` row of a tfvars
+   path?** Deleting the row (tombstone) removes the path from the repository
+   tree, file counts, language inventory, and coverage, and drops the derived
+   references. Keeping a row with empty `content` keeps all of those, and the
+   upsert overwrites an old body with no tombstone and no `RetainedPaths`
+   concern. Recommendation: the empty-content row. The cost is that #8812 must
+   define `store nothing` as "metadata row, no body" and not "no row".
+6. **tfvars-derived relationship evidence and the secret signal.** The reducer
+   discovers relationship evidence from the `content` fact body, and tfvars is
+   an accepted input. Dropping the body from the fact drops that evidence, and
+   drops the committed-secret finding for tfvars. Options: (a) the collector
+   emits the evidence and the per-line finding facts (kind and line number, no
+   value) from the original body before the body is dropped; (b) accept the
+   loss after measuring it on a representative corpus. Recommendation: measure
+   first (the count is unknown), then choose (a) if it is non-zero. The side
+   table cannot take (a) directly: Go code must not write
+   `content_file_secret_lines`.
 
 <details>
 <summary>Evidence and measurements</summary>
@@ -324,18 +355,33 @@ Cross-check: `git ls-files | rg -c -i '(\.tfvars(\.json)?|\.yarnrc\.yml)$'` and
 the same roots. This is a local sample on a developer machine, not a
 deployment. The deployment count is NOT_CHECKED.
 
-**Detector probe.** Pure `SELECT` against Postgres 18 (`psql -d postgres`, no
-DDL), using the migration 138 `CASE` and the `eshu_secret_line_findings`
-detector expression, with fabricated values. Results are the gap table. Marker
-probe: `db_password = "REDACTED_password_literal"` detected `t`, suppressed `f`;
-`npmAuthToken: REDACTED_api_token` detected `t`, suppressed `f`;
+**Detector probe (the gap corpus).** Pure `SELECT` against Postgres 18
+(`psql -d postgres`, no DDL), using the migration 138 `CASE` and the
+`eshu_secret_line_findings` detector expression, with fabricated values.
+
+| Line shape | Detected by 138 |
+| --- | --- |
+| `npmAuthToken: <literal>` | yes (`api_token`) |
+| `npmAuthToken: "${NPM_TOKEN}"` | no (correct: an env reference) |
+| `npmAuthIdent: "<base64>"` | no |
+| `npmRegistryServer` / `httpsProxy` with `user:pass@` | no |
+| `db_password = "<literal>"` | yes (`password_literal`) |
+| `"db_password": "<literal>"` (JSON-quoted key) | no |
+| `access_key = ...`, `connection_string = ...` | no |
+| `app_secrets = {`, then `stripe = "<literal>"` | no, no |
+| `db_password = var.db_password` | yes (false positive) |
+| `api_token = "abc"` (under 6 characters) | no |
+
+Marker probe: `db_password = "REDACTED_password_literal"` detected `t`,
+suppressed `f`; `npmAuthToken: REDACTED_api_token` detected `t`, suppressed `f`;
 `db_password = "[redacted]"` and `db_password = "***"` detected `f`.
 
 **Census query (run on a deployment, counts only; it never selects `content` or
-`line_text`).** The first query was validated on temporary tables with the shapes from
-`schema_content_store.go` and migration 138; the second was not run. Findings are meaningful only while
-`content_file_secret_lines_state.state = 'ready'`, and the table misses
-`npmAuthIdent` and userinfo shapes (gap table).
+`line_text`).** The first query was validated on temporary tables with the
+shapes from `schema_content_store.go` and migration 138; the second was not
+run. Findings are meaningful only while
+`content_file_secret_lines_state.state = 'ready'`, and the table misses the
+shapes in the probe above until the new migration lands.
 
 ```sql
 SELECT
@@ -351,7 +397,7 @@ SELECT
       AND NOT s.suppressed)) AS tfvars_with_unsuppressed_finding
 FROM content_files f;
 
--- Decision 3: do entity rows exist for these paths?
+-- Sizing input: entity rows for these paths.
 SELECT count(*) FROM content_entities
 WHERE relative_path ~* '\.tfvars(\.json)?$' OR relative_path ~* '(^|/)\.yarnrc\.yml$';
 ```
@@ -363,17 +409,19 @@ WHERE relative_path ~* '\.tfvars(\.json)?$' OR relative_path ~* '(^|/)\.yarnrc\.
   `get_file_content` returns it; `search_file_content` matches `content_lower`
   and returns empty content on hits; `RetainedPaths` keeps a body when the
   content fact is skipped; `Registry.Fingerprint` omits any policy field;
-  `FullSnapshot` is non-delta only.
-- Proven (run): detector gap table, marker behavior, syntax of the first census query,
-  local count of 0.
+  `FullSnapshot` is non-delta only; tree, counts, language inventory, and
+  coverage read `content_files`; relationship evidence reads `content_body` from
+  the fact and accepts tfvars; references derive from the file body.
+- Proven (run): detector gap table, marker behavior, syntax of the first census
+  query, local count of 0.
 - Inferred: that `content` facts persist `content_body` in `fact_records` for
   every retained generation (the projector reads them back, but the retention
-  statement was not executed); that a newly ignored file is reaped on the next
-  full snapshot (its file fact disappears, so it leaves `RetainedPaths`); that
-  the keyset-plus-suffix query is cheap.
-- NOT_CHECKED: deployment file counts and credential counts; whether
-  `content_entities` rows exist for these paths; the lock and concurrency
-  behavior of the backfill against a live writer; retention interaction with
-  the `content` fact kind.
+  statement was not executed); that parser-derived entities survive a tombstone
+  in the same write (delete runs before upsert in `ContentWriter.Write`); that
+  real tfvars files yield relationship evidence.
+- NOT_CHECKED: deployment file and credential counts; whether
+  `content_entities` rows exist for these paths; the finding-count delta and
+  lock window of the new migration; retention interaction with the `content`
+  fact kind; the measured volume of tfvars-derived relationship evidence.
 
 </details>
