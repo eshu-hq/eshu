@@ -131,5 +131,6 @@ returned errors the wrapper prints.
   half of the command lives where
 - `go/internal/envregistry/README.md` -- the `ESHU_*` registry
   `ValidateEnv` checks against
-- `docs/public/reference/env-registry.md` -- the committed copy of the same
-  generated reference `eshu config validate --reference` prints
+- `docs/public/reference/env-registry.md` -- the index of the committed
+  reference, split into pages under `env-registry/`; `eshu config validate
+  --reference` prints the same content as one document

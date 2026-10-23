@@ -4,8 +4,10 @@
 // Package envregistry is the code-owned source of truth for Eshu's ESHU_*
 // environment variables. It declares each supported variable with its type,
 // default, owning subsystem, and deprecation aliases, and it powers
-// `eshu config validate` and the generated environment-variable reference doc
-// (docs/public/reference/env-registry.md).
+// `eshu config validate` and the generated environment-variable reference
+// (the index docs/public/reference/env-registry.md plus the family pages under
+// docs/public/reference/env-registry/, rendered by RenderPages and capped at
+// PageLineCap lines each).
 //
 // Scope: the registry covers the core platform subsystems (postgres, graph,
 // runtime, api, mcp, collector, reducer, projector, coordinator, semantic,
