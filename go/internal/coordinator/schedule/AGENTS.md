@@ -24,6 +24,10 @@
 - Keep `DerivedTargetRotationOffset`'s truncation basis identical to whatever
   basis `DerivedTargetPlanKey` uses for the same interval, so a rotating
   instance never pages under a plan key from a different bucket.
+- Keep `ParseScanInterval` and `ParseScanIntervalValue` on one rule set: the
+  first decodes the document and delegates the present key to the second.
+  The status reader depends on the value parser agreeing with the
+  coordinator's startup validation, and never echoes the rejected value.
 - Keep `DerivedTargetReadLimit`'s lookahead at exactly one row; changing it
   changes every caller's "budget exhausted" detection.
 
