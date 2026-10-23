@@ -1,0 +1,68 @@
+{
+  "subject": "#8835 normalized runtime fallback implementation proof; final enrollment and hosted acceptance pending",
+  "runtime_checkpoint": "5cdf839c0867988435915bec9316063c0bc8a315",
+  "query_source_sha256": {
+    "baseline": "ae8735590c8bb06d24ff81456232cbe5730a8f19cfabc309cde03bd7f2bb150a",
+    "candidate": "f0edaf4a9a92b8f657ce51cf6f871c17555e0f6dcbc5f17a950cdb238b1cca56"
+  },
+  "output_equivalence": {
+    "cases": 17,
+    "equal": true,
+    "runs": [
+      {
+        "flavor": "baseline",
+        "mode": "seed",
+        "exit_code": 0,
+        "wall_seconds": 2.678123,
+        "binary_sha256": "0555eb96e51b4e9679a59535a1c6c66033cf4dd985031793cd0a1f54578059e3"
+      },
+      {
+        "flavor": "baseline",
+        "mode": "read",
+        "exit_code": 0,
+        "wall_seconds": 1.590075,
+        "binary_sha256": "0555eb96e51b4e9679a59535a1c6c66033cf4dd985031793cd0a1f54578059e3"
+      },
+      {
+        "flavor": "candidate",
+        "mode": "read",
+        "exit_code": 0,
+        "wall_seconds": 1.707449,
+        "binary_sha256": "d60b7557bb6d1daf5103ad1a78c927873beaf24110bb0403e0cd1c4a61ce3818"
+      }
+    ],
+    "multirow_case": {
+      "legacy_rows": 9,
+      "winner_rows": 9,
+      "count": 9
+    },
+    "cleanup_exit_code": 0,
+    "database_absent": true
+  },
+  "migration_lifecycle": {
+    "command": [
+      "/tmp/eshu-7533-drive/8835-ddl-race-compile.test",
+      "-test.run=^TestSupplyChainRuntimeFallbackIndexRestartSafetyLive$",
+      "-test.v",
+      "-test.count=1",
+      "-test.timeout=4m"
+    ],
+    "exit_code": 0,
+    "wall_seconds": 7.00239949952811,
+    "load_1_start": 3.81,
+    "load_1_end": 3.75,
+    "load_1_max": 3.81,
+    "pass_event": 1,
+    "fail_event": 0,
+    "skip_event": 0,
+    "image": "ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c",
+    "binary_go_version": "/tmp/eshu-7533-drive/8835-ddl-race-compile.test: go1.26.10",
+    "binary_sha256": "4d41b77e19b5cd091b3cc04b87f70cadc976ed711561a402fa681daf0d43f2e5",
+    "live_source_sha256": "d96ad59fcd76326f209da2f14d7438ea7fdc10bd4f7a5c5aca26dcc3831be825"
+  },
+  "not_checked": [
+    "rebuilt production four-root and padded-phase race replay",
+    "final helper and runner enrollment",
+    "promotion and hosted acceptance"
+  ]
+}

@@ -58,6 +58,7 @@ ADMIN_ENVS = {
     ),
     "disposable_storage": (
         "ESHU_TEST_CONTENT_INDEX_POSTGRES",
+        "ESHU_TEST_SUPPLY_CHAIN_RUNTIME_INDEX_POSTGRES",
     ),
 }
 
@@ -75,6 +76,8 @@ PR_PATHS = {
     "go/cmd/golden-corpus-gate/testdata/**",
     "go/go.mod",
     "go/go.sum",
+    "go/internal/storage/postgres/schema*.go",
+    "go/internal/storage/postgres/migrations/**",
     "go/internal/storage/postgres/migrations/001_ingestion_scopes.sql",
     "go/internal/storage/postgres/migrations/002_scope_generations.sql",
     "go/internal/storage/postgres/migrations/003_fact_records.sql",

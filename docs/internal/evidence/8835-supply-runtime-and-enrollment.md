@@ -59,16 +59,25 @@ mirror, definition order, DDL parity and migration-manifest contracts passed
 focused verification. The index contract first failed for all five missing
 migrations, then passed. A cold compilation timeout was not counted as RED.
 
-The dedicated restart proof uses the real tracked bootstrap path and an
-explicit disposable administrative DSN. Its required checks are populated
-first application, stable repeat/restart, invalid-build recovery, rollback and
-reapplication, and concurrent insert/update/tombstone/delete progress.
+The dedicated restart proof passed with Go 1.26.10 and race detection on
+PostgreSQL 18.6. It uses the real tracked bootstrap path and an explicit
+disposable administrative DSN. On 30,000 populated facts, five builds took
+324.095 ms while 41 insert/normalize/tombstone/delete cycles completed; the
+maximum writer cycle was 11.985 ms. First application, stable repeat/restart,
+invalid-build recovery and rollback/reapplication passed. Process wall was
+7.002 seconds; load1 start/max/end was 3.81/3.81/3.75, and no proof database
+survived. These are local fixture observations, not deployment capacity.
+
+The new root joins the existing `disposable_storage` runner group with its
+explicit admin DSN and disposable opt-in. It adds no legacy scheduled
+exemption. [Compact proof receipt](8835-runtime-proof-summary.json) binds the
+checkpoint, source hashes, binaries, exactness cases and lifecycle command.
 
 No-Observability-Change: no metric, span, log or status schema changes. Existing
 PostgreSQL EXPLAIN ANALYZE/BUFFERS remains the query diagnostic surface; the
 live proof records execution, rows, buffers, write and migration observations.
 
 NOT_CHECKED: rebuilt production four-root race and padded-phase acceptance;
-new tracked-migration recovery and concurrent-writer acceptance; final runner
-mapping, helper closure, ledger promotion, promotion gates and hosted acceptance.
+final original-family runner mapping, helper closure, ledger promotion,
+promotion gates and hosted acceptance.
 The scratch theory and output differential do not substitute for these checks.
