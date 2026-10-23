@@ -12,7 +12,8 @@ operator record is the "Projection boundary" section of
 Root-Cause Evidence: the live proof
 `TestDeltaGenerationProjectsOverUnionBaseLive`
 (`go/internal/storage/postgres/delta_union_projection_live_test.go`) at the
-RED commit `ed873f68ca` ended with the delta work row `dead_letter`,
+RED commit ("RED for delta projection through the union base") ended
+with the delta work row `dead_letter`,
 generation `failed`, `failure_class = projection_bug`, and the message
 `fact "…" generation_id "gen-8779-full-a" does not match generation
 "gen-8779-delta-b"`, matching the production report.
@@ -25,7 +26,7 @@ generation `failed`, `failure_class = projection_bug`, and the message
   the existing 5,000-fact `BenchmarkProjectionCloneRemovalProof/Borrow`
   (`go test ./internal/projector/runtime/ -run '^$' -bench
   'BenchmarkProjectionCloneRemovalProof/Borrow' -benchmem -count=6`), base
-  `ed873f68ca` in a throwaway worktree against this branch, compared with
+  at the RED commit in a throwaway worktree against this branch, compared with
   `benchstat` on one Apple M-series host: 11.25 ms ± 1% against 11.27 ms ± 0%
   (p=0.699), 19.27 MiB/op and 74.05k allocs/op on both sides, no significant
   change.

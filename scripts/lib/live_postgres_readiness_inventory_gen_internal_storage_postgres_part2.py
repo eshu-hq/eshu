@@ -7,6 +7,12 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/relationship_store_completion_wake_contention_live_test.go": (
+            "TestCompletionWakeLockTimeoutClassifiedLive",
+            "TestCompletionWakeEvalPlanQualDropsReopenedRowLive",
+            "TestCompletionWakeConcurrentWithMaintenanceAndClaimLive",
+            "TestCompletionWakeMetricsLive",
+        ),
         "go/internal/storage/postgres/relationship_store_completion_wake_live_test.go": (
             "TestCompletionWakeFloorMissingAndUnchangedLive",
             "TestCompletionWakeRunningItemReplayBitLive",
