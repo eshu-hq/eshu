@@ -85,13 +85,13 @@ type Verdict struct {
 }
 
 // IsLegacyID reports whether id is exactly the legacy handle shape for name:
-// the prefix plus the name and nothing else. A blank name never matches, and a
-// repository-scoped id never matches.
+// the prefix plus the name, compared byte for byte with no trimming or prefix
+// stripping, the same test the detection and delete Cypher apply
+// ('workload:' + w.name = w.id). A repository-scoped id never matches. A blank
+// name never matches here; the Cypher can list such a node, but it has no twin,
+// so it is reported blocked (no_twin) and never deleted.
 func IsLegacyID(id, name string) bool {
-	if id == "" || name == "" {
-		return false
-	}
-	return id == workloadid.FormatWorkloadHandle(name)
+	return name != "" && id == workloadid.WorkloadHandlePrefix+name
 }
 
 // TwinID returns the repository-scoped id for the same name and repository,

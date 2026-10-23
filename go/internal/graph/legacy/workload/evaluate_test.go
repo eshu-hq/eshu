@@ -171,6 +171,11 @@ func TestIsLegacyID(t *testing.T) {
 		{"", "", false},
 		{"workload:", "", false},
 		{"svc", "svc", false},
+		// The detection and delete Cypher compare 'workload:' + w.name = w.id
+		// with no trimming or prefix stripping, so neither shape below is a
+		// candidate there; the marker must agree.
+		{"workload:svc", " svc ", false},
+		{"workload:svc", "workload:svc", false},
 	}
 	for _, c := range cases {
 		if got := IsLegacyID(c.id, c.name); got != c.want {

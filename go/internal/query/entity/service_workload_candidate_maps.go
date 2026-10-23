@@ -36,10 +36,10 @@ func serviceWorkloadCandidateMaps(candidates []ServiceWorkloadCandidate) []map[s
 // candidate, belongs here as one branch.
 //
 // legacy_id is true only when the id is the name-only handle of the
-// candidate's own name (workload:<name>), the shape the #5385 identity change
-// replaced. It uses the same classifier as the leftover retirement
-// (legacyworkload.IsLegacyID), so the marker and the retirement never
-// disagree on shape. A scoped candidate carries no legacy_id key. The marker
+// candidate's own name (workload:<name>, compared exactly), the shape the
+// #5385 identity change replaced. legacyworkload.IsLegacyID applies the same
+// exact comparison as the retirement's detection and delete Cypher, so a node
+// the marker flags is one the retirement examines. A scoped candidate carries no legacy_id key. The marker
 // is information only: the resolver still refuses to pick a candidate (#8795).
 func serviceWorkloadCandidateMap(candidate ServiceWorkloadCandidate) map[string]any {
 	row := map[string]any{
