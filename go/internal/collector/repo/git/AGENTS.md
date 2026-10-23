@@ -163,9 +163,12 @@ adds 0.011 ms on clean content, 0.21 ms at about 2 matching lines and about
 upsert). A control corpus with no admitted names stayed flat (+0.6% on the
 snapshot step), 1,000 against 5,000 files scaled linearly within 1.5%, and peak
 RSS grows about 15 KB per admitted file. This repository has 9 admitted names
-among 29,069 files, so +2.4 ms is predicted; one same-tree base/HEAD pair
-measured 641.629 s and 641.853 s (n=1, no noise estimate, 8 of the 9 files
-indexed in that pair). Not measured: concurrent writers, graph and reducer
+among 29,088 tracked files (`git ls-tree -r --name-only 86b925b260 | wc -l`), so
++2.1 ms is predicted (8 indexed files x 0.266 ms); one same-tree base/HEAD pair
+measured 641.629 s and 641.853 s (n=1, no noise estimate). Only 8 of the 9 files
+were indexed in that pair: `tests/fixtures/sample_projects/sample_project_c/Makefile`
+is dropped by the repository's own `.eshuignore` rule `tests/` (line 157), an
+operator opt-out. Not measured: concurrent writers, graph and reducer
 cost, a tuned `shared_buffers` (runs used defaults, one connection, a loaded
 host with loadavg 5-21), and the 20-repository corpus gate, which is CI-only.
 A separate pre-existing bimodal slowdown of the migration-138 update trigger is
