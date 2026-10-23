@@ -44,6 +44,27 @@ recent shipped work grouped by feature area.
   and points there with `endpoints_shipped_at`. Pass `evidence_detail: full` for
   every row.
 
+### Version pin files indexed as raw text; one fleet-wide re-snapshot
+
+- **Runtime-version pin files are now admitted as `raw_text`**
+  ([#8809](https://github.com/eshu-hq/eshu/issues/8809)): `.nvmrc`,
+  `.node-version`, `.tool-versions`, `.python-version`, `.ruby-version`,
+  `.java-version`, `.go-version`, `.sdkmanrc`, `.terraform-version`,
+  `rust-toolchain`, and `rust-toolchain.toml`. Credential carriers such as
+  `.npmrc`, `.env*`, and `mise.toml` stay excluded.
+- **Expect one new generation and a full re-parse for every git scope after
+  release.** Admitting a registry name changes the registry fingerprint and
+  therefore `GenerationContentVersion`. Each scope re-snapshots once, paced by
+  `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` (default 10 per cycle, so about 81 cycles
+  for 804 repositories). The documented per-repository cost runs from about 24 s
+  wall for roughly 2,000 files to about 3.7 min for roughly 26,000 files
+  ([reconciliation sweep](docs/public/reference/reconciliation-sweep.md)).
+  Watch the ingester queue and the reducer backlog while it drains.
+- **Hardening for every admitted name:** discovery now drops a symlink unless
+  its resolved target is an admitted regular file inside the repository, so
+  `.nvmrc -> .env` or a link into `.git/config` no longer stores the target's
+  text. Dangling links, cycles, and directory links are dropped too.
+
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 
 - **Code-topic shared-snapshot reads now refuse an unqualified PostgreSQL

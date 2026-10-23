@@ -170,6 +170,14 @@ Observability Evidence (#8092): `eshu_dp_git_resolve_cache_lookups_total`,
 `git.resolve_cache.lookup` span, and the `git resolve cache lookup` log lines,
 asserted from recorded runs in the resolve tests.
 
+## Symlink admission (#8809)
+
+Discovery tests the link name but the content read follows the link.
+`symlinkTargetAdmitted` keeps a symlink only when it resolves to a regular file
+inside the repository that the same matcher admits, with the same parser
+definition when both names are registry names. `.nvmrc -> .env` is dropped, as
+are dangling links, cycles, and directory links. This covers every admitted name.
+
 ## Directory size
 
 This directory is over the 40-file cap. The gate (`go/cmd/dirgate`) derives its

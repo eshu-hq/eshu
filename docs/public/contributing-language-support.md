@@ -162,8 +162,8 @@ parser-family extension.
     file for the parser key to the git collector's content-version fixture (the
     registry fingerprint moves `GenerationContentVersion` on its own, #7986), then
     run `scripts/generate-parser-admission-doc.sh` ([table](languages/admitted-files.md)).
-    Admit a plain-text file name only as an explicit `ExactNames` entry, never
-    one that can carry credentials (the content store does not redact) (#8809).
+    Any new registry name re-snapshots every git scope once. Do not add a name
+    that is conventionally a credential carrier (#8809, #8813).
 
 ### Import/symbol names: derived from parse for tree-sitter languages
 
