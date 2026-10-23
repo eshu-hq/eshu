@@ -217,7 +217,11 @@ stopped by shutdown counts `outcome="canceled"` and logs INFO
 `TestRecordWorkItemRetentionCountsCanceledPassesApart`). The table size
 gauges export no data point until a pass reads the catalog size, so dark
 mode, retention off and the time before the first pass are absent, not 0
-(`TestWorkItemTableSizeGaugesStayEmptyWithoutAKnownReading`). Operator page:
+(`TestWorkItemTableSizeGaugesStayEmptyWithoutAKnownReading`, and through
+`Service.Run` with the production metrics
+`TestWorkItemTableSizeGaugesFollowTheRetentionMode`: dark mode and age 0
+export no point, an active pass exports one; removing the known-reading
+check fails the dark and age-0 cases). Operator page:
 `docs/public/reference/telemetry/workflow-work-item-retention.md`.
 
 ## Default

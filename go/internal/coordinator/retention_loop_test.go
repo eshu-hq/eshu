@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -130,5 +133,65 @@ func TestRunWorkItemRetentionTreatsShutdownAsCanceled(t *testing.T) {
 	}
 	if strings.Contains(logs.String(), `"level":"ERROR"`) {
 		t.Fatalf("canceled pass logged an ERROR:\n%s", logs.String())
+	}
+}
+
+// TestWorkItemTableSizeGaugesFollowTheRetentionMode proves, through Run with
+// the production metrics, that the table size gauges stay absent in dark
+// mode and with retention turned off by age 0, and appear once an active
+// pass reads the size.
+func TestWorkItemTableSizeGaugesFollowTheRetentionMode(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.October, 23, 12, 0, 0, 0, time.UTC)
+	off, err := LoadConfig(retentionEnv(map[string]string{"ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE": "0"}))
+	if err != nil {
+		t.Fatalf("LoadConfig(age 0) error = %v, want nil", err)
+	}
+	ageZero, _ := activeRetentionService(now, off.WorkItemRetention)
+	dark := Service{
+		Config: Config{DeploymentMode: deploymentModeDark, WorkItemRetention: enabledRetention()},
+		Store:  &fakeStore{},
+		Clock:  func() time.Time { return now },
+	}
+	active, _ := activeRetentionService(now, enabledRetention())
+
+	for name, tc := range map[string]struct {
+		service    Service
+		wantPoints int
+	}{
+		"dark mode":          {service: dark, wantPoints: 0},
+		"active with age 0":  {service: ageZero, wantPoints: 0},
+		"active with a pass": {service: active, wantPoints: 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			reader := sdkmetric.NewManualReader()
+			provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+			metrics, err := NewMetrics(provider.Meter("test"))
+			if err != nil {
+				t.Fatalf("NewMetrics() error = %v, want nil", err)
+			}
+			service := tc.service
+			service.Metrics = metrics
+			service.WorkItemRetention = &fakeWorkItemRetention{
+				size: workflow.WorkItemTableSize{Bytes: 4096, EstimatedRows: 12},
+			}
+			if err := service.Run(cancelledContext()); err != nil {
+				t.Fatalf("Run() error = %v, want nil", err)
+			}
+			var rm metricdata.ResourceMetrics
+			if err := reader.Collect(context.Background(), &rm); err != nil {
+				t.Fatalf("Collect() error = %v", err)
+			}
+			for _, gauge := range []string{
+				"eshu_dp_workflow_coordinator_work_items_table_bytes",
+				"eshu_dp_workflow_coordinator_work_items_estimated_rows",
+			} {
+				if got := coordinatorGaugePoints(t, rm, gauge); got != tc.wantPoints {
+					t.Fatalf("%s data points = %d, want %d", gauge, got, tc.wantPoints)
+				}
+			}
+		})
 	}
 }
