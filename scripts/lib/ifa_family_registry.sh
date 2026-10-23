@@ -169,7 +169,7 @@
 #                                 dies naming the family and this row when it
 #                                 is missing. Omitting it does not fail
 #                                 statically -- it fails part-way into a live
-#                                 four-shard CI run, which is the expensive
+#                                 sharded CI run, which is the expensive
 #                                 place to find out.
 #   handler_go_file               consumed only by
 #                                 _ifa_generic_require_intent_writer, so required

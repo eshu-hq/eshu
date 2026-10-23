@@ -89,26 +89,29 @@ cells for the handles_route/runs_in/invokes_cloud_action trio — with zero
 durable dead letters throughout.
 
 In CI the 93 cells other than the shared fault-free baseline are
-split across 4 shards that run in
+split across 8 shards that run in
 parallel, and the fault-free baseline is repeated in every shard rather than
 partitioned into one — every recovery cell compares its graph against a
-baseline captured on the same runner, so CI executes 97 cell runs
+baseline captured on the same runner, so CI executes 101 cell runs
 for a 94-cell matrix. Locally the command above runs all of them in one
-pass. `--shard k/4` runs one shard, and `--list-cells` prints the partition
-without starting anything.
+pass. `--shard k/8` runs one shard, and `--list-cells` prints the partition
+without starting anything. Cells are assigned to shards by their measured CI
+seconds (`IFA_FAULT_CELL_WEIGHT_SECONDS` in
+`scripts/lib/ifa_fault_shard_cells.sh`), so the partition stays balanced as
+families land.
 
 ### Reading a red check, and reproducing it
 
-CI runs this gate as **four parallel shards**, so a failure shows up as
-`fault-injection (shard N/4)` rather than a single `fault-injection` check. The
+CI runs this gate as **eight parallel shards**, so a failure shows up as
+`fault-injection (shard N/8)` rather than a single `fault-injection` check. The
 shard number in the check name is the one you need:
 
 List the cells a shard owns, reproduce that shard alone, or print the whole
 matrix:
 
 ```bash
-bash scripts/verify-ifa-fault-injection.sh --list-cells --shard 3/4
-bash scripts/verify-ifa-fault-injection.sh --shard 3/4
+bash scripts/verify-ifa-fault-injection.sh --list-cells --shard 3/8
+bash scripts/verify-ifa-fault-injection.sh --shard 3/8
 bash scripts/verify-ifa-fault-injection.sh --list-cells
 ```
 

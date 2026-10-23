@@ -340,7 +340,7 @@ a millisecond, which is worth avoiding but is not a hole.
   family's wait_key; the family's baseline cell must populate the named variable
   before its kill cell runs, and `baseline_code_call_retried` is the model. So a
   missing row fails loudly rather than downgrading the cell — but it fails part
-  way into a four-shard CI run, which is the expensive place to find out.
+  way into a sharded CI run, which is the expensive place to find out.
   `handler_go_file` has exactly one consumer,
   `_ifa_generic_require_intent_writer`; the Go blocker lockstep does not read it
   (it reflects on the real handler struct instead, which is a stronger check of

@@ -148,7 +148,7 @@
       # .github/workflows/ifa-determinism-gate.yml carries one shared
       # `on.pull_request.paths` filter covering the union of all three gates'
       # triggers, with no per-job `if:`/`paths`. So editing any path above
-      # still starts the four-shard fault-injection matrix in CI -- which,
+      # still starts the sharded fault-injection matrix in CI -- which,
       # since #6309, DOES observe these families through their fault cells.
       # That over-triggering is deliberate workflow policy (under-triggering
       # ships a dark gate, #6200), not a gap in the registry split; narrowing

@@ -19,7 +19,7 @@
 # Every array in the sibling file answers "does this path still select the gate
 # it must". None of them can answer the opposite question, and that question got
 # sharper the moment per-file trigger lists were replaced by globs: an over-wide
-# glob fails no assertion anywhere, it just quietly arms a four-shard Docker
+# glob fails no assertion anywhere, it just quietly arms a sharded Docker
 # matrix and a three-cell determinism matrix on edits they cannot observe, and
 # the bill lands on whoever is waiting for CI.
 #

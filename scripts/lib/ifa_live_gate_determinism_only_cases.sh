@@ -15,7 +15,7 @@
 # proves that rather than the sentence asserting it.
 #
 # This is the mirror image of ifa_live_gate_fault_only_seams: an input landing
-# here must not silently broaden the fault registry, which costs a four-shard
+# here must not silently broaden the fault registry, which costs a sharded
 # Docker matrix (~22 minutes per shard) on every edit it cannot observe.
 # Classify by WHERE a file executes, not what its content is about:
 # test-ifa-family-registry-derived-pins-cases.sh's subject matter is fault-cell

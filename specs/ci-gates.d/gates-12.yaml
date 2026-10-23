@@ -372,10 +372,14 @@ gates:
       workflow: ifa-determinism-gate.yml
       job: "fault-injection"
       check_names:
-        - "fault-injection (shard 1/4)"
-        - "fault-injection (shard 2/4)"
-        - "fault-injection (shard 3/4)"
-        - "fault-injection (shard 4/4)"
+        - "fault-injection (shard 1/8)"
+        - "fault-injection (shard 2/8)"
+        - "fault-injection (shard 3/8)"
+        - "fault-injection (shard 4/8)"
+        - "fault-injection (shard 5/8)"
+        - "fault-injection (shard 6/8)"
+        - "fault-injection (shard 7/8)"
+        - "fault-injection (shard 8/8)"
     requirements:
       - go
     ci_only_reason: ""

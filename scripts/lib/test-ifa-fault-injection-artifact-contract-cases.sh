@@ -54,7 +54,7 @@ test_ifa_fault_failure_artifact_contract() {
 	local workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
 	local needle
 	for needle in \
-		'run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/4"' \
+		'run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/8"' \
 		'uses: actions/upload-artifact@v4' \
 		'name: ifa-fault-injection-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}-failure' \
 		'/tmp/ifa-fault-injection.*/graph-*.dump' \

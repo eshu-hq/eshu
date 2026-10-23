@@ -279,7 +279,9 @@ These are the original workflow comments in source order.
       # can run (#6162).
       # #6162: upload the kept (--keep) work dir's mutated cassette and
       # host binary logs, not just the backend container log tail above.
-  # Sharded across four parallel runners. The matrix ran serially until the
+  # Sharded across eight parallel runners (four until #8790's measured
+  # rebalance: positional assignment had drifted shards to 24-36 minutes, and
+  # some were cancelled at the 35-minute timeout). The matrix ran serially until the
   # cell count outgrew the 30-minute ceiling: a measured 21m2s for 18 cells
   # (~1.17 min/cell) left room for roughly seven more cells. The matrix reached
   # 21 before this change landed (~24.6 min at that rate), which is the argument
@@ -297,11 +299,14 @@ These are the original workflow comments in source order.
   # travels with its own recovery cells) and runs cell_baseline first in
   # EVERY shard -- it is the sole writer of digests[baseline], which every
   # other cell compares against in-shell, so re-running it per shard is
-  # deliberate rather than plumbing that digest between runners.
+  # deliberate rather than plumbing that digest between runners. Groups are
+  # balanced on measured per-cell seconds, and the shard-balance mirror fails
+  # when the busiest shard's estimate exceeds IFA_FAULT_SHARD_BUDGET_SECONDS:
+  # that is the signal to add a shard, not to raise timeout-minutes.
   #
   # What that trade costs, stated plainly: before sharding, ONE process computed
   # digests[baseline] once and every recovery cell without a family-scoped
-  # baseline of its own compared against it. There are now four, one per runner,
+  # baseline of its own compared against it. There are now eight, one per runner,
   # computed independently, and nothing in this workflow compares them to each
   # other -- a fault-free drive that produced a different digest on runner 2
   # than on runner 1 would go unnoticed HERE.

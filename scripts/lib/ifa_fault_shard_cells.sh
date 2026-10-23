@@ -254,3 +254,120 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	# exists to prevent).
 	"cell_baseline_symbol_runtime cell_failgraphwrite_handles_route cell_failgraphwrite_runs_in cell_failgraphwrite_invokes_cloud_action cell_killworker_handles_route cell_killworker_runs_in cell_killworker_invokes_cloud_action"
 )
+
+# Measured cost of each cell, in whole seconds of CI wall time: the median
+# across main runs 39885830298, 39893767597, 39904137930, 39942214133 and
+# 39946576926 (2026-10-23, ubuntu-latest). Each value is the gap between one
+# cell's "=== <label>: wait for backends ===" line and the next cell's (or
+# the shard's PASS line), so it includes stack start-up and teardown -- the
+# real price of putting the cell in a shard. ifa_fault_shard_assign_groups
+# balances shards on these numbers instead of on position, and
+# ifa_fault_shard_check_budget compares the busiest shard against
+# IFA_FAULT_SHARD_BUDGET_SECONDS.
+#
+# Cells cluster at ~12s, ~72s, ~107s and ~135-200s; most of the step is a
+# one-minute lease or poll wait, and any cell can take one extra wait on a
+# given run (12s -> ~72s, 72s -> ~130s). That is noise the budget's headroom
+# absorbs, not something a finer table could predict.
+#
+# A cell missing here costs IFA_FAULT_CELL_DEFAULT_WEIGHT_SECONDS: a new
+# family lands before CI has measured it. Add its measured median once a
+# main run has it. A key naming no cell in IFA_FAULT_ALL_CELLS is a stale
+# entry, and the shard-balance mirror rejects it.
+IFA_FAULT_CELL_DEFAULT_WEIGHT_SECONDS=75
+declare -gA IFA_FAULT_CELL_WEIGHT_SECONDS=(
+	[cell_killworker]=106
+	[cell_expirelease]=14
+	[cell_failgraphwrite]=74
+	[cell_restartbackend]=14
+	[cell_killworker_sql]=106
+	[cell_killworker_code_calls]=107
+	[cell_killworker_documentation]=72
+	[cell_killworker_rationale]=110
+	[cell_duplicatedelivery]=78
+	[cell_deltaretract]=65
+	[cell_failgraphwrite_sql]=12
+	[cell_failgraphwrite_code_calls]=12
+	[cell_failgraphwrite_documentation]=72
+	[cell_failgraphwrite_rationale]=12
+	[cell_baseline_deployable_unit]=166
+	[cell_killworker_deployable_unit]=166
+	[cell_failgraphwrite_deployable_unit]=134
+	[cell_baseline_codeowners]=12
+	[cell_killworker_codeowners]=70
+	[cell_failgraphwrite_codeowners]=73
+	[cell_baseline_repo_dependency]=72
+	[cell_killworker_repo_dependency]=81
+	[cell_failgraphwrite_repo_dependency]=78
+	[cell_baseline_submodule_pin]=70
+	[cell_killworker_submodule_pin]=71
+	[cell_failgraphwrite_submodule_pin]=72
+	[cell_baseline_kubernetes_namespace_environment]=12
+	[cell_killworker_kubernetes_namespace_environment]=70
+	[cell_failgraphwrite_kubernetes_namespace_environment]=71
+	[cell_baseline_iam_instance_profile_role]=72
+	[cell_killworker_iam_instance_profile_role]=72
+	[cell_failgraphwrite_iam_instance_profile_role]=72
+	[cell_baseline_iam_can_assume]=72
+	[cell_killworker_iam_can_assume]=74
+	[cell_failgraphwrite_iam_can_assume]=71
+	[cell_baseline_iam_can_perform]=71
+	[cell_killworker_iam_can_perform]=74
+	[cell_failgraphwrite_iam_can_perform]=72
+	[cell_baseline_ec2_uses_profile]=72
+	[cell_killworker_ec2_uses_profile]=76
+	[cell_failgraphwrite_ec2_uses_profile]=72
+	[cell_baseline_s3_logs_to]=72
+	[cell_killworker_s3_logs_to]=74
+	[cell_failgraphwrite_s3_logs_to]=73
+	[cell_baseline_cloud_resource]=72
+	[cell_killworker_cloud_resource]=71
+	[cell_failgraphwrite_cloud_resource]=72
+	[cell_baseline_iam_escalation]=72
+	[cell_killworker_iam_escalation]=74
+	[cell_failgraphwrite_iam_escalation]=72
+	[cell_baseline_authenticates_vault_role]=72
+	[cell_killworker_authenticates_vault_role]=76
+	[cell_failgraphwrite_authenticates_vault_role]=74
+	[cell_baseline_uses_vault_policy]=74
+	[cell_kill_uses_vault_policy]=78
+	[cell_failgraphwrite_uses_vault_policy]=76
+	[cell_baseline_built_from]=12
+	[cell_killworker_built_from]=73
+	[cell_failgraphwrite_built_from]=71
+	[cell_baseline_cloud_resource_container_image]=71
+	[cell_killworker_cloud_resource_container_image]=76
+	[cell_failgraphwrite_cloud_resource_container_image]=134
+	[cell_baseline_crossplane_satisfied_by]=42
+	[cell_killworker_crossplane_satisfied_by]=70
+	[cell_failgraphwrite_crossplane_satisfied_by]=72
+	[cell_baseline_derived_from]=12
+	[cell_killworker_derived_from]=72
+	[cell_failgraphwrite_derived_from]=72
+	[cell_baseline_code_interproc_evidence]=12
+	[cell_killworker_code_interproc_evidence]=71
+	[cell_failgraphwrite_code_interproc_evidence]=70
+	[cell_baseline_code_taint_evidence]=12
+	[cell_killworker_code_taint_evidence]=71
+	[cell_failgraphwrite_code_taint_evidence]=72
+	# observability_coverage: one run so far (39953446791, shard 3/4).
+	[cell_baseline_observability_coverage]=72
+	[cell_killworker_observability_coverage]=78
+	[cell_failgraphwrite_observability_coverage]=75
+	[cell_baseline_inheritance]=44
+	[cell_killworker_inheritance]=110
+	[cell_failgraphwrite_inheritance]=16
+	[cell_baseline_shell_exec]=13
+	[cell_killworker_shell_exec]=110
+	[cell_failgraphwrite_shell_exec]=12
+	[cell_baseline_workload_dependency]=77
+	[cell_killworker_workload_dependency]=139
+	[cell_failgraphwrite_workload_dependency]=198
+	[cell_baseline_symbol_runtime]=12
+	[cell_failgraphwrite_handles_route]=13
+	[cell_failgraphwrite_runs_in]=14
+	[cell_failgraphwrite_invokes_cloud_action]=12
+	[cell_killworker_handles_route]=73
+	[cell_killworker_runs_in]=72
+	[cell_killworker_invokes_cloud_action]=46
+)

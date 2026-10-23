@@ -214,17 +214,17 @@
       # to have at least one trigger whose TEXT contains the family stem, so a
       # directory glob that covers the same files does not satisfy it. Keeping
       # these explicit is what ties the coverage row to a gate that re-runs (#6200).
-      # The job runs as a four-shard matrix, so GitHub never emits a check
-      # literally named "fault-injection" -- only "fault-injection (shard N/4)".
+      # The job runs as an eight-shard matrix, so GitHub never emits a check
+      # literally named "fault-injection" -- only "fault-injection (shard N/8)".
       # cmd/ci-gates/await.go falls back to the job name when check_names is
       # empty and then matches on exact string equality, so leaving this out
       # resolves the required check to MISSING forever: every PR touching an
       # ifa-fault-injection trigger path would be unmergeable, and worse, the
-      # four shard checks that DO run would belong to no gate, so a red shard
+      # eight shard checks that DO run would belong to no gate, so a red shard
       # would be invisible to required-gates-complete. Each name below is
       # validated against the expanded matrix by internal/cigates/drift.go, so a
       # name here that the matrix does not produce fails the drift check --
-      # REMOVING a shard is caught that way. Adding a FIFTH shard is not: drift
+      # REMOVING a shard is caught that way. Adding a NINTH shard is not: drift
       # validates check_names as a subset of the concrete names, and a new
       # concrete name nothing lists leaves it green. What catches an added shard
       # is the CHECK_NAMES CARDINALITY PIN in
