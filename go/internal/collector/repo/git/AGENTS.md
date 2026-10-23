@@ -142,16 +142,35 @@ dot-prefixed registry exact name (all except `.gitignore`) is missing from
 registry, for example the version-pin names in #8882, goes red on it until it
 adds them to that map in the same change.
 
-No-Regression Evidence (#8814): `LookupByPath` over 29,083 repository paths
-averaged 14.94 ms before and 15.29 ms after the new names and the
-`.mvn/extensions.xml` rule (six alternating single-CPU runs of a throwaway
+No-Regression Evidence (#8814): discovery path. `LookupByPath` over 29,083
+repository paths averaged 14.94 ms before and 15.29 ms after the new names and
+the `.mvn/extensions.xml` rule (six alternating single-CPU runs of a throwaway
 benchmark, +12 ns per path), and `resolveNativeSnapshotFileSet` over the staged
 35-repository golden corpus (192 files, none of the admitted names) averaged
 3.22 ms before and 3.20 ms after. Every lookup pays one base-name compare for
 the new rule. The copy path gains one base-name lowercase per dot-prefixed
 entry and now copies the `.mvn` directory whole, which is not measured here.
-Input shape: the golden-corpus fixtures and the repo's own
-path list; no Postgres, graph, queue or lease path is touched.
+
+Indexing cost, measured as proxies on synthetic corpora. The code touches no
+Postgres, graph, queue or lease path, but each newly admitted file adds a file
+fact and a content fact, a `fact_records` insert, a `content_files` upsert and a
+run of the migration-138 secret-line scan. Per newly admitted 1-5 KB file the
+steady-state total is about 1.19 ms: snapshot and fact build 0.266 ms (one CPU)
+or 0.246 ms (16 CPUs), `fact_records` insert 0.163 ms, `content_files` upsert
+about 0.76 ms (mostly the three trigram GIN indexes). The migration-138 trigger
+adds 0.011 ms on clean content, 0.21 ms at about 2 matching lines and about
+0.73 ms at 10. A 500 KB Makefile costs about 147 ms (26 ms collector, 115 ms
+upsert). A control corpus with no admitted names stayed flat (+0.6% on the
+snapshot step), 1,000 against 5,000 files scaled linearly within 1.5%, and peak
+RSS grows about 15 KB per admitted file. This repository has 9 admitted names
+among 29,069 files, so +2.4 ms is predicted; one same-tree base/HEAD pair
+measured 641.629 s and 641.853 s (n=1, no noise estimate, 8 of the 9 files
+indexed in that pair). Not measured: concurrent writers, graph and reducer
+cost, a tuned `shared_buffers` (runs used defaults, one connection, a loaded
+host with loadavg 5-21), and the 20-repository corpus gate, which is CI-only.
+A separate pre-existing bimodal slowdown of the migration-138 update trigger is
+tracked in #8915 and is not caused by this change. Input shape: the
+golden-corpus fixtures, synthetic corpora and the repo's own path list.
 
 No-Observability-Change: discovery reports the same skip and admit counters. A
 newly admitted file is counted as an ordinary admitted file, and an unadmitted
