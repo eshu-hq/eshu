@@ -92,7 +92,11 @@ const Routes = `
                           "source_systems": {"type": "array", "items": {"type": "string"}},
                           "observation_count": {"type": "integer"},
                           "health": {"type": "string"},
-                          "detail": {"type": "string"}
+                          "detail": {"type": "string"},
+                          "last_failure_class": {"type": "string", "enum": ["auth_denied", "not_found", "rate_limited", "terminal", "retryable", "unknown"], "description": "Bounded class of the newest unresolved terminal provider failure; present only with last_failure_terminal."},
+                          "last_failure_operation": {"type": "string", "description": "Bounded snake_case operation token of that failure, or unknown."},
+                          "last_failure_terminal": {"type": "boolean"},
+                          "last_failure_at": {"type": "string", "format": "date-time", "nullable": true}
                         }
                       }
                     },

@@ -73,6 +73,12 @@ type collectorReadinessEntry struct {
 	RecommendedNextAction string   `json:"recommended_next_action"`
 	LastProofAt           any      `json:"last_proof_at,omitempty"`
 	UpdatedAt             any      `json:"updated_at,omitempty"`
+	// LastFailureClass, LastFailureOperation, and LastFailureAt name the newest
+	// unresolved terminal provider failure as bounded tokens. They are omitted
+	// when the instance has none; the failure message never appears.
+	LastFailureClass     string `json:"last_failure_class,omitempty"`
+	LastFailureOperation string `json:"last_failure_operation,omitempty"`
+	LastFailureAt        any    `json:"last_failure_at,omitempty"`
 }
 
 // collectorReadinessStatusReadFailedMessage is the fixed body of a failed
@@ -208,6 +214,11 @@ func collectorReadinessEntries(proofs []collector.PromotionProof, redactInstance
 			RecommendedNextAction: recommendedNextAction(proof),
 			LastProofAt:           nullableRFC3339(proof.LastObservedAt),
 			UpdatedAt:             nullableRFC3339(proof.UpdatedAt),
+			LastFailureClass:      proof.LastFailureClass,
+			LastFailureOperation:  proof.LastFailureOperation,
+		}
+		if !proof.LastFailureAt.IsZero() {
+			entry.LastFailureAt = nullableRFC3339(proof.LastFailureAt)
 		}
 		if redactInstance {
 			entry.InstanceID = ""
