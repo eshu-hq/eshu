@@ -59,8 +59,9 @@ anchored and unanchored):
 | Scoped token with no grants | `not_configured` | `no_authorized_repositories` | `fallback` | `unavailable` | absent |
 
 It carries no freshness cause, emits no stage event, and still increments the
-counter. Before the fix these six subtests answered `complete`, `exact`,
-`fresh`.
+counter. Before the fix all six subtests failed: the list and count routes
+answered `complete`, `exact`, `fresh`, and the inventory route had no
+`coverage` object.
 
 ### Terminal failure classes
 
