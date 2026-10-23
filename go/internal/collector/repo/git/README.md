@@ -89,9 +89,6 @@ worker path changes.
 No-Observability-Change: the change alters only the relative-path string
 inside emitted facts. No metric, span, log key, or status field changes.
 
-A symlink inside the checkout follows one admission rule in both sync modes
-(`symlinkAdmission`, #8809); the rule and its limits are in `AGENTS.md`.
-
 ## Per-command git deadlines
 
 The sync loop runs one repository at a time, so one git command stuck on name
