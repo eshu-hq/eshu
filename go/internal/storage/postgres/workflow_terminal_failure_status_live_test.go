@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8803 disposable PostgreSQL 18 proof of the windowed collector terminal-failure read: a later completed item of the same instance and scope clears, a sibling scope or another instance on a shared scope_id does not, later pending or retrying rows do not, non-terminal rows and disabled or deactivated instances never report, an orphan ages out after 3 x scan_interval with a 30 minute floor (12h interval keeps 20h and drops 40h; malformed scan_interval uses the floor), equal updated_at picks the lowest work_item_id, a completion at the failure's exact updated_at does not clear, and a scanner_worker failed_terminal row whose last_failure_terminal flag is false still degrades its instance through the status builder without hiding an older row; isolated bootstrapped schema per test; wall time is logged, not gated
+//eshu:readiness:reason #8803 disposable PostgreSQL 18 proof of the windowed collector terminal-failure read: a later completed item of the same instance and scope clears, a sibling scope or another instance on a shared scope_id or a completion under another collector kind for the same instance_id does not, later pending or retrying rows do not, non-terminal rows and disabled or deactivated instances never report, an orphan ages out after 3 x scan_interval with a 30 minute floor (12h interval keeps 20h and drops 40h; malformed scan_interval uses the floor), equal updated_at picks the lowest work_item_id, a completion at the failure's exact updated_at does not clear, and a scanner_worker failed_terminal row whose last_failure_terminal flag is false still degrades its instance through the status builder and is reported over an older flag-true row; isolated bootstrapped schema per test; wall time is logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -111,6 +111,12 @@ func TestCollectorTerminalFailureWindowSemanticsLive(t *testing.T) {
 	f.instance(sa, "shared-b", true, false, fifteen)
 	f.item("shared-a-f", sa, "shared-a", "scope-shared", "failed_terminal", "not_found", true, 10*time.Minute)
 	f.item("shared-b-c", sa, "shared-b", "scope-shared", "completed", "", false, 5*time.Minute)
+	// Not cleared: a completion recorded under another collector kind for the
+	// same instance_id and scope (left behind when an instance's kind
+	// changed) does not clear this kind's failure.
+	f.instance(sa, "rekind", true, false, fifteen)
+	f.item("rekind-f", sa, "rekind", "scope-k", "failed_terminal", "identity_mismatch", true, 10*time.Minute)
+	f.item("rekind-c", "git", "rekind", "scope-k", "completed", "", false, 5*time.Minute)
 	// Not cleared: a replan in flight (pending, then a retryable failure).
 	f.instance(sa, "replan", true, false, fifteen)
 	f.item("replan-f", sa, "replan", "scope-a", "failed_terminal", "rate_limited", true, 10*time.Minute)
@@ -158,6 +164,7 @@ func TestCollectorTerminalFailureWindowSemanticsLive(t *testing.T) {
 	wantClass := map[string]string{
 		"sibling":    "auth_denied",
 		"shared-a":   "not_found",
+		"rekind":     "identity_mismatch",
 		"replan":     "rate_limited",
 		"inside":     "terminal",
 		"floor-25m":  "terminal",
@@ -202,9 +209,9 @@ VALUES ($1, 'run-8803', 'scanner_worker', $2, $3, $1, 'failed_terminal', 'scanne
 // TestCollectorTerminalFailureStatusDecidesTerminalLive proves that the
 // failed_terminal status, not the last_failure_terminal flag, makes a failure
 // terminal: the scanner worker dead-letters with the flag false, and that row
-// must still degrade its instance through the production status builder. A
-// newest flag-false row must also not hide an older flag-true row of the same
-// instance.
+// must still degrade its instance through the production status builder. When
+// an instance has an older flag-true row and a newer flag-false row, the
+// newer flag-false row is the one reported and the instance still degrades.
 func TestCollectorTerminalFailureStatusDecidesTerminalLive(t *testing.T) {
 	started := time.Now()
 	f := newTerminalFailureLiveFixture(t, "terminal_failure_status_flag")
