@@ -175,4 +175,8 @@ func TestStructuredShapeOmitsStructuredContentForNullBodyAndTextOnlyErrors(t *te
 	if !ok || len(got.Content) != 1 || got.StructuredContent != nil || !got.IsError {
 		t.Fatalf("unknown tool result = %#v (ok=%v), want one text item, an error, and no structuredContent", got, ok)
 	}
+	plain := mcpToolErrorResult(resultshape.Structured, errPlain("HTTP 404: not found"))
+	if !plain.IsError || len(plain.Content) != 1 || plain.Content[0].Resource != nil || plain.StructuredContent != nil {
+		t.Fatalf("plain dispatch error = %#v, want one text item, isError, and no structuredContent", plain)
+	}
 }

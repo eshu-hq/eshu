@@ -138,14 +138,6 @@ func TestStructuredShapeSendsOneTextAndStructuredContent(t *testing.T) {
 			t.Fatalf("text = %q, want %q", structured.Content[0].Text, dual.Content[0].Text)
 		}
 	})
-
-	t.Run("dispatch error without structured detail", func(t *testing.T) {
-		t.Parallel()
-		result := mcpToolErrorResult(resultshape.Structured, errPlain("HTTP 404: not found"))
-		if !result.IsError || len(result.Content) != 1 || result.Content[0].Resource != nil {
-			t.Fatalf("plain dispatch error = %#v, want one text item and isError", result)
-		}
-	})
 }
 
 type errPlain string

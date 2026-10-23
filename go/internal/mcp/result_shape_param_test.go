@@ -154,13 +154,14 @@ func TestSSELinkedPostUsesSessionShape(t *testing.T) {
 	}
 }
 
-// TestProcessDefaultShapeAppliesToStdioAndHTTP proves WithResultShape sets the
-// shape for a context without an override (the stdio path) and that a request
-// override wins in both directions.
-func TestProcessDefaultShapeAppliesToStdioAndHTTP(t *testing.T) {
+// TestProcessDefaultShapeAppliesWithoutOverride proves WithResultShape sets the
+// shape for a context that carries no override (what the stdio path sends) and
+// that, calling handleMessage directly, a dual override wins over a structured
+// default and a structured override wins over the dual default. HTTP routing
+// of the override is covered by the POST tests above.
+func TestProcessDefaultShapeAppliesWithoutOverride(t *testing.T) {
 	t.Parallel()
-	s := NewServer(fixedBodyHandler(200, shapeFixtureOK), discardDispatchLogger(), WithResultShape(resultshape.Structured))
-	call := func(ctx context.Context) mcpToolResult {
+	call := func(s *Server, ctx context.Context) mcpToolResult {
 		req := &jsonrpcRequest{
 			JSONRPC: "2.0", ID: float64(1), Method: "tools/call",
 			Params: json.RawMessage(`{"name":"list_indexed_repositories","arguments":{}}`),
@@ -172,13 +173,16 @@ func TestProcessDefaultShapeAppliesToStdioAndHTTP(t *testing.T) {
 		}
 		return result
 	}
-	requireOneTextAndStructured(t, call(context.Background()))
-	if got := call(resultshape.WithOverride(context.Background(), resultshape.Dual)); len(got.Content) != 2 {
+	structuredDefault := NewServer(fixedBodyHandler(200, shapeFixtureOK), discardDispatchLogger(), WithResultShape(resultshape.Structured))
+	requireOneTextAndStructured(t, call(structuredDefault, context.Background()))
+	if got := call(structuredDefault, resultshape.WithOverride(context.Background(), resultshape.Dual)); len(got.Content) != 2 {
 		t.Fatalf("dual override content = %d items, want 2", len(got.Content))
 	}
-	if got := NewServer(fixedBodyHandler(200, shapeFixtureOK), discardDispatchLogger()); got.processShape() != resultshape.Dual {
-		t.Fatalf("default process shape = %q, want dual", got.processShape())
+	dualDefault := NewServer(fixedBodyHandler(200, shapeFixtureOK), discardDispatchLogger())
+	if got := dualDefault.processShape(); got != resultshape.Dual {
+		t.Fatalf("default process shape = %q, want dual", got)
 	}
+	requireOneTextAndStructured(t, call(dualDefault, resultshape.WithOverride(context.Background(), resultshape.Structured)))
 }
 
 // TestExplicitDualOverridesStructuredProcessDefault pins the override direction
