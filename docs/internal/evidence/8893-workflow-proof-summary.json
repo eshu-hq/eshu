@@ -1,0 +1,150 @@
+{
+  "head": "153feea755aec060319d2ba23462ae88fa618ac1",
+  "workflow_sha256": "b609c45ffa735a68447dc0401904c7222d7dd9f9e7b8dd555db9cd49d6376f29",
+  "image_reference": "ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873",
+  "image_id": "sha256:c293117fcecda7344b5480222e813b9f673d7abd69b1dd95eff239b768b04f59",
+  "go_version": "go version go1.26.10 linux/amd64",
+  "goroutine_profile": "GOMAXPROCS=4, workflow build parallelism p=1",
+  "retention": "destroy on complete success, preserve on failure",
+  "groups": [
+    {
+      "group": "admin",
+      "script_sha256": "4f6d8d2474d99f956fa19fa6c391460e1dffcd10db41769b91362c107304a086",
+      "exit_code": 0,
+      "wall_seconds": 55.7906436920166,
+      "event_file": "/tmp/eshu-7533-drive/8893-current-workflow/admin.jsonl"
+    },
+    {
+      "group": "completion",
+      "script_sha256": "a94dd8a9576001f3a0c2ccb28cf621e4ce755cee1c3300592d1b3555b4cdc431",
+      "exit_code": 0,
+      "wall_seconds": 5.526404619216919,
+      "event_file": "/tmp/eshu-7533-drive/8893-current-workflow/completion.jsonl"
+    },
+    {
+      "group": "reachability",
+      "script_sha256": "705c54a9eb4b3f09b0e952046d1aa94d883cf00645bc0f0efed3c95115e2a4b3",
+      "exit_code": 0,
+      "wall_seconds": 9.434146404266357,
+      "event_file": "/tmp/eshu-7533-drive/8893-current-workflow/reachability.jsonl"
+    },
+    {
+      "group": "secret_lines",
+      "script_sha256": "29462d7cd44314a9adc56e3f37fa71fe09553416978d801f9c0c11e3f17d2e1b",
+      "exit_code": 0,
+      "wall_seconds": 43.36277222633362,
+      "event_file": "/tmp/eshu-7533-drive/8893-current-workflow/secret_lines.jsonl"
+    }
+  ],
+  "postgres_version": "postgres (PostgreSQL) 18.6",
+  "surviving_helper_databases": "0",
+  "success": true,
+  "container_cleanup_exit": 0,
+  "sources": [
+    {
+      "file": "go/internal/query/admin/replay_fence_live_test.go",
+      "sha256": "f63e3d3119780ff62bcd8f507a49c5e9ae2ac80615086107a1c9f30187f2d0a2",
+      "tests": [
+        "TestAdminStoreIdentityFenceMutationsLive",
+        "TestAdminStoreMutationsRecheckStatusLive"
+      ]
+    },
+    {
+      "file": "go/internal/query/admin/operator_note_live_test.go",
+      "sha256": "8c059ac84d694aad9736cdc74fa6e18bac238fd16857c2e832d40611560d63ef",
+      "tests": [
+        "TestOperatorNoteKeepsTheFailureItReplaces"
+      ]
+    },
+    {
+      "file": "go/internal/query/admin/prior_failure_listing_live_test.go",
+      "sha256": "55d1b180c34c23942c71b43522c5e1427feff9be1aed0fe3aaf5939dcfd46906",
+      "tests": [
+        "TestAdminWorkItemListingExposesPriorFailureAndNote"
+      ]
+    },
+    {
+      "file": "go/internal/query/admin/replay_superseded_live_test.go",
+      "sha256": "141b90bfd1814d3c4fef8c3c1d0419806bda63676fa24636d666c93887c0aee0",
+      "tests": [
+        "TestAdminStoreSupersededGenerationReplayFenceLive"
+      ]
+    },
+    {
+      "file": "go/internal/query/admin/replay_failure_class_live_test.go",
+      "sha256": "995835ddf6721bb93602516574ff613a76dcb451ef93dc9af5b549ef09405146",
+      "tests": [
+        "TestAdminStoreReplayRecordsPriorFailureClassLive"
+      ]
+    },
+    {
+      "file": "go/internal/query/admin/changedsincepoisonedlinks_live_test.go",
+      "sha256": "a26f5c1fc20f85423ff24d68b0da30c03c8f1df45029f93afab295f5a3418459",
+      "tests": [
+        "TestAdminHandler_ChangedSincePoisonedLinksQueryLiveFiltersAndPagination",
+        "TestAdminHandler_ChangedSincePoisonedLinksQueryLiveRepositoryScopedGrant"
+      ]
+    },
+    {
+      "file": "go/internal/storage/postgres/code/reachability/store_route_liveness_live_test.go",
+      "sha256": "bd1cf2845c5e97a17de8410a93592a131b138cd4dfc441b6cf8761224f2aa27e",
+      "tests": [
+        "TestCodeReachabilityRailsRouteFactsLoaderRoundTrip",
+        "TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController",
+        "TestCodeReachabilityPendingInputsPlanAtEpochBump",
+        "TestCodeReachabilityLoaderGateSkipsIncompleteRuns",
+        "TestCodeReachabilityLoaderGateMatchesLegacyOnCompleteRuns",
+        "TestCodeReachabilityLoaderGateEachPredicateIsLoadBearing"
+      ]
+    },
+    {
+      "file": "go/internal/storage/postgres/scope/completion/quiescence_live_test.go",
+      "sha256": "90dcf84350f718eedf5460c3a30c88e1556c2dfee59d2f1084c71b121b9d9c44",
+      "tests": [
+        "TestProducerScopeQuiescenceLive"
+      ]
+    },
+    {
+      "file": "go/internal/storage/postgres/secret/lines/bulk_load_lock_live_test.go",
+      "sha256": "ea3b3dbae15a4f04f71ac1eca4c55cf0b9365f99c45c6d7940c0e022af73fa23",
+      "tests": [
+        "TestBulkLoadLockRefusesASecondLoadLive",
+        "TestBulkLoadLockDiesWithItsSessionLive",
+        "TestBulkLoadLockKeepsReadyHonestLive"
+      ]
+    },
+    {
+      "file": "go/internal/storage/postgres/secret/lines/contention_live_test.go",
+      "sha256": "7368400fe4711fd3be34f805cf86c11519ab05f08de2edf362a9d6fb328d7c00",
+      "tests": [
+        "TestFinalizeYieldsToAHeldWriterLive",
+        "TestFinalizeWithSteadyStateWritersLive"
+      ]
+    },
+    {
+      "file": "go/internal/storage/postgres/secret/lines/finalize_live_test.go",
+      "sha256": "d5b8fcce2d5c4c90f1c5830a239665719335d32ab11c36f986e08b163dbd9c8b",
+      "tests": [
+        "TestFinalizeRebuildsSideTableToParityLive",
+        "TestFinalizeIsRestartSafeLive",
+        "TestFinalizeIsSupersededByNewBulkLoadLive"
+      ]
+    },
+    {
+      "file": "go/internal/storage/postgres/secret/lines/gate_live_test.go",
+      "sha256": "4902298001a2a21ac6012aae8d10710c3e5fda81ee43aebf3266bf59f3cbde95",
+      "tests": [
+        "TestDeferredSessionWritesDeriveNothingLive",
+        "TestBeginDeferralTakesReadinessAndBumpsEpochLive"
+      ]
+    },
+    {
+      "file": "go/internal/storage/postgres/secret/lines/keymove_live_test.go",
+      "sha256": "cc3ebad06f791a237a7188654ab75f16f79026f908681bcd2bfb6c97ae65483c",
+      "tests": [
+        "TestFinalizeSurvivesAConcurrentKeyMoveLive"
+      ]
+    }
+  ],
+  "total_roots": 26
+}

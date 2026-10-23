@@ -5,11 +5,12 @@ The scheduled PostgreSQL runner now owns 13 more unchanged live-test files and
 11), code reachability (1, 6), and scope completion (1, 1). The 13 paths are
 the exact `next13.recorded_sources` set in the coordinator's source audit at
 `c697b07618288ccd5ac298fb5ee3ba560d64fc0b`; every file's SHA256 still
-matched that audit after rebasing onto `ce050339cfd37481223de1d62cbd4fd6a2ef978a`.
+matched that audit on the final workflow replay at `153feea755aec060319d2ba23462ae88fa618ac1`,
+rebased onto merged freshness main `093143b350483e472602c3a66a7f3e6a6dfcaecf`.
 No Go test body, assertion, fixture helper, production code, or migration changed.
 
 The unchanged tests ran in four separate `go test -json -race -count=1
--timeout=6m -p=4` invocations with `GOMAXPROCS=4` and an anchored selector for
+-timeout=6m -p=1` invocations with `GOMAXPROCS=4` and an anchored selector for
 each group's named roots. Go was 1.26.10. The backend was the digest-pinned
 PostgreSQL 18.6 image
 `ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873`.
@@ -22,14 +23,18 @@ were dropped and their absence verified after the runs.
 
 | Group | Files | Exact roots | Strict Go JSON result | Observed process wall |
 | --- | ---: | ---: | --- | ---: |
-| admin | 6 | 8 | 8 run/pass pairs, package pass, no skip/fail | 46.17s |
-| secret lines | 5 | 11 | 11 run/pass pairs, package pass, no skip/fail | 30.97s |
-| reachability | 1 | 6 | 6 run/pass pairs, package pass, no skip/fail | 6.91s |
-| completion | 1 | 1 | 1 run/pass pair, package pass, no skip/fail | 4.05s |
+| admin | 6 | 8 | 8 run/pass pairs, package pass, no skip/fail | 55.791s |
+| secret lines | 5 | 11 | 11 run/pass pairs, package pass, no skip/fail | 43.363s |
+| reachability | 1 | 6 | 6 run/pass pairs, package pass, no skip/fail | 9.434s |
+| completion | 1 | 1 | 1 run/pass pair, package pass, no skip/fail | 5.526s |
 
-The retained local streams are `/tmp/eshu-8893-{admin,secret,reach,completion}.events.jsonl`.
-Their independently checked exact names, SHA256 digests and event counts are
-in `/tmp/eshu-7533-drive/8893-baseline-independent-verification.json`. These
+The final replay executes the exact four workflow shell blocks, adapting only
+the disposable connection target to localhost port 25474. GOFLAGS and GOWORK
+are empty, and the clean-source checks and strict event verifier run before
+and after the Go commands. Source hashes, workflow/body hashes, backend
+identity, exits and cleanup are retained in
+[the compact workflow receipt](8893-workflow-proof-summary.json). Earlier
+baseline streams remain in `/tmp/eshu-8893-{admin,secret,reach,completion}.events.jsonl`. These
 walls are observations on a shared host, including compilation. They are not a
 performance comparison or a hosted budget claim.
 
@@ -41,8 +46,8 @@ The added steps run in its bulk leg and retain their Go JSON streams in the
 aggregate proof bundle. They use one pinned service image with fresh named
 admin, reachability and completion databases, while secret lines uses the
 administrative connection. The 13 ledger rows are `verified_scheduled`, owned
-by `postgres-scheduled`; the legacy scheduled pin shrinks from 387 to 374
-paths with SHA256 `30064d0b86abbac25b77f783815f5eb3b25b9e2b5d0e1176fc094f366f3bdabb`.
+by `postgres-scheduled`; the legacy scheduled pin shrinks from 383 to 370
+paths with SHA256 `9a2270dcfacc375cb42a9fc2d87c826f83c6574afcc1bbbe06c59c6bdd125720`.
 
 Hosted execution on the reviewed revision and actual cron delivery remain
 NOT_CHECKED until CI and scheduled delivery evidence is retained. The bulk
