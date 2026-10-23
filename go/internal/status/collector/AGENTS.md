@@ -29,6 +29,20 @@ an import cycle. When changing these signatures, do not silently narrow
 behavior — diff the derived `RuntimeStatus`/`PromotionProof` rows before and
 after on a fixture snapshot.
 
+## Terminal failure evidence
+
+`Evidence.TerminalFailures` degrades a coordinator-registered instance and
+fails its promotion proof with the blocker
+`terminal provider failure: <class> (<operation>)`. Keep it bounded: the class
+must pass `BoundedFailureClass` (a local allowlist, deliberately not an import
+of any collector runtime package) and the operation must pass
+`BoundedFailureOperation`; anything else reads as `unknown`. Never add the
+failure message or provider status code to `TerminalFailure`, `RuntimeStatus`,
+`PromotionProof`, or their JSON. The reader (`storage/postgres`) supplies only
+failures with no later completed work item for the same scope, so clearing is
+the reader's job, not this package's. A failure for an unregistered or disabled
+instance never changes health.
+
 ## Exporting the render/clone/JSON surface
 
 Every render, clone, and JSON-projection helper in this family

@@ -167,7 +167,12 @@ Stage, generation, and domain gauges:
 Workflow-coordinator status exports add coordinator-specific
 `eshu_runtime_coordinator_*` gauges for active claims, overdue claims, oldest
 pending age, collector instances, run status, work-item status, and
-completeness.
+completeness. `eshu_runtime_coordinator_collector_terminal_failure_instances`
+(labels `collector_kind`, `failure_class`) is a point-in-time gauge of
+registered instances whose newest terminal work-item failure has no later
+completed work item for the same scope; `failure_class` is one of
+`auth_denied`, `not_found`, `rate_limited`, `terminal`, `retryable`, or
+`unknown`. It is a gauge, not a counter, so a recovered instance drops out.
 
 ## Data-Plane Core
 

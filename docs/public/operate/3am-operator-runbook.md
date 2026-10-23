@@ -148,6 +148,18 @@ A source is not refreshing, or a collector family reports unhealthy.
   carry `source_system` and `collector_kind`; `failure_class` on the log line
   classifies the failure. Source identity appears only as `resource.fingerprint`
   / `resource.identity_kind`.
+- **Terminal provider failure:** an instance whose collection failed terminally,
+  for example with revoked credentials, reports `promotion_state=failed` and the
+  blocker `terminal provider failure: <class> (<operation>)` on
+  `GET /api/v0/status/collector-readiness`, and `health=degraded` with
+  `last_failure_class` on `GET /api/v0/status/collectors`. Classes: `auth_denied`
+  (fix the credential or grant), `not_found` (check the target exists and the
+  credential can see it), `rate_limited` (wait or lower the schedule), `terminal`
+  or `unknown` (read the collector log line carrying `failure_class`). The
+  gauge `eshu_runtime_coordinator_collector_terminal_failure_instances` counts
+  affected instances by `collector_kind` and `failure_class`. The state clears
+  on its own after the next completed work item for the same scope; empty
+  security-alert answers are not proof of health while this is set.
 - **Safe remediation:** a `gated`, `disabled`, or `unsupported` family is usually
   intentional configuration, not an outage — read the `blockers`. A collector
   whose commit dead-lettered before reaching the queue is handled under
