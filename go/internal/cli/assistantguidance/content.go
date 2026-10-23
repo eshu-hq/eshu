@@ -108,7 +108,7 @@ symbol. Use ` + "`limit`" + `/` + "`offset`" + `/cursors for lists and check ` +
 A file is indexed only if it matched a parser-registry name, prefix, extension,
 or documentation format. Dotfiles are not hidden: ` + "`.eslintrc.js`" + ` and
 ` + "`.github/workflows/*`" + ` are indexed; extensionless names with no registry entry,
-such as ` + "`.nvmrc`" + `, are not. When ` + "`get_file_content`" + ` or
+such as ` + "`.env`" + `, are not. When ` + "`get_file_content`" + ` or
 ` + "`list_repository_files`" + ` finds no file, say it may simply not be indexed. Do not
 tell the user Eshu cannot see dotfiles.
 

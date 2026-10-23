@@ -80,7 +80,7 @@ func TestIndexedFilesRuleInFileToolDescriptions(t *testing.T) {
 			"Dotfiles are not hidden",
 			".eslintrc.js",
 			".github/workflows/*",
-			".nvmrc",
+			".env",
 			"may simply not be indexed",
 		} {
 			if !strings.Contains(desc, want) {

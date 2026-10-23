@@ -8,7 +8,7 @@ package mcp
 // format, so a missing file is not proof that Eshu cannot see it (#8808).
 const indexedFilesRule = " A file is indexed only if it matched a parser-registry name, prefix, extension, or documentation format. " +
 	"Dotfiles are not hidden: .eslintrc.js and .github/workflows/* are indexed; " +
-	"extensionless names with no registry entry, such as .nvmrc, are not. " +
+	"extensionless names with no registry entry, such as .env, are not. " +
 	"A file not found may simply not be indexed."
 
 // repositoryFilesTool defines the bounded repository file-listing tool. It

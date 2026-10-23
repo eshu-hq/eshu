@@ -131,7 +131,7 @@ The block instructs assistants to:
 - Treat a missing file as possibly not indexed: a file is indexed only if it
   matched a parser-registry name, prefix, extension, or documentation format.
   Dotfiles are not hidden (`.eslintrc.js` and `.github/workflows/*` are indexed;
-  `.nvmrc` is not), so a "file not found" is not proof Eshu cannot see dotfiles.
+  `.env` is not), so a "file not found" is not proof Eshu cannot see dotfiles.
 - Start from concrete first prompts such as building a service story or tracing a
   deployment chain.
 - Respect Eshu truth labels: read `truth.level` (exact, derived, partial, fallback) and

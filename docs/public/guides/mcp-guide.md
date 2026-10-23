@@ -142,7 +142,7 @@ cache, and finally a user handoff.
 files that discovery kept. A file is indexed only if it matched a
 parser-registry name, prefix, extension, or documentation format. Dotfiles are
 not hidden: `.eslintrc.js` and `.github/workflows/*` are indexed. Extensionless
-names with no registry entry, such as `.nvmrc`, are not.
+names with no registry entry, such as `.env`, are not.
 
 A "file not found" answer may simply mean the file is not indexed. It does not
 mean Eshu cannot see dotfiles. Check the path and repository selector first,
