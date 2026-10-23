@@ -92,7 +92,7 @@ func TestSSEEndpointEventCarriesShape(t *testing.T) {
 	}
 	_, next = openSSE(t, ts, "?shape=DUAL")
 	_, data = next()
-	if !strings.HasSuffix(data, "&shape=dual") { // explicit dual must override a structured process default
+	if !strings.HasSuffix(data, "&shape=dual") { // explicit dual is echoed canonically (this server's process default is dual)
 		t.Fatalf("endpoint data = %q, want &shape=dual", data)
 	}
 	for _, query := range []string{"", "?shape=%20%20"} {
@@ -178,5 +178,39 @@ func TestProcessDefaultShapeAppliesToStdioAndHTTP(t *testing.T) {
 	}
 	if got := NewServer(fixedBodyHandler(200, shapeFixtureOK), discardDispatchLogger()); got.processShape() != resultshape.Dual {
 		t.Fatalf("default process shape = %q, want dual", got.processShape())
+	}
+}
+
+// TestExplicitDualOverridesStructuredProcessDefault pins the override direction
+// the process default cannot cover: on a server whose process shape is
+// structured, an explicit dual (case-folded) is echoed on the SSE endpoint and
+// wins on a POST, while a request that names no shape keeps the default.
+func TestExplicitDualOverridesStructuredProcessDefault(t *testing.T) {
+	t.Parallel()
+	s := NewServer(fixedBodyHandler(200, shapeFixtureOK), discardDispatchLogger(), WithResultShape(resultshape.Structured))
+	ts := sseTestServer(t, s)
+
+	_, next := openSSE(t, ts, "?shape=DUAL")
+	_, data := next()
+	if !strings.HasSuffix(data, "&shape=dual") {
+		t.Fatalf("endpoint data = %q, want &shape=dual over a structured process default", data)
+	}
+	_, next = openSSE(t, ts, "")
+	_, data = next()
+	if strings.Contains(data, "shape") {
+		t.Fatalf("endpoint data = %q, want no shape parameter when none was asked for", data)
+	}
+
+	for _, tc := range []struct {
+		query     string
+		wantKinds string
+	}{
+		{"?shape=DUAL", "text,resource"},
+		{"", "text"},
+	} {
+		status, kinds, structured := postToolCall(t, ts.URL+"/mcp/message"+tc.query)
+		if status != http.StatusOK || strings.Join(kinds, ",") != tc.wantKinds || !structured {
+			t.Fatalf("POST %q = (%d, %v, structured=%v), want kinds %s with structuredContent", tc.query, status, kinds, structured, tc.wantKinds)
+		}
 	}
 }

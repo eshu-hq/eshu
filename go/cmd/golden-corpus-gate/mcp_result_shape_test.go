@@ -89,3 +89,41 @@ func TestParseFlagsMCPResultShape(t *testing.T) {
 		}
 	}
 }
+
+// TestParseFlagsMCPResultShapeTrimsPadding proves a padded value (a quoted
+// env var forwarded by the shell driver) matches the server, which trims
+// before parsing: the gate accepts it, stores the trimmed value, and sends it
+// to the server without the padding. Whitespace only means absent, and a
+// genuinely unknown value is still rejected.
+func TestParseFlagsMCPResultShapeTrimsPadding(t *testing.T) {
+	t.Parallel()
+	for value, want := range map[string]string{
+		" structured ": "structured",
+		"\tdual\n":     "dual",
+		"  ":           "",
+	} {
+		o, err := parseFlags([]string{"-mcp-result-shape=" + value})
+		if err != nil {
+			t.Fatalf("-mcp-result-shape=%q: %v, want accepted like the server", value, err)
+		}
+		if o.mcpResultShape != want {
+			t.Fatalf("mcpResultShape = %q, want trimmed %q", o.mcpResultShape, want)
+		}
+		doer := &fakeMCPDoer{byTool: map[string]string{"get_repo_summary": structuredShapeResponse(t, `{"ok":true}`)}}
+		client := mcpClientWithDoer(doer)
+		client.shape = o.mcpResultShape
+		if _, err := client.callTool(context.Background(), "get_repo_summary", nil, false); err != nil {
+			t.Fatalf("shape %q: %v", value, err)
+		}
+		wantURL := "http://mcp.local/mcp/message"
+		if want != "" {
+			wantURL += "?shape=" + want
+		}
+		if doer.lastURL != wantURL {
+			t.Fatalf("shape %q posted to %q, want %q", value, doer.lastURL, wantURL)
+		}
+	}
+	if _, err := parseFlags([]string{"-mcp-result-shape= text "}); err == nil {
+		t.Fatal("padded unknown shape accepted, want rejection")
+	}
+}

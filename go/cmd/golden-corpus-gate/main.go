@@ -28,6 +28,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
@@ -113,6 +114,10 @@ func parseFlags(args []string) (options, error) {
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}
+	// The server trims the shape before parsing, so a padded env value (the
+	// driver script forwards GATE_MCP_RESULT_SHAPE verbatim) must pass here too,
+	// and the trimmed value is what goes on the request URL.
+	o.mcpResultShape = strings.TrimSpace(o.mcpResultShape)
 	if _, err := resultshape.Parse(o.mcpResultShape); err != nil {
 		return options{}, fmt.Errorf("-mcp-result-shape: %w", err)
 	}
