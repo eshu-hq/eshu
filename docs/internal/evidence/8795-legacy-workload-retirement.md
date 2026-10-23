@@ -85,13 +85,24 @@ nodes, 10,000 `WorkloadInstance` nodes.
 
 ## Measured cost of the shared detection (same graph, Neo4j)
 
-Host: a shared development machine, quiet at measurement. The reads are page
-reads of 100 or 500 candidates plus four anchored reads per page.
+Host: a shared development machine. The reads are
+page reads of 100 or 500 candidates plus four anchored reads per page.
+Re-measured on 2026-10-23 on a fresh `neo4j:2026-community` (2026.08.1)
+container with the production `workload_id`, `repository_id`, and
+`workload_instance_workload_id` schema statements, seeded with 15,000
+`Workload` nodes (10,000 scoped with a `generation_id`, a `DEFINES` edge, and
+an instance each; 5,000 name-only leftovers each with an own-repository twin and
+a `DEFINES` edge), 10,000 `Repository` nodes, and 10,000 `WorkloadInstance`
+nodes. A throwaway `legacyworkload.Detect` test with a read-counting reader
+(not committed) ran each setting four times, with
+`ESHU_CYPHER_BOLT_DSN=bolt://127.0.0.1:<port> go test -tags
+live_nornicdb_answer_truth ./internal/graph/legacy/workload/`:
 
 - Readiness settings (page 500, cap 5,000 examined): 5,000 candidates in 50
-  reads, 0.29 to 0.43 s over three runs.
-- Dry-run settings (page 100, cap 1,000 examined, stop at 100 eligible): 200
-  candidates in 10 reads, 21 to 31 ms over three runs.
+  reads, 0.75 s on the cold first run and 0.23 to 0.34 s on the next three.
+- Dry-run settings (page 100, cap 1,000 examined, stop at 100 eligible): 100
+  candidates in 5 reads (one page reaches the limit), 0.68 s on the cold first
+  run and 29 to 44 ms on the next three.
 
 Both are bounded by an examined cap, so a very large leftover set cannot make a
 request unbounded; a capped readiness count is reported as `N+`.
@@ -118,11 +129,14 @@ through the reducer executor's existing classification.
 
 Observability Evidence: `eshu_dp_workload_legacy_retirements_total{outcome}`
 (bounded: `deleted`, `blocked_has_instances`, `blocked_no_twin`,
-`blocked_relationships`) increments per node judged by an executed request. An
+`blocked_relationships`) increments per node judged by an executed request (every verdict, up to the
+1,000 examined, not only the 100 blocked nodes the response lists). An
 INFO line `legacy workload retirement executed` carries candidates, eligible,
 deleted, blocked, truncated, and the operator's reason; a WARN line
 `legacy workload kept` carries the node id, the blocked reason, and the
-per-type relationship counts for each node kept. A governance audit event
+per-type relationship counts for each node kept. A Neo4j reducer with no graph
+writer wired refuses execute with `503` and the audit reason
+`legacy_workload_retire_refused_writer_unavailable`. A governance audit event
 (`admin_recovery_action`, reason `legacy_workload_retire_executed`, `_failed`, or a
 `_refused_*` code) records each decision. The standing condition is visible at 3
 AM as the failed hosted-readiness check `workload_identity_leftovers` (failure
