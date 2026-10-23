@@ -394,9 +394,12 @@ type PathDispatch struct {
 }
 
 // PathDispatches returns the hardcoded path-dispatch bindings of LookupByPath,
-// in a fixed order. A new hardcoded rule in LookupByPath must be listed here;
-// the AST test fails when a bound key is missing, but it does not check the
-// path patterns, so edit Patterns and Examples with the rule.
+// in a fixed order. A new hardcoded rule in LookupByPath must be listed here.
+// The AST test fails only when LookupByPath binds a key through a literal
+// r.byKey["<key>"] lookup that the list omits. It does not check other ways of
+// selecting a definition or new patterns for an already-listed key, so a
+// reviewer of a LookupByPath change must edit this list, Patterns and Examples
+// by hand.
 func PathDispatches() []PathDispatch {
 	return []PathDispatch{
 		{
