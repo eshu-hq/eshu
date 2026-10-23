@@ -234,3 +234,29 @@ func TestRelOrPathFallsBackToAbsolute(t *testing.T) {
 		t.Fatalf("RelOrPath = %q, want the absolute path back", got)
 	}
 }
+
+// TestGuidanceBodyStatesIndexedFileRule keeps the "file not found may mean not
+// indexed" note in the shared guidance, so assistants do not tell users Eshu
+// cannot see dotfiles (#8808).
+func TestGuidanceBodyStatesIndexedFileRule(t *testing.T) {
+	for _, p := range SupportedPlatforms() {
+		body := strings.Join(strings.Fields(GuidanceBody(p)), " ")
+		for _, want := range []string{
+			"parser-registry name, prefix, extension, or documentation format",
+			"Dotfiles are not hidden",
+			".gitmodules",
+			"CODEOWNERS",
+			"gitignored",
+			".eshuignore",
+			"default-pruned",
+			".github/workflows/ci.yml",
+			"get_file_lines",
+			"for example",
+			"may simply not be indexed",
+		} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s guidance missing %q", p.ID, want)
+			}
+		}
+	}
+}

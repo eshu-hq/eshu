@@ -128,6 +128,16 @@ The block instructs assistants to:
 - Keep calls bounded with the narrowest known `repo_id`, service, environment,
   resource, file, or symbol, and to honor `truncated`, `next_offset`, and
   `next_cursor`.
+- Treat a missing file from `get_file_content`, `get_file_lines`, or
+  `list_repository_files` as possibly not indexed: a file is indexed only if it
+  matched a parser-registry name, prefix, extension, or documentation format,
+  or is a `.gitmodules` or CODEOWNERS file. Dotfiles are not hidden
+  (`.eslintrc.js` and `.github/workflows/ci.yml` are indexed; `.env` is not), so a
+  "file not found" is not proof Eshu cannot see dotfiles. A matching file can
+  still be absent when it is gitignored, listed in `.eshuignore`, in a
+  [default-pruned directory](eshuignore.md#default-skips) (for example
+  `node_modules` or `dist`; the linked list is the full set), has an ignored
+  extension, or is generated.
 - Start from concrete first prompts such as building a service story or tracing a
   deployment chain.
 - Respect Eshu truth labels: read `truth.level` (exact, derived, partial, fallback) and

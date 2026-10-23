@@ -3,6 +3,16 @@
 
 package mcp
 
+// indexedFilesRule is the one-sentence rule the file tools share. Discovery
+// keeps a file only when it matches a parser-registry entry or a documentation
+// format, or is a .gitmodules or CODEOWNERS file, so a missing file is not
+// proof that Eshu cannot see it (#8808). The collector test
+// TestResolveNativeSnapshotFileSetIndexedFileRule pins this text.
+const indexedFilesRule = " A file is indexed only if it matched a parser-registry name, prefix, extension, or documentation format, or is a .gitmodules or CODEOWNERS file. " +
+	"Dotfiles are not hidden: .eslintrc.js and .github/workflows/ci.yml are indexed; " +
+	"extensionless names with no registry entry, such as .env, are not. " +
+	"A file not found may simply not be indexed, or may be gitignored, in .eshuignore, in a default-pruned directory (for example node_modules, vendor, dist, or build; the full set is under Default skips in the .eshuignore reference, eshuignore.md#default-skips), have an ignored extension, or be generated."
+
 // repositoryFilesTool defines the bounded repository file-listing tool. It
 // proxies GET /api/v0/repositories/{repo_id}/tree, which reconstructs a
 // directory tree from the content-index file store. The optional language
@@ -18,7 +28,7 @@ func repositoryFilesTool() ToolDefinition {
 			"sizes (line counts), and languages. " +
 			"language filters entries to a single language family (e.g. go, typescript, python, terraform). " +
 			"path scopes the listing to a subdirectory; recursive expands the full subtree. " +
-			"truncated is set when the repository has more than 50 000 indexed files.",
+			"truncated is set when the repository has more than 50 000 indexed files." + indexedFilesRule,
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

@@ -3,7 +3,10 @@
 
 package mcp
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRepositoryFilesToolIsRegistered(t *testing.T) {
 	t.Parallel()
@@ -60,6 +63,36 @@ func TestRepositoryFilesToolLanguageIsOptional(t *testing.T) {
 	for _, f := range required {
 		if f == "language" {
 			t.Fatalf("language is listed as required; it must be optional")
+		}
+	}
+}
+
+// TestIndexedFilesRuleInFileToolDescriptions pins the indexed-file rule into
+// every tool that reads the file index, so a "file not found" is never
+// mistaken for "Eshu cannot see dotfiles" (#8808).
+func TestIndexedFilesRuleInFileToolDescriptions(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"list_repository_files", "get_file_content", "get_file_lines", "search_file_content"} {
+		desc := requireToolDefinition(t, name).Description
+		for _, want := range []string{
+			"parser-registry name, prefix, extension, or documentation format",
+			"Dotfiles are not hidden",
+			".gitmodules",
+			"CODEOWNERS",
+			"gitignored",
+			".eshuignore",
+			"default-pruned",
+			".eslintrc.js",
+			".github/workflows/ci.yml",
+			"for example",
+			"eshuignore.md#default-skips",
+			".env",
+			"may simply not be indexed",
+		} {
+			if !strings.Contains(desc, want) {
+				t.Errorf("%s description missing %q", name, want)
+			}
 		}
 	}
 }
