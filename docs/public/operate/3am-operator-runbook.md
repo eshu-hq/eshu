@@ -61,9 +61,10 @@ reported `truth.freshness.state = stale`.
   `query_failed` (a store error), or `canceled` (the caller left; not
   counted). `no_authorized_repositories` is a scoped token with no grants; fix
   its grants. `terminal_fetch_failure:<class>`
-  is a provider failure (`auth_denied` means the provider refused the target's
-  credential; `retryable` or `attempt_budget_exhausted` means the retry budget
-  ran out); follow
+  is a terminal fetch failure (`auth_denied` means the provider refused the
+  target's credential; `retryable` or `attempt_budget_exhausted` means the
+  retry budget ran out; `identity_mismatch`, `collect_failure`, and
+  `commit_failure` come from the claim runner, not the provider); follow
   [collector failure](#symptom-collector-failure). The
   `supply chain query stage completed` log for stage
   `security_alert_collection_state` carries `coverage_state`, `coverage_reason`,

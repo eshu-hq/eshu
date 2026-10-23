@@ -73,7 +73,7 @@ skip this read, because the rows already prove the collector ran.
 | Projected generation and no later terminal failure | `complete` | (absent) | `exact` | `fresh` |
 | Scoped token with no grants (no collector read) | `not_configured` | `no_authorized_repositories` | `fallback` | `unavailable` |
 
-Every non-complete row read from collector state sets
+Every non-complete row classified from a successful collector-state read sets
 `truth.freshness.cause=missing_collector_completion`, whose next check is
 `list_collectors`. `<class>` is the class the claim runner stored on the
 terminal work item: `auth_denied`, `not_found`, `rate_limited`, or `terminal`
@@ -81,9 +81,13 @@ from the provider; `retryable` when the retry budget ran out on a transient
 provider failure; `attempt_budget_exhausted` when the budget ran out on a cause
 with no class; `identity_mismatch`; `collect_failure` or `commit_failure` for a
 non-retryable collect or commit error; and `unclassified` for anything else.
-The collector-state not-configured rows and the healthy row also carry
-`collector_readiness` (`not_configured` or `ready_zero_results`). These fields
-and the `coverage` object on an empty inventory page are additive.
+The no-enabled-instance row and the healthy row also carry
+`collector_readiness` (`not_configured` or `ready_zero_results`). The
+outside-target row and the `target_incomplete` rows carry none: an
+outside-target answer has an enabled instance, so the envelope's
+`not_configured` would be false, and `coverage.reasons` already says why the
+answer is not complete. These fields and the `coverage` object on an empty
+inventory page are additive.
 
 A scoped token whose grants authorize no repository is answered without
 reading collector state, so its row carries no `collector_readiness` and no

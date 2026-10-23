@@ -15,7 +15,19 @@ dead-lettered reducer reconciliation, a repository added to a target after its
 latest projected generation, or a scoped caller's grants on an unanchored read.
 A caller with no grants gets `not_configured` with reason
 `no_authorized_repositories`. The `coverage` object on an empty inventory page
-and the `collector_readiness` envelope on an empty answer are additive fields.
+and the `collector_readiness` envelope are additive fields. The envelope appears
+on a healthy empty answer (`ready_zero_results`), on an answer with no enabled
+instance (`not_configured`), and on a failed state read
+(`readiness_unavailable`). A `target_incomplete` answer, a repository outside
+every target, and a grantless answer carry none.
+
+This claim departs from binding ruling item 6, which said "every target that
+covers" the repository; the code says "a target that covers". An anchored read
+takes the best covering target, because every covering target reads the same
+provider data for that repository. The arbiter's own F5 wording and the code
+agree, and a failing redundant covering target is a collector-readiness signal
+for PR B, not repository coverage. The second independent review judged this
+the honest semantic.
 
 ## Per-state behavior
 
@@ -23,16 +35,16 @@ Each row is a case in `TestSecurityAlertEmptyAnswerCoverageInvariant`
 (`go/internal/query/supply/chain/security_alert_coverage_test.go`), run against
 the list, count, and inventory routes. With the classification disabled
 (`securityAlertEmptyAnswerVerdict` forced to return no verdict, which is the
-pre-fix behavior), all 36 subtests of the first 12 cases on 3 routes fail:
-every non-healthy case answers `complete`, `exact`, `fresh`, and the healthy
-cases lack the readiness envelope (the inventory route lacks `coverage`
-entirely). With the classification on, all 42 subtests (14 cases) pass.
+pre-fix behavior), all 42 subtests of the 14 cases on 3 routes fail: every
+non-healthy case answers `complete`, `exact`, `fresh`, and the healthy cases
+lack the readiness envelope (the inventory route lacks `coverage` entirely).
+With the classification on, all 42 subtests pass.
 
 | Case | `coverage.state` | `coverage.reasons` | level | freshness | readiness |
 | --- | --- | --- | --- | --- | --- |
 | No enabled instance | `not_configured` | `collector_not_configured` | `fallback` | `unavailable` | `not_configured` |
-| Repository outside every target | `not_configured` | `repository_outside_target_set` | `fallback` | `unavailable` | `not_configured` |
-| Org allowlist names the repository under another owner | `not_configured` | `repository_outside_target_set` | `fallback` | `unavailable` | `not_configured` |
+| Repository outside every target | `not_configured` | `repository_outside_target_set` | `fallback` | `unavailable` | absent |
+| Org allowlist names the repository under another owner | `not_configured` | `repository_outside_target_set` | `fallback` | `unavailable` | absent |
 | Target pending, nothing projected | `target_incomplete` | `no_committed_generation` | `derived` | `building` | absent |
 | Work items under a different scope id than the config | `target_incomplete` | `no_committed_generation` | `derived` | `building` | absent |
 | Terminal failure, nothing projected | `target_incomplete` | `terminal_fetch_failure:auth_denied` | `fallback` | `unavailable` | absent |
@@ -45,8 +57,11 @@ entirely). With the classification on, all 42 subtests (14 cases) pass.
 | One covering target failed, another healthy | `complete` | absent | `exact` | `fresh` | `ready_zero_results` |
 | Healthy zero control | `complete` | absent | `exact` | `fresh` | `ready_zero_results` |
 
-Every non-complete row also carries `missing_collector_completion` as its
-freshness cause. The two `failed_terminal` rows cover work items written
+Every non-complete row in this table also carries
+`missing_collector_completion` as its freshness cause. A repository outside
+every target carries no readiness envelope because an enabled instance exists:
+the envelope's `not_configured` means no enabled instance is registered, which
+would be false for it. The two `failed_terminal` rows cover work items written
 before migration 185, whose `last_failure_terminal` is NULL and reads as
 false; removing the status check from `classifySecurityAlertTarget` fails them.
 
