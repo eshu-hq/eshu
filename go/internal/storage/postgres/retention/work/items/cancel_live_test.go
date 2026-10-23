@@ -74,15 +74,23 @@ func TestPruneWorkItemsLiveShutdownDuringABatchIsACancellation(t *testing.T) {
 	before := len(remainingIDs(t, ctx, database))
 	release := holdTableLock(t, ctx, database)
 
+	// The lock timeout is long, so a pass that ignored the cancel would end
+	// on it with a 55P03 *pgconn.PgError, which the checks below reject.
 	policy := testPolicy(1000, 1)
 	policy.LockTimeout = 30 * time.Second
 	passCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	stop := time.AfterFunc(300*time.Millisecond, cancel)
-	defer stop.Stop()
-	started := time.Now()
+	// Cancel only once the batch is seen waiting on the held lock, so the
+	// cancel lands mid-statement however slow the runner is.
+	waited := make(chan error, 1)
+	go func() {
+		defer cancel()
+		waited <- waitForLockWaiter(ctx, database)
+	}()
 	result, err := NewSweeper(postgres.SQLDB{DB: database}).PruneWorkItems(passCtx, liveAsOf, policy)
-	elapsed := time.Since(started)
+	if waitErr := <-waited; waitErr != nil {
+		t.Fatalf("batch never waited on the held lock: %v (pass error %v)", waitErr, err)
+	}
 
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("PruneWorkItems() error = %v, want it to wrap context.Canceled", err)
@@ -91,15 +99,33 @@ func TestPruneWorkItemsLiveShutdownDuringABatchIsACancellation(t *testing.T) {
 	if errors.As(err, &pgErr) {
 		t.Fatalf("PruneWorkItems() error = %v carries SQLSTATE %s, want a plain cancellation", err, pgErr.Code)
 	}
-	if elapsed >= 10*time.Second {
-		t.Fatalf("canceled pass took %s, want it to stop on cancel, not on the lock timeout", elapsed)
-	}
 	if result.Batches != 0 {
 		t.Fatalf("result = %+v, want no committed batch", result)
 	}
 	release()
 	if got := len(remainingIDs(t, ctx, database)); got != before {
 		t.Fatalf("rows after a canceled batch = %d, want %d (the batch must roll back)", got, before)
+	}
+}
+
+// waitForLockWaiter polls pg_stat_activity until a backend of this test's
+// isolated database waits on a heavyweight lock, or fails after 30 s.
+func waitForLockWaiter(ctx context.Context, database *sql.DB) error {
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		var waiting int
+		if err := database.QueryRowContext(ctx, `
+SELECT COUNT(*) FROM pg_stat_activity
+WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting); err != nil {
+			return err
+		}
+		if waiting > 0 {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return errors.New("no backend waited on a lock within 30s")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 

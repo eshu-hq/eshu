@@ -108,7 +108,7 @@ stop; the batches it already committed stay committed.
 | --- | --- | --- | --- |
 | `eshu_dp_workflow_coordinator_work_item_retention_passes_total` | counter | `outcome` | Retention passes: `success`, `error`, or `canceled` (stopped by coordinator shutdown; a batch that fails on its own during shutdown still counts as `error`). |
 | `eshu_dp_workflow_coordinator_work_item_retention_pass_duration_seconds` | histogram | `outcome` | Wall time of one pass. |
-| `eshu_dp_workflow_coordinator_work_item_retention_deleted_total` | counter | `status` | Rows deleted, by `completed` or `failed_terminal`. A failed or canceled pass still counts the batches it committed. |
+| `eshu_dp_workflow_coordinator_work_item_retention_deleted_total` | counter | `status` | Rows deleted, by `completed` or `failed_terminal`. A failed or canceled pass still counts the batches it committed. The one exception is a shutdown cancel that lands during a batch's COMMIT round trip: the server can commit while the pass sees a cancellation, so this counter misses at most that one batch. The deletes are idempotent and the cursor stays before that window. |
 | `eshu_dp_workflow_coordinator_work_item_retention_batch_duration_seconds` | histogram | none | One batch transaction's wall time, which is also its row-lock hold. |
 | `eshu_dp_workflow_coordinator_work_items_table_bytes` | gauge | none | `pg_total_relation_size` of `workflow_work_items` (heap, indexes, TOAST) after the last pass that read it. |
 | `eshu_dp_workflow_coordinator_work_items_estimated_rows` | gauge | none | The planner's live-row estimate (`pg_class.reltuples`) after the last pass that read it. |

@@ -87,29 +87,31 @@ FROM generate_series(1, $3::int) AS n`, concurrencyLiveInstanceID, now, count); 
 }
 
 // lifecycleWorker claims, heartbeats and completes (or terminally fails) live
-// work until none is left, recording errors and the slowest operation.
+// work until none is left, recording errors and the slowest operation. A
+// non-nil beforeClaim runs, untimed, before every claim; the overlap proof
+// uses it to pace the worker against the retention loop.
 func lifecycleWorker(
 	ctx context.Context,
 	store *postgres.WorkflowControlStore,
 	worker int,
 	slowest *atomic.Int64,
 	processed *atomic.Int64,
+	beforeClaim func() error,
 ) error {
 	timed := func(op func(context.Context) error) error {
 		opCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		started := time.Now()
 		err := op(opCtx)
-		elapsed := time.Since(started).Nanoseconds()
-		for {
-			current := slowest.Load()
-			if elapsed <= current || slowest.CompareAndSwap(current, elapsed) {
-				break
-			}
-		}
+		recordMax(slowest, time.Since(started).Nanoseconds())
 		return err
 	}
 	for attempt := 0; ; attempt++ {
+		if beforeClaim != nil {
+			if err := beforeClaim(); err != nil {
+				return fmt.Errorf("worker %d: %w", worker, err)
+			}
+		}
 		claimID := fmt.Sprintf("claim-w%d-%d", worker, attempt)
 		owner := fmt.Sprintf("owner-w%d", worker)
 		var (
@@ -158,10 +160,13 @@ func lifecycleWorker(
 	}
 }
 
-// TestPruneWorkItemsLiveDoesNotContendWithClaimLifecycle runs retention passes
-// in a loop while concurrent workers claim, heartbeat and complete live work.
-// Every lifecycle operation must succeed within concurrencyOpBudget, retention
-// must not fail, and both sides must finish their work.
+// TestPruneWorkItemsLiveDoesNotContendWithClaimLifecycle runs retention
+// batches in a loop while concurrent workers claim, heartbeat and complete
+// live work. Every lifecycle operation must succeed within
+// concurrencyOpBudget, retention must not fail, and both sides must finish
+// their work. An overlapGate makes the two sides interleave by construction:
+// a CI run once had the workers drain all live work before the first
+// retention pass returned, so the proof never overlapped.
 func TestPruneWorkItemsLiveDoesNotContendWithClaimLifecycle(t *testing.T) {
 	database, ctx := isolatedLiveDB(t)
 	seedOldHistory(t, ctx, database)
@@ -171,33 +176,35 @@ func TestPruneWorkItemsLiveDoesNotContendWithClaimLifecycle(t *testing.T) {
 
 	var (
 		slowest, processed  atomic.Int64
-		retentionBatches    atomic.Int64
 		retentionDeleted    atomic.Int64
 		slowestRetention    atomic.Int64
-		workersDone         = make(chan struct{})
 		retentionErr        error
 		retentionLoopFinish = make(chan struct{})
 	)
+	gate := newOverlapGate(&processed)
 	go func() {
 		defer close(retentionLoopFinish)
-		policy := testPolicy(50, 5)
+		defer gate.retentionStopped()
+		// One batch per call, so every committed batch is counted as it
+		// commits, not when a multi-batch pass returns.
+		policy := testPolicy(50, 1)
 		for {
-			select {
-			case <-workersDone:
+			if err := gate.beforeRetentionBatch(); err != nil {
+				retentionErr = err
 				return
-			default:
+			}
+			if gate.workersFinished() {
+				return
 			}
 			result, err := sweeper.PruneWorkItems(ctx, liveAsOf, policy)
 			if err != nil {
 				retentionErr = err
 				return
 			}
-			retentionBatches.Add(int64(result.Batches))
 			retentionDeleted.Add(int64(result.Deleted()))
+			gate.retentionCommitted(result)
 			for _, batch := range result.BatchDurations {
-				if int64(batch) > slowestRetention.Load() {
-					slowestRetention.Store(int64(batch))
-				}
+				recordMax(&slowestRetention, int64(batch))
 			}
 		}
 	}()
@@ -208,12 +215,11 @@ func TestPruneWorkItemsLiveDoesNotContendWithClaimLifecycle(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			errs <- lifecycleWorker(ctx, store, worker, &slowest, &processed)
+			errs <- lifecycleWorker(ctx, store, worker, &slowest, &processed, gate.beforeClaim)
 		}()
 	}
 	wg.Wait()
-	batchesDuringWork := retentionBatches.Load()
-	close(workersDone)
+	batchesDuringWork, deletedDuringWork := gate.finishWorkers()
 	<-retentionLoopFinish
 	close(errs)
 	for err := range errs {
@@ -224,8 +230,9 @@ func TestPruneWorkItemsLiveDoesNotContendWithClaimLifecycle(t *testing.T) {
 	if retentionErr != nil {
 		t.Fatalf("retention failed while lifecycle work ran: %v", retentionErr)
 	}
-	if batchesDuringWork == 0 {
-		t.Fatal("retention committed no batch while workers ran; the proof did not overlap")
+	if want := int64(overlapMinBatches()); batchesDuringWork < want || deletedDuringWork == 0 {
+		t.Fatalf("retention committed %d batches deleting %d rows while workers ran, want at least %d batches deleting rows; the proof did not overlap",
+			batchesDuringWork, deletedDuringWork, want)
 	}
 	if got := processed.Load(); got != concurrencyLiveItems {
 		t.Fatalf("lifecycle processed %d items, want %d", got, concurrencyLiveItems)
@@ -259,8 +266,8 @@ func TestPruneWorkItemsLiveDoesNotContendWithClaimLifecycle(t *testing.T) {
 	if orphans := orphanClaims(t, ctx, database); orphans != 0 {
 		t.Fatalf("orphan claims = %d, want 0", orphans)
 	}
-	t.Logf("retention batches during work=%d slowest retention batch=%s slowest lifecycle op=%s",
-		batchesDuringWork, time.Duration(slowestRetention.Load()), time.Duration(slowest.Load()))
+	t.Logf("retention batches during work=%d deleting %d rows, slowest retention batch=%s slowest lifecycle op=%s",
+		batchesDuringWork, deletedDuringWork, time.Duration(slowestRetention.Load()), time.Duration(slowest.Load()))
 }
 
 // TestPruneWorkItemsLiveSkipsLockedRowsWithoutWaiting proves a retention batch
@@ -279,15 +286,14 @@ func TestPruneWorkItemsLiveSkipsLockedRowsWithoutWaiting(t *testing.T) {
 		t.Fatalf("hold row lock: %v", err)
 	}
 
+	// The holder keeps its lock for the whole pass, so a batch that waited on
+	// the row instead of skipping it would end on the policy lock timeout
+	// with a 55P03 error. A nil error is the proof; no wall-clock bound is
+	// needed.
 	sweeper := NewSweeper(postgres.SQLDB{DB: database})
-	started := time.Now()
 	result, err := sweeper.PruneWorkItems(ctx, liveAsOf, testPolicy(1000, 1))
-	elapsed := time.Since(started)
 	if err != nil {
-		t.Fatalf("PruneWorkItems() with a held row lock error = %v, want nil", err)
-	}
-	if policy := workflow.DefaultWorkItemRetentionPolicy(); elapsed >= policy.LockTimeout {
-		t.Fatalf("pass took %s, want under the %s lock timeout (it must skip, not wait)", elapsed, policy.LockTimeout)
+		t.Fatalf("PruneWorkItems() with a held row lock error = %v, want nil (it must skip, not wait)", err)
 	}
 	if result.Deleted() == 0 {
 		t.Fatal("pass deleted nothing; want every eligible row except the locked one")
@@ -349,7 +355,7 @@ func TestPruneWorkItemsLiveOpenBatchDoesNotBlockLifecycle(t *testing.T) {
 	}
 
 	var slowest, processed atomic.Int64
-	if err := lifecycleWorker(ctx, store, 0, &slowest, &processed); err != nil {
+	if err := lifecycleWorker(ctx, store, 0, &slowest, &processed, nil); err != nil {
 		t.Fatalf("lifecycle under an open retention batch: %v", err)
 	}
 	if processed.Load() != 5 {

@@ -149,14 +149,26 @@ same PostgreSQL 18.6:
 
 - `TestPruneWorkItemsLiveDoesNotContendWithClaimLifecycle`: four workers
   claim, heartbeat and complete or terminally fail 300 live items through
-  `WorkflowControlStore` while retention loops. Across five local runs at
-  the shipped statement (two under `-race`): 25 to 363 retention batches
-  committed during the work, the slowest lifecycle operation took 6.9 to
-  31.2 ms (budget 2 s), the slowest retention batch took 40.8 to 47.7 ms,
-  and each run deleted 2,940 history rows and left no orphan claims.
+  `WorkflowControlStore` while retention loops one batch per call. A CI
+  run once failed it with "the proof did not overlap": the workers drained
+  the live work in 2.28 s before the first five-batch pass returned. An
+  overlap gate (`overlap_gate_test.go`) now makes the overlap hold by
+  construction. Workers start after retention's first deleting batch,
+  retention runs at most one batch per four processed items ahead, and a
+  worker takes claim ticket n only after n/10 retention batches, so at least
+  30 batches commit while the workers run. With a 5 s delay injected
+  before retention starts, the old proof failed with the CI message and the
+  gated one passed. Across 45 runs under `-race` (`-count=20`,
+  `GOMAXPROCS=1 -count=5`, and four concurrent `-count=5` copies): 37 to
+  75 batches committed during the work, the slowest lifecycle operation
+  took 7.5 to 72.0 ms (budget 2 s), the slowest retention batch took 39.5
+  to 67.6 ms, and each run deleted 2,940 history rows and left no orphan
+  claims.
 - `TestPruneWorkItemsLiveSkipsLockedRowsWithoutWaiting`: a held row lock is
-  skipped, not waited on, and the row goes on the next walk. Removing
-  `SKIP LOCKED` fails it with SQLSTATE 55P03.
+  skipped, not waited on, and the row goes on the next walk. The holder
+  keeps its lock for the whole pass, so a batch that waited would end on
+  the lock timeout; the proof checks the error, not a wall-clock bound.
+  Removing `SKIP LOCKED` fails it with SQLSTATE 55P03.
 - `TestPruneWorkItemsLiveOpenBatchDoesNotBlockLifecycle`: lifecycle work
   completes while an uncommitted batch holds its locks.
 - `TestPruneWorkItemsLiveKeepsRegistryLastCompletedAt`: the review
@@ -234,7 +246,12 @@ context watcher has rolled the transaction back. A local probe (200
 commits right after a cancel) got `context.Canceled` on all 100 immediate
 commits and `sql.ErrTxDone` on all 100 that waited 5 ms, so the sweeper
 adds the context error to a commit that fails that way
-(`TestPruneWorkItemsReportsACanceledCommitAsCancellation`). The table size
+(`TestPruneWorkItemsReportsACanceledCommitAsCancellation`). A cancel that
+lands during the COMMIT round trip itself stays an edge: the server can
+commit while the pass sees `context.Canceled`, so `deleted_total` misses at
+most that one batch. It happens only at shutdown, the deletes are
+idempotent, and the cursor stays before that window, so the next pass
+re-walks it and finds the rows gone. The table size
 gauges export no data point until a pass reads the catalog size, so dark
 mode, retention off and the time before the first pass are absent, not 0
 (`TestWorkItemTableSizeGaugesStayEmptyWithoutAKnownReading`, and through

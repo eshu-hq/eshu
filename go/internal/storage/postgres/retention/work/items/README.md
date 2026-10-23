@@ -63,6 +63,9 @@ Details: `docs/internal/evidence/8829-workflow-work-item-retention.md`.
 - `sweeper_live_test.go`, `concurrency_live_test.go`, `cancel_live_test.go`:
   real-Postgres proofs, each in its own database, gated on
   `ESHU_POSTGRES_DSN` (role needs `CREATE DATABASE`).
+- `overlap_gate_test.go`: paces the retention loop and the lifecycle
+  workers of the claim-lifecycle proof against each other, so the two
+  overlap by construction rather than by timing.
 
 ```bash
 cd go
