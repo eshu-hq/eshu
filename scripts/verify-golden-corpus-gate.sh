@@ -478,7 +478,7 @@ gate_status=0
 	-snapshot="${golden_query_runtime_snapshot}" \
 	-demo-manifest=specs/demo-first-answers.v1.yaml \
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
-	-mcp-base-url="http://localhost:${GATE_MCP_PORT}" \
+	-mcp-base-url="http://localhost:${GATE_MCP_PORT}" -mcp-result-shape="${GATE_MCP_RESULT_SHAPE:-}" \
 	-graph-required-only=false \
 	-required-node-labels="Repository,Directory,File,Function,AtlantisProject,AtlantisWorkflow,Platform,GitlabPipeline,GitlabJob,CloudAction" \
 	-required-correlations="all" \

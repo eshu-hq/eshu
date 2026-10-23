@@ -26,13 +26,17 @@ type mcpClient struct {
 	baseURL string
 	apiKey  string
 	doer    httpDoer
-	id      int
+	// shape is the tools/call result shape asked for with ?shape=; empty asks
+	// for none and leaves the server default.
+	shape string
+	id    int
 }
 
-func newMCPClient(baseURL, apiKey string) *mcpClient {
+func newMCPClient(baseURL, apiKey, shape string) *mcpClient {
 	return &mcpClient{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		apiKey:  apiKey,
+		shape:   shape,
 		doer:    &http.Client{Timeout: 30 * time.Second},
 	}
 }
@@ -76,6 +80,16 @@ type mcpEmbeddedResource struct {
 	Text     string `json:"text"`
 }
 
+// messageURL returns the JSON-RPC endpoint, with the result shape the gate was
+// told to ask for. An empty shape leaves the URL bare so the server default
+// applies.
+func (c *mcpClient) messageURL() string {
+	if c.shape == "" {
+		return c.baseURL + "/mcp/message"
+	}
+	return c.baseURL + "/mcp/message?shape=" + c.shape
+}
+
 // callTool invokes one MCP tool via tools/call and returns the tool's JSON
 // payload, preferring structuredContent (the canonical machine-readable copy) and
 // then a JSON resource before a legacy text content entry. A transport error, a
@@ -95,7 +109,7 @@ func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]a
 	if err != nil {
 		return nil, fmt.Errorf("marshal tools/call %s: %w", name, err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/mcp/message", bytes.NewReader(reqBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.messageURL(), bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("build tools/call %s: %w", name, err)
 	}

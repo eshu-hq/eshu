@@ -19,11 +19,13 @@ type fakeMCPDoer struct {
 	byTool   map[string]string // tool name -> raw JSON-RPC response body
 	status   int
 	lastBody string
+	lastURL  string
 }
 
 func (f *fakeMCPDoer) Do(req *http.Request) (*http.Response, error) {
 	body, _ := io.ReadAll(req.Body)
 	f.lastBody = string(body)
+	f.lastURL = req.URL.String()
 	var parsed mcpJSONRPCRequest
 	_ = json.Unmarshal(body, &parsed)
 	status := f.status
