@@ -140,6 +140,41 @@ ARG V
 	}
 }
 
+// A bare ARG after a default does not clear it: BuildKit adds a value to the
+// meta-argument map only for a declaration that has one, so the earlier default
+// stays. Checked against docker 29.1.3 with an unresolvable registry host, where
+// the load-metadata step named the expanded reference.
+func TestBaseRefBareDeclarationKeepsAnEarlierDefault(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name, source, wantTag string
+		fromLine              int
+	}{
+		{"default then bare", "ARG V=1\nARG V\nFROM node:${V}\n", "1", 3},
+		{"default, bare, then a later default", "ARG V=1\nARG V\nARG V=2\nFROM node:${V}\n", "2", 4},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			stage := stageAtLine(t, RuntimeMetadata(tc.source), tc.fromLine)
+			if stage.BaseTag != tc.wantTag || len(stage.UnresolvedArgs) != 0 {
+				t.Fatalf("stage = %#v, want tag %q resolved", stage, tc.wantTag)
+			}
+		})
+	}
+}
+
+func TestBaseRefDefaultAfterBareDeclarationWins(t *testing.T) {
+	t.Parallel()
+
+	got := RuntimeMetadata("ARG V\nARG V=3\nFROM node:${V}\n")
+	stage := stageAtLine(t, got, 3)
+	if stage.BaseTag != "3" || len(stage.UnresolvedArgs) != 0 {
+		t.Fatalf("stage = %#v, want the later default to win", stage)
+	}
+}
+
 func TestBaseRefUnresolvedWhenValueIsNotKnowable(t *testing.T) {
 	t.Parallel()
 

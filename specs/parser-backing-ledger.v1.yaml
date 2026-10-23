@@ -42,6 +42,9 @@ parser_backing:
     test_files:
       - go/internal/parser/dockerfile/base_ref_test.go
       - go/internal/parser/dockerfile/base_ref_nested_cost_test.go
+      - go/internal/parser/dockerfile/base_ref_bound_test.go
+      - go/internal/parser/dockerfile/base_ref_cap_test.go
+      - go/internal/parser/dockerfile/base_ref_payload_test.go
       - go/internal/parser/dockerfile/metadata_test.go
     downstream_relevance:
       - dockerfile_stages -> parser metadata and runtime evidence
