@@ -24,6 +24,7 @@ producers:
       planned_repository: eshu-hq/eshu-collector-pagerduty
       authority_mode: core_issued_grant
       kinds:
+        - incident_routing.coverage_warning
         - incident_routing.observed_pagerduty_integration
         - incident_routing.observed_pagerduty_service
     - id: collector-terraform-state

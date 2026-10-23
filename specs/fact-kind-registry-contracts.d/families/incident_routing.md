@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `collector-pagerduty` | `eshu-hq/eshu` | `go/internal/collector/pagerduty` | `eshu-hq/eshu-collector-pagerduty` | `core_issued_grant` | `incident_routing.observed_pagerduty_integration, incident_routing.observed_pagerduty_service` |
+| `collector-pagerduty` | `eshu-hq/eshu` | `go/internal/collector/pagerduty` | `eshu-hq/eshu-collector-pagerduty` | `core_issued_grant` | `incident_routing.coverage_warning, incident_routing.observed_pagerduty_integration, incident_routing.observed_pagerduty_service` |
 | `collector-terraform-state` | `eshu-hq/eshu` | `go/internal/collector/terraformstate` | `eshu-hq/eshu-collector-terraform-state` | `core_issued_grant` | `incident_routing.applied_alert_route, incident_routing.applied_pagerduty_resource, incident_routing.coverage_warning` |
 
 ## Kinds
@@ -20,6 +20,6 @@
 | --- | --- | --- | --- | --- |
 | `incident_routing.applied_alert_route` | `collector-terraform-state` | `none (unconsumed)` | `GET /api/v0/incidents/{incident_id}/context` | `sdk/go/factschema/schema/incident_routing.applied_alert_route.v1.schema.json` |
 | `incident_routing.applied_pagerduty_resource` | `collector-terraform-state` | `incident/incident_build_routing_evidence_inputs_routing` | `GET /api/v0/incidents/{incident_id}/context` | `sdk/go/factschema/schema/incident_routing.applied_pagerduty_resource.v1.schema.json` |
-| `incident_routing.coverage_warning` | `collector-terraform-state` | `incident/incident_build_routing_evidence_inputs_routing` | `GET /api/v0/incidents/{incident_id}/context` | `sdk/go/factschema/schema/incident_routing.coverage_warning.v1.schema.json` |
+| `incident_routing.coverage_warning` | `collector-pagerduty, collector-terraform-state` | `incident/incident_build_routing_evidence_inputs_routing` | `GET /api/v0/incidents/{incident_id}/context` | `sdk/go/factschema/schema/incident_routing.coverage_warning.v1.schema.json` |
 | `incident_routing.observed_pagerduty_integration` | `collector-pagerduty` | `none (unconsumed)` | `GET /api/v0/incidents/{incident_id}/context` | `sdk/go/factschema/schema/incident_routing.observed_pagerduty_integration.v1.schema.json` |
 | `incident_routing.observed_pagerduty_service` | `collector-pagerduty` | `incident/incident_build_routing_evidence_inputs_routing` | `GET /api/v0/incidents/{incident_id}/context` | `sdk/go/factschema/schema/incident_routing.observed_pagerduty_service.v1.schema.json` |

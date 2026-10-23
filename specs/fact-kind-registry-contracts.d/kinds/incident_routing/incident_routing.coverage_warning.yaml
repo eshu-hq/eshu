@@ -6,6 +6,7 @@ read_surface: GET /api/v0/incidents/{incident_id}/context
 payload_schema: sdk/go/factschema/schema/incident_routing.coverage_warning.v1.schema.json
 payload_schema_registered: true
 producers:
+    - collector-pagerduty
     - collector-terraform-state
 reducer_bindings:
     - incident/incident_build_routing_evidence_inputs_routing

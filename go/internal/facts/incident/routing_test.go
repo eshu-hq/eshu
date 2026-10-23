@@ -36,3 +36,28 @@ func TestIncidentRoutingFactKindsAndSchemaVersions(t *testing.T) {
 		t.Fatal("IncidentRoutingFactKinds returned mutable backing slice")
 	}
 }
+
+// TestIncidentRoutingCoverageWarningProducers pins the producer declaration to
+// what the collectors emit: the PagerDuty collector emits config-validation
+// coverage warnings and the Terraform-state collector emits applied-state
+// coverage warnings, so an external producer grant for either must be able to
+// cover the kind (#8911).
+func TestIncidentRoutingCoverageWarningProducers(t *testing.T) {
+	var got []string
+	for _, producer := range IncidentRoutingFamilyDeclaration.Producers {
+		for _, kind := range producer.Kinds {
+			if kind == IncidentRoutingCoverageWarningFactKind {
+				got = append(got, producer.ID)
+			}
+		}
+	}
+	want := []string{"collector-pagerduty", "collector-terraform-state"}
+	if len(got) != len(want) {
+		t.Fatalf("producers of %q = %v, want %v", IncidentRoutingCoverageWarningFactKind, got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("producers of %q = %v, want %v", IncidentRoutingCoverageWarningFactKind, got, want)
+		}
+	}
+}

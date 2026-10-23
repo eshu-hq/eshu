@@ -84,7 +84,7 @@ var IncidentRoutingFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "incident_routing.observed_pagerduty_service", PayloadSchema: "sdk/go/factschema/schema/incident_routing.observed_pagerduty_service.v1.schema.json"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-pagerduty", Repository: "eshu-hq/eshu", Path: "go/internal/collector/pagerduty", PlannedRepository: "eshu-hq/eshu-collector-pagerduty", AuthorityMode: "core_issued_grant", Kinds: []string{"incident_routing.observed_pagerduty_integration", "incident_routing.observed_pagerduty_service"}},
+		{ID: "collector-pagerduty", Repository: "eshu-hq/eshu", Path: "go/internal/collector/pagerduty", PlannedRepository: "eshu-hq/eshu-collector-pagerduty", AuthorityMode: "core_issued_grant", Kinds: []string{"incident_routing.coverage_warning", "incident_routing.observed_pagerduty_integration", "incident_routing.observed_pagerduty_service"}},
 		{ID: "collector-terraform-state", Repository: "eshu-hq/eshu", Path: "go/internal/collector/terraformstate", PlannedRepository: "eshu-hq/eshu-collector-terraform-state", AuthorityMode: "core_issued_grant", Kinds: []string{"incident_routing.applied_alert_route", "incident_routing.applied_pagerduty_resource", "incident_routing.coverage_warning"}},
 	},
 })
