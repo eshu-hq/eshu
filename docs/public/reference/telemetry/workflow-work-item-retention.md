@@ -4,17 +4,17 @@
 retention it grows forever: a permanently failing collector on a 15-minute
 cycle adds about 96 terminal rows per target per day, and every status read
 that groups or filters by status costs more each day (#8829). The workflow
-coordinator can delete old terminal rows in bounded batches.
+coordinator deletes old terminal rows in bounded batches.
 
-## Turning it on
+## Default and turning it off
 
-Retention is **off by default**. A pass deletes history that cannot be
-restored, so an operator opts in per deployment by setting the age. It runs
-only in active deployment mode.
+Retention is **on by default** at a 720-hour (30-day) age. It runs only in
+active deployment mode. Set the age to `0` to turn it off. Deleted history
+cannot be restored.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE` | unset (off) | How long a terminal row is kept after its last update. Setting it turns retention on; `720h` is the recommended value. Must be at least `24h`; `0` or unset is off. |
+| `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE` | `720h` | How long a terminal row is kept after its last update. `0` turns retention off; any other value must be at least `48h`. |
 | `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_BATCH_SIZE` | `1000` | Rows one batch transaction examines, and the most it deletes. Between 1 and 10,000. |
 
 The rest of the policy is fixed: a pass runs every 5 minutes (the first at
@@ -25,6 +25,38 @@ cursor on the next pass, and each batch has a 2-second `lock_timeout` and a
 Invalid values fail coordinator startup even while retention is off. With
 retention on and no retention store wired, `Service.Run` fails instead of
 silently never pruning.
+
+Which deployments run it: the base Compose file and the Helm chart default
+the coordinator to dark mode, where retention does not run. The Compose
+overlays that set `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: active` (the
+Terraform-state tier-2 and remote end-to-end runtimes, and the
+component-extension examples) and any Helm install with claim-driven
+collectors, which requires `workflowCoordinator.deploymentMode=active`, run
+it with no extra setting.
+
+### Upgrade note
+
+The first pass runs at coordinator startup, right after run reconciliation.
+Each pass examines at most 100 times the batch size rows (100,000 at the
+default), so a large backlog drains over several passes. A 268,800-row
+backlog takes three passes: at startup, then 5 and 10 minutes later, so it
+is done within about 15 minutes. The batch work itself is short: a full walk
+of a 300,000-row table took 301 batches and 12.9 seconds in the #8829
+measurement.
+
+Cumulative counts drop at upgrade, when the backlog goes, and from then on
+count only retained rows (terminal rows newer than the age, plus the rows
+retention keeps). This applies to:
+
+- `terminal_failed_count` in collector back-pressure status;
+- the coordinator snapshot's work-item status counts;
+- the registry collector status `terminal_failures` count;
+- the package-registry metadata `planned`, `completed`, and `failed` counts
+  per ecosystem, and the registry failure-class counts.
+
+Windowed reads are untouched at any allowed age: the 30-minute recent-failure
+window and the 24-hour registry status window only count rows far younger
+than 48 hours.
 
 ## What a pass deletes
 
@@ -37,20 +69,15 @@ window. A row is deleted only when all of these hold:
   sees an item disappear from an open run;
 - it is not the row of its scope's active generation, which collector
   readiness evidence joins;
-- a newer row exists for the same `(collector_kind, collector_instance_id,
-  scope_id)` target, so latest-row reads keep their answer;
-- for `failed_terminal`, a newer `failed_terminal` row exists for the same
-  target, so failure reporting keeps the newest terminal failure.
+- a newer row with the same status exists for the same `(collector_kind,
+  collector_instance_id, scope_id)` target. So each target keeps its newest
+  `completed` row, which the registry status `last_completed_at` reads; its
+  newest `failed_terminal` row, which failure reporting reads; and its newest
+  row of any status, which latest-row reads use.
 
 `claimed`, `pending`, `failed_retryable`, and `expired` rows are never
 deleted. Claim rows in `workflow_claims` go with their work item through the
 existing `ON DELETE CASCADE`.
-
-Cumulative counts change once retention runs: totals such as
-`terminal_failed_count` in collector back-pressure status and the completed
-count in the coordinator snapshot drop as old rows go. The 30-minute
-recent-failure window and the 24-hour registry status window are untouched
-at any allowed age.
 
 ## Concurrency
 
@@ -104,11 +131,11 @@ for `workflow_work_items` in `pg_stat_user_tables`. If `deleted_total` is
 flat, the remaining rows are protected: open runs that never closed, or one
 newest row per target. Check run status counts for runs stuck open.
 
-**`batch_duration_seconds` p99 above about 1 s.** Batches are measured near
-50 ms per 1,000 rows. A slow batch holds its row locks longer; lower
+**`batch_duration_seconds` p99 above about 1 s.** Batches are measured at
+about 15 ms per 1,000 rows, and 72 ms at the slowest in a full walk. A slow batch holds its row locks longer; lower
 `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_BATCH_SIZE` while the plan is
 investigated, then restore it.
 
-**To stop retention.** Unset `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE`
-and restart the coordinator. Deleted rows stay deleted; nothing else
-changes.
+**To stop retention.** Set `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE=0`
+and restart the coordinator. Unsetting it is not enough: unset means the
+720-hour default. Deleted rows stay deleted; nothing else changes.

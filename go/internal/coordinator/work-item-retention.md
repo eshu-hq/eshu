@@ -7,14 +7,18 @@ in `go/cmd/workflow-coordinator/main.go` as `Service.WorkItemRetention`.
 
 ## Behavior
 
-- Off by default: setting `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE`
-  turns it on. It runs only in active deployment mode.
+- On by default at a 720h age; `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE=0`
+  turns it off, and any other age must be at least 48h. It runs only in
+  active deployment mode. A zero-value `WorkItemRetentionConfig` (a `Config`
+  built by hand) is off.
 - `LoadConfig` reads and validates the age and
   `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_BATCH_SIZE` even when
   retention is off, so a bad value fails startup. Interval (5m), batches per
   pass (100) and lock timeout (2s) are fixed defaults.
 - `Service.Run` fails when retention is enabled and no
-  `WorkItemRetentionStore` is wired.
+  `WorkItemRetentionStore` is wired. Because `LoadConfig` enables it, every
+  active-mode `Service` built from `LoadConfig` needs the store;
+  `go/cmd/workflow-coordinator/main.go` always wires it.
 - The first pass runs at startup, after the initial run reconciliation, so
   runs that just finished are already closed. Later passes run on their own
   ticker.

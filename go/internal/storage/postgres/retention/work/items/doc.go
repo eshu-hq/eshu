@@ -7,9 +7,9 @@
 // Sweeper.PruneWorkItems walks the table in primary-key order, one window of
 // WorkItemRetentionPolicy.BatchSize rows per transaction, and deletes the
 // completed and failed_terminal rows of closed runs that are older than the
-// policy age, except the newest row and the newest failed_terminal row of
-// each (collector_kind, collector_instance_id, scope_id) target and the row of
-// a scope's active generation. Claim rows go with their work item through the
+// policy age, except the newest row, the newest completed row and the newest
+// failed_terminal row of each (collector_kind, collector_instance_id,
+// scope_id) target and the row of a scope's active generation. Claim rows go with their work item through the
 // workflow_claims ON DELETE CASCADE. Sweeper.WorkItemTableSize reads the
 // table's catalog size for the operator gauges.
 //

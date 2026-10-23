@@ -197,9 +197,9 @@ func run(parent context.Context) error {
 		StoreName:   "installed_advisory_targets",
 	}
 	factStore := postgres.NewFactStore(installedAdvisoryTargetsDB)
-	// The retention sweeper is always constructed; Service.Run schedules it
-	// only when ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE is set in
-	// active mode (#8829).
+	// The retention sweeper is always wired: retention is on by default in
+	// active mode, and Service.Run fails when it is on without a store
+	// (#8829). ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE=0 turns it off.
 	workItemRetentionDB := &postgres.InstrumentedDB{
 		Inner:       postgres.SQLDB{DB: db},
 		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),

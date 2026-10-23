@@ -181,9 +181,11 @@ Two rules the split had to obey, and both will apply to the next family move:
   use `NewMetrics` in production wiring to get all three.
 - **Store is required** — `Service.Run` returns an error immediately if
   `s.Store == nil`. Do not add fallback behavior here.
-- **Work item retention stays off by default and non-fatal** (#8829) —
-  `WorkItemRetentionConfig.Enabled` is set only when the retention age is
-  configured and runs only in active mode; `Run` fails when it is on with no `WorkItemRetention` store. A failed
+- **Work item retention is on by default and non-fatal** (#8829) —
+  `LoadConfig` sets `WorkItemRetentionConfig.Enabled` unless the retention age
+  is explicitly 0 (default 720h, floor 48h), and it runs only in active mode;
+  `Run` fails when it is on with no `WorkItemRetention` store, so any
+  active-mode `Service` built from `LoadConfig` must wire one. A failed
   pass logs ERROR and counts `outcome="error"` but never returns from `Run`.
   Keep the startup pass after the initial run reconciliation. Its metric names
   stay literal strings. See `work-item-retention.md`.

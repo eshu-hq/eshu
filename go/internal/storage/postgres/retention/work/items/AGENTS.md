@@ -16,13 +16,14 @@
   live queue state.
 - Keep the closed-run check. Run reconciliation derives an open run's status
   from its item counts; deleting from an open run changes that status.
-- Keep the newest row and the newest `failed_terminal` row per
-  `(collector_kind, collector_instance_id, scope_id)`, and the active
-  generation's row. Status, failure reporting and collector readiness read
-  them.
+- Keep the newest row, the newest `completed` row and the newest
+  `failed_terminal` row per `(collector_kind, collector_instance_id,
+  scope_id)`, and the active generation's row. Latest-row reads, the status
+  registry `last_completed_at`, failure reporting and collector readiness
+  read them. One same-status newer-row probe enforces the first three.
 - Keep `FOR UPDATE OF item SKIP LOCKED` and the row predicates on the locked
   relation (EvalPlanQual rechecks them).
-- Keep both `OFFSET 0` fences. Without them the planner turns the newest-row
+- Keep the `OFFSET 0` fence. Without it the planner turns the newer-row
   probe into a hash semi-join over a full sequential scan.
 - One window per transaction, under the local lock and statement timeouts.
   Never fold several windows into one transaction.

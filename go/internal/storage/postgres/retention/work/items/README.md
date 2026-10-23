@@ -7,9 +7,10 @@ table grows by one terminal row per collector target per cycle, forever.
 
 The workflow coordinator (`go/internal/coordinator`) calls
 `Sweeper.PruneWorkItems` on its retention ticker in active mode, after run
-reconciliation, when `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE`
-is set. Nothing downstream consumes the deletes; status reads simply see
-fewer historical rows.
+reconciliation. It is on by default at a 720h age;
+`ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE=0` turns it off.
+Nothing downstream consumes the deletes; status reads see fewer historical
+rows, and cumulative counts count only retained rows.
 
 ## Exported surface
 
@@ -24,8 +25,9 @@ fewer historical rows.
 
 A row is deleted only when it is `completed` or `failed_terminal`, older than
 the cutoff, in a closed run (`complete` or `failed`), not its scope's active
-generation, not the newest row of its target, and, for `failed_terminal`, not
-the newest terminal failure of its target. The full reasoning is on
+generation, and a newer row with the same status exists for its target. So
+each target keeps its newest row, its newest `completed` row and its newest
+`failed_terminal` row. The full reasoning is on
 `pruneBatchQuery` in `sql.go`.
 
 ## Concurrency
@@ -41,11 +43,11 @@ the newest terminal failure of its target. The full reasoning is on
 
 ## Evidence
 
-`EXPLAIN (ANALYZE, BUFFERS)` on 300,000 rows (50 scopes of 6,000 cycles): 54 ms
-and 38.8k shared buffers per 1,000-row batch; a full walk deleted 156,050
-rows in 301 batches; a second walk deleted 0. Without the `OFFSET 0` fences
-the planner chose a hash semi-join over a full sequential scan (457 ms with a
-temp spill). Details: `docs/internal/evidence/8829-workflow-work-item-retention.md`.
+`EXPLAIN (ANALYZE, BUFFERS)` on 300,000 rows (50 scopes of 6,000 cycles): 14 to
+16 ms and 14.1k to 14.7k shared buffers per 1,000-row batch; a full walk
+deleted 156,010 rows in 301 batches; a second walk deleted 0. Without the
+`OFFSET 0` fence the planner chose a hash semi-join over a full sequential
+scan (127 ms with a temp spill). Details: `docs/internal/evidence/8829-workflow-work-item-retention.md`.
 
 ## Tests
 
