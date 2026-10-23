@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8803 disposable PostgreSQL 18 proof of the windowed collector terminal-failure read: a later completed item of the same instance and scope clears, a sibling scope or another instance on a shared scope_id does not, later pending or retrying rows do not, non-terminal rows and disabled or deactivated instances never report, an orphan ages out after 3 x scan_interval with a 30 minute floor (12h interval keeps 20h and drops 40h; malformed scan_interval uses the floor), equal updated_at picks the lowest work_item_id, EXPLAIN uses migration 210's partial index without a sort, and re-running migration 210 on a populated table leaves one valid index; isolated bootstrapped schema per test; wall time is logged, not gated
+//eshu:readiness:reason #8803 disposable PostgreSQL 18 proof of the windowed collector terminal-failure read: a later completed item of the same instance and scope clears, a sibling scope or another instance on a shared scope_id does not, later pending or retrying rows do not, non-terminal rows and disabled or deactivated instances never report, an orphan ages out after 3 x scan_interval with a 30 minute floor (12h interval keeps 20h and drops 40h; malformed scan_interval uses the floor), equal updated_at picks the lowest work_item_id, a completion at the failure's exact updated_at does not clear, and a scanner_worker failed_terminal row whose last_failure_terminal flag is false still degrades its instance through the status builder without hiding an older row; isolated bootstrapped schema per test; wall time is logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (

@@ -107,6 +107,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/workflow_terminal_failure_status_live_test.go": (
             "TestCollectorTerminalFailureWindowSemanticsLive",
+            "TestCollectorTerminalFailureStatusDecidesTerminalLive",
         ),
     },
 }
