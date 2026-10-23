@@ -282,8 +282,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `EC2InternetExposureSkipped` | `eshu_dp_ec2_internet_exposure_skipped_total` |
 | `S3InternetExposureDecisions` | `eshu_dp_s3_internet_exposure_decisions_total` |
 | `S3InternetExposureSkipped` | `eshu_dp_s3_internet_exposure_skipped_total` |
-| `DriftUnresolvedModuleCalls` | `eshu_dp_drift_unresolved_module_calls_total` |
-| `DriftSchemaUnknownComposite` | `eshu_dp_drift_schema_unknown_composite_total` |
+| `DriftUnresolvedModuleCalls`, `DriftSchemaUnknownComposite` | `eshu_dp_drift_unresolved_module_calls_total`; `eshu_dp_drift_schema_unknown_composite_total` |
 | `WebhookRequests`, `WebhookTriggerDecisions` | `eshu_dp_webhook_requests_total`; `eshu_dp_webhook_trigger_decisions_total` |
 | `WebhookStoreOperations`, `WebhookTriggerClaimReaps`, `WebhookTriggerStaleClaims`, `WebhookTriggerIgnoredDecisions`, `WebhookTriggerClaimWait`, `CollectorSweepYields` | `eshu_dp_webhook_store_operations_total`; `eshu_dp_webhook_trigger_claim_reaps_total` (label: `outcome` = `requeued` \| `exhausted` \| `ignored_decision`) and `eshu_dp_webhook_trigger_stale_claims` (#7661 claim lease); `eshu_dp_webhook_trigger_ignored_decisions_total` (#7795 non-accepted terminal; counts rows actually terminated, not attempts); `eshu_dp_webhook_trigger_claim_wait_seconds` (no labels; accepted rows only, claimed_at − received_at at claim time) and `eshu_dp_collector_sweep_yields_total` (no labels) (#8123 sweep yield) |
 | `QueryScopeGrantInlineCapped` | `eshu_dp_query_scope_grant_inline_capped_total` |
@@ -291,6 +290,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `EntityContextResolution` | `eshu_dp_entity_context_resolution_total` (label: `resolved_by` = `anchor` \| `fallback` \| `content` \| `none`; #7212; emitted by `GET /api/v0/entities/{entity_id}/context` in `go/internal/query/entity/context_resolution.go`; an errored request is not counted) |
 | `LanguageQueryMetadataRows` | `eshu_dp_language_query_metadata_rows_total` (labels: `metadata_path` = `anchored` \| `page_read`, `outcome` = `enriched` \| `missing`; #7247; emitted by `POST /api/v0/code/language-query` content-metadata enrichment in `go/internal/query/language/metadata_anchored.go`) |
 | `QueryImpactScopedPathsWithheld`, `QueryImpactOwnershipCheckDuration` | `eshu_dp_query_impact_scoped_paths_withheld_total` (labels: `route`, `reason` = `ungranted_node` \| `unchecked_over_cap` \| `withheld_sink_class` \| `anchor_ungranted`) and `eshu_dp_query_impact_ownership_check_duration_seconds` (labels: `route`, `node_label`, `outcome`; one ownership statement chunk); #5167 impact/ownership |
+| `QuerySecurityAlertEmptyAnswers` | `eshu_dp_query_security_alert_empty_answers_total` (labels: `coverage_state` = `complete` \| `target_incomplete` \| `not_configured`, `reason` = `none` or a closed `coverage.reasons` token; #8803; emitted once per classified empty security-alert reconciliation answer in `go/internal/query/supply/chain/security_alert_coverage_truth.go`) |
 | `InfraInventoryReads`, `InfraInventoryDerives` | `eshu_dp_infra_inventory_reads_total`; `eshu_dp_infra_inventory_derives_total` |
 | `ReducerOwnGateWake` | `eshu_dp_reducer_own_gate_wake_total` (labels: `site` = `activation` \| `fail`, `outcome` = `reopened` \| `noop` \| `error`; #7597; emitted once per wake statement by `go/internal/storage/postgres` `activateWithConsumerWake` and `wakeAfterProducerTerminalDeadLetter`) |
 | `InfraInventoryBackfillRuns` | `eshu_dp_infra_inventory_backfill_runs_total` |

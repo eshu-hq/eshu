@@ -275,7 +275,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 			Neo4j:   neo4jReader,
 			Profile: queryProfile,
 		},
-		SupplyChain:   newSupplyChainHandler(writer, reader, neo4jReader, contentReader, queryProfile, readImpactFromWinners, logger),
+		SupplyChain:   newSupplyChainHandler(writer, reader, neo4jReader, contentReader, queryProfile, readImpactFromWinners, logger, instruments),
 		Incident:      newIncidentHandler(reader, queryProfile),
 		WorkItems:     newWorkItemHandler(reader, queryProfile),
 		Visualization: &query.VisualizationHandler{},

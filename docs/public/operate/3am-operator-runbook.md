@@ -49,6 +49,29 @@ reported `truth.freshness.state = stale`.
   `state = building` and let it drain. If the cause is `dead_lettered_domain`,
   follow [deadletter growth](#symptom-deadletter-growth). Do not force a replay
   for a building scope.
+- **Empty security-alert answer:** a zero-row security-alert reconciliation
+  read with `coverage.state` other than `complete` names its cause in
+  `coverage.reasons`. `collector_not_configured` and
+  `repository_outside_target_set` are configuration: add an enabled
+  `security_alert` instance or a target that covers the repository. The
+  `repository_outside_target_set` reason also covers a repository with no
+  provider slug mapped yet.
+  `no_committed_generation` is still collecting. `collector_state_unavailable`
+  means the state read failed: the stage log's `error_class` is
+  `deadline_exceeded` (the 1 s deadline), `bound_exceeded` (more than 64
+  instances or 1,024 covering targets; reduce the configured targets),
+  `query_failed` (a store error), or `canceled` (the caller left; not
+  counted). `no_authorized_repositories` is a scoped token with no grants; fix
+  its grants. `terminal_fetch_failure:<class>`
+  is a terminal fetch failure (`auth_denied` means the provider refused the
+  target's credential; `retryable` or `attempt_budget_exhausted` means the
+  retry budget ran out; `identity_mismatch`, `collect_failure`, and
+  `commit_failure` come from the claim runner, not the provider); follow
+  [collector failure](#symptom-collector-failure). The
+  `supply chain query stage completed` log for stage
+  `security_alert_collection_state` carries `coverage_state`, `coverage_reason`,
+  and `collector_state`, and `eshu_dp_query_security_alert_empty_answers_total`
+  counts these answers by `coverage_state` and `reason`.
 
 ## Symptom: stuck reducer
 

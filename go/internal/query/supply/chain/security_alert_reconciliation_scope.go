@@ -41,48 +41,59 @@ func (h *Handler) securityAlertReconciliationOutOfGrant(
 }
 
 // writeEmptySecurityAlertReconciliationPage returns the bounded zero-row list
-// page for an empty-grant scoped token without reading the reconciliation store.
+// page for an empty-grant scoped token without reading the reconciliation
+// store or the collector state. Its coverage is not_configured with reason
+// no_authorized_repositories (#8803 F1), never a vacuous complete.
 func (h *Handler) writeEmptySecurityAlertReconciliationPage(
 	w http.ResponseWriter,
 	r *http.Request,
 	limit int,
 ) {
 	results := []SecurityAlertReconciliationResult{}
-	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"reconciliations": results,
 		"count":           0,
-		"coverage":        securityAlertCoverageForRows(results),
 		"limit":           limit,
 		"truncated":       false,
-	}, querycontract.BuildTruthEnvelope(
+	}
+	truth := querycontract.BuildTruthEnvelope(
 		h.profile(),
 		SecurityAlertReconciliationsCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"scoped token grants authorize no repositories; no provider alert reconciliations are attributable",
-	))
+	)
+	h.applySecurityAlertGrantlessCoverage(r, body, securityAlertCoverageForRows(results), truth)
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, truth)
 }
 
 // writeEmptySecurityAlertReconciliationCount returns the zero-count aggregate
-// shape for an empty-grant scoped token without reading the aggregate store.
+// shape for an empty-grant scoped token without reading the aggregate store or
+// the collector state; its coverage is not_configured with reason
+// no_authorized_repositories.
 func (h *Handler) writeEmptySecurityAlertReconciliationCount(w http.ResponseWriter, r *http.Request) {
-	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"total_reconciliations":    0,
 		"by_reconciliation_status": map[string]int{},
 		"by_provider":              map[string]int{},
 		"by_provider_state":        map[string]int{},
 		"by_source_freshness":      map[string]int{},
-		"coverage":                 securityAlertCoverageFromFreshnessCounts(0, map[string]int{}),
 		"scope":                    map[string]string{},
-	}, querycontract.BuildTruthEnvelope(
+	}
+	truth := querycontract.BuildTruthEnvelope(
 		h.profile(),
 		SecurityAlertReconciliationAggregateCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"scoped token grants authorize no repositories; aggregate totals are zero",
-	))
+	)
+	h.applySecurityAlertGrantlessCoverage(r, body, securityAlertCoverageFromFreshnessCounts(0, map[string]int{}), truth)
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, truth)
 }
 
 // writeEmptySecurityAlertReconciliationInventory returns the empty inventory
-// page for an empty-grant scoped token without reading the aggregate store.
+// page for an empty-grant scoped token without reading the aggregate store or
+// the collector state. Every page gains the coverage object with
+// not_configured and reason no_authorized_repositories, since no page of a
+// grantless read can hold a bucket.
 func (h *Handler) writeEmptySecurityAlertReconciliationInventory(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -90,7 +101,7 @@ func (h *Handler) writeEmptySecurityAlertReconciliationInventory(
 	limit int,
 	offset int,
 ) {
-	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"buckets":     []SecurityAlertReconciliationInventoryRow{},
 		"count":       0,
 		"limit":       limit,
@@ -99,12 +110,15 @@ func (h *Handler) writeEmptySecurityAlertReconciliationInventory(
 		"truncated":   false,
 		"next_offset": nil,
 		"scope":       map[string]string{},
-	}, querycontract.BuildTruthEnvelope(
+	}
+	truth := querycontract.BuildTruthEnvelope(
 		h.profile(),
 		SecurityAlertReconciliationAggregateCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"scoped token grants authorize no repositories; inventory buckets are empty",
-	))
+	)
+	h.applySecurityAlertGrantlessCoverage(r, body, securityAlertCoverageFromCounts(0, 0), truth)
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, truth)
 }
 
 const (
@@ -117,6 +131,10 @@ type securityAlertReconciliationCoverageSummary struct {
 	State          string `json:"state"`
 	PartialRows    int    `json:"partial_rows"`
 	RowsConsidered int    `json:"rows_considered"`
+	// Reasons names why an empty answer is not complete (#8803), from the
+	// closed securityAlertCoverageReasons set. It is absent on a complete
+	// answer and on a non-empty answer, whose rows are their own evidence.
+	Reasons []string `json:"reasons,omitempty"`
 }
 
 func securityAlertCoverageForRows(

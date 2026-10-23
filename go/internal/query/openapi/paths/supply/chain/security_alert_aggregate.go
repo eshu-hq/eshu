@@ -39,15 +39,7 @@ const SecurityAlertAggregate = `
                     "by_provider": {"type": "object", "additionalProperties": {"type": "integer"}},
                     "by_provider_state": {"type": "object", "additionalProperties": {"type": "integer"}},
                     "by_source_freshness": {"type": "object", "additionalProperties": {"type": "integer"}},
-                    "coverage": {
-                      "type": "object",
-                      "description": "Provider-source coverage for counted reconciliations. target_incomplete means one or more rows came from a capped open-alert provider read.",
-                      "properties": {
-                        "state": {"type": "string", "enum": ["complete", "target_incomplete"]},
-                        "partial_rows": {"type": "integer"},
-                        "rows_considered": {"type": "integer"}
-                      }
-                    },
+                    ` + securityAlertCoverageSchema + `,
                     "scope": {"type": "object"}
                   }
                 }
@@ -102,7 +94,8 @@ const SecurityAlertAggregate = `
                     "group_by": {"type": "string"},
                     "truncated": {"type": "boolean"},
                     "next_offset": {"type": ["integer", "null"], "description": "Next offset to request when truncated is true; null when the page is complete or when the next offset would exceed the documented maximum (10000)."},
-                    "scope": {"type": "object"}
+                    "scope": {"type": "object"},
+                    ` + securityAlertCoverageSchema + `
                   }
                 }
               }
@@ -112,3 +105,22 @@ const SecurityAlertAggregate = `
       }
     },
 `
+
+// securityAlertCoverageSchema documents the coverage object every
+// security-alert read route returns (#8803). The reasons enum must equal the
+// handler's closed reason set; supply/chain's
+// TestSecurityAlertCoverageOpenAPIEnum fails when they drift.
+const securityAlertCoverageSchema = `"coverage": {
+                      "type": "object",
+                      "description": "Provider-source coverage. On an anchored read (repository_id), complete means an enabled security_alert collector target covers the repository and has a committed (projected) generation with no later terminal fetch failure. On an unanchored read, complete means every configured target does; it reports configured-target health only and says nothing about whether any particular repository is inside a target, so anchor by repository_id for repository coverage. complete also requires that no counted row came from a capped open-alert read. Coverage reflects each target's latest projected generation, so a repository added to a target after it reads covered until the next cycle projects. A zero-row answer is clean only when coverage.state is complete and the reducer's security_alert_reconciliation domain has no pending or dead-lettered work for the scope (get_freshness_causality). target_incomplete means a covering target is still collecting, failed terminally, the collector state could not be read (reason collector_state_unavailable), or at least one row came from a capped read; reason terminal_fetch_failure:retryable means the retry budget ran out on a transient provider failure. not_configured means no enabled target covers the requested repository, or, with reason no_authorized_repositories, a scoped token's grants authorize no repository (no collector state is read for it). On an empty answer, reasons names why the answer is not complete; it is absent when coverage is complete and on non-empty answers. Reasons never carry a repository name, allowlist, target id, or failure message.",
+                      "properties": {
+                        "state": {"type": "string", "enum": ["complete", "target_incomplete", "not_configured"]},
+                        "partial_rows": {"type": "integer"},
+                        "rows_considered": {"type": "integer"},
+                        "reasons": {
+                          "type": "array",
+                          "items": {"type": "string", "enum": ["collector_state_unavailable", "collector_not_configured", "no_authorized_repositories", "no_committed_generation", "repository_outside_target_set", "terminal_fetch_failure:attempt_budget_exhausted", "terminal_fetch_failure:auth_denied", "terminal_fetch_failure:collect_failure", "terminal_fetch_failure:commit_failure", "terminal_fetch_failure:identity_mismatch", "terminal_fetch_failure:not_found", "terminal_fetch_failure:rate_limited", "terminal_fetch_failure:retryable", "terminal_fetch_failure:terminal", "terminal_fetch_failure:unclassified"]}
+                        }
+                      }
+                    },
+                    "collector_readiness": {"$ref": "#/components/schemas/CollectorReadinessEnvelope"}`

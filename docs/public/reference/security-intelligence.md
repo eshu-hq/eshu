@@ -391,10 +391,10 @@ caller to tell "clean" from "not checked."
 
 `unsupported` only fires when bounded unsupported-target evidence exists for the
 requested scope. Missing evidence stays `evidence_incomplete`, with the gap in
-`missing_evidence`; the two states never collapse together. Zero findings
-without readiness are unsafe, so API and MCP responses return coverage,
-freshness, unsupported target counts, and missing-evidence reasons alongside
-findings.
+`missing_evidence`; the two states never collapse together. Zero findings without
+readiness are unsafe, so responses return coverage, freshness, unsupported target
+counts, and missing-evidence reasons. Empty provider security-alert reads follow
+the same rule ([Provider Alert Parity](security-intelligence-provider-alert-parity.md#empty-answers)).
 
 ### Vulnerability Impact Readiness Envelope
 

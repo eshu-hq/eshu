@@ -74,6 +74,13 @@ func startSupplyChainQueryStage(
 // attributes (row counts, truncation, error class, and similar bounded
 // values — never raw payloads or unbounded identifiers).
 func (t supplyChainQueryStageTimer) Done(ctx context.Context, attrs ...slog.Attr) {
+	t.DoneAt(ctx, slog.LevelInfo, attrs...)
+}
+
+// DoneAt emits the same completion event as Done at level. A stage that
+// completes by failing closed (it still answers, but on a degraded path) uses
+// it to raise the event to WARN without the stage_failed record a 5xx earns.
+func (t supplyChainQueryStageTimer) DoneAt(ctx context.Context, level slog.Level, attrs ...slog.Attr) {
 	if t.logger == nil {
 		return
 	}
@@ -85,7 +92,7 @@ func (t supplyChainQueryStageTimer) Done(ctx context.Context, attrs ...slog.Attr
 		slog.Float64("duration_seconds", time.Since(t.startedAt).Seconds()),
 	}
 	base = append(base, attrs...)
-	t.logger.LogAttrs(ctx, slog.LevelInfo, "supply chain query stage completed", base...)
+	t.logger.LogAttrs(ctx, level, "supply chain query stage completed", base...)
 }
 
 // readerStageAttrs returns the four guarded-reader stage attributes for a stage

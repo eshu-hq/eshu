@@ -70,6 +70,21 @@ Read `doc.go` and `README.md` first.
   through its callers but not a struct field. Their `repo_id`
   MUST NOT be the raw selector (unbounded caller input): the catalog match
   and the resolve stage log `""`, the scope lookup the resolved canonical id.
+- The security-alert empty-answer classification (#8803) runs only for an
+  empty answer and only after the out-of-grant selector check, so a scoped
+  caller never triggers target-membership work for a repository outside its
+  grants. Its payload, log attributes, and metric labels MUST stay closed
+  tokens: never a target scope id, repository name, allowlist, URL, or
+  failure message. A new reason token changes `securityAlertCoverageReasons`
+  and the OpenAPI enum together (`TestSecurityAlertCoverageOpenAPIEnum`).
+  Do not import `collector/securityalerts/alertruntime` here; the
+  membership decoder is deliberately query-side, and the terminal
+  failure-class literals are pinned with their collector source lines
+  (`TestSecurityAlertCoverageReasonsPinned`). A scoped token with no grants
+  MUST NOT reach the collector read: the empty-grant writers answer
+  `not_configured` with `no_authorized_repositories` and no readiness
+  envelope. A failed probe names a closed `error_class`; a caller cancel is
+  INFO and uncounted, every other class WARN and counted.
 - Files must stay under 500 lines. Watch
   `kubernetes_runtime_probe.go` and the aggregate
   handlers; split by concern rather than growing them.
@@ -145,6 +160,13 @@ not export a new symbol without adding its caller to this list.
   test (via root forward).
 - `ImpactPacketResponder` — root's lane-B packet responder
   implementation and `cmd/*` wiring, which inject it.
+- `SecurityAlertCollectionStateStore`, `SecurityAlertTargetState` — root's
+  `security_alert_collection_state_postgres.go` implementation (compile-time
+  assertion there) and `cmd/*` wiring of the `SecurityAlertCollectionState`
+  handler field (#8803).
+- `ErrSecurityAlertCollectionStateBound` — root's
+  `security_alert_collection_state_postgres.go` wraps it on a read-bound hit,
+  and the empty-answer classifier reports it as `error_class=bound_exceeded`.
 
 ## Where the tests live
 

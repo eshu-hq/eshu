@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"errors"
 )
 
 // SecurityAlertReconciliationStore reads reducer-owned provider alert
@@ -208,3 +209,41 @@ type SecurityAlertMissingEvidence struct {
 // with the handlers; the store (supply/chain/alerts/store.go) imports it
 // directly.
 const SecurityAlertReconciliationAnchorRequiredMessage = "repository_id, provider, package_id, cve_id, or ghsa_id is required; provider_state and reconciliation_status are filters only"
+
+// SecurityAlertCollectionStateStore reads the collector-side state behind an
+// empty security-alert answer (#8803). Handlers call it only when a list,
+// count, or inventory read returned no rows: returned rows are their own proof
+// that the collector ran, so a non-empty answer never reads it. It is the
+// security-alert-specific readiness port; the family-local
+// collector-list-readiness copies stay behavior-identical to root and are not
+// extended for it.
+type SecurityAlertCollectionStateStore interface {
+	// SecurityAlertCollectorConfigurations returns the raw configuration JSON
+	// of every enabled, non-deactivated security_alert collector instance. An
+	// empty slice means no instance is configured. The handler decodes only
+	// the target membership fields from it and never echoes the JSON.
+	SecurityAlertCollectorConfigurations(context.Context) ([]string, error)
+	// SecurityAlertTargetStates returns the latest work item and committed
+	// generation existence for each target scope id. A scope id with no work
+	// item and no generation may be omitted from the result.
+	SecurityAlertTargetStates(context.Context, []string) ([]SecurityAlertTargetState, error)
+}
+
+// ErrSecurityAlertCollectionStateBound reports that a collection-state read
+// stopped at one of its fixed read bounds (enabled instances or covering target
+// scope ids) instead of reading every row. A store wraps it with %w; the empty
+// answer classifier reports it as error_class=bound_exceeded, a permanent
+// condition an operator fixes by reducing configured targets, not by retrying.
+var ErrSecurityAlertCollectionStateBound = errors.New("security alert collection-state read bound exceeded")
+
+// SecurityAlertTargetState is the collection state of one configured target
+// scope: its latest workflow work item and whether any committed generation
+// exists for it. LatestFailureClass is the bounded failure class persisted by
+// the claim runner; the failure message is never read.
+type SecurityAlertTargetState struct {
+	ScopeID               string
+	LatestWorkItemStatus  string
+	LatestFailureClass    string
+	LatestFailureTerminal bool
+	CommittedGeneration   bool
+}

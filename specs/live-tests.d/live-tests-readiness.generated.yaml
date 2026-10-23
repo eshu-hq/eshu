@@ -129,6 +129,11 @@ tests:
     class: postgres_ci
     reason: "#7730 disposable PostgreSQL 18 proof that a resume chain of the unscoped file search crosses one planted 16 MB document whose 500-row window costs more than the flat 0.375 x budget window timeout of the earlier walk: the budget is twice the window's measured cost, every call advances its cursor, a key-ordered window (not the tail) carries the walk past the document, and the gathered rows equal the old single statement's; the measured budget (about 96-109 ms locally) is at or below the 100 ms MinBudget that BudgetFromEnv enforces, which Searcher.Budget accepts and every ratio scales with, so the mechanics proof holds; one local PostgreSQL 18 run took about 5-8 s"
     runner: live-postgres-readiness
+  - file: go/internal/query/security_alert_collection_state_postgres_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped schema: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read on workflow_work_items_collector_scope_generation_updated_idx; isolated bootstrapped schema per test; wall time and plan timing are logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/query/status_terraform_selection_live_test.go
     tag: ~
     class: postgres_ci

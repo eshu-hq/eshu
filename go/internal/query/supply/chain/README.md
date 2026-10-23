@@ -203,6 +203,36 @@ repository id). A fence verdict answers the retryable `503` with no
 `TestRepositorySelectorReadsAnswerRetryable503` and
 `TestRepositorySelectorHandlerOwned500RecordsSpanError`.
 
+## Security-alert empty answers
+
+An empty security-alert list, count, or first inventory page reads the
+collector's state before it answers (#8803), so a zero-row page is never
+reported complete, exact, and fresh when the collector has not collected the
+requested scope. `SecurityAlertCollectionStateStore` (implemented in root
+`security_alert_collection_state_postgres.go`) returns the enabled instances'
+target configuration and, per covering target, the latest work item plus
+whether a projected generation exists. `security_alert_collection_state.go`
+decodes only the membership fields (`scope`, `scope_id`, `repository`,
+`organization`, `allowed_repositories`) and classifies the answer into
+`coverage.state` and the closed `coverage.reasons` set;
+`security_alert_coverage_truth.go` applies it to the body and truth envelope.
+The read runs as stage `security_alert_collection_state`, whose completion log
+carries `coverage_state`, `coverage_reason`, and `collector_state`, and it
+increments `eshu_dp_query_security_alert_empty_answers_total`. Pages with rows
+never run it. The whole probe runs under `securityAlertCollectionStateTimeout`
+(1 s); a store error or an expired deadline serves `collector_state_unavailable`
+with fallback truth and a `readiness_unavailable` envelope instead of a `500`,
+and the stage log names the cause in `error_class` (`deadline_exceeded`,
+`bound_exceeded`, or `query_failed` at WARN; `canceled` at INFO, not counted).
+The store wraps its read bounds in `ErrSecurityAlertCollectionStateBound`. A
+scoped token with no grants never reaches the probe: the empty-grant writers
+answer `not_configured` with reason `no_authorized_repositories` and no
+readiness envelope. An unanchored `complete` is configured-target health only,
+and a zero-row answer is clean only when coverage.state is complete and the
+reducer's security_alert_reconciliation domain has no pending or dead-lettered
+work for the scope (`get_freshness_causality`). The state table is in
+[Provider Alert Parity](../../../../../docs/public/reference/security-intelligence-provider-alert-parity.md#empty-answers).
+
 When the catalog has no match and the selector is not canonical, the exact
 `selector.ResolveExact` fallback (which reruns the catalog read and issues the
 graph reads) runs as a third stage, `repository_selector_resolve`, also logged

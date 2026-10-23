@@ -413,8 +413,8 @@ the response shape that keeps provider alert state separate from Eshu-owned
 package and impact state. List rows carry Eshu dependency evidence under
 `eshu_package`; MCP must not copy provider payload fields into
 `observed_version`. Count and list responses include the same provider-source
-coverage summary as HTTP, so a truncated open-alert provider read is visible as
-`target_incomplete`.
+coverage summary as HTTP: a truncated open-alert read is `target_incomplete`, and
+an empty answer the collector has not earned carries `coverage.reasons` (#8803).
 
 IaC management tools also keep MCP as transport only. The HTTP query layer adds
 `safety_gate`, `safety_summary`, import-plan candidate shaping, and
