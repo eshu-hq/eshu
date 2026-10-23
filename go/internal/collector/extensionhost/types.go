@@ -51,6 +51,55 @@ type StatusRecord struct {
 	ObservedAt        time.Time
 }
 
+// ResultRecorder is an optional extension of StatusRecorder. When the
+// configured StatusRecorder also implements it, the Source reports exactly one
+// ResultRecord per NextClaimed call, for every final state: SDK results
+// (complete, unchanged, partial, retryable, terminal) and host verdicts
+// (invalid claim, launch failure, invalid result, identity mismatch, status
+// record failure). It cannot fail the claim.
+type ResultRecorder interface {
+	RecordExtensionResult(context.Context, ResultRecord)
+}
+
+// ResultOrigin says who decided a claim result's outcome.
+type ResultOrigin string
+
+const (
+	// ResultOriginSDK marks a result the SDK validator accepted; its state
+	// and status counts come from the extension.
+	ResultOriginSDK ResultOrigin = "sdk"
+	// ResultOriginHost marks a host verdict on the claim or result. Its
+	// failure class is a FailureClass* constant, and it carries no status
+	// counts, because an unvalidated result's statuses are not trusted.
+	ResultOriginHost ResultOrigin = "host"
+)
+
+// ResultRecord is the bounded per-claim summary the Source reports. It carries
+// no scope, instance, work item, generation, URL, or payload values by
+// construction, so a recorder cannot leak them into labels or logs.
+type ResultRecord struct {
+	// CollectorKind is the claim's manifest-declared kind, or "unknown" when
+	// the host rejected a claim whose kind the manifest does not declare.
+	CollectorKind string
+	Origin        ResultOrigin
+	// State is the SDK result state, or for a host verdict the state
+	// ClaimedService applies (terminal or retryable).
+	State        sdkcollector.ResultState
+	FailureClass string
+	StatusCount  int
+	FactCount    int
+	WarningCount int
+	// SourceLatencyMS is the largest source_latency_ms across the statuses.
+	SourceLatencyMS int
+	Partial         bool
+	// RetryAfter is the delay ClaimedService honors, after the
+	// MaxRetryAfterDelay cap; zero unless the result is retryable.
+	RetryAfter time.Duration
+	// RetryAfterRequestedSeconds is the largest retry_after_seconds the
+	// extension requested, before the cap.
+	RetryAfterRequestedSeconds int
+}
+
 // Config configures a Source for one component instance.
 type Config struct {
 	Manifest            component.Manifest
@@ -91,8 +140,11 @@ type Source struct {
 	payloadSchemas      map[string]json.RawMessage
 	runner              Runner
 	statusRecorder      StatusRecorder
-	clock               func() time.Time
-	collectorKinds      map[scope.CollectorKind]struct{}
+	// resultRecorder is statusRecorder when it also implements
+	// ResultRecorder, resolved once at construction; nil otherwise.
+	resultRecorder ResultRecorder
+	clock          func() time.Time
+	collectorKinds map[scope.CollectorKind]struct{}
 	// liveGrants supplies the current producer-grant set for every emission
 	// so revocation during execution fails closed. It defaults to the
 	// construction-time Grants snapshot.

@@ -60,6 +60,7 @@ func NewSource(config Config) (*Source, error) {
 	if liveGrants == nil {
 		liveGrants = func() ([]component.ProducerGrant, error) { return grants, nil }
 	}
+	resultRecorder, _ := config.StatusRecorder.(ResultRecorder)
 	collectorKinds := make(map[scope.CollectorKind]struct{}, len(config.Manifest.Spec.CollectorKinds))
 	for _, kind := range config.Manifest.Spec.CollectorKinds {
 		collectorKinds[scope.CollectorKind(kind)] = struct{}{}
@@ -75,6 +76,7 @@ func NewSource(config Config) (*Source, error) {
 		payloadSchemas:      payloadSchemasForManifest(config.Manifest),
 		runner:              config.Runner,
 		statusRecorder:      config.StatusRecorder,
+		resultRecorder:      resultRecorder,
 		clock:               clock,
 		collectorKinds:      collectorKinds,
 		liveGrants:          liveGrants,
@@ -83,12 +85,25 @@ func NewSource(config Config) (*Source, error) {
 }
 
 // NextClaimed runs one extension claim and returns facts for ClaimedService.
+// It reports one ResultRecord per call to a configured ResultRecorder, on
+// every exit path, after the outcome is decided.
 func (s *Source) NextClaimed(
 	ctx context.Context,
 	item workflow.WorkItem,
 ) (collector.CollectedGeneration, bool, error) {
+	collected, ok, result, origin, err := s.nextClaimed(ctx, item)
+	s.recordResult(ctx, item, result, origin, err)
+	return collected, ok, err
+}
+
+// nextClaimed decides one claim. It also returns the SDK result and who
+// decided the outcome, so NextClaimed can report the final state.
+func (s *Source) nextClaimed(
+	ctx context.Context,
+	item workflow.WorkItem,
+) (collector.CollectedGeneration, bool, sdkcollector.Result, ResultOrigin, error) {
 	if err := s.validateWorkItem(item); err != nil {
-		return collector.CollectedGeneration{}, false, extensionFailure{
+		return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, extensionFailure{
 			class:    FailureClassInvalidClaim,
 			terminal: true,
 			cause:    err,
@@ -100,21 +115,30 @@ func (s *Source) NextClaimed(
 
 	result, err := s.runner.RunCollector(runCtx, request)
 	if err != nil {
-		return collector.CollectedGeneration{}, false, extensionFailure{
+		return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, extensionFailure{
 			class: FailureClassLaunchFailure,
 			cause: err,
 		}
 	}
 	if err := s.validateResult(ctx, request, result); err != nil {
-		return collector.CollectedGeneration{}, false, err
+		return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, err
 	}
 	if err := s.recordStatuses(ctx, item, result); err != nil {
-		return collector.CollectedGeneration{}, false, extensionFailure{
+		return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, extensionFailure{
 			class: FailureClassStatusRecord,
 			cause: err,
 		}
 	}
+	collected, ok, err := s.resolveResult(item, result)
+	return collected, ok, result, ResultOriginSDK, err
+}
 
+// resolveResult maps a validated SDK result state to the ClaimedService
+// outcome.
+func (s *Source) resolveResult(
+	item workflow.WorkItem,
+	result sdkcollector.Result,
+) (collector.CollectedGeneration, bool, error) {
 	switch result.State {
 	case sdkcollector.ResultRetryable:
 		return collector.CollectedGeneration{}, false, extensionFailure{
