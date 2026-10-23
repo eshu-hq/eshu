@@ -151,3 +151,35 @@ func OversizedServiceDossierCandidatesOnly() map[string]any {
 	ctx["uncorrelated_cloud_resources"] = uncorrelated
 	return ctx
 }
+
+// OversizedServiceDossierWithEntrypointFamilies is the standard large service
+// plus the two lists the standard fixture leaves out: 60 entrypoint_candidates
+// and 60 network_paths, each past the story's 50-row cap, with the row widths
+// the enrichment builds. entrypoint_candidates grows with repository size (357
+// rows on the largest QA service) and network_paths has one row per entrypoint
+// that matches a runtime instance, so a large service can carry every family at
+// its cap at once. The #8798 tests use it to prove the handles view projects
+// both lists and to measure the story when nothing is below its cap.
+func OversizedServiceDossierWithEntrypointFamilies() map[string]any {
+	const rows = 60
+	candidateClasses := []string{"ambiguous_hostname", "config_key", "field_path"}
+	candidates := make([]map[string]any, 0, rows)
+	networkPaths := make([]map[string]any, 0, rows)
+	for i := range rows {
+		candidates = append(candidates, map[string]any{
+			"candidate":      fmt.Sprintf("checkout.settings.queue.endpoint%03d.internal", i),
+			"classification": candidateClasses[i%len(candidateClasses)],
+			"relative_path":  fmt.Sprintf("charts/checkout-service/config/settings-%03d.yaml", i),
+			"reason":         "ambiguous_without_stronger_hostname_evidence",
+		})
+		networkPaths = append(networkPaths, map[string]any{
+			"path_type": "hostname_to_runtime", "from_type": "hostname", "from": fmt.Sprintf("checkout-%03d.staging.example.test", i),
+			"to_type": "runtime_platform", "to": fmt.Sprintf("eks-staging-%03d", i), "platform_kind": "argocd_applicationset",
+			"environment": "staging", "reason": "exact_hostname_candidate_reference", "visibility": "internal",
+		})
+	}
+	ctx := OversizedServiceDossierContext()
+	ctx["entrypoint_candidates"] = candidates
+	ctx["network_paths"] = networkPaths
+	return ctx
+}

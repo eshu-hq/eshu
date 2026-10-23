@@ -20,11 +20,14 @@ recent shipped work grouped by feature area.
   `resolved_id`; `get_relationship_evidence` by `resolved_id` returns the rest,
   including confidence. It marks every cut with `truncated` and an omitted
   count, and lists each reduced family in `truth.omissions` with its true
-  total; the investigation repositories report the 50 rows shipped, a lower
-  bound, and the `__truncated__` marker row says more exist. The standard
-  large fixture fits the budget (252,676 of 262,144 bytes); a story with a
-  full list of uncorrelated cloud-resource candidates still exceeds the
-  dual-copy budget until the result is sent once (#8800). In both modes the
+  total; `investigation.repositories_considered` reports the packet's true
+  repository count, `investigation.repositories_with_evidence` the 50 rows
+  shipped, a lower bound, and the `__truncated__` marker row says more exist. The standard
+  large fixture fits the budget (252,744 of 262,144 bytes); a story with a
+  full list of uncorrelated cloud-resource candidates, or with
+  `entrypoint_candidates` and `network_paths` also at their 50-row cap
+  (292,174 bytes), still exceeds the dual-copy budget until the result is sent
+  once (#8800). `handles` projects those two lists to identity rows too. In both modes the
   endpoint rows now ship once, at `api_surface.endpoints`;
   `deployment_overview.api_surface` keeps its counts and points there with
   `endpoints_shipped_at`. Pass `evidence_detail: full` for every row.

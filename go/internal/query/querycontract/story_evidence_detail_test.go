@@ -14,6 +14,16 @@ func storyDetailBody() map[string]any {
 		"dependents":           []map[string]any{{"repo_id": "r1", "repository": "consumer", "sample_paths": []string{"a.yaml"}}},
 		"downstream_consumers": map[string]any{"graph_dependent_count": 1, "graph_dependents": []map[string]any{{"repo_id": "r1", "repository": "consumer"}}, "truncated": false},
 		"ci_cd_evidence":       map[string]any{"run_count": 3},
+		"entrypoint_candidates": []map[string]any{
+			{"candidate": "a.b.example.test", "classification": "ambiguous_hostname", "relative_path": "charts/x/values.yaml", "reason": "ambiguous_without_stronger_evidence"},
+		},
+		"network_paths": []map[string]any{
+			{"path_type": "hostname_to_runtime", "from_type": "hostname", "from": "svc.example.test", "to_type": "runtime_platform", "to": "eks-staging", "platform_kind": "argocd_applicationset", "environment": "staging", "visibility": "public", "reason": "exact_hostname_reference"},
+		},
+		"raw_context_limits": map[string]any{
+			"entrypoint_candidates": map[string]any{"count": 357, "limit": 50, "truncated": true},
+			"network_paths":         map[string]any{"count": 88, "limit": 50, "truncated": true},
+		},
 		"code_to_runtime_trace": map[string]any{
 			"status": "complete",
 			"segments": []map[string]any{
@@ -43,7 +53,8 @@ func numberedTraceRows(count int) []map[string]any {
 
 // TestApplyStoryEvidenceDetailHandlesMarksEveryCut proves each family the
 // handles view cuts carries its marker and an omission with its total (a lower
-// bound for the investigation repositories, which record no count past 50), and
+// bound for investigation.repositories_with_evidence, which records no count
+// past 50), and
 // that ship-once pointers replace the duplicate row lists (#8798).
 func TestApplyStoryEvidenceDetailHandlesMarksEveryCut(t *testing.T) {
 	t.Parallel()
@@ -140,5 +151,96 @@ func TestApplyStoryEvidenceDetailTolerantOfSparseBodies(t *testing.T) {
 	}
 	if got := StringVal(body, "evidence_detail"); got != ContextEvidenceDetailHandles {
 		t.Fatalf("evidence_detail = %q, want handles", got)
+	}
+}
+
+// TestApplyStoryEvidenceDetailProjectsCandidatesAndNetworkPaths proves the
+// entrypoint_candidates and network_paths lists ship identity rows under
+// handles: the candidate keeps its classification and reason (the only
+// statement of why it is not an entrypoint) but not the file path, and a
+// network path keeps both endpoints, the platform, environment, and visibility
+// but not the constant to_type or the repeated reason. The omission totals are
+// the pre-cap counts the story recorded in raw_context_limits (#8798).
+func TestApplyStoryEvidenceDetailProjectsCandidatesAndNetworkPaths(t *testing.T) {
+	t.Parallel()
+
+	body := storyDetailBody()
+	omissions := ApplyStoryEvidenceDetail(body, ContextEvidenceDetailHandles)
+
+	wantCandidate := map[string]any{"candidate": "a.b.example.test", "classification": "ambiguous_hostname", "reason": "ambiguous_without_stronger_evidence"}
+	if got := MapSliceValue(body, "entrypoint_candidates"); len(got) != 1 || !reflect.DeepEqual(got[0], wantCandidate) {
+		t.Fatalf("entrypoint_candidates = %#v, want one identity row %#v", got, wantCandidate)
+	}
+	wantPath := map[string]any{"path_type": "hostname_to_runtime", "from_type": "hostname", "from": "svc.example.test", "to": "eks-staging", "platform_kind": "argocd_applicationset", "environment": "staging", "visibility": "public"}
+	if got := MapSliceValue(body, "network_paths"); len(got) != 1 || !reflect.DeepEqual(got[0], wantPath) {
+		t.Fatalf("network_paths = %#v, want one identity row %#v", got, wantPath)
+	}
+	bySection := map[string]TruthOmission{}
+	for _, omission := range omissions {
+		bySection[omission.Section] = omission
+	}
+	for section, want := range map[string]int{"entrypoint_candidates": 357, "network_paths": 88} {
+		got, ok := bySection[section]
+		if !ok || got.Detail != ContextEvidenceDetailHandles || got.Total != want {
+			t.Fatalf("omission %q = %#v (present %v), want detail handles and total %d from raw_context_limits", section, got, ok, want)
+		}
+	}
+	if limits := MapValue(MapValue(body, "raw_context_limits"), "network_paths"); IntVal(limits, "count") != 88 {
+		t.Fatalf("raw_context_limits.network_paths = %#v, want the story's own count kept", limits)
+	}
+}
+
+// TestApplyStoryEvidenceDetailInvestigationTotals proves the investigation
+// repositories_considered omission reads the packet's true repository count
+// (coverage_summary.repository_count, taken before the 50-row cap, #8802) and
+// not the shipped rows, that the closing marker row is neither projected nor
+// counted, and that repositories_with_evidence, which records no count past the
+// cap, reports its shipped rows.
+func TestApplyStoryEvidenceDetailInvestigationTotals(t *testing.T) {
+	t.Parallel()
+
+	rows := func(count int) []map[string]any {
+		out := make([]map[string]any, 0, count+1)
+		for i := range count {
+			out = append(out, map[string]any{"repo_id": "repo-" + string(rune('a'+i%26)), "repo_name": "n", "evidence_families": []string{"x"}})
+		}
+		return out
+	}
+	considered := append(rows(50), map[string]any{"repo_id": "__truncated__", "note": "repository list truncated at 50 rows"})
+	body := map[string]any{"investigation": map[string]any{
+		"repositories_considered":    considered,
+		"repositories_with_evidence": rows(50),
+		"coverage_summary":           map[string]any{"repository_count": 241, "repositories_with_evidence_count": 50},
+	}}
+
+	omissions := ApplyStoryEvidenceDetail(body, ContextEvidenceDetailHandles)
+
+	bySection := map[string]int{}
+	for _, omission := range omissions {
+		bySection[omission.Section] = omission.Total
+	}
+	if got := bySection["investigation.repositories_considered"]; got != 241 {
+		t.Fatalf("repositories_considered omission total = %d, want the true repository_count 241", got)
+	}
+	if got := bySection["investigation.repositories_with_evidence"]; got != 50 {
+		t.Fatalf("repositories_with_evidence omission total = %d, want the 50 shipped rows", got)
+	}
+	shipped := MapSliceValue(MapValue(body, "investigation"), "repositories_considered")
+	if len(shipped) != 51 || StringVal(shipped[50], "note") == "" {
+		t.Fatalf("repositories_considered = %d rows, want 50 plus the marker row with its note", len(shipped))
+	}
+	if _, has := shipped[0]["evidence_families"]; has {
+		t.Fatalf("repository row = %#v, want identity keys only", shipped[0])
+	}
+	if got := IntVal(MapValue(MapValue(body, "investigation"), "coverage_summary"), "repository_count"); got != 241 {
+		t.Fatalf("coverage_summary.repository_count = %d, want 241 kept", got)
+	}
+
+	// A packet without the count falls back to the shipped rows rather than 0.
+	bare := map[string]any{"investigation": map[string]any{"repositories_considered": rows(3)}}
+	for _, omission := range ApplyStoryEvidenceDetail(bare, ContextEvidenceDetailHandles) {
+		if omission.Section == "investigation.repositories_considered" && omission.Total != 3 {
+			t.Fatalf("no-count omission total = %d, want the 3 shipped rows", omission.Total)
+		}
 	}
 }

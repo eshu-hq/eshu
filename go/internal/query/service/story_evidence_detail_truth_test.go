@@ -155,9 +155,11 @@ func TestStoryHandlesOmissionTotalsAreTrueTotals(t *testing.T) {
 			"downstream_consumers.content_consumers":  querycontract.IntVal(downstream, "content_consumer_count"),
 			"evidence_graph.edges":                    querycontract.IntVal(querycontract.MapValue(full, "evidence_graph"), "edge_count"),
 			"evidence_graph.nodes":                    len(querycontract.MapSliceValue(querycontract.MapValue(full, "evidence_graph"), "nodes")),
-			// The investigation packet caps its repository rows at 50 and appends
-			// a marker row; the 50 real rows are all it knows about.
-			"investigation.repositories_considered":    serviceStoryItemLimit,
+			// repositories_considered carries the packet's true repository count,
+			// taken before its 50-row cap (#8802). repositories_with_evidence has
+			// no count past the cap: repositories_with_evidence_count counts only
+			// the rows returned, so its omission total is the 50 shipped rows.
+			"investigation.repositories_considered":    querycontract.IntVal(querycontract.MapValue(querycontract.MapValue(full, "investigation"), "coverage_summary"), "repository_count"),
 			"investigation.repositories_with_evidence": serviceStoryItemLimit,
 		}
 		for _, segment := range querycontract.MapSliceValue(querycontract.MapValue(full, "code_to_runtime_trace"), "segments") {
@@ -183,6 +185,9 @@ func TestStoryHandlesOmissionTotalsAreTrueTotals(t *testing.T) {
 				}
 				t.Errorf("omission %s has no true-total source in this test; add one", section)
 				continue
+			}
+			if section == "investigation.repositories_considered" && expected <= serviceStoryItemLimit {
+				t.Errorf("fixture repository_count = %d, want past the %d-row cap so a wrong source shows", expected, serviceStoryItemLimit)
 			}
 			if expected <= serviceStoryItemLimit && !strings.HasPrefix(section, "investigation.") && !strings.HasPrefix(section, "code_to_runtime_trace.") && section != "evidence_graph.nodes" && section != "evidence_graph.edges" {
 				t.Errorf("fixture true total for %s = %d, want past the %d-row cap so a wrong source shows", section, expected, serviceStoryItemLimit)

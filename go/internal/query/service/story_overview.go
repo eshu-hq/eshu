@@ -44,8 +44,9 @@ func BuildServiceStoryResponse(serviceName string, workloadContext map[string]an
 // rows removed from its api_surface copy. The story ships those rows once, at
 // the top-level api_surface.endpoints; the overview keeps the counts and
 // endpoints_shipped_at names where the rows are (#8798). The service and
-// workload context routes shape their overview the same way. The overview map
-// and the shared apiSurface map are never mutated.
+// workload context routes shape their overview the same way. The shared
+// apiSurface map is never mutated: it is copied first, and the shaped copy is
+// installed on the caller's overview, which every story call builds fresh.
 func dropStoryOverviewEndpoints(overview map[string]any) map[string]any {
 	surface := querycontract.MapValue(overview, "api_surface")
 	if _, has := surface["endpoints"]; !has {

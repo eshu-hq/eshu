@@ -17,7 +17,7 @@ func TestOpenAPIStoryEvidenceDetailNamesArtifactException(t *testing.T) {
 
 	for _, fragment := range []string{
 		"an artifact row keeps resolved_id, the key get_relationship_evidence takes for the rest",
-		"the investigation repositories report the 50 rows shipped, a lower bound, and the __truncated__ marker row says more exist",
+		"investigation.repositories_considered reports the packet's true repository count (coverage_summary.repository_count), investigation.repositories_with_evidence reports the 50 rows shipped, a lower bound, and the __truncated__ marker row says more exist",
 	} {
 		if !strings.Contains(OpenAPISpec(), fragment) {
 			t.Fatalf("OpenAPI spec missing story evidence_detail contract %q", fragment)

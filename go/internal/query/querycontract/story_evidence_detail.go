@@ -21,7 +21,22 @@ var storyListHandleKeys = []struct {
 	{"entrypoints", []string{"type", "target", "hostname", "environment", "visibility"}},
 	{"cloud_resources", []string{"id", "name", "kind", "resource_type", "confidence", "relationship_basis"}},
 	{"uncorrelated_cloud_resources", storyCloudCandidateHandleKeys},
+	{"entrypoint_candidates", storyEntrypointCandidateHandleKeys},
+	{"network_paths", storyNetworkPathHandleKeys},
 }
+
+// storyEntrypointCandidateHandleKeys keep an entrypoint candidate to the token,
+// its classification, and its reason: the reason is the only statement of why
+// the token is not an entrypoint, so dropping it would leave a bare hostname-
+// shaped string. relative_path (where the token was found) goes; the full view
+// has it.
+var storyEntrypointCandidateHandleKeys = []string{"candidate", "classification", "reason"}
+
+// storyNetworkPathHandleKeys keep a network path to its kind, both endpoints,
+// the platform kind, environment, and visibility. to_type is always
+// runtime_platform and reason repeats the entrypoint reason that the entrypoints
+// handle row also drops, so neither ships under handles.
+var storyNetworkPathHandleKeys = []string{"path_type", "from_type", "from", "to", "platform_kind", "environment", "visibility"}
 
 // storyCloudCandidateHandleKeys keep an uncorrelated cloud resource candidate
 // to its identity plus every label that says why it is not promoted:
@@ -187,11 +202,17 @@ const storyTruncationMarkerRepoID = "__truncated__"
 // storyListTotal returns the true total of a story list: the larger of the
 // shipped row count and the count the story recorded before it capped the list.
 // The story records that count in a different place per family: upstream
-// dependencies in result_limits.upstream_count, the other top-level lists in
-// raw_context_limits.<key>.count. The investigation packet records none, so its
-// shipped (non-marker) row count is all it knows.
+// dependencies in result_limits.upstream_count, the investigation
+// repositories_considered list in investigation.coverage_summary.repository_count
+// (taken before its 50-row cap, #8802), and the other top-level lists in
+// raw_context_limits.<key>.count. investigation.repositories_with_evidence has
+// no count past the cap, because coverage_summary.repositories_with_evidence_count
+// counts only the rows returned, so its total is the shipped (non-marker) row
+// count and a lower bound.
 func storyListTotal(data map[string]any, parentKey string, key string, shipped int) int {
 	switch {
+	case parentKey == "investigation" && key == "repositories_considered":
+		return max(shipped, IntVal(MapValue(MapValue(data, parentKey), "coverage_summary"), "repository_count"))
 	case parentKey != "":
 		return shipped
 	case key == "upstream_dependencies":

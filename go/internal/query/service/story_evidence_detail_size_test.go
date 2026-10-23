@@ -163,7 +163,7 @@ func logStoryKeyBytes(t *testing.T, label string, data map[string]any) {
 // changes only what ships: the truth-bearing and count-bearing fields are
 // byte-identical to the full view, every projected list keeps its length, and
 // every cut carries a marker and an omission with its total (a lower bound for
-// the investigation repositories).
+// investigation.repositories_with_evidence, which records no count past 50).
 func TestOversizedServiceStoryHandlesKeepTruthAndCounts(t *testing.T) {
 	t.Parallel()
 
