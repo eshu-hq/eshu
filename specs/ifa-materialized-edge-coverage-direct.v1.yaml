@@ -48,12 +48,12 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# FIFTEEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# SIXTEEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
 # uses_vault_policy, built_from, cloud_resource_container_image,
 # crossplane_satisfied_by, derived_from, code_interproc_evidence,
-# and code_taint_evidence
+# code_taint_evidence, and observability_coverage
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
@@ -62,7 +62,9 @@
 # cloud_resource_container_image, the crossplane live leaf for
 # crossplane_satisfied_by, the derived_from live leaf for
 # derived_from, the code_interproc_evidence live leaf for
-# code_interproc_evidence, and the code_taint_evidence live leaf -- live
+# code_interproc_evidence, the code_taint_evidence live leaf for
+# code_taint_evidence, and the observability_coverage live leaf for
+# observability_coverage -- live
 # ifa-determinism AND
 # ifa-fault-injection
 # matrices driving the family
@@ -371,6 +373,26 @@ coverage:
     scenario_type: fault
     ref: "odu:ifa-code-taint-evidence-family"
     proof_gate: ifa-fault-injection
+  # observability_coverage: fault-free baseline plus fault-injection
+  # recovery, all asserting the five-edge AWS_COVERS_* exact set with
+  # identical graph digests (#6228 observability_coverage live leaf). The
+  # one AWS_COVERS_<signal> edge per closed vocabulary member (alarm,
+  # composite_alarm, dashboard, log_group, trace_sampling) each resolves
+  # its observability object against the scanned CloudResource target
+  # (four by ARN dimension, the dashboard-to-database pair by bare id);
+  # the metric-name-only alarm (no resolvable dimension),
+  # the service-name X-Ray rule (derived provenance-only), and the alarm
+  # naming an unscanned target (unresolved gap) resolve to nothing.
+  - surface: "materialized_edges:observability_coverage"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-observability-coverage-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:observability_coverage"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-observability-coverage-family"
+    proof_gate: ifa-fault-injection
 
 waivers:
   - surface: "materialized_edges:assumes_iam_role"
@@ -423,16 +445,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteKubernetesCorrelationEdges -> cypher/edge/writer/kubernetes_correlation.go merges RUNS_IMAGE; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the kubernetes-correlation live-cell change (family stays waived: the fault-injection matrix does not drive it yet; determinism drives it since the kubernetes-correlation live-cell change)"
-  - surface: "materialized_edges:observability_coverage"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteObservabilityCoverageEdges -> cypher/edge/writer/observability_coverage.go merges one AWS_COVERS_<signal> type per coverage signal from a CLOSED 5-member vocabulary (truth correction: the vocabulary was never open); split verdict D kind C: both retract variants name the 5-type alternation, edge types registered in the multi-type direct table with foreign-edge regression proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (offline guard reproduces the exact 5-edge set, one per vocabulary member, across arn and bare_id resolution modes). Stays waived: no live matrix drives it yet (live leaf owns coverage rows + roster LiveProven flag)"
-  - surface: "materialized_edges:observability_coverage"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteObservabilityCoverageEdges -> cypher/edge/writer/observability_coverage.go merges one AWS_COVERS_<signal> type per coverage signal from a CLOSED 5-member vocabulary (truth correction: the vocabulary was never open); split verdict D kind C: both retract variants name the 5-type alternation, edge types registered in the multi-type direct table with foreign-edge regression proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (family stays waived: neither live matrix drives it yet)"
   - surface: "materialized_edges:publishes"
     proof_gate: ifa-determinism
     issue: "#6228"

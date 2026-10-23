@@ -284,7 +284,32 @@ func (h ObservabilityCoverageMaterializationHandler) canonicalNodesReady(intent 
 		return false
 	}
 	ready, found := h.ReadinessLookup(key, gpphase.PhaseCanonicalNodesCommitted)
-	return found && ready
+	if !found || !ready {
+		return false
+	}
+	// The AWS_COVERS_alarm edge resolves against the EC2 instance node, which
+	// commits under its own canonical-nodes phase from ec2_instance_posture
+	// facts (an aws_ec2_instance aws_resource fact never produces a node row,
+	// #5448 CRUX-1). The durable claim gate opens on the AWS phase alone, so
+	// this second lookup is what holds the handler until the EC2 node exists:
+	// without it the live leaf's first fault-shard run claimed on the AWS
+	// phase and wrote 4/5 edges with the alarm edge silently missing. The
+	// deferral error is budget-safe (ObservabilityCoverageNodesNotReadyFailureClass
+	// is nonCounting), so an early claim retries instead of writing a partial
+	// edge set.
+	// Invariant: every observability_coverage scope must carry an
+	// ec2_instance_posture fact, because ec2_instance_node_materialization
+	// (and therefore the phase this lookup waits on) is only created then
+	// (BuildInstanceNodeMaterializationReducerIntent returns ok=false
+	// otherwise). A future scope with no EC2 targets would enqueue an intent
+	// that defers retryably forever without dead-lettering, so a scope that
+	// drops the posture fact must condition or remove this hold first.
+	ec2Key, ok := gpphase.KeyFromScope(intent.ScopeID, intent.GenerationID, []string{"ec2_instance_node_materialization:" + intent.ScopeID}, gpphase.KeyspaceCloudResourceUID)
+	if !ok {
+		return false
+	}
+	ec2Ready, found := h.ReadinessLookup(ec2Key, gpphase.PhaseCanonicalNodesCommitted)
+	return found && ec2Ready
 }
 
 // shouldSkipRetract mirrors the AWS relationship domain: skip the prior-edge
@@ -363,8 +388,12 @@ func (observabilityCoverageNodesNotReadyError) Retryable() bool { return true }
 // observability-coverage edge intent ran before its upstream cloud-resource
 // canonical-nodes-committed phase published for the same acceptance unit. The
 // durable claim gate (reducerClaimReadinessRequirementsSQL) normally prevents
-// that, so this fires only in the claim/handle race window where the handler's
-// own ReadinessLookup disagrees with the claim-time gate.
+// that for the AWS CloudResource phase, so this fires in the claim/handle race
+// window where the handler's own ReadinessLookup disagrees with the claim-time
+// gate -- and, by design, whenever the EC2 instance-node phase the alarm edge
+// needs is still pending, which no claim-time row gates (the summary query is
+// frozen post-#7881, so the second phase lives in canonicalNodesReady, not in
+// the shared gate table).
 //
 // Enrolled in nonCountingReducerRetryFailureClasses (#5046) so the miss never
 // erodes the retry budget and dead-letters a still-pending intent that the

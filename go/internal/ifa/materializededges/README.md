@@ -431,6 +431,36 @@ asserting less.
 - Terminal counts: guard green on the 2-edge set; mirror 85-cell exact
   cover.
 
+## No-Regression Evidence (#6228): observability_coverage EC2-node readiness hold
+
+No-Regression Evidence: the handler change (`canonicalNodesReady` also
+requiring the EC2 instance-node phase, deferring retryably and budget-safe
+via the nonCounting failure class until the node exists) lives in the
+readiness path only; the production AWS_COVERS_* writer template, claim
+query, and projector intents are untouched, so live graph truth gains
+exactly the missing alarm edge and nothing else. The Odu/cassette gain one
+`ec2_instance_posture` fact (the EC2 node aws_resource facts never commit,
+#5448 CRUX-1), which the lockstep test pins against the committed cassette.
+
+- Baseline: this lane before the posture fact (alarm edge missing live,
+  4/5 edges, while the offline guard reproduced 5/5).
+- After: `go -C go test ./internal/ifa/... ./internal/reducer/obscoverage/... ./internal/storage/postgres/` all ok, including the new
+  EC2-pending defers-retryably handler test and the 22-fact lockstep green;
+  `bash scripts/test-verify-ifa-fault-injection.sh` and
+  `scripts/test-verify-ifa-determinism.sh` pass exit 0; live shard 2/4
+  exits 0 (all three cells converge to digest
+  d80bc1143671d03c5d2b3a0e7b45596195f1730ed70435ec87eac320caf13d0b);
+  live determinism exits 0 (six observability_coverage asserts, cross-N
+  digest a1dd130216803460cc999d08bdcd853782cbaae034afcaf2b56c54040bf9d7da);
+  `go vet` and `git diff --check` clean.
+- Backend/version: hermetic guard plus live matrices on the gate-owned
+  disposable Compose stack (Postgres + NornicDB).
+- Input shape: observability_coverage Odu (22 facts: 8 observability
+  objects, 5 scanned targets, 1 EC2 posture, 8 relationships), 94-cell
+  fault corpus.
+- Terminal counts: guard green on the 5-edge set; mirror 94-cell exact
+  cover.
+
 No-Observability-Change: no spans, metrics, logs, or status fields added.
 Guard failures still report through the existing `resolveDerivedFrom...`
 problem strings, so current gate signals are unchanged.

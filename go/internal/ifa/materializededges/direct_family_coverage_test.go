@@ -129,6 +129,7 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 			"AWS_COVERS_log_group",
 			"AWS_COVERS_trace_sampling",
 		},
+		LiveProven: true,
 	},
 	{
 		Family:     codeInterprocEvidenceFamily,

@@ -440,6 +440,11 @@ ifa_fault_shard_run cell_failgraphwrite_code_interproc_evidence
 ifa_fault_shard_run cell_baseline_code_taint_evidence
 ifa_fault_shard_run cell_killworker_code_taint_evidence
 ifa_fault_shard_run cell_failgraphwrite_code_taint_evidence
+# observability_coverage (#6228 observability_coverage live leaf): sixteenth
+# direct family, baseline first, same trio shape as above.
+ifa_fault_shard_run cell_baseline_observability_coverage
+ifa_fault_shard_run cell_killworker_observability_coverage
+ifa_fault_shard_run cell_failgraphwrite_observability_coverage
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,

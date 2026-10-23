@@ -5,11 +5,13 @@ package obscoverage
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -146,6 +148,41 @@ func TestObservabilityCoverageMaterializationGatesOnCanonicalNodesPhase(t *testi
 	}
 	if writer.writeCalls != 0 || writer.retractCalls != 0 {
 		t.Fatalf("no graph writes allowed before nodes commit: write=%d retract=%d", writer.writeCalls, writer.retractCalls)
+	}
+}
+
+func TestObservabilityCoverageMaterializationDefersWhileEC2NodePhasePending(t *testing.T) {
+	t.Parallel()
+
+	// The AWS CloudResource phase is committed but the EC2 instance-node
+	// phase is not: the alarm edge resolves against the EC2 node, so the
+	// handler must defer retryably with zero writes instead of emitting the
+	// other four edges around the missing one. This is the live leaf's first
+	// fault-shard shape (4/5 edges, alarm missing) turned into a unit pin:
+	// the durable claim gate opens on the AWS phase alone, so this second
+	// in-handler lookup is the only thing holding the partial write.
+	lookup := func(key gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
+		if strings.Contains(string(key.AcceptanceUnitID), "ec2_instance_node_materialization:") {
+			return false, false // EC2 node phase not yet published
+		}
+		return true, true // AWS CloudResource phase committed
+	}
+	writer := &recordingObservabilityCoverageEdgeWriter{}
+	handler := ObservabilityCoverageMaterializationHandler{
+		FactLoader:      &stubFactLoader{envelopes: ec2AlarmCoverageFixture()},
+		EdgeWriter:      writer,
+		ReadinessLookup: lookup,
+	}
+
+	_, err := handler.Handle(context.Background(), observabilityCoverageMaterializationIntent())
+	if err == nil {
+		t.Fatal("expected a retryable error while the EC2 node phase is pending")
+	}
+	if !reducercontract.IsRetryable(err) {
+		t.Fatalf("error must be retryable so the intent re-enters the queue, got %v", err)
+	}
+	if writer.writeCalls != 0 || writer.retractCalls != 0 {
+		t.Fatalf("no graph writes allowed before the EC2 node commits: write=%d retract=%d", writer.writeCalls, writer.retractCalls)
 	}
 }
 

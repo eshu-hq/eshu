@@ -139,6 +139,15 @@ crossplane_satisfied_by_edge_operation_match="MERGE (claim)-[rel:SATISFIED_BY]->
 # spelling would match no executed statement and the fault would never
 # fire.
 derived_from_edge_operation_match="MERGE (img)-[rel:DERIVED_FROM"
+# The AWS_COVERS_* MERGE anchor cell_failgraphwrite_observability_coverage
+# (#6228 observability_coverage live leaf) targets:
+# go/internal/storage/cypher/edge/writer/observability_coverage.go emits
+# MERGE (obs)-[rel:AWS_COVERS_<signal>]->(target) with one statement per
+# signal from the closed 5-member coverage-signal vocabulary, so the anchor
+# carries the PREFIX form (the same rationale as the built_from pin). A
+# full `]->(target)` spelling matches no single executed statement, and
+# pinning one filled type would leave the other four unfaulted.
+observability_coverage_edge_operation_match="MERGE (obs)-[rel:AWS_COVERS_"
 # The TAINT_FLOWS_TO MERGE anchor cell_failgraphwrite_code_interproc_evidence
 # (#6228 code_interproc_evidence live leaf) targets:
 # go/internal/storage/cypher/edge/writer/code_interproc_evidence.go:29 emits
