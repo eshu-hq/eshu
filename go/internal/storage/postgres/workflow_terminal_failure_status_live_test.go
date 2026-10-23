@@ -144,6 +144,11 @@ func TestCollectorTerminalFailureWindowSemanticsLive(t *testing.T) {
 	// Malformed scan_interval: the floor, not an error.
 	f.instance(sa, "malformed", true, false, `{"scan_interval": 3600}`)
 	f.item("malformed-f", sa, "malformed", "scope-a", "failed_terminal", "auth_denied", true, 40*time.Minute)
+	// Equal timestamps: a completion at the failure's updated_at is not later,
+	// so it does not clear the failure (strict s.updated_at > t.updated_at).
+	f.instance(sa, "equal", true, false, fifteen)
+	f.item("equal-f", sa, "equal", "scope-a", "failed_terminal", "not_found", true, 10*time.Minute)
+	f.item("equal-c", sa, "equal", "scope-a", "completed", "", false, 10*time.Minute)
 	// Equal updated_at: the lowest work_item_id wins.
 	f.instance(sa, "tie", true, false, fifteen)
 	f.item("tie-b", sa, "tie", "scope-b", "failed_terminal", "rate_limited", true, 5*time.Minute)
@@ -158,6 +163,7 @@ func TestCollectorTerminalFailureWindowSemanticsLive(t *testing.T) {
 		"floor-25m":  "terminal",
 		"twelve-20h": "auth_denied",
 		"tie":        "auth_denied",
+		"equal":      "not_found",
 	}
 	for id, class := range wantClass {
 		failure, ok := got[id]
@@ -178,4 +184,65 @@ func TestCollectorTerminalFailureWindowSemanticsLive(t *testing.T) {
 		t.Errorf("reported %d instances, want %d: %+v", len(got), len(wantClass), got)
 	}
 	t.Logf("window semantics proof: %d work items, %s", f.items, time.Since(started))
+}
+
+// scannerItem inserts a failed_terminal row the way the scanner worker
+// dead-letters a claim: last_failure_terminal is the persisted flag and no
+// failure operation is recorded.
+func (f *terminalFailureLiveFixture) scannerItem(id, instance, scope string, terminal bool, age time.Duration) {
+	f.t.Helper()
+	f.items++
+	updatedAt := f.asOf.Add(-age)
+	f.exec(`INSERT INTO workflow_work_items (work_item_id, run_id, collector_kind, collector_instance_id, scope_id,
+    generation_id, status, last_failure_class, last_failure_terminal, last_failure_message, created_at, updated_at)
+VALUES ($1, 'run-8803', 'scanner_worker', $2, $3, $1, 'failed_terminal', 'scanner_timeout', $4,
+    'provider text that must never be read', $5, $5)`, id, instance, scope, terminal, updatedAt)
+}
+
+// TestCollectorTerminalFailureStatusDecidesTerminalLive proves that the
+// failed_terminal status, not the last_failure_terminal flag, makes a failure
+// terminal: the scanner worker dead-letters with the flag false, and that row
+// must still degrade its instance through the production status builder. A
+// newest flag-false row must also not hide an older flag-true row of the same
+// instance.
+func TestCollectorTerminalFailureStatusDecidesTerminalLive(t *testing.T) {
+	started := time.Now()
+	f := newTerminalFailureLiveFixture(t, "terminal_failure_status_flag")
+	f.instance("scanner_worker", "scanner-false", true, false, `{}`)
+	f.scannerItem("scanner-false-f", "scanner-false", "scope-a", false, 5*time.Minute)
+	f.instance("scanner_worker", "scanner-mixed", true, false, `{}`)
+	f.scannerItem("scanner-mixed-old", "scanner-mixed", "scope-a", true, 10*time.Minute)
+	f.scannerItem("scanner-mixed-new", "scanner-mixed", "scope-b", false, 3*time.Minute)
+
+	snapshot, err := readCoordinatorSnapshot(f.ctx, SQLDB{DB: f.database}, f.asOf)
+	if err != nil {
+		t.Fatalf("readCoordinatorSnapshot() error = %v", err)
+	}
+	if snapshot == nil {
+		t.Fatal("readCoordinatorSnapshot() = nil, want a snapshot")
+	}
+	evidence := collector.Evidence{
+		AsOf:             f.asOf,
+		Instances:        snapshot.CollectorInstances,
+		TerminalFailures: snapshot.CollectorTerminalFailures,
+	}
+	wantAt := map[string]time.Time{
+		"scanner-false": f.asOf.Add(-5 * time.Minute),
+		"scanner-mixed": f.asOf.Add(-3 * time.Minute),
+	}
+	seen := 0
+	for _, row := range collector.RuntimeStatuses(evidence) {
+		at, ok := wantAt[row.InstanceID]
+		if !ok {
+			continue
+		}
+		seen++
+		if row.Health != "degraded" || !row.LastFailureTerminal || !row.LastFailureAt.Equal(at) {
+			t.Errorf("instance %q: runtime row = %+v, want degraded with a terminal failure at %s", row.InstanceID, row, at)
+		}
+	}
+	if seen != len(wantAt) {
+		t.Errorf("saw %d scanner runtime rows, want %d", seen, len(wantAt))
+	}
+	t.Logf("status flag proof: %d work items, %s", f.items, time.Since(started))
 }
