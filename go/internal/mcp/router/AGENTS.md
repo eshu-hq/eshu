@@ -10,8 +10,15 @@
 
 ## Invariants
 
-- Keep this package types and static data only. No ranking, validation,
-  dispatch, configuration reads, authorization, or telemetry here.
+- No ranking, dispatch, or configuration reads here: the `Ranker` and
+  `Dispatcher` are injected. Validation, the per-call credential filter, and
+  router telemetry live here (#8757).
+- `call_tool` must hand the caller's arguments to the `Dispatcher` untouched
+  and never apply schema defaults; the root's byte-identity test fails
+  otherwise.
+- The credential filter may refuse only what the API auth middleware always
+  refuses. Reuse the `query` route ledgers; never copy their entries.
+- Keep metric labels bounded: `tool` is a registered name or `unregistered`.
 - Never import `internal/mcp` (the root). The root injects a `Dispatcher`;
   `TestRouterDoesNotImportMCPRoot` fails on an import.
 - `find_tool` and `call_tool` stay out of `mcp.ReadOnlyTools`; the root
@@ -29,12 +36,19 @@
   `tools/list` must equal `ReadOnlyTools()` byte for byte. The surface switch
   (#8758) keeps that true for `full`; it needs no stored hash to update.
 
+- A validator change needs `go test ./internal/mcp -run
+  'Validator|RegisteredSchemas|RegisteredToolExamples|Routed'`: the
+  differential test replays every literal dispatch-test argument map and the
+  catalog sweep corpus.
+
 ## Failure modes
 
 - Importing the MCP root creates a cycle.
 - Treating an unknown surface value as `full` hides a misspelled setting.
 - Sharing a package-level schema map lets a caller mutate later `tools/list`
   responses.
+- A validator stricter than dispatch makes `call_tool` refuse a call a direct
+  `tools/call` serves. That is an accuracy bug.
 
 ## Verification
 

@@ -353,6 +353,12 @@ func registerClaimQuota() {
 	)
 }
 
+// registerMCPRouter appends the MCP router find_tool and call_tool spans
+// (#8757) at the end, independent of every earlier step.
+func registerMCPRouter() {
+	spanNames = append(spanNames, contract.SpanMCPRouterFind, contract.SpanMCPRouterCall)
+}
+
 // registerProducerGrant appends the producer-grant decision log keys (#6726).
 // It adds no metric dimension keys (decision, stage, reason, and fact_kind are
 // already registered) and no span names (the decision is a span event on the

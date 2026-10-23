@@ -19,6 +19,23 @@ const (
 	MaxLimit = 10
 )
 
+// routerTools is the definition source the engine validates router requests
+// against. It is Tools; a test swaps it to prove the lookup does not depend on
+// the order Tools returns.
+var routerTools = Tools
+
+// toolSchema returns the input schema of the router tool named name, found
+// by name so request validation never depends on the order of Tools. It
+// returns nil for a name that is not a router tool.
+func toolSchema(name string) any {
+	for _, tool := range routerTools() {
+		if tool.Name == name {
+			return tool.InputSchema
+		}
+	}
+	return nil
+}
+
 // Tools returns fresh MCP definitions for find_tool then call_tool. They are
 // not part of mcp.ReadOnlyTools: the mcp root intercepts them before
 // dispatchTool.

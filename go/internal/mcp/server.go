@@ -111,6 +111,9 @@ type Server struct {
 	// is unauthenticated -- the local stdio path never uses this field at all,
 	// since Run() (stdio) never touches httpMux.
 	transportAuth func(http.Handler) http.Handler
+
+	// router serves find_tool and call_tool (#8757).
+	router router.Host
 }
 
 // NewServer creates an MCP server backed by the given HTTP handler.
@@ -282,19 +285,7 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return s.errorResponse(req.ID, -32602, "invalid params")
 		}
-		result, err := dispatchTool(ctx, s.handler, params.Name, params.Arguments, authHeader, s.logger)
-		if err != nil {
-			return &jsonrpcResponse{
-				JSONRPC: "2.0",
-				ID:      req.ID,
-				Result:  mcpToolErrorResult(err),
-			}
-		}
-		return &jsonrpcResponse{
-			JSONRPC: "2.0",
-			ID:      req.ID,
-			Result:  renderToolResult(params.Name, result),
-		}
+		return &jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: s.callTool(ctx, params, authHeader)}
 
 	case "ping":
 		return &jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{}}
@@ -302,6 +293,28 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 	default:
 		return s.errorResponse(req.ID, -32601, fmt.Sprintf("method not found: %s", req.Method))
 	}
+}
+
+// callTool answers one tools/call. find_tool and call_tool go to the router
+// (#8757), which runs a call_tool target through the same run as a direct
+// call, so a routed result is byte-identical to a direct one.
+func (s *Server) callTool(ctx context.Context, params mcpToolCallParams, authHeader string) any {
+	run := func(ctx context.Context, name string, args map[string]any) (any, error) {
+		result, err := dispatchTool(ctx, s.handler, name, args, authHeader, s.logger)
+		if err != nil {
+			return mcpToolErrorResult(err), nil
+		}
+		return renderToolResult(name, result), nil
+	}
+	if !router.Intercepts(params.Name) {
+		result, _ := run(ctx, params.Name, params.Arguments)
+		return result
+	}
+	newConfig := func() router.Config {
+		return router.Config{Registry: ReadOnlyTools(), Resolve: resolveRoute, Logger: s.logger}
+	}
+	req := router.Request{Visible: s.tools, Session: authPrincipalKey(ctx), Dispatch: run}
+	return s.router.Serve(ctx, newConfig, req, params.Name, params.Arguments)
 }
 
 // renderToolResult keeps MCP response construction shared by the byte guard

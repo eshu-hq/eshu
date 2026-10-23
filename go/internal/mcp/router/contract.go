@@ -63,7 +63,10 @@ type Ranker interface {
 	// Rank returns at most q.Limit candidates, best first, drawn from tools.
 	// entries maps a tool name to its catalog entry and may lack a tool.
 	// allowed reports whether the caller may see and call a tool by name;
-	// Rank must never return a tool for which allowed is false.
+	// Rank must never return a tool for which allowed is false. Treat tools
+	// and entries as read-only: the engine passes the server-shared visible
+	// slice and its own entries map to concurrent find_tool calls, so sorting
+	// or filtering either in place is a data race.
 	Rank(ctx context.Context, q Query, tools []toolcontract.ToolDefinition,
 		entries map[string]catalog.Entry, allowed func(name string) bool) ([]Candidate, error)
 }
@@ -73,6 +76,6 @@ type Ranker interface {
 // never imports the root (which would be an import cycle). It must route
 // through the same dispatch as a direct tools/call, so auth, timeouts,
 // response budgets, and envelopes are unchanged. The value is opaque to this
-// package: the root returns its own dispatch result and type-asserts it back
-// when rendering, so the envelope and truth labels pass through untouched.
+// package: the root returns the tool result it renders for a direct
+// tools/call, so the envelope and truth labels pass through untouched.
 type Dispatcher func(ctx context.Context, name string, arguments map[string]any) (any, error)
