@@ -20,6 +20,14 @@
 // dataflow_summaries rows require stable repository and package identity so
 // FunctionID values remain generation-independent and persistence-safe.
 //
+// Definition.Ecosystem and Definition.Admission label each registered binding
+// with its language-ledger key and admission level (L1 content text, L2
+// structured fact; L0 is the default for unbound names). They are documentation
+// metadata: they do not affect lookup or Registry.Fingerprint.
+// AdmissionTableMarkdown renders the table that
+// scripts/generate-parser-admission-doc.sh writes to
+// docs/public/languages/admitted-files.md.
+//
 // No-Regression Evidence: LanguageProvider dispatch is provider-first but
 // preserves legacy built-in adapters when a definition has no provider, so
 // existing parser output remains unchanged.

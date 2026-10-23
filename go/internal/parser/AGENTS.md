@@ -52,6 +52,12 @@
   never mutated. `LookupByPath`, `LookupByExtension`, and `LookupByParserKey`
   return cloned `Definition` values. Do not add mutable state to `Registry`.
 
+- **Admission labels are metadata** — every `defaultDefinitions` entry carries
+  `Ecosystem` and `Admission`. Neither feeds lookup or `Registry.Fingerprint`
+  (a fingerprint move invalidates every freshness hint). After editing
+  `registry_definitions.go`, run `scripts/generate-parser-admission-doc.sh`;
+  `TestAdmissionTableDocIsCurrent` fails on a stale table.
+
 - **No duplicate keys or extensions** — `NewRegistry` rejects duplicate
   `ParserKey`, extension, and exact filename entries with an error.
   `DefaultRegistry` panics on construction failure because a duplicate in

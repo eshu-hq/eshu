@@ -380,6 +380,7 @@ nav:
     - Source Layout: reference/source-layout.md
     - Languages:
       - Feature Matrix: languages/feature-matrix.md
+      - Admitted Files: languages/admitted-files.md
       - Support Maturity: languages/support-maturity.md
       - C: languages/c.md
       - C++: languages/cpp.md

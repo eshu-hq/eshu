@@ -161,8 +161,8 @@ parser-family extension.
 9. Run the focused Go tests, `scripts/verify-parser-relationship-kit.sh`, the
    docs build, and `git diff --check`.
 10. When the contribution adds a parser, extension, or file binding, add one
-    file for the parser key to the git collector's content-version fixture; the
-    registry fingerprint moves `GenerationContentVersion` on its own (#7986).
+    file for the parser key to the git collector's content-version fixture, then run
+    `scripts/generate-parser-admission-doc.sh` ([table](languages/admitted-files.md)).
 
 ### Import/symbol names: derived from parse for tree-sitter languages
 
