@@ -14,8 +14,8 @@ Scope: `go/cmd/collector-oci-registry/` and
 
 | File | Role | Key symbol |
 | --- | --- | --- |
-| `main.go:35` | entry point, `-mode=live\|cassette` | `parseArgs`, `run` |
-| `config.go:27` | env config, `targetJSON` | `loadRuntimeConfig`, `loadClaimedRuntimeConfig` |
+| `main.go:71,94` | entry point, `-mode=live\|cassette` | `parseArgs`, `run` |
+| `config.go:36` | env config, `targetJSON` | `loadRuntimeConfig`, `loadClaimedRuntimeConfig` |
 | `service.go:67` | unclaimed wiring | `buildCollectorService` |
 | `service.go:99` | claimed wiring | `buildClaimedService` |
 | `service.go:43` | credential-free replay wiring | `buildCassetteService` |
@@ -25,7 +25,7 @@ Scope: `go/cmd/collector-oci-registry/` and
 
 | File | Role | Key symbol |
 | --- | --- | --- |
-| `types.go:14` | collector family name | `CollectorKind = "oci_registry"` |
+| `types.go:13` | collector family name | `CollectorKind = "oci_registry"` |
 | `types.go:20` | provider set (7 adapters) | `ProviderDockerHub…ProviderAzureContainerRegistry` |
 | `envelope.go:25,69,133,168,199,228` | 6 envelope constructors | `NewRepositoryEnvelope` … `NewReferrerEnvelope` |
 | `warning.go:18` | warning envelope | `NewWarningEnvelope` |
@@ -64,7 +64,9 @@ kinds are at schema `1.0.0`:
 Family declaration: `oci_registry.go:79-107` (`OCIRegistryFamilyDeclaration`).
 Producer record is already cutover-shaped (`oci_registry.go:105`):
 `collector-oci-registry`, authority `core_issued_grant`, all 7 kinds,
-planned repo `eshu-hq/eshu-collector-oci-registry`.
+planned repo `eshu-hq/eshu-collector-oci-registry`. Note: the record's
+`Path` still reads `go/internal/collector/ociregistry`, which does not
+exist; the actual in-tree path is `go/internal/collector/registry/oci/`.
 
 ## 3. Consumers (must agree at cutover)
 
@@ -103,7 +105,7 @@ workflow handles.
 - Auth: anonymous or credentialed per target (`types.go:47-58`); bearer token
   negotiation in `distribution/token.go`.
 - Target wire shape: `ESHU_OCI_REGISTRY_TARGETS_JSON` decoded by
-  `targetJSON` (`config.go:27-60`); runtime shape `TargetConfig`
+  `targetJSON` (`config.go:36-69`); runtime shape `TargetConfig`
   (`runtime/config.go:38-67`).
 - Public target contract: `collector-sdk/v1alpha1`
   (`sdk/go/collector/types.go:10`).

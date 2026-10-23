@@ -94,10 +94,10 @@ Empty-successor attestation maps to `Generation.trusted_deletion`
 | --- | --- | --- |
 | span | `oci_registry.scan` (`telemetry/contract.go:709`) | `runtime/source.go:102` |
 | span | `oci_registry.api_call` (`contract.go:710`) | `recordAPICall`, `source.go:485` |
-| histogram | `eshu_dp_oci_registry_scan_duration_seconds` (`instruments.go:3546`) | `source.go:114` |
+| histogram | `eshu_dp_oci_registry_scan_duration_seconds` (`instruments.go:5417`) | `source.go:114` |
 | counter | `eshu_dp_oci_registry_tags_observed_total` (`instruments.go:3555`) | tag listing |
-| counter | `eshu_dp_oci_registry_manifests_observed_total` (`instruments.go:3562`) | `source.go:218` |
-| counter | `eshu_dp_oci_registry_referrers_observed_total` (`instruments.go:3570`) | `source.go:400` |
+| counter | `eshu_dp_oci_registry_manifests_observed_total` (`instruments.go:3563`) | `source.go:218` |
+| counter | `eshu_dp_oci_registry_referrers_observed_total` (`instruments.go:3571`) | `source.go:400` |
 | counter | `eshu_dp_oci_registry_api_calls_total` (`instruments.go:3547`) | `source.go:486` |
 
 Attributes stay `provider`, `result`, `tls_mode`, media/artifact family. The
