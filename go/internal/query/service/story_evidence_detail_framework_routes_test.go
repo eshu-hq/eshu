@@ -13,8 +13,10 @@ import (
 // TestFrameworkRoutesAreNotInTheContentFallbackEndpointTotal pins the unflagged
 // bound the Omission total rules page names for api_surface.endpoints on the
 // content fallback: framework routes add endpoint rows but not endpoint_count,
-// the story caps the rows at 50, and no flag is set, so the omission total is
-// the capped row count, not the 120 routes read (#8798).
+// the story caps the rows at 50, and no flag names the 50-file route read, so
+// the omission total is the capped row count, not the 120 routes read. The row
+// cap still sets api_surface.truncated, but that does not say the total is low
+// (#8798).
 func TestFrameworkRoutesAreNotInTheContentFallbackEndpointTotal(t *testing.T) {
 	t.Parallel()
 
@@ -44,8 +46,12 @@ func TestFrameworkRoutesAreNotInTheContentFallbackEndpointTotal(t *testing.T) {
 			if omission.Total != serviceStoryItemLimit {
 				t.Fatalf("api_surface.endpoints omission total = %d, want the capped %d", omission.Total, serviceStoryItemLimit)
 			}
-			if querycontract.BoolVal(querycontract.MapValue(data, "api_surface"), "detail_truncated") {
-				t.Fatal("content fallback sets no detail_truncated flag; the doc names this bound as unflagged")
+			apiSurface := querycontract.MapValue(data, "api_surface")
+			if querycontract.BoolVal(apiSurface, "detail_truncated") {
+				t.Fatal("content fallback sets no detail_truncated flag for the file read bound")
+			}
+			if !querycontract.BoolVal(apiSurface, "truncated") {
+				t.Fatal("api_surface.truncated = false, want true from the dossier row cap")
 			}
 			return
 		}

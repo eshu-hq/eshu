@@ -28,7 +28,8 @@ func evidenceDetailContext() map[string]any {
 // TestApplyContextEvidenceDetailHandlesProjectsRowsToIdentityKeys proves
 // handles mode keeps only the identity keys of artifact and endpoint rows,
 // keeps every count, drops the evidence_index regrouping, and reports each
-// reduced family as a truth omission with its true total (#7129).
+// reduced family as a truth omission with its total, the row count held or the
+// pre-cap count the context records (#7129).
 func TestApplyContextEvidenceDetailHandlesProjectsRowsToIdentityKeys(t *testing.T) {
 	t.Parallel()
 
