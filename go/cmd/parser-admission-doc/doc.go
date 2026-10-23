@@ -5,7 +5,9 @@
 // docs/public/languages/admitted-files.md from the parser registry.
 //
 // The table lists, for every registered parser definition, its ecosystem,
-// admission level, extensions, exact file names, and file name prefixes. With
+// admission level, extensions, exact file names, and file name prefixes. A
+// footnote names the path-dispatched bindings (parser.PathDispatches) that no
+// column captures. With
 // -check it writes nothing and exits non-zero when the committed page differs
 // from the registry, which is the drift gate. Output is deterministic.
 package main

@@ -26,7 +26,9 @@
 // metadata: they do not affect lookup or Registry.Fingerprint.
 // AdmissionTableMarkdown renders the table that
 // scripts/generate-parser-admission-doc.sh writes to
-// docs/public/languages/admitted-files.md.
+// docs/public/languages/admitted-files.md. PathDispatches lists the bindings
+// that LookupByPath resolves by hardcoded path rules outside the binding lists;
+// the table footnote renders them, and a test resolves each example path.
 //
 // No-Regression Evidence: LanguageProvider dispatch is provider-first but
 // preserves legacy built-in adapters when a definition has no provider, so

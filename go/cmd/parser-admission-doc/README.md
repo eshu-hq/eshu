@@ -19,6 +19,10 @@ page alone. A page without the markers is an error.
 
 - Input: `parser.DefaultRegistry()` (`Ecosystem` and `Admission` per definition).
 - Output is deterministic and byte-idempotent.
+- The region also carries a footnote from `parser.PathDispatches()` that names
+  the bindings `LookupByPath` resolves by hardcoded path rules (Java metadata,
+  Scala routes, `.tfvars.json`), so a row with empty columns is not read as
+  admitting nothing.
 - The drift gate is `TestAdmissionTableDocIsCurrent` in `go/internal/parser`,
   which runs with the normal parser tests, and `-check` here.
 - The page must already exist; a rewrite keeps its file permission bits.

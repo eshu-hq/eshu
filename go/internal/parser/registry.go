@@ -378,10 +378,52 @@ const (
 	AdmissionTableEnd = "<!-- parser-admission-table:end -->"
 )
 
+// PathDispatch describes one binding that LookupByPath resolves by hardcoded
+// path logic instead of an Extensions, ExactNames, or PrefixNames entry.
+// AdmissionTableMarkdown renders these beside the table so the generated page
+// shows every path the registry admits, and a test resolves each example
+// through LookupByPath so the list cannot drift from the code.
+type PathDispatch struct {
+	// Patterns are the human-readable path rules, each rendered as code.
+	Patterns []string
+	// ParserKey is the definition the rule resolves to.
+	ParserKey string
+	// Examples are concrete paths that LookupByPath resolves to ParserKey.
+	Examples []string
+}
+
+// PathDispatches returns the hardcoded path-dispatch bindings of LookupByPath,
+// in a fixed order. Keep it in step with LookupByPath: a new hardcoded rule
+// there must be listed here.
+func PathDispatches() []PathDispatch {
+	return []PathDispatch{
+		{
+			Patterns:  []string{"META-INF/services/<service>", "META-INF/spring.factories", "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports"},
+			ParserKey: "java_metadata",
+			Examples: []string{
+				"src/main/resources/META-INF/services/com.example.Plugin",
+				"src/main/resources/META-INF/spring.factories",
+				"src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
+			},
+		},
+		{
+			Patterns:  []string{"conf/routes", "*.routes"},
+			ParserKey: "scala",
+			Examples:  []string{"conf/routes", "app/conf/routes", "conf/api.routes"},
+		},
+		{
+			Patterns:  []string{"*.tfvars.json"},
+			ParserKey: "hcl",
+			Examples:  []string{"prod.tfvars.json", "env/stage.auto.tfvars.json"},
+		},
+	}
+}
+
 // AdmissionTableMarkdown renders one Markdown table row per registered
-// definition, in parser-key order, so the documented list of admitted file
-// names is the registry itself. The output is deterministic and ends with a
-// newline.
+// definition, in parser-key order, followed by a footnote naming the
+// path-dispatched bindings that no row column captures, so the documented
+// list of admitted file names is the full registry admission truth. The
+// output is deterministic and ends with a newline.
 func AdmissionTableMarkdown(registry Registry) string {
 	var b strings.Builder
 	b.WriteString("| Parser key | Ecosystem | Admission | Extensions | Exact file names | File name prefixes |\n")
@@ -395,6 +437,11 @@ func AdmissionTableMarkdown(registry Registry) string {
 			codeList(definition.ExactNames),
 			codeList(definition.PrefixNames),
 		)
+	}
+	b.WriteString("\nPath-dispatched bindings admit these paths through `Registry.LookupByPath` rules\n")
+	b.WriteString("that the columns above do not list. A row can look empty and still admit files:\n\n")
+	for _, dispatch := range PathDispatches() {
+		fmt.Fprintf(&b, "- %s bind to `%s`.\n", codeList(dispatch.Patterns), dispatch.ParserKey)
 	}
 	return b.String()
 }

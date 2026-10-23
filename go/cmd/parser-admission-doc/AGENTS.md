@@ -3,8 +3,9 @@
 ## Read first
 
 1. `README.md` - purpose and flags.
-2. `go/internal/parser/registry_admission.go` - table renderer and marker
-   replacement. Rendering logic lives there, not here.
+2. `go/internal/parser/registry.go` - table renderer (`AdmissionTableMarkdown`)
+   and marker replacement (`ReplaceAdmissionTable`). Rendering logic lives
+   there, not here.
 3. `go/internal/parser/registry_definitions.go` - the data being rendered.
 
 ## Invariants

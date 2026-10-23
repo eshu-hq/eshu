@@ -60,4 +60,11 @@ checklist.
 | `tsx` | typescriptjsx | L2 structured fact | `.tsx` |  |  |
 | `typescript` | typescript | L2 structured fact | `.cts`, `.mts`, `.ts` |  |  |
 | `yaml` | yaml | L2 structured fact | `.yaml`, `.yml` | `pubspec.lock` |  |
+
+Path-dispatched bindings admit these paths through `Registry.LookupByPath` rules
+that the columns above do not list. A row can look empty and still admit files:
+
+- `META-INF/services/<service>`, `META-INF/spring.factories`, `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` bind to `java_metadata`.
+- `conf/routes`, `*.routes` bind to `scala`.
+- `*.tfvars.json` bind to `hcl`.
 <!-- parser-admission-table:end -->
