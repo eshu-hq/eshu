@@ -100,7 +100,7 @@ type PromotionProof struct {
 	// ObservationCount is the aggregate observed fact count.
 	ObservationCount int
 	// LastFailureClass, LastFailureOperation, and LastFailureAt carry the
-	// bounded newest unresolved terminal provider failure from the underlying
+	// bounded newest unresolved terminal fetch failure from the underlying
 	// RuntimeStatus. They are empty for a proof with no such failure.
 	LastFailureClass     string
 	LastFailureOperation string

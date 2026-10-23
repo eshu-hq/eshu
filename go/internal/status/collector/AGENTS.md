@@ -33,7 +33,7 @@ after on a fixture snapshot.
 
 `Evidence.TerminalFailures` degrades a coordinator-registered instance and
 fails its promotion proof with the blocker
-`terminal provider failure: <class> (<operation>)`. Keep it bounded: the class
+`terminal fetch failure: <class> (<operation>)`. Keep it bounded: the class
 must pass `BoundedFailureClass` (a local allowlist, deliberately not an import
 of any collector runtime package) and the operation must pass
 `BoundedFailureOperation`; anything else reads as `unknown`. Never add the

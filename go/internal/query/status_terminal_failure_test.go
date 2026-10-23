@@ -107,8 +107,8 @@ func TestCollectorReadinessNamesTerminalFailureClass(t *testing.T) {
 		t.Fatalf("promotion_state = %v, want failed", entry["promotion_state"])
 	}
 	blockers := entry["blockers"].([]any)
-	if len(blockers) != 1 || blockers[0] != "terminal provider failure: auth_denied (list_org_alerts)" {
-		t.Fatalf("blockers = %v, want terminal provider failure blocker", blockers)
+	if len(blockers) != 1 || blockers[0] != "terminal fetch failure: auth_denied (list_org_alerts)" {
+		t.Fatalf("blockers = %v, want terminal fetch failure blocker", blockers)
 	}
 	if entry["last_failure_class"] != "auth_denied" || entry["last_failure_operation"] != "list_org_alerts" {
 		t.Fatalf("entry = %v, want failure class and operation", entry)

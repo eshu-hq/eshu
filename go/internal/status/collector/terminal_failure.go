@@ -4,6 +4,7 @@
 package collector
 
 import (
+	"slices"
 	"strings"
 	"time"
 )
@@ -42,16 +43,50 @@ type TerminalFailure struct {
 	ObservedAt       time.Time
 }
 
-// boundedFailureClasses is the closed set of failure classes the claim runner
-// persists (alertruntime failure classes plus the runner defaults). It is
-// duplicated here, not imported, so the status leaf stays free of collector
-// runtime packages. A class outside the set reads as UnknownFailureToken.
+// boundedFailureClasses is every failure class a claim runner can persist on a
+// terminal work item. A class outside the set reads as UnknownFailureToken, so
+// free text never reaches a status payload or metric label. The literals are
+// pinned here, not imported, so the status leaf stays free of collector
+// runtime packages. Sources:
+//
+//   - auth_denied, not_found, rate_limited, terminal, retryable: the provider
+//     classes (go/internal/collector/sdk/failure.go, mapped by
+//     collector/securityalerts/alertruntime/failure.go). failTerminal prefers
+//     the class from the error chain (classifiedFailureClass in
+//     collector/claimed_service.go), and budgetExhaustedError wraps the cause,
+//     so a budget exhausted on a transient provider failure persists
+//     retryable on a terminal row.
+//   - attempt_budget_exhausted: the budget class when the cause carries no
+//     class (FailureClassAttemptBudgetExhausted, collector/claimed_service.go).
+//   - identity_mismatch: a claim whose collected identity does not match (the
+//     FailClaimTerminal calls in collector/claimed_service.go).
+//   - collect_failure, commit_failure: the claim-stage fallbacks for a
+//     non-retryable collect or commit error (collector/claimed_service.go).
+//
+// Keep the set aligned with securityAlertTerminalFailureClasses in the
+// security-alert read (#8803), which pins the same nine classes.
 var boundedFailureClasses = map[string]struct{}{
-	"auth_denied":  {},
-	"not_found":    {},
-	"rate_limited": {},
-	"terminal":     {},
-	"retryable":    {},
+	"auth_denied":              {},
+	"not_found":                {},
+	"rate_limited":             {},
+	"terminal":                 {},
+	"retryable":                {},
+	"attempt_budget_exhausted": {},
+	"identity_mismatch":        {},
+	"collect_failure":          {},
+	"commit_failure":           {},
+}
+
+// BoundedFailureClasses returns the bounded failure class set, sorted. It
+// excludes UnknownFailureToken, which a status surface reports for any class
+// outside the set. OpenAPI enum tests compare the published enums to it.
+func BoundedFailureClasses() []string {
+	out := make([]string, 0, len(boundedFailureClasses))
+	for class := range boundedFailureClasses {
+		out = append(out, class)
+	}
+	slices.Sort(out)
+	return out
 }
 
 // BoundedFailureClass returns class when it is in the bounded failure class
@@ -82,10 +117,13 @@ func BoundedFailureOperation(operation string) string {
 	return operation
 }
 
-// terminalFailureDetail is the shared operator wording for a terminal provider
-// failure, used by the runtime detail and the promotion blocker.
+// terminalFailureDetail is the shared operator wording for a terminal fetch
+// failure, used by the runtime detail and the promotion blocker. The wording
+// covers provider classes and the runner's own classes (attempt budget,
+// identity mismatch, collect or commit fallback) alike, matching the
+// terminal_fetch_failure reason the security-alert read reports.
 func terminalFailureDetail(class string, operation string) string {
-	return "terminal provider failure: " + class + " (" + operation + ")"
+	return "terminal fetch failure: " + class + " (" + operation + ")"
 }
 
 // applyTerminalFailures stamps the newest unresolved terminal failure onto the
@@ -93,7 +131,8 @@ func terminalFailureDetail(class string, operation string) string {
 // matching registered row is ignored: failure evidence never creates a
 // collector identity. The reader never returns a failure for a disabled or
 // deactivated instance, so the disabled guard below is defense in depth for
-// other callers: it keeps a disabled row's health and detail unchanged.
+// other callers: it runs before any write, so a disabled row keeps its health
+// and detail and carries no failure fields.
 func (b *runtimeStatusBuilder) applyTerminalFailures(failures []TerminalFailure) {
 	for _, failure := range failures {
 		key := runtimeStatusKey(strings.TrimSpace(failure.CollectorKind), strings.TrimSpace(failure.InstanceID))
@@ -102,6 +141,9 @@ func (b *runtimeStatusBuilder) applyTerminalFailures(failures []TerminalFailure)
 			continue
 		}
 		row := &b.statuses[index]
+		if row.Health == "disabled" {
+			continue
+		}
 		if row.LastFailureTerminal && !failure.ObservedAt.After(row.LastFailureAt) {
 			continue
 		}
@@ -109,9 +151,6 @@ func (b *runtimeStatusBuilder) applyTerminalFailures(failures []TerminalFailure)
 		row.LastFailureOperation = BoundedFailureOperation(failure.FailureOperation)
 		row.LastFailureTerminal = true
 		row.LastFailureAt = failure.ObservedAt
-		if row.Health == "disabled" {
-			continue
-		}
 		row.Health = combineRuntimeHealth(row.Health, "degraded")
 		row.Detail = terminalFailureDetail(row.LastFailureClass, row.LastFailureOperation)
 	}

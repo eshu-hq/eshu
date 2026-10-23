@@ -27,7 +27,7 @@ type RuntimeStatusJSON struct {
 	DeactivatedAt         string   `json:"deactivated_at,omitempty"`
 	Detail                string   `json:"detail,omitempty"`
 	// LastFailureClass and LastFailureOperation are bounded tokens for the
-	// newest unresolved terminal provider failure; LastFailureTerminal and
+	// newest unresolved terminal fetch failure; LastFailureTerminal and
 	// LastFailureAt accompany them. All are omitted when no such failure exists.
 	LastFailureClass     string `json:"last_failure_class,omitempty"`
 	LastFailureOperation string `json:"last_failure_operation,omitempty"`

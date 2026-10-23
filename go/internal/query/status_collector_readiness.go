@@ -74,7 +74,7 @@ type collectorReadinessEntry struct {
 	LastProofAt           any      `json:"last_proof_at,omitempty"`
 	UpdatedAt             any      `json:"updated_at,omitempty"`
 	// LastFailureClass, LastFailureOperation, and LastFailureAt name the newest
-	// unresolved terminal provider failure as bounded tokens. They are omitted
+	// unresolved terminal fetch failure as bounded tokens. They are omitted
 	// when the instance has none; the failure message never appears.
 	LastFailureClass     string `json:"last_failure_class,omitempty"`
 	LastFailureOperation string `json:"last_failure_operation,omitempty"`

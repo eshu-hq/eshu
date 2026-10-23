@@ -93,10 +93,10 @@ const Routes = `
                           "observation_count": {"type": "integer"},
                           "health": {"type": "string"},
                           "detail": {"type": "string"},
-                          "last_failure_class": {"type": "string", "enum": ["auth_denied", "not_found", "rate_limited", "terminal", "retryable", "unknown"], "description": "Bounded class of the newest unresolved terminal provider failure; present only with last_failure_terminal."},
+                          "last_failure_class": {"type": "string", "enum": ["auth_denied", "not_found", "rate_limited", "terminal", "retryable", "attempt_budget_exhausted", "identity_mismatch", "collect_failure", "commit_failure", "unknown"], "description": "Bounded class of the newest unresolved terminal fetch failure; present only with last_failure_terminal."},
                           "last_failure_operation": {"type": "string", "description": "Bounded snake_case operation token of that failure, or unknown."},
                           "last_failure_terminal": {"type": "boolean"},
-                          "last_failure_at": {"type": "string", "format": "date-time", "nullable": true}
+                          "last_failure_at": {"type": "string", "format": "date-time", "description": "When that failure became terminal; present only with last_failure_terminal."}
                         }
                       }
                     },

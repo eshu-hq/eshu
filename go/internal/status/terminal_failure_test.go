@@ -102,7 +102,7 @@ func TestCollectorRuntimeTerminalFailureDegradesAndFailsPromotion(t *testing.T) 
 	if proof.PromotionState != collector.PromotionFailed {
 		t.Fatalf("PromotionState = %q, want %q", proof.PromotionState, collector.PromotionFailed)
 	}
-	want := "terminal provider failure: auth_denied (list_org_alerts)"
+	want := "terminal fetch failure: auth_denied (list_org_alerts)"
 	if len(proof.Blockers) != 1 || proof.Blockers[0] != want {
 		t.Fatalf("Blockers = %v, want [%q]", proof.Blockers, want)
 	}
@@ -124,7 +124,7 @@ func TestCollectorRuntimeBoundsUnknownFailureClassAndOperation(t *testing.T) {
 		t.Fatalf("class/operation = %q/%q, want unknown/unknown", row.LastFailureClass, row.LastFailureOperation)
 	}
 	if got := proofFor(t, report, "security-alert-example", now).Blockers; len(got) != 1 ||
-		got[0] != "terminal provider failure: unknown (unknown)" {
+		got[0] != "terminal fetch failure: unknown (unknown)" {
 		t.Fatalf("Blockers = %v, want unknown/unknown blocker", got)
 	}
 }

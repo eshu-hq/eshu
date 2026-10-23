@@ -53,7 +53,7 @@ type RuntimeStatus struct {
 	DeactivatedAt         time.Time
 	Detail                string
 	// LastFailureClass, LastFailureOperation, LastFailureTerminal, and
-	// LastFailureAt describe the newest unresolved terminal provider failure
+	// LastFailureAt describe the newest unresolved terminal fetch failure
 	// for this instance: a failed_terminal work item inside the instance's
 	// window (3 x scan_interval, 30 minute floor) with no later completed work
 	// item of the same instance for the same scope. LastFailureClass is one of the bounded

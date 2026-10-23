@@ -12,7 +12,7 @@ import (
 )
 
 // writeCollectorTerminalFailureMetrics renders how many registered collector
-// instances currently report an unresolved terminal provider failure, grouped
+// instances currently report an unresolved terminal fetch failure, grouped
 // by collector kind and bounded failure class (#8803). It is a point-in-time
 // gauge derived from the status snapshot, not a counter: a status scrape
 // cannot count failure events without double counting, and an instance that

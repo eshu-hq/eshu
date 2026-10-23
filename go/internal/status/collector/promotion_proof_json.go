@@ -34,7 +34,7 @@ type PromotionProofJSON struct {
 	LastObservedAt   string   `json:"last_observed_at,omitempty"`
 	UpdatedAt        string   `json:"updated_at,omitempty"`
 	// LastFailureClass, LastFailureOperation, and LastFailureAt are present only
-	// when the instance has an unresolved terminal provider failure. The class
+	// when the instance has an unresolved terminal fetch failure. The class
 	// and operation are bounded tokens; no failure message is ever included.
 	LastFailureClass     string `json:"last_failure_class,omitempty"`
 	LastFailureOperation string `json:"last_failure_operation,omitempty"`
