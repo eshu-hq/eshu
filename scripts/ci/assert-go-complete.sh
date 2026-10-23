@@ -25,7 +25,20 @@ if [[ "${GITHUB_EVENT_NAME:-}" == pull_request ]]; then
     [[ "${LANE_RESULT:-}" == success ]] || fail "selected smoke ${LANE} result=${LANE_RESULT:-missing}"
     exit 0
   fi
+  [[ "${SELECTED:-}" == true ]] || fail "full PR plan did not select ${LANE}"
+  case "${CODE_CHANGED:-}" in
+    true|false) ;;
+    *) fail 'changes gate has no valid code-change result' ;;
+  esac
 fi
 
 [[ "${CHANGES_RESULT:-}" == success ]] || fail "changes gate did not succeed (result=${CHANGES_RESULT:-missing})"
+if [[ "${GITHUB_EVENT_NAME:-}" == pull_request && "${MODE}" == full ]]; then
+  if [[ "${CODE_CHANGED}" == true ]]; then
+    [[ "${LANE_RESULT:-}" == success ]] || fail "selected full ${LANE} result=${LANE_RESULT:-missing}"
+  else
+    [[ "${LANE_RESULT:-}" == success || "${LANE_RESULT:-}" == skipped ]] || fail "${LANE} did not succeed (result=${LANE_RESULT:-missing})"
+  fi
+  exit 0
+fi
 [[ "${LANE_RESULT:-}" == success || "${LANE_RESULT:-}" == skipped ]] || fail "${LANE} did not succeed (result=${LANE_RESULT:-missing})"

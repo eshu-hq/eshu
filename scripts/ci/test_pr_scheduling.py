@@ -36,6 +36,16 @@ def main() -> None:
     central = (WORKFLOWS / "test.yml").read_text(encoding="utf-8")
     if "  pr-plan:\n" not in central or "ci-gates-bin\" pr-plan" not in central:
         raise ValueError("Build Test has no trusted PR planner")
+    for lane in ("go-core", "go-race"):
+        section = re.search(
+            rf"^  {lane}-complete:\n(.*?)(?=^  [a-z0-9-]+:\n|\Z)",
+            central,
+            re.MULTILINE | re.DOTALL,
+        )
+        if section is None or (
+            "CODE_CHANGED: ${{ needs.changes.outputs.code }}" not in section.group(1)
+        ):
+            raise ValueError(f"{lane}-complete does not receive the code-change result")
     for fragment in fragments:
         name = fragment.name
         source = (WORKFLOWS / name).read_text(encoding="utf-8")

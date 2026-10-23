@@ -203,9 +203,7 @@ jobs:
     if: ${{ github.event_name == 'merge_group' || ((github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'merge-group-slim'))) && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true')) }}
     needs: [queue-selection, changes, pr-plan]
     runs-on: ubuntu-latest
-    # Raised 15 -> 25 per #8665: cold-build-cache compile (~10.6m) + scoped vet
-    # (~3.6m) already consume ~14.2m, leaving nothing for filecap and the
-    # remaining parity steps on slow runners. Revisit if p95 exceeds 20m.
+    # #8665: 25m covers cold compile (~10.6m), vet (~3.6m), and parity; revisit at p95 >20m.
     timeout-minutes: 25
     steps:
       - name: Require queue selection to succeed
@@ -345,6 +343,7 @@ jobs:
           LANE: go-core
           LANE_RESULT: ${{ needs.go-core.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
+          CODE_CHANGED: ${{ needs.changes.outputs.code }}
           PLAN_RESULT: ${{ needs.pr-plan.result }}
           MODE: ${{ needs.pr-plan.outputs.mode }}
           HEAD_SHA: ${{ needs.pr-plan.outputs.head_sha }}
@@ -430,6 +429,7 @@ jobs:
           LANE: go-race
           LANE_RESULT: ${{ needs.go-race.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
+          CODE_CHANGED: ${{ needs.changes.outputs.code }}
           PLAN_RESULT: ${{ needs.pr-plan.result }}
           MODE: ${{ needs.pr-plan.outputs.mode }}
           HEAD_SHA: ${{ needs.pr-plan.outputs.head_sha }}
