@@ -24,6 +24,7 @@ const (
 	boundaryScopeID    = "git-repository-scope:boundary-8779"
 	boundaryDeltaGenID = "gen-8779-delta-b"
 	boundaryThirdGenID = "gen-8779-third-c"
+	boundaryBaseGenID  = "gen-8779-base-a"
 )
 
 func boundaryDeltaScope() scope.IngestionScope {
@@ -93,6 +94,67 @@ func TestProjectRejectsThirdGenerationFactInDeltaProjection(t *testing.T) {
 		"fact-8779-third-c", boundaryThirdGenID)
 }
 
+// With the union base named, a third generation is still rejected: the
+// boundary widens to exactly {delta, base}.
+func TestProjectRejectsThirdGenerationFactWithUnionBaseSet(t *testing.T) {
+	t.Parallel()
+	generation := boundaryDeltaGeneration()
+	generation.DeltaUnionBaseGenerationID = boundaryBaseGenID
+	assertProjectRejects(t, generation,
+		[]facts.Envelope{boundaryDeltaRepositoryFact(), boundaryFileFact("fact-8779-third-c", boundaryScopeID, boundaryThirdGenID)},
+		"fact-8779-third-c", boundaryThirdGenID)
+}
+
+// A base fact is accepted when the generation names that base as its union
+// base, and only then (the committed RED covers the unnamed case).
+func TestProjectAcceptsUnionBaseFact(t *testing.T) {
+	t.Parallel()
+	generation := boundaryDeltaGeneration()
+	generation.DeltaUnionBaseGenerationID = boundaryBaseGenID
+	runtime := Runtime{CanonicalWriter: &recordingCanonicalWriter{}, ContentWriter: &recordingContentWriter{}, IntentWriter: &recordingIntentWriter{}}
+	if _, err := runtime.Project(context.Background(), boundaryDeltaScope(), generation,
+		[]facts.Envelope{boundaryDeltaRepositoryFact(), boundaryFileFact("fact-8779-base-a", boundaryScopeID, boundaryBaseGenID)}); err != nil {
+		t.Fatalf("Project(delta + its union base fact) error = %v, want nil", err)
+	}
+	generation.DeltaUnionBaseGenerationID = ""
+	assertProjectRejects(t, generation,
+		[]facts.Envelope{boundaryDeltaRepositoryFact(), boundaryFileFact("fact-8779-base-a", boundaryScopeID, boundaryBaseGenID)},
+		"fact-8779-base-a", boundaryBaseGenID)
+}
+
+// A union base on a non-delta generation, or naming the generation itself, is
+// a programming error and fails before any fact is read.
+func TestProjectRejectsMisusedUnionBase(t *testing.T) {
+	t.Parallel()
+	nonDelta := boundaryDeltaGeneration()
+	nonDelta.IsDelta = false
+	nonDelta.DeltaUnionBaseGenerationID = boundaryBaseGenID
+	assertProjectRejects(t, nonDelta, []facts.Envelope{boundaryDeltaRepositoryFact()},
+		"delta_union_base_generation_id", boundaryBaseGenID)
+
+	self := boundaryDeltaGeneration()
+	self.DeltaUnionBaseGenerationID = boundaryDeltaGenID
+	assertProjectRejects(t, self, []facts.Envelope{boundaryDeltaRepositoryFact()},
+		"delta_union_base_generation_id", boundaryDeltaGenID)
+}
+
+// A union base with no delta_generation repository fact among the delta's own
+// facts is the #7797 union_scope_mismatch shape: the overlay ran additively,
+// so projecting it would run a full retract over a duplicated set. It must
+// fail before any write.
+func TestProjectRejectsUnionScopeMismatch(t *testing.T) {
+	t.Parallel()
+	generation := boundaryDeltaGeneration()
+	generation.DeltaUnionBaseGenerationID = boundaryBaseGenID
+	unmarked := boundaryDeltaRepositoryFact()
+	unmarked.Payload = map[string]any{
+		"graph_id": "repo-8779", "graph_kind": "repository", "name": "boundary-8779", "repo_id": "repo-8779",
+	}
+	assertProjectRejects(t, generation,
+		[]facts.Envelope{unmarked, boundaryFileFact("fact-8779-base-a", boundaryScopeID, boundaryBaseGenID)},
+		"delta_generation", boundaryBaseGenID)
+}
+
 func TestProjectRejectsForeignScopeFactInDeltaProjection(t *testing.T) {
 	t.Parallel()
 	assertBoundaryRejects(t, boundaryFileFact("fact-8779-foreign", "git-repository-scope:other", boundaryDeltaGenID),
@@ -104,18 +166,25 @@ func TestProjectRejectsForeignScopeFactInDeltaProjection(t *testing.T) {
 // reducer write.
 func assertBoundaryRejects(t *testing.T, stray facts.Envelope, wantFactID, wantForeign string) {
 	t.Helper()
+	assertProjectRejects(t, boundaryDeltaGeneration(),
+		[]facts.Envelope{boundaryDeltaRepositoryFact(), stray}, wantFactID, wantForeign)
+}
+
+// assertProjectRejects projects input under generation and requires an error
+// naming both want strings, with no canonical, content, or reducer write.
+func assertProjectRejects(t *testing.T, generation scope.ScopeGeneration, input []facts.Envelope, want, wantForeign string) {
+	t.Helper()
 	canonicalWriter := &recordingCanonicalWriter{}
 	contentWriter := &recordingContentWriter{}
 	intentWriter := &recordingIntentWriter{}
 	runtime := Runtime{CanonicalWriter: canonicalWriter, ContentWriter: contentWriter, IntentWriter: intentWriter}
 
-	_, err := runtime.Project(context.Background(), boundaryDeltaScope(), boundaryDeltaGeneration(),
-		[]facts.Envelope{boundaryDeltaRepositoryFact(), stray})
+	_, err := runtime.Project(context.Background(), boundaryDeltaScope(), generation, input)
 	if err == nil {
-		t.Fatalf("Project() error = nil, want the fact boundary to reject %s", wantFactID)
+		t.Fatalf("Project() error = nil, want a rejection naming %q", want)
 	}
-	if !strings.Contains(err.Error(), wantFactID) || !strings.Contains(err.Error(), wantForeign) {
-		t.Fatalf("Project() error = %q, want it to name fact %q and %q", err, wantFactID, wantForeign)
+	if !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), wantForeign) {
+		t.Fatalf("Project() error = %q, want it to name %q and %q", err, want, wantForeign)
 	}
 	if len(canonicalWriter.calls) != 0 || len(contentWriter.calls) != 0 || len(intentWriter.calls) != 0 {
 		t.Fatalf("writes after a boundary rejection: canonical=%d content=%d intents=%d, want none",

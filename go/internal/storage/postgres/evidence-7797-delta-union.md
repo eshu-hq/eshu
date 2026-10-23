@@ -65,7 +65,11 @@ pass):
 
 - Counter `eshu_dp_projector_delta_union_total` by closed `outcome`
   (`union_base_found`/`union_base_missing_refused`/`union_resolve_failed`/`union_scope_mismatch`); no SHAs, scope
-  ids, or generation ids in labels.
+  ids, or generation ids in labels. Correction (#8779): the additive
+  `union_scope_mismatch` load was kept on the theory that refusing it would
+  stall projections that succeeded. None did: the projection fact boundary
+  rejected every union base row until #8779. The load now reports the outcome
+  and the projector refuses it before any write.
 - Histogram `eshu_dp_projector_delta_union_facts` carrying
   base/delta/union fact counts as values by `outcome` and `kind`.
 - One `projector.delta_union` span event and one INFO

@@ -71,7 +71,7 @@ overridden by `ESHU_PROJECTION_WORKERS`) each call `drainProjectorWorkItem` in
 a loop. The queue claim is scoped to git source systems because this one-shot
 runtime owns the finite repository corpus; continuous collectors publish their
 own source-local work for steady-state services to drain. Each work item:
-claim → `factStore.LoadFacts` → `runner.Project`
+claim → `factStore.LoadProjectionFacts` (union base named on the generation, #8779) → `runner.Project`
 (canonical graph write + content write + reducer intent enqueue) → `workSink.Ack`.
 If the shared `ProjectorWorkHeartbeater` reports `projector.ErrWorkSuperseded`,
 the worker records `status=superseded` and returns to the claim loop without
@@ -471,7 +471,7 @@ exposing repository paths or raw parameters.
 - **Projector lease heartbeat.** `startBootstrapProjectorHeartbeat` renews the
   lease at `leaseDuration/3`, capped at 1 minute. `ErrWorkSuperseded` (a newer
   generation) is expected, not a failure, and never logs at ERROR; the
-  required `writeMarker` runs after LoadFacts, before any write, and once
+  required `writeMarker` runs after LoadProjectionFacts, before any write, and once
   it is set the heartbeat no longer supersedes that generation (#7389).
 - **NornicDB grouped writes.** `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false`
   by default. The toggle is conformance-only; on NornicDB both states commit per

@@ -43,6 +43,8 @@ const (
 	deltaProjCommitB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb8779"
 	deltaProjGenA    = "gen-8779-full-a"
 	deltaProjGenB    = "gen-8779-delta-b"
+	deltaProjCommitC = "cccccccccccccccccccccccccccccccccccc8779"
+	deltaProjGenC    = "gen-8779-delta-c"
 )
 
 // deltaProjFile is one file a proof generation carries.
@@ -81,6 +83,14 @@ var (
 		deleted: []string{"w.go"},
 	}
 )
+
+// deltaProjDeltaC is a chained delta diffed from the active delta B's commit.
+// No full generation exists at that commit, so its union has no base.
+var deltaProjDeltaC = deltaProjGen{
+	id: deltaProjGenC, commit: deltaProjCommitC, baseline: deltaProjCommitB, delta: true,
+	files:   []deltaProjFile{{"x.go", "package p\nfunc x2() {}\n", "x2"}},
+	changed: []string{"x.go"},
+}
 
 // deltaProjHarness drives the production projector service over one
 // bootstrapped proof schema.
@@ -373,5 +383,23 @@ func TestDeltaGenerationProjectsOverUnionBaseLive(t *testing.T) {
 		if domain == "workload_identity" || domain == "code_taint_evidence" {
 			t.Fatalf("delta projection re-fired base-only follow-up %q under the delta generation", domain)
 		}
+	}
+
+	// Chained delta (#8780, pinned here, not fixed): C's baseline is B's
+	// commit, the base rule requires a full generation at the baseline, and
+	// none exists there, so C refuses base-missing before any write and the
+	// active delta B stays active. Fresh projection is one delta per full.
+	canonicalBeforeC := len(h.canonical.calls)
+	h.commit(deltaProjDeltaC)
+	h.project()
+	refused := h.projectorRow(deltaProjGenC)
+	if refused.failureClass != projector.DeltaBaselineBaseMissingClass || refused.generationStatus != "superseded" {
+		t.Fatalf("chained delta C = %+v, want superseded with failure class %q", refused, projector.DeltaBaselineBaseMissingClass)
+	}
+	if len(h.canonical.calls) != canonicalBeforeC {
+		t.Fatal("refused chained delta C wrote a canonical materialization")
+	}
+	if active := h.projectorRow(deltaProjGenB); active.generationStatus != "active" {
+		t.Fatalf("delta B generation status = %q after C refused, want active", active.generationStatus)
 	}
 }

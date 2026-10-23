@@ -96,8 +96,7 @@ func (q *memoryProjectorQueue) Claim(context.Context) (projector.ScopeGeneration
 	return work, true, nil
 }
 
-// LoadFacts implements projector.FactStore: return the envelopes committed
-// for work's scope generation.
+// LoadFacts returns the envelopes committed for work's scope generation.
 func (q *memoryProjectorQueue) LoadFacts(_ context.Context, work projector.ScopeGenerationWork) ([]facts.Envelope, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -109,6 +108,13 @@ func (q *memoryProjectorQueue) LoadFacts(_ context.Context, work projector.Scope
 	cloned := make([]facts.Envelope, len(envs))
 	copy(cloned, envs)
 	return cloned, nil
+}
+
+// LoadProjectionFacts implements projector.FactStore: the committed
+// envelopes as a single-generation load.
+func (q *memoryProjectorQueue) LoadProjectionFacts(ctx context.Context, work projector.ScopeGenerationWork) (projector.ProjectionFacts, error) {
+	loaded, err := q.LoadFacts(ctx, work)
+	return projector.ProjectionFacts{Facts: loaded}, err
 }
 
 // Ack implements projector.ProjectorWorkSink: mark the work item drained.

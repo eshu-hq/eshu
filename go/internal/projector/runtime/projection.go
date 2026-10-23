@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package runtime //nolint:filelength // at cap: #6626 phase-bucket import add on a 500-line file; split out of scope for this rename
+package runtime
 
 import (
 	"context"
@@ -177,6 +177,8 @@ func (r Runtime) Project(ctx context.Context, scopeValue scope.IngestionScope, g
 	r.logRuntimeStage(
 		ctx, scopeValue, generation.GenerationID, "build_projection", buildStart,
 		"fact_count", len(inputFacts),
+		"generation_fact_count", projection.ownedFactCount,
+		"union_base_fact_count", len(inputFacts)-projection.ownedFactCount,
 		"content_record_count", len(projection.contentMaterialization.Records),
 		"content_entity_count", len(projection.contentMaterialization.Entities),
 		"content_repository_ref_count", len(projection.contentMaterialization.RepositoryRefs),
@@ -261,6 +263,9 @@ type projection struct {
 	// decode because a required identity field was missing or null. Project
 	// records them as visible input_invalid dead-letters; they are not projected.
 	quarantinedFacts []decode.QuarantinedFact
+	// ownedFactCount is how many input facts the projected generation owns;
+	// the rest came from the delta's union base (#8779).
+	ownedFactCount int
 }
 
 func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGeneration, inputFacts []facts.Envelope) (projection, error) {
@@ -287,7 +292,11 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		contentMaterialization.RetainedPaths = snapshotFilePaths(inputFacts)
 	}
 
-	intents := make([]ReducerIntent, 0, len(inputFacts))
+	owned := generationOwnedFacts(generation, inputFacts)
+	if err := validateUnionScope(generation, owned); err != nil {
+		return projection{}, err
+	}
+	intents := make([]ReducerIntent, 0, len(owned))
 	for i := range inputFacts {
 		// fact borrows inputFacts[i] instead of deep-cloning it: every consumer
 		// below (validateFactBoundary, ValidateFactSchemaVersion,
@@ -319,6 +328,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 				contentMaterialization.RepositoryRefs = append(contentMaterialization.RepositoryRefs, refs...)
 			}
 		}
+		if fact.GenerationID != generation.GenerationID {
+			continue // a union base row materializes but never derives an intent
+		}
 		if intent, ok := projectorentity.BuildSemanticEntityReducerIntent(fact); ok {
 			intents = append(intents, intent)
 		}
@@ -326,7 +338,7 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 			intents = append(intents, intent)
 		}
 	}
-	intents = appendScopeGenerationReducerIntents(intents, scopeValue, generation, inputFacts)
+	intents = appendScopeGenerationReducerIntents(intents, scopeValue, generation, owned)
 
 	sort.SliceStable(intents, func(i, j int) bool {
 		left := intents[i]
@@ -354,6 +366,7 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		contentMaterialization: contentMaterialization,
 		reducerIntents:         intents,
 		quarantinedFacts:       quarantined,
+		ownedFactCount:         len(owned),
 	}, nil
 }
 
@@ -363,138 +376,4 @@ func scopeRepoID(scopeValue scope.IngestionScope) string {
 	}
 
 	return strings.TrimSpace(scopeValue.Metadata["repo_id"])
-}
-
-func validateFactBoundary(scopeValue scope.IngestionScope, generation scope.ScopeGeneration, fact facts.Envelope) error {
-	if fact.ScopeID != scopeValue.ScopeID {
-		return fmt.Errorf("fact %q scope_id %q does not match scope %q", fact.FactID, fact.ScopeID, scopeValue.ScopeID)
-	}
-	if fact.GenerationID != generation.GenerationID {
-		return fmt.Errorf("fact %q generation_id %q does not match generation %q", fact.FactID, fact.GenerationID, generation.GenerationID)
-	}
-
-	return nil
-}
-
-// BuildContentRecord converts a file-observed fact into the content record the
-// content store persists. The second result is false when the fact carries no
-// content_path, or carries neither a content_body nor a content_digest, so a
-// fact that only describes a path is not mistaken for content. A tombstone fact
-// produces a record marked Deleted rather than being skipped. The body retains
-// its literal whitespace and newlines; digest parsing retains its existing rules.
-func BuildContentRecord(fact facts.Envelope) (content.Record, bool) {
-	path, ok := decode.PayloadString(fact.Payload, "content_path")
-	if !ok {
-		return content.Record{}, false
-	}
-	if !decode.PayloadHasKey(fact.Payload, "content_body") && !decode.PayloadHasKey(fact.Payload, "content_digest") {
-		return content.Record{}, false
-	}
-
-	body, _ := decode.PayloadRawText(fact.Payload, "content_body")
-	digest, _ := decode.PayloadString(fact.Payload, "content_digest")
-
-	return content.Record{
-		Path:     path,
-		Body:     body,
-		Digest:   digest,
-		Deleted:  fact.IsTombstone,
-		Metadata: decode.PayloadAttributes(fact.Payload, "content_path", "content_body", "content_digest"),
-	}, true
-}
-
-// BuildContentEntityRecord converts a parsed-entity fact into the entity record
-// the content store persists, resolving the entity's path from content_path,
-// relative_path, or path in that order. The second result is false when the fact
-// carries none of them, because an entity record with no path cannot be
-// addressed on read. SourceCache retains its literal whitespace and newlines.
-func BuildContentEntityRecord(repoID string, fact facts.Envelope) (content.EntityRecord, bool) {
-	relativePath, ok := decode.PayloadString(fact.Payload, "content_path")
-	if !ok {
-		relativePath, ok = decode.PayloadString(fact.Payload, "relative_path")
-	}
-	if !ok {
-		relativePath, ok = decode.PayloadString(fact.Payload, "path")
-	}
-	if !ok {
-		return content.EntityRecord{}, false
-	}
-
-	entityType, ok := decode.PayloadString(fact.Payload, "entity_kind")
-	if !ok {
-		entityType, ok = decode.PayloadString(fact.Payload, "entity_type")
-	}
-	if !ok {
-		entityType, ok = decode.PayloadString(fact.Payload, "sql_entity_type")
-	}
-	if !ok {
-		entityType = fact.FactKind
-	}
-	if strings.TrimSpace(entityType) == "" {
-		return content.EntityRecord{}, false
-	}
-
-	entityName, ok := decode.PayloadString(fact.Payload, "entity_name")
-	if !ok {
-		entityName, ok = decode.PayloadString(fact.Payload, "name")
-	}
-	if !ok {
-		return content.EntityRecord{}, false
-	}
-
-	startLine, ok := decode.PayloadInt(fact.Payload, "start_line")
-	if !ok {
-		startLine, ok = decode.PayloadInt(fact.Payload, "line_number")
-	}
-	if !ok || startLine <= 0 {
-		startLine = 1
-	}
-
-	endLine, ok := decode.PayloadInt(fact.Payload, "end_line")
-	if !ok || endLine < startLine {
-		endLine = startLine
-	}
-
-	startByte := decode.PayloadIntPtr(fact.Payload, "start_byte")
-	endByte := decode.PayloadIntPtr(fact.Payload, "end_byte")
-	language, _ := decode.PayloadString(fact.Payload, "language")
-	if language == "" {
-		language, _ = decode.PayloadString(fact.Payload, "lang")
-	}
-	artifactType, _ := decode.PayloadString(fact.Payload, "artifact_type")
-	templateDialect, _ := decode.PayloadString(fact.Payload, "template_dialect")
-	iacRelevant := decode.PayloadBoolPtr(fact.Payload, "iac_relevant")
-	// metadata is computed once and shared by the entity_id mint fallback
-	// below and the record's Metadata field, so both agree on exactly the
-	// same view of the payload's dependency-identity keys (section,
-	// config_kind, package_manager, lockfile) that
-	// content.CanonicalEntityIDWithMetadata gates on. This fallback only
-	// fires for facts without a collector-minted entity_id (version skew,
-	// replayed old cassettes, non-git producers) — precisely the path where
-	// divergent minting between here and the shape.Materialize mint site
-	// would silently corrupt identity, so the two MUST stay in lockstep.
-	metadata := canonical.EntityMetadataFromPayload(fact.Payload)
-	entityID, ok := decode.PayloadString(fact.Payload, "entity_id")
-	if !ok {
-		entityID = content.CanonicalEntityIDWithMetadata(repoID, relativePath, entityType, entityName, startLine, metadata)
-	}
-	sourceCache, _ := decode.PayloadRawText(fact.Payload, "source_cache")
-
-	return content.EntityRecord{
-		EntityID:        entityID,
-		Path:            relativePath,
-		EntityType:      entityType,
-		EntityName:      entityName,
-		StartLine:       startLine,
-		EndLine:         endLine,
-		StartByte:       startByte,
-		EndByte:         endByte,
-		Language:        language,
-		ArtifactType:    artifactType,
-		TemplateDialect: templateDialect,
-		IACRelevant:     iacRelevant,
-		SourceCache:     sourceCache,
-		Metadata:        metadata,
-		Deleted:         fact.IsTombstone,
-	}, true
 }

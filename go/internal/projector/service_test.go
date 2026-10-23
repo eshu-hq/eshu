@@ -495,18 +495,21 @@ type stubFactStore struct {
 	loadCalls        int
 	facts            []facts.Envelope
 	returnContextErr bool
+	// unionBase and unionOutcome make the load report a delta-base union.
+	unionBase    string
+	unionOutcome DeltaUnionOutcome
 }
 
-func (s *stubFactStore) LoadFacts(ctx context.Context, _ ScopeGenerationWork) ([]facts.Envelope, error) {
+func (s *stubFactStore) LoadProjectionFacts(ctx context.Context, _ ScopeGenerationWork) (ProjectionFacts, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.loadCalls++
 	if s.returnContextErr {
-		return nil, fmt.Errorf("list facts: %w", ctx.Err())
+		return ProjectionFacts{}, fmt.Errorf("list facts: %w", ctx.Err())
 	}
 	cloned := make([]facts.Envelope, len(s.facts))
 	copy(cloned, s.facts)
-	return cloned, nil
+	return ProjectionFacts{Facts: cloned, UnionBaseGenerationID: s.unionBase, UnionOutcome: s.unionOutcome}, nil
 }
 
 type stubProjectionRunner struct {
@@ -519,12 +522,14 @@ type stubProjectionRunner struct {
 	blockFor                   time.Duration
 	waitForContextCancellation bool
 	lastScope                  scope.IngestionScope
+	lastGeneration             scope.ScopeGeneration
 }
 
 func (s *stubProjectionRunner) Project(ctx context.Context, scopeValue scope.IngestionScope, generation scope.ScopeGeneration, inputFacts []facts.Envelope) (runtime.Result, error) {
 	s.mu.Lock()
 	s.runCalls++
 	s.lastScope = scopeValue
+	s.lastGeneration = generation
 	runCalls := s.runCalls
 	blockFor := s.blockFor
 	waitForContextCancellation := s.waitForContextCancellation

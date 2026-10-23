@@ -288,8 +288,8 @@ func (f *fakeWorkSource) Claim(context.Context) (projector.ScopeGenerationWork, 
 
 type fakeFactStore struct{}
 
-func (f *fakeFactStore) LoadFacts(context.Context, projector.ScopeGenerationWork) ([]facts.Envelope, error) {
-	return nil, nil
+func (f *fakeFactStore) LoadProjectionFacts(context.Context, projector.ScopeGenerationWork) (projector.ProjectionFacts, error) {
+	return projector.ProjectionFacts{}, nil
 }
 
 type fakeProjectionRunner struct{}

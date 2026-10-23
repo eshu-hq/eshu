@@ -85,11 +85,11 @@ const (
 	// generation row says delta with a baseline) but the loaded delta
 	// carries no delta_generation repository fact, so the overlay ran
 	// additively: base plus delta concatenation with no dedup. The load
-	// proceeds and the divergence is surfaced with a WARN log and this
-	// outcome count. Fail-closed refusal was considered and rejected: it
-	// would turn loads that succeed today into projection stalls on
-	// legacy or mis-marked generations; escalation needs an arbiter
-	// decision with a production occurrence count.
+	// still returns the facts for gate and replay readers, with a WARN log
+	// and this outcome count, but the projector refuses it before any write
+	// (#8779): projecting an additive set would run a full retract over
+	// duplicate stable keys. Such a delta never projected before #8779
+	// either, because the fact boundary rejected its base rows.
 	DeltaUnionScopeMismatch DeltaUnionOutcome = "union_scope_mismatch"
 )
 

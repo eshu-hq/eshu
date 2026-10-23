@@ -225,7 +225,8 @@ func (s FactStore) deltaUnionBasePruned(ctx context.Context, scopeID, baseID str
 // generation: one base fact query plus the Go overlay in facts.OverlayDeltaBase
 // (delta wins per stable key, tombstones and touched paths remove base rows).
 // The delta repository fact survives, so downstream retracts stay file-scoped
-// while writes carry the full set.
+// while writes carry the full set. It returns the union outcome with the
+// facts; the projector projects only DeltaUnionBaseFound (#8779).
 func (s FactStore) listFactsUnion(
 	ctx context.Context,
 	scopeID string,
@@ -233,10 +234,10 @@ func (s FactStore) listFactsUnion(
 	baseGenerationID string,
 	baselineSHA string,
 	delta []facts.Envelope,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, projector.DeltaUnionOutcome, error) {
 	base, err := s.listFactsGeneration(ctx, scopeID, baseGenerationID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if len(base) == 0 {
 		// The base row exists but carries no facts: retention drained it
@@ -245,21 +246,20 @@ func (s FactStore) listFactsUnion(
 		// repository fact, so an empty read is a pruned base, and overlaying
 		// the delta on it would restore only the delta's files.
 		s.recordDeltaUnionRefused(ctx, scopeID, generationID, len(delta))
-		return nil, deltaBaseMissing(scopeID, generationID, baselineSHA)
+		return nil, "", deltaBaseMissing(scopeID, generationID, baselineSHA)
 	}
 	scope := facts.ParseDeltaScope(delta)
 	if !scope.IsDelta {
 		// The store resolved a union but the delta carries no
 		// delta_generation repository fact, so the overlay below runs
-		// additively (base plus delta concatenation, no dedup): the
-		// DB-versus-payload divergence needs a signal, and the load
-		// proceeds. Fail-closed refusal was considered and rejected
-		// here: it would stall projections that succeed today on
-		// legacy or mis-marked generations (see the outcome contract
-		// on projector.DeltaUnionScopeMismatch).
+		// additively (base plus delta concatenation, no dedup). The
+		// facts load for gate and replay readers, but the outcome rides
+		// the result and the projector refuses it before any write
+		// (#8779): an additive set has duplicate stable keys and no delta
+		// marker, so projecting it would run a full retract over it.
 		merged := facts.OverlayDeltaBase(base, delta, scope)
 		if s.logger != nil {
-			s.logger.WarnContext(ctx, "projector delta union scope mismatch: generation resolves as delta with a baseline but carries no delta_generation repository fact; loading base plus delta additively",
+			s.logger.WarnContext(ctx, "projector delta union scope mismatch: generation resolves as delta with a baseline but carries no delta_generation repository fact; the projector refuses the additive overlay",
 				log.ScopeID(scopeID),
 				slog.String("generation_id", generationID),
 				slog.Int("base_fact_count", len(base)),
@@ -269,12 +269,12 @@ func (s FactStore) listFactsUnion(
 		}
 		s.recordDeltaUnion(ctx, scopeID, generationID, projector.DeltaUnionScopeMismatch,
 			len(base), len(delta), len(merged))
-		return merged, nil
+		return merged, projector.DeltaUnionScopeMismatch, nil
 	}
 	merged := facts.OverlayDeltaBase(base, delta, scope)
 	s.recordDeltaUnion(ctx, scopeID, generationID, projector.DeltaUnionBaseFound,
 		len(base), len(delta), len(merged))
-	return merged, nil
+	return merged, projector.DeltaUnionBaseFound, nil
 }
 
 // listFactsGeneration runs listFactsQuery for one (scope, generation).

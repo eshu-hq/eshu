@@ -42,9 +42,11 @@ type ProjectorWorkSource interface {
 	Claim(context.Context) (ScopeGenerationWork, bool, error)
 }
 
-// FactStore loads source-local facts for a claimed scope generation.
+// FactStore loads source-local facts for a claimed scope generation. A delta
+// generation may load overlaid on its #7797 union base; the result names that
+// base so Project accepts exactly its rows (#8779).
 type FactStore interface {
-	LoadFacts(context.Context, ScopeGenerationWork) ([]facts.Envelope, error)
+	LoadProjectionFacts(context.Context, ScopeGenerationWork) (ProjectionFacts, error)
 }
 
 // ProjectionRunner projects one scope generation worth of facts.
@@ -250,7 +252,12 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 	}
 
 	loadStart := time.Now()
-	factsForGeneration, err := s.FactStore.LoadFacts(projectCtx, work)
+	loaded, err := s.FactStore.LoadProjectionFacts(projectCtx, work)
+	var projectGeneration scope.ScopeGeneration
+	if err == nil {
+		projectGeneration, err = loaded.ProjectionGeneration(work.Generation)
+	}
+	factsForGeneration := loaded.Facts
 	if err != nil {
 		var baseMissing *DeltaBaseMissingError
 		if errors.As(err, &baseMissing) {
@@ -288,7 +295,7 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 	if work.AttemptCount > 1 {
 		scopeValue.PreviousGenerationExists = true
 	}
-	result, err := s.Runner.Project(projectCtx, scopeValue, work.Generation, factsForGeneration)
+	result, err := s.Runner.Project(projectCtx, scopeValue, projectGeneration, factsForGeneration)
 	if err != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 			if s.recordSupersededWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, workerID) ||

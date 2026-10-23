@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -56,8 +55,8 @@ func TestIsDeltaBaselineRefusalIncludesBaseMissing(t *testing.T) {
 // baseMissingFactStore fails every load with a union base-missing refusal.
 type baseMissingFactStore struct{}
 
-func (baseMissingFactStore) LoadFacts(context.Context, ScopeGenerationWork) ([]facts.Envelope, error) {
-	return nil, &DeltaBaseMissingError{
+func (baseMissingFactStore) LoadProjectionFacts(context.Context, ScopeGenerationWork) (ProjectionFacts, error) {
+	return ProjectionFacts{}, &DeltaBaseMissingError{
 		ScopeID:           "scope-7797",
 		GenerationID:      "gen-delta-1",
 		BaselineCommitSHA: "baseline-commit",

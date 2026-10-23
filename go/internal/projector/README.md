@@ -61,7 +61,7 @@ flowchart TB
   A["Service.Run\npoll projector queue"] --> B["ProjectorWorkSource.Claim"]
   B --> C{"work available?"}
   C -- no --> D["wait pollInterval\nthen loop"]
-  C -- yes --> E["FactStore.LoadFacts"]
+  C -- yes --> E["FactStore.LoadProjectionFacts"]
   E --> F["Runtime.Project"]
   F --> G["buildProjection\nbuild CanonicalMaterialization\nbuild content.Materialization\nbuild ReducerIntents"]
   G --> H["CanonicalWriter.Write\ncanonical graph nodes"]
@@ -81,7 +81,7 @@ pull one `ScopeGenerationWork` from the Postgres projector queue. If nothing is
 ready, the worker waits `PollInterval` (default 1 s) and retries.
 
 Once a claim is held, the worker loads all fact envelopes for that scope
-generation via `FactStore.LoadFacts`, then hands them to `Runtime.Project`. The
+generation via `FactStore.LoadProjectionFacts` (a delta loads over its #7797 union base, and `ProjectionFacts.ProjectionGeneration` names that base on the generation so the fact boundary accepts it, #8779), then hands them to `Runtime.Project`. The
 `Runtime` builds a `CanonicalMaterialization` (repository, directory, file,
 entity, module, import, parameter, class member, nested-function,
 Terraform-state rows, and OCI registry rows) and a content materialization
