@@ -157,9 +157,16 @@ A source is not refreshing, or a collector family reports unhealthy.
   credential can see it), `rate_limited` (wait or lower the schedule), `terminal`
   or `unknown` (read the collector log line carrying `failure_class`). The
   gauge `eshu_runtime_coordinator_collector_terminal_failure_instances` counts
-  affected instances by `collector_kind` and `failure_class`. The state clears
-  on its own after the next completed work item for the same scope; empty
-  security-alert answers are not proof of health while this is set.
+  affected instances by `collector_kind` and `failure_class`; read it with
+  `max by (collector_kind, failure_class)`, never summed, because every runtime
+  exports the same value. A failure counts while it is recent (within
+  3 x the instance's `scan_interval`, 30 minute floor) and no later completed
+  work item exists for the same instance and scope. It clears when you fix the
+  cause and the next cycle completes that scope, or when you remove the target
+  and wait one window. Pending or retrying items do not clear it. A failure that
+  disappears while the coordinator is down or the backlog is stuck is not
+  recovery: check coordinator liveness first. Empty security-alert answers are
+  not proof of health while this is set.
 - **Safe remediation:** a `gated`, `disabled`, or `unsupported` family is usually
   intentional configuration, not an outage — read the `blockers`. A collector
   whose commit dead-lettered before reaching the queue is handled under

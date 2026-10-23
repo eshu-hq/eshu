@@ -54,8 +54,9 @@ type RuntimeStatus struct {
 	Detail                string
 	// LastFailureClass, LastFailureOperation, LastFailureTerminal, and
 	// LastFailureAt describe the newest unresolved terminal provider failure
-	// for this instance: a failed_terminal work item with no later completed
-	// work item for the same scope. LastFailureClass is one of the bounded
+	// for this instance: a failed_terminal work item inside the instance's
+	// window (3 x scan_interval, 30 minute floor) with no later completed work
+	// item of the same instance for the same scope. LastFailureClass is one of the bounded
 	// failure classes or "unknown"; LastFailureOperation is a bounded token or
 	// "unknown". The failure message and provider status code never appear.
 	// All four are zero when the instance has no unresolved terminal failure.

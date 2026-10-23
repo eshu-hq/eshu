@@ -39,9 +39,11 @@ of any collector runtime package) and the operation must pass
 `BoundedFailureOperation`; anything else reads as `unknown`. Never add the
 failure message or provider status code to `TerminalFailure`, `RuntimeStatus`,
 `PromotionProof`, or their JSON. The reader (`storage/postgres`) supplies only
-failures with no later completed work item for the same scope, so clearing is
-the reader's job, not this package's. A failure for an unregistered or disabled
-instance never changes health.
+failures of enabled, non-deactivated instances inside the instance's window
+(3 x `scan_interval`, 30 minute floor) with no later completed work item of the
+same instance for the same scope, so clearing and aging out are the reader's
+job, not this package's. A failure for an unregistered or disabled instance
+never changes health.
 
 ## Exporting the render/clone/JSON surface
 

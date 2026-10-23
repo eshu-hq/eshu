@@ -169,10 +169,13 @@ Workflow-coordinator status exports add coordinator-specific
 pending age, collector instances, run status, work-item status, and
 completeness. `eshu_runtime_coordinator_collector_terminal_failure_instances`
 (labels `collector_kind`, `failure_class`) is a point-in-time gauge of
-registered instances whose newest terminal work-item failure has no later
-completed work item for the same scope; `failure_class` is one of
-`auth_denied`, `not_found`, `rate_limited`, `terminal`, `retryable`, or
-`unknown`. It is a gauge, not a counter, so a recovered instance drops out.
+registered instances with a terminal work-item failure inside 3 x their
+`scan_interval` (30 minute floor) and no later completed work item for the same
+instance and scope; `failure_class` is one of `auth_denied`, `not_found`,
+`rate_limited`, `terminal`, `retryable`, or `unknown`. It is a gauge, not a
+counter, so a recovered or aged-out instance drops out. Every runtime that
+scrapes status exports the same value with its own `service_name`, so read it
+with `max by (collector_kind, failure_class)`, never summed.
 
 ## Data-Plane Core
 
