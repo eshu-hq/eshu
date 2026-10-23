@@ -246,12 +246,12 @@ context watcher has rolled the transaction back. A local probe (200
 commits right after a cancel) got `context.Canceled` on all 100 immediate
 commits and `sql.ErrTxDone` on all 100 that waited 5 ms, so the sweeper
 adds the context error to a commit that fails that way
-(`TestPruneWorkItemsReportsACanceledCommitAsCancellation`). A cancel that
-lands during the COMMIT round trip itself stays an edge: the server can
-commit while the pass sees `context.Canceled`, so `deleted_total` misses at
-most that one batch. It happens only at shutdown, the deletes are
-idempotent, and the cursor stays before that window, so the next pass
-re-walks it and finds the rows gone. The table size
+(`TestPruneWorkItemsReportsACanceledCommitAsCancellation`). A batch whose
+COMMIT is interrupted (a shutdown cancel or a dropped connection) is not
+counted even if the server committed it; `deleted_total` misses at most
+that one batch per interruption. The deletes are idempotent and the cursor
+stays before that window, so the next pass re-walks it and finds the rows
+gone. The table size
 gauges export no data point until a pass reads the catalog size, so dark
 mode, retention off and the time before the first pass are absent, not 0
 (`TestWorkItemTableSizeGaugesStayEmptyWithoutAKnownReading`, and through
