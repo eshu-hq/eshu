@@ -103,6 +103,7 @@ IFA_FAMILY_PINS_NAMES=(
 	code_taint_evidence
 	observability_coverage
 	incident_routing_evidence
+	publishes
 )
 
 ifa_family_registry_pins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ifa_family_registry_pins"

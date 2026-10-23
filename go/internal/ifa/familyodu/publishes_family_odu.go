@@ -33,6 +33,13 @@ const (
 	// replays.
 	publishesFamilyGenerationID = "gen-ifa-publishes-family-1"
 
+	// publishesFamilySourceRunID is the collector run the repository facts
+	// attribute themselves to. Canonical projection requires it on every
+	// repository fact (identity without it drops the row): it mirrors the
+	// run-ifa-<family>-family-1 shape the git collector emits, not a stable
+	// content hash.
+	publishesFamilySourceRunID = "run-ifa-publishes-family-1"
+
 	// publishesFamilyRepositoryID is the repository that owns the
 	// fixture package: every edge-producing hint resolves to it by exact
 	// remote-URL match.
@@ -145,18 +152,19 @@ var publishesFamilyRepositories = []publishesFamilyRepository{
 // direct-materialization family.
 //
 // Exported because catalog_seed.go registers it at package-init time and
-// materializededges' guard test resolves it by name. Source hints and
-// versions are built as typed packageregistryv1 values and encoded through
-// factschema.EncodePackageRegistrySourceHint /
-// EncodePackageRegistryPackageVersion, never as hand-built maps (Contract
-// System v1). The repository facts mirror the collector's payload shape.
+// materializededges' guard test resolves it by name. Source hints, the
+// package fact and versions are built as typed packageregistryv1 values
+// and encoded through factschema.EncodePackageRegistrySourceHint /
+// EncodePackageRegistryPackage / EncodePackageRegistryPackageVersion,
+// never as hand-built maps (Contract System v1). The repository facts
+// mirror the collector's payload shape.
 // It panics on an encode failure for the same reason
 // WorkloadCloudRelationshipFamilyOdu does: a failure means the payload
 // contract moved under a committed fixture, and every coverage claim built
 // on it is already void.
 func PublishesFamilyOdu() CatalogOdu {
 	factsForOdu := make([]facts.Envelope, 0,
-		len(publishesFamilyHints)+len(publishesFamilyVersions)+len(publishesFamilyRepositories))
+		len(publishesFamilyHints)+len(publishesFamilyVersions)+len(publishesFamilyRepositories)+1)
 	for _, repository := range publishesFamilyRepositories {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          publishesFamilyScopeID,
@@ -168,14 +176,42 @@ func PublishesFamilyOdu() CatalogOdu {
 			SourceConfidence: facts.SourceConfidenceObserved,
 			IsTombstone:      repository.Tombstone,
 			Payload: map[string]any{
-				"graph_id":   repository.RepositoryID,
-				"graph_kind": "repository",
-				"repo_id":    repository.RepositoryID,
-				"name":       repository.Name,
-				"remote_url": repository.RemoteURL,
+				"graph_id":      repository.RepositoryID,
+				"graph_kind":    "repository",
+				"repo_id":       repository.RepositoryID,
+				"name":          repository.Name,
+				"remote_url":    repository.RemoteURL,
+				"source_run_id": publishesFamilySourceRunID,
 			},
 		})
 	}
+	// The owned package's package_registry.package fact commits the
+	// Package node the ownership edge resolves against: the writer's
+	// MATCH binds (target:Package {uid: row.package_id}), and no hint
+	// or version fact produces that node. It is decision-neutral by
+	// construction — both correlation builders filter on their own
+	// fact kinds (source_hint plus repository or package_version), so
+	// the offline expected set is unchanged by its presence.
+	packagePayload, err := factschema.EncodePackageRegistryPackage(packageregistryv1.Package{
+		PackageID: publishesFamilyPackageID,
+		Ecosystem: stringPtr("npm"),
+	})
+	if err != nil {
+		panic(fmt.Sprintf(
+			"familyodu: catalog_seed %s: encode package payload for %q: %v",
+			PublishesFamilyOduName, publishesFamilyPackageID, err,
+		))
+	}
+	factsForOdu = append(factsForOdu, facts.Envelope{
+		ScopeID:          publishesFamilyScopeID,
+		GenerationID:     publishesFamilyGenerationID,
+		FactKind:         chain.PackageRegistryPackageFactKind,
+		StableFactKey:    "package:" + publishesFamilyPackageID,
+		SchemaVersion:    publishesFamilySchemaVersion,
+		CollectorKind:    publishesFamilyRegistryCollectorKind,
+		SourceConfidence: facts.SourceConfidenceObserved,
+		Payload:          packagePayload,
+	})
 	for _, hint := range publishesFamilyHints {
 		versionKey := "-"
 		typed := packageregistryv1.SourceHint{
@@ -234,6 +270,6 @@ func PublishesFamilyOdu() CatalogOdu {
 
 	return CatalogOdu{
 		Odu:    Odu{Name: PublishesFamilyOduName, Facts: factsForOdu},
-		Detail: "twelve facts for the direct-materialization publishes family: four repositories, six source hints and two versions — three edge-producing resolutions (ownership Package, ownership PackageVersion, publication PackageVersion) plus the stale, rejected, unresolved and ambiguous non-producers on both paths, so the PUBLISHES expected set proves both write templates and both evidence sources with restraint",
+		Detail: "thirteen facts for the direct-materialization publishes family: four repositories, one package, six source hints and two versions — three edge-producing resolutions (ownership Package, ownership PackageVersion, publication PackageVersion) plus the stale, rejected, unresolved and ambiguous non-producers on both paths, so the PUBLISHES expected set proves both write templates and both evidence sources with restraint",
 	}
 }

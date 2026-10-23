@@ -369,7 +369,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	run_ifa_repo_dependency_fault_script_json_controls || return 1
 	run_ifa_repo_dependency_graph_terminal_owner_controls || return 1
 	run_ifa_repo_dependency_quarantine_telemetry_controls || return 1
-	# 91 = 1 shared cell_baseline + 90 IFA_FAULT_ALL_CELLS entries
+	# 94 = 1 shared cell_baseline + 93 IFA_FAULT_ALL_CELLS entries
 	# (scripts/lib/ifa_fault_shard_cells.sh). #5995/#6000/#5997 added the shared
 	# symbol-runtime baseline and three graph-write cells; #6208 adds the
 	# trio's three runner-lease kill/reclaim cells; #6309 adds the two
@@ -389,5 +389,8 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	# adds the observability_coverage trio, and the
 	# incident_routing_evidence live leaf adds the
 	# incident_routing_evidence trio.
+	# code_taint_evidence trio, the observability_coverage live leaf adds
+	# the observability_coverage trio, and the publishes live leaf adds
+	# the publishes trio.
 	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 97 ]] || return 1
 }

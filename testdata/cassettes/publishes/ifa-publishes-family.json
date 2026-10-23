@@ -1,0 +1,230 @@
+{
+  "collector": "package_registry",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "package-registry:npm:eshu-fixture-team-api",
+      "source_system": "package_registry",
+      "scope_kind": "package_registry",
+      "collector_kind": "package_registry",
+      "partition_key": "package-registry:npm:eshu-fixture-team-api",
+      "metadata": {
+        "fixture": "ifa-publishes-family",
+        "registry_kind": "npm"
+      },
+      "generation_id": "gen-ifa-publishes-family-1",
+      "observed_at": "2026-10-23T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repository:eshu-fixture-team-api",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repository:eshu-fixture-team-api",
+            "graph_kind": "repository",
+            "name": "team-api",
+            "remote_url": "https://github.com/acme/team-api",
+            "repo_id": "repository:eshu-fixture-team-api",
+            "source_run_id": "run-ifa-publishes-family-1"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repository:eshu-fixture-stale-api",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": true,
+          "payload": {
+            "graph_id": "repository:eshu-fixture-stale-api",
+            "graph_kind": "repository",
+            "name": "stale-api",
+            "remote_url": "https://github.com/acme/stale-api",
+            "repo_id": "repository:eshu-fixture-stale-api",
+            "source_run_id": "run-ifa-publishes-family-1"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repository:eshu-fixture-shared-a",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repository:eshu-fixture-shared-a",
+            "graph_kind": "repository",
+            "name": "shared-lib-a",
+            "remote_url": "https://github.com/acme/shared-lib",
+            "repo_id": "repository:eshu-fixture-shared-a",
+            "source_run_id": "run-ifa-publishes-family-1"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repository:eshu-fixture-shared-b",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repository:eshu-fixture-shared-b",
+            "graph_kind": "repository",
+            "name": "shared-lib-b",
+            "remote_url": "https://github.com/acme/shared-lib",
+            "repo_id": "repository:eshu-fixture-shared-b",
+            "source_run_id": "run-ifa-publishes-family-1"
+          }
+        },
+        {
+          "fact_kind": "package_registry.package",
+          "stable_fact_key": "package:pkg:npm:@acme/team-api",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "ecosystem": "npm",
+            "package_id": "pkg:npm:@acme/team-api"
+          }
+        },
+        {
+          "fact_kind": "package_registry.source_hint",
+          "stable_fact_key": "package-hint:pkg:npm:@acme/team-api:-:repository:https://github.com/acme/team-api",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "confidence_reason": "ifa publishes family fixture",
+            "hint_kind": "repository",
+            "normalized_url": "https://github.com/acme/team-api",
+            "package_id": "pkg:npm:@acme/team-api",
+            "raw_url": "https://github.com/acme/team-api"
+          }
+        },
+        {
+          "fact_kind": "package_registry.source_hint",
+          "stable_fact_key": "package-hint:pkg:npm:@acme/team-api:ver-team-api-2.0.0:repository:https://github.com/acme/team-api",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "confidence_reason": "ifa publishes family fixture",
+            "hint_kind": "repository",
+            "normalized_url": "https://github.com/acme/team-api",
+            "package_id": "pkg:npm:@acme/team-api",
+            "raw_url": "https://github.com/acme/team-api",
+            "version_id": "ver-team-api-2.0.0"
+          }
+        },
+        {
+          "fact_kind": "package_registry.source_hint",
+          "stable_fact_key": "package-hint:pkg:npm:@acme/stale-api:-:repository:https://github.com/acme/stale-api",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "confidence_reason": "ifa publishes family fixture",
+            "hint_kind": "repository",
+            "normalized_url": "https://github.com/acme/stale-api",
+            "package_id": "pkg:npm:@acme/stale-api",
+            "raw_url": "https://github.com/acme/stale-api"
+          }
+        },
+        {
+          "fact_kind": "package_registry.source_hint",
+          "stable_fact_key": "package-hint:pkg:npm:@acme/team-api:-:homepage:https://github.com/acme/team-api",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "confidence_reason": "ifa publishes family fixture",
+            "hint_kind": "homepage",
+            "normalized_url": "https://github.com/acme/team-api",
+            "package_id": "pkg:npm:@acme/team-api",
+            "raw_url": "https://github.com/acme/team-api"
+          }
+        },
+        {
+          "fact_kind": "package_registry.source_hint",
+          "stable_fact_key": "package-hint:pkg:npm:@acme/team-api:-:repository:https://github.com/acme/nonexistent",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "confidence_reason": "ifa publishes family fixture",
+            "hint_kind": "repository",
+            "normalized_url": "https://github.com/acme/nonexistent",
+            "package_id": "pkg:npm:@acme/team-api",
+            "raw_url": "https://github.com/acme/nonexistent"
+          }
+        },
+        {
+          "fact_kind": "package_registry.source_hint",
+          "stable_fact_key": "package-hint:pkg:npm:@acme/shared-lib:-:repository:https://github.com/acme/shared-lib",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "confidence_reason": "ifa publishes family fixture",
+            "hint_kind": "repository",
+            "normalized_url": "https://github.com/acme/shared-lib",
+            "package_id": "pkg:npm:@acme/shared-lib",
+            "raw_url": "https://github.com/acme/shared-lib"
+          }
+        },
+        {
+          "fact_kind": "package_registry.package_version",
+          "stable_fact_key": "package-version:ver-team-api-1.0.0",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "ecosystem": "npm",
+            "package_id": "pkg:npm:@acme/team-api",
+            "version": "1.0.0",
+            "version_id": "ver-team-api-1.0.0"
+          }
+        },
+        {
+          "fact_kind": "package_registry.package_version",
+          "stable_fact_key": "package-version:ver-stale-api-9.9.9",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "ecosystem": "npm",
+            "package_id": "pkg:npm:@acme/stale-api",
+            "version": "9.9.9",
+            "version_id": "ver-stale-api-9.9.9"
+          }
+        }
+      ]
+    }
+  ]
+}

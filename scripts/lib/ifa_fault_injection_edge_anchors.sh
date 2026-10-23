@@ -148,6 +148,13 @@ derived_from_edge_operation_match="MERGE (img)-[rel:DERIVED_FROM"
 # full `]->(target)` spelling matches no single executed statement, and
 # pinning one filled type would leave the other four unfaulted.
 observability_coverage_edge_operation_match="MERGE (obs)-[rel:AWS_COVERS_"
+# The PUBLISHES MERGE anchor cell_failgraphwrite_publishes (#6228
+# publishes live leaf) targets:
+# go/internal/storage/cypher/edge/writer/provenance.go:140,154 emits
+# MERGE (repo)-[rel:PUBLISHES { with the scope_id/evidence_source
+# identity map, so the anchor carries the PREFIX form. A full `]->(target)`
+# spelling would match no executed statement and the fault would never fire.
+publishes_edge_operation_match="MERGE (repo)-[rel:PUBLISHES"
 # The TAINT_FLOWS_TO MERGE anchor cell_failgraphwrite_code_interproc_evidence
 # (#6228 code_interproc_evidence live leaf) targets:
 # go/internal/storage/cypher/edge/writer/code_interproc_evidence.go:29 emits

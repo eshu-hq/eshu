@@ -54,6 +54,7 @@
 # uses_vault_policy, built_from, cloud_resource_container_image,
 # crossplane_satisfied_by, derived_from, code_interproc_evidence,
 # code_taint_evidence, observability_coverage, and incident_routing_evidence
+# code_taint_evidence, observability_coverage, and publishes
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
@@ -66,6 +67,8 @@
 # code_taint_evidence, the observability_coverage live leaf for
 # observability_coverage, and the incident_routing_evidence live leaf for
 # incident_routing_evidence -- live
+# observability_coverage, and the publishes live leaf for
+# publishes -- live
 # ifa-determinism AND
 # ifa-fault-injection
 # matrices driving the family
@@ -408,10 +411,19 @@ coverage:
     scenario_type: baseline
     ref: "odu:ifa-incident-routing-evidence-family"
     proof_gate: ifa-determinism
-  - surface: "materialized_edges:incident_routing_evidence"
-    scenario: odu
     scenario_type: fault
-    ref: "odu:ifa-incident-routing-evidence-family"
+  # publishes: fault-free baseline plus fault-injection
+  # recovery, all asserting the three-edge PUBLISHES exact set with
+  # identical graph digests (#6228 publishes live leaf). The
+  # package-level exact hint owns the Package node, the version-scoped
+  # exact hint owns ver-team-api-2.0.0, and the publication pairing of
+  # ver-team-api-1.0.0 against the package-level hint carries the
+  # publication evidence source; the tombstoned-only match (stale), the
+  # homepage kind (provenance-only, rejected), the unmatched remote
+  # (unresolved), and the two-remote match (ambiguous, never picked)
+  # resolve to nothing on either path.
+  - surface: "materialized_edges:publishes"
+    ref: "odu:ifa-publishes-family"
     proof_gate: ifa-fault-injection
 
 waivers:
@@ -455,16 +467,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteKubernetesCorrelationEdges -> cypher/edge/writer/kubernetes_correlation.go merges RUNS_IMAGE; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the kubernetes-correlation live-cell change (family stays waived: the fault-injection matrix does not drive it yet; determinism drives it since the kubernetes-correlation live-cell change)"
-  - surface: "materialized_edges:publishes"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WritePublishesEdges -> cypher/provenance_edge_writer.go merges PUBLISHES; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
-  - surface: "materialized_edges:publishes"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WritePublishesEdges -> cypher/provenance_edge_writer.go merges PUBLISHES; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:s3_external_principal_grant"
     proof_gate: ifa-determinism
     issue: "#6228"

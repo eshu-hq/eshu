@@ -87,4 +87,13 @@ ifa_live_gate_common_seams+=(
 	'testdata/cassettes/incidentrouting/**|testdata/cassettes/incidentrouting/ifa-incident-routing-evidence-family.json'
 	'go/internal/ifa/testdata/incidentroutingevidence/**|go/internal/ifa/testdata/incidentroutingevidence/ifa-incident-routing-evidence-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_incident_routing_evidence_cells.sh|scripts/lib/ifa_fault_injection_incident_routing_evidence_cells.sh'
+# publishes (#6228 publishes live leaf): cassette, expected-edge set, and
+# cells are new common seams beside the siblings; the Odù stays in the
+# determinism-only table (the fault cells drive the committed cassette JSON,
+# never the Odù source). No writer seam: the provenance.go templates this
+# family writes through are already a common seam under built_from above
+# (same file), mirroring the uses_vault_policy precedent in the parent.
+	'testdata/cassettes/publishes/**|testdata/cassettes/publishes/ifa-publishes-family.json'
+	'go/internal/ifa/testdata/publishes/**|go/internal/ifa/testdata/publishes/ifa-publishes-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_publishes_cells.sh|scripts/lib/ifa_fault_injection_publishes_cells.sh'
 )
