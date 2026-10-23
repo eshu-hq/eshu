@@ -40,6 +40,7 @@ func TestSupplyChainImpactRuntimeFilterPlansLive(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
+	bootstrapRuntimeFilterSchema(t, ctx, db)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin transaction: %v", err)

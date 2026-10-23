@@ -53,7 +53,7 @@ func explainSupplyChainRuntimeFilterPlan(
 		plan.Plan.SharedReadBlocks,
 	)
 	if plan.ExecutionTime > 500 {
-		t.Fatalf("%s execution = %.3fms, want <= 500ms", name, plan.ExecutionTime)
+		t.Fatalf("%s execution = %.3fms, want <= 500ms; plan:\n%s", name, plan.ExecutionTime, rawJSON)
 	}
 	return string(rawJSON)
 }
