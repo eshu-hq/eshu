@@ -21,6 +21,15 @@ import (
 // repoRoot and returns the sorted repo-relative slash paths it admitted.
 func discoverSymlinkFixture(t *testing.T, repoRoot string) []string {
 	t.Helper()
+	got, _ := discoverSymlinkFixtureWithStats(t, repoRoot)
+	return got
+}
+
+// discoverSymlinkFixtureWithStats is discoverSymlinkFixture plus the discovery
+// stats, so a test can assert how many links symlinkAdmission itself dropped
+// (content skip reason symlink_target) instead of inferring it from absence.
+func discoverSymlinkFixtureWithStats(t *testing.T, repoRoot string) ([]string, discovery.DiscoveryStats) {
+	t.Helper()
 	resolvedRoot, err := filepath.EvalSymlinks(repoRoot)
 	if err != nil {
 		resolvedRoot = repoRoot
@@ -40,7 +49,7 @@ func discoverSymlinkFixture(t *testing.T, repoRoot string) []string {
 	}
 	sort.Strings(got)
 	t.Logf("discovered=%v stats=%+v", got, stats)
-	return got
+	return got, stats
 }
 
 func mustSymlink(t *testing.T, target, link string) {
@@ -62,9 +71,9 @@ func containsPath(paths []string, want string) bool {
 	return false
 }
 
-// absoluteRoot returns the absolute, symlink-resolved path of rel under root,
+// absoluteUnderRoot returns the absolute, symlink-resolved path of rel under root,
 // the form an absolute link target takes on disk.
-func absoluteRoot(t *testing.T, root, rel string) string {
+func absoluteUnderRoot(t *testing.T, root, rel string) string {
 	t.Helper()
 	resolved, err := filepath.EvalSymlinks(root)
 	if err != nil {
@@ -86,6 +95,11 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 		setup  func(t *testing.T, root string)
 		link   string
 		admits bool
+		// dropped is how many links symlinkAdmission itself must count under
+		// the content skip reason symlink_target. Asserting it keeps a row
+		// from passing on the walk's own external-link drop, which counts
+		// nothing.
+		dropped int
 	}{
 		{
 			name: "link to env file",
@@ -93,7 +107,8 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 				writeCollectorTestFile(t, filepath.Join(root, ".env"), "SECRET=not-a-real-secret\n")
 				mustSymlink(t, ".env", filepath.Join(root, ".nvmrc"))
 			},
-			link: ".nvmrc",
+			link:    ".nvmrc",
+			dropped: 1,
 		},
 		{
 			name: "link into git config",
@@ -101,7 +116,8 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 				writeCollectorTestFile(t, filepath.Join(root, ".git", "config"), "[remote]\nurl = https://u:not-a-real-token@example.test/r.git\n")
 				mustSymlink(t, ".git/config", filepath.Join(root, ".nvmrc"))
 			},
-			link: ".nvmrc",
+			link:    ".nvmrc",
+			dropped: 1,
 		},
 		{
 			name: "link to npmrc",
@@ -109,7 +125,8 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 				writeCollectorTestFile(t, filepath.Join(root, ".npmrc"), "//r.example.test/:_authToken=not-a-real-token\n")
 				mustSymlink(t, ".npmrc", filepath.Join(root, ".node-version"))
 			},
-			link: ".node-version",
+			link:    ".node-version",
+			dropped: 1,
 		},
 		{
 			name: "link to differently parsed admitted target",
@@ -117,7 +134,8 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 				writeCollectorTestFile(t, filepath.Join(root, ".npmrc.json"), "{\"_authToken\":\"not-a-real-token\"}\n")
 				mustSymlink(t, ".npmrc.json", filepath.Join(root, ".nvmrc"))
 			},
-			link: ".nvmrc",
+			link:    ".nvmrc",
+			dropped: 1,
 		},
 		{
 			name: "link to terraform state",
@@ -125,7 +143,8 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 				writeCollectorTestFile(t, filepath.Join(root, "real", "terraform.tfstate"), "{\"version\":4}\n")
 				mustSymlink(t, "real/terraform.tfstate", filepath.Join(root, ".nvmrc"))
 			},
-			link: ".nvmrc",
+			link:    ".nvmrc",
+			dropped: 1,
 		},
 		{
 			name: "link to gitmodules",
@@ -133,7 +152,8 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 				writeCollectorTestFile(t, filepath.Join(root, ".gitmodules"), "[submodule \"x\"]\n\turl = https://example.test/x.git\n")
 				mustSymlink(t, ".gitmodules", filepath.Join(root, ".nvmrc"))
 			},
-			link: ".nvmrc",
+			link:    ".nvmrc",
+			dropped: 1,
 		},
 		{
 			name: "link into an ignored directory",
@@ -141,7 +161,8 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 				writeCollectorTestFile(t, filepath.Join(root, "node_modules", "pkg", ".nvmrc"), "20.11.1\n")
 				mustSymlink(t, "node_modules/pkg/.nvmrc", filepath.Join(root, ".nvmrc"))
 			},
-			link: ".nvmrc",
+			link:    ".nvmrc",
+			dropped: 1,
 		},
 		{
 			name: "link to directory",
@@ -151,14 +172,16 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 				}
 				mustSymlink(t, "real", filepath.Join(root, ".nvmrc"))
 			},
-			link: ".nvmrc",
+			link:    ".nvmrc",
+			dropped: 1,
 		},
 		{
 			name: "dangling link",
 			setup: func(t *testing.T, root string) {
 				mustSymlink(t, "missing/.nvmrc", filepath.Join(root, ".nvmrc"))
 			},
-			link: ".nvmrc",
+			link:    ".nvmrc",
+			dropped: 1,
 		},
 		{
 			name: "link cycle",
@@ -166,7 +189,8 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 				mustSymlink(t, ".node-version", filepath.Join(root, ".nvmrc"))
 				mustSymlink(t, ".nvmrc", filepath.Join(root, ".node-version"))
 			},
-			link: ".nvmrc",
+			link:    ".nvmrc",
+			dropped: 2,
 		},
 		{
 			name: "link to equally admitted file in a subdirectory",
@@ -184,7 +208,8 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 				mustSymlink(t, ".env", filepath.Join(root, ".node-version"))
 				mustSymlink(t, ".node-version", filepath.Join(root, ".nvmrc"))
 			},
-			link: ".nvmrc",
+			link:    ".nvmrc",
+			dropped: 2,
 		},
 		{
 			name: "chain to a pin",
@@ -200,15 +225,16 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 			name: "absolute link to env file",
 			setup: func(t *testing.T, root string) {
 				writeCollectorTestFile(t, filepath.Join(root, ".env"), "SECRET=not-a-real-secret\n")
-				mustSymlink(t, absoluteRoot(t, root, ".env"), filepath.Join(root, ".nvmrc"))
+				mustSymlink(t, absoluteUnderRoot(t, root, ".env"), filepath.Join(root, ".nvmrc"))
 			},
-			link: ".nvmrc",
+			link:    ".nvmrc",
+			dropped: 1,
 		},
 		{
 			name: "absolute in-root link to a pin",
 			setup: func(t *testing.T, root string) {
 				writeCollectorTestFile(t, filepath.Join(root, "real", ".nvmrc"), "20.11.1\n")
-				mustSymlink(t, absoluteRoot(t, root, "real/.nvmrc"), filepath.Join(root, ".nvmrc"))
+				mustSymlink(t, absoluteUnderRoot(t, root, "real/.nvmrc"), filepath.Join(root, ".nvmrc"))
 			},
 			link:   ".nvmrc",
 			admits: true,
@@ -220,7 +246,8 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 				writeCollectorTestFile(t, filepath.Join(outside, ".nvmrc"), "20.11.1\n")
 				mustSymlink(t, filepath.Join(outside, ".nvmrc"), filepath.Join(root, ".nvmrc"))
 			},
-			link: ".nvmrc",
+			link:    ".nvmrc",
+			dropped: 1,
 		},
 		{
 			name: "nested link to a parent pin",
@@ -238,9 +265,12 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 			root := t.TempDir()
 			writeCollectorTestFile(t, filepath.Join(root, ".git", "HEAD"), "ref: refs/heads/main\n")
 			tt.setup(t, root)
-			got := discoverSymlinkFixture(t, root)
+			got, stats := discoverSymlinkFixtureWithStats(t, root)
 			if containsPath(got, tt.link) != tt.admits {
 				t.Fatalf("link %q admitted = %v, want %v (discovered %v)", tt.link, !tt.admits, tt.admits, got)
+			}
+			if dropped := stats.FilesSkippedByContent[symlinkTargetSkipReason]; dropped != tt.dropped {
+				t.Fatalf("FilesSkippedByContent[%s] = %d, want %d", symlinkTargetSkipReason, dropped, tt.dropped)
 			}
 		})
 	}
