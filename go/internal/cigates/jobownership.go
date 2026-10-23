@@ -145,9 +145,10 @@ func checkWorkflowJobOwnership(repoRoot string, reg *Registry, workflow string) 
 }
 
 // callableCarrierOwned recognizes the central caller for a registered leaf.
-// The leaf's gate rows own its emitted checks; an exact local caller and a
-// validated fragment bind this carrier to that same workflow. An arbitrary
-// uses job, misspelled caller, or undeclared leaf stays unowned.
+// Gate rows own its emitted checks, or a reasoned non-gate inventory row
+// explicitly declares the leaf advisory. An exact local caller and validated
+// fragment bind this carrier to the same workflow. An arbitrary uses job,
+// misspelled caller, or undeclared leaf stays unowned.
 func callableCarrierOwned(repoRoot string, reg *Registry, workflow, key string, job ownershipJob) bool {
 	if workflow != "test.yml" || !strings.HasPrefix(key, "call-") || job.Name != "" {
 		return false
@@ -159,6 +160,12 @@ func callableCarrierOwned(repoRoot string, reg *Registry, workflow, key string, 
 	ownedLeaf := false
 	for _, gate := range reg.Gates {
 		if gate.CI.Workflow == file {
+			ownedLeaf = true
+			break
+		}
+	}
+	for _, nonGate := range reg.NonGateWorkflows {
+		if nonGate.File == file && nonGate.Reason != "" {
 			ownedLeaf = true
 			break
 		}

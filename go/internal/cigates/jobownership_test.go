@@ -59,6 +59,14 @@ func TestJobOwnershipCallableCarrierRequiresTrustedLeaf(t *testing.T) {
 	if errs := ownershipErrors(t, root, reg); len(errs) == 0 || !strings.Contains(errs[0], "call-build") {
 		t.Fatalf("caller without a leaf gate owner must stay unowned: %v", errs)
 	}
+	reg.NonGateWorkflows = []cigates.NonGateWorkflow{{File: "build.yml", Reason: "advisory release build"}}
+	if errs := ownershipErrors(t, root, reg); len(errs) != 0 {
+		t.Fatalf("a declared non-gate leaf should own its exact caller: %v", errs)
+	}
+	reg.NonGateWorkflows[0].Reason = ""
+	if errs := ownershipErrors(t, root, reg); len(errs) == 0 || !strings.Contains(errs[0], "call-build") {
+		t.Fatalf("non-gate leaf without a reason must leave caller unowned: %v", errs)
+	}
 }
 
 // ownershipErrors runs the full drift check on a hermetic repo and returns
