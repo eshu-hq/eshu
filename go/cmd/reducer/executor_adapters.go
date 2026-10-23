@@ -12,10 +12,17 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/legacy/retire"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// The legacy workload retirement handler type-asserts the reducer's Cypher
+// executor to retire.Writer at startup. Pin that at compile time so a signature
+// change fails the build instead of silently disabling execute (it would answer
+// 503 at runtime).
+var _ retire.Writer = reducerCypherExecutor{}
 
 // cypherRunner is the narrow interface shared by both executor adapters.
 type cypherRunner interface {
