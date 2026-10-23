@@ -136,7 +136,7 @@ func toolsVisibleStage(tools toolLister) StageResult {
 	if len(defs) == 0 {
 		return StageResult{Stage: StageToolsVisible, OK: false, Detail: "tool surface is empty"}
 	}
-	return StageResult{Stage: StageToolsVisible, OK: true, Detail: fmt.Sprintf("%d tools visible", len(defs))}
+	return StageResult{Stage: StageToolsVisible, OK: true, Detail: toolCountDetail(len(defs))}
 }
 
 func firstQueryStage(query QueryProber, skipReason string) StageResult {
@@ -168,4 +168,13 @@ func RenderVerifyReport(report VerifyReport) string {
 		fmt.Fprintf(&b, "  %s %s: %s\n", marker, s.Stage, s.Detail)
 	}
 	return b.String()
+}
+
+// toolCountDetail words the tools-visible detail. The count is the tools
+// registered in this build, resolved in-process. A deployment advertises fewer
+// when ESHU_MCP_TOOL_SURFACE or a ?surface= parameter selects router or
+// core_router, so the wording says what the number is.
+func toolCountDetail(n int) string {
+	return fmt.Sprintf("%d tools registered in this build; a deployment advertises fewer "+
+		"when ESHU_MCP_TOOL_SURFACE is router or core_router", n)
 }

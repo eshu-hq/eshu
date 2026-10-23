@@ -166,7 +166,7 @@ func RenderSetupHuman(w io.Writer, result Result, runErr error) {
 		_, _ = fmt.Fprintf(w, "  repo scope    : %s\n", result.Repository)
 	}
 	_, _ = fmt.Fprintf(w, "  index state   : %s\n", result.IndexState)
-	_, _ = fmt.Fprintf(w, "  mcp tools     : %d visible\n", result.ToolCount)
+	_, _ = fmt.Fprintf(w, "  mcp tools     : %d registered in this build\n", result.ToolCount)
 	_, _ = fmt.Fprintf(w, "  first query   : %s\n", queryLine(result))
 
 	for _, stage := range result.Stages {

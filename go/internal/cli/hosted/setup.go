@@ -112,7 +112,9 @@ func ExecuteSetup(deps Deps, opts SetupOptions) (Result, error) {
 		})
 		return finalize(result), errors.New("mcp tools: " + string(FailMCPUnavailable))
 	}
-	result = result.addStage(Stage{Name: StageMCPTools, Status: StageOK, Detail: fmt.Sprintf("%d tools visible", len(tools))})
+	result = result.addStage(Stage{Name: StageMCPTools, Status: StageOK, Detail: fmt.Sprintf(
+		"%d tools registered in this build; a deployment advertises fewer "+
+			"when ESHU_MCP_TOOL_SURFACE is router or core_router", len(tools))})
 
 	// Stage 6: one bounded query is the only stage whose success proves a useful
 	// answer is reachable. A requested-but-missing repository scope is reported

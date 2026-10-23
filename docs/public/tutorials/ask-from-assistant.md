@@ -72,6 +72,49 @@ About 10 minutes after Eshu is running and has at least one indexed repository.
    one repository with file and symbol evidence.
    ```
 
+## Choose A Tool Surface
+
+Eshu can advertise its tools to an assistant in three shapes. The shape is
+called the tool surface. It changes what the assistant sees in `tools/list`, not
+what Eshu can answer.
+
+| Surface | What the assistant sees | `tools/list` size on the validated build |
+| --- | --- | --- |
+| `full` (default) | Every tool, 163 on that build | about 210 KB |
+| `router` | `find_tool` and `call_tool` only | about 1.5 KB |
+| `core_router` | `find_tool`, `call_tool`, and 10 high-traffic tools | about 18 KB |
+
+With `router` or `core_router`, the assistant asks `find_tool` for the tool that
+fits its question, then runs it through `call_tool`. A tool the surface hides
+still runs: `call_tool` reaches every other tool that the query profile and the
+credential allow.
+
+Pick the surface per connection by adding `?surface=` to the MCP URL. A hosted
+client that POSTs to `<service-url>/mcp/message` uses
+`<service-url>/mcp/message?surface=router`; an SSE client uses
+`<service-url>/sse?surface=router`. Two assistants can use different surfaces
+against the same Eshu. To change the default for everyone, set
+`ESHU_MCP_TOOL_SURFACE` on the MCP server, or `mcpServer.env.ESHU_MCP_TOOL_SURFACE`
+in the Helm chart. See [MCP Reference](../reference/mcp-reference.md#tool-surface).
+
+The tool count that `eshu mcp setup --verify` prints is counted in the CLI
+process for that build. A deployment that serves `router` or `core_router`
+advertises fewer tools than the CLI reports.
+
+What a hosted validation measured: one QA build, Claude Code and Codex with one
+model each, 26 questions, three repeats per question and surface. Both clients
+picked the right first tool most often on `router` (99% in Claude Code, 87% in
+Codex). In Claude Code `router` used about one seventh of the input tokens of
+`full`, and mean cost fell about 40%, because the input-token figure includes
+cache reads. `full` answered somewhat more questions in both clients, and
+`core_router` was the weakest surface on accuracy in both. The sample is small,
+so treat gaps of a few runs as noise. The numbers, the scoring rules, and the
+gaps are in the [validation note](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/8760-hosted-mcp-validation.md).
+
+In practice: keep `full` when the assistant handles a long tool list well or you
+want it to see every tool. Try `router` when tool-list size or input cost
+matters and the assistant can follow a `find_tool` then `call_tool` sequence.
+
 ## Expected Result
 
 The assistant can list Eshu tools and return an answer with evidence labels

@@ -193,6 +193,23 @@ hooks, or emit OTEL from this dispatcher.
 No-Regression Evidence: assistant hook preflight behavior is covered by
 `go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight|TestDocLockstep' -count=1`.
 
+## Tool Surface
+
+The installed guidance works on every MCP tool surface. With `full`, the
+assistant sees every Eshu tool. With `router` or `core_router`, it sees a short
+list and reaches the rest through `find_tool` and `call_tool`, so the guidance
+should keep naming the question, not a tool. Choose the surface per connection
+with `?surface=` on the MCP URL, or set the deployment default with
+`ESHU_MCP_TOOL_SURFACE` (Helm: `mcpServer.env.ESHU_MCP_TOOL_SURFACE`). Hidden
+tools stay callable through `call_tool`.
+
+The tool count that `eshu mcp setup --verify` and `eshu hosted-setup` print is
+counted in the CLI process for that build. A deployment on `router` or
+`core_router` advertises fewer tools than that count. The
+[tutorial](../tutorials/ask-from-assistant.md#choose-a-tool-surface) has the
+measured trade-off between the surfaces, and
+[MCP Reference](mcp-reference.md#tool-surface) has the contract.
+
 ## Committing Guidance
 
 After an install that changed a committed file, the command prints `git add`
