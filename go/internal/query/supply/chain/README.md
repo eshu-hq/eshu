@@ -219,8 +219,9 @@ decodes only the membership fields (`scope`, `scope_id`, `repository`,
 The read runs as stage `security_alert_collection_state`, whose completion log
 carries `coverage_state`, `coverage_reason`, and `collector_state`, and it
 increments `eshu_dp_query_security_alert_empty_answers_total`. Pages with rows
-never run it. A store error serves `collection_state_unavailable` with a
-`readiness_unavailable` envelope instead of a `500`. The state table is in
+never run it. The whole probe runs under `securityAlertCollectionStateTimeout`
+(1 s); a store error or an expired deadline serves `collector_state_unavailable`
+with fallback truth and a `readiness_unavailable` envelope instead of a `500`. The state table is in
 [Provider Alert Parity](../../../../../docs/public/reference/security-intelligence-provider-alert-parity.md#empty-answers).
 
 When the catalog has no match and the selector is not canonical, the exact

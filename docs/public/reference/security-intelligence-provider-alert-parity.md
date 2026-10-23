@@ -76,9 +76,15 @@ Every non-complete row sets `truth.freshness.cause=missing_collector_completion`
 whose next check is `list_collectors`. `<class>` is one of `auth_denied`,
 `not_found`, `rate_limited`, `terminal`, or `unclassified`. The not-configured
 rows and the healthy row also carry `collector_readiness`
-(`not_configured` or `ready_zero_results`). If the collection-state read itself
-fails, the page is still served with reason `collection_state_unavailable`,
-`readiness_unavailable`, `derived` truth, and `unavailable` freshness.
+(`not_configured` or `ready_zero_results`). The collector-state read runs under
+a 1 s deadline. If it fails or times out, the page is still served, never as a
+`5xx`, with reason `collector_state_unavailable`, `readiness_unavailable`,
+`fallback` truth, and `unavailable` freshness.
+
+The read costs nothing on a page with rows. On an empty answer it scans each
+covering target's work-item history as index tuples, about 1 ms per target
+with 2,000 work items. A read with no repository anchor checks every target.
+Work-item history is not pruned, so the cost grows as the collector runs.
 
 A repository counts as covered when a repository-scope target names it, or when
 an organization-scope target's `allowed_repositories` lists it under the same

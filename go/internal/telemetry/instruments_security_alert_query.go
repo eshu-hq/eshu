@@ -28,7 +28,7 @@ func registerSecurityAlertQueryInstruments(meter metric.Meter, inst *Instruments
 	var err error
 	if inst.QuerySecurityAlertEmptyAnswers, err = meter.Int64Counter(
 		"eshu_dp_query_security_alert_empty_answers_total",
-		metric.WithDescription("Empty security-alert reconciliation answers (list, count, inventory) classified from collector state, by coverage_state (complete, target_incomplete, not_configured) and reason (none for a healthy empty answer; otherwise collector_not_configured, repository_outside_target_set, no_committed_generation, collection_state_unavailable, or terminal_fetch_failure:<auth_denied|not_found|rate_limited|terminal|unclassified>)"),
+		metric.WithDescription("Empty security-alert reconciliation answers (list, count, inventory) classified from collector state, by coverage_state (complete, target_incomplete, not_configured) and reason (none for a healthy empty answer; otherwise collector_not_configured, repository_outside_target_set, no_committed_generation, collector_state_unavailable, or terminal_fetch_failure:<auth_denied|not_found|rate_limited|terminal|unclassified>)"),
 	); err != nil {
 		return fmt.Errorf("register QuerySecurityAlertEmptyAnswers counter: %w", err)
 	}

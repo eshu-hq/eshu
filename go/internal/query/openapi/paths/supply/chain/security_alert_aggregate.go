@@ -119,7 +119,7 @@ const securityAlertCoverageSchema = `"coverage": {
                         "rows_considered": {"type": "integer"},
                         "reasons": {
                           "type": "array",
-                          "items": {"type": "string", "enum": ["collection_state_unavailable", "collector_not_configured", "no_committed_generation", "repository_outside_target_set", "terminal_fetch_failure:auth_denied", "terminal_fetch_failure:not_found", "terminal_fetch_failure:rate_limited", "terminal_fetch_failure:terminal", "terminal_fetch_failure:unclassified"]}
+                          "items": {"type": "string", "enum": ["collector_state_unavailable", "collector_not_configured", "no_committed_generation", "repository_outside_target_set", "terminal_fetch_failure:auth_denied", "terminal_fetch_failure:not_found", "terminal_fetch_failure:rate_limited", "terminal_fetch_failure:terminal", "terminal_fetch_failure:unclassified"]}
                         }
                       }
                     },

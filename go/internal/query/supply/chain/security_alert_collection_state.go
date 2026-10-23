@@ -36,7 +36,7 @@ const (
 	securityAlertReasonRepositoryOutsideTargets   = "repository_outside_target_set"
 	securityAlertReasonNoCommittedGeneration      = "no_committed_generation"
 	securityAlertReasonTerminalFetchFailurePrefix = "terminal_fetch_failure:"
-	securityAlertReasonCollectionStateUnavailable = "collection_state_unavailable"
+	securityAlertReasonCollectorStateUnavailable  = "collector_state_unavailable"
 )
 
 // Seam for a truncated generation (#8803 PR C). A target whose committed
@@ -63,7 +63,7 @@ func securityAlertCoverageReasons() []string {
 		securityAlertReasonCollectorNotConfigured,
 		securityAlertReasonRepositoryOutsideTargets,
 		securityAlertReasonNoCommittedGeneration,
-		securityAlertReasonCollectionStateUnavailable,
+		securityAlertReasonCollectorStateUnavailable,
 	}
 	for _, class := range securityAlertTerminalFailureClasses {
 		out = append(out, securityAlertReasonTerminalFetchFailurePrefix+class)
@@ -241,8 +241,8 @@ func securityAlertNotConfiguredVerdict(reason, collectorState string) securityAl
 func securityAlertUnavailableVerdict() securityAlertCoverageVerdict {
 	return securityAlertCoverageVerdict{
 		coverageState:  securityAlertCoverageTargetIncomplete,
-		reasons:        []string{securityAlertReasonCollectionStateUnavailable},
-		level:          querycontract.TruthLevelDerived,
+		reasons:        []string{securityAlertReasonCollectorStateUnavailable},
+		level:          querycontract.TruthLevelFallback,
 		freshness:      querycontract.FreshnessUnavailable,
 		collectorState: securityAlertCollectorStateUnavailable,
 		readiness:      querycontract.CollectorListReadinessStateReadinessUnavailable,

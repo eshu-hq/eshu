@@ -54,7 +54,9 @@ reported `truth.freshness.state = stale`.
   `coverage.reasons`. `collector_not_configured` and
   `repository_outside_target_set` are configuration: add an enabled
   `security_alert` instance or a target that covers the repository.
-  `no_committed_generation` is still collecting. `terminal_fetch_failure:<class>`
+  `no_committed_generation` is still collecting. `collector_state_unavailable`
+  means the state read failed or hit its 1 s deadline (`deadline_exceeded` on
+  the stage log). `terminal_fetch_failure:<class>`
   is a provider failure (`auth_denied` means the provider refused the target's
   credential); follow
   [collector failure](#symptom-collector-failure). The

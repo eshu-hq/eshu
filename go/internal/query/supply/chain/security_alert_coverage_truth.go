@@ -5,8 +5,10 @@ package chain
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -19,16 +21,25 @@ import (
 // collection-state read behind an empty security-alert answer.
 const securityAlertCollectionStateStage = "security_alert_collection_state"
 
+// securityAlertCollectionStateTimeout bounds the whole collection-state probe
+// behind one empty answer. The measured reads take about 1 ms for one target
+// and about 36 ms for 50 targets with 2,000 work items each
+// (docs/internal/evidence/8803-security-alert-empty-answer-truth.md); past
+// this deadline the answer fails closed to collector_state_unavailable rather
+// than holding the request.
+const securityAlertCollectionStateTimeout = time.Second
+
 // securityAlertEmptyAnswerVerdict classifies an empty security-alert answer
 // from the collector's configuration and per-target state (#8803). It runs only
 // for an empty answer and only when the collection-state store is wired; the
 // boolean is false when no verdict was produced, so the caller keeps the
 // row-derived coverage unchanged.
 //
-// A store error does not fail the request: like the collector-readiness probe,
-// it serves the page with a collection_state_unavailable reason and a
-// readiness_unavailable envelope so the empty answer can never read as
-// complete. The stage completion event carries coverage_state,
+// The whole probe runs under securityAlertCollectionStateTimeout. A store
+// error or an expired deadline does not fail the request: it fails closed to a
+// collector_state_unavailable reason, fallback truth, unavailable freshness,
+// and a readiness_unavailable envelope, so the empty answer can never read as
+// complete or fresh and a valid read never answers 5xx. The stage completion event carries coverage_state,
 // coverage_reason, and collector_state (all bounded tokens), and the empty
 // answer counter records one observation per classified answer.
 //
@@ -48,7 +59,9 @@ func (h *Handler) securityAlertEmptyAnswerVerdict(
 	}
 	ctx := r.Context()
 	timer := startSupplyChainQueryStage(ctx, h.Logger, operation, repositoryID, securityAlertCollectionStateStage)
-	verdict, err := h.readSecurityAlertCollectionVerdict(ctx, repositoryID != "", repositoryScopeIDs)
+	probeCtx, cancel := context.WithTimeout(ctx, securityAlertCollectionStateTimeout)
+	verdict, err := h.readSecurityAlertCollectionVerdict(probeCtx, repositoryID != "", repositoryScopeIDs)
+	cancel()
 	if err != nil {
 		verdict = securityAlertUnavailableVerdict()
 	}
@@ -56,6 +69,7 @@ func (h *Handler) securityAlertEmptyAnswerVerdict(
 	timer.Done(
 		ctx,
 		slog.Bool("error", err != nil),
+		slog.Bool("deadline_exceeded", errors.Is(err, context.DeadlineExceeded)),
 		slog.String("coverage_state", verdict.coverageState),
 		slog.String("coverage_reason", reason),
 		slog.String("collector_state", verdict.collectorState),

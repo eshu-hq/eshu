@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -31,20 +32,30 @@ const (
 // double that records every call so a test can prove the probe never runs on a
 // non-empty answer or an out-of-grant selector.
 type fakeSecurityAlertCollectionState struct {
-	mu           sync.Mutex
-	configs      []string
-	states       map[string]SecurityAlertTargetState
-	configErr    error
-	stateErr     error
+	mu        sync.Mutex
+	configs   []string
+	states    map[string]SecurityAlertTargetState
+	configErr error
+	stateErr  error
+	// block makes the configuration read wait for its context, so a test can
+	// prove the probe deadline fails closed.
+	block        bool
 	configCalls  int
 	stateCalls   int
 	lastScopeIDs []string
 }
 
-func (f *fakeSecurityAlertCollectionState) SecurityAlertCollectorConfigurations(context.Context) ([]string, error) {
+func (f *fakeSecurityAlertCollectionState) SecurityAlertCollectorConfigurations(ctx context.Context) ([]string, error) {
+	f.mu.Lock()
+	f.configCalls++
+	block := f.block
+	f.mu.Unlock()
+	if block {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.configCalls++
 	if f.configErr != nil {
 		return nil, f.configErr
 	}
@@ -426,7 +437,7 @@ func TestSecurityAlertCoverageProbeFailure(t *testing.T) {
 				t.Fatalf("%s: status = %d; body = %s", route, code, body)
 			}
 			assertCoverage(t, resp, coverageWant{
-				"target_incomplete", []string{"collection_state_unavailable"}, "derived", "unavailable", "", "readiness_unavailable",
+				"target_incomplete", []string{"collector_state_unavailable"}, "fallback", "unavailable", "", "readiness_unavailable",
 			})
 			assertCoverageInvariant(t, resp)
 			if strings.Contains(body, "read failed") {
@@ -498,5 +509,33 @@ func TestSecurityAlertCoverageScopedCallers(t *testing.T) {
 			"target_incomplete", []string{"no_committed_generation"}, "derived", "building", "missing_collector_completion", "",
 		})
 		assertNoTargetIdentity(t, body)
+	}
+}
+
+// TestSecurityAlertCoverageProbeDeadlineFailsClosed blocks the
+// collection-state read until its context ends. The probe's own deadline must
+// end it, and the page must still be served as an incomplete, non-fresh answer
+// rather than hanging or answering 5xx.
+func TestSecurityAlertCoverageProbeDeadlineFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	for route, target := range coverageRoutes(coverageTestRepositoryID) {
+		t.Run(route, func(t *testing.T) {
+			t.Parallel()
+			store := &fakeSecurityAlertCollectionState{block: true}
+			started := time.Now()
+			code, body, resp := serveCoverage(context.Background(), t, coverageTestHandler(store, 0), target)
+			elapsed := time.Since(started)
+			if code != http.StatusOK {
+				t.Fatalf("status = %d; body = %s", code, body)
+			}
+			if elapsed > 3*securityAlertCollectionStateTimeout {
+				t.Fatalf("probe ran %s, want it bounded near %s", elapsed, securityAlertCollectionStateTimeout)
+			}
+			assertCoverage(t, resp, coverageWant{
+				"target_incomplete", []string{"collector_state_unavailable"}, "fallback", "unavailable", "", "readiness_unavailable",
+			})
+			assertCoverageInvariant(t, resp)
+		})
 	}
 }

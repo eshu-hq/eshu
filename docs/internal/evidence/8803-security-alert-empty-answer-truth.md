@@ -38,7 +38,12 @@ freshness cause. Companion tests pin the rest of the contract:
 - `TestSecurityAlertCoverageRowsPresentSkipsProbe`: a page with rows never reads
   collector state and keeps its exact, fresh truth.
 - `TestSecurityAlertCoverageProbeFailure`: a failed state read still serves the
-  page, as `collection_state_unavailable` with `readiness_unavailable`.
+  page, as `collector_state_unavailable` with `fallback` truth, `unavailable`
+  freshness, and `readiness_unavailable`.
+- `TestSecurityAlertCoverageProbeDeadlineFailsClosed`: a store that blocks
+  until its context ends is cut off by the 1 s probe deadline
+  (`securityAlertCollectionStateTimeout`) and answers the same fail-closed
+  shape. Before the deadline existed the test hung until the test timeout.
 - `TestSecurityAlertCoverageUnanchoredReadsEveryTarget`: a read without a
   repository anchor checks every configured target.
 - `TestSecurityAlertCoverageScopedCallers`: an out-of-grant selector answers
@@ -68,15 +73,43 @@ generations, and 42 collector instances, then `VACUUM (ANALYZE)`.
 | First draft, one target (heap fetch per work item) | Index scan plus heap fetch of 2,000 rows | 1.09 ms | 471 |
 | First draft, 50 targets | Same | 41.0 ms | 23,349 |
 
-The ruling expected a point read for the latest work item. It is not one:
-security-alert work items have no retention, and `generation_id` is a hash, so
-no existing index orders one target's work items by `updated_at`. The shipped
-statement selects only index columns in the lateral subquery, so the scan reads
-index tuples (Heap Fetches: 0) and fetches one heap row by primary key. Cost
-grows with each target's work-item history, about 0.4 ms per 2,000 items per
-target, and runs only for empty answers. A true point read needs an index on
-`(collector_kind, scope_id, updated_at DESC)`, which is schema work outside this
-change.
+### Ruling assumption disproved, measured form used
+
+The ruling expected the latest-work-item read to be an indexed point read. The
+plans disprove that: security-alert work items have no retention, and
+`generation_id` is a hash, so no existing index orders one target's work items
+by `updated_at`. The shipped statement selects only index columns in the
+lateral subquery, so the scan reads index tuples (Heap Fetches: 0) and fetches
+one heap row by primary key.
+
+Cost model: each empty answer costs O(work-item history of each covering
+target's scope). On the seed that is about 1 ms and 61 buffers for one target
+with 2,000 work items, and about 36 ms and 2.7k buffers for an unanchored read
+over 50 targets. Work-item history is unbounded, so the cost keeps growing as
+the collector runs. Pages with rows pay nothing. The whole probe runs under a
+1 s deadline and fails closed past it. A true point read needs an index on
+`(collector_kind, scope_id, updated_at DESC)`; that DDL belongs to a later
+change with its own proof, not to this one.
+
+### Unanchored reads keep the per-target sweep
+
+An unanchored count, inventory, or list read checks every configured target.
+The alternative, the single latest work item of the security_alert instance,
+was measured on the same seed (instance `sa-live`, 100,000 security-alert work
+items among 200,000):
+
+| Statement | Plan | Time | Buffers |
+| --- | --- | --- | --- |
+| Instance-level latest row, full row | Parallel seq scan of `workflow_work_items`, top-N sort | 19.1 ms | 4,369 |
+| Instance-level latest row, id only | Parallel seq scan of `workflow_work_items`, top-N sort | 16.1 ms | 4,369 |
+
+No index orders an instance's work items by `updated_at`, so the planner scans
+the whole table: more buffers than the 50-target sweep, and its cost grows with
+every collector kind's history, not only security alerts. It is also less
+truthful. One target's newer success hides another target's terminal failure,
+so an empty answer would read `complete` when a target never collected, which
+breaks the #8803 invariant. The sweep stays, bounded by the same 1 s deadline
+and the 1,024-target read bound.
 
 The same statements ran against the seed for the review probes. The
 deactivated organization instance returned no configuration row. A target whose
@@ -89,7 +122,7 @@ an empty status with no generation (still collecting).
 Observability Evidence: each classified empty answer runs stage
 `security_alert_collection_state`. Its `supply chain query stage completed` log
 carries `coverage_state`, `coverage_reason`, `collector_state`,
-`duration_seconds`, and `error`. The counter
+`duration_seconds`, `error`, and `deadline_exceeded`. The counter
 `eshu_dp_query_security_alert_empty_answers_total{coverage_state,reason}`
 counts the answers; both labels are closed sets. No payload, log attribute, or
 label carries a repository name, allowlist, URL, target scope id, or failure
