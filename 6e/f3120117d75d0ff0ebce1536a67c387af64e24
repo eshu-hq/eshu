@@ -1,0 +1,19 @@
+docs/public/extend/sdk-compatibility.md
+  s_ff8a600f1fc93e::t_20e2e8724fe8aa 3-5,10-12,19-28,36-70,80-82,144-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6ef3120117d75d0ff0ebce1536a67c387af64e24",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
