@@ -60,7 +60,9 @@ type Config struct {
 	// unthrottled and claims keep the plain statement.
 	QuotaLookup workflow.QuotaLookup
 	// WorkItemRetention controls the workflow_work_items retention loop
-	// (#8829). The zero value is off.
+	// (#8829). LoadConfig turns it on at a 720h age unless
+	// ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE is 0; the zero value,
+	// for a Config built by hand, is off.
 	WorkItemRetention WorkItemRetentionConfig
 }
 
