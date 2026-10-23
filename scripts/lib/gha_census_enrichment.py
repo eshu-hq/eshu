@@ -120,7 +120,8 @@ def classify_cancellation(job_count: int | None,
     seconds = 0.0
     executed = False
     for job in jobs:
-        if job.get("runner_id") is None:
+        runner_id = job.get("runner_id")
+        if type(runner_id) is not int or runner_id <= 0:
             continue
         start = timestamp(job.get("started_at"))
         end = timestamp(job.get("completed_at"))

@@ -30,6 +30,16 @@
     "source_drift": {
       "late_cancelled": 2,
       "missing_from_rest": 0
+    },
+    "validity": {
+      "invalid_fields": [
+        "categories.executed",
+        "categories.unknown",
+        "evidenced_runner_minutes",
+        "examples.executed"
+      ],
+      "reason": "runner_id=0 was counted as runner allocation; executed, unknown, and runner-minute figures must be remeasured",
+      "status": "INVALIDATED"
     }
   },
   "cancelled_share": 0.4932699920823436,

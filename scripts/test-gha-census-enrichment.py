@@ -257,6 +257,12 @@ class TestCancellation(unittest.TestCase):
             self.assertEqual(result["categories"], {"unknown": 1})
             self.assertEqual(result["evidenced_runner_minutes"], 0.0)
 
+    def test_unallocated_runner_zero_is_unknown(self):
+        job = {"runner_id": 0, "runner_name": "",
+               "started_at": "2026-10-23T12:00:00Z",
+               "completed_at": "2026-10-23T12:00:04Z"}
+        self.assertEqual(classify_cancellation(1, [job]), ("unknown", None))
+
     def test_zero_jobs_and_runner_time_are_distinct(self):
         self.assertEqual(classify_cancellation(0, []), ("zero_job", 0.0))
         jobs = [

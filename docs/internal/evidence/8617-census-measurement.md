@@ -12,11 +12,20 @@ PR workflow enqueue, including observed queueing and reruns on that head.
 Push-to-dispatch delay is not measured. Reuse and smoke have no observations in
 this window, so their percentiles remain absent.
 
-Of the raw snapshot's 623 cancelled runs, 576 had zero jobs and 47 had executed
-jobs, accounting for 1162.84 evidenced runner-minutes. Two later cancellations
-were excluded to preserve the raw population. Runner-minutes sum job occupancy;
-they are not elapsed time or a financial cost estimate. The raw cancelled share
-is 49.33%, and the original below-15% target remains unmet.
+The original snapshot recorded 623 cancelled runs and a 49.33% raw cancelled
+share; the original below-15% target remains unmet. Two later cancellations were
+excluded from that raw population. Its generated 47 executed jobs and 1162.84
+runner-minutes are **invalidated**: the classifier treated `runner_id=0` as an
+allocated runner. The reported zero unknown observations are also invalid.
+Do not use those derived figures for a decision.
+
+A later re-read of the same creation window used the corrected classifier, but
+GitHub's run states had advanced. That retrospective population has 635 cancelled
+runs: 578 zero-job, 30 executed, and 27 unknown, with 1811.51 evidenced
+runner-minutes. This is a distinct population, so it is not a before/after
+change in cancellations or runner cost. The unknown count includes jobs whose
+`runner_id=0` supplies no evidence of runner allocation. Runner-minutes sum
+observed job occupancy, not elapsed time or a financial cost estimate.
 
 The follow-up classification fix refuses to label an unrecognized successful
 publisher description as an ordinary full run. It does not change the recognized
@@ -28,3 +37,8 @@ attempts and reject incomplete REST pages or job counts below the observed
 check-suite count. The retained snapshot is historical validation, not final
 post-review or full-day acceptance evidence. Boundary regressions exercise the
 production API path for both corrections.
+
+The [retrospective re-read](8617-census-20261023-retrospective.json) was produced
+by `fetch_window` and `cancellation_cost` with the original window bounds. The
+complete source population was re-read, not reconstructed from the original
+623 run IDs.
