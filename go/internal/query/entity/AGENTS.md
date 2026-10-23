@@ -14,7 +14,11 @@
   `_test.go` files in this package. Tests that need root doubles use
   `testutil`, never the root. `internal/graph` is allowed: it holds the
   stdlib-only schema tables (`HasUIDUniquenessConstraint` picks the uid
-  anchor for entity context, #7089), not a driver.
+  anchor for entity context, #7089), not a driver. So is
+  `internal/graph/legacy/workload`: the ambiguity candidate map calls its
+  `IsLegacyID` to set `legacy_id`, the same shape check the leftover
+  retirement uses (#8795). Do not copy that check here, and never import the
+  reducer's retirement package.
 - Import `querycontract`, `selector`, `repository`, `service`, and
   `supplychain`, never the reverse. Those leaves must not import this
   package: several entity files already import them, so a back-import
