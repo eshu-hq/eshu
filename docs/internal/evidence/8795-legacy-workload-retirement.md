@@ -137,4 +137,6 @@ route. Dry runs record no counter and no audit event.
 | detection live proof (every case) and the Go-vs-statement equivalence | Neo4j | local container; registered for the live-backend CI job |
 | delete gate and plan pin | Neo4j | local container; registered for the live-backend CI job |
 | retire, idempotency, race with a materialization pass | Neo4j | local container; registered for the live-backend CI job |
+| `legacy_id` on the ambiguity candidates (unit and HTTP `409` through the story route) | none | local, `-race` |
+| scenario A2: story `409` marks the leftover, the retirement statement removes it, the same selectors then resolve to the scoped workload | Neo4j | local container; registered for the live-backend CI job |
 | golden-corpus gate (B-7, B-12) | Neo4j | not run locally by this change; see the report |

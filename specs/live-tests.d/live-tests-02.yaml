@@ -112,6 +112,11 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/query/entity/service_story_legacy_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-scoped #8795 scenario A2 on Neo4j: a name-only leftover Workload next to its scoped twin makes the service story answer 409 by name and by name plus repo, only the leftover candidate carries legacy_id true, the shared detection finds one eligible node, the retirement delete statement removes only the leftover, and the same selectors then resolve to the scoped workload; Neo4j only by owner direction; local neo4j 2026.08.1 run on a fresh database took 37 s under -race, about 35 s of it applying the schema"
+    backends: neo4j
   - file: go/internal/query/entity_name_cross_store_differential_live_test.go
     tag: live_global_name_comparison
     class: scheduled
