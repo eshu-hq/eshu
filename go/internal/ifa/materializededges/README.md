@@ -456,9 +456,9 @@ exactly the missing alarm edge and nothing else. The Odu/cassette gain one
 - Backend/version: hermetic guard plus live matrices on the gate-owned
   disposable Compose stack (Postgres + NornicDB).
 - Input shape: observability_coverage Odu (22 facts: 8 observability
-  objects, 5 scanned targets, 1 EC2 posture, 8 relationships), 91-cell
+  objects, 5 scanned targets, 1 EC2 posture, 8 relationships), 94-cell
   fault corpus.
-- Terminal counts: guard green on the 5-edge set; mirror 91-cell exact
+- Terminal counts: guard green on the 5-edge set; mirror 94-cell exact
   cover.
 
 No-Observability-Change: no spans, metrics, logs, or status fields added.
