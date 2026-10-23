@@ -166,6 +166,10 @@ func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...a
 	switch {
 	case query == deltaBaselineFenceQuery:
 		return newProofRows(proofDeltaBaselineFenceRows(tx.state, args)), nil
+	case query == unchangedGenerationCandidateQuery:
+		// The guard's in-tx recheck (#8750 window) reads the transaction's
+		// own view, which holds the same committed state as the base.
+		return proofUnchangedGenerationCandidateRows(tx.state, args)
 	case query == markProjectionWriteStartedQuery:
 		return newProofRows(proofMarkProjectionWriteStartedRows(tx.state, args)), nil
 	case query == lockProjectorMarkerFenceQuery:

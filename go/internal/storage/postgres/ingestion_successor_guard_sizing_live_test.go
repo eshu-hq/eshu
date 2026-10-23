@@ -56,6 +56,27 @@ func (p *reprojectProof) commitGuardSizingStream(
 	withRepositoryFact bool,
 ) {
 	p.t.Helper()
+	envelopes := guardSizingEnvelopes(generation, files, extraCollectorFacts, changed, deleted, withRepositoryFact)
+	stream := make(chan facts.Envelope, len(envelopes))
+	for _, envelope := range envelopes {
+		stream <- envelope
+	}
+	close(stream)
+	if err := p.store.CommitScopeGeneration(context.Background(), p.scope, generation, stream); err != nil {
+		p.t.Fatalf("commit %s: %v", generation.GenerationID, err)
+	}
+}
+
+// guardSizingEnvelopes builds the collector facts commitGuardSizing streams:
+// an optional delta_generation repository fact, one file fact per file, and
+// extraCollectorFacts content entities.
+func guardSizingEnvelopes(
+	generation scope.ScopeGeneration,
+	files []guardSizingFile,
+	extraCollectorFacts int,
+	changed, deleted []string,
+	withRepositoryFact bool,
+) []facts.Envelope {
 	envelopes := make([]facts.Envelope, 0, len(files)+extraCollectorFacts+1)
 	if withRepositoryFact {
 		envelopes = append(envelopes, facts.Envelope{
@@ -91,14 +112,7 @@ func (p *reprojectProof) commitGuardSizingStream(
 			Payload:       map[string]any{"relative_path": fmt.Sprintf("f%04d.go", i)},
 		})
 	}
-	stream := make(chan facts.Envelope, len(envelopes))
-	for _, envelope := range envelopes {
-		stream <- envelope
-	}
-	close(stream)
-	if err := p.store.CommitScopeGeneration(context.Background(), p.scope, generation, stream); err != nil {
-		p.t.Fatalf("commit %s: %v", generation.GenerationID, err)
-	}
+	return envelopes
 }
 
 // seedReducerRows writes reducer-derived rows into an activated generation,

@@ -305,7 +305,25 @@ operational lessons that future storage changes still need to respect.
   bound what a successor retracts. `successorGuardActiveGenerationQuery`
   uses `activeGenerationPredicate`, never `backfill.ActiveScopeGenerationQuery`,
   whose COALESCE returns a pending row when none is active. It runs only for
-  a pending candidate, before the commit transaction opens; a pending
-  candidate whose projector work is not live is not sized next to an active
-  generation, and every read failure fails the commit closed.
+  a pending candidate; a pending candidate whose projector work is not live
+  is not sized next to an active generation, and every read failure fails
+  the commit closed.
+- The guard sizes its prior on the base connection before the commit
+  transaction opens, so a same-scope commit or Ack can land in between and
+  leave the prior stale and smaller than the truth (#8750 window). Once
+  `upsertIngestionScope` holds the scope row (its ON CONFLICT DO UPDATE arm
+  row-locks it until commit), no same-scope generation can be stored or
+  activated and the active pointer cannot move. `recheckSuccessorPrior`
+  therefore runs after the scope upsert and before `upsertScopeGeneration`
+  (after which the successor's own row is the newest candidate): it re-reads
+  the candidate tuple (generation id, status, work_live) on the transaction,
+  plus the active id when the in-tx candidate is pending. On any difference
+  it re-sizes on the transaction with `successorPriorForGuard` and uses that
+  result alone, never the larger of the two; a failed read or count fails
+  the commit closed. Reads that run on the transaction share one connection,
+  so each must close its cursor before the next statement (pgx refuses with
+  "conn busy"); the delta-union resolver reads target and base through
+  `readDeltaUnionTarget` and `readDeltaUnionBase` for that reason. Do not move
+  the recheck, do not compare a subset of the tuple, and do not widen it to
+  un-hinted generations here (that is a separate issue).
   See `docs/internal/evidence/8750-successor-guard-sizing.md`.

@@ -248,6 +248,13 @@ TABLE = {
             "TestGuardSizesAgainstLargerPendingFullLive",
             "TestGuardRefusesStepwiseShrinkThroughPendingFullLive",
         ),
+        "go/internal/storage/postgres/ingestion_successor_guard_window_live_test.go": (
+            "TestGuardRecheckRefusesAfterACommitInTheWindowLive",
+            "TestGuardRecheckStoresAHalfSizeFullAfterTheResizeLive",
+            "TestGuardRecheckResizesAfterAnAckInTheWindowLive",
+            "TestGuardRecheckUnchangedScopeReadsOnceLive",
+            "TestGuardRecheckScopeRowBlocksCommitAndAckLive",
+        ),
         "go/internal/storage/postgres/manifest_less_dirty_rule_answer_live_test.go": (
             "TestReducerContentionGateManifestLessDirtyRuleReturnsTheSameDefinitions",
             "TestReducerContentionGateManifestLessDirtyRuleNaiveRuleLosesTheHole",
@@ -479,12 +486,6 @@ TABLE = {
             "TestCompletionWakeEvalPlanQualDropsReopenedRowLive",
             "TestCompletionWakeConcurrentWithMaintenanceAndClaimLive",
             "TestCompletionWakeMetricsLive",
-        ),
-        "go/internal/storage/postgres/relationship_store_completion_wake_live_test.go": (
-            "TestCompletionWakeFloorMissingAndUnchangedLive",
-            "TestCompletionWakeRunningItemReplayBitLive",
-            "TestCompletionWakeClaimedMissingFingerprintNotFlaggedLive",
-            "TestCompletionWakeRetryConvergesAfterLostWakeLive",
         ),
     },
 }

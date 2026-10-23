@@ -95,22 +95,9 @@ func (s FactStore) resolveDeltaUnionBase(
 	if s.database == nil {
 		return "", "", false, fmt.Errorf("fact store database is required")
 	}
-	rows, err := s.database.QueryContext(ctx, deltaUnionTargetQuery, scopeID, generationID)
+	isDelta, baseline, err := s.readDeltaUnionTarget(ctx, scopeID, generationID)
 	if err != nil {
-		return "", "", false, fmt.Errorf("resolve delta union target: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	var (
-		isDelta  bool
-		baseline string
-	)
-	if rows.Next() {
-		if scanErr := rows.Scan(&isDelta, &baseline); scanErr != nil {
-			return "", "", false, fmt.Errorf("resolve delta union target scan: %w", scanErr)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return "", "", false, fmt.Errorf("resolve delta union target: %w", err)
+		return "", "", false, err
 	}
 	baseline = strings.TrimSpace(baseline)
 	if !isDelta || baseline == "" {
@@ -130,22 +117,9 @@ func (s FactStore) resolveDeltaUnionBase(
 // A missing, pruned, or unconfirmed base fails closed with
 // projector.DeltaBaseMissingError naming generationID.
 func (s FactStore) resolveDeltaBaseAtCommit(ctx context.Context, scopeID, generationID, baseline string) (string, error) {
-	baseRows, err := s.database.QueryContext(ctx, deltaUnionBaseQuery, scopeID, baseline)
+	baseID, baseStatus, err := s.readDeltaUnionBase(ctx, scopeID, baseline)
 	if err != nil {
-		return "", fmt.Errorf("resolve delta union base: %w", err)
-	}
-	defer func() { _ = baseRows.Close() }()
-	var (
-		baseID     string
-		baseStatus string
-	)
-	if baseRows.Next() {
-		if scanErr := baseRows.Scan(&baseID, &baseStatus); scanErr != nil {
-			return "", fmt.Errorf("resolve delta union base scan: %w", scanErr)
-		}
-	}
-	if err := baseRows.Err(); err != nil {
-		return "", fmt.Errorf("resolve delta union base: %w", err)
+		return "", err
 	}
 	baseID = strings.TrimSpace(baseID)
 	if baseID == "" {
@@ -172,6 +146,48 @@ func (s FactStore) resolveDeltaBaseAtCommit(ctx context.Context, scopeID, genera
 		}
 	}
 	return baseID, nil
+}
+
+// readDeltaUnionTarget reads one generation's delta identity. Each read
+// closes its cursor before the caller issues the next statement: the
+// destructive-successor guard runs these reads on its commit transaction
+// (#8750 window), one connection, where pgx refuses a statement while an
+// earlier cursor is open ("conn busy").
+func (s FactStore) readDeltaUnionTarget(ctx context.Context, scopeID, generationID string) (isDelta bool, baseline string, err error) {
+	rows, err := s.database.QueryContext(ctx, deltaUnionTargetQuery, scopeID, generationID)
+	if err != nil {
+		return false, "", fmt.Errorf("resolve delta union target: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if rows.Next() {
+		if scanErr := rows.Scan(&isDelta, &baseline); scanErr != nil {
+			return false, "", fmt.Errorf("resolve delta union target scan: %w", scanErr)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, "", fmt.Errorf("resolve delta union target: %w", err)
+	}
+	return isDelta, baseline, nil
+}
+
+// readDeltaUnionBase reads the newest projected full generation at baseline
+// and its status, closing its cursor before the retention probe runs (see
+// readDeltaUnionTarget).
+func (s FactStore) readDeltaUnionBase(ctx context.Context, scopeID, baseline string) (baseID, baseStatus string, err error) {
+	rows, err := s.database.QueryContext(ctx, deltaUnionBaseQuery, scopeID, baseline)
+	if err != nil {
+		return "", "", fmt.Errorf("resolve delta union base: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if rows.Next() {
+		if scanErr := rows.Scan(&baseID, &baseStatus); scanErr != nil {
+			return "", "", fmt.Errorf("resolve delta union base scan: %w", scanErr)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", "", fmt.Errorf("resolve delta union base: %w", err)
+	}
+	return baseID, baseStatus, nil
 }
 
 // deltaBaseMissing builds the fail-closed refusal for a delta with no usable

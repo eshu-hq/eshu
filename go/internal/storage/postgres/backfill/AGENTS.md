@@ -40,7 +40,10 @@
   probe, never refuse it. The prior is the larger of the duplicate-check
   candidate and the scope's active generation (#8750 F1), chosen in the
   root's `successorPriorForGuard`; keep `DecideSuccessor` pure and never
-  size the prior on a pending generation alone. Add a rule by extending the closed
+  size the prior on a pending generation alone. The root re-reads and, on a
+  change, re-sizes that prior on the commit transaction after the scope row
+  lock (#8750 window, `recheckSuccessorPrior`); `DecideSuccessor` must not
+  read anything itself. Add a rule by extending the closed
   `telemetry.SuccessorGuardRule*` set (and the coverage doc) in the same
   change.
 - **Block telemetry is a closed set** — the `Block*` constants in

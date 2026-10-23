@@ -119,7 +119,7 @@ func (s IngestionStore) skipUnchangedGeneration(
 			s.logCommitStage(ctx, scopeValue, generation, "store_over_"+reason, time.Now(),
 				slog.String("candidate_generation_id", candidate.GenerationID))
 		}
-		prior, err := s.successorPriorForGuard(ctx, scopeValue, candidate, found, generation)
+		prior, err := s.successorPriorForGuard(ctx, s.database, scopeValue, candidate, found, generation)
 		if err != nil {
 			return true, successorPrior{}, errors.Join(
 				err,

@@ -46,24 +46,48 @@ type guardRoutingDB struct {
 	countErrs map[string]error // generation id -> count query error
 	logs      *bytes.Buffer    // when set, the store logs JSON here
 
-	queries []fakeQueryCall
+	// candidateMissing makes unchangedGenerationCandidateQuery return no row
+	// on the base connection.
+	candidateMissing bool
+	// inTx stages the commit transaction's answers to the guard's in-tx
+	// recheck (#8750 window). Nil means no interleave: the transaction sees
+	// the base connection's state.
+	inTx *guardTxState
+
+	queries   []fakeQueryCall
+	txQueries []fakeQueryCall // guard reads routed on the commit transaction
+	order     []string        // every tx exec and query, in issue order
+	beginAt   int             // len(queries) when Begin ran
+	// txOpenCursors counts open guard-read cursors on the transaction.
+	txOpenCursors int
 }
 
 func (g *guardRoutingDB) Begin(context.Context) (db.Transaction, error) {
+	g.beginAt = len(g.queries)
 	return &guardRoutingTx{fakeTx: g.tx, routes: g}, nil
 }
 
-// guardRoutingTx serves the anchor probe on the commit transaction (review
-// F2): the probe must not take a second pool connection while the
-// transaction is open. Every other query falls through to fakeTx.
+// guardRoutingTx serves the anchor probe (review F2) and the in-tx prior
+// recheck reads (#8750 window) on the commit transaction, by query identity.
+// It logs every exec and query in one ordered slice so a test can pin where
+// the recheck runs. Every other query falls through to fakeTx.
 type guardRoutingTx struct {
 	*fakeTx
 	routes *guardRoutingDB
 }
 
+func (tx *guardRoutingTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	tx.routes.order = append(tx.routes.order, query)
+	return tx.fakeTx.ExecContext(ctx, query, args...)
+}
+
 func (tx *guardRoutingTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	tx.routes.order = append(tx.routes.order, query)
 	if query == successorGuardAnchorFilePathsQuery {
 		return tx.routes.anchorProbe(query, args)
+	}
+	if rows, routed, err := tx.routes.txGuardRead(query, args); routed {
+		return rows, err
 	}
 	return tx.fakeTx.QueryContext(ctx, query, args...)
 }
@@ -90,6 +114,9 @@ func (g *guardRoutingDB) QueryContext(_ context.Context, query string, args ...a
 	g.queries = append(g.queries, fakeQueryCall{query: query, args: args})
 	switch query {
 	case unchangedGenerationCandidateQuery:
+		if g.candidateMissing {
+			return &queueFakeRows{}, nil
+		}
 		return &queueFakeRows{rows: [][]any{g.candidate}}, nil
 	case deltaUnionTargetQuery:
 		return g.rowsFor(g.targets, args[1], false), nil

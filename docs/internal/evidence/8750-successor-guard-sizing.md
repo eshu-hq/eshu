@@ -124,7 +124,8 @@ generation and the candidate, by collector rows.
   whose COALESCE over the newest row returns a pending generation when none is
   active.
 - It runs only when the candidate is not active, in `successorPriorForGuard`
-  on the base connection before the commit transaction opens. When it returns
+  on the base connection before the commit transaction opens (and on the
+  transaction when the window recheck below re-sizes). When it returns
   the candidate id (activated between the two reads), no second count runs.
 - Both sides are sized by one helper, `sizeGuardGeneration`: the union for a
   delta with a base, own rows for a base-missing delta (#8362).
@@ -155,6 +156,144 @@ pending delta P1 (which spares P0 under #7473), then a small full S, all before
 any claim. S is sized against the larger of the active generation and P1's
 union and can miss P0. It needs three generations in one unclaimed window, and
 the guard is a coarse backstop by contract (`RefuseDestructiveSuccessor`).
+
+### The pre-tx window and the in-tx recheck
+
+Review (linuxdynasty, on `successor_guard.go`): the prior is sized on the base
+connection before the commit transaction opens, so a same-scope generation
+that commits or activates between that sizing and the commit leaves the guard
+comparing against a stale, possibly smaller prior. That is a fail-open.
+
+The window runs from the pre-tx reads to `upsertIngestionScope`, not to the
+commit. `upsertIngestionScopeQuery` is `INSERT ... ON CONFLICT (scope_id) DO
+UPDATE`, and the DO UPDATE arm row-locks the scope row until the transaction
+ends. Arbiter census of every non-test writer of `scope_generations` status
+or `activated_at`, or of `ingestion_scopes.active_generation_id`:
+
+- Writers that can add or enlarge the prior wait on that row lock: another
+  ingestion commit (the same scope upsert), the projector Ack (its first
+  statement updates the scope row), the projector Fail (`FOR NO KEY UPDATE` on
+  the scope row first), and the retirement fence (behind the per-repository
+  deferred-maintenance key the commit already holds shared).
+- Writers that only retire pending or failed rows (the claim sweep, the
+  heartbeat supersede, the marker fence, the delta-baseline refusal, the
+  wedged-active cleanup) take the fence row or generation rows `SKIP LOCKED`
+  and never the scope row. A retirement after the recheck can only remove a
+  sized pending from the real prior: the over-refusal direction, not a
+  fail-open. Payload-only writers change no status, activation, or pointer.
+
+So from the scope upsert to the commit no same-scope generation can be stored
+or activated and the active pointer cannot move. Two shapes were reachable
+before the fix: a second committer on the scope (a reshard replica, the
+claimed host's concurrent workers, bootstrap-index or a CLI sync beside the
+ingester) commits a large G2 in the window (W1); or the projector Acks a
+non-candidate hinted G2 that a newer pending delta had spared (W2).
+
+The fix (arbiter ruling, option 1): `recheckSuccessorPrior` runs in
+`commitScopeGeneration` after the scope gate admits and before
+`upsertScopeGeneration`, after which the successor's own pending row would be
+the newest candidate. It is skipped when the prior is unused (no duplicate
+check, or `TrustedDeletion`). On the transaction it re-reads
+`unchangedGenerationCandidateQuery` and compares (found, generation id,
+status, `WorkLive`) with the pre-tx candidate; only when the in-tx candidate is
+pending it re-reads `successorGuardActiveGenerationQuery` and compares
+(has-active, id) with the pre-tx active read, which `successorPrior` now
+records explicitly. Equal on every field: the pre-tx prior stands. Any
+difference: `successorPriorForGuard` re-sizes on the transaction (the same
+helper, a delta's anchor included) and that result is used alone, never the
+larger of the two, so the decision is a function of the committed state at
+the lock and a `WorkLive` flip to false drops a wedged pending next to an
+active (F1 decision 2). A failed read or count returns the error: nothing is
+stored, refused, or enqueued.
+
+Running the re-size on the transaction exposed a second defect, caught by W2:
+the delta-union resolver held its target cursor open while it ran the base
+query, and its base cursor open during the retention probe. On the pool each
+statement gets its own connection; on a transaction pgx refuses with
+`conn busy`. `readDeltaUnionTarget` and `readDeltaUnionBase` now close each
+cursor before the next statement.
+
+Proof, `ingestion_successor_guard_window_live_test.go` (local PostgreSQL 18,
+`ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN`). A test `Begin` runs the interleave
+once, after the pre-tx sizing returned and before the commit holds any lock:
+
+| Test | Fixture | Before the fix | After |
+| --- | --- | --- | --- |
+| W1 `TestGuardRecheckRefusesAfterACommitInTheWindowLive` | A active 100; G2 full 1000 committed in the window; S full 60 | S stored | refused, sized on G2, `changed=true` |
+| W1b `TestGuardRecheckStoresAHalfSizeFullAfterTheResizeLive` | same; S full 600 | stored | stored (1200 >= 1000) |
+| W2 `TestGuardRecheckResizesAfterAnAckInTheWindowLive` | A active 100; G2 pending full 1000; P pending delta over A; Claim + Ack G2 in the window; S full 60 | S stored against about 106 | refused, `prior_sizing=active` on G2, active A to G2 |
+| W3 `TestGuardRecheckUnchangedScopeReadsOnceLive` | no interleave; S 60 over A 100 | stored, no stage | stored, `changed=false`, `recheck_reads=1` |
+| W4 `TestGuardRecheckScopeRowBlocksCommitAndAckLive` | S parked in its fact loop on an unbuffered stream | | see below |
+
+W4 is the live proof of the freeze. With S holding the scope row, a second
+commit and an Ack of the pending P, each on its own connection, both wait on
+S's backend (`pg_blocking_pids`, `wait_event_type=Lock`,
+`wait_event=transactionid`). Shape chosen: the Ack's transaction-local
+`lock_timeout` (2 s default) expires, so it returns `ErrWorkAckDeferred` with
+P still pending (observed 2.15 s after it was seen blocked); G2's commit has
+no timeout and finishes only after S commits; the re-Ack then activates P.
+S's recheck saw P as its candidate and no G2. S is parked after the
+generation upsert, so W4 proves the freeze for the rest of the transaction;
+the static census covers the stretch between the scope upsert and the
+recheck, which holds the same row lock.
+
+Hermetic, `successor_guard_recheck_test.go` (`guardRoutingTx` routes the
+in-tx reads by query identity with staged in-tx answers, logs every exec and
+query in order, and fails a read issued while another tx cursor is open, as
+pgx does):
+
+| Test | Pins |
+| --- | --- |
+| HR1 `TestGuardRecheckUnchangedActiveCandidateReadsOnce` | 1 recheck read, 0 active reads, 0 counts; pre-tx prior kept |
+| HR2 `TestGuardRecheckUnchangedPendingCandidateReadsTwice` | candidate and active on tx, 0 counts |
+| HR3 `TestGuardRecheckResizesWhenTheCandidateChanged` | counts for G2 and the active on tx; prior G2; stage ids |
+| HR4 `TestGuardRecheckResizesWhenTheActiveChanged` | delta successor's anchor re-resolved on tx; no base-connection reads after Begin |
+| HR4b `TestGuardRecheckResizesAPendingDeltaOnTheTransaction` | a pending delta candidate and a superseded base sized on one connection |
+| HR5 `TestGuardRecheckDropsAPendingWhoseWorkWentIdle` | `WorkLive` true to false: prior is the active alone |
+| HR6 `TestGuardRecheckFailureFailsTheCommitClosed` | candidate, active, or count error: no commit, refusal, or enqueue |
+| HR7 `TestGuardRecheckRunsBetweenTheScopeLockAndTheGenerationUpsert` | scope upsert, then recheck, then generation upsert |
+| HR8 `TestGuardRecheckParityWithThePreTxPath` | trusted deletion and no duplicate check: 0 reads; no candidate either side: 1 read |
+
+Mutation check (each applied, the `TestGuardRecheck*` and `TestGuard*Live`
+tests run, and the file restored; the working diff was byte-identical
+afterwards):
+
+| Mutation | Tests that fail |
+| --- | --- |
+| Drop the recheck call | W1, W1b, W2, W3, W4, HR1-HR8, HR4b (every recheck test) |
+| Move it after `upsertScopeGeneration` | W1, W2, W3, W4, HR7, and L3 (`TestGuardSizesAgainstLargerPendingFullLive`) |
+| Drop the active comparison | W2, HR4, HR4b |
+| Drop `WorkLive` from the tuple | HR5 |
+| Use max(pre-tx, in-tx) | HR5 |
+| Restore the nested delta-union cursor | W2, HR4b |
+
+The other commit-path fakes (`fakeTransactionalDB` with `fakeTx`, and the
+proof-domain harness) model a scope with no concurrent writer: the
+transaction mirrors the pre-tx candidate and active answers by query
+identity, so those tests keep their decisions and their positional responses
+are never consumed by the recheck.
+
+No-Regression Evidence: the recheck adds one indexed single-row read to every
+guarded commit (two when the in-tx candidate is pending) while the commit holds
+the scope row: 0.019 ms execution for the candidate read and 0.004 ms for the
+active read on a 3,001-generation scope (0.327 ms with 3,000 newer failed rows
+ahead), and 0.48 to 0.86 ms of `successor_prior_rechecked` wall time per
+unchanged-scope commit on local PostgreSQL 18; see the table under
+"Performance Evidence" below. A re-size, which reruns the counts on the
+transaction, happens only when the scope changed in the window. No lock, worker
+count, or batch size changes.
+
+Observability Evidence: every guarded commit that uses a prior logs the
+`successor_prior_rechecked` commit stage with `changed`, `recheck_reads`, the
+previous and in-tx candidate and active generation ids, and
+`resize_duration_seconds` when it re-sized. The re-sized decision itself still
+lands in `successor_guard` and
+`eshu_dp_ingestion_successor_guard_decisions_total`.
+
+R1 stays recorded: the recheck does not widen what the guard reads, so an
+older spared pending full, or an un-hinted generation activated after the
+lock, still projects under S. Un-hinted generations are never a candidate;
+that is the separate issue the F1 ruling flagged.
 
 ## Performance Evidence:
 
@@ -204,9 +343,34 @@ scope_generations_active_scope_idx`, `Index Cond: (scope_id = 'scope-0')`,
 `Filter: (activated_at IS NOT NULL)`, one row, 3 shared hits, 0.007 to 0.021
 ms execution; a scope with no active row reads 2 shared hits in 0.009 ms.
 
-Concurrency: the guard takes no new lock. The prior counts, the active
-lookup, and the anchor count run on the base connection before the commit
-transaction opens. The anchor probe runs on the commit transaction (review
+In-tx recheck (#8750 window), local PostgreSQL 18, warm cache, median of nine
+`EXPLAIN (ANALYZE, BUFFERS)` runs (`TestGuardRecheckReadPlansLive`), proof
+scope with 3,001 generations beside 200 other scopes of 15 (6,002 rows):
+
+| Read | Plan | Execution |
+| --- | --- | --- |
+| Candidate read, candidate active | Index Scan `scope_generations_scope_latest_lookup_idx` plus `fact_work_items_pkey` probe, 6 shared hits | 0.019 ms (0.018 to 0.035) |
+| Candidate read, candidate pending | same, 6 shared hits | 0.019 ms (0.017 to 0.022) |
+| Active read (pending candidate only) | Index Scan `scope_generations_active_scope_idx`, 2 shared hits | 0.004 ms (0.004 to 0.006) |
+| Candidate read, 3,000 newer failed rows ahead | same index, 3,000 rows removed by filter, 113 shared hits | 0.327 ms (0.325 to 0.423) |
+
+The common case adds one statement (two for a pending candidate) to every
+guarded commit while it holds the scope row. The `successor_prior_rechecked`
+stage measured 0.48 to 0.86 ms of wall time over five unchanged-scope commits
+(W3, loopback connection, including the round trip and the log call); that is
+the scope-row hold increase. A re-size runs the counts above on the
+transaction only when the scope changed: 1.5 to 8.1 ms for W1's 1,000-row G2
+over five runs.
+
+Concurrency: the pre-tx prior counts, the active lookup, and the anchor count
+run on the base connection before the commit transaction opens. The in-tx
+recheck adds plain SELECTs on `scope_generations` and `fact_work_items` (and,
+on a change, the counts and delta-union reads on `fact_records` and
+`scope_generations`): no row lock, no new wait edge, and the lock order is
+unchanged (advisory shared, scope row, reads, generation row, work row).
+`TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks` and
+`TestProjectorCompletionDoesNotDeadlockSameGenerationCommit` still describe
+the full ordering. The anchor probe runs on the commit transaction (review
 F2), after the fact stream lands and before any projector work is enqueued. It takes none of the commit transaction's locks and
 touches no claim, lease, or queue path, but the commit transaction stays open
 while it runs, so a probed commit holds its shared deferred-maintenance barrier
@@ -239,6 +403,13 @@ of the values read (`DecideSuccessor`, `DecideDeltaFileUnion`).
   and names the base-missing delta it sized in `prior_sizing_generation_id`. Log stage
   `successor_delta_scope_mismatch` marks a stream that disagrees on being a
   delta.
+- Log stage `successor_prior_rechecked` on every guarded commit that uses a
+  prior (#8750 window): `changed`, `recheck_reads` (1, or 2 for a pending
+  in-tx candidate), `previous_candidate_generation_id`,
+  `candidate_generation_id`, `previous_active_generation_id`,
+  `active_generation_id`, and `resize_duration_seconds` when `changed` is
+  true. No new metric: a re-sized decision is counted by the decisions
+  counter above under its usual rule.
 - The existing `eshu_runtime_refresh_skipped_by_reason_total{reason="destructive_successor_refused"}`
   still counts each refusal.
 

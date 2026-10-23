@@ -679,6 +679,11 @@ tests:
     class: postgres_ci
     reason: "#8750 disposable PostgreSQL 18 proof that the destructive-successor guard sizes the prior on collector rows only (reducer_ rows excluded) and sizes a git delta on its file-level union against the base full generation, and sizes the prior as the larger of the active generation and a live pending candidate (review F1); reuses the #7978 bootstrapped proof schema; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_successor_guard_window_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8750 disposable PostgreSQL 18 proof that the destructive-successor guard re-reads its prior on the commit transaction after the scope row lock: a same-scope commit or Ack that lands between the pre-tx sizing and the lock is re-sized (W1, W2), an unchanged scope costs one read (W3), and the held scope row blocks a concurrent commit and Ack until the guarded commit ends (W4); reuses the #7978 bootstrapped proof schema; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/maintenance/repository_reindex_live_test.go
     tag: ~
     class: postgres_ci
@@ -1058,6 +1063,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proofs of the status summary store (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): missing-table and empty-table reads, migration 161 applied twice with its storage parameters, the as_of guard (with a guard-stripped RED comparator), two concurrent writers with a polling reader, single-row crash safety, and the writer advisory lock; under 1 s each on PostgreSQL 18.6"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/successor_guard_recheck_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8750 disposable PostgreSQL 18 measurement of the destructive-successor guard's in-tx recheck reads (the candidate read and the active read) with EXPLAIN (ANALYZE, BUFFERS) on a proof scope seeded with 3,000 generations beside 3,000 other-scope generations; reuses the #7978 bootstrapped proof schema; plans and timings are logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go
     tag: ~

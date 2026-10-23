@@ -7,6 +7,12 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/relationship_store_completion_wake_live_test.go": (
+            "TestCompletionWakeFloorMissingAndUnchangedLive",
+            "TestCompletionWakeRunningItemReplayBitLive",
+            "TestCompletionWakeClaimedMissingFingerprintNotFlaggedLive",
+            "TestCompletionWakeRetryConvergesAfterLostWakeLive",
+        ),
         "go/internal/storage/postgres/repository_catalog_projection_live_test.go": (
             "TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode",
         ),
@@ -14,6 +20,9 @@ TABLE = {
             "TestReducerContentionGateRuntimeProducerStatesActiveGenerationOnly",
             "TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt",
             "TestReducerContentionGateRuntimeProducerStatesPlanUsesScopeGenerationIndex",
+        ),
+        "go/internal/storage/postgres/successor_guard_recheck_plan_live_test.go": (
+            "TestGuardRecheckReadPlansLive",
         ),
         "go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go": (
             "TestTermsForeignKeyDropFailsCleanlyWhenItsLockStaysBusyLive",

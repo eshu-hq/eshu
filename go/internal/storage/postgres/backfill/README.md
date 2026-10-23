@@ -80,7 +80,8 @@ reconciliation, plus the anchors scanner.
   one of the closed `telemetry.SuccessorGuardRule*` values. Its
   `PriorCollector` and `PriorOrphan` come from the larger of the
   duplicate-check candidate and the scope's active generation (#8750 F1),
-  which the root picks before calling it.
+  which the root picks before calling it, and re-picks on the commit
+  transaction when the scope changed after that sizing (#8750 window).
   Covered collectors (each with an explicit operator attestation surface,
   #8267, #8329): `jira` (`allow_empty_successor` target key),
   `pagerduty` (`allow_empty_successor` target key), `confluence`

@@ -233,6 +233,11 @@ func (s IngestionStore) commitScopeGeneration(
 	if !admitted {
 		return nil
 	}
+	// The scope row is locked: re-size the guard prior if the scope changed
+	// since the pre-tx sizing (#8750 window; see recheckSuccessorPrior).
+	if prior, err = s.recheckSuccessorPrior(ctx, tx, scopeValue, generation, prior); err != nil {
+		return err
+	}
 	stageStart = time.Now()
 	if err := upsertScopeGeneration(ctx, tx, generation); err != nil {
 		if errors.Is(err, errGenerationAlreadyFinalized) {
