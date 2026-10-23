@@ -1,0 +1,202 @@
+# Run An Extracted Collector
+
+Use this page when a collector lives in its own repository and ships as its own
+release image, and you want the Helm chart to run it through the
+component-extension worker. The Eshu image stays the host. The collector's
+binary and manifest arrive in the pod from a digest-pinned release image, so
+you never override the image of a main container.
+
+Each entry in `componentExtensionCollector.activations` is one running
+collector instance. The chart renders one worker Deployment per entry, because
+the worker runs exactly one activation and one collector kind.
+
+## What You Need
+
+- The collector release image, referenced by digest
+  (`repository@sha256:<64 hex>`). A tag is rejected at render time.
+- The component ID and the version in the manifest that image carries.
+- The source system name and scope ID the collector reports as its claim
+  identity. For a collector that replaces an in-tree one, use the same scope ID
+  so existing facts and the new facts line up.
+- A Kubernetes Secret for any credential. Credentials never go in values.
+- The workflow coordinator in `active` mode with claims enabled, as for every
+  claim-driven collector.
+
+## The Seed Contract
+
+The collector image must run `collector seed --dest <dir>` and write two files
+into that directory:
+
+| File | Mode | Meaning |
+| --- | --- | --- |
+| `collector` | `0755` | The static collector binary the worker starts as a child process. |
+| `manifest.yaml` | `0644` | The component manifest (`ComponentPackage`) for this release. |
+
+The command must be safe to run again over an existing directory, replacing both
+files. It needs no shell and no network. If the image keeps the command
+elsewhere, set `seed.command` (the chart appends `--dest <dir>`).
+
+## Example
+
+This sanitized example runs one PagerDuty-style collector. Names, hosts and
+digests are placeholders.
+
+```yaml
+workflowCoordinator:
+  enabled: true
+  deploymentMode: active
+  claimsEnabled: true
+
+componentExtensionCollector:
+  enabled: true
+  trustMode: allowlist
+  allowIds: dev.example.collector.pagerduty
+  allowPublishers: example
+  extensionEgressPolicyJSON: >-
+    {"mode":"restricted","extensions":[{"component_id":"dev.example.collector.pagerduty","decision":"allow"}]}
+  pollInterval: 30s
+  activations:
+    - instanceId: pagerduty-example
+      componentId: dev.example.collector.pagerduty
+      componentVersion: 0.1.0
+      mode: scheduled
+      seed:
+        image: ghcr.io/example/collector-pagerduty@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      host:
+        sourceSystem: pagerduty
+        scope:
+          id: pagerduty:account:example
+          kind: pagerduty_account
+      process:
+        args: ["--sdk-stdio"]
+      config:
+        api_token_env: PAGERDUTY_API_TOKEN
+      grants:
+        - kind: incident_routing
+          schemaVersions: ["1.0.0"]
+          scope: pagerduty
+          expiresIn: 720h
+      extraEnv:
+        - name: PAGERDUTY_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: pagerduty-credentials
+              key: api-token
+```
+
+Add a second entry to run a second instance, for example one per Jira site.
+Every entry needs its own `instanceId`.
+
+## Activation Keys
+
+| Key | Required | Meaning |
+| --- | --- | --- |
+| `instanceId` | yes | Lowercase DNS label, 30 characters or fewer, unique in the list. Names the Deployment (`<release>-cx-<instanceId>`). |
+| `componentId` | yes | Component ID from the manifest. It must also appear in `allowIds`. |
+| `componentVersion` | yes | Version from the manifest. The init container fails if the seeded manifest differs. |
+| `mode` | no | Activation mode, default `scheduled`. Claims are always enabled. |
+| `seed.image` | yes | Release image pinned by digest. |
+| `seed.pullPolicy`, `seed.command` | no | Pull policy (default `IfNotPresent`) and seed entrypoint (default `["/collector", "seed"]`). |
+| `host.sourceSystem`, `host.scope.id`, `host.scope.kind` | yes | Claim identity the coordinator copies into planned work. |
+| `process.args`, `process.env`, `process.stdoutLimitBytes`, `process.stderrLimitBytes` | no | How the worker starts the binary. The chart sets the command itself. |
+| `config` | no | Non-secret collector settings, passed to the collector as its config block. |
+| `grants` | no | Producer grants for core-owned fact kinds: `kind`, `schemaVersions`, `scope`, and `expiresIn` (default `720h`). |
+| `replicas`, `resources`, `env`, `extraEnv`, `extraVolumes`, `extraVolumeMounts` | no | Per-worker overrides. `extraEnv` is where credentials go. |
+
+The schema (`values.schema.json`) rejects unknown keys, so a misspelled key
+fails the render instead of being ignored.
+
+## What The Chart Renders
+
+For each activation:
+
+- A worker Deployment with two init containers and a pod-local registry
+  (`emptyDir`). The first init container runs the collector image's seed command
+  into `<componentHome>/runtime/<instanceId>`. The second runs the Eshu image and
+  records the grants, installs the manifest, checks that the installed ID and
+  version match `componentId` and `componentVersion`, then enables the instance
+  with claims. Grants go first because a core-owned fact kind passes install
+  only when its grant already exists.
+- A metrics Service and a PodDisruptionBudget for that worker.
+
+Shared across activations:
+
+- One ConfigMap, `<release>-component-activations`, with one
+  `<instanceId>.yaml` per activation holding the host block, the process
+  command and the `config` block.
+- The existing ServiceMonitor and NetworkPolicy, which select every worker by
+  component label.
+
+The workflow coordinator reads the same registry to plan work, so it gets the
+same init containers (one pair per activation), a read-only registry, and the
+same ConfigMap at the same path. The activation config handle hashes that path,
+so the coordinator and each worker must see identical paths. A checksum
+annotation restarts the coordinator and all workers together when the
+ConfigMap changes.
+
+A render with `componentExtensionCollector.enabled: false`, or with an empty
+`activations` list, is unchanged. An empty list keeps the older single worker,
+which still needs `instanceId` and hand-mounted `extraVolumes`.
+
+## Credentials
+
+Values hold no secrets. Put the credential in a Secret, reference it through the
+activation's `extraEnv`, and name the environment variable in `config` (the
+example uses `api_token_env`). The collector process inherits the worker's
+environment, so it reads the variable by name.
+
+The chart refuses a config key that looks like a credential (names containing
+`password`, `secret`, `token`, `api_key`, and similar, unless the key ends in
+`env`, `_env_name`, or `ref`) and refuses values that start like known token
+formats. A top-level `extraEnv` is refused in this mode, so one collector never
+inherits another's secret.
+
+## Upgrade, Roll Back, Remove
+
+- **Upgrade:** set the new `seed.image` digest and `componentVersion`, then
+  deploy. The pod restarts, the registry starts empty, and the seed command
+  replaces the binary before the worker starts. Activations that share a
+  `componentId` must share one `componentVersion` and one `seed.image`.
+- **Roll back:** restore the previous digest and version. Nothing from the newer
+  release survives in the pod.
+- **Remove an activation:** delete its entry. The chart stops rendering its
+  Deployment, Service and PodDisruptionBudget, and the coordinator pod restarts
+  without it.
+- **Revoke a component:** add its ID to `revokeIds` (or its publisher to
+  `revokePublishers`). Install then refuses it, the pod does not start, and no
+  worker runs for it.
+
+## Limits To Know
+
+- The registry lives in the pod, so grants are issued again on every pod start
+  and `expiresIn` counts from that start.
+- The coordinator pulls every seed image, because it needs each manifest. Pull
+  access for the collector registry must cover the coordinator's nodes too.
+- One NetworkPolicy covers every worker, so all activations share the same
+  egress classes.
+- Strict trust mode is not charted. Use `trustMode: allowlist`.
+- Each manifest declares exactly one collector kind.
+
+## Check It
+
+Render before you deploy:
+
+```bash
+helm template eshu deploy/helm/eshu -f values.yaml \
+  | rg -n 'name: (seed|reconcile)-|kind: Deployment|eshu-cx-'
+```
+
+After the rollout, read the init container logs for one worker:
+
+```bash
+kubectl logs deploy/eshu-cx-pagerduty-example -c reconcile-pagerduty-example
+```
+
+A healthy run prints the grant, install and enable results. If the seeded
+manifest does not match `componentId` and `componentVersion`, the init container
+exits non-zero and says which pair it expected.
+
+See [Helm Collector And Webhook Values](helm-collector-and-webhook-values.md)
+for the rest of the collector values and
+[Component Package Manager](../../reference/component-package-manager.md) for the
+CLI the init container uses.

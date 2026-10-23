@@ -217,7 +217,11 @@ or raw source scopes that identify a customer environment.
 
 The Helm chart can run the component extension host through
 `componentExtensionCollector` and passes the same component registry, trust, and
-egress-policy env to the workflow coordinator and worker. It still does not
+egress-policy env to the workflow coordinator and worker. For extracted
+collectors, `componentExtensionCollector.activations` renders one worker per
+activation (see
+[Run An Extracted Collector](../deploy/kubernetes/run-an-extracted-collector.md)).
+It still does not
 consume the full `hostedExtensions` policy document below; keep that document
 as private operator review input and translate the approved runtime subset into
 chart values plus Secret or workload-identity wiring:
