@@ -26,7 +26,7 @@
 
 | Component | Oldest supported | Newest verified | Evidence |
 |---|---|---|---|
-| Core (eshu-hq/eshu) | TBD (owner-designated QA EKS config) | `ce050339cf` (this base) | worktree HEAD |
+| Core (eshu-hq/eshu) | TBD (owner-designated QA EKS config) | `86b925b260` (origin/main at last rebase; suites re-run PASS at this HEAD) | matrix row |
 | Producer (in-tree) | same as core | same as core | monorepo build |
 | Producer (extracted) | NOT_CHECKED | NOT_CHECKED | destination repo absent |
 | Fact schemas (all 9 kinds) | `1.0.0` | `1.0.0` | `chain` constants + parity tests |
