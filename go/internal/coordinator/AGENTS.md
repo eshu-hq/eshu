@@ -190,7 +190,10 @@ Two rules the split had to obey, and both will apply to the next family move:
   Keep the loop started after the initial run reconciliation, on its own
   goroutine (`startWorkItemRetention`); never move a pass back into `Run`'s
   select loop, where it delays reap and reconciliation. Shutdown is outcome
-  `canceled`, not `error`. Its metric names stay literal strings. See `work-item-retention.md`.
+  `canceled`, not `error`; decide it from the error (`errors.Is` on
+  `context.Canceled` with a done context), never from `ctx.Err()` alone, so a
+  real batch failure during shutdown still counts as `error`. Its metric
+  names stay literal strings. See `work-item-retention.md`.
 - **Shared plan-key validation stays dependency-neutral** — schedulers and
   extension egress parsing call `contract.ValidateSafePlanKey` directly.
   Terraform-state keeps its separate, stricter validator, which moved with the

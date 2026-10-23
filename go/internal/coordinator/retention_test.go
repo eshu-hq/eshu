@@ -24,6 +24,9 @@ type fakeWorkItemRetention struct {
 	err      error
 	size     workflow.WorkItemTableSize
 	sizeErr  error
+	// sizeReads counts WorkItemTableSize calls, so a test can tell whether a
+	// pass read the catalog size after its prune.
+	sizeReads int
 }
 
 func (f *fakeWorkItemRetention) PruneWorkItems(
@@ -37,6 +40,7 @@ func (f *fakeWorkItemRetention) PruneWorkItems(
 }
 
 func (f *fakeWorkItemRetention) WorkItemTableSize(context.Context) (workflow.WorkItemTableSize, error) {
+	f.sizeReads++
 	return f.size, f.sizeErr
 }
 

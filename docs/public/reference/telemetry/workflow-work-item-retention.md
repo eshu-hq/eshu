@@ -106,7 +106,7 @@ stop; the batches it already committed stay committed.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `eshu_dp_workflow_coordinator_work_item_retention_passes_total` | counter | `outcome` | Retention passes: `success`, `error`, or `canceled` (stopped by coordinator shutdown). |
+| `eshu_dp_workflow_coordinator_work_item_retention_passes_total` | counter | `outcome` | Retention passes: `success`, `error`, or `canceled` (stopped by coordinator shutdown; a batch that fails on its own during shutdown still counts as `error`). |
 | `eshu_dp_workflow_coordinator_work_item_retention_pass_duration_seconds` | histogram | `outcome` | Wall time of one pass. |
 | `eshu_dp_workflow_coordinator_work_item_retention_deleted_total` | counter | `status` | Rows deleted, by `completed` or `failed_terminal`. A failed or canceled pass still counts the batches it committed. |
 | `eshu_dp_workflow_coordinator_work_item_retention_batch_duration_seconds` | histogram | none | One batch transaction's wall time, which is also its row-lock hold. |
@@ -126,10 +126,13 @@ Each pass writes one line. A successful pass logs at INFO with the message
 `workflow work item retention pass`. A failed pass logs at ERROR with the
 message `workflow work item retention pass failed` and an `error` field. A
 pass stopped by coordinator shutdown logs at INFO with the message
-`workflow work item retention pass canceled`. All three carry `outcome`,
-`deleted_completed`, `deleted_failed_terminal`, `scanned_rows`, `batches`,
-`wrapped`, `longest_batch_ms`, `duration_ms`, `retention_age`,
-`batch_size`, and `max_batches`. The success and failure lines also carry
+`workflow work item retention pass canceled`. The pass error decides which:
+a pass is canceled only when its error is a context cancellation and the
+coordinator's context is done. A lock timeout (SQLSTATE 55P03) or statement
+timeout (57014) that lands as shutdown begins is still a failed pass.
+All three carry `outcome`, `deleted_completed`, `deleted_failed_terminal`,
+`scanned_rows`, `batches`, `wrapped`, `longest_batch_ms`, `duration_ms`,
+`retention_age`, `batch_size`, and `max_batches`. The success and failure lines also carry
 `table_bytes` with `table_estimated_rows`, or `table_size_error` when the
 catalog read failed. The canceled line carries no table size field: a
 canceled pass skips the size read.

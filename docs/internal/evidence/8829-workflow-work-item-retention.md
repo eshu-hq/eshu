@@ -214,7 +214,27 @@ startup pass with no environment set is proven by
 stopped by shutdown counts `outcome="canceled"` and logs INFO
 `workflow work item retention pass canceled`
 (`TestRunWorkItemRetentionTreatsShutdownAsCanceled`,
-`TestRecordWorkItemRetentionCountsCanceledPassesApart`). The table size
+`TestRecordWorkItemRetentionCountsCanceledPassesApart`). The pass error,
+not the context alone, decides `canceled`: the context must be done and the
+error must wrap `context.Canceled`. A batch that fails with a lock or
+statement timeout while shutdown begins still counts `outcome="error"`,
+logs ERROR and reads the table size like any failure
+(`TestRunWorkItemRetentionKeepsServerTimeoutsAsErrorsDuringShutdown`). The
+sweeper's pre-flight rejections stay `error` with a done context
+(`TestRunWorkItemRetentionKeepsPreflightErrorsAsErrorsDuringShutdown`), and
+so does a `context.Canceled` error under a live context
+(`TestRunWorkItemRetentionTreatsUnrequestedCancellationAsError`). Live
+Postgres pins the driver side: a lock timeout surfaces as a
+`*pgconn.PgError` with SQLSTATE 55P03 and a statement timeout as 57014,
+neither matching `context.Canceled`, while a cancel during a waiting batch
+surfaces as `context.Canceled` and rolls the batch back
+(`cancel_live_test.go`). One driver gap needed a fix: `database/sql`
+`Tx.Commit` returns `sql.ErrTxDone`, not the context error, once the
+context watcher has rolled the transaction back. A local probe (200
+commits right after a cancel) got `context.Canceled` on all 100 immediate
+commits and `sql.ErrTxDone` on all 100 that waited 5 ms, so the sweeper
+adds the context error to a commit that fails that way
+(`TestPruneWorkItemsReportsACanceledCommitAsCancellation`). The table size
 gauges export no data point until a pass reads the catalog size, so dark
 mode, retention off and the time before the first pass are absent, not 0
 (`TestWorkItemTableSizeGaugesStayEmptyWithoutAKnownReading`, and through

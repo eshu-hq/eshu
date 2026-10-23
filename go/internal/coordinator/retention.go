@@ -5,6 +5,7 @@ package coordinator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -162,14 +163,15 @@ func (s Service) startWorkItemRetention(parent context.Context) func() {
 // run reconciliation must keep running. The next tick retries the failed
 // window, because the sweeper keeps its cursor before it. A pass stopped by
 // coordinator shutdown is not a failure: it logs at INFO and counts
-// outcome=canceled, and its committed batches stay committed.
+// outcome=canceled, and its committed batches stay committed. The error
+// decides which: see workItemRetentionCanceled.
 func (s Service) runWorkItemRetention(ctx context.Context) {
 	policy := s.Config.WorkItemRetention.Policy
 	asOf := s.now().UTC()
 	startedAt := time.Now()
 	result, pruneErr := s.WorkItemRetention.PruneWorkItems(ctx, asOf, policy)
 	duration := time.Since(startedAt)
-	canceled := pruneErr != nil && ctx.Err() != nil
+	canceled := workItemRetentionCanceled(ctx, pruneErr)
 
 	observation := WorkItemRetentionObservation{
 		Outcome:  workItemRetentionOutcomeSuccess,
@@ -229,4 +231,16 @@ func (s Service) runWorkItemRetention(ctx context.Context) {
 		return
 	}
 	s.Logger.Info("workflow work item retention pass", attrs...)
+}
+
+// workItemRetentionCanceled reports whether a pass error is the coordinator's
+// own shutdown: the pass context is done and the error wraps
+// context.Canceled. The error decides, not the context alone, so a batch that
+// failed on its own (a lock timeout, SQLSTATE 55P03, or a statement timeout,
+// 57014, both a *pgconn.PgError) just as shutdown begins still counts as
+// outcome=error, and so do pre-flight rejections such as a missing database
+// or an invalid policy. A context.Canceled the pass context did not produce
+// is a failure too.
+func workItemRetentionCanceled(ctx context.Context, pruneErr error) bool {
+	return pruneErr != nil && ctx.Err() != nil && errors.Is(pruneErr, context.Canceled)
 }

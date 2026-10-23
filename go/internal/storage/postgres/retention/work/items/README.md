@@ -40,6 +40,11 @@ each target keeps its newest row, its newest `completed` row and its newest
   items.
 - A failed batch rolls back and leaves the cursor before its window, so the
   next pass retries it. A skipped (locked) row is retried on the next walk.
+- A batch stopped by its context returns an error that wraps
+  `context.Canceled`, including a commit that `database/sql` refused with
+  `sql.ErrTxDone` because its context watcher had already rolled the
+  transaction back. A lock or statement timeout returns the
+  `*pgconn.PgError` (55P03 or 57014), which does not.
 
 ## Evidence
 
@@ -55,9 +60,9 @@ Details: `docs/internal/evidence/8829-workflow-work-item-retention.md`.
 
 - `sweeper_test.go`: hermetic batch loop, cursor, transaction, timeout,
   partial-failure and statement-shape tests.
-- `sweeper_live_test.go`, `concurrency_live_test.go`: real-Postgres proofs,
-  each in its own database, gated on `ESHU_POSTGRES_DSN` (role needs
-  `CREATE DATABASE`).
+- `sweeper_live_test.go`, `concurrency_live_test.go`, `cancel_live_test.go`:
+  real-Postgres proofs, each in its own database, gated on
+  `ESHU_POSTGRES_DSN` (role needs `CREATE DATABASE`).
 
 ```bash
 cd go

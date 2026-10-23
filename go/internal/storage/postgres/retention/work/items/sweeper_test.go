@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -35,6 +37,8 @@ type fakeDatabase struct {
 	execs     []recordedStatement
 	queries   []recordedStatement
 	sizeRow   []any
+	// commitErr is what every Commit returns.
+	commitErr error
 }
 
 type recordedStatement struct {
@@ -81,7 +85,7 @@ func (t *fakeTransaction) QueryContext(_ context.Context, query string, args ...
 	return &fakeRows{rows: [][]any{{reply.cursor, reply.scanned, reply.deletedComplete, reply.deletedFailed}}}, nil
 }
 
-func (t *fakeTransaction) Commit() error   { t.parent.commits++; return nil }
+func (t *fakeTransaction) Commit() error   { t.parent.commits++; return t.parent.commitErr }
 func (t *fakeTransaction) Rollback() error { t.parent.rollbacks++; return nil }
 
 type fakeRows struct {
@@ -254,6 +258,52 @@ func TestPruneWorkItemsRollsBackAndKeepsCursorOnBatchError(t *testing.T) {
 	}
 	if got := database.queries[2].args[0]; got != "b" {
 		t.Fatalf("retry cursor = %v, want b (the failed window is retried)", got)
+	}
+}
+
+// TestPruneWorkItemsReportsACanceledCommitAsCancellation proves a commit that
+// database/sql refuses with sql.ErrTxDone because the pass context was
+// canceled, and its watcher already rolled the transaction back, reports
+// context.Canceled, so the coordinator counts the shutdown as canceled. With
+// a live context sql.ErrTxDone stays a plain failure, and any other commit
+// error stays a plain failure even when the context is done.
+func TestPruneWorkItemsReportsACanceledCommitAsCancellation(t *testing.T) {
+	t.Parallel()
+
+	canceled := func() context.Context {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		return ctx
+	}
+	serverErr := &pgconn.PgError{Severity: "ERROR", Code: "40P01", Message: "deadlock detected"}
+	for _, tc := range []struct {
+		name         string
+		ctx          func() context.Context
+		commitErr    error
+		wantCanceled bool
+	}{
+		{name: "rolled back by a canceled context", ctx: canceled, commitErr: sql.ErrTxDone, wantCanceled: true},
+		{name: "done with a live context", ctx: context.Background, commitErr: sql.ErrTxDone},
+		{name: "server error with a canceled context", ctx: canceled, commitErr: serverErr},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			database := &fakeDatabase{
+				replies:   []batchReply{{cursor: cursor("b"), scanned: 2, deletedComplete: 2}},
+				commitErr: tc.commitErr,
+			}
+
+			result, err := NewSweeper(database).PruneWorkItems(tc.ctx(), time.Now(), testPolicy(2, 1))
+			if !errors.Is(err, tc.commitErr) {
+				t.Fatalf("PruneWorkItems() error = %v, want it to keep %v", err, tc.commitErr)
+			}
+			if got := errors.Is(err, context.Canceled); got != tc.wantCanceled {
+				t.Fatalf("errors.Is(%v, context.Canceled) = %t, want %t", err, got, tc.wantCanceled)
+			}
+			if result.Batches != 0 || result.Deleted() != 0 {
+				t.Fatalf("result = %+v, want no committed batch", result)
+			}
+		})
 	}
 }
 

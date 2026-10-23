@@ -29,6 +29,10 @@ in `go/cmd/workflow-coordinator/main.go` as `Service.WorkItemRetention`.
   the coordinator; the sweeper retries the same window next tick. A pass
   stopped by shutdown logs at INFO (`workflow work item retention pass
   canceled`), counts `outcome="canceled"`, and skips the table size read.
+  `workItemRetentionCanceled` decides from the error: the context must be
+  done and the error must wrap `context.Canceled`. A lock or statement
+  timeout that lands during shutdown, and a pre-flight rejection, stay
+  `error`.
 - The table size gauges export nothing until a pass reads the catalog size,
   so dark mode, retention off, and the time before the first pass never
   read as an empty table.
@@ -60,5 +64,6 @@ Operator page and runbook:
 
 `retention_test.go` (config, Run gating, failure handling),
 `retention_loop_test.go` (a blocked pass does not stall run reconciliation;
-shutdown is `canceled`), and `retention_metrics_test.go` (instrument
+shutdown is `canceled`), `retention_classify_test.go` (the error, not the
+context, decides `canceled`), and `retention_metrics_test.go` (instrument
 emission, empty gauges without a reading).

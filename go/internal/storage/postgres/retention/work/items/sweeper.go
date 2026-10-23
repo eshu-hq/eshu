@@ -147,10 +147,23 @@ func (s *Sweeper) runBatch(
 		return outcome, fmt.Errorf("close window summary: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
-		return outcome, fmt.Errorf("commit: %w", err)
+		return outcome, commitError(ctx, err)
 	}
 	committed = true
 	return outcome, nil
+}
+
+// commitError wraps a failed commit. When the pass context is canceled after
+// the batch statement returns, database/sql rolls the transaction back from
+// its context watcher, and Commit then reports sql.ErrTxDone instead of the
+// context error. That rollback is the cancellation, so the context error is
+// added to the chain; callers can then tell a shutdown from a failed commit
+// with errors.Is.
+func commitError(ctx context.Context, err error) error {
+	if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, sql.ErrTxDone) {
+		return fmt.Errorf("commit: %w: %w", ctxErr, err)
+	}
+	return fmt.Errorf("commit: %w", err)
 }
 
 // WorkItemTableSize reads workflow_work_items' total relation bytes and the
