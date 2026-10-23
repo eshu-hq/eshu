@@ -20,21 +20,22 @@ const (
 	maxCoreRouterBytes = 40 * 1024
 )
 
-// measuredCoreToolNames is the core_router list the QA traffic measurement in
-// docs/internal/design/8759-mcp-core-router-tool-set.md selected, in share
-// order. The pin test fails when core.go drifts from it, so a list change needs
-// a matching change to the record's table and to this slice.
+// measuredCoreToolNames is the core_router list the 21-day QA traffic
+// measurement in docs/internal/design/8759-mcp-core-router-tool-set.md
+// selected, in per-day score order with the canonical-family swap last. The
+// pin test fails when core.go drifts from it, so a list change needs a
+// matching change to the record's table and to this slice.
 var measuredCoreToolNames = []string{
-	"list_codeowners_ownership",
 	"search_file_content",
-	"get_file_lines",
-	"get_repository_freshness",
+	"get_service_context",
 	"get_file_content",
-	"list_repository_files",
-	"find_code",
-	"list_repositories_by_language",
-	"find_infra_resources",
-	"investigate_code_topic",
+	"find_cross_repo_dead_code",
+	"search_semantic_context",
+	"investigate_dead_code",
+	"plan_developer_change",
+	"get_file_lines",
+	"analyze_pre_change_impact",
+	"get_repo_story",
 }
 
 // coreSetProblems checks a candidate core_router tool-name list against the
