@@ -15,9 +15,10 @@ import (
 )
 
 // TestGenerationRetentionKeepsCumulativeDeltaBaseLive extends #7802 to the
-// #8780 chain: the collector picks the union base by the same rule retention
-// protects (the newest activated full), so recording it on the deltas needs no
-// retention change. F (100 days superseded), d1 (95 days, a superseded delta
+// #8780 chain: the collector picks the union base by the newest-activated-full
+// rule retention protects, which agrees under the lifecycle invariant named on
+// deltaSyncBaselineQuery, so recording it on the deltas needs no retention
+// change. F (100 days superseded), d1 (95 days, a superseded delta
 // fenced on F), and the active d2 (fenced on d1, union base F) keep F and d1.
 func TestGenerationRetentionKeepsCumulativeDeltaBaseLive(t *testing.T) {
 	bridgeRetentionFamilyDSN(t)
