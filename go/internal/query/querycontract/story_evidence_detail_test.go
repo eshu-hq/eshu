@@ -52,10 +52,10 @@ func numberedTraceRows(count int) []map[string]any {
 }
 
 // TestApplyStoryEvidenceDetailHandlesMarksEveryCut proves each family the
-// handles view cuts carries its marker and an omission with its total (a lower
-// bound for investigation.repositories_with_evidence, which records no count
-// past 50), and
-// that ship-once pointers replace the duplicate row lists (#8798).
+// handles view cuts carries its marker and an omission with its total, and
+// that ship-once pointers replace the duplicate row lists (#8798). The
+// investigation totals are covered by
+// TestApplyStoryEvidenceDetailInvestigationTotals.
 func TestApplyStoryEvidenceDetailHandlesMarksEveryCut(t *testing.T) {
 	t.Parallel()
 

@@ -12,7 +12,8 @@ import (
 
 // TestGetServiceStoryEvidenceDetailNamesEveryHandleFamily keeps the
 // get_service_story tool text in step with the lists the handles view
-// projects: a family added to the shaper without a mention here fails this test.
+// projects: a family added to storyListHandleKeys without a mention in the
+// tool text fails this test.
 func TestGetServiceStoryEvidenceDetailNamesEveryHandleFamily(t *testing.T) {
 	t.Parallel()
 

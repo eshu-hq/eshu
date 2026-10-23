@@ -14,7 +14,8 @@ import (
 
 // TestOpenAPIServiceStoryEvidenceDetailNamesEveryHandleFamily keeps the
 // evidence_detail description in step with the lists the handles view projects:
-// a family added to the shaper without a mention here fails this test.
+// a family added to storyListHandleKeys without a mention in the description
+// fails this test.
 func TestOpenAPIServiceStoryEvidenceDetailNamesEveryHandleFamily(t *testing.T) {
 	t.Parallel()
 
