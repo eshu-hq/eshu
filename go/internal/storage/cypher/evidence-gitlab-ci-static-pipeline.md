@@ -8,8 +8,8 @@ edges, mirroring the Atlantis feature. Part of #3873.
 
 ## Graph model
 
-`.gitlab-ci.yml` (hidden file, preserved through the managed-workspace copy by a
-case-insensitive basename allowlist in `preserveFilesystemHiddenPath`) is parsed by filename
+`.gitlab-ci.yml` (hidden file, preserved through the managed-workspace copy by an
+exact-basename allowlist in `preserveFilesystemHiddenPath`) is parsed by filename
 in the YAML parser into `gitlab_pipelines` + `gitlab_jobs` buckets, projected as
 single-label `GitlabPipeline` / `GitlabJob` canonical entity nodes, and connected
 by two distinct edge types (kept distinct from the generic `DEFINES`/`DEPENDS_ON`
