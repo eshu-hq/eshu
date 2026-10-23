@@ -158,7 +158,7 @@ A "file not found" answer may simply mean the file is not indexed. It does not
 mean Eshu cannot see dotfiles. A file that matches can also be absent when it
 is gitignored, listed in `.eshuignore`, inside a default-pruned directory (for example
 `node_modules` or `dist`), has
-an ignored extension, or is generated; the
+an ignored extension, is generated, or is a symlink whose target fails admission (it leaves the repository, sits in a skipped path, or is a different file kind); the
 [default skips](../reference/eshuignore.md#default-skips) list the full set of pruned
 directories and extensions. Check the path and repository selector first,
 then use `list_repository_files` to see what is indexed.

@@ -89,6 +89,7 @@ func TestIndexedFilesRuleInFileToolDescriptions(t *testing.T) {
 			"eshuignore.md#default-skips",
 			".env",
 			"may simply not be indexed",
+			"symlink whose target fails admission",
 		} {
 			if !strings.Contains(desc, want) {
 				t.Errorf("%s description missing %q", name, want)
