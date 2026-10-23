@@ -434,3 +434,35 @@ asserting less.
 No-Observability-Change: no spans, metrics, logs, or status fields added.
 Guard failures still report through the existing `resolveDerivedFrom...`
 problem strings, so current gate signals are unchanged.
+
+## No-Regression Evidence (#6228): code_taint_evidence guard kind-partition and canonical endpoint uids
+
+No-Regression Evidence: the guard change (`resolveCodeTaintEvidenceMaterializedEdges`
+partitioning to `code_taint_evidence` facts before extraction) lives in guard
+code only and mirrors the code_interproc_evidence guard's partition, which is
+exactly what the handler's fact loader (`ListFactsByKind`) feeds the extractor
+in production; the Odu's node-substrate facts (repository, file,
+content_entity) carry no finding payload and would otherwise quarantine. The
+production HAS_TAINT_EVIDENCE writer template and the canonical node writer
+are untouched, so live graph truth is unchanged and only the fixture's
+endpoint uids move to the CanonicalEntityID form the entities phase stamps.
+The fail-closed paths red instead of asserting less.
+
+- Baseline: this lane before the rebuild (schematic `func:payments:*`
+  endpoint pins, red against the live contract, which carries canonical
+  Function node uids).
+- After: `go -C go test ./internal/ifa/...` all ok, including the guard's
+  canonical-uid expectation green; `bash
+  scripts/test-verify-ifa-fault-injection.sh` and
+  `scripts/test-verify-ifa-determinism.sh` pass exit 0;
+  `go vet` and `git diff --check` clean.
+- Backend/version: hermetic guard plus live matrices on the gate-owned
+  disposable Compose stack (Postgres + NornicDB).
+- Input shape: code_taint_evidence Odu (8 facts: repository, 2 files,
+  2 content entities, 2 live findings, 1 tombstone), 91-cell fault corpus.
+- Terminal counts: guard green on the 2-edge set; mirror 91-cell exact
+  cover.
+
+No-Observability-Change: no spans, metrics, logs, or status fields added.
+Guard failures still report through the existing `resolveCodeTaintEvidence...`
+problem strings, so current gate signals are unchanged.

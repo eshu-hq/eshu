@@ -9,22 +9,115 @@
       "collector_kind": "git",
       "partition_key": "repo:eshu-fixture-code-taint-evidence",
       "metadata": {
-        "fixture": "ifa-code-taint-evidence-family"
+        "fixture": "ifa-code-taint-evidence-family",
+        "repo_id": "repo-eshu-fixture-code-taint-evidence"
       },
       "generation_id": "gen-ifa-code-taint-evidence-family-1",
       "observed_at": "2026-09-28T00:00:00Z",
       "trigger_kind": "snapshot",
       "facts": [
         {
-          "fact_kind": "code_taint_evidence",
-          "stable_fact_key": "git:code_taint_evidence:func:payments:handlePayment:12:18:sql_exec:http_request:orderID",
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-eshu-fixture-code-taint-evidence",
           "schema_version": "1.0.0",
           "collector_kind": "git",
           "fencing_token": 1,
           "source_confidence": "observed",
           "is_tombstone": false,
           "payload": {
-            "function_uid": "func:payments:handlePayment",
+            "local_path": "/repo-code-taint-evidence",
+            "repo_id": "repo-eshu-fixture-code-taint-evidence",
+            "source_run_id": "run-ifa-code-taint-evidence-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-eshu-fixture-code-taint-evidence:src/payments/handler.go",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-eshu-fixture-code-taint-evidence:src/payments/handler.go",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "go",
+            "parsed_file_data": {},
+            "relative_path": "src/payments/handler.go",
+            "repo_id": "repo-eshu-fixture-code-taint-evidence"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-eshu-fixture-code-taint-evidence:src/payments/refund.go",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-eshu-fixture-code-taint-evidence:src/payments/refund.go",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "go",
+            "parsed_file_data": {},
+            "relative_path": "src/payments/refund.go",
+            "repo_id": "repo-eshu-fixture-code-taint-evidence"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_ea9c6456e621",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "end_line": 24,
+            "entity_id": "content-entity:e_ea9c6456e621",
+            "entity_name": "handlePayment",
+            "entity_type": "Function",
+            "graph_id": "content-entity:e_ea9c6456e621",
+            "graph_kind": "content_entity",
+            "language": "go",
+            "relative_path": "src/payments/handler.go",
+            "repo_id": "repo-eshu-fixture-code-taint-evidence",
+            "start_line": 8
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_749ffae511fc",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "end_line": 46,
+            "entity_id": "content-entity:e_749ffae511fc",
+            "entity_name": "refundPayment",
+            "entity_type": "Function",
+            "graph_id": "content-entity:e_749ffae511fc",
+            "graph_kind": "content_entity",
+            "language": "go",
+            "relative_path": "src/payments/refund.go",
+            "repo_id": "repo-eshu-fixture-code-taint-evidence",
+            "start_line": 28
+          }
+        },
+        {
+          "fact_kind": "code_taint_evidence",
+          "stable_fact_key": "git:code_taint_evidence:content-entity:e_ea9c6456e621:12:18:sql_exec:http_request:orderID",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "function_uid": "content-entity:e_ea9c6456e621",
             "relative_path": "src/payments/handler.go",
             "function_name": "handlePayment",
             "language": "go",
@@ -39,14 +132,14 @@
         },
         {
           "fact_kind": "code_taint_evidence",
-          "stable_fact_key": "git:code_taint_evidence:func:payments:refundPayment:31:40:command_exec:queue_message:payload",
+          "stable_fact_key": "git:code_taint_evidence:content-entity:e_749ffae511fc:31:40:command_exec:queue_message:payload",
           "schema_version": "1.0.0",
           "collector_kind": "git",
           "fencing_token": 1,
           "source_confidence": "observed",
           "is_tombstone": false,
           "payload": {
-            "function_uid": "func:payments:refundPayment",
+            "function_uid": "content-entity:e_749ffae511fc",
             "relative_path": "src/payments/refund.go",
             "function_name": "refundPayment",
             "language": "go",

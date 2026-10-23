@@ -114,9 +114,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		EdgeTypes: []string{"RUNS_IMAGE"},
 	},
 	{
-		Family:    codeTaintEvidenceFamily,
-		OduName:   ifa.CodeTaintEvidenceFamilyOduName,
-		EdgeTypes: []string{"HAS_TAINT_EVIDENCE"},
+		Family:     codeTaintEvidenceFamily,
+		OduName:    ifa.CodeTaintEvidenceFamilyOduName,
+		EdgeTypes:  []string{"HAS_TAINT_EVIDENCE"},
+		LiveProven: true,
 	},
 	{
 		Family:  observabilityCoverageFamily,

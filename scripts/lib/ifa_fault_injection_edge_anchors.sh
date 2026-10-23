@@ -149,6 +149,17 @@ derived_from_edge_operation_match="MERGE (img)-[rel:DERIVED_FROM"
 # would match the retract DELETEs instead and the fault would fire outside
 # the upsert the cell asserts.
 code_interproc_evidence_edge_operation_match="MERGE (s)-[rel:TAINT_FLOWS_TO"
+# The HAS_TAINT_EVIDENCE MERGE anchor cell_failgraphwrite_code_taint_evidence
+# (#6228 code_taint_evidence live leaf) targets:
+# go/internal/storage/cypher/edge/writer/code_taint_evidence.go:47 emits
+# MERGE (f)-[rel:HAS_TAINT_EVIDENCE]->(ev) with no vocabulary
+# substitution and no property map on the MERGE itself (the SETs follow
+# it), so the anchor carries the FULL form that matches executed statement
+# text. A parameterized form would match the retract DELETEs instead, and a
+# PREFIX form stopping before `->(ev)` would also match the node MERGE
+# above it -- either way the fault would fire outside the upsert the cell
+# asserts.
+code_taint_evidence_edge_operation_match="MERGE (f)-[rel:HAS_TAINT_EVIDENCE]->(ev)"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical/node/documentation_edges.go's
