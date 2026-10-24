@@ -192,6 +192,9 @@ class TestCancellation(unittest.TestCase):
         second = dict(first, id=120775668245, run_attempt=2)
         jobs = [first, second]
         self.assertEqual(classify_cancellation(2, jobs), ("executed", 0.08))
+        third = dict(first, id=120775668246, run_attempt=3)
+        self.assertEqual(classify_cancellation(3, jobs + [third]),
+                         ("executed", 0.08))
         self.assertEqual(classify_cancellation(3, jobs), ("unknown", None))
 
         end = datetime(2026, 10, 24, 4, tzinfo=timezone.utc)
@@ -210,6 +213,10 @@ class TestCancellation(unittest.TestCase):
         self.assertEqual(result["runs"], 1)
         self.assertEqual(result["categories"], {"executed": 1})
         self.assertEqual(result["evidenced_runner_minutes"], 0.08)
+
+    def test_non_dictionary_job_is_unknown(self) -> None:
+        self.assertEqual(classify_cancellation(1, ["malformed"]),
+                         ("unknown", None))
 
     def test_copied_job_needs_distinct_successful_attempts(self):
         first = {"id": 1, "run_id": 10, "run_attempt": 1,
