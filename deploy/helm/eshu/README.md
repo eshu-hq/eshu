@@ -265,7 +265,7 @@ single-worker values is byte-identical before and after the change (checked with
 and PodDisruptionBudget per entry, one ConfigMap, and init containers on the
 workers and the coordinator that run once at pod start; no steady-state query,
 queue, lease or graph path changes. Verified by `go test ./internal/runtime -run
-TestHelmComponentActivations -count=1`.
+'TestHelmComponentActivation|TestComponentActivationExample|TestGrantKind' -count=1`.
 
 No-Observability-Change (#8894): `componentExtensionCollector.activations` adds no
 metric, span, log key or status field. Each activation worker exposes the same

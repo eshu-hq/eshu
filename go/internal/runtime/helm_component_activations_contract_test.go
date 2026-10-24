@@ -212,6 +212,52 @@ func TestHelmComponentActivationsInitContainersSeedThenReconcile(t *testing.T) {
 	}
 }
 
+// assertHelmInitContainerHardened fails unless init is non-root, has a
+// read-only root filesystem, cannot escalate privileges and drops every
+// capability. The seed container runs a third-party image with write access to
+// the registry volume, so each of these properties must hold for it and for the
+// reconcile container.
+func assertHelmInitContainerHardened(t *testing.T, owner string, init map[string]any) {
+	t.Helper()
+
+	name := helmString(init["name"])
+	sc := helmMap(init["securityContext"])
+	if sc["runAsNonRoot"] != true {
+		t.Errorf("%s init container %s runAsNonRoot = %#v, want true", owner, name, sc["runAsNonRoot"])
+	}
+	if sc["readOnlyRootFilesystem"] != true {
+		t.Errorf("%s init container %s readOnlyRootFilesystem = %#v, want true", owner, name, sc["readOnlyRootFilesystem"])
+	}
+	if sc["allowPrivilegeEscalation"] != false {
+		t.Errorf("%s init container %s allowPrivilegeEscalation = %#v, want false", owner, name, sc["allowPrivilegeEscalation"])
+	}
+	if drop := helmStringSlice(helmMap(sc["capabilities"])["drop"]); !stringSlicesEqual(drop, []string{"ALL"}) {
+		t.Errorf("%s init container %s capabilities.drop = %#v, want [ALL]", owner, name, drop)
+	}
+}
+
+func TestHelmComponentActivationsInitContainersAreHardened(t *testing.T) {
+	t.Parallel()
+
+	manifests := renderComponentActivations(t, componentActivationsValues(pagerDutyActivationValues, jiraActivationValues))
+	for _, tc := range []struct {
+		deployment string
+		wantInits  int
+	}{
+		{deployment: "eshu-cx-pagerduty-a", wantInits: 2},
+		{deployment: "eshu-cx-jira-b", wantInits: 2},
+		{deployment: "eshu-workflow-coordinator", wantInits: 4},
+	} {
+		inits := helmMapSlice(helmPodSpec(t, requireHelmManifest(t, manifests, "Deployment", tc.deployment))["initContainers"])
+		if len(inits) != tc.wantInits {
+			t.Fatalf("%s initContainers = %d, want %d (seed and reconcile per activation)", tc.deployment, len(inits), tc.wantInits)
+		}
+		for _, init := range inits {
+			assertHelmInitContainerHardened(t, tc.deployment, init)
+		}
+	}
+}
+
 func TestHelmComponentActivationsKeepCredentialsPerWorker(t *testing.T) {
 	t.Parallel()
 

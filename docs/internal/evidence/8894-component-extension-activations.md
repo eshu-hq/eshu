@@ -49,8 +49,10 @@ code, query, queue, lease, claim, batch or graph-write path.
   volume.
 
 Verified by `go test ./internal/runtime -run
-'TestHelmComponentActivation|TestComponentActivationExample' -count=1`. The tests
-cover render shape, init-container order, credential isolation, coordinator
+'TestHelmComponentActivation|TestComponentActivationExample|TestGrantKind' -count=1`.
+The tests cover render shape, init-container order and hardening (non-root,
+read-only root filesystem, no privilege escalation, all capabilities
+dropped), credential isolation, coordinator
 wiring, per-activation lease timing and parity. They also run the rendered
 reconcile script under `sh` with a stub `eshu` (first run, restart, other enable
 failures, version mismatch among several components, missing seed files). Every
