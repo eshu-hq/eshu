@@ -1,0 +1,38 @@
+go/internal/storage/postgres/crossplane/AGENTS.md
+  s_ff8a600f1fc93e::t_613ce7d78bb0fe 63-64
+  s_ff8a600f1fc93e::t_14b7d3724d643f 62
+go/internal/storage/postgres/crossplane/ledger_live_test.go
+  s_ff8a600f1fc93e::t_613ce7d78bb0fe 23
+  s_ff8a600f1fc93e::t_f00a89af786180 62-63
+  s_ff8a600f1fc93e::t_14b7d3724d643f 21-22,24
+  s_ff8a600f1fc93e::t_7edd41b6486a37 25-27
+go/internal/storage/postgres/crossplane/README.md
+  s_ff8a600f1fc93e::t_bd78ec255bf9a0 116
+  s_ff8a600f1fc93e::t_613ce7d78bb0fe 99-101,117-118,219-229
+  s_ff8a600f1fc93e::t_ee0a84b1b27f68 230
+go/internal/storage/postgres/crossplane/sweep.go
+  s_ff8a600f1fc93e::t_14b7d3724d643f 83-89,97-98,116
+  s_ff8a600f1fc93e::t_613ce7d78bb0fe 247-248
+go/internal/storage/postgres/reducer_queue_replay.go
+  s_ff8a600f1fc93e::t_bd78ec255bf9a0 246
+  s_ff8a600f1fc93e::t_7edd41b6486a37 247-248
+go/internal/storage/postgres/crossplane/doc.go
+  s_ff8a600f1fc93e::t_14b7d3724d643f 8
+  s_ff8a600f1fc93e::t_bd78ec255bf9a0 9-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "96ad250ff2ceff6d8244f42f5e49433fb6ed6f59",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
