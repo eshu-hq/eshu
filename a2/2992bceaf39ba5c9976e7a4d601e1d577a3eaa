@@ -1,0 +1,22 @@
+docs/public/extend/sdk-compatibility.md
+  s_ff8a600f1fc93e::t_2f3be95509334a 136-139,208-209
+  s_ff8a600f1fc93e::t_ff04d28b4b3034 72-73
+  s_ff8a600f1fc93e::t_5ce37dd296e992 12,47-50,52,54,59,63-64,94,110-111
+  s_ff8a600f1fc93e::t_ae1f8db70f66d3 70-71,74-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a22992bceaf39ba5c9976e7a4d601e1d577a3eaa",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
