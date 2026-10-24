@@ -4,86 +4,95 @@
 package postgres
 
 import (
+	"slices"
 	"strings"
 	"testing"
+
+	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 )
+
+// The #8880 branch catalog replaces the single pre-#8880 statement. These
+// tests re-derive that statement's shape contracts over every statement the
+// loader can issue.
+
+const supplyChainImpactActiveJoin = `JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE generation.status = 'active'`
+
+// supplyChainImpactCatalogSQL joins every branch statement for text checks.
+func supplyChainImpactCatalogSQL() string {
+	var parts []string
+	for _, branch := range factimpact.Branches() {
+		parts = append(parts, branch.SQL)
+	}
+	return strings.Join(parts, "\n;\n")
+}
+
+func supplyChainImpactBranch(t *testing.T, name string) factimpact.Branch {
+	t.Helper()
+	for _, branch := range factimpact.Branches() {
+		if branch.Name == name {
+			return branch
+		}
+	}
+	t.Fatalf("catalog has no branch %s", name)
+	return factimpact.Branch{}
+}
 
 func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testing.T) {
 	t.Parallel()
 
-	executableQuery := sqlWithoutLineComments(listActiveSupplyChainImpactFactsQuery)
-	for _, want := range []string{
-		"scope.active_generation_id = fact.generation_id",
-		"generation.status = 'active'",
-		"fact.is_tombstone = FALSE",
-		"fact.fact_kind IN (",
-		"'vulnerability.cve'",
-		"'vulnerability.affected_package'",
-		"'vulnerability.affected_product'",
-		"'security_alert.repository_alert'",
-		"'reducer_ci_cd_run_correlation'",
-		"'reducer_platform_materialization'",
-		"'reducer_service_catalog_correlation'",
-		"'reducer_workload_identity'",
-		"'oci_registry.image_manifest'",
-		"'oci_registry.image_index'",
-		"'oci_registry.image_tag_observation'",
-		"'oci_registry.image_referrer'",
-		"fact.payload->>'package_id' = ANY($1::text[])",
-		"fact.payload->>'purl' = ANY($2::text[])",
-		"fact.payload->>'cve_id' = ANY($3::text[])",
-		"cardinality($4::text[]) > 0",
-		"fact.payload->>'advisory_id' = ANY($4::text[])",
-		"fact.payload->>'subject_digest' = ANY($5::text[])",
-		"fact.payload->>'artifact_digest' = ANY($5::text[])",
-		"fact.payload->>'referrer_digest' = ANY($5::text[])",
-		"fact.payload->>'resolved_digest' = ANY($5::text[])",
-		"fact.payload->>'cpe' = ANY($6::text[])",
-		"fact.payload->>'criteria' = ANY($6::text[])",
-		"fact.payload->>'document_id' = ANY($7::text[])",
-		"fact.payload->>'repository_id' = ANY($8::text[])",
-		"fact.payload->>'image_ref' = ANY($9::text[])",
-		"convert_to(fact.fact_id, 'UTF8')",
-		"convert_to($11, 'UTF8')",
-		"(fact.fact_kind = 'vulnerability.suppression') ASC",
-		"LIMIT $12",
-	} {
-		if !strings.Contains(executableQuery, want) {
-			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+	var kinds []string
+	for _, branch := range factimpact.Branches() {
+		for _, want := range []string{supplyChainImpactActiveJoin, "fact.is_tombstone = FALSE", "WITH candidate AS MATERIALIZED (", "active AS MATERIALIZED ("} {
+			if !strings.Contains(branch.SQL, want) {
+				t.Fatalf("branch %s missing %q:\n%s", branch.Name, want, branch.SQL)
+			}
 		}
+		for _, kind := range branch.Kinds {
+			if !slices.Contains(kinds, kind) {
+				kinds = append(kinds, kind)
+			}
+		}
+	}
+	slices.Sort(kinds)
+	retired := factimpact.KindsInRetiredOrder()
+	slices.Sort(retired)
+	if !slices.Equal(kinds, retired) {
+		t.Fatalf("catalog kinds = %v, want the retired scanned set %v", kinds, retired)
+	}
+	all := sqlWithoutLineComments(supplyChainImpactCatalogSQL())
+	for _, key := range []string{"package_id", "purl", "cve_id", "advisory_id", "subject_digest", "digest", "artifact_digest", "referrer_digest", "resolved_digest", "cpe", "criteria", "document_id", "repository_id", "image_ref"} {
+		if !strings.Contains(all, "fact.payload->>'"+key+"' = ANY($") {
+			t.Fatalf("no branch compares payload key %s", key)
+		}
+	}
+	if !strings.Contains(factimpact.PayloadPageSQL, "WHERE fact.fact_id = ANY($1::text[])") {
+		t.Fatalf("payload pages must fetch by primary key:\n%s", factimpact.PayloadPageSQL)
+	}
+	if supplyChainImpactPayloadPageSize != 500 {
+		t.Fatalf("payload page size = %d, want 500", supplyChainImpactPayloadPageSize)
 	}
 }
 
 func TestListActiveSupplyChainImpactFactsQuerySeparatesCanonicalIdentities(t *testing.T) {
 	t.Parallel()
 
-	for _, want := range []string{
-		"legacy_facts AS MATERIALIZED",
-		"COALESCE(fact.source_uri, '') AS source_uri",
-		"COALESCE(fact.source_record_id, '') AS source_record_id",
-	} {
-		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
-			t.Fatalf("supply-chain legacy loader missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
-		}
-	}
-	for _, forbidden := range []string{"identity_facts AS MATERIALIZED", "UNION ALL", "container_image_identity_current_support_facts_for(", "'reducer_container_image_identity'"} {
-		if strings.Contains(listActiveSupplyChainImpactFactsQuery, forbidden) {
-			t.Fatalf("supply-chain legacy loader retains mixed identity operation %q:\n%s", forbidden, listActiveSupplyChainImpactFactsQuery)
+	for _, forbidden := range []string{"container_image_identity_current_support_facts_for(", "'reducer_container_image_identity'", "UNION ALL"} {
+		if strings.Contains(supplyChainImpactCatalogSQL(), forbidden) {
+			t.Fatalf("a legacy branch retains mixed identity operation %q", forbidden)
 		}
 	}
 	if !strings.Contains(listCurrentContainerImageIdentitySupportFactsQuery, "container_image_identity_current_support_facts_for(") {
 		t.Fatalf("separate supply-chain identity stream must use the support-grain function:\n%s", listCurrentContainerImageIdentitySupportFactsQuery)
 	}
-	for _, want := range []string{
-		"WITH legacy_page AS MATERIALIZED",
-		"PARTITION BY (fact.fact_kind = 'vulnerability.suppression')",
-		"1 AS stream_rank",
-		"$20::text, $21::integer",
-		"ORDER BY stream_rank, stream_ordinal",
-	} {
-		if !strings.Contains(listActiveSupplyChainImpactFactPagesQuery, want) {
-			t.Fatalf("combined independent pager missing %q:\n%s", want, listActiveSupplyChainImpactFactPagesQuery)
-		}
+	if !strings.Contains(factimpact.PayloadPageSQL, "COALESCE(fact.source_uri, '') AS source_uri") ||
+		!strings.Contains(factimpact.PayloadPageSQL, "COALESCE(fact.source_record_id, '') AS source_record_id") {
+		t.Fatalf("payload page must keep the source_uri/source_record_id COALESCE")
 	}
 }
 
@@ -91,40 +100,18 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 	t.Parallel()
 
 	// vulnerability.suppression facts must be expandable through the same
-	// bounded active-evidence walk as the rest of the supply-chain impact
-	// kinds; otherwise suppressions outside the initially loaded
-	// scope/generation never reach the reducer and operator-authored
-	// suppressions silently miss findings.
-	//
-	// The scope-nested predicates below are the round-3 review F-6
-	// lower(btrim(...)) normalized shape ($13-$16), which SUPERSEDES (not
-	// supplements) the original exact-match ->'scope'->>'X' = ANY($1-$5)
-	// shape: $13-$16 bind lower(btrim(...)) of the SAME filter values
-	// bound to $1/$2/$3/$5, so every row the old exact-match predicate
-	// could select, the normalized predicate also selects, plus payloads
-	// whose case/whitespace differs from the filter (see
-	// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings,
-	// facts_active_supply_chain_impact_scope_normalize_test.go, for the
-	// full F-6 predicate-shape and unchanged-sibling assertions). $4
-	// (AdvisoryIDs, #5465) also started as a scope-nested exact match.
-	// #5466 supersedes its nested form the same way -- normalized at $18 (see
-	// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeAdvisoryID) --
-	// so the old ->'scope'->>'advisory_id' = ANY($4) form no longer exists;
-	// only the top-level (non-"scope") $4 exact match remains, serving
-	// other fact kinds.
-	for _, want := range []string{
-		"'vulnerability.suppression'",
-		"lower(btrim(fact.payload->'scope'->>'package_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($13::text[])",
-		"lower(btrim(fact.payload->'scope'->>'purl', " + suppressionScopeTrimCharactersSQL + ")) = ANY($14::text[])",
-		"lower(btrim(fact.payload->'scope'->>'cve_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($15::text[])",
-		"lower(btrim(fact.payload->'scope'->>'subject_digest', " + suppressionScopeTrimCharactersSQL + ")) = ANY($16::text[])",
-	} {
-		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
-			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+	// bounded active-evidence walk as the rest of the kinds, through the
+	// normalized lower(btrim(...)) scope arms (#5466 round-3 F-6), which
+	// SUPERSEDE the original exact ->'scope'->>'X' arms.
+	suppression := supplyChainImpactBranch(t, "vulnerability_suppression")
+	for _, key := range []string{"package_id", "purl", "cve_id", "subject_digest", "repository_id", "advisory_id"} {
+		want := "lower(btrim(fact.payload->'scope'->>'" + key + "', " + suppressionScopeTrimCharactersSQL + ")) = ANY($"
+		if !strings.Contains(suppression.SQL, want) {
+			t.Fatalf("suppression branch missing normalized %s arm:\n%s", key, suppression.SQL)
 		}
 	}
-	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "fact.payload->'scope'->>'advisory_id' = ANY($4::text[])") {
-		t.Fatalf("scope-nested advisory_id exact-match at $4 should be superseded by the $18 normalized predicate:\n%s", listActiveSupplyChainImpactFactsQuery)
+	if regexpScopeExact := "fact.payload->'scope'->>'advisory_id' = ANY("; strings.Contains(supplyChainImpactCatalogSQL(), regexpScopeExact) {
+		t.Fatalf("scope-nested advisory_id exact match must stay superseded by the normalized arm")
 	}
 }
 
@@ -132,16 +119,16 @@ func TestListActiveSupplyChainImpactFactsQueryDoesNotDiscoverSuppressionByDeploy
 	t.Parallel()
 
 	// Deployment context narrows a suppression selected through a
-	// vulnerability identity. It must never become a broad discovery
-	// predicate that scans every suppression in a common environment,
-	// workload, or service.
+	// vulnerability identity. It must never become a discovery predicate in
+	// any statement, the guard included.
 	for _, forbidden := range []string{
 		"fact.payload->'scope'->>'workload_id'",
 		"fact.payload->'scope'->>'service_id'",
 		"fact.payload->'scope'->>'environment'",
+		"payload ? 'environment'", "payload ? 'workload_id'", "payload ? 'service_id'",
 	} {
-		if strings.Contains(listActiveSupplyChainImpactFactsQuery, forbidden) {
-			t.Fatalf("listActiveSupplyChainImpactFactsQuery contains deployment-only discovery predicate %q:\n%s", forbidden, listActiveSupplyChainImpactFactsQuery)
+		if strings.Contains(supplyChainImpactCatalogSQL(), forbidden) {
+			t.Fatalf("catalog contains deployment-only discovery predicate %q", forbidden)
 		}
 	}
 }
@@ -149,61 +136,37 @@ func TestListActiveSupplyChainImpactFactsQueryDoesNotDiscoverSuppressionByDeploy
 func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testing.T) {
 	t.Parallel()
 
-	for _, want := range []string{
-		"OR (\n          fact.fact_kind IN (",
-		"'vulnerability.suppression'",
-		"'reducer_ci_cd_run_correlation'",
-		"'reducer_platform_materialization'",
-		"'reducer_service_catalog_correlation'",
-		"'reducer_workload_identity'",
-		"fact.payload->>'repository_id' = ANY($8::text[])",
-		"fact.payload->>'repo_id' = ANY($8::text[])",
-		// Round-3 review F-6: this was ->'scope'->>'repository_id' = ANY($8)
-		// (exact match); $17 supersedes it with lower(btrim(...)) -- see
-		// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings
-		// (facts_active_supply_chain_impact_scope_normalize_test.go).
-		"lower(btrim(fact.payload->'scope'->>'repository_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($17::text[])",
-		"fact.scope_id = ANY($8::text[])",
-		"fact.payload->>'scope_id' = ANY($8::text[])",
-		"scope.source_key = ANY($8::text[])",
-		"scope.payload->>'repo_id' = ANY($8::text[])",
-		"scope.payload->>'id' = ANY($8::text[])",
-	} {
-		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
-			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+	// Repository arms (RepositoryIDs and its resolved scopes) may only select
+	// the six repository kinds; in the guard they stay behind the kind gate.
+	for _, branch := range factimpact.Branches() {
+		usesRepository := slices.Contains(branch.Params, factimpact.RepositoryIDs) || slices.Contains(branch.Params, factimpact.RepositoryScopeIDs)
+		if !usesRepository || branch.Shape == factimpact.ShapeGuard {
+			continue
+		}
+		for _, kind := range branch.Kinds {
+			if !slices.Contains(factimpact.RepositoryKinds(), kind) {
+				t.Fatalf("branch %s binds repository arms for non-repository kind %s", branch.Name, kind)
+			}
 		}
 	}
-	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "OR fact.payload->>'repository_id' = ANY($8::text[])") {
-		t.Fatalf("legacy repository_id follow-up must be fact-kind gated:\n%s", listActiveSupplyChainImpactFactsQuery)
+	guard := supplyChainImpactBranch(t, "foreign_key_guard")
+	if !strings.Contains(guard.SQL, "(fact.fact_kind IN ('vulnerability.suppression', 'reducer_package_consumption_correlation', 'reducer_ci_cd_run_correlation', 'reducer_platform_materialization', 'reducer_service_catalog_correlation', 'reducer_workload_identity')\n      AND (fact.payload->>'repository_id' = ANY(") {
+		t.Fatalf("guard repository arms must stay kind-gated:\n%s", guard.SQL)
 	}
 }
 
 func TestListActiveSupplyChainImpactFactsQueryLoadsPackageConsumptionByRepository(t *testing.T) {
 	t.Parallel()
 
-	repositoryBranchStart := strings.Index(listActiveSupplyChainImpactFactsQuery, "fact.fact_kind IN (\n              'vulnerability.suppression'")
-	if repositoryBranchStart < 0 {
-		t.Fatalf("repository follow-up branch missing:\n%s", listActiveSupplyChainImpactFactsQuery)
+	consumption := []string{"package_consumption_repository_id", "repository_payload_scope_id", "repository_scope"}
+	for _, name := range consumption {
+		if !slices.Contains(supplyChainImpactBranch(t, name).Kinds, factimpact.KindPackageConsumption) {
+			t.Fatalf("branch %s must load package-consumption rows by repository", name)
+		}
 	}
-	repositoryBranchEnd := strings.Index(listActiveSupplyChainImpactFactsQuery[repositoryBranchStart:], "OR (\n          fact.fact_kind = 'file'")
-	if repositoryBranchEnd < 0 {
-		t.Fatalf("repository follow-up branch end missing:\n%s", listActiveSupplyChainImpactFactsQuery)
-	}
-	repositoryBranch := listActiveSupplyChainImpactFactsQuery[repositoryBranchStart : repositoryBranchStart+repositoryBranchEnd]
-	if !strings.Contains(repositoryBranch, "'reducer_package_consumption_correlation'") {
-		t.Fatalf("legacy repository follow-up must load package-consumption rows:\n%s", repositoryBranch)
-	}
-	if strings.Contains(repositoryBranch, "'reducer_container_image_identity'") {
-		t.Fatalf("legacy repository follow-up must not load v2 identity rows:\n%s", repositoryBranch)
-	}
-	for _, want := range []string{
-		"FROM container_image_identity_current_support_facts_for(",
-		"$3::text[]",
-		"$4::text[]",
-		"$5::text[]",
-	} {
+	for _, want := range []string{"FROM container_image_identity_current_support_facts_for(", "$3::text[]", "$4::text[]", "$5::text[]"} {
 		if !strings.Contains(listCurrentContainerImageIdentitySupportFactsQuery, want) {
-			t.Fatalf("canonical repository follow-up missing %q:\n%s", want, listCurrentContainerImageIdentitySupportFactsQuery)
+			t.Fatalf("canonical repository follow-up missing %q", want)
 		}
 	}
 }
@@ -211,32 +174,19 @@ func TestListActiveSupplyChainImpactFactsQueryLoadsPackageConsumptionByRepositor
 func TestListActiveSupplyChainImpactFactsQuerySeparatesParserFileFollowUp(t *testing.T) {
 	t.Parallel()
 
-	executableQuery := sqlWithoutLineComments(listActiveSupplyChainImpactFactsQuery)
-	repositoryBranchStart := strings.Index(listActiveSupplyChainImpactFactsQuery, "fact.fact_kind IN (\n              'vulnerability.suppression'")
-	if repositoryBranchStart < 0 {
-		t.Fatalf("repository follow-up branch missing:\n%s", listActiveSupplyChainImpactFactsQuery)
-	}
-	repositoryBranchEnd := strings.Index(listActiveSupplyChainImpactFactsQuery[repositoryBranchStart:], "OR (\n          fact.fact_kind = 'file'")
-	if repositoryBranchEnd < 0 {
-		t.Fatalf("repository follow-up branch end missing:\n%s", listActiveSupplyChainImpactFactsQuery)
-	}
-	repositoryBranch := listActiveSupplyChainImpactFactsQuery[repositoryBranchStart : repositoryBranchStart+repositoryBranchEnd]
-	if strings.Contains(repositoryBranch, "'file'") {
-		t.Fatalf("repository follow-up branch must not load parser file facts:\n%s", repositoryBranch)
-	}
-
-	for _, want := range []string{
-		"fact.fact_kind = 'file'",
-		"ANY($10::text[])",
-		"fact.payload->'parsed_file_data'->>'language'",
-		"'javascript', 'jsx', 'typescript', 'tsx'",
-		"convert_to(fact.fact_id, 'UTF8')",
-		"convert_to($11, 'UTF8')",
-		"(fact.fact_kind = 'vulnerability.suppression') ASC",
-		"LIMIT $12",
-	} {
-		if !strings.Contains(executableQuery, want) {
-			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+	for _, branch := range factimpact.Branches() {
+		if !slices.Contains(branch.Kinds, factimpact.KindFile) {
+			continue
+		}
+		switch branch.Name {
+		case "file_repo_id", "file_scope":
+			if !strings.Contains(branch.SQL, factimpact.JSTSLanguagePredicate) || len(branch.RunWhen) != 1 ||
+				(branch.RunWhen[0] != factimpact.FileRepositoryIDs && branch.RunWhen[0] != factimpact.FileRepositoryScopeIDs) {
+				t.Fatalf("file branch %s must be JS/TS-filtered and gated on file repositories only", branch.Name)
+			}
+		case "foreign_key_guard":
+		default:
+			t.Fatalf("branch %s may load parser file facts", branch.Name)
 		}
 	}
 }

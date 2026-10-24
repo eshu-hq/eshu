@@ -47,7 +47,6 @@ var knownEcosystemGaps = []ecosystemGap{
 	{Language: "java", File: "gradle-wrapper.properties", Issue: "#8822"},
 	{Language: "python", File: "uv.lock", Issue: "#8821"},
 	{Language: "scala", File: "build.sbt", Issue: "#8938"},
-	{Language: "swift", File: ".swift-version", Issue: "#8939"},
 }
 
 type rowViolation struct {

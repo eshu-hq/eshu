@@ -263,6 +263,19 @@ var migrationShippedChecksums = map[string]string{
 	"214_supply_chain_catalog_workload_trim_index.sql":                       "339a0c949e63ea776c72599253f6de6c70cbb4d5f92f5d9578676424da808a19",
 	"215_supply_chain_catalog_service_trim_index.sql":                        "5e05cdffe7c16ac88bfe2f6f962143679f8ea4552a43a31f4d2453ccb081e64e",
 	"216_supply_chain_cicd_environment_trim_index.sql":                       "640d14c8941d609981c849205412f08659f1a97497f60a527eb70606ff200955",
+	"217_fact_records_vulnerability_affected_product_criteria_idx.sql":       "2c32b098728927463c894cb892ec39ce2270ded1eb5c10e1f99703ae3d092cdc",
+	"218_fact_records_supply_chain_impact_package_id_idx.sql":                "11f033cbd5a62fd14b8b3c4af382a9af4fdb3566b6f83c20a0613d8d8bf9f305",
+	"219_fact_records_package_version_purl_idx.sql":                          "3c717a6960e66631c4f4c4ea84c84464f542d73ad112dfd9d010df3705e37c8a",
+	"220_fact_records_security_alert_cve_id_idx.sql":                         "0f9f26baf0e289a5af68d937b595f174b0caa798dfa8cfaae09922290e7417a5",
+	"221_fact_records_vulnerability_hint_advisory_id_idx.sql":                "81ea71de87b3f58963f3f7adbe4d4f41e97f1f3bff22131ee1f7d47823740e42",
+	"222_fact_records_oci_image_digest_idx.sql":                              "1778fd58f3608a185abe15165d2283b0173cd73b1ea0b63fc2a9b8b8a9e6686c",
+	"223_fact_records_oci_tag_resolved_digest_idx.sql":                       "2a24b91e2853799d8f6858f7b8a5a141f389fb7a27cceb1a8eb6bfc04786cfb8",
+	"224_fact_records_oci_referrer_digest_idx.sql":                           "6caf7e077a41dc5c0f0b5ccb866650f5304102ed17b99121f1c1ab6d975b5f66",
+	"225_fact_records_supply_chain_impact_payload_scope_id_idx.sql":          "bccb303f54b7a74f8daa25049f9b5c1f285baa637a2fa81e8c394d05a0dd0439",
+	"226_fact_records_vulnerability_suppression_active_scan_idx.sql":         "b1a60126a5b217ec50bbfa0d69a8355e5156a85e7f3b9b1ed4eeb811f1f20366",
+	"227_fact_records_platform_materialization_active_scan_idx.sql":          "af41ec3dd2caf1e86994c04ab013f4c6e08feff0f7877a111a5b998e2b6307a5",
+	"228_fact_records_jsts_reachability_repo_file_idx.sql":                   "3cb2d7b391b74a10f9086f6e15b431e1b8d3e568fbf33b096063b5b5e8c4e176",
+	"229_fact_records_supply_chain_impact_foreign_key_guard_idx.sql":         "57beb1e0a5c459da66f8e338433d31303729a86e2ba63269fd4acef901a731dd",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

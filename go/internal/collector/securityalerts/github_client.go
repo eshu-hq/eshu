@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -105,7 +104,11 @@ type GitHubDependabotError struct {
 	// is an expired installation token (retryable), and a mint failure has
 	// no alert status at all.
 	FailureClassOverride string
-	Cause                error
+	// AlertsDisabled marks a 403, with no rate-limit signal, whose JSON body
+	// says Dependabot alerts are disabled for the repository (#8805). It never
+	// carries the message; FailureClass stays auth_denied.
+	AlertsDisabled bool
+	Cause          error
 }
 
 // FailureOperation returns the bounded endpoint token for the failed call,
@@ -361,7 +364,7 @@ func (c GitHubDependabotClient) listAlertsPage(
 	defer func() { _ = resp.Body.Close() }()
 	rateLimit := parseGitHubRateLimit(resp.Header)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxGitHubErrorBodyBytes))
+		errorBody, bodyComplete := readGitHubErrorBody(resp.Body)
 		httpErr := sdk.HTTPError{
 			Provider:   "github_dependabot",
 			StatusCode: resp.StatusCode,
@@ -375,6 +378,7 @@ func (c GitHubDependabotClient) listAlertsPage(
 			Operation:  operation,
 			Cause:      httpErr,
 		}
+		failure.markAlertsDisabled(errorBody, bodyComplete)
 		// An alert-read 401 under GitHub App auth is an expired hourly
 		// installation token, not a revoked credential: it stays retryable
 		// so the next claim mints fresh, deliberately unlike the static

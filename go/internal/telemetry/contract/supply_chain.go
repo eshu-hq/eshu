@@ -66,6 +66,36 @@ const (
 	SpanQuerySBOMAttestationAttachmentAggregate = "query.sbom_attestation_attachment_aggregate"
 )
 
+// Supply-chain impact active-evidence load telemetry (#8880). One load resolves
+// fact IDs from per-branch, index-anchored statements, then fetches payloads
+// by primary key; these instruments time and count each statement so an
+// operator can name the branch that regressed.
+//
+//   - eshu_dp_supply_chain_impact_active_evidence_branch_seconds (branch) —
+//     wall time of one statement.
+//   - eshu_dp_supply_chain_impact_active_evidence_branch_rows_total (branch) —
+//     rows one statement returned.
+//   - eshu_dp_supply_chain_impact_active_evidence_foreign_key_guard_rows_total
+//     — rows the foreign-key guard statement returned; nonzero means a payload
+//     contract drifted to carry an identity key its branch does not probe.
+//
+// The branch label is the closed factimpact.Branches() name set plus
+// scope_resolution, payload_page, and identity.
+const (
+	// MetricSupplyChainImpactActiveEvidenceBranchSeconds is the per-statement
+	// duration histogram name.
+	MetricSupplyChainImpactActiveEvidenceBranchSeconds = "eshu_dp_supply_chain_impact_active_evidence_branch_seconds"
+	// MetricSupplyChainImpactActiveEvidenceBranchRows is the per-statement
+	// row counter name.
+	MetricSupplyChainImpactActiveEvidenceBranchRows = "eshu_dp_supply_chain_impact_active_evidence_branch_rows_total"
+	// MetricSupplyChainImpactActiveEvidenceGuardRows is the foreign-key guard
+	// row counter name.
+	MetricSupplyChainImpactActiveEvidenceGuardRows = "eshu_dp_supply_chain_impact_active_evidence_foreign_key_guard_rows_total"
+	// MetricDimensionBranch labels the active-evidence instruments with the
+	// closed statement label set.
+	MetricDimensionBranch = "branch"
+)
+
 var vulnerabilitySuppressionMutationOutcomes = []string{
 	VulnerabilitySuppressionMutationOutcomeCreated,
 	VulnerabilitySuppressionMutationOutcomeUnchanged,

@@ -9,6 +9,20 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### CI: readiness shard weights refreshed from the first weighted wave
+
+- **Live PostgreSQL readiness shard weights refreshed**
+  ([#8930](https://github.com/eshu-hq/eshu/issues/8930)).
+  `specs/live-postgres-readiness-weights.v1.json` now also fits run
+  40071537963, the first wave on the weighted cut (shard jobs 1242, 958, 1244,
+  and 1418 s). The two packages the first cut priced at the default are now
+  measured, leaving one unweighted test. The refreshed cut predicts 1176.3,
+  1204.3, 1291.2, and 1318.1 s (worst 1318.1 s, largest deviation from the mean
+  5.7%) against the 1440 s budget. Replayed on the wave's own cut, shard 2
+  predicted +25.2% over its measured 958 s. A second wave on the refreshed cut
+  is not yet checked. Evidence:
+  `docs/internal/evidence/8930-readiness-weights-refresh.md`.
+
 ### Gate: supported languages declare manifest and pin files
 
 - **Ledger-driven manifest and pin gate**
@@ -57,6 +71,21 @@ recent shipped work grouped by feature area.
   (#8818) are separate changes. Existing repositories pick the facts up at their
   next reconciliation sweep, because adding a fact kind moves the fact-schema
   digest in `GenerationContentVersion`.
+### MCP `initialize` negotiates the protocol version
+
+- **`initialize` echoes a supported requested protocol version**
+  ([#8800](https://github.com/eshu-hq/eshu/issues/8800)). The MCP lifecycle
+  rule says a server that supports the requested version answers with that
+  version, and otherwise answers with another version it supports. Eshu now
+  negotiates in one place for `POST /mcp/message`, SSE sessions, and stdio.
+  Eshu supports only `2024-11-05`, so every reply is still `2024-11-05`: it
+  does not implement Streamable HTTP or batching (`2025-03-26`) or the
+  `MCP-Protocol-Version` header (`2025-06-18`), and it does not claim them. A
+  request for another version, or none, is answered, not rejected, and is
+  logged once at info level. See the MCP reference, "Protocol version".
+- **The opt-in `structured` result shape is documented as shipped.** Earlier
+  notes said the second MCP copy stays "until #8800". The `structured` shape
+  from #8800 sends the result once, and it is opt-in: the default stays `dual`.
 
 ### Service story defaults to a bounded handles view over MCP
 
@@ -70,8 +99,10 @@ recent shipped work grouped by feature area.
   fixture (35.7 percent of full). That single copy fits the 262,144-byte budget;
   the MCP result still carries the payload twice (290,970 bytes), so dispatch
   answers it as the resource copy alone and records
-  `eshu_dp_mcp_response_resource_fallback_total` until #8800 sends the result
-  once. Deployment artifact rows keep `id`, `relationship_type`, and
+  `eshu_dp_mcp_response_resource_fallback_total` for a connection on the
+  default `dual` shape. The opt-in `structured` shape
+  ([#8800](https://github.com/eshu-hq/eshu/issues/8800)) sends the result once;
+  the default stays `dual`. Deployment artifact rows keep `id`, `relationship_type`, and
   `resolved_id`; `get_relationship_evidence` by `resolved_id` returns the rest,
   including confidence. `handles` lists each reduced family in `truth.omissions`
   with its total. Each total is the story's own pre-cap count and may be a
@@ -92,6 +123,16 @@ recent shipped work grouped by feature area.
   at `api_surface.endpoints`; `deployment_overview.api_surface` keeps its counts
   and points there with `endpoints_shipped_at`. Pass `evidence_detail: full` for
   every row.
+
+### Swift version pin file indexed as raw text
+
+- **`.swift-version` is now admitted as `raw_text`**
+  ([#8939](https://github.com/eshu-hq/eshu/issues/8939)), so a repository's
+  declared Swift toolchain is readable. The file holds a toolchain version or a
+  snapshot name and no credentials. It follows the other runtime-version pins:
+  an explicit exact name (never a `*-version` rule), kept in the filesystem-mode
+  workspace copy, and picked up by an unchanged repository at its next
+  reconciliation sweep.
 
 ### Version pin files indexed as raw text
 

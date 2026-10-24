@@ -296,7 +296,8 @@ the process default back to `dual` to roll back.
 `structured` choice (`?shape=structured` on a hosted URL, an
 `ESHU_MCP_RESULT_SHAPE` environment entry for a stdio server). `cursor`,
 `vscode`, and `generic` stay on `dual`. The `initialize` reply does not change
-with the shape, and a client cannot ask for one through `initialize`.
+with the shape, and a client cannot ask for one through `initialize`. See
+[Protocol version](#protocol-version) for what `initialize` does answer.
 
 The `structured` shape is opt-in. Its purpose is to stop sending the same
 payload twice to clients that put both copies in the model's context. That
@@ -451,6 +452,34 @@ Citation handles use the same
 [Evidence Citation Handle Contract](evidence-citation-handles.md) across HTTP
 and MCP. The current runtime hydrates file and entity handles; expanded handle
 kinds must preserve API/MCP parity before they are advertised as hydrated.
+
+## Protocol version
+
+`initialize` follows the MCP lifecycle rule for version negotiation: when the
+client requests a version the server supports, the reply carries that same
+version; otherwise the reply carries the latest version the server supports. A
+missing, malformed, or non-string `params.protocolVersion` counts as an
+unsupported request, so the handshake is answered, not rejected. The rule
+applies identically on `POST /mcp/message`, an SSE session, and stdio.
+
+Eshu supports one version, `2024-11-05`, so every `initialize` is answered
+`2024-11-05`. It does not claim a later revision because it does not implement
+that revision's wire changes:
+
+| Revision | Change Eshu does not implement |
+| --- | --- |
+| `2025-03-26` | Streamable HTTP in place of HTTP+SSE, and JSON-RPC batching. Eshu serves `GET /sse` plus `POST /mcp/message` and decodes one JSON-RPC object per POST. |
+| `2025-06-18` | The `MCP-Protocol-Version` header on every HTTP request after `initialize`. Eshu reads no such header. |
+
+The `structuredContent` field Eshu returns on tool results is an additive field
+that clients on the older revision ignore; it does not make the server a
+`2025-06-18` server. A client that requests a newer version gets `2024-11-05`
+back and decides for itself whether to continue, as the lifecycle rule allows.
+An `initialize` that requests an unsupported version is logged once at info
+level (`mcp initialize requested an unsupported protocol version, answering
+with the server version`, with `requested_protocol_version` cut to 64 bytes and
+`negotiated_protocol_version`). No metric records it, because the requested
+value is client-chosen and would be an unbounded label.
 
 ## Related Docs
 

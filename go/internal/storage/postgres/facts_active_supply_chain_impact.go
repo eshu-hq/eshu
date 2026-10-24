@@ -3,278 +3,47 @@
 
 package postgres
 
-import "strings"
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
 
-// suppressionScopeTrimCharactersSQL is PostgreSQL's explicit spelling of the
-// Unicode White_Space set used by strings.TrimSpace. Keeping the sets equal
-// prevents the SQL prefilter from making a suppression inert before the Go
-// decoder can apply its matching contract.
-const suppressionScopeTrimCharactersSQL = `U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000'`
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
-const listActiveSupplyChainImpactFactsQuery = `
-WITH legacy_facts AS MATERIALIZED (
-SELECT
-    fact.fact_id,
-    fact.scope_id,
-    fact.generation_id,
-    fact.fact_kind,
-    fact.stable_fact_key,
-    fact.schema_version,
-    fact.collector_kind,
-    fact.fencing_token,
-    fact.source_confidence,
-    fact.source_system,
-    fact.source_fact_key,
-    COALESCE(fact.source_uri, '') AS source_uri,
-    COALESCE(fact.source_record_id, '') AS source_record_id,
-    fact.observed_at,
-    fact.is_tombstone,
-    fact.payload
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind IN (
-    'vulnerability.cve',
-    'vulnerability.affected_package',
-    'vulnerability.affected_product',
-    'vulnerability.suppression',
-    'security_alert.repository_alert',
-    'package_registry.package_version',
-    'package_registry.vulnerability_hint',
-    'reducer_package_consumption_correlation',
-    'sbom.component',
-    'reducer_sbom_attestation_attachment',
-    'reducer_ci_cd_run_correlation',
-    'reducer_platform_materialization',
-    'reducer_service_catalog_correlation',
-    'reducer_workload_identity',
-    'oci_registry.image_manifest',
-    'oci_registry.image_index',
-    'oci_registry.image_tag_observation',
-    'oci_registry.image_referrer',
-    'file',
-    'vulnerability.epss_score',
-    'vulnerability.known_exploited'
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
-  AND fact.is_tombstone = FALSE
-  -- #5237: 'file' is in the scanned kind list ONLY to feed the JS/TS
-  -- reachability branch further down, and that branch cannot match unless
-  -- $10 (FileRepositoryIDs) is non-empty. $10 is populated only when an
-  -- affected package is npm-ecosystem (npmAffectedPackages,
-  -- supplychain/core/active_filter.go), so for a
-  -- Maven/PyPI/Go/OS-package intent every 'file' row in every active scope
-  -- was read and its payload detoasted once per ungated identity predicate
-  -- below -- roughly thirteen full detoasts per file fact -- to produce no
-  -- match. That is the ~116s active-evidence load the issue reports; a
-  -- 448k-file-row proof measured 42.951s before this gate and 0.052s after.
-  --
-  -- Exactness: with $10 empty a 'file' row cannot satisfy ANY branch of the
-  -- disjunction. The suppression-scope branches and the repository branch
-  -- are already gated to other fact kinds, and the ungated identity
-  -- predicates compare payload keys the file fact contract never carries
-  -- (codegraph/v1.File is repo_id/relative_path/parsed_file_data plus
-  -- graph_id/graph_kind/is_dependency/language). That premise is pinned by
-  -- TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey, which fails
-  -- loudly if a contract change ever adds one of those keys to a file fact.
-  -- TestSupplyChainImpactFileKindGateLive then runs the whole page statement
-  -- against real Postgres with $10 empty, NULL, and populated, and fails if
-  -- the gate changes the rows or stops saving the detoast traffic.
-  AND (fact.fact_kind <> 'file' OR COALESCE(cardinality($10::text[]), 0) > 0)
-  AND generation.status = 'active'
-  AND (
-      fact.payload->>'package_id' = ANY($1::text[])
-      -- $13-$17 (below and at repository_id) are lower(btrim(...))
-      -- normalized REPLACEMENTS for what used to be exact-match
-      -- ->'scope'->>'X' = ANY($N) predicates here (there is no exact-match
-      -- fallback left for package_id/purl/cve_id/subject_digest/
-      -- repository_id under "scope" -- $13-$17 fully supersede them, added
-      -- for #5466 round-3 review F-6: scopeAnchorMatches
-      -- (supplychain/core/scope.go)
-      -- compares every vulnerability.suppression scope anchor with
-      -- strings.TrimSpace + strings.EqualFold, so a payload of
-      -- {"cve_id":"cve-2026-1234"} (lowercase) or a whitespace-padded purl
-      -- decodes and matches in Go but was never SELECTED by the prior
-      -- exact-match SQL -- the same defect class P1-1/F-4 fixed for
-      -- environment/workload_id/service_id, now closed here too. These use
-      -- NEW placeholders rather than reusing $1-$3/$5/$8 because those
-      -- placeholders are ALSO bound to the top-level (non-"scope") sibling
-      -- predicates immediately below, which serve OTHER fact kinds
-      -- (vulnerability.affected_package, sbom.component, ...) whose
-      -- existing exact-match behavior must not change -- only the
-      -- "scope"-nested comparisons were replaced.
-      OR (
-          fact.fact_kind = 'vulnerability.suppression'
-          AND cardinality($13::text[]) > 0
-          AND lower(btrim(fact.payload->'scope'->>'package_id', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($13::text[])
-      )
-      OR fact.payload->>'purl' = ANY($2::text[])
-      OR (
-          fact.fact_kind = 'vulnerability.suppression'
-          AND cardinality($14::text[]) > 0
-          AND lower(btrim(fact.payload->'scope'->>'purl', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($14::text[])
-      )
-      OR fact.payload->>'cve_id' = ANY($3::text[])
-      OR (
-          fact.fact_kind = 'vulnerability.suppression'
-          AND cardinality($15::text[]) > 0
-          AND lower(btrim(fact.payload->'scope'->>'cve_id', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($15::text[])
-      )
-      OR (
-          cardinality($4::text[]) > 0
-          AND (
-              fact.payload->>'advisory_id' = ANY($4::text[])
-          )
-      )
-      OR fact.payload->>'subject_digest' = ANY($5::text[])
-      OR (
-          fact.fact_kind = 'vulnerability.suppression'
-          AND cardinality($16::text[]) > 0
-          AND lower(btrim(fact.payload->'scope'->>'subject_digest', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($16::text[])
-      )
-      OR fact.payload->>'digest' = ANY($5::text[])
-      OR fact.payload->>'artifact_digest' = ANY($5::text[])
-      OR fact.payload->>'referrer_digest' = ANY($5::text[])
-      OR fact.payload->>'resolved_digest' = ANY($5::text[])
-      OR fact.payload->>'cpe' = ANY($6::text[])
-      OR fact.payload->>'criteria' = ANY($6::text[])
-      OR fact.payload->>'document_id' = ANY($7::text[])
-      OR (
-          fact.fact_kind IN (
-              'vulnerability.suppression',
-              'reducer_package_consumption_correlation',
-              'reducer_ci_cd_run_correlation',
-              'reducer_platform_materialization',
-              'reducer_service_catalog_correlation',
-              'reducer_workload_identity'
-          )
-          AND (
-              fact.payload->>'repository_id' = ANY($8::text[])
-              OR fact.payload->>'repo_id' = ANY($8::text[])
-              -- $17 is the lower(btrim(...)) normalized replacement for
-              -- what was an exact-match ->'scope'->>'repository_id' =
-              -- ANY($8) predicate here. It binds the same repository filter
-              -- values after normalization, so it strictly supersedes the
-              -- old exact-match comparison (#5466 round-3 review F-6).
-              OR (
-                  fact.fact_kind = 'vulnerability.suppression'
-                  AND cardinality($17::text[]) > 0
-                  AND lower(btrim(fact.payload->'scope'->>'repository_id', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($17::text[])
-              )
-              OR fact.scope_id = ANY($8::text[])
-              OR fact.payload->>'scope_id' = ANY($8::text[])
-              OR scope.source_key = ANY($8::text[])
-              OR scope.payload->>'repo_id' = ANY($8::text[])
-              OR scope.payload->>'id' = ANY($8::text[])
-          )
-      )
-      OR (
-          fact.fact_kind = 'file'
-          AND (
-              fact.payload->>'repository_id' = ANY($10::text[])
-              OR fact.payload->>'repo_id' = ANY($10::text[])
-              OR fact.payload->'scope'->>'repository_id' = ANY($10::text[])
-              OR fact.scope_id = ANY($10::text[])
-              OR fact.payload->>'scope_id' = ANY($10::text[])
-              OR scope.source_key = ANY($10::text[])
-              OR scope.payload->>'repo_id' = ANY($10::text[])
-              OR scope.payload->>'id' = ANY($10::text[])
-          )
-          AND LOWER(COALESCE(
-              fact.payload->'parsed_file_data'->>'language',
-              fact.payload->>'language',
-              ''
-          )) IN ('javascript', 'jsx', 'typescript', 'tsx')
-      )
-      OR fact.payload->>'image_ref' = ANY($9::text[])
-      OR (
-          fact.fact_kind = 'vulnerability.suppression'
-          -- $18 replaces the exact nested advisory_id comparison with the
-          -- same case-folding and Unicode TrimSpace semantics the reducer
-          -- applies. Deployment context is deliberately absent here:
-          -- environment, workload_id, and service_id only narrow
-          -- suppressions discovered through an identity anchor.
-          AND cardinality($18::text[]) > 0
-          AND lower(btrim(fact.payload->'scope'->>'advisory_id', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($18::text[])
-      )
-  )
-)
-SELECT
-    fact.fact_id,
-    fact.scope_id,
-    fact.generation_id,
-    fact.fact_kind,
-    fact.stable_fact_key,
-    fact.schema_version,
-    fact.collector_kind,
-    fact.fencing_token,
-    fact.source_confidence,
-    fact.source_system,
-    fact.source_fact_key,
-    fact.source_uri,
-    fact.source_record_id,
-    fact.observed_at,
-    fact.is_tombstone,
-    fact.payload
-FROM legacy_facts AS fact
-WHERE (
-    $11 = ''
-    OR (
-        fact.fact_kind = 'vulnerability.suppression',
-        convert_to(fact.fact_id, 'UTF8')
-    ) > (
-        $19::boolean,
-        convert_to($11, 'UTF8')
-    )
-)
--- #5466 round-8 review F-3: every non-suppression row sorts before every
--- vulnerability.suppression row (the boolean ASC term), so the row cap
--- below (ListActiveSupplyChainImpactFacts) can bound ONLY the suppression
--- tail without ever truncating vulnerability.cve/affected_package/sbom.
--- component/... evidence -- see that function's doc for the full
--- reasoning. The compound keyset cursor ($19 + $11, a Postgres row-value
--- comparison) is required to paginate correctly against this two-part
--- ordering; a locale-sensitive "fact.fact_id > $11" cursor would skip or repeat rows
--- once pagination crosses from the non-suppression group into the
--- suppression group.
-ORDER BY
-    (fact.fact_kind = 'vulnerability.suppression') ASC,
-    convert_to(fact.fact_id, 'UTF8') ASC
-LIMIT $12
-`
+
+// suppressionScopeTrimCharactersSQL is the Unicode White_Space set the
+// suppression scope arms trim with (factimpact owns the spelling).
+const suppressionScopeTrimCharactersSQL = factimpact.SuppressionScopeTrimCharactersSQL
+
+// supplyChainImpactPayloadPageSize is how many resolved fact IDs one payload
+// page fetches by primary key.
+const supplyChainImpactPayloadPageSize = 500
 
 // maxSupplyChainImpactActiveEvidenceRowsPerCall bounds the vulnerability.
 // suppression rows one ListActiveSupplyChainImpactFacts call may return
-// before it stops paginating and reports truncation (#5466 round-7 review
-// P1-B, round-8 review F-3). Without this cap, a suppression matching a
-// broad identity filter with no other constraint could paginate through a
-// large active set.
+// before it reports truncation (#5466 round-7 review P1-B, round-8 F-3).
 //
-// This counts ONLY vulnerability.suppression rows, never core evidence
-// (vulnerability.cve/affected_package/sbom.component/...): the query orders
-// every non-suppression row before every suppression row (ORDER BY
-// (fact_kind = 'vulnerability.suppression') ASC, fact_id ASC), so by the
-// time this cap can possibly fire, every matching non-suppression row for
-// the call's filter has already been loaded in full -- core evidence for a
-// finding can never be crowded out of the result by suppression noise
-// sharing the same filter values, regardless of how many suppression rows
-// exist. The 2,000-row ceiling is four existing 500-row pages of
-// suppression evidence, generous headroom for the operator-authored
-// suppression counts this query realistically serves (round-3/round-6
-// EXPLAIN evidence, gotchas-and-invariants.md). The loader admits exactly
-// this many suppression rows, then reads one sentinel before reporting
-// truncation; an exact-cap result with no sentinel is complete.
+// It counts ONLY vulnerability.suppression rows, never core evidence: the
+// suppression branch is the one statement that returns that kind, and it
+// orders by byte order and stops at the cap plus one, while every core branch
+// returns every match. Core evidence for a finding can never be crowded out
+// by suppression noise sharing the same filter values. A load that finds more
+// than the cap keeps the first cap rows in byte order and reports truncation;
+// an exact-cap result is complete.
 //
 // A truncated load fails OPEN for the entire suppression candidate set: the
 // returned bool reaches SupplyChainImpactHandler, which discards the retained
-// prefix before evaluation because it cannot prove that prefix contains the
-// globally preferred AuthoredAt/ID winner. Core evidence remains usable and
-// the same bool surfaces through the active-evidence truncation signal. A
-// `var`, not a `const`, so hermetic tests can lower it without seeding
-// thousands of rows.
+// prefix because it cannot prove that prefix contains the globally preferred
+// AuthoredAt/ID winner. A `var`, not a `const`, so tests can lower it.
 var maxSupplyChainImpactActiveEvidenceRowsPerCall = 2000
 
 // lowerCleanedStringFilterValues lowercases every value and re-runs
@@ -286,4 +55,273 @@ func lowerCleanedStringFilterValues(values []string) []string {
 		lowered = append(lowered, strings.ToLower(value))
 	}
 	return cleanStringFilterValues(lowered)
+}
+
+// ListActiveSupplyChainImpactFacts loads active package, SBOM, image, and
+// risk evidence for one bounded supply-chain impact reducer intent. The bool
+// reports whether the suppression tail was truncated.
+func (s FactStore) ListActiveSupplyChainImpactFacts(
+	ctx context.Context,
+	filter supplychaincore.SupplyChainImpactFactFilter,
+) ([]facts.Envelope, bool, error) {
+	envelopes, stats, err := s.ListActiveSupplyChainImpactFactsWithStats(ctx, filter)
+	return envelopes, stats.SuppressionTruncated, err
+}
+
+// ListActiveSupplyChainImpactFactsWithStats is ListActiveSupplyChainImpactFacts
+// plus the per-branch statement accounting the reducer logs (#8880).
+//
+// One call resolves matching fact IDs once from per-branch, index-anchored
+// statements (factimpact.Branches), dedupes and orders them in Go (core by
+// byte order, then suppression by byte order under the cap), and fetches the
+// payloads in 500-ID primary-key pages. The canonical identity stream keeps
+// its own cursor. Everything runs in one read-only repeatable-read snapshot
+// on the primary, so the IDs and the pages see one state.
+func (s FactStore) ListActiveSupplyChainImpactFactsWithStats(
+	ctx context.Context,
+	filter supplychaincore.SupplyChainImpactFactFilter,
+) ([]facts.Envelope, supplychaincore.SupplyChainImpactActiveEvidenceLoadStats, error) {
+	var stats supplychaincore.SupplyChainImpactActiveEvidenceLoadStats
+	if s.database == nil {
+		return nil, stats, fmt.Errorf("fact store database is required")
+	}
+	normalizeSupplyChainImpactFactFilter(&filter)
+	if supplyChainImpactFactFilterEmpty(filter) {
+		return nil, stats, nil
+	}
+	var loaded []facts.Envelope
+	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
+		resolved, err := s.resolveSupplyChainImpactFactIDs(ctx, queryer, filter, &stats)
+		if err != nil {
+			return err
+		}
+		core, err := s.loadSupplyChainImpactPayloadPages(ctx, queryer, resolved.core, &stats)
+		if err != nil {
+			return err
+		}
+		identity, err := s.loadSupplyChainImpactIdentityStream(ctx, queryer, filter, &stats)
+		if err != nil {
+			return err
+		}
+		suppressions, err := s.loadSupplyChainImpactPayloadPages(ctx, queryer, resolved.suppressions, &stats)
+		if err != nil {
+			return err
+		}
+		loaded = make([]facts.Envelope, 0, len(core)+len(identity)+len(suppressions))
+		loaded = append(append(append(loaded, core...), identity...), suppressions...)
+		return nil
+	})
+	if err != nil {
+		return nil, supplychaincore.SupplyChainImpactActiveEvidenceLoadStats{}, err
+	}
+	s.recordSupplyChainImpactLoad(ctx, filter, stats)
+	return loaded, stats, nil
+}
+
+// supplyChainImpactResolvedIDs is the ordered ID set one call loads.
+type supplyChainImpactResolvedIDs struct {
+	core         []string
+	suppressions []string
+}
+
+// resolveSupplyChainImpactFactIDs runs every branch whose inputs are
+// non-empty and returns the deduplicated IDs in load order.
+func (s FactStore) resolveSupplyChainImpactFactIDs(
+	ctx context.Context,
+	queryer db.Queryer,
+	filter supplychaincore.SupplyChainImpactFactFilter,
+	stats *supplychaincore.SupplyChainImpactActiveEvidenceLoadStats,
+) (supplyChainImpactResolvedIDs, error) {
+	values := supplyChainImpactParamValues(filter)
+	for _, resolution := range []struct {
+		repositories        []string
+		scopes, generations factimpact.Param
+	}{
+		{filter.RepositoryIDs, factimpact.RepositoryScopeIDs, factimpact.RepositoryGenerationIDs},
+		{filter.FileRepositoryIDs, factimpact.FileRepositoryScopeIDs, factimpact.FileRepositoryGenerationIDs},
+	} {
+		scopes, generations, err := s.resolveSupplyChainImpactScopes(ctx, queryer, resolution.repositories, stats)
+		if err != nil {
+			return supplyChainImpactResolvedIDs{}, err
+		}
+		values[resolution.scopes], values[resolution.generations] = scopes, generations
+	}
+	seen := map[string]struct{}{}
+	var resolved supplyChainImpactResolvedIDs
+	for _, branch := range factimpact.Branches() {
+		if !supplyChainImpactBranchRuns(branch, values) {
+			continue
+		}
+		started := time.Now()
+		rows, err := supplyChainImpactBranchRows(ctx, queryer, branch, values)
+		if err != nil {
+			return supplyChainImpactResolvedIDs{}, err
+		}
+		stats.Branches = append(stats.Branches, supplychaincore.SupplyChainImpactActiveEvidenceBranchStat{
+			Branch: branch.Name, Rows: len(rows), Duration: time.Since(started),
+		})
+		if branch.Shape == factimpact.ShapeGuard {
+			stats.GuardRows += len(rows)
+			for _, row := range rows {
+				if !slices.Contains(stats.GuardKinds, row.kind) {
+					stats.GuardKinds = append(stats.GuardKinds, row.kind)
+				}
+			}
+			slices.Sort(stats.GuardKinds)
+		}
+		for _, row := range rows {
+			isSuppression := row.kind == chain.VulnerabilitySuppressionFactKind
+			if isSuppression != branch.ReturnsSuppressions {
+				return supplyChainImpactResolvedIDs{}, fmt.Errorf(
+					"list active supply chain impact facts: branch %s returned %s fact %q", branch.Name, row.kind, row.id)
+			}
+			if row.kind == supplyChainImpactContainerImageIdentityFactKind {
+				return supplyChainImpactResolvedIDs{}, fmt.Errorf(
+					"list active supply chain impact facts: branch %s returned identity fact %q", branch.Name, row.id)
+			}
+			if _, duplicate := seen[row.id]; duplicate {
+				continue
+			}
+			seen[row.id] = struct{}{}
+			if isSuppression {
+				resolved.suppressions = append(resolved.suppressions, row.id)
+			} else {
+				resolved.core = append(resolved.core, row.id)
+			}
+		}
+	}
+	byteOrder := func(left, right string) int { return bytes.Compare([]byte(left), []byte(right)) }
+	slices.SortFunc(resolved.core, byteOrder)
+	slices.SortFunc(resolved.suppressions, byteOrder)
+	if len(resolved.suppressions) > maxSupplyChainImpactActiveEvidenceRowsPerCall {
+		resolved.suppressions = resolved.suppressions[:maxSupplyChainImpactActiveEvidenceRowsPerCall]
+		stats.SuppressionTruncated = true
+	}
+	stats.ResolvedFactIDs = len(resolved.core) + len(resolved.suppressions)
+	return resolved, nil
+}
+
+// supplyChainImpactParamValues maps every catalog input to its bound list.
+func supplyChainImpactParamValues(filter supplychaincore.SupplyChainImpactFactFilter) map[factimpact.Param]any {
+	return map[factimpact.Param]any{
+		factimpact.PackageIDs:          filter.PackageIDs,
+		factimpact.PURLs:               filter.PURLs,
+		factimpact.CVEIDs:              filter.CVEIDs,
+		factimpact.AdvisoryIDs:         filter.AdvisoryIDs,
+		factimpact.SubjectDigests:      filter.SubjectDigests,
+		factimpact.ProductCriteria:     filter.ProductCriteria,
+		factimpact.DocumentIDs:         filter.DocumentIDs,
+		factimpact.RepositoryIDs:       filter.RepositoryIDs,
+		factimpact.ImageRefs:           filter.ImageRefs,
+		factimpact.FileRepositoryIDs:   filter.FileRepositoryIDs,
+		factimpact.LowerPackageIDs:     lowerCleanedStringFilterValues(filter.PackageIDs),
+		factimpact.LowerPURLs:          lowerCleanedStringFilterValues(filter.PURLs),
+		factimpact.LowerCVEIDs:         lowerCleanedStringFilterValues(filter.CVEIDs),
+		factimpact.LowerSubjectDigests: lowerCleanedStringFilterValues(filter.SubjectDigests),
+		factimpact.LowerRepositoryIDs:  lowerCleanedStringFilterValues(filter.RepositoryIDs),
+		factimpact.LowerAdvisoryIDs:    lowerCleanedStringFilterValues(filter.AdvisoryIDs),
+		factimpact.SuppressionLimit:    maxSupplyChainImpactActiveEvidenceRowsPerCall + 1,
+	}
+}
+
+// supplyChainImpactBranchRuns reports whether any input gating the branch is
+// a non-empty list. A branch whose gating lists are all empty matches nothing.
+func supplyChainImpactBranchRuns(branch factimpact.Branch, values map[factimpact.Param]any) bool {
+	for _, param := range branch.RunWhen {
+		if list, ok := values[param].([]string); ok && len(list) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+type supplyChainImpactBranchRow struct{ id, kind string }
+
+func supplyChainImpactBranchRows(
+	ctx context.Context,
+	queryer db.Queryer,
+	branch factimpact.Branch,
+	values map[factimpact.Param]any,
+) ([]supplyChainImpactBranchRow, error) {
+	args := make([]any, 0, len(branch.Params))
+	for _, param := range branch.Params {
+		args = append(args, values[param])
+	}
+	rows, err := queryer.QueryContext(ctx, branch.SQL, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list active supply chain impact facts: branch %s: %w", branch.Name, err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []supplyChainImpactBranchRow
+	for rows.Next() {
+		var row supplyChainImpactBranchRow
+		if err := rows.Scan(&row.id, &row.kind); err != nil {
+			return nil, fmt.Errorf("list active supply chain impact facts: branch %s: %w", branch.Name, err)
+		}
+		if row.id == "" {
+			return nil, fmt.Errorf("list active supply chain impact facts: branch %s returned an empty fact ID", branch.Name)
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list active supply chain impact facts: branch %s: %w", branch.Name, err)
+	}
+	return out, nil
+}
+
+// resolveSupplyChainImpactScopes returns the active scope IDs a repository
+// list names through the scope arms, with each scope's active generation ID
+// at the same position; an empty list issues no statement.
+func (s FactStore) resolveSupplyChainImpactScopes(
+	ctx context.Context,
+	queryer db.Queryer,
+	repositoryIDs []string,
+	stats *supplychaincore.SupplyChainImpactActiveEvidenceLoadStats,
+) ([]string, []string, error) {
+	if len(repositoryIDs) == 0 {
+		return nil, nil, nil
+	}
+	started := time.Now()
+	rows, err := queryer.QueryContext(ctx, factimpact.ScopeResolutionSQL, repositoryIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list active supply chain impact facts: resolve scopes: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var scopes, generations []string
+	for rows.Next() {
+		var scopeID, generationID string
+		if err := rows.Scan(&scopeID, &generationID); err != nil {
+			return nil, nil, fmt.Errorf("list active supply chain impact facts: resolve scopes: %w", err)
+		}
+		scopes = append(scopes, scopeID)
+		generations = append(generations, generationID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("list active supply chain impact facts: resolve scopes: %w", err)
+	}
+	stats.Branches = append(stats.Branches, supplychaincore.SupplyChainImpactActiveEvidenceBranchStat{
+		Branch: supplychaincore.SupplyChainImpactActiveEvidenceScopeResolution, Rows: len(scopes), Duration: time.Since(started),
+	})
+	return scopes, generations, nil
+}
+
+func normalizeSupplyChainImpactFactFilter(filter *supplychaincore.SupplyChainImpactFactFilter) {
+	filter.PackageIDs = cleanStringFilterValues(filter.PackageIDs)
+	filter.PURLs = cleanStringFilterValues(filter.PURLs)
+	filter.CVEIDs = cleanStringFilterValues(filter.CVEIDs)
+	filter.AdvisoryIDs = cleanStringFilterValues(filter.AdvisoryIDs)
+	filter.SubjectDigests = cleanStringFilterValues(filter.SubjectDigests)
+	filter.DocumentIDs = cleanStringFilterValues(filter.DocumentIDs)
+	filter.ProductCriteria = cleanStringFilterValues(filter.ProductCriteria)
+	filter.RepositoryIDs = cleanStringFilterValues(filter.RepositoryIDs)
+	filter.FileRepositoryIDs = cleanStringFilterValues(filter.FileRepositoryIDs)
+	filter.ImageRefs = cleanStringFilterValues(filter.ImageRefs)
+}
+
+func supplyChainImpactFactFilterEmpty(filter supplychaincore.SupplyChainImpactFactFilter) bool {
+	return len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
+		len(filter.CVEIDs) == 0 && len(filter.AdvisoryIDs) == 0 && len(filter.SubjectDigests) == 0 &&
+		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 &&
+		len(filter.RepositoryIDs) == 0 && len(filter.FileRepositoryIDs) == 0 &&
+		len(filter.ImageRefs) == 0
 }

@@ -6,15 +6,17 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -32,85 +34,94 @@ const (
 	fileKindGateProofCVE           = "CVE-2026-52370"
 )
 
-// TestSupplyChainImpactFileKindGateLive executes the statement the reducer
-// actually runs -- listActiveSupplyChainImpactFactPagesQuery, bound exactly as
-// loadActiveSupplyChainImpactFactPagePair binds it -- against real Postgres,
-// and proves the two things the #5237 gate is accepted on:
+// TestSupplyChainImpactFileKindGateLive proves the #5237 gate on the #8880
+// loader against real Postgres:
 //
-//   - Exactness. For an empty $10 (a Maven intent), a NULL $10, and a
-//     non-empty $10 (an npm intent), the shipped statement returns byte-identical
-//     result sets to the same statement with the gate neutralised. The gate is
-//     derived out of the shipped constant rather than hand-copied, so the
-//     comparison cannot drift into comparing two stale strings.
-//   - Mechanism. With $10 empty, the shipped statement's buffer accesses are a
-//     small fraction of the ungated statement's. That is the detoast traffic the
-//     evidence note reports, measured here on a seeded corpus rather than only
-//     in a throwaway harness.
+//   - Exactness. For an empty FileRepositoryIDs (a Maven intent), a NULL one,
+//     and a populated one (an npm intent), the production loader returns the
+//     rows of the frozen pre-#8880 statement walked to exhaustion.
+//   - Mechanism. With FileRepositoryIDs empty the loader issues no file
+//     statement at all, and its statements touch a small fraction of the
+//     buffers the frozen statement does with the gate neutralised (the
+//     per-predicate detoast traffic the evidence note reports).
 //
-// Wall-clock ratios are deliberately not asserted: this runs on whatever
-// machine and container the operator has. Buffer counts are a property of the
-// plan and the data, so they hold across machines; the headline seconds stay in
-// docs/internal/evidence/5237-supply-chain-impact-file-fact-scan.md.
+// Wall-clock ratios are deliberately not asserted; buffer counts are a
+// property of the plan and the data.
 func TestSupplyChainImpactFileKindGateLive(t *testing.T) {
 	ctx, db := openFileKindGateProofDB(t)
 	applyFileKindGateProofDefinitions(t, ctx, db)
 	seedFileKindGateProofFacts(t, ctx, db)
-
-	shipped := listActiveSupplyChainImpactFactPagesQuery
-	ungated := fileKindGateProofUngatedQuery(t, shipped)
+	recorder := &supplyChainImpactRecordingDB{SQLDB: SQLDB{DB: db}}
 
 	repoScopes := []string{fileKindGateProofRepoScopeA, fileKindGateProofRepoScopeB}
 	for _, tc := range []struct {
 		name              string
-		fileRepositoryIDs any
+		fileRepositoryIDs []string
 		wantFileRows      bool
 	}{
-		{name: "maven intent binds an empty $10", fileRepositoryIDs: []string{}},
-		{name: "driver binds $10 as NULL", fileRepositoryIDs: nil},
-		{name: "npm intent binds a populated $10", fileRepositoryIDs: repoScopes, wantFileRows: true},
+		{name: "maven intent binds an empty FileRepositoryIDs", fileRepositoryIDs: []string{}},
+		{name: "nil FileRepositoryIDs", fileRepositoryIDs: nil},
+		{name: "npm intent binds populated FileRepositoryIDs", fileRepositoryIDs: repoScopes, wantFileRows: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			shippedRows := fileKindGateProofRows(t, ctx, db, shipped, tc.fileRepositoryIDs)
-			ungatedRows := fileKindGateProofRows(t, ctx, db, ungated, tc.fileRepositoryIDs)
-
-			if shippedRows != ungatedRows {
-				t.Fatalf(
-					"the #5237 gate changed the result set.\nshipped:\n%s\nungated:\n%s",
-					shippedRows, ungatedRows,
-				)
+			filter := fileKindGateProofFilter(tc.fileRepositoryIDs)
+			want, _ := walkSupplyChainImpactRetiredOracle(t, ctx, db, filter)
+			got, statements := supplyChainImpactProductionRows(t, ctx, recorder, filter)
+			if !reflect.DeepEqual(supplyChainImpactRowLines(t, got), supplyChainImpactRowLines(t, want)) {
+				t.Fatalf("the #8880 loader changed the #5237 result set\n%s",
+					supplyChainImpactLineDiff(supplyChainImpactRowLines(t, want), supplyChainImpactRowLines(t, got)))
 			}
-			if !strings.Contains(shippedRows, "fact:osv:purl") ||
-				!strings.Contains(shippedRows, "fact:osv:cve") {
-				t.Fatalf("both variants lost the seeded OSV evidence:\n%s", shippedRows)
+			gotFileRows := false
+			for _, row := range got.Rows {
+				gotFileRows = gotFileRows || row.FactKind == "file"
 			}
-			if gotFileRows := strings.Contains(shippedRows, "|file"); gotFileRows != tc.wantFileRows {
-				t.Fatalf("file rows present = %v, want %v:\n%s", gotFileRows, tc.wantFileRows, shippedRows)
+			if gotFileRows != tc.wantFileRows {
+				t.Fatalf("file rows present = %v, want %v", gotFileRows, tc.wantFileRows)
+			}
+			if !tc.wantFileRows {
+				for _, statement := range statements {
+					if strings.Contains(statement.Query, factimpact.JSTSLanguagePredicate+"\n      AND fact.payload->>'repo_id'") ||
+						strings.Contains(statement.Query, "fact.fact_kind = 'file'\n      AND fact.is_tombstone = FALSE") {
+						t.Fatalf("an intent without FileRepositoryIDs issued a file statement:\n%s", statement.Query)
+					}
+				}
 			}
 		})
 	}
 
-	shippedBuffers := fileKindGateProofBuffers(t, ctx, db, shipped, []string{})
-	ungatedBuffers := fileKindGateProofBuffers(t, ctx, db, ungated, []string{})
-	t.Logf(
-		"%d file facts across 2 repository scopes, Maven intent (empty $10): "+
-			"shipped buffers=%d, ungated buffers=%d (%.0fx)",
-		2*fileKindGateProofRepoFileFacts,
-		shippedBuffers, ungatedBuffers,
-		float64(ungatedBuffers)/float64(shippedBuffers),
-	)
-	if shippedBuffers*10 > ungatedBuffers {
-		t.Fatalf(
-			"gate saved less than 10x the buffer traffic: shipped=%d ungated=%d. "+
-				"#5237 rests on the gate removing the file rows before their TOASTed "+
-				"payloads are extracted once per ungated identity predicate",
-			shippedBuffers, ungatedBuffers,
-		)
+	filter := fileKindGateProofFilter([]string{})
+	_, statements := supplyChainImpactProductionRows(t, ctx, recorder, filter)
+	shipped, _ := supplyChainImpactStatementBuffers(t, ctx, db, statements, "force_generic_plan")
+	ungatedOracle := fileKindGateProofUngatedQuery(t, supplyChainImpactRetiredOracleQuery)
+	ungated, _ := supplyChainImpactStatementBuffers(t, ctx, db, []supplyChainImpactRecordedStatement{{
+		Query: ungatedOracle, Args: supplyChainImpactRetiredOracleArgs(normalizedSupplyChainImpactFilter(filter), "", false),
+	}}, "force_generic_plan")
+	t.Logf("%d file facts across 2 repository scopes, Maven intent: loader buffers=%d over %d statements, ungated retired statement buffers=%d (%.0fx)",
+		2*fileKindGateProofRepoFileFacts, shipped, len(statements), ungated, float64(ungated)/float64(max(shipped, 1)))
+	if shipped*10 > ungated {
+		t.Fatalf("loader saved less than 10x the buffer traffic: loader=%d ungated=%d", shipped, ungated)
 	}
 }
 
-// fileKindGateProofUngatedQuery returns the shipped statement with the #5237
-// conjunct neutralised, cut out of the shipped constant so the "before" side of
-// the differential can never drift into a stale hand-copied query.
+// fileKindGateProofFilter is the single-package Maven filter with the given
+// FileRepositoryIDs.
+func fileKindGateProofFilter(fileRepositoryIDs []string) supplychaincore.SupplyChainImpactFactFilter {
+	return supplychaincore.SupplyChainImpactFactFilter{
+		PURLs:             []string{fileKindGateProofPURL},
+		CVEIDs:            []string{fileKindGateProofCVE},
+		FileRepositoryIDs: fileRepositoryIDs,
+	}
+}
+
+// normalizedSupplyChainImpactFilter returns the filter the loader binds.
+func normalizedSupplyChainImpactFilter(filter supplychaincore.SupplyChainImpactFactFilter) supplychaincore.SupplyChainImpactFactFilter {
+	normalizeSupplyChainImpactFactFilter(&filter)
+	return filter
+}
+
+// fileKindGateProofUngatedQuery returns the frozen retired statement with the
+// #5237 conjunct neutralised, cut out of the frozen text so the "before" side
+// of the mechanism proof cannot drift into a stale hand-copied query.
 //
 // It anchors on the conjunct's opening rather than its full text and replaces
 // the whole line. That is deliberate: an anchor on the exact guard expression
@@ -135,106 +146,6 @@ func fileKindGateProofUngatedQuery(t *testing.T, shipped string) string {
 		t.Fatalf("the #5237 file-kind conjunct at offset %d does not end in a newline", at)
 	}
 	return shipped[:at] + "AND TRUE" + shipped[at+end:]
-}
-
-// fileKindGateProofRows returns one line per returned row, in the order the
-// statement produced it, so a differential failure prints what actually
-// differed instead of a bare count.
-func fileKindGateProofRows(
-	t *testing.T,
-	ctx context.Context,
-	db *sql.DB,
-	query string,
-	fileRepositoryIDs any,
-) string {
-	t.Helper()
-
-	rows, err := db.QueryContext(
-		ctx,
-		"SELECT stream_rank, stream_ordinal, fact_id, fact_kind FROM ("+query+") AS selected",
-		fileKindGateProofArgs(fileRepositoryIDs)...,
-	)
-	if err != nil {
-		t.Fatalf("run supply-chain impact page query: %v", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	var lines []string
-	for rows.Next() {
-		var (
-			rank     int
-			ordinal  int64
-			factID   string
-			factKind string
-		)
-		if err := rows.Scan(&rank, &ordinal, &factID, &factKind); err != nil {
-			t.Fatalf("scan supply-chain impact row: %v", err)
-		}
-		lines = append(lines, fmt.Sprintf("%d|%d|%s|%s", rank, ordinal, factID, factKind))
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate supply-chain impact rows: %v", err)
-	}
-	return strings.Join(lines, "\n")
-}
-
-// fileKindGateProofBuffers reports total shared buffer accesses for one warm
-// execution, the counter the #5237 evidence note reports as the mechanism.
-func fileKindGateProofBuffers(
-	t *testing.T,
-	ctx context.Context,
-	db *sql.DB,
-	query string,
-	fileRepositoryIDs any,
-) int64 {
-	t.Helper()
-
-	var buffers int64
-	// Run twice and keep the second: the first execution pays the cold reads
-	// that would otherwise land in whichever variant ran first.
-	for run := 0; run < 2; run++ {
-		var raw []byte
-		if err := db.QueryRowContext(
-			ctx,
-			"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+query,
-			fileKindGateProofArgs(fileRepositoryIDs)...,
-		).Scan(&raw); err != nil {
-			t.Fatalf("EXPLAIN supply-chain impact page query: %v", err)
-		}
-		var decoded []struct {
-			Plan struct {
-				SharedHitBlocks  int64 `json:"Shared Hit Blocks"`
-				SharedReadBlocks int64 `json:"Shared Read Blocks"`
-			} `json:"Plan"`
-		}
-		if err := json.Unmarshal(raw, &decoded); err != nil {
-			t.Fatalf("decode EXPLAIN output: %v", err)
-		}
-		if len(decoded) != 1 {
-			t.Fatalf("EXPLAIN plans = %d, want 1", len(decoded))
-		}
-		buffers = decoded[0].Plan.SharedHitBlocks + decoded[0].Plan.SharedReadBlocks
-	}
-	return buffers
-}
-
-// fileKindGateProofArgs binds the 21 placeholders exactly as
-// loadActiveSupplyChainImpactFactPagePair binds them for a single-package
-// intent: the Maven PURL and its CVE in the identity slots, everything else
-// empty, and $10 (FileRepositoryIDs) supplied by the caller.
-func fileKindGateProofArgs(fileRepositoryIDs any) []any {
-	empty := []string{}
-	purls := []string{fileKindGateProofPURL}
-	cves := []string{fileKindGateProofCVE}
-	return []any{
-		empty, purls, cves, empty, empty, empty,
-		empty, empty, empty, fileRepositoryIDs, "", 1_000,
-		empty,
-		lowerCleanedStringFilterValues(purls),
-		lowerCleanedStringFilterValues(cves),
-		empty, empty, empty,
-		false, "", 1_000,
-	}
 }
 
 func openFileKindGateProofDB(t *testing.T) (context.Context, *sql.DB) {
@@ -301,15 +212,7 @@ func applyFileKindGateProofDefinitions(t *testing.T, ctx context.Context, db *sq
 		"container_image_identity_current_facts_function":         true,
 		"container_image_identity_current_support_facts_function": true,
 	}
-	var definitions []Definition
-	for _, definition := range BootstrapDefinitions() {
-		if required[definition.Name] {
-			definitions = append(definitions, definition)
-		}
-	}
-	if len(definitions) != len(required) {
-		t.Fatalf("isolated schema definitions = %d, want %d", len(definitions), len(required))
-	}
+	definitions := supplyChainImpactDefinitionsWithAnchors(t, required)
 	if err := ApplyDefinitions(ctx, SQLDB{DB: db}, definitions); err != nil {
 		t.Fatalf("apply isolated Postgres schema: %v", err)
 	}

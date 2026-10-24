@@ -144,6 +144,9 @@ gates:
       - "scripts/ci/live-postgres-readiness-job-summary.sh"
       - "scripts/ci/test-live-postgres-readiness-job-summary.sh"
       - "scripts/lib/live_postgres_readiness_shards.py"
+      - "scripts/lib/live_postgres_readiness_weights*.py"
+      - "scripts/lib/live_postgres_readiness_balance_cases.py"
+      - "specs/live-postgres-readiness-weights.v1.json"
       - "scripts/test-live-postgres-readiness-shards.py"
       - "scripts/test-live-postgres-readiness-helper.py"
       - "scripts/lib/verify-live-tests-ledger.py"
@@ -167,9 +170,14 @@ gates:
       - "scripts/lib/live_postgres_readiness_records.py"
       - "scripts/lib/live_postgres_readiness_inventory*.py"
       - "scripts/run-live-postgres-readiness-tests.sh"
+      - "scripts/lib/live_postgres_readiness_shards.py"
+      - "scripts/lib/live_postgres_readiness_weights*.py"
+      - "scripts/lib/live_postgres_readiness_balance_cases.py"
+      - "specs/live-postgres-readiness-weights.v1.json"
+      - "scripts/test-live-postgres-readiness-shards.py"
     local:
       command: "bash scripts/test-run-live-postgres-readiness-tests.sh"
-      test_command: "bash scripts/test-run-live-postgres-readiness-selftest-seeds.sh && python3 scripts/test-live-postgres-readiness-helper.py && bash scripts/ci/test-live-postgres-readiness-job-summary.sh"
+      test_command: "bash scripts/test-run-live-postgres-readiness-selftest-seeds.sh && python3 scripts/test-live-postgres-readiness-helper.py && python3 scripts/test-live-postgres-readiness-shards.py && bash scripts/ci/test-live-postgres-readiness-job-summary.sh"
       pre_push: floor
     ci:
       workflow: live-postgres-readiness.yml
@@ -180,6 +188,33 @@ gates:
     requirements:
       - go
       - postgres
+    ci_only_reason: ""
+
+  - id: live-postgres-readiness-shard-mirror
+    name: Live PostgreSQL readiness shard contract (time-weighted cut)
+    category: exactness
+    layer: contract
+    purpose: "Runs the shard contract without Docker: the weighted cut, the 80% budget and drift gates, the exact-union accounting, and the weights refresher."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/lib/live_postgres_readiness_inventory*.py"
+      - "scripts/lib/live_postgres_readiness_records.py"
+      - "scripts/lib/live_postgres_readiness_results.py"
+      - "scripts/lib/live_postgres_readiness_shards.py"
+      - "scripts/lib/live_postgres_readiness_weights*.py"
+      - "scripts/lib/live_postgres_readiness_balance_cases.py"
+      - "specs/live-postgres-readiness-weights.v1.json"
+      - "scripts/test-live-postgres-readiness-shards.py"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/workflows/live-postgres-readiness.yml"
+    local:
+      command: "python3 scripts/test-live-postgres-readiness-shards.py"
+    ci:
+      workflow: live-postgres-readiness.yml
+      job: "live-postgres-readiness hermetic"
+    requirements: []
     ci_only_reason: ""
 
   - id: live-postgres-migrations

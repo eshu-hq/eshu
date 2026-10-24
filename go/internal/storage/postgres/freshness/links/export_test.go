@@ -36,3 +36,7 @@ const (
 	JournalLockSlotForTest = journalLockSlot
 	TrySlotQueryForTest    = trySlotQuery
 )
+
+// JournalActiveGenerationsQueryForTest exposes the sweeper statement so the
+// chain-wait test can derive its stalled variant from the shipped one (#8932).
+const JournalActiveGenerationsQueryForTest = journalActiveGenerationsQuery

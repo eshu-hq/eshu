@@ -4,29 +4,34 @@
 package postgres
 
 import (
+	"context"
 	"reflect"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
+	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
+	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
+	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
+	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
+	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
+	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 )
 
-// supplyChainImpactUngatedIdentityPayloadKeys are the payload keys
-// listActiveSupplyChainImpactFactsQuery compares WITHOUT first narrowing to a
-// fact kind. Every row the query visits — including every `file` row in every
-// active scope — pays one JSONB extraction per key in this list, and each
-// extraction detoasts the whole payload again.
+// supplyChainImpactUngatedIdentityPayloadKeys are the payload keys the
+// retired predicate compares WITHOUT first narrowing to a fact kind. The
+// #8880 catalog keeps that predicate verbatim in the foreign-key guard
+// statement, so the set is derived from the guard SQL.
 //
-// This list is the premise the #5237 file-kind gate rests on: if a `file`
-// fact could carry any of these keys, skipping `file` rows when
-// $10 (FileRepositoryIDs) is empty would drop a row the shipped query
-// returns. TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey pins that
-// premise against the file fact contract, and
-// TestSupplyChainImpactUngatedIdentityKeysStayInLockstepWithQuery pins this
-// list itself against the shipped query in both directions — it derives the
-// ungated set from the SQL rather than spot-checking the entries, so a NEW
-// ungated predicate fails the build instead of quietly escaping the premise.
+// This list is the premise the #5237 file-kind gate rests on: a `file` fact
+// carrying one of these keys would be selected only through the guard, which
+// keeps the gate. TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey
+// pins the file contract against the keys the guard admits file rows on.
 var supplyChainImpactUngatedIdentityPayloadKeys = []string{
 	"package_id",
 	"purl",
@@ -43,35 +48,31 @@ var supplyChainImpactUngatedIdentityPayloadKeys = []string{
 	"image_ref",
 }
 
+// supplyChainImpactPlaceholder returns the $n a branch binds a Param at.
+func supplyChainImpactPlaceholder(t *testing.T, branch factimpact.Branch, param factimpact.Param) string {
+	t.Helper()
+	for i, bound := range branch.Params {
+		if bound == param {
+			return "$" + strconv.Itoa(i+1) + "::text[]"
+		}
+	}
+	t.Fatalf("branch %s does not bind param %d", branch.Name, param)
+	return ""
+}
+
 // TestSupplyChainImpactUngatedIdentityKeysStayInLockstepWithQuery fails when
-// the shipped disjunction's ungated key set drifts from the list above in
-// EITHER direction: a listed key removed or renamed, and — the direction that
-// actually breaks the gate — a NEW ungated predicate added.
-//
-// The expected set is DERIVED from the shipped query constant by
-// supplyChainImpactUngatedIdentityKeysInQuery rather than re-asserted key by
-// key, because a one-directional "every listed key still appears" check cannot
-// see an addition. An ungated predicate added on a key a `file` fact does carry
-// (`relative_path`, say) would make the #5237 gate drop rows the ungated query
-// returns, and a forward-only check stays green through it.
+// the guard statement's ungated key set drifts from the list above in EITHER
+// direction. The expected set is DERIVED from the shipped SQL, so a new
+// ungated predicate fails the build instead of quietly escaping the premise.
 func TestSupplyChainImpactUngatedIdentityKeysStayInLockstepWithQuery(t *testing.T) {
 	t.Parallel()
 
-	derived := supplyChainImpactUngatedIdentityKeysInQuery(t, listActiveSupplyChainImpactFactsQuery)
-
+	guard := supplyChainImpactBranch(t, "foreign_key_guard")
+	derived := supplyChainImpactUngatedIdentityKeysInQuery(t, guard.SQL, supplyChainImpactPlaceholder(t, guard, factimpact.FileRepositoryIDs))
 	declared := append([]string(nil), supplyChainImpactUngatedIdentityPayloadKeys...)
 	sort.Strings(declared)
-
 	if !reflect.DeepEqual(derived, declared) {
-		t.Errorf(
-			"ungated identity predicate set drifted from the declared list.\n"+
-				"derived from query: %v\ndeclared in test:   %v\n"+
-				"Every key in the derived set is compared against EVERY row the query visits, "+
-				"including every `file` row. Add or remove keys in "+
-				"supplyChainImpactUngatedIdentityPayloadKeys to match, and re-check the #5237 "+
-				"file-kind gate's exactness premise against the new set.",
-			derived, declared,
-		)
+		t.Errorf("ungated identity predicate set drifted from the declared list.\nderived from guard: %v\ndeclared in test:   %v", derived, declared)
 	}
 }
 
@@ -89,7 +90,7 @@ func TestSupplyChainImpactUngatedIdentityKeysStayInLockstepWithQuery(t *testing.
 //     must also carry the $10 guard, which is what makes the gate exact;
 //   - no such restriction means the predicate runs for every `file` row, so the
 //     key is ungated and belongs in the declared list.
-func supplyChainImpactUngatedIdentityKeysInQuery(t *testing.T, query string) []string {
+func supplyChainImpactUngatedIdentityKeysInQuery(t *testing.T, query, filePlaceholder string) []string {
 	t.Helper()
 
 	// Derive from the statement Postgres actually executes. Parsing the raw
@@ -113,7 +114,7 @@ func supplyChainImpactUngatedIdentityKeysInQuery(t *testing.T, query string) []s
 			}
 			key := query[offset : offset+end]
 
-			if !supplyChainImpactPredicateIsUnreachableForFileRow(t, query, at) {
+			if !supplyChainImpactPredicateIsUnreachableForFileRow(t, query, at, filePlaceholder) {
 				seen[key] = struct{}{}
 			}
 		}
@@ -130,7 +131,7 @@ func supplyChainImpactUngatedIdentityKeysInQuery(t *testing.T, query string) []s
 // supplyChainImpactPredicateIsUnreachableForFileRow reports whether an
 // enclosing group keeps the predicate at `at` from ever selecting a `file` row
 // once the #5237 gate is in place.
-func supplyChainImpactPredicateIsUnreachableForFileRow(t *testing.T, query string, at int) bool {
+func supplyChainImpactPredicateIsUnreachableForFileRow(t *testing.T, query string, at int, filePlaceholder string) bool {
 	t.Helper()
 
 	for cursor := at; ; {
@@ -153,11 +154,11 @@ func supplyChainImpactPredicateIsUnreachableForFileRow(t *testing.T, query strin
 			}
 			// The file branch: exact only because it also requires $10.
 			group := query[open:supplyChainImpactGroupClose(t, query, open)]
-			if !strings.Contains(group, "$10::text[]") {
+			if !strings.Contains(group, filePlaceholder) {
 				t.Errorf(
-					"a fact_kind = 'file' branch at offset %d does not filter on $10; "+
-						"the #5237 gate would skip rows this branch can still match",
-					open,
+					"a fact_kind = 'file' group at offset %d does not filter on FileRepositoryIDs (%s); "+
+						"the #5237 gate would skip rows this group can still match",
+					open, filePlaceholder,
 				)
 			}
 			return true
@@ -217,86 +218,109 @@ func supplyChainImpactGroupClose(t *testing.T, query string, open int) int {
 	return 0
 }
 
-// TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey pins the premise the
-// #5237 file-kind gate depends on: a `file` fact's payload contract carries
-// none of the identity keys the ungated predicates compare, so a `file` row can
-// only ever be selected through the query's own `fact_kind = 'file'` branch —
-// which requires $10 (FileRepositoryIDs) to be non-empty.
-//
-// If a future contract change adds one of those keys to the file payload, this
-// test fails and points at the gate that must be revisited, rather than letting
-// the gate start dropping rows the query used to return.
+// supplyChainImpactJSONKeys returns a payload struct's top-level JSON keys.
+func supplyChainImpactJSONKeys(value any) []string {
+	var keys []string
+	typ := reflect.TypeOf(value)
+	for i := 0; i < typ.NumField(); i++ {
+		name := strings.TrimSpace(strings.Split(typ.Field(i).Tag.Get("json"), ",")[0])
+		if name != "" && name != "-" {
+			keys = append(keys, name)
+		}
+	}
+	return keys
+}
+
+// TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey pins the premise
+// the guard index rests on for `file`: the file contract carries none of the
+// keys the guard admits file rows on, so the guard holds no file rows and the
+// file branches (JS/TS repo_id probe and resolved scopes) serve every file
+// match. A contract change that adds one fails here before the guard fills.
 func TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey(t *testing.T) {
 	t.Parallel()
 
-	ungated := make(map[string]struct{}, len(supplyChainImpactUngatedIdentityPayloadKeys))
+	guarded := factimpact.OmittedKeys(factimpact.KindFile)
 	for _, key := range supplyChainImpactUngatedIdentityPayloadKeys {
-		ungated[key] = struct{}{}
-	}
-
-	fileType := reflect.TypeOf(codegraphv1.File{})
-	for i := 0; i < fileType.NumField(); i++ {
-		tag := fileType.Field(i).Tag.Get("json")
-		name := strings.TrimSpace(strings.Split(tag, ",")[0])
-		if name == "" || name == "-" {
-			continue
+		if !slices.Contains(guarded, key) {
+			t.Fatalf("ungated key %s is probed for file rows; the guard premise changed", key)
 		}
-		if _, clash := ungated[name]; clash {
-			t.Errorf(
-				"file fact payload key %q is also an ungated supply-chain identity predicate: "+
-					"the #5237 file-kind gate in listActiveSupplyChainImpactFactsQuery would now drop "+
-					"rows the query returns and must be revisited",
-				name,
-			)
+	}
+	for _, key := range supplyChainImpactJSONKeys(codegraphv1.File{}) {
+		if slices.Contains(guarded, key) {
+			t.Errorf("file fact payload key %q is a guarded identity key: every file row would land in the foreign-key guard index", key)
+		}
+	}
+}
+
+// TestSupplyChainImpactGrowthContractsCarryNoGuardedKey is the #5237-style
+// lockstep for the growth kinds (#8880 ruling 1.4): no factschema contract
+// carries a key the guard admits its kind on. The guard keeps the row set
+// exact either way; this keeps the guard index empty and fails the build when
+// a contract grows a key its branch does not probe.
+func TestSupplyChainImpactGrowthContractsCarryNoGuardedKey(t *testing.T) {
+	t.Parallel()
+
+	for kind, contract := range map[string]any{
+		factimpact.KindCVE:                    vulnerabilityv1.CVE{},
+		factimpact.KindAffectedPackage:        vulnerabilityv1.AffectedPackage{},
+		factimpact.KindAffectedProduct:        vulnerabilityv1.AffectedProduct{},
+		factimpact.KindEPSSScore:              vulnerabilityv1.EPSSScore{},
+		factimpact.KindKnownExploited:         vulnerabilityv1.KnownExploited{},
+		factimpact.KindSecurityAlert:          securityalertv1.RepositoryAlert{},
+		factimpact.KindPackageVersion:         packageregistryv1.PackageVersion{},
+		factimpact.KindVulnerabilityHint:      packageregistryv1.VulnerabilityHint{},
+		factimpact.KindSBOMComponent:          sbomv1.Component{},
+		factimpact.KindOCIImageManifest:       ociregistryv1.ImageManifest{},
+		factimpact.KindOCIImageIndex:          ociregistryv1.ImageIndex{},
+		factimpact.KindOCIImageTagObservation: ociregistryv1.TagObservation{},
+		factimpact.KindOCIImageReferrer:       ociregistryv1.ImageReferrer{},
+		factimpact.KindPackageConsumption:     reducerderivedv1.PackageConsumptionCorrelation{},
+	} {
+		guarded := factimpact.OmittedKeys(kind)
+		for _, key := range supplyChainImpactJSONKeys(contract) {
+			if slices.Contains(guarded, key) {
+				t.Errorf("%s contract carries %q, which its branches do not probe: add a key probe or reclassify the kind", kind, key)
+			}
 		}
 	}
 }
 
 // TestListActiveSupplyChainImpactFactsGatesFileKindOnFileRepositoryIDs is the
-// #5237 regression guard. `file` is in the query's scanned fact-kind list only
-// to serve the JS/TS reachability branch, and that branch cannot match unless
-// $10 (FileRepositoryIDs) is non-empty. $10 is populated only for npm-ecosystem
-// affected packages (npmAffectedPackages in
-// go/internal/reducer/supplychain/core/active_filter.go), so without this
-// gate every non-npm intent reads and detoasts every `file` payload in every
-// active scope for nothing.
+// #5237 regression guard on the #8880 catalog: with FileRepositoryIDs empty no
+// file statement is issued, and the guard keeps the gate conjunct ahead of
+// the retired predicate, as a sibling conjunct, never as one more arm.
 func TestListActiveSupplyChainImpactFactsGatesFileKindOnFileRepositoryIDs(t *testing.T) {
 	t.Parallel()
 
-	const gate = "AND (fact.fact_kind <> 'file' OR COALESCE(cardinality($10::text[]), 0) > 0)"
-	if !strings.Contains(listActiveSupplyChainImpactFactsQuery, gate) {
-		t.Fatalf("query is missing the #5237 file-kind gate %q", gate)
+	guard := supplyChainImpactBranch(t, "foreign_key_guard")
+	gate := "(fact.fact_kind <> 'file' OR COALESCE(cardinality(" + supplyChainImpactPlaceholder(t, guard, factimpact.FileRepositoryIDs) + "), 0) > 0)"
+	gateAt := strings.Index(guard.SQL, gate)
+	disjunctionAt := strings.Index(guard.SQL, "fact.payload->>'package_id' = ANY(")
+	if gateAt < 0 || disjunctionAt < 0 || gateAt > disjunctionAt {
+		t.Fatalf("guard must carry the #5237 gate as a conjunct before the retired predicate (gate at %d, predicate at %d):\n%s", gateAt, disjunctionAt, guard.SQL)
 	}
 
-	gateAt := strings.Index(listActiveSupplyChainImpactFactsQuery, gate)
-	disjunctionAt := strings.Index(listActiveSupplyChainImpactFactsQuery, "fact.payload->>'package_id' = ANY($1::text[])")
-	if disjunctionAt < 0 {
-		t.Fatal("query no longer contains the package_id identity predicate")
+	routed := &supplyChainImpactRoutingDB{scopes: map[string][2]string{"repository:a": {"git:a", "gen:a"}}}
+	if _, _, err := NewFactStore(routed).ListActiveSupplyChainImpactFacts(context.Background(), supplychaincore.SupplyChainImpactFactFilter{
+		PURLs: []string{"pkg:maven/org.example/lib@1.0.0"}, CVEIDs: []string{"CVE-2026-52370"},
+	}); err != nil {
+		t.Fatalf("maven load: %v", err)
 	}
-	// The gate has to sit ahead of the disjunction as a sibling conjunct of it,
-	// never as one more branch inside it -- an OR'd `fact_kind <> 'file'` would
-	// admit every row of every other kind unconditionally and change what the
-	// query returns. Text order is what makes that structurally checkable here;
-	// it is not what makes the gate cheap. Postgres orders quals within a filter
-	// by its own cost estimate, and the evidence that it puts this cheap
-	// non-TOAST comparison first is the measured buffer drop (28,252,679 ->
-	// 14,737 in docs/internal/evidence/5237-supply-chain-impact-file-fact-scan.md),
-	// not this assertion.
-	if gateAt > disjunctionAt {
-		t.Errorf("file-kind gate must precede the identity disjunction as a conjunct of it, not a branch within it (gate at %d, disjunction at %d)", gateAt, disjunctionAt)
+	for _, label := range routed.labels() {
+		if label == "file_repo_id" || label == "file_scope" || label == "scope_resolution" {
+			t.Fatalf("maven intent issued %s; the #5237 gate requires no file statement without FileRepositoryIDs (calls %v)", label, routed.labels())
+		}
 	}
-
-	// The gate must bind the SAME placeholder the file branch filters on, or
-	// it would skip file rows the branch could still match.
-	fileBranchAt := strings.Index(listActiveSupplyChainImpactFactsQuery, "fact.fact_kind = 'file'")
-	if fileBranchAt < 0 {
-		t.Fatal("query no longer contains the file branch")
+	routed.calls = nil
+	if _, _, err := NewFactStore(routed).ListActiveSupplyChainImpactFacts(context.Background(), supplychaincore.SupplyChainImpactFactFilter{
+		PackageIDs: []string{"npm://registry.npmjs.org/axios"}, FileRepositoryIDs: []string{"repository:a"},
+	}); err != nil {
+		t.Fatalf("npm load: %v", err)
 	}
-	fileBranch := listActiveSupplyChainImpactFactsQuery[fileBranchAt:]
-	if end := strings.Index(fileBranch, "OR fact.payload->>'image_ref'"); end > 0 {
-		fileBranch = fileBranch[:end]
+	if len(routed.callsFor("file_repo_id")) != 1 || len(routed.callsFor("file_scope")) != 1 {
+		t.Fatalf("npm intent must issue the JS/TS repo_id and resolved-scope file statements once each: %v", routed.labels())
 	}
-	if !strings.Contains(fileBranch, "$10::text[]") {
-		t.Error("file branch no longer filters on $10; the gate's placeholder must match it")
+	if got := boundList(t, routed.callsFor("file_scope")[0], factimpact.FileRepositoryScopeIDs); !slices.Equal(got, []string{"git:a"}) {
+		t.Fatalf("file_scope bound scopes %v, want the resolved git:a", got)
 	}
 }

@@ -301,13 +301,15 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		subSignals[key] = value
 	}
 	subSignals["findings_retracted"] = float64(writeResult.FactsRetracted)
+	subDurations := supplyChainImpactSubDurations(timing)
+	loaded.activeEvidence.mergeInto(subSignals, subDurations)
 	return reducercontract.Result{
 		IntentID:        intent.IntentID,
 		Domain:          reducercontract.DomainSupplyChainImpact,
 		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: evidenceSummary,
 		CanonicalWrites: writeResult.CanonicalWrites,
-		SubDurations:    supplyChainImpactSubDurations(timing),
+		SubDurations:    subDurations,
 		SubSignals:      subSignals,
 	}, nil
 }

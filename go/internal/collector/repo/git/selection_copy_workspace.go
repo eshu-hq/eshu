@@ -81,6 +81,7 @@ var preservedHiddenFilesystemFileNames = map[string]struct{}{
 	".go-version":        {},
 	".sdkmanrc":          {},
 	".terraform-version": {},
+	".swift-version":     {},
 }
 
 // preserveFilesystemHiddenPath reports whether the managed-workspace copy keeps

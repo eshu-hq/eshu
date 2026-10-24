@@ -37,9 +37,21 @@ func (h SupplyChainImpactHandler) evaluationNow() time.Time {
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFacts(
 	ctx context.Context,
 	filter SupplyChainImpactFactFilter,
+	budget *supplyChainImpactEvidenceBudget,
 ) ([]facts.Envelope, bool, error) {
+	if filter.empty() {
+		return nil, false, nil
+	}
+	if statsLoader, ok := h.FactLoader.(activeSupplyChainImpactFactStatsLoader); ok {
+		envelopes, stats, err := statsLoader.ListActiveSupplyChainImpactFactsWithStats(ctx, filter)
+		if err != nil {
+			return nil, false, factload.ClassifyFactLoadError(err)
+		}
+		budget.recordActiveEvidence(stats)
+		return envelopes, stats.SuppressionTruncated, nil
+	}
 	loader, ok := h.FactLoader.(activeSupplyChainImpactFactLoader)
-	if !ok || filter.empty() {
+	if !ok {
 		return nil, false, nil
 	}
 	envelopes, suppressionTail, err := loader.ListActiveSupplyChainImpactFacts(ctx, filter)
@@ -78,7 +90,7 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 			truncation.rounds = true
 			return envelopes, truncation, nil
 		}
-		active, roundSuppressionTail, err := h.loadActiveSupplyChainImpactFacts(ctx, next)
+		active, roundSuppressionTail, err := h.loadActiveSupplyChainImpactFacts(ctx, next, budget)
 		if err != nil {
 			return nil, supplyChainImpactTruncation{}, err
 		}
@@ -247,7 +259,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactResolvedDigestEvidenceFac
 			chunkFilter = filter
 			chunkFilter.SubjectDigests = digests
 		}
-		chunk, chunkTail, err := h.loadActiveSupplyChainImpactFacts(ctx, chunkFilter)
+		chunk, chunkTail, err := h.loadActiveSupplyChainImpactFacts(ctx, chunkFilter, budget)
 		if err != nil {
 			return nil, false, err
 		}
@@ -296,7 +308,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactPeerIdentityFacts(
 			chunkFilter.RepositoryIDs = repositoryIDs
 			chunkFilter.SubjectDigests = nil
 		}
-		chunk, chunkTail, err := h.loadActiveSupplyChainImpactFacts(ctx, chunkFilter)
+		chunk, chunkTail, err := h.loadActiveSupplyChainImpactFacts(ctx, chunkFilter, budget)
 		if err != nil {
 			return nil, false, err
 		}

@@ -49,6 +49,9 @@ on:
       - 'scripts/lib/live_postgres_readiness_env.sh'
       - 'scripts/lib/live_postgres_readiness_records.py'
       - 'scripts/lib/live_postgres_readiness_shards.py'
+      - 'scripts/lib/live_postgres_readiness_weights*.py'
+      - 'scripts/lib/live_postgres_readiness_balance_cases.py'
+      - 'specs/live-postgres-readiness-weights.v1.json'
       - 'scripts/test-live-postgres-readiness-shards.py'
       - 'scripts/test-live-postgres-readiness-helper.py'
       - 'scripts/lib/live_postgres_readiness_events.py'
@@ -108,6 +111,9 @@ on:
       - 'scripts/lib/live_postgres_readiness_env.sh'
       - 'scripts/lib/live_postgres_readiness_records.py'
       - 'scripts/lib/live_postgres_readiness_shards.py'
+      - 'scripts/lib/live_postgres_readiness_weights*.py'
+      - 'scripts/lib/live_postgres_readiness_balance_cases.py'
+      - 'specs/live-postgres-readiness-weights.v1.json'
       - 'scripts/test-live-postgres-readiness-shards.py'
       - 'scripts/test-live-postgres-readiness-helper.py'
       - 'scripts/lib/live_postgres_readiness_events.py'
@@ -222,19 +228,19 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
-    # Interim 30-minute leg budget (#7864): the ledger-selected suite grows
-    # with enrollment. Each leg starts with a pinned quarter; the complete
-    # admin package is assigned to shard 4 under #8835's measured rebalance.
-    # Test walls alone
-    # predicted 12.6m, but real sharded runs showed the cold `go test` build
-    # of the giant storage package costs ~9m on slow runners: leg 2/4 needed
-    # 821s of suite for 249s of tests, and the heavy leg (impact plus the 53
-    # heaviest storage tests, ~22m decomposed need) timed out at 17m while a
-    # fast run finished every leg in 8-15m. 30m covers the decomposed slow-run
-    # need with margin at half the old 60m single-job cap. Five green sharded
-    # runs plus a build-cache investigation tighten this in a follow-up; a
-    # leg approaching the cap means split further or cache the build, never
-    # raise the cap to mask a hang.
+    # 30-minute leg budget (#7864). The ledger-selected suite grows with
+    # enrollment, so each leg runs one contiguous slice of the plan. The cuts
+    # are time-weighted (#8930): scripts/lib/live_postgres_readiness_weights.py
+    # minimises the longest leg from the committed per-test, per-package,
+    # cold-cache, and fixed-overhead seconds in
+    # specs/live-postgres-readiness-weights.v1.json, and the runner and the
+    # aggregate cut with that same file, so every proof lands in exactly one
+    # leg. A count split overflowed the cap: leg 1/4 held the slow storage
+    # tests (the giant storage package costs ~7m of compile per appearance)
+    # and ran 1716 to 1813 s while leg 4/4 ran 477 to 698 s. The shard
+    # contract test fails when any leg is predicted past 80% of this cap, so
+    # a leg approaching the cap means refresh the weights, split further, or
+    # cache the build, never raise the cap to mask a hang.
     timeout-minutes: 30
     services:
       postgres:
@@ -365,6 +371,8 @@ jobs:
           ESHU_STATUS_SUMMARY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DISPOSABLE: '1'
           ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_SUPPLY_CHAIN_IMPACT_EVIDENCE_PROOF_DISPOSABLE: '1'
+          ESHU_SUPPLY_CHAIN_IMPACT_EVIDENCE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_SUPPRESSION_PATHS_PROOF_DISPOSABLE: '1'
           ESHU_SUPPRESSION_PATHS_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE: '1'

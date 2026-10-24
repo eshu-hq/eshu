@@ -262,8 +262,8 @@ GitHub Dependabot alerts in one scope (`scope`, default `repository`) with one c
 - `scope: "repository"` polls `GET /repos/{owner}/{repo}/dependabot/alerts` and must include
   `repository` and `allowed_repositories`.
 - `scope: "org"` polls `GET /orgs/{org}/dependabot/alerts` and must include `organization` and
-  `allowed_repositories`, never `repository`. One org target fans out per-repository facts, so reducer
-  reconciliation matches the per-repository path.
+  `allowed_repositories`, never `repository`. A truncated org read falls back to bounded per-repository reads; see
+  [the org-scope window](security-intelligence-provider-alert-parity.md#org-scope-window-and-per-repository-fan-out).
 - `auth_mode: "token_env"` sends a static bearer token resolved once at process startup from `token_env`.
 - `auth_mode: "github_app"` mints an installation token per claim (never persisted, logged, or emitted)
   from `github_app_id_env`, `github_app_installation_id_env`, and `github_app_private_key_env`
