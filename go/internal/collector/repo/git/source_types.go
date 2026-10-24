@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
+	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -121,6 +122,12 @@ type RepositorySnapshot struct {
 	// an ordinary delta target. streamFacts reads them only for static image
 	// evidence, without creating source-local file or content rows.
 	WorkflowImageFileMetas []model.ContentFileMeta `json:"workflow_image_file_metas,omitempty"`
+	// ContentStores maps a repo-relative path to the non-store content-store
+	// policy its parser definition binds (#8812). It is sparse: a path that
+	// stores its body verbatim is absent, so the map is empty until a
+	// definition binds metadata or redact. streamFacts applies it to the body it
+	// re-reads from disk.
+	ContentStores map[string]parser.ContentStore `json:"content_stores,omitempty"`
 	// Delta marks snapshots that contain only file-scoped changes from a Git
 	// resync rather than a full repository view.
 	Delta bool `json:"delta,omitempty"`

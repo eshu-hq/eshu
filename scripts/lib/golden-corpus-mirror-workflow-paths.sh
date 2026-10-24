@@ -210,6 +210,11 @@ require_workflow_path "fact envelope decode adapter (#5538)" "go/internal/facten
 # content-relationships query shapes.
 require_workflow_path "GitHub Actions ref classification (#5538)" "go/internal/ghactionsref/**"
 
+# internal/secret/detect holds the hardcoded-secret detector pattern and finding
+# kinds. internal/query imports it as hardcodedSecretSQLPattern, so it is
+# compiled into the query layer the golden-corpus-gate binaries run.
+require_workflow_path "hardcoded-secret detector (#8812)" "go/internal/secret/**"
+
 # internal/workflowimage was deliberately left out of the prior widening round
 # ("sits adjacent to the container_image_identity lane") -- that call was also
 # wrong: collector/git_workflow_image_facts.go imports it directly to emit

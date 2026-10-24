@@ -19,3 +19,17 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
   result. Observation must never change the allow/deny outcome, and no observer
   or telemetry value may carry credentials, grant scope, config, or payloads.
   Keep the recheck hot path allocation-free beyond the observer call.
+- Every `NextClaimed` exit reports exactly one `ResultRecord` when the
+  recorder implements `ResultRecorder` (#8908). Add a new exit path only with
+  its row in `TestNextClaimedReportsOneResultForEveryFinalState`. Never add a
+  scope, instance, work item, generation, or URL field to `ResultRecord`, and
+  never label `StatusTelemetry` metrics with anything beyond `collector_kind`,
+  `state`, `status_class`, and `failure_class`.
+- A retryable result's delay comes only from `status.retry_after_seconds`,
+  clamped to `MaxRetryAfterDelay`; keep the clamp in seconds before the
+  multiply so no value overflows `time.Duration`.
+- `ResultRecord.RetryAfter`, the retry-after gauge, and the
+  `extension_status.retry_after_seconds` log key are the extension's capped
+  request, recorded before `ClaimedService` decides. Never document them as the
+  applied or honored delay: `ClaimedService` applies `max(PollInterval,
+  request)`, and none once the attempt budget is spent.

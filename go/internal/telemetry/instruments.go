@@ -600,6 +600,12 @@ type Instruments struct {
 	// PreparseIdentityDropped counts snapshots and fact streams that kept the
 	// pre-parse identity off a generation, by closed reason (review F-2, F-7).
 	PreparseIdentityDropped metric.Int64Counter
+
+	// ContentStorePolicyFiles counts files the git collector applied a
+	// non-store content-store policy to (#8812), labeled policy and outcome.
+	// outcome=redactor_failed means the file became a metadata row because the
+	// redactor failed; the raw body is never stored.
+	ContentStorePolicyFiles metric.Int64Counter
 	// ReconcileParseSkipPersistentDrops counts forced reconciles that skipped
 	// the parse while carrying the active generation's recorded stream drops
 	// (#8185): every recorded path still failed to open, so the skip replays
@@ -2686,6 +2692,21 @@ type Instruments struct {
 	// never a label. Record it through ProducerGrantDecisionRecorder, which
 	// pre-builds attribute sets so the per-emission recheck never allocates.
 	ProducerGrantDecisions metric.Int64Counter
+
+	// ComponentExtensionResults, ComponentExtensionStatusRecords,
+	// ComponentExtensionReportedFacts, ComponentExtensionReportedWarnings,
+	// ComponentExtensionSourceLatency, and ComponentExtensionRetryAfter are the
+	// #8908 component-extension status family: what an out-of-tree collector
+	// reported on each claim result. Labels are collector_kind, state,
+	// status_class, and failure_class only. Registered by
+	// registerComponentExtensionInstruments; record through
+	// ComponentExtensionStatusRecorder.
+	ComponentExtensionResults          metric.Int64Counter
+	ComponentExtensionStatusRecords    metric.Int64Counter
+	ComponentExtensionReportedFacts    metric.Int64Counter
+	ComponentExtensionReportedWarnings metric.Int64Counter
+	ComponentExtensionSourceLatency    metric.Float64Histogram
+	ComponentExtensionRetryAfter       metric.Float64Gauge
 
 	// Pipeline overlap metric — how long collector and projector ran concurrently
 	PipelineOverlapDuration metric.Float64Histogram
@@ -5988,8 +6009,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err := registerCompletionWakeInstruments(meter, inst); err != nil {
 		return nil, err
 	}
+	if err := registerComponentExtensionInstruments(meter, inst); err != nil {
+		return nil, err
+	}
 
 	if err := registerReconcileParseSkipDecisions(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerContentStorePolicyInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerProjectorDeltaBaselineFence(meter, inst); err != nil {

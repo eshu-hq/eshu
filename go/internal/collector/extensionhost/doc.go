@@ -26,4 +26,12 @@
 // event, and structured log keys without ever carrying credentials, grant
 // scope, or fact payloads. Observation is additive: a denied grant still fails
 // the result closed.
+//
+// StatusTelemetry is the production StatusRecorder (#8908). Through the
+// optional ResultRecorder interface the Source reports one ResultRecord per
+// claim, for every SDK state and host verdict, and StatusTelemetry turns status
+// rows and results into the eshu_dp_component_extension_* instruments and one
+// bounded log line, never labeling a scope, instance, or URL. A retryable
+// result's classified failure carries the largest status retry_after_seconds,
+// clamped to MaxRetryAfterDelay, as RetryAfterDelay for ClaimedService pacing.
 package extensionhost
