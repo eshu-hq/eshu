@@ -47,6 +47,22 @@ recent shipped work grouped by feature area.
   when its reconciliation sweep next comes due. Collector output for real
   repositories does not change.
 
+### MCP `initialize` negotiates the protocol version
+
+- **`initialize` echoes a supported requested protocol version**
+  ([#8800](https://github.com/eshu-hq/eshu/issues/8800)). The MCP lifecycle
+  rule says a server that supports the requested version answers with that
+  version, and otherwise answers with another version it supports. Eshu now
+  negotiates in one place for `POST /mcp/message`, SSE sessions, and stdio.
+  Eshu supports only `2024-11-05`, so every reply is still `2024-11-05`: it
+  does not implement Streamable HTTP or batching (`2025-03-26`) or the
+  `MCP-Protocol-Version` header (`2025-06-18`), and it does not claim them. A
+  request for another version, or none, is answered, not rejected, and is
+  logged once at info level. See the MCP reference, "Protocol version".
+- **The opt-in `structured` result shape is documented as shipped.** Earlier
+  notes said the second MCP copy stays "until #8800". The `structured` shape
+  from #8800 sends the result once, and it is opt-in: the default stays `dual`.
+
 ### Service story defaults to a bounded handles view over MCP
 
 - **`get_service_story` defaults to a bounded `handles` view**
@@ -59,8 +75,10 @@ recent shipped work grouped by feature area.
   fixture (35.7 percent of full). That single copy fits the 262,144-byte budget;
   the MCP result still carries the payload twice (290,970 bytes), so dispatch
   answers it as the resource copy alone and records
-  `eshu_dp_mcp_response_resource_fallback_total` until #8800 sends the result
-  once. Deployment artifact rows keep `id`, `relationship_type`, and
+  `eshu_dp_mcp_response_resource_fallback_total` for a connection on the
+  default `dual` shape. The opt-in `structured` shape
+  ([#8800](https://github.com/eshu-hq/eshu/issues/8800)) sends the result once;
+  the default stays `dual`. Deployment artifact rows keep `id`, `relationship_type`, and
   `resolved_id`; `get_relationship_evidence` by `resolved_id` returns the rest,
   including confidence. `handles` lists each reduced family in `truth.omissions`
   with its total. Each total is the story's own pre-cap count and may be a

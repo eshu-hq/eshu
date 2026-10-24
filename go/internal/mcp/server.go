@@ -258,11 +258,17 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHeader string) *jsonrpcResponse {
 	switch req.Method {
 	case "initialize":
+		requested := requestedProtocolVersion(req.Params)
+		negotiated := negotiateProtocolVersion(requested, supportedProtocolVersions)
+		if requested != negotiated {
+			s.logger.Info("mcp initialize requested an unsupported protocol version, answering with the server version",
+				"requested_protocol_version", truncateForLog(requested), "negotiated_protocol_version", negotiated)
+		}
 		return &jsonrpcResponse{
 			JSONRPC: "2.0",
 			ID:      req.ID,
 			Result: mcpInitializeResult{
-				ProtocolVersion: "2024-11-05",
+				ProtocolVersion: negotiated,
 				Capabilities: mcpCapabilities{
 					Tools: &mcpToolsCap{ListChanged: false},
 				},

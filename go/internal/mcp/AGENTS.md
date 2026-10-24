@@ -240,10 +240,16 @@
   (`server_sse.go:126`). Update `README.md`. Why: clients may have hard-coded
   assumptions about keepalive cadence.
 
-- **Change the MCP protocol version** → edit `ProtocolVersion` in
-  `handleMessage` (`server.go:242`). Check the MCP spec for backward
-  compatibility. Why: clients that cache `initialize` results may reject
-  version changes without a new session.
+- **Change the MCP protocol version** → edit `supportedProtocolVersions` in
+  `protocol_version.go`; `handleMessage` answers `initialize` through
+  `negotiateProtocolVersion` (echo a supported requested version, else the
+  latest supported). Add a version only together with the wire behavior that
+  revision requires (2025-03-26: Streamable HTTP and batching; 2025-06-18:
+  the `MCP-Protocol-Version` header), update the table in
+  `docs/public/reference/mcp-reference.md` ("Protocol version"), and keep
+  `TestSupportedProtocolVersionsAreOnlyThoseEshuImplements` honest. Why: a
+  server that claims a revision it does not implement breaks clients that
+  trust the negotiated version.
 
 ## Failure modes and how to debug
 
