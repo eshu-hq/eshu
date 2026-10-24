@@ -33,6 +33,12 @@ type RuntimeStatusJSON struct {
 	LastFailureOperation string `json:"last_failure_operation,omitempty"`
 	LastFailureTerminal  bool   `json:"last_failure_terminal,omitempty"`
 	LastFailureAt        string `json:"last_failure_at,omitempty"`
+	// LastFailureAcknowledged, LastFailureAcknowledgedAt, and
+	// LastFailureAcknowledgedReason describe an operator acknowledgement of
+	// that failure (#8830). They are omitted for an unacknowledged failure.
+	LastFailureAcknowledged       bool   `json:"last_failure_acknowledged,omitempty"`
+	LastFailureAcknowledgedAt     string `json:"last_failure_acknowledged_at,omitempty"`
+	LastFailureAcknowledgedReason string `json:"last_failure_acknowledged_reason,omitempty"`
 }
 
 func RuntimeStatusesJSON(rows []RuntimeStatus) []RuntimeStatusJSON {
@@ -61,6 +67,10 @@ func RuntimeStatusesJSON(rows []RuntimeStatus) []RuntimeStatusJSON {
 			LastFailureOperation:  row.LastFailureOperation,
 			LastFailureTerminal:   row.LastFailureTerminal,
 			LastFailureAt:         shared.NullableRFC3339Value(row.LastFailureAt),
+
+			LastFailureAcknowledged:       row.LastFailureAcknowledged,
+			LastFailureAcknowledgedAt:     shared.NullableRFC3339Value(row.LastFailureAcknowledgedAt),
+			LastFailureAcknowledgedReason: row.LastFailureAcknowledgedReason,
 		})
 	}
 	return projected

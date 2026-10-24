@@ -64,6 +64,14 @@ type RuntimeStatus struct {
 	LastFailureOperation string
 	LastFailureTerminal  bool
 	LastFailureAt        time.Time
+	// LastFailureAcknowledged marks a failure an operator acknowledged
+	// (#8830). The failure fields above still describe it, but it does not
+	// degrade the instance and is not a promotion blocker.
+	// LastFailureAcknowledgedAt and LastFailureAcknowledgedReason say when and
+	// why; they are zero when LastFailureAcknowledged is false.
+	LastFailureAcknowledged       bool
+	LastFailureAcknowledgedAt     time.Time
+	LastFailureAcknowledgedReason string
 }
 
 // RuntimeStatuses derives the shared collector runtime readback from
@@ -457,6 +465,9 @@ func RenderRuntimeStatusLines(rows []RuntimeStatus) []string {
 		}
 		if row.LastFailureTerminal {
 			line += fmt.Sprintf(" last_failure_class=%s last_failure_operation=%s", row.LastFailureClass, row.LastFailureOperation)
+			if row.LastFailureAcknowledged {
+				line += " last_failure_acknowledged=true"
+			}
 		}
 		lines = append(lines, line)
 	}
