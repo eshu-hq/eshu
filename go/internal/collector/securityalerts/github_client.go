@@ -148,7 +148,7 @@ func (e GitHubDependabotError) FailureClass() string {
 			(e.RateLimit.RemainingKnown && e.RateLimit.Remaining == 0) {
 			return GitHubDependabotFailureRateLimited
 		}
-		if e.AlertsDisabled {
+		if e.StatusCode == http.StatusForbidden && e.AlertsDisabled {
 			// A disabled Dependabot surface is a property of the target, not
 			// of the credential (#8947): it classifies as not_found.
 			return GitHubDependabotFailureNotFound

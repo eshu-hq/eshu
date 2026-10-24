@@ -117,3 +117,28 @@ func TestGitHubDependabotClientAlertsDisabled403IsTerminalNotFound(t *testing.T)
 		t.Fatalf("class = %q terminal = %t, want terminal not_found", failure.FailureClass(), failure.TerminalFailure())
 	}
 }
+
+// TestFailureClassIgnoresAlertsDisabledMarkerOffA403 pins that the marker is a
+// 403-only property even on a hand-built error: a 401 that somehow carries it
+// stays auth_denied, so readiness and the status_class metric still point at the
+// credential.
+func TestFailureClassIgnoresAlertsDisabledMarkerOffA403(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		status int
+		want   string
+	}{
+		{name: "403 with the marker", status: http.StatusForbidden, want: GitHubDependabotFailureNotFound},
+		{name: "401 with the marker", status: http.StatusUnauthorized, want: GitHubDependabotFailureAuthDenied},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := GitHubDependabotError{StatusCode: tt.status, AlertsDisabled: true}
+			if got := err.FailureClass(); got != tt.want {
+				t.Fatalf("FailureClass() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
