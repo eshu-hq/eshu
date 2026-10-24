@@ -25,7 +25,9 @@ const latestPrefix = "latest."
 //   - '@': the artifact-only notation ("1.0@jar").
 //   - ':': the string-notation separator. A version never holds one, so a
 //     ':' means a classifier or other notation text leaked into it.
-//   - a "latest." prefix in any letter case: a status selector.
+//   - a "latest." prefix in any letter case: a status selector. Gradle matches
+//     the prefix case-sensitively, so "LATEST.release" is an ordinary version
+//     string to Gradle; rejecting it here only errs toward unresolved.
 //
 // Exact applies no length cap; a caller with a field bound checks it first.
 func Exact(text string) bool {
