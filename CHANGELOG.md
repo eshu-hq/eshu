@@ -77,7 +77,10 @@ recent shipped work grouped by feature area.
   failing. `POST /api/v0/admin/collector-failures/acknowledge` and
   `eshu admin collector-failure acknowledge` record the acknowledgement for one
   instance and scope with a required reason and idempotency key, behind an admin
-  token, with one governance audit event per decision (migration 231). The
+  token, with one governance audit event per decision (migration 231).
+  `POST /api/v0/admin/collector-failures/query` and `eshu admin collector-failure
+  list` list the failed scopes of one instance, because no status surface carries
+  a scope id. The
   instance then reads `partial` with the blocker `terminal fetch failure
   acknowledged: <class> (<operation>)`, never healthy or implemented, and the
   failure stays visible as an `acknowledged_failure` object on collector status

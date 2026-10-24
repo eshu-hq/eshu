@@ -39,6 +39,18 @@ The acknowledgement stores the failure it saw, not a reference to the work item,
 so workflow work-item retention (#8829) can delete the failed row without
 touching it. There is no expiry and no sweeper.
 
+## List
+
+`ListTerminalFailures` (`collector_terminal_failure_list.go`) is the discovery read
+behind `POST /api/v0/admin/collector-failures/query`: for one instance it lists the
+newest unresolved failure per (scope, acknowledged) inside the instance's window,
+paged by scope id. It is the status read unrolled per scope and shares its window,
+`workflowTerminalFailureResolvedBy`, and `workflowTerminalFailureAckCovers`, so its
+unacknowledged items are what the status read's `u` lateral considers and its
+acknowledged items what the `a` lateral considers. Its completed probe adds a window
+bound (`s.updated_at >= cutoff`) of its own; without it the planner hashes every
+completed row of the instance (35 ms against 0.3 ms at 115,200 completed rows).
+
 ## Status read
 
 The `u` lateral returns the newest unresolved failure no acknowledgement covers.
