@@ -85,7 +85,9 @@ recent shipped work grouped by feature area.
   file TOML rejects yields no rows: a key tree checks every key and header
   with go-toml's rules, so `x = ...` with `x.module = ...` or a
   `[libraries.x]` sub-table, a `[versions]` alias that is also a rich version,
-  or a key repeated in any table or inline table is `malformed`. Plugin rows use `config_kind=gradle_plugin`, so the
+  or a key repeated in any table or inline table is `malformed`, and so is a
+  number or date value go-toml's decoder rejects (`1979-02-30`, an int64
+  overflow, `1e400`). Plugin rows use `config_kind=gradle_plugin`, so the
   package reducer ignores them. The parser refuses a file over 2 MiB, nesting
   over 16 levels, and rows past 5000 per table, and counts each. The TOML
   library overflows the stack on a one-million-level array, so the nesting

@@ -15,7 +15,9 @@
 // collides when it shares a normalized spelling or an accessor name (fooBar
 // and foo-bar) with another, including an alias written as a dotted key or a
 // sub-table, which emits no row. A file TOML rejects, including any key or
-// table defined twice in any table or form, yields no rows. See README.md for
+// table defined twice in any table or form, or a number, date or time value
+// go-toml's decoder cannot convert (an int64 overflow, 1979-02-30), yields no
+// rows. See README.md for
 // the grammar and the bounds on input size, nesting, dotted key segments and
 // row count.
 //

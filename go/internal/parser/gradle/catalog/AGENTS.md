@@ -10,6 +10,8 @@
 6. `depth.go` - `nestingExceeds`, the guard that runs before the TOML parser,
    and `keyBudget`, the key-segment bounds.
 7. `keys.go` - `keyTree`, which rejects any key or table defined twice.
+   `scalars.go` - `validScalar`, which rejects a number or date value
+   go-toml's decoder cannot convert.
 8. The parent hook `../../gradle_language.go` and the registry entry in
    `../../registry_definitions.go`.
 
@@ -64,6 +66,13 @@
   list scan in `smallInline`, which counts the table first so nothing is
   checked twice. The test reference for "is this valid TOML" is
   `tomlRejects`, a map decode, in tests only.
+- Every scalar value goes through `validScalar` in `keyTree.value`: an
+  integer past int64, a leading zero, a float strconv rejects, or a date or
+  time that does not exist makes the file `malformed`. It follows go-toml
+  v2.3.1's `decode.go`; if the go-toml pin moves, rerun
+  `TestScanRejectsExactlyTheScalarValuesTOMLRejects`, which compares every
+  case with a real map decode. Keep strings and booleans on the one-switch
+  path, and keep integers and dates free of allocation.
 - The package imports the standard library, `go-toml/v2/unstable` and
   `internal/parser/shared` only. Tests also import `go-toml/v2` for the
   `tomlRejects` reference.
@@ -131,3 +140,8 @@ repeated alias, a repeated catalog header or an exact repeat past the cap
 (each still `malformed` through the key tree, killed by its reason text). One
 is equivalent: `maxInlineKeys = 0` sends every inline table through the index,
 which gives the same answers more slowly.
+
+The scalar-value set, all 10 killed: drop the `validScalar` call, accept any
+integer, drop the int64 overflow check, allow a leading zero, allow a double
+underscore, ignore a strconv float error, allow second 60, drop leap years,
+allow offset hour 24, and allow bytes after a local time.

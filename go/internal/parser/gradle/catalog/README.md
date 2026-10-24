@@ -123,6 +123,14 @@ version at once, a dotted key that extends a table a header defined, `[x]`
 and `[[x]]` for one name, and a repeated key in an inline table. A key tree
 (`keys.go`) checks every expression as the streaming parse yields it, with
 go-toml's rules; the test reference is go-toml's full decode into a map. A
+value the TOML scanner accepts but go-toml's decoder rejects is malformed
+too, wherever it sits (any table, the root, an inline table or an array):
+an integer past int64 (`99999999999999999999`, `0x8000000000000000`), a
+leading zero, a float out of range (`1e400`), a date that does not exist
+(`1979-02-30`, `1979-13-01`), an hour of 24, a minute or second of 60, an
+offset past `+23:59`, or a local time with an offset. `validScalar`
+(`scalars.go`) follows go-toml v2.3.1's decode checks; strings and booleans
+skip it. A
 legal spread of one alias stays parsed: `x.module` with `x.version`, a
 deeper `[libraries.x.version]` table after `x.module`, a sub-table before its
 super-table, and repeated `[[x]]` elements. A file over 2 MiB (`oversize`) or nested deeper than 16
@@ -258,7 +266,10 @@ each key outside a small inline table. Registering dotted and sub-table
 aliases, keying slots on accessor names, and the key segment walk cost
 nothing measurable; reading only the first key segments
 instead of building a slice per key saves 10,005 allocations. A real catalog
-of a few hundred lines costs tens of microseconds.
+of a few hundred lines costs tens of microseconds. The scalar value check
+(`scalars.go`) cost +1.0% (medians 11.53 ms and 11.64 ms over five
+interleaved pairs) with no change in allocations: the catalog holds only
+strings, which return after one switch.
 
 Every alias-table check is one map operation. `BenchmarkScanManySpellingsOfOneAlias`
 writes 15,000 spellings of one normalized alias (5,000 kept, 10,000 dropped):
@@ -280,8 +291,9 @@ wall time), and four seeded generators:
   never resolves and a selector never resolves;
 - a key-redefinition generator across 3000 catalogs (`ESHU_CATALOG_MODEL_CASES`
   too). It repeats and redefines keys across the dotted, header, array-table
-  and inline forms in every table and the root, and requires `malformed` with
-  no rows exactly when go-toml's full decode into a map rejects the file,
-  `parsed` otherwise;
+  and inline forms in every table and the root, and mixes in integer, float
+  and date values from `scalarCases`, legal and not. It requires `malformed`
+  with no rows exactly when go-toml's full decode into a map rejects the
+  file, `parsed` otherwise;
 - 4000 byte-level mutations of the positive fixture. No row may name text
   absent from the source, and no resolved value may be a selector.
