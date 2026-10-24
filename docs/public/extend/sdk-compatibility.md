@@ -56,10 +56,11 @@ deployed acceptance.
 | `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) |
 
 The new module version histories are independent of the original paths'
-`v0.2.0` lines. The preferred next collector candidate is `collector/v0.1.0-rc.2`;
+`v0.2.0` lines. The migration starts on the initial `v0.1.0` prerelease line,
+so its preferred next collector candidate is `collector/v0.1.0-rc.2`;
 `collector/v0.2.0-rc.1` remains a published historical candidate.
 `factschema/v0.1.0-rc.2` is published and
-[public-proxy verified](https://github.com/eshu-hq/eshu-sdk/blob/main/docs/evidence/factschema-v0.1.0-rc.2.md).
+[public-proxy verified](https://github.com/eshu-hq/eshu-sdk/blob/f271e0cb199fd81a24de27ca46d64de06ce12dba/docs/evidence/factschema-v0.1.0-rc.2.md).
 Use exact candidate pins; the
 higher historical collector version makes `@latest` especially unsuitable.
 Go named types from the old and new import paths have different identities;
