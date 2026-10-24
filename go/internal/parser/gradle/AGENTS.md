@@ -35,6 +35,8 @@
   `dynamic_version_fuzz_test.go` is the seeded oracle
   (`ESHU_GRADLE_SELECTOR_FUZZ_ROUNDS` raises the 3,000-script default).
   Never fork a local copy of the rule.
+- String notation never leaks a classifier or `@ext` into the coordinate
+  name, nor a classifier into the version (`classifier_test.go`).
 
 ## Common changes and how to scope them
 
