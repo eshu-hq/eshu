@@ -256,9 +256,9 @@ mutants (closer read, in-axis read and `.in(...)` read rejected, group end
 read as a read, any member after closers, `.in` without a group, a nested
 key in a group ignored, end-of-input `scalaVersion :=` uncounted, cover
 ignored, never cleared, or set on a context reset) were all killed. The same
-benchmark, run alternately at load average about 4 to 8, measured 18.77 to
-21.10 ms/op (median 19.86) before and 17.49 to 20.95 ms/op (median 20.16)
-after, with 16.45 MB/op and 139,758 to 139,759 allocs/op on both: no byte or
+benchmark, run alternately at load average 17 to 21, measured 16.15 to
+16.29 ms/op (median 16.21) before and 16.02 to 16.46 ms/op (median 16.10)
+after, with 16.45 MB/op and 139,757 to 139,758 allocs/op on both: no byte or
 allocation change.
 
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
