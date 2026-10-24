@@ -36,10 +36,22 @@ func TestRedactMarkerURLUserinfoKeepsTheHost(t *testing.T) {
 		{"key is case insensitive", "HTTPSPROXY: http://u:p@proxy.example.com\n", "HTTPSPROXY: http://REDACTED_secret_literal@proxy.example.com\n"},
 		// No userinfo: the value is kept.
 		{"no userinfo", "npmRegistryServer: \"https://registry.example.com/\"\n", "npmRegistryServer: \"https://registry.example.com/\"\n"},
-		{"at sign in the path only", "npmRegistryServer: \"https://npm.example.com/@acme/\"\n", "npmRegistryServer: \"https://npm.example.com/@acme/\"\n"},
 		{"env reference", "npmRegistryServer: \"${REGISTRY}\"\n", "npmRegistryServer: \"${REGISTRY}\"\n"},
 		// Fail closed: anything that is not exactly one readable URL goes whole.
 		{"raw slash in password", "httpsProxy: \"http://user:pa/ss@proxy.example.com\"\n", "httpsProxy: \"REDACTED_secret_literal\"\n"},
+		// An "@" after the authority makes the userinfo ambiguous ("tok/en" may
+		// be a token with a raw "/"), so the whole value goes, even for a
+		// scoped registry path.
+		{"raw slash in token-only userinfo", "httpsProxy: \"http://tok/en@proxy.example.com\"\n", "httpsProxy: \"REDACTED_secret_literal\"\n"},
+		{"at sign in the path", "npmRegistryServer: \"https://npm.example.com/@acme/\"\n", "npmRegistryServer: \"REDACTED_secret_literal\"\n"},
+		{"at sign in the query", "npmRegistryServer: \"https://npm.example.com/?u=a@b\"\n", "npmRegistryServer: \"REDACTED_secret_literal\"\n"},
+		// YAML decodes escapes in a double-quoted scalar, so "\x40" is an "@"
+		// the raw text does not show; a backslash sends the whole value.
+		{"yaml escape hides the at sign", "npmRegistryServer: \"https://pass\\x40npm.example.com/\"\n", "npmRegistryServer: \"REDACTED_secret_literal\"\n"},
+		{"yaml escape after the userinfo", "npmRegistryServer: \"https://u:p@npm.example.com\\x2Fx\"\n", "npmRegistryServer: \"REDACTED_secret_literal\"\n"},
+		// A host it cannot read as a plain name goes whole.
+		{"percent escape in the host", "httpsProxy: http://pass%40proxy.example.com\n", "httpsProxy: REDACTED_secret_literal\n"},
+		{"backslash in an unquoted host", "httpsProxy: http://pass\\x40proxy.example.com\n", "httpsProxy: REDACTED_secret_literal\n"},
 		{"not a url", "npmRegistryServer: hunter2hunter2\n", "npmRegistryServer: REDACTED_secret_literal\n"},
 		{"trailing comment", "npmRegistryServer: \"https://h.example.com/\" # was u:p@h\n", "npmRegistryServer: \"REDACTED_secret_literal\"\n"},
 		{"two urls", "httpProxy: http://a.example.com http://u:p@b.example.com\n", "httpProxy: REDACTED_secret_literal\n"},

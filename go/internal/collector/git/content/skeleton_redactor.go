@@ -18,9 +18,12 @@ const skeletonValueMarker = markerPrefix + "value"
 
 var (
 	// skeletonKeyValue splits a line into indent, key, separator, and the rest.
-	// A key is an HCL identifier or a double-quoted string; the separator is
-	// "=" (HCL) or ":" (JSON and HCL object elements).
-	skeletonKeyValue = regexp.MustCompile(`^([ \t]*)([A-Za-z_][A-Za-z0-9_-]*|"[^"\\]*")([ \t]*[=:][ \t]*)(.*)$`)
+	// A key is an HCL identifier or a double-quoted name of letters, digits,
+	// "_", ".", and "-" (a region, a host name); the separator is "=" (HCL) or
+	// ":" (JSON and HCL object elements). A quoted key holding anything else (a
+	// URL with userinfo, a password with symbols, a CIDR, an ARN) is free text
+	// that could be a credential, so the line is not placed and goes whole.
+	skeletonKeyValue = regexp.MustCompile(`^([ \t]*)([A-Za-z_][A-Za-z0-9_-]*|"[A-Za-z0-9_][A-Za-z0-9_.-]*")([ \t]*[=:][ \t]*)(.*)$`)
 	// skeletonHeredoc is a heredoc opener value; group 1 is its delimiter.
 	skeletonHeredoc = regexp.MustCompile(`^<<-?([A-Za-z_][A-Za-z0-9_]*)$`)
 	// The allowlist: shapes that cannot carry a credential.

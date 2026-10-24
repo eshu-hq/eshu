@@ -170,7 +170,7 @@ func skeletonGrammar(lines []string) error {
 		if !ok {
 			return fmt.Errorf("line %d %q is outside the skeleton grammar", i+1, line)
 		}
-		value = strings.TrimSuffix(value, ",")
+		value = strings.TrimSpace(strings.TrimSuffix(value, ","))
 		switch {
 		case value == "{" || value == "[" || value == "{}" || value == "[]":
 		case strings.HasPrefix(value, "<<"):

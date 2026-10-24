@@ -83,6 +83,14 @@ func TestRedactSkeletonLineRules(t *testing.T) {
 		{"aws key as map key", "  \"AKIAABCDEFGHIJKLMNOP\" = \"prod\"", "  REDACTED_aws_access_key"},
 		{"stripe as map key", "  \"sk_live_abcdefgh12345678\" = 1", "  REDACTED_value"},
 		{"key value inside a quoted key", "  \"client_secret = abcdefghij\": 1,", "  REDACTED_secret_literal"},
+		// A quoted key is kept only when it reads as a name; free text in a key
+		// (URL userinfo, a password with symbols, a CIDR, an ARN) takes the line.
+		{"url userinfo as a key", "  \"https://u:hunter2@h.example.com\" = true", "  REDACTED_value"},
+		{"symbols in a key", "  \"P@ss!w0rd\": 1,", "  REDACTED_value"},
+		{"cidr key", "  \"10.0.0.0/16\" = \"office\"", "  REDACTED_value"},
+		{"spaced key", "  \"my key\" = 1", "  REDACTED_value"},
+		{"region key kept", "  \"us-east-1\" = 2", "  \"us-east-1\" = 2"},
+		{"dotted key kept", "  \"app.example.com\": true,", "  \"app.example.com\": true,"},
 		// Markers are a fixed point.
 		{"existing value marker", "region = REDACTED_value", "region = REDACTED_value"},
 		{"existing kind marker", "stripe_key = REDACTED_aws_access_key", "stripe_key = REDACTED_aws_access_key"},

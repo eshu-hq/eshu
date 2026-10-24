@@ -116,8 +116,12 @@ readable. The userinfo ends at the last `@` before the first `/`, `?`, or `#`,
 so a raw `@` in a password is covered. The rule fails closed: the whole value is
 replaced, as for a credential key, when the value is not exactly one URL (a
 trailing comment, two URLs, an environment default such as
-`${REGISTRY:-https://...}`), when the host and port cannot be read (a raw `/`
-in a password), or when the line holds any other detector match.
+`${REGISTRY:-https://...}`), when the host is not a plain name or IPv6 literal
+with an optional numeric port (a raw `/` in a password, a percent escape), when
+an `@` follows the host (a scoped path such as `/@acme/` included, because
+`http://tok/en@host` may be a token holding a raw `/`), when a double-quoted
+value holds a backslash (YAML decodes `\x40` to `@`), or when the line holds
+any other detector match.
 
 The `skeleton` mode is line-wise and keeps every line number. It keeps empty
 lines, structural lines (`{`, `}`, `[`, `]`, `key = {`, `key = [`, and heredoc
@@ -131,8 +135,12 @@ for a reference, so `db_password = var.db_password` is stored as
 `key = value` (a comment, a bare list element, a heredoc body line, a PEM block
 line, an unterminated string, or a credential inside the key itself) becomes the
 whole-line `REDACTED_<finding_kind>` when it is a finding and `REDACTED_value`
-otherwise. The stored body is not parseable HCL or JSON. Keys are kept, so a
-credential used as a map key survives unless the detector flags it.
+otherwise. The stored body is not parseable HCL or JSON. Keys are kept when
+they are names: an identifier, or a quoted key of letters, digits, `_`, `.`,
+and `-` (`"us-east-1"`, `"app.example.com"`). A quoted key holding anything
+else (a URL, a CIDR, an ARN, a password with symbols) takes the whole line. A
+credential spelled as a plain name and used as a key survives unless the
+detector flags it.
 
 ### What a governed row holds
 

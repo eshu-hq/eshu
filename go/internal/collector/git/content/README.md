@@ -81,9 +81,11 @@ updated in the same change.
 - **URL userinfo keys.** A definition's `URLUserinfoKeys` (for `.yarnrc.yml`:
   `npmRegistryServer`, `npmPublishRegistry`, `httpProxy`, `httpsProxy`) lose
   only the userinfo of their URL value (`marker_url_userinfo.go`). The userinfo
-  runs to the last `@` of the authority. A value that is not exactly one URL, an
-  unreadable host and port, or any other detector match on the line falls back
-  to the credential-key rule and the whole value goes. A URL key and a
+  runs to the last `@` of the authority. A value that is not exactly one URL, a
+  host that is not a plain name or IPv6 literal with a numeric port, an `@`
+  after the host, a backslash in the value (YAML escapes), or any other detector
+  match on the line falls back to the credential-key rule and the whole value
+  goes. A URL key and a
   credential key on one line (a flow mapping) are both covered by the
   credential rule from the leftmost key.
 - **Parity with migration 138.** The Go detector uses a superset whitespace
@@ -116,8 +118,11 @@ number, the trailing newline, and `\r` line endings.
   through its `*/`. A `/*` inside a value opens nothing.
 - **Fixed point:** an exact marker, as a value or a whole line, is kept, so a
   second pass changes nothing.
-- **Keys are kept** (8813 record), so a credential used as a map key survives
-  unless the detector flags it. `REDACTED_value` is used only by this mode.
+- **Keys are kept when they are names** (8813 record): an identifier or a quoted
+  key of letters, digits, `_`, `.`, and `-`. A quoted key holding other text (a
+  URL, a CIDR, an ARN, symbols) takes the whole line. A credential spelled as a
+  plain name survives as a key unless the detector flags it. `REDACTED_value` is
+  used only by this mode.
 - **Fail closed:** the same `MaxGovernedBodyBytes`, UTF-8, and NUL checks as the
   marker redactor; the caller stores a metadata row.
 - **Proof:** `TestRedactSkeletonLineRules` pins the table,
