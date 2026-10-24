@@ -91,8 +91,10 @@ authority; see [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md).
   (`observability.go:139`).
 - Coordinator: `go/internal/coordinator/prometheus_mimir_service.go` plans
   claim rows per active instance; stays core-owned.
-- No golden cassette under `testdata/cassettes` names this collector; the
-  parity pack in `testdata/8864-parity-prometheus-mimir.json` is the
+- Golden cassette `testdata/cassettes/prometheusmimir/supply-chain-demo.json`
+  (`"collector": "prometheus_mimir"`) is replayed by the B-7 golden-corpus
+  gate (`collector_specs` entry `collector-prometheus-mimir:prometheusmimir`);
+  the parity pack in `testdata/8864-parity-prometheus-mimir.json` is the
   cutover comparison input.
 
 ## 4. Durable-state owner

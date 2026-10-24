@@ -83,13 +83,13 @@ construction (`source.go:53`).
 | --- | --- | --- |
 | span | `prometheus_mimir.observe` (`contract/observability/prometheus_mimir.go:10`) | `source.go:272` |
 | span | `prometheus_mimir.fetch` (`contract/observability/prometheus_mimir.go:13`) | `source.go:281` |
-| histogram | `eshu_dp_prometheus_mimir_fetch_duration_seconds` (`instruments.go:5694`) | `metrics.go:26` |
-| counter | `eshu_dp_prometheus_mimir_provider_requests_total` (`instruments.go:3982`) | `metrics.go:24` |
-| counter | `eshu_dp_prometheus_mimir_facts_emitted_total` (`instruments.go:3990`) | `metrics.go:54` |
-| counter | `eshu_dp_prometheus_mimir_rate_limited_total` (`instruments.go:3998`) | `metrics.go:37` |
-| counter | `eshu_dp_prometheus_mimir_retries_total` (`instruments.go:4006`) | `metrics.go:71` |
-| counter | `eshu_dp_prometheus_mimir_redactions_total` (`instruments.go:4014`) | `metrics.go:61` |
-| counter | `eshu_dp_prometheus_mimir_stale_total` (`instruments.go:4022`) | `metrics.go:80` |
+| histogram | `eshu_dp_prometheus_mimir_fetch_duration_seconds` (`instruments.go:5709`) | `metrics.go:26` |
+| counter | `eshu_dp_prometheus_mimir_provider_requests_total` (`instruments.go:3997`) | `metrics.go:24` |
+| counter | `eshu_dp_prometheus_mimir_facts_emitted_total` (`instruments.go:4005`) | `metrics.go:54` |
+| counter | `eshu_dp_prometheus_mimir_rate_limited_total` (`instruments.go:4013`) | `metrics.go:37` |
+| counter | `eshu_dp_prometheus_mimir_retries_total` (`instruments.go:4021`) | `metrics.go:71` |
+| counter | `eshu_dp_prometheus_mimir_redactions_total` (`instruments.go:4029`) | `metrics.go:61` |
+| counter | `eshu_dp_prometheus_mimir_stale_total` (`instruments.go:4037`) | `metrics.go:80` |
 
 Attributes stay `provider`, `status_class`, `fact_kind`, `reason`. Instance
 IDs, target URLs, label values, raw PromQL, tenant IDs, tenant headers, and
