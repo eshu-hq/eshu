@@ -1,0 +1,15 @@
+# Readiness shard placement evidence (#8835)
+
+## Decision and source
+
+The 30-minute limit applies to each of four `live-postgres-readiness` matrix jobs. In [run 40044177350](https://github.com/eshu-hq/eshu/actions/runs/40044177350), shard 1 was cancelled at its deadline and the aggregate was red. The four retained reports nevertheless recorded **567 distinct passing roots out of 567**. Passing roots do not make that cancelled job or aggregate green. Source feature head: `cd480a5bfcd659dcc6fd666f5ebac70199150015`; hosted merge checkout: `eab0e091b0ea3821f76a612eb23d9c56bb8f1680` (parents `b3ea1a48a128e93c2b44c73f6ede33583f346a77` and the feature head). The observed +402-second slowdown from an earlier run has **NOT_PROVEN** cause.
+
+The offline theory script `/tmp/eshu-7533-drive/8924-rebalance-theory.py` and its JSON receipt used the retained reports and the canonical inventory at that source head. The old plan split 567 roots 142/142/142/141. Its first shard held all 13 `./internal/query/admin` roots. Their measured package interval was 282.350407 seconds, from the first package invocation to its terminal event. The source reports and canonical inventory had exact union, zero duplicate roots, and zero omitted roots. Actual complete job durations were 1813, 1226, 1270, and 674 seconds for shards 1–4.
+
+The candidate places the **whole admin package** on shard 4, including future enrolled roots, while retaining canonical order and every other root's quarter. The model yields 129/142/142/154 roots, still the exact 567-root union. All four matrix jobs use the same backend and environment template. Source review found nine admin roots use shared lock fixtures, one interleave fixture, and three disposable databases; they bootstrap their own schema or database. The full unsharded plan, four-job matrix, 30-minute cap, test assertions, DSNs, backend, and internal test concurrency are unchanged.
+
+## Budget interpretation
+
+Removing the observed 282.350407-second interval from shard 1 models 1530.649593 seconds, below the 1800-second job cap. To stress the destination, the model adds 433.931368 seconds of **extra** cold package uncertainty, taken from the largest observed package interval minus selected test elapsed in the cancelled shard. With that allowance the modeled maximum is still 1530.649593 seconds; an additional 138 seconds per job yields 1668.649593 seconds, 131.350407 seconds below the cap. These are scenario calculations, **not a compiler measurement, statistical bound, guaranteed job wall time, or observed new-layout result**. Hosted acceptance must measure a green run at the reviewed new head, with all four shard reports and the aggregate green under the unchanged cap.
+
+The planner's synthetic placement test was RED on the old layout and GREEN after the change. The live inventory test checks the exact union and unchanged non-admin assignments. The aggregate test rejects a report retaining the old admin assignment. These tests establish planner/accounting behavior; they do not establish hosted wall time.
