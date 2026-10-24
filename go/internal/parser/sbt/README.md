@@ -74,14 +74,15 @@ end         = EOF | ";" | newline-before-statement   (* bare file *)
             | "," | ")" ;                             (* settings argument *)
 ```
 
-`string` is a plain literal with no escapes; organization and name are at most
+`string` is a plain or triple-quoted literal with no backslash; organization and name are at most
 `MaxFieldBytes` and hold no space or `:`; the revision is not empty. `group` is
 a balanced `(...)`. A statement is in a grammar context only in two places:
 
-- **The bare file.** The key starts a top-level statement: it is the first
-  token, follows `;`, or starts a line after a token that can end a statement
-  (not an operator, an opener, a keyword such as `else` or `then`, or the closed
-  condition of an `if`, `while` or `for`). Rows belong to the root project.
+- **The bare file.** The key starts a top-level statement on a line whose
+  first token is at column 0: it is the first token, follows `;`, or starts a
+  line after a token that can end a statement (not an operator, an opener, a
+  keyword such as `else` or `then`, or the closed condition of an `if`, `while`
+  or `for`). Rows belong to the root project.
 - **A project's settings.** The key is the first token of an argument of a
   `.settings(` call, at depth zero of a `val x = project...` statement whose
   initializer starts with `project`, `(project ...)`, `Project(...)`,
@@ -90,6 +91,16 @@ a balanced `(...)`. A statement is in a grammar context only in two places:
 
 `+=` takes one element and `++=` and `:=` take a collection, as sbt's `Append`
 instances type them.
+
+sbt 2.x reads `build.sbt` as Scala 3, where a `val` or `def` body, an
+`if`/`then`/`else` branch, a `match` case, or a `for`/`while` `do` body can be a
+braceless block: an indented region at bracket depth zero. A statement in it is
+not a top-level setting, so the bare file is the column-0 lines only. An
+indented line at depth zero is never a grammar context, and a `val` is tracked
+only when it heads a column-0 line (after modifiers such as `lazy`, `private`,
+`final`, `override`, `implicit` or `inline`, or after `;`). Inside `(` and `[`
+indentation does not matter, so a braceless project whose `.settings(` list
+continues on indented lines still resolves.
 
 ### Fail-closed fallback
 
@@ -113,6 +124,9 @@ then hands back to the main loop, so a following statement is read normally.
 | `intransitive()`, `withSources()`, `withJavadoc()`, `force()`, `changing()` | `withConfigurations`, `withRevision`, `withName`, `configure`, `from`, `artifacts`, `notTransitive`, `withCrossVersion`, an extension method, an unknown operator |
 | `cross CrossVersion.full`, `cross(...)` | a repeated `% config`, a config identifier off the list (`% Custom`, `% testConfig`) |
 | `lazy val core = project.settings(libraryDependencies += ...)` | `.map`, `.flatMap`, `.distinct`, `.filter`, `.filterNot`, `.toSeq`, `++ Seq(...)`, a lambda, `Seq[ModuleID](`, `Set(` |
+| `lazy val core = project` then an indented `.settings(` list | any indented line at depth zero: a Scala 3 `if`/`then`/`else`, `def`, `val`, `match` case, `for`/`while` `do` body, or a comment before the key |
+| `% "test"`, `% "it"`, `% "provided"` (exact case) | `% "Test"`, `% "Compile"`, `% "IT"`: Ivy names are case sensitive |
+| `"""org"""` (no backslash) | any string with a backslash, triple-quoted too |
 
 A configuration string the scope table cannot map (`% "e2e"`, `% ""`, `% ","`,
 `% "plugin->default(compile)"`, over `MaxConfigBytes`) matches the grammar but
@@ -126,7 +140,10 @@ call or a `.` on the next line (`v("x")`, `v\n  .trim`) does not match.
 
 `:=` replaces the key and `~=`, `-=` and `--=` transform or remove what came
 before, so they supersede earlier rows of the same context: those rows are
-`partial` and counted. A reset in the bare file applies to the root project,
+`partial` and counted. A setting method applied to the key
+(`libraryDependencies.transform(...)`, `.set(...)`, any member but the reads
+`.value`, `.key`, `.scopedKey` and `.taskValue`) at the start of an expression
+supersedes the same way. A reset in the bare file applies to the root project,
 which may be any project the file declares, so it supersedes every project row
 wherever it appears. A reset outside a grammar context (in a settings `val`, a
 wrapper, a block, or under an axis) may be applied anywhere, so it supersedes
@@ -142,7 +159,10 @@ in sbt librarymanagement), and `% ""` fails its non-empty check, so a second
 `% config` or an empty one is a load error, not a replacement.
 
 A configuration is a list split on `,` and `;`, and each part is judged by the
-left side of a `->` mapping. `test`, `it`, `integrationtest`, and
+left side of a `->` mapping, matched exactly: Ivy configuration names are case
+sensitive and sbt names its standard ones in lower case, so `"Test"` is not
+the test configuration. A Configuration identifier maps to the name sbt gives
+it (`Test` to `test`, `IntegrationTest` to `it`). `test`, `it` and
 `test-internal` mean `test`; `runtime` and `runtime-internal` mean `runtime`;
 `provided` means `provided`; `compile`, `optional` and `compile-internal` mean
 `compile`. A list resolves by this table:
@@ -186,9 +206,9 @@ tracked. A leading UTF-8 byte order mark is ignored.
 - Resolve `.value` settings, interpolated strings, helper objects, or
   conditional (`if`) and block-bodied collections. Their literal coordinates
   are partial and counted in `unresolved_declaration_count`.
-- Resolve a version through a `val` declared inside a block or after the
-  reference's own statement is parsed; only top-level literal vals resolve, at
-  the end of the file, so declaration order does not matter.
+- Resolve a version through a `val` declared inside a block, braced or
+  indented; only literal vals that head a column-0 line resolve, at the end of
+  the file, so declaration order does not matter.
 - Emit a row for `addSbtPlugin`, `dependsOn`, resolvers, or `crossScalaVersions`.
 
 ## Known limits
@@ -203,8 +223,17 @@ tracked. A leading UTF-8 byte order mark is ignored.
   cross-built those with the full version (`_2.9.2`).
 - A `val` declared inside a block is not tracked. When it shares a name with a
   top-level `val`, a reference inside that block resolves to the top-level
-  value, not the block-local one. A top-level `val` whose literal continues on
-  the next line (`"1"` then `.concat("-M1")` or `+ "-M1"`) is not a literal.
+  value, not the block-local one; the block's own rows are partial anyway. A
+  top-level `val` whose literal continues on the next line (`"1"` then
+  `.concat("-M1")` or `+ "-M1"`) is not a literal, and a `val` after an
+  annotation or a qualified modifier (`private[core]`) is not tracked.
+- The column-0 rule is fail-closed: a top-level statement written indented, or
+  with a comment before the key on its line, is partial even when sbt would
+  read it as top level.
+- Scala 2.12 (sbt 1) processes unicode escapes everywhere in the source before
+  lexing, comments included; the scanner reads them only as a backslash inside
+  a string, which makes that string opaque. An escaped line break inside a
+  comment is still read as part of the comment.
 - A settings value defined outside the file (`.settings(Common.settings)` from
   `project/*.scala`) and applied after a row can supersede it; the scanner
   cannot see it. A reset defined in the file, anywhere, is seen.

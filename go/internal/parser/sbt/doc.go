@@ -7,8 +7,9 @@
 // Parse reads one build.sbt and emits one content_entity-shaped "variables"
 // row per literal libraryDependencies coordinate. A row is "resolved" only
 // when its whole statement matches a closed grammar (README.md, "Grammar"):
-// a bare libraryDependencies key at the top level of the file or as an
-// argument of a project's `.settings(...)`, then `+=` with one element or
+// a bare libraryDependencies key at the top level of the file (a line whose
+// first token is at column 0) or as an argument of a project's
+// `.settings(...)`, then `+=` with one element or
 // `++=`/`:=` with a Seq, List or Vector of elements. An element is
 // `"org" (%|%%|%%%) "name" % revision`, at most one `% config` (a string or
 // Compile, Test, Runtime, Provided, Optional, IntegrationTest), and infix calls
@@ -20,13 +21,18 @@
 // coordinate found in it is emitted "partial" with a placeholder scope and
 // counted in sbt_state.unresolved_declaration_count, never resolved. That
 // covers any axis or wrapper (`Test /`, `ThisBuild /`, `inConfig(...)`), a
-// brace block, a parenthesised or dotted call, a repeated or empty `% config`,
-// a collection call (`.map`, `++`), and a statement that runs on past its end.
-// A `:=`, `~=`, `-=` or `--=` supersedes the earlier rows it can reach, which
-// become partial too.
+// brace block, an indented line at depth zero (sbt 2.x reads build.sbt as
+// Scala 3, where that is a braceless val, def, if, match, for or while body),
+// a parenthesised or dotted call, a repeated or empty `% config`, a
+// collection call (`.map`, `++`), a string holding a backslash, and a
+// statement that runs on past its end. A `:=`, `~=`, `-=` or `--=`, or a
+// setting method such as `libraryDependencies.transform(...)`, supersedes the
+// earlier rows it can reach, which become partial too. Only a val that heads
+// a column-0 line resolves a version reference.
 //
-// Configuration lists split on ',' and ';' and resolve once: any compile part
-// gives compile, runtime without compile gives runtime. Each row mirrors the
+// Configuration lists split on ',' and ';' and resolve once, matching names
+// exactly as Ivy does (`"Test"` is not `test`): any compile part gives
+// compile, runtime without compile gives runtime. Each row mirrors the
 // Gradle row contract: the organization:name identity in name, the revision
 // in value, an explicit dependency_resolution_state of "resolved", "partial"
 // (outside the grammar, an unmapped configuration, or an Ivy dynamic

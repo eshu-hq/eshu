@@ -43,8 +43,8 @@ in the same shape the Gradle and Maven parsers use, with `package_manager`
 
 A row is `resolved` only when its whole statement matches a closed grammar
 (the full EBNF is in `go/internal/parser/sbt/README.md`): a bare
-`libraryDependencies` key at the top level of the file or as an argument of a
-project's `.settings(...)`, then `+=` with one element or `++=`/`:=` with a
+`libraryDependencies` key at the top level of the file (a line that starts at
+column 0) or as an argument of a project's `.settings(...)`, then `+=` with one element or `++=`/`:=` with a
 `Seq(...)`, `List(...)` or `Vector(...)` of elements. An element is
 `"org" %% "name" % "1.0"` (or `%`, `%%%`; the revision may be a top-level string
 `val`), at most one `% config`, and infix calls from a short allowlist of
@@ -64,6 +64,10 @@ ModuleID methods that change neither coordinates nor configurations.
 | `("a" % "b" % "1") % Test`, a dotted call, `withConfigurations`, `withRevision`, `withName`, an unknown call | partial |
 | a repeated `% config`, `% ""`, `% Custom`, `% "e2e"`, a compiler-tool configuration | partial |
 | `% Test` leading the next line in the bare file | partial (inside `(` it is read) |
+| an indented line at depth zero: a Scala 3 `if`/`then`/`else`, `def` or `val` body, `match` case, or `for`/`while` `do` body | partial |
+| `% "Test"`, `% "Compile"` (configuration strings are case sensitive) | partial; `% "test"` and `% Test` are `test` |
+| a string holding a backslash, triple-quoted too | opaque: no literal coordinate |
+| `libraryDependencies.transform(...)`, `.set(...)` | supersedes earlier rows, like `~=` |
 
 A partial row keeps the coordinates read literally, carries a placeholder
 `compile` scope, and is counted in `sbt_state.unresolved_declaration_count`; it
@@ -97,8 +101,13 @@ Known limits of the sbt reading:
   rows of every other project in the file, `crossScalaVersions` is ignored, a
   suffixed version such as `2.13.0-M5` gets no hint, and a Scala before 2.10
   gets no hint because sbt cross-built those with the full version.
-- A `val` declared inside a block that shares a name with a top-level `val`
-  resolves to the top-level value.
+- sbt 2.x reads `build.sbt` as Scala 3, where a braceless block is an indented
+  region at bracket depth zero. Only column-0 lines are read as top-level
+  statements or version `val`s, so a top-level statement written indented, or
+  with a comment before the key on its line, is partial. A braceless project
+  whose `.settings(` list continues on indented lines still resolves.
+- A `val` declared inside a block is not tracked; a reference that shares its
+  name with a top-level `val` resolves to the top-level value.
 - A settings value from outside the file (`.settings(Common.settings)`) applied
   after a row can supersede it unseen.
 - `ThisBuild /` and `Global /` keys are partial even where sbt delegation

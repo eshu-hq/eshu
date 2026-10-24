@@ -47,8 +47,14 @@
   the rest of the statement is salvaged as partial rows. Do not add a path that
   skips a token and keeps matching.
 - `TestGrammarSeededFuzzInvariants` (`fuzz_test.go`) is the regression net:
-  it must report zero I1, I2, I3, missing and fabricated cases. Run it with
-  `SBT_GRAMMAR_FUZZ_CASES=30000` after a grammar change.
+  both arms, grammar and indentation (`fuzz_indent_test.go`), must report zero
+  I1, I2, I3, missing and fabricated cases. Run it with
+  `SBT_GRAMMAR_FUZZ_CASES=30000` after a grammar change. Keep the grammar
+  arm's draws unchanged so a seed reproduces the earlier review runs.
+- The bare file is the column-0 lines only (`token.lineAtCol0`). sbt 2.x reads
+  build.sbt as Scala 3, so an indented line at depth zero is a braceless block:
+  never a grammar context, and never a tracked `val`. Do not relax this to
+  "depth zero" alone.
 - `dependency_resolution_state` stays in the `resolved`/`partial`/`unresolved`
   vocabulary the reducer and docs depend on.
 - `name` is `organization:name` as written. Do not append the Scala suffix to
@@ -113,6 +119,13 @@ No-Regression Evidence (grammar): the seeded fuzz in `fuzz_test.go` reported
 I1=1,218, I2=155 and I3=1,208 over 4,000 cases on the allowlist-tail scanner,
 and I1=0, I2=0, I3=0, missing=0, fabricated=0 with the closed grammar, at
 4,000 cases and at 30,000 (140,469 rows).
+
+No-Regression Evidence (indentation): the indentation arm wraps generated
+statements in Scala 3 braceless blocks and declares block-local vals that
+shadow top-level ones. On the scanner before the column-0 rule it reported
+I1=60, I2=15, I3=83 over 4,000 cases and I1=441, I2=106, I3=606 over 30,000;
+with the rule, zero at both (18,779 and 140,514 rows), and the grammar arm
+stays zero.
 
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
 single-pass scanner with no recursion. 200,000 nested parentheses finish in

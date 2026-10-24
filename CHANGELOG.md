@@ -200,8 +200,13 @@ recent shipped work grouped by feature area.
   `compile`. That covers any axis (`Test /`, `ThisBuild /`), `inConfig(...)`, a
   brace block, `.map(_ % Test)`, `++`, a parenthesised or dotted call,
   `withConfigurations`, `withRevision`, a repeated `% config` (a load error in
-  sbt, not a replacement) and an empty one. `:=`, `~=`, `-=` and `--=` make the
-  rows they supersede partial. A runtime-plus-test list is `runtime`,
+  sbt, not a replacement) and an empty one. Because sbt 2.x reads `build.sbt`
+  as Scala 3, an indented line at depth zero (a braceless `if`, `def`, `val`,
+  `match`, `for` or `while` body) is partial too, and only a column-0 `val`
+  resolves a version. Configuration strings match case exactly (`"Test"` is
+  not `test`), and a string holding a backslash is opaque. `:=`, `~=`, `-=`,
+  `--=`, `.transform(...)` and `.set(...)` make the rows they supersede
+  partial. A runtime-plus-test list is `runtime`,
   compiler-tool configurations are undetermined, Ivy ranges are partial, and a
   configuration string over 256 bytes is never split or stored. Package-registry correlation for sbt rows
   ([#8961](https://github.com/eshu-hq/eshu/issues/8961)) and the line-keyed
