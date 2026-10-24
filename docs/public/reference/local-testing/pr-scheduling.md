@@ -4,7 +4,9 @@
 `pr-plan` job checks out the default branch and reads the gate registry and the
 frozen synchronize-workflow inventory in `specs/ci-pr-workflows.d/`. The plan
 names the applicable workflows, their local jobs, and selected registry gate
-IDs. The plan job fails if the CLI, schema, or head binding cannot be validated.
+IDs. Schema 2 binds the current run and attempt to an immutable tested merge;
+transfer modes also carry their direct full-backed source. The plan job fails
+if the CLI, schema, or head binding cannot be validated.
 
 The remaining synchronize workflows are called from `Build Test`. Their
 original base-branch and changed-path filters are in the inventory. A callable

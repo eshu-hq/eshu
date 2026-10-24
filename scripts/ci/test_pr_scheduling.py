@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 import subprocess
@@ -11,6 +12,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 FRAGMENTS = ROOT / "specs" / "ci-pr-workflows.d"
+PLAN_FILTER = ROOT / "scripts" / "ci" / "pr-plan-v2.jq"
 POSTGRES_GROUP = "postgres-scheduled-live-${{ github.event_name }}-${{ github.ref }}"
 PR_CANCEL = "${{ github.event_name == 'pull_request' }}"
 FULL_MODE_IF = "${{ github.event_name == 'pull_request' && needs.pr-plan.outputs.mode == 'full' }}"
@@ -92,6 +94,71 @@ def check_pr_plan_full_mode_sentinel(source: str) -> None:
     )
     if step is None or step.groups() != (PLAN_FULL_MODE_IF, PLAN_FULL_MODE_RUN):
         raise ValueError("pr-plan full plan sentinel admits smoke or hides failure")
+
+
+def check_pr_plan_schema(caller: str) -> None:
+    """Exercise the production jq guard with valid and seeded invalid plans."""
+    for token in (
+        '--argjson run_id "${GITHUB_RUN_ID}"',
+        '--argjson run_attempt "${GITHUB_RUN_ATTEMPT}"',
+        '-f scripts/ci/pr-plan-v2.jq',
+    ):
+        if token not in caller:
+            raise ValueError(f"pr-plan schema-2 guard has no native caller binding: {token}")
+    head = "a" * 40
+    plan = {
+        "schema_version": 2,
+        "mode": "full",
+        "head_sha": head,
+        "target_run_id": 101,
+        "target_run_attempt": 3,
+        "merge_sha": "b" * 40,
+        "merge_tree": "c" * 40,
+        "workflows": ["test.yml"],
+        "jobs": {"test.yml": ["go-core"]},
+        "gates": ["go-build"],
+        "reason": "full selection",
+    }
+
+    def result(candidate: dict[str, object]) -> int:
+        """Return the production filter's exit status for one plan."""
+        command = [
+            "jq", "-e", "--arg", "sha", head,
+            "--argjson", "run_id", "101",
+            "--argjson", "run_attempt", "3",
+            "-f", str(PLAN_FILTER),
+        ]
+        return subprocess.run(
+            command, input=json.dumps(candidate), text=True,
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=False,
+        ).returncode
+
+    if result(plan) != 0:
+        raise ValueError("valid schema-2 full PR plan was rejected")
+    transfer = plan | {
+        "mode": "reuse", "source_sha": "d" * 40,
+        "source_full_sha": "e" * 40, "tree": "f" * 40,
+        "workflows": [], "jobs": {}, "gates": [],
+    }
+    if result(transfer) != 0:
+        raise ValueError("valid schema-2 transferred PR plan was rejected")
+    smoke = transfer | {
+        "mode": "smoke", "workflows": ["test.yml"],
+        "jobs": {"test.yml": ["go-core"]}, "gates": ["go-build"],
+    }
+    if result(smoke) != 0:
+        raise ValueError("valid schema-2 smoke PR plan was rejected")
+    for wrong in (
+        plan | {"schema_version": 1},
+        plan | {"target_run_id": 102},
+        plan | {"target_run_attempt": 4},
+        plan | {"merge_tree": "short"},
+        transfer | {"source_full_sha": ""},
+        smoke | {"source_full_sha": ""},
+        plan | {"source_full_sha": "e" * 40},
+    ):
+        if result(wrong) != 1:
+            raise ValueError("invalid schema-2 PR plan was not rejected")
 
 
 def main() -> None:
@@ -177,6 +244,7 @@ def main() -> None:
         [sys.executable, str(ROOT / "scripts" / "ci" / "test_smoke_go_build_canary.py")],
         check=True,
     )
+    check_pr_plan_schema(central)
     print("PR scheduling wiring PASS")
 
 
