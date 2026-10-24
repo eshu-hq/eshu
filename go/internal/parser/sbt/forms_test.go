@@ -80,6 +80,23 @@ func TestParseOversizedIdentifierChainIsCountedNotStored(t *testing.T) {
 		t.Fatalf("rows = %#v, want only c:d", rows)
 	}
 	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 1)
+
+	// One oversized identifier is also not a version reference.
+	head := parseSource(t, "libraryDependencies += \"a\" % \"b\" % "+strings.Repeat("x", 600)+"\nlibraryDependencies += \"c\" % \"d\" % \"2\"\n")
+	if rows := dependencyRows(t, head); len(rows) != 1 || rows[0]["name"] != "c:d" {
+		t.Fatalf("oversized ident rows = %#v, want only c:d", rows)
+	}
+	requireStateField(t, stateOf(t, head), "unresolved_declaration_count", 1)
+
+	// An oversized configuration chain leaves the scope undetermined and keeps
+	// the stored configuration bounded.
+	config := parseSource(t, "libraryDependencies += \"a\" % \"b\" % \"1\" % "+long+"\n")
+	row := requireRow(t, config, "a:b")
+	requireField(t, row, "dependency_resolution_state", "partial")
+	if got, _ := row["sbt_configuration"].(string); len(got) > MaxFieldBytes {
+		t.Fatalf("sbt_configuration length = %d, want <= %d", len(got), MaxFieldBytes)
+	}
+	requireStateField(t, stateOf(t, config), "unresolved_declaration_count", 1)
 }
 
 // TestParseIdentifierChainAllocationCeiling asserts memory, never time: a
