@@ -280,8 +280,8 @@ count only retained rows.
 
 The pass interval (5 minutes), batches per pass (100), lock timeout (2 s)
 and batch size default (1,000, range 1 to 10,000) are unchanged. No new
-environment variable: the generated `env-registry.md` sits at the 500-line
-Markdown cap, and the age entry gained its `720h` default in place.
+environment variable; the age entry gained its 720h default in place on
+`docs/public/reference/env-registry/reducer-and-projection.md`.
 
 Which deployments run it with no setting: the base Compose file and the Helm
 chart default the coordinator to dark mode. The Compose overlays that set
