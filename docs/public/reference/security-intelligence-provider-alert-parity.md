@@ -208,7 +208,7 @@ If the org window also holds no alert for such a repository, no fact records the
 truncation or the reason, so the empty answer still reads `complete`. The
 `eshu_dp_security_alert_org_fanout_repositories_total` counter and the
 `eshu.security_alert.org_fanout.*` attributes on the `security_alert.observe`
-span are the only signals for it. #8803 tracks the collector-side carrier that closes this case
+span are the only signals for it. #8943 tracks the collector-side carrier that closes this case
 with reason `provider_open_alert_page_limit_reached`.
 
 Eshu should match provider alert counts when it has equivalent owned target

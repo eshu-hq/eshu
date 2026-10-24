@@ -25,30 +25,27 @@ and their bounded values) live one file per family under three leaf
 subpackages so no single directory holds an unbounded, unreviewable pile of
 files (issue #6777):
 
-- `contract/` — most families: admission decisions, Azure relationships,
-  bootstrap ingestion, CI/CD, collector runs and snapshot stages, graph-read
-  outcomes, Kubernetes, language and language-query, package registry,
-  prompt-facing query and code-topic partition spans, S3 external-principal grants, scanner-worker,
-  security alerts, semantic extraction, service catalog, source-tool
-  provenance, supply-chain/vulnerability findings, vulnerability
-  intelligence, incident context, observability coverage, secrets/IAM,
-  work-item evidence, generation lifecycle, changed-since reads, and config-artifact derives.
+- `contract/` — most families: admission decisions, Azure relationships, bootstrap ingestion, CI/CD,
+  collector runs and snapshot stages, graph-read outcomes, Kubernetes, language and language-query,
+  package registry, prompt-facing query and code-topic partition spans, S3 external-principal
+  grants, scanner-worker, security alerts, semantic extraction, service catalog, source-tool
+  provenance, supply-chain/vulnerability findings, vulnerability intelligence, incident context,
+  observability coverage, secrets/IAM, work-item evidence, generation lifecycle, changed-since
+  reads, and config-artifact derives.
 - `contract/observability/` — Grafana, Loki, Prometheus/Mimir, Tempo.
 - `contract/thirdparty/` — Jira, PagerDuty, the live Vault collector's
   redaction dimension.
 
-Root `contract.go` (untouched by #6777) still holds the majority-share
-frozen contract and is the file to read first. `registration.go` and
-`registration_steps.go` hold the ONE explicit, ordered `registrationSteps`
-list that splices every subpackage family into the root `spanNames`,
-`metricDimensionKeys`, and `logKeys` slices — replacing the 23 independent,
-filename-sort-ordered `func init()` bodies the flat `contract_*.go` layout
-relied on. That order is load-bearing (anchor-based inserts) and pinned by
-`TestSpanNames`, `TestMetricDimensionKeys`, and `TestLogKeys` in
-`contract_test.go`; see `registration.go`'s own comment before reordering it.
-Every identifier the subpackages export is still available as a root
-`telemetry.*` name via `compat_contract.go`, `compat_observability.go`, and
-`compat_thirdparty.go`, so no caller outside this package needed to change.
+Root `contract.go` (untouched by #6777) still holds the majority-share frozen contract and is the
+file to read first. `registration.go` and `registration_steps.go` hold the ONE explicit, ordered
+`registrationSteps` list that splices every subpackage family into the root `spanNames`,
+`metricDimensionKeys`, and `logKeys` slices — replacing the 23 independent, filename-sort-ordered
+`func init()` bodies the flat `contract_*.go` layout relied on. That order is load-bearing
+(anchor-based inserts) and pinned by `TestSpanNames`, `TestMetricDimensionKeys`, and `TestLogKeys`
+in `contract_test.go`; see `registration.go`'s own comment before reordering it. Every identifier
+the subpackages export is still available as a root `telemetry.*` name via `compat_contract.go`,
+`compat_observability.go`, and `compat_thirdparty.go`, so no caller outside this package needed to
+change.
 
 ## Where this fits in the runtime
 
@@ -175,6 +172,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `SecurityAlertProviderRequests` | `eshu_dp_security_alert_provider_requests_total` |
 | `SecurityAlertFactsEmitted` | `eshu_dp_security_alert_facts_emitted_total` |
 | `SecurityAlertRateLimited` | `eshu_dp_security_alert_rate_limited_total` |
+| `SecurityAlertTruncatedReads`, `SecurityAlertOrgFanoutRepositories` | `eshu_dp_security_alert_truncated_reads_total`, `eshu_dp_security_alert_org_fanout_repositories_total` (#8805; see `docs/public/reference/telemetry/security-alert-org-fanout.md`) |
 | `CICDRunProviderRequests` | `eshu_dp_ci_cd_run_provider_requests_total` |
 | `CICDRunFactsEmitted` | `eshu_dp_ci_cd_run_facts_emitted_total` |
 | `CICDRunRateLimited` | `eshu_dp_ci_cd_run_rate_limited_total` |

@@ -43,7 +43,7 @@ const (
 	securityAlertReasonNoAuthorizedRepositories = "no_authorized_repositories"
 )
 
-// Seam for a truncated generation (#8803 PR C). A target whose committed
+// Seam for a truncated generation (#8803 PR C, tracked by #8943). A target whose committed
 // generation stopped at the provider open-alert page cap, with zero allowlisted
 // alerts in the fetched window, still reads healthy here: the collector does
 // not yet persist per-target truncation when no fact carries it, so this file

@@ -18,7 +18,11 @@ import (
 // securityAlertFreshnessInput is the provider truth a freshness digest covers.
 // fanoutOutcomes, set only after an org fan-out (#8805), maps each fan-out
 // repository to its outcome so a changed per-repository outcome moves the
-// digest; it is omitted otherwise so non-fan-out digests are unchanged.
+// digest; it is omitted otherwise. The alert snapshot also carries each alert's
+// repository (#8805), so org-scope digests, fan-out or not, differ from those
+// computed before that field existed: each org target takes one extra
+// generation after an upgrade, then the digest is stable again. Repository-scope
+// digests are unchanged.
 type securityAlertFreshnessInput struct {
 	alerts         []securityalerts.GitHubDependabotAlert
 	pagesFetched   int

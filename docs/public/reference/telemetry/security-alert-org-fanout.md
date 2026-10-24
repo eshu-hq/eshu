@@ -17,5 +17,10 @@ Each affected fact names why in `collection_incomplete_reasons`. A non-zero
 target are still incomplete; the `security_alert.observe` span carries the
 `eshu.security_alert.org_fanout.*` counts for the claim.
 
+`eshu_dp_security_alert_fetch_duration_seconds` records the org read as one
+`success` sample taken when that read finishes, before the fan-out. Each
+per-repository read records its own sample, so a claim that fans out adds one
+sample per repository read.
+
 Repository names, alert URLs, and provider response bodies stay out of metric
 labels.

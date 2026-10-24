@@ -54,7 +54,9 @@ Only a cancelled claim context fails the claim, with no partial generation.
 Fan-out facts carry a lowercase `repository_name`, because the per-repository
 endpoint returns no repository object. The freshness digest includes each alert's
 repository and the fan-out outcomes, so a changed outcome is a new refresh
-boundary.
+boundary. Because of the repository field, org-scope digests differ from those
+computed before #8805: each org target takes one extra generation after an
+upgrade.
 
 Performance Evidence: one org claim sends at most
 `max_pages` x (1 + min(allowlisted org repositories, 100)) alert-page requests
