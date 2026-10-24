@@ -58,6 +58,12 @@ One-Time Filter on `u` finding nothing.
 
 ## Performance Evidence
 
+Performance Evidence: the collector terminal-failure status read, measured on
+PostgreSQL 18.6 with 542,800 `workflow_work_items` rows (276,000 of them
+`failed_terminal` for one instance), took 24.2 ms and 14,408 shared buffers on
+main and 25.0 ms and 14,410 buffers with this change and no acknowledgement. An
+acknowledged scope adds about 0.45 ms. The measurements follow.
+
 PostgreSQL 18.6, 542,800 work items: one instance (`hot`) with 276,000
 `failed_terminal` rows across 460 scopes and 600 cycles, and one instance
 (`other`) with alternating `failed_terminal` and `completed` rows (266,800), 15
@@ -140,6 +146,10 @@ the change reverted. Every one turned a live test red:
 | Make the store always rewrite instead of returning `Unchanged` | `RecordsAndSuppresses` |
 
 ## Observability Evidence
+
+Observability Evidence: new counter `eshu_dp_collector_terminal_failure_acknowledgements_total{outcome}`,
+new gauge `eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances`,
+one governance audit event per decision, and one INFO log. Details follow.
 
 - Counter `eshu_dp_collector_terminal_failure_acknowledgements_total{outcome}`
   (`recorded`, `unchanged`, `refused`, `not_found`, `class_changed`, `failed`),
