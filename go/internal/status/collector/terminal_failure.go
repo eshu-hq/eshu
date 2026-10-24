@@ -36,6 +36,10 @@ const maxFailureOperationLength = 48
 // absent: they can carry provider response text and must not reach a status
 // payload.
 //
+// ScopeID is the scope of the failed work item, the key an operator names to
+// acknowledge the failure. It is shown only to callers that may see instance
+// identity.
+//
 // Acknowledged is true when an operator acknowledged this failure episode
 // (#8830). The reader returns an acknowledged failure only for an instance
 // that has no unacknowledged one, so a row with Acknowledged set is the newest
@@ -45,6 +49,7 @@ const maxFailureOperationLength = 48
 type TerminalFailure struct {
 	CollectorKind      string
 	InstanceID         string
+	ScopeID            string
 	FailureClass       string
 	FailureOperation   string
 	ObservedAt         time.Time
@@ -108,6 +113,7 @@ func (b *runtimeStatusBuilder) applyTerminalFailures(failures []TerminalFailure)
 		row.LastFailureOperation = BoundedFailureOperation(failure.FailureOperation)
 		row.LastFailureTerminal = true
 		row.LastFailureAt = failure.ObservedAt
+		row.LastFailureScopeID = strings.TrimSpace(failure.ScopeID)
 		row.LastFailureAcknowledged = failure.Acknowledged
 		row.LastFailureAcknowledgedAt = time.Time{}
 		row.LastFailureAcknowledgedReason = ""

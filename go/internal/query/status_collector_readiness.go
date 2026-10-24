@@ -79,6 +79,15 @@ type collectorReadinessEntry struct {
 	LastFailureClass     string `json:"last_failure_class,omitempty"`
 	LastFailureOperation string `json:"last_failure_operation,omitempty"`
 	LastFailureAt        any    `json:"last_failure_at,omitempty"`
+	// LastFailureScopeID is the scope an operator names to acknowledge the
+	// failure; LastFailureAcknowledged, LastFailureAcknowledgedAt, and
+	// LastFailureAcknowledgedReason report an operator acknowledgement of it
+	// (#8830). An acknowledged failure does not fail the instance. Scoped
+	// callers do not receive the scope id or the reason.
+	LastFailureScopeID            string `json:"last_failure_scope_id,omitempty"`
+	LastFailureAcknowledged       bool   `json:"last_failure_acknowledged,omitempty"`
+	LastFailureAcknowledgedAt     any    `json:"last_failure_acknowledged_at,omitempty"`
+	LastFailureAcknowledgedReason string `json:"last_failure_acknowledged_reason,omitempty"`
 }
 
 // collectorReadinessStatusReadFailedMessage is the fixed body of a failed
@@ -220,8 +229,15 @@ func collectorReadinessEntries(proofs []collector.PromotionProof, redactInstance
 		if !proof.LastFailureAt.IsZero() {
 			entry.LastFailureAt = nullableRFC3339(proof.LastFailureAt)
 		}
+		if proof.LastFailureAcknowledged {
+			entry.LastFailureAcknowledged = true
+			entry.LastFailureAcknowledgedAt = nullableRFC3339(proof.LastFailureAcknowledgedAt)
+		}
 		if redactInstance {
 			entry.InstanceID = ""
+		} else {
+			entry.LastFailureScopeID = proof.LastFailureScopeID
+			entry.LastFailureAcknowledgedReason = proof.LastFailureAcknowledgedReason
 		}
 		entries = append(entries, entry)
 	}
@@ -234,6 +250,9 @@ func collectorReadinessEntries(proofs []collector.PromotionProof, redactInstance
 func recommendedNextAction(proof collector.PromotionProof) string {
 	switch proof.PromotionState {
 	case collector.PromotionImplemented:
+		if proof.LastFailureAcknowledged {
+			return "No action required; a terminal failure is acknowledged and no longer reported. Fix the cause or remove the target to retire it."
+		}
 		return "No action required; lane meets the promotion contract."
 	case collector.PromotionPartial:
 		if proof.ReducerReadback == collector.ReadbackPending {

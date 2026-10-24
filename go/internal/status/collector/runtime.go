@@ -64,6 +64,10 @@ type RuntimeStatus struct {
 	LastFailureOperation string
 	LastFailureTerminal  bool
 	LastFailureAt        time.Time
+	// LastFailureScopeID is the scope of the failed work item. An operator
+	// names it to acknowledge the failure (#8830). Query surfaces show it only
+	// to callers that may see instance identity.
+	LastFailureScopeID string
 	// LastFailureAcknowledged marks a failure an operator acknowledged
 	// (#8830). The failure fields above still describe it, but it does not
 	// degrade the instance and is not a promotion blocker.

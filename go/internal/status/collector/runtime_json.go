@@ -33,6 +33,9 @@ type RuntimeStatusJSON struct {
 	LastFailureOperation string `json:"last_failure_operation,omitempty"`
 	LastFailureTerminal  bool   `json:"last_failure_terminal,omitempty"`
 	LastFailureAt        string `json:"last_failure_at,omitempty"`
+	// LastFailureScopeID is the failed work item's scope, omitted when no
+	// failure exists.
+	LastFailureScopeID string `json:"last_failure_scope_id,omitempty"`
 	// LastFailureAcknowledged, LastFailureAcknowledgedAt, and
 	// LastFailureAcknowledgedReason describe an operator acknowledgement of
 	// that failure (#8830). They are omitted for an unacknowledged failure.
@@ -45,29 +48,29 @@ func RuntimeStatusesJSON(rows []RuntimeStatus) []RuntimeStatusJSON {
 	projected := make([]RuntimeStatusJSON, 0, len(rows))
 	for _, row := range rows {
 		projected = append(projected, RuntimeStatusJSON{
-			InstanceID:            row.InstanceID,
-			CollectorKind:         row.CollectorKind,
-			Mode:                  row.Mode,
-			RuntimeMode:           row.RuntimeMode,
-			StatusCategory:        row.StatusCategory,
-			CoordinatorRegistered: row.CoordinatorRegistered,
-			Enabled:               row.Enabled,
-			Bootstrap:             row.Bootstrap,
-			ClaimsEnabled:         row.ClaimsEnabled,
-			DisplayName:           row.DisplayName,
-			Health:                row.Health,
-			EvidenceSources:       row.EvidenceSources,
-			SourceSystems:         row.SourceSystems,
-			ObservationCount:      row.ObservationCount,
-			LastObservedAt:        shared.NullableRFC3339Value(row.LastObservedAt),
-			UpdatedAt:             shared.NullableRFC3339Value(row.UpdatedAt),
-			DeactivatedAt:         shared.NullableRFC3339Value(row.DeactivatedAt),
-			Detail:                row.Detail,
-			LastFailureClass:      row.LastFailureClass,
-			LastFailureOperation:  row.LastFailureOperation,
-			LastFailureTerminal:   row.LastFailureTerminal,
-			LastFailureAt:         shared.NullableRFC3339Value(row.LastFailureAt),
-
+			InstanceID:                    row.InstanceID,
+			CollectorKind:                 row.CollectorKind,
+			Mode:                          row.Mode,
+			RuntimeMode:                   row.RuntimeMode,
+			StatusCategory:                row.StatusCategory,
+			CoordinatorRegistered:         row.CoordinatorRegistered,
+			Enabled:                       row.Enabled,
+			Bootstrap:                     row.Bootstrap,
+			ClaimsEnabled:                 row.ClaimsEnabled,
+			DisplayName:                   row.DisplayName,
+			Health:                        row.Health,
+			EvidenceSources:               row.EvidenceSources,
+			SourceSystems:                 row.SourceSystems,
+			ObservationCount:              row.ObservationCount,
+			LastObservedAt:                shared.NullableRFC3339Value(row.LastObservedAt),
+			UpdatedAt:                     shared.NullableRFC3339Value(row.UpdatedAt),
+			DeactivatedAt:                 shared.NullableRFC3339Value(row.DeactivatedAt),
+			Detail:                        row.Detail,
+			LastFailureClass:              row.LastFailureClass,
+			LastFailureOperation:          row.LastFailureOperation,
+			LastFailureTerminal:           row.LastFailureTerminal,
+			LastFailureAt:                 shared.NullableRFC3339Value(row.LastFailureAt),
+			LastFailureScopeID:            row.LastFailureScopeID,
 			LastFailureAcknowledged:       row.LastFailureAcknowledged,
 			LastFailureAcknowledgedAt:     shared.NullableRFC3339Value(row.LastFailureAcknowledgedAt),
 			LastFailureAcknowledgedReason: row.LastFailureAcknowledgedReason,

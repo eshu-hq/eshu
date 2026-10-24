@@ -28,6 +28,7 @@ func acknowledgedFailureEvidence(now time.Time) (collector.Evidence, time.Time, 
 		TerminalFailures: []collector.TerminalFailure{{
 			CollectorKind:      "security_alert",
 			InstanceID:         "security-alert-example",
+			ScopeID:            "org:example",
 			FailureClass:       "auth_denied",
 			FailureOperation:   "list_org_alerts",
 			ObservedAt:         failedAt,
@@ -56,6 +57,9 @@ func TestRuntimeStatusesAcknowledgedFailureDoesNotDegrade(t *testing.T) {
 	if row.Health == "degraded" {
 		t.Fatalf("health = %q, want an acknowledged failure not to degrade the instance", row.Health)
 	}
+	if row.LastFailureScopeID != "org:example" {
+		t.Fatalf("scope = %q, want org:example", row.LastFailureScopeID)
+	}
 	if !row.LastFailureTerminal || !row.LastFailureAcknowledged ||
 		row.LastFailureClass != "auth_denied" || row.LastFailureOperation != "list_org_alerts" ||
 		!row.LastFailureAt.Equal(failedAt) || !row.LastFailureAcknowledgedAt.Equal(acknowledgedAt) ||
@@ -67,7 +71,7 @@ func TestRuntimeStatusesAcknowledgedFailureDoesNotDegrade(t *testing.T) {
 	}
 
 	projected := collector.RuntimeStatusesJSON([]collector.RuntimeStatus{row})[0]
-	if !projected.LastFailureAcknowledged || projected.LastFailureAcknowledgedAt == "" ||
+	if projected.LastFailureScopeID != "org:example" || !projected.LastFailureAcknowledged || projected.LastFailureAcknowledgedAt == "" ||
 		projected.LastFailureAcknowledgedReason != "org left the program" {
 		t.Fatalf("projected = %+v, want the acknowledgement fields", projected)
 	}
@@ -128,7 +132,7 @@ func TestPromotionProofAcknowledgedFailureIsNotFailed(t *testing.T) {
 				t.Fatalf("blockers = %v, want no terminal fetch failure blocker once acknowledged", proof.Blockers)
 			}
 		}
-		if !proof.LastFailureAcknowledged || proof.LastFailureClass != "auth_denied" ||
+		if proof.LastFailureScopeID != "org:example" || !proof.LastFailureAcknowledged || proof.LastFailureClass != "auth_denied" ||
 			!proof.LastFailureAt.Equal(failedAt) || !proof.LastFailureAcknowledgedAt.Equal(acknowledgedAt) ||
 			proof.LastFailureAcknowledgedReason != "org left the program" {
 			t.Fatalf("proof = %+v, want the acknowledged failure on the proof", proof)

@@ -39,6 +39,13 @@ type PromotionProofJSON struct {
 	LastFailureClass     string `json:"last_failure_class,omitempty"`
 	LastFailureOperation string `json:"last_failure_operation,omitempty"`
 	LastFailureAt        string `json:"last_failure_at,omitempty"`
+	// LastFailureScopeID, LastFailureAcknowledged, LastFailureAcknowledgedAt,
+	// and LastFailureAcknowledgedReason describe the failed scope and an
+	// operator acknowledgement of that failure (#8830); omitted when absent.
+	LastFailureScopeID            string `json:"last_failure_scope_id,omitempty"`
+	LastFailureAcknowledged       bool   `json:"last_failure_acknowledged,omitempty"`
+	LastFailureAcknowledgedAt     string `json:"last_failure_acknowledged_at,omitempty"`
+	LastFailureAcknowledgedReason string `json:"last_failure_acknowledged_reason,omitempty"`
 }
 
 func PromotionProofsJSON(rows []PromotionProof) []PromotionProofJSON {
@@ -66,6 +73,11 @@ func PromotionProofsJSON(rows []PromotionProof) []PromotionProofJSON {
 			LastFailureClass:     row.LastFailureClass,
 			LastFailureOperation: row.LastFailureOperation,
 			LastFailureAt:        shared.NullableRFC3339Value(row.LastFailureAt),
+
+			LastFailureScopeID:            row.LastFailureScopeID,
+			LastFailureAcknowledged:       row.LastFailureAcknowledged,
+			LastFailureAcknowledgedAt:     shared.NullableRFC3339Value(row.LastFailureAcknowledgedAt),
+			LastFailureAcknowledgedReason: row.LastFailureAcknowledgedReason,
 		})
 	}
 	return projected

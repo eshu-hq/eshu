@@ -105,6 +105,9 @@ type PromotionProof struct {
 	LastFailureClass     string
 	LastFailureOperation string
 	LastFailureAt        time.Time
+	// LastFailureScopeID is the failed work item's scope; it is withheld from
+	// callers that may not see instance identity.
+	LastFailureScopeID string
 	// LastFailureAcknowledged, LastFailureAcknowledgedAt, and
 	// LastFailureAcknowledgedReason mark that failure as one an operator
 	// acknowledged (#8830). An acknowledged failure is not a blocker; the proof
@@ -251,23 +254,23 @@ func promotionProofForInstance(
 	fixtureOnly := opts.FixtureOnly[entry.CollectorKind]
 
 	proof := PromotionProof{
-		CollectorKind:        entry.CollectorKind,
-		InstanceID:           row.InstanceID,
-		DisplayName:          displayName(entry, row),
-		RuntimeCategory:      row.StatusCategory,
-		Health:               row.Health,
-		ClaimDriven:          entry.ClaimDriven,
-		ClaimState:           claimState,
-		SourceScope:          entry.SourceScope,
-		FixtureOnly:          fixtureOnly,
-		EvidenceSources:      slices.Clone(row.EvidenceSources),
-		SourceSystems:        slices.Clone(row.SourceSystems),
-		ObservationCount:     row.ObservationCount,
-		ReducerReadback:      readback,
-		LastFailureClass:     row.LastFailureClass,
-		LastFailureOperation: row.LastFailureOperation,
-		LastFailureAt:        row.LastFailureAt,
-
+		CollectorKind:                 entry.CollectorKind,
+		InstanceID:                    row.InstanceID,
+		DisplayName:                   displayName(entry, row),
+		RuntimeCategory:               row.StatusCategory,
+		Health:                        row.Health,
+		ClaimDriven:                   entry.ClaimDriven,
+		ClaimState:                    claimState,
+		SourceScope:                   entry.SourceScope,
+		FixtureOnly:                   fixtureOnly,
+		EvidenceSources:               slices.Clone(row.EvidenceSources),
+		SourceSystems:                 slices.Clone(row.SourceSystems),
+		ObservationCount:              row.ObservationCount,
+		ReducerReadback:               readback,
+		LastFailureClass:              row.LastFailureClass,
+		LastFailureOperation:          row.LastFailureOperation,
+		LastFailureAt:                 row.LastFailureAt,
+		LastFailureScopeID:            row.LastFailureScopeID,
 		LastFailureAcknowledged:       row.LastFailureAcknowledged,
 		LastFailureAcknowledgedAt:     row.LastFailureAcknowledgedAt,
 		LastFailureAcknowledgedReason: row.LastFailureAcknowledgedReason,
