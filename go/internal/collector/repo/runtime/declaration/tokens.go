@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package declaration
+
+import (
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
+
+// splitTokens splits one pin-file line into whitespace-separated tokens, like
+// strings.Fields, except that a placeholder span stays inside one token even
+// when it holds spaces: "${{ inputs.node-version }}", "{{ v }}" and
+// "${ NODE_VERSION }". A span that is never closed keeps the rest of the line
+// as one token, so a broken template is reported as one unresolved declaration
+// instead of being cut into fragments that classify as aliases.
+//
+// The scan is a single pass over the line with no backtracking, so a hostile
+// line of repeated openers costs O(len(line)).
+func splitTokens(line string) []string {
+	var tokens []string
+	i := 0
+	for i < len(line) {
+		i = skipSpace(line, i)
+		if i >= len(line) {
+			break
+		}
+		start := i
+		for i < len(line) {
+			if end, ok := placeholderEnd(line, i); ok {
+				i = end
+				continue
+			}
+			r, width := utf8.DecodeRuneInString(line[i:])
+			if unicode.IsSpace(r) {
+				break
+			}
+			i += width
+		}
+		tokens = append(tokens, line[start:i])
+	}
+	return tokens
+}
+
+// skipSpace returns the index of the first non-space rune at or after i.
+func skipSpace(line string, i int) int {
+	for i < len(line) {
+		r, width := utf8.DecodeRuneInString(line[i:])
+		if !unicode.IsSpace(r) {
+			return i
+		}
+		i += width
+	}
+	return i
+}
+
+// placeholderEnd reports whether a placeholder opener starts at line[i] and,
+// if so, the index just past its closer. "${{" and "{{" close on the matching
+// "}}" with nesting; "${" closes on the next "}". An opener with no closer
+// consumes the rest of the line.
+func placeholderEnd(line string, i int) (int, bool) {
+	rest := line[i:]
+	switch {
+	case strings.HasPrefix(rest, "${{"):
+		return doubleBraceEnd(line, i+1), true
+	case strings.HasPrefix(rest, "{{"):
+		return doubleBraceEnd(line, i), true
+	case strings.HasPrefix(rest, "${"):
+		if closer := strings.IndexByte(rest, '}'); closer >= 0 {
+			return i + closer + 1, true
+		}
+		return len(line), true
+	}
+	return i, false
+}
+
+// doubleBraceEnd scans from the "{{" at line[i:] and returns the index past the
+// "}}" that balances it, or len(line) when the span is never closed.
+func doubleBraceEnd(line string, i int) int {
+	depth := 0
+	for i < len(line) {
+		switch {
+		case strings.HasPrefix(line[i:], "{{"):
+			depth++
+			i += 2
+		case strings.HasPrefix(line[i:], "}}"):
+			depth--
+			i += 2
+			if depth == 0 {
+				return i
+			}
+		default:
+			i++
+		}
+	}
+	return len(line)
+}

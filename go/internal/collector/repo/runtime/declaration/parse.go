@@ -78,7 +78,7 @@ func parse(sourceKind, body string) []declaration {
 	allLines := sourceKind == sourceKindPythonVersion
 	var out []declaration
 	for i, line := range lines {
-		tokens := strings.Fields(stripComment(line))
+		tokens := splitTokens(stripComment(line))
 		if len(tokens) == 0 {
 			continue
 		}
@@ -95,7 +95,7 @@ func parse(sourceKind, body string) []declaration {
 func parseToolVersions(lines []string) []declaration {
 	var out []declaration
 	for i, line := range lines {
-		tokens := strings.Fields(stripComment(line))
+		tokens := splitTokens(stripComment(line))
 		if len(tokens) < 2 {
 			continue
 		}
@@ -146,7 +146,7 @@ func parseRustToolchain(lines []string) []declaration {
 			}
 			continue
 		}
-		if tokens := strings.Fields(stripComment(line)); len(tokens) > 0 {
+		if tokens := splitTokens(stripComment(line)); len(tokens) > 0 {
 			return []declaration{{line: i + 1, runtime: "rust", rawSpec: tokens[0]}}
 		}
 	}
