@@ -50,6 +50,16 @@ func TestDriftCheck_VerifyScriptInCompositeAction(t *testing.T) {
 	if hasMismatch() {
 		t.Fatal("a non-executable action mention identified a workflow host")
 	}
+	const nested = "name: Verify example\nruns:\n  using: composite\n  steps:\n    - uses: ./.github/actions/nested\n"
+	if err := os.WriteFile(path, []byte(nested), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, err := range cigates.DriftCheck(root, reg) {
+		if containsAll(err.Error(), "verify-example", "nested local action", "./.github/actions/nested") {
+			return
+		}
+	}
+	t.Fatal("nested local action was silently ignored instead of naming both actions")
 }
 
 func scriptGate(workflow, command string) cigates.Gate {

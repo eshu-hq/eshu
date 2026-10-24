@@ -91,7 +91,8 @@ func workflowRunCommands(raw []byte) []string {
 }
 
 // workflowRunCommandsWithActions includes executable steps moved into local
-// composite actions. A workflow remains the host of those commands.
+// composite actions. A workflow remains the host of those commands. Nested
+// local actions fail closed rather than silently hiding executable commands.
 func workflowRunCommandsWithActions(repoRoot string, raw []byte) ([]string, error) {
 	var wf runWorkflowFile
 	if err := yaml.Unmarshal(raw, &wf); err != nil {
@@ -126,6 +127,9 @@ func workflowRunCommandsWithActions(repoRoot string, raw []byte) ([]string, erro
 				return nil, fmt.Errorf("parse local action %s: %w", path, err)
 			}
 			for _, actionStep := range action.Runs.Steps {
+				if strings.HasPrefix(actionStep.Uses, "./") {
+					return nil, fmt.Errorf("local action %s uses nested local action %q; nested local actions are unsupported", path, actionStep.Uses)
+				}
 				if actionStep.Run != "" {
 					commands = append(commands, actionStep.Run)
 				}

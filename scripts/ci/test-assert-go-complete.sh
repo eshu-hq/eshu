@@ -15,6 +15,8 @@ run_case() {
   fi
 }
 run_case pass env
+run_case fail env HEAD_SHA="$sha" PR_HEAD_SHA="$other"
+run_case fail env HEAD_SHA="$other" PR_HEAD_SHA="$sha"
 run_case fail env PLAN_RESULT=failure
 run_case fail env SOURCE_SHA=
 run_case fail env MODE=full

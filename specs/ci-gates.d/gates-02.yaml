@@ -483,7 +483,7 @@ gates:
     name: CI Go tool install retry-script test mirror
     category: hygiene
     layer: hygiene
-    purpose: "Self-tests the go-install retry wrapper and fails if any workflow runs a bare go install instead of it."
+    purpose: "Self-tests the go-install retry wrapper and fails if any workflow or local composite action runs a bare go install instead of it."
     tier: pre-pr
     blocking: true
     triggers:
