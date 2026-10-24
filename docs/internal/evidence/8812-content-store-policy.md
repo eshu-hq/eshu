@@ -29,15 +29,15 @@ Same benchmark, same inputs, before and after the prefilter commit
 
 | Body | Before (MB/s) | After (MB/s) | After (ns/op) |
 | --- | --- | --- | --- |
-| typical `.yarnrc.yml`, 4 lines | 3.75 | 14.55 | 8,935 |
-| 1 MiB, no credential | 3.23 | 102.4 | 10,034,619 |
-| 1 MiB, a credential on every fifth line | 12.06 | 8.57 | 104,069,715 |
+| typical `.yarnrc.yml`, 4 lines | 3.75 | 15.4 | 8,371 |
+| 1 MiB, no credential | 3.23 | 95.0 | 10,815,775 |
+| 1 MiB, a credential on every fifth line | 12.06 | 8.55 | 104,227,586 |
 
 The prefilter is two lowercase substring checks per line (the detector words,
 the listed keys) that keep the regular expressions off a line that cannot match.
 The dense body got slower (12.06 to 8.57 MB/s) because every line there matches,
 so it pays the prefilter and then the regular expressions, and the YAML
-fail-closed state added in the same change. It is the worst case: a 1 MiB
+fail-closed state added in the same change. The "After" column was re-measured after the review fixes (2 runs, under 1% spread). It is the worst case: a 1 MiB
 governed file costs about 0.12 s per pass, twice per collection (snapshot and
 emit). Governed files are small configuration files.
 `TestSpansPrefilterNeverHidesAMatch` pins that the prefilter never hides a match.
@@ -117,6 +117,31 @@ are detected as `api_token`. `db_password = "[redacted]"` and `db_password =
 character value under `npmAuthToken` is redacted. These results match the
 evidence page's marker probe; #8833's marker arm changes the three "lost" rows
 and the two kind changes to "same kind".
+
+## Review round 1 (rev-8812) findings fixed
+
+- F1 (P1): a PEM block with header, body, and footer on one line kept its key
+  material. The header is now replaced through its footer on the same line (or to
+  the end of the line), for every header type, so the non-private-key fixed-point
+  claim also holds (P3-1). Tests: `TestRedactMarkerRedactsSameLinePEMBlocks`,
+  `TestRedactMarkerCRLFPEMBlocks`, `TestRedactMarkerNonPrivateKeyPEMIsAFixedPoint`.
+- F3 (P2): Postgres `[[:space:]]` matches U+2003 and U+3000 and RE2's does not;
+  `detect.SpaceClass` is a superset used by the Go-only expressions and the
+  redactor's separator, and `SQLPattern` keeps its bytes. The comment now says
+  the engines differ in both directions. Tests:
+  `TestSpansAndClassifyAcceptUnicodeSpaces`, `TestRedactMarkerUnicodeSpaceSeparators`.
+  Engine-parity corpus for #8833 must include U+2003, U+3000, U+017F, and U+212A.
+- Prefilter fold mismatch (mine): a non-ASCII byte skips no regular expression.
+  Tests: `TestSpansPrefilterKeepsNonASCIILines`, `TestRedactMarkerFoldSensitiveRunes`.
+- P3-3 comma in a credential key (also control characters) is rejected in
+  `NewRegistry`; P3-4 the WARN log names the failed path and a bounded reason
+  class; P3-5 `MaxGovernedBodyBytes` (4 MiB) caps a redact body; P3-6 a NUL byte
+  fails closed; P3-7 the denylist's fail-open shapes are named in the README and
+  pinned by `TestRedactMarkerKnownLimits`.
+- P3-8: the issue asks for a `source_cache` proof on `.yarnrc.yml` and `.npmrc`;
+  neither yields entities, so `source_cache` is proven on `vars.tf` (hcl), and
+  the `.yarnrc.yml` redact body and `.npmrc` metadata body are proven on the
+  `content` fact and the live row.
 
 ## Review findings addressed
 

@@ -124,10 +124,12 @@ snippets, which carry the stored body. A definition that binds `metadata` or
 
 ### Failure behavior
 
-If the redactor returns an error, or the file is not valid UTF-8, Eshu stores
-the `metadata` row for that path and counts it as
+If the redactor returns an error, the file is not valid UTF-8, the body holds a
+NUL byte (a BOM-less UTF-16 file does), or a `redact` body is over 4 MiB, Eshu
+stores the `metadata` row for that path and counts it as
 `eshu_dp_collector_content_store_files_total{outcome="redactor_failed"}`. It
-never falls back to the raw body.
+never falls back to the raw body. The WARN log names the repo-relative path and
+a bounded reason class, never the error text.
 
 ### Changing a policy
 

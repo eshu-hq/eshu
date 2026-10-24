@@ -87,6 +87,11 @@ func TestLegacyContentFilesPathAppliesThePolicyAndCountsOutcomes(t *testing.T) {
 	if !strings.Contains(logs.String(), "level=WARN") || !strings.Contains(logs.String(), "fell back to metadata rows") {
 		t.Errorf("a redactor failure must log a WARN, got %q", logs.String())
 	}
+	for _, want := range []string{"c/.yarnrc.yml", "invalid_utf8", "failed_reason_invalid_utf8=1"} {
+		if !strings.Contains(logs.String(), want) {
+			t.Errorf("the WARN log must name the failed path and the bounded reason class: missing %q in %q", want, logs.String())
+		}
+	}
 	if strings.Contains(logs.String(), policySeed) {
 		t.Errorf("the log leaked the seeded credential: %q", logs.String())
 	}

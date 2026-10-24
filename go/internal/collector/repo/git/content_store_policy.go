@@ -118,7 +118,15 @@ type contentStoreTally struct {
 	counts map[contentStoreKey]int64
 	// replaced counts the credential values a redact policy replaced.
 	replaced int64
+	// failedPaths holds the first maxLoggedFailedPaths repo-relative paths whose
+	// redactor failed, and failedReasons counts every failure by bounded reason
+	// class, so the WARN log says which file and why without error text.
+	failedPaths   []string
+	failedReasons map[gitcontent.FailureReason]int64
 }
+
+// maxLoggedFailedPaths bounds the failed paths one log line carries.
+const maxLoggedFailedPaths = 10
 
 type contentStoreKey struct {
 	policy  parser.ContentStorePolicy
@@ -138,6 +146,15 @@ func (t *contentStoreTally) storedBody(stores map[string]parser.ContentStore, pa
 	}
 	t.counts[contentStoreKey{policy: store.Policy, outcome: result.Outcome}]++
 	t.replaced += int64(result.Replaced)
+	if result.Outcome == gitcontent.StoreOutcomeRedactorFailed {
+		if len(t.failedPaths) < maxLoggedFailedPaths {
+			t.failedPaths = append(t.failedPaths, path)
+		}
+		if t.failedReasons == nil {
+			t.failedReasons = map[gitcontent.FailureReason]int64{}
+		}
+		t.failedReasons[result.Reason]++
+	}
 	return result.Body
 }
 
@@ -200,6 +217,15 @@ func (s *GitSource) recordContentStore(ctx context.Context, tally *contentStoreT
 		return
 	}
 	if failed > 0 {
+		reasons := make([]string, 0, len(tally.failedReasons))
+		for reason := range tally.failedReasons {
+			reasons = append(reasons, string(reason))
+		}
+		sort.Strings(reasons)
+		for _, reason := range reasons {
+			attrs = append(attrs, slog.Int64("failed_reason_"+reason, tally.failedReasons[gitcontent.FailureReason(reason)]))
+		}
+		attrs = append(attrs, slog.Any("failed_paths", tally.failedPaths))
 		s.Logger.WarnContext(ctx, "git content store policy fell back to metadata rows", attrs...)
 		return
 	}
