@@ -49,19 +49,21 @@ versions can hold one (a Debian epoch such as `1:2.3-1`).
 The benchmark is `BenchmarkParseConfig/gradle` in `go/internal/parser`. It
 parses a 10,001-line `build.gradle` through `DefaultEngine().ParsePath`. Each
 arm ran six times, interleaved, on the same arm64 host. The base arm overlaid
-`statement.go` from `origin/main`.
+`statement.go` and `coordinate.go` from `origin/main`.
 
-| Arm | ns/op (mean of 6) | B/op range | allocs/op range |
+| Arm | ns/op mean (min-max) | B/op mean | allocs/op range |
 | --- | --- | --- | --- |
-| base (origin/main `statement.go`) | 55,107,000 (55.1 ms) | 12.66-12.80 MB | 119,730-119,753 |
-| head | 55,553,000 (55.6 ms) | 12.69-12.78 MB | 119,736-119,754 |
+| base (origin/main) | 55,779,893 (54.9-56.4 ms) | 12,755,064 | 119,739-119,761 |
+| head | 56,565,498 (55.4-57.4 ms) | 12,942,978 | 119,748-119,760 |
 
-Head is 0.8% slower. That is inside the per-run spread of both arms: base ran
-54.5-55.7 ms and head ran 54.7-56.3 ms. Allocations stay in the same band, and
-`selector.Exact` allocates nothing (`TestExactAllocatesNothing`). The reducer
-change adds four constant-time string checks per call. It touches no query,
-lock, queue or batch. The content-version bump costs one extra generation per
-repository on its next sync, the cost the gate makes explicit (#7978).
+Head is 1.4% slower, and the two ranges overlap. Allocations per op are
+unchanged. Bytes per op rise 1.5%: the string-notation split now keeps four
+parts, so its slice moves from the 48-byte to the 64-byte size class, about
+16 bytes per dependency row. `selector.Exact` allocates nothing
+(`TestExactAllocatesNothing`). The reducer change adds four constant-time
+string checks per call. It touches no query, lock, queue or batch. The
+content-version bump costs one extra generation per repository on its next
+sync, the cost the gate makes explicit (#7978).
 
 ## No-Observability-Change:
 
