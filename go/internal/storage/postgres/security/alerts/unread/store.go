@@ -18,18 +18,25 @@ import (
 // The conflict arm exists for a replay of a still-pending generation: the
 // generation id is the key, and the latest write wins. $1 generation id, $2
 // scope id, $3 org read truncated, $4 repositories total, $5 unread total, $6
-// observed at, $7 the distinct unread reasons.
+// observed at, $7 the distinct unread reasons, $8 the repository this
+// generation's fan-out started at, $9 the repository the next claim starts at
+// (both NULL for the top of the allowlist), $10 the last-position repository
+// whose failed read closed a lap, NULL when no lap is in progress (#8946).
 const upsertTargetReadStateQuery = `
 INSERT INTO security_alert_target_read_states (
-    generation_id, scope_id, org_read_truncated, repositories_total, unread_total, observed_at, unread_reasons
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
+    generation_id, scope_id, org_read_truncated, repositories_total, unread_total, observed_at, unread_reasons,
+    fanout_start_repository, fanout_next_repository, fanout_lap_repository
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 ON CONFLICT (generation_id) DO UPDATE SET
     scope_id = EXCLUDED.scope_id,
     org_read_truncated = EXCLUDED.org_read_truncated,
     repositories_total = EXCLUDED.repositories_total,
     unread_total = EXCLUDED.unread_total,
     observed_at = EXCLUDED.observed_at,
-    unread_reasons = EXCLUDED.unread_reasons`
+    unread_reasons = EXCLUDED.unread_reasons,
+    fanout_start_repository = EXCLUDED.fanout_start_repository,
+    fanout_next_repository = EXCLUDED.fanout_next_repository,
+    fanout_lap_repository = EXCLUDED.fanout_lap_repository`
 
 // deleteUnreadRepositoriesQuery clears the child rows of one generation so a
 // replay of the same generation id replaces them instead of merging with a
@@ -73,7 +80,7 @@ func write(ctx context.Context, exec collector.CommitExecutor, state securityale
 	}
 	if _, err := exec.ExecContext(ctx, upsertTargetReadStateQuery,
 		generationID, scopeID, state.OrgReadTruncated, state.RepositoriesTotal, len(unread), state.ObservedAt.UTC(),
-		distinctReasons(unread),
+		distinctReasons(unread), cursorArg(state.FanoutStartRepository), cursorArg(state.FanoutNextRepository), cursorArg(state.FanoutLapRepository),
 	); err != nil {
 		return fmt.Errorf("upsert security alert target read state: %w", err)
 	}
@@ -131,4 +138,14 @@ func distinctReasons(unread []securityalerts.UnreadRepository) array.StringArray
 	}
 	slices.Sort(reasons)
 	return slices.Compact(reasons)
+}
+
+// cursorArg normalizes a fan-out cursor slug the way the unread slugs are, and
+// stores no cursor as NULL: the next claim then starts at the top.
+func cursorArg(repository string) any {
+	repository = strings.ToLower(strings.TrimSpace(repository))
+	if repository == "" {
+		return nil
+	}
+	return repository
 }

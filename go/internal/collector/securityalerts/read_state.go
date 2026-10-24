@@ -33,4 +33,29 @@ type TargetReadState struct {
 	// repository the fan-out read completely is absent.
 	Unread     []UnreadRepository
 	ObservedAt time.Time
+	// FanoutStartRepository is the allowlisted repository this generation's
+	// fan-out started at, or "" when it started at the top of the allowlist
+	// (#8946).
+	FanoutStartRepository string
+	// FanoutNextRepository is the allowlisted repository the next claim's
+	// fan-out starts at, or "" for the top. It commits with the generation, so
+	// a claim that rolls back, or an unchanged generation that is skipped,
+	// leaves the cursor where it was.
+	FanoutNextRepository string
+	// FanoutLapRepository names the last allowlisted repository when its failed
+	// read closed a lap (#8946): the start returned to the top and stays there
+	// until a claim reads every repository or that repository leaves the
+	// allowlist. Empty means no lap.
+	FanoutLapRepository string
+}
+
+// FanoutCursor is the committed fan-out position of one org target, read from
+// the newest pending-or-active generation's read state (#8946). Both fields are
+// lowercase allowlist entries; empty means the top and no lap.
+type FanoutCursor struct {
+	// NextRepository is the repository the next claim starts at.
+	NextRepository string
+	// LapRepository is the last-position repository whose failed read closed a
+	// lap, while the lap is in progress.
+	LapRepository string
 }

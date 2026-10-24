@@ -1,0 +1,10 @@
+{
+  "repo_id": "github.com/eshu-hq/eshu",
+  "relative_path": "services/api/.nvmrc",
+  "scope_dir": "services/api",
+  "line_number": 1,
+  "order_index": 0,
+  "source_kind": "nvmrc",
+  "runtime": "node",
+  "spec_kind": "exact"
+}

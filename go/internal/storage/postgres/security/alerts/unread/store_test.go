@@ -169,3 +169,37 @@ func TestWriterRejectsCaseTwinsWithConflictingReasons(t *testing.T) {
 		t.Errorf("statements = %d, want none for invalid state", len(exec.calls))
 	}
 }
+
+func TestWriterRecordsFanoutCursorOnTheParentRow(t *testing.T) {
+	state := sampleState()
+	state.FanoutStartRepository = " Acme/Alpha "
+	state.FanoutNextRepository = "acme/zeta"
+	state.FanoutLapRepository = " Acme/Omega "
+	exec := &recordingExecutor{}
+	if err := Writer(state)(context.Background(), exec); err != nil {
+		t.Fatalf("Writer() error = %v", err)
+	}
+	args := exec.calls[0].args
+	if len(args) != 10 {
+		t.Fatalf("parent upsert args = %d, want 10 (the three fan-out cursor columns last)", len(args))
+	}
+	if args[7] != "acme/alpha" || args[8] != "acme/zeta" || args[9] != "acme/omega" {
+		t.Errorf("fan-out cursor args = %v, %v, %v; want lowercase trimmed slugs acme/alpha, acme/zeta, acme/omega", args[7], args[8], args[9])
+	}
+	for _, column := range []string{"fanout_start_repository", "fanout_next_repository", "fanout_lap_repository"} {
+		if !strings.Contains(exec.calls[0].query, column+" = EXCLUDED."+column) {
+			t.Errorf("parent upsert does not replace %s on conflict", column)
+		}
+	}
+}
+
+func TestWriterStoresNoCursorAsNull(t *testing.T) {
+	exec := &recordingExecutor{}
+	if err := Writer(sampleState())(context.Background(), exec); err != nil {
+		t.Fatalf("Writer() error = %v", err)
+	}
+	args := exec.calls[0].args
+	if args[7] != nil || args[8] != nil || args[9] != nil {
+		t.Errorf("empty cursor args = %v, %v, %v; want NULL (nil): the top, and no lap", args[7], args[8], args[9])
+	}
+}

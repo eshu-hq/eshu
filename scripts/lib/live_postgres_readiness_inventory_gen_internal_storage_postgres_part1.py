@@ -26,6 +26,9 @@ TABLE = {
             "TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsFixturePackageManifests",
             "TestFixtureDirPatternAgreesBetweenPostgresAndGo",
         ),
+        "go/internal/storage/postgres/alert_fanout_cursor_live_test.go": (
+            "TestSecurityAlertFanoutCursorLive",
+        ),
         "go/internal/storage/postgres/alert_read_state_commit_live_test.go": (
             "TestSecurityAlertReadStateLiveCommit",
         ),
@@ -477,13 +480,6 @@ TABLE = {
         ),
         "go/internal/storage/postgres/recovery_replay_lock_order_live_test.go": (
             "TestRecoveryReplayConcurrentReplaysNeverDeadlockLive",
-        ),
-        "go/internal/storage/postgres/reducer_claim_sweep_lock_order_live_test.go": (
-            "TestReducerClaimSweepAndReplayBlockOneWayLive",
-            "TestReducerClaimSweepHeldRowRaceLive",
-            "TestReducerClaimSweepConcurrentWithReplaysNeverDeadlockLive",
-            "TestReducerClaimSweepKeepsActiveGenerationRowsLive",
-            "TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive",
         ),
     },
 }

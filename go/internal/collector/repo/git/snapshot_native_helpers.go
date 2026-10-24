@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
+	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/collector/repo/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/parser/scip"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -175,6 +176,40 @@ func (s *GitSource) recordIdentityDrop(ctx context.Context, drop identityDrop) {
 		attrs = append(attrs, slog.String("error", errorWithoutPath(drop.Err)))
 	}
 	s.Logger.WarnContext(ctx, "git_snapshot_preparse_identity_dropped", attrs...)
+}
+
+// pinSkipRecorder returns the onSkip callback the runtime declaration emitter
+// calls for a pin file over runtimedeclaration.MaxBytesPerFile or
+// runtimedeclaration.MaxTokensPerFile. It logs WARN
+// git_runtime_declaration_file_skipped through the GitSource ctx carries, with
+// the closed reason and the sizes that tripped the cap (never file content).
+// The skip is deterministic for the file content, so it does not mark the
+// generation dropped. A ctx without a recorder or a logger makes the callback
+// a no-op; the file emits no facts either way.
+func pinSkipRecorder(ctx context.Context, repositoryID, scopeID, generationID string) func(relativePath string, skip runtimedeclaration.Skip) {
+	return func(relativePath string, skip runtimedeclaration.Skip) {
+		s, _ := ctx.Value(streamDropRecorderKey{}).(*GitSource)
+		if s == nil || s.Logger == nil {
+			return
+		}
+		attrs := []any{
+			slog.String("reason", skip.Reason),
+			slog.String("repository_id", repositoryID),
+			slog.String(telemetry.LogKeyScopeID, scopeID),
+			slog.String(telemetry.LogKeyGenerationID, generationID),
+			slog.String("relative_path", relativePath),
+			slog.Int("byte_size", skip.ByteSize),
+		}
+		switch skip.Reason {
+		case runtimedeclaration.SkipReasonByteCap:
+			attrs = append(attrs, slog.Int("byte_cap", runtimedeclaration.MaxBytesPerFile))
+		case runtimedeclaration.SkipReasonTokenCap:
+			attrs = append(attrs,
+				slog.Int("token_count", skip.TokenCount),
+				slog.Int("token_cap", runtimedeclaration.MaxTokensPerFile))
+		}
+		s.Logger.WarnContext(ctx, "git_runtime_declaration_file_skipped", attrs...)
+	}
 }
 
 // errorWithoutPath renders err without the absolute host path an
