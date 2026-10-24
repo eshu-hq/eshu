@@ -1,0 +1,33 @@
+# #8948 Crossplane replay during an active Claim pass
+
+The fault-injection gate found missing Crossplane edges. Its diagnostic artifact shows a Claim materialization reading zero XRD facts, XRD activation before that Claim acknowledged, and both reducer rows succeeding without retry. The artifact does not expose the exact sweep outcome or replay bit; those are NOT_CHECKED for that CI run. A deterministic local PostgreSQL reproduction of this interval proved that the old `ReopenSucceeded` matched no running row, the fallback `ON CONFLICT DO NOTHING` inserted none, and the sweep falsely completed while the Claim later acknowledged without replay debt. This is wrong queue lifecycle semantics, not a graph-write or query-plan failure.
+
+The stable work-item identity remains `crossplane_satisfied_by_materialization:<claim scope>`. The scheduler now uses the existing one-row atomic replay UPDATE: a succeeded item reopens, a claimed/running item retains its lease and sets `cross_scope_replay_required`, and a pending/retrying item remains schedulable. Migration 093's existing reducer ACK trigger returns a dirtied active item to pending. When an INSERT loses a concurrent stable-ID race, a second UPDATE records debt on the winner. A terminal/dead-lettered item returns false, and the sweep leaves its own claim incomplete so the catch-up loop can retry after repair. Neither worker concurrency nor the projector activation transaction changes.
+
+Direct PostgreSQL 16 proof in an isolated schema (all 234 shipped migrations):
+
+- RED at rebased base `5848e0e56ad37c6bf1cde6602904c8da5d97c876`: `go test ./internal/storage/postgres/crossplane -run '^TestCrossplaneRedriveDuringRunningClaimReturnsAckToPendingLive$' -count=1 -v` exited 1 because no pending row existed after ACK. The first handler read two Claim facts and wrote zero edges. Artifact: `core-crossplane-running-red-final.log` in the goal artifact directory.
+- GREEN on the current implementation: the same test exited 0; the second pass read the active XRD and wrote two edges, then its ACK left no extra claim. Artifact: `core-crossplane-running-green.log`; the later three-test matrix is `core-crossplane-matrix-live-final.log` (exit 0).
+- The insert-winner test runs the first real UPDATE (zero rows), inserts and claims the stable item through a second real queue between statements, then lets the first queue's real INSERT conflict. Its second real UPDATE sets replay debt without stealing the winner's lease; the winner's real ACK returns pending. Artifact: `core-crossplane-insert-winner-live.log` (exit 0).
+- The dead-letter and catch-up matrix keeps the target dead-lettered and the XRD sweep claimed; Sweep and SweepBatch report an error, and the ledger stays empty. The mid-fan-out transient-error catch-up still completes after lease expiry. Artifact: `core-crossplane-matrix-live-final.log` (exit 0).
+
+Performance Evidence: `TestCrossplaneReplayClaimedRowCostLive` ran 50 paired sequential samples on the same claimed row and one PostgreSQL 16 connection, resetting only the replay bit outside each timing window. The old public-method sequence (failed succeeded-only UPDATE plus conflicting INSERT, no replay debt) measured p50 287.226 µs, p95 405.69 µs. The fixed indexed UPDATE (which actually records replay debt) measured p50 1.290555 ms, p95 1.698736 ms. This is roughly 1 ms more at p50 for an active Claim in this isolated fixture; the old path was incorrect, so these are operation costs, not a speedup or equivalent-output comparison. The missing-item path adds a second indexed UPDATE only after a conflicting INSERT; its worst case is three bounded statements. Repo-scale throughput was not measured. Artifact: `core-crossplane-replay-cost.log` in the goal artifact directory.
+
+The bounded page qualification used 501 Claim scopes, one fact and one stable claimed reducer item each, on the same PostgreSQL 16 fixture. Three fresh XRD generations exercised the actual default 500-target page size. Each Sweep completed with 501 targets, two pages, 501 replay-debt bits, and 501 rows still claimed by the original owner. Sweep-to-completion durations were 718.147895 ms, 751.430041 ms, and 740.65726 ms. Each is below the local 60-second qualification bound (10% of the default 10-minute sweep lease); this is not a production SLO or corpus-wide result. Artifact: `core-crossplane-paged-501.log`.
+
+Observability Evidence: an unschedulable target now returns an error from Sweep/SweepBatch. The projector live hook logs the error and increments the existing `sweep_error` counter; periodic catch-up logs its error. The work item remains dead-lettered and the sweep claim remains reclaimable after lease expiry. Successful redrives retain the existing completed/targets/pages counters.
+
+Remaining acceptance: hosted fault-injection and the full required-gates set must pass on the pushed head. The isolated test uses a spy edge writer and fake existence confirmation; actual Neo4j graph truth remains a separate hosted gate.
+
+## Scheduled execution
+
+The new cases run unconditionally as subtests of the two already-enrolled roots. The workflow selector, runner checksum, and top-level inventory remain unchanged; the hosted manifest binds the full source files. The existing event verifier rejects failed events and skipped enrolled subtests.
+
+| Original standalone proof | Current enrolled case |
+| --- | --- |
+| `TestCrossplaneRedriveDuringRunningClaimReturnsAckToPendingLive` | `TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive/running_claim_ack` |
+| `TestCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive` | `TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive/concurrent_insert` |
+| `TestCrossplaneReplayClaimedRowCostLive` | `TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive/claimed_row_cost` |
+| `TestCrossplaneRedrivePagedClaimedReplayCostLive` | `TestCrossplaneRedriveTargetDiscoveryQueryPlanLive/paged_claimed_replay` |
+
+The original scenarios remain explicit `xrd_lag_window` and `target_discovery_plan` cases. The historical RED/GREEN and timing artifacts above predate this naming change; production code and each case's fixture and assertions are unchanged. Current coverage is verified by running the exact hosted nine-root selector with PostgreSQL and `-json -race`, checking all six child run/pass pairs, and validating the stream with `scripts/lib/postgres_scheduled_runner.py`. The current command and output are recorded in `core-crossplane-enrolled-json-race.jsonl` and `core-crossplane-enrollment-harness-results.json` in the goal artifact directory.

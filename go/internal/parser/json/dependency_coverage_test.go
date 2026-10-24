@@ -87,6 +87,7 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"pypi|pipfile",
 		"pypi|pipfile.lock",
 		"pypi|poetry.lock",
+		"pypi|uv.lock",
 		"hex|mix.exs",
 		"hex|mix.lock",
 		"pub|pubspec.yaml",

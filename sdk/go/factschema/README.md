@@ -102,6 +102,16 @@ missing required identity from silently becoming an empty-string graph node.
 
 ## Decode seam and classified errors
 
+The typed decoder also accepts `encoding/json.Number` values from a
+number-preserving `json.Decoder`. Integer fields accept mathematically integral
+decimal and exponent forms within the target Go integer range. Fractional
+values, malformed tokens, and out-of-range integers return classified
+`input_invalid` errors for integer fields. Float fields accept finite JSON
+numbers, including fractions, with normal float64 rounding; malformed tokens
+and values outside the finite float64 range return `input_invalid`. The
+historical float64 and in-memory integer input paths remain available. This
+is a decoder correction; the wire schema and fixture bytes do not change.
+
 ```go
 resource, err := factschema.DecodeAWSResource(env)
 if err != nil {
@@ -234,3 +244,7 @@ No-Observability-Change: this module has no runtime, network, queue, graph,
 or telemetry emission path, the same as `sdk/go/collector`. Runtime
 telemetry for the decode seam, once reducer handlers call it, is owned by
 the migration PRs in Contract System v1 §7, not by this scaffold.
+
+Number-preserving integer slices (`[]int` and `[]int32`) use the same exact
+decimal conversion as scalar fields. Mixed legacy members retain their JSON
+conversion, including null-to-zero; invalid numbers fail with bounded errors.

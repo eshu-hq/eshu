@@ -91,3 +91,44 @@ package records bounded SDK status records through an injected
 claim failure classes, workflow claim rows, collector fact evidence, and
 `/admin/status` collector runtime derivation. It adds no graph writes, queue
 domains, API routes, or MCP tools.
+
+Number Fidelity No-Regression Evidence: `go test
+./internal/collector/extensionhost -run
+'^TestProcessResultNumbersSurviveClaimedSource$' -count=1` failed on baseline
+`ffca930a8b25` because JSON integer `9007199254740993` became
+`9007199254740992`. It passes after `ProcessRunner` decodes payload numbers
+without a float64 conversion. The subprocess, SDK validator, claimed source,
+fact envelope clone, and JSON consumer retain the exact integer, negative
+integer, int64 boundary, nested array, and decimal values. The full package
+test, race test, and vet also pass. The separate public typed-consumer tests
+preserve an exact issue count and nested Kubernetes ports through the
+subprocess, grant/schema validation, claimed source, and envelope clone.
+
+`ProcessRunner` and `OCIRunner` now use the same bounded result decoder. The
+OCI adapter test supplies an injected runtime executor and checks exact
+numbers through grant/schema validation, the claimed source, envelope clone,
+and public typed scalar and nested-list consumers. Shared decoder tests cover
+unknown fields, empty or malformed input, and trailing values or junk. Existing
+runner tests cover output limits, cancellation, and executor failures. The OCI
+test does not run a container. Database reload, graph, and deployed consumer
+compatibility remain unverified.
+
+Number Fidelity Benchmark Evidence: on linux/amd64, Intel i7-8700K, Go
+1.26.10, the same `ProcessRunner.RunCollector` subprocess benchmark ran five
+100-operation samples per shape before (`ffca930a8b25`) and after the decoder
+change (`d1ab1d8187`). Numeric-array JSON results of about 1 KiB measured
+5.718 to 5.663 ms/op at the sample medians, with sample maxima 5.771 to
+5.719 ms/op; bytes/op rose 92,662 to 93,174 and allocs/op stayed 258. About
+64 KiB measured 10.607 to 7.126 ms/op at the sample medians, with sample
+maxima 10.913 to 7.325 ms/op; bytes/op rose 908,387 to 941,155 and allocs/op
+stayed 8,338. These are aggregate benchmark samples, not individual request
+p95 values. The additional bytes scale with decoded numeric payload. Stdout input
+remains capped at 4 MiB; total decoder allocations were measured only at the
+stated shapes. No queue or row counts apply to this
+standalone subprocess decode.
+
+Number Fidelity No-Observability-Change: decoding changes only the in-memory
+numeric representation. The existing process and OCI adapter errors, bounded
+SDK statuses, claim failure classes, and collector fact evidence remain the
+operator signals; the focused tests prove accepted results reach the claimed
+source without a new status or failure path.

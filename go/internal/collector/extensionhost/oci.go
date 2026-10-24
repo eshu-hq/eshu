@@ -162,13 +162,14 @@ func defaultOCIExec(ctx context.Context, name string, args []string, stdin []byt
 	return cmd.Run()
 }
 
-// decodeSDKResult decodes exactly one SDK result from a bounded stdout buffer,
-// rejecting unknown fields and trailing JSON so the host never accepts a
-// partial or padded extension response.
+// decodeSDKResult decodes exactly one SDK result from either bounded runner
+// stdout buffer. It preserves JSON numbers for typed payload consumers and
+// rejects unknown fields and trailing JSON.
 func decodeSDKResult(payload []byte) (sdkcollector.Result, error) {
 	var result sdkcollector.Result
 	decoder := json.NewDecoder(bytes.NewReader(payload))
 	decoder.DisallowUnknownFields()
+	decoder.UseNumber()
 	if err := decoder.Decode(&result); err != nil {
 		return sdkcollector.Result{}, fmt.Errorf("decode extension result: %w", err)
 	}

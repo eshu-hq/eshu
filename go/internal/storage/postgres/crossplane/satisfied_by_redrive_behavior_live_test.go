@@ -6,9 +6,11 @@ package crossplanestore_test
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
@@ -78,7 +80,15 @@ func (r *crossplaneRedriveFakeEdgeExistenceReader) Run(
 // edge, WITHOUT the Claim scope ever being re-ingested: no new
 // scope_generations row, no new fact_records row, is written for the Claim
 // scope anywhere in this test after its initial seed.
+// TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive keeps every redrive scenario in the scheduled proof.
 func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
+	t.Run("xrd_lag_window", testCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive)
+	t.Run("running_claim_ack", testCrossplaneRedriveDuringRunningClaimReturnsAckToPendingLive)
+	t.Run("concurrent_insert", testCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive)
+	t.Run("claimed_row_cost", testCrossplaneReplayClaimedRowCostLive)
+}
+
+func testCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 	dsn, schema := crossplaneRedriveProofSchema(t)
 	db := crossplaneRedriveProofConn(t, dsn, schema)
 	ctx := context.Background()
@@ -204,4 +214,228 @@ func assertCrossplaneRedriveWorkItemPending(ctx context.Context, t *testing.T, d
 	if !found {
 		t.Fatalf("expected a pending crossplane_satisfied_by_materialization work item for scope %q generation %q", scopeID, generationID)
 	}
+}
+
+// TestCrossplaneRedriveDuringRunningClaimReturnsAckToPendingLive pins the
+// activation/ACK ordering seen by the fault-injection gate. The first Claim
+// pass observes no XRD, activation schedules redrive while that same reducer
+// row is still running, and its ACK must preserve one replay pass.
+func testCrossplaneRedriveDuringRunningClaimReturnsAckToPendingLive(t *testing.T) {
+	dsn, schema := crossplaneRedriveProofSchema(t)
+	db := crossplaneRedriveProofConn(t, dsn, schema)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	const (
+		claimScopeID      = "scope-claim-running-redrive"
+		claimGenerationID = "gen-claim-running-redrive"
+		xrdScopeID        = "scope-xrd-running-redrive"
+		xrdGenerationID   = "gen-xrd-running-redrive"
+		group             = "database.example.com"
+		claimKind         = "PostgreSQL"
+	)
+	seedCrossplaneRedriveClaimScope(ctx, t, db, claimScopeID, claimGenerationID, group, claimKind, 2, now)
+	queue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "running-redrive-worker", time.Minute)
+	queue.ClaimDomain = reducer.DomainCrossplaneSatisfiedByMaterialization
+	if scheduled, err := queue.ReplayCrossplaneSatisfiedByMaterialization(ctx, claimScopeID, claimGenerationID); err != nil || !scheduled {
+		t.Fatalf("enqueue initial Claim materialization: scheduled=%t error=%v", scheduled, err)
+	}
+	claimed, ok, err := queue.Claim(ctx)
+	if err != nil || !ok {
+		t.Fatalf("claim initial materialization: claimed=%t error=%v", ok, err)
+	}
+	spy := &crossplaneRedriveSpyEdgeWriter{}
+	handler := crossplane.CrossplaneSatisfiedByMaterializationHandler{
+		FactLoader: postgres.NewFactStore(postgres.SQLDB{DB: db}),
+		EdgeWriter: spy,
+	}
+	if _, err := handler.Handle(ctx, claimed); err != nil {
+		t.Fatalf("materialize before XRD activation: %v", err)
+	}
+	if len(spy.written) != 0 {
+		t.Fatalf("Claim materialization before XRD wrote %d edges, want zero", len(spy.written))
+	}
+	// The worker has finished its zero-edge handler but has not ACKed. Keep
+	// its production claim and lease while modeling the runtime's running state.
+	if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status = 'running' WHERE work_item_id = $1 AND status = 'claimed'`, claimed.IntentID); err != nil {
+		t.Fatalf("mark claimed reducer work running: %v", err)
+	}
+	seedCrossplaneRedriveXRD(ctx, t, db, xrdScopeID, xrdGenerationID, group, claimKind, now.Add(time.Minute))
+	sweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:       postgres.SQLQueryer{DB: db},
+		State:    crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: db}),
+		Replayer: queue,
+		Owner:    "running-redrive-worker",
+	}
+	result, err := sweeper.Sweep(ctx, xrdScopeID, xrdGenerationID)
+	if err != nil {
+		t.Fatalf("sweep after XRD activation: %v", err)
+	}
+	if result.Outcome != crossplanestore.CrossplaneRedriveOutcomeCompletedForTest || result.TargetsEnqueued != 1 {
+		t.Fatalf("sweep result = %+v, want one completed target", result)
+	}
+	if err := queue.Ack(ctx, claimed, reducercontract.Result{}); err != nil {
+		t.Fatalf("ACK zero-edge Claim pass: %v", err)
+	}
+	assertCrossplaneRedriveWorkItemPending(ctx, t, db, claimScopeID, claimGenerationID)
+	replayed, ok, err := queue.Claim(ctx)
+	if err != nil || !ok || replayed.IntentID != claimed.IntentID {
+		t.Fatalf("claim replayed materialization: intent=%q claimed=%t error=%v", replayed.IntentID, ok, err)
+	}
+	if _, err := handler.Handle(ctx, replayed); err != nil {
+		t.Fatalf("materialize Claim with XRD visible: %v", err)
+	}
+	if len(spy.written) != 2 {
+		t.Fatalf("replayed materialization wrote %d edges, want two", len(spy.written))
+	}
+	if err := queue.Ack(ctx, replayed, reducercontract.Result{}); err != nil {
+		t.Fatalf("ACK replayed Claim pass: %v", err)
+	}
+	if extra, ok, err := queue.Claim(ctx); err != nil || ok {
+		t.Fatalf("claim after replay ACK = (%q, %t, %v), want no work", extra.IntentID, ok, err)
+	}
+}
+
+// crossplaneReplayInsertWinner runs a hook after the scheduler's first real
+// UPDATE has found no row, before its conflict-aware INSERT. The hook inserts
+// and claims the stable work item through a second real queue, making the
+// otherwise timing-dependent insert winner deterministic.
+type crossplaneReplayInsertWinner struct {
+	postgres.SQLDB
+	afterFirstUpdate func(context.Context) error
+	called           bool
+	firstUpdateRows  int64
+}
+
+func (d *crossplaneReplayInsertWinner) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	result, err := d.SQLDB.ExecContext(ctx, query, args...)
+	if err != nil || d.called {
+		return result, err
+	}
+	d.firstUpdateRows, err = result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	d.called = true
+	if err := d.afterFirstUpdate(ctx); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func testCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive(t *testing.T) {
+	dsn, schema := crossplaneRedriveProofSchema(t)
+	db := crossplaneRedriveProofConn(t, dsn, schema)
+	ctx := context.Background()
+	const (
+		scopeID      = "scope-claim-insert-winner"
+		generationID = "gen-claim-insert-winner"
+	)
+	seedCrossplaneRedriveClaimScope(ctx, t, db, scopeID, generationID, "database.example.com", "PostgreSQL", 1, time.Now().UTC())
+	winnerQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "insert-winner", time.Minute)
+	winnerQueue.ClaimDomain = reducer.DomainCrossplaneSatisfiedByMaterialization
+	var winnerClaim reducercontract.Intent
+	interleaver := &crossplaneReplayInsertWinner{SQLDB: postgres.SQLDB{DB: db}}
+	interleaver.afterFirstUpdate = func(ctx context.Context) error {
+		if scheduled, err := winnerQueue.ReplayCrossplaneSatisfiedByMaterialization(ctx, scopeID, generationID); err != nil || !scheduled {
+			t.Fatalf("insert winner: scheduled=%t error=%v", scheduled, err)
+		}
+		claimed, ok, err := winnerQueue.Claim(ctx)
+		if err != nil || !ok {
+			t.Fatalf("claim insert winner: claimed=%t error=%v", ok, err)
+		}
+		winnerClaim = claimed
+		return nil
+	}
+	replayQueue := postgres.NewReducerQueue(interleaver, "other-scheduler", time.Minute)
+	scheduled, err := replayQueue.ReplayCrossplaneSatisfiedByMaterialization(ctx, scopeID, generationID)
+	if err != nil || !scheduled {
+		t.Fatalf("replay after insert winner: scheduled=%t error=%v", scheduled, err)
+	}
+	if !interleaver.called || interleaver.firstUpdateRows != 0 || winnerClaim.IntentID == "" {
+		t.Fatalf("insert winner interleave = (called:%t, first update rows:%d, winner:%q), want true/zero/claimed", interleaver.called, interleaver.firstUpdateRows, winnerClaim.IntentID)
+	}
+	var status, leaseOwner string
+	var replayRequired bool
+	if err := db.QueryRowContext(ctx, `
+		SELECT status, lease_owner, cross_scope_replay_required
+		FROM fact_work_items WHERE work_item_id = $1
+	`, winnerClaim.IntentID).Scan(&status, &leaseOwner, &replayRequired); err != nil {
+		t.Fatalf("read winner after replay: %v", err)
+	}
+	if status != "claimed" || leaseOwner != "insert-winner" || !replayRequired {
+		t.Fatalf("winner state = (%q, %q, %t), want claimed/insert-winner/replay debt", status, leaseOwner, replayRequired)
+	}
+	if err := winnerQueue.Ack(ctx, winnerClaim, reducercontract.Result{}); err != nil {
+		t.Fatalf("ACK insert winner: %v", err)
+	}
+	assertCrossplaneRedriveWorkItemPending(ctx, t, db, scopeID, generationID)
+}
+
+// TestCrossplaneReplayClaimedRowCostLive measures the old public-method
+// sequence and the fixed scheduler on the same claimed row and connection.
+// It asserts state after each pair; timing is recorded for review, not gated.
+func testCrossplaneReplayClaimedRowCostLive(t *testing.T) {
+	dsn, schema := crossplaneRedriveProofSchema(t)
+	db := crossplaneRedriveProofConn(t, dsn, schema)
+	ctx := context.Background()
+	const (
+		scopeID      = "scope-claim-replay-cost"
+		generationID = "gen-claim-replay-cost"
+	)
+	seedCrossplaneRedriveClaimScope(ctx, t, db, scopeID, generationID, "database.example.com", "PostgreSQL", 1, time.Now().UTC())
+	queue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "replay-cost-worker", time.Minute)
+	queue.ClaimDomain = reducer.DomainCrossplaneSatisfiedByMaterialization
+	if scheduled, err := queue.ReplayCrossplaneSatisfiedByMaterialization(ctx, scopeID, generationID); err != nil || !scheduled {
+		t.Fatalf("seed replay-cost row: scheduled=%t error=%v", scheduled, err)
+	}
+	claimed, ok, err := queue.Claim(ctx)
+	if err != nil || !ok {
+		t.Fatalf("claim replay-cost row: claimed=%t error=%v", ok, err)
+	}
+	intent := runtime.ReducerIntent{
+		ScopeID: scopeID, GenerationID: generationID,
+		Domain:    reducer.DomainCrossplaneSatisfiedByMaterialization,
+		EntityKey: "crossplane_satisfied_by_materialization:" + scopeID,
+		Reason:    "crossplane redrive replay cost proof", SourceSystem: "reducer",
+	}
+	const pairs = 50
+	baseline := make([]time.Duration, 0, pairs)
+	fixed := make([]time.Duration, 0, pairs)
+	resetDebt := func() {
+		t.Helper()
+		if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET cross_scope_replay_required = FALSE WHERE work_item_id = $1`, claimed.IntentID); err != nil {
+			t.Fatalf("reset replay debt: %v", err)
+		}
+	}
+	for i := 0; i < pairs; i++ {
+		resetDebt()
+		started := time.Now()
+		reopened, err := queue.ReopenSucceeded(ctx, claimed.IntentID)
+		if err != nil || reopened {
+			t.Fatalf("legacy succeeded-only reopen on claimed row = (%t, %v)", reopened, err)
+		}
+		if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{intent}); err != nil {
+			t.Fatalf("legacy conflict enqueue: %v", err)
+		}
+		baseline = append(baseline, time.Since(started))
+
+		resetDebt()
+		started = time.Now()
+		scheduled, err := queue.ReplayCrossplaneSatisfiedByMaterialization(ctx, scopeID, generationID)
+		if err != nil || !scheduled {
+			t.Fatalf("fixed replay = (%t, %v)", scheduled, err)
+		}
+		fixed = append(fixed, time.Since(started))
+		var status, leaseOwner string
+		var debt bool
+		if err := db.QueryRowContext(ctx, `SELECT status, lease_owner, cross_scope_replay_required FROM fact_work_items WHERE work_item_id = $1`, claimed.IntentID).Scan(&status, &leaseOwner, &debt); err != nil {
+			t.Fatalf("read replay-cost row: %v", err)
+		}
+		if status != "claimed" || leaseOwner != "replay-cost-worker" || !debt {
+			t.Fatalf("replay-cost row = (%q, %q, %t), want claimed/unchanged lease/debt", status, leaseOwner, debt)
+		}
+	}
+	slices.Sort(baseline)
+	slices.Sort(fixed)
+	t.Logf("claimed-row replay, %d paired samples, one PostgreSQL 16 connection: legacy p50=%s fixed p50=%s; legacy p95=%s fixed p95=%s", pairs, baseline[pairs/2], fixed[pairs/2], baseline[pairs*95/100], fixed[pairs*95/100])
 }
