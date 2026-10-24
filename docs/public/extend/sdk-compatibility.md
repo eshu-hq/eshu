@@ -119,8 +119,9 @@ complete HMAC-SHA256 markers while retaining source tag names only in the
 schema `1.0.0` root fingerprint map. It admits the exact Kubernetes posture
 count, automount, and projected-token fields in their owning schema `1.0.0`
 facts. A strict native JSON fallback rejects duplicate decoded member names
-before an overwritten raw value could pass validation; that guard still awaits
-merge of [SDK PR #19](https://github.com/eshu-hq/eshu-sdk/pull/19).
+before an overwritten raw value could pass validation; that guard merged in
+[SDK PR #19](https://github.com/eshu-hq/eshu-sdk/pull/19) (merge `51d630e`
+on SDK `origin/main`).
 
 The proposed factschema RC3 source replaces placeholder values in the valid
 and invalid `azure_tag_observation` fixture-pack examples with a deterministic
