@@ -1,0 +1,21 @@
+go/internal/collector/observability/prometheus/SHIM_MAP.md
+  s_ff8a600f1fc93e::t_329571683ecd62 16,31,86-92
+go/internal/collector/observability/prometheus/source_parity_8864_test.go
+  s_ff8a600f1fc93e::t_aa4b0bb58d6d49 410-412
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d870114b47dd87898e5c3aa921ab3fa7f03d0fea",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
