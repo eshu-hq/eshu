@@ -58,8 +58,8 @@ Red on the unmodified writer: 18 failures. Every unchanged-replay case fails
 (`indexed_at_only` and each `*_null_to_null` case, on both statement shapes),
 plus the writer-level replay, the changed-file sibling check, and the WAL bound
 (a one-row, 200 KB replay wrote 74,705 and 96,859 WAL bytes). Green with the
-guard: 56 passing subtests across the four tests. Removing the guard again
-fails 21 of them, including both recheck "skip" cases, so the tests are
+guard: 56 passing subtests (62 with the six top-level tests). Removing the
+guard again fails 21 tests and subtests, including both recheck "skip" cases, so the tests are
 sensitive to it.
 
 What the tests assert:
@@ -89,6 +89,10 @@ side, same host, local PostgreSQL 18.6, shared host at load 8 to 21.
 |---|---|---|---|
 | Before (guard removed) | 11,037 ms (4,087 to 26,155 ms) | 65.84 MiB | 13,446 ms |
 | After | 134 ms (134 to 135 ms) | 0.00 MiB | 2,489 ms |
+
+A later three-replay run at the rebased head, on a busier host, measured 165 ms
+and 0.01 MiB of WAL for the same statement (the 50 skipped rows still take a
+row lock each).
 
 The range before is 6.4 times from smallest to largest. The "after" write wall
 of 2.5 s is client side (building and sending about 23 MB of parameters), not
