@@ -74,7 +74,10 @@
   generation lock the statement can wait in the update-chain walk, so the
   pass runs it under the generation lock timeout and a 55P03 rolls the pass
   back as `generation_lock_timeout` (`TestJournalSweeperLockWaitIsBounded`,
-  with its unbounded RED). Never turn the sweeper back into a plain LEFT JOIN
+  with its unbounded RED). The pass resets the bound to 0 right after the
+  sweeper statement, so the cursor statement that follows waits for a held
+  cursor insert as it always did (its `bound ends before the cursor insert`
+  subtest). Never turn the sweeper back into a plain LEFT JOIN
   insert, and never take the lock on the scope row or on `ingestion_scopes`.
 - The backfill inserts each activation through its generation row
   (`insertActivationQuery`, `FOR KEY SHARE OF generation SKIP LOCKED`); a row

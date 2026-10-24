@@ -87,7 +87,8 @@ func TestJournalSweeperSkipsAGenerationRetentionHoldsAndJournalsItNextPass(t *te
 // policy. Required: under the pass's bound the pass fails within a second
 // with the non-counting generation_lock_timeout (55P03) and writes nothing.
 // RED control: the shipped statement without the bound waits for the holder
-// until the test context expires.
+// until the test context expires. A third subtest requires the bound to end
+// before the cursor statement that follows the sweeper.
 func TestJournalSweeperLockWaitIsBounded(t *testing.T) {
 	t.Run("pass is bounded", func(t *testing.T) {
 		l := openLedgerDB(t)
@@ -112,6 +113,7 @@ func TestJournalSweeperLockWaitIsBounded(t *testing.T) {
 		}
 		t.Logf("sweeper generation_lock_timeout after %s", elapsed)
 	})
+	t.Run("bound ends before the cursor insert", requireCursorInsertWaits)
 	t.Run("unbounded statement waits", func(t *testing.T) {
 		l := openLedgerDB(t)
 		l.seedSweeperScopes(t)
@@ -133,4 +135,53 @@ func TestJournalSweeperLockWaitIsBounded(t *testing.T) {
 		}
 		t.Logf("unbounded sweeper statement waited %s: %v", elapsed, err)
 	})
+}
+
+// requireCursorInsertWaits pins the reset that ends the sweeper's generation
+// lock bound (#8932). It runs as a subtest of TestJournalSweeperLockWaitIsBounded. The cursor statement that
+// follows the sweeper creates a cursor row for every journaled scope and, on a
+// scope whose cursor insert another transaction has not committed (a link
+// transaction's), waits for that transaction. It must wait, as it did before
+// the sweeper took a bounded lock: with the 250 ms bound still set it would
+// fail the whole pass with 55P03 and journal nothing. A holder that commits
+// after 400 ms must not fail the pass.
+func requireCursorInsertWaits(t *testing.T) {
+	t.Helper()
+	const hold = 400 * time.Millisecond
+	l := openLedgerDB(t)
+	l.seedSweeperScopes(t)
+	holder := l.begin(t)
+	defer func() { _ = holder.Rollback() }()
+	l.execTx(t, holder, `
+INSERT INTO changed_since_scope_cursor (scope_id, state_generation_id, state_activation_seq, digest_version, updated_at)
+VALUES ('free', NULL, 0, 1, now())`)
+
+	type outcome struct {
+		result  linksfreshnessstore.JournalResult
+		elapsed time.Duration
+		err     error
+	}
+	done := make(chan outcome, 1)
+	ctx, cancel := context.WithTimeout(l.ctx, holderContext)
+	defer cancel()
+	start := time.Now()
+	go func() {
+		result, err := linksfreshnessstore.NewJournalStore(l.store).Journal(ctx, 0)
+		done <- outcome{result: result, elapsed: time.Since(start), err: err}
+	}()
+	time.Sleep(hold)
+	if err := holder.Commit(); err != nil {
+		t.Fatalf("commit the cursor holder: %v", err)
+	}
+	got := <-done
+	if got.err != nil {
+		t.Fatalf("Journal with a cursor insert held for %s = %v after %s, want success", hold, got.err, got.elapsed)
+	}
+	if got.elapsed < hold {
+		t.Fatalf("Journal answered after %s, before the %s holder committed: the cursor insert did not wait", got.elapsed, hold)
+	}
+	if rows := strings.Join(l.journalRows(t), ","); !strings.Contains(rows, "free|b1|<null>|sweeper") {
+		t.Fatalf("journal %q lacks the swept generation", rows)
+	}
+	t.Logf("Journal waited %s for the held cursor insert and committed %+v", got.elapsed, got.result)
 }

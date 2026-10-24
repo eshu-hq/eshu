@@ -73,6 +73,11 @@ shared host with load average 12 to 19.
   row, the pass answers `generation_lock_timeout` (55P03) after 254 ms and writes
   nothing. The unbounded statement waits past 1.5 s (the RED control).
 
+- `TestJournalSweeperLockWaitIsBounded/bound_ends_before_the_cursor_insert`: a
+  held cursor insert on a swept scope makes the cursor statement wait 402 ms
+  and the pass succeed. Removing the reset to 0 after the sweeper fails it with
+  `create cursors: ... 55P03` after 254 ms.
+
 ## Performance Evidence
 
 Performance Evidence: baseline `origin/main` `c664b72cb0`, PostgreSQL 18.6, 50,000
