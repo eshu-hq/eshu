@@ -12,7 +12,7 @@ RUN_ID = 101
 RUN_ATTEMPT = 3
 
 
-def accepts(plan: dict[str, object]) -> bool:
+def accepts(plan: object) -> bool:
     """Run the checked-in policy on a plan with pinned event identity."""
     result = subprocess.run(
         [
@@ -61,7 +61,8 @@ def main() -> None:
         "jobs": {"test.yml": ["go-core"]},
         "gates": ["go-build"],
     }
-    for label, candidate in (("full", full), ("reuse", reuse), ("smoke", smoke)):
+    for label, candidate in (("full", full), ("gateless full", full | {"gates": []}),
+                             ("reuse", reuse), ("smoke", smoke)):
         if not accepts(candidate):
             raise AssertionError(f"valid {label} plan was rejected")
 
@@ -73,6 +74,10 @@ def main() -> None:
         full | {"merge_tree": "short"},
         full | {"source_full_sha": "e" * 40},
         full | {"jobs": {}},
+        full | {"mode": "unknown"},
+        full | {"jobs": {"other.yml": ["go-core"]}},
+        full | {"workflows": []},
+        [],
         reuse | {"source_full_sha": ""},
         reuse | {"jobs": {"test.yml": ["go-core"]}},
         smoke | {"source_full_sha": ""},

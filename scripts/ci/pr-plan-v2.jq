@@ -15,6 +15,7 @@ def selection:
     all(.gates[]; type == "string" and length > 0)
   end;
 
+type == "object" and
 .schema_version == 2 and
 .head_sha == $sha and ($sha | lower_sha) and
 (.target_run_id | positive_int(1000000000000000)) and .target_run_id == $run_id and
