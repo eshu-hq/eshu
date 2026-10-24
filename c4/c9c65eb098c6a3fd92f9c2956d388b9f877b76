@@ -1,0 +1,29 @@
+go/internal/collector/extensionhost/README.md
+  s_ff8a600f1fc93e::t_77a4f946d9f215 103-106
+go/internal/collector/extensionhost/process_number_test.go
+  s_ff8a600f1fc93e::t_596f5ed8daf4e8 137-201
+sdk/go/factschema/README.md
+  s_ff8a600f1fc93e::t_d60dcdcbecf3a5 247-250
+sdk/go/factschema/decode_map.go
+  s_ff8a600f1fc93e::t_d2765990fe7ba0 313-315
+sdk/go/factschema/decode_map_numbers.go
+  s_ff8a600f1fc93e::t_40635e92fdb7e0 10,277-315
+sdk/go/factschema/decode_number_slice_test.go
+  s_ff8a600f1fc93e::t_64353de20f545d 1-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c4c9c65eb098c6a3fd92f9c2956d388b9f877b76",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
