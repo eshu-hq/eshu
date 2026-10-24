@@ -235,12 +235,16 @@ func (s *registryState) prepareEnable(componentID string, activation Activation)
 	return component, activation, nil
 }
 
-// Disable removes one active component instance.
+// Disable removes one active component instance. It matches the stored
+// component ID and instance_id by exact bytes and does not require the
+// canonical form, so an operator can clear a padded entry that an older build
+// recorded; Uninstall refuses a version while any activation remains. Enable
+// and PlanEnable stay canonical-only for new activations.
 func (r Registry) Disable(componentID, instanceID string) error {
-	if err := validateIdentifier("component id", componentID); err != nil {
+	if err := validateStoredIdentifier("component id", componentID); err != nil {
 		return WrapError(ErrorCodeInvalidInput, err.Error(), err)
 	}
-	if err := validateIdentifier("instance_id", instanceID); err != nil {
+	if err := validateStoredIdentifier("instance_id", instanceID); err != nil {
 		return WrapError(ErrorCodeInvalidInput, err.Error(), err)
 	}
 	state, err := r.load()

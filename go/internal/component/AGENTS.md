@@ -63,5 +63,8 @@
 - Do not silently downgrade revocation or provenance failures to warnings.
 - Do not trim manifest identifiers at load. `validateIdentifier` rejects
   padding so exact revoke and allow entries cannot miss a package.
+- Do not make `Disable` canonical-strict. It uses `validateStoredIdentifier`
+  and matches stored bytes exactly so a padded entry from an older build can
+  still be disabled and uninstalled. `Enable` and `PlanEnable` stay strict.
 - Do not let packages execute arbitrary code during install.
 - Do not add core database DDL hooks to component manifests.
