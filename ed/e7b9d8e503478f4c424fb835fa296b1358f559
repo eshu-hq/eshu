@@ -1,0 +1,29 @@
+sdk/go/collector/README.md
+  s_ff8a600f1fc93e::t_5ecd7a987789b4 57-72
+go/internal/collector/extensionhost/process_posture_test.go
+  s_ff8a600f1fc93e::t_e186c3cb4d6fea 1-129
+sdk/go/collector/kubernetes_posture_validation_test.go
+  s_ff8a600f1fc93e::t_ffc4e155d65b17 1-155
+sdk/go/collector/payload_validation.go
+  s_ff8a600f1fc93e::t_dd2e247e26a5d4 47-54
+go/internal/collector/extensionhost/README.md
+  s_ff8a600f1fc93e::t_3d9d9fbda4324f 26-31
+sdk/go/collector/kubernetes_posture_validation.go
+  s_ff8a600f1fc93e::t_845d3984ce45dc 1-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ede7b9d8e503478f4c424fb835fa296b1358f559",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
