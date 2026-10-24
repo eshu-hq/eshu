@@ -133,9 +133,9 @@ a mistake cannot be un-pushed. Contributors prepare the release in a PR
 (CHANGELOG entry, this compatibility row, schema/fixture proof); a maintainer
 cuts the tag after merge with the exact commands in `RELEASING.md`. Never tag
 from a worktree or a stale checkout — only from a clean, fast-forwarded
-`main`. For the new repository, this mapping merged before the preferred RC2
-tags; their separate tag approvals were bound to exact reviewed source SHAs
-with green CI. Check Git tags and the public Go proxy for current candidate
+`main`. For the new repository, the preferred collector RC2 mapping merged
+before that tag was published. Both RC2 tag approvals were bound to exact
+reviewed source SHAs with green CI. Check Git tags and the public Go proxy for current candidate
 availability.
 
 ## Version support policy
