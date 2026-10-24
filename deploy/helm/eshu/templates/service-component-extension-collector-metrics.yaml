@@ -1,4 +1,4 @@
-{{- if and .Values.componentExtensionCollector.enabled .Values.observability.prometheus.enabled }}
+{{- if and .Values.componentExtensionCollector.enabled (not (include "eshu.componentActivationsMode" .)) .Values.observability.prometheus.enabled }}
 apiVersion: v1
 kind: Service
 metadata:

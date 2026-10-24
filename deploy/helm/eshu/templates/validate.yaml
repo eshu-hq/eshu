@@ -278,35 +278,9 @@
 {{- if not .Values.componentExtensionCollector.extensionEgressPolicyJSON -}}
 {{- fail "componentExtensionCollector.extensionEgressPolicyJSON is required when componentExtensionCollector.enabled=true" -}}
 {{- end -}}
-{{- if not .Values.workflowCoordinator.extraVolumes -}}
-{{- fail "workflowCoordinator.extraVolumes must mount the component registry when componentExtensionCollector.enabled=true" -}}
-{{- end -}}
-{{- if not .Values.workflowCoordinator.extraVolumeMounts -}}
-{{- fail "workflowCoordinator.extraVolumeMounts must mount componentExtensionCollector.componentHome when componentExtensionCollector.enabled=true" -}}
-{{- end -}}
-{{- if not .Values.componentExtensionCollector.extraVolumes -}}
-{{- fail "componentExtensionCollector.extraVolumes must mount the component registry when componentExtensionCollector.enabled=true" -}}
-{{- end -}}
-{{- if not .Values.componentExtensionCollector.extraVolumeMounts -}}
-{{- fail "componentExtensionCollector.extraVolumeMounts must mount componentExtensionCollector.componentHome when componentExtensionCollector.enabled=true" -}}
-{{- end -}}
-{{- $coordinatorComponentHomeMounted := false -}}
-{{- range .Values.workflowCoordinator.extraVolumeMounts -}}
-{{- if eq (default "" .mountPath) $.Values.componentExtensionCollector.componentHome -}}
-{{- $coordinatorComponentHomeMounted = true -}}
-{{- end -}}
-{{- end -}}
-{{- if not $coordinatorComponentHomeMounted -}}
-{{- fail "workflowCoordinator.extraVolumeMounts must include componentExtensionCollector.componentHome when componentExtensionCollector.enabled=true" -}}
-{{- end -}}
-{{- $workerComponentHomeMounted := false -}}
-{{- range .Values.componentExtensionCollector.extraVolumeMounts -}}
-{{- if eq (default "" .mountPath) $.Values.componentExtensionCollector.componentHome -}}
-{{- $workerComponentHomeMounted = true -}}
-{{- end -}}
-{{- end -}}
-{{- if not $workerComponentHomeMounted -}}
-{{- fail "componentExtensionCollector.extraVolumeMounts must include componentExtensionCollector.componentHome when componentExtensionCollector.enabled=true" -}}
+{{- include "eshu.validate.componentActivations" . -}}
+{{- if not (include "eshu.componentActivationsMode" .) -}}
+{{- include "eshu.validate.componentExtensionLegacyMounts" . -}}
 {{- end -}}
 {{- end -}}
 {{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.sbomAttestationCollector.enabled .Values.securityAlertCollector.enabled .Values.pagerDutyCollector.enabled .Values.grafanaCollector.enabled .Values.prometheusMimirCollector.enabled .Values.lokiCollector.enabled .Values.tempoCollector.enabled .Values.jiraCollector.enabled .Values.scannerWorker.enabled .Values.vulnerabilityIntelligenceCollector.enabled .Values.vaultLiveCollector.enabled .Values.componentExtensionCollector.enabled -}}

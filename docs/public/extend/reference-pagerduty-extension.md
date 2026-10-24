@@ -128,6 +128,10 @@ registry volume mounted into both the workflow coordinator and worker. See
 [Helm Collector And Webhook Values](../deploy/kubernetes/helm-collector-and-webhook-values.md#collector-values)
 for the value contract and render-time guardrails.
 
+To run a collector from its own release image rather than a hand-mounted
+registry, use `componentExtensionCollector.activations`; see
+[Run An Extracted Collector](../deploy/kubernetes/run-an-extracted-collector.md).
+
 Strict trust mode is not charted until provenance verifier values become
 first-class chart inputs. Rollback is disabling `componentExtensionCollector`
 and removing the corresponding registry mount and hosted-extension egress

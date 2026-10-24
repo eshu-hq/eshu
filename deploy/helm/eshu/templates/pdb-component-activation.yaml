@@ -1,0 +1,19 @@
+{{- if include "eshu.componentActivationsMode" . }}
+{{- range $activation := .Values.componentExtensionCollector.activations }}
+{{- $ctx := dict "root" $ "activation" $activation }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.componentActivationFullname" $ctx }}
+  labels:
+    {{- include "eshu.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: component-extension-collector
+    eshu.dev/component-instance: {{ $activation.instanceId | quote }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.componentActivationSelectorLabels" $ctx | nindent 6 }}
+{{- end }}
+{{- end }}

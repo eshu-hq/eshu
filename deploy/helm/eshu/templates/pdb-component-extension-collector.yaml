@@ -1,4 +1,4 @@
-{{- if .Values.componentExtensionCollector.enabled }}
+{{- if and .Values.componentExtensionCollector.enabled (not (include "eshu.componentActivationsMode" .)) }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
