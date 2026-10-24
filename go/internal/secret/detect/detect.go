@@ -28,8 +28,10 @@ const (
 	userinfoPattern = `//[^/?#@[:space:]:]+:[^/?#@[:space:]]+@`
 	// blockOpenerPattern matches an HCL block or map opener whose key names a
 	// secret (app_secrets = {), with the brace ending the line. ":" openers are
-	// left out: JSON API schemas are full of "nextPageToken": {.
-	blockOpenerPattern = `(password|passwd|pwd|api[_-]?key|apikey|token|secret|credential)s?[[:space:]]*=[[:space:]]*[{][[:space:]]*$`
+	// left out: JSON API schemas are full of "nextPageToken": {. The line end
+	// is spelled \r?(\n|$), not a bare $, because the file prefilter runs the
+	// pattern over the whole body, where $ is the end of the body only.
+	blockOpenerPattern = `(password|passwd|pwd|api[_-]?key|apikey|token|secret|credential)s?[[:space:]]*=[[:space:]]*[{][ \t]*\r?(\n|$)`
 )
 
 // SQLPattern is the case-insensitive Postgres ARE pattern migration 234 applies

@@ -64,6 +64,12 @@ func TestRedactMarkerKeepsOnlyExactEnvReferences(t *testing.T) {
 		"npmAuthToken: \"${NPM_TOKEN}\"\n",
 		"npmAuthToken: '${NPM_TOKEN}'\n",
 		"//reg.example.com/:_authToken=${NPM_TOKEN}\n",
+		// An empty default holds no literal, and an empty value holds nothing.
+		"npmAuthToken: \"${NPM_TOKEN-}\"\n",
+		"npmAuthToken: '${NPM_TOKEN:-}'\n",
+		"npmAuthToken: \"\"\n",
+		"npmAuthToken: ''\n",
+		"npmAuthToken: \" \"\n",
 	}
 	for _, in := range keep {
 		if got := redactForTest(t, in); got != in {
@@ -73,6 +79,8 @@ func TestRedactMarkerKeepsOnlyExactEnvReferences(t *testing.T) {
 	redact := []string{
 		"npmAuthToken: ${NPM_TOKEN:-literalfallback}\n",
 		"npmAuthToken: \"${NPM_TOKEN:-lit}\"\n",
+		"npmAuthToken: ${NPM_TOKEN-x}\n",
+		"npmAuthToken: \"\" # leak\n",
 		"npmAuthToken: prefix${NPM_TOKEN}\n",
 		"npmAuthToken: ${NPM_TOKEN}suffix\n",
 		"npmAuthToken: $NPM_TOKEN\n",

@@ -35,7 +35,16 @@ func (s *markerState) redactURLKey(line, keyText string, keyEnd, valueStart int,
 		return line
 	}
 	quote, inner, rest, closed := splitQuotedValue(value)
-	if !closed || strings.TrimSpace(rest) != "" || !urlToken.MatchString(inner) {
+	if !closed || strings.TrimSpace(rest) != "" {
+		return whole()
+	}
+	// ${NAME:-<url>} or ${NAME-<url>}: the default is a literal, so the
+	// userinfo rule applies to it and the reference around it stays.
+	prefix, suffix := "", ""
+	if match := envDefault.FindStringSubmatch(inner); match != nil {
+		prefix, inner, suffix = match[1], match[2], "}"
+	}
+	if !urlToken.MatchString(inner) {
 		return whole()
 	}
 	// YAML decodes escapes in a double-quoted scalar ("\x40" is "@"), so the
@@ -48,7 +57,7 @@ func (s *markerState) redactURLKey(line, keyText string, keyEnd, valueStart int,
 		kind = defaultMarkerKind
 	}
 	redacted, changed, ok := redactUserinfo(inner, markerPrefix+kind)
-	if !ok {
+	if !ok || strings.ContainsAny(redacted, "{}$") {
 		return whole()
 	}
 	if !changed {
@@ -58,7 +67,7 @@ func (s *markerState) redactURLKey(line, keyText string, keyEnd, valueStart int,
 	if quote != 0 {
 		quoteText = string(quote)
 	}
-	out := line[:valueStart] + quoteText + redacted + quoteText
+	out := line[:valueStart] + quoteText + prefix + redacted + suffix + quoteText
 	if len(detect.Spans(out)) > 0 {
 		return whole()
 	}

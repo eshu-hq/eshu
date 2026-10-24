@@ -55,7 +55,14 @@ func TestRedactMarkerURLUserinfoKeepsTheHost(t *testing.T) {
 		{"not a url", "npmRegistryServer: hunter2hunter2\n", "npmRegistryServer: REDACTED_secret_literal\n"},
 		{"trailing comment", "npmRegistryServer: \"https://h.example.com/\" # was u:p@h\n", "npmRegistryServer: \"REDACTED_secret_literal\"\n"},
 		{"two urls", "httpProxy: http://a.example.com http://u:p@b.example.com\n", "httpProxy: REDACTED_password_literal\n"},
-		{"env default", "npmRegistryServer: \"${REGISTRY:-https://u:p@h.example.com}\"\n", "npmRegistryServer: \"REDACTED_password_literal\"\n"},
+		// An env default whose literal is a URL gets the userinfo rule; an empty
+		// default holds no literal.
+		{"env default with userinfo", "npmRegistryServer: \"${REGISTRY:-https://u:p@h.example.com}\"\n", "npmRegistryServer: \"${REGISTRY:-https://REDACTED_password_literal@h.example.com}\"\n"},
+		{"env default url", "npmRegistryServer: \"${NPM_REGISTRY-https://registry.npmjs.org}\"\n", "npmRegistryServer: \"${NPM_REGISTRY-https://registry.npmjs.org}\"\n"},
+		{"env default url unquoted", "npmPublishRegistry: ${NPM_PUBLISH_REGISTRY:-https://npm.pkg.github.com}\n", "npmPublishRegistry: ${NPM_PUBLISH_REGISTRY:-https://npm.pkg.github.com}\n"},
+		{"env empty default", "httpsProxy: '${https_proxy:-}'\n", "httpsProxy: '${https_proxy:-}'\n"},
+		{"env default not a url", "npmRegistryServer: \"${REGISTRY:-hunter2hunter2}\"\n", "npmRegistryServer: \"REDACTED_secret_literal\"\n"},
+		{"env default url with text", "npmRegistryServer: \"${REGISTRY:-https://h.example.com x}\"\n", "npmRegistryServer: \"REDACTED_secret_literal\"\n"},
 		{"block scalar", "npmRegistryServer: |\n  https://u:p@h.example.com\nx: 1\n", "npmRegistryServer: REDACTED_secret_literal\n  REDACTED_secret_literal\nx: 1\n"},
 		{"unterminated quote", "npmRegistryServer: \"https://u:p@h\nmore\"\nx: 1\n", "npmRegistryServer: \"REDACTED_password_literal\"\nREDACTED_secret_literal\nx: 1\n"},
 		// Any other detector match on the line makes the whole value go, with the

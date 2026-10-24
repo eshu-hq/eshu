@@ -20,8 +20,11 @@
 --   line 138 classified keeps its kind;
 -- * adds the extras the #8813 gap table lists: npmAuthIdent, JSON-quoted keys,
 --   user:password URL userinfo (also protocol-relative //user:pass@host), and
---   HCL block openers that name a secret, with the brace ending the line.
---   Openers after a colon are left out: JSON API schemas are full of them.
+--   HCL block openers that name a secret, with the brace ending the line
+--   (an optional carriage return, then a newline or the end of the text, so
+--   the file prefilter, which sees the whole body, matches the same openers
+--   as the line filter). Openers after a colon are left out: JSON API schemas
+--   are full of them.
 --
 -- The pattern and the CASE are bound to go/internal/secret/detect
 -- (SQLPattern, MarkerPrefix, ArmSources) by
@@ -62,8 +65,8 @@ AS $fn$
                 ELSE ''
             END AS finding_kind
         FROM regexp_split_to_table(file_content, E'\n') WITH ORDINALITY AS lines(line_text, line_number)
-        WHERE (strpos(file_content, 'REDACTED_') > 0 OR file_content ~* '(password|passwd|pwd|api[_-]?key|apikey|token|secret|client[_-]?secret|private[_-]?key|authorization|npm[_-]?auth[_-]?ident)[''"]?[[:space:]]*[:=][[:space:]]*[''"]?[A-Za-z0-9_./+=:@!#$%^-]{6,}|AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|//[^/?#@[:space:]:]+:[^/?#@[:space:]]+@|(password|passwd|pwd|api[_-]?key|apikey|token|secret|credential)s?[[:space:]]*=[[:space:]]*[{][[:space:]]*$')
-          AND (strpos(lines.line_text, 'REDACTED_') > 0 OR lines.line_text ~* '(password|passwd|pwd|api[_-]?key|apikey|token|secret|client[_-]?secret|private[_-]?key|authorization|npm[_-]?auth[_-]?ident)[''"]?[[:space:]]*[:=][[:space:]]*[''"]?[A-Za-z0-9_./+=:@!#$%^-]{6,}|AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|//[^/?#@[:space:]:]+:[^/?#@[:space:]]+@|(password|passwd|pwd|api[_-]?key|apikey|token|secret|credential)s?[[:space:]]*=[[:space:]]*[{][[:space:]]*$')
+        WHERE (strpos(file_content, 'REDACTED_') > 0 OR file_content ~* '(password|passwd|pwd|api[_-]?key|apikey|token|secret|client[_-]?secret|private[_-]?key|authorization|npm[_-]?auth[_-]?ident)[''"]?[[:space:]]*[:=][[:space:]]*[''"]?[A-Za-z0-9_./+=:@!#$%^-]{6,}|AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|//[^/?#@[:space:]:]+:[^/?#@[:space:]]+@|(password|passwd|pwd|api[_-]?key|apikey|token|secret|credential)s?[[:space:]]*=[[:space:]]*[{][ \t]*\r?(\n|$)')
+          AND (strpos(lines.line_text, 'REDACTED_') > 0 OR lines.line_text ~* '(password|passwd|pwd|api[_-]?key|apikey|token|secret|client[_-]?secret|private[_-]?key|authorization|npm[_-]?auth[_-]?ident)[''"]?[[:space:]]*[:=][[:space:]]*[''"]?[A-Za-z0-9_./+=:@!#$%^-]{6,}|AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|//[^/?#@[:space:]:]+:[^/?#@[:space:]]+@|(password|passwd|pwd|api[_-]?key|apikey|token|secret|credential)s?[[:space:]]*=[[:space:]]*[{][ \t]*\r?(\n|$)')
     ) AS d
     WHERE d.finding_kind <> ''
 $fn$;

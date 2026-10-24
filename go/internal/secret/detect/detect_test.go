@@ -58,7 +58,7 @@ func TestSQLPatternIsTheComposedKeyAndShapeBranches(t *testing.T) {
 	const want = `(password|passwd|pwd|api[_-]?key|apikey|token|secret|client[_-]?secret|private[_-]?key|authorization|npm[_-]?auth[_-]?ident)['"]?[[:space:]]*[:=][[:space:]]*['"]?[A-Za-z0-9_./+=:@!#$%^-]{6,}` +
 		`|AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----` +
 		`|//[^/?#@[:space:]:]+:[^/?#@[:space:]]+@` +
-		`|(password|passwd|pwd|api[_-]?key|apikey|token|secret|credential)s?[[:space:]]*=[[:space:]]*[{][[:space:]]*$`
+		`|(password|passwd|pwd|api[_-]?key|apikey|token|secret|credential)s?[[:space:]]*=[[:space:]]*[{][ \t]*\r?(\n|$)`
 	if detect.SQLPattern != want {
 		t.Fatalf("SQLPattern = %q, want the migration 234 pattern", detect.SQLPattern)
 	}

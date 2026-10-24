@@ -138,7 +138,7 @@ import (
 // and the comment figures re-aligned with the measurements).
 // #8833 adds 234_content_file_secret_lines_marker_arm.sql (the detector's
 // marker arm and extras; a CREATE OR REPLACE FUNCTION only).
-const goldenBootstrapDefinitionsDigest = "24564af8db57d204cadce4421cda749b4eaf20ee0efe9efb4bac6b1232181dd6"
+const goldenBootstrapDefinitionsDigest = "329b9d0375fef0fd60d2b6fbc757ec2006795fdd66ba040c84b0b22976f558be"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

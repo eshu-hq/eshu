@@ -13,6 +13,10 @@ func keepsVerbatim(value string) bool {
 	inner := value
 	if n := len(value); n >= 2 && (value[0] == '"' || value[0] == '\'') && value[n-1] == value[0] {
 		inner = value[1 : n-1]
+		// An empty or blank quoted value holds nothing to redact.
+		if strings.TrimSpace(inner) == "" {
+			return true
+		}
 	}
 	return envReference.MatchString(inner) || existingMarker.MatchString(inner)
 }

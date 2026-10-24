@@ -39,9 +39,13 @@ var (
 	// errTooLarge marks a body over MaxGovernedBodyBytes.
 	errTooLarge = errors.New("content body exceeds the governed size cap")
 
-	// envReference is the only value a listed key may keep: an exact ${NAME}.
-	// A ${NAME:-literal} default carries a literal and is redacted.
-	envReference = regexp.MustCompile(`^\$\{[A-Za-z_][A-Za-z0-9_]*\}$`)
+	// envReference is the only value a listed key may keep: an exact ${NAME},
+	// or ${NAME-} / ${NAME:-} whose empty default holds no literal. A
+	// ${NAME:-literal} default carries a literal and is redacted.
+	envReference = regexp.MustCompile(`^\$\{[A-Za-z_][A-Za-z0-9_]*(:?-)?\}$`)
+	// envDefault is ${NAME-default} or ${NAME:-default}; group 1 is everything
+	// up to the default, group 2 the default.
+	envDefault = regexp.MustCompile(`^(\$\{[A-Za-z_][A-Za-z0-9_]*:?-)(.+)\}$`)
 	// existingMarker is a value an earlier pass already replaced, which keeps
 	// the redactor a fixed point.
 	existingMarker = regexp.MustCompile(`^` + markerPrefix + `(` + strings.Join(detect.Kinds(), "|") + `)$`)
