@@ -17,8 +17,8 @@ routes to the `hcl` parser) are open-schema, so a key denylist cannot make them
 safe: whether a variable is secret is declared in `variables.tf`
 (`sensitive = true`), not in its name. They use **allowlist-skeleton mode**: a
 value survives only if its shape is provably safe, and every other value is
-replaced. Rows already stored are fixed by the one-time re-collect that the
-policy-aware registry fingerprint triggers, not by a rewrite loop. The `metadata`
+replaced. Rows already stored are fixed by the re-collect the sweep or a reindex
+request forces after the fingerprint changes, not by a rewrite loop. The `metadata`
 policy (empty body, row kept) exists in the enum and is the floor for the
 operator SQL, but neither file uses it, because it would silently drop the
 committed-tfvars-secret finding and the raw-Terraform evidence class.
@@ -353,17 +353,19 @@ file-set selection code is NOT_CHECKED.
 
 Gaps the follow-up closes:
 
-1. **Repositories not scheduled for collection** keep their bodies. #8833 ships
-   a one-shot operator SQL that applies the `metadata` floor: set `content = ''`
-   on matched rows, delete their `content_file_references`, and blank
+1. **Repositories the re-collect has not reached** keep their bodies. #8833 ships
+   a one-shot operator SQL, run fleet-wide and guarded to generations ingested
+   before the reindex watermark, that applies the `metadata` floor: set
+   `content = ''` on matched rows, delete their `content_file_references`, and blank
    `content_entities.source_cache`. It also deletes the active generation's search
    index documents and terms for the matched paths, and the matching active
    `reducer_eshu_search_document` fact rows by `fact_id`, because the active
    generation keeps serving raw `context_text` after `content = ''`; the reindex
    rebuilds them from redacted rows. It is repo-scoped, 500 rows per statement,
-   and idempotent. An operator runs it; no loop does. Run order, statements, and
-   exit criterion are in
-   [the cleanup runbook](8813-credential-file-exposure-cleanup.md).
+   and idempotent. An operator runs it; no loop does. Run order and exit
+   criterion are in [the cleanup runbook](8813-credential-file-exposure-cleanup.md);
+   the census and statements are on
+   [the purge SQL page](8813-credential-file-exposure-purge-sql.md).
 2. **Residue.** Dead tuples, WAL, and backups keep the old bytes until vacuum
    and backup expiry. The operator note says so.
 3. **Fact payloads and search documents.** Superseded `content` facts keep
@@ -379,12 +381,15 @@ Gaps the follow-up closes:
    a `content` fact, a content-entity fact, and a search document and records
    whether each kind is pruned by default policy. If one is exempt, this
    decision reopens. The search-document projector keys on the generation, not
-   on `content_hash`, so digest-before-policy does not affect it: the
-   fingerprint flip mints a new generation and the sweeper re-projects it from
-   the redacted `content_files.content`.
+   on `content_hash`, so digest-before-policy does not affect it: the next
+   forced full mints a new generation and re-projects it from the redacted
+   `content_files.content`.
 
-Operator signals (3 AM): a gauge of policy-path rows that still hold a raw body;
-counters for `redacted`, `metadata_fallback`, and `redactor_failed` by policy; a
+Operator signals (3 AM): the gauge `eshu_dp_content_policy_raw_rows`, defined
+once by #8833 as the detector-bounded raw-copy test: unsuppressed
+`content_file_secret_lines` rows on a policy path whose `line_text` carries no
+`REDACTED_<finding_kind>` marker (marker lines keep a finding by design, so a
+"body matches the detector" gauge would never read zero); counters for `redacted`, `metadata_fallback`, and `redactor_failed` by policy; a
 structured log per collection with the same counts.
 
 ## Consequences
@@ -397,7 +402,8 @@ survive, so nothing binds earlier); the substring oracle closes because
 `content_lower` derives from what is stored; tree, counts, language inventory,
 and coverage are unchanged because no row is deleted; no new background job.
 
-Bad: one fleet-wide re-collect when the fingerprint changes; a stored tfvars
+Bad: one fleet-wide re-collect after the fingerprint changes, at the next sweep
+or reindex; a stored tfvars
 body is not parseable and reads poorly in `get_file_content`; old bytes persist
 in superseded fact payloads, dead tuples, and backups for a bounded time; the
 skeleton may lose some evidence, which the differential measures before the

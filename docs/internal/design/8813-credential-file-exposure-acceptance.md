@@ -65,8 +65,11 @@ the retention check, and the census.
   first, with marker-arm hits on files outside a redact policy reported
   separately; an engine-parity test compares Go RE2 and Postgres ARE over the
   gap-table corpus.
-- [ ] After one collection cycle on a database holding verbatim rows, the
-  exposure gauge reads zero (the test seeds the old rows first).
+- [ ] After one collection cycle on a database holding verbatim rows,
+  `eshu_dp_content_policy_raw_rows` reads zero (the detector-bounded test: an
+  unsuppressed `content_file_secret_lines` row on a policy path whose
+  `line_text` carries no `REDACTED_<finding_kind>` marker; the test seeds the
+  old rows first).
 - [ ] The operator SQL sets `content = ''`, deletes the reference rows, blanks
   `source_cache`, clears the active generation's search documents and terms, and
   deletes the matching active `reducer_eshu_search_document` fact rows by
