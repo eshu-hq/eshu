@@ -9,7 +9,7 @@ changes runtime behavior.
 
 In-tree: `Source.Next` (`runtime/source.go:65`) yields one
 `collector.CollectedGeneration` (the `CollectedGeneration` type in `go/internal/collector/service.go`)
-per target; `Service.Run` (`service.go:198`) commits it through the
+per target; `Service.Run` (`service.go:191`) commits it through the
 `Committer` boundary (`service.go:99-107`).
 
 | In-tree outcome | SDK `ResultState` (`sdk/go/collector/types.go:31-41`) | Host action |
@@ -56,13 +56,13 @@ One declaration per kind, each `schema_versions: ["1.0.0"]`
   {"kind": "oci_registry.repository", "schema_versions": ["1.0.0"],
    "source_confidence": ["observed", "reported"]},
   {"kind": "oci_registry.image_tag_observation", "schema_versions": ["1.0.0"],
-   "source_confidence": ["observed"]},
+   "source_confidence": ["reported"]},
   {"kind": "oci_registry.image_manifest", "schema_versions": ["1.0.0"],
-   "source_confidence": ["observed"]},
+   "source_confidence": ["reported"]},
   {"kind": "oci_registry.image_index", "schema_versions": ["1.0.0"],
-   "source_confidence": ["observed"]},
+   "source_confidence": ["reported"]},
   {"kind": "oci_registry.image_descriptor", "schema_versions": ["1.0.0"],
-   "source_confidence": ["observed"]},
+   "source_confidence": ["reported"]},
   {"kind": "oci_registry.image_referrer", "schema_versions": ["1.0.0"],
    "source_confidence": ["observed", "reported"]},
   {"kind": "oci_registry.warning", "schema_versions": ["1.0.0"],
@@ -83,7 +83,8 @@ repository `scope_id`, `source_ref.generation_id` ← committed generation,
 `provider`, `registry`, `base_url`, `repository_key`, `repository`,
 `region`, `registry_id`, `registry_host`, `references`, `tag_limit`,
 `visibility`, `auth_mode`, `source_uri`, `username_env`, `password_env`,
-`bearer_token_env`, `aws_profile`, `fencing_token`,
+`bearer_token_env`, `aws_profile`, `fencing_token`, `tls_ca_cert_path`,
+`tls_insecure_skip_verify`,
 `allow_empty_successor`. Secrets travel by env reference, never inline.
 Empty-successor attestation maps to `Generation.trusted_deletion`
 (`types.go:114-121`; in-tree stamp `runtime/source.go:468`).
@@ -93,7 +94,7 @@ Empty-successor attestation maps to `Generation.trusted_deletion`
 | Signal | Name | Emitted at |
 | --- | --- | --- |
 | span | `oci_registry.scan` (`telemetry/contract.go:709`) | `runtime/source.go:102` |
-| span | `oci_registry.api_call` (`contract.go:710`) | `recordAPICall`, `source.go:485` |
+| span | `oci_registry.api_call` (`contract.go:710`) | `recordAPICall`, `source.go:473` |
 | histogram | `eshu_dp_oci_registry_scan_duration_seconds` (`instruments.go:5417`) | `source.go:114` |
 | counter | `eshu_dp_oci_registry_tags_observed_total` (`instruments.go:3555`) | tag listing |
 | counter | `eshu_dp_oci_registry_manifests_observed_total` (`instruments.go:3563`) | `source.go:218` |
