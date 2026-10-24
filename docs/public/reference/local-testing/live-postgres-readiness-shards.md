@@ -50,8 +50,14 @@ job and fails when:
   (prediction minus measurement, as a share of the measurement; shards 1 to 3
   of 4 by -6% to +11%). Those runs also fitted the weights, so
   treat the band as a floor. At the -15% end a 1440 s prediction runs about
-  1700 s, still under the cap. Predicted figures are model output until a CI
-  run on the new cut records the measured job seconds;
+  1700 s, still under the cap. Runner speed adds noise on top. On one layout
+  and plan, shard 1 took 1129 s in run 40057201268 and 1568 s in run
+  40057373740 (+39%), and its summed test seconds rose from 598 to 841 (+41%),
+  which fits a slower runner. A 1299 s prediction reaches about 1800 s at
+  +39%. The 80% rule keeps 1.25x for model error and runner noise combined, so
+  read the first CI wave on the new cut before relaxing it. Predicted figures
+  are model output until a CI run on the new cut records the measured job
+  seconds;
 - more than 40 planned tests, or more than 2 planned packages, have no measured
   weight;
 - the shard job's `timeout-minutes` stops matching the 1800 s cap the gate

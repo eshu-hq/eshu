@@ -1,5 +1,7 @@
 # Readiness shard placement evidence (#8835)
 
+> Superseded by #8930: the planner no longer pins the admin package to shard 4. The cut now comes from predicted seconds in `specs/live-postgres-readiness-weights.v1.json`. This page and its JSON summaries record the point-in-time repair.
+
 ## Decision and source
 
 The 30-minute limit applies to each of four `live-postgres-readiness` matrix jobs. In [run 40044177350](https://github.com/eshu-hq/eshu/actions/runs/40044177350), shard 1 was cancelled at its deadline and the aggregate was red. The four retained reports nevertheless recorded **567 distinct passing roots out of 567**. Passing roots do not make that cancelled job or aggregate green. Source feature head: `cd480a5bfcd659dcc6fd666f5ebac70199150015`; hosted merge checkout: `eab0e091b0ea3821f76a612eb23d9c56bb8f1680` (parents `b3ea1a48a128e93c2b44c73f6ede33583f346a77` and the feature head). The observed +402-second slowdown from an earlier run has **NOT_PROVEN** cause.
