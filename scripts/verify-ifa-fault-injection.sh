@@ -450,7 +450,7 @@ ifa_fault_shard_run cell_failgraphwrite_observability_coverage
 ifa_fault_shard_run cell_baseline_incident_routing_evidence
 ifa_fault_shard_run cell_killworker_incident_routing_evidence
 ifa_fault_shard_run cell_failgraphwrite_incident_routing_evidence
-# publishes (#6228 publishes live leaf): seventeenth
+# publishes (#6228 publishes live leaf): eighteenth
 # direct family, baseline first, same trio shape as above.
 ifa_fault_shard_run cell_baseline_publishes
 ifa_fault_shard_run cell_killworker_publishes
