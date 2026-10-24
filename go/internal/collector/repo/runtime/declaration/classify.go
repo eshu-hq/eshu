@@ -53,6 +53,8 @@ type version struct {
 
 func versionSpec(v version) Spec {
 	kind := SpecKindPartial
+	// More than three numeric components keeps only the first three in
+	// Major/Minor/Patch; RawSpec carries the full text.
 	if v.components >= 3 && !v.wildcard {
 		kind = SpecKindExact
 	}
@@ -172,6 +174,9 @@ func parseRange(s string) (Spec, bool) {
 		}
 		whole := s
 		out := Spec{Kind: SpecKindRange, RangeLower: &whole}
+		// A disjunction keeps only the first clause's bound majors; the
+		// whole spec stays in RangeLower, so readers must not treat the
+		// majors as the union's bounds.
 		if first.RangeLowerMajor != nil {
 			out.RangeLowerMajor = first.RangeLowerMajor
 			out.RangeLowerInclusive = first.RangeLowerInclusive
