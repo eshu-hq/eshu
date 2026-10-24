@@ -30,6 +30,10 @@ land.
   declaring directory in the contract's form (`.` at the repository root).
 - `Emit` — one pin file body to fact envelopes, built from the typed
   `runtimedeclarationv1.Version` through `factschema.EncodeRuntimeDeclarationVersion`.
+- `EmitFile` — `Emit` plus the cap signal: a file over `MaxTokensPerFile`
+  (1,024 tokens) emits nothing and returns its token count so the caller can
+  count and log the skip. A prefix is never emitted, because it would pass for
+  the whole file.
 - `CollectorKind`, `FixtureContext` — envelope provenance.
 
 ## Contract rules
@@ -43,6 +47,12 @@ land.
 | `^14 \|\| >=16` | `range`, lower major 14 inclusive, no upper, `range_lower` is the whole spec |
 | `lts/iron`, `node`, `system`, `stable`, `latest:^1.5` | `alias`, never resolved |
 | `${X}`, `$X`, `${{ inputs.node-version }}` | `unresolved`, `raw_spec` verbatim |
+
+A placeholder span stays one token even when it holds spaces: `{{ v }}`,
+`${{ inputs.node-version }}` and `${ NODE_VERSION }` are each one `unresolved`
+fact with `raw_spec` verbatim. Nested `{{ }}` closes on the matching `}}`, and
+an unterminated opener keeps the rest of the line as one token. A version then
+a placeholder on one line (`20 {{ v }}`) are two tokens.
 
 An empty or comment-only file emits nothing. A tool name with no version emits
 nothing. `.npmrc` and every other name off the list emit nothing.
@@ -61,10 +71,31 @@ A token that matches none of the version, range or placeholder shapes (for
 example `jruby-9.4.0`) is classified `alias`: a named reference is never
 guessed into numbers.
 
+## Known behaviours
+
+These are deliberate and pinned by tests; change them as a contract decision,
+not as a drive-by fix.
+
+- The parser registry matches the admitted names case-insensitively, while
+  `SourceKindForPath` is case-sensitive. A file named `.NVMRC` is admitted as
+  plain text by discovery but emits no fact.
+- A `#` starts a comment only at the start of a line or after a space or tab.
+  `.tool-versions` readers such as asdf cut at any `#`, so `20#x` is one
+  `alias` token here with `raw_spec` `20#x`.
+- `1.2.3.4.5` is `exact` 1.2.3: parts beyond the third are dropped from the
+  parsed numbers and kept in `raw_spec`.
+- `20.x.5` is `partial` with major 20, minor nil and patch 5: a wildcard
+  component stays nil but the components after it are still read.
+- A `#` after a space inside a placeholder span is cut as a comment before
+  tokenising, so `{{ a # b }}` reads as the unterminated `{{ a`.
+
 ## Telemetry
 
-No-Observability-Change. The package is pure parsing. The fact stream counts
-the emitted envelopes through the shared writer.
+The package is pure parsing and logs nothing itself. The fact stream counts the
+emitted envelopes through the shared writer. A file over the token cap emits
+nothing, and the Git collector logs WARN `git_runtime_declaration_file_skipped`
+(`reason=token_cap_exceeded`, `relative_path`, `token_count`, `token_cap`); it
+is a log field only, with no metric.
 
 ## Verification
 

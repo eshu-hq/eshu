@@ -4,11 +4,15 @@
 package git
 
 import (
+	"context"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
+	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/collector/repo/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	runtimedeclarationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/runtimedeclaration/v1"
@@ -149,5 +153,44 @@ func TestStreamFactsEmitsNoRuntimeDeclarationsWhenAbsent(t *testing.T) {
 	envelopes := drainFactChannel(collected.Facts)
 	if n := len(factsByKind(envelopes, facts.RuntimeDeclarationVersionFactKind)); n != 0 {
 		t.Fatalf("runtime_declaration.version count = %d, want 0", n)
+	}
+}
+
+// TestStreamFactsSkipsAPinFileOverTheTokenCapAndLogsIt proves a pin file over
+// the per-file token cap emits no declaration, a normal pin file beside it
+// still emits, and the skip is logged WARN with the relative path, token count
+// and cap. The skip is deterministic, so it does not mark the generation
+// dropped.
+func TestStreamFactsSkipsAPinFileOverTheTokenCapAndLogsIt(t *testing.T) {
+	repoRoot := t.TempDir()
+	huge := "nodejs" + strings.Repeat(" 20.1.0", runtimedeclaration.MaxTokensPerFile+1) + "\n"
+	files := map[string]string{"big/.tool-versions": huge, ".nvmrc": "20\n"}
+	var metas []model.ContentFileMeta
+	for rel, body := range files {
+		writeCollectorTestFile(t, filepath.Join(repoRoot, filepath.FromSlash(rel)), body)
+		metas = append(metas, model.ContentFileMeta{RelativePath: rel, Digest: "sha1:" + rel})
+	}
+	snapshot := RepositorySnapshot{FileCount: len(metas), ContentFileMetas: metas}
+	source, logs, _ := dropRecordingSource(t)
+	collected := buildStreamingGenerationWithContext(source.withStreamDropRecorder(context.Background()),
+		repoRoot, testCollectorRepositoryMetadata(repoRoot), "run-1", time.Date(2026, time.October, 24, 11, 0, 0, 0, time.UTC), snapshot, false, "")
+	envelopes := drainFactChannel(collected.Facts)
+
+	got := decodeRuntimeDeclarations(t, envelopes)
+	if _, ok := got[".nvmrc#20"]; !ok || len(got) != 1 {
+		t.Fatalf("declarations = %d, want only .nvmrc#20: the capped file must emit nothing", len(got))
+	}
+	if collected.Generation.PreparseIdentityDropped != nil && collected.Generation.PreparseIdentityDropped.Load() {
+		t.Fatal("a deterministic cap skip marked the generation dropped")
+	}
+	for _, want := range []string{
+		"level=WARN", "msg=git_runtime_declaration_file_skipped", "relative_path=big/.tool-versions",
+		"token_count=" + strconv.Itoa(runtimedeclaration.MaxTokensPerFile+1),
+		"token_cap=" + strconv.Itoa(runtimedeclaration.MaxTokensPerFile),
+		"reason=token_cap_exceeded", "repository_id=repository:", "scope_id=git-repository-scope:", "generation_id=",
+	} {
+		if !strings.Contains(logs.String(), want) {
+			t.Errorf("log %q lacks %q", logs.String(), want)
+		}
 	}
 }

@@ -23,7 +23,10 @@ and classification live in `go/internal/collector/repo/runtime/declaration`.
 - `NoteRuntimeDeclarationCandidate` — records the body of an admitted pin file
   during the content walk, on both the two-phase and the legacy branch.
 - `EmitRuntimeDeclarationFactsForCandidates` — sends the facts through the
-  shared writer, in path order.
+  shared writer, in path order. A pin file over
+  `runtimedeclaration.MaxTokensPerFile` emits nothing and is reported to the
+  `onSkip` callback (relative path, token count); the Git collector logs it as
+  WARN `git_runtime_declaration_file_skipped`. `onSkip` may be nil.
 
 ## Notes
 

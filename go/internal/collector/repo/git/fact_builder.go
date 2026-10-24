@@ -374,7 +374,7 @@ func streamFacts(
 	}
 	submodule.EmitSubmoduleFactsForCandidates(ctx, w, repo.ID, gitTreePath, snapshot.HeadCommitSHA, scopeID, generationID, observedAt, gitmodulesCandidates)
 	codeowners.EmitCodeownersFactsForCandidates(w, repo.ID, scopeID, generationID, observedAt, codeownersCandidates)
-	runtimedeclaration.EmitRuntimeDeclarationFactsForCandidates(w, repo.ID, scopeID, generationID, observedAt, runtimeDeclarationCandidates)
+	runtimedeclaration.EmitRuntimeDeclarationFactsForCandidates(w, repo.ID, scopeID, generationID, observedAt, runtimeDeclarationCandidates, pinSkipRecorder(ctx, repo.ID, scopeID, generationID))
 	for i, meta := range snapshot.DocumentationFileMetas {
 		body, ok, readErr := docs.ReadDocumentationBodyWithError(repoPath, meta.RelativePath, nil)
 		if !ok {

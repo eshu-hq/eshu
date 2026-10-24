@@ -19,3 +19,31 @@ func BenchmarkEmitToolVersions(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkEmitAtTokenCap measures a pin file at MaxTokensPerFile, the most a
+// single file can emit.
+func BenchmarkEmitAtTokenCap(b *testing.B) {
+	body := toolVersionsWithTokens(MaxTokensPerFile)
+	ctx := testContext(".tool-versions")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if got := Emit(ctx, "repo-1", ".tool-versions", body); len(got) != MaxTokensPerFile {
+			b.Fatalf("Emit = %d envelopes, want %d", len(got), MaxTokensPerFile)
+		}
+	}
+}
+
+// BenchmarkEmitFarOverTokenCap measures the skip path for a 100,000-token file:
+// the file is parsed once, then dropped without building any envelope.
+func BenchmarkEmitFarOverTokenCap(b *testing.B) {
+	body := toolVersionsWithTokens(100000)
+	ctx := testContext(".tool-versions")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if got, skipped := EmitFile(ctx, "repo-1", ".tool-versions", body); len(got) != 0 || skipped != 100000 {
+			b.Fatalf("EmitFile = %d envelopes, skipped %d", len(got), skipped)
+		}
+	}
+}

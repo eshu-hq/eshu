@@ -20,28 +20,48 @@ var runtimeVersionPrefix = map[string]string{
 	"python": "python-",
 }
 
+// MaxTokensPerFile bounds the version tokens one pin file may declare. A real
+// pin file holds a handful of tokens (a .tool-versions names one tool per
+// line); 1024 leaves wide headroom for a monorepo file that pins many tools,
+// and a file over it is generated or hostile content. Emitting a prefix would
+// present a partial list as the whole file, so the whole file is skipped and
+// the caller is told how many tokens it held.
+const MaxTokensPerFile = 1024
+
 // Emit reads one version-pin file body and returns one
 // "runtime_declaration.version" fact envelope per (line, token). relativePath
 // is the repository-relative path of the file. It returns nil when the path is
 // not an admitted pin file, so a credential carrier such as .npmrc never emits,
-// and when the body holds no declaration.
+// when the body holds no declaration, and when the file is over
+// MaxTokensPerFile. Use EmitFile to learn about a cap skip.
+func Emit(ctx FixtureContext, repoID, relativePath, body string) []facts.Envelope {
+	envelopes, _ := EmitFile(ctx, repoID, relativePath, body)
+	return envelopes
+}
+
+// EmitFile is Emit plus the cap signal: when the file holds more than
+// MaxTokensPerFile tokens it emits nothing and returns the token count as
+// skippedTokens (0 otherwise), so the caller can count and log the skip.
 //
 // Each payload is built from the typed runtimedeclarationv1.Version through
 // factschema.EncodeRuntimeDeclarationVersion (Contract System v1 §3.1), never a
 // hand-built map. A token that fails to encode is skipped rather than emitted
 // malformed; this cannot happen in practice since every field is a plain
 // string, integer or boolean.
-func Emit(ctx FixtureContext, repoID, relativePath, body string) []facts.Envelope {
+func EmitFile(ctx FixtureContext, repoID, relativePath, body string) (envelopes []facts.Envelope, skippedTokens int) {
 	sourceKind, ok := SourceKindForPath(relativePath)
 	if !ok {
-		return nil
+		return nil, 0
 	}
 	declarations := parse(sourceKind, body)
 	if len(declarations) == 0 {
-		return nil
+		return nil, 0
+	}
+	if len(declarations) > MaxTokensPerFile {
+		return nil, len(declarations)
 	}
 	scopeDir := ScopeDir(relativePath)
-	envelopes := make([]facts.Envelope, 0, len(declarations))
+	envelopes = make([]facts.Envelope, 0, len(declarations))
 	for _, d := range declarations {
 		version := runtimedeclarationv1.Version{
 			CollectorInstanceID: ctx.CollectorInstanceID,
@@ -70,7 +90,7 @@ func Emit(ctx FixtureContext, repoID, relativePath, body string) []facts.Envelop
 		})
 		envelopes = append(envelopes, newEnvelope(ctx, stableKey, relativePath, payload))
 	}
-	return envelopes
+	return envelopes, 0
 }
 
 // stripRuntimePrefix drops a leading runtime label such as "ruby-" or "go" when
