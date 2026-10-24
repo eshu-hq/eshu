@@ -60,20 +60,21 @@ statement resolves (the two grammar contexts below), from a legacy
 `scalaVersion in ThisBuild` there, or from `ThisBuild / scalaVersion` whose
 `ThisBuild` token starts a statement in one. Anywhere else (`inThisBuild(...)`,
 `inConfig(...)`, a call argument, a member assignment, a block, a settings
-`val`, an indented line, another axis) the assignment is counted once in
-`unresolved_declaration_count` and never recorded, so it cannot add a phantom
-version or set the `%%` hint.
+`val` or `def`, a lambda, an indented line, another axis) the assignment is
+counted once in `unresolved_declaration_count`, never recorded, and poisons
+the envelope: the scanner does not track which projects a settings value
+reaches, so a recorded literal elsewhere must not name the version those
+projects build with.
 
 In those same places, a `scalaVersion` statement that is not a plain literal
 assignment poisons the envelope: a value that is not a literal or a tracked
 `val` (`sys.env("SV")`, `"3.3.1".trim`, an unknown identifier), any other
 assignment operator (`~=`, `<<=`, `<+=`), or a member that returns a Setting
 or the key (`.set(...)`, `.transform(...)`, `.withRank(...) :=`,
-`.in(...) :=`), with or without a `ThisBuild` axis. The statement is counted
-once and the envelope keeps no `scala_version` and no hint for the rest of the
-file: a later literal does not clear it. The same forms outside a grammar
-context are counted once and change nothing. A read (`scalaVersion.value`) is
-not counted.
+`.in(...) :=`, `.:=(...)`), with or without a `ThisBuild` axis. The statement
+is counted once and the envelope keeps no `scala_version` and no hint for the
+rest of the file: a later literal does not clear it. A read
+(`scalaVersion.value`, `scalaVersion.in(Test).value`) is not counted.
 
 `meta_build` is `true` when the file sits directly in a directory named
 `project`. The registry admits `build.sbt` by base name, so
@@ -183,9 +184,11 @@ A member that returns a Setting or the key is applied wherever it appears,
 because that Setting changes the key wherever it is used: at the start of a
 statement, in a `val` body, after an operator (`commonSettings :+ ...`), in an
 `if` branch or a lambda body. Out of a grammar context it is a global reset,
-like `:=` there. A member that returns no Setting is counted only at the start
-of an expression (a line start, an opener, `,` or `;`); in the middle of one
-it is a read:
+like `:=` there. A member after a legacy `.in(...)` or `in` axis
+(`libraryDependencies.in(Test).transform(f, pos)`) is judged the same way out
+of a grammar context, so a rewriting one is a global reset. A member that
+returns no Setting is counted only at the start of an expression (a line
+start, an opener, `,` or `;`); in the middle of one it is a read:
 
 | Member | Effect |
 |---|---|
@@ -295,17 +298,20 @@ tracked. A leading UTF-8 byte order mark is ignored.
   method defined outside the file that returns a Setting is likewise unseen:
   only the members sbt's SettingKey API defines are judged, and any other
   member is a read.
-- `scalaVersion` set only inside `inThisBuild(...)` is not read, so that build
-  gets no `scala_version` and no `sbt_binary_artifact` hint.
+- `scalaVersion` set inside `inThisBuild(...)`, a settings `val` or `def`, or
+  any other nested position is not read and poisons the envelope, so that
+  build gets no `scala_version` and no `sbt_binary_artifact` hint, even with a
+  top-level literal beside it.
 - `meta_build` is a path rule on the parent directory name. A `build.sbt` in a
   subproject directory literally named `project` is flagged too; sbt itself
   treats `<root>/project` as the meta-build. The rule runs on the absolute path
   the engine passes, so a repository checked out in a directory named
   `project` has its root `build.sbt` flagged and every row partial: fail-closed,
   but the flag is wrong (#8997).
-- `scala_version` fails closed: two distinct literals, or one `scalaVersion`
-  statement the scanner cannot read, leave it empty for the whole file, even
-  where sbt's last-assignment order would name one version.
+- `scala_version` fails closed: two distinct literals, one `scalaVersion`
+  statement the scanner cannot read, or one assignment outside a grammar
+  context leave it empty for the whole file, even where sbt's
+  last-assignment order would name one version.
 - A bare-file reset makes every project row partial, even a project that is
   not the root, because the scanner does not decide which project is the root.
 - `ThisBuild /` and `Global /` keys and a declared-project axis (`core /`) are

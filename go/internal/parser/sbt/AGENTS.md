@@ -60,9 +60,11 @@
   (`applyRankedOperator`): an appending operator never supersedes.
 - `scalaVersion` is recorded only in a grammar context. Do not record it from
   a nested position; a wrong literal moves every `%%` hint in the file. An
-  unreadable scalaVersion statement in a grammar context poisons the envelope
-  (`scalaPoisoned`) for good, and two distinct literals report no version: do
-  not add a "prefer ThisBuild" or "last wins" pick without a scope-order proof.
+  unreadable scalaVersion statement in a grammar context, and any
+  scalaVersion assignment outside one, poisons the envelope (`scalaPoisoned`)
+  for good, and two distinct literals report no version: do not add a "prefer
+  ThisBuild" or "last wins" pick without a scope-order proof, and do not let
+  a nested assignment "change nothing" (a settings val may reach any project).
 - `TestGrammarSeededFuzzInvariants` (`fuzz_test.go`) is the regression net:
   the grammar and indentation (`fuzz_indent_test.go`) arms must report zero
   I1, I2, I3, missing and fabricated cases, and the member arm
@@ -168,7 +170,11 @@ nested scalaVersion literals, and checks exact row states, the exact
 count=2,752, scala=1,494 and hint=773 over 4,000 cases; with the rule, zero at
 4,000 (9,202 rows) and at 30,000 (70,083 rows), and the grammar and
 indentation arms stay zero at both. 18 single-change mutants of the rule, the
-operators, the scalaVersion gate and the meta-build flag were all killed.
+operators, the scalaVersion gate and the meta-build flag were all killed. The
+same benchmark measured 15.7 to 19.4 ms/op (median 16.4) against 15.7 to 20.0
+ms/op (median 16.1) for the code before, run alternately at load average 14 to
+17, with 16.45 MB/op and 139,757 to 139,758 allocs/op on both: no byte or
+allocation change.
 
 No-Regression Evidence (members anywhere, scalaVersion poison): the member arm
 now places rewriting members outside statement position (a `val` body, after
@@ -183,11 +189,24 @@ single-change overlay mutants of the member gate, the `withRank` operator
 rule, the poison and the distinct-literal envelope were all killed. The same
 benchmark, run alternately at load average about 5, measured 15.25 to 15.37
 ms/op before and 15.38 to 15.41 ms/op after, with 16.45 MB/op and 139,757
-allocs/op on both: no byte or allocation change. The
-same benchmark measured 15.7 to 19.4 ms/op (median 16.4) against 15.7 to 20.0
-ms/op (median 16.1) for the code before, run alternately at load average 14 to
-17, with 16.45 MB/op and 139,757 to 139,758 allocs/op on both: no byte or
-allocation change.
+allocs/op on both: no byte or allocation change.
+
+No-Regression Evidence (stray scalaVersion poison, axis then member): the
+member arm now expects every scalaVersion assignment outside a grammar
+context (a settings `val` or `def`, `inThisBuild(...)`, a lambda, `in Test`,
+`in (Test, compile)`, `.in(Test) :=`, `.:=(...)`) to poison the envelope,
+draws key reads (`.value`, `.in(Test).value`) that must change nothing, and
+places rewriting and read members after `.in(Test)`. On the code before this
+fix it reported state=103, count=704, scala=208 and hint=232 over 4,000 cases
+and state=764, count=5,144, scala=1,608 and hint=1,719 over 30,000; with the
+fix, zero at 3,000 (7,171 rows) and at 30,000 (73,082 rows), and the grammar
+and indentation arms stay zero with their row counts unchanged. 6 overlay
+mutants (stray assignment counted without poison, `.:=(...)` as a read,
+`.in(...)` then member as a read, the '.' after an axis left unconsumed,
+`in (...)` group not skipped, `.in(...) :=` as a read) were all killed. The
+same benchmark, run alternately at load average 8 to 9, measured 15.45 to
+17.12 ms/op before and 15.46 to 16.43 ms/op after, with 16.45 MB/op and
+139,757 to 139,758 allocs/op on both: no byte or allocation change.
 
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
 single-pass scanner with no recursion. 200,000 nested parentheses finish in

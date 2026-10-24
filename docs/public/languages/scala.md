@@ -39,19 +39,20 @@ as `% Test`) and the literal `scalaVersion`, and emits them as dependency rows
 in the same shape the Gradle and Maven parsers use, with `package_manager`
 `sbt`. A `%%` row also carries `sbt_binary_artifact` (for example
 `org.typelevel:cats-core_2.13`) when the file holds exactly one distinct
-literal `scalaVersion` and no `scalaVersion` statement the parser cannot read.
+literal `scalaVersion` and no other `scalaVersion` assignment.
 A `scalaVersion` literal is read only where a
 `libraryDependencies` statement would resolve (a column-0 statement or a
 project's `.settings(...)` argument), from `ThisBuild / scalaVersion` whose
 axis starts such a statement, or from `scalaVersion in ThisBuild` there. A
 literal anywhere else (`inThisBuild(...)`, a wrapper, a call argument, a block,
-a settings `val`, another axis) is counted in
-`sbt_state.unresolved_declaration_count` and never sets `scala_version` or the
-hint. In the places a literal is read, any other `scalaVersion` statement (a
-non-literal value such as `sys.env("SV")`, `~=`, `<<=`, `.set(...)`,
-`.transform(...)`, `.withRank(...) :=`, also behind `ThisBuild /`) is counted
-and clears `scala_version` and the hint for the whole file, whatever its
-order. Two distinct literals also leave `scala_version` empty, with
+a settings `val` or `def`, a lambda, another axis such as `in Test`) is
+counted in `sbt_state.unresolved_declaration_count`, never recorded, and
+clears `scala_version` and the hint for the whole file: the parser does not
+track which projects it reaches. In the places a literal is read, any other
+`scalaVersion` statement (a non-literal value such as `sys.env("SV")`, `~=`,
+`<<=`, `.set(...)`, `.transform(...)`, `.withRank(...) :=`, `.:=(...)`, also
+behind `ThisBuild /`) is counted and clears them too, whatever its order. A
+read (`scalaVersion.value`) changes nothing. Two distinct literals also leave `scala_version` empty, with
 `scala_version_count` 2: sbt applies the last assignment of a scope, and the
 parser does not decide that order across scopes.
 
@@ -136,8 +137,10 @@ Known limits of the sbt reading:
   after a row can supersede it unseen, and so can an extension method defined
   outside the file that returns a Setting: only the members sbt's SettingKey
   API defines are judged.
-- `scalaVersion` inside `inThisBuild(...)` is not read, so a build that sets it
-  only there gets no `scala_version` and no `sbt_binary_artifact` hint.
+- `scalaVersion` inside `inThisBuild(...)`, a settings `val` or `def`, or any
+  other nested position is not read and clears `scala_version`, so a build
+  that sets it there gets no `sbt_binary_artifact` hint, even with a top-level
+  literal beside it.
 - `scala_version` fails closed: a `ThisBuild` literal plus a different
   project override, or two literals in one scope, report no version, even
   where sbt's last assignment would name one.

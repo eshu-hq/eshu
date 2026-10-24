@@ -214,10 +214,11 @@ recent shipped work grouped by feature area.
   `.filter`) is counted once and supersedes nothing. `<+=`, `<++=`,
   `.append1`, `.appendN`, `.withRank(...) +=` and any other assignment
   operator fall back with partial rows. `scalaVersion` is read only where
-  `libraryDependencies` would resolve, so a nested literal never moves the `%%`
-  hint; an unreadable `scalaVersion` statement there (`sys.env(...)`, `~=`,
-  `.set`, `.withRank(...) :=`) or two distinct literals leave
-  `scala_version` empty and drop the hint. `project/build.sbt` (sbt's
+  `libraryDependencies` would resolve; an unreadable `scalaVersion` statement
+  there (`sys.env(...)`, `~=`, `.set`, `.withRank(...) :=`, `.:=(...)`), any
+  `scalaVersion` assignment outside one (a settings `val`, `inThisBuild(...)`,
+  `in Test`), or two distinct literals leave `scala_version` empty and drop
+  the hint. `project/build.sbt` (sbt's
   meta-build, admitted by its base name) is parsed with
   `sbt_state.meta_build` true and every row partial; the check runs on the
   absolute path, so a clone inside a directory named `project` is flagged too
