@@ -80,8 +80,8 @@ public query API status.
   returns the per-collector-family promotion readiness read model: promotion
   state, reducer readback status, evidence counts, last proof time, blockers, and
   a recommended next action. Credentials and raw provider payloads are redacted;
-  scoped tokens see family-level readiness only. The MCP tool
-  `get_collector_readiness` returns the same shape.
+  scoped tokens see family-level readiness only; a [terminal fetch failure](collector-terminal-failure.md)
+  fails the instance. MCP `get_collector_readiness` returns the same shape.
 - `GET /api/v0/status/governance` returns redacted hosted governance mode,
   policy state, readiness, aggregate counts, and reason-code readbacks.
 - `GET /api/v0/status/semantic-extraction` returns semantic capability status

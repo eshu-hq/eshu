@@ -29,6 +29,33 @@ an import cycle. When changing these signatures, do not silently narrow
 behavior — diff the derived `RuntimeStatus`/`PromotionProof` rows before and
 after on a fixture snapshot.
 
+## Terminal failure evidence
+
+`Evidence.TerminalFailures` degrades a coordinator-registered instance and
+fails its promotion proof with the blocker
+`terminal fetch failure: <class> (<operation>)`. Keep it bounded: the class
+must pass `BoundedFailureClass` (a local allowlist, deliberately not an import
+of any collector runtime package) and the operation must pass
+`BoundedFailureOperation`; anything else reads as `unknown`. The allowlist
+holds the classes the security-alert provider and the claim runner itself
+persist: the five provider classes plus `attempt_budget_exhausted`,
+`identity_mismatch`, `collect_failure`, and `commit_failure`. Other collector
+kinds' own classes read as `unknown` (known limit, #8896); do not widen the
+set without the OpenAPI enum change. A class added there must also land in
+both OpenAPI `last_failure_class` enums
+(`TestOpenAPITerminalFailureFieldsMatchStatusContract` in `query` fails
+otherwise) and stay aligned with the security-alert read's class set. Never add the
+failure message or provider status code to `TerminalFailure`, `RuntimeStatus`,
+`PromotionProof`, or their JSON. The reader (`storage/postgres`) supplies only
+failures of enabled, non-deactivated instances inside the instance's window
+(3 x `scan_interval`, 30 minute floor) with no later completed work item of the
+same instance for the same scope, so clearing and aging out are the reader's
+job, not this package's. Every `TerminalFailure` is terminal by construction:
+the reader selects rows by the `failed_terminal` status, never by the
+`last_failure_terminal` flag, because the scanner worker dead-letters without
+setting that flag. Do not add a per-row terminal gate back. A failure for an
+unregistered or disabled instance never changes health.
+
 ## Exporting the render/clone/JSON surface
 
 Every render, clone, and JSON-projection helper in this family

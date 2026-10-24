@@ -434,6 +434,7 @@ func (r Report) CollectorEvidence() collector.Evidence {
 	}
 	if r.Coordinator != nil {
 		evidence.Instances = r.Coordinator.CollectorInstances
+		evidence.TerminalFailures = r.Coordinator.CollectorTerminalFailures
 	}
 	return evidence
 }

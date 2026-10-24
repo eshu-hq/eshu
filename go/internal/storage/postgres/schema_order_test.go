@@ -549,4 +549,8 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 210 (#8780) records the union-base commit a cumulative delta
 	// was diffed from, next to its #7319 fence commit. DDL only, no backfill.
 	"scope_generations_delta_union_base_commit_sha",
+	// Migration 211 (#8803) adds the partial failed_terminal index the
+	// collector terminal-failure status read seeks per instance, newest
+	// first. Migration-only and built CONCURRENTLY, like migration 156.
+	"workflow_work_items_failed_terminal_instance_idx",
 }

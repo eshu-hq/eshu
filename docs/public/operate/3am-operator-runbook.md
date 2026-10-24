@@ -148,6 +148,30 @@ A source is not refreshing, or a collector family reports unhealthy.
   carry `source_system` and `collector_kind`; `failure_class` on the log line
   classifies the failure. Source identity appears only as `resource.fingerprint`
   / `resource.identity_kind`.
+- **Terminal fetch failure:** an instance whose collection failed terminally,
+  for example with revoked credentials, reports `promotion_state=failed` and the
+  blocker `terminal fetch failure: <class> (<operation>)` on
+  `GET /api/v0/status/collector-readiness`, and `health=degraded` with
+  `last_failure_class` on `GET /api/v0/status/collectors`. Classes: `auth_denied`
+  (fix the credential or grant), `not_found` (check the target exists and the
+  credential can see it), `rate_limited` (wait or lower the schedule),
+  `retryable` or `attempt_budget_exhausted` (the retry budget ran out on a
+  transient failure; check provider health, then let the next cycle run),
+  `identity_mismatch` (the collected generation did not match its claim; check
+  the collector log for the scope), and `terminal`, `collect_failure`,
+  `commit_failure`, or `unknown` (read the collector log line carrying
+  `failure_class`; a class only another collector kind writes reads `unknown`). The
+  gauge `eshu_runtime_coordinator_collector_terminal_failure_instances` counts
+  affected instances by `collector_kind` and `failure_class`; read it with
+  `max by (collector_kind, failure_class)`, never summed, because every runtime
+  exports the same value. A failure counts while it is recent (within
+  3 x the instance's `scan_interval`, 30 minute floor) and no later completed
+  work item exists for the same instance and scope. It clears when you fix the
+  cause and the next cycle completes that scope, or when you remove the target
+  and wait one window. Pending or retrying items do not clear it. A failure that
+  disappears while the coordinator is down or the backlog is stuck is not
+  recovery: check coordinator liveness first. Empty security-alert answers are
+  not proof of health while this is set.
 - **Safe remediation:** a `gated`, `disabled`, or `unsupported` family is usually
   intentional configuration, not an outage — read the `blockers`. A collector
   whose commit dead-lettered before reaching the queue is handled under

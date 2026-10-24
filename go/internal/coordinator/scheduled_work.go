@@ -5,7 +5,6 @@ package coordinator
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -14,96 +13,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// scanIntervalConfigKey is the optional per-instance configuration field that
-// widens one collector instance's scheduled-scan bucket beyond the global
-// ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL (#6720). It lives inside the
-// instance's free-form configuration object, next to kind-specific fields such
-// as scheduled_scan_enabled, so every collector kind reads it the same way and
-// no chart schema or Postgres column changes.
-const scanIntervalConfigKey = "scan_interval"
-
 // minScanInterval is the floor for a per-instance scan interval. It matches the
 // sub-second rejection the issue asks for; the effective floor is usually the
 // global reconcile interval, enforced by validateScanInterval.
 const minScanInterval = time.Second
-
-// scanIntervalFromConfiguration decodes scan_interval from one collector
-// instance configuration document. It reports whether the field was set so a
-// caller can tell "unset, use the global interval" from "set to this value".
-// A blank string counts as unset, matching how envDuration treats a blank
-// environment variable. A valid document that is not a JSON object ([], a
-// scalar, null) has no fields at all, so it is unset too rather than an
-// error: DesiredCollectorInstance.Validate accepts any valid JSON here and a
-// generic or disabled collector may legitimately carry one. Only a document
-// that is an object but cannot be decoded is an error. A key that is present
-// with a non-string value, null included, is an error rather than unset: a
-// template that meant 12h and emitted null would otherwise run on the global
-// cadence with no signal.
-func scanIntervalFromConfiguration(raw string) (time.Duration, bool, error) {
-	// Decode into a map of raw values so key presence and value type are
-	// separable (encoding/json writes a JSON null into a string field as the
-	// zero value, indistinguishable from an absent key) and so every other
-	// field stays opaque: json.Valid accepts a number such as 1e400 that a
-	// float64 decode would reject, and an unrelated field must never make
-	// this reader fail.
-	var decoded map[string]json.RawMessage
-	normalized := strings.TrimSpace(raw)
-	if !strings.HasPrefix(normalized, "{") {
-		return 0, false, nil
-	}
-	if err := json.Unmarshal([]byte(normalized), &decoded); err != nil {
-		return 0, false, fmt.Errorf("decode collector configuration %s: %w", scanIntervalConfigKey, err)
-	}
-	rawValue, present := decoded[scanIntervalConfigKey]
-	if !present {
-		return 0, false, nil
-	}
-	// Both halves of this guard are needed: json.Unmarshal of the literal
-	// null into a string succeeds silently and leaves "", so only the type
-	// check rejects an explicit null. Report the JSON type, never the value:
-	// the diagnostic is "wrong type", and echoing an operator-supplied
-	// document into an error that lands in startup output and reconcile
-	// logs is not worth the risk.
-	var text string
-	if err := json.Unmarshal(rawValue, &text); err != nil || jsonTypeName(rawValue) != "string" {
-		return 0, false, fmt.Errorf("%s must be a duration string, got %s", scanIntervalConfigKey, jsonTypeName(rawValue))
-	}
-	value := strings.TrimSpace(text)
-	if value == "" {
-		return 0, false, nil
-	}
-	parsed, err := time.ParseDuration(value)
-	if err != nil {
-		return 0, false, fmt.Errorf("%s: %w", scanIntervalConfigKey, err)
-	}
-	return parsed, true, nil
-}
-
-// jsonTypeName names the JSON type of one raw value from its first byte,
-// for error messages that must not echo the value itself. An explicit null in
-// a RawMessage map entry arrives as the four-byte literal null and is named by
-// the 'n' case; the empty case is defensive only and does not occur for a
-// present key.
-func jsonTypeName(raw json.RawMessage) string {
-	trimmed := strings.TrimSpace(string(raw))
-	if trimmed == "" {
-		return "null"
-	}
-	switch trimmed[0] {
-	case '"':
-		return "string"
-	case '{':
-		return "object"
-	case '[':
-		return "array"
-	case 't', 'f':
-		return "boolean"
-	case 'n':
-		return "null"
-	default:
-		return "number"
-	}
-}
 
 // validateScanInterval rejects a configured scan_interval the coordinator cannot
 // honor. The reconcile ticker fires at the global interval, so a per-instance
@@ -112,7 +25,7 @@ func jsonTypeName(raw json.RawMessage) string {
 // integer multiple of it would be planned at uneven spacing. Unset passes: the
 // instance then uses the global interval.
 func validateScanInterval(raw string, reconcileInterval time.Duration) error {
-	interval, set, err := scanIntervalFromConfiguration(raw)
+	interval, set, err := schedule.ParseScanInterval(raw)
 	if err != nil {
 		return err
 	}
@@ -120,7 +33,7 @@ func validateScanInterval(raw string, reconcileInterval time.Duration) error {
 		return nil
 	}
 	if interval < minScanInterval {
-		return fmt.Errorf("%s %s must be at least %s", scanIntervalConfigKey, interval, minScanInterval)
+		return fmt.Errorf("%s %s must be at least %s", schedule.ScanIntervalConfigKey, interval, minScanInterval)
 	}
 	if reconcileInterval <= 0 {
 		reconcileInterval = schedule.DefaultReconcileInterval
@@ -128,7 +41,7 @@ func validateScanInterval(raw string, reconcileInterval time.Duration) error {
 	if interval < reconcileInterval {
 		return fmt.Errorf(
 			"%s %s must not be shorter than the reconcile interval %s",
-			scanIntervalConfigKey, interval, reconcileInterval,
+			schedule.ScanIntervalConfigKey, interval, reconcileInterval,
 		)
 	}
 	// Ticks arrive every reconcile interval, so a bucket that is an integer
@@ -139,7 +52,7 @@ func validateScanInterval(raw string, reconcileInterval time.Duration) error {
 	if interval%reconcileInterval != 0 {
 		return fmt.Errorf(
 			"%s %s must be an integer multiple of the reconcile interval %s",
-			scanIntervalConfigKey, interval, reconcileInterval,
+			schedule.ScanIntervalConfigKey, interval, reconcileInterval,
 		)
 	}
 	return nil
@@ -165,7 +78,7 @@ func (s Service) scanInterval(instance workflow.CollectorInstance) (time.Duratio
 	if instance.Bootstrap {
 		return global, nil
 	}
-	interval, set, err := scanIntervalFromConfiguration(instance.Configuration)
+	interval, set, err := schedule.ParseScanInterval(instance.Configuration)
 	if err != nil {
 		return 0, err
 	}
@@ -284,7 +197,7 @@ func (s Service) logScanIntervalOverrides() {
 		if instance.Bootstrap || !instance.Enabled || !instance.ClaimsEnabled {
 			continue
 		}
-		interval, set, err := scanIntervalFromConfiguration(instance.Configuration)
+		interval, set, err := schedule.ParseScanInterval(instance.Configuration)
 		if err != nil {
 			s.Logger.Warn(
 				"workflow coordinator collector instance scan interval unreadable",

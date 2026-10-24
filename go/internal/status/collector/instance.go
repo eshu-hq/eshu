@@ -18,4 +18,8 @@ type InstanceSummary struct {
 	LastObservedAt time.Time `json:"last_observed_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 	DeactivatedAt  time.Time `json:"deactivated_at,omitempty"`
+	// ScanInterval is the instance's configured scan_interval, or zero when
+	// it is unset or malformed. The status reader sizes the terminal-failure
+	// window from it (#8803). It is not part of any payload.
+	ScanInterval time.Duration `json:"-"`
 }

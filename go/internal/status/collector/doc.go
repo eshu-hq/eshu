@@ -41,6 +41,18 @@
 // RuntimeStatus and the catalog, following a fixed precedence so a reviewer
 // always sees the most actionable blocker first.
 //
+// TerminalFailure is the newest unresolved terminal work-item failure for one
+// collector instance, supplied by the storage reader through
+// Evidence.TerminalFailures. The reader selects it by the failed_terminal
+// work-item status, not the last_failure_terminal flag, so every value is
+// terminal and carries no flag of its own. RuntimeStatuses degrades the matching registered
+// instance and sets LastFailureClass, LastFailureOperation,
+// LastFailureTerminal, and LastFailureAt; PromotionProofs then reports the
+// instance as failed with the blocker "terminal fetch failure: <class>
+// (<operation>)". BoundedFailureClass and BoundedFailureOperation keep both
+// tokens inside a closed vocabulary (anything else reads as "unknown"), and
+// the failure message and provider status code are never carried.
+//
 // VulnerabilitySourceState captures one durable vulnerability-intelligence
 // source checkpoint for operator status and API readiness surfaces.
 //

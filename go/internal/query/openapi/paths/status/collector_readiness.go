@@ -12,7 +12,7 @@ const CollectorReadiness = `
       "get": {
         "tags": ["status"],
         "summary": "Get collector family readiness",
-        "description": "Returns per-collector-family promotion readiness across the full collector fleet: promotion state, reducer readback status, evidence counts, last proof time, blockers, and a recommended next action. Redacts credentials and raw provider payloads. The MCP tool get_collector_readiness returns the same shape. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 error envelope names capability operations.collector_readiness_status.",
+        "description": "Returns per-collector-family promotion readiness across the full collector fleet: promotion state, reducer readback status, evidence counts, last proof time, blockers, and a recommended next action. An instance with a failed_terminal work item updated inside its window (3 x scan_interval, 30 minute floor) and no later completed work item of the same instance for that scope reports promotion_state failed with the blocker (terminal fetch failure: <class> (<operation>)) plus last_failure_class, last_failure_operation, and last_failure_at. Only a later completed work item of the same instance for that scope clears it; a later pending or retrying item does not, and a failure no later run revisits ages out after the window. Redacts credentials and raw provider payloads: only bounded class and operation tokens appear, never a failure message or status code. Scoped callers receive the same failure fields and blocker with only instance_id withheld. The MCP tool get_collector_readiness returns the same shape. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 error envelope names capability operations.collector_readiness_status.",
         "operationId": "getCollectorReadiness",
         "x-scoped-token-support": true,
         "responses": {
@@ -51,7 +51,10 @@ const CollectorReadiness = `
                           "blockers": {"type": "array", "items": {"type": "string"}},
                           "recommended_next_action": {"type": "string"},
                           "last_proof_at": {"type": "string", "format": "date-time", "nullable": true},
-                          "updated_at": {"type": "string", "format": "date-time", "nullable": true}
+                          "updated_at": {"type": "string", "format": "date-time", "nullable": true},
+                          "last_failure_class": {"type": "string", "enum": ["auth_denied", "not_found", "rate_limited", "terminal", "retryable", "attempt_budget_exhausted", "identity_mismatch", "collect_failure", "commit_failure", "unknown"], "description": "Bounded class of the newest unresolved terminal fetch failure; omitted when there is none. Other collector kinds' own classes read as unknown."},
+                          "last_failure_operation": {"type": "string", "description": "Bounded snake_case operation token of that failure, or unknown; omitted when there is none."},
+                          "last_failure_at": {"type": "string", "format": "date-time", "description": "When that failure became terminal; omitted when there is none."}
                         }
                       }
                     }

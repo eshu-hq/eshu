@@ -34,4 +34,9 @@ type Evidence struct {
 	VulnerabilitySources []VulnerabilitySourceState
 	// FactEvidence is aggregated fact-emission evidence per collector instance.
 	FactEvidence []FactEvidence
+	// TerminalFailures are the newest unresolved terminal work-item failures
+	// per collector instance. The readback degrades the matching registered
+	// instance and fails its promotion proof; an empty slice leaves every
+	// instance unchanged.
+	TerminalFailures []TerminalFailure
 }

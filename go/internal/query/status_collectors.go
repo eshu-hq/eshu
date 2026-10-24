@@ -20,7 +20,7 @@ func collectorRuntimeStatusesToSlice(rows []collector.RuntimeStatus) []map[strin
 }
 
 func collectorRuntimeStatusToMap(row collector.RuntimeStatus) map[string]any {
-	return map[string]any{
+	result := map[string]any{
 		"instance_id":            row.InstanceID,
 		"collector_kind":         row.CollectorKind,
 		"mode":                   row.Mode,
@@ -40,6 +40,15 @@ func collectorRuntimeStatusToMap(row collector.RuntimeStatus) map[string]any {
 		"deactivated_at":         nullableRFC3339(row.DeactivatedAt),
 		"detail":                 row.Detail,
 	}
+	if row.LastFailureTerminal {
+		// Bounded class and operation tokens only; the failure message and
+		// provider status code never reach this payload (#8803).
+		result["last_failure_class"] = row.LastFailureClass
+		result["last_failure_operation"] = row.LastFailureOperation
+		result["last_failure_terminal"] = true
+		result["last_failure_at"] = nullableRFC3339(row.LastFailureAt)
+	}
+	return result
 }
 
 func scopedCollectorRuntimeStatusesToSlice(rows []collector.RuntimeStatus) []map[string]any {

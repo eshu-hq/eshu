@@ -123,6 +123,7 @@ nav:
         - Semantic Evidence: reference/http-api/semantic-evidence.md
         - Semantic Search: reference/http-api/semantic-search.md
         - Evidence And Supply Chain: reference/http-api/evidence-and-supply-chain.md
+        - Collector Terminal Failure: reference/http-api/collector-terminal-failure.md
         - Container Image Source Bridge: reference/http-api/container-image-source-bridge.md
         - Vulnerability Impact: reference/http-api/vulnerability-impact.md
         - Vulnerability Impact Readiness: reference/http-api/vulnerability-impact-readiness.md

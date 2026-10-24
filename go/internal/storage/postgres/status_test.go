@@ -204,7 +204,10 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 
 	// 27 round trips: the five active-work reads are one statement (#6794),
 	// the infra read model state is one more (#6793), and the repository
-	// selection counts read is one more (#8454).
+	// selection counts read is one more (#8454). The #8803 terminal-failure
+	// read adds one more only when an enabled collector instance exists; this
+	// fixture has none (TestReadCoordinatorSnapshotIncludesTerminalFailures
+	// pins the read when one does).
 	if len(queryer.queries) != 27 {
 		t.Fatalf("QueryContext() call count = %d, want 27", len(queryer.queries))
 	}

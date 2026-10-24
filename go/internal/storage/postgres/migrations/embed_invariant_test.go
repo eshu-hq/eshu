@@ -120,13 +120,15 @@ import (
 // 209_partition_lease_claimed_at.sql (claim epoch for the 2b' barrier).
 // #8780 adds 210_scope_generations_delta_union_base_commit_sha.sql (the
 // union-base commit a cumulative delta was diffed from; catalog-only column).
-const goldenBootstrapDefinitionsDigest = "7925d61ad6a42fa1e7fd97813c515a6fb0136c0ce28a42df9c8d75a8de6b9bf5"
+// #8803 adds 211_workflow_work_items_failed_terminal_instance_idx.sql (the
+// partial failed_terminal index for the collector terminal-failure read).
+const goldenBootstrapDefinitionsDigest = "d7da4523984263b747401de8b6e1a7df97337e67beefc69e0526fd2a536ee43f"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 228
+const goldenBootstrapDefinitionsCount = 229
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

@@ -285,3 +285,55 @@ func TestStatusMetricsHandlerIncludesCoordinatorSnapshotMetrics(t *testing.T) {
 		}
 	}
 }
+
+// TestStatusMetricsHandlerReportsCollectorTerminalFailureGauge pins the gauge
+// grouping and its label bounds (#8803): two instances with the same class
+// share one series, a runner class keeps its own series, a registered
+// instance with a raw persisted class reads as failure_class="unknown" without
+// echoing the raw text, an unregistered instance is never counted (the
+// unknown series would read 2), and a healthy instance has no series.
+func TestStatusMetricsHandlerReportsCollectorTerminalFailureGauge(t *testing.T) {
+	handler, err := NewStatusMetricsHandler("workflow-coordinator", &fakeStatusReader{
+		snapshot: statuspkg.RawSnapshot{
+			AsOf: time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC),
+			Coordinator: &statuspkg.CoordinatorSnapshot{
+				CollectorInstances: []collector.InstanceSummary{
+					{InstanceID: "alerts-a", CollectorKind: "security_alert", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+					{InstanceID: "alerts-b", CollectorKind: "security_alert", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+					{InstanceID: "alerts-budget", CollectorKind: "security_alert", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+					{InstanceID: "alerts-raw", CollectorKind: "security_alert", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+					{InstanceID: "git-a", CollectorKind: "git", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+				},
+				CollectorTerminalFailures: []collector.TerminalFailure{
+					{CollectorKind: "security_alert", InstanceID: "alerts-a", FailureClass: "auth_denied", FailureOperation: "list_org_alerts"},
+					{CollectorKind: "security_alert", InstanceID: "alerts-b", FailureClass: "auth_denied", FailureOperation: "list_org_alerts"},
+					{CollectorKind: "security_alert", InstanceID: "alerts-budget", FailureClass: "attempt_budget_exhausted", FailureOperation: "collect_failure"},
+					{CollectorKind: "security_alert", InstanceID: "alerts-raw", FailureClass: "token_ghp_secret"},
+					{CollectorKind: "security_alert", InstanceID: "ghost", FailureClass: "token_ghp_secret"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewStatusMetricsHandler() error = %v, want nil", err)
+	}
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := recorder.Body.String()
+
+	for _, want := range []string{
+		`eshu_runtime_coordinator_collector_terminal_failure_instances{collector_kind="security_alert",failure_class="auth_denied",service_name="workflow-coordinator"} 2`,
+		`eshu_runtime_coordinator_collector_terminal_failure_instances{collector_kind="security_alert",failure_class="attempt_budget_exhausted",service_name="workflow-coordinator"} 1`,
+		`eshu_runtime_coordinator_collector_terminal_failure_instances{collector_kind="security_alert",failure_class="unknown",service_name="workflow-coordinator"} 1`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("GET /metrics body missing %q\nbody:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "ghp_secret") {
+		t.Fatalf("GET /metrics leaked an unbounded failure class:\n%s", body)
+	}
+	if strings.Contains(body, `terminal_failure_instances{collector_kind="git"`) {
+		t.Fatalf("healthy git instance reported a terminal failure:\n%s", body)
+	}
+}

@@ -32,6 +32,12 @@ cycle.
   `DerivedTargetPlanKey`, `DerivedTargetReadLimit`.
 - `ExactOwnedDependencyVersion`, `NonVersionOwnedDependencyPrefix`,
   `FirstNonBlank`.
+- `ScanIntervalConfigKey`, `ParseScanInterval` (one configuration document),
+  and `ParseScanIntervalValue` (the JSON value under that key). The
+  coordinator validates and plans with them; the status reader in
+  `storage/postgres` sizes the collector terminal-failure window (#8803) from
+  `configuration->'scan_interval'` through `ParseScanIntervalValue`, so both
+  read one configured value with the same rules.
 - `DerivedTargetSkipEvidence` and its skip-reason constants, plus
   `DerivedTargetSkipEvidenceByReason`,
   `DerivedTargetSkipEvidenceByReasonForClass`, `RecordDerivedTargetSkip`, and
@@ -41,7 +47,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- Standard library only (`strings`, `sort`, `time`, `fmt`) plus
+- Standard library only (`strings`, `sort`, `time`, `fmt`, `encoding/json`) plus
   `golang.org/x/mod/semver` for owned-dependency version validation.
 
 The package does not import the parent coordinator package or either family

@@ -26,6 +26,13 @@ type RuntimeStatusJSON struct {
 	UpdatedAt             string   `json:"updated_at,omitempty"`
 	DeactivatedAt         string   `json:"deactivated_at,omitempty"`
 	Detail                string   `json:"detail,omitempty"`
+	// LastFailureClass and LastFailureOperation are bounded tokens for the
+	// newest unresolved terminal fetch failure; LastFailureTerminal and
+	// LastFailureAt accompany them. All are omitted when no such failure exists.
+	LastFailureClass     string `json:"last_failure_class,omitempty"`
+	LastFailureOperation string `json:"last_failure_operation,omitempty"`
+	LastFailureTerminal  bool   `json:"last_failure_terminal,omitempty"`
+	LastFailureAt        string `json:"last_failure_at,omitempty"`
 }
 
 func RuntimeStatusesJSON(rows []RuntimeStatus) []RuntimeStatusJSON {
@@ -50,6 +57,10 @@ func RuntimeStatusesJSON(rows []RuntimeStatus) []RuntimeStatusJSON {
 			UpdatedAt:             shared.NullableRFC3339Value(row.UpdatedAt),
 			DeactivatedAt:         shared.NullableRFC3339Value(row.DeactivatedAt),
 			Detail:                row.Detail,
+			LastFailureClass:      row.LastFailureClass,
+			LastFailureOperation:  row.LastFailureOperation,
+			LastFailureTerminal:   row.LastFailureTerminal,
+			LastFailureAt:         shared.NullableRFC3339Value(row.LastFailureAt),
 		})
 	}
 	return projected

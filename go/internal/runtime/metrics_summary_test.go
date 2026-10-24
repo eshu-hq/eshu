@@ -62,7 +62,9 @@ func scrapeStore(queryer *fake.ExecQueryer, readerOn bool) postgres.StatusStore 
 // (full minus Terraform, reader off), and now with the reader off and on. The
 // reader on removes the live active-work statement and adds the clock and the
 // keyed row read; both selections drop the fact_records aggregate and the three
-// registry collector statements, which the scrape never renders.
+// registry collector statements, which the scrape never renders. The
+// terminal-failure read (#8803) runs only when an enabled collector instance
+// exists; this empty store has none, so it adds no statement here.
 func TestStatusMetricsStatementInventory(t *testing.T) {
 	t.Parallel()
 	count := func(selection statuspkg.SnapshotSelection, readerOn bool) scrapeInventory {

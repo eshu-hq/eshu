@@ -52,6 +52,18 @@ type RuntimeStatus struct {
 	UpdatedAt             time.Time
 	DeactivatedAt         time.Time
 	Detail                string
+	// LastFailureClass, LastFailureOperation, LastFailureTerminal, and
+	// LastFailureAt describe the newest unresolved terminal fetch failure
+	// for this instance: a failed_terminal work item inside the instance's
+	// window (3 x scan_interval, 30 minute floor) with no later completed work
+	// item of the same instance for the same scope. LastFailureClass is one of the bounded
+	// failure classes or "unknown"; LastFailureOperation is a bounded token or
+	// "unknown". The failure message and provider status code never appear.
+	// All four are zero when the instance has no unresolved terminal failure.
+	LastFailureClass     string
+	LastFailureOperation string
+	LastFailureTerminal  bool
+	LastFailureAt        time.Time
 }
 
 // RuntimeStatuses derives the shared collector runtime readback from
@@ -64,6 +76,7 @@ func RuntimeStatuses(evidence Evidence) []RuntimeStatus {
 	builder.addAWSScans(evidence.AWSScans)
 	builder.addVulnerabilitySources(evidence.VulnerabilitySources)
 	builder.addFactEvidence(evidence.FactEvidence)
+	builder.applyTerminalFailures(evidence.TerminalFailures)
 	return builder.rows()
 }
 
@@ -441,6 +454,9 @@ func RenderRuntimeStatusLines(rows []RuntimeStatus) []string {
 		}
 		if row.ObservationCount > 0 {
 			line += fmt.Sprintf(" observations=%d", row.ObservationCount)
+		}
+		if row.LastFailureTerminal {
+			line += fmt.Sprintf(" last_failure_class=%s last_failure_operation=%s", row.LastFailureClass, row.LastFailureOperation)
 		}
 		lines = append(lines, line)
 	}
