@@ -68,6 +68,8 @@
 #   M52 truth  verify does not check the grants
 #   M53 gates  any output line, not only a pod/ line, counts as a worker pod
 
+# The single-quoted anchors are literal source text to find, not expansions.
+# shellcheck disable=SC2016
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
