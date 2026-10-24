@@ -1,6 +1,7 @@
 """Seed route and event violations for the delta union scheduled proof."""
 
 import importlib.util
+import fnmatch
 import io
 import os
 import re
@@ -34,6 +35,8 @@ class DeltaUnionScheduledTest(unittest.TestCase):
         self.assertIn(dependency, workflow)
         changes = {
             "missing_module_prewarm_route": workflow.replace(dependency, "", 1),
+            "missing_internal_dependency_route": workflow.replace(
+                "      - 'go/internal/**'\n", "", 1),
             "missing_root": workflow.replace("  schedule:\n", "  inactive_schedule:\n", 1),
             "disabled_job": workflow.replace("    runs-on: ubuntu-latest", "    if: false\n    runs-on: ubuntu-latest", 1),
             "root_shell_override": workflow.replace(
@@ -66,6 +69,7 @@ class DeltaUnionScheduledTest(unittest.TestCase):
             "missing_event_verifier": workflow.replace("--events \"${RUNNER_TEMP}/delta-union.jsonl\"", "--events wrong.jsonl", 1),
         }
         expected_errors = {
+            "missing_internal_dependency_route": "scoped PR dependency route changed",
             "root_shell_override": "non-fail-closed workflow key",
             "job_shell_override": "non-fail-closed workflow key",
             "step_shell_override": "non-fail-closed workflow key",
@@ -79,6 +83,43 @@ class DeltaUnionScheduledTest(unittest.TestCase):
             with self.subTest(name=name):
                 with self.assertRaisesRegex(ValueError, expected_errors.get(name, ".")):
                     self.guard.verify(ROOT, changed)
+
+    def test_production_dependencies_trigger_pr_proof(self) -> None:
+        """Direct Go imports must select the proof on scoped PR changes."""
+        workflow = (ROOT / self.guard.WORKFLOW).read_text()
+        paths = re.findall(r"(?m)^      - '([^']+)'$", workflow.partition("\njobs:\n")[0])
+        registry = (ROOT / "specs/ci-gates.d/gates-10.yaml").read_text()
+        gate = registry.split("  - id: delta-union-scheduled\n", 1)[1].split("\n  - id: ", 1)[0]
+        triggers = re.findall(r'(?m)^      - "([^"]+)"$', gate)
+        package_files = sorted((ROOT / "go/cmd/projector").glob("*.go"))
+        self.assertTrue(package_files)
+        imports = set()
+        for source in package_files:
+            imports.update(re.findall(
+                r'"github\.com/eshu-hq/eshu/go/(internal/[^"\s]+)"', source.read_text()))
+        self.assertIn("internal/storage/postgres", imports)
+        self.assertIn("internal/scope", imports)
+        self.assertIn("internal/content", imports)
+        self.assertIn("internal/repositoryidentity", imports)
+        for imported in sorted(imports):
+            package_sources = sorted((ROOT / "go" / imported).glob("*.go"))
+            with self.subTest(package=imported):
+                self.assertTrue(package_sources, imported)
+                changed_path = package_sources[0].relative_to(ROOT).as_posix()
+                self.assertTrue(any(fnmatch.fnmatchcase(changed_path, pattern) for pattern in paths), changed_path)
+                self.assertTrue(any(fnmatch.fnmatchcase(changed_path, pattern) for pattern in triggers), changed_path)
+        module = (ROOT / "go/go.mod").read_text()
+        for path, replacement in (
+            ("go/pkg/log/log.go", "github.com/eshu-hq/eshu/go/pkg/log"),
+            ("sdk/go/collector/types.go", "../sdk/go/collector"),
+            ("sdk/go/factschema/decode_map_coerce.go", "../sdk/go/factschema"),
+        ):
+            with self.subTest(path=path):
+                self.assertTrue((ROOT / path).is_file(), path)
+                if path.startswith("sdk/"):
+                    self.assertIn(replacement, module)
+                self.assertTrue(any(fnmatch.fnmatchcase(path, pattern) for pattern in paths), path)
+                self.assertTrue(any(fnmatch.fnmatchcase(path, pattern) for pattern in triggers), path)
 
     def test_ledger_demotion_and_false_overlay_enrollment(self) -> None:
         """The ledger rejects drift even if its legacy digest is repinned."""

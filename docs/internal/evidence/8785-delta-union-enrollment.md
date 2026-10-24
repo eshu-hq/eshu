@@ -17,6 +17,14 @@ missing routes, and missing event verification. The ledger pins this file alone
 to `delta-union-scheduled` and `backends: neo4j`. The five tests in
 `superseded_delta_overlay_live_test.go` remain scheduled.
 
+The PR route includes `go/cmd/projector/**`, `go/internal/**`, `go/pkg/**`,
+and the locally replaced `sdk/go/collector/**` and `sdk/go/factschema/**`
+modules. The projector package compiles many shared internal dependencies even
+when the selector runs only two roots. The broader route can run a 20-minute
+backend job for an unrelated internal change; that cost is accepted to keep the
+PR proof sensitive to changes in its compiled dependencies. The static mirror
+checks the workflow route and registry triggers against actual package imports.
+
 ## Pinned local proof before the latest rebase
 
 The isolated local run at `4c1e5dc43614dbc7f6e561427785873b1a368472`
