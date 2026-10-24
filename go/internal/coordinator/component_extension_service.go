@@ -94,10 +94,18 @@ func shouldScheduleComponentExtension(instance workflow.CollectorInstance) bool 
 // component planner owns it. A malformed or incomplete activation document
 // counts: the generic planner reports that error, and no in-tree planner may
 // claim the instance as well. Blank and in-tree target configuration return
-// false. The generic scheduler and every in-tree kind scheduler (through
-// inTreeSchedulable) use this one check, so the two sides always partition
-// instances without overlap or a gap.
+// false. The generic scheduler, every in-tree kind scheduler (through
+// inTreeSchedulable), and the startup claim validation in Config.Validate use
+// this one check, so the two sides always partition instances without overlap
+// or a gap.
 func hasComponentActivationConfiguration(instance workflow.CollectorInstance) bool {
-	_, ok, err := activation.ParseConfig(instance.Configuration)
+	return isComponentActivationConfiguration(instance.Configuration)
+}
+
+// isComponentActivationConfiguration is the single parse behind
+// hasComponentActivationConfiguration, taking the raw configuration so the
+// desired-instance startup path, which has no stored row yet, shares it.
+func isComponentActivationConfiguration(configuration string) bool {
+	_, ok, err := activation.ParseConfig(configuration)
 	return ok || err != nil
 }

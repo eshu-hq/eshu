@@ -222,6 +222,16 @@ because schedulers stop at the first error. One predicate enforces it:
   kind + enabled + claims-enabled + not matched, and every in-tree
   `shouldSchedule*` selector returns it. This also covers the AWS, GCP, and
   incident-freshness handoffs, which run outside `runReconcile`.
+- Startup validation follows the same rule. `Config.Validate` skips the
+  kind-specific claim check (`validateCollectorClaimSchedulingSupported`, the
+  GCP `live_collection_enabled` rule) for a matched instance, through
+  `isComponentActivationConfiguration`, the raw-configuration form of the same
+  parse. `workflow.DesiredCollectorInstance.Validate` checks the component
+  document before the Terraform state validator. A gcp-kind in-tree instance
+  without `live_collection_enabled` is still a startup error.
+- A malformed or non-object configuration on any kind is now reported by the
+  generic planner (`plan component extension work for ...`), not by the
+  in-tree planner, so the error text names the component planner.
 - `reconcileSchedulers()` is the one ordered list `runReconcile` dispatches;
   `incidentFreshnessSelectors()` lists the handoff selectors that run on the
   maintenance ticker. `in_tree_schedulers_test.go` holds every entry to the
