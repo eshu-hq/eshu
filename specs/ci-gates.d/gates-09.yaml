@@ -507,7 +507,6 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
-
   - id: content-entity-bucket-sync
     name: Content-entity bucket<->label sync and projector-label totality (#5531, #6206)
     category: exactness
@@ -515,7 +514,8 @@ gates:
     purpose: "Checks that collector content-entity buckets, projector label maps, and the drift ledger all agree with each other and the code."
     tier: pre-pr
     blocking: true
-    # Trigger both map sources; the -run list includes reverse projector-to-bucket coverage (#6206).
+    # Trigger on all three sources: shape, collector twin, and projector map.
+    # The -run list is hand-maintained; #6206 reverse coverage once ran only incidentally.
     triggers:
       - "go/internal/content/shape/**"
       - "go/internal/collector/repo/git/snapshot_entity_buckets.go"
