@@ -333,10 +333,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
+      - {name: Require queue selection to succeed, if: "${{ always() && github.event_name == 'merge_group' }}", run: 'test "${{ needs.queue-selection.result }}" = success'}
       - {name: Reject failed go-core lane, run: "test \"${{ needs.go-core.result }}\" != failure || exit 1"}
+      - name: Checkout repository
+        uses: actions/checkout@v5
       - name: Assert go-core passed
         env:
           LANE: go-core
@@ -419,10 +419,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
+      - {name: Require queue selection to succeed, if: "${{ always() && github.event_name == 'merge_group' }}", run: 'test "${{ needs.queue-selection.result }}" = success'}
       - {name: Reject failed go-race lane, run: "test \"${{ needs.go-race.result }}\" != failure || exit 1"}
+      - name: Checkout repository
+        uses: actions/checkout@v5
       - name: Assert go-race passed
         env:
           LANE: go-race
