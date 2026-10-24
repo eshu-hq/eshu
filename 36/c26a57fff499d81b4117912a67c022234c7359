@@ -1,0 +1,19 @@
+testdata/golden/e2e-20repo-snapshot.json
+  s_ff8a600f1fc93e::t_48f5f855852e03 8020-8029,8040-8070
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "36c26a57fff499d81b4117912a67c022234c7359",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
