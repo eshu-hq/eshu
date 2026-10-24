@@ -306,6 +306,18 @@ code_taint_evidence_expected_edges="${repo_root}/go/internal/ifa/testdata/codeta
 # scope owns its own ACTIVE generation, like every sibling above.
 incident_routing_evidence_cassette="${repo_root}/testdata/cassettes/incidentrouting/ifa-incident-routing-evidence-family.json"
 incident_routing_evidence_expected_edges="${repo_root}/go/internal/ifa/testdata/incidentroutingevidence/ifa-incident-routing-evidence-family-expected-edges.json"
+# publishes (#6228 publishes live leaf): a projection of the compiled
+# PublishesFamilyOdu by construction
+# (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- four
+# repository facts, the owned package fact, six source hints (one
+# package-level exact, one version-scoped exact, and four deliberate
+# non-producers: tombstoned-only, homepage-only, unmatched, ambiguous) and
+# two versions. The package fact is load-bearing, not padding: the
+# provenance writer MATCHes the Package node, and no hint or version fact
+# produces it. The single package-registry scope owns its own ACTIVE
+# generation, like every sibling above.
+publishes_cassette="${repo_root}/testdata/cassettes/publishes/ifa-publishes-family.json"
+publishes_expected_edges="${repo_root}/go/internal/ifa/testdata/publishes/ifa-publishes-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -388,6 +400,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${code_taint_evidence_expected_edges}" ]] || { echo "${gate}: code-taint-evidence expected-edge set not found: ${code_taint_evidence_expected_edges}" >&2; exit 1; }
 	[[ -f "${incident_routing_evidence_cassette}" ]] || { echo "${gate}: incident-routing-evidence cassette not found: ${incident_routing_evidence_cassette}" >&2; exit 1; }
 	[[ -f "${incident_routing_evidence_expected_edges}" ]] || { echo "${gate}: incident-routing-evidence expected-edge set not found: ${incident_routing_evidence_expected_edges}" >&2; exit 1; }
+	[[ -f "${publishes_cassette}" ]] || { echo "${gate}: publishes cassette not found: ${publishes_cassette}" >&2; exit 1; }
+	[[ -f "${publishes_expected_edges}" ]] || { echo "${gate}: publishes expected-edge set not found: ${publishes_expected_edges}" >&2; exit 1; }
 	# The family scope MUST be stamped source_system='oci_registry': replay
 	# stamps fact.source_system from the scope, and the
 	# container-image-identity loader the handler reads only accepts OCI

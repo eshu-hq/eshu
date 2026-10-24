@@ -5,7 +5,7 @@
 # scripts/lib/test-ifa-determinism-family-cases.sh to keep that file below
 # the repository's 500-line cap (mirroring that file's own extraction of
 # test-ifa-determinism-maintenance-family-cases.sh). Covers the #6228 slice
-# C/D/crossplane/derived_from/code-interproc/code-taint/observability-coverage/incident-routing live leaves -- built_from, cloud_resource_container_image, crossplane_satisfied_by, derived_from, code_interproc_evidence, code_taint_evidence, observability_coverage and incident_routing_evidence -- whose
+# C/D/crossplane/derived_from/code-interproc/code-taint/observability-coverage/incident-routing/publishes live leaves -- built_from, cloud_resource_container_image, crossplane_satisfied_by, derived_from, code_interproc_evidence, code_taint_evidence, observability_coverage, incident_routing_evidence and publishes -- whose
 # drive/assert callbacks live in their own split live libs under the tooling
 # line cap. run_ifa_determinism_direct_leaf_cases is called from inside
 # run_ifa_determinism_family_cases's body, in the same position this code
@@ -29,4 +29,6 @@ require_direct_family_lib "code-taint-evidence assert-edges domain" "-domain cod
 require_direct_family_lib "code-taint-evidence drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "incident-routing-evidence assert-edges domain" "-domain incident_routing_evidence"
 require_direct_family_lib "incident-routing-evidence drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_direct_family_lib "publishes assert-edges domain" "-domain publishes"
+require_direct_family_lib "publishes drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 }

@@ -59,6 +59,44 @@ func TestPackageOwnershipPublishesRowsTargetsVersionWhenPresent(t *testing.T) {
 	}
 }
 
+// TestPackagePublicationPublishesRowsDedupesIdenticalEdgeIdentities pins
+// the one-file-two-comparisons contract: the version-scoped and the
+// package-level hint can pair with the same version (two evidence
+// decisions, one edge identity), and the writer MERGEs idempotently — so
+// the row set must carry each identity once, matching what the live gate
+// counts in the graph (#6228).
+func TestPackagePublicationPublishesRowsDedupesIdenticalEdgeIdentities(t *testing.T) {
+	t.Parallel()
+
+	decisions := []PackagePublicationDecision{
+		{PackageID: "pkg-1", VersionID: "ver-1", RepositoryID: "repo-1", Outcome: PackageSourceExact},
+		{PackageID: "pkg-1", VersionID: "ver-1", RepositoryID: "repo-1", Outcome: PackageSourceDerived},
+	}
+
+	rows := packagePublicationPublishesRows(decisions)
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1 (two pairings, one edge identity)", len(rows))
+	}
+}
+
+// TestPackageOwnershipPublishesRowsDedupesIdenticalEdgeIdentities is the
+// ownership-side twin: two hints resolving to the same repository and
+// target coalesce to one row, keeping the offline row set identical to the
+// live edge set.
+func TestPackageOwnershipPublishesRowsDedupesIdenticalEdgeIdentities(t *testing.T) {
+	t.Parallel()
+
+	decisions := []PackageSourceDecision{
+		{PackageID: "pkg-1", RepositoryID: "repo-1", Outcome: PackageSourceExact},
+		{PackageID: "pkg-1", RepositoryID: "repo-1", Outcome: PackageSourceDerived},
+	}
+
+	rows := packageOwnershipPublishesRows(decisions)
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1 (two hints, one edge identity)", len(rows))
+	}
+}
+
 func TestPackagePublicationPublishesRowsAdmitsExactAndDerivedOnly(t *testing.T) {
 	t.Parallel()
 

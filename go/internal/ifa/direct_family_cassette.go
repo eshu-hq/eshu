@@ -48,8 +48,9 @@ const (
 	// builtFromFamilyCassettePath,
 	// cloudResourceContainerImageFamilyCassettePath,
 	// crossplaneSatisfiedByFamilyCassettePath,
-	// derivedFromFamilyCassettePath, and
-	// incidentRoutingEvidenceFamilyCassettePath are repo-root-relative so the
+	// derivedFromFamilyCassettePath,
+	// incidentRoutingEvidenceFamilyCassettePath, and
+	// publishesFamilyCassettePath are repo-root-relative so the
 	// constants stay machine-independent; callers join a repo root onto
 	// them through the exported helpers below.
 	kubernetesNamespaceEnvironmentFamilyCassettePath = "testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
@@ -73,6 +74,7 @@ const (
 	crossplaneSatisfiedByFamilyCassettePath          = "testdata/cassettes/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family.json"
 	derivedFromFamilyCassettePath                    = "testdata/cassettes/derivedfrom/ifa-derived-from-family.json"
 	incidentRoutingEvidenceFamilyCassettePath        = "testdata/cassettes/incidentrouting/ifa-incident-routing-evidence-family.json"
+	publishesFamilyCassettePath                      = "testdata/cassettes/publishes/ifa-publishes-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -450,6 +452,21 @@ func IncidentRoutingEvidenceFamilyCassetteFullPath(repoRoot string) string {
 // fact load plus its service-name-scoped declared read.
 func LoadIncidentRoutingEvidenceFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, IncidentRoutingEvidenceFamilyOduName)
+}
+
+// PublishesFamilyCassetteFullPath joins repoRoot onto the committed
+// publishes family cassette path.
+func PublishesFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, publishesFamilyCassettePath)
+}
+
+// LoadPublishesFamilyOdu is the publishes counterpart to
+// LoadDerivedFromFamilyOdu: the family's single package-registry scope
+// holds the owning repository facts, the owned package fact, the source
+// hints, and the package versions, mirroring the handler's own-scope
+// load plus its cross-scope active-repository fallback.
+func LoadPublishesFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, PublishesFamilyOduName)
 }
 
 // parseDirectFamilyCassette is the shared strict decode behind the loaders.

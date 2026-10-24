@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -24,13 +25,20 @@ func extractRepository(envelopes []facts.Envelope) (*RepositoryRow, error) {
 	return row, err
 }
 
-// extractRepositoryWithQuarantine builds a RepositoryRow from the first
-// decodable RepositoryObserved fact envelope. A fact missing a required typed
-// identity field is quarantined and skipped, so a valid sibling repository fact
-// can still set the materialization's repo identity and path. A fatal decode
-// failure (an unsupported schema major, which is version skew rather than a
-// malformed individual payload) is returned so the caller fails the whole
-// build loudly instead of projecting a silent repository-less success.
+// extractRepositoryWithQuarantine builds a RepositoryRow from the scope's
+// repository fact envelopes. A fact missing a required typed identity field
+// is quarantined and skipped, so a valid sibling repository fact can still
+// set the materialization's repo identity and path. A fatal decode failure
+// (an unsupported schema major, which is version skew rather than a malformed
+// individual payload) is returned so the caller fails the whole build loudly
+// instead of projecting a silent repository-less success.
+//
+// Which sibling wins is electScopeRepository: the loader hands envelopes in
+// (observed_at, fact_id) order, so plain first-decodable-wins crowns hash
+// luck on a multi-repository scope. The election prefers the first decodable
+// active fact whose canonical remote no other active fact shares — the same
+// active-only ambiguity rule the package-source correlation applies to hints
+// (#6228) — and falls back to first decodable when no such candidate exists.
 func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow, []decode.QuarantinedFact, error) {
 	repoFacts := decode.FilterRepositoryFacts(envelopes)
 	if len(repoFacts) == 0 {
@@ -38,6 +46,7 @@ func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow
 	}
 
 	var quarantined []decode.QuarantinedFact
+	var candidates []decodableRepository
 	for i := range repoFacts {
 		repository, err := decode.CodegraphRepository(repoFacts[i])
 		if err != nil {
@@ -76,17 +85,58 @@ func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow
 			hasRemote = remoteURL != ""
 		}
 
-		return &RepositoryRow{
-			RepoID:    repoID,
-			Name:      name,
-			Path:      repoPath,
-			LocalPath: localPath,
-			RemoteURL: remoteURL,
-			RepoSlug:  repoSlug,
-			HasRemote: hasRemote,
-		}, quarantined, nil
+		candidates = append(candidates, decodableRepository{
+			row: &RepositoryRow{
+				RepoID:    repoID,
+				Name:      name,
+				Path:      repoPath,
+				LocalPath: localPath,
+				RemoteURL: remoteURL,
+				RepoSlug:  repoSlug,
+				HasRemote: hasRemote,
+			},
+			tombstone: repoFacts[i].IsTombstone,
+			remoteKey: repositoryidentity.NormalizedRemoteKey(remoteURL),
+		})
 	}
-	return nil, quarantined, nil
+	return electScopeRepository(candidates), quarantined, nil
+}
+
+// decodableRepository is one successfully decoded repository fact competing
+// to define the scope's repository row.
+type decodableRepository struct {
+	row       *RepositoryRow
+	tombstone bool
+	remoteKey string
+}
+
+// electScopeRepository picks the scope's repository row. It prefers the
+// first decodable active fact whose canonical remote no other active fact
+// shares: a tombstoned fact is a deletion marker that must not define a live
+// scope's identity, and facts sharing one remote are mutually ambiguous —
+// the correlation already refuses to pick among them for edges, and the
+// projection must not crown one of them as the scope repository either.
+// Facts with no remote carry no distinguishing signal, so they collide with
+// each other. When no uniquely-identified active fact exists the election
+// falls back to the first decodable fact, preserving the historical
+// behavior (and never leaving the scope repository-less).
+func electScopeRepository(candidates []decodableRepository) *RepositoryRow {
+	if len(candidates) == 0 {
+		return nil
+	}
+	remoteCount := make(map[string]int, len(candidates))
+	for _, c := range candidates {
+		if c.tombstone {
+			continue
+		}
+		remoteCount[c.remoteKey]++
+	}
+	for _, c := range candidates {
+		if !c.tombstone && remoteCount[c.remoteKey] == 1 {
+			return c.row
+		}
+	}
+	return candidates[0].row
 }
 
 // parsedFileRef is one decoded, materializable file fact, handed to the

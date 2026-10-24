@@ -204,9 +204,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
-		Family:    publishesFamily,
-		OduName:   ifa.PublishesFamilyOduName,
-		EdgeTypes: []string{"PUBLISHES"},
+		Family:     publishesFamily,
+		OduName:    ifa.PublishesFamilyOduName,
+		EdgeTypes:  []string{"PUBLISHES"},
+		LiveProven: true,
 	},
 	{
 		Family:     incidentRoutingEvidenceFamily,

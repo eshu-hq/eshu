@@ -188,21 +188,24 @@ than there are entries here.
 79. baseline-incident-routing-evidence (#6228 incident_routing_evidence live leaf) -- family-scoped fault-free baseline; seventeenth direct-materialization family in this gate.
 80. kill-worker-after-claim-incident-routing-evidence (#6228 incident_routing_evidence live leaf) -- lease reclaim proof.
 81. fail-graph-write-once-then-succeed-incident-routing-evidence (#6228 incident_routing_evidence live leaf) -- HAS_*_ROUTING retry proof.
-82. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
-83. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
-84. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
-85. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
-86. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
-87. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
-88. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
-89. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
-90. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
-91. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
+82. baseline-publishes (#6228 publishes live leaf) -- family-scoped fault-free baseline; eighteenth direct-materialization family in this gate.
+83. kill-worker-after-claim-publishes (#6228 publishes live leaf) -- lease reclaim proof.
+84. fail-graph-write-once-then-succeed-publishes (#6228 publishes live leaf) -- PUBLISHES retry proof.
+85. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
+86. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
+87. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
+88. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
+89. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
+90. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
+91. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
+92. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
+93. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
+94. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
    handles_route/runs_in/invokes_cloud_action; no kill-worker cell (ifa_fault_injection_symbol_runtime_cells.sh's header explains why).
-92. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
-93. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
-94. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
+95. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
+96. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
+97. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
 
-95. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
-96. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
-97. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.
+98. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
+99. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
+100. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.

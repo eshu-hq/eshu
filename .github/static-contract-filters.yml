@@ -209,6 +209,7 @@ ifa:
   - 'testdata/cassettes/derivedfrom/**'
   - 'testdata/cassettes/obscoverage/**'
   - 'testdata/cassettes/incidentrouting/**'
+  - 'testdata/cassettes/publishes/**'
   - 'testdata/cassettes/shellexec/**'
   - 'testdata/cassettes/submodulepin/**'
   - 'testdata/cassettes/workloaddependency/**'

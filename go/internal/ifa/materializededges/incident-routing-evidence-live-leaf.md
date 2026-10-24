@@ -36,8 +36,9 @@ drive proved the failure; the post-fix drive proves the shape).
   disposable Compose stack (Postgres + NornicDB v1.3.2 stack image).
 - Input shape: incident_routing_evidence Odu (5 facts: 1 incident anchor,
   1 applied, 1 tombstoned applied, 1 observed, 1 PagerDutyDeclaration
-  content entity), 97-cell fault corpus.
-- Terminal counts: guard green on the 3-edge set; mirror 97-cell exact
+  content entity), 100-cell fault corpus (97 at incident merge plus the 3-cell
+  publishes trio in this union).
+- Terminal counts: guard green on the 3-edge set; mirror 100-cell exact
   cover.
 
 No-Regression Evidence: pure correctness fix, no measured optimization --

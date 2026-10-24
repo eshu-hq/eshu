@@ -381,7 +381,7 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[code_interproc_evidence]="-domain code_interproc_evidence"
 	[code_taint_evidence]="-domain code_taint_evidence"
 	[observability_coverage]="-domain observability_coverage"
-	[incident_routing_evidence]="-domain incident_routing_evidence"
+	[incident_routing_evidence]="-domain incident_routing_evidence" [publishes]="-domain publishes"  # packed for the 500-line cap
 	[authenticates_vault_role]="-domain authenticates_vault_role"
 	[uses_vault_policy]="-domain uses_vault_policy"
 	[kubernetes_correlation]="-domain kubernetes_correlation"
@@ -412,7 +412,7 @@ for family in "${!ifa_det_family_cases_hand_authored[@]}"; do
 	rg --fixed-strings --quiet -- "${domain_needle}" \
 		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" \
 		"${submodule_pin_lib}" "${inheritance_lib}" "${shell_exec_lib}" "${symbol_runtime_lib}" \
-		 "${direct_family_lib}" "${direct_family_cloud_lib}" "${direct_family_built_from_lib}" "${direct_family_crc_image_lib}" "${direct_family_xplane_lib}" "${direct_family_derived_from_lib}" "${direct_family_ciproc_lib}" "${direct_family_ctaint_lib}" "${direct_family_obscov_lib}" "${direct_family_incident_lib}" "${vault_family_lib}" \
+		 "${direct_family_lib}" "${direct_family_cloud_lib}" "${direct_family_built_from_lib}" "${direct_family_crc_image_lib}" "${direct_family_xplane_lib}" "${direct_family_derived_from_lib}" "${direct_family_ciproc_lib}" "${direct_family_ctaint_lib}" "${direct_family_obscov_lib}" "${direct_family_incident_lib}" "${direct_family_pub_lib}" "${vault_family_lib}" \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with expected needle '${domain_needle}' but it does not appear in any of this module's target lib files -- add fixtures + a require_*_lib drive/assert-shape needle for it, a bare map-key acknowledgement is not acceptable"
 done
 # shellcheck source=scripts/lib/ifa_family_registry.sh

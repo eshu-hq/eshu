@@ -43,8 +43,15 @@ type PackageProvenanceEdgeWriter interface {
 // non-empty) targets that PackageVersion; otherwise it targets the Package.
 // Ambiguous/unresolved/stale/rejected outcomes and decisions with no resolved
 // repository never produce a row (#5472 exact/derived-only tiering).
+//
+// Rows are deduplicated by edge identity: a package-level and a
+// version-scoped hint can resolve the same repository and target through
+// separate decisions, but the writer MERGEs idempotently onto one edge, so
+// the row set carries each identity once — the same population the live
+// gate counts in the graph (#6228).
 func packageOwnershipPublishesRows(decisions []PackageSourceDecision) []map[string]any {
 	rows := make([]map[string]any, 0, len(decisions))
+	seen := make(map[publishesRowKey]struct{}, len(decisions))
 	for _, decision := range decisions {
 		if !packageOwnerOutcomeAdmits(decision.Outcome) {
 			continue
@@ -60,6 +67,11 @@ func packageOwnershipPublishesRows(decisions []PackageSourceDecision) []map[stri
 		} else {
 			row["package_id"] = packageID
 		}
+		key := publishesRowKey{repositoryID: repositoryID, targetID: anyToStringVersionOrPackage(row)}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
 		rows = append(rows, row)
 	}
 	return rows
@@ -70,8 +82,13 @@ func packageOwnershipPublishesRows(decisions []PackageSourceDecision) []map[stri
 // repository. Publication decisions always name a specific published version
 // (BuildPackagePublicationDecisions requires a non-empty VersionID), so every
 // row targets a PackageVersion.
+//
+// Rows are deduplicated by edge identity like the ownership rows: the
+// package-level and the version-scoped hint pair with the same version
+// through separate decisions, but both project onto one edge.
 func packagePublicationPublishesRows(decisions []PackagePublicationDecision) []map[string]any {
 	rows := make([]map[string]any, 0, len(decisions))
+	seen := make(map[publishesRowKey]struct{}, len(decisions))
 	for _, decision := range decisions {
 		if !packageOwnerOutcomeAdmits(decision.Outcome) {
 			continue
@@ -81,12 +98,40 @@ func packagePublicationPublishesRows(decisions []PackagePublicationDecision) []m
 		if repositoryID == "" || versionID == "" {
 			continue
 		}
+		key := publishesRowKey{repositoryID: repositoryID, targetID: versionID}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
 		rows = append(rows, map[string]any{
 			"repository_id": repositoryID,
 			"version_id":    versionID,
 		})
 	}
 	return rows
+}
+
+// publishesRowKey is the PUBLISHES edge identity a row writes: the source
+// repository id plus the target Package uid or PackageVersion uid. It
+// mirrors the writer's MERGE identity (repository id, PUBLISHES, target
+// uid, scope_id, evidence_source); scope_id and evidence_source are stamped
+// per writer call, not per row, so they cannot distinguish rows here.
+type publishesRowKey struct {
+	repositoryID string
+	targetID     string
+}
+
+// anyToStringVersionOrPackage reads the row's edge target the same way the
+// writer picks its Package or PackageVersion template: version_id wins when
+// present, otherwise package_id.
+func anyToStringVersionOrPackage(row map[string]any) string {
+	if versionID, ok := row["version_id"].(string); ok && versionID != "" {
+		return versionID
+	}
+	if packageID, ok := row["package_id"].(string); ok {
+		return packageID
+	}
+	return ""
 }
 
 // ProjectPackageProvenanceEdgesForTest projects the current exact/derived
