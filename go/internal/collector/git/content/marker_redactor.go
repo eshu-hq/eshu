@@ -67,11 +67,19 @@ func redactMarker(body string, keys []string) (string, int, error) {
 		return "", 0, err
 	}
 	lines := strings.Split(body, "\n")
-	state := markerState{keyPattern: keyPattern}
+	state := markerState{keyPattern: keyPattern, lowerKeys: lowerKeys(keys)}
 	for i, line := range lines {
 		lines[i] = state.redactLine(line)
 	}
 	return strings.Join(lines, "\n"), state.replaced, nil
+}
+
+func lowerKeys(keys []string) []string {
+	out := make([]string, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, strings.ToLower(key))
+	}
+	return out
 }
 
 // credentialKeyPattern compiles the listed-key matcher once per key list. It
@@ -111,6 +119,7 @@ func credentialKeyPattern(keys []string) (*regexp.Regexp, error) {
 // quoted scalar, and the continuation lines of a listed key's value.
 type markerState struct {
 	keyPattern *regexp.Regexp
+	lowerKeys  []string
 	inPEM      bool
 	// openQuote is the quote character of a listed key's quoted value that has
 	// not closed yet; every line up to and including the closing one is
@@ -167,13 +176,49 @@ func (s *markerState) redactText(line string) string {
 		s.continuationOpen = false
 	}
 
+	// The common line holds no credential, so the finding kind (six regular
+	// expressions) is computed only for a line that matched a listed key or the
+	// detector.
+	var keyLoc []int
+	if s.mayHoldKey(line) {
+		keyLoc = s.keyPattern.FindStringSubmatchIndex(line)
+	}
+	spans := detect.Spans(line)
+	if keyLoc == nil && len(spans) == 0 {
+		s.openPEM(line)
+		return line
+	}
 	kind := detect.Classify(line)
-	out := s.redactListedKey(line, kind)
-	out = s.redactDetectorSpans(out, kind)
-	if pemBegin.MatchString(line) && !pemEnd.MatchString(line) {
+	out := line
+	if keyLoc != nil {
+		out = s.redactListedKey(line, keyLoc, kind)
+		spans = detect.Spans(out)
+	}
+	out = s.redactDetectorSpans(out, spans, kind)
+	s.openPEM(line)
+	return out
+}
+
+// mayHoldKey is a cheap necessary test for a listed key: the line, lowercased,
+// holds one of the lowercased keys. It keeps the key regular expression off the
+// common line.
+func (s *markerState) mayHoldKey(line string) bool {
+	lower := strings.ToLower(line)
+	for _, key := range s.lowerKeys {
+		if strings.Contains(lower, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// openPEM starts a PEM block when the line holds a BEGIN header with no END on
+// the same line. The substring test keeps the regular expressions off the
+// common line.
+func (s *markerState) openPEM(line string) {
+	if strings.Contains(line, "-----BEGIN") && pemBegin.MatchString(line) && !pemEnd.MatchString(line) {
 		s.inPEM = true
 	}
-	return out
 }
 
 func isSequenceItem(trimmed string) bool {
@@ -184,11 +229,7 @@ func isSequenceItem(trimmed string) bool {
 // opens the continuation state its value needs. A value that is empty, only a
 // comment, tag, or anchor, or a block scalar indicator carries its text on the
 // following lines; a quote that does not close on the line carries it too.
-func (s *markerState) redactListedKey(line, rawKind string) string {
-	loc := s.keyPattern.FindStringSubmatchIndex(line)
-	if loc == nil {
-		return line
-	}
+func (s *markerState) redactListedKey(line string, loc []int, rawKind string) string {
 	keyText := line[loc[2]:loc[3]]
 	valueStart := loc[1]
 	kind := rawKind
@@ -206,7 +247,14 @@ func (s *markerState) redactListedKey(line, rawKind string) string {
 	s.continuationIndent = len(leadingWhitespace(line))
 
 	value := strings.TrimSpace(line[valueStart:])
-	head := stripCommentTagAnchor(value)
+	separator := line[loc[3]:valueStart]
+	// Comment, tag, and anchor syntax is YAML's: it applies after a colon, and a
+	// comment needs whitespace after the separator. After "=" (.npmrc, ini,
+	// .env) the whole remainder is the value, "#" and "!" included.
+	head := value
+	if strings.Contains(separator, ":") {
+		head = stripCommentTagAnchor(value, strings.HasSuffix(separator, " ") || strings.HasSuffix(separator, "\t"))
+	}
 	if head == "" {
 		// Nothing but whitespace, a comment, a tag, or an anchor: the value is
 		// on the following lines, which the continuation redacts.
@@ -216,17 +264,14 @@ func (s *markerState) redactListedKey(line, rawKind string) string {
 		s.replaced++
 		return line[:valueStart] + marker
 	}
+	if keepsVerbatim(value) {
+		return line
+	}
 
-	quote, inner, rest, closed := splitQuotedValue(head)
+	quote, _, _, closed := splitQuotedValue(head)
 	if !closed {
 		// An unterminated quote spills onto the following lines until it closes.
 		s.openQuote = quote
-	}
-	if closed && envReference.MatchString(inner) && (rest == "" || strings.HasPrefix(strings.TrimSpace(rest), "#")) {
-		return line
-	}
-	if closed && existingMarker.MatchString(inner) && rest == "" {
-		return line
 	}
 	s.replaced++
 	quoteText := ""
@@ -236,10 +281,26 @@ func (s *markerState) redactListedKey(line, rawKind string) string {
 	return line[:valueStart] + quoteText + marker + quoteText
 }
 
-// stripCommentTagAnchor removes a trailing " #" comment and leading !tag and
-// &anchor tokens from a YAML value, returning what is left of the node itself.
-func stripCommentTagAnchor(value string) string {
-	if strings.HasPrefix(value, "#") {
+// keepsVerbatim reports whether the whole remainder of the line, after the
+// separator, is exactly an environment reference or an earlier marker,
+// optionally in one matching pair of quotes, with nothing after it. Anything
+// else, a trailing comment included, is redacted from the separator on.
+func keepsVerbatim(value string) bool {
+	inner := value
+	if n := len(value); n >= 2 && (value[0] == '"' || value[0] == '\'') && value[n-1] == value[0] {
+		inner = value[1 : n-1]
+	}
+	return envReference.MatchString(inner) || existingMarker.MatchString(inner)
+}
+
+// stripCommentTagAnchor removes a YAML comment and leading !tag and &anchor
+// tokens from a value, returning what is left of the node itself. A tag or
+// anchor token is only stripped when more value follows it: a lone "!abc" or
+// "&abc" is returned unchanged, so it is redacted as a value, not mistaken for
+// an empty one. A comment needs whitespace before "#": spacedAfterColon says
+// the separator supplied it for a "#" at the start of the value.
+func stripCommentTagAnchor(value string, spacedAfterColon bool) string {
+	if strings.HasPrefix(value, "#") && spacedAfterColon {
 		return ""
 	}
 	if cut := strings.Index(value, " #"); cut >= 0 && !startsQuoted(value) {
@@ -248,12 +309,13 @@ func stripCommentTagAnchor(value string) string {
 	for value != "" && (value[0] == '!' || value[0] == '&') {
 		space := strings.IndexAny(value, " \t")
 		if space < 0 {
-			return ""
+			return value
 		}
-		value = strings.TrimSpace(value[space:])
-		if strings.HasPrefix(value, "#") {
-			return ""
+		rest := strings.TrimSpace(value[space:])
+		if rest == "" || strings.HasPrefix(rest, "#") {
+			return value
 		}
+		value = rest
 	}
 	return value
 }
@@ -300,8 +362,7 @@ func closesQuote(line string, quote byte) bool {
 
 // redactDetectorSpans replaces every span the migration 138 detector matches.
 // A span that is already a marker is left alone, so the pass is a fixed point.
-func (s *markerState) redactDetectorSpans(line, rawKind string) string {
-	spans := detect.Spans(line)
+func (s *markerState) redactDetectorSpans(line string, spans []detect.Span, rawKind string) string {
 	if len(spans) == 0 {
 		return line
 	}

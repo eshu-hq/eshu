@@ -59,6 +59,8 @@ type Registry struct {
 	byExtension   map[string]Definition
 	byExactName   map[string]Definition
 	prefixMatches []prefixDefinition
+	// governed is true when any definition binds a non-store content policy.
+	governed bool
 }
 
 type prefixDefinition struct {
@@ -120,7 +122,13 @@ func NewRegistry(definitions []Definition) (Registry, error) {
 		return strings.Compare(left.prefix, right.prefix)
 	})
 
+	governed := false
+	for _, definition := range cloned {
+		governed = governed || definition.ContentStore.Policy != ContentStoreStore
+	}
+
 	return Registry{
+		governed:      governed,
 		definitions:   cloned,
 		byKey:         byKey,
 		byExtension:   byExtension,

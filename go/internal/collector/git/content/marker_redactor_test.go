@@ -65,7 +65,7 @@ func TestRedactMarkerKeepsOnlyExactEnvReferences(t *testing.T) {
 		"npmAuthToken: ${NPM_TOKEN}\n",
 		"npmAuthToken: \"${NPM_TOKEN}\"\n",
 		"npmAuthToken: '${NPM_TOKEN}'\n",
-		"npmAuthToken: ${NPM_TOKEN} # set in CI\n",
+		"//reg.example.com/:_authToken=${NPM_TOKEN}\n",
 	}
 	for _, in := range keep {
 		if got := redactForTest(t, in); got != in {
@@ -78,6 +78,10 @@ func TestRedactMarkerKeepsOnlyExactEnvReferences(t *testing.T) {
 		"npmAuthToken: prefix${NPM_TOKEN}\n",
 		"npmAuthToken: ${NPM_TOKEN}suffix\n",
 		"npmAuthToken: $NPM_TOKEN\n",
+		// The whole remainder must be the reference: a trailing comment can
+		// hold a secret, so it is redacted with the value.
+		"npmAuthToken: ${NPM_TOKEN} # leak\n",
+		"npmAuthToken: \"${NPM_TOKEN}\" # leak\n",
 	}
 	for _, in := range redact {
 		got := redactForTest(t, in)
@@ -326,5 +330,37 @@ func TestRedactMarkerKeepsLinesOutsideTheValue(t *testing.T) {
 	want := "# header\nnpmAuthToken: REDACTED_api_token\nnpmRegistryServer: \"https://registry.example.com/\"\nenableTelemetry: false\n"
 	if got := redactForTest(t, in); got != want {
 		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+// TestRedactMarkerRedactsValuesThatLookLikeYAMLSyntax pins the fail-closed
+// reading of "#", "!", and "&": after "=" they are value characters, a lone
+// tag or anchor token is a value, and a "#" with no space before it is not a
+// YAML comment.
+func TestRedactMarkerRedactsValuesThatLookLikeYAMLSyntax(t *testing.T) {
+	t.Parallel()
+
+	for _, in := range []string{
+		"//reg.example.com/:_authToken=#leak123\n",
+		"//reg.example.com/:_authToken=!leak123\n",
+		"//reg.example.com/:_authToken=&leak123\n",
+		"npmAuthToken=#leak123\n",
+		"npmAuthToken:#leak123\n",
+		"npmAuthToken: !leak123\n",
+		"npmAuthToken: &leak123\n",
+		"npmAuthToken: !!str &leak123\n",
+		"npmAuthToken: !leak123 # c\n",
+	} {
+		got := redactForTest(t, in, "npmAuthToken", "_authToken")
+		if strings.Contains(got, "leak123") {
+			t.Errorf("value survived: %q -> %q", in, got)
+		}
+		if !strings.Contains(got, "REDACTED_") {
+			t.Errorf("no marker written: %q -> %q", in, got)
+		}
+	}
+	// A YAML comment after a spaced colon is not a value.
+	if got := redactForTest(t, "npmAuthToken: # see below\nnext: ok\n"); got != "npmAuthToken: # see below\nnext: ok\n" {
+		t.Errorf("a comment-only value changed: %q", got)
 	}
 }

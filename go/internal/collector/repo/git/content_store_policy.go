@@ -22,8 +22,8 @@ import (
 // to the parsed files before shape.Materialize (#8812), so entity source_cache
 // is sliced from the stored body and never from the source. It returns the
 // sparse path -> policy map streamFacts needs to apply the same policy to the
-// body it re-reads from disk; the map is empty when no definition binds a
-// non-store policy, which is every definition today.
+// body it re-reads from disk. The map is nil, and no file is looked up, when no
+// definition binds a non-store policy, which is every definition today.
 //
 // The digest on each shape.File was computed on the source bytes and is left
 // alone, so an unchanged file keeps its freshness hint under either policy.
@@ -38,6 +38,9 @@ func applyContentStoreToShapeFiles(
 	shapeFiles []shape.File,
 	parsedFiles []map[string]any,
 ) map[string]parser.ContentStore {
+	if !registry.HasContentStorePolicy() {
+		return nil
+	}
 	stores := map[string]parser.ContentStore{}
 	storedBodies := map[string]string{}
 	for i := range shapeFiles {

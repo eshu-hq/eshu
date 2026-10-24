@@ -58,11 +58,21 @@ type ContentStore struct {
 // path no definition binds reports ContentStoreStore. The returned key slice
 // is a copy.
 func (r Registry) ContentStoreForPath(path string) ContentStore {
+	if !r.governed {
+		return ContentStore{Policy: ContentStoreStore}
+	}
 	definition, ok := r.LookupByPath(path)
 	if !ok {
 		return ContentStore{Policy: ContentStoreStore}
 	}
 	return definition.ContentStore
+}
+
+// HasContentStorePolicy reports whether any definition binds a non-store
+// policy. It is false for the default registry, so the collector skips the
+// per-file policy lookup entirely until #8833 binds a definition.
+func (r Registry) HasContentStorePolicy() bool {
+	return r.governed
 }
 
 // normalizeContentStore validates one definition's policy and returns it with

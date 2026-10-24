@@ -5,6 +5,7 @@ package detect
 
 import (
 	"regexp"
+	"strings"
 )
 
 // The detector pattern is written once, as three parts, so the SQL form and
@@ -97,6 +98,9 @@ type Span struct {
 // Spans can only find more than the migration, never fewer; the engine-parity
 // corpus test in #8833 measures that gap.
 func Spans(line string) []Span {
+	if !mayMatch(line) {
+		return nil
+	}
 	matches := spanPattern.FindAllStringSubmatchIndex(line, -1)
 	spans := make([]Span, 0, len(matches))
 	for _, match := range matches {
@@ -108,4 +112,22 @@ func Spans(line string) []Span {
 		spans = append(spans, Span{Start: match[0], End: match[1]})
 	}
 	return spans
+}
+
+// matchWords are lowercase substrings every SQLPattern match contains: the
+// credential key words and the value-shape anchors. A line holding none of
+// them cannot match, so Spans skips the regular expression, which costs about
+// 80 ns per byte, for the common clean line.
+var matchWords = []string{
+	"pass", "pwd", "key", "token", "secret", "authorization", "akia", "sk_live_", "xox", "-----begin",
+}
+
+func mayMatch(line string) bool {
+	lower := strings.ToLower(line)
+	for _, word := range matchWords {
+		if strings.Contains(lower, word) {
+			return true
+		}
+	}
+	return false
 }

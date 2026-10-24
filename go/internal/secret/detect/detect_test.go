@@ -77,3 +77,31 @@ func TestValueSpansReturnsOnlyTheValueOfKeyMatches(t *testing.T) {
 		t.Errorf("shape span = %q, want the whole shape", got)
 	}
 }
+
+// TestSpansPrefilterNeverHidesAMatch proves the lowercase-word prefilter is a
+// pure speedup: for every line shape the pattern matches, Spans finds it, and
+// for a corpus of clean lines it finds nothing.
+func TestSpansPrefilterNeverHidesAMatch(t *testing.T) {
+	t.Parallel()
+
+	matching := []string{
+		"password: abcdef", "PASSWD=abcdef", "pwd = 'abcdef'", "API_KEY=abcdef", "api-key: abcdef", "apikey=abcdef",
+		"Token: abcdef", "SECRET=abcdef", "client_secret: abcdef", "client-secret=abcdef", "private_key=abcdef",
+		"private-key: abcdef", "Authorization: abcdef", "x AKIAABCDEFGHIJKLMNOP y", "sk_live_abcdefgh", "xoxb-0123456789ab",
+		"-----BEGIN RSA PRIVATE KEY-----", "-----begin private key-----",
+	}
+	for _, line := range matching {
+		full := regexp.MustCompile("(?i)" + detect.SQLPattern)
+		if full.FindString(line) == "" {
+			t.Fatalf("test premise: %q should match the pattern", line)
+		}
+		if len(detect.Spans(line)) == 0 {
+			t.Errorf("Spans(%q) found nothing, but the pattern matches", line)
+		}
+	}
+	for _, line := range []string{"", "nodeLinker: node-modules", "compressionLevel: mixed", "a: 1", "# comment only"} {
+		if spans := detect.Spans(line); len(spans) != 0 {
+			t.Errorf("Spans(%q) = %v, want none", line, spans)
+		}
+	}
+}

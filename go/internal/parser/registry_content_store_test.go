@@ -116,3 +116,17 @@ func TestRegistryFingerprintIncludesContentStorePolicy(t *testing.T) {
 		seen[fingerprint] = name
 	}
 }
+
+func TestHasContentStorePolicyIsFalseUntilADefinitionBindsOne(t *testing.T) {
+	t.Parallel()
+
+	if DefaultRegistry().HasContentStorePolicy() {
+		t.Fatal("the default registry binds no non-store policy before #8833")
+	}
+	if contentStoreRegistry(t, ContentStore{Policy: ContentStoreStore}).HasContentStorePolicy() {
+		t.Fatal("an explicit store policy is not a governed registry")
+	}
+	if !contentStoreRegistry(t, ContentStore{Policy: ContentStoreMetadata}).HasContentStorePolicy() {
+		t.Fatal("a metadata definition makes the registry governed")
+	}
+}
