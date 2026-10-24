@@ -1095,7 +1095,7 @@ note current when changing storage behavior that touches those contracts. The in
 
 Additional historical no-regression notes for incident freshness, incident
 routing, workflow terminal failure, readiness gating, owned dependency targets,
-and advisory targets live in [`evidence-notes.md`](evidence-notes.md).
+and advisory targets live in [`evidence-notes.md`](evidence-notes.md). The collector terminal-failure acknowledgement store and read (#8830) are in [`terminal-failure-acknowledgement.md`](terminal-failure-acknowledgement.md).
 
 ## Related docs
 

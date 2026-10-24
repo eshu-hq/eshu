@@ -81,6 +81,15 @@ the reader selects rows by the `failed_terminal` status, never by the
 setting that flag. Do not add a per-row terminal gate back. A failure for an
 unregistered or disabled instance never changes health.
 
+An acknowledged `TerminalFailure` (#8830, `Acknowledged` set by the reader)
+keeps `LastFailure*` and sets `LastFailureAcknowledged`, its time, reason, and
+`LastFailureScopeID`, but never degrades health and never becomes a promotion
+blocker: `derivePromotionState` skips the terminal-failure case for it. The
+runtime gauge in `internal/runtime` must keep acknowledged instances out of the
+open-failure series. The reason is operator text: it stays on the full-view
+payloads and is withheld from scoped callers in `internal/query`. Do not add
+the covering rule here; it is one SQL predicate in `storage/postgres`.
+
 ## Exporting the render/clone/JSON surface
 
 Every render, clone, and JSON-projection helper in this family
