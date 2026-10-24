@@ -3,12 +3,17 @@
 
 run_docs_planner_checks() {
 	local test_workflow="$1" build_workflow="$2" build_fragment="$3" assertion="$4"
-	local paths caller block lane lane_result selected_job
+	local paths caller caller_if expected_if block lane lane_result selected_job
 
 	# The callable build workflow has no pull_request path filter. The trusted
 	# PR planner owns it, and test.yml must invoke that callable on selection.
 	paths="$(awk '/^  paths_ignore:/{f=1;next} f&&/^  - /{print;next} f{exit}' "${build_fragment}")"
 	caller="$(rg '^  call-build:' "${test_workflow}")"
+	caller_if="$(printf '%s\n' "${caller}" | sed -n 's/.*if: "\([^"]*\)".*/\1/p')"
+	expected_if="$(cat <<'EOF'
+${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'build.yml') }}
+EOF
+)"
 	if has "${build_workflow}" '  workflow_call:' &&
 		! has "${build_workflow}" '  pull_request:' &&
 		has "${build_fragment}" '  synchronize: true' &&
@@ -16,8 +21,7 @@ run_docs_planner_checks() {
 		printf '%s\n' "${paths}" | rg -qFx "  - '*.md'" &&
 		printf '%s\n' "${paths}" | rg -qFx '  - .agents/**' &&
 		[[ "${caller}" == *'uses: ./.github/workflows/build.yml'* ]] &&
-		[[ "${caller}" == *"'build.yml'"* ]] &&
-		[[ "${caller}" == *'needs.pr-plan.result == '* ]]; then
+		[[ "${caller_if}" == "${expected_if}" ]]; then
 		ok 'build.yml docs-only PR filter is owned by the trusted planner and called from test.yml'
 	else
 		bad 'build.yml needs trusted fragment docs/**, *.md, .agents/** and a planned callable caller'

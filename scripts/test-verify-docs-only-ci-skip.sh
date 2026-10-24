@@ -50,6 +50,10 @@ else
 	printf '%s\n' "${out}" >&2
 fi
 
+sed -i '/^  call-build:/s/ && contains(/ \&\& false \&\& contains(/' "${tmp}/.github/workflows/test.yml"
+if run_scratch >/dev/null 2>&1; then no 'disabled planned build caller must fail'; else ok 'disabled planned build caller fails'; fi
+cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
+
 # The trusted build fragment and the selected-full Go assertion are live inputs.
 sed -i '/^  - docs\/\*\*$/d' "${tmp}/specs/ci-pr-workflows.d/build.yml"
 if run_scratch >/dev/null 2>&1; then no 'missing trusted docs filter must fail'
