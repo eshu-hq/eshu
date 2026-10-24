@@ -1,7 +1,10 @@
 -- eshu-rollback:dual
 -- Read-only. Detects two producers holding authority for one source scope.
 -- Output: external_claimed|in_tree_claimed|overlapping_claim_pairs
--- Variables: kind, external, in_tree (comma-separated collector instance IDs).
+-- Variables: kind, in_tree (comma-separated in-tree collector instance IDs).
+--
+-- "External" means every instance of the collector kind that is not an in-tree
+-- instance, so a mistyped --external-instance cannot hide the real one.
 --
 -- A claim holds authority from claimed_at until it ends. A finished claim ends
 -- at the earlier of finished_at and lease_expires_at, so a late reap does not
@@ -13,7 +16,7 @@ SELECT
        FROM workflow_work_items
       WHERE collector_kind = :'kind'
         AND status = 'claimed'
-        AND collector_instance_id = ANY (string_to_array(:'external', ','))),
+        AND collector_instance_id <> ALL (string_to_array(:'in_tree', ','))),
     (SELECT count(*)
        FROM workflow_work_items
       WHERE collector_kind = :'kind'
@@ -27,7 +30,7 @@ SELECT
         AND tree_item.scope_id = ext_item.scope_id
        JOIN workflow_claims AS tree_claim ON tree_claim.work_item_id = tree_item.work_item_id
       WHERE ext_item.collector_kind = :'kind'
-        AND ext_item.collector_instance_id = ANY (string_to_array(:'external', ','))
+        AND ext_item.collector_instance_id <> ALL (string_to_array(:'in_tree', ','))
         AND tree_item.collector_instance_id = ANY (string_to_array(:'in_tree', ','))
         AND ext_claim.claimed_at < CASE WHEN tree_claim.finished_at IS NULL THEN 'infinity'::timestamptz
                                         ELSE LEAST(tree_claim.finished_at, tree_claim.lease_expires_at) END

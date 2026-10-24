@@ -72,6 +72,10 @@ list)
 	printf 'dev.example.jira\t1.2.3\tallowlist\tstates=installed,enabled\tactivations=%s\n' "${active}"
 	;;
 grants)
+	if [[ -e "${state}/fail_grants" ]]; then
+		printf 'Error: registry unreadable\n' >&2
+		exit 1
+	fi
 	producer=""
 	while [[ $# -gt 0 ]]; do
 		case "$1" in

@@ -11,7 +11,12 @@
 # before the drain, and step 4 will not restore before steps 1 to 3 all hold.
 
 # The option variables and exit codes come from the sourcing script.
-# shellcheck disable=SC2154
+# shellcheck disable=SC2154,SC2034
+
+# shellcheck source=scripts/lib/collector-cutover-rollback-gates.sh
+source "${script_dir}/lib/collector-cutover-rollback-gates.sh"
+# shellcheck source=scripts/lib/collector-cutover-rollback-truth.sh
+source "${script_dir}/lib/collector-cutover-rollback-truth.sh"
 
 # --- output helpers -------------------------------------------------------------
 
@@ -89,137 +94,6 @@ wait_until() { # timeout-seconds fn
 	done
 }
 
-# --- predicates (read-only) ----------------------------------------------------------
-
-# worker_pods_gone is true when no component-extension worker pod remains.
-POD_NOTE=""
-worker_pods_gone() {
-	build_worker_pods
-	quiet_cmd
-	if [[ "$XRC" -ne 0 ]]; then
-		POD_NOTE="listing worker pods failed with exit ${XRC}: ${XOUT}"
-		return 1
-	fi
-	POD_NOTE=""
-	[[ -z "$(printf '%s\n' "$XOUT" | awk 'NF')" ]]
-}
-
-# DRAIN_CLAIMED and DRAIN_ACTIVE hold the last drain query result.
-DRAIN_CLAIMED=""
-DRAIN_ACTIVE=""
-
-# read_drain queries the claim table. An unreadable or malformed answer aborts:
-# a database that cannot be read must never look like an empty claim table.
-read_drain() { # step
-	psql_run drain -v "kind=${collector_kind}" -v "instances=${external_instances}"
-	if [[ "$XRC" -ne 0 || ! "$XOUT" =~ ^[0-9]+\|[0-9]+$ ]]; then
-		step_failed "$1" "could not read the claim table (exit ${XRC}); treating the drain as unknown"
-	fi
-	DRAIN_CLAIMED="${XOUT%%|*}"
-	DRAIN_ACTIVE="${XOUT##*|}"
-}
-
-drain_clear() { [[ "$DRAIN_CLAIMED" == "0" && "$DRAIN_ACTIVE" == "0" ]]; }
-
-# drain_poll refreshes the counts for wait_until, reporting each change once.
-LAST_DRAIN_REPORT=""
-drain_poll() {
-	read_drain 2
-	local now="${DRAIN_CLAIMED}|${DRAIN_ACTIVE}"
-	if [[ "$now" != "$LAST_DRAIN_REPORT" ]]; then
-		printf '  claimed_work_items=%s active_claims=%s\n' "$DRAIN_CLAIMED" "$DRAIN_ACTIVE"
-		LAST_DRAIN_REPORT="$now"
-	fi
-	drain_clear
-}
-
-# grants_revoked is true when every granted kind shows revoked=true and no live
-# twin remains. A missing row is not a revocation. GRANT_NOTE explains a failure.
-GRANT_NOTE=""
-GRANT_ROWS=""
-grants_revoked() {
-	build_grants
-	quiet_cmd
-	GRANT_ROWS="$XOUT"
-	if [[ "$XRC" -ne 0 ]]; then
-		GRANT_NOTE="listing grants failed with exit ${XRC}"
-		return 1
-	fi
-	local kind verdict
-	for kind in "${grant_kinds[@]}"; do
-		verdict="$(printf '%s\n' "$XOUT" | awk -F'\t' -v version="$component_version" -v kind="$kind" -v scope="scope=${grant_scope}" '
-			function norm(v) { sub(/^v/, "", v); return v }
-			$3 == kind && $4 == scope && norm($2) == norm(version) {
-				seen = 1
-				if ($NF != "revoked=true") live = 1
-			}
-			END { if (!seen) print "missing"; else if (live) print "live"; else print "revoked" }')"
-		if [[ "$verdict" != "revoked" ]]; then
-			GRANT_NOTE="grant for kind ${kind} is ${verdict}"
-			return 1
-		fi
-	done
-	return 0
-}
-
-# in_tree_rolled_out is true when the restored Deployment finished rolling out.
-in_tree_rolled_out() {
-	build_in_tree_status
-	quiet_cmd
-	[[ "$XRC" -eq 0 ]]
-}
-
-# --- gates (refuse when a precondition does not hold) --------------------------------------
-
-# confirm_step1 returns 0 when new claims are provably stopped: no worker pod
-# remains and the coordinator rollout (which re-reads the registry) completed.
-CONFIRM_NOTE=""
-confirm_step1() {
-	build_worker_pods
-	show_cmd
-	if ! wait_until "$step_timeout" worker_pods_gone; then
-		CONFIRM_NOTE="worker pods matching '${worker_selector}' are not confirmed gone after ${step_timeout}s${POD_NOTE:+ ($POD_NOTE)}"
-		return 1
-	fi
-	build_coordinator_status
-	show_cmd
-	quiet_cmd
-	if [[ "$XRC" -ne 0 ]]; then
-		CONFIRM_NOTE="coordinator deployment/${coordinator_deployment} rollout did not complete: ${XOUT}"
-		return 1
-	fi
-	CONFIRM_NOTE="${XOUT}"
-	return 0
-}
-
-gate_step1() { # for-step
-	printf 'GATE before step %s: step 1 (new claims stopped) must be confirmed\n' "$1"
-	confirm_step1 || refuse "$1" "step 1 is not confirmed: ${CONFIRM_NOTE}. Do not wait for a drain while the external producer can still claim."
-}
-
-gate_step2() { # for-step
-	printf 'GATE before step %s: the external instance(s) must hold no claimed work\n' "$1"
-	read_drain "$1"
-	if ! drain_clear; then
-		refuse "$1" "external instance(s) ${external_instances} still hold ${DRAIN_CLAIMED} claimed work item(s) and ${DRAIN_ACTIVE} active claim(s). Two producers must never hold authority for one scope; finish step 2 first."
-	fi
-	printf '  claimed_work_items=0 active_claims=0\n'
-}
-
-gate_step3() { # for-step
-	printf 'GATE before step %s: the external producer grants must be revoked\n' "$1"
-	if ! grants_revoked; then
-		refuse "$1" "${GRANT_NOTE}. Revoke the external producer grant (step 3) before restoring the in-tree producer."
-	fi
-	printf '  all %s grant(s) revoked\n' "${#grant_kinds[@]}"
-}
-
-gate_step4() { # for-step
-	printf 'GATE before step %s: the in-tree producer must be restored\n' "$1"
-	in_tree_rolled_out || refuse "$1" "deployment/${in_tree_deployment} is not rolled out; restore the in-tree producer (step 4) first."
-	printf '  deployment/%s rolled out\n' "$in_tree_deployment"
-}
-
 # --- steps ----------------------------------------------------------------------------------
 
 step_1() {
@@ -233,18 +107,38 @@ step_1() {
 		if [[ "$XRC" -eq 0 ]]; then
 			disabled+="${instance}=disabled "
 		elif [[ "$XOUT" == *"is not enabled for component"* ]]; then
-			printf '  instance %s is already disabled; continuing (idempotent re-run)\n' "$instance"
-			disabled+="${instance}=already-disabled "
+			# "Not enabled" is also what a mistyped ID reads. Continuing is safe only
+			# because the registry check below decides whether the component is clear.
+			printf '  instance %s is not enabled (already disabled, or the ID is wrong); the registry check below decides\n' "$instance"
+			disabled+="${instance}=not-enabled "
 		else
 			step_failed 1 "disabling instance ${instance} failed with exit ${XRC}; nothing after it was run"
 		fi
 	done
+	# The registry, not the caller's list, says whether new claims are stopped. A
+	# mistyped instance ID reads "not enabled" above while the real one still runs,
+	# so refuse here, before anything is scaled or restarted.
+	if ! registry_clear; then
+		[[ "$REGISTRY_COUNT" != "unknown" ]] || step_failed 1 "$REGISTRY_NOTE"
+		refuse 1 "$REGISTRY_NOTE"
+	fi
+	local worker_state="scaled-to-zero"
 	build_scale_worker_zero
-	must_exec 1 "scaling the extension worker to zero"
+	exec_cmd
+	if [[ "$XRC" -ne 0 ]]; then
+		if is_not_found "$XOUT"; then
+			# A restore overlay that turns the extension collector off deletes the
+			# worker Deployment, so a rerun finds nothing to scale. That is stopped.
+			printf '  deployment/%s does not exist; treating the worker as already removed\n' "$worker_deployment"
+			worker_state="absent"
+		else
+			step_failed 1 "scaling the extension worker to zero failed with exit ${XRC}; nothing after it was run"
+		fi
+	fi
 	build_restart_coordinator
 	must_exec 1 "restarting the coordinator so it re-reads the component registry"
 	confirm_step1 || step_failed 1 "$CONFIRM_NOTE"
-	evidence 1 "${disabled}worker_pods=0 coordinator='${CONFIRM_NOTE}'"
+	evidence 1 "${disabled}worker=${worker_state} worker_pods=0 component_activations=0 coordinator='${CONFIRM_NOTE}'"
 	step_ok 1
 }
 
@@ -291,7 +185,7 @@ step_4() {
 	gate_step2 4
 	gate_step3 4
 	if [[ -z "$since" ]]; then
-		psql_run now
+		psql_run now -v "skew=${ROLLBACK_CLOCK_SKEW_SECONDS}"
 		[[ "$XRC" -eq 0 && -n "$XOUT" ]] || step_failed 4 "could not read the database clock for the replay window"
 		since="$XOUT"
 	fi
@@ -352,87 +246,6 @@ step_5() {
 	step_ok 5
 }
 
-# --- verify -----------------------------------------------------------------------------------
-
-# read_truth fills XOUT with the per-kind truth rows or aborts.
-read_truth() { # step
-	psql_run truth -v "kind=${collector_kind}"
-	if [[ "$XRC" -ne 0 ]]; then
-		step_failed "$1" "could not read fact truth for ${collector_kind}: ${XOUT}"
-	fi
-}
-
-truth_view() { # file
-	if [[ "$keys_only" == "true" ]]; then
-		awk -F'|' 'NF { print $1 "|" $2 "|" $3 }' "$1"
-	else
-		awk 'NF' "$1"
-	fi
-}
-
-check_authority() { # step
-	psql_run dual -v "kind=${collector_kind}" -v "external=${external_instances}" -v "in_tree=${in_tree_instances}"
-	if [[ "$XRC" -ne 0 || ! "$XOUT" =~ ^[0-9]+\|[0-9]+\|[0-9]+$ ]]; then
-		step_failed "$1" "could not read the claim table for the authority check (exit ${XRC})"
-	fi
-	local ext tree overlaps
-	IFS='|' read -r ext tree overlaps <<<"$XOUT"
-	printf '  external_claimed=%s in_tree_claimed=%s overlapping_claim_pairs=%s\n' "$ext" "$tree" "$overlaps"
-	if ((ext > 0 && tree > 0)) || ((overlaps > 0)); then
-		printf 'DUAL AUTHORITY[step %s]: both producers hold or held authority for one scope.\n' "$1" >&2
-		exit "$EX_DUAL_AUTHORITY"
-	fi
-	if ((ext > 0)); then
-		printf 'REFUSED[step %s]: the external instance still holds %s claimed work item(s).\n' "$1" "$ext" >&2
-		exit "$EX_REFUSED"
-	fi
-	evidence "$1" "no dual authority: external_claimed=0 overlapping_claim_pairs=0"
-}
-
-compare_truth() { # step
-	[[ -s "$baseline_file" ]] || step_failed "$1" "baseline file '${baseline_file}' is missing or empty"
-	read_truth "$1"
-	local current baseline
-	current="$(mktemp)"
-	baseline="$(mktemp)"
-	printf '%s\n' "$XOUT" >"$current"
-	truth_view "$baseline_file" >"$baseline"
-	truth_view "$current" >"${current}.view"
-	local diff_out diff_rc=0
-	diff_out="$(diff -u --label baseline --label current "$baseline" "${current}.view")" || diff_rc=$?
-	rm -f "$current" "${current}.view" "$baseline"
-	if [[ "$diff_rc" -ne 0 ]]; then
-		printf '%s\n' "$diff_out" | sed 's/^/    /'
-		printf 'TRUTH MISMATCH[step %s]: fact truth for %s differs from the baseline.\n' "$1" "$collector_kind" >&2
-		exit "$EX_TRUTH_MISMATCH"
-	fi
-	evidence "$1" "fact truth equals baseline ${baseline_file} (keys_only=${keys_only})"
-}
-
-# do_verify runs the read-only authority and truth checks. `run` calls it as
-# step 6; the verify subcommand calls it on its own.
-do_verify() { # step
-	local step="$1"
-	check_authority "$step"
-	if [[ -n "$namespace" && -n "$worker_deployment" ]]; then
-		if worker_pods_gone; then
-			evidence "$step" "no extension worker pod remains"
-		else
-			refuse "$step" "extension worker pods still exist"
-		fi
-	fi
-	if [[ -n "$component_home" && -n "$component_id" && ${#grant_kinds[@]} -gt 0 ]]; then
-		[[ -n "$producer_id" ]] || producer_id="$component_id"
-		[[ -n "$grant_scope" ]] || grant_scope="$collector_kind"
-		if grants_revoked; then
-			evidence "$step" "external producer grants are revoked"
-		else
-			refuse "$step" "$GRANT_NOTE"
-		fi
-	fi
-	compare_truth "$step"
-}
-
 step_6() {
 	step_header 6 "verify exact fact truth against the baseline"
 	gate_step1 6
@@ -440,16 +253,8 @@ step_6() {
 	gate_step3 6
 	gate_step4 6
 	do_verify 6
-	printf 'Now compare the API and MCP read-truth queries in the runbook with the pre-cutover answers.\n'
+	printf 'Now compare the API and MCP read-truth queries in the runbook with the answers from before the rollback.\n'
 	step_ok 6
-}
-
-capture_baseline() {
-	read_truth 6
-	[[ -n "$XOUT" ]] || step_failed 6 "no active facts exist for collector kind ${collector_kind}; an empty baseline would prove nothing"
-	printf '%s\n' "$XOUT" >"$capture_file"
-	printf 'Captured %s fact kind(s) for %s into %s\n' "$(printf '%s\n' "$XOUT" | awk 'END { print NR }')" "$collector_kind" "$capture_file"
-	evidence 6 "baseline written to ${capture_file}; keep it with the cutover record"
 }
 
 # --- subcommands --------------------------------------------------------------------------------
@@ -468,7 +273,15 @@ cmd_verify() {
 cmd_run() {
 	[[ "$assume_yes" == "true" ]] || die "$EX_USAGE" "run changes live workloads and grants. Review 'plan', then pass --yes."
 	if ((through_step >= 6)) && [[ ! -s "$baseline_file" ]]; then
-		die "$EX_USAGE" "run needs --baseline FILE from before the cutover (capture it with: verify --capture FILE)"
+		die "$EX_USAGE" "run needs --baseline FILE captured just before step 1 (capture it with: verify --capture FILE --capture-keys)"
+	fi
+	if ((through_step >= 6)); then
+		# Check the format now, read-only, so a stale baseline cannot first fail at
+		# step 6 after the in-tree producer was already restored.
+		local problem
+		if problem="$(baseline_format_problem)"; then
+			die "$EX_USAGE" "$problem"
+		fi
 	fi
 	if ((from_step == 5)) && [[ -z "$since" ]]; then
 		die "$EX_USAGE" "--since is required with --from-step 5 (use the replay_since value from step 4)"

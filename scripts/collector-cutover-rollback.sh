@@ -24,7 +24,10 @@
 #   ROLLBACK_ESHU_BIN (eshu)  ROLLBACK_KUBECTL_BIN (kubectl)  ROLLBACK_PSQL_BIN (psql)  ROLLBACK_HELM_BIN (helm)
 # psql reads its connection from the standard libpq environment (PGHOST,
 # PGUSER, PGDATABASE, PGPASSFILE, ...). No secret is ever passed on a command
-# line or printed.
+# line or printed. Hung calls are bounded: PGCONNECT_TIMEOUT (default 10 seconds)
+# for the database connection and ROLLBACK_KUBECTL_REQUEST_TIMEOUT (default 30s,
+# 0 disables it) for each kubectl request. ROLLBACK_CLOCK_SKEW_SECONDS (default
+# 30) widens the replay window to absorb a slow coordinator clock.
 
 # The exit codes and option variables below are consumed by the sourced step
 # library, which shellcheck cannot see when this file is linted alone.
@@ -37,6 +40,10 @@ ROLLBACK_ESHU_BIN="${ROLLBACK_ESHU_BIN:-eshu}"
 ROLLBACK_KUBECTL_BIN="${ROLLBACK_KUBECTL_BIN:-kubectl}"
 ROLLBACK_PSQL_BIN="${ROLLBACK_PSQL_BIN:-psql}"
 ROLLBACK_HELM_BIN="${ROLLBACK_HELM_BIN:-helm}"
+ROLLBACK_KUBECTL_REQUEST_TIMEOUT="${ROLLBACK_KUBECTL_REQUEST_TIMEOUT:-30s}"
+ROLLBACK_CLOCK_SKEW_SECONDS="${ROLLBACK_CLOCK_SKEW_SECONDS:-30}"
+# A libpq connect that hangs would outlive every wait_until deadline.
+export PGCONNECT_TIMEOUT="${PGCONNECT_TIMEOUT:-10}"
 
 # Exit codes. Distinct codes let a wrapper tell a refusal from a failure.
 readonly EX_USAGE=2
@@ -52,8 +59,12 @@ Usage: collector-cutover-rollback.sh <plan|run|verify> [options]
 
 Identity (plan and run require all of these; verify needs the first three):
   --collector-kind KIND         workflow collector kind, for example jira
-  --external-instance ID[,ID]   collector instance(s) the external producer holds
-  --in-tree-instance ID[,ID]    collector instance(s) of the in-tree producer
+  --external-instance ID[,ID]   every collector instance the external component
+                                runs; step 1 refuses when the component still has
+                                an enabled activation after these are disabled
+  --in-tree-instance ID[,ID]    EVERY in-tree collector instance of the kind; the
+                                drain and authority checks treat any other
+                                instance of the kind as external
   --component-id ID             component package ID of the external producer
   --component-version VERSION   component version whose grants are revoked
   --component-home DIR          component registry home the workloads use
@@ -82,10 +93,15 @@ Run control:
   --yes                         required for run
   --baseline FILE               pre-cutover truth snapshot (required for run)
   --capture FILE                verify only: write a truth snapshot and exit
+  --capture-keys                with --capture: also write FILE.keys (one line per
+                                fact) so --report-drift can name the keys that moved
+  --report-drift                on a truth mismatch, also print per-kind added,
+                                removed, and changed key counts (still exits 6)
+  --drift-keys N                keys to print per kind and class (default 20)
   --keys-only                   compare kind, count, and stable keys but not payload
   --from-step N                 start at step N (earlier predicates re-checked)
   --through-step N              stop after step N
-  --since TIMESTAMP             replay window start; required with --from-step 5 or 6
+  --since TIMESTAMP             replay window start; required with --from-step 5
   --drain-timeout SECONDS       step 2 limit (default 600; env ROLLBACK_DRAIN_TIMEOUT)
   --step-timeout SECONDS        step 1 confirmation limit (default 180)
   --replay-timeout SECONDS      step 5 limit (default 1800)
@@ -130,6 +146,9 @@ assume_yes="false"
 baseline_file=""
 capture_file=""
 keys_only="false"
+capture_keys="false"
+report_drift="false"
+drift_keys="20"
 from_step="1"
 through_step="6"
 since=""
@@ -173,6 +192,16 @@ parse_args() {
 			shift
 			continue
 			;;
+		--capture-keys)
+			capture_keys="true"
+			shift
+			continue
+			;;
+		--report-drift)
+			report_drift="true"
+			shift
+			continue
+			;;
 		--restore-applied-by-gitops)
 			restore_by_gitops="true"
 			shift
@@ -201,6 +230,7 @@ parse_args() {
 		--restore-values) restore_values="$2" ;;
 		--baseline) baseline_file="$2" ;;
 		--capture) capture_file="$2" ;;
+		--drift-keys) drift_keys="$2" ;;
 		--from-step) from_step="$2" ;;
 		--through-step) through_step="$2" ;;
 		--since) since="$2" ;;
@@ -224,12 +254,33 @@ check_token() {
 		die "$EX_USAGE" "$name has an unsafe or empty value: '$value'"
 }
 
+# check_list validates a comma-separated ID list. It splits with read, never an
+# unquoted expansion: a value such as '*' must not glob against the working
+# directory and turn into file names that pass the token check.
 check_list() {
 	local name="$1" value="$2" part
+	local -a parts
 	[[ -n "$value" ]] || die "$EX_USAGE" "$name is required"
-	local IFS=,
-	for part in $value; do
+	[[ "$value" != ,* && "$value" != *, && "$value" != *,,* ]] ||
+		die "$EX_USAGE" "$name has an empty entry: '$value'"
+	IFS=, read -r -a parts <<<"$value"
+	for part in "${parts[@]}"; do
 		check_token "$name" "$part"
+	done
+}
+
+# check_disjoint rejects an ID named as both external and in-tree: the drain and
+# authority checks treat everything outside the in-tree list as external.
+check_disjoint() {
+	local external in_tree
+	local -a externals trees
+	IFS=, read -r -a externals <<<"$external_instances"
+	IFS=, read -r -a trees <<<"$in_tree_instances"
+	for external in "${externals[@]}"; do
+		for in_tree in "${trees[@]}"; do
+			[[ "$external" != "$in_tree" ]] ||
+				die "$EX_USAGE" "instance '${external}' is named as both external and in-tree"
+		done
 	done
 }
 
@@ -247,7 +298,13 @@ validate() {
 	check_token "--collector-kind" "$collector_kind"
 	check_list "--external-instance" "$external_instances"
 	check_list "--in-tree-instance" "$in_tree_instances"
+	check_disjoint
 	check_number "--poll-seconds" "$poll_seconds"
+	check_seconds "--drift-keys" "$drift_keys"
+	check_seconds "ROLLBACK_CLOCK_SKEW_SECONDS" "$ROLLBACK_CLOCK_SKEW_SECONDS"
+	[[ "$ROLLBACK_KUBECTL_REQUEST_TIMEOUT" =~ ^[0-9]+(ms|s|m|h)?$ ]] ||
+		die "$EX_USAGE" "ROLLBACK_KUBECTL_REQUEST_TIMEOUT must look like 30s or 0: '$ROLLBACK_KUBECTL_REQUEST_TIMEOUT'"
+	[[ "$capture_keys" == "false" || -n "$capture_file" ]] || die "$EX_USAGE" "--capture-keys needs --capture FILE"
 	check_seconds "--drain-timeout" "$drain_timeout"
 	check_seconds "--step-timeout" "$step_timeout"
 	check_seconds "--replay-timeout" "$replay_timeout"
@@ -256,6 +313,11 @@ validate() {
 	[[ "$through_step" =~ ^[1-6]$ ]] || die "$EX_USAGE" "--through-step must be 1 to 6"
 	((from_step <= through_step)) || die "$EX_USAGE" "--from-step must not exceed --through-step"
 	if [[ "$subcommand" == "verify" ]]; then
+		# verify's cluster and registry checks are optional; check what was given.
+		local optional
+		for optional in namespace worker_deployment component_id component_version; do
+			[[ -z "${!optional}" ]] || check_token "--${optional//_/-}" "${!optional}"
+		done
 		return 0
 	fi
 	check_token "--component-id" "$component_id"
@@ -296,16 +358,29 @@ build_disable() { # instance
 	CMD=("$ROLLBACK_ESHU_BIN" component disable "$component_id" --instance "$1" --component-home "$component_home")
 }
 build_scale_worker_zero() {
-	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" scale "deployment/${worker_deployment}" --replicas=0)
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" scale "deployment/${worker_deployment}" --replicas=0
+		"--request-timeout=${ROLLBACK_KUBECTL_REQUEST_TIMEOUT}")
 }
 build_restart_coordinator() {
-	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" rollout restart "deployment/${coordinator_deployment}")
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" rollout restart "deployment/${coordinator_deployment}"
+		"--request-timeout=${ROLLBACK_KUBECTL_REQUEST_TIMEOUT}")
 }
 build_coordinator_status() {
 	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" rollout status "deployment/${coordinator_deployment}" "--timeout=${step_timeout}s")
 }
 build_worker_pods() {
-	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" get pods -l "$worker_selector" -o name)
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" get pods -l "$worker_selector" -o name
+		"--request-timeout=${ROLLBACK_KUBECTL_REQUEST_TIMEOUT}")
+}
+# build_worker_replicas reads the worker Deployment's desired replica count. A
+# selector that matches no pod cannot prove the worker is stopped; this can.
+build_worker_replicas() {
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" get "deployment/${worker_deployment}" -o 'jsonpath={.spec.replicas}'
+		"--request-timeout=${ROLLBACK_KUBECTL_REQUEST_TIMEOUT}")
+}
+# build_component_list reads the registry the coordinator and worker start from.
+build_component_list() {
+	CMD=("$ROLLBACK_ESHU_BIN" component list --component-home "$component_home")
 }
 build_revoke() { # fact kind
 	CMD=("$ROLLBACK_ESHU_BIN" component revoke-grant "$producer_id" --version "$component_version"
@@ -318,7 +393,8 @@ build_helm_restore() {
 	CMD=("$ROLLBACK_HELM_BIN" upgrade "$helm_release" "$helm_chart" --namespace "$namespace" --reuse-values -f "$restore_values")
 }
 build_scale_in_tree() {
-	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" scale "deployment/${in_tree_deployment}" "--replicas=${in_tree_replicas}")
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" scale "deployment/${in_tree_deployment}" "--replicas=${in_tree_replicas}"
+		"--request-timeout=${ROLLBACK_KUBECTL_REQUEST_TIMEOUT}")
 }
 build_in_tree_status() {
 	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" rollout status "deployment/${in_tree_deployment}" "--timeout=${step_timeout}s")
@@ -333,93 +409,17 @@ show_cmd() {
 	printf '  $ %s\n' "${out% }"
 }
 
-# --- plan ---------------------------------------------------------------------
-
 sql_file() { printf '%s/lib/collector-cutover-rollback-%s.sql' "$script_dir" "$1"; }
-
-plan_psql_line() { # sql-name description
-	printf '  $ %s -X -A -t -F "|" -v ON_ERROR_STOP=1 -v kind=%s ... -f %s   # %s (read-only)\n' \
-		"$ROLLBACK_PSQL_BIN" "$collector_kind" "$(sql_file "$1")" "$2"
-}
-
-print_plan() {
-	local instance kind
-	printf 'Rollback plan for collector kind %s\n' "$collector_kind"
-	printf 'External instance(s): %s   In-tree instance(s): %s\n' "$external_instances" "$in_tree_instances"
-	printf 'Nothing below has been executed. "run --yes" performs it in this order.\n\n'
-
-	printf 'STEP 1 stop new claims for the external producer\n'
-	local -a externals
-	IFS=, read -r -a externals <<<"$external_instances"
-	for instance in "${externals[@]}"; do
-		build_disable "$instance"
-		show_cmd
-	done
-	build_scale_worker_zero
-	show_cmd
-	build_restart_coordinator
-	show_cmd
-	build_coordinator_status
-	show_cmd
-	build_worker_pods
-	show_cmd
-	printf '  Gate: no worker pod remains and the coordinator rollout is complete.\n'
-	printf '  Record: disable result per instance, worker pod count 0, coordinator rollout line.\n\n'
-
-	printf 'STEP 2 wait for in-flight leases to drain (refuses to start before step 1 is confirmed)\n'
-	plan_psql_line drain "claimed work items and active claims for the external instance(s)"
-	printf '  Gate: 0 claimed work items and 0 active claims. The coordinator reaper expires stale\n'
-	printf '  leases on its own interval; this step only waits. It never rewrites claim rows.\n'
-	printf '  Record: final counts and the seconds waited.\n\n'
-
-	printf 'STEP 3 revoke the external producer grant (refuses to start before step 2 drained)\n'
-	for kind in "${grant_kinds[@]}"; do
-		build_revoke "$kind"
-		show_cmd
-	done
-	build_grants
-	show_cmd
-	printf '  Gate: every grant for %s@%s shows revoked=true.\n' "$producer_id" "$component_version"
-	printf '  Record: the grants listing after revocation.\n\n'
-
-	printf 'STEP 4 restore the in-tree producer (refuses unless steps 1 to 3 still hold)\n'
-	plan_psql_line drain "re-check the drain gate immediately before restoring"
-	if [[ "$restore_by_gitops" == "true" ]]; then
-		printf '  (restore values were applied through GitOps after step 3; the script only scales and waits)\n'
-	else
-		build_helm_restore
-		show_cmd
-	fi
-	build_scale_in_tree
-	show_cmd
-	build_in_tree_status
-	show_cmd
-	build_restart_coordinator
-	show_cmd
-	build_coordinator_status
-	show_cmd
-	printf '  Record: restore start time (database clock), helm revision or GitOps commit, rollout lines.\n\n'
-
-	printf 'STEP 5 replay from the last committed generation\n'
-	plan_psql_line replay "work items for the in-tree instance(s) updated since the restore start"
-	printf '  The restart in step 4 triggers the first planning pass; later passes follow the\n'
-	printf '  coordinator reconcile interval. Gate: no pending, claimed, or retryable item remains,\n'
-	printf '  at least one completed, none failed terminal.\n'
-	printf '  Record: pending/claimed/completed/retryable/terminal counts.\n\n'
-
-	printf 'STEP 6 verify exact truth against the pre-cutover baseline\n'
-	plan_psql_line dual "dual-authority check: external claims, in-tree claims, overlapping claim intervals"
-	plan_psql_line truth "per fact kind: count, stable-key digest, payload digest over active generations"
-	printf '  Gate: no dual authority, and every fact kind equals the baseline file.\n'
-	printf '  Then compare the API and MCP read-truth queries in the runbook.\n'
-	printf '  Record: the verify output and the read-truth comparison.\n'
-}
 
 main() {
 	parse_args "$@"
 	validate
 	case "$subcommand" in
-	plan) print_plan ;;
+	plan)
+		# shellcheck source=scripts/lib/collector-cutover-rollback-plan.sh
+		source "${script_dir}/lib/collector-cutover-rollback-plan.sh"
+		print_plan
+		;;
 	run | verify)
 		# shellcheck source=scripts/lib/collector-cutover-rollback-steps.sh
 		source "${script_dir}/lib/collector-cutover-rollback-steps.sh"
