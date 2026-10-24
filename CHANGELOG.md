@@ -23,6 +23,18 @@ recent shipped work grouped by feature area.
   is not yet checked. Evidence:
   `docs/internal/evidence/8930-readiness-weights-refresh.md`.
 
+### Parser: uv.lock dependency rows
+
+- **`uv.lock` now gives exact-version Python dependency rows**
+  ([#8821](https://github.com/eshu-hq/eshu/issues/8821)). A fail-closed
+  version-1 reader in `go/internal/parser/pythondep` resolves a `[[package]]`
+  entry only when its name, version, and source match a small documented
+  grammar. Only the public PyPI index yields `config_kind=dependency`; git,
+  path, editable, url, and other-index entries get sibling kinds, and anything
+  else is a counted `malformed_dependency` row, with totals in the payload's
+  `uv_lock_state`. Source URLs lose userinfo, query, and fragment. Dev or
+  runtime scope is not captured. `constraints*.txt` is not part of this change.
+
 ### Gate: supported languages declare manifest and pin files
 
 - **Ledger-driven manifest and pin gate**

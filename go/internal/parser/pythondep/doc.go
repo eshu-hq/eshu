@@ -6,7 +6,7 @@
 // reducer can match PyPI vulnerability advisories against repository
 // dependency truth.
 //
-// The package owns four entrypoints:
+// The package owns five entrypoints:
 //
 //   - ParseRequirements parses pip-style requirements files (requirements.txt
 //     and sibling requirements-*.txt / requirements_*.txt forms). It preserves
@@ -23,6 +23,10 @@
 //   - ParsePoetryLock parses poetry.lock arrays of [[package]] tables,
 //     preserving exact installed versions, dev-vs-runtime category, and any
 //     `[package.source]` git/directory provenance.
+//   - ParseUVLock parses uv.lock with a fail-closed version-1 grammar: only
+//     entries that match it resolve, only the public PyPI index yields a
+//     registry-admissible row, and everything else is a malformed row counted
+//     in the payload's uv_lock_state. See README.md for the grammar.
 //
 // Pipfile.lock is JSON and is parsed by go/internal/parser/json instead of
 // this package; it shares the same content_entity row contract so the

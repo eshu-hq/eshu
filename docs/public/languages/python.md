@@ -21,6 +21,7 @@ This page describes the current Go parser and query contract for Python.
 | Source entities | Functions, classes, variables, imports, calls, inheritance, and module rows. |
 | Semantic metadata | Module docstrings, decorators, async/generator flags, lambda assignments, type annotations, and metaclass metadata. |
 | Relationships | Constructor evidence, receiver calls, inherited classmethod evidence, and `USES_METACLASS` edges where parsed. |
+| Dependency lockfile | `uv.lock` is parsed as exact-version dependency rows by a fail-closed version-1 reader. Only entries from the public PyPI index are registry-admissible; git, path, editable, url, and other-index entries use sibling `config_kind` values, and anything outside the grammar is a counted malformed row. Dev or runtime scope is not captured. See [dependency coverage](../reference/dependency-coverage.md) and the `pythondep` README for the grammar. |
 | Query surfacing | Graph-backed and content-backed language query, search, resolve, context, story, and dead-code surfaces preserve Python metadata when present. |
 
 ## Capability Claim Ledger

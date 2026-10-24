@@ -39,6 +39,24 @@ follow when editing this package.
   surfaces as a zero-row payload so the readiness envelope can report
   missing evidence rather than safe.
 
+## uv.lock rules
+
+- `uv_lock*.go` is a fail-closed reader. A row resolves only when the entry
+  matches the grammar in [README.md](README.md#uvlock-grammar). Do not widen the
+  grammar to accept a construct "that is probably fine"; count it as
+  unresolved instead.
+- Keep every loop linear in the input. Use the integer bracket counter in
+  `scanValueBytes`; never recurse, never rescan accumulated text, never
+  allocate per entry past the row cap (`uvParser.scratch` backs the open
+  entry for that reason). `uv_lock_bounds_test.go` fails on an allocation or
+  scan-length regression.
+- Only `https://pypi.org/simple` may produce `config_kind=dependency`. Do not
+  persist userinfo, a query, or a fragment from a URL.
+- Do not set `dev_dependency`, `extras`, or `marker` on a uv row without
+  proving the value from the lockfile; the entry itself does not carry it.
+- A grammar change needs a failing case in `uv_lock_test.go`, a seeded-fuzz
+  invariant that still holds, and a README grammar edit in the same commit.
+
 ## When changing parser behavior
 
 1. Add or extend the failing fixture in the relevant `*_test.go` first.
