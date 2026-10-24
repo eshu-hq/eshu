@@ -3,7 +3,8 @@
 ## Problem
 
 `TestGenerationContentVersionPinsCollectorOutput` pins a digest of the facts the
-git collector emits for `testdata/content_version`. Discovery prunes a directory
+git collector emits for the `content_version` fixture tree beside
+`snapshot_content_version_gate_test.go`. Discovery prunes a directory
 named `deps`, so the six dependency manifests under `deps/` never reached the
 digest: `deps/gomod/go.mod`, `deps/dotnet/App.csproj`, `deps/node/package.json`,
 `deps/node/yarn.lock`, `deps/python/pyproject.toml` and
@@ -12,7 +13,7 @@ the pin test stayed green.
 
 ## Fix
 
-- The fixtures moved to `testdata/content_version/manifests/`.
+- The fixtures moved to a `manifests/` directory in the same fixture tree.
 - `TestContentVersionFixtureFilesReachDiscovery` resolves the fixture with the
   snapshotter's own file-set resolution and fails for any file a registered
   parser handles that discovery skips. A seeded pair proves it: a `go.mod`
