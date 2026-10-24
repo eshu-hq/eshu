@@ -176,7 +176,7 @@ and the two kind changes to "same kind".
   block scalar, sequence item, header after a footer inside a block, comment,
   listed key and header on one line, detector key and header on one line, kept
   `${NAME}`, kept marker, non-private header, blank continuation line); each was
-  RED first. The fuzz seeds gained the three reviewer repros.
+  RED first, and that table pins the three reviewer repros. The fuzz harness gained two planted shapes (a continuation-state header before and after arbitrary input), not the repro seeds.
 - Delta review P3: the marker kind is now computed from the raw line before the
   PEM pass, as the ruling says; the benchmark table states a median and range
   measured on a loaded host instead of a point value.
