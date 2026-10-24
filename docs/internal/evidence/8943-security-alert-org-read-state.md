@@ -42,10 +42,28 @@ database (`ESHU_POSTGRES_DSN` container, no repo files touched).
 
    Both used `Index Scan using u_pkey` with one search per target. No new index
    is needed beyond the two primary keys.
-2. Retention can ride the foreign key. `DELETE FROM scope_generations` of one
-   generation with 4,900 child rows cascades through both tables in 1.3 ms
-   (trigger time included in the statement). Sixteen other tables already do the
-   same.
+2. Retention can ride the foreign key, at a measured cost. Same 5.88 million
+   row set, `BEGIN; EXPLAIN (ANALYZE, BUFFERS, TIMING OFF) DELETE FROM
+   scope_generations ...; ROLLBACK;` (the cost is the child foreign-key
+   trigger):
+
+   | Delete | Execution |
+   | --- | --- |
+   | 1 generation, 4,900 child rows, first run after a PostgreSQL restart (empty `shared_buffers`, OS cache warm) | 169.6 ms |
+   | the same generation, second and later runs | 10.2 to 10.8 ms |
+   | 100 generations (490,000 child rows) in one statement, first touch | 1,549.6 ms |
+   | the same 100 generations again | 384.9 ms |
+
+   An independent review measured 8 to 10 ms hot, 15 to 25 ms warm, and 0.8 to
+   3.7 s for one generation with the OS cache also cold; I could not drop the OS
+   cache on this host, so treat the disk-cold figure as the reviewer's. A
+   sweeper is still not needed: the retention row-count query counts both tables
+   (`generation_retention_row_counts_sql.go`), so `BatchRowLimit` (100,000 rows
+   by default) caps a pass at about 20 such generations, and a pass already runs
+   in the background under the scope and generation locks it takes today. The
+   expected case is far smaller: only an allowlist the fan-out could not read in
+   full leaves unread rows, and a typical org target leaves none. Sixteen other
+   tables already cascade the same way.
 3. The writer is cheap next to the claim that produces it. One statement inserts
    5,000 unread rows in 27.4 ms (14,921 shared hits). A claim that fans out sends
    at least 100 provider requests, so this is noise.
