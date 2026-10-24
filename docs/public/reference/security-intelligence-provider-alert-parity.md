@@ -15,7 +15,7 @@ by the target `scope` field (default `repository`):
   and a `allowed_repositories` allowlist. Every repository must appear in the
   target's `allowed_repositories` list before the runtime issues an HTTP request.
 - `org`-scoped targets poll one organization
-  (`GET /orgs/{org}/dependabot/alerts`) and fan the response out into
+  (`GET /orgs/{org}/dependabot/alerts`) and split the response into
   per-repository `security_alert.repository_alert` facts keyed on each alert's
   source repository, with the same per-repository fact shape so reducer
   reconciliation is unchanged. The org read is a bounded window, not a full
@@ -197,12 +197,19 @@ The answer never names a target, another repository, an allowlist, or a failure
 message. A scoped token reaches the collector read only for a repository inside
 its grants; a selector outside them answers `404` first.
 
-One gap remains. An organization target reads at most `max_pages` pages of the
-org-wide open-alert stream, and the allowlist filters that window. If the
-window holds no alert for the repository, no fact records the truncation, so
-the empty answer still reads `complete`. #8803 tracks the collector-side
-carrier that closes this case with reason
-`provider_open_alert_page_limit_reached`.
+One gap remains, and it is narrower than the org window. When the org read
+truncates, the collector reads each allowlisted repository on its own (see
+[Org-scope window and per-repository fan-out](#org-scope-window-and-per-repository-fan-out)),
+so a repository whose own read completes is covered whatever the window held.
+The gap holds only for a repository the fan-out could not read: one past the
+100-repository per-claim cap, one whose read failed (`not_found` or another
+failure), or one after a rate-limited or failed read that stopped the fan-out.
+If the org window also holds no alert for such a repository, no fact records the
+truncation or the reason, so the empty answer still reads `complete`. The
+`eshu_dp_security_alert_org_fanout_repositories_total` counter and the
+`eshu.security_alert.org_fanout.*` attributes on the `security_alert.observe`
+span are the only signals for it. #8803 tracks the collector-side carrier that closes this case
+with reason `provider_open_alert_page_limit_reached`.
 
 Eshu should match provider alert counts when it has equivalent owned target
 evidence and advisory data. Eshu may exceed provider alert output when it can
