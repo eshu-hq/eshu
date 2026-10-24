@@ -211,8 +211,8 @@ full-stream scan the A1 ruling requires is
 `go/internal/collector/repo/git`. Residual: a token a vendor puts in a
 documented slot would pass if drawn as a short single-case or Capitalized word,
 digits only, or a PascalCase word of up to four parts and 24 bytes (random
-tokens: 1e-2 to 6e-2 at 8 bytes, 2e-4 to 4e-3 at 16, at most 6e-5 at 24; README
-has the table); the documented vendors keep the credential in `_authToken`. A private registry on a
+tokens: 1.4e-2 to 7.4e-2 at 8 bytes, 2.2e-4 to 5.5e-3 at 16, at most 8.3e-5 at
+24; the parser README has the table); the documented vendors keep the credential in `_authToken`. A private registry on a
 custom layout reports its host only.
 
 Ordering (arbiter, 2026-10-24): no production definition binds to marker mode

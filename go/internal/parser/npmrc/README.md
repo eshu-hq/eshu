@@ -107,16 +107,26 @@ name when it is at most 64 bytes of `[A-Za-z0-9._~-]` made of words of at most 1
 bytes, each all lower case, all upper case, or Capitalized, with no
 letter-and-digit mix of 8 bytes or more. A PascalCase word (`FabrikamFiber`,
 `MyFeed`, `DataweaversPublic`) of at most 24 bytes and four Capitalized parts also
-reads as a name; `AbCdEfGhIj` has five parts and does not. UUID groups and letter-and-digit
-mixes of 8 bytes or more fail.
+reads as a name; `AbCdEfGhIj` has five parts and does not. A word that mixes letters and
+digits at 8 bytes or more fails, and so do UUID groups; a draw that happens to be
+all letters or all digits in each word passes, which is where the rates below come from.
 
 Residual: a token that a vendor puts in a documented slot would pass if it is a
 short lower-case, upper-case, or Capitalized word, digits only, or a PascalCase
-word of up to four parts and 24 bytes. Random tokens passed the slot check at these rates, measured on 1,000,000 uniform
-draws per cell (a single seed): base62 1.4e-2 at 8 bytes, 2.0e-4 at 16, 1.3e-5 at
-20, none at 24 and 32; base64url 4.0e-2, 9.7e-4, 1.2e-4, 1.7e-5 at 24, and 1e-6 at
-32; letters only 5.9e-2, 3.8e-3, 5.6e-4, 6.6e-5 at 24, and none at 32. Hex and
-lower-case-plus-digit tokens of 8 bytes or more fail. The documented vendors above put the credential in
+word of up to four parts and 24 bytes. Random tokens pass the slot check at the
+rates below, measured on 2,000,000 uniform draws per cell with one seed:
+
+| Token alphabet | 8 bytes | 12 | 16 | 20 | 24 | 32 |
+| --- | --- | --- | --- | --- | --- | --- |
+| base62 | 1.4e-2 | 2.2e-3 | 2.2e-4 | 1.7e-5 | about 5e-7 | 0 |
+| base64url | 3.9e-2 | 6.5e-3 | 9.2e-4 | 1.2e-4 | 1.9e-5 | 0 |
+| letters only | 5.9e-2 | 1.8e-2 | 3.9e-3 | 5.3e-4 | 8.3e-5 | 0 |
+| hex | 2.4e-2 | 3.6e-3 | 5.7e-4 | 0 | 0 | 0 |
+| base36 (lower case and digits) | 7.4e-2 | 2.0e-2 | 5.5e-3 | 0 | 0 | 0 |
+
+Hex and base36 tokens pass up to 16 bytes and fail from 17 bytes on, because a
+letter-and-digit mix of 8 bytes or more is rejected and shorter pieces are rare
+at that length. The documented vendors above put the credential in
 `_authToken` or `_auth`, not in the path. A host the table does not know loses its
 path, so a private registry on a custom layout reports the host only. Userinfo
 and query, the positions npm documents for credentials, are always removed.
