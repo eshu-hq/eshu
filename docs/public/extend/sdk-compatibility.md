@@ -52,8 +52,8 @@ no qualified core release or deployed pair.
 | `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` |
 
 The new module version histories are independent of the original paths'
-`v0.2.0` lines. The prepared collector candidate is `v0.2.0-rc.1`; the
-prepared factschema candidate is `v0.1.0-rc.2`.
+`v0.2.0` lines. The prepared collector candidate is `collector/v0.2.0-rc.1`;
+the prepared factschema candidate is `factschema/v0.1.0-rc.2`.
 Go named types from the old and new import paths have different identities;
 the new paths are not drop-in replacements. Keep exact pins to the original
 published versions until the target consumer and core pair qualifies. Never
