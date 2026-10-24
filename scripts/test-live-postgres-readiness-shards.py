@@ -147,6 +147,22 @@ class ShardContractTest(unittest.TestCase):
         self.assertEqual(shards.partition_runs(self.plan, "3/4"), self.plan[4:6])
         self.assertEqual(shards.partition_runs(self.plan, "4/4"), self.plan[6:8])
 
+    def test_admin_package_moves_whole_to_fourth_shard(self) -> None:
+        """Keep other quarter assignments while moving present and future admin roots."""
+        plan = [run("./internal/query", f"TestOther{i}Live") for i in range(16)]
+        plan[1] = run("./internal/query/admin", "TestAdminFirstLive")
+        plan[2] = run("./internal/query/admin", "TestAdminSecondLive")
+        plan[14] = run("./internal/query/admin", "TestAdminFutureLive")
+        assigned = [shards.partition_runs(plan, shard) for shard in shards.SHARDS]
+        for index in range(3):
+            self.assertEqual(assigned[index], [line for line in plan[index * 4:(index + 1) * 4]
+                                               if not line.startswith("./internal/query/admin|")])
+        self.assertEqual(assigned[3], [line for line in plan
+                                       if line in plan[12:16]
+                                       or line.startswith("./internal/query/admin|")])
+        self.assertCountEqual([line for selection in assigned for line in selection], plan)
+        self.assertEqual(shards.partition_runs(plan, "all"), plan)
+
     def test_partition_union_covers_plan_for_uneven_counts(self) -> None:
         for extra in range(4, 9):
             expanded = [*self.plan, *(run("./internal/query", f"TestFuture{i}Live")
@@ -168,9 +184,18 @@ class ShardContractTest(unittest.TestCase):
                 shards.partition_runs(plan, shard)
 
     def test_plan_cli_partitions_live_tsv_without_loss(self) -> None:
-        assigned = [line for shard in ("1/4", "2/4", "3/4", "4/4")
-                    for line in self.subset_tests(shard)]
+        selections = {shard: self.subset_tests(shard) for shard in shards.SHARDS}
+        assigned = [line for selection in selections.values() for line in selection]
         self.assertCountEqual(assigned, self.flat)
+        width = (len(self.flat) + len(shards.SHARDS) - 1) // len(shards.SHARDS)
+        admin = "./internal/query/admin|"
+        self.assertTrue(any(line.startswith(admin) for line in self.flat))
+        for index, shard in enumerate(shards.SHARDS[:3]):
+            self.assertEqual(selections[shard], [line for line in
+                             self.flat[index * width:(index + 1) * width]
+                             if not line.startswith(admin)])
+        self.assertEqual(selections["4/4"], [line for line in self.flat
+                         if line in self.flat[3 * width:] or line.startswith(admin)])
 
     def test_plan_cli_rejects_drift_and_bad_shard(self) -> None:
         drifted = self.full_tsv_text.replace(self.flat[0].split("|")[1], "TestDriftLive", 1)
@@ -221,6 +246,15 @@ class ShardContractTest(unittest.TestCase):
         self.assertNotEqual(self.verify([*reports[:3], reports[0]]).returncode, 0)
         stale = self.write_report("4/4", head="b" * 40)
         self.assertNotEqual(self.verify([*reports[:3], stale]).returncode, 0)
+
+    def test_verify_rejects_report_from_previous_admin_assignment(self) -> None:
+        """A passing old-layout report cannot replace the current plan."""
+        reports = self.good_reports()
+        previous = json.loads(reports[0].read_text(encoding="utf-8"))
+        width = (len(self.flat) + len(shards.SHARDS) - 1) // len(shards.SHARDS)
+        previous["expected_runs"] = self.flat[:width]
+        reports[0].write_text(json.dumps(previous), encoding="utf-8")
+        self.assertNotEqual(self.verify(reports).returncode, 0)
 
     def test_verify_rejects_duplicated_ok_run_covering_an_omission(self) -> None:
         forged = self.directory / "forged-4-report.json"

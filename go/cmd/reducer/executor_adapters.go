@@ -12,10 +12,17 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/legacy/retire"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// The legacy workload retirement handler type-asserts the reducer's Cypher
+// executor to retire.Writer at startup. Pin that at compile time so a signature
+// change fails the build instead of silently disabling execute (it would answer
+// 503 at runtime).
+var _ retire.Writer = reducerCypherExecutor{}
 
 // cypherRunner is the narrow interface shared by both executor adapters.
 type cypherRunner interface {
@@ -166,6 +173,29 @@ func (e reducerCypherExecutor) ExecuteCypherCountingRelationshipDeletes(
 	var deleted int64
 	for _, entry := range collector.Entries() {
 		deleted += entry.Counters.RelationshipsDeleted
+		outer.Add(entry)
+	}
+	return deleted, err
+}
+
+// ExecuteCypherCountingNodeDeletes runs one statement exactly as ExecuteCypher
+// does, through the persistent retrying executor, and returns the nodes its
+// committed attempts deleted, read from the Bolt write summary the runner
+// reports through sourcecypher.ReportWriteCounts. It satisfies retire.Writer
+// (internal/reducer/workload/legacy/retire) so the legacy Workload retirement
+// can report what it removed. Every counter entry is forwarded to a collector
+// already on ctx, so differential capture still sees the statement.
+func (e reducerCypherExecutor) ExecuteCypherCountingNodeDeletes(
+	ctx context.Context,
+	cypher string,
+	params map[string]any,
+) (int64, error) {
+	outer := sourcecypher.WriteCountsCollectorFromContext(ctx)
+	collector := sourcecypher.NewWriteCountsCollector()
+	err := e.ExecuteCypher(sourcecypher.WithWriteCountsCollector(ctx, collector), cypher, params)
+	var deleted int64
+	for _, entry := range collector.Entries() {
+		deleted += entry.Counters.NodesDeleted
 		outer.Add(entry)
 	}
 	return deleted, err

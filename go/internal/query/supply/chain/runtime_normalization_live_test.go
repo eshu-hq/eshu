@@ -3,6 +3,9 @@
 
 package chain
 
+//eshu:readiness-helper live-postgres-readiness
+//eshu:readiness-helper:reason #8835 helper-only source exercised through a pinned enrolled PostgreSQL runtime or suppression root.
+
 import (
 	"context"
 	"database/sql"

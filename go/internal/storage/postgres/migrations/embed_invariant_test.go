@@ -122,15 +122,16 @@ import (
 // union-base commit a cumulative delta was diffed from; catalog-only column).
 // #8803 adds 211_workflow_work_items_failed_terminal_instance_idx.sql (the
 // partial failed_terminal index for the collector terminal-failure read).
-// #8880 adds 212-224, the supply-chain impact active-evidence anchors
+// #8835 adds the five unshipped supply runtime fallback indexes as 212–216.
+// #8880 adds 217-229, the supply-chain impact active-evidence anchors
 // (one CREATE INDEX CONCURRENTLY per file).
-const goldenBootstrapDefinitionsDigest = "4bdc926d68ad3e48513bcad8dfb9d9300ac708832ba7e910291e0b89529f3889"
+const goldenBootstrapDefinitionsDigest = "ded54e0b014651ca0a44ac5533b9664646601f112894b4e2000db5f01ce01e07"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 242
+const goldenBootstrapDefinitionsCount = 247
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

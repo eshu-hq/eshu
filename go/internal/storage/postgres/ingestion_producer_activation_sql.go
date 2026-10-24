@@ -24,9 +24,14 @@ import (
 //     first '@' with a sha256: digest; tag form splits at the last colon
 //     past the last slash. TestProducerImageRefParseParity pins the SQL
 //     mirror against the Go parser over a corpus of references.
-//   - dockerfile base refs mirror dockerfileStageBaseRef
+//   - dockerfile base refs approximate dockerfileStageBaseRef
 //     (container_image_base_image.go): trimmed base_image, scratch and
-//     $-containing bases rejected, base_tag rejoined with ':'.
+//     $-containing base_image rejected, base_tag rejoined with ':'. The SQL
+//     is looser than the Go check: it does not reject a "$" left in base_tag
+//     (an unexpanded ARG in the tag), so it can emit a few extra candidate
+//     keys, never miss an activation. The reducer re-applies the exact Go
+//     check, so it is the authority and an extra candidate only costs a
+//     wasted wake-up.
 //   - drift ARN linkage mirrors listActiveStateResourcesForAWSARNsQuery:
 //     the terraform_state_resource attributes.arn equated to the aws_resource
 //     arn, both blank-trimmed and non-blank, with no tombstone filter on
@@ -101,8 +106,9 @@ func producerParsedRefBody(ref string) string {
 }
 
 // producerDockerRefSQL rejoins one dockerfile stage's base_image/base_tag,
-// mirroring dockerfileStageBaseRef. stage is the stage object expression.
-// Rejected bases yield NULL.
+// approximating dockerfileStageBaseRef (looser: see the header comment on
+// "$" in base_tag). stage is the stage object expression. Rejected bases
+// yield NULL.
 func producerDockerRefSQL(stage string) string {
 	image := fmt.Sprintf(`btrim((%s)->>'base_image', ' ')`, stage)
 	tag := fmt.Sprintf(`btrim((%s)->>'base_tag', ' ')`, stage)

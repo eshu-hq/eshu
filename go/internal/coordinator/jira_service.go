@@ -55,8 +55,13 @@ func (s Service) scheduleJiraWork(
 	return nil
 }
 
+// shouldScheduleJira reports whether the in-tree Jira planner owns the
+// instance. A jira instance configured as a component-extension activation is
+// planned by the generic component scheduler only (#8907), the same exclusion
+// the in-tree PagerDuty scheduler applies.
 func shouldScheduleJira(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorJira &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	if instance.CollectorKind != scope.CollectorJira || !instance.Enabled || !instance.ClaimsEnabled {
+		return false
+	}
+	return !hasComponentActivationConfiguration(instance)
 }

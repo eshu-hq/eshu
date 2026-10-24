@@ -76,6 +76,16 @@ tests:
     class: ci
     reason: deterministic seeded proof of the id-anchor census Cypher (#7212) against the reference classification, with a planted id-only node and a null-uid node; the census is Neo4j-only, so the test itself self-skips on NornicDB; runs on Neo4j in the live-backend CI job
     backends: neo4j
+  - file: go/internal/graph/legacy/workload/delete_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-scoped #8795 proof of the Neo4j legacy Workload retirement statement: after a dry run a node that gains an instance by workload_id property, a DOCUMENTS edge, or loses its twin's DEFINES is not deleted (the statement is the gate), a non-legacy-shaped id, a null-generation twin, and a foreign repository DEFINES are never deleted, the one eligible leftover is deleted with its twin and the twin's DEFINES and SAME_NAME counts unchanged, an empty id list and a second run delete nothing, the PROFILE plan (production schema applied by the test) seeks the Workload id constraint for the batch anchor and the twin lookup, and the lock-first delete keeps a node a concurrent writer changed (property write waits and re-reads; INSTANCE_OF edge aborts one transaction, three rounds); and a Go-detection versus in-statement-predicate equivalence proof; Neo4j only; local neo4j 2026.08.1 run on a fresh database took 20 s under -race"
+    backends: neo4j
+  - file: go/internal/graph/legacy/workload/detect_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-scoped #8795 proof of the shared legacy Workload detection on Neo4j: the leftover with an own-repository twin is eligible, instance by edge and by workload_id property, no twin, a twin in another repository, a twin the repository does not define, DOCUMENTS and DEPENDS_ON edges are blocked with the right reason and per-type counts, a scoped node with a null generation_id and two scoped same-name nodes are never candidates, and the label-wide scan agrees with the id-anchored read; local run took 6 s on neo4j 2026.08.1; Neo4j is the only backend tested by owner direction"
+    backends: neo4j
   - file: go/internal/query/entity/context_anchor_census_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
@@ -102,6 +112,11 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/query/entity/service_story_legacy_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "deterministic nonce-scoped #8795 scenario A2 on Neo4j: a name-only leftover Workload next to its scoped twin makes the service story answer 409 by name and by name plus repo, only the leftover candidate carries legacy_id true, the shared detection finds one eligible node, the retirement delete statement removes only the leftover, and the same selectors then resolve to the scoped workload; Neo4j only by owner direction; local neo4j 2026.08.1 run on a fresh, empty database took 12.3 s under -race, most of it applying the schema"
+    backends: neo4j
   - file: go/internal/query/entity_name_cross_store_differential_live_test.go
     tag: live_global_name_comparison
     class: scheduled

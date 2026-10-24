@@ -92,7 +92,7 @@ const Investigations = `
       "get": {
         "tags": ["entities"],
         "summary": "Investigate service",
-        "description": "Returns a bounded service investigation packet with repositories considered, evidence coverage, findings, and recommended follow-up calls. An ambiguous selector answers 409 with error.code ambiguous; each candidate in error.details.candidates carries next_selector, the argument (service_id) and value to pass next.",
+        "description": "Returns a bounded service investigation packet with repositories considered, evidence coverage, findings, and recommended follow-up calls. An ambiguous selector answers 409 with error.code ambiguous; each candidate in error.details.candidates carries next_selector, the argument (service_id) and value to pass next. A candidate with legacy_id true is a leftover name-only workload from the identity change, not the live workload; choose a scoped candidate.",
         "operationId": "investigateService",
         "x-scoped-token-support": true,
         "parameters": [

@@ -3,6 +3,11 @@
 
 package chain
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8835 PostgreSQL runtime and suppression proof; four executable roots passed the fresh PostgreSQL 18.6 replay with their original assertions and no skips.
+//eshu:readiness:env ESHU_POSTGRES_TEST_DSN
+//eshu:readiness:helper go/internal/query/supply/chain/runtime_context_scope_live_test.go
+
 import (
 	"context"
 	"database/sql"
@@ -40,6 +45,7 @@ func TestSupplyChainImpactRuntimeFilterPlansLive(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
+	bootstrapRuntimeFilterSchema(t, ctx, db)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin transaction: %v", err)
@@ -343,7 +349,7 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"inventory_environment_high_cardinality",
-		impact.InventoryQuery("COALESCE(fact.payload->>'impact_status', 'unknown')"),
+		impact.InventoryQuery("COALESCE(NULLIF(fact.impact_status, ''), 'unknown')"),
 		highCardinalityInventoryArgs...,
 	)
 	if !strings.Contains(
@@ -401,6 +407,7 @@ FROM generate_series(1, 100000) AS sample`,
 			t.Fatalf("explain plan missing index %q:\n%s", wantIndex, explainPlan)
 		}
 	}
+	assertSupplyChainPaddedRuntimePlans(t, ctx, tx, baseFilter)
 }
 
 func withSupplyChainRuntimeFilterDimensions(
@@ -471,22 +478,6 @@ func supplyChainRuntimeFilterAggregateArgs(filter impact.AggregateFilter) []any 
 		filter.ImageRef,
 		array.Of(filter.AllowedRepositoryIDs),
 		array.Of(filter.AllowedScopeIDs),
-	}
-}
-
-func supplyChainRuntimeFilterExplainArgs(filter impact.ExplanationFilter) []any {
-	return []any{
-		impact.FindingFactKind,
-		filter.FindingID,
-		filter.AdvisoryID,
-		filter.CVEID,
-		filter.PackageID,
-		filter.RepositoryID,
-		filter.SubjectDigest,
-		filter.WorkloadID,
-		filter.ServiceID,
-		filter.ImageRef,
-		array.Of(filter.AllowedRepositoryIDs),
-		array.Of(filter.AllowedScopeIDs),
+		impact.SuppressionReadAt(nil),
 	}
 }

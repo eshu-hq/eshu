@@ -223,7 +223,9 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4]
     # Interim 30-minute leg budget (#7864): the ledger-selected suite grows
-    # with enrollment, so each leg runs one pinned quarter. Test walls alone
+    # with enrollment. Each leg starts with a pinned quarter; the complete
+    # admin package is assigned to shard 4 under #8835's measured rebalance.
+    # Test walls alone
     # predicted 12.6m, but real sharded runs showed the cold `go test` build
     # of the giant storage package costs ~9m on slow runners: leg 2/4 needed
     # 821s of suite for 249s of tests, and the heavy leg (impact plus the 53

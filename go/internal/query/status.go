@@ -54,7 +54,12 @@ var errIndexStatusRepositoryCountNoRow = errors.New("index status repository cou
 
 // StatusHandler provides HTTP endpoints for pipeline status queries.
 type StatusHandler struct {
-	Neo4j        GraphQuery
+	Neo4j GraphQuery
+	// GraphBackend names the configured graph backend. The hosted-readiness
+	// legacy workload check runs only on GraphBackendNeo4j, the backend it was
+	// tested on; on any other value (including the zero value) it reports
+	// unknown.
+	GraphBackend GraphBackend
 	DB           *sql.DB
 	StatusReader status.Reader
 	// Retirements reads the tombstone aggregate behind the index-status

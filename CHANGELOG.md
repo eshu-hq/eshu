@@ -88,6 +88,30 @@ recent shipped work grouped by feature area.
   surfaced as a later, unrelated error, or none. The snapshot now returns the
   discovery error itself.
 
+### Dockerfile base images read ARG defaults
+
+- **The Dockerfile parser now expands `ARG` defaults declared before the first
+  `FROM` into the base image and tag** ([#8810](https://github.com/eshu-hq/eshu/issues/8810)).
+  `ARG NODE_VERSION=24.1.0` with `FROM node:${NODE_VERSION}-slim` now reports
+  tag `24.1.0-slim` instead of the literal placeholder. A stage-local `ARG`,
+  an `ARG` with no default, and expressions such as `${V%%.*}` or
+  `${V:?msg}` stay unresolved: the stage keeps the placeholder, lists the
+  variable name in `base_ref_unresolved_args`, and the repository runtime
+  artifacts read model marks it with `base_ref_unresolved` and carries the
+  declared default as `base_ref_arg_defaults`. A construct with no variable
+  name (`$(cmd)`, a bare `$`, an unterminated `${`, or a reference over the
+  bounds) lists a fixed marker instead of the expression text. An unaliased stage that used a variable is
+  now named after its expanded image. The container image base-ref helper now
+  also skips a base whose tag still holds a placeholder. A resolved value is
+  the Dockerfile's own default: a CI `--build-arg` can override it at build
+  time, and the parser cannot see that. A reference over 4096 bytes, nested deeper
+  than 64 `${` levels, or expanding to more than 4096 bytes stays unresolved.
+  The default evidence is bounded as well: each `base_ref_arg_defaults` value
+  is cut to 256 bytes and a stage keeps at most 16, with
+  `base_ref_arg_defaults_truncated` and `base_ref_arg_defaults_omitted` marking
+  what was left out, so a Dockerfile with many long `ARG` defaults and many
+  `FROM` lines cannot multiply into a huge payload.
+
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 
 - **Code-topic shared-snapshot reads now refuse an unqualified PostgreSQL

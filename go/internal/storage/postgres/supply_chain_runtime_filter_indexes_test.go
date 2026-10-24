@@ -44,3 +44,38 @@ func TestSupplyChainRuntimeFilterIndexesStayInBootstrapAndMigration(t *testing.T
 		t.Fatal("runtime-filter migration must avoid blocking fact-record writes")
 	}
 }
+
+func TestSupplyChainRuntimeFilterNormalizedFallbackIndexesStayInBootstrapAndMigrations(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		migration string
+		index     string
+		key       string
+		kind      string
+	}{
+		{"212_supply_chain_identity_workload_trim_index.sql", "fact_records_workload_identity_workload_trim_idx", "BTRIM(payload->>'workload_id')", "reducer_workload_identity"},
+		{"213_supply_chain_identity_entity_trim_index.sql", "fact_records_workload_identity_entity_trim_idx", "ON fact_records (fact_id)", "reducer_workload_identity"},
+		{"214_supply_chain_catalog_workload_trim_index.sql", "fact_records_service_catalog_workload_trim_idx", "BTRIM(payload->>'workload_id')", "reducer_service_catalog_correlation"},
+		{"215_supply_chain_catalog_service_trim_index.sql", "fact_records_service_catalog_service_trim_idx", "BTRIM(payload->>'service_id')", "reducer_service_catalog_correlation"},
+		{"216_supply_chain_cicd_environment_trim_index.sql", "fact_records_ci_cd_environment_trim_idx", "BTRIM(payload->>'environment')", "reducer_ci_cd_run_correlation"},
+	} {
+		t.Run(tc.index, func(t *testing.T) {
+			contents, err := os.ReadFile("migrations/" + tc.migration)
+			if err != nil {
+				t.Fatalf("read migration %s: %v", tc.migration, err)
+			}
+			migration := string(contents)
+			for _, want := range []string{tc.index, tc.key, "fact_kind = '" + tc.kind + "'", "is_tombstone = FALSE"} {
+				if !strings.Contains(migration, want) {
+					t.Errorf("migration %s missing %q", tc.migration, want)
+				}
+				if !strings.Contains(factRecordSchemaSQL, want) {
+					t.Errorf("bootstrap schema missing %q for %s", want, tc.index)
+				}
+			}
+			if strings.Count(migration, "CREATE INDEX CONCURRENTLY IF NOT EXISTS") != 1 {
+				t.Errorf("migration %s must contain exactly one concurrent index build", tc.migration)
+			}
+		})
+	}
+}

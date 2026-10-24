@@ -46,14 +46,14 @@ var ddlParityDynamicDDL = map[string]string{
 		"itself before it applies any numbered migration, so the schema Job always has it (#7792)",
 	// #8880: the supply-chain impact anchors are generated from one Go table
 	// so the branch statements and the index predicates cannot disagree; the
-	// numbered migrations 212-224 hold the same text, which
+	// numbered migrations 217-229 hold the same text, which
 	// factimpact.TestNewIndexStatementsMatchMigrations pins byte for byte.
 	"internal/storage/postgres/facts/impact/indexes.go|NewIndexes|CREATE INDEX CONCURRENTLY IF NOT EXISTS": "generated #8880 " +
-		"index statements; migrations 212-224 carry them and TestNewIndexStatementsMatchMigrations pins the text",
+		"index statements; migrations 217-229 carry them and TestNewIndexStatementsMatchMigrations pins the text",
 	"internal/storage/postgres/facts/impact/indexes.go|keyIndex|CREATE INDEX CONCURRENTLY IF NOT EXISTS": "generated #8880 " +
-		"key-index statement builder; migrations 212-220 carry its output and TestNewIndexStatementsMatchMigrations pins it",
+		"key-index statement builder; migrations 217-225 carry its output and TestNewIndexStatementsMatchMigrations pins it",
 	"internal/storage/postgres/facts/impact/indexes.go|scanIndex|CREATE INDEX CONCURRENTLY IF NOT EXISTS": "generated #8880 " +
-		"kind-partial anchor builder; migrations 221-222 carry its output and TestNewIndexStatementsMatchMigrations pins it",
+		"kind-partial anchor builder; migrations 226-227 carry its output and TestNewIndexStatementsMatchMigrations pins it",
 }
 
 // TestDDLMigrationParity checks Go DDL in non-test files under

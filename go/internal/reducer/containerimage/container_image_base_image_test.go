@@ -93,6 +93,32 @@ func TestDockerfileRuntimeBaseImageRef(t *testing.T) {
 			wantOK: false,
 		},
 		{
+			name: "expanded ARG default tag is a literal reference",
+			stages: []map[string]any{
+				{
+					"stage_index":       0,
+					"base_image":        "node",
+					"base_tag":          "24.1.0-slim",
+					"base_ref_template": "node:${NODE_VERSION}-slim",
+				},
+			},
+			want:   "node:24.1.0-slim",
+			wantOK: true,
+		},
+		{
+			name: "unresolved ARG placeholder in the tag stays unresolved",
+			stages: []map[string]any{
+				{
+					"stage_index":              0,
+					"base_image":               "node",
+					"base_tag":                 "${NODE_VERSION}-slim",
+					"base_ref_template":        "node:${NODE_VERSION}-slim",
+					"base_ref_unresolved_args": []any{"NODE_VERSION"},
+				},
+			},
+			wantOK: false,
+		},
+		{
 			name: "final stage aliasing an ARG-parameterized stage stays unresolved",
 			stages: []map[string]any{
 				{

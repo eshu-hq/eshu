@@ -498,6 +498,11 @@ type Instruments struct {
 	// unique_by_name, ambiguous, miss). A rising ambiguous count means a
 	// collector must emit workload_repository_id.
 	WorkloadHandleResolutions metric.Int64Counter
+	// WorkloadLegacyRetirements counts name-only Workload nodes judged by an
+	// executed /admin/retire-legacy-workloads request (#8795), one point per
+	// node. Labels: outcome (bounded: deleted, blocked_has_instances,
+	// blocked_no_twin, blocked_relationships). Dry runs record nothing.
+	WorkloadLegacyRetirements metric.Int64Counter
 	// GitRepoSyncFailures counts per-repository git sync operations (clone,
 	// fetch, list_refs) that failed and were isolated to that one repository
 	// for the cycle rather than aborting collection for the rest of the fleet
@@ -3450,6 +3455,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WorkloadHandleResolutions counter: %w", err)
+	}
+
+	inst.WorkloadLegacyRetirements, err = meter.Int64Counter(
+		"eshu_dp_workload_legacy_retirements_total",
+		metric.WithDescription("Total name-only Workload nodes (pre-#5385 leftovers) judged by an executed legacy-workload retirement request, by bounded outcome (deleted, blocked_has_instances, blocked_no_twin, blocked_relationships); dry runs record nothing, and a blocked outcome means the node was kept (#8795)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkloadLegacyRetirements counter: %w", err)
 	}
 
 	inst.ReconciliationConvergence, err = meter.Int64Counter(

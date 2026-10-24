@@ -40,7 +40,9 @@
      the extracted Jira planner and root seam; preserve
      schedule/bootstrap/webhook trigger resolution and precedence, all-target
      validation, scope membership, privacy, configured order, and
-     site-partitioned fairness identity
+     site-partitioned fairness identity. `shouldScheduleJira` skips an instance
+     whose configuration is an `eshu.component.instance.v1` document (valid or
+     malformed): the generic component scheduler plans it, never both (#8907)
    - `go/internal/coordinator/scanner/worker/planner.go` and
      `service_scanner_worker.go` — the extracted scanner-worker planner and its
      root scheduling seam; runtime-local paths stay out of requested-scope
@@ -106,11 +108,12 @@
      `ParseConfig`), a dependency-neutral package below both root and the
      planner, landed as its own commit (2026-08-31) because
      `component_activation_config.go` (construction),
-     `component_extension_service.go` (eligibility), `pagerduty_service.go`
-     (PagerDuty exclusion), and `governance_audit.go` (audit identity) all
-     depend on the same parsing for reasons unrelated to component-extension
-     planning. Those four root files and the extension planner import
-     `activation`; `component_activation_config_test.go` is the sole
+     `component_extension_service.go` (eligibility, and the shared
+     `hasComponentActivationConfiguration` check that `pagerduty_service.go`
+     and `jira_service.go` use to exclude component-configured instances), and
+     `governance_audit.go` (audit identity) all depend on the same parsing for
+     reasons unrelated to component-extension planning. Those root files and
+     the extension planner import `activation`; `component_activation_config_test.go` is the sole
      test importer. The shared contract imports neither root nor a planner.
    - `go/internal/coordinator/cicd/run/planner.go` and
      `cicd_run_service.go` — the nested CI/CD run planner and its root

@@ -21,6 +21,9 @@ type AdminMuxConfig struct {
 	StatusHandler   http.Handler
 	MetricsHandler  http.Handler
 	RecoveryHandler *RecoveryHandler
+	// LegacyWorkloadRetirement mounts POST /admin/retire-legacy-workloads
+	// (#8795); only the reducer wires it.
+	LegacyWorkloadRetirement *LegacyWorkloadRetirementHandler
 }
 
 // NewAdminMux builds the shared probe and admin route contract for a runtime.
@@ -42,6 +45,9 @@ func NewAdminMux(cfg AdminMuxConfig) (*http.ServeMux, error) {
 	}
 	if cfg.RecoveryHandler != nil {
 		cfg.RecoveryHandler.Mount(mux)
+	}
+	if cfg.LegacyWorkloadRetirement != nil {
+		cfg.LegacyWorkloadRetirement.Mount(mux)
 	}
 
 	return mux, nil

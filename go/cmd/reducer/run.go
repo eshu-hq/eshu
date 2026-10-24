@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,12 +16,16 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/app"
 	"github.com/eshu-hq/eshu/go/internal/graph/anchor"
+	legacyworkload "github.com/eshu-hq/eshu/go/internal/graph/legacy/workload"
 	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/census"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/legacy/retire"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	auditstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -100,17 +105,23 @@ func run(parent context.Context) error {
 			},
 		)...,
 	)
+	graphBackend, err := runtimecfg.LoadGraphBackend(os.Getenv)
+	if err != nil {
+		return err
+	}
+	// POST /admin/retire-legacy-workloads (#8795): operator-driven retirement
+	// of pre-#5385 name-only Workload nodes, served on the admin listener.
+	legacyRetirement, err := legacyWorkloadRetirementHandler(cypherExecutor, neo4jReader, graphReader, graphBackend, db, instruments, logger)
+	if err != nil {
+		return err
+	}
 	service, err := app.NewHostedWithStatusServer(
 		"reducer",
 		serviceRunner,
 		statusReader,
 		runtimecfg.WithPrometheusHandler(providers.PrometheusHandler),
+		runtimecfg.WithLegacyWorkloadRetirement(legacyRetirement),
 	)
-	if err != nil {
-		return err
-	}
-
-	graphBackend, err := runtimecfg.LoadGraphBackend(os.Getenv)
 	if err != nil {
 		return err
 	}
@@ -192,4 +203,42 @@ func idAnchorCensusReader(raw node.CypherReader, decorated query.GraphQuery) anc
 		return decorated
 	}
 	return nil
+}
+
+// legacyWorkloadRetirementHandler builds the POST /admin/retire-legacy-workloads
+// handler for the reducer admin listener (#8795).
+//
+// Reads go through the raw session runner when it can serve rows: like the
+// id-anchor census this is an operator probe, and a recorded copy of it would
+// appear as a graph-specific statement in a differential capture. Dry runs
+// and execute are served only on Neo4j, the one backend the detection and the
+// retirement statement were tested on; on any other backend the route answers
+// 501 to both.
+func legacyWorkloadRetirementHandler(
+	cypherExec reducer.CypherExecutor,
+	rawReader node.CypherReader,
+	decorated query.GraphQuery,
+	backend runtimecfg.GraphBackend,
+	db *sql.DB,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (*runtimecfg.LegacyWorkloadRetirementHandler, error) {
+	reader, _ := rawReader.(legacyworkload.Reader)
+	if reader == nil && decorated != nil {
+		reader = decorated
+	}
+	writer, _ := cypherExec.(retire.Writer)
+	var audit retire.Auditor
+	if db != nil {
+		audit = auditstore.NewGovernanceAuditStore(postgres.SQLDB{DB: db})
+	}
+	runner := &retire.Runner{
+		Reader:           reader,
+		Writer:           writer,
+		BackendValidated: backend == runtimecfg.GraphBackendNeo4j,
+		Audit:            audit,
+		Instruments:      instruments,
+		Logger:           logger,
+	}
+	return runtimecfg.NewLegacyWorkloadRetirementHandler(runner)
 }

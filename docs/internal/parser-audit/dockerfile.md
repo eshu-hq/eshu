@@ -15,6 +15,7 @@ From `doc.go`, `README.md`, `metadata.go`:
 - **Legacy ENV key/value form**: `ENV KEY VALUE` (without =)
 - **FROM platform and registry port**: `FROM --platform=$BUILDPLATFORM registry.example.com:5000/team/base:1.2`
 - **Digest-based images**: `FROM alpine@sha256:abc123`
+- **FROM ARG substitution**: global ARG defaults expand into the base image and tag; unresolved references keep the placeholder with `base_ref_unresolved_args` (variable names, or a fixed marker for a construct with no name) (`base_ref_test.go`, `base_ref_nested_cost_test.go`)
 - **COPY --from**: extraction
 - **Map() compatibility bridge**: preserves legacy payload bucket names for query callers
 

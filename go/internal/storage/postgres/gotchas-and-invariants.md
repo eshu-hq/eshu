@@ -273,7 +273,7 @@ operational lessons that future storage changes still need to respect.
 
 - `ListActiveSupplyChainImpactFacts` resolves fact IDs once per call (#8880).
   `storage/postgres/facts/impact` generates every branch statement, its
-  anchor, the foreign-key guard, and migrations 212-224 from one table. Each
+  anchor, the foreign-key guard, and migrations 217-229 from one table. Each
   statement reads `fact_records` only in a MATERIALIZED candidate CTE through
   its anchor and applies the active-generation join once per distinct
   (scope, generation) pair: inlined, the planner misestimates that join at one

@@ -231,3 +231,22 @@ No-Observability-Change: these test-only helpers add no runtime stage or
 instrument. The handler's existing decision and retirement counters and reducer
 execution signals remain unchanged. Bootstrap failures are printed before the
 test binary exits nonzero.
+
+## Dockerfile base-ref placeholder guard (#8810)
+
+`dockerfileStageBaseRef` now also reports false when a stage's `base_tag`
+still holds a `$` placeholder, matching its existing check on `base_image`. The
+parser expands ARG defaults declared before the first `FROM` and leaves a
+reference unexpanded only when its value is known at build time, so a
+placeholder tag is no longer joined into a literal image reference.
+
+No-Regression Evidence: this is one extra `strings.Contains` on a short tag
+string per Dockerfile stage inside a pure in-process helper. It adds no query,
+lock, claim, lease, queue, batch, or concurrency change, and the helper still
+runs once per stage list. The new `container_image_base_image_test.go` cases
+cover an expanded tag (resolved) and a placeholder tag (unresolved) for the
+same stage shape; the whole package passes under `-race`.
+
+No-Observability-Change: the helper emits no metric of its own. Its decisions
+flow into the existing container-image identity decision counters and reducer
+execution signals, which are unchanged.

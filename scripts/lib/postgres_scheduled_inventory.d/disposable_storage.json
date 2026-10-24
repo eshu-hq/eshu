@@ -6,5 +6,12 @@
       "TestContentFileSecretLinesMigrationBackfillsAndReappliesLive",
       "TestContentFileSecretLinesRetentionPruneCascadesLive"
     ]
+  },
+  "go/internal/storage/postgres/supply_chain_runtime_filter_index_restart_live_test.go": {
+    "group": "disposable_storage",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSupplyChainRuntimeFallbackIndexRestartSafetyLive"
+    ]
   }
 }

@@ -17,7 +17,7 @@ this note records the census, the index decisions, and the proof.
 
 The catalog lives in `go/internal/storage/postgres/facts/impact`. One Go table
 generates every statement, its anchor, the foreign-key guard, and the text of
-migrations 212 to 224.
+migrations 217 to 229.
 
 Each branch statement has three MATERIALIZED steps:
 
@@ -114,20 +114,20 @@ its census figure.
 
 | Index | Migration | Decision | Reason |
 | --- | --- | --- | --- |
-| affected_product criteria | 212 | added | growth; existing lookup leads on cve_id |
-| package_id over alert, package_version, hint, sbom.component | 213 | added | growth; no package_id-leading index for these kinds |
-| package_version purl | 214 | added | growth; no purl-leading index for the kind |
-| security_alert cve_id | 215 | added | growth; the v2 cve index covers vulnerability kinds only |
-| vulnerability_hint advisory_id | 216 | added | growth; the v2 advisory index covers vulnerability kinds only |
-| OCI manifest and index digest | 217 | added | growth; the refs indexes require source_system, which the read does not state |
-| OCI tag resolved_digest | 218 | added | growth; no leading index |
-| OCI referrer referrer_digest | 219 | added | growth; the referrer index leads on subject_digest |
-| ci_cd and consumption payload scope_id | 220 | added | growth; payload scope_id is a repository arm with no leading index |
+| affected_product criteria | 217 | added | growth; existing lookup leads on cve_id |
+| package_id over alert, package_version, hint, sbom.component | 218 | added | growth; no package_id-leading index for these kinds |
+| package_version purl | 219 | added | growth; no purl-leading index for the kind |
+| security_alert cve_id | 220 | added | growth; the v2 cve index covers vulnerability kinds only |
+| vulnerability_hint advisory_id | 221 | added | growth; the v2 advisory index covers vulnerability kinds only |
+| OCI manifest and index digest | 222 | added | growth; the refs indexes require source_system, which the read does not state |
+| OCI tag resolved_digest | 223 | added | growth; no leading index |
+| OCI referrer referrer_digest | 224 | added | growth; the referrer index leads on subject_digest |
+| ci_cd and consumption payload scope_id | 225 | added | growth; payload scope_id is a repository arm with no leading index |
 | ci_cd and consumption scope-leading anchor | none | dropped (Addendum B) | `fact_records_scope_generation_idx` bounds scope_id, generation_id, and fact_kind as Index Cond: 15/21 buffers without it, 14/14 with it |
-| suppression active scan | 221 | added | bounded; no index named the kind |
-| platform materialization active scan | 222 | added | bounded; no index named the kind |
-| JS/TS file repo_id | 223 | added | file; serves both file branches without a detoast per non-JS/TS file |
-| foreign-key guard | 224 | added | makes omitted cells exact by construction; expected empty |
+| suppression active scan | 226 | added | bounded; no index named the kind |
+| platform materialization active scan | 227 | added | bounded; no index named the kind |
+| JS/TS file repo_id | 228 | added | file; serves both file branches without a detoast per non-JS/TS file |
+| foreign-key guard | 229 | added | makes omitted cells exact by construction; expected empty |
 | six lower(btrim) suppression scope indexes | none | skipped | census: 0 suppressions; the bounded-class full filter reads every suppression row once per call |
 | consumption package_id and repository_id | none | skipped | `fact_records_package_correlations_v2_lookup_idx` and `..._v2_repository_lookup_idx` are partial on a kind set that includes it |
 
@@ -147,33 +147,33 @@ logs those figures. Rolling the indexes out is covered in Deployment below.
 
 ## Deployment
 
-Migrations 212 to 224 are 13 `CREATE INDEX CONCURRENTLY` builds on
+Migrations 217 to 229 are 13 `CREATE INDEX CONCURRENTLY` builds on
 `fact_records`, applied one after another by the schema Job. Each build
-takes no write lock but scans the table twice. The predicates of 223 (JS/TS
-language) and 224 (the guard's `payload ?|`) read every `file` row's
+takes no write lock but scans the table twice. The predicates of 228 (JS/TS
+language) and 229 (the guard's `payload ?|`) read every `file` row's
 payload, so those two builds detoast every file payload on each scan. The
 issue sizes the hosted table at 4.64 million heap and 2.34 million TOAST
 blocks (70 GB with indexes).
 
 | Migration | Index | Fixture rebuild with `ANALYZE` | Fixture size |
 | --- | --- | ---: | ---: |
-| 212 | affected_product criteria | 2.02 s | 672 KB |
-| 213 | package_id | 2.10 s | 2.5 MB |
-| 214 | package_version purl | 2.10 s | 672 KB |
-| 215 | security_alert cve_id | 2.01 s | 672 KB |
-| 216 | vulnerability_hint advisory_id | 2.00 s | 728 KB |
-| 217 | OCI digest | 2.30 s | 1.2 MB |
-| 218 | OCI tag resolved_digest | 2.20 s | 728 KB |
-| 219 | OCI referrer_digest | 2.02 s | 672 KB |
-| 220 | payload scope_id | 2.08 s | 1.4 MB |
-| 221 | suppression active scan | 2.08 s | 432 KB |
-| 222 | platform active scan | 2.05 s | 472 KB |
-| 223 | JS/TS file repo_id | 2.07 s | 360 KB |
-| 224 | foreign-key guard | 2.08 s | 16 KB |
+| 217 | affected_product criteria | 2.02 s | 672 KB |
+| 218 | package_id | 2.10 s | 2.5 MB |
+| 219 | package_version purl | 2.10 s | 672 KB |
+| 220 | security_alert cve_id | 2.01 s | 672 KB |
+| 221 | vulnerability_hint advisory_id | 2.00 s | 728 KB |
+| 222 | OCI digest | 2.30 s | 1.2 MB |
+| 223 | OCI tag resolved_digest | 2.20 s | 728 KB |
+| 224 | OCI referrer_digest | 2.02 s | 672 KB |
+| 225 | payload scope_id | 2.08 s | 1.4 MB |
+| 226 | suppression active scan | 2.08 s | 432 KB |
+| 227 | platform active scan | 2.05 s | 472 KB |
+| 228 | JS/TS file repo_id | 2.07 s | 360 KB |
+| 229 | foreign-key guard | 2.08 s | 16 KB |
 
 The fixture is the plan proof's database: about 95,000 rows, 12,000 of them
 TOASTed files. Most of each rebuild time is the `ANALYZE`. Hosted build time
-and size are NOT_CHECKED. Plan for 223 and 224 to be the longest, because
+and size are NOT_CHECKED. Plan for 228 and 229 to be the longest, because
 they detoast every file payload.
 
 Before the rollout:
@@ -213,7 +213,7 @@ If new reducer code runs before all 13 indexes are valid, the loader still
 returns the same rows. No statement depends on an index existing, and the
 planner ignores an invalid index. It is only slower: a branch whose anchor
 is missing plans on another index or scans the kind (the RED column of the
-plan table in Proof). Missing 224 costs the most. The guard statement then
+plan table in Proof). Missing 229 costs the most. The guard statement then
 reads `fact_records` with a sequential scan once per call (fixture 47,251
 buffers against 14) until the build is valid. That is one full-table pass per call, where the
 pre-#8880 statement paid one per page. Roll the reducer image after the
@@ -239,7 +239,7 @@ Hosted: the shim measured the same npm filter at 13,887,269 buffers for the
 retired statement and 105,161 for candidate statements on existing indexes
 only, with the same 267 fact IDs (ledger:8880-hosted-npm-baseline-generic-buffers,
 ledger:8880-hosted-npm-candidate-buffers). The shipped loader with migrations
-212 to 224 has not been measured on the hosted corpus (NOT_CHECKED), and
+217 to 229 has not been measured on the hosted corpus (NOT_CHECKED), and
 neither has the KEV 100x bar or the 50 ms warm KEV call
 (ledger:8880-hosted-kev-baseline-generic-buffers is the baseline page). On
 the fixture, the per-candidate cost that bar depends on is 0.23 buffers per
@@ -372,6 +372,6 @@ go test ./internal/storage/postgres/facts/impact ./internal/storage/postgres ./i
 - The shipped loader on the hosted corpus, including the KEV 100x bar and
   the 50 ms warm KEV call.
 - The custom-plan shape behind the 18 s hosted figure.
-- Hosted index sizes and build times for migrations 212 to 224.
+- Hosted index sizes and build times for migrations 217 to 229.
 - Whether `package_manifest_consumption_keys` could anchor consumption
   (not needed: existing correlation indexes serve it).

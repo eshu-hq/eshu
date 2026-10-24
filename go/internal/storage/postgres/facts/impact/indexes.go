@@ -17,7 +17,7 @@ type Index struct {
 }
 
 // Index names the catalog anchors on. Existing indexes are named where a
-// branch plans on them; new ones are created by migrations 212 to 224.
+// branch plans on them; new ones are created by migrations 217 to 229.
 const (
 	IndexVulnerabilityCVEV2                = "fact_records_vulnerability_active_cve_lookup_v2_idx"
 	IndexVulnerabilityAdvisoryV2           = "fact_records_vulnerability_active_advisory_lookup_v2_idx"
@@ -88,62 +88,62 @@ func unqualified(expression string) string {
 func NewIndexes() []Index {
 	return []Index{
 		{
-			IndexAffectedProductCriteria, "212_fact_records_vulnerability_affected_product_criteria_idx.sql",
+			IndexAffectedProductCriteria, "217_fact_records_vulnerability_affected_product_criteria_idx.sql",
 			keyIndex(IndexAffectedProductCriteria, "criteria", []string{KindAffectedProduct}),
 			"affected_product (growth) carries criteria; the existing lookup index leads on cve_id",
 		},
 		{
-			IndexPackageID, "213_fact_records_supply_chain_impact_package_id_idx.sql",
+			IndexPackageID, "218_fact_records_supply_chain_impact_package_id_idx.sql",
 			keyIndex(IndexPackageID, "package_id", packageIDKinds()),
 			"security_alert, package_version, vulnerability_hint, and sbom.component (growth) carry package_id with no package_id-leading index",
 		},
 		{
-			IndexPackageVersionPURL, "214_fact_records_package_version_purl_idx.sql",
+			IndexPackageVersionPURL, "219_fact_records_package_version_purl_idx.sql",
 			keyIndex(IndexPackageVersionPURL, "purl", []string{KindPackageVersion}),
 			"package_version (growth) carries purl with no purl-leading index",
 		},
 		{
-			IndexSecurityAlertCVEID, "215_fact_records_security_alert_cve_id_idx.sql",
+			IndexSecurityAlertCVEID, "220_fact_records_security_alert_cve_id_idx.sql",
 			keyIndex(IndexSecurityAlertCVEID, "cve_id", []string{KindSecurityAlert}),
 			"security_alert (growth) carries cve_id; the v2 cve index covers vulnerability kinds only",
 		},
 		{
-			IndexVulnerabilityHintAdvisory, "216_fact_records_vulnerability_hint_advisory_id_idx.sql",
+			IndexVulnerabilityHintAdvisory, "221_fact_records_vulnerability_hint_advisory_id_idx.sql",
 			keyIndex(IndexVulnerabilityHintAdvisory, "advisory_id", []string{KindVulnerabilityHint}),
 			"vulnerability_hint (growth) carries advisory_id; the v2 advisory index covers vulnerability kinds only",
 		},
 		{
-			IndexOCIImageDigest, "217_fact_records_oci_image_digest_idx.sql",
+			IndexOCIImageDigest, "222_fact_records_oci_image_digest_idx.sql",
 			keyIndex(IndexOCIImageDigest, "digest", []string{KindOCIImageManifest, KindOCIImageIndex}),
 			"OCI manifests and indexes (growth) carry digest; the refs indexes need source_system, which the read does not state",
 		},
 		{
-			IndexOCITagResolvedDigest, "218_fact_records_oci_tag_resolved_digest_idx.sql",
+			IndexOCITagResolvedDigest, "223_fact_records_oci_tag_resolved_digest_idx.sql",
 			keyIndex(IndexOCITagResolvedDigest, "resolved_digest", []string{KindOCIImageTagObservation}),
 			"OCI tag observations (growth) carry resolved_digest with no resolved_digest-leading index",
 		},
 		{
-			IndexOCIReferrerDigest, "219_fact_records_oci_referrer_digest_idx.sql",
+			IndexOCIReferrerDigest, "224_fact_records_oci_referrer_digest_idx.sql",
 			keyIndex(IndexOCIReferrerDigest, "referrer_digest", []string{KindOCIImageReferrer}),
 			"OCI referrers (growth) carry referrer_digest; the existing referrer index leads on subject_digest",
 		},
 		{
-			IndexRepositoryPayloadScopeID, "220_fact_records_supply_chain_impact_payload_scope_id_idx.sql",
+			IndexRepositoryPayloadScopeID, "225_fact_records_supply_chain_impact_payload_scope_id_idx.sql",
 			keyIndex(IndexRepositoryPayloadScopeID, "scope_id", repositoryGrowthKinds()),
 			"ci_cd and consumption correlations (growth) carry payload scope_id, a repository arm, with no scope_id-leading payload index",
 		},
 		{
-			IndexSuppressionActiveScan, "221_fact_records_vulnerability_suppression_active_scan_idx.sql",
+			IndexSuppressionActiveScan, "226_fact_records_vulnerability_suppression_active_scan_idx.sql",
 			scanIndex(IndexSuppressionActiveScan, []string{KindSuppression}),
 			"suppressions (bounded) are read by one full-filter statement; no index names the kind",
 		},
 		{
-			IndexPlatformActiveScan, "222_fact_records_platform_materialization_active_scan_idx.sql",
+			IndexPlatformActiveScan, "227_fact_records_platform_materialization_active_scan_idx.sql",
 			scanIndex(IndexPlatformActiveScan, []string{KindPlatformMaterialized}),
 			"platform materializations (bounded) are read by one full-filter statement; no index names the kind",
 		},
 		{
-			IndexJSTSReachabilityRepoFile, "223_fact_records_jsts_reachability_repo_file_idx.sql",
+			IndexJSTSReachabilityRepoFile, "228_fact_records_jsts_reachability_repo_file_idx.sql",
 			"CREATE INDEX CONCURRENTLY IF NOT EXISTS " + IndexJSTSReachabilityRepoFile + "\n" +
 				"    ON fact_records ((payload->>'repo_id'), scope_id, generation_id, fact_id)\n" +
 				"    WHERE fact_kind = 'file'\n" +
@@ -152,7 +152,7 @@ func NewIndexes() []Index {
 			"the npm reachability file branch probes JS/TS files by repo_id without detoasting every file of the repository",
 		},
 		{
-			IndexSupplyChainImpactKeyGuard, "224_fact_records_supply_chain_impact_foreign_key_guard_idx.sql",
+			IndexSupplyChainImpactKeyGuard, "229_fact_records_supply_chain_impact_foreign_key_guard_idx.sql",
 			"CREATE INDEX CONCURRENTLY IF NOT EXISTS " + IndexSupplyChainImpactKeyGuard + "\n" +
 				"    ON fact_records (fact_kind, scope_id, generation_id, fact_id)\n" +
 				"    WHERE is_tombstone = FALSE\n" +

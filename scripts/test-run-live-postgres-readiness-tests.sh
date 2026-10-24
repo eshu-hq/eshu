@@ -393,6 +393,7 @@ tree="${seed_dir}/tree"
 mkdir -p "${tree}/scripts/lib" "${tree}/specs"
 cp "${runner}" "${tree}/scripts/"
 cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${tree}/scripts/lib/"
+cp "${repo_root}/scripts/lib/live_postgres_readiness_gen_scan.py" "${tree}/scripts/lib/"
 cp "${repo_root}/scripts/lib/live_tests_registry.py" "${tree}/scripts/lib/"
 # The inventory is generated per package (one TABLE module each) plus the
 # PACKAGES assembler, the helper pins, and the env lists, so the throwaway

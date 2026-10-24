@@ -3,11 +3,10 @@
 
 The full plan is the flat ``package|test`` list derived from the
 list-packages TSV shared by runner and aggregate (the same inventory
-``live_postgres_readiness_records`` owns). Shards are contiguous quarters in
-canonical inventory order, so newly enrolled tests stay covered without a
-rebalance edit. Each shard report is checked against that same canonical
-input, and the aggregate requires the four reports' exact union to be the
-full plan.
+``live_postgres_readiness_records`` owns). Shards start as contiguous quarters
+in canonical inventory order; the complete admin package runs on shard 4.
+Each shard report is checked against that same canonical input, and the
+aggregate requires the four reports' exact union to be the full plan.
 """
 
 from __future__ import annotations
@@ -27,6 +26,7 @@ from live_postgres_readiness_records import package_records  # noqa: E402
 
 
 SHARDS = ("1/4", "2/4", "3/4", "4/4")
+ADMIN_PACKAGE = "./internal/query/admin"
 ARTIFACT_RE = re.compile(r"^readiness-shard-\d+-(\d+)-[1-4]$")
 TEST_RE = re.compile(r"^Test[A-Za-z0-9_]+$")
 RUN_RE = re.compile(r"^\./[A-Za-z0-9_./-]+\|Test[A-Za-z0-9_]+$")
@@ -95,7 +95,7 @@ def expand_tsv(rows: list[str]) -> list[str]:
 
 
 def partition_runs(runs: list[str], shard: str) -> list[str]:
-    """Select a pinned contiguous quarter, preserving canonical order.
+    """Select a pinned quarter with the complete admin package on shard 4.
 
     Args:
         runs: Full flat ``package|test`` plan lines.
@@ -115,6 +115,14 @@ def partition_runs(runs: list[str], shard: str) -> list[str]:
     width = math.ceil(len(runs) / len(SHARDS))
     index = SHARDS.index(shard)
     selected = runs[index * width:(index + 1) * width]
+    if shard == "4/4":
+        assigned = set(selected)
+        assigned.update(line for line in runs
+                        if line.partition("|")[0] == ADMIN_PACKAGE)
+        selected = [line for line in runs if line in assigned]
+    else:
+        selected = [line for line in selected
+                    if line.partition("|")[0] != ADMIN_PACKAGE]
     if not selected:
         raise ValueError(f"shard {shard} has no planned runs")
     return selected

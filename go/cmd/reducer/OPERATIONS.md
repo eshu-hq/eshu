@@ -95,3 +95,16 @@ operator-facing signals, scaling guidance, and runtime invariants for the
   differences belong in `storage/cypher` narrow seams only.
 - Handlers depend on `graph_projection_phase_state` rows published by the
   projector; missing phase publications cause edge domains to block.
+
+## Retiring leftover name-only Workload nodes
+
+The admin listener serves `POST /admin/retire-legacy-workloads` (#8795), wired in
+`run.go` (`legacyWorkloadRetirementHandler`) from the retrying Cypher executor
+(`ExecuteCypherCountingNodeDeletes`), the raw session reader, and the governance
+audit store. It is validated on Neo4j only: on any other graph backend it
+answers 501 to dry runs and execute alike. If the Cypher executor does not
+offer `ExecuteCypherCountingNodeDeletes`, execute answers 503 and dry runs
+still read. Send execute requests to one reducer
+pod, in a quiet window; the in-process mutex does not span replicas. Nothing in
+the queue path calls it. See
+`docs/public/operate/legacy-workload-retirement-runbook.md`.
