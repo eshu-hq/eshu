@@ -314,8 +314,8 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	"fact_records_platform_materialization_active_scan_idx",
 	"fact_records_jsts_reachability_repo_file_idx",
 	"fact_records_supply_chain_impact_foreign_key_guard_idx",
-	// Migration 230 (#8840) adds the latest-work-item-per-scope index the
+	// Migration 231 (#8840) adds the partial latest-work-item-per-scope index the
 	// security-alert collection-state read probes per target. Migration-only
 	// and built CONCURRENTLY, like migrations 156 and 211.
-	"workflow_work_items_collector_scope_updated_idx",
+	"workflow_work_items_security_alert_scope_updated_idx",
 }

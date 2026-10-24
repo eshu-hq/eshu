@@ -40,11 +40,13 @@ LIMIT $1`
 // security_alert work item and whether any committed generation exists.
 //
 // The latest work item is found by an index-only probe of
-// workflow_work_items_collector_scope_updated_idx (migration 230:
-// collector_kind, scope_id, updated_at DESC, work_item_id ASC), whose key
-// matches the lateral's ORDER BY, so it reads one entry per target however
-// long the target's history is. A primary-key fetch then reads that one row.
-// Before migration 230 the lateral scanned and top-1 sorted the target's whole
+// workflow_work_items_security_alert_scope_updated_idx (migration 231:
+// scope_id, updated_at DESC, work_item_id ASC, partial on collector_kind =
+// 'security_alert'), whose key matches the lateral's ORDER BY, so it reads one
+// entry per target however long the target's history is. A primary-key fetch
+// then reads that one row. Keep the collector_kind literal: the partial index
+// is only usable because the planner can prove it from this predicate.
+// Before migration 231 the lateral scanned and top-1 sorted the target's whole
 // history on workflow_work_items_collector_scope_generation_updated_idx, where
 // generation_id (a hash) sits before updated_at. The committed generation
 // check is an index-only EXISTS on scope_generations_scope_idx.

@@ -125,9 +125,10 @@ import (
 // #8835 adds the five unshipped supply runtime fallback indexes as 212–216.
 // #8880 adds 217-229, the supply-chain impact active-evidence anchors
 // (one CREATE INDEX CONCURRENTLY per file).
-// #8840 adds 230_workflow_work_items_collector_scope_updated_idx.sql (the
-// latest-work-item-per-scope index for the security-alert collection read).
-const goldenBootstrapDefinitionsDigest = "78d17c155d4cc8acfaca7cd4ad2b58c160e5cb1f8d73d6ec0c9958d5981aa1dc"
+// #8840 adds 231_workflow_work_items_security_alert_scope_updated_idx.sql (the
+// partial latest-work-item-per-scope index for the security-alert collection
+// read; 230 is left to #9015, and whichever PR merges second renumbers).
+const goldenBootstrapDefinitionsDigest = "e8c8f0c8282b4075b3a93e5cb4b21e1edfd503fd0afbf5172aea0a6012da90d5"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

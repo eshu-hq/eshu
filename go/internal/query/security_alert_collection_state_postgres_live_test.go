@@ -4,7 +4,7 @@
 package query
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped schema: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read as an index-only probe of workflow_work_items_collector_scope_updated_idx (#8840) with no sort over a 20,000-item history, and it returns the same rows as the pre-#8840 plan forced by dropping the index in a rolled-back transaction, including updated_at ties; isolated bootstrapped schema per test; wall time and plan timing are logged, not gated
+//eshu:readiness:reason #8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped schema: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read as an index-only probe of workflow_work_items_security_alert_scope_updated_idx (#8840) with no sort over a 20,000-item history, and it returns the same rows as the pre-#8840 plan forced by dropping the index in a rolled-back transaction, including updated_at ties; isolated bootstrapped schema per test; wall time and plan timing are logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -188,7 +188,7 @@ func TestSecurityAlertCollectionStateBoundsLive(t *testing.T) {
 // TestSecurityAlertCollectionStatePlanLive seeds 50 targets with 2,000
 // security_alert work items each, one long-history target with 20,000, ties on
 // updated_at, and unrelated git history. It asserts the lateral latest-item
-// read is an index probe on workflow_work_items_collector_scope_updated_idx
+// read is an index probe on workflow_work_items_security_alert_scope_updated_idx
 // (#8840) with no sort over the target's history, and that it returns the same
 // rows as the pre-#8840 plan, which is forced inside a rolled-back transaction
 // that drops the index. Plan timing and buffers are logged, not gated.
@@ -293,9 +293,9 @@ func securityAlertTargetStatesWithoutIndex(f *collectionStateLiveFixture, scopeI
 	return states
 }
 
-// securityAlertLatestWorkItemIndex is the migration 230 index the lateral
+// securityAlertLatestWorkItemIndex is the migration 231 partial index the lateral
 // latest-item read must probe.
-const securityAlertLatestWorkItemIndex = "workflow_work_items_collector_scope_updated_idx"
+const securityAlertLatestWorkItemIndex = "workflow_work_items_security_alert_scope_updated_idx"
 
 func explainSecurityAlertTargetStates(f *collectionStateLiveFixture, scopeIDs []string) string {
 	f.t.Helper()

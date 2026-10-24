@@ -10,19 +10,20 @@
 -- target's history. This index matches the read's ORDER BY, so the lateral
 -- becomes an index-only probe that reads one entry per target.
 --
--- On PostgreSQL 18.6 with 561,120 work items, one target holding 120,000
--- security_alert items, the anchored read took 26.6 ms and 5,038 buffers
--- before VACUUM and 16.7 ms and 2,164 buffers after it; with this index it
--- took 0.032 ms and 10 buffers either way. Fifty targets went from 94.1 ms
--- (11,306 buffers) before VACUUM to 0.66 ms (415 buffers). The concurrent
--- build on that table took 0.5 s and the index is 36 MB. See
--- docs/internal/evidence/8840-security-alert-latest-work-item-index.md.
+-- It is partial on collector_kind = 'security_alert', which the read states
+-- as a literal. The work-item retention prune's "newer row" probe matches
+-- collector_kind against the outer row, so the planner cannot prove this
+-- predicate there and keeps the prune on its existing plan. A full
+-- (collector_kind, scope_id, updated_at DESC) key made the prune walk every
+-- newer row whose status differed: 274 ms to 2,077 ms per 2,000-row batch on
+-- a seed where each target failed for its older half and then recovered.
+-- Only security_alert rows pay the extra B-tree entry on insert and update.
 --
--- Write tax: one more B-tree entry for every inserted work item and every
--- non-HOT update. Work-item updates are already non-HOT, because
--- workflow_work_items_claimable_idx carries status, visible_at, and
--- updated_at. The evidence note records the measured WAL cost per
--- insert-claim-complete cycle.
+-- On PostgreSQL 18.6 with 561,120 work items, one target holding 120,000
+-- security_alert items, the anchored read went from a scan and top-N sort of
+-- the target's history (tens of milliseconds, thousands of buffers) to an
+-- index-only probe of about 10 buffers. See
+-- docs/internal/evidence/8840-security-alert-latest-work-item-index.md.
 --
 -- Migration-only, like migrations 156 and 211: a plain twin in the workflow
 -- control bootstrap SQL would lock the hot queue table at coordinator start,
@@ -32,5 +33,6 @@
 -- concurrent definition in autocommit mode without the bootstrap
 -- lock_timeout (#7004), and it drops an invalid same-name index before it
 -- retries a failed build.
-CREATE INDEX CONCURRENTLY IF NOT EXISTS workflow_work_items_collector_scope_updated_idx
-    ON workflow_work_items (collector_kind, scope_id, updated_at DESC, work_item_id ASC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS workflow_work_items_security_alert_scope_updated_idx
+    ON workflow_work_items (scope_id, updated_at DESC, work_item_id ASC)
+    WHERE collector_kind = 'security_alert';
