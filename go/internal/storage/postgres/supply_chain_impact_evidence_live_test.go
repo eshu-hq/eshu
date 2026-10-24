@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -139,7 +140,13 @@ func TestSupplyChainImpactActiveEvidenceBufferBudgetLive(t *testing.T) {
 			},
 			minRatio: 100,
 		},
-		{name: "kev cve list", filter: supplychaincore.SupplyChainImpactFactFilter{CVEIDs: kevCVEs}, minRatio: 1},
+		// The fixture's non-file corpus is small, so the retired statement's
+		// KEV pages are cheap here (the hosted 100x bar is measured on the
+		// replica, docs/internal/evidence/8880-*.md). 10x still fails a loader
+		// that joins the active generation once per candidate row (2.0x on
+		// this fixture before the active CTE).
+		{name: "kev cve list", filter: supplychaincore.SupplyChainImpactFactFilter{CVEIDs: kevCVEs}, minRatio: 10},
+		{name: "kev pass with no matching cve", filter: supplychaincore.SupplyChainImpactFactFilter{CVEIDs: []string{"CVE-2026-99999"}}, minRatio: 10},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			want, oracleStatements := walkSupplyChainImpactRetiredOracle(t, ctx, database, tc.filter)
@@ -151,11 +158,14 @@ func TestSupplyChainImpactActiveEvidenceBufferBudgetLive(t *testing.T) {
 			}
 			for _, mode := range []string{"force_generic_plan", "force_custom_plan"} {
 				baseline, _ := supplyChainImpactStatementBuffers(t, ctx, database, oracleStatements, mode)
-				candidate, _ := supplyChainImpactStatementBuffers(t, ctx, database, productionStatements, mode)
+				candidate, replays := supplyChainImpactStatementBuffers(t, ctx, database, productionStatements, mode)
 				t.Logf("%s %s: rows=%d baseline buffers=%d over %d statements, production buffers=%d over %d statements (%.1fx), production call %s",
 					tc.name, mode, len(got.Rows), baseline, len(oracleStatements), candidate, len(productionStatements),
 					float64(baseline)/float64(max(candidate, 1)), callElapsed.Round(time.Microsecond))
 				if candidate*tc.minRatio > baseline {
+					for _, replay := range supplyChainImpactHeaviestReplays(replays, 3) {
+						t.Logf("heavy statement: %d buffers\n%s\nplan:\n%s", replay.Buffers, replay.Query, supplyChainImpactPlanSummary(t, replay.Plan))
+					}
 					t.Errorf("%s: production buffers %d x %d > baseline %d: a branch still walks the active corpus instead of probing its anchor",
 						mode, candidate, tc.minRatio, baseline)
 				}
@@ -213,6 +223,13 @@ $function$;`); err != nil {
 		t.Fatalf("install identity stub: %v", err)
 	}
 	return ctx, database
+}
+
+// supplyChainImpactHeaviestReplays returns the n replays with most buffers.
+func supplyChainImpactHeaviestReplays(replays []supplyChainImpactReplay, n int) []supplyChainImpactReplay {
+	sorted := append([]supplyChainImpactReplay(nil), replays...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Buffers > sorted[j].Buffers })
+	return sorted[:min(n, len(sorted))]
 }
 
 // supplyChainImpactLineDiff prints the first divergence and both lengths.

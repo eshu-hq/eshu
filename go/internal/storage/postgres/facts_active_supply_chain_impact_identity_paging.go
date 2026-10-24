@@ -4,355 +4,221 @@
 package postgres
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
+
+	"go.opentelemetry.io/otel/metric"
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const supplyChainImpactContainerImageIdentityFactKind = "reducer_container_image_identity"
 
-// listActiveSupplyChainImpactFactPagesQuery gives the legacy and canonical
-// identity streams independent cursors and limits while retaining one
-// statement snapshot and one database round trip per page pair. The private
-// rank and ordinal columns make the stream contract explicit to the Go loader;
-// they never escape the storage boundary.
-const listActiveSupplyChainImpactFactPagesQuery = `
-WITH legacy_page AS MATERIALIZED (
-` + listActiveSupplyChainImpactFactsQuery + `
-),
-legacy_numbered AS MATERIALIZED (
-    SELECT
-        CASE WHEN fact.fact_kind = 'vulnerability.suppression' THEN 2 ELSE 0 END AS stream_rank,
-        row_number() OVER (
-            PARTITION BY (fact.fact_kind = 'vulnerability.suppression')
-            ORDER BY convert_to(fact.fact_id, 'UTF8')
-        ) AS stream_ordinal,
-        fact.*
-    FROM legacy_page AS fact
-),
-tagged AS (
-    SELECT
-        legacy.stream_rank,
-        legacy.stream_ordinal,
-        legacy.fact_id, legacy.scope_id, legacy.generation_id, legacy.fact_kind,
-        legacy.stable_fact_key, legacy.schema_version, legacy.collector_kind,
-        legacy.fencing_token, legacy.source_confidence, legacy.source_system,
-        legacy.source_fact_key, legacy.source_uri, legacy.source_record_id,
-        legacy.observed_at, legacy.is_tombstone, legacy.payload
-    FROM legacy_numbered AS legacy
-    UNION ALL
-    SELECT
-        1 AS stream_rank,
-        fact.ordinality AS stream_ordinal,
-        fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind,
-        fact.stable_fact_key, fact.schema_version, fact.collector_kind,
-        fact.fencing_token, fact.source_confidence, fact.source_system,
-        fact.source_fact_key, fact.source_uri, fact.source_record_id,
-        fact.observed_at, fact.is_tombstone, fact.payload
-    FROM container_image_identity_current_support_facts_for(
-        $5::text[], $9::text[], $8::text[], $8::text[], $8::text[],
-        $20::text, $21::integer
-    ) WITH ORDINALITY AS fact
-)
-SELECT
-    stream_rank, stream_ordinal,
-    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
-    schema_version, collector_kind, fencing_token, source_confidence,
-    source_system, source_fact_key, source_uri, source_record_id,
-    observed_at, is_tombstone, payload
-FROM tagged
-ORDER BY stream_rank, stream_ordinal
-`
-
-type supplyChainImpactPagingState struct {
-	coreFacts        []facts.Envelope
-	identityFacts    []facts.Envelope
-	suppressionFacts []facts.Envelope
-	seenFactIDs      map[string]struct{}
-
-	legacyCursorFactID        string
-	legacyCursorIsSuppression bool
-	identityCursorFactID      string
-	identityCursor            *containerImageIdentitySupportCursor
-	legacyDone                bool
-	identityDone              bool
-	suppressionLoaded         int
-	suppressionTruncated      bool
-}
-
-// ListActiveSupplyChainImpactFacts loads active package, SBOM, image, and
-// risk evidence for one bounded supply-chain impact reducer intent. The bool
-// reports whether the suppression tail was truncated. Core and canonical
-// identity evidence use independent keyset cursors, so neither stream can
-// skip prefix-related FactIDs encoded in the other stream's ordering domain.
-func (s FactStore) ListActiveSupplyChainImpactFacts(
+// loadSupplyChainImpactPayloadPages fetches resolved facts by primary key in
+// supplyChainImpactPayloadPageSize pages and returns them in the given order.
+// Every requested ID must come back exactly once: the snapshot that resolved
+// the IDs is the one that reads them.
+func (s FactStore) loadSupplyChainImpactPayloadPages(
 	ctx context.Context,
-	filter supplychaincore.SupplyChainImpactFactFilter,
-) ([]facts.Envelope, bool, error) {
-	if s.database == nil {
-		return nil, false, fmt.Errorf("fact store database is required")
-	}
-	normalizeSupplyChainImpactFactFilter(&filter)
-	if supplyChainImpactFactFilterEmpty(filter) {
-		return nil, false, nil
-	}
-
-	var loaded []facts.Envelope
-	var truncated bool
-	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
-		state := supplyChainImpactPagingState{seenFactIDs: make(map[string]struct{})}
-		for !state.legacyDone || !state.identityDone {
-			if loadErr := loadActiveSupplyChainImpactFactPagePair(
-				ctx, queryer, filter, &state,
-			); loadErr != nil {
-				return loadErr
-			}
+	queryer db.Queryer,
+	ids []string,
+	stats *supplychaincore.SupplyChainImpactActiveEvidenceLoadStats,
+) ([]facts.Envelope, error) {
+	out := make([]facts.Envelope, 0, len(ids))
+	for start := 0; start < len(ids); start += supplyChainImpactPayloadPageSize {
+		page := ids[start:min(start+supplyChainImpactPayloadPageSize, len(ids))]
+		started := time.Now()
+		byID, err := supplyChainImpactPayloadPage(ctx, queryer, page)
+		if err != nil {
+			return nil, err
 		}
-		loaded = make([]facts.Envelope, 0,
-			len(state.coreFacts)+len(state.identityFacts)+len(state.suppressionFacts))
-		loaded = append(loaded, state.coreFacts...)
-		loaded = append(loaded, state.identityFacts...)
-		loaded = append(loaded, state.suppressionFacts...)
-		truncated = state.suppressionTruncated
-		return nil
-	})
-	if err != nil {
-		return nil, false, err
+		stats.PayloadPages++
+		stats.Branches = append(stats.Branches, supplychaincore.SupplyChainImpactActiveEvidenceBranchStat{
+			Branch: supplychaincore.SupplyChainImpactActiveEvidencePayloadPage, Rows: len(byID), Duration: time.Since(started),
+		})
+		for _, id := range page {
+			envelope, ok := byID[id]
+			if !ok {
+				return nil, fmt.Errorf("list active supply chain impact facts: payload page is missing resolved fact %q", id)
+			}
+			out = append(out, envelope)
+		}
 	}
-	return loaded, truncated, nil
+	return out, nil
 }
 
-func loadActiveSupplyChainImpactFactPagePair(
+func supplyChainImpactPayloadPage(ctx context.Context, queryer db.Queryer, ids []string) (map[string]facts.Envelope, error) {
+	rows, err := queryer.QueryContext(ctx, factimpact.PayloadPageSQL, ids)
+	if err != nil {
+		return nil, fmt.Errorf("list active supply chain impact facts: payload page: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	byID := make(map[string]facts.Envelope, len(ids))
+	for rows.Next() {
+		envelope, err := scanSupplyChainImpactFact(rows)
+		if err != nil {
+			return nil, fmt.Errorf("list active supply chain impact facts: payload page: %w", err)
+		}
+		if _, duplicate := byID[envelope.FactID]; duplicate {
+			return nil, fmt.Errorf("list active supply chain impact facts: payload page returned %q twice", envelope.FactID)
+		}
+		byID[envelope.FactID] = envelope
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list active supply chain impact facts: payload page: %w", err)
+	}
+	if len(byID) != len(ids) {
+		return nil, fmt.Errorf("list active supply chain impact facts: payload page returned %d of %d facts", len(byID), len(ids))
+	}
+	return byID, nil
+}
+
+// loadSupplyChainImpactIdentityStream pages the canonical container-image
+// identity support stream with its own keyset cursor, in the same snapshot.
+// It is unchanged by #8880 apart from no longer sharing a statement with the
+// legacy rows.
+func (s FactStore) loadSupplyChainImpactIdentityStream(
 	ctx context.Context,
 	queryer db.Queryer,
 	filter supplychaincore.SupplyChainImpactFactFilter,
-	state *supplyChainImpactPagingState,
-) error {
-	legacyLimit := listFactsByKindPageSize
-	if state.legacyDone {
-		legacyLimit = 0
-	}
-	identityLimit := listFactsByKindPageSize
-	if state.identityDone {
-		identityLimit = 0
-	}
-	rows, err := queryer.QueryContext(
-		ctx,
-		listActiveSupplyChainImpactFactPagesQuery,
-		filter.PackageIDs,
-		filter.PURLs,
-		filter.CVEIDs,
-		filter.AdvisoryIDs,
-		filter.SubjectDigests,
-		filter.ProductCriteria,
-		filter.DocumentIDs,
-		filter.RepositoryIDs,
-		filter.ImageRefs,
-		filter.FileRepositoryIDs,
-		state.legacyCursorFactID,
-		legacyLimit,
-		lowerCleanedStringFilterValues(filter.PackageIDs),
-		lowerCleanedStringFilterValues(filter.PURLs),
-		lowerCleanedStringFilterValues(filter.CVEIDs),
-		lowerCleanedStringFilterValues(filter.SubjectDigests),
-		lowerCleanedStringFilterValues(filter.RepositoryIDs),
-		lowerCleanedStringFilterValues(filter.AdvisoryIDs),
-		state.legacyCursorIsSuppression,
-		state.identityCursorFactID,
-		identityLimit,
-	)
-	if err != nil {
-		return fmt.Errorf("list active supply chain impact facts: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	legacyCount, identityCount := 0, 0
-	legacyStoppedBySentinel := false
-	expectedOrdinal := [3]int64{1, 1, 1}
-	previousRank := -1
-	for rows.Next() {
-		rank, ordinal, envelope, scanErr := scanTaggedSupplyChainImpactFact(rows)
-		if scanErr != nil {
-			return fmt.Errorf("list active supply chain impact facts: %w", scanErr)
-		}
-		if rank < 0 || rank >= len(expectedOrdinal) {
-			return fmt.Errorf("list active supply chain impact facts: invalid stream rank %d", rank)
-		}
-		if rank < previousRank {
-			return fmt.Errorf("list active supply chain impact facts: stream rank regressed from %d to %d", previousRank, rank)
-		}
-		previousRank = rank
-		if ordinal != expectedOrdinal[rank] {
-			return fmt.Errorf(
-				"list active supply chain impact facts: stream %d ordinal = %d, want %d",
-				rank, ordinal, expectedOrdinal[rank],
-			)
-		}
-		expectedOrdinal[rank]++
-		if envelope.FactID == "" {
-			return fmt.Errorf("list active supply chain impact facts: empty fact ID in stream %d", rank)
-		}
-		if _, duplicate := state.seenFactIDs[envelope.FactID]; duplicate {
-			return fmt.Errorf("list active supply chain impact facts: duplicate fact ID %q", envelope.FactID)
-		}
-		state.seenFactIDs[envelope.FactID] = struct{}{}
-
-		switch rank {
-		case 0, 2:
-			if state.legacyDone {
-				return fmt.Errorf("list active supply chain impact facts: legacy stream returned rows after completion")
-			}
-			if err := state.acceptLegacyFact(rank, envelope, &legacyStoppedBySentinel); err != nil {
-				return err
-			}
-			legacyCount++
-		case 1:
-			if state.identityDone {
-				return fmt.Errorf("list active supply chain impact facts: identity stream returned rows after completion")
-			}
-			if err := state.acceptIdentityFact(envelope); err != nil {
-				return err
-			}
-			identityCount++
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("list active supply chain impact facts: %w", err)
-	}
-	if legacyCount > legacyLimit || identityCount > identityLimit {
-		return fmt.Errorf(
-			"list active supply chain impact facts: page counts legacy=%d/%d identity=%d/%d",
-			legacyCount, legacyLimit, identityCount, identityLimit,
+	stats *supplychaincore.SupplyChainImpactActiveEvidenceLoadStats,
+) ([]facts.Envelope, error) {
+	var out []facts.Envelope
+	var cursor *containerImageIdentitySupportCursor
+	cursorFactID := ""
+	for {
+		started := time.Now()
+		rows, err := queryer.QueryContext(ctx, listCurrentContainerImageIdentitySupportFactsQuery,
+			filter.SubjectDigests, filter.ImageRefs, filter.RepositoryIDs, filter.RepositoryIDs, filter.RepositoryIDs,
+			cursorFactID, listFactsByKindPageSize,
 		)
-	}
-	if legacyStoppedBySentinel || legacyCount < legacyLimit {
-		state.legacyDone = true
-	}
-	if identityCount < identityLimit {
-		state.identityDone = true
-	}
-	return nil
-}
-
-func (state *supplyChainImpactPagingState) acceptLegacyFact(
-	rank int,
-	envelope facts.Envelope,
-	stoppedBySentinel *bool,
-) error {
-	isSuppression := envelope.FactKind == chain.VulnerabilitySuppressionFactKind
-	if rank == 2 && !isSuppression {
-		return fmt.Errorf("list active supply chain impact facts: suppression stream fact kind = %q", envelope.FactKind)
-	}
-	if rank == 0 && isSuppression {
-		return fmt.Errorf("list active supply chain impact facts: core stream contains suppression fact %q", envelope.FactID)
-	}
-	if rank == 0 && envelope.FactKind == supplyChainImpactContainerImageIdentityFactKind {
-		return fmt.Errorf("list active supply chain impact facts: core stream contains identity fact %q", envelope.FactID)
-	}
-	if state.legacyCursorFactID != "" {
-		if state.legacyCursorIsSuppression && !isSuppression ||
-			state.legacyCursorIsSuppression == isSuppression &&
-				bytes.Compare([]byte(state.legacyCursorFactID), []byte(envelope.FactID)) >= 0 {
-			return fmt.Errorf(
-				"list active supply chain impact facts: legacy cursor did not advance after %q",
-				state.legacyCursorFactID,
-			)
+		if err != nil {
+			return nil, fmt.Errorf("list active supply chain impact facts: identity page: %w", err)
+		}
+		count := 0
+		for rows.Next() {
+			envelope, scanErr := scanSupplyChainImpactFact(rows)
+			if scanErr != nil {
+				_ = rows.Close()
+				return nil, fmt.Errorf("list active supply chain impact facts: identity page: %w", scanErr)
+			}
+			next, acceptErr := acceptSupplyChainImpactIdentityFact(envelope, cursor, cursorFactID)
+			if acceptErr != nil {
+				_ = rows.Close()
+				return nil, acceptErr
+			}
+			cursor, cursorFactID = &next, envelope.FactID
+			out = append(out, envelope)
+			count++
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("list active supply chain impact facts: identity page: %w", err)
+		}
+		_ = rows.Close()
+		stats.Branches = append(stats.Branches, supplychaincore.SupplyChainImpactActiveEvidenceBranchStat{
+			Branch: supplychaincore.SupplyChainImpactActiveEvidenceIdentity, Rows: count, Duration: time.Since(started),
+		})
+		if count > listFactsByKindPageSize {
+			return nil, fmt.Errorf("list active supply chain impact facts: identity page returned %d rows, limit %d", count, listFactsByKindPageSize)
+		}
+		if count < listFactsByKindPageSize {
+			return out, nil
 		}
 	}
-	state.legacyCursorFactID = envelope.FactID
-	state.legacyCursorIsSuppression = isSuppression
-	if !isSuppression {
-		state.coreFacts = append(state.coreFacts, envelope)
-		return nil
-	}
-	if state.suppressionLoaded == maxSupplyChainImpactActiveEvidenceRowsPerCall {
-		state.suppressionTruncated = true
-		*stoppedBySentinel = true
-		return nil
-	}
-	state.suppressionLoaded++
-	state.suppressionFacts = append(state.suppressionFacts, envelope)
-	return nil
 }
 
-func (state *supplyChainImpactPagingState) acceptIdentityFact(envelope facts.Envelope) error {
+func acceptSupplyChainImpactIdentityFact(
+	envelope facts.Envelope,
+	previous *containerImageIdentitySupportCursor,
+	previousFactID string,
+) (containerImageIdentitySupportCursor, error) {
 	if envelope.FactKind != supplyChainImpactContainerImageIdentityFactKind {
-		return fmt.Errorf("list active supply chain impact facts: identity stream fact kind = %q", envelope.FactKind)
+		return containerImageIdentitySupportCursor{}, fmt.Errorf(
+			"list active supply chain impact facts: identity stream fact kind = %q", envelope.FactKind)
 	}
 	cursor, err := parseContainerImageIdentitySupportCursor(envelope.FactID)
 	if err != nil {
-		return fmt.Errorf("list active supply chain impact facts: invalid identity fact ID %q: %w", envelope.FactID, err)
+		return containerImageIdentitySupportCursor{}, fmt.Errorf(
+			"list active supply chain impact facts: invalid identity fact ID %q: %w", envelope.FactID, err)
 	}
-	if state.identityCursor != nil &&
-		compareContainerImageIdentitySupportCursors(*state.identityCursor, cursor) >= 0 {
-		return fmt.Errorf(
-			"list active supply chain impact facts: identity cursor did not advance after %q",
-			state.identityCursorFactID,
-		)
+	if previous != nil && compareContainerImageIdentitySupportCursors(*previous, cursor) >= 0 {
+		return containerImageIdentitySupportCursor{}, fmt.Errorf(
+			"list active supply chain impact facts: identity cursor did not advance after %q", previousFactID)
 	}
-	state.identityCursor = &cursor
-	state.identityCursorFactID = envelope.FactID
-	state.identityFacts = append(state.identityFacts, envelope)
-	return nil
+	return cursor, nil
 }
 
-func scanTaggedSupplyChainImpactFact(rows db.Rows) (int, int64, facts.Envelope, error) {
-	var rank int
-	var ordinal int64
+// scanSupplyChainImpactFact decodes the sixteen columns both the payload page
+// and the identity function return.
+func scanSupplyChainImpactFact(rows db.Rows) (facts.Envelope, error) {
 	var envelope facts.Envelope
-	var sourceSystem string
-	var sourceFactKey string
-	var sourceURI string
-	var sourceRecordID string
+	var sourceSystem, sourceFactKey, sourceURI, sourceRecordID string
 	var rawPayload []byte
 	if err := rows.Scan(
-		&rank, &ordinal,
 		&envelope.FactID, &envelope.ScopeID, &envelope.GenerationID,
 		&envelope.FactKind, &envelope.StableFactKey, &envelope.SchemaVersion,
 		&envelope.CollectorKind, &envelope.FencingToken, &envelope.SourceConfidence,
 		&sourceSystem, &sourceFactKey, &sourceURI, &sourceRecordID,
 		&envelope.ObservedAt, &envelope.IsTombstone, &rawPayload,
 	); err != nil {
-		return 0, 0, facts.Envelope{}, err
+		return facts.Envelope{}, err
 	}
-	payload, err := payloadstore.UnmarshalPayload(rawPayload)
+	decoded, err := payloadstore.UnmarshalPayload(rawPayload)
 	if err != nil {
-		return 0, 0, facts.Envelope{}, err
+		return facts.Envelope{}, err
 	}
-	envelope.Payload = payload
+	envelope.Payload = decoded
 	envelope.SourceRef = facts.Ref{
 		SourceSystem: sourceSystem,
 		ScopeID:      envelope.ScopeID, GenerationID: envelope.GenerationID,
 		FactKey: sourceFactKey, SourceURI: sourceURI, SourceRecordID: sourceRecordID,
 	}
-	return rank, ordinal, envelope, nil
+	return envelope, nil
 }
 
-func normalizeSupplyChainImpactFactFilter(filter *supplychaincore.SupplyChainImpactFactFilter) {
-	filter.PackageIDs = cleanStringFilterValues(filter.PackageIDs)
-	filter.PURLs = cleanStringFilterValues(filter.PURLs)
-	filter.CVEIDs = cleanStringFilterValues(filter.CVEIDs)
-	filter.AdvisoryIDs = cleanStringFilterValues(filter.AdvisoryIDs)
-	filter.SubjectDigests = cleanStringFilterValues(filter.SubjectDigests)
-	filter.DocumentIDs = cleanStringFilterValues(filter.DocumentIDs)
-	filter.ProductCriteria = cleanStringFilterValues(filter.ProductCriteria)
-	filter.RepositoryIDs = cleanStringFilterValues(filter.RepositoryIDs)
-	filter.FileRepositoryIDs = cleanStringFilterValues(filter.FileRepositoryIDs)
-	filter.ImageRefs = cleanStringFilterValues(filter.ImageRefs)
-}
-
-func supplyChainImpactFactFilterEmpty(filter supplychaincore.SupplyChainImpactFactFilter) bool {
-	return len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
-		len(filter.CVEIDs) == 0 && len(filter.AdvisoryIDs) == 0 && len(filter.SubjectDigests) == 0 &&
-		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 &&
-		len(filter.RepositoryIDs) == 0 && len(filter.FileRepositoryIDs) == 0 &&
-		len(filter.ImageRefs) == 0
+// recordSupplyChainImpactLoad emits the per-statement instruments and, when
+// the foreign-key guard returned rows, a WARN line naming the drifted kinds.
+func (s FactStore) recordSupplyChainImpactLoad(
+	ctx context.Context,
+	filter supplychaincore.SupplyChainImpactFactFilter,
+	stats supplychaincore.SupplyChainImpactActiveEvidenceLoadStats,
+) {
+	if s.instruments != nil {
+		for _, branch := range stats.Branches {
+			attrs := metric.WithAttributes(telemetry.AttrBranch(branch.Branch))
+			if s.instruments.SupplyChainImpactActiveEvidenceBranchDuration != nil {
+				s.instruments.SupplyChainImpactActiveEvidenceBranchDuration.Record(ctx, branch.Duration.Seconds(), attrs)
+			}
+			if s.instruments.SupplyChainImpactActiveEvidenceBranchRows != nil {
+				s.instruments.SupplyChainImpactActiveEvidenceBranchRows.Add(ctx, int64(branch.Rows), attrs)
+			}
+		}
+		if stats.GuardRows > 0 && s.instruments.SupplyChainImpactActiveEvidenceGuardRows != nil {
+			s.instruments.SupplyChainImpactActiveEvidenceGuardRows.Add(ctx, int64(stats.GuardRows))
+		}
+	}
+	if stats.GuardRows == 0 {
+		return
+	}
+	logger := s.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.WarnContext(ctx, "supply chain impact foreign-key guard returned rows; a payload contract carries an identity key its branch does not probe",
+		slog.Int("guard_rows", stats.GuardRows),
+		slog.Any("guard_kinds", stats.GuardKinds),
+		slog.Int("resolved_fact_ids", stats.ResolvedFactIDs),
+		slog.Int("file_repository_ids", len(filter.FileRepositoryIDs)),
+		slog.String("guard_index", factimpact.IndexSupplyChainImpactKeyGuard),
+	)
 }

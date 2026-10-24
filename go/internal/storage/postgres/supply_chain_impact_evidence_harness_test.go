@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
@@ -204,17 +206,25 @@ func (tx *supplyChainImpactRecordingTx) QueryContext(ctx context.Context, query 
 	return tx.Transaction.QueryContext(ctx, query, args...)
 }
 
+// supplyChainImpactReplay is one replayed statement: its warm shared buffers
+// and its JSON plan.
+type supplyChainImpactReplay struct {
+	Buffers int64
+	Plan    string
+	Query   string
+}
+
 // supplyChainImpactStatementBuffers replays every statement under
 // PREPARE + EXPLAIN (ANALYZE, BUFFERS) EXECUTE with the given plan_cache_mode
 // and returns the summed shared buffers (hit + read) of the warm second run,
-// plus each statement's plan for shape assertions.
+// plus each statement's replay for shape assertions.
 func supplyChainImpactStatementBuffers(
 	t *testing.T,
 	ctx context.Context,
 	database *sql.DB,
 	statements []supplyChainImpactRecordedStatement,
 	mode string,
-) (int64, []string) {
+) (int64, []supplyChainImpactReplay) {
 	t.Helper()
 	conn, err := database.Conn(ctx)
 	if err != nil {
@@ -228,7 +238,7 @@ func supplyChainImpactStatementBuffers(
 		t.Fatalf("set plan_cache_mode: %v", err)
 	}
 	var total int64
-	plans := make([]string, 0, len(statements))
+	plans := make([]supplyChainImpactReplay, 0, len(statements))
 	for i, statement := range statements {
 		name := "scie_replay_" + strconv.Itoa(i)
 		if _, err := conn.ExecContext(ctx, "PREPARE "+name+" AS "+statement.Query); err != nil {
@@ -257,8 +267,9 @@ func supplyChainImpactStatementBuffers(
 		if err := json.Unmarshal(raw, &decoded); err != nil || len(decoded) != 1 {
 			t.Fatalf("decode replay plan %d: count=%d err=%v", i, len(decoded), err)
 		}
-		total += decoded[0].Plan.SharedHitBlocks + decoded[0].Plan.SharedReadBlocks
-		plans = append(plans, string(raw))
+		buffers := decoded[0].Plan.SharedHitBlocks + decoded[0].Plan.SharedReadBlocks
+		total += buffers
+		plans = append(plans, supplyChainImpactReplay{Buffers: buffers, Plan: string(raw), Query: statement.Query})
 		if _, err := conn.ExecContext(ctx, "DEALLOCATE "+name); err != nil {
 			t.Fatalf("deallocate replay %d: %v", i, err)
 		}
@@ -366,4 +377,81 @@ func sortedSupplyChainImpactFactIDs(result supplyChainImpactOracleResult) []stri
 	}
 	sort.Strings(ids)
 	return ids
+}
+
+// supplyChainImpactPlanNode is the subset of an EXPLAIN JSON node the plan
+// assertions and failure summaries read.
+type supplyChainImpactPlanNode struct {
+	NodeType    string                      `json:"Node Type"`
+	IndexName   string                      `json:"Index Name"`
+	Relation    string                      `json:"Relation Name"`
+	IndexCond   string                      `json:"Index Cond"`
+	Filter      string                      `json:"Filter"`
+	ActualRows  float64                     `json:"Actual Rows"`
+	ActualLoops float64                     `json:"Actual Loops"`
+	SharedHit   int64                       `json:"Shared Hit Blocks"`
+	SharedRead  int64                       `json:"Shared Read Blocks"`
+	Plans       []supplyChainImpactPlanNode `json:"Plans"`
+}
+
+// supplyChainImpactPlanNodes flattens one EXPLAIN (FORMAT JSON) document.
+func supplyChainImpactPlanNodes(t *testing.T, raw string) []supplyChainImpactPlanNode {
+	t.Helper()
+	var decoded []struct {
+		Plan supplyChainImpactPlanNode `json:"Plan"`
+	}
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil || len(decoded) != 1 {
+		t.Fatalf("decode plan: count=%d err=%v", len(decoded), err)
+	}
+	var out []supplyChainImpactPlanNode
+	var walk func(node supplyChainImpactPlanNode)
+	walk = func(node supplyChainImpactPlanNode) {
+		out = append(out, node)
+		for _, child := range node.Plans {
+			walk(child)
+		}
+	}
+	walk(decoded[0].Plan)
+	return out
+}
+
+// supplyChainImpactPlanSummary renders one line per plan node.
+func supplyChainImpactPlanSummary(t *testing.T, raw string) string {
+	t.Helper()
+	var lines []string
+	for _, node := range supplyChainImpactPlanNodes(t, raw) {
+		lines = append(lines, fmt.Sprintf("%s rel=%s idx=%s loops=%.0f rows=%.0f buffers=%d cond=%.160s filter=%.160s",
+			node.NodeType, node.Relation, node.IndexName, node.ActualLoops, node.ActualRows,
+			node.SharedHit+node.SharedRead, node.IndexCond, node.Filter))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// supplyChainImpactDefinitionsWithAnchors returns the required bootstrap
+// definitions plus every definition that creates an index a #8880 branch
+// anchors on, in bootstrap order, so an isolated proof schema plans on the
+// shipped indexes.
+func supplyChainImpactDefinitionsWithAnchors(t *testing.T, required map[string]bool) []Definition {
+	t.Helper()
+	want := map[string]bool{}
+	for name := range required {
+		want[name] = true
+	}
+	for _, branch := range factimpact.Branches() {
+		for _, definition := range BootstrapDefinitions() {
+			if strings.Contains(definition.SQL, "IF NOT EXISTS "+branch.Anchor+"\n") {
+				want[definition.Name] = true
+			}
+		}
+	}
+	var definitions []Definition
+	for _, definition := range BootstrapDefinitions() {
+		if want[definition.Name] {
+			definitions = append(definitions, definition)
+		}
+	}
+	if len(definitions) != len(want) {
+		t.Fatalf("isolated schema definitions = %d, want %d", len(definitions), len(want))
+	}
+	return definitions
 }

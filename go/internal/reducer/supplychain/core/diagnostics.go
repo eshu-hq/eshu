@@ -34,6 +34,101 @@ type supplyChainImpactTiming struct {
 	totalDuration                      time.Duration
 }
 
+// Statement labels the active-evidence load reports beside its catalog
+// branch names (#8880). With the factimpact branch names they form the
+// closed branch label set of eshu_dp_supply_chain_impact_active_evidence_*.
+const (
+	// SupplyChainImpactActiveEvidenceScopeResolution labels the statement
+	// that resolves repository IDs to active scope IDs.
+	SupplyChainImpactActiveEvidenceScopeResolution = "scope_resolution"
+	// SupplyChainImpactActiveEvidencePayloadPage labels one primary-key
+	// payload page.
+	SupplyChainImpactActiveEvidencePayloadPage = "payload_page"
+	// SupplyChainImpactActiveEvidenceIdentity labels one canonical identity
+	// stream page.
+	SupplyChainImpactActiveEvidenceIdentity = "identity"
+)
+
+// SupplyChainImpactActiveEvidenceBranchStat is one statement of one
+// active-evidence load: its label, the rows it returned, and its wall time.
+type SupplyChainImpactActiveEvidenceBranchStat struct {
+	Branch   string
+	Rows     int
+	Duration time.Duration
+}
+
+// SupplyChainImpactActiveEvidenceLoadStats accounts for one
+// ListActiveSupplyChainImpactFacts call: every statement it issued, how many
+// fact IDs it resolved, how many payload pages it fetched, how many rows the
+// foreign-key guard returned, and whether the suppression tail was truncated.
+type SupplyChainImpactActiveEvidenceLoadStats struct {
+	Branches        []SupplyChainImpactActiveEvidenceBranchStat
+	ResolvedFactIDs int
+	PayloadPages    int
+	GuardRows       int
+	// GuardKinds lists, sorted and distinct, the kinds of the guard rows.
+	GuardKinds           []string
+	SuppressionTruncated bool
+}
+
+// activeSupplyChainImpactFactStatsLoader is the optional loader surface that
+// reports per-statement accounting; loaders without it still work through
+// activeSupplyChainImpactFactLoader.
+type activeSupplyChainImpactFactStatsLoader interface {
+	ListActiveSupplyChainImpactFactsWithStats(context.Context, SupplyChainImpactFactFilter) ([]facts.Envelope, SupplyChainImpactActiveEvidenceLoadStats, error)
+}
+
+// supplyChainImpactActiveEvidenceTally sums the active-evidence load
+// accounting across every ListActiveSupplyChainImpactFacts call of one pass
+// (the until-stable rounds and the chunked digest and peer-identity loads).
+type supplyChainImpactActiveEvidenceTally struct {
+	loads           int
+	resolvedFactIDs int
+	payloadPages    int
+	guardRows       int
+	truncatedLoads  int
+	branchRows      map[string]int
+	branchDurations map[string]time.Duration
+}
+
+// add folds one load's statement accounting into the tally.
+func (t *supplyChainImpactActiveEvidenceTally) add(stats SupplyChainImpactActiveEvidenceLoadStats) {
+	if t.branchRows == nil {
+		t.branchRows = map[string]int{}
+		t.branchDurations = map[string]time.Duration{}
+	}
+	t.loads++
+	t.resolvedFactIDs += stats.ResolvedFactIDs
+	t.payloadPages += stats.PayloadPages
+	t.guardRows += stats.GuardRows
+	if stats.SuppressionTruncated {
+		t.truncatedLoads++
+	}
+	for _, branch := range stats.Branches {
+		t.branchRows[branch.Branch] += branch.Rows
+		t.branchDurations[branch.Branch] += branch.Duration
+	}
+}
+
+// mergeInto adds the tally to the "reducer execution succeeded" sub-signals
+// and sub-durations: per-statement rows and seconds under the closed branch
+// label set, plus the resolved ID, payload page, guard row, and truncated
+// load counts. Labels appear only for statements the pass issued.
+func (t supplyChainImpactActiveEvidenceTally) mergeInto(signals, durations map[string]float64) {
+	if t.loads == 0 {
+		return
+	}
+	signals["active_evidence_loads"] = float64(t.loads)
+	signals["active_evidence_resolved_fact_ids"] = float64(t.resolvedFactIDs)
+	signals["active_evidence_payload_pages"] = float64(t.payloadPages)
+	signals["active_evidence_guard_rows"] = float64(t.guardRows)
+	signals["active_evidence_truncated_loads"] = float64(t.truncatedLoads)
+	for branch, rows := range t.branchRows {
+		signals["active_evidence_branch_"+branch+"_rows"] = float64(rows)
+		durations["active_evidence_branch_"+branch] = t.branchDurations[branch].Seconds()
+	}
+}
+
 func supplyChainImpactSubDurations(t supplyChainImpactTiming) map[string]float64 {
 	return map[string]float64{
 		"load_scope_facts":              t.loadScopeFactsDuration.Seconds(),

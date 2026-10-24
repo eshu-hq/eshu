@@ -44,6 +44,16 @@ var ddlParityDynamicDDL = map[string]string{
 	"internal/storage/postgres/schema_bootstrap_lock.go|schemaMigrationsTableSQL|CREATE TABLE IF NOT EXISTS %s": "the " +
 		"eshu_schema_migrations ledger, schema-qualified at runtime; ApplyBootstrap creates it " +
 		"itself before it applies any numbered migration, so the schema Job always has it (#7792)",
+	// #8880: the supply-chain impact anchors are generated from one Go table
+	// so the branch statements and the index predicates cannot disagree; the
+	// numbered migrations 212-225 hold the same text, which
+	// factimpact.TestNewIndexStatementsMatchMigrations pins byte for byte.
+	"internal/storage/postgres/facts/impact/indexes.go|NewIndexes|CREATE INDEX CONCURRENTLY IF NOT EXISTS": "generated #8880 " +
+		"index statements; migrations 212-225 carry them and TestNewIndexStatementsMatchMigrations pins the text",
+	"internal/storage/postgres/facts/impact/indexes.go|keyIndex|CREATE INDEX CONCURRENTLY IF NOT EXISTS": "generated #8880 " +
+		"key-index statement builder; migrations 212-220 carry its output and TestNewIndexStatementsMatchMigrations pins it",
+	"internal/storage/postgres/facts/impact/indexes.go|scanIndex|CREATE INDEX CONCURRENTLY IF NOT EXISTS": "generated #8880 " +
+		"kind-partial anchor builder; migrations 221-223 carry its output and TestNewIndexStatementsMatchMigrations pins it",
 }
 
 // TestDDLMigrationParity checks Go DDL in non-test files under
