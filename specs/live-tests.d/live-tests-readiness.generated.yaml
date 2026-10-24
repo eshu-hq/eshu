@@ -454,6 +454,11 @@ tests:
     class: postgres_ci
     reason: "#8830 disposable PostgreSQL 18 proof of the collector terminal-failure acknowledgement write: it records the newest unresolved failure inside the instance's window (its updated_at, raw class, and work item id), refuses an unknown, kind-mismatched, disabled, or deactivated instance, a scope with no unresolved failure, a scope a completed item resolved, a failure outside the window, and a failure whose class differs from the one named; a second acknowledgement of a newer episode replaces the row; the status read then reports the failure as acknowledged and a later different-class failure again; 16 concurrent acknowledgements leave one row, and an acknowledgement racing failed_terminal writes on another connection never deadlocks and never suppresses a failure class it did not record; the admin list returns the reason; isolated bootstrapped schema per test; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/collector_terminal_failure_list_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8830 disposable PostgreSQL 18 proof of the collector terminal-failure list that lets an operator discover the scope ids to acknowledge: per scope it lists the newest unresolved failure inside the instance window, acknowledged or not (an acknowledged scope lists acknowledged, an unacknowledged one does not, a scope that recovered or aged out does not list, an older unresolved row of the same scope collapses into its newest, a scope with both an older covered and a newer uncovered failure lists both), its two item sets equal what the status read considers (the status rows are the newest of each set), keyset pages are disjoint and their union equals the unpaged list, an unknown, kind-mismatched, disabled, or deactivated instance lists nothing, failure messages and reasons never appear, the plan seeks the failed_terminal instance index with the window cutoff and never sorts the history, and the documented path status failed, list, acknowledge, list acknowledged, status partial holds; isolated bootstrapped schema per test; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/config/artifacts/backfill_live_test.go
     tag: ~
     class: postgres_ci
