@@ -189,6 +189,11 @@ and the two kind changes to "same kind".
   `TestStoredBytesMatchesTheReferenceForEveryPolicy` (same bytes, nil-ness, and
   tally as the old code for metadata, redact, and an ungoverned path over good,
   empty, nil, NUL, non-UTF-8, UTF-16, and 5 MiB bodies) pin it.
+- Rebase-round review differential (rev-8812, run outside the branch, not
+  committed): 47,124 generated lines through the redactor and through migration
+  138's gate and CASE in Postgres. 28,458 raw lines were flagged. After redaction
+  0 flagged lines lacked a marker; 0 unchanged flagged lines lacked one; 1,377
+  unflagged lines were over-redacted (the cause per line was not itemized). The cleanup runbook's purge-SQL page cites this.
 - Fuzz: `FuzzRedactMarker` (seed corpus under `go test`; planted listed-key,
   Bearer, comma-tail, AWS-key, and one-line PEM seeds never survive, a second pass
   is a no-op, line count is kept) ran 60 s with `-fuzz`: 1,411,919 execs, no
