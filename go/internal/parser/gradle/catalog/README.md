@@ -187,14 +187,19 @@ session on one host:
 | --- | --- | --- | --- |
 | `gradle` (build.gradle, closest existing parser) | 55,001,279 to 55,237,630 | 12.7 MB | 119,733 to 119,749 |
 | `gomod` | 14,755,776 to 14,874,295 | 13.7 MB | 179,804 |
-| `gradle_catalog` before alias normalization and the TOML check | 9,525,233 to 9,666,101 | 10.6 MB | 133,551 |
-| `gradle_catalog` without the TOML semantic check | 9,912,846 to 9,956,195 | 11.1 MB | 133,597 to 133,598 |
-| `gradle_catalog` (this package) | 10,989,581 to 11,106,454 | 11.1 MB | 133,605 to 133,606 |
+| `gradle_catalog` before alias normalization and the TOML check | 9,566,174 to 9,633,862 | 10.6 MB | 133,551 to 133,552 |
+| `gradle_catalog` without the TOML semantic check | 9,953,682 to 10,036,979 | 11.1 MB | 133,597 to 133,598 |
+| `gradle_catalog` (this package) | 10,962,149 to 10,971,317 | 11.1 MB | 133,605 to 133,606 |
 
-The two correctness checks cost about 15% on this input: the semantic TOML
-decode about 1.1 ms and the normalized alias table about 0.4 ms. A real
+The two correctness checks cost about 14% on this input: the semantic TOML
+decode about 1.0 ms and the normalized alias table about 0.4 ms. A real
 catalog of a few hundred lines costs tens of microseconds. The decode
 allocates almost nothing, because it decodes into an empty struct.
+
+Every alias-table check is one map operation. `BenchmarkScanManySpellingsOfOneAlias`
+writes 15,000 spellings of one normalized alias (5,000 kept, 10,000 dropped):
+a slice scan of earlier spellings took 132.5 ms per file, and the map takes
+9.4 ms.
 
 ## Verification
 

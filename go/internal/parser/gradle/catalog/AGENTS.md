@@ -23,7 +23,9 @@
   a `version.ref` is normalized before its lookup. Never pick the survivor of a
   normalized collision; Gradle's choice depends on registration order the file
   does not carry. Keep `aliasTable` to one map per table, with the exact
-  spellings per slot and the rare-case maps used only by shared slots.
+  spellings per slot and the rare-case maps used only by shared slots. Every
+  check is one map operation: an alias has 3^k separator spellings, so a scan
+  over earlier spellings is quadratic.
 - Run `nestingExceeds` before the TOML parser. The parser has no depth bound
   and overflows the stack on deeply nested input. Do not move the check after
   `parser.Reset`.
@@ -71,7 +73,8 @@ it.
 
 The collision and selector set, also killed: turn off alias normalization,
 ignore a library or a `[versions]` collision, stop counting later spellings or
-dropped aliases, accept an exact repeat past the cap, look up a reference
+dropped aliases, forget a later spelling (so its exact repeat passes), accept
+an exact repeat past the cap, look up a reference
 without normalizing it, allow each of `+`, `latest.`, `!`, `@` and the range
 characters, use `validVersionText` for a literal or a reference target, accept
 a string notation one part short, drop the semantic TOML check, miscount

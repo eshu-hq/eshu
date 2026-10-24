@@ -18,12 +18,15 @@ package catalog
 // parser therefore never picks one: every alias in a shared slot is a
 // collision, and a row or version reference that depends on it stays
 // unresolved.
+//
+// Every check is one map operation, so a file of many spellings of one alias
+// (3^k separator variants) stays linear.
 type aliasTable struct {
-	slots   map[string]int   // normalized alias -> slot
-	first   []string         // first exact spelling per slot
-	later   map[int][]string // further exact spellings of a shared slot (rare)
-	dropped map[int]int      // aliases past the row cap per shared slot (rare)
-	kept    int              // aliases recorded with add
+	slots map[string]int      // normalized alias -> slot
+	first []string            // first exact spelling per slot
+	later map[string]struct{} // exact spellings after the first (rare)
+	extra map[int]int         // later and dropped aliases per shared slot (rare)
+	kept  int                 // aliases recorded with add
 }
 
 // newAliasTable returns an empty table.
@@ -36,17 +39,22 @@ func (t *aliasTable) full() bool {
 	return t.kept >= MaxRows
 }
 
-// spelled reports whether slot already holds the exact spelling alias.
+// spelled reports whether slot already holds the exact spelling alias. An
+// exact spelling has one normalized form, so a hit in later is in slot.
 func (t *aliasTable) spelled(slot int, alias string) bool {
 	if t.first[slot] == alias {
 		return true
 	}
-	for _, other := range t.later[slot] {
-		if other == alias {
-			return true
-		}
+	_, found := t.later[alias]
+	return found
+}
+
+// share counts one more alias, kept or dropped, in slot.
+func (t *aliasTable) share(slot int) {
+	if t.extra == nil {
+		t.extra = map[int]int{}
 	}
-	return false
+	t.extra[slot]++
 }
 
 // add records an alias the scanner keeps. It returns the alias's slot, or
@@ -58,9 +66,10 @@ func (t *aliasTable) add(alias string, buf *[]byte) (slot int, repeated bool) {
 			return slot, true
 		}
 		if t.later == nil {
-			t.later = map[int][]string{}
+			t.later = map[string]struct{}{}
 		}
-		t.later[slot] = append(t.later[slot], alias)
+		t.later[alias] = struct{}{}
+		t.share(slot)
 		t.kept++
 		return slot, false
 	}
@@ -88,16 +97,13 @@ func (t *aliasTable) addDropped(alias string, buf *[]byte) (repeated bool) {
 	if t.spelled(slot, alias) {
 		return true
 	}
-	if t.dropped == nil {
-		t.dropped = map[int]int{}
-	}
-	t.dropped[slot]++
+	t.share(slot)
 	return false
 }
 
 // members counts the aliases, kept or dropped, that normalize to slot.
 func (t *aliasTable) members(slot int) int {
-	return 1 + len(t.later[slot]) + t.dropped[slot]
+	return 1 + t.extra[slot]
 }
 
 // lookup returns the slot of a normalized spelling and whether it is shared.
@@ -115,16 +121,11 @@ func (t *aliasTable) shared(slot int) bool {
 }
 
 // collided counts the aliases that share a slot with another alias. Only
-// shared slots appear in later or dropped, so the walk is over collisions.
+// shared slots appear in extra, so the walk is over collisions.
 func (t *aliasTable) collided() int {
 	total := 0
-	for slot := range t.later {
+	for slot := range t.extra {
 		total += t.members(slot)
-	}
-	for slot := range t.dropped {
-		if _, counted := t.later[slot]; !counted {
-			total += t.members(slot)
-		}
 	}
 	return total
 }

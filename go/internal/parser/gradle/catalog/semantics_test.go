@@ -261,3 +261,51 @@ func TestScanExactRepeatPastTheCapIsMalformed(t *testing.T) {
 		t.Fatalf("State=%q rows=%d, want malformed with none", result.State, len(result.Rows))
 	}
 }
+
+// variantCatalog writes n distinct spellings of one normalized alias
+// ("a.a.a..." with each separator drawn from '-', '_' and '.") as libraries.
+// Every spelling collides with every other.
+func variantCatalog(n int) []byte {
+	var b strings.Builder
+	b.WriteString("[libraries]\n")
+	seps := []byte{'-', '_', '.'}
+	for i := 0; i < n; i++ {
+		key := []byte("a")
+		for v, k := i, 0; k < 10; k++ {
+			key = append(key, seps[v%3], 'a')
+			v /= 3
+		}
+		fmt.Fprintf(&b, "%q = \"g:a%d:1\"\n", key, i)
+	}
+	return []byte(b.String())
+}
+
+// Every spelling of one normalized alias lands in one slot. Up to MaxRows of
+// them are kept and the rest dropped, and each must still cost one lookup,
+// not a scan of the spellings already seen.
+func TestScanManySpellingsOfOneAliasStayCounted(t *testing.T) {
+	source := variantCatalog(3 * MaxRows)
+	result := Scan(source)
+	if result.State != StateParsed || len(result.Rows) != MaxRows || result.Counts.Dropped != 2*MaxRows ||
+		result.Counts.Collided != 3*MaxRows || result.Counts.Unresolved != MaxRows {
+		t.Fatalf("State=%q rows=%d Counts=%+v", result.State, len(result.Rows), result.Counts)
+	}
+}
+
+func BenchmarkScanManySpellingsOfOneAlias(b *testing.B) {
+	source := variantCatalog(3 * MaxRows)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		Scan(source)
+	}
+}
+
+// A repeat of the second spelling of a shared alias is still a repeated TOML
+// key, so the file is malformed.
+func TestScanExactRepeatOfALaterSpellingIsMalformed(t *testing.T) {
+	t.Parallel()
+	text := "[libraries]\na-b = \"g:a:1\"\na_b = \"g:b:1\"\na_b = \"g:c:1\"\n"
+	if result := Scan([]byte(text)); result.State != StateMalformed || len(result.Rows) != 0 {
+		t.Fatalf("State=%q rows=%d, want malformed with none", result.State, len(result.Rows))
+	}
+}
