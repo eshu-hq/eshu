@@ -552,7 +552,7 @@ tests:
   - file: go/internal/storage/postgres/content_file_upsert_guard_bench_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8915 disposable PostgreSQL 18 smoke proof that a findings-heavy content_files replay through the real ContentWriter writes under 64 KiB of WAL, with an opt-in (ESHU_CONTENT_UPSERT_GUARD_BENCH=1) full-size measurement run that asserts nothing; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do"
+    reason: "#8915 disposable PostgreSQL 18 smoke proof that a findings-heavy content_files replay through the real ContentWriter writes under 64 KiB of WAL and that a batch whose rows all changed still writes row WAL, with an opt-in (ESHU_CONTENT_UPSERT_GUARD_BENCH=1) full-size measurement run that asserts nothing; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/content_file_upsert_guard_columns_live_test.go
     tag: ~
@@ -563,6 +563,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8915 disposable PostgreSQL 18 proof that four concurrent ContentWriter sessions over one batch under the content_files upsert guard hit no deadlock or error and leave consistent rows, and that a blocked upsert rechecks its guard against the committed row after the lock holder commits; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_file_upsert_guard_contract_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8915 disposable PostgreSQL 18 proof of two contracts of the content_files upsert guard: a duplicate path inside one batch is rejected the way it always was (the guard must not turn it into a silent last-write-wins), and a statement whose rows are all skipped still fires the statement-level UPDATE triggers with an empty transition table while the shipped migration-138 and migration-186 UPDATE triggers are statement-level; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/content_file_upsert_guard_live_test.go
     tag: ~

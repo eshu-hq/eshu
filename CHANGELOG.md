@@ -144,16 +144,22 @@ recent shipped work grouped by feature area.
 - **The `content_files` upsert skips a row that did not change**
   ([#8915](https://github.com/eshu-hq/eshu/issues/8915)). Re-upserting an
   identical file used to write a new row version, re-insert both large trigram
-  index entries, and log the whole file, so a same-generation replay of a
-  findings-heavy batch (50 files of 469 KB, 491 findings each) took a median
-  11.04 s and 65.8 MiB of WAL, with a 4.1 s to 26.2 s spread. Both file
-  upserts now share one conflict clause that skips the update when every
-  written column except `indexed_at` already matches (NULL-safe): the same
-  replay takes 134 ms and writes no row WAL. A skipped row keeps its old
-  `indexed_at`, so `content_last_indexed_at` and the language inventory
-  `last_indexed_at` report when content last changed, not when it was last
-  replayed. A replay under a new `generation_id` or `commit_sha` still
-  rewrites the row (#8950). Evidence:
+  index entries, and log the whole file. For a same-generation replay of a
+  findings-heavy batch (50 files of 469 KB, 491 findings each) the upsert
+  statement took a median 4.9 to 11.0 s and wrote 65.8 to 71.4 MiB of WAL;
+  with the change it takes 135 ms and writes no row WAL. Both file upserts now
+  share one conflict clause that skips the update when every written column
+  except `indexed_at` already matches (NULL-safe). The whole `Write` call for
+  that batch falls from 7.3 to 13.4 s to 2.5 s: the rest is hostname and
+  service-name extraction over the bodies (about 2.4 s), which this change does
+  not touch. A batch whose rows all change is unchanged within noise (statement
+  median 6.3 s before, 6.5 s after). A skipped row keeps its old `indexed_at`,
+  so `content_last_indexed_at`, the language inventory `last_indexed_at`, and
+  the `updated_at` of a `repository_file` semantic-search result report the
+  last write that changed the file, not the last replay. A replay under a new
+  `generation_id` or `commit_sha` still rewrites the row (#8950). One duplicate
+  path inside a single batch is rejected before any statement runs, as the
+  database already rejected it. Evidence:
   `docs/internal/evidence/8915-content-file-upsert-guard.md`.
 
 ### Security alert reconciliation waits for its own impact producer without spending attempts

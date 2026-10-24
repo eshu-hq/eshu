@@ -46,6 +46,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/content_file_upsert_guard_bench_live_test.go": (
             "TestContentFileUpsertGuardReplayBenchLive",
+            "TestContentFileUpsertGuardChangedBatchBenchLive",
         ),
         "go/internal/storage/postgres/content_file_upsert_guard_columns_live_test.go": (
             "TestContentFileUpsertGuardColumnsLive",
@@ -54,6 +55,10 @@ TABLE = {
         "go/internal/storage/postgres/content_file_upsert_guard_concurrency_live_test.go": (
             "TestContentFileUpsertGuardConcurrentWritersLive",
             "TestContentFileUpsertGuardRechecksAgainstCommittedRowLive",
+        ),
+        "go/internal/storage/postgres/content_file_upsert_guard_contract_live_test.go": (
+            "TestContentWriterRejectsDuplicatePathInBatchLive",
+            "TestContentFileUpsertGuardSkippedStatementFiresStatementTriggersLive",
         ),
         "go/internal/storage/postgres/content_file_upsert_guard_live_test.go": (
             "TestContentFileUpsertGuardUnchangedReplayLeavesRowsUntouchedLive",
@@ -483,9 +488,6 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_producer_terminal_live_test.go": (
             "TestOwnGateProducerDeadLetteredConsumerDeadLettersLive",
             "TestOwnGateProducerRetryingConsumerKeepsDeferringLive",
-        ),
-        "go/internal/storage/postgres/reducer_queue_security_alert_impact_wait_concurrent_live_test.go": (
-            "TestReducerContentionGateSecurityAlertReconciliationImpactFenceUnderContention",
         ),
     },
 }

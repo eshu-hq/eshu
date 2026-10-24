@@ -19,24 +19,37 @@ const (
 
 // upsertContentFileConflictClause is the one ON CONFLICT clause shared by the
 // single-row and batch file upserts, so the update list and its guard cannot
-// drift between the two shapes.
+// drift between the two shapes (TestUpsertContentFileConflictClauseLockstep
+// fails when they do).
 //
 // The WHERE guard skips the update when the stored row already equals the
 // incoming one in every column except indexed_at (#8915). Postgres otherwise
 // writes a new row version for an identical re-upsert: every index entry,
 // including the two large trigram GIN indexes, is inserted again and the row
-// is logged, which turned an unchanged findings-heavy replay into tens of MB
-// of WAL per 50-row batch (docs/internal/evidence/8915-content-file-upsert-guard.md). The row compare is NULL-safe (IS DISTINCT FROM), and
-// content is compared on its own so a body edit that kept its hash still
-// writes.
+// is logged, so an unchanged findings-heavy replay wrote tens of MiB of WAL per
+// 50-row batch (docs/internal/evidence/8915-content-file-upsert-guard.md). The
+// row compare is NULL-safe (IS DISTINCT FROM), and content is compared on its
+// own so an edit that kept its content_hash still writes.
 //
 // indexed_at is deliberately not compared: it moves on every write, so
-// comparing it would defeat the guard. A skipped row keeps its old indexed_at,
-// so content_files.indexed_at means "when this content was last written", not
-// "when it was last replayed". A skipped row fires no UPDATE trigger, so the
-// migration-138 secret-line side table and the migration-186 content-version
-// fence stay as they were, which is correct because no indexed column changed.
-// Callers must not read RowsAffected from these statements as "files written".
+// comparing it would stop the guard from ever skipping. A skipped row keeps its
+// old indexed_at: it means "when this row was last written with a change to its
+// content, commit, generation, or another stored column", not "when it was last
+// replayed".
+//
+// A skipped row writes nothing, but the statement still locks it and still
+// fires the statement-level triggers. The migration-138 secret-line and
+// migration-186 version-fence UPDATE triggers are statement-level, so they fire
+// with an empty transition table when every row is skipped: they stage no
+// repository and derive no secret line, which is correct because no indexed
+// column changed. Callers must not read RowsAffected from these statements as
+// "files written".
+//
+// A path may appear once per multi-row upsert. Postgres rejects a second copy
+// of a key ("cannot affect row a second time"), but the guard alone would
+// accept a duplicate over a stored row that the first copy leaves unchanged and
+// let a differing second copy win silently, so upsertContentFileBatch rejects
+// the duplicate before any statement runs.
 const upsertContentFileConflictClause = `
 ON CONFLICT (repo_id, relative_path) DO UPDATE
 SET commit_sha = EXCLUDED.commit_sha,

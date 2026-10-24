@@ -4,14 +4,16 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8915 disposable PostgreSQL 18 smoke proof that a findings-heavy content_files replay through the real ContentWriter writes under 64 KiB of WAL, with an opt-in (ESHU_CONTENT_UPSERT_GUARD_BENCH=1) full-size measurement run that asserts nothing; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do
+//eshu:readiness:reason #8915 disposable PostgreSQL 18 smoke proof that a findings-heavy content_files replay through the real ContentWriter writes under 64 KiB of WAL and that a batch whose rows all changed still writes row WAL, with an opt-in (ESHU_CONTENT_UPSERT_GUARD_BENCH=1) full-size measurement run that asserts nothing; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do
 //eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"os"
 	"slices"
@@ -114,26 +116,24 @@ func findingsHeavyCorpus(files, sizeBytes, findings int) []content.Record {
 	return records
 }
 
-// replayBenchSmokeWALLimit bounds the row WAL one smoke-size replay may write.
-// The unguarded writer wrote megabytes for the same batch.
+// replayBenchSmokeWALLimit bounds the row WAL one smoke-size unchanged replay
+// may write; the unguarded writer wrote megabytes for the same batch.
 const replayBenchSmokeWALLimit = 64 * 1024
 
-// TestContentFileUpsertGuardReplayBenchLive reports the before/after of the
-// #8915 guard on the findings-heavy corpus through the real ContentWriter,
-// replaying an identical batch and logging each replay's
-// EXPLAIN (ANALYZE, BUFFERS, WAL) numbers.
-//
-// By default it runs a small corpus (6 files of 64 KB, 60 findings each, 2
-// replays) as a smoke proof and fails if a replay writes more than
-// replayBenchSmokeWALLimit of WAL. With ESHU_CONTENT_UPSERT_GUARD_BENCH=1 it
-// runs the measurement corpus (50 files of about 469 KB, 491 findings each, 3
-// replays) and asserts nothing, so it can be run on each side of a change:
-//
-//	ESHU_CONTENT_UPSERT_GUARD_BENCH=1 ESHU_POSTGRES_TEST_DSN=... \
-//	  go test ./internal/storage/postgres -run ContentFileUpsertGuardReplayBench -count=1 -v
-//
+// changedBatchSmokeWALFloor is the least row WAL a smoke-size batch whose rows
+// all changed must write: the guard must not skip a real change.
+const changedBatchSmokeWALFloor = 64 * 1024
+
+// runUpsertGuardBench writes a findings-heavy batch through the real
+// ContentWriter, then replays it `rounds` times, either unchanged or with
+// every file edited, and logs each replay's statement time, WAL, buffers, write
+// wall, and the upsert_files stage line. By default it runs a small corpus and
+// asserts a WAL bound; with ESHU_CONTENT_UPSERT_GUARD_BENCH=1 it runs the
+// measurement corpus (50 files of about 469 KB, 491 findings each) and asserts
+// nothing, so it can be run on each side of a change.
 // ESHU_CONTENT_UPSERT_GUARD_BENCH_ROUNDS sets the replay count.
-func TestContentFileUpsertGuardReplayBenchLive(t *testing.T) {
+func runUpsertGuardBench(t *testing.T, changed bool) {
+	t.Helper()
 	full := os.Getenv("ESHU_CONTENT_UPSERT_GUARD_BENCH") == "1"
 	files, sizeBytes, findings, rounds := 6, 64*1024, 60, 2
 	if full {
@@ -149,7 +149,9 @@ func TestContentFileUpsertGuardReplayBenchLive(t *testing.T) {
 	ctx, db := openContentUpsertGuardDatabase(t)
 	records := findingsHeavyCorpus(files, sizeBytes, findings)
 	var plans []explainedFileUpsert
-	writer := NewContentWriter(explainingFileDB{SQLDB: SQLDB{DB: db}, plans: &plans})
+	var stageLog bytes.Buffer
+	writer := NewContentWriter(explainingFileDB{SQLDB: SQLDB{DB: db}, plans: &plans}).
+		WithLogger(slog.New(slog.NewTextHandler(&stageLog, nil)))
 	clock := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	writer.Now = func() time.Time { return clock }
 	mat := content.Materialization{RepoID: "repo-8915-bench", ScopeID: "scope-8915", GenerationID: "gen-1", Records: records}
@@ -161,6 +163,16 @@ func TestContentFileUpsertGuardReplayBenchLive(t *testing.T) {
 	var wallMS, execMS, walMB []float64
 	for r := 1; r <= rounds; r++ {
 		clock = clock.Add(time.Hour)
+		round := records
+		if changed {
+			round = make([]content.Record, len(records))
+			for i, rec := range records {
+				rec.Body += fmt.Sprintf("\n// edit %d\n", r)
+				round[i] = rec
+			}
+		}
+		mat.Records = round
+		stageLog.Reset()
 		start := time.Now()
 		if _, err := writer.Write(ctx, mat); err != nil {
 			t.Fatalf("replay %d: %v", r, err)
@@ -171,16 +183,48 @@ func TestContentFileUpsertGuardReplayBenchLive(t *testing.T) {
 		}
 		p := plans[r-1]
 		wallMS, execMS, walMB = append(wallMS, wall), append(execMS, p.executionMS), append(walMB, float64(p.walBytes)/(1<<20))
-		t.Logf("replay %d: write wall %.0f ms, statement %.0f ms, WAL %.2f MiB, shared read %d, dirtied %d blocks",
+		t.Logf("round %d: write wall %.0f ms, statement %.0f ms, WAL %.2f MiB, shared read %d, dirtied %d blocks",
 			r, wall, p.executionMS, float64(p.walBytes)/(1<<20), p.sharedRead, p.sharedDirty)
-		if !full && p.walBytes > replayBenchSmokeWALLimit {
-			t.Errorf("replay %d wrote %d WAL bytes for an unchanged batch, want <= %d", r, p.walBytes, replayBenchSmokeWALLimit)
+		if full {
+			for _, line := range strings.Split(stageLog.String(), "\n") {
+				if strings.Contains(line, "stage=upsert_files") {
+					t.Logf("round %d stage log: %s", r, line)
+				}
+			}
 		}
+		switch {
+		case !full && !changed && p.walBytes > replayBenchSmokeWALLimit:
+			t.Errorf("replay %d wrote %d WAL bytes for an unchanged batch, want <= %d", r, p.walBytes, replayBenchSmokeWALLimit)
+		case !full && changed && p.walBytes < changedBatchSmokeWALFloor:
+			t.Errorf("round %d wrote %d WAL bytes for a batch whose rows all changed, want >= %d: the guard must not skip a real change", r, p.walBytes, changedBatchSmokeWALFloor)
+		}
+	}
+	if full {
+		// The residual of write wall over statement time is client work; time the
+		// reference extraction the file batch runs after its INSERT on its own.
+		rows := make([]preparedFileRow, len(records))
+		for i, rec := range records {
+			rows[i] = preparedFileRow{repoID: mat.RepoID, path: rec.Path, body: rec.Body}
+		}
+		start := time.Now()
+		refs := contentReferencesForFiles(rows)
+		t.Logf("reference extraction alone over the corpus: %d ms, %d references", time.Since(start).Milliseconds(), len(refs))
 	}
 	median := func(v []float64) float64 {
 		s := slices.Clone(v)
 		slices.Sort(s)
 		return s[len(s)/2]
 	}
-	t.Logf("median of %d replays: write wall %.0f ms, statement %.0f ms, WAL %.2f MiB", rounds, median(wallMS), median(execMS), median(walMB))
+	t.Logf("median of %d rounds: write wall %.0f ms, statement %.0f ms, WAL %.2f MiB", rounds, median(wallMS), median(execMS), median(walMB))
 }
+
+// TestContentFileUpsertGuardReplayBenchLive reports the before/after of the
+// #8915 guard for an identical replay (see runUpsertGuardBench):
+//
+//	ESHU_CONTENT_UPSERT_GUARD_BENCH=1 ESHU_POSTGRES_TEST_DSN=... \
+//	  go test ./internal/storage/postgres -run ContentFileUpsertGuardReplayBench -count=1 -v
+func TestContentFileUpsertGuardReplayBenchLive(t *testing.T) { runUpsertGuardBench(t, false) }
+
+// TestContentFileUpsertGuardChangedBatchBenchLive reports the same numbers for a
+// batch whose rows all change, the path the guard adds a compare to.
+func TestContentFileUpsertGuardChangedBatchBenchLive(t *testing.T) { runUpsertGuardBench(t, true) }
