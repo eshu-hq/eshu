@@ -44,7 +44,14 @@ job and fails when:
 
 - any shard's predicted job seconds pass 80% of the 1800 s cap (1440 s). Adding
   tests without refreshing the weights is caught here once the defaults stop
-  covering them;
+  covering them. The 20% headroom is the model's error band. Replayed on the
+  retired count cut, the weights file's prediction missed the eight measured
+  shard jobs of source runs 40047410741 and 40049588589 by -15% to +24%
+  (prediction minus measurement, as a share of the measurement; shards 1 to 3
+  of 4 by -6% to +11%). Those runs also fitted the weights, so
+  treat the band as a floor. At the -15% end a 1440 s prediction runs about
+  1700 s, still under the cap. Predicted figures are model output until a CI
+  run on the new cut records the measured job seconds;
 - more than 40 planned tests, or more than 2 planned packages, have no measured
   weight;
 - the shard job's `timeout-minutes` stops matching the 1800 s cap the gate
@@ -68,10 +75,32 @@ python3 scripts/lib/live_postgres_readiness_weights_refresh.py \
 ```
 
 `--fixed-job-seconds` is the mean of the job duration minus the "Run live
-readiness proofs" step duration. The refresher keeps only tests in the current
+readiness proofs" step duration. Read both from
+`gh api repos/eshu-hq/eshu/actions/runs/<RUN_ID>/jobs`: the job's
+`completed_at - started_at`, and the matching entry under `steps`. The refresher keeps only tests in the current
 inventory, so a test missing from every log uses the default until the next
 refresh. Commit the regenerated file with the change that needed it, then run
 the shard contract test again.
+
+### A PR that enrolls more than 40 unweighted tests
+
+The hermetic job fails the drift check, and no green full run has logs for the
+new tests. The shard jobs do not wait on the hermetic job and run with
+`fail-fast: false`, so they still finish on the PR head with default prices for
+the new tests. Take the logs from that run:
+
+```bash
+gh api repos/eshu-hq/eshu/actions/runs/<RUN_ID>/jobs \
+  --jq '.jobs[] | select(.name | test("shard")) | [.id, .name] | @tsv'
+gh api repos/eshu-hq/eshu/actions/jobs/<JOB_ID>/logs > <RUN_DIR>/shard<N>.log   # per shard job
+python3 scripts/lib/live_postgres_readiness_weights_refresh.py \
+  --out specs/live-postgres-readiness-weights.v1.json \
+  --fixed-job-seconds <SECONDS> --sample <RUN_ID>=<RUN_DIR>
+```
+
+Use this run only when all four shard jobs passed, since a failed shard log
+misses its package groups and the refresher fails closed. Add it as an extra
+`--sample` next to the earlier runs, then commit the regenerated file and push.
 
 ## When a shard is still too slow
 
