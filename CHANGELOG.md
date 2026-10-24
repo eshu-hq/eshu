@@ -127,9 +127,10 @@ recent shipped work grouped by feature area.
   case-insensitively, and the whole `.mvn` directory in its managed copy, so it
   treats them like clone mode, except that a name under an unallowlisted
   dot-directory, such as `tools/.config/.eslintrc` (unlike `.github`,
-  `.github/workflows` and `.mvn`), is still pruned there with its parent. The copy's existing `.gitlab-ci.yml`,
-  `.gitlab-ci.yaml` and `.gitmodules` entries now match case-insensitively there
-  as well; `.gitignore` is still not copied there. Because
+  `.github/workflows`, `.mvn` and a dot-directory whose name is itself an
+  allowlisted file name), is still pruned there with its parent. The copy's
+  existing `.gitlab-ci.yml`, `.gitlab-ci.yaml` and `.gitmodules` entries now
+  match case-insensitively there as well; `.gitignore` is still not copied there. Because
   the copy keeps `.mvn` whole, filesystem mode also now indexes other files the
   registry admits under it, such as `.mvn/wrapper/MavenWrapperDownloader.java`,
   as clone mode already did. The registry fingerprint and `git-collector`

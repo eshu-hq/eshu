@@ -101,5 +101,6 @@ as it does in clone mode: `.mvn/extensions.xml` is admitted as text, a `.java`
 file under `.mvn/wrapper` is admitted as Java, and `.mvn/jvm.config`,
 `.mvn/maven.config` and the wrapper properties have no registry entry, so they
 are not indexed. The copy still prunes any other, unallowlisted dot-directory
+(other than a dot-directory whose name is itself an allowlisted file name)
 whole, so an admitted name inside one, such as `tools/.config/.eslintrc`, is
 indexed in clone mode only.
