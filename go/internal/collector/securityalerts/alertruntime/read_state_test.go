@@ -278,3 +278,30 @@ func TestOrgFreshnessHintMovesOnceForTheReadState(t *testing.T) {
 		t.Errorf("org claim hint = %q, want the marked digest %q", collected.Generation.FreshnessHint, recorded)
 	}
 }
+
+// TestClaimedSourceRecordsATruncatedOrgReadWithNoEligibleRepository pins the
+// zero-eligible case: every allowlisted repository belongs to another account,
+// so a truncated org read fans out nothing. The state is still written, with the
+// truncation flag, no covered repositories, and nothing unread, because no
+// repository of this organization can be asked about.
+func TestClaimedSourceRecordsATruncatedOrgReadWithNoEligibleRepository(t *testing.T) {
+	t.Parallel()
+
+	client := &fanoutClient{org: securityalerts.GitHubDependabotAlertResult{
+		Alerts: []securityalerts.GitHubDependabotAlert{orgAlert(1, "example-org/alpha-repo")}, PagesFetched: 3, Truncated: true,
+	}}
+	captured := &capturedStates{}
+	source, item := newStateSource(t, client, orgStateTarget("other-org/outside-repo"), captured.factory)
+	collected := collectState(t, source, item)
+
+	if collected.StateWriter == nil || len(captured.states) != 1 {
+		t.Fatalf("StateWriter set = %v, states = %d, want the writer built for a truncated org read", collected.StateWriter != nil, len(captured.states))
+	}
+	state := captured.states[0]
+	if !state.OrgReadTruncated || state.RepositoriesTotal != 0 || len(state.Unread) != 0 {
+		t.Errorf("state = %+v, want truncated, 0 covered repositories, nothing unread", state)
+	}
+	if len(client.repoCalls) != 0 {
+		t.Errorf("per-repository calls = %v, want none", client.repoCalls)
+	}
+}
