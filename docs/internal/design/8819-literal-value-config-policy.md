@@ -17,8 +17,12 @@ denylist `redact`.
 
 ### What is true on `main` today
 
-I looked up each path with `Registry.LookupByPath` in a throwaway test, removed
-before commit, at the base commit `c664b72cb0`.
+I first looked up each path with `Registry.LookupByPath` in a throwaway test,
+removed before commit, at the older base commit `c664b72cb0`. #8922 has since
+merged (commit `4d78b83273`). I rechecked every row below against `origin/main`
+by reading `ExactNames`, the extension lists and the path rules in
+`go/internal/parser/registry_definitions.go` and `LookupByPath` in
+`go/internal/parser/registry.go`, not by a new run.
 
 | Path | Resolves | Parser key | Note |
 | --- | --- | --- | --- |
@@ -29,7 +33,8 @@ before commit, at the base commit `c664b72cb0`.
 | `.tool-versions` | yes | `raw_text` | admitted by #8882 as a version pin file |
 | `.envrc` | no | | |
 | `devbox.json`, `.devcontainer/devcontainer.json`, `renovate.json` | yes | `json` | admitted through the `.json` extension |
-| `renovate.json5`, `tox.ini`, `phpunit.xml`, `.mvn/maven.config` | no | | #8922 admits the first two and withholds the others |
+| `renovate.json5`, `tox.ini` | yes | `raw_text` | in `ExactNames` since #8922 (merged, commit `4d78b83273`) |
+| `phpunit.xml`, `.mvn/maven.config` | no | | #8922 withholds both for #8812; no `.xml` or `.config` extension is registered |
 | `Taskfile.yml` | yes | `yaml` | admitted through `.yml` |
 
 So the question for mise is not a stored-row cleanup, which is the #8813 case.
@@ -189,8 +194,8 @@ v1 list, which I have not edited (issue bodies are the coordinator's to change).
 
 The epic #8807 policy ruling keeps this record in line with #8922: `mise.toml`
 stays unadmitted, and `phpunit.xml` and `.mvn/maven.config` are routed to #8812.
-It also fixes the order: #8922 merges, then #8812, then #8833. #8812 waits for
-#8922 because both edit `go/internal/parser/registry.go` and
+It also fixes the order: #8922, then #8812, then #8833. #8922 is merged (commit
+`4d78b83273`), and #8812 follows it because both edit `go/internal/parser/registry.go` and
 `registry_definitions.go`. Any later PR that admits a mise name changes the
 bindings, so it rebases onto the then-current content version, takes the next
 free one, reruns `go test ./go/internal/collector/repo/git -run TestGenerationContentVersionPinsCollectorOutput -update-content-version-pin`
@@ -217,11 +222,12 @@ The arbiter then settled the four points this record had left open:
    backend-prefixed keys as an open-set `runtime`, lowercased verbatim;
    `raw_spec` bound to 256 bytes, skipped and counted, never truncated.
 
-## Consistency with the open #8922 (#8814)
+## Consistency with the merged #8922 (#8814)
 
-PR #8922 was read at head `c80484cfe9`, state open and mergeable. This record
-agrees with it on every name it covers and differs on none, with two points the
-arbiter should see.
+PR #8922 is merged (commit `4d78b83273` on `origin/main`). I read its diff
+before the merge and rechecked the registry on `origin/main` afterwards. This
+record agrees with it on every name it covers and differs on none, with two
+points the arbiter should see.
 
 | Point in #8922 | This record |
 | --- | --- |
@@ -304,9 +310,10 @@ For the later implementation:
 
 | Command | Result |
 | --- | --- |
-| Throwaway Go test calling `DefaultRegistry().LookupByPath` on 25 paths, removed after the run | Table in Context. |
+| Throwaway Go test calling `DefaultRegistry().LookupByPath` on 25 paths at base `c664b72cb0`, removed after the run | Table in Context, with the two rows #8922 changed updated by reading. |
 | Scratch Go program applying `(?i)` plus the `hardcodedSecretSQLPattern` text to 11 invented lines | Table in Context. RE2, not Postgres ARE. |
-| `gh pr view 8922`, `gh pr diff 8922` | Head `c80484cfe9`, open, mergeable. Mise appears only in a kept comment. |
+| `gh pr view 8922`, `gh pr diff 8922` | Read before the merge at head `c80484cfe9`. Mise appears only in a kept comment. |
+| Read of `registry_definitions.go` and `LookupByPath` on `origin/main` (`4d78b83273`) | `tox.ini` and `renovate.json5` are in `ExactNames`; no `.toml`, `.xml` or `.config` extension is registered; the mise comment is still the only mise mention. Not a new run. |
 | Fetches of the three mise documentation pages | Facts in Context. |
 | Fetch of the configuration and dev-tools pages, 2026-10-24 (summarized by the fetch tool) | The file list, the list form, the table form and the backend-prefixed names in Context. |
 | Read of migration 138 (`finding_kind` CASE and the file prefilter) | `sk_live_` is in the prefilter only; the CASE has no arm for it. |
