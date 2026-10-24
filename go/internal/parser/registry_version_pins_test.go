@@ -54,7 +54,7 @@ func TestDefaultRegistryKeepsCredentialBearingDotfilesOut(t *testing.T) {
 
 	registry := DefaultRegistry()
 	for _, name := range []string{
-		".npmrc", ".pypirc", ".netrc",
+		".pypirc", ".netrc",
 		".env", ".env.local", ".env.production",
 		"mise.toml", ".mise.toml",
 		".something-version", "node-version", ".nvmrc.bak",

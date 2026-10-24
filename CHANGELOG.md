@@ -22,6 +22,38 @@ recent shipped work grouped by feature area.
   `rate_limited`, and every other 403 stays `auth_denied`. The org fan-out
   still reports the repository as `alerts_disabled` and continues.
 
+### Parser: `.npmrc` registry URLs
+
+- **`.npmrc` is admitted under the `metadata` content-store policy and reports
+  its registry URLs**
+  ([#8978](https://github.com/eshu-hq/eshu/issues/8978)). Eshu could not say
+  which package registry a repository installs from, because `.npmrc` sat next
+  to its credentials and was withheld. It now has its own exact-name `npmrc`
+  definition bound to `metadata`: the content row keeps the path and the source
+  digest with an empty body, and a new parser in `go/internal/parser/npmrc` emits
+  one `config_kind=registry_url` row per `registry=` and `@scope:registry=` line
+  with the scheme, host, port, and path. Userinfo, query, and fragment are
+  removed. A line is skipped whole if it holds an environment expansion, a
+  non-http scheme, a shape the shared secret detector flags in the scheme or
+  host, or an `@` that the URL parser did not read as the userinfo delimiter
+  (`https://user:/pw@host/` would otherwise report the user name as the host).
+  The path is kept only on a documented token-free vendor layout (Artifactory,
+  Nexus, Azure Artifacts, GitLab, Gitea, Cloudsmith, Artifact Registry,
+  CodeArtifact, including Azure feed views such as `my-feed@Release`); any other path, and every Gemfury path, is dropped and the row
+  keeps the scheme and host with `registry_path_withheld`. No other key is read,
+  so `_authToken`, `_auth`, `_password`, `//host/:username`, and `email` values
+  reach no fact. Parser output is not governed by the content-store policy, so
+  the proof is a seeded full-stream scan of every emitted fact
+  (`TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding`) and a fuzz
+  target with a seeded credential tail. The parser registry fingerprint moves
+  once, so every repository re-collects once. The default registry is now
+  governed, so every repository pays one policy lookup per file: the snapshot
+  stage for 5,000 files went from 8.8 ns to 1.09 ms
+  (`BenchmarkContentStoreGovernedDefault`). Filesystem source mode now copies
+  `.npmrc` into the managed workspace. A token a vendor puts in a documented
+  path slot would still be emitted if it is a short word, digits only, or a
+  PascalCase word of up to four parts and 24 bytes.
+
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
 - **Nesting guard before every Cargo TOML decode**

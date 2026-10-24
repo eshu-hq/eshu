@@ -82,9 +82,11 @@
   extension (`.ini`, `.toml`, `.xml` and `.properties` stay unadmitted). Do
   not add a name that can carry credentials or environment values: the content
   store has no write-time redaction. `phpunit.xml`, `.mvn/jvm.config`,
-  `.mvn/maven.config`, `.env`, `.npmrc` and `settings.xml` are kept out for
+  `.mvn/maven.config`, `.env` and `settings.xml` are kept out for
   that reason, and `TestDefaultRegistryKeepsCredentialBearingConfigNamesUnadmitted`
-  pins them. Do not register `Taskfile.yml`: an exact name beats the `.yml`
+  pins them. `.npmrc` (#8978) is the one admitted credential-bearing name: its own
+  `npmrc` definition, bound to the `metadata` content-store policy, whose parser
+  emits only credential-free registry URLs (`npmrc/AGENTS.md`). Do not register `Taskfile.yml`: an exact name beats the `.yml`
   extension and would downgrade it from structured YAML to plain text.
   `.mvn/extensions.xml` is a path rule (`isMavenExtensionsPath`) because
   `extensions.xml` is too generic to bind by name. Path rules sit outside
@@ -130,6 +132,7 @@ grammar.
 | JSON | `encoding/json` (+ ordered-object decode) | `json/language.go`, `json/ordered_object.go` | JSON is declarative data; the standard library decoder is the canonical, lossless parser. |
 | HCL / Terraform / Terragrunt | `github.com/hashicorp/hcl/v2` (`hclparse`, `hclsyntax`) | `hcl/parser.go`, `hcl/values.go`, `hcl/include_chain.go` | HCL has an official AST library from HashiCorp. Its native parser is the authoritative grammar for `.tf`/`.tfvars`/Terragrunt; reimplementing it via tree-sitter would diverge from upstream semantics. |
 | Go modules (`gomod`) | `golang.org/x/mod/modfile` | `gomod/parser.go`, `gomod/gowork.go` | `go.mod`/`go.sum`/`go.work` have a canonical Go module-file parser maintained alongside the toolchain. It is a manifest, not source code. |
+| npm config (`npmrc`) | bounded line reader plus `net/url` | `npmrc/parser.go` | `.npmrc` is an ini-style config that mixes registry URLs with credentials; the parser reads only the two registry key shapes and removes userinfo, query, and fragment, so no grammar is needed. |
 | Node lockfiles (`node_lockfile`) | custom yarn.lock scanner; pnpm-lock via `gopkg.in/yaml.v3` | `nodelockfile/parser.go`, `nodelockfile/pnpm.go`, `nodelockfile/yarn_*.go` | Lockfiles are generated manifests. yarn.lock is a bespoke format; pnpm-lock is YAML. Neither is a programming language tree-sitter can parse. |
 | Python deps (`python_requirements`, `python_toml`) | `bufio` line scanner / minimal TOML scanner | `pythondep/requirements.go`, `pythondep/toml.go`, `pythondep/pyproject.go` | pip requirements and `pyproject.toml`/`Pipfile`/`poetry.lock` are manifests, not Python source. A bounded scanner reads exactly the dependency-table shapes these manifests use. |
 | Maven | `encoding/xml` | `maven/parser.go` | `pom.xml` is XML; the standard XML decoder is canonical. |

@@ -51,7 +51,8 @@ func TestResolveNativeSnapshotFileSetAdmitsUniversalConfigNames(t *testing.T) {
 		{name: "taskfile stays yaml", path: "Taskfile.yml", indexed: true},
 		{name: "directory named like a config file, file inside", path: "Makefile.d/rules.cfg", indexed: true},
 		{name: "env", path: ".env", indexed: false},
-		{name: "npmrc", path: ".npmrc", indexed: false},
+		// .npmrc is admitted by its own definition under the metadata policy (#8978).
+		{name: "npmrc", path: ".npmrc", indexed: true},
 		{name: "settings xml", path: "settings.xml", indexed: false},
 		{name: "maven settings", path: ".mvn/settings.xml", indexed: false},
 		{name: "maven jvm config", path: ".mvn/jvm.config", indexed: false},
@@ -145,7 +146,7 @@ func TestFilesystemSelectorPreservesUniversalConfigDotfiles(t *testing.T) {
 	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
 	kept := []string{
 		".editorconfig", ".gitattributes", ".dockerignore",
-		".eslintrc", ".prettierrc", ".babelrc", ".npmignore", ".flake8",
+		".eslintrc", ".prettierrc", ".babelrc", ".npmignore", ".flake8", ".npmrc",
 		filepath.Join("web", ".editorconfig"),
 		filepath.Join(".mvn", "extensions.xml"),
 		filepath.Join("module", ".mvn", "extensions.xml"),
@@ -154,7 +155,7 @@ func TestFilesystemSelectorPreservesUniversalConfigDotfiles(t *testing.T) {
 	// itself, and a copied file would let discovery filter a second time. The
 	// copy keeps .mvn whole; what discovery then admits from it is pinned by
 	// TestFilesystemCopyKeepsMvnDirectoryAndDiscoveryAppliesRegistryRules.
-	dropped := []string{".env", ".npmrc", ".pypirc", ".netrc", ".secret-config", ".gitignore"}
+	dropped := []string{".env", ".pypirc", ".netrc", ".secret-config", ".gitignore"}
 	for _, rel := range append(append([]string{}, kept...), dropped...) {
 		writeSelectionTestFile(t, filepath.Join(sourceRepo, rel), "x = 1\n")
 	}
