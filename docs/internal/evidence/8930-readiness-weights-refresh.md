@@ -68,3 +68,9 @@ python3 -I -c "import sys; sys.path.insert(0,'scripts/lib'); import live_postgre
 ```
 
 The second prints `582 [0, 91, 282, 342, 582] [1176.3, 1204.3, 1291.2, 1318.1]`.
+
+## Weights added for the #8830 acknowledgement proofs
+
+The #8830 branch enrolled ten live proofs in `./internal/storage/postgres` (`collector_terminal_failure_ack_live_test.go`, `collector_terminal_failure_list_live_test.go`, and `workflow_terminal_failure_ack_live_test.go`). With no weight they were priced at the 5 s default, 50 s in all. Measured on a disposable PostgreSQL 18 container they take 122.7 s, because each one bootstraps its own schema. The balance self-test `test_tests_appended_at_the_end_are_absorbed` failed with the default prices: ten extra slow tests at the tail raised the largest shard from 1330.1 s to 1432.1 s, 102.0 s over its 100.0 s allowance. Shard 1 cannot take any of the storage package because one appearance of it costs 427.4 s, so three shards share the whole package and the cut has little room.
+
+The ten tests now carry their measured seconds. These are local figures from one run, not CI figures, and `source_runs` is unchanged. The next refresh from a green CI wave replaces them. The plan is 617 tests and cuts at 0, 93, 295, 368, 617, with predicted job seconds 1186.3, 1357.9, 1351.4, and 1342.0, all under the 1440 s budget. Unweighted planned tests fall from 36 to 26.
