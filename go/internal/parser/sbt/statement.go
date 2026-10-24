@@ -8,34 +8,43 @@ package sbt
 const noContext int32 = -1
 
 // parseLibraryDependencies reads one statement that starts at a
-// libraryDependencies key. A row is resolved only when the key sits in a
-// grammar context (keyContext), the operator is `+=`, `++=` or `:=`, and the
-// rest of the statement matches the grammar token for token (README.md,
-// "Grammar"). Every other assignment falls back to salvage: each literal
-// coordinate in the statement is emitted partial and counted. A key that is
-// not followed by an assignment (`libraryDependencies.value`) is not a
-// declaration and is left to the main loop. A member called on the key is
-// judged by settingMemberOf: one that returns a Setting is applied from any
-// position, because the Setting changes the key wherever it is used; one that
-// returns no Setting is counted only at the start of an expression and is
-// otherwise a read.
+// libraryDependencies key. It is default-deny: the only occurrences it does
+// not treat as a rewrite are a read (`.value`, `.in(Test).value`,
+// `(k in Test).value`), a member sbt's SettingKey API defines as a Setting
+// (settingMemberOf), and an assignment operator after the key and any chain
+// of legacy axes. A row is resolved only when the key sits in a grammar
+// context (keyContext), has no axis, the operator is `+=`, `++=` or `:=`,
+// and the rest of the statement matches the grammar token for token
+// (README.md, "Grammar"). Every other assignment falls back to salvage: each
+// literal coordinate in the statement is emitted partial and counted. Any
+// other occurrence (a parenthesized key, an infix member such as `set` or
+// `withRank`, a member that returns no Setting, a bare key) is a rewrite the
+// scanner cannot read: denyLibraryDependencies supersedes every row.
 func (s *scan) parseLibraryDependencies(key token) {
 	prev := s.hist[1]
 	ctx, inContext := s.keyContext(key, prev)
-	if s.skipLegacyAxis() {
-		// The member after an axis follows the member rule out of context.
+	if axes, _ := s.skipLegacyAxes(); axes > 0 {
 		inContext = false
-		if isPunct(s.peek(), ".") {
-			s.next()
-		}
 	}
 	op := s.peek()
-	if op.kind == kindIdent && isPunct(s.hist[0], ".") && !isKeyRead(op.text) &&
-		(settingMemberOf(op.text) != memberValue || startsExpression(key, prev, inContext)) {
-		s.applyMember(op.text, ctx, inContext)
+	switch {
+	case isPunct(s.hist[0], "."):
+		switch {
+		case op.kind == kindIdent && isKeyRead(op.text):
+			// A read; the main loop skips the member.
+		case op.kind == kindIdent && settingMemberOf(op.text) != memberValue:
+			s.applyMember(op.text, ctx, inContext)
+		default:
+			s.denyLibraryDependencies()
+		}
 		return
-	}
-	if op.kind != kindSymbol {
+	case op.kind == kindClose:
+		if !s.readThroughClosers() {
+			s.denyLibraryDependencies()
+		}
+		return
+	case op.kind != kindSymbol || !isAssignmentOperator(op.text):
+		s.denyLibraryDependencies()
 		return
 	}
 	switch op.text {
@@ -56,11 +65,7 @@ func (s *scan) parseLibraryDependencies(key token) {
 		return
 	default:
 		// `<+=` and `<++=` append an Initialize; any other assignment
-		// operator is no sbt setting operator. Both take the fallback. A
-		// comparison or other operator is not a setting at all.
-		if !isAssignmentOperator(op.text) {
-			return
-		}
+		// operator is no sbt setting operator. Both take the fallback.
 		s.next()
 		s.fallback()
 		return
@@ -191,8 +196,7 @@ func settingMemberOf(member string) settingMember {
 // so a literal coordinate later in the statement (`if (ci) k.set(...) else k
 // += c`) is still emitted partial. A member that appends takes the fallback.
 // A member that returns the key (`withRank`) is judged by the operator after
-// it (applyRankedOperator). A member that returns no Setting cannot change
-// the key, so the statement is counted once and supersedes nothing. Out of a
+// it (applyRankedOperator). The caller denies every other member. Out of a
 // grammar context every reset is global (markReset).
 func (s *scan) applyMember(member string, ctx int32, inContext bool) {
 	switch settingMemberOf(member) {
@@ -201,17 +205,24 @@ func (s *scan) applyMember(member string, ctx int32, inContext bool) {
 		s.fallback()
 	case memberAppend:
 		s.fallback()
-	case memberKey:
+	default:
+		// memberKey: `withRank(...)` returns the key itself.
 		s.next()
 		if open := s.peek(); open.kind == kindOpen && open.text == "(" && !open.newline {
 			s.next()
 			s.skipGroup()
 		}
 		s.applyRankedOperator(ctx, inContext)
-	default:
-		s.unresolved++
-		s.salvage(0, false)
 	}
+}
+
+// denyLibraryDependencies handles an occurrence of the key the scanner does
+// not recognise. sbt may read it as any rewrite of the key in any scope, so it
+// supersedes every row of the file; the rest of the statement is salvaged as
+// partial rows, and a statement with none is counted once.
+func (s *scan) denyLibraryDependencies() {
+	s.markReset(noContext, false)
+	s.fallback()
 }
 
 // applyRankedOperator reads the operator after `withRank(...)`, which returns
@@ -265,61 +276,12 @@ func isAssignmentOperator(op string) bool {
 	return true
 }
 
-// startsExpression reports whether key sits where a member that returns no
-// Setting is counted: in a grammar context, at the start of a line, or right
-// after an opener, ',' or ';'. Such a member in the middle of an expression
-// (`x := libraryDependencies.map(f)`) is a read. A member that returns a
-// Setting is applied from any position (parseLibraryDependencies).
-func startsExpression(key, prev token, inContext bool) bool {
-	switch {
-	case inContext, key.newline, prev.kind == kindEOF, prev.kind == kindOpen:
-		return true
-	}
-	return isPunct(prev, ",") || isPunct(prev, ";")
-}
-
 // isContinuationKeyword names the Scala keywords after which a new line
 // continues the same expression or starts its body.
 func isContinuationKeyword(word string) bool {
 	switch word {
 	case "if", "else", "then", "do", "while", "for", "yield", "match", "case",
 		"return", "throw", "try", "catch", "finally", "new", "with", "extends":
-		return true
-	}
-	return false
-}
-
-// skipLegacyAxis consumes a legacy `in <scope>` or `.in(<scope>)` after the
-// key and reports whether one was there. Any axis takes the statement out of
-// the grammar. A '.' followed by anything else is left in place.
-func (s *scan) skipLegacyAxis() bool {
-	tok := s.peek()
-	switch {
-	case tok.kind == kindIdent && tok.text == "in":
-		s.next()
-		operand := s.peek()
-		switch operand.kind {
-		case kindIdent:
-			s.next()
-			s.readQualID(operand.text)
-		case kindOpen:
-			s.next()
-			s.skipGroup()
-		default:
-			// A missing operand: the operator check below decides.
-		}
-		return true
-	case isPunct(tok, "."):
-		s.next()
-		name := s.peek()
-		if name.kind != kindIdent || name.text != "in" {
-			return false
-		}
-		s.next()
-		if open := s.peek(); open.kind == kindOpen {
-			s.next()
-			s.skipGroup()
-		}
 		return true
 	}
 	return false

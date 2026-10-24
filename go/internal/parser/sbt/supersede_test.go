@@ -8,14 +8,13 @@ import "testing"
 // earlierRow is the resolved row each superseding case declares first.
 const earlierRow = "libraryDependencies += \"a\" % \"b\" % \"1\"\n"
 
-// TestDottedNonSettingMemberDoesNotSupersede pins the read side of the member
-// rule. In sbt's SettingKey API (main-settings Structure.scala) only `:=`,
-// `+=`, `++=`, `-=`, `--=`, `~=`, `<+=`, `<++=`, `<<=`, `set`, `transform`,
-// `append1`, `appendN`, `remove1` and `removeN` return a Setting; `map`,
-// `flatMap`, `get`, `or` and the rest return an Initialize or a plain value,
-// which cannot change the key. Such a statement is counted once and leaves the
-// earlier row resolved, wherever the key sits.
-func TestDottedNonSettingMemberDoesNotSupersede(t *testing.T) {
+// TestDottedNonSettingMemberIsDenied pins the default-deny side of the member
+// rule. Only a read member (`value`, `key`, `scopedKey`, `taskValue`) leaves
+// the key alone. Any other member that returns no Setting (`map`, `flatMap`,
+// `get`, an unknown name) is an occurrence the scanner does not recognise, so
+// it supersedes every row of the file and is counted once, wherever the key
+// sits.
+func TestDottedNonSettingMemberIsDenied(t *testing.T) {
 	t.Parallel()
 
 	for name, source := range map[string]string{
@@ -32,22 +31,22 @@ func TestDottedNonSettingMemberDoesNotSupersede(t *testing.T) {
 		"next statement": "libraryDependencies.map(_.size); libraryDependencies.filter(x => true)",
 	} {
 		payload := parseSource(t, earlierRow+source+"\n")
-		if got := requireRow(t, payload, "a:b")["dependency_resolution_state"]; got != "resolved" {
-			t.Errorf("%s: a:b state = %v, want resolved: a member that returns no Setting cannot change the key", name, got)
+		if got := requireRow(t, payload, "a:b")["dependency_resolution_state"]; got != "partial" {
+			t.Errorf("%s: a:b state = %v, want partial: an unrecognised member is denied", name, got)
 		}
 		if got := len(dependencyRows(t, payload)); got != 1 {
 			t.Errorf("%s: rows = %d, want 1", name, got)
 		}
 	}
 
-	// In a project's settings the earlier row of the same project stays
-	// resolved too.
+	// In a project's settings the earlier row of the same project is
+	// superseded too.
 	project := parseSource(t, "lazy val core = project.settings(libraryDependencies += \"a\" % \"b\" % \"1\", libraryDependencies.map(_.size))\n")
-	requireField(t, requireRow(t, project, "a:b"), "dependency_resolution_state", "resolved")
+	requireField(t, requireRow(t, project, "a:b"), "dependency_resolution_state", "partial")
 
-	// The statement is counted once; the earlier row is not.
+	// The statement is counted once, and the superseded row once.
 	counted := parseSource(t, earlierRow+"libraryDependencies.map(_.withSources())\n")
-	requireStateField(t, stateOf(t, counted), "unresolved_declaration_count", 1)
+	requireStateField(t, stateOf(t, counted), "unresolved_declaration_count", 2)
 }
 
 // TestDottedSettingMemberSupersedes pins the write side: the members that
@@ -132,7 +131,9 @@ func TestLegacyAndUnknownAssignmentOperatorsFallBack(t *testing.T) {
 	bare := parseSource(t, "libraryDependencies <<= otherDeps\n")
 	requireStateField(t, stateOf(t, bare), "unresolved_declaration_count", 1)
 
-	// Comparison and other non-assignment operators are not settings.
+	// A comparison, another non-assignment operator, or a local definition
+	// that shadows the key is no recognised occurrence: it is denied and
+	// counted once.
 	for _, source := range []string{
 		"check := libraryDependencies == Nil",
 		"check := libraryDependencies <= x",
@@ -140,7 +141,7 @@ func TestLegacyAndUnknownAssignmentOperatorsFallBack(t *testing.T) {
 		"def libraryDependencies = Nil",
 	} {
 		payload := parseSource(t, source+"\n")
-		requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
+		requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 1)
 	}
 }
 
@@ -157,7 +158,6 @@ func TestRewriteMemberAnywhereSupersedes(t *testing.T) {
 		"val rhs transform": "lazy val s = libraryDependencies.transform(_ => Nil, NoPosition)",
 		"typed val set":     "lazy val s: Setting[_] = libraryDependencies.set(Def.setting(Nil), pos)",
 		"after :+":          "commonSettings :+ libraryDependencies.transform(identity, pos)",
-		"if else":           "if (ci) libraryDependencies.set(Def.setting(Nil), pos) else libraryDependencies.set(Def.setting(Seq()), pos)",
 		"nested":            "lazy val common = Seq(foo(1), bar(libraryDependencies.remove1(Def.setting(x), pos)))",
 		"after opener":      "check := (libraryDependencies.removeN(Def.setting(xs), pos))",
 		"lambda body":       "check := { deps => libraryDependencies.set0(Def.setting(Nil), pos) }",
@@ -175,6 +175,11 @@ func TestRewriteMemberAnywhereSupersedes(t *testing.T) {
 	project := parseSource(t, "lazy val core = project.settings(libraryDependencies += \"a\" % \"b\" % \"1\")\nlazy val s = libraryDependencies.transform(identity, pos)\n")
 	requireField(t, requireRow(t, project, "a:b"), "dependency_resolution_state", "partial")
 
+	// Each occurrence is counted, so both branches of an if count.
+	branches := parseSource(t, earlierRow+"if (ci) libraryDependencies.set(Def.setting(Nil), pos) else libraryDependencies.set(Def.setting(Seq()), pos)\n")
+	requireField(t, requireRow(t, branches, "a:b"), "dependency_resolution_state", "partial")
+	requireStateField(t, stateOf(t, branches), "unresolved_declaration_count", 3)
+
 	// A coordinate later in the same statement is still emitted partial.
 	tail := parseSource(t, earlierRow+"if (ci) libraryDependencies.set(Def.setting(Nil), pos) else libraryDependencies += \"c\" % \"d\" % \"2\"\n")
 	requireField(t, requireRow(t, tail, "a:b"), "dependency_resolution_state", "partial")
@@ -182,10 +187,8 @@ func TestRewriteMemberAnywhereSupersedes(t *testing.T) {
 
 	// Reads stay reads at any position: not counted, nothing superseded.
 	for name, source := range map[string]string{
-		"value rhs":  "lazy val s = libraryDependencies.value",
-		"map rhs":    "check := libraryDependencies.map(_.size)",
-		"filter rhs": "lazy val s = base ++ libraryDependencies.filter(_ => true)",
-		"key rhs":    "lazy val k = libraryDependencies.key",
+		"value rhs": "lazy val s = libraryDependencies.value",
+		"key rhs":   "lazy val k = libraryDependencies.key",
 	} {
 		t.Run(name, func(t *testing.T) {
 			payload := parseSource(t, earlierRow+source+"\n")
@@ -244,8 +247,8 @@ func TestWithRankReadsTheOperatorAfterIt(t *testing.T) {
 // `.in(...)` axis. The axis takes the statement out of the grammar, so the
 // member is judged as it is without the axis and any reset is global: a
 // rewriting member or `withRank(...)` supersedes the earlier row, a member
-// that returns no Setting is counted once and supersedes nothing, and the
-// dotted `.:=(...)` call replaces the key like `:=`.
+// that returns no Setting is denied like one without the axis, and the dotted
+// `.:=(...)` call replaces the key like `:=`.
 func TestAxisThenMemberFollowsMemberRule(t *testing.T) {
 	t.Parallel()
 
@@ -255,6 +258,7 @@ func TestAxisThenMemberFollowsMemberRule(t *testing.T) {
 		"withRank assign": "libraryDependencies.in(Test).withRank(r) := Nil",
 		"dot assign":      "libraryDependencies.in(Test).:=(Nil)",
 		"plain dot call":  "libraryDependencies.:=(Nil)",
+		"non-Setting":     "libraryDependencies.in(Test).map(_.withSources())",
 	} {
 		t.Run(name, func(t *testing.T) {
 			payload := parseSource(t, earlierRow+source+"\n")
@@ -265,7 +269,7 @@ func TestAxisThenMemberFollowsMemberRule(t *testing.T) {
 		})
 	}
 
-	read := parseSource(t, earlierRow+"libraryDependencies.in(Test).map(_.withSources())\n")
+	read := parseSource(t, earlierRow+"lazy val s = libraryDependencies.in(Test).value\n")
 	requireField(t, requireRow(t, read, "a:b"), "dependency_resolution_state", "resolved")
-	requireStateField(t, stateOf(t, read), "unresolved_declaration_count", 1)
+	requireStateField(t, stateOf(t, read), "unresolved_declaration_count", 0)
 }

@@ -41,10 +41,11 @@ type fzMemberCase struct {
 	stray      int  // out-of-context scalaVersion statements, each counted once
 }
 
-// fzMemberReads are members that return no Setting.
-var fzMemberReads = []string{
+// fzMemberDenied are members that return no Setting and are no read; under
+// default-deny each is a rewrite the scanner cannot read.
+var fzMemberDenied = []string{
 	"map(_.withSources())", "filter(_.name != \"x\")", "flatMap(x => x)",
-	"distinct", "previous", "zipWith(scalaVersion)((a, b) => a)", "foo(1)",
+	"distinct", "previous", "zipWith(other)((a, b) => a)", "foo(1)",
 	"get(settings)", "or(Def.setting(Nil))",
 }
 
@@ -81,6 +82,71 @@ var fzReadScala = []string{
 	"crossScalaVersions := Seq(scalaVersion.value, \"%s\")",
 	"crossScalaVersions := Seq(scalaVersion.in(Test).value, \"%s\")",
 	"check := ((scalaVersion in Test).value, \"%s\")",
+	"version := (ThisBuild / scalaVersion).value + \"%s\"",
+	"version := ((Compile / scalaVersion)).value.trim + \"%s\"",
+	"myScalaVersion := \"%s\"", "// (scalaVersion) := \"%s\"",
+	"description := \"(scalaVersion) := %s\"",
+	"lazy val core = project.settings(name := scalaVersion.value + \"%s\")",
+}
+
+// fzReadLib are reads of the libraryDependencies key and lookalikes; each
+// changes nothing and is not counted.
+var fzReadLib = []string{
+	"lazy val s = libraryDependencies.value", "lazy val k = libraryDependencies.key",
+	"version := (libraryDependencies in Test).value.toString",
+	"version := libraryDependencies.in(Test).value.toString",
+	"myLibraryDependencies := Nil", "// (libraryDependencies) := Nil",
+	"description := \"libraryDependencies withRank r := Nil\"",
+	"lazy val core = project.settings(name := libraryDependencies.value.toString)",
+}
+
+// fzDenyLib are libraryDependencies occurrences the scanner does not
+// recognise: a parenthesized key at any depth, a key under a prefix axis in
+// parentheses, chained legacy axes, infix members, a comparison, and a bare
+// key. Each supersedes every row and is counted once. A form that would start
+// a line with '(' follows `organization := "x"; ` instead: a literal before a
+// line that starts with '(' may continue into it, so the scanner fails that
+// earlier statement closed on its own.
+var fzDenyLib = []string{
+	"organization := \"x\"; (libraryDependencies) := Nil", "organization := \"x\"; (Compile / libraryDependencies) := Nil",
+	"lazy val s = Seq((libraryDependencies) := Nil)", "foo(((libraryDependencies)) := Nil)",
+	"lazy val s = Seq((libraryDependencies in Test) := Nil)", "organization := \"x\"; (libraryDependencies.in(Test)) := Nil",
+	"libraryDependencies in Compile in Test := Nil", "libraryDependencies set (Def.setting(Nil), pos)",
+	"lazy val s = libraryDependencies withRank r := Nil", "libraryDependencies withRank KeyRanks.Invisible := Nil",
+	"def f = if (x) (libraryDependencies) := Nil else Nil", "val g = (x: Int) => (libraryDependencies) := Nil",
+	"lazy val s = libraryDependencies", "check := libraryDependencies == Nil",
+	"lazy val s = Seq(x).map(_ => libraryDependencies)",
+	"lazy val core = project.settings((libraryDependencies) := Nil)",
+	"lazy val core = project.settings(name := \"c\", (libraryDependencies in Test) := Nil)",
+}
+
+// fzWatchedLib are fallback statements whose operand holds a key the
+// statement handler consumes itself; lib and scala count the unrecognised
+// occurrences inside, each a rewrite. The outer statement is counted once.
+var fzWatchedLib = []struct {
+	text       string
+	lib, scala int
+}{
+	{"libraryDependencies <+= Def.setting(libraryDependencies)", 1, 0},
+	{"libraryDependencies <+= Def.setting(libraryDependencies := Nil)", 1, 0},
+	{"libraryDependencies <+= Def.setting(scalaVersion)", 0, 1},
+	{"libraryDependencies <+= Def.setting((scalaVersion) := \"2.12.18\")", 0, 1},
+	{"libraryDependencies <+= Def.setting(libraryDependencies.value.head)", 0, 0},
+	{"libraryDependencies <+= Def.setting(other % scalaVersion.value)", 0, 0},
+}
+
+// fzDenyScala are scalaVersion occurrences the scanner does not recognise;
+// %s is the literal. Each poisons the envelope and is counted once.
+var fzDenyScala = []string{
+	"organization := \"x\"; (scalaVersion) := \"%s\"", "lazy val core = project.settings((scalaVersion) := \"%s\")",
+	"lazy val s = Seq((Compile / scalaVersion) := \"%s\")",
+	"lazy val s = Seq(name := \"x\", (ThisBuild / scalaVersion) := \"%s\")",
+	"foo(((scalaVersion)) := \"%s\")", "organization := \"x\"; (scalaVersion in Test) := \"%s\"",
+	"scalaVersion in Compile in Test := \"%s\"", "scalaVersion in ThisBuild in Test := \"%s\"",
+	"scalaVersion withRank KeyRanks.Invisible := \"%s\"", "scalaVersion set (Def.setting(\"%s\"), pos)",
+	"lazy val s = scalaVersion withRank r := \"%s\"", "def f = if (x) (scalaVersion) := \"%s\" else Nil",
+	"val g = (x: Int) => (scalaVersion) := \"%s\"", "scalaVersion.map(_ => \"%s\")",
+	"lazy val s = (scalaVersion, \"%s\")",
 }
 
 // fzPoisonScala are scalaVersion statements in a grammar context that the
@@ -168,20 +234,20 @@ func fzMemberBuild(seed int64) fzMemberCase {
 	}
 	stmts := 2 + r.Intn(6)
 	for i := 0; i < stmts; i++ {
-		switch r.Intn(10) {
+		switch r.Intn(13) {
 		case 0, 1, 2:
 			text, _ := coord(false)
 			out.WriteString("libraryDependencies += " + text + "\n")
 		case 3:
-			read := fzMemberReads[r.Intn(len(fzMemberReads))]
-			forms := []string{"libraryDependencies.%s", "check := (libraryDependencies.%s).value", "lazy val common = Seq(libraryDependencies.%s)", "libraryDependencies.in(Test).%s"}
-			if r.Intn(3) == 0 {
-				// In the middle of an expression a read is not a statement.
-				mid := []string{"check := libraryDependencies.%s", "lazy val s = base ++ libraryDependencies.%s"}
-				fmt.Fprintf(&out, mid[r.Intn(len(mid))]+"\n", read)
-				break
+			member := fzMemberDenied[r.Intn(len(fzMemberDenied))]
+			forms := []string{
+				"libraryDependencies.%s", "check := (libraryDependencies.%s).value",
+				"lazy val common = Seq(libraryDependencies.%s)", "libraryDependencies.in(Test).%s",
+				"check := libraryDependencies.%s", "lazy val s = base ++ libraryDependencies.%s",
 			}
-			fmt.Fprintf(&out, forms[r.Intn(len(forms))]+"\n", read)
+			fmt.Fprintf(&out, forms[r.Intn(len(forms))]+"\n", member)
+			supersede()
+			global = true
 			c.unresolved++
 		case 4:
 			call := fzMemberRewrites[r.Intn(len(fzMemberRewrites))]
@@ -191,6 +257,9 @@ func fzMemberBuild(seed int64) fzMemberCase {
 				text, _ := coord(true)
 				fmt.Fprintf(&out, "if (ci) libraryDependencies.%s else libraryDependencies += %s\n", call, text)
 				global = true
+				// The fallback consumes the second key itself, so the watch
+				// counts it as an unrecognised occurrence.
+				c.unresolved++
 				break
 			}
 			position := r.Intn(len(fzRewritePositions))
@@ -244,6 +313,39 @@ func fzMemberBuild(seed int64) fzMemberCase {
 			}
 			fmt.Fprintf(&out, fzTopScala[r.Intn(len(fzTopScala))]+"\n", version)
 			c.versions = append(c.versions, version)
+		case 10:
+			// An unrecognised libraryDependencies occurrence supersedes every
+			// row; the watched forms add the outer fallback statement's count.
+			if r.Intn(4) == 0 {
+				form := fzWatchedLib[r.Intn(len(fzWatchedLib))]
+				out.WriteString(form.text + "\n")
+				c.unresolved += 1 + form.lib
+				if form.lib > 0 {
+					supersede()
+					global = true
+				}
+				if form.scala > 0 {
+					c.stray += form.scala
+					c.poisoned = true
+				}
+				break
+			}
+			out.WriteString(fzDenyLib[r.Intn(len(fzDenyLib))] + "\n")
+			supersede()
+			global = true
+			c.unresolved++
+		case 11:
+			version := fmt.Sprintf("2.11.%d", r.Intn(4))
+			fmt.Fprintf(&out, fzDenyScala[r.Intn(len(fzDenyScala))]+"\n", version)
+			c.stray++
+			c.poisoned = true
+		case 12:
+			// A recognised read or a lookalike changes nothing.
+			if r.Intn(2) == 0 {
+				out.WriteString(fzReadLib[r.Intn(len(fzReadLib))] + "\n")
+				break
+			}
+			fmt.Fprintf(&out, fzReadScala[r.Intn(len(fzReadScala))]+"\n", fmt.Sprintf("2.11.%d", r.Intn(4)))
 		}
 	}
 	if global {

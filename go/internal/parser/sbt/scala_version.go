@@ -18,44 +18,36 @@ func (s *scan) scalaVersionContext(key token) bool {
 }
 
 // parseScalaVersion reads one statement that starts at a scalaVersion key.
-// Only `scalaVersion [in ThisBuild] := "literal"` (or a tracked top-level val)
-// in a grammar context records a version. Every other assignment poisons the
-// envelope and is counted once: in a grammar context a value that is not a
-// plain literal, `~=`, `<<=`, `<+=`, or a member that returns a Setting such
-// as `set`, `transform`, `withRank(...) :=`, `in(...) :=` or `.:=(...)`
-// changes the version to something the scanner cannot read; outside one (a
-// settings val or def, a wrapper, a lambda, an axis other than ThisBuild) any
-// assignment may reach a project the scanner does not track. A key that is
-// not assigned (`scalaVersion.value`, `scalaVersion.in(Test).value`, a
-// comparison) is a read and is left to the main loop.
+// It is default-deny. Only `scalaVersion [in ThisBuild] := "literal"` (or a
+// tracked top-level val) in a grammar context records a version, and only a
+// read (`scalaVersion.value`, `scalaVersion.in(Test).value`,
+// `(scalaVersion in Test).value`) leaves the envelope alone. Every other
+// occurrence poisons the envelope and is counted once: a value that is not a
+// plain literal, any operator but `:=`, any member but a read, chained or
+// non-ThisBuild axes, a parenthesized key, an infix member (`withRank`,
+// `set`), a bare key, and any assignment outside a grammar context, which
+// may reach a project the scanner does not track.
 func (s *scan) parseScalaVersion(inContext bool) {
-	tok := s.next()
-	if tok.kind == kindIdent && tok.text == "in" {
-		scope := s.next()
-		switch {
-		case scope.kind == kindOpen:
-			s.skipGroup()
-			inContext = false
-		case scope.kind != kindIdent || scope.text != "ThisBuild":
-			inContext = false
-		}
-		tok = s.next()
+	if axes, thisBuild := s.skipLegacyAxes(); axes > 1 || (axes == 1 && !thisBuild) {
+		inContext = false
 	}
-	if isPunct(tok, ".") {
-		// The '.' stays consumed for a read; the main loop skips the member.
-		if s.scalaVersionMemberWrites() {
+	op := s.peek()
+	switch {
+	case isPunct(s.hist[0], "."):
+		if op.kind != kindIdent || !isKeyRead(op.text) {
 			s.unknownScalaVersion(0)
 		}
 		return
-	}
-	if tok.kind != kindSymbol || !isAssignmentOperator(tok.text) {
-		s.unread(tok)
+	case op.kind == kindClose:
+		if !s.readThroughClosers() {
+			s.unknownScalaVersion(0)
+		}
 		return
-	}
-	if tok.text != ":=" || !inContext {
+	case op.kind != kindSymbol || op.text != ":=" || !inContext:
 		s.unknownScalaVersion(0)
 		return
 	}
+	s.next()
 	value := s.next()
 	switch {
 	case value.kind == kindString && validField(value.text) && endsLiteral(s.peek()):
@@ -67,50 +59,6 @@ func (s *scan) parseScalaVersion(inContext bool) {
 	default:
 		s.unknownScalaVersion(initialDepth(value))
 	}
-}
-
-// scalaVersionMemberWrites reports whether the member after a consumed '.'
-// can assign the key: a dotted assignment operator (`.:=(...)`), a member
-// that returns a Setting or the key (isScalaVersionWriter), or, after a
-// `.in(...)` axis, any of those or an assignment operator. A member that
-// returns no Setting, alone or after the axis (`.in(Test).value`), is a read.
-func (s *scan) scalaVersionMemberWrites() bool {
-	member := s.peek()
-	if member.kind == kindSymbol {
-		return isAssignmentOperator(member.text)
-	}
-	if member.kind != kindIdent || !isScalaVersionWriter(member.text) {
-		return false
-	}
-	if member.text != "in" {
-		return true
-	}
-	s.next()
-	if open := s.peek(); open.kind == kindOpen && open.text == "(" {
-		s.next()
-		s.skipGroup()
-	}
-	next := s.peek()
-	if next.kind == kindSymbol {
-		return isAssignmentOperator(next.text)
-	}
-	if !isPunct(next, ".") {
-		return true
-	}
-	s.next()
-	after := s.peek()
-	if after.kind == kindSymbol {
-		return isAssignmentOperator(after.text)
-	}
-	return after.kind == kindIdent && isScalaVersionWriter(after.text)
-}
-
-// isScalaVersionWriter reports a member of the scalaVersion key that returns
-// a Setting or the key itself, so the statement can change the version: the
-// rewriting and appending members of sbt's SettingKey API, `withRank`, and
-// the legacy `in(...)` axis, which an assignment may follow.
-func isScalaVersionWriter(member string) bool {
-	return member == "in" || settingMemberOf(member) != memberValue
 }
 
 // unknownScalaVersion counts a scalaVersion statement the scanner cannot read

@@ -130,6 +130,11 @@ type scan struct {
 	// modifierAt is the consumed count of the last modifier (`lazy`,
 	// `private`, ...) that heads a top-level statement, or 0.
 	modifierAt int
+	// watch follows key tokens consumed outside the main loop's claim
+	// (keyWatch); watchBefore is its state before the newest token, so unread
+	// restores it. claiming is set while the main loop consumes a token.
+	watch, watchBefore keyWatch
+	claiming           bool
 }
 
 func newScan(text string) *scan {
@@ -147,6 +152,8 @@ func (s *scan) next() token {
 		tok = s.lx.next()
 	}
 	s.hist[2], s.hist[1], s.hist[0] = s.hist[1], s.hist[0], tok
+	s.watchBefore = s.watch
+	s.watch.observe(tok, s.claiming)
 	return tok
 }
 
@@ -166,13 +173,17 @@ func (s *scan) unread(tok token) {
 	s.peeked = tok
 	s.hasPeek = true
 	s.hist[0], s.hist[1], s.hist[2] = s.hist[1], s.hist[2], token{}
+	s.watch = s.watchBefore
 }
 
 // run walks the token stream once and dispatches on the three key names the
-// parser reads.
+// parser reads. It claims every token it consumes, so a key token reaches
+// keyWatch unclaimed only when a statement handler consumed it.
 func (s *scan) run() {
 	for {
+		s.claiming = true
 		tok := s.next()
+		s.claiming = false
 		if tok.kind == kindEOF {
 			return
 		}
@@ -331,6 +342,7 @@ func isProjectHead(tok token) bool {
 // of a meta-build file is partial: its scope is the build definition's
 // classpath, not the project's.
 func (s *scan) finish() ([]map[string]any, map[string]any) {
+	s.applyKeyWatch()
 	s.applyResets()
 	if s.metaBuild {
 		for index := range s.deps {
