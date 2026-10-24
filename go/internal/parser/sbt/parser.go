@@ -4,6 +4,7 @@
 package sbt
 
 import (
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -56,6 +57,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 
 	payload := shared.BasePayload(path, LanguageName, isDependency)
 	scan := newScan(text)
+	scan.metaBuild = isMetaBuildPath(path)
 	scan.run()
 	rows, state := scan.finish()
 	payload["variables"] = rows
@@ -118,6 +120,12 @@ type scan struct {
 	// globalReset is set by a reset outside a grammar context; it supersedes
 	// every row of the file.
 	globalReset bool
+	// thisBuildAt is the consumed count of the last `ThisBuild` token that
+	// starts a statement in a grammar context, or 0.
+	thisBuildAt int
+	// metaBuild is set for a build.sbt in a `project` directory: sbt's
+	// meta-build, whose dependencies are the build definition's classpath.
+	metaBuild bool
 	// modifierAt is the consumed count of the last modifier (`lazy`,
 	// `private`, ...) that heads a top-level statement, or 0.
 	modifierAt int
@@ -176,7 +184,12 @@ func (s *scan) run() {
 		case "libraryDependencies":
 			s.parseLibraryDependencies(tok)
 		case "scalaVersion":
-			s.parseScalaVersion(isThisBuildAxis(s.hist[2], s.hist[1]))
+			s.parseScalaVersion(s.scalaVersionContext(tok))
+		case "ThisBuild":
+			s.thisBuildAt = 0
+			if _, ok := s.keyContext(tok, s.hist[1]); ok {
+				s.thisBuildAt = s.consumed
+			}
 		case "val":
 			if head {
 				s.parseVal()
@@ -231,51 +244,6 @@ func (s *scan) trackProject(tok token) {
 		s.hist[1].kind == kindIdent && s.hist[1].text == "settings" && isPunct(s.hist[2], ".") {
 		s.settingsCtx, s.settingsDepth = s.openProject, 1
 	}
-}
-
-// parseScalaVersion reads `scalaVersion [in ThisBuild] := "literal"`. Anything
-// else after the key (for example `scalaVersion.value`) is not an assignment
-// and is left to the main loop.
-func (s *scan) parseScalaVersion(thisBuild bool) {
-	tok := s.next()
-	if tok.kind == kindIdent && tok.text == "in" {
-		scope := s.next()
-		if scope.kind == kindIdent && scope.text == "ThisBuild" {
-			thisBuild = true
-		}
-		tok = s.next()
-	}
-	if tok.kind != kindSymbol || tok.text != ":=" {
-		s.unread(tok)
-		return
-	}
-	value := s.next()
-	switch {
-	case value.kind == kindString && validField(value.text) && endsLiteral(s.peek()):
-		s.recordScalaVersion(value.text, thisBuild)
-	case value.kind == kindIdent && s.resolveIdentVersion(value):
-		s.recordScalaVersion(s.vals[value.text], thisBuild)
-	case value.kind == kindEOF:
-	default:
-		s.unresolved++
-		s.salvage(initialDepth(value), false)
-	}
-}
-
-// resolveIdentVersion reports whether value is a bare identifier naming a
-// previously seen top-level string val and not the head of a longer expression.
-func (s *scan) resolveIdentVersion(value token) bool {
-	if _, ok := s.vals[value.text]; !ok {
-		return false
-	}
-	return endsLiteral(s.peek())
-}
-
-func (s *scan) recordScalaVersion(value string, thisBuild bool) {
-	if len(s.scalaVersions) >= maxScalaVersions {
-		return
-	}
-	s.scalaVersions = append(s.scalaVersions, scalaVersionDecl{value: value, thisBuild: thisBuild})
 }
 
 // parseVal records a top-level `val name[: Type] = "literal"` so later
@@ -358,9 +326,16 @@ func isProjectHead(tok token) bool {
 }
 
 // finish resolves deferred version references, applies the superseding
-// assignments, builds the rows, and returns the sbt_state envelope.
+// assignments, builds the rows, and returns the sbt_state envelope. Every row
+// of a meta-build file is partial: its scope is the build definition's
+// classpath, not the project's.
 func (s *scan) finish() ([]map[string]any, map[string]any) {
 	s.applyResets()
+	if s.metaBuild {
+		for index := range s.deps {
+			s.deps[index].partial = true
+		}
+	}
 	versions := s.distinctScalaVersions()
 	rows := make([]map[string]any, 0, len(s.deps))
 	binary := ""
@@ -387,6 +362,7 @@ func (s *scan) finish() ([]map[string]any, map[string]any) {
 		"dependency_count":             len(rows),
 		"dependency_overflow_count":    s.overflow,
 		"unresolved_declaration_count": s.unresolved + partial,
+		"meta_build":                   s.metaBuild,
 	}
 	return rows, state
 }
@@ -411,31 +387,12 @@ func (s *scan) applyResets() {
 	}
 }
 
-func (s *scan) distinctScalaVersions() []string {
-	seen := map[string]struct{}{}
-	versions := make([]string, 0, len(s.scalaVersions))
-	for _, decl := range s.scalaVersions {
-		if _, ok := seen[decl.value]; ok {
-			continue
-		}
-		seen[decl.value] = struct{}{}
-		versions = append(versions, decl.value)
-	}
-	return versions
-}
-
-// primaryScalaVersion prefers the first ThisBuild-scoped literal, else the
-// first literal in source order, and is empty when none was a literal.
-func (s *scan) primaryScalaVersion() string {
-	for _, decl := range s.scalaVersions {
-		if decl.thisBuild {
-			return decl.value
-		}
-	}
-	if len(s.scalaVersions) > 0 {
-		return s.scalaVersions[0].value
-	}
-	return ""
+// isMetaBuildPath reports whether path is a build.sbt directly inside a
+// directory named `project`. sbt reads `<root>/project/*.sbt` as the
+// meta-build that configures the build itself, and never reads a
+// `project/build.sbt` below a subproject as part of the build.
+func isMetaBuildPath(path string) bool {
+	return filepath.Base(filepath.Dir(path)) == "project"
 }
 
 // validField reports whether text can be a coordinate field.

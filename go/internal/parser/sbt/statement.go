@@ -14,9 +14,8 @@ const noContext int32 = -1
 // "Grammar"). Every other assignment falls back to salvage: each literal
 // coordinate in the statement is emitted partial and counted. A key that is
 // not followed by an assignment (`libraryDependencies.value`) is not a
-// declaration and is left to the main loop. A setting method applied to the
-// key (`libraryDependencies.transform(...)`, `.set(...)`) rewrites what came
-// before like `~=`, so it supersedes earlier rows and adds none.
+// declaration and is left to the main loop. A member called on the key at the
+// start of an expression is judged by settingMemberOf.
 func (s *scan) parseLibraryDependencies(key token) {
 	prev := s.hist[1]
 	ctx, inContext := s.keyContext(key, prev)
@@ -25,9 +24,7 @@ func (s *scan) parseLibraryDependencies(key token) {
 	}
 	op := s.peek()
 	if op.kind == kindIdent && isPunct(s.hist[0], ".") && !isKeyRead(op.text) && startsExpression(key, prev, inContext) {
-		s.unresolved++
-		s.markReset(ctx, inContext)
-		s.salvage(0, false)
+		s.applyMember(op.text, ctx, inContext)
 		return
 	}
 	if op.kind != kindSymbol {
@@ -43,12 +40,21 @@ func (s *scan) parseLibraryDependencies(key token) {
 		s.markReset(ctx, inContext)
 		s.salvage(0, false)
 		return
-	case "<+=", "<++=":
+	case "<<=":
+		// sbt 0.13's `<<=` replaces the key with an Initialize.
 		s.next()
-		s.unresolved++
-		s.salvage(0, false)
+		s.markReset(ctx, inContext)
+		s.fallback()
 		return
 	default:
+		// `<+=` and `<++=` append an Initialize; any other assignment
+		// operator is no sbt setting operator. Both take the fallback. A
+		// comparison or other operator is not a setting at all.
+		if !isAssignmentOperator(op.text) {
+			return
+		}
+		s.next()
+		s.fallback()
 		return
 	}
 
@@ -134,6 +140,88 @@ func isKeyRead(member string) bool {
 		return true
 	}
 	return false
+}
+
+// settingMember classifies a member called on the key by what sbt's
+// SettingKey API (main-settings Structure.scala) says it returns.
+type settingMember int
+
+const (
+	// memberValue returns an Initialize or a plain value, never a Setting,
+	// so it cannot change the key (`map`, `flatMap`, `get`, `or`, and any
+	// member sbt does not define).
+	memberValue settingMember = iota
+	// memberRewrite returns a Setting that replaces or removes what came
+	// before (`set`, `set0`, `transform`, `remove1`, `removeN`).
+	memberRewrite
+	// memberAppend returns a Setting that adds like `+=` or `++=`
+	// (`append1`, `appendN`).
+	memberAppend
+	// memberKey returns the key itself (`withRank`), so an assignment the
+	// scanner does not read may follow.
+	memberKey
+)
+
+// settingMemberOf classifies member. sbt 1's SettingKey defines append1,
+// appendN, remove1, removeN and transform, DefinableSetting defines set, sbt 2
+// adds set0, and withRank returns a SettingKey; every other member returns no
+// Setting.
+func settingMemberOf(member string) settingMember {
+	switch member {
+	case "set", "set0", "transform", "remove1", "removeN":
+		return memberRewrite
+	case "append1", "appendN":
+		return memberAppend
+	case "withRank":
+		return memberKey
+	}
+	return memberValue
+}
+
+// applyMember reads a statement whose key is followed by a member call. A
+// member that rewrites the key supersedes earlier rows and adds none. A member
+// that appends, or that returns the key so any assignment may follow, takes
+// the fallback; the second also supersedes, because the scanner cannot tell
+// which assignment follows. A member that returns no Setting cannot change
+// the key, so the statement is counted once and supersedes nothing.
+func (s *scan) applyMember(member string, ctx int32, inContext bool) {
+	switch settingMemberOf(member) {
+	case memberRewrite:
+		s.unresolved++
+		s.markReset(ctx, inContext)
+		s.salvage(0, false)
+	case memberAppend:
+		s.fallback()
+	case memberKey:
+		s.markReset(ctx, inContext)
+		s.fallback()
+	default:
+		s.unresolved++
+		s.salvage(0, false)
+	}
+}
+
+// fallback salvages the rest of a statement that adds outside the grammar:
+// each literal coordinate is emitted partial, and a statement with none is
+// counted once.
+func (s *scan) fallback() {
+	s.stmtRows = 0
+	s.window = coordinateWindow{}
+	s.failStatement(len(s.deps), 0)
+}
+
+// isAssignmentOperator reports a Scala assignment operator: a symbol that ends
+// in '=' and is not '=', a comparison (`==`, `<=`, `>=`, `!=`), or another
+// '='-led symbol (`=>`, `===`).
+func isAssignmentOperator(op string) bool {
+	if len(op) < 2 || op[len(op)-1] != '=' || op[0] == '=' {
+		return false
+	}
+	switch op {
+	case "<=", ">=", "!=":
+		return false
+	}
+	return true
 }
 
 // startsExpression reports whether key sits where a setting can be applied: in
@@ -239,10 +327,11 @@ func (s *scan) failStatement(start, rel int) {
 	}
 }
 
-// markReset records that a `:=`, `~=`, `-=` or `--=` in ctx supersedes every
-// row ctx declared so far. A reset outside a grammar context (in a settings
-// val, a wrapper, a block, or under an axis) may be applied to any project at
-// any point, so it supersedes every row of the file.
+// markReset records that a `:=`, `~=`, `-=`, `--=`, `<<=`, a rewriting member
+// or `withRank` in ctx supersedes every row ctx declared so far. A reset
+// outside a grammar context (in a settings val, a wrapper, a block, or under
+// an axis) may be applied to any project at any point, so it supersedes every
+// row of the file.
 func (s *scan) markReset(ctx int32, inContext bool) {
 	switch {
 	case !inContext:
