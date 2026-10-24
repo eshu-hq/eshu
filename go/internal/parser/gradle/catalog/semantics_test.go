@@ -122,8 +122,8 @@ func TestScanDroppedAliasStillMarksACollision(t *testing.T) {
 	}
 	source = append(source, []byte("a_7 = \"g:late:9\"\n")...)
 	result = Scan(source)
-	if result.Counts.Dropped != 1 {
-		t.Fatalf("Counts = %+v, want one dropped", result.Counts)
+	if result.Counts.Dropped != 1 || result.Counts.Collided != 2 {
+		t.Fatalf("Counts = %+v, want one dropped and two collided aliases", result.Counts)
 	}
 	requireUnresolved(t, rowByAlias(t, result.Rows, "a-7"), "catalog_alias")
 	if row := rowByAlias(t, result.Rows, "a-8"); row["dependency_resolution_state"] != "resolved" {
@@ -250,4 +250,14 @@ func TestScanSemanticCheckStaysLinearOnEscapedValues(t *testing.T) {
 		t.Fatalf("State=%q Counts=%+v, want parsed with one unsupported", result.State, result.Counts)
 	}
 	requireCeiling(t, "bytes allocated for a 1.8 MB escaped value", bytesAllocated, 3*uint64(len(source)))
+}
+
+// An exact repeat stays a malformed file even past the row cap: the repeated
+// key is invalid TOML wherever it appears.
+func TestScanExactRepeatPastTheCapIsMalformed(t *testing.T) {
+	t.Parallel()
+	source := append(hyphenCatalog(MaxRows), []byte("a-3 = \"g:again:2\"\n")...)
+	if result := Scan(source); result.State != StateMalformed || len(result.Rows) != 0 {
+		t.Fatalf("State=%q rows=%d, want malformed with none", result.State, len(result.Rows))
+	}
 }

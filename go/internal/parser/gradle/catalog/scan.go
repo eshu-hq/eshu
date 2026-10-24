@@ -182,15 +182,17 @@ func (s *scanner) keyValue(node *unstable.Node) string {
 		table = newAliasTable()
 		s.aliases[s.current] = table
 	}
-	if table.repeated(alias) {
-		return "alias repeated in one table"
-	}
 	if table.full() {
+		if table.addDropped(alias, &s.normBuf) {
+			return "alias repeated in one table"
+		}
 		s.counts.Dropped++
-		table.addDropped(alias, &s.normBuf)
 		return ""
 	}
-	slot := table.add(alias, &s.normBuf)
+	slot, repeated := table.add(alias, &s.normBuf)
+	if repeated {
+		return "alias repeated in one table"
+	}
 
 	line := s.lineAt(int(node.Raw.Offset))
 	value := node.Value()
