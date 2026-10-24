@@ -381,8 +381,12 @@ func (s IngestionStore) commitScopeGeneration(
 		return nil
 	}
 	// Collector-owned state commits with its generation or not at all (#8943).
-	if err := writeGenerationState(ctx, tx, stateWriter); err != nil {
-		return err
+	if stateWriter != nil {
+		stageStart = time.Now()
+		if err := writeGenerationState(ctx, tx, stateWriter); err != nil {
+			return err
+		}
+		s.logCommitStage(ctx, scopeValue, generation, "write_generation_state", stageStart)
 	}
 	queue := ProjectorQueue{database: tx, Now: s.now}
 	stageStart = time.Now()

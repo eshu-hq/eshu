@@ -4,8 +4,10 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -173,5 +175,50 @@ func TestCommitClaimedScopeGenerationWithStateRequiresAWriter(t *testing.T) {
 	}
 	if database.beginCalls != 0 {
 		t.Errorf("begin calls = %d, want 0 when the writer is missing", database.beginCalls)
+	}
+}
+
+// TestCommitClaimedScopeGenerationWithStateLogsTheStateStage proves the state
+// write is attributed in the commit stage log, so an operator can see its time
+// between upsert_facts and enqueue_projector_work, and that a commit with no
+// state writer logs no such stage.
+func TestCommitClaimedScopeGenerationWithStateLogsTheStateStage(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.October, 24, 9, 0, 0, 0, time.UTC)
+	commit := func(t *testing.T, withState bool) string {
+		t.Helper()
+		database := &fakeTransactionalDB{tx: &fakeTx{}}
+		var logs bytes.Buffer
+		store := NewIngestionStore(database)
+		store.Now = func() time.Time { return now }
+		store.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		scopeValue, generation, mutation := stateWriterFixture(now)
+		stream := stateWriterFacts(scopeValue, generation, now)
+		var err error
+		if withState {
+			err = store.CommitClaimedScopeGenerationWithState(context.Background(), mutation, scopeValue, generation, stream, nil,
+				func(context.Context, collector.CommitExecutor) error { return nil })
+		} else {
+			err = store.CommitClaimedScopeGeneration(context.Background(), mutation, scopeValue, generation, stream)
+		}
+		if err != nil {
+			t.Fatalf("commit error = %v, want nil", err)
+		}
+		return logs.String()
+	}
+
+	with := commit(t, true)
+	for _, want := range []string{`"stage":"write_generation_state"`, `"stage":"upsert_facts"`, `"stage":"enqueue_projector_work"`} {
+		if !strings.Contains(with, want) {
+			t.Errorf("commit with state logs missing %s:\n%s", want, with)
+		}
+	}
+	if strings.Index(with, `"stage":"write_generation_state"`) < strings.Index(with, `"stage":"upsert_facts"`) ||
+		strings.Index(with, `"stage":"write_generation_state"`) > strings.Index(with, `"stage":"enqueue_projector_work"`) {
+		t.Errorf("write_generation_state is not logged between upsert_facts and enqueue_projector_work:\n%s", with)
+	}
+	if without := commit(t, false); strings.Contains(without, "write_generation_state") {
+		t.Errorf("commit without a state writer logged the state stage:\n%s", without)
 	}
 }
