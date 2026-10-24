@@ -96,3 +96,8 @@ with earlier bases. `8785-latest-local-proof-summary.json` records this
 checkpoint; its complete raw receipt and events are retained under
 `/tmp/eshu-7533-drive/8785-postmerge-local/`. The earlier runs remain
 historical evidence. Hosted delivery and deployed QA remain NOT_CHECKED.
+
+
+## Combined delivery and queue image
+
+PR #8937 combines this enrollment with #8927’s IaC readiness mapping. The delta workflow now uses the existing GHCR Neo4j mirror with the same immutable digest. The original Docker Hub reference failed the queue-path image gate; the existing verifier is the regression check. Image contents and projector test sources are unchanged, so the recorded backend replays remain historical source-bound evidence. Current combined-head hosted execution and deployed QA remain NOT_CHECKED.

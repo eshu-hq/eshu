@@ -61,7 +61,7 @@ class DeltaUnionScheduledTest(unittest.TestCase):
                 "          neo_version=\"$(docker exec '${{ job.services.neo4j.id }}' cypher-shell",
                 "          neo_version=\"$(printf skipped # docker exec '${{ job.services.neo4j.id }}' cypher-shell", 1),
             "bad_postgres_pin": workflow.replace("ci-postgres-bookworm@sha256:", "ci-postgres-alpine@sha256:", 1),
-            "bad_neo4j_pin": workflow.replace("neo4j:2026-community@sha256:", "neo4j:latest@sha256:", 1),
+            "bad_neo4j_pin": workflow.replace("ghcr.io/eshu-hq/ci-neo4j-community@sha256:", "neo4j:latest@sha256:", 1),
             "missing_selector": workflow.replace("TestDeltaUnionBaseMissingRefusesWithoutPartialLive", "TestUnrelatedProof", 1),
             "missing_event_verifier": workflow.replace("--events \"${RUNNER_TEMP}/delta-union.jsonl\"", "--events wrong.jsonl", 1),
         }

@@ -10,7 +10,7 @@ import sys
 from reducer_contention_events import canonical_keys, verify_events
 
 WORKFLOW = Path(".github/workflows/delta-union-scheduled.yml")
-WORKFLOW_SHA256 = "0e5a5a3bf67a6ea3c159f3942c294a7c8140529acfe8e3676d1c8ce843d703b2"
+WORKFLOW_SHA256 = "8331fed7228bf58a09e6635864c47ab3f1812447609f1ff7933bea7e5a40b56d"
 SOURCE = Path("go/cmd/projector/delta_union_live_test.go")
 PACKAGE = "github.com/eshu-hq/eshu/go/cmd/projector"
 TESTS = (
@@ -32,7 +32,7 @@ PR_PATHS = (
     "specs/ci-gates.v1.yaml", "specs/ci-gates.d/**",
 )
 PG_IMAGE = "ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c"
-NEO4J_IMAGE = "neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f"
+NEO4J_IMAGE = "ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f"
 
 
 def verify(root: Path, workflow: str | None = None) -> None:

@@ -10,8 +10,13 @@ Each named root had one run and one pass, with zero skips or failures; the packa
 
 The fresh database had no IaC proof schemas before or after the run, and the owned container was removed. A compact proof receipt is committed as `docs/internal/evidence/8927-iac-inventory-proof-summary.json`; raw local JSON events and the bounded runner receipt are retained under `/tmp/eshu-7533-drive/8927-baseline/`. Source SHA256 values at the baseline are `f41f00d03b4529a58fd7dba8eef30cccff002f314708a7529830aa39d553a226` and `c853e4255d23a8d00ef0e129dd39f6765f6709f8bb4b0f7f306a3ff34dbaec78`. Removing only the new marker lines from each current test file yields those baseline bytes exactly, including fixture, SQL, assertions, and blank lines; the check is retained in `/tmp/eshu-7533-drive/8927-bodyhash-carryforward.json`.
 
-On this branch the generated ledger has 906 classified live files. The two IaC files move from legacy `scheduled` to `postgres_ci`, so the branch's candidate exemption policy is 371 paths, SHA256 `fdc62b1e326e9f8593f441dec343633744fa3316f7bf0611655220e721bbf4dd`, derived from main's 373. Regenerate the count and digest after further changes to the live-test inventory.
+On the combined branch the ledger has 906 classified live files. The two IaC files move from legacy `scheduled` to `postgres_ci`; the delta-union file also leaves the legacy set through its separate runner. The resulting candidate exemption policy is 357 paths, SHA256 `3f234e78b86bc80a586408ae56d05b74f49f271414cf0c30182492838c4b1e3b`, derived from merged main’s 360. Regenerate the count and digest after further inventory changes.
 
 ## Remaining acceptance
 
 Exact integrated-head hosted readiness execution, CI review, and main-push delivery are NOT_CHECKED. The baseline proves unchanged local test behavior and cleanup; it does not prove a hosted job ran this new mapping. No production query, SQL, writer, or telemetry contract changed.
+
+
+## Combined delivery
+
+PR #8937 now carries both this enrollment and #8785’s delta-union workflow. The two workflows and event contracts remain separate. The existing physical receipts are historical source-bound evidence; both workflows still need hosted acceptance on the combined reviewed head. #8785’s deployed QA criterion remains open.
