@@ -158,7 +158,7 @@ func TestFilesystemCopyKeepsMvnDirectoryAndDiscoveryAppliesRegistryRules(t *test
 // at any depth because the registry matches by basename. The managed-workspace
 // copy keeps one only when every directory above it is a non-hidden directory
 // or an allowlisted one (.github, .github/workflows, .mvn, or a dot-directory
-// whose name is an allowlisted file name): it prunes any other dot-directory
+// whose name is an allowlisted file name): it prunes any other, unallowlisted dot-directory
 // whole with filepath.SkipDir, so tools/.config/.eslintrc never reaches
 // discovery in filesystem mode. The pruning of unknown dot-directories
 // is intentional and long-standing; if it changes, update this test and the
