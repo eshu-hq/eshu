@@ -99,7 +99,8 @@ func preserveFilesystemHiddenPath(rel string) bool {
 		return false
 	}
 
-	base := strings.ToLower(path.Base(normalized))
+	lowered := strings.ToLower(normalized)
+	base := path.Base(lowered)
 	if _, ok := preservedHiddenFilesystemFileNames[base]; ok {
 		return true
 	}
@@ -107,7 +108,7 @@ func preserveFilesystemHiddenPath(rel string) bool {
 		return true
 	}
 
-	return normalized == ".github" ||
-		normalized == ".github/workflows" ||
-		strings.HasPrefix(normalized, ".github/workflows/")
+	return lowered == ".github" ||
+		lowered == ".github/workflows" ||
+		strings.HasPrefix(lowered, ".github/workflows/")
 }

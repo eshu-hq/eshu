@@ -67,12 +67,16 @@ func TestPreserveFilesystemHiddenPathMatchesCaseInsensitively(t *testing.T) {
 
 	for _, rel := range []string{
 		".EditorConfig", "web/.ESLINTRC", ".Flake8", ".MVN", "module/.Mvn",
+		".GITHUB", ".Github", ".GITHUB/workflows", ".github/WORKFLOWS",
+		".GITHUB/workflows/.eslintrc", ".Github/Workflows/ci.yml",
 	} {
 		if !preserveFilesystemHiddenPath(rel) {
 			t.Errorf("preserveFilesystemHiddenPath(%q) = false, want true", rel)
 		}
 	}
-	for _, rel := range []string{".ENV", ".NpmRC", ".GitIgnore"} {
+	for _, rel := range []string{
+		".ENV", ".NpmRC", ".GitIgnore", ".GITHUBX", ".GITHUB/other", ".GITHUB/workflowsx",
+	} {
 		if preserveFilesystemHiddenPath(rel) {
 			t.Errorf("preserveFilesystemHiddenPath(%q) = true, want false", rel)
 		}
@@ -176,6 +180,9 @@ func TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories(t *testi
 		// Allowlisted dot-directories keep what is inside them.
 		filepath.Join(".github", ".editorconfig"),
 		filepath.Join(".github", "workflows", ".eslintrc"),
+		// The allowlist matches names case-insensitively, like the registry.
+		filepath.Join(".GITHUB", "workflows", ".eslintrc"),
+		filepath.Join(".Github", "WORKFLOWS", ".editorconfig"),
 		filepath.Join(".mvn", ".editorconfig"),
 		filepath.Join(".mvn", "wrapper", ".flake8"),
 		// A dot-directory named like an allowlisted file is itself kept.
