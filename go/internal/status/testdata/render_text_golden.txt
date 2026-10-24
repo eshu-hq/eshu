@@ -11,7 +11,7 @@ Reasons: 2 overdue claims suggest stuck workers
 Latest queue failure: stage=reducer domain=domain-fixture-a status=failed class=transient_backend_error message="fixture failure message" details="fixture failure details"
 Blocked queue work:
   projector domain=domain-fixture-a conflict_domain=conflict-domain-a conflict_key=conflict-key-a blocked=8 oldest=13m21s
-  reducer domain=domain-fixture-b conflict_domain=conflict-domain-b conflict_key=conflict-key-b blocked=5 oldest=8m21s
+  reducer domain=domain-fixture-b conflict_domain=conflict-domain-b conflict_key=conflict-key-b holder_domain=holder-domain-b blocked=5 oldest=8m21s
 Coordinator: instances=2 active_claims=4 overdue_claims=2 oldest_pending=16m30s
 Coordinator runs: failed=2 collection_active=5
 Coordinator work items: pending=7 failed_terminal=1

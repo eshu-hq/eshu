@@ -123,7 +123,7 @@ func maxRawSnapshot() RawSnapshot {
 		},
 		QueueBlockages: []queue.Blockage{
 			{Stage: "projector", Domain: "domain-fixture-a", ConflictDomain: "conflict-domain-a", ConflictKey: "conflict-key-a", Blocked: 8, OldestAge: fixtureDuration(801)},
-			{Stage: "reducer", Domain: "domain-fixture-b", ConflictDomain: "conflict-domain-b", ConflictKey: "conflict-key-b", Blocked: 5, OldestAge: fixtureDuration(501)},
+			{Stage: "reducer", Domain: "domain-fixture-b", ConflictDomain: "conflict-domain-b", ConflictKey: "conflict-key-b", HolderDomain: "holder-domain-b", Blocked: 5, OldestAge: fixtureDuration(501)},
 		},
 		RetryPolicies: []RetryPolicySummary{
 			{Stage: "projector", MaxAttempts: 4, RetryDelay: fixtureDuration(45)},
