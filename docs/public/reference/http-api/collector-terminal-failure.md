@@ -33,10 +33,11 @@ scoped token.
 ## Values
 
 `last_failure_class` is a bounded class or `unknown`. Each collector kind may
-report the classes that apply to it in the table below. Any persisted value
-outside that kind's set reads `unknown`, including free text, an empty class,
-and a class that only another kind owns, so a provider message never reaches
-the field.
+report the classes that apply to it in the table below. On a first-party kind
+any persisted value outside that kind's set reads `unknown`, including free
+text, an empty class, and a class that only another kind owns. On a kind that
+is not first-party, any other pattern-matching class reads `extension_defined`.
+Either way a provider message never reaches the field.
 
 Every kind reports the extension host's own classes (`invalid_claim`,
 `invalid_result`, `launch_failure`, `status_record`), because a component

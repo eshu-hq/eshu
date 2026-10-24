@@ -3,7 +3,11 @@
 
 package collector
 
-import "testing"
+import (
+	"os"
+	"regexp"
+	"testing"
+)
 
 // TestKindFailureClassesNameFirstPartyKinds pins that every key of the
 // per-kind map is a collector kind the platform ships, so a misspelled kind
@@ -17,5 +21,24 @@ func TestKindFailureClassesNameFirstPartyKinds(t *testing.T) {
 		if len(classes) == 0 {
 			t.Errorf("kindFailureClasses[%q] is empty, want classes or no entry", kind)
 		}
+	}
+}
+
+// TestExtensionFailureClassPatternMatchesTheHost pins that the shape the status
+// leaf uses to collapse an extension-defined class equals the shape the
+// extension host enforces. The host package is read as source so the status
+// leaf stays free of collector runtime imports in shipped code.
+func TestExtensionFailureClassPatternMatchesTheHost(t *testing.T) {
+	t.Parallel()
+	src, err := os.ReadFile("../../collector/extensionhost/failure.go")
+	if err != nil {
+		t.Fatalf("read extension host failure.go: %v", err)
+	}
+	m := regexp.MustCompile("failureClassPattern\\s*=\\s*regexp\\.MustCompile\\(`([^`]+)`\\)").FindSubmatch(src)
+	if m == nil {
+		t.Fatal("extensionhost failureClassPattern declaration not found; update this test with the host")
+	}
+	if got, want := extensionFailureClassPattern.String(), string(m[1]); got != want {
+		t.Fatalf("status pattern %q differs from the extension host pattern %q", got, want)
 	}
 }
