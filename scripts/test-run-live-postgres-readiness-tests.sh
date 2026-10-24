@@ -62,6 +62,7 @@ exit 0
 EOF
 chmod +x "${seed_dir}/bin/go"
 # The fake environment follows generated DSN, disposable, and opt-in lists.
+# Enrolled _DISPOSABLE twins expand to both names; twinless/reader DSNs pass through as named (schema isolation, no disposable flag).
 # shellcheck source=lib/live_postgres_readiness_env.sh
 source "${repo_root}/scripts/lib/live_postgres_readiness_env.sh"
 for var in "${READINESS_DSN_VARS[@]}"; do
