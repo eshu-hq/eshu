@@ -1072,12 +1072,12 @@ tests:
   - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_interleave_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7816 disposable PostgreSQL 18 proof that a workload_materialization producer acking between the runtime fence check and the read still defers the catalog intent, and that three catalog workers racing one producer on separate connections never commit an empty runtime family; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local runs about 1s each on postgres:18; wall time is logged, not gated"
+    reason: "#7816 disposable PostgreSQL 18 proof that a workload_materialization producer acking between the runtime fence check and the read still defers the catalog intent, and that three catalog workers racing one producer on separate connections produce complete mock materialization calls and settle the real queue, including one owed replay; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local runs about 1s each on postgres:18; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_readiness_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7816 disposable PostgreSQL 18 proof that the service_catalog_correlation_runtime_not_ready deferral keeps attempt_count frozen at 1 past MaxAttempts on the real queue and commits both runtime rows once the producer acks; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 2s on postgres:18; wall time is logged, not gated"
+    reason: "#7816 disposable PostgreSQL 18 proof that the service_catalog_correlation_runtime_not_ready deferral keeps attempt_count frozen at 1 past MaxAttempts on the real queue and sends both runtime rows to the mock materialization writer once the producer acks; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 2s on postgres:18; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_batch_live_test.go
     tag: ~
