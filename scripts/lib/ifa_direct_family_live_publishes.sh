@@ -34,16 +34,18 @@ ifa_publishes_drive() {
 #
 # The three edges are the package-level exact hint's ownership of the
 # Package node, the version-scoped exact hint's ownership of
-# ver-team-api-2.0.0, and the publication pairing of ver-team-api-1.0.0
+# ver-team-api-1.0.0, and the publication pairing of ver-team-api-1.0.0
 # against the package-level hint -- the same endpoint pair under both
-# evidence sources is two edges, not one. A regression that resolved every
-# hint against the first repository would still produce "some edges" and
-# fail only against an exact set. The fixture's non-producers -- the
-# tombstoned-only match (stale), the homepage kind (provenance-only,
-# rejected), the unmatched remote (unresolved), and the two-remote match
-# (ambiguous, never picked) -- must contribute nothing on either path; the
-# builders classify those instead of fabricating edges, and this set is
-# what holds them to that.
+# evidence sources is two edges, not one. The version-scoped hint must name
+# a published version fact: the writer MATCHes the PackageVersion node and
+# never fabricates an endpoint, so a ghost version silently materializes
+# nothing. A regression that resolved every hint against the first
+# repository would still produce "some edges" and fail only against an
+# exact set. The fixture's non-producers -- the tombstoned-only match
+# (stale), the homepage kind (provenance-only, rejected), the unmatched
+# remote (unresolved), and the two-remote match (ambiguous, never picked)
+# -- must contribute nothing on either path; the builders classify those
+# instead of fabricating edges, and this set is what holds them to that.
 #
 # The relationship type is PUBLISHES, read off the provenance writer's
 # MERGE (repo)-[rel:PUBLISHES]->(target) templates (Package and

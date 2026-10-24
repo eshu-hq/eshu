@@ -88,9 +88,15 @@ var publishesFamilyHints = []publishesFamilyHint{
 	// target via ver-team-api-1.0.0): exact match on the owning remote.
 	{PackageID: publishesFamilyPackageID, HintKind: "repository", URL: publishesFamilyRemoteURL},
 	// EDGE (ownership, PackageVersion target): a version-scoped exact
-	// match. It pairs with no version fact, so it reaches no publication
-	// decision — ownership alone proves the version-targeted write path.
-	{PackageID: publishesFamilyPackageID, VersionID: "ver-team-api-2.0.0", HintKind: "repository", URL: publishesFamilyRemoteURL},
+	// match on the owned version. It pairs with the ver-team-api-1.0.0
+	// version fact, so the same endpoint pair materializes under both
+	// evidence sources (two edges, not one) — while ownership still proves
+	// the version-targeted write template distinctly from publication.
+	// A version-scoped hint MUST name a version the fixture publishes as a
+	// fact: the edge writer MATCHes the PackageVersion node and never
+	// fabricates an endpoint, so a hint naming a ghost version silently
+	// materializes nothing (#6228).
+	{PackageID: publishesFamilyPackageID, VersionID: "ver-team-api-1.0.0", HintKind: "repository", URL: publishesFamilyRemoteURL},
 	// NO EDGE either path: the only remote match is tombstoned. The
 	// ownership decision goes stale and the version's publication
 	// decision goes stale with it.
@@ -134,6 +140,11 @@ type publishesFamilyRepository struct {
 	Name string
 	// RemoteURL is the remote hints match against.
 	RemoteURL string
+	// LocalPath is the fixture-unique checkout path the projector falls
+	// back to for the Repository.path node identity: every fixture
+	// repository must derive a distinct path or the backend UNIQUE(path)
+	// constraint keeps exactly one of the colliding nodes (#6228).
+	LocalPath string
 	// Tombstone retires the fact: hints matching only it go stale.
 	Tombstone bool
 }
@@ -142,10 +153,10 @@ type publishesFamilyRepository struct {
 // tombstoned stale remote, and the two active mirrors sharing one remote
 // for the ambiguity branch.
 var publishesFamilyRepositories = []publishesFamilyRepository{
-	{RepositoryID: publishesFamilyRepositoryID, Name: "team-api", RemoteURL: publishesFamilyRemoteURL},
-	{RepositoryID: "repository:eshu-fixture-stale-api", Name: "stale-api", RemoteURL: "https://github.com/acme/stale-api", Tombstone: true},
-	{RepositoryID: "repository:eshu-fixture-shared-a", Name: "shared-lib-a", RemoteURL: "https://github.com/acme/shared-lib"},
-	{RepositoryID: "repository:eshu-fixture-shared-b", Name: "shared-lib-b", RemoteURL: "https://github.com/acme/shared-lib"},
+	{RepositoryID: publishesFamilyRepositoryID, Name: "team-api", RemoteURL: publishesFamilyRemoteURL, LocalPath: "/repo-team-api"},
+	{RepositoryID: "repository:eshu-fixture-stale-api", Name: "stale-api", RemoteURL: "https://github.com/acme/stale-api", LocalPath: "/repo-stale-api", Tombstone: true},
+	{RepositoryID: "repository:eshu-fixture-shared-a", Name: "shared-lib-a", RemoteURL: "https://github.com/acme/shared-lib", LocalPath: "/repo-shared-a"},
+	{RepositoryID: "repository:eshu-fixture-shared-b", Name: "shared-lib-b", RemoteURL: "https://github.com/acme/shared-lib", LocalPath: "/repo-shared-b"},
 }
 
 // PublishesFamilyOdu builds the cataloged Odù for the publishes
@@ -181,6 +192,7 @@ func PublishesFamilyOdu() CatalogOdu {
 				"repo_id":       repository.RepositoryID,
 				"name":          repository.Name,
 				"remote_url":    repository.RemoteURL,
+				"local_path":    repository.LocalPath,
 				"source_run_id": publishesFamilySourceRunID,
 			},
 		})

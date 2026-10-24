@@ -30,6 +30,7 @@
             "name": "team-api",
             "remote_url": "https://github.com/acme/team-api",
             "repo_id": "repository:eshu-fixture-team-api",
+            "local_path": "/repo-team-api",
             "source_run_id": "run-ifa-publishes-family-1"
           }
         },
@@ -47,6 +48,7 @@
             "name": "stale-api",
             "remote_url": "https://github.com/acme/stale-api",
             "repo_id": "repository:eshu-fixture-stale-api",
+            "local_path": "/repo-stale-api",
             "source_run_id": "run-ifa-publishes-family-1"
           }
         },
@@ -64,6 +66,7 @@
             "name": "shared-lib-a",
             "remote_url": "https://github.com/acme/shared-lib",
             "repo_id": "repository:eshu-fixture-shared-a",
+            "local_path": "/repo-shared-a",
             "source_run_id": "run-ifa-publishes-family-1"
           }
         },
@@ -81,6 +84,7 @@
             "name": "shared-lib-b",
             "remote_url": "https://github.com/acme/shared-lib",
             "repo_id": "repository:eshu-fixture-shared-b",
+            "local_path": "/repo-shared-b",
             "source_run_id": "run-ifa-publishes-family-1"
           }
         },
@@ -115,7 +119,7 @@
         },
         {
           "fact_kind": "package_registry.source_hint",
-          "stable_fact_key": "package-hint:pkg:npm:@acme/team-api:ver-team-api-2.0.0:repository:https://github.com/acme/team-api",
+          "stable_fact_key": "package-hint:pkg:npm:@acme/team-api:ver-team-api-1.0.0:repository:https://github.com/acme/team-api",
           "schema_version": "1.0.0",
           "collector_kind": "package_registry",
           "fencing_token": 1,
@@ -127,7 +131,7 @@
             "normalized_url": "https://github.com/acme/team-api",
             "package_id": "pkg:npm:@acme/team-api",
             "raw_url": "https://github.com/acme/team-api",
-            "version_id": "ver-team-api-2.0.0"
+            "version_id": "ver-team-api-1.0.0"
           }
         },
         {
