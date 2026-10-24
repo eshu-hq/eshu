@@ -56,8 +56,10 @@
   Postgres consumption sidecar) and `NotCentralVersionDeclarationSQL` (the
   readiness `package.consumption` count) in `go/internal/storage/postgres`.
   Renaming or removing the flag turns every pin back into package consumption.
-- Never unescape `%XX` in a props value and never resolve an escaped spec or
-  version: MSBuild unescapes before matching, so the escaped text is not the
+- Never unescape `%XX` in a props or `.csproj` value and never resolve an
+  escaped spec or version (#8994 covers `.csproj`: an escaped spec emits no
+  row, an escaped version is unresolved): MSBuild unescapes before matching,
+  so the escaped text is not the
   identity. Keep `GlobalPackageReference` scope fixed at development unless
   NuGet.targets stops forcing `PrivateAssets="All"` on it.
 

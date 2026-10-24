@@ -21,7 +21,10 @@
 // different values, or not declared at all, leaves the raw text in value and
 // stamps the row version_evidence "ambiguous_msbuild_property" or
 // "unresolved_msbuild_property" plus partial_evidence rather than inventing a
-// version. dependency_scope is "test" when the package name is one of five
+// version. A %XX escape in a version, as declared or after substitution,
+// leaves it unresolved the same way, and a PackageReference whose spec holds
+// an escape emits no row: MSBuild unescapes before matching, so the escaped
+// text is not the package identity (#8994). dependency_scope is "test" when the package name is one of five
 // known .NET test packages or simply contains "test", "development" when
 // PrivateAssets lists "all" or IncludeAssets lists "none", and "runtime"
 // otherwise.

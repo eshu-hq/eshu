@@ -84,7 +84,8 @@ Supported today:
   `go/internal/parser/nuget`; a thin dispatch wrapper stays in
   `go/internal/parser` because the Engine method set must remain there. Requested
   versions, resolved MSBuild property versions, unresolved-property partial
-  evidence, and PrivateAssets dev/test signals are preserved for the
+  evidence (a `%XX`-escaped version is unresolved, and an escaped
+  `Include`/`Update` spec emits no row, as in the props scanner, #8994), and PrivateAssets dev/test signals are preserved for the
   supply-chain impact reducer. Multi-targeting identity keys the same package
   name across `<ItemGroup>`s by BOTH the item-level and group-level `Condition`
   (the parser exposes them as separate `condition_item` and `condition_group`

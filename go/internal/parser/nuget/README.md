@@ -29,7 +29,10 @@ isDependency)` with a `variables` bucket carrying one row per
 `<PackageReference>`. `options.IndexSource` adds the raw file text under
 `source`; no other option is read. Each row always carries:
 
-- `name`: the `Include` attribute, falling back to `Update`.
+- `name`: the `Include` attribute, falling back to `Update`. A spec that holds
+  a `%XX` escape (a percent sign and two hex digits) emits no row (#8994):
+  MSBuild unescapes it before matching, so the escaped text is not the
+  package identity. This is the props scanner's wildcard rule.
 - `line_number`: the row's 1-based position in emission order. It is a
   sequence number, **not** the XML line the reference was written on.
 - `value`: the version this parser could prove. Equal to `requested_version`
@@ -43,9 +46,12 @@ isDependency)` with a `variables` bucket carrying one row per
 - `dependency_scope`: `test`, `development`, or `runtime` (see below).
 - `direct_dependency`: always `true` (a project file declares no transitives).
 - `lang`: always `nuget_project`.
-- `version_evidence`: one of `package_reference` (literal version),
+- `version_evidence`: one of `package_reference` (literal version, where a
+  `%` not followed by two hex digits is literal text),
   `project_property` (every `$(Property)` resolved), `unresolved_msbuild_property`,
-  `ambiguous_msbuild_property`, or `missing_version`.
+  `ambiguous_msbuild_property`, or `missing_version`. A version that holds a
+  `%XX` escape, as declared or after property substitution, is
+  `unresolved_msbuild_property` with the declared text in `value` (#8994).
 
 These are present only when the file proves them:
 
