@@ -145,7 +145,10 @@ operational lessons that future storage changes still need to respect.
   follow-up. Repository IDs still load bounded context facts such as workload,
   service, image, CI/CD, and suppression evidence, but active `file` facts only
   load through the JS/TS parser-file repository filter and the SQL language
-  predicate for JavaScript, JSX, TypeScript, and TSX. Non-JS/npm findings must
+  predicate for JavaScript, JSX, TypeScript, and TSX. Since #8880 that is the
+  `file_repo_id` and `file_scope` branches on
+  `fact_records_jsts_reachability_repo_file_idx`, issued only when
+  FileRepositoryIDs is non-empty (the #5237 gate as "no file statement"). Non-JS/npm findings must
   not use broad repository IDs to pull every active file fact for a repository.
   No-Regression Evidence: `go test ./internal/reducer -run
   'TestSupplyChainImpactHandlerRequestsParserFilesOnlyForNPMReachability|TestBuildSupplyChainImpactFindingsUsesJSTSPackageAPIReachability|TestBuildSupplyChainImpactFindingsKeepsJSTSMissingAndAmbiguousEvidenceExplicit'
@@ -268,6 +271,17 @@ operational lessons that future storage changes still need to respect.
   Tables with foreign key constraints on other tables must appear after their
   dependencies.
 
+- `ListActiveSupplyChainImpactFacts` resolves fact IDs once per call (#8880).
+  `storage/postgres/facts/impact` generates every branch statement, its
+  anchor, the foreign-key guard, and migrations 212-224 from one table. Each
+  statement reads `fact_records` only in a MATERIALIZED candidate CTE through
+  its anchor and applies the active-generation join once per distinct
+  (scope, generation) pair: inlined, the planner misestimates that join at one
+  row and walks every active scope. Do not add an arm to one statement only;
+  add it to `retiredArms` so the guard, the bounded statements, and the
+  exactness tests see it. The frozen pre-#8880 statement is the differential
+  oracle (`supply_chain_impact_evidence_live_test.go`); see
+  `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md`.
 - Vulnerability-suppression deployment context is narrowing-only (#5466).
   `ListActiveSupplyChainImpactFacts` discovers suppressions through
   `cve_id`, `advisory_id`, `package_id`, `purl`, `repository_id`, or
@@ -282,8 +296,9 @@ operational lessons that future storage changes still need to respect.
   `strings.TrimSpace`, so SQL selection agrees with the reducer's
   case-insensitive matcher. A fact-kind guard avoids paying that normalization
   cost on non-suppression rows. The 2,000-row per-call cap remains defense in
-  depth; it over-fetches one sentinel, returns at most 2,000 suppressions, and
-  reports truncation only when another row actually exists.
+  depth: the suppression statement (the only one that returns the kind) stops
+  at 2,001 rows in byte order, the loader keeps 2,000, and it reports
+  truncation only when another row actually exists.
 - The #7926 destructive-successor guard sizes like for like (#8750). A full
   successor is compared with the prior generation's collector rows:
   `successorGuardCountQuery` counts collector rows, all rows, and file rows in

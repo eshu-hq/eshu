@@ -142,7 +142,7 @@ func TestSupplyChainImpactActiveEvidenceBufferBudgetLive(t *testing.T) {
 		},
 		// The fixture's non-file corpus is small, so the retired statement's
 		// KEV pages are cheap here (the hosted 100x bar is measured on the
-		// replica, docs/internal/evidence/8880-*.md). 10x still fails a loader
+		// replica, docs/internal/evidence/8880-supply-chain-impact-id-resolution.md). 10x still fails a loader
 		// that joins the active generation once per candidate row (2.0x on
 		// this fixture before the active CTE).
 		{name: "kev cve list", filter: supplychaincore.SupplyChainImpactFactFilter{CVEIDs: kevCVEs}, minRatio: 10},

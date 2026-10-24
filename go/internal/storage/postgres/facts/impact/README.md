@@ -44,7 +44,7 @@ This package generates the replacement from one table:
   file cell is a guard cell (`codegraph/v1.File` carries none of them).
 
 A kind changes class only with a new census. The census and the per-index
-justification live in `docs/internal/evidence/8880-supply-chain-active-evidence.md`.
+justification live in `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md`.
 
 ## Exactness
 

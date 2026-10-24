@@ -84,6 +84,17 @@ digest and repository-id filters read in chunks of 256. Operators see a stuck sc
 `eshu_dp_supply_chain_impact_evidence_truncated_total{domain,reason}` and one
 WARN log line naming the scope and generation.
 
+Each active-evidence call resolves matching fact IDs once from the
+index-anchored statements in `storage/postgres/facts/impact`, orders core
+then suppression IDs by byte order, keeps the first 2,000 suppressions (more
+sets the suppression-tail bool), and fetches payloads in 500-ID primary-key
+pages in one snapshot (#8880). The handler prefers the loader's
+`ListActiveSupplyChainImpactFactsWithStats` surface and sums its per-statement
+rows and seconds into the pass's success-line sub-signals
+(`active_evidence_branch_<name>_rows`, `active_evidence_resolved_fact_ids`,
+`active_evidence_payload_pages`, `active_evidence_guard_rows`). Evidence:
+`docs/internal/evidence/8880-supply-chain-impact-id-resolution.md`.
+
 Each pass is also fenced (#7142). `Handle` issues a database-issued token from a
 Postgres sequence before the evidence load (`SupplyChainImpactFencingTokenIssuer`);
 the writer takes the advisory lock, then runs a compare-and-set on

@@ -53,7 +53,7 @@ type KindInfo struct {
 	Kind  string
 	Class Class
 	// HostedActiveRows is the active non-tombstone row count from the #8880
-	// hosted census (2026-10-23, docs/internal/evidence/8880-*.md).
+	// hosted census (2026-10-23, docs/internal/evidence/8880-supply-chain-impact-id-resolution.md).
 	HostedActiveRows int
 	// Reason states why the class holds beyond the one census.
 	Reason string

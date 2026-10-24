@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 )
@@ -96,7 +97,13 @@ func TestSupplyChainImpactBranchPlansStayOnAnchorsLive(t *testing.T) {
 				t.Logf("RED %s %s %s plan:\n%s", index.Name, branch.Name, mode, supplyChainImpactPlanSummary(t, replays[0].Plan))
 			}
 		}
+		buildStart := time.Now()
 		supplyChainImpactExecAnalyze(t, ctx, database, index.Statement)
+		var size int64
+		if err := database.QueryRowContext(ctx, "SELECT pg_relation_size($1::regclass)", index.Name).Scan(&size); err != nil {
+			t.Fatalf("size of %s: %v", index.Name, err)
+		}
+		t.Logf("index %s: rebuild with ANALYZE %s, size %d bytes", index.Name, time.Since(buildStart).Round(time.Millisecond), size)
 		for _, branch := range anchored {
 			for _, mode := range supplyChainImpactPlanModes {
 				buffers, replays := supplyChainImpactStatementBuffers(t, ctx, database, []supplyChainImpactRecordedStatement{byBranch[branch.Name]}, mode)
@@ -111,6 +118,51 @@ func TestSupplyChainImpactBranchPlansStayOnAnchorsLive(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestSupplyChainImpactNewIndexInsertCostLive measures the write cost the 13
+// #8880 indexes add (index doctrine): the same batch of file and growth-kind
+// rows is inserted with every new index present and with all of them
+// dropped. It logs, never gates: wall time on a shared machine is evidence,
+// not a contract.
+func TestSupplyChainImpactNewIndexInsertCostLive(t *testing.T) {
+	ctx, database := openSupplyChainImpactEvidenceProofDB(t)
+	seedSupplyChainImpactScaledCorpus(t, ctx, database, 50, 20, 100)
+	insert := func(label string) time.Duration {
+		started := time.Now()
+		// 2,000 TOASTed file rows: every file insert evaluates the guard
+		// CASE and the JS/TS predicate.
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
+  collector_kind, fencing_token, source_confidence, source_system, source_fact_key,
+  observed_at, ingested_at, payload
+)
+SELECT format('bulk:file:%s', n), 'git:scaled:0001', 'gen:scaled:0001:active', 'file',
+  format('stable:bulk:file:%s', n), '1.0.0', 'git', 1, 'reported', 'git', format('source:bulk:file:%s', n),
+  now(), now(), jsonb_build_object('repo_id', 'repository:scaled:0001', 'relative_path', format('src/b_%s.ts', n),
+    'parsed_file_data', jsonb_build_object('language', CASE WHEN n % 4 = 0 THEN 'typescript' ELSE 'go' END,
+      'content', (SELECT string_agg(md5(n::text || ':' || g::text), '') FROM generate_series(1, 160) AS g)))
+FROM generate_series(1, 2000) AS n`); err != nil {
+			t.Fatalf("insert bulk file rows: %v", err)
+		}
+		fileElapsed := time.Since(started)
+		seedSupplyChainImpactGrowthBulk(t, ctx, database, 500, 50)
+		elapsed := time.Since(started)
+		if _, err := database.ExecContext(ctx, "DELETE FROM fact_records WHERE fact_id LIKE 'bulk:%'"); err != nil {
+			t.Fatalf("delete bulk rows: %v", err)
+		}
+		t.Logf("%s: 2,000 TOASTed file rows in %s; plus %d rows (500 per non-file kind) and VACUUM ANALYZE, %s total",
+			label, fileElapsed.Round(time.Millisecond), 500*len(supplyChainImpactBulkKinds()), elapsed.Round(time.Millisecond))
+		return fileElapsed
+	}
+	insert("warmup with #8880 indexes")
+	with := insert("with #8880 indexes")
+	for _, index := range factimpact.NewIndexes() {
+		supplyChainImpactExecAnalyze(t, ctx, database, "DROP INDEX "+index.Name)
+	}
+	without := insert("without #8880 indexes")
+	t.Logf("file insert cost: with=%s without=%s delta=%s for 2,000 rows", with.Round(time.Millisecond), without.Round(time.Millisecond), (with - without).Round(time.Millisecond))
 }
 
 // supplyChainImpactAnchorProblem reports why a plan is not anchored: one of

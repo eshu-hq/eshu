@@ -3,7 +3,7 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `docs/internal/evidence/8880-supply-chain-active-evidence.md` for the
+2. `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md` for the
    census, the per-index justification, and the measured plans.
 3. `../../facts_active_supply_chain_impact.go` for the loader that runs the
    catalog.
