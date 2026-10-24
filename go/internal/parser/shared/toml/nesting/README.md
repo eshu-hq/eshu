@@ -58,3 +58,20 @@ Any new parser that hands repository TOML to go-toml must call `Check` first.
 
 The package emits no telemetry. A rejected file fails its parse, and the git
 collector counts it in the existing parse-file status metric as `skipped`.
+
+## Evidence
+
+No-Regression Evidence: the guard adds one linear pass before each Cargo
+decode and changes no output for legal files. Baseline is the go-toml v2.3.1
+decode alone; after is guard plus decode, measured on the same host with
+`go test -bench LegalLockfile -benchmem -count=5` over a generated 2.5 MB
+Cargo.lock with 10,000 `[[package]]` tables: `BenchmarkCheckLegalLockfile`
+about 1.67 ms/op and 0 B/op, `BenchmarkDecodeLegalLockfile` about 15.9 ms/op
+and 9.2 MB/op, so the guard adds about 10% of decode time and no allocation.
+`TestCargoLargeLegalLockfileMatchesUnguardedDecode` proves a 50,000-package
+Cargo.lock yields the same 50,000 rows with and without the guard. No queue,
+worker, lease, batch, or graph-write path changes.
+
+No-Observability-Change: no metric, span, or log key is added. A rejected file
+fails its parse through the existing error path, and the git collector already
+records it in the parse-file status metric as `skipped`.
