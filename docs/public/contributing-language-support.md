@@ -34,7 +34,7 @@ Read a file's bytes through `shared.ReadSource` (or the engine-local
 up front and primes a call-scoped cache keyed by absolute path, so a parser that
 reads through `shared.ReadSource` reuses that single physical read instead of
 issuing its own; a parser that bypasses it forces a redundant second read of the
-same file.
+same file and skips the 64 MiB per-file read cap (`shared.MaxSourceBytes`, #8986), which refuses a larger file with `shared.ErrSourceTooLarge`.
 
 Repository-wide config that many files share (a language's project manifest,
 not a single source file) should be memoized per resolved config path, not

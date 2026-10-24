@@ -40,6 +40,13 @@ file. No environment variable was added: no operator need for one was shown.
 
 ## Read-path cost
 
+Performance Evidence: baseline is `os.ReadFile` on `origin/main`; after is
+`shared.ReadFileCapped`. Backend: none; no Cypher, graph write, Postgres SQL,
+queue, lease, or worker count changes, so there are no terminal queue or row
+counts to compare. Input shape: one regular file of 1 KiB, 64 KiB, or 4 MiB.
+The content-version fixture stream stays at 320 facts with digest
+`755a5940...`, so collector output for files under the cap is unchanged.
+
 A throwaway benchmark (`-benchtime 2000x -count 3`, 16-thread Linux host)
 compared `os.ReadFile` with the capped read (stat, buffer sized from the stat,
 `io.LimitReader` at cap+1):
@@ -56,7 +63,7 @@ not run.
 
 ## Observability
 
-Each skipped file adds one to `DiscoveryStats.FilesSkippedByContent["oversize"]`,
+Observability Evidence: each skipped file adds one to `DiscoveryStats.FilesSkippedByContent["oversize"]`,
 which feeds `eshu_dp_discovery_files_skipped_total{skip_reason="content:oversize"}`
 and the `discovery stats` log key `files_skipped.content.oversize`. After the
 generation exists, `snapshotOneRepository` logs WARN
