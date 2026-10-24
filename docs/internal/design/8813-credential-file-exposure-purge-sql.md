@@ -162,7 +162,7 @@ per repository, 500 rows per statement, repeated until it touches 0 rows. They
 blank `content_files.content`, blank `content_entities.source_cache`, delete
 `content_file_references`, and purge the active-generation search copies: index
 documents, index terms and the matching `reducer_eshu_search_document` fact rows
-(ruling in [the fact payload cleanup](#the-fact-payload-cleanup-arbiter-ruling)).
+(ruling in [the fact payload cleanup](8813-credential-file-exposure-cleanup.md#the-fact-payload-cleanup-arbiter-ruling)).
 The statements are `psql` scripts with three variables: `repo` (repository id),
 `pred` (the path predicate above) and `w` (the watermark `W`), for example
 `psql -v repo=... -v pred=... -v w=... -f statement.sql`.

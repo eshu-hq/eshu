@@ -256,8 +256,10 @@ For the purge, #8833 also proves:
    matching path. One run of statements A and B removes all three and leaves
    non-matching rows; a second run touches 0 rows. Two seeded orphans, an index
    document with no fact row and a fact row with no index document, are gone
-   after the runbook. `EXPLAIN (ANALYZE, BUFFERS)` of both statements at 145k
-   rows, including the per-batch `repo_id` scan (A may need to run per scope).
+   after the runbook. `EXPLAIN (ANALYZE, BUFFERS)` of all five statements (files,
+   entities, references, A and B) at 145k rows, including the per-batch
+   `repo_id` scan and `ORDER BY ... LIMIT 500 ... SKIP LOCKED` (A may need to run
+   per scope).
 2. With `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash`, after the purge the remaining
    documents are `ready`, the purged document is absent in `semantic` and
    `hybrid` mode, and no scope reports `index_unready`. A fully purged scope
