@@ -62,7 +62,6 @@ runs:
       env:
         CI_PLAN_MODE: ${{ inputs.mode }}
         CI_PLAN_GATES: ${{ inputs.gates }}
-        CI_SMOKE_GO_BUILD_FAIL_CANARY: ${{ vars.CI_SMOKE_GO_BUILD_FAIL_CANARY }}
       run: |
         set -euo pipefail
         go build ./...
