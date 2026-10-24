@@ -147,7 +147,10 @@ workflow handles.
   static-credential path.
 - Credentials by env reference only (`username_env`, `password_env`,
   `bearer_token_env`); source URIs stored in facts are redacted (no userinfo,
-  query, or fragment — `runtime/source.go:200-221`).
+  query, or fragment — `runtime/source.go:200-221`). Source record IDs are
+  carried verbatim today (`source.go:141` raw fallback to DocumentURL);
+  the extracted producer must redact-or-refuse credential-bearing record
+  IDs — open `#4047` cutover item, pinned by `source_parity_8865_test.go`.
 - Document parsing: CycloneDX/SPDX JSON via `document/`; in-toto statements
   via `attestation.go:87` (`UseNumber` decode); SLSA v1/v0.2 predicates via
   `attestation_slsa.go`. Parser facts keep `verification_status` blank and
@@ -197,7 +200,7 @@ compatibility harness, `#4047` per-collector cutover gate.
 | Extracted-path admitted facts, projection, graph, API, MCP truth | **Open** — needs `#4047` gate + deployment |
 | Retry, duplicates, ordering, cancellation, revoked authority, stale claims, partial/ambiguous failures | **Open** — duplicates + malformed + grant-free delta pinned in-tree; revocation/staleness need the extracted path |
 | Bounded resources, no regression, health/readiness/freshness/telemetry | **Open** — in-tree no-regression evidence recorded in `runtime/README.md` and `document/README.md`; extracted-path proof outstanding |
-| Credentials, provenance, vuln response, oldest/newest pairs | **Partial** — credential handling and provenance recorded here; version pairs need `#6710` + `#8851` |
+| Credentials, provenance, vuln response, oldest/newest pairs | **Partial** — credential handling and provenance recorded here; record-ID redact-or-refuse is an open `#4047` cutover item (verbatim carry pinned); version pairs need `#6710` + `#8851` |
 | Independent build/release/deploy on public contracts | **Open** — SDK pins verified (see [SHIM_MAP](SHIM_MAP.md)), template outstanding |
 | Rollback rehearsal | **Draft recorded** ([ROLLBACK_DRAFT](ROLLBACK_DRAFT.md)); rehearsal **open** |
 | Review, local proof, stable CI, removal after acceptance | **Open** — local proof in this lane's commit; removal explicitly **not** in PREP |

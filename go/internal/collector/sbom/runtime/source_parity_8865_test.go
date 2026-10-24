@@ -398,33 +398,47 @@ func TestSBOM8865ParityLiveAgreesWithFixture(t *testing.T) {
 }
 
 // TestSBOM8865ParityDuplicateDeliveryIsStable pins duplicate safety: two
-// identical claims emit identical stable-key sets and payload bytes, so a
-// redelivered generation commits idempotently at the core boundary.
+// identical claims per scope emit identical stable-key sets and payload
+// bytes, so a redelivered generation commits idempotently at the core
+// boundary. Every plan scope is pinned, since ROLLBACK_DRAFT.md step 5 cites
+// this test for general redelivery safety.
 func TestSBOM8865ParityDuplicateDeliveryIsStable(t *testing.T) {
 	t.Parallel()
 
 	plan := parity8865Plan(t)
 	source := parity8865Source(t, plan)
-	first := parity8865Drain(parity8865Collect(t, source, plan[0]))
-	second := parity8865Drain(parity8865Collect(t, source, plan[0]))
-	if !slices.Equal(parity8865StableKeys(first), parity8865StableKeys(second)) {
-		t.Fatal("duplicate claims emit different stable keys; redelivery would not be idempotent")
-	}
-	for i := range first {
-		if got, want := parity8865CanonicalJSON(t, first[i].Payload), parity8865CanonicalJSON(t, second[i].Payload); !bytes.Equal(got, want) {
-			t.Fatalf("duplicate claims emit different payload bytes for key %q", first[i].StableFactKey)
+	for _, c := range plan {
+		first := parity8865Drain(parity8865Collect(t, source, c))
+		second := parity8865Drain(parity8865Collect(t, source, c))
+		if !slices.Equal(parity8865StableKeys(first), parity8865StableKeys(second)) {
+			t.Fatalf("duplicate claims emit different stable keys for scope %q; redelivery would not be idempotent", c.target.ScopeID)
+		}
+		for i := range first {
+			if got, want := parity8865CanonicalJSON(t, first[i].Payload), parity8865CanonicalJSON(t, second[i].Payload); !bytes.Equal(got, want) {
+				t.Fatalf("duplicate claims emit different payload bytes for scope %q key %q", c.target.ScopeID, first[i].StableFactKey)
+			}
 		}
 	}
 }
 
 // TestSBOM8865ParityHostileInputsPin pins the hostile half: malformed
-// documents, credential redaction, blank statement status, no OCI facts,
-// and the document/attestation collector-kind boundary.
+// documents, credential redaction, blank statement status, no OCI facts on
+// any scope, the record-ID channel, and the document/attestation
+// collector-kind boundary.
 func TestSBOM8865ParityHostileInputsPin(t *testing.T) {
 	t.Parallel()
 
 	plan := parity8865Plan(t)
 	source := parity8865Source(t, plan)
+
+	assertNoOCIReferrerFacts := func(scope string, envelopes []facts.Envelope) {
+		t.Helper()
+		for i := range envelopes {
+			if envelopes[i].FactKind == chain.OCIImageReferrerFactKind {
+				t.Fatalf("runtime emitted OCI referrer fact %q in scope %s; OCI collector owns those facts", envelopes[i].FactID, scope)
+			}
+		}
+	}
 
 	malformed := parity8865Drain(parity8865Collect(t, source, plan[3]))
 	var doc, warning *facts.Envelope
@@ -434,10 +448,9 @@ func TestSBOM8865ParityHostileInputsPin(t *testing.T) {
 			doc = &malformed[i]
 		case chain.SBOMWarningFactKind:
 			warning = &malformed[i]
-		case chain.OCIImageReferrerFactKind:
-			t.Fatalf("runtime emitted OCI referrer fact %q; OCI collector owns those facts", malformed[i].FactID)
 		}
 	}
+	assertNoOCIReferrerFacts("malformed", malformed)
 	if doc == nil {
 		t.Fatal("malformed scope emitted no sbom.document envelope")
 	}
@@ -452,6 +465,7 @@ func TestSBOM8865ParityHostileInputsPin(t *testing.T) {
 	}
 
 	configured := parity8865Drain(parity8865Collect(t, source, plan[0]))
+	assertNoOCIReferrerFacts("configured", configured)
 	for _, envelope := range configured {
 		for _, locator := range []string{envelope.SourceRef.SourceURI, payloadString(envelope.Payload, "source_uri")} {
 			if strings.Contains(locator, "secret") || strings.Contains(locator, "token=") {
@@ -461,9 +475,27 @@ func TestSBOM8865ParityHostileInputsPin(t *testing.T) {
 		if envelope.CollectorKind != "sbom_document" {
 			t.Fatalf("document-path CollectorKind = %q, want sbom_document", envelope.CollectorKind)
 		}
+		// OPEN CUTOVER #4047: SourceRecordID is carried verbatim —
+		// source.go:141 builds it raw from DocumentURL while source.go:140
+		// redacts SourceURI via safeSourceURI. The sbom.document envelope
+		// proves the channel: its record ID is the raw credential-bearing
+		// URL. The extracted producer must redact-or-refuse
+		// credential-bearing record IDs; in-tree bytes stay frozen for
+		// cutover comparability. This pin fails if the channel changes
+		// shape or goes blank without updating the cutover item.
+		if envelope.FactKind == chain.SBOMDocumentFactKind {
+			recordID := envelope.SourceRef.SourceRecordID
+			if !strings.Contains(recordID, "user:secret") || !strings.Contains(recordID, "token=") {
+				t.Fatalf("sbom.document SourceRecordID = %q, want verbatim credential-bearing carry-through until cutover closes it", recordID)
+			}
+		}
 	}
 
+	referrer := parity8865Drain(parity8865Collect(t, source, plan[1]))
+	assertNoOCIReferrerFacts("spdx-referrer", referrer)
+
 	attested := parity8865Drain(parity8865Collect(t, source, plan[2]))
+	assertNoOCIReferrerFacts("attested", attested)
 	for _, envelope := range attested {
 		if envelope.CollectorKind != string(scope.CollectorSBOMAttestation) {
 			t.Fatalf("attestation-path CollectorKind = %q, want %q", envelope.CollectorKind, scope.CollectorSBOMAttestation)
@@ -476,10 +508,12 @@ func TestSBOM8865ParityHostileInputsPin(t *testing.T) {
 	}
 }
 
-// TestSBOM8865ParityInTreeNeedsNoGrant pins the delegation delta: in-tree
-// emission is grant-free, while the extracted producer must fail closed
-// without a grant; fencing token and collector kind key that enforcement.
-func TestSBOM8865ParityInTreeNeedsNoGrant(t *testing.T) {
+// TestSBOM8865ParityInTreeEmissionCarriesEnforcementKeys pins the delegation
+// delta's in-tree half: every emitted envelope carries a non-blank
+// collector kind and the fencing token, the keys future grant enforcement
+// will key on. Fail-closed behavior of the extracted producer is NOT pinned
+// here (no grant mechanism exists in-tree); it is an open cutover item.
+func TestSBOM8865ParityInTreeEmissionCarriesEnforcementKeys(t *testing.T) {
 	t.Parallel()
 
 	plan := parity8865Plan(t)
