@@ -52,8 +52,9 @@ type CollectedGeneration struct {
 	// collected repository. It is not persisted with facts.
 	DiscoveryAdvisory *DiscoveryAdvisoryReport
 	// StateWriter, when set, persists collector-owned state in the commit
-	// transaction of this generation (#8943). A claimed generation that sets
-	// it needs a committer implementing StateClaimedCommitter.
+	// transaction of this generation (#8943). Only ClaimedService honors it,
+	// through a committer implementing StateClaimedCommitter; the unclaimed
+	// Service refuses a generation that sets it instead of dropping the state.
 	StateWriter GenerationStateWriter
 }
 
@@ -391,7 +392,13 @@ func (s Service) completeGenerationDeadLetterReplay(ctx context.Context, collect
 
 func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGeneration, startedAt time.Time) error {
 	var err error
-	if collected.FactStreamErr != nil {
+	if collected.StateWriter != nil {
+		// Only ClaimedService runs the writer in the commit transaction.
+		err = errors.New("collector service cannot persist generation state; run the source under ClaimedService")
+		if streamErr := cleanupCollectedFactStream(collected); streamErr != nil {
+			err = errors.Join(err, streamErr)
+		}
+	} else if collected.FactStreamErr != nil {
 		streamCommitter, ok := s.Committer.(StreamErrorCommitter)
 		if !ok {
 			err = errors.New("collector committer must support fact stream errors")

@@ -129,3 +129,25 @@ func TestClaimedServiceWithoutGenerationStateKeepsPlainCommit(t *testing.T) {
 		t.Fatalf("state calls = %d, plain calls = %d, want 0 and 1", committer.stateCalls, committer.claimedCalls)
 	}
 }
+
+// TestServiceRefusesGenerationStateItCannotPersist proves the unclaimed Service
+// fails closed on a generation that carries a state writer: only ClaimedService
+// hands the writer to a committer that runs it in the commit transaction, so
+// committing the facts alone would drop the state without an error.
+func TestServiceRefusesGenerationStateItCannotPersist(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.October, 24, 9, 0, 0, 0, time.UTC)
+	committer := &stubCommitter{}
+	service := Service{Committer: committer, PollInterval: time.Millisecond}
+	collected := FactsFromSlice(testScope(), testGeneration(now), testFacts(now))
+	collected.StateWriter = func(context.Context, CommitExecutor) error { return nil }
+
+	err := service.commitWithTelemetry(context.Background(), collected, time.Now())
+	if err == nil || !strings.Contains(err.Error(), "generation state") {
+		t.Fatalf("commitWithTelemetry() error = %v, want a refusal that names generation state", err)
+	}
+	if committer.calls != 0 {
+		t.Errorf("CommitScopeGeneration() calls = %d, want 0: the facts must not commit without their state", committer.calls)
+	}
+}
