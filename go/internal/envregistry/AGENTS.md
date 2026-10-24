@@ -19,7 +19,14 @@
   this way so `eshu config validate` stays trustworthy and noise-free.
 - **The reference doc is generated, never hand-edited.** Regenerate with
   `bash scripts/generate-env-registry-doc.sh`.
-  `docs/public/reference/env-registry.md` carries a "do not edit by hand" banner.
+  `docs/public/reference/env-registry.md` and every page under
+  `docs/public/reference/env-registry/` carry a "do not edit by hand" banner.
+- **Every generated page stays under the 500-line Markdown cap.** `RenderPages`
+  fails loudly instead of writing an oversized page. `pageLayout` in `pages.go`
+  assigns subsystems to pages; a new subsystem needs a `pageLayout` entry, and a
+  page nearing the cap is rebalanced by moving whole subsystems. The mkdocs nav
+  section "Environment Variable Registry (generated)" in `docs/mkdocs.yml` is
+  edited by hand to match `pageLayout` titles and order; a test enforces it.
 
 ## Common changes and how to scope them
 
@@ -35,8 +42,13 @@
 
 ## What NOT to change without coordination
 
-- The generated doc path (`docs/public/reference/env-registry.md`) and its
-  mkdocs nav entry — operator docs link to it.
+- The generated doc paths (`docs/public/reference/env-registry.md`, the
+  `env-registry/<slug>.md` page slugs, and the `## <subsystem>` anchors) and
+  their mkdocs nav entries — operator docs link to them. Renaming a slug or
+  moving a subsystem to another page breaks those links; update them in the same
+  change.
+- The pages directory name. Do not move it under a `generated/` segment: the
+  line-cap gate skips that segment and would stop checking the pages.
 - Validation severity semantics — turning unknown variables into errors by
   default would break `eshu config validate` for every deployment that sets
   out-of-scope collector variables.

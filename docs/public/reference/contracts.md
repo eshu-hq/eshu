@@ -33,7 +33,8 @@ human onboarding pages.
 
 ## Generated Reference Ownership
 
-`docs/public/reference/env-registry.md` is generated from
-`go/internal/envregistry`. Regenerate it with `bash
+`docs/public/reference/env-registry.md` and the family pages under
+`docs/public/reference/env-registry/` are generated from
+`go/internal/envregistry`. Regenerate them with `bash
 scripts/generate-env-registry-doc.sh`; verify drift with `bash
-scripts/verify-env-registry-doc.sh`. Do not edit the generated page by hand.
+scripts/verify-env-registry-doc.sh`. Do not edit the generated pages by hand.

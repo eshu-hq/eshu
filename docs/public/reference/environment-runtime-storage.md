@@ -183,7 +183,7 @@ No-Regression Evidence: this change edits only the `Description` string of the
 existing `ESHU_AUTH_OIDC_CONFIG_FILE` entry in
 `go/internal/envregistry/entries.go` (a data-only Go file: a slice of struct
 literals with no control flow) and the corresponding doc rows above and in
-`env-registry.md`. `scripts/dev/precommit-go.sh perf-evidence`'s
+`env-registry/api-and-auth.md`. `scripts/dev/precommit-go.sh perf-evidence`'s
 content-based hot-path scan flags any changed file under `go/internal` that
 contains a whole-word match for `Heartbeat` (among other worker/queue/lease
 keywords) anywhere in the file, not only in the diff; `entries.go` already

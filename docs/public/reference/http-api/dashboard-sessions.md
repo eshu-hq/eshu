@@ -79,7 +79,7 @@ A GitHub provider configured only through the admin API
 (issue #5605): `ESHU_AUTH_GITHUB_ENABLED=true` at API startup. Enabling the DB
 provider config does not mount the route by itself — see
 `ESHU_AUTH_GITHUB_ENABLED` in the
-[Environment Variable Reference](../env-registry.md#api). Until the flag is set
+[Environment Variable Reference](../env-registry/api-and-auth.md#api). Until the flag is set
 and the API restarted, `GET /api/v0/auth/github/login` returns 404 even with an
 active DB provider. A deployment that provides `ESHU_AUTH_GITHUB_CONFIG_FILE`
 instead mounts the route from that config and does not need the flag.

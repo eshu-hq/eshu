@@ -101,6 +101,7 @@ envdoc:
   - '.github/static-contract-filters.yml'
   - 'go/internal/envregistry/**'
   - 'docs/public/reference/env-registry.md'
+  - 'docs/public/reference/env-registry/**'
   - 'scripts/*env-registry-doc*.sh'
 contract:
   - '.github/workflows/static-contract-gates.yml'

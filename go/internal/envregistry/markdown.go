@@ -9,10 +9,12 @@ import (
 	"strings"
 )
 
-// RenderMarkdown renders the registry as the operator-facing reference document.
-// The output is deterministic (entries sorted by subsystem then name) so it can
-// be committed and checked for drift by a test. The output ends with exactly
-// one newline so the committed doc passes CI's whitespace gate.
+// RenderMarkdown renders the whole registry as one reference document. It backs
+// `eshu config validate --reference`. The committed reference under
+// docs/public/reference is split into capped pages by RenderPages instead,
+// because one document no longer fits the Markdown line cap. The output is
+// deterministic (entries sorted by subsystem then name) and ends with exactly
+// one newline.
 func (r *Registry) RenderMarkdown() string {
 	var b strings.Builder
 	b.WriteString("# Environment Variable Reference\n\n")
@@ -33,18 +35,25 @@ func (r *Registry) RenderMarkdown() string {
 	sort.Strings(subsystems)
 
 	for _, subsystem := range subsystems {
-		fmt.Fprintf(&b, "## %s\n\n", subsystem)
-		b.WriteString("| Variable | Type | Default | Notes |\n")
-		b.WriteString("| --- | --- | --- | --- |\n")
-		for _, e := range bySubsystem[subsystem] {
-			fmt.Fprintf(&b, "| `%s` | %s | %s | %s |\n",
-				e.Name, e.Type, defaultCell(e), notesCell(e))
-		}
-		b.WriteString("\n")
+		writeSubsystemSection(&b, subsystem, bySubsystem[subsystem])
 	}
 	// The single trailing newline is load-bearing: CI's whitespace gate
 	// (git show --check) rejects a blank line at EOF in the committed doc.
 	return strings.TrimRight(b.String(), "\n") + "\n"
+}
+
+// writeSubsystemSection writes one "## subsystem" heading and its variable
+// table. RenderMarkdown (the single-document CLI view) and the committed
+// per-page reference both use it, so a row renders identically in each.
+func writeSubsystemSection(b *strings.Builder, subsystem string, entries []Entry) {
+	fmt.Fprintf(b, "## %s\n\n", subsystem)
+	b.WriteString("| Variable | Type | Default | Notes |\n")
+	b.WriteString("| --- | --- | --- | --- |\n")
+	for _, e := range entries {
+		fmt.Fprintf(b, "| `%s` | %s | %s | %s |\n",
+			e.Name, e.Type, defaultCell(e), notesCell(e))
+	}
+	b.WriteString("\n")
 }
 
 func defaultCell(e Entry) string {

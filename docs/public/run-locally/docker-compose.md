@@ -60,7 +60,7 @@ build is retried idempotently by the next `bootstrap-index` run. The default `po
 no local identities yet, the `eshu` service seals a freshly generated
 one-time admin username/password/recovery-code bundle with
 `ESHU_AUTH_SECRET_ENC_KEY`, a base64-encoded 32-byte data-encryption key (see
-[Environment Variable Reference](../reference/env-registry.md)). Without a
+[Environment Variable Reference](../reference/env-registry/api-and-auth.md#auth)). Without a
 configured DEK, `generated` mode fails closed and the API never starts.
 
 The default and Neo4j Compose files ship a fixed, publicly-known, all-zero

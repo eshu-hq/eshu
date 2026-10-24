@@ -12,7 +12,8 @@ supported core-platform variables once and powers:
 
 - `eshu config validate` — checks the live environment for invalid values,
   deprecated variables, and likely typos.
-- `docs/public/reference/env-registry.md` — generated reference doc.
+- `docs/public/reference/env-registry.md` and `docs/public/reference/env-registry/*.md`
+  — the generated reference: an index plus one page per subsystem family.
 
 ## What it covers
 
@@ -51,7 +52,11 @@ reference doc; emits no metrics, spans, or logs from any running service.
   indexed by canonical name and alias.
 - `Registry.Validate(env, strict)` — returns `Finding`s (invalid value,
   deprecated, unknown).
-- `Registry.RenderMarkdown` — deterministic reference-doc rendering.
+- `Registry.RenderPages` — the committed reference as an index page plus one
+  page per `pageLayout` entry, each refused if it would pass `PageLineCap` (500)
+  lines. `Page`, `IndexPagePath`, `PagesDir`, and `PageLineCap` describe it.
+- `Registry.RenderMarkdown` — the whole registry as one document, for
+  `eshu config validate --reference`. It is not committed.
 - `VarType` constants — `VarString`, `VarInt`, `VarBool`, `VarDuration`,
   `VarEnum`, `VarDSN`.
 
@@ -78,8 +83,37 @@ reference doc; emits no metrics, spans, or logs from any running service.
 The checked-in reference is also guarded by
 `bash scripts/verify-env-registry-doc.sh` and its hermetic mirror
 `bash scripts/test-generate-env-registry-doc.sh`. The verifier fails when
-`docs/public/reference/env-registry.md` is manually edited or stale relative to
-`go/internal/envregistry`.
+`docs/public/reference/env-registry.md` or any page under
+`docs/public/reference/env-registry/` is manually edited, missing, stale
+relative to `go/internal/envregistry`, or left over after the generator stopped
+producing it. "Left over" means any non-directory entry in `env-registry/`
+(files, hidden files, symlinks; removing a symlink never touches its target);
+subdirectories are skipped, never deleted.
+
+### Page layout
+
+The reference is split because one page would pass the 500-line Markdown cap.
+`pageLayout` in `pages.go` assigns each `Entry.Subsystem` to one family page.
+The assignment is explicit, not packed by size, so a page's URL and its
+`## <subsystem>` anchors do not move when a variable is added. The generator
+fails, and writes nothing, when a subsystem has entries but no page, appears on
+two pages, is listed without entries, or when a page would pass the cap. A new
+`ESHU_*` variable in an existing subsystem never needs a layout change. A new
+subsystem needs one line in `pageLayout`. If a page nears the cap, move whole
+subsystems between pages; keep each page at 350 lines or fewer so a later
+variable does not trigger the cap. Slugs and subsystem names must be lowercase
+hyphenated names, and the slug `index` is refused, so the `#subsystem` anchors
+and `<slug>.md` paths the index emits are the ones mkdocs serves.
+
+Per-subsystem anchors such as `env-registry.md#api` moved to the family pages
+with the split: an old deep link now lands at the top of the index, which says
+so and lists every subsystem with a link to its section. Links written since
+point at `env-registry/<slug>.md#<subsystem>`. The mkdocs nav section
+"Environment Variable Registry (generated)" is hand-written; a test
+(`TestMkdocsNavListsEveryGeneratedPage`) fails when it omits a page or titles
+one differently from `pageLayout`. The pages directory is
+`docs/public/reference/env-registry/`, not `generated/`, because the line-cap
+gate skips any path segment named `generated`.
 
 ## Runtime impact
 
@@ -162,3 +196,13 @@ No-Observability-Change: #7983 adds no metric, span, log field, status
 payload field, or telemetry label to any running service. The hook's new
 timeout diagnostics print to push-hook stderr, visible only when the hook
 fails; service telemetry is untouched.
+
+No-Regression Evidence: #8888 changes only how the committed reference is
+rendered: `RenderPages` splits it into capped pages at doc-generation time. The
+registry data, `Validate`, and `RenderMarkdown` output are unchanged, and no
+service request, graph-write, reducer, queue, goroutine, worker, lease, or
+Cypher path reads this code. Terminal graph and queue counts are unchanged.
+Verified by `go test ./internal/envregistry -race -count=1`.
+
+No-Observability-Change: #8888 adds no metrics, spans, log fields, status
+payload fields, or telemetry labels; it is documentation tooling.
