@@ -233,6 +233,20 @@ reducer's security_alert_reconciliation domain has no pending or dead-lettered
 work for the scope (`get_freshness_causality`). The state table is in
 [Provider Alert Parity](../../../../../docs/public/reference/security-intelligence-provider-alert-parity.md#empty-answers).
 
+The same read also returns, per covering target, the unread repositories of its
+active generation (#8943): `ingestion_scopes.active_generation_id`, then the
+generation's `security_alert_target_read_states` row, then the requested
+repositories' `security_alert_unread_repositories` rows by primary key (an
+unanchored read takes only the row's total and distinct reasons).
+`security_alert_unread_reason.go` pins the stored reason tokens and maps an
+unknown one to `org_repository_read_incomplete`. A committed target that left a
+requested repository unread ranks below a healthy one and above a stale one: it
+reads `target_incomplete` with the stored reason, `derived` truth, and `fresh`
+freshness, so another covering target that read the repository in full still
+wins and a terminal failure still outranks it. A generation written before the
+carrier has no row and reads as before. The reads are documented in
+[Org read state](../../../../../docs/public/reference/security-intelligence-provider-alert-parity.md#org-read-state).
+
 When the catalog has no match and the selector is not canonical, the exact
 `selector.ResolveExact` fallback (which reruns the catalog read and issues the
 graph reads) runs as a third stage, `repository_selector_resolve`, also logged

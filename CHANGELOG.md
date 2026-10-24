@@ -79,6 +79,21 @@ recent shipped work grouped by feature area.
   detector through the new `go/internal/secret/detect` package. See
   [Admitted File Names](docs/public/languages/admitted-files.md#content-store-policy).
 
+### Security alerts: unread org repositories no longer read as complete
+
+- **An empty security-alert answer for a repository the collector did not read
+  in full now reports `target_incomplete` with the reason**
+  ([#8943](https://github.com/eshu-hq/eshu/issues/8943)). Every org-scope claim
+  records, in the same transaction as its generation, whether the org stream
+  stopped at `max_pages` and which allowlisted repositories the fan-out left
+  unread (past the 100-repository cap, rate limited, stopped, failed, or alerts
+  disabled). The read path reports such a repository with the stored
+  `org_repository_*` or `provider_open_alert_page_limit_reached` reason, and a
+  repository read in full still reads `complete`. The record is two tables
+  (migration 217) that generation retention removes with the generation. No
+  repository name appears in a metric label or span attribute; the observe span
+  gains `eshu.security_alert.org_read_truncated`.
+
 ### Gate: supported languages declare manifest and pin files
 
 - **Ledger-driven manifest and pin gate**

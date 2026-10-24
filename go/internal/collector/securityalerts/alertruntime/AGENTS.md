@@ -23,3 +23,9 @@ to `collector.ClaimedService`.
   `collection_incomplete_reasons` and the fan-out counter; never retry inside a
   claim. Update `testdata/org_fanout_cassette.json` when the request sequence
   changes.
+- Build the org read state (`read_state.go`) from the same fan-out outcomes the
+  facts use; a repository the fan-out did not read in full MUST appear in it
+  with the same reason token, and a repository read in full MUST NOT. The
+  reason tokens are mirrored in `query/supply/chain/security_alert_unread_reason.go`
+  and the OpenAPI enum; change them together. Repository targets write no
+  state. Never put a repository name in a metric label or span attribute.

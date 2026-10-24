@@ -88,9 +88,66 @@ that endpoint returns no repository object; org-window facts keep the
 provider's casing. `repository_id` is lowercase on both paths.
 
 A repository that the fan-out could not read and that has no alert in the org
-window emits no fact, so no fact carries its reason. The
-`eshu_dp_security_alert_org_fanout_repositories_total` outcome counter still
-counts it.
+window emits no fact, so no fact carries its reason. The collector records it
+in a table of its own instead (see [Org read state](#org-read-state)), and the
+`eshu_dp_security_alert_org_fanout_repositories_total` outcome counter counts
+it.
+
+### Org read state
+
+Every claim of an `org` target also writes one small record in the same
+transaction as its generation (#8943): whether the org stream stopped at
+`max_pages`, how many allowlisted repositories of the organization the target
+covers, and each repository the fan-out did not read in full with a reason. A
+repository read in full is not listed. The record lives in
+`security_alert_target_read_states` (one row per generation) and
+`security_alert_unread_repositories` (one row per unread repository). Both
+tables cascade from `scope_generations`, so generation retention removes them
+with the generation; they do not depend on `workflow_work_items`. A
+repository-scope target writes none, because its read is one repository and a
+truncated read of it always holds alerts.
+
+To list the targets whose latest read was cut short:
+
+```sql
+SELECT s.scope_id, s.org_read_truncated, s.repositories_total, s.unread_total, s.unread_reasons
+FROM security_alert_target_read_states AS s
+JOIN ingestion_scopes AS sc ON sc.active_generation_id = s.generation_id
+WHERE s.unread_total > 0 OR s.org_read_truncated
+ORDER BY s.unread_total DESC;
+```
+
+The read path consults the record of the target's active generation when an
+answer is empty, and reports the repository it asked about:
+
+| Why the collector did not read the repository in full | `coverage.reasons` |
+| --- | --- |
+| Past the 100-repository per-claim cap | `org_repository_fanout_cap_reached` |
+| A rate limit stopped the fan-out before or at the repository | `org_repository_read_rate_limited` |
+| Its own read failed (`not_found`, a 5xx, a terminal 4xx, or a transport error) | `org_repository_read_failed` |
+| An earlier failure stopped the fan-out | `org_repository_fanout_stopped` |
+| Dependabot alerts are disabled for it | `org_repository_alerts_disabled` |
+| Its own read stopped at `max_pages` | `provider_open_alert_page_limit_reached` |
+| A reason a newer collector build stored that this build does not know | `org_repository_read_incomplete` |
+
+For each of them the answer is `coverage.state=target_incomplete`,
+`truth.level=derived`, and `truth.freshness.state=fresh`: the facts it rests
+on are current, but the collector never read that repository in full. The
+answer carries no `collector_readiness` and no freshness cause. A repository
+the collector read in full still reads `complete`, even when the org stream
+truncated and other repositories were left unread. When several targets cover a
+repository, the healthiest one decides, so a repository-scope target that read
+it in full wins. A terminal fetch failure on the covering target outranks the
+unread reason. A read with no repository anchor reports `target_incomplete` when
+any target left repositories unread, with each distinct reason. A generation
+committed before this record existed has none, and its answer reads as it did
+before.
+
+The read costs one more lookup per covering target on the same empty-answer
+read: the target's active generation, its read-state row, and the requested
+repositories' rows by primary key (about 0.5 ms for 50 targets with 2,000
+unread repositories per generation; see
+`docs/internal/evidence/8943-security-alert-org-read-state.md`).
 
 Prefer `repository`-scoped targets when the allowlist is a small part of a
 large organization. They cost the sum of `ceil(open alerts / 100)` requests
@@ -138,6 +195,7 @@ skip this read, because the rows already prove the collector ran.
 | Covering target has no projected generation yet | `target_incomplete` | `no_committed_generation` | `derived` | `building` |
 | Latest fetch failed terminally, nothing projected before | `target_incomplete` | `terminal_fetch_failure:<class>` | `fallback` | `unavailable` |
 | Latest fetch failed terminally after an earlier projected generation | `target_incomplete` | `terminal_fetch_failure:<class>` | `derived` | `stale` |
+| Projected generation, no later terminal failure, but the collector did not read the repository in full | `target_incomplete` | one of the `org_repository_*` reasons or `provider_open_alert_page_limit_reached` | `derived` | `fresh` |
 | Projected generation and no later terminal failure | `complete` | (absent) | `exact` | `fresh` |
 | Scoped token with no grants (no collector read) | `not_configured` | `no_authorized_repositories` | `fallback` | `unavailable` |
 
@@ -211,19 +269,10 @@ The answer never names a target, another repository, an allowlist, or a failure
 message. A scoped token reaches the collector read only for a repository inside
 its grants; a selector outside them answers `404` first.
 
-One gap remains, and it is narrower than the org window. When the org read
-truncates, the collector reads each allowlisted repository on its own (see
-[Org-scope window and per-repository fan-out](#org-scope-window-and-per-repository-fan-out)),
-so a repository whose own read completes is covered whatever the window held.
-The gap holds only for a repository the fan-out could not read: one past the
-100-repository per-claim cap, one whose read failed (`not_found` or another
-failure), one whose Dependabot alerts are disabled, or one after a rate-limited or failed read that stopped the fan-out.
-If the org window also holds no alert for such a repository, no fact records the
-truncation or the reason, so the empty answer still reads `complete`. The
-`eshu_dp_security_alert_org_fanout_repositories_total` counter and the
-`eshu.security_alert.org_fanout.*` attributes on the `security_alert.observe`
-span are the only signals for it. #8943 tracks the collector-side carrier that closes this case
-with reason `provider_open_alert_page_limit_reached`.
+An empty answer for a repository the org fan-out could not read no longer reads
+`complete`: the org read state above names it. What the record cannot tell is a
+repository that is not in the target's `allowed_repositories`; that reads
+`repository_outside_target_set`.
 
 Eshu should match provider alert counts when it has equivalent owned target
 evidence and advisory data. Eshu may exceed provider alert output when it can
