@@ -40,9 +40,9 @@
      the extracted Jira planner and root seam; preserve
      schedule/bootstrap/webhook trigger resolution and precedence, all-target
      validation, scope membership, privacy, configured order, and
-     site-partitioned fairness identity. `shouldScheduleJira` skips an instance
-     whose configuration is an `eshu.component.instance.v1` document (valid or
-     malformed): the generic component scheduler plans it, never both (#8907)
+     site-partitioned fairness identity. Like every in-tree selector,
+     `shouldScheduleJira` skips an instance whose configuration is an
+     `eshu.component.instance.v1` document (see **Component ownership** below)
    - `go/internal/coordinator/scanner/worker/planner.go` and
      `service_scanner_worker.go` — the extracted scanner-worker planner and its
      root scheduling seam; runtime-local paths stay out of requested-scope
@@ -208,6 +208,30 @@ Two rules the split had to obey, and both will apply to the next family move:
   and `planner/aws/scheduled/planner.go` both call them rather than keeping a root
   copy that could drift from the planner's own authorization decision.
 
+## Component ownership
+
+An instance whose configuration is an `eshu.component.instance.v1` document
+(valid, incomplete, or malformed JSON) belongs to the generic component
+scheduler alone, for every collector kind (#8907, #8919). An in-tree planner
+reads that configuration as its own target list and fails the whole reconcile,
+because schedulers stop at the first error. One predicate enforces it:
+
+- `hasComponentActivationConfiguration` (`component_extension_service.go`) is
+  the single parse check. `shouldScheduleComponentExtension` claims what it
+  matches; `inTreeSchedulable(instance, kind)` (`in_tree_schedulers.go`) is
+  kind + enabled + claims-enabled + not matched, and every in-tree
+  `shouldSchedule*` selector returns it. This also covers the AWS, GCP, and
+  incident-freshness handoffs, which run outside `runReconcile`.
+- `reconcileSchedulers()` is the one ordered list `runReconcile` dispatches;
+  `incidentFreshnessSelectors()` lists the handoff selectors that run on the
+  maintenance ticker. `in_tree_schedulers_test.go` holds every entry to the
+  rule and parses the package source, so a new `shouldSchedule*` function that
+  is not registered fails the build. Register it; do not add a dispatch block
+  to `runReconcile` or a per-kind copy of the exclusion.
+- Blank, unrelated, and in-tree target configuration stay with the in-tree
+  planner. Skipping is silent by design: it is a partition, and the generic
+  scheduler logs and audits its own egress decisions.
+
 ## Common changes and how to scope them
 
 - **Add a new reconcile operation** → add a method to `Store` in `service.go`;
@@ -228,8 +252,10 @@ Two rules the split had to obey, and both will apply to the next family move:
   `schedule<Kind>Work` and `shouldSchedule<Kind>` in `<kind>_service.go` and
   take the plan key from `s.scanInterval(instance)` plus
   `scheduledPlanKey(...)` (see **Plan keys for a periodic scheduled planner**
-  below); call `schedule<Kind>Work` in `runReconcile` adjacent to
-  the existing schedule calls (guarded by active mode and `ClaimsEnabled`); wire
+  below); make `shouldSchedule<Kind>` return `inTreeSchedulable(instance,
+  scope.Collector<Kind>)` and add the scheduler to `reconcileSchedulers()` in
+  `in_tree_schedulers.go` (guarded by active mode and `ClaimsEnabled`; see
+  **Component ownership**); wire
   the concrete planner in `go/cmd/workflow-coordinator/main.go`; add the
   `CollectorKind` constant in `internal/scope/scope.go`. The planner must be
   idempotent: `RunID` derives from the instance, resolved trigger, and plan key;

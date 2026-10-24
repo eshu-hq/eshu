@@ -60,7 +60,5 @@ func (s Service) scheduleScannerWorkerWork(
 }
 
 func shouldScheduleScannerWorker(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorScannerWorker &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorScannerWorker)
 }

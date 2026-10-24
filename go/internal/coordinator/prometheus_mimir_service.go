@@ -61,7 +61,5 @@ func (s Service) schedulePrometheusMimirWork(
 }
 
 func shouldSchedulePrometheusMimir(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorPrometheusMimir &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorPrometheusMimir)
 }

@@ -57,7 +57,5 @@ func (s Service) scheduleTempoWork(
 }
 
 func shouldScheduleTempo(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorTempo &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorTempo)
 }

@@ -94,9 +94,9 @@ func shouldScheduleComponentExtension(instance workflow.CollectorInstance) bool 
 // component planner owns it. A malformed or incomplete activation document
 // counts: the generic planner reports that error, and no in-tree planner may
 // claim the instance as well. Blank and in-tree target configuration return
-// false. The generic scheduler and every in-tree kind scheduler that shares a
-// collector kind with a component (PagerDuty, Jira) must use this one check,
-// so the two sides always partition instances without overlap or a gap.
+// false. The generic scheduler and every in-tree kind scheduler (through
+// inTreeSchedulable) use this one check, so the two sides always partition
+// instances without overlap or a gap.
 func hasComponentActivationConfiguration(instance workflow.CollectorInstance) bool {
 	_, ok, err := activation.ParseConfig(instance.Configuration)
 	return ok || err != nil

@@ -44,6 +44,8 @@ var inTreeOwnedConfigurations = map[string]string{
 	"blank":                    "",
 	"whitespace":               "  \n",
 	"unrelated json object":    `{"foo":"bar"}`,
+	"json null":                `null`,
+	"empty json object":        `{}`,
 	"unrelated schema version": `{"schema_version":"other.v1"}`,
 	"in-tree targets":          `{"targets":[{"scope_id":"a"}]}`,
 }

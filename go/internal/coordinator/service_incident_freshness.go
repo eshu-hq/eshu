@@ -128,14 +128,11 @@ func findIncidentFreshnessInstance(
 }
 
 func shouldScheduleIncidentFreshness(instance workflow.CollectorInstance, provider webhook.Provider) bool {
-	if !instance.Enabled || !instance.ClaimsEnabled {
-		return false
-	}
 	switch provider {
 	case webhook.ProviderPagerDuty:
-		return instance.CollectorKind == scope.CollectorPagerDuty
+		return inTreeSchedulable(instance, scope.CollectorPagerDuty)
 	case webhook.ProviderJira:
-		return instance.CollectorKind == scope.CollectorJira
+		return inTreeSchedulable(instance, scope.CollectorJira)
 	default:
 		return false
 	}

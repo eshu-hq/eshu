@@ -30,6 +30,23 @@ type instanceSelector struct {
 	selects func(workflow.CollectorInstance) bool
 }
 
+// inTreeSchedulable is the one rule every in-tree kind scheduler's selector
+// applies: the instance is of the scheduler's collector kind, is enabled and
+// claims-enabled, and is not configured as a component activation document.
+// An instance with component configuration belongs to the generic
+// component-extension scheduler alone, whatever its collector kind, because an
+// in-tree planner reads that configuration as its own target list and fails the
+// whole reconcile on it (#8907, #8919). A new selector calls this instead of
+// repeating the three checks, and registers itself in reconcileSchedulers so
+// the ownership test covers it. The kind and gate checks come first so the
+// configuration is parsed only for instances the scheduler could select.
+func inTreeSchedulable(instance workflow.CollectorInstance, kind scope.CollectorKind) bool {
+	if instance.CollectorKind != kind || !instance.Enabled || !instance.ClaimsEnabled {
+		return false
+	}
+	return !hasComponentActivationConfiguration(instance)
+}
+
 // reconcileScheduler is one scheduler that runReconcile dispatches, in order,
 // against the egress-filtered durable collector instances.
 type reconcileScheduler struct {
