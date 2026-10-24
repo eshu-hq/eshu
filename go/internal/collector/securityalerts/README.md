@@ -78,7 +78,9 @@ the provider alert.
 - A failed read reads at most 4096 bytes of the response body. A 403 with no
   rate-limit signal whose complete JSON `message` says Dependabot alerts are
   disabled sets `GitHubDependabotError.AlertsDisabled` (#8805). The failure
-  class stays `auth_denied`; the message is only compared, never stored or
+  class is `not_found` (#8947), a terminal class for a disabled alert surface,
+  not `auth_denied`; a 403 with a rate-limit signal stays `rate_limited` and
+  any other 403 stays `auth_denied`. The message is only compared, never stored or
   returned by `Error()`. A body that is unreadable, cut off, not JSON, or worded
   differently leaves the marker false.
 - Organization alerts (`/orgs/{org}/dependabot/alerts`) preserve each alert's

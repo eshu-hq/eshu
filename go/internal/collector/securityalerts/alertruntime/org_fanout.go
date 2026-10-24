@@ -262,10 +262,11 @@ func fanoutRepositoryObject(repository string) securityalerts.GitHubDependabotRe
 
 // fanoutFailureOutcome maps a failed per-repository read to its outcome and
 // to the outcome later repositories record. Only failures specific to one
-// repository let the fan-out continue (stop is ""): not_found, and an
-// auth_denied 403 the provider marked "Dependabot alerts are disabled for this
-// repository", which is checked first and only for auth_denied so a rate limit
-// or a retryable failure carrying the marker still stops. A rate limit stops
+// repository let the fan-out continue (stop is ""): not_found, and a 403 the
+// provider marked "Dependabot alerts are disabled for this repository", which
+// the client classifies as not_found (#8947). The marker is checked first and
+// only for not_found, so a rate limit or a retryable failure carrying it still
+// stops. A rate limit stops
 // the fan-out as rate_limited. Any other class (auth_denied without the
 // marker, including a plain 403 with no rate-limit exhaustion signal, retryable 5xx or
 // transport, terminal) stops it as stopped, because the next read against the
@@ -274,7 +275,7 @@ func fanoutRepositoryObject(repository string) securityalerts.GitHubDependabotRe
 // banned.
 func fanoutFailureOutcome(failure ProviderFailure) (outcome string, stop string) {
 	class := failure.FailureClass()
-	if class == FailureAuthDenied && failure.AlertsDisabled() {
+	if class == FailureNotFound && failure.AlertsDisabled() {
 		return contract.SecurityAlertFanoutOutcomeAlertsDisabled, ""
 	}
 	switch class {

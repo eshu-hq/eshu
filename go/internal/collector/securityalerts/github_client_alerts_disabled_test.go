@@ -39,8 +39,8 @@ func TestGitHubDependabotClientMarksAlertsDisabled403(t *testing.T) {
 		wantMark  bool
 		wantClass string
 	}{
-		{name: "disabled 403", status: 403, body: alertsDisabledBody, wantMark: true, wantClass: GitHubDependabotFailureAuthDenied},
-		{name: "lowercase wording", status: 403, body: `{"message":"dependabot alerts are disabled for this repository."}`, wantMark: true, wantClass: GitHubDependabotFailureAuthDenied},
+		{name: "disabled 403", status: 403, body: alertsDisabledBody, wantMark: true, wantClass: GitHubDependabotFailureNotFound},
+		{name: "lowercase wording", status: 403, body: `{"message":"dependabot alerts are disabled for this repository."}`, wantMark: true, wantClass: GitHubDependabotFailureNotFound},
 		{name: "rate limit remaining zero wins", status: 403, headers: map[string]string{"X-RateLimit-Remaining": "0"}, body: alertsDisabledBody, wantClass: GitHubDependabotFailureRateLimited},
 		{name: "retry-after wins", status: 403, headers: map[string]string{"Retry-After": "30"}, body: alertsDisabledBody, wantClass: GitHubDependabotFailureRateLimited},
 		{name: "integration permission 403", status: 403, body: `{"message":"Resource not accessible by integration"}`, wantClass: GitHubDependabotFailureAuthDenied},
@@ -50,7 +50,7 @@ func TestGitHubDependabotClientMarksAlertsDisabled403(t *testing.T) {
 		{name: "non-string message", status: 403, body: `{"message":["Dependabot alerts are disabled"]}`, wantClass: GitHubDependabotFailureAuthDenied},
 		{name: "cut off past the cap", status: 403, body: cut, wantClass: GitHubDependabotFailureAuthDenied},
 		{name: "different wording", status: 403, body: `{"message":"Alerts are turned off"}`, wantClass: GitHubDependabotFailureAuthDenied},
-		{name: "complete body of exactly the cap", status: 403, body: atCap, wantMark: true, wantClass: GitHubDependabotFailureAuthDenied},
+		{name: "complete body of exactly the cap", status: 403, body: atCap, wantMark: true, wantClass: GitHubDependabotFailureNotFound},
 		{name: "body one byte over the cap", status: 403, body: overCap, wantClass: GitHubDependabotFailureAuthDenied},
 		{name: "401 with the text", status: 401, body: alertsDisabledBody, wantClass: GitHubDependabotFailureAuthDenied},
 		{name: "404 with the text", status: 404, body: alertsDisabledBody, wantClass: GitHubDependabotFailureNotFound},
@@ -91,10 +91,11 @@ func TestGitHubDependabotClientMarksAlertsDisabled403(t *testing.T) {
 	}
 }
 
-// TestGitHubDependabotClientAlertsDisabled403StaysTerminalDenied proves a
-// repository-scope read that gets the disabled 403 keeps the terminal
-// auth_denied failure the readiness classes depend on.
-func TestGitHubDependabotClientAlertsDisabled403StaysTerminalDenied(t *testing.T) {
+// TestGitHubDependabotClientAlertsDisabled403IsTerminalNotFound proves a
+// repository-scope read that gets the disabled 403 fails as terminal
+// not_found, the documented class for a disabled alert surface (#8947), so
+// readiness does not tell the operator to rotate a credential that works.
+func TestGitHubDependabotClientAlertsDisabled403IsTerminalNotFound(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -112,7 +113,7 @@ func TestGitHubDependabotClientAlertsDisabled403StaysTerminalDenied(t *testing.T
 	if !errors.As(err, &failure) {
 		t.Fatalf("error = %T, want GitHubDependabotError", err)
 	}
-	if !failure.TerminalFailure() || failure.FailureClass() != GitHubDependabotFailureAuthDenied {
-		t.Fatalf("class = %q terminal = %t, want terminal auth_denied", failure.FailureClass(), failure.TerminalFailure())
+	if !failure.TerminalFailure() || failure.FailureClass() != GitHubDependabotFailureNotFound {
+		t.Fatalf("class = %q terminal = %t, want terminal not_found", failure.FailureClass(), failure.TerminalFailure())
 	}
 }

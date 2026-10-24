@@ -106,7 +106,9 @@ type GitHubDependabotError struct {
 	FailureClassOverride string
 	// AlertsDisabled marks a 403, with no rate-limit signal, whose JSON body
 	// says Dependabot alerts are disabled for the repository (#8805). It never
-	// carries the message; FailureClass stays auth_denied.
+	// carries the message. FailureClass reports not_found for it (#8947), a
+	// terminal class for a disabled alert surface, so readiness does not blame
+	// a working credential.
 	AlertsDisabled bool
 	Cause          error
 }
@@ -145,6 +147,11 @@ func (e GitHubDependabotError) FailureClass() string {
 		if e.RateLimit.RetryAfter != 0 ||
 			(e.RateLimit.RemainingKnown && e.RateLimit.Remaining == 0) {
 			return GitHubDependabotFailureRateLimited
+		}
+		if e.AlertsDisabled {
+			// A disabled Dependabot surface is a property of the target, not
+			// of the credential (#8947): it classifies as not_found.
+			return GitHubDependabotFailureNotFound
 		}
 		return GitHubDependabotFailureAuthDenied
 	case e.StatusCode == http.StatusTooManyRequests:

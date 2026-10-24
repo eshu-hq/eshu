@@ -62,8 +62,10 @@ repository of that organization through
   specific to one repository. The match is on GitHub's message text, which the
   REST reference does not document, so a body that is not JSON, is cut off,
   or is worded differently falls back to the stop below. A repository-scope
-  target that gets this 403 still fails as terminal `auth_denied` (#8947
-  tracks that classification). Any other failure (`auth_denied`
+  target that gets this 403 fails as terminal `not_found` (#8947), so
+  readiness reports `terminal_fetch_failure:not_found`, not a credential
+  failure; read `not_found` on `list_repo_alerts` as "the repository is missing
+  or its Dependabot alerts are disabled". Any other failure (`auth_denied`
   without that message, including a plain 403, a 5xx or transport error, or a
   terminal 4xx) marks that
   repository `org_repository_read_failed` and stops the fan-out: later

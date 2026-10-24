@@ -9,6 +9,19 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Security alerts: disabled Dependabot alerts no longer read as a credential failure
+
+- **A 403 saying Dependabot alerts are disabled classifies as `not_found`**
+  ([#8947](https://github.com/eshu-hq/eshu/issues/8947)). A repository-scope
+  target whose repository has Dependabot alerts disabled used to fail
+  terminally as `auth_denied`, so readiness told the operator to fix a working
+  credential. It now fails as terminal `not_found`, the class the client
+  already documented for a disabled alert surface, and
+  `eshu_dp_security_alert_provider_requests_total` records
+  `status_class=not_found` for it. A 403 with a rate-limit signal stays
+  `rate_limited`, and every other 403 stays `auth_denied`. The org fan-out
+  still reports the repository as `alerts_disabled` and continues.
+
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
 - **Nesting guard before every Cargo TOML decode**

@@ -195,7 +195,8 @@ A source is not refreshing, or a collector family reports unhealthy.
   `last_failure_class` on `GET /api/v0/status/collectors`. Classes every kind
   shares: `auth_denied`
   (fix the credential or grant), `not_found` (check the target exists and the
-  credential can see it), `rate_limited` (wait or lower the schedule),
+  credential can see it; for the security-alert collector it also means the
+  repository has Dependabot alerts disabled, which GitHub answers with a 403), `rate_limited` (wait or lower the schedule),
   `retryable` or `attempt_budget_exhausted` (the retry budget ran out on a
   transient failure; check provider health, then let the next cycle run),
   `identity_mismatch` (the collected generation did not match its claim; check

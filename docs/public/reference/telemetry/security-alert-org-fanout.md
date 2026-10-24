@@ -36,10 +36,15 @@ target are still incomplete; the `security_alert.observe` span carries the
 per-repository read records its own sample, so a claim that fans out adds one
 sample per repository read.
 
-A read that ends as `alerts_disabled` still records
-`eshu_dp_security_alert_provider_requests_total{status_class=auth_denied}`
-because the provider answered 403. Use `outcome=alerts_disabled` on the
-fan-out counter to tell it from a credential failure; the fan-out continued.
+A read that ends as `alerts_disabled` records
+`eshu_dp_security_alert_provider_requests_total{status_class=not_found}`:
+since #8947 the 403 that says Dependabot alerts are disabled classifies as
+`not_found`, not `auth_denied`, on every path. A repository-scope target that
+gets it fails terminally with `not_found` (readiness shows
+`terminal fetch failure: not_found (list_repo_alerts)`), and a rise in
+`status_class=auth_denied` is a real credential or permission problem. On the
+org fan-out use `outcome=alerts_disabled` to tell the disabled case from a
+repository that is missing; the fan-out continues in both.
 
 A truncated org read whose allowlist holds no repository of the organization
 is not a fan-out: it records `eshu_dp_security_alert_truncated_reads_total`
