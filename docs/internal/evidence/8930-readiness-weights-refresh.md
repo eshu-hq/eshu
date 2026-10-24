@@ -68,11 +68,3 @@ python3 -I -c "import sys; sys.path.insert(0,'scripts/lib'); import live_postgre
 ```
 
 The second prints `582 [0, 91, 282, 342, 582] [1176.3, 1204.3, 1291.2, 1318.1]`.
-
-## #8830 acknowledgement proofs: no weights changed yet
-
-The #8830 branch enrolled ten live proofs in `./internal/storage/postgres` (`collector_terminal_failure_ack_live_test.go`, `collector_terminal_failure_list_live_test.go`, and `workflow_terminal_failure_ack_live_test.go`) with no weight. They are priced at the 5 s default, 50 s in all, and the balance self-test `test_tests_appended_at_the_end_are_absorbed` fails: 102.0 s over its 100.0 s allowance.
-
-An earlier attempt on this branch hand-entered weights from one local run. That was wrong: the file holds CI averages (`test_seconds` is the elapsed time averaged over `source_runs`). In CI run 40136539735 the ten tests cost 1.41 to 3.81 s each, 17.7 s in all.
-
-Refreshing the weights from CI logs (four runs, 617 tests, none defaulted) gives live shard seconds of 1106.8, 1285.1, 1371.4, and 1362.2, under the 1440 s budget. The appended-tail arm then reaches 1458.0 s, over the 1440 s budget. That is a capacity shortfall, not a planner bug: main already sits at 1427.2 of 1440 s and 99.9 of 100.0 s on the same arm. This PR therefore depends on issue #9054. This PR changes no weights yet. The refresh is redone from this PR's own green wave after #9054 lands.
