@@ -549,6 +549,26 @@ tests:
     class: postgres_ci
     reason: "#7916 disposable PostgreSQL 18 proof that actual sequential and batch reducer Service.Run dispatches defer first-generation work while an unrelated ready scope progresses, then replay after projector Ack; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_file_upsert_guard_bench_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8915 opt-in (ESHU_CONTENT_UPSERT_GUARD_BENCH=1) benchmark of a findings-heavy content_files replay through the real ContentWriter under EXPLAIN ANALYZE; asserts nothing and skips in the runner unless opted in; enrolled so every live test file is registered; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_file_upsert_guard_columns_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8915 disposable PostgreSQL 18 proof, per statement shape and per guarded column, that the content_files upsert guard fires exactly when a stored column differs (NULL-safe, content alone included) and skips when only indexed_at differs, plus the per-session WAL bound of an unchanged replay; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_file_upsert_guard_concurrency_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8915 disposable PostgreSQL 18 proof that four concurrent ContentWriter sessions over one batch under the content_files upsert guard hit no deadlock or error and leave consistent rows, and that a blocked upsert rechecks its guard against the committed row after the lock holder commits; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_file_upsert_guard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8915 disposable PostgreSQL 18 proof that an unchanged content_files re-upsert (only indexed_at differs) leaves the row version, the secret-line side table, and the content-version fence untouched through both the batch and single-row writers, that each guarded column and a content-only change still update including NULL transitions, and that a changed file re-derives its secret lines; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/content_files_generation_tag_live_test.go
     tag: ~
     class: postgres_ci

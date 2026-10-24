@@ -139,6 +139,22 @@ recent shipped work grouped by feature area.
 - **The opt-in `structured` result shape is documented as shipped.** Earlier
   notes said the second MCP copy stays "until #8800". The `structured` shape
   from #8800 sends the result once, and it is opt-in: the default stays `dual`.
+### Content store skips unchanged file rewrites
+
+- **The `content_files` upsert skips a row that did not change**
+  ([#8915](https://github.com/eshu-hq/eshu/issues/8915)). Re-upserting an
+  identical file used to write a new row version, re-insert both large trigram
+  index entries, and log the whole file, so a same-generation replay of a
+  findings-heavy batch (50 files of 469 KB, 491 findings each) took a median
+  11.04 s and 65.8 MiB of WAL, with a 4.1 s to 26.2 s spread. Both file
+  upserts now share one conflict clause that skips the update when every
+  written column except `indexed_at` already matches (NULL-safe): the same
+  replay takes 134 ms and writes no row WAL. A skipped row keeps its old
+  `indexed_at`, so `content_last_indexed_at` and the language inventory
+  `last_indexed_at` report when content last changed, not when it was last
+  replayed. A replay under a new `generation_id` or `commit_sha` still
+  rewrites the row (#8950). Evidence:
+  `docs/internal/evidence/8915-content-file-upsert-guard.md`.
 
 ### Security alert reconciliation waits for its own impact producer without spending attempts
 

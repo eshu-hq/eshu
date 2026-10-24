@@ -17,6 +17,50 @@ const (
 	columnsPerRepositoryRef = 7
 )
 
+// upsertContentFileConflictClause is the one ON CONFLICT clause shared by the
+// single-row and batch file upserts, so the update list and its guard cannot
+// drift between the two shapes.
+//
+// The WHERE guard skips the update when the stored row already equals the
+// incoming one in every column except indexed_at (#8915). Postgres otherwise
+// writes a new row version for an identical re-upsert: every index entry,
+// including the two large trigram GIN indexes, is inserted again and the row
+// is logged, which turned an unchanged findings-heavy replay into tens of MB
+// of WAL per 50-row batch (docs/internal/evidence/8915-content-file-upsert-guard.md). The row compare is NULL-safe (IS DISTINCT FROM), and
+// content is compared on its own so a body edit that kept its hash still
+// writes.
+//
+// indexed_at is deliberately not compared: it moves on every write, so
+// comparing it would defeat the guard. A skipped row keeps its old indexed_at,
+// so content_files.indexed_at means "when this content was last written", not
+// "when it was last replayed". A skipped row fires no UPDATE trigger, so the
+// migration-138 secret-line side table and the migration-186 content-version
+// fence stay as they were, which is correct because no indexed column changed.
+// Callers must not read RowsAffected from these statements as "files written".
+const upsertContentFileConflictClause = `
+ON CONFLICT (repo_id, relative_path) DO UPDATE
+SET commit_sha = EXCLUDED.commit_sha,
+    content = EXCLUDED.content,
+    content_hash = EXCLUDED.content_hash,
+    line_count = EXCLUDED.line_count,
+    language = EXCLUDED.language,
+    artifact_type = EXCLUDED.artifact_type,
+    template_dialect = EXCLUDED.template_dialect,
+    iac_relevant = EXCLUDED.iac_relevant,
+    indexed_at = EXCLUDED.indexed_at,
+    generation_id = EXCLUDED.generation_id
+WHERE (
+    content_files.commit_sha, content_files.content_hash, content_files.line_count,
+    content_files.language, content_files.artifact_type, content_files.template_dialect,
+    content_files.iac_relevant, content_files.generation_id
+) IS DISTINCT FROM (
+    EXCLUDED.commit_sha, EXCLUDED.content_hash, EXCLUDED.line_count,
+    EXCLUDED.language, EXCLUDED.artifact_type, EXCLUDED.template_dialect,
+    EXCLUDED.iac_relevant, EXCLUDED.generation_id
+)
+   OR content_files.content IS DISTINCT FROM EXCLUDED.content
+`
+
 // upsertContentFileQuery is the single-row upsert used by callers that
 // write one file at a time (not the batched path). Kept alongside the
 // batch prefix/suffix so the conflict update list cannot drift between
@@ -30,18 +74,7 @@ INSERT INTO content_files (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 )
-ON CONFLICT (repo_id, relative_path) DO UPDATE
-SET commit_sha = EXCLUDED.commit_sha,
-    content = EXCLUDED.content,
-    content_hash = EXCLUDED.content_hash,
-    line_count = EXCLUDED.line_count,
-    language = EXCLUDED.language,
-    artifact_type = EXCLUDED.artifact_type,
-    template_dialect = EXCLUDED.template_dialect,
-    iac_relevant = EXCLUDED.iac_relevant,
-    indexed_at = EXCLUDED.indexed_at,
-    generation_id = EXCLUDED.generation_id
-`
+` + upsertContentFileConflictClause
 
 // upsertContentFileBatchPrefix and upsertContentFileBatchSuffix bracket
 // the per-row VALUES list assembled by upsertContentFileBatch; keeping
@@ -53,19 +86,7 @@ const upsertContentFileBatchPrefix = `INSERT INTO content_files (
     iac_relevant, indexed_at, generation_id
 ) VALUES `
 
-const upsertContentFileBatchSuffix = `
-ON CONFLICT (repo_id, relative_path) DO UPDATE
-SET commit_sha = EXCLUDED.commit_sha,
-    content = EXCLUDED.content,
-    content_hash = EXCLUDED.content_hash,
-    line_count = EXCLUDED.line_count,
-    language = EXCLUDED.language,
-    artifact_type = EXCLUDED.artifact_type,
-    template_dialect = EXCLUDED.template_dialect,
-    iac_relevant = EXCLUDED.iac_relevant,
-    indexed_at = EXCLUDED.indexed_at,
-    generation_id = EXCLUDED.generation_id
-`
+const upsertContentFileBatchSuffix = upsertContentFileConflictClause
 
 // contentFileTagParam is the single blank-to-NULL rule for the
 // content_files generation tag (#7760). Both write paths (the batched
