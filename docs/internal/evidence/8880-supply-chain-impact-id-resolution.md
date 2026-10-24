@@ -188,9 +188,14 @@ Before the rollout:
    build waits for every transaction holding an older snapshot to finish
    (`docs/internal/evidence/7004-cic-lock-timeout.md`, shape A). One
    pre-#8880 `ListActiveSupplyChainImpactFacts` call holds one read-only
-   repeatable-read snapshot for the whole call: 30.9 s mean, 445.5 s max in
-   the issue's 24-hour sample. A pass runs those calls back to back for up
-   to 75 min. Each of the 13 builds can wait out a running call. To pause
+   repeatable-read snapshot across all of its pages
+   (`withReadOnlyRepeatableRead` around the page loop). Each page statement
+   averaged 30.9 s, max 445.5 s, in the issue's 24-hour `pg_stat_statements`
+   sample, and a call runs page after page, so one call's snapshot lives far
+   longer: on a hosted deployment on 2026-10-24, `pg_stat_activity` showed
+   one call's transaction open for about 83 minutes. The handler makes up to
+   8 such calls per pass, each its own transaction. Each of the 13 builds can
+   wait out a running call. To pause
    the domain, run the reducer with an `ESHU_REDUCER_CLAIM_DOMAINS`
    allowlist that leaves out `supply_chain_impact` (`go/cmd/reducer/README.md`),
    and wait for the items already claimed in that domain to finish.
@@ -334,8 +339,10 @@ Isolation is unchanged: READ ONLY REPEATABLE READ, ACCESS SHARE only, no row
 locks, one snapshot per call. Scope resolution, every branch, every payload
 page, and the identity stream read that one snapshot. A call issues more
 statements (20 for the npm fixture call), each milliseconds, and holds its
-snapshot for far less time than a pre-#8880 call (30.9 s mean, 445.5 s max), so
-it holds back the xmin horizon less. No worker count, page size, or round
+snapshot for far less time than a pre-#8880 call, whose page statements alone
+averaged 30.9 s (max 445.5 s) and whose snapshot spans every page (about 83
+minutes for one hosted call; see Deployment), so it holds back the xmin
+horizon less. No worker count, page size, or round
 count changed.
 
 ## Observability
