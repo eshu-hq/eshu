@@ -77,6 +77,7 @@ func TestUnionListKeepsEveryEnvironmentEntry(t *testing.T) {
 		{name: "a padded flag entry is trimmed so exact matching can see it", flagValue: []string{" flag.id "}, want: []string{"flag.id"}},
 		{name: "a padded flag entry dedupes against the environment", flagValue: []string{"shared "}, envValue: "shared,env.id", want: []string{"shared", "env.id"}},
 		{name: "a blank flag entry is dropped", flagValue: []string{" ", "flag.id"}, want: []string{"flag.id"}},
+		{name: "a repeated flag entry is not repeated", flagValue: []string{"flag.id", " flag.id "}, want: []string{"flag.id"}},
 		{name: "nothing configured stays empty", want: nil},
 	}
 	for _, tt := range tests {
