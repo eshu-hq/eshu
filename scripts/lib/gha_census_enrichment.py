@@ -118,9 +118,10 @@ def classify_cancellation(job_count: int | None,
         return "unknown", None
     if job_count == 0:
         return "zero_job", 0.0
-    seconds = 0.0
-    executed = False
+    allocated: list[tuple[Json, int, datetime, datetime]] = []
     for job in jobs:
+        if not isinstance(job, dict):
+            return "unknown", None
         runner_id = job.get("runner_id")
         if type(runner_id) is not int or runner_id <= 0:
             continue
@@ -128,10 +129,49 @@ def classify_cancellation(job_count: int | None,
         end = timestamp(job.get("completed_at"))
         if start is None or end is None or end < start:
             return "unknown", None
-        executed = True
-        seconds += (end - start).total_seconds()
-    if not executed:
+        allocated.append((job, runner_id, start, end))
+    if not allocated:
         return "unknown", None
+
+    # GitHub may copy an earlier successful job into a later attempt with a
+    # new job ID. Only the full native identity can prove one physical interval.
+    seen: dict[tuple[int, datetime, datetime],
+               dict[int | None, dict[str, dict[str, Any]]]] = {}
+    seconds = 0.0
+    for job, runner_id, start, end in allocated:
+        name = job.get("name")
+        exact_name = name if isinstance(name, str) and name else ""
+        run_id = job.get("run_id")
+        native_run_id = run_id if type(run_id) is int and run_id > 0 else None
+        job_id = job.get("id")
+        attempt = job.get("run_attempt")
+        copy_proof = (end > start and bool(exact_name) and
+                      native_run_id is not None and
+                      type(job_id) is int and job_id > 0 and
+                      type(attempt) is int and attempt > 0 and
+                      job.get("status") == "completed" and
+                      job.get("conclusion") == "success")
+        interval = (runner_id, start, end)
+        runs = seen.setdefault(interval, {})
+        if (native_run_id is None and runs) or None in runs:
+            return "unknown", None
+        names = runs.setdefault(native_run_id, {})
+        if (not exact_name and names) or (exact_name and "" in names):
+            return "unknown", None
+        previous = names.get(exact_name)
+        if previous is not None:
+            if not copy_proof or not previous["copy_proof"] or \
+                    job_id in previous["ids"] or attempt in previous["attempts"]:
+                return "unknown", None
+            previous["ids"].add(job_id)
+            previous["attempts"].add(attempt)
+            continue
+        names[exact_name] = {
+            "copy_proof": copy_proof,
+            "ids": {job_id} if copy_proof else set(),
+            "attempts": {attempt} if copy_proof else set(),
+        }
+        seconds += (end - start).total_seconds()
     return "executed", round(seconds / 60, 2)
 
 

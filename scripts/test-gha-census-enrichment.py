@@ -181,6 +181,63 @@ class TestPercentiles(unittest.TestCase):
 
 
 class TestCancellation(unittest.TestCase):
+    def test_native_copied_successful_attempt_counts_one_interval(self):
+        # Native 40058877874 jobs: copied attempt-1 success in attempt 2.
+        first = {"id": 120767825444, "run_id": 40058877874,
+                 "run_attempt": 1, "status": "completed",
+                 "conclusion": "success", "name": "queue-selection / select",
+                 "runner_id": 1000613418,
+                 "started_at": "2026-10-24T03:34:48Z",
+                 "completed_at": "2026-10-24T03:34:53Z"}
+        second = dict(first, id=120775668245, run_attempt=2)
+        jobs = [first, second]
+        self.assertEqual(classify_cancellation(2, jobs), ("executed", 0.08))
+        self.assertEqual(classify_cancellation(3, jobs), ("unknown", None))
+
+        end = datetime(2026, 10, 24, 4, tzinfo=timezone.utc)
+        with mock.patch.object(gha_census_enrichment, "_cancelled_runs",
+                               return_value=[{"id": 40058877874, "run_attempt": 2,
+                                              "check_suite_node_id": "suite"}]), \
+                mock.patch.object(gha_census_enrichment, "_suite_counts",
+                                  return_value={"suite": 1}), \
+                mock.patch.object(gha_census_enrichment, "_pages",
+                                  return_value=jobs) as pages:
+            result = gha_census_enrichment.cancellation_cost(
+                end - timedelta(hours=1), end,
+                [{"databaseId": 40058877874, "workflowName": "Required Gates",
+                  "conclusion": "cancelled"}])
+        self.assertEqual(pages.call_count, 1)
+        self.assertEqual(result["runs"], 1)
+        self.assertEqual(result["categories"], {"executed": 1})
+        self.assertEqual(result["evidenced_runner_minutes"], 0.08)
+
+    def test_copied_job_needs_distinct_successful_attempts(self):
+        first = {"id": 1, "run_id": 10, "run_attempt": 1,
+                 "status": "completed", "conclusion": "success",
+                 "name": "select", "runner_id": 3,
+                 "started_at": "2026-10-24T03:34:48Z",
+                 "completed_at": "2026-10-24T03:34:53Z"}
+        copy = dict(first, id=2, run_attempt=2)
+        for changes in ({"runner_id": 4}, {"name": "other"},
+                        {"completed_at": "2026-10-24T03:34:54Z"},
+                        {"run_id": 11}):
+            with self.subTest(changes=changes):
+                other = dict(copy, **changes)
+                expected = 0.18 if "completed_at" in changes else 0.17
+                self.assertEqual(classify_cancellation(2, [first, other]),
+                                 ("executed", expected))
+        for changes in ({"run_attempt": 1}, {"status": "in_progress"},
+                        {"conclusion": "failure"},
+                        {"id": None}, {"run_id": None}, {"name": None},
+                        {"completed_at": None}):
+            with self.subTest(ambiguous=changes):
+                self.assertEqual(classify_cancellation(
+                    2, [first, dict(copy, **changes)]), ("unknown", None))
+        zero = dict(first, completed_at=first["started_at"])
+        zero_copy = dict(copy, completed_at=first["started_at"])
+        self.assertEqual(classify_cancellation(2, [zero, zero_copy]),
+                         ("unknown", None))
+
     def test_workflow_categories_include_missing_budget_and_failed_jobs(self):
         end = datetime(2026, 10, 23, tzinfo=timezone.utc)
         names = {1: "Required Gates", 2: "Required Gates",

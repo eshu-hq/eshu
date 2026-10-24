@@ -68,3 +68,9 @@ and exclude later REST cancellations from the raw snapshot. The Markdown table
 shows all workflows, including those with only created runs and no duration
 sample, and a separate Required Gates line shows its window counts and classes.
 These counters are absent from the earlier committed measurement artifacts.
+
+Later reports count a copied completed-success job once when separate attempt
+records prove the same run, runner, job name, and positive start/end interval.
+Raw REST job counts are checked before this accounting step. Incomplete timing
+or ambiguous repeated records remain unknown. The earlier cost artifacts predate
+this correction; any historical excess from copied records is unquantified.
