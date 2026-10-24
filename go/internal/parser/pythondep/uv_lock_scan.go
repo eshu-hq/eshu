@@ -170,3 +170,69 @@ func validUVVersion(version []byte) bool {
 	}
 	return true
 }
+
+// startsPackageHeader reports whether a line opens with "[" (any run of
+// brackets and spaces) and then the word `package`, as every package header
+// form does ([[package]], [package], [package.x], a trailing comment). A bare
+// word is never part of a valid TOML value, so such a line ends a value left
+// open by mistake. It examines at most a short prefix of the line.
+func startsPackageHeader(trimmed []byte) bool {
+	if len(trimmed) == 0 || trimmed[0] != '[' {
+		return false
+	}
+	i := 0
+	for i < len(trimmed) && i < 16 && (trimmed[i] == '[' || trimmed[i] == ' ' || trimmed[i] == '\t') {
+		i++
+	}
+	return bytes.HasPrefix(trimmed[i:], []byte("package"))
+}
+
+// bareDottedKey reports whether a header's content is one or more bare keys
+// joined by dots, the only header form uv writes.
+func bareDottedKey(content []byte) bool {
+	if len(content) == 0 {
+		return false
+	}
+	start := 0
+	for i := 0; i <= len(content); i++ {
+		if i == len(content) || content[i] == '.' {
+			if i == start {
+				return false
+			}
+			start = i + 1
+			continue
+		}
+		if !isBareKeyByte(content[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// splitHeader parses `[a.b]` or `[[a.b]]`, returning the bracketed text, what
+// follows, and whether it was an array header. ok=false when the closing
+// brackets do not match the opening ones.
+func splitHeader(trimmed []byte) (content, rest []byte, array, ok bool) {
+	if bytes.HasPrefix(trimmed, []byte("[[")) {
+		end := bytes.Index(trimmed, []byte("]]"))
+		if end < 0 {
+			return nil, nil, true, false
+		}
+		content = bytes.TrimSpace(trimmed[2:end])
+		rest = trimmed[end+2:]
+		if bytes.IndexByte(content, '[') >= 0 || bytes.IndexByte(content, ']') >= 0 || !restIsEmptyOrComment(rest) {
+			return nil, nil, true, false
+		}
+		return content, rest, true, true
+	}
+	end := bytes.IndexByte(trimmed, ']')
+	if end < 0 {
+		return nil, nil, false, false
+	}
+	content = bytes.TrimSpace(trimmed[1:end])
+	rest = trimmed[end+1:]
+	if bytes.IndexByte(content, '[') >= 0 || !restIsEmptyOrComment(rest) {
+		return nil, nil, false, false
+	}
+	return content, rest, false, true
+}

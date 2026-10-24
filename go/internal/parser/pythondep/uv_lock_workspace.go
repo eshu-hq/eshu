@@ -3,7 +3,7 @@
 
 package pythondep
 
-import "bytes"
+import "strings"
 
 // uvWorkspace tracks the lock's own project and its [manifest] members. Those
 // entries are the repository's code, not third-party dependencies, so they are
@@ -18,7 +18,10 @@ type uvWorkspace struct {
 	seenTable   bool                // a [manifest] table was already opened
 	collecting  bool                // inside a multi-line members array
 	closed      bool                // the members array's closing bracket was read
-	rootSeen    bool                // the "." root was already counted
+	afterName   bool                // the last members token was a name, so "," or "]" must follow
+	listed      int                 // names listed so far, duplicates included
+	rootSeen    bool                // a "." root was counted, or an unread entry may have been it
+	scratch     []byte              // reused buffer for PEP 503 normalisation
 }
 
 // openManifest records a [manifest] header. uv writes [manifest] before every
@@ -66,9 +69,12 @@ func (w *uvWorkspace) endIfClosed(depth int) {
 	}
 }
 
-// collect reads one line of member names: basic strings separated by commas,
-// ending at "]" and optionally followed by a comment. Anything else marks the
-// list untrusted. It returns the bytes examined.
+// collect reads one line of member names: basic strings separated by single
+// commas (one trailing comma allowed), ending at "]" and optionally followed
+// by a comment. A missing or doubled comma, any other value, or more listed
+// names than uvLockMaxMembers marks the list untrusted. Every listed name
+// counts against the cap, so a repeated name cannot grow work or memory, and the
+// map is written only for a new distinct name. It returns the bytes examined.
 func (w *uvWorkspace) collect(line []byte) int {
 	scanned := 0
 	for i := 0; i < len(line); {
@@ -78,23 +84,31 @@ func (w *uvWorkspace) collect(line []byte) int {
 		case w.bad || w.closed:
 			w.bad = w.bad || !restIsEmptyOrComment(line[i:])
 			return scanned
-		case ch == ' ' || ch == '\t' || ch == ',':
+		case ch == ' ' || ch == '\t':
 			i++
 		case ch == '#':
 			return scanned
+		case ch == ',' && w.afterName:
+			w.afterName = false
+			i++
 		case ch == ']':
 			w.closed = true
 			i++
-		case ch == '"':
+		case ch == '"' && !w.afterName:
 			content, rest, ok := parseBasicString(line[i:], uvLockMaxName)
-			if !ok || !validUVName(content) || len(w.members) >= uvLockMaxRows {
+			w.listed++
+			if !ok || !validUVName(content) || w.listed > uvLockMaxMembers {
 				w.bad = true
 				return scanned
 			}
-			if w.members == nil {
-				w.members = map[string]struct{}{}
+			w.afterName = true
+			key := w.normalize(content)
+			if _, seen := w.members[string(key)]; !seen {
+				if w.members == nil {
+					w.members = map[string]struct{}{}
+				}
+				w.members[string(key)] = struct{}{}
 			}
-			w.members[normalizePyPIName(content)] = struct{}{}
 			scanned += len(content) + 1
 			i = len(line) - len(rest)
 		default:
@@ -122,22 +136,38 @@ func (w *uvWorkspace) omit(name string, src uvSource, state *uvLockState) bool {
 		state.RootPackages++
 		return true
 	}
-	if w.bad || w.collecting || len(w.members) == 0 {
+	if w.bad || w.collecting || len(w.members) == 0 || !insideWorkspace(src.URL) {
 		return false
 	}
-	if _, ok := w.members[normalizePyPIName([]byte(name))]; ok {
+	if _, ok := w.members[string(w.normalize([]byte(name)))]; ok {
 		state.WorkspaceMembers++
 		return true
 	}
 	return false
 }
 
-// normalizePyPIName applies PEP 503: lowercase, and every run of "-", "_",
-// or "." becomes one "-".
-func normalizePyPIName(name []byte) string {
-	out := make([]byte, 0, len(name))
+// insideWorkspace reports whether a member path stays under the lock's
+// directory: relative, with no ".." segment. uv writes member paths that way;
+// a path that leaves the workspace is a local dependency and stays a row.
+func insideWorkspace(path string) bool {
+	if path == "" || path[0] == '/' {
+		return false
+	}
+	for _, segment := range strings.Split(path, "/") {
+		if segment == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+// normalize applies PEP 503 (lowercase, and every run of "-", "_", or "."
+// becomes one "-") into the reused scratch buffer. Names reaching it passed
+// validUVName, so they are ASCII. The result is valid until the next call.
+func (w *uvWorkspace) normalize(name []byte) []byte {
+	out := w.scratch[:0]
 	run := false
-	for _, ch := range bytes.ToLower(name) {
+	for _, ch := range name {
 		if ch == '-' || ch == '_' || ch == '.' {
 			if !run {
 				out = append(out, '-')
@@ -146,7 +176,11 @@ func normalizePyPIName(name []byte) string {
 			continue
 		}
 		run = false
+		if ch >= 'A' && ch <= 'Z' {
+			ch += 'a' - 'A'
+		}
 		out = append(out, ch)
 	}
-	return string(out)
+	w.scratch = out
+	return out
 }

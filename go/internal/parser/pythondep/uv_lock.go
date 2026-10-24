@@ -17,6 +17,10 @@ const (
 	// past the cap are counted in uv_lock_state.dropped_over_cap, never
 	// silently dropped.
 	uvLockMaxRows = 10_000
+	// uvLockMaxMembers caps the names one [manifest] members list may list,
+	// duplicates included. A longer list is not trusted, so no member is
+	// omitted and memory stays bounded however the names repeat.
+	uvLockMaxMembers = 4096
 	// uvLockMaxName bounds a package name.
 	uvLockMaxName = 214
 	// uvLockMaxVersion bounds a locked version string.
@@ -140,14 +144,11 @@ func parseUVLockBytes(source []byte) uvLockResult {
 func (p *uvParser) handleLine(text []byte, lineNumber int) {
 	trimmed := bytes.TrimSpace(text)
 	if p.depth > 0 {
-		if string(trimmed) == "[[package]]" {
-			// A valid array value cannot contain this line, so the open value
-			// was never closed. Mark its entry and resume at the header.
-			if p.cur != nil {
-				p.cur.bad = true
-			}
-			p.workspace.abandonMembers()
-			p.depth = 0
+		if startsPackageHeader(trimmed) {
+			// A valid value cannot contain a bare `package` word, so the open
+			// value was never closed. Mark its entry (or count the swallowed
+			// lines as one unread unit) and resume at the header.
+			p.abandonOpenValue()
 		} else {
 			if p.workspace.collecting {
 				p.result.Scanned += p.workspace.collect(trimmed)
@@ -186,6 +187,29 @@ func (p *uvParser) handleLine(text []byte, lineNumber int) {
 	default:
 		p.skip(value)
 	}
+}
+
+// abandonOpenValue ends a multi-line value that was never closed. Inside an
+// entry the entry becomes malformed; outside one, the swallowed lines are
+// counted as one unresolved unit, because they are invalid TOML that may hide
+// package data and the file must not read complete.
+func (p *uvParser) abandonOpenValue() {
+	if p.cur != nil {
+		p.cur.bad = true
+	} else {
+		p.countUnreadUnit()
+	}
+	p.workspace.abandonMembers()
+	p.depth = 0
+}
+
+// countUnreadUnit records text the reader could not read and that may hide an
+// entry. It is one unresolved entry, and a later "." entry is no longer
+// trusted as the project root.
+func (p *uvParser) countUnreadUnit() {
+	p.result.State.Entries++
+	p.result.State.Unresolved++
+	p.workspace.rootSeen = true
 }
 
 // skip walks a value that the reader does not interpret, keeping depth.
@@ -229,8 +253,7 @@ func (p *uvParser) handleHeader(trimmed []byte, lineNumber int) {
 		// A header the reader cannot classify (mismatched brackets, a quoted
 		// key such as [["package"]], or a [package] table) may hide an entry.
 		// Count it as an unresolved unit so the loss is visible.
-		p.result.State.Entries++
-		p.result.State.Unresolved++
+		p.countUnreadUnit()
 		p.scope = uvScopeOther
 	case array && string(content) == "package" && restIsEmptyOrComment(rest):
 		p.startEntry(lineNumber)
@@ -240,56 +263,6 @@ func (p *uvParser) handleHeader(trimmed []byte, lineNumber int) {
 	default:
 		p.scope = uvScopeOther
 	}
-}
-
-// bareDottedKey reports whether a header's content is one or more bare keys
-// joined by dots, the only header form uv writes.
-func bareDottedKey(content []byte) bool {
-	if len(content) == 0 {
-		return false
-	}
-	start := 0
-	for i := 0; i <= len(content); i++ {
-		if i == len(content) || content[i] == '.' {
-			if i == start {
-				return false
-			}
-			start = i + 1
-			continue
-		}
-		if !isBareKeyByte(content[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-// splitHeader parses `[a.b]` or `[[a.b]]`, returning the bracketed text, what
-// follows, and whether it was an array header. ok=false when the closing
-// brackets do not match the opening ones.
-func splitHeader(trimmed []byte) (content, rest []byte, array, ok bool) {
-	if bytes.HasPrefix(trimmed, []byte("[[")) {
-		end := bytes.Index(trimmed, []byte("]]"))
-		if end < 0 {
-			return nil, nil, true, false
-		}
-		content = bytes.TrimSpace(trimmed[2:end])
-		rest = trimmed[end+2:]
-		if bytes.IndexByte(content, '[') >= 0 || bytes.IndexByte(content, ']') >= 0 || !restIsEmptyOrComment(rest) {
-			return nil, nil, true, false
-		}
-		return content, rest, true, true
-	}
-	end := bytes.IndexByte(trimmed, ']')
-	if end < 0 {
-		return nil, nil, false, false
-	}
-	content = bytes.TrimSpace(trimmed[1:end])
-	rest = trimmed[end+1:]
-	if bytes.IndexByte(content, '[') >= 0 || !restIsEmptyOrComment(rest) {
-		return nil, nil, false, false
-	}
-	return content, rest, false, true
 }
 
 func (p *uvParser) startEntry(lineNumber int) {
@@ -368,6 +341,11 @@ func (p *uvParser) finishEntry() {
 	entry := p.cur
 	p.cur = nil
 	if entry == nil {
+		if p.depth > 0 {
+			// Only end of file reaches here with an open value: a header line
+			// is read only at depth 0. The value opened outside an entry.
+			p.countUnreadUnit()
+		}
 		p.depth = 0
 		return
 	}
@@ -380,7 +358,11 @@ func (p *uvParser) finishEntry() {
 		state.Overflow++
 		return
 	}
+	// An entry that is not read exactly may be the project root when its
+	// source is "." or unreadable; a later "." entry then stays a row.
+	mayBeRoot := !entry.haveSource || entry.sourceBad || entry.source.URL == "."
 	if !entry.haveName || entry.nameBad {
+		p.workspace.rootSeen = p.workspace.rootSeen || mayBeRoot
 		state.Unresolved++
 		return
 	}
@@ -396,6 +378,7 @@ func (p *uvParser) finishEntry() {
 	wellFormed := !entry.bad && !entry.versionBad && !entry.sourceBad && entry.haveSource &&
 		(entry.haveVer || !registry)
 	if !wellFormed {
+		p.workspace.rootSeen = p.workspace.rootSeen || mayBeRoot
 		builder.ConfigKind = configKindMalformed
 		builder.Malformed = true
 		state.Unresolved++

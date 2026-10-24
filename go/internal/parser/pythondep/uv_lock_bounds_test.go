@@ -4,6 +4,7 @@
 package pythondep
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 	"testing"
@@ -39,6 +40,8 @@ func TestParseUVLockTenMegabyteSingleLineStaysBounded(t *testing.T) {
 		"giant unterminated str": "version = 1\n\n[[package]]\nname = \"x\"\nnote = \"" + strings.Repeat("b", 10<<20),
 		"giant single line only": strings.Repeat("c", 10<<20),
 		"giant header-like line": "[[package]]" + strings.Repeat(" ", 10<<20),
+		"giant members line":     "version = 1\n[manifest]\nmembers = [" + strings.Repeat("\"member-name-x\", ", 10<<20/17) + "]\n",
+		"giant distinct members": "version = 1\n[manifest]\nmembers = [" + distinctMembers(10<<20/12, ", ") + "]\n",
 	}
 	for name, body := range cases {
 		source := []byte(body)
@@ -127,4 +130,51 @@ func TestParseUVLockManyHeadersWithoutPackagesStaysBounded(t *testing.T) {
 		t.Fatalf("allocated %d bytes rows=%d, want < 1 MiB and none", bytesAlloc, len(result.Rows))
 	}
 	assertLinearScan(t, "header flood", result, len(source))
+}
+
+// distinctMembers writes n distinct quoted member names joined by sep.
+func distinctMembers(n int, sep string) string {
+	var b strings.Builder
+	for i := 0; i < n; i++ {
+		fmt.Fprintf(&b, "\"m-%d\"%s", i, sep)
+	}
+	return b.String()
+}
+
+// TestParseUVLockMillionMemberLinesStayBounded proves a members array of one
+// million lines costs a bounded number of allocations: every listed name, not
+// only each distinct one, counts against the cap, and a list past the cap is
+// not trusted.
+func TestParseUVLockMillionMemberLinesStayBounded(t *testing.T) {
+	cases := map[string]string{
+		"repeated": "version = 1\n[manifest]\nmembers = [\n" + strings.Repeat("    \"member-name-x\",\n", 1_000_000) + "]\n",
+		"distinct": "version = 1\n[manifest]\nmembers = [\n" + distinctMembers(1_000_000, ",\n") + "]\n",
+	}
+	for name, body := range cases {
+		source := []byte(body + "\n[[package]]\nname = \"m-1\"\nversion = \"1.0\"\nsource = { editable = \"m\" }\n")
+		bytesAlloc, mallocs, result := measureUVLockAllocs(source)
+		if bytesAlloc > 1<<20 || mallocs > 40_000 {
+			t.Fatalf("%s: allocated %d bytes / %d mallocs for %d bytes of members, want < 1 MiB / 40,000", name, bytesAlloc, mallocs, len(source))
+		}
+		assertLinearScan(t, name, result, len(source))
+		if result.State.WorkspaceMembers != 0 || len(result.Rows) != 1 {
+			t.Fatalf("%s: a members list past the cap must not be trusted: state %+v rows %d", name, result.State, len(result.Rows))
+		}
+	}
+}
+
+// TestParseUVLockMembersCapBoundary pins the members cap: a list of exactly
+// uvLockMaxMembers names is trusted, one more name is not.
+func TestParseUVLockMembersCapBoundary(t *testing.T) {
+	t.Parallel()
+
+	entry := "\n[[package]]\nname = \"m-1\"\nversion = \"1.0\"\nsource = { editable = \"m\" }\n"
+	for _, n := range []int{uvLockMaxMembers, uvLockMaxMembers + 1} {
+		src := "version = 1\n[manifest]\nmembers = [" + distinctMembers(n, ", ") + "]\n" + entry
+		result := parseUVLockBytes([]byte(src))
+		trusted := n <= uvLockMaxMembers
+		if (result.State.WorkspaceMembers == 1) != trusted || (len(result.Rows) == 0) != trusted {
+			t.Fatalf("%d listed names: state %+v rows %d, want trusted=%v", n, result.State, len(result.Rows), trusted)
+		}
+	}
 }

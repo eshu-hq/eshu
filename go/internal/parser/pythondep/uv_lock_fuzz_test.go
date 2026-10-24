@@ -147,7 +147,7 @@ func uvAssertResolvedRowsAreWrittenVerbatim(t *testing.T, src string, result uvL
 			continue
 		}
 		start, _ := row["line_number"].(int)
-		if start < 1 || start > len(lines) || strings.TrimSpace(lines[start-1]) != "[[package]]" {
+		if start < 1 || start > len(lines) || !uvIsEntryHeaderLine(lines[start-1]) {
 			t.Fatalf("row %#v does not start at a [[package]] line in:\n%s", row, src)
 		}
 		wantName := fmt.Sprintf("name=%q", row["name"])
@@ -176,6 +176,15 @@ func uvAssertResolvedRowsAreWrittenVerbatim(t *testing.T, src string, result uvL
 			t.Fatalf("a dependency row must come from the PyPI index: %#v", row)
 		}
 	}
+}
+
+// uvIsEntryHeaderLine reports whether line is exactly `[[package]]`, with an
+// optional trailing comment, written independently of the parser's header
+// reader.
+func uvIsEntryHeaderLine(line string) bool {
+	rest, ok := strings.CutPrefix(strings.TrimSpace(line), "[[package]]")
+	rest = strings.TrimSpace(rest)
+	return ok && (rest == "" || strings.HasPrefix(rest, "#"))
 }
 
 // TestParseUVLockSeededFuzzKeepsInvariants runs a deterministic generator and
