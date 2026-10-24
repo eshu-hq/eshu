@@ -275,8 +275,10 @@ class BalanceContractTest(unittest.TestCase):
 class RefreshTest(unittest.TestCase):
     """Cover the weights refresher on synthetic shard logs."""
 
+    RUN_STEP = "bash scripts/run-live-postgres-readiness-tests.sh"
+
     SHARD_ONE = "\n".join([
-        "2026-01-01T00:00:00.0000000Z ##[group]Run bash scripts/run-live-postgres-readiness-tests.sh --shard \"1/4\"",
+        f"2026-01-01T00:00:00.0000000Z ##[group]Run {RUN_STEP} --shard \"1/4\"",
         "2026-01-01T00:01:00.0000000Z TestAlphaLive: PASS elapsed=10.0s",
         "2026-01-01T00:01:05.0000000Z TestBetaLive: PASS elapsed=20.0s",
         "2026-01-01T00:02:00.0000000Z live-postgres-readiness: ./internal/p1 2/2 PASS",
@@ -284,7 +286,7 @@ class RefreshTest(unittest.TestCase):
         "2026-01-01T00:02:30.0000000Z live-postgres-readiness: ./internal/p2 1/1 PASS",
     ])
     SHARD_TWO = "\n".join([
-        "2026-01-01T00:00:00.0000000Z ##[group]Run bash scripts/run-live-postgres-readiness-tests.sh --shard \"2/4\"",
+        f"2026-01-01T00:00:00.0000000Z ##[group]Run {RUN_STEP} --shard \"2/4\"",
         "2026-01-01T00:01:00.0000000Z TestDeltaLive: PASS elapsed=7.0s",
         "2026-01-01T00:02:05.0000000Z live-postgres-readiness: ./internal/p2 1/1 PASS",
     ])
@@ -312,10 +314,19 @@ class RefreshTest(unittest.TestCase):
 
     def test_defaults_are_means_and_unmeasured_tests_stay_out(self) -> None:
         built = self.build()
-        self.assertNotIn("./internal/p2|TestNewLive", built["test_seconds"])  # type: ignore[operator]
+        seconds = built["test_seconds"]
+        self.assertNotIn("./internal/p2|TestNewLive", seconds)  # type: ignore[operator]
         self.assertEqual(built["default_test_seconds"], 10.5)  # mean of 10, 20, 5, 7
         loaded = wt.weights_from_json(built)
         self.assertEqual(loaded.test["./internal/p2|TestGammaLive"], 50)
+
+    def test_bom_prefixed_log_lines_still_parse(self) -> None:
+        bom = "\ufeff"
+        prefixed = "\n".join(bom + line if line.startswith("2026") else line
+                             for line in self.SHARD_ONE.split("\n"))
+        sample = refresh.parse_sample([prefixed, self.SHARD_TWO])
+        plain = refresh.parse_sample([self.SHARD_ONE, self.SHARD_TWO])
+        self.assertEqual(sample, plain)
 
     def test_log_that_misses_a_planned_group_fails_closed(self) -> None:
         with self.assertRaises(ValueError):

@@ -17,8 +17,9 @@ a package that is not first in its shard becomes the package cost; the extra
 overhead of a first package over that cost is the cold-cache constant.
 
 Usage:
-    live_postgres_readiness_weights_refresh.py --out specs/live-postgres-readiness-weights.v1.json \\
-        --fixed-job-seconds 82 --sample 40049588589=DIR_A --sample 40047410741=DIR_B
+    live_postgres_readiness_weights_refresh.py \\
+        --out specs/live-postgres-readiness-weights.v1.json --fixed-job-seconds 82 \\
+        --sample 40049588589=DIR_A --sample 40047410741=DIR_B
 
 Each DIR holds that run's shard logs as ``*.log``. Only tests in the current
 inventory are kept; inventory tests absent from every log get the default.
@@ -39,10 +40,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 import live_postgres_readiness_weights as wt  # noqa: E402
 
 START_RE = re.compile(
-    r"^﻿?(\S+Z) ##\[group\]Run bash scripts/run-live-postgres-readiness-tests\.sh --shard")
-TEST_RE = re.compile(r"^﻿?(\S+Z) (Test[A-Za-z0-9_]+): PASS elapsed=([0-9.]+)s")
+    r"^\ufeff?(\S+Z) ##\[group\]Run bash scripts/run-live-postgres-readiness-tests\.sh --shard")
+TEST_RE = re.compile(r"^\ufeff?(\S+Z) (Test[A-Za-z0-9_]+): PASS elapsed=([0-9.]+)s")
 PACKAGE_RE = re.compile(
-    r"^﻿?(\S+Z) live-postgres-readiness: (\./\S+) (\d+)/(\d+) PASS")
+    r"^\ufeff?(\S+Z) live-postgres-readiness: (\./\S+) (\d+)/(\d+) PASS")
 
 
 @dataclass
@@ -176,7 +177,8 @@ def main() -> int:
         print(f"weights refresh: {error}", file=sys.stderr)
         return 1
     Path(args.out).write_text(render(document), encoding="utf-8")
-    print(f"weights refresh: {len(document['test_seconds'])} tests from runs {runs}")  # type: ignore[arg-type]
+    tests: dict[str, float] = document["test_seconds"]  # type: ignore[assignment]
+    print(f"weights refresh: {len(tests)} tests from runs {runs}")
     return 0
 
 

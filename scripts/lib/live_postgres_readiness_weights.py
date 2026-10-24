@@ -29,7 +29,8 @@ from pathlib import Path
 import re
 from typing import Mapping
 
-WEIGHTS_PATH = Path(__file__).resolve().parents[2] / "specs" / "live-postgres-readiness-weights.v1.json"
+WEIGHTS_PATH = (Path(__file__).resolve().parents[2] / "specs"
+                 / "live-postgres-readiness-weights.v1.json")
 JOB_CAP_SECONDS = 1800  # timeout-minutes: 30 on the shard job
 BUDGET_PERCENT = 80
 BUDGET_SECONDS = JOB_CAP_SECONDS * BUDGET_PERCENT // 100

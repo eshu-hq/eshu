@@ -198,7 +198,8 @@ class ShardContractTest(unittest.TestCase):
     def test_missing_failed_and_unexpected_tests_fail_report(self) -> None:
         selected = shards.partition_runs(self.flat, "2/4")
         package, first = selected[0].split("|")
-        rest = ",".join(line.split("|")[1] for line in selected[1:] if line.split("|")[0] == package)
+        rest = ",".join(line.split("|")[1] for line in selected[1:]
+                        if line.split("|")[0] == package)
         others = "".join(f"{line.split('|')[0]}|0|{line.split('|')[1]}\n" for line in selected
                          if line.split("|")[0] != package)
         cases = [
