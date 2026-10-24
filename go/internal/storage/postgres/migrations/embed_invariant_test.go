@@ -130,13 +130,13 @@ import (
 // #8830 adds 231_collector_terminal_failure_acknowledgements.sql (operator
 // acknowledgement rows for the collector terminal-failure read; DDL only, rows
 // are written by the admin acknowledge route, so no backfill half exists).
-const goldenBootstrapDefinitionsDigest = "3e525fe74634d26f273ebd57465e694a21a038c69050c4fc1c941bcf57ce15e2"
+const goldenBootstrapDefinitionsDigest = "a2c14505dd3413a0d7bfada919cb1e943488110b972f63974cb9825bef6444d5"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 248
+const goldenBootstrapDefinitionsCount = 249
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

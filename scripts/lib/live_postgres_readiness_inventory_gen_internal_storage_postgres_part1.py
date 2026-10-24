@@ -42,7 +42,7 @@ TABLE = {
             "TestTerminalFailureAckStoreRefusalsLive",
             "TestTerminalFailureAckStoreRecordsAndSuppressesLive",
             "TestTerminalFailureAckStoreConcurrentLive",
-            "TestTerminalFailureAckStoreNeverSuppressesUnseenClassLive",
+            "TestTerminalFailureAckStoreRacesFailureWritesLive",
         ),
         "go/internal/storage/postgres/container_image_identity_epoch_barrier_live_test.go": (
             "TestContainerImageIdentityEpochBarrierDefersPendingLive",
@@ -483,13 +483,6 @@ TABLE = {
         ),
         "go/internal/storage/postgres/recovery_replay_lock_order_live_test.go": (
             "TestRecoveryReplayConcurrentReplaysNeverDeadlockLive",
-        ),
-        "go/internal/storage/postgres/reducer_claim_sweep_lock_order_live_test.go": (
-            "TestReducerClaimSweepAndReplayBlockOneWayLive",
-            "TestReducerClaimSweepHeldRowRaceLive",
-            "TestReducerClaimSweepConcurrentWithReplaysNeverDeadlockLive",
-            "TestReducerClaimSweepKeepsActiveGenerationRowsLive",
-            "TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive",
         ),
     },
 }
