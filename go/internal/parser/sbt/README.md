@@ -100,7 +100,10 @@ indented line at depth zero is never a grammar context, and a `val` is tracked
 only when it heads a column-0 line (after modifiers such as `lazy`, `private`,
 `final`, `override`, `implicit` or `inline`, or after `;`). Inside `(` and `[`
 indentation does not matter, so a braceless project whose `.settings(` list
-continues on indented lines still resolves.
+continues on indented lines still resolves. A closer that ends a bracket opened
+on an indented line keeps the rest of its line indented, so `}; stmt` after a
+block-local `locally {` is still in the block, and so is the rest of a line
+after an unmatched closer.
 
 ### Fail-closed fallback
 

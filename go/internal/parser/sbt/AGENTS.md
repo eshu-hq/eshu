@@ -54,7 +54,9 @@
 - The bare file is the column-0 lines only (`token.lineAtCol0`). sbt 2.x reads
   build.sbt as Scala 3, so an indented line at depth zero is a braceless block:
   never a grammar context, and never a tracked `val`. Do not relax this to
-  "depth zero" alone.
+  "depth zero" alone. A closer sets the flag for the rest of its line to the
+  flag its opener saw (an opener carries it on the bracket stack), so a closer
+  that ends an indented bracket keeps the line indented.
 - `dependency_resolution_state` stays in the `resolved`/`partial`/`unresolved`
   vocabulary the reducer and docs depend on.
 - `name` is `organization:name` as written. Do not append the Scala suffix to
@@ -128,7 +130,14 @@ statements in Scala 3 braceless blocks and declares block-local vals that
 shadow top-level ones. On the scanner before the column-0 rule it reported
 I1=60, I2=15, I3=83 over 4,000 cases and I1=441, I2=106, I3=606 over 30,000;
 with the rule, zero at both (18,779 and 140,514 rows), and the grammar arm
-stays zero.
+stays zero. Those counts predate the closer shapes. The arm now also places a
+statement or a block-local val after `}; `, `); ` or `]; ` that closes a
+bracket opened on an indented line; with the column-0 flag taken from the
+line's first token alone it reported I1=14, I2=3, I3=19 over 4,000 cases and
+I1=107, I2=7, I3=149 over 30,000, and with the opener's flag carried on the
+bracket stack, zero at both (same row counts). The closer flag re-measured at
+15.3 to 15.4 ms/op, 16.4 MB/op and 139,757 to 139,758 allocs/op at load
+average 0.6 to 0.9.
 
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
 single-pass scanner with no recursion. 200,000 nested parentheses finish in

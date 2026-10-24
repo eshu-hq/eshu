@@ -104,7 +104,9 @@ Known limits of the sbt reading:
 - sbt 2.x reads `build.sbt` as Scala 3, where a braceless block is an indented
   region at bracket depth zero. Only column-0 lines are read as top-level
   statements or version `val`s, so a top-level statement written indented, or
-  with a comment before the key on its line, is partial. A braceless project
+  with a comment before the key on its line, is partial. A closer that ends a
+  bracket opened on an indented line keeps the rest of its line indented, so
+  `}; libraryDependencies += ...` after it is partial too. A braceless project
   whose `.settings(` list continues on indented lines still resolves.
 - A `val` declared inside a block is not tracked; a reference that shares its
   name with a top-level `val` resolves to the top-level value.

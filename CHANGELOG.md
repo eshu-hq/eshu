@@ -202,8 +202,9 @@ recent shipped work grouped by feature area.
   `withConfigurations`, `withRevision`, a repeated `% config` (a load error in
   sbt, not a replacement) and an empty one. Because sbt 2.x reads `build.sbt`
   as Scala 3, an indented line at depth zero (a braceless `if`, `def`, `val`,
-  `match`, `for` or `while` body) is partial too, and only a column-0 `val`
-  resolves a version. Configuration strings match case exactly (`"Test"` is
+  `match`, `for` or `while` body) is partial too, as is the rest of a line
+  after a closer that ends a bracket opened on an indented line, and only a
+  column-0 `val` resolves a version. Configuration strings match case exactly (`"Test"` is
   not `test`), and a string holding a backslash is opaque. `:=`, `~=`, `-=`,
   `--=`, `.transform(...)` and `.set(...)` make the rows they supersede
   partial. A runtime-plus-test list is `runtime`,
