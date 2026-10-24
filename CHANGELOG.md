@@ -54,12 +54,22 @@ recent shipped work grouped by feature area.
   [#8807](https://github.com/eshu-hq/eshu/issues/8807)). The git collector reads
   `.nvmrc`, `.node-version`, `.python-version`, `.ruby-version`,
   `.java-version`, `.go-version`, `.terraform-version`, `.tool-versions`,
-  `.sdkmanrc`, `rust-toolchain` and `rust-toolchain.toml` at any depth and emits
+  `.sdkmanrc`, `.swift-version`, `rust-toolchain` and `rust-toolchain.toml` at
+  any depth and emits
   one fact per (line, token), each with its `scope_dir`, a `spec_kind` of
   `exact`, `partial`, `range`, `alias` or `unresolved`, and the parsed major,
   minor and patch for exact and partial specs. An alias such as `lts/iron` or
   `system`, or a placeholder such as `${X}`, is reported as written and is never
   resolved or guessed. `.npmrc` and the other credential carriers emit nothing.
+  A `.swift-version` gets version parts only for a plain numeric release; a
+  release tag or snapshot name is an alias.
+- **A declared expression is never cut into fragments.** A comparator written
+  apart from its version (`>= 18`, `= 20`) is one declaration with the spec of
+  the unspaced form. A value with a hyphen range, a `||` or a dangling
+  comparator (`18 - 20`, `^14 || >=16`) is one `alias` for the whole value,
+  because hyphen ranges and disjunctions are not read in a pin file. The
+  `.tool-versions` fallback list `nodejs 20.11.1 18.19.0` still emits two
+  exact facts.
 - **Oversized pin files are skipped, not parsed.** A pin file over 64 KiB, or
   with more than 1,024 tokens, emits no fact and logs WARN
   `git_runtime_declaration_file_skipped` with the reason, sizes and caps. The

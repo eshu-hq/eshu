@@ -10,7 +10,7 @@ No-Regression Evidence:
   file. The path ran one `NoteCodeownersCandidate` and one
   `NoteSubmoduleCandidate` per content file and nothing for pin names.
 - **After:** each content file pays one extra base-name map lookup
-  (`NoteRuntimeDeclarationCandidate`). Only the eleven admitted pin names pay
+  (`NoteRuntimeDeclarationCandidate`). Only the twelve admitted pin names pay
   more, and a repository carries a handful of them. The per-file token scan
   (`eachToken`, which keeps a `{{ ... }}` placeholder as one token and hands
   out substrings without a slice per line) replaced `splitTokens` and the
@@ -117,3 +117,25 @@ candidate map for 50 pin files of 1 MiB each at different depths
 The byte-cap skip log keeps `byte_size`: `TestStreamFactsSkipsManyOverCapPinFilesAndLogsEach`
 asserts 50 `byte_cap_exceeded` WARN lines, each with `byte_size` of 1 MiB, and
 no fact. Retaining the body again fails the retention test.
+
+## Value rule and `.swift-version` (review of #8969)
+
+The review fixes add `.swift-version` and keep a spaced comparator or a range
+in one declaration (`values.go`). A value line that holds an operator byte
+(`<>=~^|!-`) is scanned twice, once for its shape and once to emit. A line
+without one keeps the single scan. The declaration struct gains one `bool`.
+Interleaved A/B, same host, three runs each, `-benchtime=1s`, base is the
+branch head before the fixes (`2d930a38ff`), after is
+`d3fe1ce963`, load average 3.5 at the end of the run:
+
+| Benchmark | Base | After |
+|---|---|---|
+| `BenchmarkEmitToolVersions` | 67.0 to 70.7 us/op, 51.2 to 51.3 KB/op, 866 allocs/op | 72.8 to 73.1 us/op, 52.5 to 52.6 KB/op, 866 allocs/op |
+| `BenchmarkEmitAtTokenCap` | 10.6 to 11.8 ms/op, about 6.9 MB/op, 120,157 to 120,165 allocs/op | 10.7 to 10.9 ms/op, about 6.9 MB/op, 120,156 to 120,159 allocs/op |
+| `BenchmarkEmitOverTokenCapUnderByteCap` | 0.66 to 0.67 ms/op, 171,200 B/op, 1,587 allocs/op | 0.77 to 0.78 ms/op, 199,424 B/op, 1,587 allocs/op |
+
+A typical pin file costs about 6 us more and no extra allocation. The 60 KiB
+hostile file costs about 0.1 ms more. Its 28 KB extra is the larger
+declaration slice. That slice is still bounded by the token cap, not by the
+file. Allocation counts are unchanged, and the allocation-ceiling tests still
+pass.

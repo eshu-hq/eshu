@@ -51,12 +51,13 @@ error naming the field.
   otherwise slash separated, repository-relative and cleaned. It is never a
   governed workspace.
 - `Runtime` is lower case and canonical for the known set (`node`, `go`,
-  `python`, `ruby`, `java`, `rust`, `terraform`). An unknown tool is carried
+  `python`, `ruby`, `java`, `rust`, `terraform`, `swift`). An unknown tool is carried
   verbatim and lower cased. `ToolName` holds the verbatim token when it
   differed (`nodejs` for `node`).
 - `SourceKind` is one snake-case value per file name: `nvmrc`, `node_version`,
   `python_version`, `ruby_version`, `java_version`, `go_version`,
-  `terraform_version`, `tool_versions`, `sdkmanrc`, `rust_toolchain`. It is an
+  `terraform_version`, `tool_versions`, `sdkmanrc`, `rust_toolchain`,
+  `swift_version`. It is an
   open set.
 - `LineNumber` is 1-based. `OrderIndex` is the 0-based token on the line, so
   `nodejs 20.1.0 18.0.0` is two facts on one line.

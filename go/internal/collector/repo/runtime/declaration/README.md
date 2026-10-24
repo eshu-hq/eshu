@@ -49,8 +49,48 @@ land.
 | `>=18 <21` | `range`, lower 18 inclusive, upper 21 exclusive, `version_major` nil |
 | `~=3.9` | `range`, lower 3 inclusive, upper 4 exclusive |
 | `^14 \|\| >=16` | `range`, lower major 14 inclusive, no upper, `range_lower` is the whole spec |
+| `=20`, `= 20`, `== 20` | `partial` 20: a leading `=` or `==` pins one version with or without a space |
+| `=v20.1.0`, `= v20.1.0` | `exact` 20.1.0 |
+| `=>20`, `=<20`, `===20`, `= latest` | `alias`: not an operator before a version |
 | `lts/iron`, `node`, `system`, `stable`, `latest:^1.5` | `alias`, never resolved |
 | `${X}`, `$X`, `${{ inputs.node-version }}` | `unresolved`, `raw_spec` verbatim |
+
+### Whitespace-split values
+
+A pin file value is split on whitespace into a list of independent versions:
+`.tool-versions` lists fallbacks, the other single-runtime pins hold one. Two
+rules (`values.go`) keep one declared expression from being cut into
+fragments. They apply to every single-runtime pin, every `.tool-versions` line
+after the tool name, a legacy `rust-toolchain` line and a `.sdkmanrc` value.
+
+| Value | Result |
+| --- | --- |
+| `nodejs 20.11.1 18.19.0` | two `exact` facts, order 0 and 1 |
+| `>= 18 < 21` | two `range` facts, `raw_spec` `>= 18` and `< 21`, the same specs as `>=18 <21` |
+| `= 20` | one `partial` 20, `raw_spec` `= 20` |
+| `18 - 20`, `^14 \|\| >=16`, `20 -`, `>= latest 20` | one `alias` for the whole value at order 0 |
+| `${LO} - ${HI}` | one `unresolved` for the whole value |
+
+1. A token that is only a comparator (`=`, `==`, `<`, `<=`, `>`, `>=`, `~`,
+   `~>`, `~=`, `^`) is joined to the version token after it.
+2. An operator-only token left after that (a hyphen range's `-`, a `||`, a
+   comparator with nothing or a name after it) means the value is not a list
+   of versions. This package does not read hyphen-range or disjunction
+   syntax in a pin file and fails closed: the whole value is one
+   declaration, `alias` (or `unresolved` with a placeholder), never a
+   guessed version.
+
+`Classify` itself keeps its hyphen-range and disjunction grammar for source
+kinds whose tools define it (`package.json` engines, a later change).
+
+### `.swift-version`
+
+The file holds one toolchain on its first effective line. Only a plain numeric
+release gets version parts: `5.9` is `partial`, `6.0.1` is `exact`. A release
+tag (`swift-5.9-RELEASE`), a development snapshot
+(`5.10-DEVELOPMENT-SNAPSHOT-2024-01-01-a`), a channel snapshot
+(`main-snapshot-2024-01-01`), a `v` prefix, a wildcard or a comparator stays an
+`alias` as written. A snapshot is never reported as the release it precedes.
 
 A placeholder span stays one token even when it holds spaces: `{{ v }}`,
 `${{ inputs.node-version }}` and `${ NODE_VERSION }` are each one `unresolved`
@@ -67,7 +107,8 @@ when it differed. `.sdkmanrc` `java=17.0.2-tem` is runtime `java`, exact
 17.0.2, `distribution` `tem`.
 
 Per-file line policy: `.python-version` reads every line (pyenv), the other
-single-runtime pins read the first effective line only, `.tool-versions` and
+single-runtime pins (`.swift-version` among them) read the first effective
+line only, `.tool-versions` and
 `.sdkmanrc` read every line, and a `rust-toolchain` TOML body is read through
 its `channel` key.
 
@@ -80,6 +121,10 @@ guessed into numbers.
 These are deliberate and pinned by tests; change them as a contract decision,
 not as a drive-by fix.
 
+- `TestPinFileSourceKindsCoverEveryRegistryVersionPin` walks the parser
+  registry's `raw_text` exact names. Each one is either in
+  `pinFileSourceKinds` or in the test's `rawTextNonPinNames` list, so a pin
+  file the registry admits later fails the test until it emits here.
 - The parser registry matches the admitted names case-insensitively, while
   `SourceKindForPath` is case-sensitive. A file named `.NVMRC` is admitted as
   plain text by discovery but emits no fact.

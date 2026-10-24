@@ -19,8 +19,11 @@
 //     per (line, token). The admitted base names are an explicit list (.nvmrc,
 //     .node-version, .python-version, .ruby-version, .java-version,
 //     .go-version, .terraform-version, .tool-versions, .sdkmanrc,
-//     rust-toolchain, rust-toolchain.toml). Credential carriers such as .npmrc
-//     are not on it, so they emit nothing.
+//     .swift-version, rust-toolchain, rust-toolchain.toml). Credential
+//     carriers such as .npmrc are not on it, so they emit nothing. A
+//     whitespace-split value keeps a spaced comparator with its version
+//     (">= 18" is one declaration) and reports a value with an operator-only
+//     token left over ("18 - 20") as one alias, never as fragments.
 //   - ScopeDir reports the declaring file's directory in the contract's form.
 //
 // This package does not select which files reach it, decide scope or
