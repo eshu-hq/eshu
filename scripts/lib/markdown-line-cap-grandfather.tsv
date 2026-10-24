@@ -122,7 +122,7 @@ docs/public/reference/http-api/evidence-and-supply-chain.md	1697
 docs/public/reference/http-api/iac-content-infra.md	1104
 docs/public/reference/http-api/status-admin.md	753
 docs/public/reference/local-performance-envelope.md	978
-docs/public/reference/local-testing.md	652
+docs/public/reference/local-testing.md	651
 docs/public/reference/nornicdb-pitfalls.md	1265
 docs/public/reference/nornicdb-query-pitfalls.md	851
 docs/public/reference/remote-e2e-runtime-state.md	501

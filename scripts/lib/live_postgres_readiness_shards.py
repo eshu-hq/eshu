@@ -3,10 +3,13 @@
 
 The full plan is the flat ``package|test`` list derived from the
 list-packages TSV shared by runner and aggregate (the same inventory
-``live_postgres_readiness_records`` owns). Shards start as contiguous quarters
-in canonical inventory order; the complete admin package runs on shard 4.
-Each shard report is checked against that same canonical input, and the
-aggregate requires the four reports' exact union to be the full plan.
+``live_postgres_readiness_records`` owns). Shards are contiguous slices in
+canonical inventory order, so newly enrolled tests stay covered without a
+rebalance edit. The cut points come from predicted seconds
+(``live_postgres_readiness_weights``), not test counts (#8930), and every
+caller derives them from the same committed weights file. Each shard report is
+checked against that same canonical input, and the aggregate requires the four
+reports' exact union to be the full plan.
 """
 
 from __future__ import annotations
@@ -14,7 +17,6 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -23,10 +25,10 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).parent))
 from live_postgres_readiness_records import package_records  # noqa: E402
+import live_postgres_readiness_weights as wt  # noqa: E402
 
 
 SHARDS = ("1/4", "2/4", "3/4", "4/4")
-ADMIN_PACKAGE = "./internal/query/admin"
 ARTIFACT_RE = re.compile(r"^readiness-shard-\d+-(\d+)-[1-4]$")
 TEST_RE = re.compile(r"^Test[A-Za-z0-9_]+$")
 RUN_RE = re.compile(r"^\./[A-Za-z0-9_./-]+\|Test[A-Za-z0-9_]+$")
@@ -94,43 +96,38 @@ def expand_tsv(rows: list[str]) -> list[str]:
     return runs
 
 
-def partition_runs(runs: list[str], shard: str) -> list[str]:
-    """Select a pinned quarter with the complete admin package on shard 4.
+def partition_runs(runs: list[str], shard: str,
+                   weights: wt.Weights | None = None) -> list[str]:
+    """Select a time-weighted contiguous shard, preserving canonical order.
 
     Args:
         runs: Full flat ``package|test`` plan lines.
         shard: ``all`` or one of four exact shard identifiers.
+        weights: Cost model; the committed weights file when omitted.
 
     Returns:
         The selected plan lines.
 
     Raises:
-        ValueError: The plan or shard is invalid, or a selected shard is empty.
+        ValueError: The plan, shard, or weights are invalid, or a shard is empty.
     """
     _validate_plan(runs)
     if shard == "all":
         return list(runs)
     if shard not in SHARDS:
         raise ValueError(f"invalid shard: {shard!r}")
-    width = math.ceil(len(runs) / len(SHARDS))
+    bounds = wt.weighted_bounds(runs, weights or wt.load_weights(), len(SHARDS))
     index = SHARDS.index(shard)
-    selected = runs[index * width:(index + 1) * width]
-    if shard == "4/4":
-        assigned = set(selected)
-        assigned.update(line for line in runs
-                        if line.partition("|")[0] == ADMIN_PACKAGE)
-        selected = [line for line in runs if line in assigned]
-    else:
-        selected = [line for line in selected
-                    if line.partition("|")[0] != ADMIN_PACKAGE]
+    selected = runs[bounds[index]:bounds[index + 1]]
     if not selected:
         raise ValueError(f"shard {shard} has no planned runs")
     return selected
 
 
-def subset_tsv(runs: list[str], shard: str) -> list[str]:
+def subset_tsv(runs: list[str], shard: str,
+               weights: wt.Weights | None = None) -> list[str]:
     """Render the shard's runner TSV rows grouped by package."""
-    selected = partition_runs(runs, shard)
+    selected = partition_runs(runs, shard, weights)
     by_package: dict[str, list[str]] = {}
     for line in selected:
         package, test = line.split("|")
@@ -240,14 +237,15 @@ def _atomic_json(path: Path, value: dict[str, object]) -> None:
 
 
 def _report(head: str, shard: str, plan: Path, manifest_path: Path,
-            output: Path) -> bool:
+            output: Path, weights_path: Path | None = None) -> bool:
     """Emit one parseable report even when the manifest is incomplete."""
     expected: list[str] = []
     entries: list[dict[str, object]] = []
     errors: list[str] = []
     try:
         _validate_head(head)
-        expected = partition_runs(_read_plan(plan), shard)
+        expected = partition_runs(_read_plan(plan), shard,
+                                  wt.load_weights(weights_path))
     except ValueError as error:
         errors.append(f"invalid report input: {error}")
     manifest_entries, manifest_errors = _read_manifest(manifest_path)
@@ -272,7 +270,8 @@ def _report(head: str, shard: str, plan: Path, manifest_path: Path,
 
 
 def _validate_report(value: object, plan: list[str], head: str,
-                     seen_shards: set[str]) -> tuple[list[str], str]:
+                     seen_shards: set[str],
+                     weights: wt.Weights | None = None) -> tuple[list[str], str]:
     """Require one fresh matching report and return its assigned runs."""
     if not isinstance(value, dict) or set(value) != REPORT_KEYS:
         raise ValueError("report schema mismatch")
@@ -280,7 +279,7 @@ def _validate_report(value: object, plan: list[str], head: str,
     if shard not in SHARDS or shard in seen_shards:
         raise ValueError(f"invalid or duplicate shard: {shard!r}")
     seen_shards.add(shard)
-    expected = partition_runs(plan, shard)  # type: ignore[arg-type]
+    expected = partition_runs(plan, shard, weights)  # type: ignore[arg-type]
     if (type(value["schema_version"]) is not int
             or value["schema_version"] != 1
             or value["head"] != head):
@@ -312,7 +311,8 @@ def _validate_report(value: object, plan: list[str], head: str,
     return expected, shard  # type: ignore[return-value]
 
 
-def _verify(head: str, plan_path: Path, report_paths: list[Path]) -> bool:
+def _verify(head: str, plan_path: Path, report_paths: list[Path],
+            weights: wt.Weights | None = None) -> bool:
     """Require four valid reports whose exact union is the canonical plan."""
     _validate_head(head)
     plan = _read_plan(plan_path)
@@ -326,7 +326,7 @@ def _verify(head: str, plan_path: Path, report_paths: list[Path]) -> bool:
         try:
             assigned.extend(_validate_report(
                 _parse_json(path.read_text(encoding="utf-8")), plan, head,
-                seen_shards)[0])
+                seen_shards, weights)[0])
         except (OSError, ValueError, TypeError) as error:
             errors.append(f"{path}: {error}")
     if seen_shards != set(SHARDS):
@@ -360,7 +360,7 @@ def _candidate_order(path: Path) -> tuple[int, int, str]:
 
 
 def _select(head: str, plan_path: Path, report_paths: list[Path],
-            output_dir: Path) -> bool:
+            output_dir: Path, weights: wt.Weights | None = None) -> bool:
     """Copy the newest valid report per shard for a rerun-proof aggregate.
 
     Every candidate still passes the same head and plan validation as
@@ -378,7 +378,7 @@ def _select(head: str, plan_path: Path, report_paths: list[Path],
         try:
             value = _parse_json(path.read_text(encoding="utf-8"))
             claimed = value.get("shard") if isinstance(value, dict) else None
-            _, shard = _validate_report(value, plan, head, set())
+            _, shard = _validate_report(value, plan, head, set(), weights)
         except (OSError, ValueError, TypeError, AttributeError) as error:
             print(f"readiness select: rejected {path}: {error}", file=sys.stderr)
             if isinstance(claimed, str) and claimed in SHARDS:
@@ -427,24 +427,29 @@ def main() -> int:
     verify.add_argument("--head", required=True)
     verify.add_argument("--plan", required=True)
     verify.add_argument("reports", nargs="*")
+    for command in (plan, report, select, verify):
+        command.add_argument("--weights", help="weights file (default: committed)")
     args = parser.parse_args()
     try:
+        weights_path = Path(args.weights) if args.weights else None
+        if args.command == "report":
+            return 0 if _report(args.head, args.shard, Path(args.plan),
+                                Path(args.manifest), Path(args.output),
+                                weights_path) else 1
+        weights = wt.load_weights(weights_path)
         if args.command == "plan":
             rows = sys.stdin.read().splitlines()
             if any(not row.strip() for row in rows):
                 raise ValueError("plan rows must not be blank")
-            for line in subset_tsv(expand_tsv(rows), args.shard):
+            for line in subset_tsv(expand_tsv(rows), args.shard, weights):
                 print(line)
             return 0
-        if args.command == "report":
-            return 0 if _report(args.head, args.shard, Path(args.plan),
-                                Path(args.manifest), Path(args.output)) else 1
         if args.command == "select":
             return 0 if _select(args.head, Path(args.plan),
                                 [Path(path) for path in args.reports],
-                                Path(args.output_dir)) else 1
+                                Path(args.output_dir), weights) else 1
         return 0 if _verify(args.head, Path(args.plan),
-                            [Path(path) for path in args.reports]) else 1
+                            [Path(path) for path in args.reports], weights) else 1
     except (ValueError, OSError, TypeError, json.JSONDecodeError) as error:
         print(f"readiness shards: {error}", file=sys.stderr)
         return 1
