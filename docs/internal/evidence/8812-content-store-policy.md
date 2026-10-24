@@ -180,6 +180,15 @@ and the two kind changes to "same kind".
 - Delta review P3: the marker kind is now computed from the raw line before the
   PEM pass, as the ruling says; the benchmark table states a median and range
   measured on a loaded host instead of a point value.
+- Outside review nit on `storedBytes`: a metadata path discards the body, so it no
+  longer converts a multi-megabyte body to a string and back. `ApplyContentStore`
+  ignores the body for metadata and never fails on it, so the tally is the same
+  metadata/metadata add and the result is a non-nil empty slice (the documentation
+  reader treats nil as "not supplied"). `TestStoredBytesMetadataCopiesNothing`
+  (`testing.AllocsPerRun`, 1 allocation before, 0 after) and
+  `TestStoredBytesMatchesTheReferenceForEveryPolicy` (same bytes, nil-ness, and
+  tally as the old code for metadata, redact, and an ungoverned path over good,
+  empty, nil, NUL, non-UTF-8, UTF-16, and 5 MiB bodies) pin it.
 - Fuzz: `FuzzRedactMarker` (seed corpus under `go test`; planted listed-key,
   Bearer, comma-tail, AWS-key, and one-line PEM seeds never survive, a second pass
   is a no-op, line count is kept) ran 60 s with `-fuzz`: 1,411,919 execs, no

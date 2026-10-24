@@ -159,10 +159,21 @@ func (t *contentStoreTally) storedBody(stores map[string]parser.ContentStore, pa
 }
 
 // storedBytes is storedBody for a body read from disk. It returns body itself,
-// with no copy, for a path that stores verbatim.
+// with no copy, for a path that stores verbatim, and copies nothing for a
+// metadata path.
 func (t *contentStoreTally) storedBytes(stores map[string]parser.ContentStore, path string, body []byte) []byte {
-	if _, governed := stores[path]; !governed {
+	store, governed := stores[path]
+	if !governed {
 		return body
+	}
+	if store.Policy == parser.ContentStoreMetadata {
+		// The policy discards the body and ApplyContentStore ignores it for
+		// metadata (it never fails, whatever the bytes), so skip the string
+		// conversion of a body that may be megabytes. The tally is the same
+		// metadata/metadata add, and the result is a non-nil empty slice because
+		// docs.ReadDocumentationBodyWithError treats a nil body as "not supplied".
+		t.storedBody(stores, path, "")
+		return []byte{}
 	}
 	return []byte(t.storedBody(stores, path, string(body)))
 }
