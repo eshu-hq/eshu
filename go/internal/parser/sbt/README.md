@@ -74,7 +74,39 @@ or the key (`.set(...)`, `.transform(...)`, `.withRank(...) :=`,
 `.in(...) :=`, `.:=(...)`), with or without a `ThisBuild` axis. The statement
 is counted once and the envelope keeps no `scala_version` and no hint for the
 rest of the file: a later literal does not clear it. A read
-(`scalaVersion.value`, `scalaVersion.in(Test).value`) is not counted.
+(`scalaVersion.value`, `scalaVersion.in(Test).value`,
+`(scalaVersion in Test).value`, `(ThisBuild / scalaVersion).value`) is not
+counted.
+
+### Default-deny key occurrences
+
+Both keys are default-deny. The scanner recognises a small set of
+occurrences, and every other occurrence of the identifier token
+`scalaVersion` or `libraryDependencies` (backtick-quoted too; not inside a
+string or comment, and not a longer identifier such as `myScalaVersion`) is a
+rewrite it cannot read:
+
+- `libraryDependencies`: the statements this README describes (an assignment
+  operator after the key and any chain of legacy axes, a prefix axis such as
+  `Compile /`, or a member sbt's SettingKey API defines as a Setting), and
+  reads (`.value`, `.key`, `.scopedKey`, `.taskValue`, `.in(Test).value`,
+  `(k in Test).value`). Any other occurrence supersedes every row of the file
+  and is counted.
+- `scalaVersion`: the in-context literal statement above, any assignment the
+  sections above already poison, and the same reads. Any other occurrence
+  poisons the envelope for good and is counted once.
+
+Denied shapes include a parenthesized key at any depth (`(k) := v`,
+`Seq((Compile / k) := v)`, `foo(((k)) := v)`), chained legacy axes
+(`k in Compile in Test := v`), infix members (`k set (x, pos)`,
+`k withRank r := v`), a member that returns no Setting and is no read
+(`k.map(f)`), a comparison, a bare key (`lazy val s = k`), and a local
+definition that shadows the key. The statement handlers decide the key the
+main loop hands them. A key that a handler consumes itself (inside a fallback
+statement, a skipped group, or the grammar) is judged by a one-token watch in
+`scan.next` (`key_watch.go`): it is a read only when `.` and a read member
+follow, and a rewrite otherwise. The watch allocates nothing and needs no
+lookahead.
 
 `meta_build` is `true` when the file sits directly in a directory named
 `project`. The registry admits `build.sbt` by base name, so
@@ -187,8 +219,8 @@ statement, in a `val` body, after an operator (`commonSettings :+ ...`), in an
 like `:=` there. A member after a legacy `.in(...)` or `in` axis
 (`libraryDependencies.in(Test).transform(f, pos)`) is judged the same way out
 of a grammar context, so a rewriting one is a global reset. A member that
-returns no Setting is counted only at the start of an expression (a line
-start, an opener, `,` or `;`); in the middle of one it is a read:
+returns no Setting and is no read is denied (see "Default-deny key
+occurrences"):
 
 | Member | Effect |
 |---|---|
@@ -197,7 +229,7 @@ start, an opener, `,` or `;`); in the middle of one it is a read:
 | `withRank(...)` then `+=`, `++=`, `<+=`, `<++=`, or any other assignment operator | returns the key, then adds: fallback, no superseding |
 | `append1`, `appendN` | a Setting that adds: fallback, no superseding |
 | `value`, `key`, `scopedKey`, `taskValue` | a read: not a declaration, not counted |
-| anything else (`map`, `flatMap`, `get`, `or`, `filter`, an unknown name) | no Setting, so it cannot change the key: counted once at the start of an expression, a read elsewhere, no superseding |
+| anything else (`map`, `flatMap`, `get`, `or`, `filter`, an unknown name) | not recognised: denied, so it supersedes every row and is counted once |
 
 A reset in the bare file applies to the root project,
 which may be any project the file declares, so it supersedes every project row

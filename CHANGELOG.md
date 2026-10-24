@@ -210,8 +210,12 @@ recent shipped work grouped by feature area.
   rewrite the key (`.transform`, `.set`, `.remove1`, `.removeN`, and
   `.withRank` before `:=`, `~=`, `-=`, `--=` or `<<=`) make the rows they
   supersede partial, wherever the member appears (a `val` body, after an
-  operator, an `if` branch); a member that returns no Setting (`.map`,
-  `.filter`) is counted once and supersedes nothing. `<+=`, `<++=`,
+  operator, an `if` branch). Both keys are default-deny: any other occurrence
+  of `libraryDependencies` (a parenthesized key at any depth, chained `in`
+  axes, an infix `set` or `withRank`, a member that returns no Setting such as
+  `.map`, a bare key) supersedes every row and is counted, and any other
+  `scalaVersion` occurrence poisons the envelope; only reads (`.value`,
+  `.in(Test).value`, `(k in Test).value`) are left alone. `<+=`, `<++=`,
   `.append1`, `.appendN`, `.withRank(...) +=` and any other assignment
   operator fall back with partial rows. `scalaVersion` is read only where
   `libraryDependencies` would resolve; an unreadable `scalaVersion` statement

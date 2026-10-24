@@ -11,7 +11,9 @@
 5. `statement.go` - the statement entry (`parseLibraryDependencies`), the two
    grammar contexts (`keyContext`), the member rule (`settingMemberOf`,
    `applyMember`), the statement end, the fail-closed fallback entry
-   (`failStatement`, `fallback`), and superseding (`markReset`).
+   (`failStatement`, `fallback`), and superseding (`markReset`);
+   `key_watch.go` - the default-deny watch on key tokens a handler consumes
+   itself, the legacy axis chain, and the closer read-through.
 6. `element.go` - the element and collection grammar, the configuration
    operand, and the infix call allowlist (`classifyCall`).
 7. `salvage.go` - the fallback scanner that emits every literal coordinate of
@@ -49,20 +51,28 @@
   the whole statement to `failStatement`: rows already read become partial and
   the rest of the statement is salvaged as partial rows. Do not add a path that
   skips a token and keeps matching.
-- A member called on the key supersedes only when sbt's SettingKey API says
-  it returns a Setting that rewrites the key, or returns the key itself
-  (`settingMemberOf`). Never make an unknown member supersede (it would demote
-  unrelated rows) and never make a rewriting member a read (it would leave
-  superseded rows resolved). Quote the sbt definition for any new name. A
-  member that returns a Setting or the key is applied from any position; only
-  the members that return no Setting keep the statement-start gate
-  (`startsExpression`). After `withRank(...)` the operator decides
-  (`applyRankedOperator`): an appending operator never supersedes.
+- Both keys are default-deny. An occurrence of `libraryDependencies` or
+  `scalaVersion` that is no recognised statement and no read (`isKeyRead`
+  after `.`, after `.in(...)`, or after the closers of `(k in Test)`) is a
+  rewrite: libraryDependencies supersedes every row (`denyLibraryDependencies`),
+  scalaVersion poisons the envelope (`unknownScalaVersion`). Never add a
+  silent `return` to either handler: every exit is a recognised form, a read,
+  or a deny. A key that a handler consumes itself reaches `keyWatch` in
+  `scan.next` unclaimed; keep the main loop's `claiming` flag and the
+  `unread` restore, or nested keys go unjudged or count twice.
+- A member called on the key rewrites when sbt's SettingKey API says it
+  returns a Setting that rewrites the key, or returns the key itself
+  (`settingMemberOf`); quote the sbt definition for any new name. A member that
+  returns no Setting and is no read is denied, so a new read member needs the
+  sbt definition and a test before it joins `isKeyRead`. After `withRank(...)`
+  the operator decides (`applyRankedOperator`): an appending operator never
+  supersedes.
 - `scalaVersion` is recorded only in a grammar context. Do not record it from
   a nested position; a wrong literal moves every `%%` hint in the file. An
   unreadable scalaVersion statement in a grammar context, and any
   scalaVersion assignment outside one, poisons the envelope (`scalaPoisoned`)
-  for good, and two distinct literals report no version: do not add a "prefer
+  for good, and so does every other occurrence but a read (default-deny), and
+  two distinct literals report no version: do not add a "prefer
   ThisBuild" or "last wins" pick without a scope-order proof, and do not let
   a nested assignment "change nothing" (a settings val may reach any project).
 - `TestGrammarSeededFuzzInvariants` (`fuzz_test.go`) is the regression net:
@@ -207,6 +217,26 @@ mutants (stray assignment counted without poison, `.:=(...)` as a read,
 same benchmark, run alternately at load average 8 to 9, measured 15.45 to
 17.12 ms/op before and 15.46 to 16.43 ms/op after, with 16.45 MB/op and
 139,757 to 139,758 allocs/op on both: no byte or allocation change.
+
+No-Regression Evidence (default-deny key occurrences): the member arm now
+draws parenthesized keys at depths 1 to 3, keys under a prefix axis in
+parentheses, chained `in` axes, infix `set` and `withRank`, bare keys,
+members that return no Setting, keys inside a fallback statement, and reads
+and lookalikes that must change nothing (`.value` reads, `(k in Test).value`,
+`myScalaVersion`, keys in strings and comments). On the code before this fix
+it reported state=872, count=1,896, scala=138 and hint=133 over 3,000 cases
+and state=9,195, count=19,037, scala=1,262 and hint=1,097 over 30,000; with
+the fix, zero at 3,000 (5,569 rows) and at 30,000 (56,010 rows), and the
+grammar and indentation arms stay zero with their row counts unchanged. 10
+overlay mutants (unclaimed key not denied, a parenthesized key claimed for
+either key, chained axes kept in context, an infix ident claimed for either
+key, a non-read member claimed for either key, a watched read not benign,
+`unread` not restoring the watch) were all killed; an end-of-input flush was
+removed as an equivalent mutant, since the main loop consumes EOF through
+`scan.next`. The same benchmark, run alternately at load average about 2,
+measured 15.51 to 15.87 ms/op before and 15.85 to 16.19 ms/op after (about
+3 percent), with 16.45 MB/op and 139,757 to 139,758 allocs/op on both: no
+byte or allocation change.
 
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
 single-pass scanner with no recursion. 200,000 nested parentheses finish in

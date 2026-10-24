@@ -86,7 +86,9 @@ ModuleID methods that change neither coordinates nor configurations.
 | `.withRank(...)` then `:=`, `~=`, `-=`, `--=`, `<<=` | supersedes earlier rows |
 | `.withRank(...)` then `+=`, `++=`, `<+=`, `<++=` | partial; earlier rows unchanged |
 | `.append1(...)`, `.appendN(...)`, `<+=`, `<++=`, any other assignment operator | partial; earlier rows unchanged |
-| `.map(...)`, `.filter(...)` or any other member that returns no Setting | counted once at the start of an expression, a read elsewhere; earlier rows unchanged |
+| `.map(...)`, `.filter(...)` or any other member that returns no Setting and is no read | denied: supersedes every row, counted once |
+| any other `libraryDependencies` occurrence: `(libraryDependencies) := Nil` at any depth, `(Compile / libraryDependencies) := Nil`, `libraryDependencies in Compile in Test := Nil`, `libraryDependencies set (x, pos)`, `libraryDependencies withRank r := Nil`, a bare key | denied: supersedes every row, counted |
+| a read: `.value`, `.in(Test).value`, `(libraryDependencies in Test).value` | not a declaration, not counted |
 
 A partial row keeps the coordinates read literally, carries a placeholder
 `compile` scope, and is counted in `sbt_state.unresolved_declaration_count`; it
@@ -140,7 +142,12 @@ Known limits of the sbt reading:
 - `scalaVersion` inside `inThisBuild(...)`, a settings `val` or `def`, or any
   other nested position is not read and clears `scala_version`, so a build
   that sets it there gets no `sbt_binary_artifact` hint, even with a top-level
-  literal beside it.
+  literal beside it. Both keys are default-deny: any occurrence that is no
+  recognised statement and no read (`.value`, `.in(Test).value`,
+  `(scalaVersion in Test).value`) clears `scala_version` or supersedes every
+  `libraryDependencies` row, so a build that only reads a key through
+  another member (`libraryDependencies.map(f)`) or shadows it loses rows it
+  could have kept.
 - `scala_version` fails closed: a `ThisBuild` literal plus a different
   project override, or two literals in one scope, report no version, even
   where sbt's last assignment would name one.

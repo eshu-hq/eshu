@@ -32,10 +32,14 @@
 // `--=` or `<<=`), supersedes the earlier rows it can reach, which become
 // partial too. Such a member is applied wherever it appears, since the Setting
 // it returns changes the key wherever it is used; outside a grammar context it
-// supersedes every row. A member that returns no Setting (`map`, `filter`,
-// ...) is counted once at the start of an expression, is a read elsewhere, and
-// supersedes nothing. Only a val that heads a column-0 line resolves a version
-// reference.
+// supersedes every row. Both keys are default-deny: an occurrence that is no
+// recognised statement and no read (`.value`, `.in(Test).value`,
+// `(k in Test).value`) is a rewrite. For libraryDependencies that includes a
+// parenthesized key, chained `in` axes, an infix member (`set`, `withRank`),
+// a member that returns no Setting (`map`, `filter`), and a bare key; it
+// supersedes every row and is counted. A key that a statement handler consumes
+// itself is judged by a one-token watch in the scanner. Only a val that heads
+// a column-0 line resolves a version reference.
 //
 // Configuration lists split on ',' and ';' and resolve once, matching names
 // exactly as Ivy does (`"Test"` is not `test`): any compile part gives
@@ -54,11 +58,13 @@
 // read only in a grammar context (or behind a `ThisBuild /` axis that starts a
 // statement in one); a nested one is counted, never recorded. The envelope
 // names a version, and `%%` rows get a binary-artifact hint, only when exactly
-// one distinct literal was recorded and no other scalaVersion assignment was
-// seen: an unreadable one in a grammar context (a non-literal value, `~=`,
+// one distinct literal was recorded and no other scalaVersion occurrence was
+// seen but a read: an unreadable one in a grammar context (a non-literal value, `~=`,
 // `<<=`, `.set`, `.transform`, `.withRank(...) :=`, `.:=(...)`) or any
 // assignment outside one (a settings val or def, `inThisBuild(...)`, a
-// wrapper, a lambda, another axis) poisons the envelope for the whole file. meta_build is
+// wrapper, a lambda, another axis), or any other occurrence (a parenthesized
+// key, chained axes, an infix member, a bare key) poisons the envelope for the
+// whole file. meta_build is
 // true for a build.sbt directly inside a `project` directory, sbt's
 // meta-build, and every row of that file is partial.
 //
