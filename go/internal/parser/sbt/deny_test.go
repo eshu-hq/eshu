@@ -152,3 +152,21 @@ func TestRecognisedKeyOccurrencesStayResolved(t *testing.T) {
 		t.Fatal("denyCats must be a cross-built coordinate")
 	}
 }
+
+// TestUnclaimedKeyAtEndOfInputIsDenied pins the watch at end of input: a key
+// the fallback consumes as the last token, or followed only by '.', is still
+// a rewrite.
+func TestUnclaimedKeyAtEndOfInputIsDenied(t *testing.T) {
+	t.Parallel()
+
+	for _, tail := range []string{"libraryDependencies", "libraryDependencies.", "scalaVersion"} {
+		payload := parseSource(t, "scalaVersion := \"2.13.12\"\n"+denyCats+"\nlibraryDependencies <+= Def.setting("+tail)
+		row := requireRow(t, payload, "org.typelevel:cats-core")
+		state := stateOf(t, payload)
+		if tail == "scalaVersion" {
+			requireStateField(t, state, "scala_version", "")
+			continue
+		}
+		requireField(t, row, "dependency_resolution_state", "partial")
+	}
+}

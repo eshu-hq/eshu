@@ -77,13 +77,12 @@ func (w *keyWatch) deny() {
 }
 
 // applyKeyWatch folds the watch into the scan at end of input: an unclaimed
-// key still in flight is a rewrite, an unclaimed scalaVersion rewrite poisons
-// the envelope, and an unclaimed libraryDependencies rewrite supersedes every
-// row of the file. Each occurrence is counted once.
+// scalaVersion rewrite poisons the envelope, and an unclaimed
+// libraryDependencies rewrite supersedes every row of the file. Each
+// occurrence is counted once. No key is still in flight here: the main loop
+// consumes the EOF token through scan.next, and observe denies a key that EOF
+// follows.
 func (s *scan) applyKeyWatch() {
-	if s.watch.step != 0 {
-		s.watch.deny()
-	}
 	if s.watch.scala > 0 {
 		s.scalaPoisoned = true
 		s.unresolved += s.watch.scala
