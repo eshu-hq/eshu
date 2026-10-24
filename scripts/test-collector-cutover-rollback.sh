@@ -8,6 +8,7 @@
 #   gates     one refusal or ordering rule per case, a fact broken at a time
 #   truth     verify, baseline format, capture, drift report, SQL pins
 #   usage     input validation, environment knobs, help text
+#   direct    the direct in-tree producer mode (#9027)
 # scripts/lib/test-collector-cutover-rollback-mutants.sh proves these cases kill
 # every listed mutant of the step and gate logic.
 
@@ -26,6 +27,8 @@ source "${lib_dir}/test-collector-cutover-rollback-cases-gates.sh"
 source "${lib_dir}/test-collector-cutover-rollback-cases-truth.sh"
 # shellcheck source=scripts/lib/test-collector-cutover-rollback-cases-usage.sh
 source "${lib_dir}/test-collector-cutover-rollback-cases-usage.sh"
+# shellcheck source=scripts/lib/test-collector-cutover-rollback-cases-direct.sh
+source "${lib_dir}/test-collector-cutover-rollback-cases-direct.sh"
 
 if [[ "${failures}" -gt 0 ]]; then
 	printf '\n%d check(s) failed\n' "${failures}"

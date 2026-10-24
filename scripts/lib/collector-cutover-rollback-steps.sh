@@ -185,7 +185,12 @@ step_4() {
 	gate_step2 4
 	gate_step3 4
 	if [[ -z "$since" ]]; then
-		psql_run now -v "skew=${ROLLBACK_CLOCK_SKEW_SECONDS}"
+		# A direct producer shares its collector kind with the external producer
+		# that just stopped, so a skew margin could count that producer's last
+		# commit as the restored one. The exact clock can only be stricter.
+		local skew="$ROLLBACK_CLOCK_SKEW_SECONDS"
+		[[ "$in_tree_direct" != "true" ]] || skew=0
+		psql_run now -v "skew=${skew}"
 		[[ "$XRC" -eq 0 && -n "$XOUT" ]] || step_failed 4 "could not read the database clock for the replay window"
 		since="$XOUT"
 	fi
@@ -201,11 +206,15 @@ step_4() {
 	build_in_tree_status
 	must_exec 4 "waiting for the in-tree collector rollout"
 	local in_tree_line="$XOUT"
-	build_restart_coordinator
-	must_exec 4 "restarting the coordinator so it plans for the restored instance"
-	build_coordinator_status
-	must_exec 4 "waiting for the coordinator rollout"
-	evidence 4 "replay_since='${since}' in_tree='${in_tree_line}' coordinator='${XOUT}'"
+	local coordinator_line="not restarted (a direct producer is not planned by the coordinator)"
+	if [[ "$in_tree_direct" != "true" ]]; then
+		build_restart_coordinator
+		must_exec 4 "restarting the coordinator so it plans for the restored instance"
+		build_coordinator_status
+		must_exec 4 "waiting for the coordinator rollout"
+		coordinator_line="$XOUT"
+	fi
+	evidence 4 "replay_since='${since}' in_tree='${in_tree_line}' coordinator='${coordinator_line}'"
 	step_ok 4
 }
 
@@ -228,12 +237,50 @@ replay_poll() {
 	((r_pending == 0 && r_claimed == 0 && r_retryable == 0 && r_completed >= 1))
 }
 
+# direct_poll is the step 5 predicate for a direct in-tree producer. It has no
+# work items to replay, so it passes only when a generation of the kind was
+# observed at or after the window start and has been activated. An unreadable
+# answer aborts: a failed read never looks like progress.
+DIRECT_COMMITS=""
+DIRECT_LATEST=""
+direct_poll() {
+	psql_run direct-commit -v "kind=${collector_kind}" -v "since=${since}"
+	if [[ "$XRC" -ne 0 || ! "$XOUT" =~ ^[0-9]+\|[^|]*$ ]]; then
+		step_failed 5 "could not read the observed-generation signal (exit ${XRC})"
+	fi
+	if [[ "$XOUT" != "${DIRECT_COMMITS}|${DIRECT_LATEST}" ]]; then
+		DIRECT_COMMITS="${XOUT%%|*}"
+		DIRECT_LATEST="${XOUT#*|}"
+		printf '  generations_observed_and_activated_since_window_start=%s latest_activated_at=%s\n' "$DIRECT_COMMITS" "${DIRECT_LATEST:-none}"
+	fi
+	((DIRECT_COMMITS >= 1))
+}
+
+step_5_direct() {
+	printf 'Waiting up to %ss for the restored direct collector to observe a generation after %s and for it to be activated.\n' "$replay_timeout" "$since"
+	printf 'It has no work items to replay; the signal is a scope generation observed and activated after the window start.\n'
+	DIRECT_COMMITS=""
+	DIRECT_LATEST=""
+	if ! wait_until "$replay_timeout" direct_poll; then
+		printf 'TIMEOUT[step 5]: no generation was observed and activated for kind %s after %s within %ss.\n' \
+			"$collector_kind" "$since" "$replay_timeout" >&2
+		printf 'A source that did not change mints no new generation; change the source, or check the collector logs.\n' >&2
+		exit "$EX_TIMEOUT"
+	fi
+	evidence 5 "since='${since}' direct_observed_generations=${DIRECT_COMMITS} latest_activated_at=${DIRECT_LATEST}"
+}
+
 step_5() {
 	step_header 5 "replay from the last committed generation"
 	gate_step1 5
 	gate_step2 5
 	gate_step3 5
 	gate_step4 5
+	if [[ "$in_tree_direct" == "true" ]]; then
+		step_5_direct
+		step_ok 5
+		return 0
+	fi
 	printf 'Waiting up to %ss for the restored producer to re-plan and finish from window start %s.\n' "$replay_timeout" "$since"
 	printf 'The coordinator restart in step 4 triggers the first planning pass; later passes follow\n'
 	printf 'ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL.\n'
@@ -286,7 +333,8 @@ cmd_run() {
 	if ((from_step == 5)) && [[ -z "$since" ]]; then
 		die "$EX_USAGE" "--since is required with --from-step 5 (use the replay_since value from step 4)"
 	fi
-	printf 'Rollback of collector kind %s: external %s -> in-tree %s\n' "$collector_kind" "$external_instances" "$in_tree_instances"
+	printf 'Rollback of collector kind %s: external %s -> in-tree %s\n' "$collector_kind" "$external_instances" \
+		"${in_tree_instances:-direct collector (deployment/${in_tree_deployment})}"
 	local step
 	for ((step = from_step; step <= through_step; step++)); do
 		"step_${step}"

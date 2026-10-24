@@ -265,6 +265,70 @@ for want in "work_item.issue  added=1 removed=0 changed=1" "work_item.issue  add
 	if [[ "${drift_out}" == *"${want}"* ]]; then pass "the drift report shows: ${want}"; else fail "the drift report lacks: ${want}"; fi
 done
 
+# --- direct in-tree producer (#9027) ------------------------------------------------------------
+# A direct collector has no instance ID: the in-tree list is empty, every claim of
+# the kind is external, and "resumed" is a generation observed after the window
+# start (ingested_at) and projected (activated_at). Every row sets ingested_at, so
+# the fixtures separate the two timestamps.
+
+item dr-claimed documentation docinst-1 scope-dr1 claimed
+claim dr-claimed-c dr-claimed 1 active '2026-04-01 00:00:00+00' '2026-04-01 00:10:00+00' NULL
+item dr-claimed2 documentation docinst-2 scope-dr1 claimed
+claim dr-claimed2-c dr-claimed2 1 active '2026-04-01 00:05:00+00' '2026-04-01 00:15:00+00' NULL
+item dr-done documentation docinst-2 scope-dr2 completed
+claim dr-done-c dr-done 1 completed '2026-04-02 00:00:00+00' '2026-04-02 00:10:00+00' "'2026-04-02 00:05:00+00'"
+check "an empty in-tree list makes every claim of the kind external for the drain" "2|2" \
+	"$(sql drain -v kind=documentation -v in_tree=)"
+check "a non-empty in-tree list still excludes its instances from the drain" "1|1" \
+	"$(sql drain -v kind=documentation -v in_tree=docinst-1)"
+check "an empty in-tree list leaves the in-tree and overlap counts at zero" "2|0|0" \
+	"$(sql dual -v kind=documentation -v in_tree=)"
+
+scope dir-a documentation
+scope dir-b documentation
+scope dir-git git
+q "INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at) VALUES
+	 ('dg-old', 'dir-a', 't', now(), '2026-02-28 00:00:00+00', 'superseded', '2026-03-01 00:00:00+00'),
+	 ('dg-new', 'dir-a', 't', now(), '2026-03-10 00:00:00.5+00', 'active', '2026-03-10 00:00:00.5+00'),
+	 ('dg-pending', 'dir-b', 't', now(), '2026-03-09 00:00:00+00', 'pending', NULL),
+	 ('dg-failed', 'dir-b', 't', now(), '2026-03-10 00:00:00+00', 'failed', '2026-03-11 00:00:00+00'),
+	 ('dg-git', 'dir-git', 't', now(), '2026-03-11 00:00:00+00', 'active', '2026-03-12 00:00:00+00')" >/dev/null
+check "direct-commit counts generations activated after the window start" "1|2026-03-10T00:00:00.500000Z" \
+	"$(sql direct-commit -v kind=documentation -v since='2026-03-05 00:00:00+00')"
+check "direct-commit counts a superseded generation activated inside the window" "2|2026-03-10T00:00:00.500000Z" \
+	"$(sql direct-commit -v kind=documentation -v since='2026-02-01 00:00:00+00')"
+check "direct-commit includes a generation activated exactly at the window start" "1|2026-03-10T00:00:00.500000Z" \
+	"$(sql direct-commit -v kind=documentation -v since='2026-03-10 00:00:00.5+00')"
+check "direct-commit is empty when nothing was activated after the window start" "0|" \
+	"$(sql direct-commit -v kind=documentation -v since='2026-03-11 00:00:00+00')"
+check "direct-commit ignores pending and failed generations and other kinds" "0|" \
+	"$(sql direct-commit -v kind=git -v since='2026-03-13 00:00:00+00')"
+check "direct-commit counts only the asked collector kind" "1|2026-03-12T00:00:00.000000Z" \
+	"$(sql direct-commit -v kind=git -v since='2026-03-01 00:00:00+00')"
+check "direct-commit is empty for a kind with no scope" "0|" \
+	"$(sql direct-commit -v kind=nosuchkind -v since='2026-01-01 00:00:00+00')"
+
+# A collector that emits a pending generation (Confluence does) gets activated_at
+# later, from the projector ack. A generation the external producer observed before
+# the window and the projector acked after it must not read as the restored
+# producer's resume (#9027 review F1).
+scope dir-late docs-late
+scope dir-mixed docs-mixed
+scope dir-edge docs-edge
+q "INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at) VALUES
+	 ('dg-late', 'dir-late', 't', now(), '2026-02-10 00:00:00+00', 'active', '2026-03-20 00:00:00+00'),
+	 ('dg-mixed-old', 'dir-mixed', 't', now(), '2026-02-10 00:00:00+00', 'superseded', '2026-03-20 00:00:00+00'),
+	 ('dg-mixed-new', 'dir-mixed', 't', now(), '2026-03-06 00:00:00+00', 'active', '2026-03-21 00:00:00+00'),
+	 ('dg-edge', 'dir-edge', 't', now(), '2026-03-05 00:00:00+00', 'active', '2026-03-20 00:00:00+00')" >/dev/null
+check "direct-commit ignores a generation observed before the window but activated inside it" "0|" \
+	"$(sql direct-commit -v kind=docs-late -v since='2026-03-05 00:00:00+00')"
+check "direct-commit counts only the generation observed after the window start" "1|2026-03-21T00:00:00.000000Z" \
+	"$(sql direct-commit -v kind=docs-mixed -v since='2026-03-05 00:00:00+00')"
+check "direct-commit includes a generation observed exactly at the window start" "1|2026-03-20T00:00:00.000000Z" \
+	"$(sql direct-commit -v kind=docs-edge -v since='2026-03-05 00:00:00+00')"
+check "direct-commit drops a generation observed one microsecond before the window start" "0|" \
+	"$(sql direct-commit -v kind=docs-edge -v since='2026-03-05 00:00:00.000001+00')"
+
 # --- optional benchmark ---------------------------------------------------------------------------
 
 if [[ "${bench_facts}" -gt 0 ]]; then
