@@ -4,7 +4,7 @@
 package postgres_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8943 disposable PostgreSQL 18 proofs that the security-alert org read state commits with its generation through the claim-fenced ingestion store, is replaced on a replay of a pending generation, rolls back with a failed generation, and leaves with the generation when generation retention prunes it; each proof creates and drops its own database from the bootstrap schema; under 1 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated
+//eshu:readiness:reason #8943 disposable PostgreSQL 18 proofs that the security-alert org read state commits with its generation through the claim-fenced ingestion store, is replaced on a replay of a pending generation, rolls back with a failed generation, and leaves with the generation when generation retention prunes it; each proof creates and drops its own database from the bootstrap schema; about 1.5 to 6 s per subtest on PostgreSQL 18.6 locally (database bootstrap dominates); wall time is logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (

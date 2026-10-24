@@ -377,12 +377,12 @@ tests:
   - file: go/internal/storage/postgres/alert_read_state_commit_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8943 disposable PostgreSQL 18 proofs that the security-alert org read state commits with its generation through the claim-fenced ingestion store, is replaced on a replay of a pending generation, rolls back with a failed generation, and leaves with the generation when generation retention prunes it; each proof creates and drops its own database from the bootstrap schema; under 1 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated"
+    reason: "#8943 disposable PostgreSQL 18 proofs that the security-alert org read state commits with its generation through the claim-fenced ingestion store, is replaced on a replay of a pending generation, rolls back with a failed generation, and leaves with the generation when generation retention prunes it; each proof creates and drops its own database from the bootstrap schema; about 1.5 to 6 s per subtest on PostgreSQL 18.6 locally (database bootstrap dominates); wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/alert_read_state_concurrency_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8943 disposable PostgreSQL 18 concurrency proofs under the race detector that generation retention pruning old security-alert generations never deadlocks with, blocks, or damages concurrent claim-fenced commits of the same target, that a second claim of the same target never mixes its read state with another claim's, and that two claims racing on one generation id leave one consistent state; each proof creates and drops its own database from the bootstrap schema; about 2 to 6 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated"
+    reason: "#8943 disposable PostgreSQL 18 concurrency proofs under the race detector that generation retention pruning old security-alert generations never deadlocks with, blocks, or damages concurrent claim-fenced commits of the same target, that a second claim of the same target never mixes its read state with another claim's, and that two claims racing on one generation id leave one consistent state; each proof creates and drops its own database from the bootstrap schema; about 1.5 to 6 s per subtest on PostgreSQL 18.6 locally (database bootstrap dominates); wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/aws_cloud_runtime_drift_state_arn_differential_live_test.go
     tag: ~

@@ -4,7 +4,7 @@
 package postgres_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8943 disposable PostgreSQL 18 concurrency proofs under the race detector that generation retention pruning old security-alert generations never deadlocks with, blocks, or damages concurrent claim-fenced commits of the same target, that a second claim of the same target never mixes its read state with another claim's, and that two claims racing on one generation id leave one consistent state; each proof creates and drops its own database from the bootstrap schema; about 2 to 6 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated
+//eshu:readiness:reason #8943 disposable PostgreSQL 18 concurrency proofs under the race detector that generation retention pruning old security-alert generations never deadlocks with, blocks, or damages concurrent claim-fenced commits of the same target, that a second claim of the same target never mixes its read state with another claim's, and that two claims racing on one generation id leave one consistent state; each proof creates and drops its own database from the bootstrap schema; about 1.5 to 6 s per subtest on PostgreSQL 18.6 locally (database bootstrap dominates); wall time is logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
