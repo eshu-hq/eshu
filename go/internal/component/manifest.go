@@ -367,13 +367,42 @@ func validatePayloadSchemaRef(ref string) error {
 	return nil
 }
 
+// validateIdentifier requires value to be a canonical identifier: non-empty
+// and matching identifierPattern with no surrounding whitespace. It rejects
+// padding instead of trimming it, because every later comparison (revoke and
+// allow lists, registry keys, producer grants, signed provenance annotations)
+// uses the stored bytes as-is. Trimming here would let a padded manifest load
+// while an exact entry such as a revoke ID could never match it.
 func validateIdentifier(field, value string) error {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return fmt.Errorf("%s is required", field)
 	}
-	if !identifierPattern.MatchString(trimmed) {
-		return fmt.Errorf("%s %q must use lowercase letters, numbers, dots, underscores, or hyphens", field, value)
+	if value != trimmed {
+		return fmt.Errorf("%s %q must be canonical without surrounding whitespace", field, value)
+	}
+	return checkIdentifierShape(field, value, value)
+}
+
+// validateStoredIdentifier checks an identifier that names an entry already
+// recorded in registry state, such as the component ID and instance_id passed
+// to Disable. It requires the identifier shape but tolerates surrounding
+// whitespace, because an older build trimmed identifiers only to validate them
+// and then stored the padded bytes. The caller must still look the entry up by
+// exact bytes: this function never normalizes what it is given.
+func validateStoredIdentifier(field, value string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("%s is required", field)
+	}
+	return checkIdentifierShape(field, trimmed, value)
+}
+
+// checkIdentifierShape matches candidate against identifierPattern. The error
+// quotes shown so the message echoes the caller's original bytes.
+func checkIdentifierShape(field, candidate, shown string) error {
+	if !identifierPattern.MatchString(candidate) {
+		return fmt.Errorf("%s %q must use lowercase letters, numbers, dots, underscores, or hyphens", field, shown)
 	}
 	return nil
 }
