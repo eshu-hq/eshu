@@ -18,13 +18,16 @@ const (
 	sourceKindToolVersions     = "tool_versions"
 	sourceKindSdkmanrc         = "sdkmanrc"
 	sourceKindRustToolchain    = "rust_toolchain"
+	sourceKindSwiftVersion     = "swift_version"
 )
 
 // pinFileSourceKinds maps the exact base names admitted by the parser registry
 // as version-pin files (go/internal/parser/registry_definitions.go) to their
 // source kind. It is an explicit name list on purpose: .npmrc, .yarnrc.yml,
 // .pypirc, .netrc and mise.toml can carry credentials or literal environment
-// values and must never reach this emitter.
+// values and must never reach this emitter. TestPinFileSourceKindsCoverEveryRegistryVersionPin
+// fails when the registry admits a raw_text name that is in neither this map
+// nor the test's list of non-pin configuration files.
 var pinFileSourceKinds = map[string]string{
 	".nvmrc":              sourceKindNvmrc,
 	".node-version":       sourceKindNodeVersion,
@@ -37,6 +40,7 @@ var pinFileSourceKinds = map[string]string{
 	".sdkmanrc":           sourceKindSdkmanrc,
 	"rust-toolchain":      sourceKindRustToolchain,
 	"rust-toolchain.toml": sourceKindRustToolchain,
+	".swift-version":      sourceKindSwiftVersion,
 }
 
 // SourceKindForPath returns the source kind of a repository-relative path when

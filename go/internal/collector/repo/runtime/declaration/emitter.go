@@ -4,6 +4,7 @@
 package declaration
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -19,6 +20,14 @@ var runtimeVersionPrefix = map[string]string{
 	"go":     "go",
 	"python": "python-",
 }
+
+// swiftReleasePattern matches a plain numeric Swift release such as "5.9" or
+// "6.0.1". A .swift-version may also name a release tag
+// ("swift-5.9-RELEASE"), a development snapshot
+// ("5.10-DEVELOPMENT-SNAPSHOT-2024-01-01-a") or a channel snapshot
+// ("main-snapshot-2024-01-01"); those stay aliases as written, so a snapshot
+// is never reported as the release it precedes.
+var swiftReleasePattern = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
 
 // MaxTokensPerFile bounds the version tokens one pin file may declare. A real
 // pin file holds a handful of tokens (a .tool-versions names one tool per
@@ -116,7 +125,7 @@ func EmitFile(ctx FixtureContext, repoID, relativePath, body string) (envelopes 
 			RawSpec:             d.rawSpec,
 			Distribution:        d.distribution,
 		}
-		applySpec(&version, Classify(stripRuntimePrefix(d.runtime, d.rawSpec)))
+		applySpec(&version, classifyDeclaration(sourceKind, d))
 		payload, err := factschema.EncodeRuntimeDeclarationVersion(version)
 		if err != nil {
 			continue
@@ -131,6 +140,25 @@ func EmitFile(ctx FixtureContext, repoID, relativePath, body string) (envelopes 
 		envelopes = append(envelopes, newEnvelope(ctx, stableKey, relativePath, payload))
 	}
 	return envelopes, Skip{}
+}
+
+// classifyDeclaration classifies one pin-file declaration. A .swift-version
+// that is not a plain numeric release never reaches Classify: it is
+// unresolved when it holds a placeholder and an alias otherwise.
+func classifyDeclaration(sourceKind string, d declaration) Spec {
+	if sourceKind == sourceKindSwiftVersion && !swiftReleasePattern.MatchString(d.rawSpec) {
+		return unparsedSpec(d.rawSpec)
+	}
+	return Classify(stripRuntimePrefix(d.runtime, d.rawSpec))
+}
+
+// unparsedSpec is the spec of a declaration whose text is kept as written:
+// unresolved when it holds an unexpanded placeholder, an alias otherwise.
+func unparsedSpec(raw string) Spec {
+	if placeholderPattern.MatchString(raw) {
+		return Spec{Kind: SpecKindUnresolved}
+	}
+	return Spec{Kind: SpecKindAlias}
 }
 
 // stripRuntimePrefix drops a leading runtime label such as "ruby-" or "go" when

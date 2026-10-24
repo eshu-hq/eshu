@@ -233,6 +233,7 @@ func TestSourceKindForPathCoversEveryAdmittedName(t *testing.T) {
 		".ruby-version": "ruby_version", ".java-version": "java_version", ".go-version": "go_version",
 		".terraform-version": "terraform_version", ".tool-versions": "tool_versions", ".sdkmanrc": "sdkmanrc",
 		"rust-toolchain": "rust_toolchain", "rust-toolchain.toml": "rust_toolchain",
+		".swift-version": "swift_version",
 	}
 	for name, kind := range want {
 		for _, path := range []string{name, "a/b/" + name} {

@@ -28,6 +28,7 @@ var fileRuntime = map[string]string{
 	sourceKindGoVersion:        "go",
 	sourceKindTerraformVersion: "terraform",
 	sourceKindRustToolchain:    "rust",
+	sourceKindSwiftVersion:     "swift",
 }
 
 // runtimeAliases normalises a tool token to the canonical runtime name. An
