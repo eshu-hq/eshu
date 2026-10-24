@@ -199,7 +199,9 @@ Use the SDK types and validator to emit:
 - `Fact` records with declared fact kind, schema version, stable key,
   source confidence, source reference, redacted payload, and optional tombstone.
 - `Status` and `Result` records for `complete`, `unchanged`, `partial`,
-  `retryable`, and `terminal` outcomes.
+  `retryable`, and `terminal` outcomes. The host records status rows as its
+  `eshu_dp_component_extension_*` metrics and waits at least the largest
+  `retry_after_seconds` (capped at one hour) before retrying `retryable`.
 
 `NewValidator(contract).ValidateResult(result)` fails closed before host commit
 when a result uses undeclared fact kinds, unsupported schema versions,

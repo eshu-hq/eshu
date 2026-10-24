@@ -71,8 +71,7 @@ See `doc.go` for the godoc contract. Key groups:
   name, tracer name, logger name); built by `NewBootstrap`
 - `Providers` — holds `*sdktrace.TracerProvider`, `*sdkmetric.MeterProvider`,
   `PrometheusHandler`, and a combined `Shutdown` function; built by `NewProviders`
-- `NewProviders` — configures OTLP gRPC trace and metric exporters when
-  OTEL_EXPORTER_OTLP_ENDPOINT is set; always creates a Prometheus exporter
+- `NewProviders` — configures OTLP gRPC trace and metric exporters when OTEL_EXPORTER_OTLP_ENDPOINT is set; always creates a Prometheus exporter
 - `RecordGOMEMLIMIT` — registers `eshu_dp_gomemlimit_bytes` as an observable
   gauge at startup
 
@@ -145,6 +144,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `EvidenceFactsDiscovered` | `eshu_dp_evidence_facts_discovered_total` |
 | `WorkflowClaimFactsEmitted` | `eshu_dp_workflow_claim_facts_emitted_total` (labels: `collector_kind`, `source_system`) |
 | `ProducerGrantDecisions` | `eshu_dp_component_producer_grant_decisions_total` (labels: `decision`, `stage`, `reason`, `fact_kind`; record through `ProducerGrantDecisionRecorder`; log keys `producer_grant.*` and span event `component.producer_grant.decision` are in `contract/producer_grant.go`; producer id is never a label) |
+| `ComponentExtension*` (six instruments) | `eshu_dp_component_extension_{results_total,status_records_total,reported_facts_total,reported_warnings_total,source_latency_seconds,retry_after_seconds}` (#8908; labels: `collector_kind`, `state`, `status_class`, `failure_class`; record through `ComponentExtensionStatusRecorder`, which folds every label to a bounded set; log keys `extension_status.*` in `contract/component_extension.go`) |
 | `DeferredBackfillEvidence` | `eshu_dp_deferred_backfill_evidence_total` |
 | `DeferredBackfillBatchesCompleted` | `eshu_dp_deferred_backfill_batches_completed_total` |
 | `DeferredBackfillPartitionsSkipped` | `eshu_dp_deferred_backfill_partitions_skipped_total` (labels: `reason`) |

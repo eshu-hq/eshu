@@ -16,6 +16,8 @@ The package owns only the intake boundary:
 - compare the returned claim identity with the host claim
 - map accepted SDK facts into internal `facts.Envelope` values
 - classify retryable, terminal, invalid-result, and identity-mismatch outcomes
+- carry the extension's provider retry delay on retryable results
+- report every SDK status row and every claim result through `StatusTelemetry`
 
 It does not receive or pass Postgres, graph, reducer, API, or MCP handles to an
 extension. Claim mutation, stale-fence handling, retry budgets, and final commit
@@ -51,7 +53,7 @@ records are copied into bounded `StatusRecord` values and every final state
 continues through `collector.ClaimedService` failure classes, claim rows, and
 fact commit counters. Operators diagnose adapter outcomes from the existing
 workflow claim status, collector runtime status derivation, fact evidence, and
-the optional host-owned status recorder.
+the `StatusTelemetry` status recorder described below.
 
 Collector Deployment Evidence: this package adds no Helm template, Compose
 service, ServiceMonitor, default component activation, or hosted claim
@@ -85,9 +87,63 @@ one extra allocation is the OTEL SDK counter add; the recorder itself adds
 none). `ns/op` on the shared development host was dominated by load and is not
 quoted; see the change's report for the measurement conditions.
 
-No-Observability-Change: beyond the producer-grant decision signals above, the
-package records bounded SDK status records through an injected
-`StatusRecorder` and otherwise relies on existing `collector.ClaimedService`
+## Status rows and provider retry delay (#8908)
+
+Extracted collectors emit no telemetry of their own; their SDK status rows are
+the operator contract. `StatusTelemetry` is the production `StatusRecorder`,
+and `cmd/collector-component-extension` sets it. It also implements the
+optional `ResultRecorder` interface, so `Source.NextClaimed` reports exactly
+one `ResultRecord` per call on every exit path: SDK results (`complete`,
+`unchanged`, `partial`, `retryable`, `terminal`) with summed status counts, and
+host verdicts (`invalid_claim`, `launch_failure`, `invalid_result`,
+`identity_mismatch`, `status_record`) with the host failure class and the state
+`ClaimedService` applies. Host verdicts carry no status counts because an
+unvalidated result's statuses are not trusted. `ResultRecord` holds no scope,
+instance, work item, generation, or URL value by construction.
+
+Signals (labels `collector_kind`, `state`, `status_class`, `failure_class`
+only; see [Telemetry Metrics](../../../../docs/public/reference/telemetry/metrics.md)):
+`eshu_dp_component_extension_results_total`,
+`eshu_dp_component_extension_status_records_total`,
+`eshu_dp_component_extension_reported_facts_total`,
+`eshu_dp_component_extension_reported_warnings_total`,
+`eshu_dp_component_extension_source_latency_seconds`, and the
+`eshu_dp_component_extension_retry_after_seconds` gauge (the honored delay on
+the latest result for the kind, `0` when it was not retryable). One log line
+per result (`component extension result`, keys `collector_kind`,
+`failure_class`, `extension_status.*`) logs at WARN for retryable, terminal,
+and host verdicts and at INFO otherwise. Failure classes past 64 distinct
+values per process fold to `other`.
+
+A `retryable` result's classified failure carries the largest
+`status.retry_after_seconds` as `RetryAfterDelay()`, which
+`collector.ClaimedService` uses for `VisibleAt` and for
+`eshu_dp_workflow_claim_provider_throttle_total{outcome="retry_after_honored"}`.
+The delay is clamped to `MaxRetryAfterDelay` (one hour, the GitHub App
+token-mint precedent): the SDK only requires `retry_after_seconds >= 0`, so an
+unclamped value could hide a work item for years or overflow `time.Duration`.
+Terminal results never carry a delay.
+
+Performance Evidence: `go test ./internal/collector/extensionhost -run '^$'
+-bench 'NextClaimed' -benchmem -count=5` on darwin/arm64 (shared host, load
+about 20) measured the retryable claim path at 1487-1584 ns/op and 9 allocs/op
+with no recorder (unchanged from before #8908), and at 3687-4174 ns/op and 15
+allocs/op with `StatusTelemetry`. The unchanged path measured 1354-1468 ns/op
+and 10 allocs/op with no recorder, 3781-4099 ns/op and 15 allocs/op with the
+recorder and its INFO line, and 2065-2294 ns/op and 14 allocs/op with INFO
+filtered. The recorder alone (`go test ./internal/telemetry -bench
+ComponentExtensionStatusRecorder`) is 697-840 ns/op, 96 B/op, and 6 allocs/op
+for six instrument calls. A real claim launches a process or container
+(milliseconds), so the added microseconds are not a measurable share.
+
+Observability Evidence: `go test ./internal/collector/extensionhost -run
+'TestNextClaimedReportsOneResultForEveryFinalState|TestStatusTelemetryRecordsStatusFixture|RetryAfter'`
+proves one result record per final state, the instruments and log line for a
+status fixture, bounded labels with no identity values, and the 120-second
+retry delay with the throttle counter under a fixed clock.
+
+No-Observability-Change: beyond the producer-grant decision and extension
+status signals above, the package relies on existing `collector.ClaimedService`
 claim failure classes, workflow claim rows, collector fact evidence, and
 `/admin/status` collector runtime derivation. It adds no graph writes, queue
 domains, API routes, or MCP tools.
