@@ -73,10 +73,10 @@ func (t *StatusTelemetry) log(ctx context.Context, record ResultRecord) {
 	if t.logger == nil {
 		return
 	}
+	// Host verdicts always carry the retryable or terminal state, so this
+	// one state check also logs every host verdict at WARN.
 	level := slog.LevelInfo
-	if record.Origin == ResultOriginHost ||
-		record.State == sdkcollector.ResultRetryable ||
-		record.State == sdkcollector.ResultTerminal {
+	if record.State == sdkcollector.ResultRetryable || record.State == sdkcollector.ResultTerminal {
 		level = slog.LevelWarn
 	}
 	if !t.logger.Enabled(ctx, level) {

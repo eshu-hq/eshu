@@ -358,3 +358,36 @@ func pointAttributeSets(data metricdata.Aggregation) [][]attribute.KeyValue {
 	}
 	return out
 }
+
+// TestStatusTelemetryLogLevels proves the documented flood policy: one line
+// per result, INFO for complete, unchanged, and partial SDK results, and WARN
+// for retryable, terminal, and every host verdict. A nil logger writes nothing.
+func TestStatusTelemetryLogLevels(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		record ResultRecord
+		want   string
+	}{
+		{ResultRecord{Origin: ResultOriginSDK, State: sdkcollector.ResultComplete}, "INFO"},
+		{ResultRecord{Origin: ResultOriginSDK, State: sdkcollector.ResultUnchanged}, "INFO"},
+		{ResultRecord{Origin: ResultOriginSDK, State: sdkcollector.ResultPartial}, "INFO"},
+		{ResultRecord{Origin: ResultOriginSDK, State: sdkcollector.ResultRetryable}, "WARN"},
+		{ResultRecord{Origin: ResultOriginSDK, State: sdkcollector.ResultTerminal}, "WARN"},
+		{ResultRecord{Origin: ResultOriginHost, State: sdkcollector.ResultTerminal, FailureClass: FailureClassInvalidResult}, "WARN"},
+		{ResultRecord{Origin: ResultOriginHost, State: sdkcollector.ResultRetryable, FailureClass: FailureClassLaunchFailure}, "WARN"},
+	}
+	for _, tc := range tests {
+		logs := &bytes.Buffer{}
+		NewStatusTelemetry(nil, slog.New(slog.NewJSONHandler(logs, nil))).
+			RecordExtensionResult(context.Background(), tc.record)
+		var line map[string]any
+		if err := json.Unmarshal(logs.Bytes(), &line); err != nil {
+			t.Fatalf("%+v: log is not one JSON line: %v (%s)", tc.record, err, logs.String())
+		}
+		if got := line["level"]; got != tc.want {
+			t.Fatalf("%s/%s level = %v, want %s", tc.record.Origin, tc.record.State, got, tc.want)
+		}
+	}
+	NewStatusTelemetry(nil, nil).RecordExtensionResult(context.Background(), tests[3].record)
+}
