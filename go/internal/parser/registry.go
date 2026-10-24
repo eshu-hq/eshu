@@ -155,18 +155,29 @@ func (r Registry) LookupByExtension(extension string) (Definition, bool) {
 
 // LookupByPath returns the definition registered for one file path.
 func (r Registry) LookupByPath(path string) (Definition, bool) {
+	definition, ok := r.lookupPath(path)
+	if !ok {
+		return Definition{}, false
+	}
+	return cloneDefinition(definition), true
+}
+
+// lookupPath resolves a path to the registry's own definition without cloning
+// it. Callers must not mutate or return the shared slices; LookupByPath clones,
+// and ContentStoreForPath clones only the content-store policy.
+func (r Registry) lookupPath(path string) (Definition, bool) {
 	if isJavaMetadataPath(path) {
 		definition, ok := r.byKey["java_metadata"]
-		return cloneDefinition(definition), ok
+		return definition, ok
 	}
 	if isScalaPlayRoutesPath(path) {
 		definition, ok := r.byKey["scala"]
-		return cloneDefinition(definition), ok
+		return definition, ok
 	}
 
 	if isMavenExtensionsPath(path) {
 		definition, ok := r.byKey["raw_text"]
-		return cloneDefinition(definition), ok
+		return definition, ok
 	}
 
 	base := strings.ToLower(filepath.Base(path))
@@ -176,15 +187,15 @@ func (r Registry) LookupByPath(path string) (Definition, bool) {
 	}
 	if strings.HasSuffix(base, ".tfvars.json") {
 		if definition, ok := r.byKey["tfvars"]; ok {
-			return cloneDefinition(definition), true
+			return definition, true
 		}
 	}
 	if definition, ok := r.byExactName[base]; ok {
-		return cloneDefinition(definition), true
+		return definition, true
 	}
 	for _, candidate := range r.prefixMatches {
 		if strings.HasPrefix(base, candidate.prefix) {
-			return cloneDefinition(candidate.def), true
+			return candidate.def, true
 		}
 	}
 	extension := normalizeExtensionKey(filepath.Ext(base))
@@ -192,7 +203,7 @@ func (r Registry) LookupByPath(path string) (Definition, bool) {
 		return Definition{}, false
 	}
 	definition, ok := r.byExtension[extension]
-	return cloneDefinition(definition), ok
+	return definition, ok
 }
 
 // LookupByParserKey returns the definition registered for one parser key.

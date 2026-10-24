@@ -115,6 +115,9 @@ func defaultDefinitions() []Definition {
 			Ecosystem:  "terraform",
 			Admission:  AdmissionStructuredFact,
 			Extensions: []string{".tfvars"},
+			// Open schema: whether a variable is secret is declared in
+			// variables.tf, so only an allowlist skeleton is safe (8813 record).
+			ContentStore: ContentStore{Policy: ContentStoreRedact, Redactor: RedactorSkeleton},
 		},
 		{
 			ParserKey:  "java",
@@ -369,6 +372,16 @@ func defaultDefinitions() []Definition {
 			Ecosystem:  "javascript",
 			Admission:  AdmissionStructuredFact,
 			ExactNames: []string{".yarnrc.yml"},
+			// Closed schema (Yarn rejects unknown settings in strict mode): the
+			// credential settings are npmAuthToken and npmAuthIdent, matched at
+			// any nesting (top level, npmScopes.*, npmRegistries.*), and the
+			// userinfo of the four URL settings (arbiter ruling, 2026-10-24).
+			ContentStore: ContentStore{
+				Policy:          ContentStoreRedact,
+				Redactor:        RedactorMarker,
+				CredentialKeys:  []string{"npmAuthToken", "npmAuthIdent"},
+				URLUserinfoKeys: []string{"npmRegistryServer", "npmPublishRegistry", "httpProxy", "httpsProxy"},
+			},
 		},
 	}
 }

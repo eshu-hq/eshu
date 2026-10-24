@@ -67,11 +67,11 @@ a line there.
 | `scala` | scala | L2 structured fact | store | `.routes`, `.sc`, `.scala` |  |  |
 | `sql` | sql | L2 structured fact | store | `.sql` |  |  |
 | `swift` | swift | L2 structured fact | store | `.swift` |  |  |
-| `tfvars` | terraform | L2 structured fact | store | `.tfvars` |  |  |
+| `tfvars` | terraform | L2 structured fact | redact (skeleton) | `.tfvars` |  |  |
 | `tsx` | typescriptjsx | L2 structured fact | store | `.tsx` |  |  |
 | `typescript` | typescript | L2 structured fact | store | `.cts`, `.mts`, `.ts` |  |  |
 | `yaml` | yaml | L2 structured fact | store | `.yaml`, `.yml` | `pubspec.lock` |  |
-| `yarnrc` | javascript | L2 structured fact | store |  | `.yarnrc.yml` |  |
+| `yarnrc` | javascript | L2 structured fact | redact (marker) |  | `.yarnrc.yml` |  |
 
 Path-dispatched bindings admit these paths through `Registry.LookupByPath` rules
 that the columns above do not list. A row can look empty and still admit files.
@@ -204,18 +204,23 @@ they are. A registry that binds no non-store policy keeps today's fingerprint.
 
 ### Which files use each policy
 
-Every definition uses `store` except `.npmrc` (#8978) and `gradle-wrapper.properties` (#8822), which use `metadata`. The
-other bindings follow once the detector gains the key shapes that file formats
-need (#8833). The bindings, recorded in the
-[credential-file design record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8813-credential-file-exposure.md):
+Four definitions bind a policy other than `store`, recorded in the
+[credential-file design record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8813-credential-file-exposure.md).
+Each credential file has its own parser definition, so the policy never reaches
+other `.tf`, `.hcl`, `.yaml`, `.yml`, or `.ini` files. Every other definition
+uses `store`.
 
-| File | Policy | Mode |
-| --- | --- | --- |
-| `.yarnrc.yml` | `redact` | `marker` |
-| `*.tfvars`, `*.tfvars.json` | `redact` | `skeleton`, bound in #8833 |
-| `.npmrc` | `metadata` | none, shipped in #8978 |
-| `gradle-wrapper.properties` | `metadata` | none, shipped in #8822 |
-| `gradle.properties`, `nuget.config` | `metadata`, if a later record admits them | none |
+| File | Definition | Policy | Mode |
+| --- | --- | --- | --- |
+| `.yarnrc.yml` | `yarnrc` (yaml engine) | `redact` | `marker`: credential keys `npmAuthToken` and `npmAuthIdent` at any nesting (top level, `npmScopes.*`, `npmRegistries.*`), URL userinfo keys `npmRegistryServer`, `npmPublishRegistry`, `httpProxy`, `httpsProxy` (#8833) |
+| `*.tfvars`, `*.tfvars.json` | `tfvars` (hcl engine) | `redact` | `skeleton` (#8833) |
+| `.npmrc` | `npmrc` | `metadata` | none (#8978) |
+| `gradle-wrapper.properties` | `gradle_wrapper` | `metadata` | none (#8822) |
+| `gradle.properties`, `nuget.config` | none | `metadata`, if a later record admits them | none |
+
+The hcl engine cannot parse a `.tfvars.json` body, before and after #8833, so
+the collector stores no row for one today (#9048). If it learns to, the skeleton
+policy already applies.
 
 `.eshuignore` stays the per-repository override and drops the file's parser
 facts as well.

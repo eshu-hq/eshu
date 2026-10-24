@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
@@ -57,13 +58,16 @@ func BenchmarkContentStoreUngoverned(b *testing.B) {
 
 // BenchmarkContentStoreGovernedDefault measures what the default registry now
 // costs every repository: the registry is governed by the .npmrc metadata
-// binding, so the snapshot stage looks up each file's policy even when no file
-// is an .npmrc. The emit stage reads an empty (non-nil) map for such a repo.
+// binding (#8978) and the tfvars and yarnrc bindings (#8833), so the snapshot
+// stage and the re-read metas look up each file's policy even when no file is
+// governed. The emit stage reads an empty (non-nil) map for such a repo.
 func BenchmarkContentStoreGovernedDefault(b *testing.B) {
 	registry := parser.DefaultRegistry()
 	files := make([]shape.File, 5000)
+	metas := make([]model.ContentFileMeta, 5000)
 	for i := range files {
 		files[i] = shape.File{Path: "src/pkg/file.go", Body: strings.Repeat("x", 64)}
+		metas[i] = model.ContentFileMeta{RelativePath: "src/pkg/file.go"}
 	}
 	body := []byte(strings.Repeat("x", 4096))
 	b.Run("snapshot_stage_5000_files_no_npmrc", func(b *testing.B) {
@@ -71,6 +75,16 @@ func BenchmarkContentStoreGovernedDefault(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			if stores := applyContentStoreToShapeFiles(registry, "/repo", files, nil); len(stores) != 0 {
 				b.Fatal("a repository without an .npmrc must govern no file")
+			}
+		}
+	})
+	b.Run("metas_5000_files", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			snapshot := RepositorySnapshot{ContentFileMetas: metas}
+			addContentStoresForMetas(registry, &snapshot)
+			if snapshot.ContentStores != nil {
+				b.Fatal("an ungoverned meta got a policy")
 			}
 		}
 	})

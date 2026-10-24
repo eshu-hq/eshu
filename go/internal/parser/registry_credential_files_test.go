@@ -90,3 +90,49 @@ func TestDedicatedCredentialDefinitionsParseLikeTheirEngines(t *testing.T) {
 		}
 	}
 }
+
+// TestDefaultRegistryBindsCredentialFilePolicies pins the #8833 bindings:
+// tfvars stores an allowlist skeleton, and yarnrc stores marker redaction over
+// Yarn's credential settings (npmAuthToken and npmAuthIdent at any nesting) and
+// the userinfo of its URL settings. No other definition binds a policy.
+func TestDefaultRegistryBindsCredentialFilePolicies(t *testing.T) {
+	t.Parallel()
+
+	registry := DefaultRegistry()
+	tfvars := registry.ContentStoreForPath("env/prod.tfvars")
+	if tfvars.Policy != ContentStoreRedact || tfvars.Redactor != RedactorSkeleton {
+		t.Errorf("tfvars policy = %+v, want redact/skeleton", tfvars)
+	}
+	if json := registry.ContentStoreForPath("env/prod.tfvars.json"); json.Redactor != RedactorSkeleton {
+		t.Errorf("tfvars.json policy = %+v, want redact/skeleton", json)
+	}
+	yarnrc := registry.ContentStoreForPath("pkg/.yarnrc.yml")
+	if yarnrc.Policy != ContentStoreRedact || yarnrc.Redactor != RedactorMarker {
+		t.Fatalf("yarnrc policy = %+v, want redact/marker", yarnrc)
+	}
+	if got, want := fmt.Sprint(yarnrc.CredentialKeys), "[npmAuthIdent npmAuthToken]"; got != want {
+		t.Errorf("yarnrc credential keys = %s, want %s", got, want)
+	}
+	if got, want := fmt.Sprint(yarnrc.URLUserinfoKeys), "[httpProxy httpsProxy npmPublishRegistry npmRegistryServer]"; got != want {
+		t.Errorf("yarnrc URL userinfo keys = %s, want %s", got, want)
+	}
+	for _, path := range []string{"main.tf", "live/terragrunt.hcl", "config.yml", "app.yaml"} {
+		if got := registry.ContentStoreForPath(path); got.Policy != ContentStoreStore {
+			t.Errorf("%s policy = %+v, want store: the binding must not reach hcl or yaml", path, got)
+		}
+	}
+	for _, definition := range registry.Definitions() {
+		if definition.ParserKey == "tfvars" || definition.ParserKey == "yarnrc" {
+			continue
+		}
+		if definition.ParserKey == "npmrc" || definition.ParserKey == "gradle_wrapper" {
+			if definition.ContentStore.Policy != ContentStoreMetadata {
+				t.Errorf("%s policy = %+v, want metadata (#8978, #8822)", definition.ParserKey, definition.ContentStore)
+			}
+			continue
+		}
+		if definition.ContentStore.Policy != ContentStoreStore {
+			t.Errorf("%s binds %q; only tfvars and yarnrc bind a policy", definition.ParserKey, definition.ContentStore.Policy)
+		}
+	}
+}

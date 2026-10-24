@@ -32,23 +32,8 @@ func TestContentStoreForPathDefaultsToStore(t *testing.T) {
 			t.Errorf("ContentStoreForPath(%q).Policy = %q, want %q", path, got, ContentStoreStore)
 		}
 	}
-	// #8978 binds .npmrc and #8822 binds gradle-wrapper.properties to
-	// metadata, which needs no marker-arm migration. No other definition may
-	// bind a non-store policy, and none may bind marker mode, before #8833's
-	// marker-arm migration lands (arbiter, 2026-10-24).
-	metadataOnly := map[string]bool{"npmrc": true, "gradle_wrapper": true}
-	for _, definition := range DefaultRegistry().Definitions() {
-		got := definition.ContentStore
-		if metadataOnly[definition.ParserKey] {
-			if got.Policy != ContentStoreMetadata {
-				t.Errorf("%s binds policy %q in the default registry, want metadata", definition.ParserKey, got.Policy)
-			}
-			continue
-		}
-		if got.Policy != ContentStoreStore {
-			t.Errorf("%s binds policy %q in the default registry; only npmrc and gradle_wrapper bind a non-store policy before #8833", definition.ParserKey, got.Policy)
-		}
-	}
+	// The default registry's bindings (npmrc metadata #8978, gradle_wrapper metadata #8822, tfvars and yarnrc
+	// #8833) are pinned by TestDefaultRegistryBindsCredentialFilePolicies.
 }
 
 func TestContentStoreForPathResolvesMetadataAndRedact(t *testing.T) {
@@ -139,7 +124,7 @@ func TestHasContentStorePolicyIsTrueOnlyWhenADefinitionBindsOne(t *testing.T) {
 	t.Parallel()
 
 	if !DefaultRegistry().HasContentStorePolicy() {
-		t.Fatal("the default registry binds .npmrc to metadata (#8978), so it is governed")
+		t.Fatal("the default registry binds .npmrc (#8978), tfvars and yarnrc (#8833), so it is governed")
 	}
 	if contentStoreRegistry(t, ContentStore{Policy: ContentStoreStore}).HasContentStorePolicy() {
 		t.Fatal("an explicit store policy is not a governed registry")
@@ -170,23 +155,23 @@ func legacyFingerprint(definitions []Definition) string {
 func TestAllStoreRegistryFingerprintEqualsThePreChangeValue(t *testing.T) {
 	t.Parallel()
 
-	// The default registry binds .npmrc to metadata (#8978), so its hash moves
-	// once. With that one policy reset to store it hashes exactly like the
-	// pre-#8812 value, which proves the policy token is the only change.
-	def := DefaultRegistry()
-	definitions := def.Definitions()
+	// The default registry binds npmrc (#8978), tfvars and yarnrc (#8833), so
+	// its fingerprint moves; with those policies reset to store it must hash
+	// like the legacy rendering, so a store policy still adds nothing to the
+	// hash.
+	definitions := DefaultRegistry().Definitions()
 	for i := range definitions {
 		definitions[i].ContentStore = ContentStore{}
 	}
-	allStore, err := NewRegistry(definitions)
+	def, err := NewRegistry(definitions)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	if got, want := allStore.Fingerprint(), legacyFingerprint(allStore.Definitions()); got != want {
+	if got, want := def.Fingerprint(), legacyFingerprint(def.Definitions()); got != want {
 		t.Fatalf("all-store default registry fingerprint = %s, want the pre-#8812 value %s: a store policy must add nothing to the hash", got, want)
 	}
-	if def.Fingerprint() == allStore.Fingerprint() {
-		t.Fatal("the metadata binding for .npmrc must move the default registry fingerprint")
+	if DefaultRegistry().Fingerprint() == def.Fingerprint() {
+		t.Fatal("binding npmrc, tfvars, and yarnrc must move the default registry fingerprint")
 	}
 	custom := contentStoreRegistry(t, ContentStore{Policy: ContentStoreStore})
 	if got, want := custom.Fingerprint(), legacyFingerprint(custom.Definitions()); got != want {
