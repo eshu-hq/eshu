@@ -22,6 +22,31 @@ recent shipped work grouped by feature area.
   `rate_limited`, and every other 403 stays `auth_denied`. The org fan-out
   still reports the repository as `alerts_disabled` and continues.
 
+### Parser: `.npmrc` registry URLs
+
+- **`.npmrc` is admitted under the `metadata` content-store policy and reports
+  its registry URLs**
+  ([#8978](https://github.com/eshu-hq/eshu/issues/8978)). Eshu could not say
+  which package registry a repository installs from, because `.npmrc` sat next
+  to its credentials and was withheld. It now has its own exact-name `npmrc`
+  definition bound to `metadata`: the content row keeps the path and the source
+  digest with an empty body, and a new parser in `go/internal/parser/npmrc` emits
+  one `config_kind=registry_url` row per `registry=` and `@scope:registry=` line
+  with the scheme, host, port, and path. Userinfo, query, and fragment are
+  removed, and a line is skipped whole if it holds an environment expansion, a
+  non-http scheme, or a shape the shared secret detector flags. No other key is
+  read, so `_authToken`, `_auth`, `_password`, `//host/:username`, and `email`
+  values reach no fact. Parser output is not governed by the content-store
+  policy, so the proof is a seeded full-stream scan of every emitted fact
+  (`TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding`) and a fuzz
+  target with a seeded credential tail. The parser registry fingerprint moves
+  once, so every repository re-collects once. The default registry is now
+  governed, so every repository pays one policy lookup per file: the snapshot
+  stage for 5,000 files went from 8.8 ns to 1.11 ms
+  (`BenchmarkContentStoreGovernedDefault`). Filesystem source mode now copies
+  `.npmrc` into the managed workspace. A token in a URL path with no key or
+  known value shape is not recognizable and is emitted as path.
+
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
 - **Nesting guard before every Cargo TOML decode**

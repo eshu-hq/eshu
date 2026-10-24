@@ -47,9 +47,10 @@ discovery package and `snapshot_discovery.go` for credential, secret, `.env`,
 No step transforms the body; #8812 adds the per-definition store policy. The
 registry still withholds the credential-bearing names (`phpunit.xml(.dist)`,
 `.mvn/jvm.config`, `.mvn/maven.config`, `.mvn/settings.xml`, `settings.xml`,
-`.npmrc`, `.pypirc`, `.netrc`, `.env*`, `mise.toml`) while the store has no
-write-time redaction (`TestDefaultRegistryKeepsCredentialBearing*`). Admitting
-one needs a new record.
+`.pypirc`, `.netrc`, `.env*`, `mise.toml`) while the store has no write-time
+redaction (`TestDefaultRegistryKeepsCredentialBearing*`). `.npmrc` is the one
+name admitted since #8978, under `metadata` (see the rule table). Admitting any
+other needs a new record.
 
 ### Where the body is then readable
 
@@ -186,8 +187,25 @@ These decide what each policy costs for `*.tfvars`.
 | --- | --- | --- | --- |
 | `.yarnrc.yml` | `redact` | marker | #8812 mode; bound in #8833 with or after the marker-arm migration |
 | `*.tfvars`, `*.tfvars.json` | `redact` | allowlist skeleton | #8833 |
+| `.npmrc` | `metadata` | none | #8978 |
 
 `.eshuignore` stays the override. A looser tfvars rule needs a new record.
+
+`.npmrc` (#8978) lifts the #8814 and #8813 withholding for that one name. It is
+its own exact-name `npmrc` definition (never the `hcl`, `yaml`, or `raw_text`
+definitions) bound to `metadata`: the row keeps the path and the source digest
+with an empty body, and `metadata` needs no marker-arm migration. A registry-URL
+fact replaces the body as the answer to "which registry does this repository
+install from". Parser output is outside the policy, so the `npmrc` parser emits
+only the scheme, host, port, and path of `registry=` and `@scope:registry=`
+lines, with the userinfo, query, and fragment removed, and drops a line it
+cannot prove clean (an environment expansion, a non-http scheme, a detector
+match in the URL). It never reads a credential key. The seeded full-stream scan
+the A1 ruling requires is `TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding`
+in `go/internal/collector/repo/git`. A path token inside a registry URL that the
+shared detector does not recognize (a token-shaped path segment with no key)
+would still be emitted as path; the detector cannot see it and that residual is
+named in the parser README.
 
 Ordering (arbiter, 2026-10-24): no production definition binds to marker mode
 before #8833's marker-arm migration lands. That covers `.yarnrc.yml` and the

@@ -150,6 +150,10 @@ absence of evidence look like absence of risk. Guard tests:
   (`config_kind=workspace_use`) and workspace replaces
   (`config_kind=dependency_replace`); it declares no requirements, so it adds
   no consumption rows and no coverage-matrix entry.
+- npm `.npmrc` files are parsed for the registry each repository installs from
+  (`config_kind=registry_url`, one row per `registry=` and `@scope:registry=`
+  line, with userinfo, query, and fragment removed). They declare no packages,
+  so they add no consumption rows and no coverage-matrix entry.
 - Pub `pubspec.lock` rows preserve exact hosted `pub.dev` versions with
   direct/transitive and runtime/dev scope evidence. `pubspec.yaml` rows preserve
   hosted dependency ranges only. Git/path/private-hosted rows, mismatched
