@@ -127,10 +127,10 @@ the default-host identity stability (#7764).
 The managed-workspace copy prunes dot-prefixed entries unless
 `preserveFilesystemHiddenPath` (`selection_copy_workspace.go`) allows them. When
 the parser registry admits a new dot-prefixed name (#8814, and the #8809
-version pins), add its basename there, or filesystem mode never sees it. Never add a credential-bearing dotfile
-(`.env`, `.npmrc`, `.pypirc`, `.netrc`), and keep `.gitignore` out: the copy
-applies the source ignore rules itself, and copying the file would make
-discovery filter a second time. Names match case-insensitively, like the
+version pins), add its basename there, or filesystem mode never sees it. Never
+add a credential-bearing dotfile (`.env`, `.npmrc`, `.pypirc`, `.netrc`), and
+keep `.gitignore` out: the copy applies the source ignore rules itself, and
+copying the file would make discovery filter a second time. Names match case-insensitively, like the
 registry, and are kept under non-hidden or allowlisted directories (`.github`,
 `.github/workflows`, `.mvn`, and a dot-directory whose name is an allowlisted
 file name) at any depth. A name under any other, unallowlisted dot-directory

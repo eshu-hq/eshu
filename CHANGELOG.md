@@ -137,7 +137,8 @@ recent shipped work grouped by feature area.
   the copy keeps `.mvn` whole, filesystem mode also now indexes other files the
   registry admits under it, such as `.mvn/wrapper/MavenWrapperDownloader.java`,
   as clone mode already did. The registry fingerprint and `git-collector`
-  content version move, so the next sweep re-collects every repository once.
+  content version move, so each repository re-collects once when its
+  reconciliation sweep next comes due (see the #8809 entry above).
 
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 

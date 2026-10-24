@@ -53,11 +53,11 @@ func cleanManagedWorkspace(reposDir string) error {
 // are lower case; the lookup lowercases the entry name.
 //
 // The tool configuration names (#8814) and the runtime-version pin names (#8809)
-// are the dot-prefixed names the parser registry admits as plain text. .gitignore is deliberately absent: the copy
-// applies the source repository's ignore rules itself, and copying the file
-// would let discovery filter a second time, dropping files the copy kept
-// because git tracks them (#5591). Credential-bearing dotfiles (.env, .npmrc,
-// .pypirc, .netrc) stay pruned.
+// are the dot-prefixed names the parser registry admits as plain text.
+// .gitignore is deliberately absent: the copy applies the source repository's
+// ignore rules itself, and copying the file would let discovery filter a second
+// time, dropping files the copy kept because git tracks them (#5591).
+// Credential-bearing dotfiles (.env, .npmrc, .pypirc, .netrc) stay pruned.
 var preservedHiddenFilesystemFileNames = map[string]struct{}{
 	".gitlab-ci.yml":  {},
 	".gitlab-ci.yaml": {},
