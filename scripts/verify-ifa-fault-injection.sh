@@ -455,6 +455,11 @@ ifa_fault_shard_run cell_failgraphwrite_incident_routing_evidence
 ifa_fault_shard_run cell_baseline_publishes
 ifa_fault_shard_run cell_killworker_publishes
 ifa_fault_shard_run cell_failgraphwrite_publishes
+# grants_secret_read (#6228 remainder + #8539 seam): nineteenth direct
+# family, same trio shape as above (statement-hold kill, no handler wait).
+ifa_fault_shard_run cell_baseline_grants_secret_read
+ifa_fault_shard_run cell_kill_grants_secret_read
+ifa_fault_shard_run cell_failgraphwrite_grants_secret_read
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,

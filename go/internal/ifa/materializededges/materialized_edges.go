@@ -272,6 +272,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveAuthenticatesVaultRoleMaterializedEdges(odu, authenticatesVaultRoleExpectedEdgesPath(r.RepoRoot))
 	case usesVaultPolicyFamily:
 		return resolveUsesVaultPolicyMaterializedEdges(odu, usesVaultPolicyExpectedEdgesPath(r.RepoRoot))
+	case grantsSecretReadFamily:
+		return resolveGrantsSecretReadMaterializedEdges(odu, grantsSecretReadExpectedEdgesPath(r.RepoRoot))
 	case crossplaneSatisfiedByFamily:
 		return resolveCrossplaneSatisfiedByMaterializedEdges(odu, crossplaneSatisfiedByExpectedEdgesPath(r.RepoRoot))
 	case cloudResourceContainerImageFamily:
