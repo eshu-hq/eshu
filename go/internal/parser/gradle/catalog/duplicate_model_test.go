@@ -26,14 +26,19 @@ func dupKey(rng *rand.Rand) string {
 	return strings.Join(parts, ".")
 }
 
-// dupValue draws a value: a string, an array, or an inline table whose keys
-// may repeat or extend one another.
+// dupValue draws a value: a string, a scalar from scalarCases (legal or
+// not), an array, or an inline table whose keys may repeat or extend one
+// another.
 func dupValue(rng *rand.Rand, depth int) string {
-	switch rng.Intn(4) {
+	switch rng.Intn(6) {
 	case 0:
 		return `"g:a:1.0"`
 	case 1:
 		return `["x", "y"]`
+	case 2:
+		return scalarCases[rng.Intn(len(scalarCases))]
+	case 3:
+		return "[" + scalarCases[rng.Intn(len(scalarCases))] + ", " + scalarCases[rng.Intn(len(scalarCases))] + "]"
 	default:
 		if depth > 2 {
 			return `"1.0"`
@@ -79,7 +84,7 @@ func dupDocument(rng *rand.Rand) string {
 }
 
 // Every generated catalog is valid TOML syntax, and most repeat or
-// redefine a key. Scan must reject exactly the files go-toml's full decode
+// redefine a key or hold a value the decoder rejects. Scan must reject exactly the files go-toml's full decode
 // rejects, with no rows, and parse the rest.
 func TestScanRejectsExactlyTheKeyRedefinitionsTOMLRejects(t *testing.T) {
 	cases := modelCases(t)

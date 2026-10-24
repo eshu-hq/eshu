@@ -95,6 +95,7 @@ const (
 	reasonValueAsTable    = "a key names a value and a table"
 	reasonClosedTable     = "a dotted key extends a table defined elsewhere"
 	reasonArrayTableMixed = "a key names an array of tables and another kind"
+	reasonInvalidValue    = "a value TOML cannot decode"
 )
 
 // check applies the rules to one top-level expression. A non-empty return is
@@ -198,7 +199,8 @@ func (t *keyTree) keyValue(parent int32, node *unstable.Node) string {
 	return t.value(node.Value())
 }
 
-// value checks the inline tables inside a value. Each inline table is its
+// value checks the inline tables inside a value, and that every scalar in
+// it is one go-toml's decoder accepts (validScalar). Each inline table is its
 // own closed tree: its keys follow the same rules among themselves, and no
 // later expression can reach them because its key is a value. A small one
 // is checked by a list scan (smallInline); a larger one through the index,
@@ -224,7 +226,10 @@ func (t *keyTree) value(value *unstable.Node) string {
 			}
 		}
 	default:
-		// A scalar holds no key.
+		// A scalar holds no key, but its value must decode (validScalar).
+		if !validScalar(value) {
+			return reasonInvalidValue
+		}
 	}
 	return ""
 }
