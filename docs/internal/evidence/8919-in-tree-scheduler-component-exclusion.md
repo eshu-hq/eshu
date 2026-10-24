@@ -28,17 +28,25 @@ instance, inside each scheduler's selector, after the kind and gate checks.
 
 | Input | Baseline | After | Allocations after |
 |---|---|---|---|
-| in-tree, 10 targets | 1.7 to 1.9 ns | 2.9 to 3.2 µs | 6 allocs, 1.4 KB |
-| in-tree, 1000 targets | 1.7 to 1.9 ns | 269 to 299 µs | 6 allocs, 98.6 KB |
+| in-tree, 10 targets | 1.7 to 1.9 ns | 2.9 to 3.5 µs | 6 allocs, 1.4 KB |
+| in-tree, 1000 targets | 1.7 to 1.9 ns | 269 to 318 µs | 6 allocs, 98.6 KB |
 | component document | 1.7 to 1.9 ns | 1.4 to 1.6 µs | 16 allocs, 0.9 KB |
 
 - **Worst case:** a 1000-target configuration costs about 0.3 ms per selector
-  decision. The reconcile cycle evaluates each instance's own kind selector once
-  (the AWS, GCP and incident freshness handoffs add one more), so 100 such
-  instances add roughly 30 ms of CPU per cycle in one goroutine. A reviewer's
-  scratch comparison measured the same order against the existing
-  `freshness.ParseTargetScopes` parse on the same input (about 2x slower than
-  this check), which the freshness path already runs per trigger per instance.
+  decision. The reconcile schedulers evaluate each instance's own kind selector
+  once per cycle, so 100 such instances add roughly 30 ms of CPU per cycle in
+  one goroutine. The AWS, GCP and incident freshness handoffs run per claimed
+  trigger and loop over all same-kind instances, with at most 100 triggers
+  claimed per cycle, so their added cost is up to 100 triggers x N instances x
+  the per-decision cost. That path already parses the same configuration at
+  the same multiplier through `freshness.ParseTargetScopes` and
+  `gcp.EnabledScopes`. A reviewer's uncommitted scratch run on a similarly sized
+  input (a 112 KB AWS `target_scopes` document) put that existing parse at about
+  twice the cost of this check (4.2 against 9.2 µs at 1 KB, 449 against 848 µs
+  at 112 KB), so the handoffs roughly gain half again on a parse they already do.
+- **Baseline scope:** the gates-only baseline is the old rule for the 18
+  selectors that did not parse their configuration. PagerDuty, Jira and their
+  incident-freshness branches already parsed it, so they add no cost.
 - **Correctness proof:** an old-versus-new differential over 20 selector
   entries, 14 configuration shapes, 4 gate combinations and 2 collector kinds
   (2352 cases, 0 mismatches) was run as a scratch test and is not committed. The
