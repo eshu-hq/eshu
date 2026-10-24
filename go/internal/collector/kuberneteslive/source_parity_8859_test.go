@@ -24,7 +24,9 @@
 package kuberneteslive
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"maps"
 	"slices"
 	"strconv"
@@ -212,11 +214,24 @@ func parity8859StableKeys(envelopes []facts.Envelope) []string {
 	return keys
 }
 
+// parity8859CanonicalJSON renders a payload deterministically (encoding/json
+// sorts map keys), so live-vs-cassette byte comparison survives the
+// int/float64 JSON round-trip instead of failing on Go type identity.
+func parity8859CanonicalJSON(t *testing.T, payload map[string]any) []byte {
+	t.Helper()
+
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	return raw
+}
+
 // TestKubernetesLive8859ParityLiveAgreesWithCassette is the source-parity pin:
 // the live snapshot and the checked-in cassette agree scope by scope on scope
 // ID, generation ID, fact-kind multiset, stable keys, schema versions,
-// collector kind, and fencing tokens. A cutover candidate must reproduce this
-// same agreement against the same fixture.
+// collector kind, fencing tokens, and canonical payload bytes. A cutover
+// candidate must reproduce this same agreement against the same fixture.
 func TestKubernetesLive8859ParityLiveAgreesWithCassette(t *testing.T) {
 	t.Parallel()
 
@@ -230,6 +245,7 @@ func TestKubernetesLive8859ParityLiveAgreesWithCassette(t *testing.T) {
 		kinds        map[string]int
 		keys         []string
 		attrs        map[string]string
+		payloads     map[string][]byte
 		envelopes    []facts.Envelope
 	}
 
@@ -258,8 +274,10 @@ func TestKubernetesLive8859ParityLiveAgreesWithCassette(t *testing.T) {
 			}
 		}
 		attrs := map[string]string{}
+		payloads := map[string][]byte{}
 		for _, envelope := range envelopes {
 			attrs[envelope.StableFactKey] = attrKey(envelope)
+			payloads[envelope.StableFactKey] = parity8859CanonicalJSON(t, envelope.Payload)
 		}
 		want = append(want, snapshot{
 			scopeID:      collected.Scope.ScopeID,
@@ -267,6 +285,7 @@ func TestKubernetesLive8859ParityLiveAgreesWithCassette(t *testing.T) {
 			kinds:        parity8859KindMultiset(envelopes),
 			keys:         parity8859StableKeys(envelopes),
 			attrs:        attrs,
+			payloads:     payloads,
 			envelopes:    envelopes,
 		})
 	}
@@ -329,6 +348,15 @@ func TestKubernetesLive8859ParityLiveAgreesWithCassette(t *testing.T) {
 			t.Fatalf("live boundary attributes differ from cassette for scope %q", expected.scopeID)
 		}
 		for _, envelope := range envelopes {
+			wantPayload, ok := expected.payloads[envelope.StableFactKey]
+			if !ok {
+				t.Fatalf("live stable key %q has no cassette payload for scope %q", envelope.StableFactKey, expected.scopeID)
+			}
+			if got := parity8859CanonicalJSON(t, envelope.Payload); !bytes.Equal(got, wantPayload) {
+				t.Fatalf("live payload differs from cassette for scope %q stable key %q", expected.scopeID, envelope.StableFactKey)
+			}
+		}
+		for _, envelope := range envelopes {
 			if envelope.CollectorKind != parity8859WantCollectorKind(envelope.FactKind) {
 				t.Fatalf("CollectorKind = %q, want %q for kind %q", envelope.CollectorKind, parity8859WantCollectorKind(envelope.FactKind), envelope.FactKind)
 			}
@@ -358,6 +386,7 @@ func TestKubernetesLive8859ParityLiveAgreesWithCassette(t *testing.T) {
 	// above and stay pinned by secrets_iam_source_test.go.)
 	for _, kind := range []string{
 		factsidentity.KubernetesServiceAccountFactKind,
+		factsidentity.KubernetesServiceAccountTokenPostureFactKind,
 		factsidentity.KubernetesWorkloadIdentityUseFactKind,
 		factsidentity.EKSIRSAAnnotationFactKind,
 		factsidentity.KubernetesGCPWorkloadIdentityBindingFactKind,
@@ -370,24 +399,45 @@ func TestKubernetesLive8859ParityLiveAgreesWithCassette(t *testing.T) {
 }
 
 // TestKubernetesLive8859ParityDuplicateDeliveryIsStable pins duplicate safety:
-// two identical snapshots emit identical stable-key sets, so a redelivered
-// generation commits idempotently at the core boundary.
+// two identical poll batches emit identical generation IDs and stable-key
+// sets per scope, so a redelivered generation commits idempotently at the
+// core boundary. Both scopes (parity-full, parity-hostile) are pinned on one
+// source, which also exercises the batch-exhaust reset between polls.
 func TestKubernetesLive8859ParityDuplicateDeliveryIsStable(t *testing.T) {
 	t.Parallel()
 
-	first, ok, err := parity8859LiveSource(t).Next(context.Background())
-	if err != nil || !ok {
-		t.Fatalf("first Next() = (%v, %v), want (true, nil)", ok, err)
+	src := parity8859LiveSource(t)
+	var batches [2]map[string][]string
+	var genIDs [2]map[string]string
+	for b := range batches {
+		batches[b] = map[string][]string{}
+		genIDs[b] = map[string]string{}
+		for {
+			gen, ok, err := src.Next(context.Background())
+			if err != nil {
+				t.Fatalf("batch %d Next() error = %v", b, err)
+			}
+			if !ok {
+				break
+			}
+			batches[b][gen.Scope.ScopeID] = parity8859StableKeys(drain(t, gen.Facts))
+			genIDs[b][gen.Scope.ScopeID] = gen.Generation.GenerationID
+		}
+		if len(batches[b]) != 2 {
+			t.Fatalf("batch %d yielded %d scopes, want 2 (parity-full, parity-hostile)", b, len(batches[b]))
+		}
 	}
-	second, ok, err := parity8859LiveSource(t).Next(context.Background())
-	if err != nil || !ok {
-		t.Fatalf("second Next() = (%v, %v), want (true, nil)", ok, err)
+	if !maps.Equal(genIDs[0], genIDs[1]) {
+		t.Fatalf("duplicate GenerationIDs differ: %v then %v; same instant must re-derive identically", genIDs[0], genIDs[1])
 	}
-	if first.Generation.GenerationID != second.Generation.GenerationID {
-		t.Fatalf("duplicate GenerationID = %q then %q; same instant must re-derive identically", first.Generation.GenerationID, second.Generation.GenerationID)
-	}
-	if !slices.Equal(parity8859StableKeys(drain(t, first.Facts)), parity8859StableKeys(drain(t, second.Facts))) {
-		t.Fatal("duplicate snapshots emit different stable keys; redelivery would not be idempotent")
+	for scope, keys := range batches[0] {
+		again, ok := batches[1][scope]
+		if !ok {
+			t.Fatalf("redelivered batch is missing scope %q", scope)
+		}
+		if !slices.Equal(keys, again) {
+			t.Fatalf("duplicate snapshots emit different stable keys for scope %q; redelivery would not be idempotent", scope)
+		}
 	}
 }
 

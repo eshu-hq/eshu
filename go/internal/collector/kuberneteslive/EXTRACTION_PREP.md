@@ -203,7 +203,7 @@ Already met by this change or prior merged work:
 
 - Package/fact/consumer/durable-state/protocol/artifact census: this file.
 - Source parity pin on representative + hostile inputs: `source_parity_8859_test.go`
-  (4 tests) + fixture pack. Covers all 4 `kubernetes_live` kinds and 5 posture
+  (4 tests) + fixture pack. Covers all 4 `kubernetes_live` kinds and 6 posture
   kinds, duplicate stability, grant-free emission, partial/forbidden handling,
   unresolvable-owner ambiguity, and credential-URI sanitization.
 - Scheduler exclusion (`#8919`): verified — no kubernetes-live scheduler
