@@ -1,0 +1,85 @@
+{
+  "scopes": [
+    {
+      "scope_id": "gcp:project:parity-proj:mixed:resource:global",
+      "generation_id": "gen-8856-representative",
+      "kinds": {
+        "gcp_cloud_relationship": 1,
+        "gcp_cloud_resource": 5,
+        "gcp_dns_record": 1,
+        "gcp_iam_permission_policy": 1,
+        "gcp_iam_policy_observation": 2,
+        "gcp_iam_principal": 1,
+        "gcp_iam_trust_policy": 1,
+        "gcp_image_reference": 1,
+        "gcp_tag_observation": 2
+      },
+      "keys": [
+        "009143c7ec741409eeb675fbd87d4532b90a849ed1e4ce8e3d097f02f00f7112",
+        "026633acfd43f74dce0abe03afbaeb202d50fea5498ca910dbfd51a785509b7f",
+        "08494094d4c5326c4238e54d5dc8b4f31c166ae53706e0200de669d045d3d199",
+        "0ee708f1b6c5e85dfddcee123890e695acab25b648f8324848cae2630757c5f1",
+        "29089112921507f37a1e2beeb91e05aaed3282ed9cee73f28f1c687857d43e52",
+        "3a4bbdc6ec27c3d46cc4c6f577de9fac4ebcb3c7ee73dc36c5f3cdaf245f973b",
+        "3ee28591e03a973fd2fc8c4e8a4c8cdd3cb64a307f7c3c4f73d7f866ac18c169",
+        "48654770970ebfa7b2176118fd9731eeee8bb7b4399486735fd081122e7b3673",
+        "5973940161211e527432647eb0a9ec8cc4890115e8d1f2176fb54189367af353",
+        "73f5f26529671d020d78531ac5b2d5ef3a2901952819896bcc9c611519a0a592",
+        "748a09b0bc648bb4937f4dd89230b4575e3f7a8ef7a040668c6cd9f4db222371",
+        "7a8ce05ce80a138b1970669b94e0224cdbaa7d8b86aefdbc0d2b23bfd149ad5c",
+        "a039b280e0b566eb4486475a7d31237d1da5b21ef398e8124c9292dd6cfe1232",
+        "dc447d97db1963ee4cbe2fa92ab72c63aba59fd83053421034645147fd86f5c5",
+        "e71247fa0ffbd970a8b3a9ff310e86a0c68d1e04d839dd27986f88d7b5f22c6f"
+      ],
+      "attrs": {
+        "009143c7ec741409eeb675fbd87d4532b90a849ed1e4ce8e3d097f02f00f7112": "009143c7ec741409eeb675fbd87d4532b90a849ed1e4ce8e3d097f02f00f7112\u0000gcp_cloud_resource\u00001.1.0\u0000gcp\u0000reported\u00007",
+        "026633acfd43f74dce0abe03afbaeb202d50fea5498ca910dbfd51a785509b7f": "026633acfd43f74dce0abe03afbaeb202d50fea5498ca910dbfd51a785509b7f\u0000gcp_cloud_resource\u00001.1.0\u0000gcp\u0000reported\u00007",
+        "08494094d4c5326c4238e54d5dc8b4f31c166ae53706e0200de669d045d3d199": "08494094d4c5326c4238e54d5dc8b4f31c166ae53706e0200de669d045d3d199\u0000gcp_iam_principal\u00001.0.0\u0000secrets_iam_posture\u0000reported\u00007",
+        "0ee708f1b6c5e85dfddcee123890e695acab25b648f8324848cae2630757c5f1": "0ee708f1b6c5e85dfddcee123890e695acab25b648f8324848cae2630757c5f1\u0000gcp_cloud_relationship\u00001.0.0\u0000gcp\u0000reported\u00007",
+        "29089112921507f37a1e2beeb91e05aaed3282ed9cee73f28f1c687857d43e52": "29089112921507f37a1e2beeb91e05aaed3282ed9cee73f28f1c687857d43e52\u0000gcp_cloud_resource\u00001.1.0\u0000gcp\u0000reported\u00007",
+        "3a4bbdc6ec27c3d46cc4c6f577de9fac4ebcb3c7ee73dc36c5f3cdaf245f973b": "3a4bbdc6ec27c3d46cc4c6f577de9fac4ebcb3c7ee73dc36c5f3cdaf245f973b\u0000gcp_iam_permission_policy\u00001.0.0\u0000secrets_iam_posture\u0000reported\u00007",
+        "3ee28591e03a973fd2fc8c4e8a4c8cdd3cb64a307f7c3c4f73d7f866ac18c169": "3ee28591e03a973fd2fc8c4e8a4c8cdd3cb64a307f7c3c4f73d7f866ac18c169\u0000gcp_tag_observation\u00001.0.0\u0000gcp\u0000reported\u00007",
+        "48654770970ebfa7b2176118fd9731eeee8bb7b4399486735fd081122e7b3673": "48654770970ebfa7b2176118fd9731eeee8bb7b4399486735fd081122e7b3673\u0000gcp_iam_policy_observation\u00001.0.0\u0000gcp\u0000reported\u00007",
+        "5973940161211e527432647eb0a9ec8cc4890115e8d1f2176fb54189367af353": "5973940161211e527432647eb0a9ec8cc4890115e8d1f2176fb54189367af353\u0000gcp_iam_policy_observation\u00001.0.0\u0000gcp\u0000reported\u00007",
+        "73f5f26529671d020d78531ac5b2d5ef3a2901952819896bcc9c611519a0a592": "73f5f26529671d020d78531ac5b2d5ef3a2901952819896bcc9c611519a0a592\u0000gcp_tag_observation\u00001.0.0\u0000gcp\u0000reported\u00007",
+        "748a09b0bc648bb4937f4dd89230b4575e3f7a8ef7a040668c6cd9f4db222371": "748a09b0bc648bb4937f4dd89230b4575e3f7a8ef7a040668c6cd9f4db222371\u0000gcp_image_reference\u00001.0.0\u0000gcp\u0000reported\u00007",
+        "7a8ce05ce80a138b1970669b94e0224cdbaa7d8b86aefdbc0d2b23bfd149ad5c": "7a8ce05ce80a138b1970669b94e0224cdbaa7d8b86aefdbc0d2b23bfd149ad5c\u0000gcp_dns_record\u00001.0.0\u0000gcp\u0000reported\u00007",
+        "a039b280e0b566eb4486475a7d31237d1da5b21ef398e8124c9292dd6cfe1232": "a039b280e0b566eb4486475a7d31237d1da5b21ef398e8124c9292dd6cfe1232\u0000gcp_iam_trust_policy\u00001.0.0\u0000secrets_iam_posture\u0000reported\u00007",
+        "dc447d97db1963ee4cbe2fa92ab72c63aba59fd83053421034645147fd86f5c5": "dc447d97db1963ee4cbe2fa92ab72c63aba59fd83053421034645147fd86f5c5\u0000gcp_cloud_resource\u00001.1.0\u0000gcp\u0000reported\u00007",
+        "e71247fa0ffbd970a8b3a9ff310e86a0c68d1e04d839dd27986f88d7b5f22c6f": "e71247fa0ffbd970a8b3a9ff310e86a0c68d1e04d839dd27986f88d7b5f22c6f\u0000gcp_cloud_resource\u00001.1.0\u0000gcp\u0000reported\u00007"
+      }
+    },
+    {
+      "scope_id": "gcp:project:expired-proj:mixed:resource:global",
+      "generation_id": "gen-8856-expired",
+      "kinds": {
+        "gcp_cloud_resource": 1,
+        "gcp_collection_warning": 1,
+        "gcp_tag_observation": 1
+      },
+      "keys": [
+        "a1abf2fe38a0a06fa35cebda3b35c33e85ab9706d90abf4d3812b8b7af6f6927",
+        "a934c1424ca33095c08f40d4ab0823dd53cb508d5f2a8b8c65d6352c916b3dfd",
+        "b8c2fe6ae899cf8f136deab4c68762b8e90687d3d69d8aa4616faa31d72093e5"
+      ],
+      "attrs": {
+        "a1abf2fe38a0a06fa35cebda3b35c33e85ab9706d90abf4d3812b8b7af6f6927": "a1abf2fe38a0a06fa35cebda3b35c33e85ab9706d90abf4d3812b8b7af6f6927\u0000gcp_collection_warning\u00001.0.0\u0000gcp\u0000reported\u00009",
+        "a934c1424ca33095c08f40d4ab0823dd53cb508d5f2a8b8c65d6352c916b3dfd": "a934c1424ca33095c08f40d4ab0823dd53cb508d5f2a8b8c65d6352c916b3dfd\u0000gcp_cloud_resource\u00001.1.0\u0000gcp\u0000reported\u00009",
+        "b8c2fe6ae899cf8f136deab4c68762b8e90687d3d69d8aa4616faa31d72093e5": "b8c2fe6ae899cf8f136deab4c68762b8e90687d3d69d8aa4616faa31d72093e5\u0000gcp_tag_observation\u00001.0.0\u0000gcp\u0000reported\u00009"
+      }
+    },
+    {
+      "scope_id": "gcp:project:quota-proj:mixed:resource:global",
+      "generation_id": "gen-8856-quota",
+      "kinds": {
+        "gcp_collection_warning": 1
+      },
+      "keys": [
+        "b3195b35b8e73e7283c4261e27b7d572d37ea61ae3c1e25722b0fad0556f5bff"
+      ],
+      "attrs": {
+        "b3195b35b8e73e7283c4261e27b7d572d37ea61ae3c1e25722b0fad0556f5bff": "b3195b35b8e73e7283c4261e27b7d572d37ea61ae3c1e25722b0fad0556f5bff\u0000gcp_collection_warning\u00001.0.0\u0000gcp\u0000reported\u000011"
+      }
+    }
+  ]
+}
