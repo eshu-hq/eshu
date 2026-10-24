@@ -4,8 +4,9 @@ Status: Accepted (arbiter rulings relayed by the coordinator, 2026-10-23, two
 rounds). This record approves no code, schema change, or deployment action.
 Part of #8807. The work splits across #8812 (policy enum, marker-mode
 redactor, digest rule, fingerprint) and #8833 (skeleton mode, the tfvars
-binding, the detector migration, the differential). Citations are at commit
-`238b4015a9` and name the function, so they survive small line drift.
+binding, the detector migration, the differential). Citations were taken at
+`238b4015a9`, re-checked at `816a039136` (`origin/main`, 2026-10-24), and name
+the function, so they survive small line drift.
 
 **Decision.** Both files use the `redact` policy from #8812, in two modes.
 `.yarnrc.yml` is closed-schema and uses **marker mode**: credential values are
@@ -24,16 +25,18 @@ committed-tfvars-secret finding and the raw-Terraform evidence class.
 
 ### How the two files reach `content_files.content`
 
-Discovery applies no name-based sensitivity filter: the only path filters are
-the parser registry, `.gitignore`, and `.eshuignore`. A search of
-`go/internal/collector/repo/discovery` for credential, secret, `.env`, `npmrc`,
-or `netrc` finds only comment lines.
+Discovery applies no name-based sensitivity filter. Its path filters are the
+registry, `.gitignore`, `.eshuignore`, default ignored directories and
+extensions, operator globs, and the #8809 symlink check. A search of the
+discovery package and `snapshot_discovery.go` for credential, secret, `.env`,
+`npmrc`, or `netrc` finds one symlink comment.
 
 | Step | Where | What happens |
 | --- | --- | --- |
-| Admit | `resolveNativeSnapshotFileSet` in `go/internal/collector/repo/git/snapshot_discovery.go` (the closure passed to `ResolveRepositoryFileSetsWithStats`) | A path is kept when `registry.LookupByPath(path)` returns a definition. |
-| Match `.yarnrc.yml` | `Registry.LookupByPath` in `go/internal/parser/registry.go` | No exact name or prefix matches. `filepath.Ext(".yarnrc.yml")` is `.yml`, so the `yaml` definition (`registry_definitions.go`, `Extensions: .yaml, .yml`) wins. |
-| Match `*.tfvars` | same | Extension `.tfvars` belongs to the `hcl` definition (`Extensions: .hcl, .tf, .tfvars`). `LookupByPath` also hard-codes `*.tfvars.json` to `hcl`. |
+| Copy (filesystem-source mode only) | `shouldSkipFilesystemEntry` in `go/internal/collector/repo/git/selection_filesystem.go` | Prunes dot-prefixed names except `.gitlab-ci.y*ml`, `.gitmodules`, and `.github/workflows`, so that mode does not store `.yarnrc.yml` today but does store `*.tfvars`. The git-sourced mode keeps hidden names (`IgnoreHidden` is never set), so it stores `.yarnrc.yml`. |
+| Admit | `resolveNativeSnapshotFileSet` in `go/internal/collector/repo/git/snapshot_discovery.go` (the closure passed to `ResolveRepositoryFileSetsWithStats`) | A path is kept when `symlinkAdmission.category` names it: a registry definition via `registry.LookupByPath(path)`, or terraform state, documentation, `.gitmodules`, or CODEOWNERS. A symlink also needs a regular-file target in the same category (#8809, #8882). |
+| Match `.yarnrc.yml` | `Registry.LookupByPath` in `go/internal/parser/registry.go` | No exact name or prefix matches. `filepath.Ext(".yarnrc.yml")` is `.yml`, so the `yaml` definition (`registry_definitions.go`, `Extensions: .yaml, .yml`, admission L2) wins; `TestDefaultRegistryKeepsCredentialBearingDotfilesOut` leaves it out of the exclusion list on purpose. |
+| Match `*.tfvars` | same | Extension `.tfvars` belongs to the `hcl` definition (`Extensions: .hcl, .tf, .tfvars`, admission L2). `LookupByPath` also hard-codes `*.tfvars.json` to `hcl` (listed in `PathDispatches`). |
 | Read body | `streamFacts` in `go/internal/collector/repo/git/fact_builder.go` (`streamContentBodyReadFile`, then `ContentFactEnvelope`) | The whole file is read into a string for every admitted file. |
 | Emit | `ContentFactEnvelope` in `go/internal/collector/git/content/envelopes.go` | The body goes into the fact payload as `content_body`. |
 | Project | `BuildContentRecord` in `go/internal/projector/runtime/content_record.go` | `content_body` becomes `content.Record.Body` untouched. |
@@ -106,7 +109,8 @@ Three findings. Each defeats a "just stop storing it" fix.
    overwrites the body (see "Rows already stored").
 2. **The parser fingerprint does not see a policy.** `Registry.Fingerprint`
    hashes key, language, extensions, exact names, and prefix names only
-   (`registry.go`). The freshness hint in `snapshot_freshness.go` folds that
+   (`registry.go`); the #8849 `Ecosystem` and `Admission` labels are not
+   hashed. The freshness hint in `snapshot_freshness.go` folds that
    fingerprint into the generation identity. A policy field leaves the hint
    unchanged, so unchanged repositories are not re-collected and keep their
    stored bodies until the file next changes.
@@ -317,9 +321,6 @@ in superseded fact payloads, dead tuples, and backups for a bounded time; the
 skeleton may lose some evidence and the findings on comment, heredoc, and
 bare-list lines, which the differential measures before the binding ships.
 
-Follow-up: #8833 carries the tfvars and detector work; it and #8812 are part of
-#8807.
-
 ## Implementation plan
 
 Paths (verify before editing): `go/internal/parser/registry*.go` (enum,
@@ -475,9 +476,9 @@ WHERE relative_path ~* '\.tfvars(\.json)?$' OR relative_path ~* '(^|/)\.yarnrc\.
 
 **Claim status.**
 
-- Proven (code read at `238b4015a9`): admission path and no name-based
-  sensitivity filter; verbatim body flow to `content_files.content`;
-  `get_file_content` returns it; `search_file_content` matches `content_lower`
+- Proven (code read at `238b4015a9`, re-read at `816a039136`): admission path,
+  the filesystem-mode dotfile prune, and no name-based sensitivity filter;
+  verbatim body flow to `content_files.content`; `get_file_content` returns it; `search_file_content` matches `content_lower`
   and returns empty content on hits; `RetainedPaths` keeps a body when the
   content fact is skipped; `Registry.Fingerprint` omits any policy field;
   `FullSnapshot` is non-delta only; tree, counts, language inventory, and
