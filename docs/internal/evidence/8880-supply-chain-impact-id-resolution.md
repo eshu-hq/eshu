@@ -141,7 +141,7 @@ Every new index is one `CREATE INDEX CONCURRENTLY IF NOT EXISTS` per file.
 `TestNewIndexStatementsMatchMigrations` pins each file to `NewIndexes()`.
 On the plan fixture each rebuild plus `ANALYZE fact_records` took about 2 s,
 and the indexes measured 16 KB (guard) to 2.6 MB (package_id). 2,000 TOASTed
-file inserts took 452 to 507 ms with or without all 13 indexes across two
+file inserts took 407 to 507 ms with or without all 13 indexes across two
 runs, within run-to-run noise. `TestSupplyChainImpactNewIndexInsertCostLive`
 logs those figures. Deployment: a concurrent build waits for in-flight old
 loader transactions, so run the migration when no long impact pass is active
