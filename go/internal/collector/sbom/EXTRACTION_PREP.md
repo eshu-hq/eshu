@@ -184,7 +184,7 @@ count.
 
 ## 7. Migration stage
 
-`planned` (diagnostic reads `extraction_candidate`). Not `ready_for_cutover`:
+`planned` (advisory diagnostic reads `keep_in_tree`; the diagnostic records evidence and grants no cutover authority). Not `ready_for_cutover`:
 repository, release, operational, and rollback proof are absent, and the
 public SDK surface is owned by `#8851`. Roadmap owners: `#6707` inventory,
 `#6708` SDK/fact-schema, `#6709` producer delegation, `#6710` template and
