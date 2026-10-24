@@ -70,7 +70,7 @@ IFA_FAMILY_CASSETTE_VAR[authenticates_vault_role]="authenticates_vault_role_cass
 IFA_FAMILY_EXPECTED_VAR[authenticates_vault_role]="authenticates_vault_role_expected_edges"
 # The shared N-cell also holds the uses-vault-policy scope, whose exact chain
 # takes the Vault hop and writes this same edge type: the loop must assert
-# the four-edge combined file here while fault cells (fresh per-family DB)
+# the eight-edge combined file here while fault cells (fresh per-family DB)
 # keep the two-edge EXPECTED_VAR above.
 IFA_FAMILY_SHARED_EXPECTED_VAR[authenticates_vault_role]="authenticates_vault_role_live_expected_edges"
 

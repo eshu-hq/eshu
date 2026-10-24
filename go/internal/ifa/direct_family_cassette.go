@@ -41,6 +41,7 @@ const (
 	// s3LogsToFamilyCassettePath, kubernetesCorrelationFamilyCassettePath,
 	// authenticatesVaultRoleFamilyCassettePath,
 	// usesVaultPolicyFamilyCassettePath,
+	// grantsSecretReadFamilyCassettePath,
 	// semanticEntityContainmentFamilyCassettePath,
 	// cloudResourceFamilyCassettePath, codeTaintEvidenceFamilyCassettePath,
 	// observabilityCoverageFamilyCassettePath,
@@ -63,6 +64,7 @@ const (
 	s3LogsToFamilyCassettePath                       = "testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json"
 	authenticatesVaultRoleFamilyCassettePath         = "testdata/cassettes/authenticatesvaultrole/ifa-authenticates-vault-role-family.json"
 	usesVaultPolicyFamilyCassettePath                = "testdata/cassettes/usesvaultpolicy/ifa-uses-vault-policy-family.json"
+	grantsSecretReadFamilyCassettePath               = "testdata/cassettes/grantssecretread/ifa-grants-secret-read-family.json"
 	builtFromFamilyCassettePath                      = "testdata/cassettes/builtfrom/ifa-built-from-family.json"
 	cloudResourceContainerImageFamilyCassettePath    = "testdata/cassettes/cloudresourcecontainerimage/ifa-cloud-resource-container-image-family.json"
 	kubernetesCorrelationFamilyCassettePath          = "testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
@@ -255,6 +257,19 @@ func UsesVaultPolicyFamilyCassetteFullPath(repoRoot string) string {
 // uses_vault_policy counterpart to LoadAuthenticatesVaultRoleFamilyOdu.
 func LoadUsesVaultPolicyFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, UsesVaultPolicyFamilyOduName)
+}
+
+// GrantsSecretReadFamilyCassetteFullPath joins repoRoot onto the committed
+// grants_secret_read family cassette path.
+func GrantsSecretReadFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, grantsSecretReadFamilyCassettePath)
+}
+
+// LoadGrantsSecretReadFamilyOdu reads the committed cassette and projects it
+// onto the fact envelopes the reducer's extractor consumes, the
+// grants_secret_read counterpart to LoadUsesVaultPolicyFamilyOdu.
+func LoadGrantsSecretReadFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, GrantsSecretReadFamilyOduName)
 }
 
 // BuiltFromFamilyCassetteFullPath joins repoRoot onto the committed

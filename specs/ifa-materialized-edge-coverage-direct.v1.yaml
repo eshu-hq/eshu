@@ -48,10 +48,11 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# SEVENTEEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# EIGHTEEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
-# uses_vault_policy, built_from, cloud_resource_container_image,
+# uses_vault_policy, grants_secret_read, built_from,
+# cloud_resource_container_image,
 # crossplane_satisfied_by, derived_from, code_interproc_evidence,
 # code_taint_evidence, observability_coverage, and incident_routing_evidence
 # code_taint_evidence, observability_coverage, and publishes
@@ -59,15 +60,16 @@
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
 # and -- since #6309 for the first two, since the #6228 fault halves and
-# slice A for seven, slice C for built_from, slice D for
+# slice A for eight, slice C for built_from, slice D for
 # cloud_resource_container_image, the crossplane live leaf for
 # crossplane_satisfied_by, the derived_from live leaf for
 # derived_from, the code_interproc_evidence live leaf for
 # code_interproc_evidence, the code_taint_evidence live leaf for
 # code_taint_evidence, the observability_coverage live leaf for
-# observability_coverage, and the incident_routing_evidence live leaf for
-# incident_routing_evidence -- live
-# observability_coverage, and the publishes live leaf for
+# observability_coverage, the incident_routing_evidence live leaf for
+# incident_routing_evidence, the grants_secret_read remainder full build
+# (with the #8539 per-statement hold kill cell) for grants_secret_read,
+# and the publishes live leaf for
 # publishes -- live
 # ifa-determinism AND
 # ifa-fault-injection
@@ -269,6 +271,24 @@ coverage:
     scenario_type: fault
     ref: "odu:ifa-uses-vault-policy-family"
     proof_gate: ifa-fault-injection
+  # grants_secret_read: fault-free baseline plus fail-graph-write recovery
+  # plus the per-statement hold kill/reclaim cell (#8539 seam), all
+  # asserting the three-edge SECRETS_IAM_GRANTS_SECRET_READ exact set with
+  # identical graph digests (#6228 remainder). The IRSA lane's role carries
+  # two token policies with one read rule each and the Pod Identity lane's
+  # role carries one; the missing-Vault-hop, ghost-bound-role,
+  # wildcard-trust, wildcard-Vault-selector, Deny, list-only-capability,
+  # and missing-KV-metadata lanes resolve to nothing.
+  - surface: "materialized_edges:grants_secret_read"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-grants-secret-read-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:grants_secret_read"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-grants-secret-read-family"
+    proof_gate: ifa-fault-injection
   # built_from: fault-free baseline plus fault-injection recovery, all
   # asserting the two-edge BUILT_FROM exact set with identical graph digests
   # (#6228 slice C live leaf). The app and worker digests whose OCI configs
@@ -458,16 +478,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteCloudResourceEdges -> cypher/cloud/{resource/edge_writer,azure/relationship/azure_cloud_resource_edge_writer,gcp/relationship/gcp_cloud_resource_edge_writer}.go merges a per-row <PREFIX>_<relationship_type> from an OPEN per-provider vocabulary; split verdict D: UNCOVERED by design as the sole genuinely open family (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Route 2 (#8358) landed the predicate-scoped scan, Odu, expected-edge-set fixture, predicate registration, and matrix wiring; registering an observed-type list is rejected. Stays waived: no live matrix has driven it yet"
-  - surface: "materialized_edges:grants_secret_read"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteGrantsSecretReadEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_GRANTS_SECRET_READ; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
-  - surface: "materialized_edges:grants_secret_read"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteGrantsSecretReadEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_GRANTS_SECRET_READ; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
   - surface: "materialized_edges:kubernetes_correlation"
     proof_gate: ifa-determinism
     issue: "#6228"

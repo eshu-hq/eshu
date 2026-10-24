@@ -146,6 +146,12 @@ func deriveEvidenceNodeDetachTypes(t *testing.T, family string, entry materializ
 		// instead. Both are held production consts of the same writer,
 		// never copied literals.
 		return map[string]struct{}{mergeRelTypeFromWriteCypher(t, family, iam.SecretsIAMUsesVaultPolicyEdgeUpsertCypher): {}}
+	case "grants_secret_read":
+		// Single static MERGE type, same split shape as uses_vault_policy:
+		// IdentityCypher holds the secret-path NODE upsert, so the edge
+		// type is read off the held edge upsert instead. Both are held
+		// production consts of the same writer, never copied literals.
+		return map[string]struct{}{mergeRelTypeFromWriteCypher(t, family, iam.SecretsIAMGrantsSecretReadEdgeUpsertCypher): {}}
 	case "incident_routing_evidence":
 		// Parameterized MERGE type (%s): the write template names no type, so
 		// the slot-to-type map the write path screens each row against is the

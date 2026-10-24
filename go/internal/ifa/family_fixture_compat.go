@@ -63,6 +63,7 @@ const (
 	SymbolRuntimeFamilyOduName                  = familyodu.SymbolRuntimeFamilyOduName
 	UsesServiceAccountFamilyOduName             = familyodu.UsesServiceAccountFamilyOduName
 	UsesVaultPolicyFamilyOduName                = familyodu.UsesVaultPolicyFamilyOduName
+	GrantsSecretReadFamilyOduName               = familyodu.GrantsSecretReadFamilyOduName
 	WorkloadCloudRelationshipFamilyOduName      = familyodu.WorkloadCloudRelationshipFamilyOduName
 	WorkloadDependencyFamilyOduName             = familyodu.WorkloadDependencyFamilyOduName
 )
@@ -175,6 +176,12 @@ func AuthenticatesVaultRoleFamilyOdu() CatalogOdu {
 // Odù.
 func UsesVaultPolicyFamilyOdu() CatalogOdu {
 	return familyodu.UsesVaultPolicyFamilyOdu()
+}
+
+// GrantsSecretReadFamilyOdu returns the cataloged grants secret read family
+// Odù.
+func GrantsSecretReadFamilyOdu() CatalogOdu {
+	return familyodu.GrantsSecretReadFamilyOdu()
 }
 
 // IAMCanPerformFamilyOdu returns the cataloged IAM can-perform family Odù.
