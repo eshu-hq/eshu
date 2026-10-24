@@ -40,8 +40,9 @@ const (
 	FileRepositoryScopeIDs
 	FileRepositoryGenerationIDs
 	SuppressionLimit
-	// paramEnd ends the block; keep it last so TestEveryParamIsClassified
-	// reaches every list added above it.
+	// paramEnd ends the block so TestEveryParamIsClassified reaches every
+	// list added above it; TestEveryParamConstantIsBelowSentinel fails if any
+	// Param reaches it.
 	paramEnd
 )
 
