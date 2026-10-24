@@ -174,6 +174,7 @@ authenticates_vault_role_expected_edges="${repo_root}/go/internal/ifa/testdata/a
 authenticates_vault_role_live_expected_edges="${repo_root}/go/internal/ifa/testdata/authenticatesvaultrole/ifa-authenticates-vault-role-family-expected-edges-live.json"
 uses_vault_policy_cassette="${repo_root}/testdata/cassettes/usesvaultpolicy/ifa-uses-vault-policy-family.json"
 uses_vault_policy_expected_edges="${repo_root}/go/internal/ifa/testdata/usesvaultpolicy/ifa-uses-vault-policy-family-expected-edges.json"
+uses_vault_policy_live_expected_edges="${repo_root}/go/internal/ifa/testdata/usesvaultpolicy/ifa-uses-vault-policy-family-expected-edges-live.json"
 grants_secret_read_cassette="${repo_root}/testdata/cassettes/grantssecretread/ifa-grants-secret-read-family.json"
 grants_secret_read_expected_edges="${repo_root}/go/internal/ifa/testdata/grantssecretread/ifa-grants-secret-read-family-expected-edges.json"
 kubernetes_correlation_cassette="${repo_root}/testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
@@ -379,6 +380,7 @@ ifa_family_fixtures_require() {
 	[[ -f "${authenticates_vault_role_live_expected_edges}" ]] || { echo "${gate}: authenticates-vault-role live expected-edge set not found: ${authenticates_vault_role_live_expected_edges}" >&2; exit 1; }
 	[[ -f "${uses_vault_policy_cassette}" ]] || { echo "${gate}: uses-vault-policy cassette not found: ${uses_vault_policy_cassette}" >&2; exit 1; }
 	[[ -f "${uses_vault_policy_expected_edges}" ]] || { echo "${gate}: uses-vault-policy expected-edge set not found: ${uses_vault_policy_expected_edges}" >&2; exit 1; }
+	[[ -f "${uses_vault_policy_live_expected_edges}" ]] || { echo "${gate}: uses-vault-policy live expected-edge set not found: ${uses_vault_policy_live_expected_edges}" >&2; exit 1; }
 	[[ -f "${grants_secret_read_cassette}" ]] || { echo "${gate}: grants-secret-read cassette not found: ${grants_secret_read_cassette}" >&2; exit 1; }
 	[[ -f "${grants_secret_read_expected_edges}" ]] || { echo "${gate}: grants-secret-read expected-edge set not found: ${grants_secret_read_expected_edges}" >&2; exit 1; }
 	[[ -f "${kubernetes_correlation_cassette}" ]] || { echo "${gate}: kubernetes-correlation cassette not found: ${kubernetes_correlation_cassette}" >&2; exit 1; }
