@@ -248,6 +248,30 @@ gates:
     ci_only_reason: ""
     local_only_reason: ""
 
+  - id: required-doc-sections
+    name: Required hand-written doc sections
+    category: docs
+    layer: hygiene
+    purpose: "Fails when a hand-written section listed in scripts/required-doc-sections.txt is missing from its page, so a merge cannot drop it."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/**"
+      - "scripts/required-doc-sections.txt"
+      - "scripts/verify-required-doc-sections.sh"
+      - "scripts/test-verify-required-doc-sections.sh"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "bash scripts/verify-required-doc-sections.sh"
+      test_command: "bash scripts/test-verify-required-doc-sections.sh"
+    ci:
+      workflow: test.yml
+      job: "docs-helm-hygiene"
+    requirements: []
+    ci_only_reason: ""
+    local_only_reason: ""
+
   - id: storage-doc-bundled-nornicdb-example
     name: Storage doc bundled-NornicDB Helm example renders
     category: exactness
