@@ -81,9 +81,11 @@ func dockerfileRuntimeBaseImageRef(stages []map[string]any) (string, bool) {
 // it is either a digest reference, a bare stage alias, or an unqualified image.
 //
 // It reports false for a base the parser could not resolve to a literal image
-// reference: an empty base, the reserved scratch base, or an unexpanded build
-// argument (a FROM whose image is "${BASE_IMAGE}" or "$BASE_IMAGE" is stored
-// verbatim, since the parser does not evaluate ARG defaults).
+// reference: an empty base, the reserved scratch base, or a build argument the
+// parser could not expand. The parser expands ARG defaults declared before the
+// first FROM, so a "$" left in base_image or base_tag marks a value only known
+// at build time (a FROM whose image is "${BASE_IMAGE}" or whose tag is
+// "${VERSION}-slim" is stored verbatim).
 func dockerfileStageBaseRef(stage map[string]any) (string, bool) {
 	image := strings.TrimSpace(payloadcore.PayloadStr(stage, "base_image"))
 	if image == "" || strings.Contains(image, "$") {
@@ -93,6 +95,9 @@ func dockerfileStageBaseRef(stage map[string]any) (string, bool) {
 		return "", false
 	}
 	if tag := strings.TrimSpace(payloadcore.PayloadStr(stage, "base_tag")); tag != "" {
+		if strings.Contains(tag, "$") {
+			return "", false
+		}
 		return image + ":" + tag, true
 	}
 	return image, true

@@ -70,3 +70,35 @@ ENTRYPOINT ["/app"]
 		}
 	}
 }
+
+// TestDockerfileBaseRefEvidenceRoundTripsThroughTypedContract proves the ARG
+// substitution evidence keys ride the open Attributes pass-through of the typed
+// stage contract without a schema change, and that the expanded tag lands in
+// the named BaseTag field.
+func TestDockerfileBaseRefEvidenceRoundTripsThroughTypedContract(t *testing.T) {
+	t.Parallel()
+
+	payload := RuntimeMetadata(`ARG GO=1.24
+FROM golang:${GO} AS builder
+FROM alpine:${ALPINE}
+ARG ALPINE=3.20
+`).Map()
+	stages, err := factschema.DecodeParsedFileDataDockerfileStages(payload)
+	if err != nil {
+		t.Fatalf("DecodeParsedFileDataDockerfileStages() error = %v, want nil", err)
+	}
+	byName := map[string]int{}
+	for i, stage := range stages {
+		byName[stage.Name] = i
+	}
+	builder := stages[byName["builder"]]
+	if builder.BaseTag != "1.24" || builder.Attributes["base_ref_template"] != "golang:${GO}" {
+		t.Fatalf("builder = %#v, want expanded tag and template", builder)
+	}
+	alpine := stages[byName["alpine"]]
+	if alpine.BaseTag != "${ALPINE}" ||
+		!reflect.DeepEqual(alpine.Attributes["base_ref_unresolved_args"], []any{"ALPINE"}) ||
+		!reflect.DeepEqual(alpine.Attributes["base_ref_arg_defaults"], map[string]any{"ALPINE": "3.20"}) {
+		t.Fatalf("alpine = %#v, want placeholder tag with unresolved evidence", alpine)
+	}
+}
