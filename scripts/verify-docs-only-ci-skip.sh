@@ -282,17 +282,13 @@ trigger_is_swallowed_by_negations() {
 	return 1
 }
 
-# --- build.yml: pure binary build, no docs-relevant job — skip the whole run.
-# .agents/** is asserted explicitly (not just docs/**, *.md): before this gate
-# ratcheted it in, docs/public/reference/local-testing.md claimed build.yml
-# skipped an .agents/**-only PR while its paths-ignore never listed the
-# pattern — nothing here checked that claim, so it silently drifted false. ---
-b="${wf}/build.yml"
-if has "${b}" 'paths-ignore:' && has "${b}" "- 'docs/**'" && has "${b}" "- '*.md'" && has "${b}" "- '.agents/**'"; then
-	ok "build.yml skips docs-only PRs (paths-ignore: docs/**, *.md, .agents/**)"
-else
-	bad "build.yml has a pull_request paths-ignore covering docs/**, *.md, and .agents/**"
-fi
+# --- PR build scheduling and the Go completion assertions live in separate
+# trusted files now. Keep their wiring and fail-closed contract in one scoped
+# helper so this guard stays below the repository's 500-line cap. ---
+# shellcheck source=scripts/lib/ci-gate-docs-planner-checks.sh
+. "${repo_root}/scripts/lib/ci-gate-docs-planner-checks.sh"
+declare -F run_docs_planner_checks >/dev/null ||
+	{ printf 'verify-docs-only-ci-skip: docs planner checks were not loaded\n' >&2; exit 1; }
 
 # --- security-scan.yml: keep the secret scan on, gate the Go scanners. ---
 s="${wf}/security-scan.yml"
@@ -353,59 +349,7 @@ fi
 # scripts/lib/ci-gate-merge-group-checks.sh for what this guards and why. ---
 run_merge_group_checks "${t}"
 
-# --- test.yml: both umbrella gates (go-race-complete #5757, go-core-complete
-# #5814) are the names the repository ruleset points at, so each must hold the same
-# three-part contract: always reports, accepts a genuine docs-only skip as pass,
-# and REFUSES to accept that skip when the `changes` gate itself failed.
-#
-# That last part is the subtle one. GitHub implicitly prepends `success()` to a
-# job `if:` that does not name a status function, so a `changes` job that fails
-# or is cancelled marks its dependants `skipped` — not `failure`. An umbrella
-# keying only on its own dependency's result would report GREEN having built and
-# tested nothing. Each umbrella therefore needs `changes` as an explicit
-# dependency plus a check on its result.
-#
-# Every assertion below is scoped with `job_block` to the specific job. A
-# file-wide `rg` would be satisfied by the OTHER umbrella's copy of the same
-# string and silently stop testing the job it names.
-for umbrella in go-race-complete go-core-complete; do
-	case "${umbrella}" in
-	go-race-complete) dep="go-race" ;;
-	go-core-complete) dep="go-core" ;;
-	esac
-	block="$(job_block "${t}" "${umbrella}")"
-	if job_needs "${t}" "${umbrella}" changes && job_needs "${t}" "${umbrella}" "${dep}"; then
-		ok "${umbrella} depends on both changes and ${dep}"
-	else
-		bad "${umbrella} must declare needs: [changes, ${dep}]"
-	fi
-	if rg -F 'if: ${{ always() }}' < <(printf '%s\n' "${block}") >/dev/null; then
-		ok "${umbrella} always reports (if: \${{ always() }})"
-	else
-		bad "${umbrella} must carry if: \${{ always() }} so it always reports"
-	fi
-	if rg -F '!= "skipped"' < <(printf '%s\n' "${block}") >/dev/null; then
-		ok "${umbrella} accepts a skipped ${dep} as pass (required-check-safe)"
-	else
-		bad "${umbrella} treats result==skipped as pass"
-	fi
-	# Assert the guard STRUCTURALLY: the comparison AND a non-zero exit inside
-	# the same `if ... fi`. Two weaker forms were tried and both were vacuous:
-	#   - matching `needs.changes.result` matched the `changes_result=...`
-	#     ASSIGNMENT, so deleting the whole conditional stayed green;
-	#   - matching the comparison alone left "keep the comparison and the
-	#     ::error:: echo, drop the `exit 1`" green — and that mutation still
-	#     exits 0, so the umbrella reports success after a failed `changes`.
-	# A bare `exit 1` search over the whole job block is no good either: the
-	# SECOND guard (the lane-result check) carries its own `exit 1` and would
-	# satisfy it. So slice out just this guard's body and look inside it.
-	guard_body="$(awk '/"\$\{changes_result\}" != "success"/{f=1} f{print} f&&/^[[:space:]]*fi[[:space:]]*$/{exit}' < <(printf '%s\n' "${block}"))"
-	if [[ -n "${guard_body}" ]] && rg '^\s*exit [1-9]' < <(printf '%s\n' "${guard_body}") >/dev/null; then
-		ok "${umbrella} fails when the changes gate itself failed (guard exits non-zero)"
-	else
-		bad "${umbrella} changes_result guard must compare != \"success\" AND exit non-zero inside that same if-block"
-	fi
-done
+run_docs_planner_checks "${t}" "${wf}/build.yml" "${repo_root}/specs/ci-pr-workflows.d/build.yml" "${repo_root}/scripts/ci/assert-go-complete.sh"
 
 # --- #5818 regression guard 1: the three `code` filter copies must stay
 # byte-identical. #5818 happened because the fix (excluding a nested markdown
