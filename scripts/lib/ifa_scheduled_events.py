@@ -30,6 +30,7 @@ SOURCE_PATHS = frozenset((
 ))
 PR_EXTRA_PATHS = frozenset((
     ".github/workflows/ifa-scheduled-proofs.yml",
+    "specs/ci-pr-workflows.d/ifa-scheduled-proofs.yml",
     "go/go.mod",
     "go/go.sum",
     "scripts/ci/go-mod-download-retry.sh",
