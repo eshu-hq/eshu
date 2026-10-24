@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/maven"
 	"github.com/eshu-hq/eshu/go/internal/parser/nodelockfile"
 	"github.com/eshu-hq/eshu/go/internal/parser/ruby"
+	"github.com/eshu-hq/eshu/go/internal/parser/sbt"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
@@ -164,6 +165,12 @@ func parseGradleFixture(t *testing.T, filename, body string) (map[string]any, er
 	return gradle.Parse(path, false, shared.Options{})
 }
 
+func parseSbtFixture(t *testing.T, filename, body string) (map[string]any, error) {
+	t.Helper()
+	path := writeJSONTestFile(t, filename, body)
+	return sbt.Parse("", path, false, shared.Options{})
+}
+
 func parseRubyFixture(t *testing.T, filename, body string) (map[string]any, error) {
 	t.Helper()
 	path := writeJSONTestFile(t, filename, body)
@@ -189,6 +196,7 @@ func dependencyCoverageCoveredFixtures() map[string]coveredFixture {
 		"pom.xml":            mavenCoveredFixture(),
 		"build.gradle":       gradleCoveredFixture(),
 		"build.gradle.kts":   gradleKTSCoveredFixture(),
+		"build.sbt":          sbtCoveredFixture(),
 		"pipfile.lock":       pipfileLockCoveredFixture(),
 		"yarn.lock":          yarnCoveredFixture(),
 		"pnpm-lock.yaml":     pnpmCoveredFixture(),

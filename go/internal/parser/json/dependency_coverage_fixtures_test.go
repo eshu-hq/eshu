@@ -248,6 +248,24 @@ dependencies {
 	return fixture
 }
 
+func sbtCoveredFixture() coveredFixture {
+	return coveredFixture{
+		parser: parseSbtFixture,
+		body: `scalaVersion := "2.13.12"
+libraryDependencies += "org.typelevel" %% "cats-core" % "2.10.0"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.17" % Test
+`,
+		expectedDependencies: map[string]string{
+			"org.typelevel:cats-core": "2.10.0",
+			"org.scalatest:scalatest": "3.2.17",
+		},
+		expectedPackageMgr:    "sbt",
+		expectedSection:       "libraryDependencies",
+		expectScopeSplit:      true,
+		expectedDevDependency: "org.scalatest:scalatest",
+	}
+}
+
 func pipfileLockCoveredFixture() coveredFixture {
 	return coveredFixture{
 		parser: parseJSONFixture,
