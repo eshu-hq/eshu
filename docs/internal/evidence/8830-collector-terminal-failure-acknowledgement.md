@@ -187,7 +187,7 @@ Observability Evidence: new counter
 `eshu_dp_collector_terminal_failure_acknowledgements_total{outcome}`
 (`acknowledged`, `duplicate`, `refused`), new gauge
 `eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances` by
-`collector_kind` and `failure_class` (the same 41-value bound as the existing
+`service_name`, `collector_kind` and `failure_class` (the same 41-value bound as the existing
 gauge, which now counts only unacknowledged failures), one governance audit event
 per decision with a bounded reason code and the hashed actor, and one INFO log.
 The route is covered by the request span.
