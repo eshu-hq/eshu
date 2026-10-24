@@ -24,7 +24,7 @@ import (
 // item types, Import, and ManagePackageVersionsCentrally.
 
 type fuzzPart struct {
-	kind int // 0 literal, 1 reference, 2 property function, 3 item list, 4 metadata
+	kind int // 0 literal, 1 reference, 2 property function, 3 item list, 4 metadata, 5 %XX escape
 	text string
 }
 
@@ -53,6 +53,10 @@ type fuzzItem struct {
 	op             string // "update" or "remove" for an Update/Remove item
 	opTarget       string
 	opWild         bool
+	// PrivateAssets and IncludeAssets as declared, each as an attribute or a
+	// child element; a conditioned child makes the value unproven.
+	private, include         string
+	privateCond, includeCond bool
 }
 
 type fuzzModel struct {
@@ -89,8 +93,8 @@ func fuzzParts(r *rand.Rand) []fuzzPart {
 		case n == 8:
 			parts[i] = fuzzPart{2, "$([MSBuild]::GetVersion())"}
 		default:
-			kind := 3 + r.Intn(2)
-			text := map[int]string{3: "@(Items)", 4: "%(Meta)"}[kind]
+			kind := 3 + r.Intn(3)
+			text := map[int]string{3: "@(Items)", 4: "%(Meta)", 5: "1%2E0"}[kind]
 			parts[i] = fuzzPart{kind, text}
 		}
 	}
@@ -124,7 +128,7 @@ func fuzzDecls(r *rand.Rand, b *strings.Builder) []fuzzDecl {
 			d.condition = r.Intn(4) == 0
 		} else {
 			d.name = fuzzRefCase(r, fuzzPropNames[r.Intn(len(fuzzPropNames))])
-			d.value = []string{"1.2", "9", "$(Other)", ""}[r.Intn(4)]
+			d.value = []string{"1.2", "9", "$(Other)", "", "1%2E2"}[r.Intn(5)]
 			d.condition, d.group = r.Intn(6) == 0, r.Intn(6) == 0
 		}
 		decls = append(decls, d)
@@ -146,7 +150,7 @@ func fuzzOp(r *rand.Rand, items []fuzzItem, op string) (fuzzItem, string) {
 	it := fuzzItem{kind: fuzzKinds[r.Intn(3)], op: op, opTarget: "Pkg.U"}
 	switch n := r.Intn(5); {
 	case n == 0:
-		it.opTarget, it.opWild = "Pkg.*", true
+		it.opTarget, it.opWild = []string{"Pkg.*", "Pkg%2EA1"}[r.Intn(2)], true
 	case n < 4 && len(items) > 0:
 		earlier := items[r.Intn(len(items))]
 		if earlier.name != "" {
@@ -192,6 +196,9 @@ func fuzzPlainItem(r *rand.Rand, items []fuzzItem, i int) (fuzzItem, string) {
 		attrs = fmt.Sprintf(` Include="%s" version="9.9.9"`, it.name)
 	case 3:
 		it.valid, it.name = false, ""
+	case 4:
+		// MSBuild unescapes %2E to ".", so this could name any package.
+		it.valid, it.unresolvedSpec, it.name, attrs = false, true, "", fmt.Sprintf(` Include="Pkg%%2EE%d"`, i)
 	default:
 		it.literal = true
 		attrs = fmt.Sprintf(` Include="%s"`, it.name)
@@ -239,6 +246,8 @@ func fuzzPlainItem(r *rand.Rand, items []fuzzItem, i int) (fuzzItem, string) {
 	if len(it.override) > 0 {
 		attrs += fmt.Sprintf(` VersionOverride="%s"`, renderParts(it.override))
 	}
+	assetAttrs, assetInner := fuzzAssets(r, &it)
+	attrs, inner = attrs+assetAttrs, inner+assetInner
 	return it, fmt.Sprintf("<ItemGroup%s><%s%s>%s</%s></ItemGroup>\n", group, it.kind, attrs, inner, it.kind)
 }
 
@@ -314,6 +323,7 @@ func TestParseCentralPropsMatchesIndependentOracle(t *testing.T) {
 	for _, reason := range []string{
 		"central_management_unproven", "conditional_metadata", "duplicate_include", "exclude",
 		"removed", "unevaluated_element", "unresolved_item_spec", "updated", "skipped",
+		"unresolved_asset_metadata", "escaped_version", "global_development", "asset_development",
 	} {
 		if tally[reason] < cases/100 {
 			t.Fatalf("class %s occurred %d times in %d cases, want >= %d", reason, tally[reason], cases, cases/100)
@@ -374,6 +384,9 @@ func checkFuzzCase(t *testing.T, caseNumber int, doc string, payload map[string]
 		if (it.kind == "PackageVersion") == hasKey(row, "direct_dependency") {
 			fail("%s: direct_dependency presence wrong for %s", it.name, it.kind)
 		}
+		if msg := checkFuzzScope(it, row, tally); msg != "" {
+			fail("%s: %s", it.name, msg)
+		}
 	}
 	for _, d := range model.decls {
 		if next >= len(rows) {
@@ -389,7 +402,7 @@ func checkFuzzCase(t *testing.T, caseNumber int, doc string, payload map[string]
 			want = "ambiguous"
 		case d.value == "":
 			want = "empty"
-		case strings.Contains(d.value, "$("):
+		case strings.Contains(d.value, "$(") || fuzzEscaped(d.value):
 			want = "msbuild_expression"
 		default:
 			want = "literal"

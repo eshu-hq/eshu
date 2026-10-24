@@ -13,9 +13,33 @@ const (
 	propUnresolved
 )
 
-// isExpression reports whether text still needs MSBuild evaluation.
+// isExpression reports whether text still needs MSBuild evaluation: a
+// property, item, or metadata reference, or a %XX escape, which MSBuild
+// unescapes before it uses the value.
 func isExpression(text string) bool {
-	return strings.Contains(text, "$(") || strings.Contains(text, "@(") || strings.Contains(text, "%(")
+	return strings.Contains(text, "$(") || strings.Contains(text, "@(") || strings.Contains(text, "%(") ||
+		hasMSBuildEscape(text)
+}
+
+// hasMSBuildEscape reports whether text holds an MSBuild escape: a percent
+// sign followed by two hex digits. A percent sign followed by anything else is
+// literal text to MSBuild.
+func hasMSBuildEscape(text string) bool {
+	for i := strings.IndexByte(text, '%'); i >= 0 && i+2 < len(text); {
+		if isHexDigit(text[i+1]) && isHexDigit(text[i+2]) {
+			return true
+		}
+		next := strings.IndexByte(text[i+1:], '%')
+		if next < 0 {
+			return false
+		}
+		i += next + 1
+	}
+	return false
+}
+
+func isHexDigit(c byte) bool {
+	return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
 }
 
 // status is the resolution verdict for a reference to this property. Only a
@@ -39,7 +63,11 @@ func buildPropsRows(scan *propsScan, limits *propsLimits) []map[string]any {
 	centralUnproven := centralManagementUnproven(scan.states)
 	for index, item := range scan.items {
 		row := propsItemRow(item, scan.states, len(rows)+1, limits)
-		if reasons := scan.tracker.reasons(index, item, centralUnproven); reasons != 0 {
+		reasons := scan.tracker.reasons(index, item, centralUnproven)
+		if _, scoped := row["dependency_scope"]; !scoped {
+			reasons |= reasonUnresolvedAssetMetadata
+		}
+		if reasons != 0 {
 			row["item_ambiguity"] = reasons.String()
 			row["partial_evidence"] = true
 		}
@@ -57,10 +85,7 @@ func propsItemRow(item itemDecl, states map[string]*propState, lineNumber int, l
 		raw = item.override
 	}
 	value, metadata := resolvePropsVersion(raw, states, limits)
-	scope := nugetProjectDependencyScope(item.name, nugetPackageReference{
-		PrivateAssets: item.private,
-		IncludeAssets: item.include,
-	})
+	scope := propsItemScope(item)
 	row := map[string]any{
 		"name":              item.name,
 		"line_number":       lineNumber,
@@ -69,9 +94,9 @@ func propsItemRow(item itemDecl, states map[string]*propState, lineNumber int, l
 		"section":           item.kind,
 		"config_kind":       "dependency",
 		"package_manager":   "nuget",
-		"dependency_scope":  scope,
 		"lang":              "nuget_project",
 	}
+	setNuGetProjectString(row, "dependency_scope", scope)
 	for key, val := range metadata {
 		row[key] = val
 	}
@@ -102,6 +127,40 @@ func propsItemRow(item itemDecl, states map[string]*propState, lineNumber int, l
 		row["test_dependency"] = true
 	}
 	return row
+}
+
+// propsItemScope returns the item's dependency_scope, or "" when the asset
+// metadata that decides it is unproven. NuGet.targets turns a
+// GlobalPackageReference into a PackageReference whose element sets
+// PrivateAssets="All" and the development IncludeAssets; element metadata wins
+// over the copied source metadata, so that scope is fixed whatever the item
+// declares. Other items use the .csproj heuristic on their own metadata, which
+// decides only from values that are unconditional and need no evaluation.
+func propsItemScope(item itemDecl) string {
+	if item.kind == "GlobalPackageReference" {
+		return nugetProjectDependencyScope(item.name, nugetPackageReference{
+			PrivateAssets: "All",
+			IncludeAssets: "Runtime;Build;Native;contentFiles;Analyzers",
+		})
+	}
+	private, privateKnown := provenAssetValue(item.private, item.privateCond)
+	include, includeKnown := provenAssetValue(item.include, item.includeCond)
+	scope := nugetProjectDependencyScope(item.name, nugetPackageReference{PrivateAssets: private, IncludeAssets: include})
+	if scope == "runtime" && (!privateKnown || !includeKnown) {
+		// An unproven value could still say All or none.
+		return ""
+	}
+	return scope
+}
+
+// provenAssetValue returns the asset metadata value and whether it is proven:
+// unconditional and free of anything MSBuild would still evaluate. An
+// unproven value is returned as "" so it cannot decide a scope.
+func provenAssetValue(value string, conditional bool) (string, bool) {
+	if conditional || isExpression(value) {
+		return "", false
+	}
+	return value, true
 }
 
 func propsPropertyRow(decl propDecl, state *propState, lineNumber int) map[string]any {
@@ -150,7 +209,7 @@ func resolvePropsVersion(raw string, states map[string]*propState, limits *props
 		metadata["partial_evidence"] = true
 		return "", metadata
 	}
-	if strings.Contains(raw, "@(") || strings.Contains(raw, "%(") {
+	if strings.Contains(raw, "@(") || strings.Contains(raw, "%(") || hasMSBuildEscape(raw) {
 		return unresolvedPropsVersion(raw, metadata, nil)
 	}
 	matches := msbuildPropertyReferencePattern.FindAllStringSubmatchIndex(raw, -1)

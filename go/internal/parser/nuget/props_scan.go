@@ -43,6 +43,10 @@ type itemDecl struct {
 	condition string
 	groupCond string
 	reasons   itemReason
+	// privateCond and includeCond record a Condition on a PrivateAssets or
+	// IncludeAssets child: the scope those values decide is then unproven.
+	privateCond bool
+	includeCond bool
 	// lowerName is name lowercased, the item tracker's match key.
 	lowerName string
 }
@@ -371,6 +375,8 @@ func (s *propsScan) item(start xml.StartElement, groupCond string) error {
 			for _, attr := range t.Attr {
 				if attr.Name.Space == "" && strings.EqualFold(attr.Name.Local, "Condition") {
 					decl.reasons |= reasonConditionalMetadata
+					decl.privateCond = decl.privateCond || dst == &decl.private
+					decl.includeCond = decl.includeCond || dst == &decl.include
 				}
 			}
 			text, over, nested, err := s.readText(MaxPropsValueBytes)
@@ -429,10 +435,12 @@ func (s *propsScan) admitItem(decl itemDecl, specs itemSpecs, conflict, oversize
 	return nil
 }
 
-// literalPackageName rejects item lists, wildcards, and MSBuild expressions:
-// none of them names exactly one package.
+// literalPackageName rejects item lists, wildcards, MSBuild expressions, and
+// %XX escapes: none of them names exactly one package as written. MSBuild
+// unescapes %XX before it matches a spec, so an escaped spec could name any
+// package once unescaped and is treated like a wildcard.
 func literalPackageName(name string) bool {
-	if strings.ContainsAny(name, ";*?") {
+	if strings.ContainsAny(name, ";*?") || hasMSBuildEscape(name) {
 		return false
 	}
 	return !strings.Contains(name, "$(") && !strings.Contains(name, "@(") && !strings.Contains(name, "%(")

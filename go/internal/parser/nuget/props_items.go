@@ -10,7 +10,7 @@ import (
 
 // itemReason is one reason an emitted item row is not proven as written. A row
 // with any reason carries item_ambiguity and partial_evidence.
-type itemReason uint8
+type itemReason uint16
 
 // The bit order is the alphabetical order of the names in itemReasonNames, so
 // item_ambiguity lists its reasons sorted.
@@ -21,6 +21,7 @@ const (
 	reasonExclude
 	reasonRemoved
 	reasonUnevaluatedElement
+	reasonUnresolvedAssetMetadata
 	reasonUnresolvedItemSpec
 	reasonUpdated
 )
@@ -32,6 +33,7 @@ var itemReasonNames = [...]string{
 	"exclude",
 	"removed",
 	"unevaluated_element",
+	"unresolved_asset_metadata",
 	"unresolved_item_spec",
 	"updated",
 }

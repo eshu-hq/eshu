@@ -45,7 +45,7 @@ func (o fuzzOracle) state(name string) string {
 		return "unresolved"
 	case o.differ[key] || o.anyCond[key]:
 		return "ambiguous"
-	case o.values[key] == "" || strings.Contains(o.values[key], "$("):
+	case o.values[key] == "" || strings.Contains(o.values[key], "$(") || fuzzEscaped(o.values[key]):
 		return "unresolved"
 	}
 	return "resolved"
@@ -107,8 +107,11 @@ func (o fuzzOracle) centralUnproven() bool {
 func fuzzReasons(doc fuzzModel, oracle fuzzOracle, p int) string {
 	it := doc.items[p]
 	set := map[string]bool{}
-	if it.condChild {
+	if it.condChild || it.privateCond || it.includeCond {
 		set["conditional_metadata"] = true
+	}
+	if fuzzScope(it) == "" {
+		set["unresolved_asset_metadata"] = true
 	}
 	if it.exclude {
 		set["exclude"] = true
