@@ -27,5 +27,9 @@ A read that ends as `alerts_disabled` still records
 because the provider answered 403. Use `outcome=alerts_disabled` on the
 fan-out counter to tell it from a credential failure; the fan-out continued.
 
+A truncated org read whose allowlist holds no repository of the organization
+is not a fan-out: it records `eshu_dp_security_alert_truncated_reads_total`
+with `operation=list_org_alerts` and no fan-out counter or span attribute.
+
 Repository names, alert URLs, and provider response bodies stay out of metric
 labels.

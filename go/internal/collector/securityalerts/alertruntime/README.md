@@ -54,6 +54,9 @@ the first read that fails any other way (rate limit, other auth denied, 5xx,
 transport, terminal) stops it (`fanoutFailureOutcome`). A repository-scope
 target that gets the same 403 keeps the terminal auth_denied failure. The claim still commits what it read and never loops.
 Only a cancelled claim context fails the claim, with no partial generation.
+An allowlist with no repository of the organization fans out nothing: the
+truncated org read is returned as a single read, with its truncated freshness
+digest and no fan-out outcomes.
 Fan-out facts carry a lowercase `repository_name`, because the per-repository
 endpoint returns no repository object. The freshness digest includes each alert's
 repository and the fan-out outcomes, so a changed outcome is a new refresh

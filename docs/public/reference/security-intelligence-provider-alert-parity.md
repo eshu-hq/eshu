@@ -79,7 +79,9 @@ repository of that organization through
 One claim sends at most `max_pages` x (1 + min(allowlisted repositories in the
 organization, 100)) alert-page requests. Under `github_app` auth each listing
 call also mints one installation token. Allowlisted repositories owned by
-another account are never read through an org target.
+another account are never read through an org target. If every allowlisted
+repository belongs to another account, a truncated org read fans out nothing and
+keeps the plain truncated single-read result and digest.
 
 Facts from a per-repository read carry a lowercase `repository_name`, because
 that endpoint returns no repository object; org-window facts keep the
