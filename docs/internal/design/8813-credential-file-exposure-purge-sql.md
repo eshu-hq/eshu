@@ -43,6 +43,8 @@ SELECT state FROM content_file_secret_lines_state;
 
 -- census 2: files per file type. Exit columns: raw_files, files_with_raw_finding.
 -- With no reindex requested yet, the watermark is now(), so every copy counts raw.
+-- The watermark is never cleared: after an earlier reindex this census undercounts
+-- until the reindex request of step 2 moves it, so read it after step 2.
 WITH w AS (SELECT COALESCE((SELECT reindex_request_requested_at
                             FROM runtime_ingester_control
                             WHERE ingester = 'repository'), now()) AS at)
@@ -177,13 +179,14 @@ entities from the purge for good.
 **Why refs, entities and files are two statements in one transaction.** The
 first statement locks the batch (`FOR UPDATE SKIP LOCKED`) into a temporary
 table. The second rewrites it and tests the guard again against the row's
-current generation. The split is needed because a single statement, with the
-lock and the rewrite in one CTE, tests the guard against its own start-of-
-statement snapshot. When the writer commits a new generation for the row after
-that snapshot and before the lock, the recheck of the changed row does not see
-the new generation row, reads a NULL tag as raw, and blanks the rebuilt row.
-That reproduced on PostgreSQL 18.6 with both a `LEFT JOIN` guard and a `NOT
-EXISTS` guard (see "What was run"). The second statement of the transaction gets
+current generation. The split is needed because, in a single statement with the
+lock and the rewrite in one CTE, the recheck of a row whose version changed
+re-evaluates only that locked row and reuses the generation row the statement
+joined at its start (or the absence of one). When the writer commits a new
+generation for the row between that join and the lock, the guard does not see
+it, reads a NULL tag as raw, and blanks the rebuilt row. That reproduced on
+PostgreSQL 18.6 with both a `LEFT JOIN` guard and a `NOT EXISTS` guard, in two
+independent runs (see "What was run"). The second statement of the transaction gets
 a fresh snapshot after the locks are held, so it sees the new generation and
 skips the row. Once the locks are held, a later writer upsert waits for the
 commit and then overwrites the blank. A and B stay single statements: a search
@@ -327,8 +330,9 @@ DELETE FROM fact_records f USING batch b WHERE f.fact_id = b.fact_id;
 ```
 
 `repo_id` is a top-level payload key (`eshuSearchDocumentPayload` in the writer
-file above). Each statement locks one table, so the purge adds no lock-order
-question between the fact and index tables. In A, the two deletes are siblings in
+file above). Each statement takes row locks on one table (A also deletes the matching term
+rows, which locks those rows), so the purge adds no lock-order question between
+the fact and index tables. In A, the two deletes are siblings in
 one statement. PostgreSQL runs data-modifying CTEs against one snapshot and does
 not order them, so neither reads the other's effect; both take their rows from
 `batch`, and no row is targeted twice. The terms primary key is `(scope_id,
@@ -389,4 +393,9 @@ runtime partition pruning of the terms delete; the real search-document writer
 and content writer interleaved with the purge (only one second session, and the
 sleep above, stood in); migration 088 (no statement here updates `fact_records`);
 repositories with more than one scope; the `repo_id` payload key and the marker
-names against the writer code rather than reading.
+names against the writer code rather than reading. One gap the guard cannot
+see: the content writer does not rewrite a file's entities atomically with the
+file row (it uses a pool, and the reaper does not remove a path that drops to
+zero entities), so a raw entity can sit under a file row from a post-`W`
+generation. The guard then skips it and `raw_entity_rows` reads zero. #8833's
+proof item on interleaving must cover this state.

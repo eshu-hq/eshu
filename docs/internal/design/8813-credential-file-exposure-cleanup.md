@@ -107,11 +107,14 @@ readable" in the record), so the census and the exit criterion count it. The
 arbiter ruled on 2026-10-24 (binding; the observations below are the evidence
 it rests on).
 
-**Ruling.** The #8833 purge statement deletes the active
-`reducer_eshu_search_document` fact row by `fact_id` in the same statement as the
-index document and term rows. The reindex rebuilds it from redacted rows. There
-is no `UPDATE`, no rebuild trigger and no read-side filter. The sequence is
-unchanged: #8922, #8812, #8833, deploy, SQL, reindex, second SQL.
+**Ruling.** The #8833 purge deletes the active `reducer_eshu_search_document`
+fact row by `fact_id`. Statement B on the purge SQL page does it, beside
+statement A for the index documents and terms; each statement locks one table,
+which replaced the single joined statement the first ruling described. The
+reindex rebuilds the row from redacted rows. There is no `UPDATE`, no rebuild
+trigger and no read-side filter. The sequence is the one in "Cleanup order"
+above (deploy #8833, reindex request, guarded SQL, guarded SQL again); the later
+exit-criterion ruling superseded the earlier order of SQL before reindex.
 
 **Why a `DELETE`.**
 
