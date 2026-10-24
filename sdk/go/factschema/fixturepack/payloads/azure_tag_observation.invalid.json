@@ -2,6 +2,6 @@
   "arm_resource_id": "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-1",
   "resource_type": "microsoft.compute/virtualmachines",
   "tag_value_fingerprints": {
-    "env": "redacted:tag-env"
+    "env": "redacted:hmac-sha256:c78a3aed0e9e0e9662dc19a40eddcae8440730c99950d67b15453e8affde39a8"
   }
 }
