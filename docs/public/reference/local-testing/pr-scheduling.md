@@ -20,11 +20,20 @@ cassette refresh still use their own PR triggers.
 Scheduled PostgreSQL proofs use PR-conditional cancellation in their event/ref
 group; scheduled and manual runs retain noncancelling behavior.
 
-| Plan mode | Hosted work on the PR head |
+| Plan mode | Repository-controlled work on the PR head |
 | --- | --- |
 | Full | Applicable leaf jobs run, including path-selected blocking and advisory checks. |
-| Reuse | No leaf job runs; trusted previously green verdicts transfer to the identical tree. |
+| Reuse | No repository-controlled validation leaf job runs; trusted previously green verdicts transfer to the identical tree. |
 | Smoke | Selected fast gate commands and the required build run; other full-backed verdicts transfer. |
+
+This guarantee covers `Build Test` and its frozen callable-workflow inventory,
+including blocking and advisory leaves. Only the explicitly enumerated planning
+and status-publication jobs execute in that controlled set during reuse.
+GitHub-managed CodeQL default setup remains enabled outside this scheduler.
+Report its actual jobs and runner occupancy separately and include them in
+whole-PR and daily totals. Reuse does not promise zero jobs or zero runner cost
+across the whole PR. Compare whole-PR costs only when both samples include the
+same managed workflows; a repository-workflow subtotal is not a whole-PR total.
 
 The disabled-by-default `CI_SMOKE_GO_BUILD_FAIL_CANARY` repository variable is
 passed through the `Build Test` caller step for a reviewed live negative canary.
