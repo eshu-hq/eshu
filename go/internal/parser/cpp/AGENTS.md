@@ -69,7 +69,7 @@ included local headers that are intentionally not parsed):
 - `cppFreeHeaderPrototypePattern`, `cppClassBlockPattern`,
   `cppClassMethodPrototypePattern`, `cppBlockCommentPattern`,
   `cppLineCommentPattern` in `header_roots.go`. `AnnotatePublicHeaderRoots`
-  reads external `.h` files via `os.ReadFile`; those headers are not part of the
+  reads external `.h` files via `shared.ReadFileCapped`; those headers are not part of the
   current translation unit's tree-sitter parse, so there is no AST to read. The
   scan is bounded: only directly `#include`d local headers inside the repository
   root, no transitive include resolution, no macro expansion, no header parse.

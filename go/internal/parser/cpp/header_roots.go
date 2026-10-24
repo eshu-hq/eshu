@@ -67,7 +67,7 @@ func AnnotatePublicHeaderRoots(payload map[string]any, repoRoot string, sourcePa
 		return
 	}
 	for _, headerPath := range cppIncludedLocalHeaderPaths(payload, repoRoot, sourcePath) {
-		source, err := os.ReadFile(headerPath) // #nosec G304 -- reads a C++ header at a path derived from the scan target repo tree
+		source, err := shared.ReadFileCapped(headerPath) // #nosec G304 -- reads a C++ header at a path derived from the scan target repo tree; capped at shared.SourceReadCap (#8986)
 		if err != nil {
 			continue
 		}

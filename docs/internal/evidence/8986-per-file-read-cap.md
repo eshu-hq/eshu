@@ -20,6 +20,14 @@ touched it.
   (bounded readers) are not affected.
 - The parse read and the fact-stream content read use `ReadFileCapped`, so a
   file that grew past the cap after discovery is refused, not read whole.
+- A delta target over the cap joins the delta's deleted paths, so the stream
+  emits its file and content tombstones and the graph retracts it. A full
+  generation already drops an absent file; both end with the file absent.
+- Parser side reads of other repository files use `ReadFileCapped`: the C and
+  C++ header scans, `go.mod`, the JavaScript sibling parser, tsconfig and
+  package.json, composer.json and composer.lock, the Python package `__init__`
+  and Lambda config scans. `TestParserTreeReadsRepositoryFilesThroughTheCap`
+  fails on a new raw whole-file read in the parser tree.
 
 A first cut that capped only `ReadSource` failed the whole snapshot: the import
 pre-scan reads every parser file and returns an error on the first failure
@@ -74,11 +82,29 @@ pre-parse identity.
 
 ## Known limits
 
-- A delta whose changed target grew past the cap skips the file but does not
-  retract its earlier facts; the next full reconciliation does. The generated
-  bundle filter has the same delta shape.
 - A file that grows past the cap between discovery and the import pre-scan
-  still fails that snapshot, as any unreadable parser file does today.
+  fails that snapshot, as any unreadable parser file does. The failure is
+  transient: the next cycle's discovery records the new size and skips the file.
 - A `.gitmodules` or CODEOWNERS file over the cap in the full discovery set is
   counted as an oversize skip although those files are read by their own
   readers; files of that size are not realistic.
+
+## Reads left outside the cap
+
+These read whole files but are not parser input:
+
+- `parser/hcl/include_chain.go`: Terragrunt includes, behind their own
+  Lstat-checked 1 MiB cap.
+- `parser/scip/parser.go`: the SCIP index the indexer wrote, not repository
+  content.
+- `parser/goldenaudit/golden_audit.go`: checked-in golden fixtures.
+- `collector/repo/git/workflow/image/facts.go`: workflow files read for image
+  evidence; a capped read there would count a read failure and degrade every
+  sync of a repository holding a workflow over 64 MiB.
+- `collector/repo/git/snapshot_native_helpers.go` (`PreparseConfigFor`): the
+  digest of an operator-installed SCIP binary.
+- `collector/repo/git/snapshot_native_vendor_roots.go`, `selection_ignore.go`,
+  `selection_copy_commit.go`, `discovery/gitignore.go`: `.eshu/discovery.json`,
+  `.gitignore`, and `.eshuignore` control files.
+- `collector/repo/git/selection_filesystem.go`: the collector's own fixture
+  manifest.

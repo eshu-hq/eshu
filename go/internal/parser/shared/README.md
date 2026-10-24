@@ -93,7 +93,7 @@ The rewrite is length-preserving, which is what keeps downstream byte offsets
 (the JSONC offset translator, SQL entity spans, `IndexSource` snippets) valid
 against the file on disk, and it never mutates its input, which is what keeps
 the git collector's content digest stable. A parser that reads a SECOND file
-with its own `os.ReadFile` -- a C/C++ header, a sibling module, a tsconfig, a
+with its own read -- a C/C++ header, a sibling module, a tsconfig, a
 Terragrunt include -- does not go through `ReadSource` and must call
 `NormalizeLineEndings` itself.
 
@@ -118,7 +118,12 @@ the repository and golden corpus (274,035 bytes); per-parser caps such as the
 2 MiB Gradle catalog cap still apply below it. `SourceReadCap` returns the cap
 in force; `SetSourceReadCapForTest` lowers it for a test and is never called by
 production code. There is no environment variable: no operator need for one
-was shown.
+was shown. Side reads of other repository files (C and C++ headers, Python
+package `__init__` files and Lambda configs, JavaScript siblings, tsconfig and
+package.json, composer manifests and locks, `go.mod`) use `ReadFileCapped` too.
+`TestParserTreeReadsRepositoryFilesThroughTheCap` fails on any other whole-file
+read in the parser tree; its allowlist names the Terragrunt include walker (its
+own 1 MiB cap), the SCIP index reader, and the golden-audit fixture reader.
 
 `CyclomaticComplexity` is the shared McCabe walker. Each tree-sitter language
 adapter passes a `BranchNodeSet` (built with `NewBranchNodeSet`) that names the

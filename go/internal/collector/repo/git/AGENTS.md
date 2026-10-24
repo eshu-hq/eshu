@@ -447,6 +447,8 @@ candidates stay (metadata-only), and documentation files keep their own bounded
 readers. Only the full set counts, as `skip_reason=content:oversize`, and
 `snapshotOneRepository` logs WARN `git_snapshot_file_skipped_oversize` per file
 once the generation ids exist. A size skip is deterministic for the commit, so
-it never degrades the snapshot. A file that grew past the cap after discovery
+it never degrades the snapshot. On a delta, `withOversizeDeltaTombstones` lists
+each skipped target as deleted so its earlier facts are retracted, not left
+stale; keep that or a delta serves the old file as current. A file that grew past the cap after discovery
 is refused by `shared.ReadFileCapped` in the parse (`file_read_failed`) and the
 stream (`content_read_failed`). `snapshot_oversize_test.go` pins all of it.
