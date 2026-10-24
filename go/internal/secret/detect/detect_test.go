@@ -114,7 +114,7 @@ func TestSpansPrefilterNeverHidesAMatch(t *testing.T) {
 func TestSpansAndClassifyAcceptUnicodeSpaces(t *testing.T) {
 	t.Parallel()
 
-	for _, space := range []string{"\u2003", "\u3000", "\u00a0", "\u2028", "\u2029", "\u0085", " ", "\t"} {
+	for _, space := range []string{"\u2003", "\u3000", "\u00a0", "\u2028", "\u2029", "\u0085", " ", "\t", "\v", "\f"} {
 		line := "password" + space + ": abcdefghij"
 		if len(detect.Spans(line)) == 0 {
 			t.Errorf("Spans(%q) found nothing for space %U", line, []rune(space)[0])
@@ -142,5 +142,50 @@ func TestSpansPrefilterKeepsNonASCIILines(t *testing.T) {
 		if len(detect.Spans(line)) == 0 {
 			t.Errorf("Spans(%q) skipped a line the pattern matches", line)
 		}
+	}
+}
+
+// TestSpacesClassKeepsThePOSIXSetAndAddsUnicode pins the ruling's spelling: the
+// class is the POSIX [[:space:]] set (which has \v, unlike Go's \s) plus Zs, NEL,
+// and the line and paragraph separators, substituted at compile time only.
+func TestSpaceClassKeepsThePOSIXSetAndAddsUnicode(t *testing.T) {
+	t.Parallel()
+
+	const want = `[[:space:]\p{Zs}\x{85}\x{2028}\x{2029}]`
+	if detect.SpaceClass != want {
+		t.Fatalf("SpaceClass = %q, want %q", detect.SpaceClass, want)
+	}
+	for _, source := range detect.ArmSources() {
+		if strings.Contains(source.Regex, `\p{Zs}`) {
+			t.Fatalf("arm %s leaked the Go-only class into the migration-bound text: %s", source.Kind, source.Regex)
+		}
+	}
+}
+
+// TestSpansReportKeyMatchGeometry pins the fields the redactor needs to apply
+// the listed-key rule to a detector key match: where the key word is, where the
+// separator and its trailing space end (before an opening quote), and where the
+// value starts.
+func TestSpansReportKeyMatchGeometry(t *testing.T) {
+	t.Parallel()
+
+	line := `x: Authorization: "abcdefghij" tail`
+	spans := detect.Spans(line)
+	if len(spans) != 1 || !spans[0].IsKey {
+		t.Fatalf("Spans = %+v, want one key span", spans)
+	}
+	span := spans[0]
+	if got := line[span.KeyStart:span.KeyEnd]; got != "Authorization" {
+		t.Errorf("key = %q", got)
+	}
+	if got := line[span.SepEnd:span.Start]; got != `"` {
+		t.Errorf("between the separator and the value = %q, want the opening quote", got)
+	}
+	if got := line[span.KeyEnd:span.SepEnd]; got != ": " {
+		t.Errorf("separator = %q", got)
+	}
+	shape := detect.Spans("# rotate AKIAABCDEFGHIJKLMNOP soon")
+	if len(shape) != 1 || shape[0].IsKey {
+		t.Fatalf("shape span = %+v, want one non-key span", shape)
 	}
 }

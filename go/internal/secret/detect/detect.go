@@ -31,11 +31,13 @@ const SQLPattern = keyPrefixPattern + valuePattern + `|` + shapePattern
 // SpaceClass is the whitespace class the Go-only regular expressions use where
 // SQLPattern says [[:space:]]. Postgres ARE [[:space:]] on a UTF8 database
 // matches U+2003 and U+3000 (measured on 18.6), which RE2's ASCII-only
-// [[:space:]] does not. The class below is a superset: ASCII white space, every
-// Unicode Zs space (U+00A0 included, which Postgres does not match), NEL, and the
-// line and paragraph separators. A superset is safe here because it can only
-// redact more than the migration flags.
-const SpaceClass = `[\s\p{Zs}\x{85}\x{2028}\x{2029}]`
+// [[:space:]] does not. The class keeps the POSIX set (RE2's [[:space:]] has \v;
+// Go's \s does not) and adds every Unicode Zs space (U+00A0 included, which
+// Postgres does not match), NEL, and the line and paragraph separators. A
+// superset is safe here because it can only redact more than the migration
+// flags. It is substituted at compile time only: SQLPattern and the arm sources
+// keep the migration's bytes.
+const SpaceClass = `[[:space:]\p{Zs}\x{85}\x{2028}\x{2029}]`
 
 const postgresSpaceClass = `[[:space:]]`
 
@@ -104,13 +106,21 @@ func Classify(line string) string {
 	return ""
 }
 
-// Span is a byte range of one line that holds a credential value.
+// Span is a byte range of one line that holds a credential. For a key match it
+// is the value and IsKey is true; KeyStart and KeyEnd bound the key word, and
+// SepEnd is the end of the separator and the white space after it, before an
+// opening quote. For a value-shape match it is the whole shape.
 type Span struct {
 	Start, End int
+	IsKey      bool
+	KeyStart   int
+	KeyEnd     int
+	SepEnd     int
 }
 
-// Spans returns the credential spans SQLPattern matches in one line: only the
-// value for a key match, the whole shape for a value-shape match.
+// Spans returns the credential spans SQLPattern matches in one line: the
+// value (with the key geometry) for a key match, the whole shape for a
+// value-shape match.
 // The Go and Postgres engines differ in both directions: Go (?i) folds U+017F
 // and U+212A where Postgres in a C collation does not, and Postgres
 // [[:space:]] matches U+2003 and U+3000 where RE2's does not. SpaceClass makes
@@ -125,7 +135,14 @@ func Spans(line string) []Span {
 	for _, match := range matches {
 		// Group 1 is the key word inside keyPrefixPattern; group 2 is the value.
 		if match[4] >= 0 {
-			spans = append(spans, Span{Start: match[4], End: match[5]})
+			sepEnd := match[4]
+			if sepEnd > match[0] && (line[sepEnd-1] == '"' || line[sepEnd-1] == '\'') {
+				sepEnd--
+			}
+			spans = append(spans, Span{
+				Start: match[4], End: match[5], IsKey: true,
+				KeyStart: match[2], KeyEnd: match[3], SepEnd: sepEnd,
+			})
 			continue
 		}
 		spans = append(spans, Span{Start: match[0], End: match[1]})
