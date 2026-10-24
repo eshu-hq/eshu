@@ -36,6 +36,11 @@ const (
 	// whether a read failure other than not_found stopped the fan-out early,
 	// a rate limit included (#8805).
 	AttrSecurityAlertFanoutStopped = "eshu.security_alert.org_fanout.stopped"
+	// AttrSecurityAlertOrgReadTruncated is the span attribute key recording
+	// whether the organization stream stopped at max_pages for the claim that
+	// persisted the org read state (#8943). It is a flag, never a repository
+	// name.
+	AttrSecurityAlertOrgReadTruncated = "eshu.security_alert.org_read_truncated"
 )
 
 // Org-scope security-alert fan-out outcomes (#8805), recorded on the existing

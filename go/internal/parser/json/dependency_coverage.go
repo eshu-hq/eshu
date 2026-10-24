@@ -302,6 +302,16 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			Notes:                   "Literal libraryDependencies += / ++= / := coordinates (% and %% and %%% forms) emit content_entity rows with organization:name identity. Scope and the dev/runtime split are captured only for statements that match the closed grammar in go/internal/parser/sbt/README.md (a bare key at the file top level or in a project's .settings(...), one % config such as Test, allowlisted infix ModuleID calls); every other form (an axis, inConfig, a brace block, .map, ++, a dotted or parenthesised call, a repeated or empty configuration) emits partial rows with a placeholder scope, counted in sbt_state.unresolved_declaration_count. Versions held in top-level string vals resolve in-file; other non-literal revisions stay unresolved. A dotted member that rewrites the key (.transform, .set) or sbt 0.13's <<= supersedes earlier rows; a member that returns no Setting (.map) is counted once and supersedes nothing. sbt is a Scala DSL: the parser never evaluates it; plugins.sbt, the other project/*.sbt files and Build.scala are not read, and project/build.sbt (the meta-build) is parsed with sbt_state.meta_build true and every row partial.",
 		},
 		{
+			Ecosystem:               "gradle",
+			FilePattern:             "libs.versions.toml",
+			FileKind:                "manifest",
+			Status:                  DependencyCoverageCovered,
+			CapturesPackageIdentity: true,
+			CapturesVersionRange:    true,
+			SourceReference:         "go/internal/parser/gradle/catalog/scan.go",
+			Notes:                   "[libraries] entries emit dependency rows with groupId:artifactId identity; a version is resolved only when it is one exact version written as a plain string or as a version.ref to a plain [versions] string, and a rich version, an unknown reference, an interpolation, a dynamic version, a range, a strict !! marker, or an @type suffix stays unresolved with no value. Aliases that collide after Gradle's -/_/. normalization or share a Gradle accessor name stay unresolved, including a collision with a dotted-entry or sub-table alias, which emits no row. [plugins] emit gradle_plugin rows the package reducer ignores. A catalog entry declares a dependency without proving a build script uses it, so rows set no direct_dependency and no scope.",
+		},
+		{
 			Ecosystem:               "nuget",
 			FilePattern:             "*.csproj",
 			FileKind:                "manifest",

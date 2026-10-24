@@ -138,8 +138,9 @@ func assertNoSeedInContentFacts(t *testing.T, envelopes []facts.Envelope, seed s
 func TestMetadataPolicyEmitsAnEmptyBodyWithTheSourceDigest(t *testing.T) {
 	t.Parallel()
 
-	registry := policyRegistry(t, "raw_text", parser.ContentStore{Policy: parser.ContentStoreMetadata}, ".npmrc")
-	snapshot, envelopes := snapshotWithPolicy(t, registry, ".npmrc", policyNpmrcBody)
+	// The production binding (#8978): the default registry carries .npmrc under
+	// its own definition and the metadata policy.
+	snapshot, envelopes := snapshotWithPolicy(t, parser.DefaultRegistry(), ".npmrc", policyNpmrcBody)
 
 	fact := contentFact(t, envelopes, ".npmrc")
 	if fact.Payload["content_body"] != "" {
@@ -161,6 +162,11 @@ func TestMetadataPolicyEmitsAnEmptyBodyWithTheSourceDigest(t *testing.T) {
 	}
 	if !fileFact {
 		t.Fatal("the parser still emits the file fact for a metadata path")
+	}
+	// #8978: the registry-URL fact exists beside the empty-body row.
+	urls := npmrcRegistryEntities(t, envelopes, ".npmrc")
+	if len(urls) != 1 || urls[0]["value"] != "https://registry.example.com/" {
+		t.Fatalf("registry-URL entities = %v, want the one registry line", urls)
 	}
 }
 
@@ -288,10 +294,10 @@ func TestRedactFailureStoresAnEmptyBodyNeverTheSource(t *testing.T) {
 	t.Parallel()
 
 	// raw_text accepts the invalid byte; the yaml parser would skip the file.
-	registry := policyRegistry(t, "raw_text", policyMarker("_authToken"), ".npmrc")
+	registry := policyRegistry(t, "raw_text", policyMarker("_authToken"), "legacy.npmrc")
 	body := "//registry.example.com/:_authToken=" + policySeed + "\xff\n"
-	_, envelopes := snapshotWithPolicy(t, registry, ".npmrc", body)
-	fact := contentFact(t, envelopes, ".npmrc")
+	_, envelopes := snapshotWithPolicy(t, registry, "legacy.npmrc", body)
+	fact := contentFact(t, envelopes, "legacy.npmrc")
 	if fact.Payload["content_body"] != "" {
 		t.Fatalf("a non-UTF-8 redact path must store an empty body, got %q", fact.Payload["content_body"])
 	}

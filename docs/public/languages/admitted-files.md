@@ -34,7 +34,7 @@ checklist.
 | `elixir` | elixir | L2 structured fact | store | `.ex`, `.exs` | `mix.lock` |  |
 | `go` | go | L2 structured fact | store | `.go` |  |  |
 | `gomod` | go | L2 structured fact | store |  | `go.mod`, `go.sum`, `go.work` |  |
-| `gradle` | java | L2 structured fact | store |  | `build.gradle`, `build.gradle.kts` |  |
+| `gradle` | java | L2 structured fact | store |  | `build.gradle`, `build.gradle.kts`, `libs.versions.toml` |  |
 | `groovy` | groovy | L2 structured fact | store | `.groovy` |  |  |
 | `haskell` | haskell | L2 structured fact | store | `.hs` |  |  |
 | `hcl` | terraform | L2 structured fact | store | `.hcl`, `.tf`, `.tfvars` |  |  |
@@ -45,6 +45,7 @@ checklist.
 | `kotlin` | kotlin | L2 structured fact | store | `.kt`, `.kts` |  |  |
 | `maven` | java | L2 structured fact | store |  | `pom.xml` |  |
 | `node_lockfile` | javascript | L2 structured fact | store |  | `pnpm-lock.yaml`, `pnpm-lock.yml`, `yarn.lock` |  |
+| `npmrc` | javascript | L2 structured fact | metadata |  | `.npmrc` |  |
 | `nuget_project` | csharp | L2 structured fact | store | `.csproj` |  |  |
 | `perl` | perl | L2 structured fact | store | `.pl`, `.pm` |  |  |
 | `php` | php | L2 structured fact | store | `.php` |  |  |
@@ -84,7 +85,7 @@ export would bypass it.
 
 | Policy | What is stored | Use it for |
 | --- | --- | --- |
-| `store` | The body, verbatim. This is the default for every definition today. | Source and configuration files that hold no credentials. |
+| `store` | The body, verbatim. This is the default for every definition except `.npmrc`. | Source and configuration files that hold no credentials. |
 | `metadata` | A `content_files` row with an empty body. The path stays in the repository tree, file counts, language inventory, and coverage. The row is never a tombstone. | Files that can hold credentials where the registry URLs or version pins matter more than the text. |
 | `redact` | The body with credential values replaced in place. The `marker` mode writes `REDACTED_<finding_kind>`, for example `npmAuthToken: REDACTED_api_token`. | Closed-schema files where every credential key is known. |
 
@@ -150,16 +151,17 @@ they are. A registry that binds no non-store policy keeps today's fingerprint.
 
 ### Which files use each policy
 
-Every definition uses `store` today. The policy mechanism ships first; the
-bindings follow once the detector gains the key shapes that file formats need
-(#8833). The planned bindings, recorded in the
+Every definition uses `store` except `.npmrc`, which uses `metadata` (#8978). The
+other bindings follow once the detector gains the key shapes that file formats
+need (#8833). The bindings, recorded in the
 [credential-file design record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8813-credential-file-exposure.md):
 
 | File | Policy | Mode |
 | --- | --- | --- |
 | `.yarnrc.yml` | `redact` | `marker` |
 | `*.tfvars`, `*.tfvars.json` | `redact` | allowlist skeleton, added in #8833 |
-| `.npmrc`, `gradle.properties`, `nuget.config` | `metadata`, if a later record admits them | none |
+| `.npmrc` | `metadata` | none, shipped in #8978 |
+| `gradle.properties`, `nuget.config` | `metadata`, if a later record admits them | none |
 
 `.eshuignore` stays the per-repository override and drops the file's parser
 facts as well.
@@ -179,11 +181,14 @@ Some names are left out on purpose:
 
 - `Taskfile.yml` and `Taskfile.yaml` are already admitted as structured YAML
   through the `.yml` and `.yaml` extensions, so they are not re-listed.
-- `.env`, `.npmrc`, `.pypirc`, `.netrc` and `settings.xml` hold credentials or
+- `.env`, `.pypirc`, `.netrc` and `settings.xml` hold credentials or
   environment values. `phpunit.xml`, `phpunit.xml.dist`, `.mvn/jvm.config` and
   `.mvn/maven.config` can hold environment values or `-D` credential properties
   too. The content store does not redact text on write, so none of them is
-  admitted.
+  admitted. `.npmrc` is the exception: it is admitted under `metadata`, so the
+  repository tree and file counts keep the path, no body is stored, and its
+  `registry=` and `@scope:registry=` URLs are reported with any userinfo, query,
+  and fragment removed.
 
 In filesystem source mode, the managed-workspace copy keeps the admitted
 dot-prefixed names, including the runtime-version pins such as `.nvmrc` and

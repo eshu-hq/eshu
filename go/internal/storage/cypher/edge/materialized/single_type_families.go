@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package materialized
+package materialized //nolint:filelength // 505 lines: the single-type materialized-edge family registry; one entry per family with its held production retract/identity templates, so splitting would scatter the registry the drift guards pin as one table.
 
 import (
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -386,6 +386,23 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractKind:    retractKindEvidenceNodeDetach,
 		RetractCypher:  iam.SecretsIAMVaultPolicyNodeRetractCypher,
 		IdentityCypher: iam.SecretsIAMVaultPolicyNodeUpsertCypher,
+	},
+	// grants_secret_read is an evidenceNodeDetach family (#6228 remainder).
+	// Its edges hang off SecretsIAMSecretMetadataPath nodes only the secrets
+	// graph writer MERGEs (pinned by the sole-creator census in
+	// go/internal/storage/cypher), so the retract reaps the path nodes
+	// with DETACH DELETE and the edges cascade. IdentityCypher holds the
+	// path NODE upsert, the one template that MERGEs the evidence
+	// label, so the edge type itself is derived from the held edge upsert
+	// the RetractKind arm reads, never from the literal declared here. The
+	// edge template MERGEs on its two endpoint nodes alone (both are
+	// MATCHed, never merged), so the identity scan yields nothing.
+	"grants_secret_read": {
+		// #nosec G101 -- registry entry: the key is a graph relationship type and the description names a Cypher-template identifier, not a credential
+		EdgeTypes:      map[string]string{"SECRETS_IAM_GRANTS_SECRET_READ": "Vault-policy to secret-path grant (SecretsIAMGrantsSecretReadEdgeUpsertCypher in cloud/aws/iam/secrets_graph_writer.go)"},
+		RetractKind:    retractKindEvidenceNodeDetach,
+		RetractCypher:  iam.SecretsIAMSecretMetadataPathNodeRetractCypher,
+		IdentityCypher: iam.SecretsIAMSecretMetadataPathNodeUpsertCypher,
 	},
 	// built_from is the first single-type family whose relationship MERGE
 	// keys on more than its two endpoint nodes: the template MERGEs

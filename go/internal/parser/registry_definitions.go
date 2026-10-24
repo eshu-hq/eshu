@@ -123,7 +123,7 @@ func defaultDefinitions() []Definition {
 			Language:   "gradle",
 			Ecosystem:  "java",
 			Admission:  AdmissionStructuredFact,
-			ExactNames: []string{"build.gradle", "build.gradle.kts"},
+			ExactNames: []string{"build.gradle", "build.gradle.kts", "libs.versions.toml"},
 		},
 		{
 			ParserKey:  "javascript",
@@ -215,8 +215,9 @@ func defaultDefinitions() []Definition {
 			// The runtime-version pin files below hold only version strings. They
 			// are an explicit name list, never a "*-version" rule, so every
 			// admitted name is reviewed. Files that can carry credentials or
-			// literal environment values (.npmrc, .pypirc, .netrc, .env*,
-			// mise.toml) stay out: the content store has no write-time redaction.
+			// literal environment values (.pypirc, .netrc, .env*, mise.toml) stay
+			// out: the content store has no write-time redaction. .npmrc is the
+			// one admitted name, through its own npmrc definition (#8978).
 			//
 			// The universal build and tool configuration names (#8814) are
 			// likewise an explicit list, never an extension rule: .ini, .toml, .xml and
@@ -304,6 +305,21 @@ func defaultDefinitions() []Definition {
 			Ecosystem:  "javascript",
 			Admission:  AdmissionStructuredFact,
 			ExactNames: []string{"yarn.lock", "pnpm-lock.yaml", "pnpm-lock.yml"},
+		},
+		{
+			// .npmrc holds registry URLs next to credentials. It is its own
+			// exact-name definition, never bound to the hcl, yaml, or raw_text
+			// definitions, and it binds the metadata content-store policy
+			// (#8978): the row keeps the path and the source digest with an empty
+			// body, and the npmrc parser emits only credential-free registry
+			// URLs. Parser output is not governed by the policy, so the parser,
+			// not the policy, keeps credentials out of facts.
+			ParserKey:    "npmrc",
+			Language:     "npmrc",
+			Ecosystem:    "javascript",
+			Admission:    AdmissionStructuredFact,
+			ContentStore: ContentStore{Policy: ContentStoreMetadata},
+			ExactNames:   []string{".npmrc"},
 		},
 		{
 			ParserKey:  "yaml",

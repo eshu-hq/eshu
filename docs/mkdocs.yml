@@ -441,6 +441,8 @@ nav:
     - Rebuild the Graph From Facts: operate/graph-rebuild-from-facts.md
     - Workload Identity Cutover: operate/workload-identity-cutover-runbook.md
     - Retire Leftover Workload Nodes: operate/legacy-workload-retirement-runbook.md
+    - Collector Cutover Rollback: operate/collector-cutover-rollback.md
+    - Collector Cutover Truth Checks: operate/collector-cutover-truth-checks.md
     - Delta-Base Union: operate/graph-delta-union.md
     - Troubleshooting: operate/troubleshooting.md
     - Park-Holder Runbook: operate/park-holder-runbook.md

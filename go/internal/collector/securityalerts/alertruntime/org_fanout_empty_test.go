@@ -44,11 +44,11 @@ func TestClaimedSourceTruncatedOrgReadWithNoSameOrgRepositoriesIsNotAFanout(t *t
 	}
 	// The digest of the same window read without a fan-out: the org window's
 	// alerts, truncated, no outcomes. A complete read of the same window must differ from it.
-	want := securityAlertFreshnessHint(securityAlertFreshnessInput{alerts: org.Alerts, pagesFetched: 3, truncated: true})
+	want := securityAlertFreshnessHint(securityAlertFreshnessInput{alerts: org.Alerts, pagesFetched: 3, truncated: true, orgReadState: true})
 	if got != want {
 		t.Fatalf("freshness hint = %q, want the truncated single-read digest %q", got, want)
 	}
-	complete := securityAlertFreshnessHint(securityAlertFreshnessInput{alerts: org.Alerts, pagesFetched: 3})
+	complete := securityAlertFreshnessHint(securityAlertFreshnessInput{alerts: org.Alerts, pagesFetched: 3, orgReadState: true})
 	if got == complete {
 		t.Fatal("freshness hint equals a complete read's digest, want the truncation in the digest")
 	}

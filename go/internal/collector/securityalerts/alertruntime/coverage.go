@@ -57,12 +57,13 @@ func (c alertCollection) coverageFor(alert securityalerts.GitHubDependabotAlert)
 }
 
 // freshnessInput builds the freshness digest input for the merged read.
-func (c alertCollection) freshnessInput() securityAlertFreshnessInput {
+func (c alertCollection) freshnessInput(target TargetConfig) securityAlertFreshnessInput {
 	return securityAlertFreshnessInput{
 		alerts:         c.alerts,
 		pagesFetched:   c.pagesFetched,
 		truncated:      c.truncated,
 		fanoutOutcomes: c.fanoutOutcomes,
+		orgReadState:   target.IsOrganizationScope(),
 	}
 }
 

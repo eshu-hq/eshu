@@ -214,14 +214,14 @@ language_features:
     pin_files: [.java-version, .sdkmanrc]
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [source-entities, call-metadata, annotation-metadata, dead-code-roots, spring-mvc-route-truth, jax-rs-route-truth, micronaut-route-truth]
+    supported_features: [gradle-version-catalog-dependencies, source-entities, call-metadata, annotation-metadata, dead-code-roots, spring-mvc-route-truth, jax-rs-route-truth, micronaut-route-truth]
     partial_features: [spring-composed-route-truth, external-route-config-truth, generated-route-truth, outbound-contracts, broad-reflection]
     derived_features: []
-    source_files: [go/internal/parser/java_language.go, go/internal/parser/java/parser.go, go/internal/parser/java/spring_routes.go, go/internal/parser/java/framework_routes.go]
-    test_files: [go/internal/parser/engine_managed_oo_test.go, go/internal/parser/java/java_dead_code_framework_roots_test.go, go/internal/parser/java/java_spring_route_semantics_test.go, go/internal/reducer/code/call/materialization/routes_java_test.go, go/internal/query/codequery/route_to_caller_java_test.go, go/internal/query/codequery/route_query_proof_helpers_test.go]
+    source_files: [go/internal/parser/java_language.go, go/internal/parser/gradle_language.go, go/internal/parser/gradle/catalog/scan.go, go/internal/parser/gradle/wrapper/scan.go, go/internal/parser/java/parser.go, go/internal/parser/java/spring_routes.go, go/internal/parser/java/framework_routes.go]
+    test_files: [go/internal/parser/engine_managed_oo_test.go, go/internal/parser/gradle/catalog/engine_test.go, go/internal/parser/gradle/catalog/scan_test.go, go/internal/parser/gradle/wrapper/scan_test.go, go/internal/parser/java/java_dead_code_framework_roots_test.go, go/internal/parser/java/java_spring_route_semantics_test.go, go/internal/reducer/code/call/materialization/routes_java_test.go, go/internal/query/codequery/route_to_caller_java_test.go, go/internal/query/codequery/route_query_proof_helpers_test.go]
     docs: [docs/public/languages/java.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code, trace_route_callers]
-    tracking_issues: [4040, 4097]
+    tracking_issues: [4040, 4097, 8822]
   - language: javascript
     docs_claim: docs/public/languages/javascript.md
     ecosystem: npm

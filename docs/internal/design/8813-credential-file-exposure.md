@@ -47,9 +47,10 @@ discovery package and `snapshot_discovery.go` for credential, secret, `.env`,
 No step transforms the body; #8812 adds the per-definition store policy. The
 registry still withholds the credential-bearing names (`phpunit.xml(.dist)`,
 `.mvn/jvm.config`, `.mvn/maven.config`, `.mvn/settings.xml`, `settings.xml`,
-`.npmrc`, `.pypirc`, `.netrc`, `.env*`, `mise.toml`) while the store has no
-write-time redaction (`TestDefaultRegistryKeepsCredentialBearing*`). Admitting
-one needs a new record.
+`.pypirc`, `.netrc`, `.env*`, `mise.toml`) while the store has no write-time
+redaction (`TestDefaultRegistryKeepsCredentialBearing*`). `.npmrc` is the one
+name admitted since #8978, under `metadata` (see the rule table). Admitting any
+other needs a new record.
 
 ### Where the body is then readable
 
@@ -186,8 +187,33 @@ These decide what each policy costs for `*.tfvars`.
 | --- | --- | --- | --- |
 | `.yarnrc.yml` | `redact` | marker | #8812 mode; bound in #8833 with or after the marker-arm migration |
 | `*.tfvars`, `*.tfvars.json` | `redact` | allowlist skeleton | #8833 |
+| `.npmrc` | `metadata` | none | #8978 |
 
 `.eshuignore` stays the override. A looser tfvars rule needs a new record.
+
+`.npmrc` (#8978) lifts the #8814 and #8813 withholding for that one name. It is
+its own exact-name `npmrc` definition (never the `hcl`, `yaml`, or `raw_text`
+definitions) bound to `metadata`: the row keeps the path and the source digest
+with an empty body, and `metadata` needs no marker-arm migration. A registry-URL
+fact answers "which registry does this repository install from". Parser output
+is outside the policy, so the `npmrc` parser emits only the scheme, host, port,
+and path of `registry=` and `@scope:registry=` lines. It removes the userinfo,
+query, and fragment, drops a whole line it cannot prove clean (an environment
+expansion, a non-http scheme, a detector match in the scheme or host, or an `@`
+that `net/url` did not read as the userinfo delimiter), and never reads a
+credential key. The path is an allowlist of documented, token-free vendor
+layouts (Artifactory, Nexus, Azure Artifacts, GitLab, Gitea, Cloudsmith,
+Artifact Registry, CodeArtifact); any other path, and every Gemfury path, is
+dropped to a host-only row, because Gemfury documents the token as the first
+path segment and no heuristic sees a bare path token reliably. The seeded
+full-stream scan the A1 ruling requires is
+`TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding` in
+`go/internal/collector/repo/git`. Residual: a token a vendor puts in a
+documented slot would pass if drawn as a short single-case or Capitalized word,
+digits only, or a PascalCase word of up to four parts and 24 bytes (random
+tokens: 1.4e-2 to 7.4e-2 at 8 bytes, 2.2e-4 to 5.5e-3 at 16, at most 8.3e-5 at
+24; the parser README has the table); the documented vendors keep the credential in `_authToken`. A private registry on a
+custom layout reports its host only.
 
 Ordering (arbiter, 2026-10-24): no production definition binds to marker mode
 before #8833's marker-arm migration lands. That covers `.yarnrc.yml` and the

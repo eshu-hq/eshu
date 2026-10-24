@@ -137,8 +137,6 @@ func TestDefaultRegistryKeepsCredentialBearingConfigNamesUnadmitted(t *testing.T
 		".env",
 		".env.local",
 		"dir/.env",
-		".npmrc",
-		"dir/.npmrc",
 		".pypirc",
 		".netrc",
 		"settings.xml",

@@ -28,6 +28,11 @@ type securityAlertFreshnessInput struct {
 	pagesFetched   int
 	truncated      bool
 	fanoutOutcomes map[string]string
+	// orgReadState marks an org-scope claim that records its read state
+	// (#8943). It moves the digest of every org target once, so a target whose
+	// provider truth is unchanged still commits one generation that carries the
+	// record instead of keeping an older generation without it.
+	orgReadState bool
 }
 
 type securityAlertFreshnessSnapshot struct {
@@ -84,6 +89,9 @@ func securityAlertFreshnessHint(input securityAlertFreshnessInput) string {
 	}
 	if len(input.fanoutOutcomes) > 0 {
 		digest["org_fanout"] = input.fanoutOutcomes
+	}
+	if input.orgReadState {
+		digest["org_read_state"] = 1
 	}
 	raw, err := json.Marshal(digest)
 	if err != nil {
