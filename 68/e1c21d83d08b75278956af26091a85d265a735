@@ -1,0 +1,33 @@
+docs/public/reference/azure-cloud-collector-contract.md
+  s_ff8a600f1fc93e::t_5138507cd16a7e 357-364
+go/internal/storage/postgres/multi_cloud_runtime_drift_azure_tags_test.go
+  s_ff8a600f1fc93e::t_93da928fd8d065 1-88
+go/internal/collector/cloud/azure/README.md
+  s_ff8a600f1fc93e::t_5138507cd16a7e 53-58
+go/internal/collector/cloud/azure/cassette_source_parity_test.go
+  s_ff8a600f1fc93e::t_aadeb4b53a9271 1-16,36-37,40,42-45,47-68,70-73,75-85,90-91,96-99,107-116,141-151
+  s_ff8a600f1fc93e::t_f1700b5517f1c1 17-35,38-39,41,46,69,74,86,92-95,100-106
+  s_ff8a600f1fc93e::t_1e87c1d8f1ae96 87-89,117-140
+go/internal/ifa/familyodu/cloud_resource_family_odu.go
+  s_ff8a600f1fc93e::t_2aeb539a04cc01 242-243,246-247,256,273,293-339,348,354
+testdata/cassettes/azurecloud/supply-chain-demo.json
+  s_ff8a600f1fc93e::t_26bbf051c8433d 62-133
+testdata/cassettes/cloudresource/ifa-cloud-resource-family.json
+  s_ff8a600f1fc93e::t_efe7aefb624fde 274-275,290-323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "68e1c21d83d08b75278956af26091a85d265a735",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
