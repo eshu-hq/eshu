@@ -1,0 +1,64 @@
+# Gradle Version Selectors Stay Unresolved (#8988)
+
+## Change
+
+`build.gradle` and `build.gradle.kts` rows with a Gradle selector as the
+version were marked `resolved`: `1.+`, `latest.release`, `[1.0,2.0)`, `1.0!!`,
+`1.0@jar`. The reducer then took the selector text as the observed version.
+The parser now calls `selector.Exact` (`go/internal/parser/gradle/selector`)
+after same-file interpolation. A selector row is `unresolved` and keeps the
+text as written. The reducer backstop `payloadcore.ExactManifestDependencyVersion`
+rejects a trailing `+`, a `latest.` prefix, `!!` and `@`. Security-alert
+reconciliation forwards to that function. The git collector content version
+moves from `git-collector.v10` to `git-collector.v11`, so each stored
+repository re-collects once and its stale `resolved` rows are replaced.
+
+## Accuracy proof
+
+- The shared table `go/internal/parser/gradle/selector/testdata/versions.txt`
+  has 13 exact rows and 28 not-exact rows. Each row runs through eight
+  notations: Groovy string, Groovy map, `platform()`, Groovy interpolation,
+  Kotlin string, Kotlin named arguments, `kotlin()`, and Kotlin interpolation.
+- The seeded oracle is `TestParseGeneratedVersionsMatchTheGradleOracle`, seed
+  8988. Its generator is written from the Gradle user manual ("Declaring
+  Versions and Ranges", "Declaring Rich Versions", and the artifact-only
+  notation), and the family label of each version is the oracle. The default
+  run is 3,000 scripts. One run of 30,000
+  (`ESHU_GRADLE_SELECTOR_FUZZ_ROUNDS=30000`) passed in 33.8 s.
+- 11 overlay mutants were all killed by assertion failures, not by build
+  errors. They removed each reject class in `exact.go`, the case fold, the
+  character floor, the `buildRow` guard, the assignment that keeps the
+  literal, and the reducer's trailing-`+` and `@` rejects.
+
+## No-Regression Evidence:
+
+The benchmark is `BenchmarkParseConfig/gradle` in `go/internal/parser`. It
+parses a 10,001-line `build.gradle` through `DefaultEngine().ParsePath`. Each
+arm ran six times, interleaved, on the same arm64 host. The base arm overlaid
+`statement.go` from `origin/main`.
+
+| Arm | ns/op (mean of 6) | B/op range | allocs/op range |
+| --- | --- | --- | --- |
+| base (origin/main `statement.go`) | 55,107,000 (55.1 ms) | 12.66-12.80 MB | 119,730-119,753 |
+| head | 55,553,000 (55.6 ms) | 12.69-12.78 MB | 119,736-119,754 |
+
+Head is 0.8% slower. That is inside the per-run spread of both arms: base ran
+54.5-55.7 ms and head ran 54.7-56.3 ms. Allocations stay in the same band, and
+`selector.Exact` allocates nothing (`TestExactAllocatesNothing`). The reducer
+change adds four constant-time string checks per call. It touches no query,
+lock, queue or batch. The content-version bump costs one extra generation per
+repository on its next sync, the cost the gate makes explicit (#7978).
+
+## No-Observability-Change:
+
+This change adds no metric, span or log. A selector row is visible through
+the existing `dependency_resolution_state=unresolved` value. On the alert
+path it is visible through the existing `installed package version missing`
+evidence string. Parse timing stays with the parent parser engine.
+
+## Known limits
+
+- `g:a:1.0:jdk8` (a classifier) still stores `1.0:jdk8` as the version. That
+  is a separate notation bug, reported for a follow-up.
+- Rich-version closures (`version { strictly(...) }`) are not read and stay
+  `partial`.
