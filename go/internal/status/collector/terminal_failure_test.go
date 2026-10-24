@@ -160,20 +160,3 @@ func runnerRow(t *testing.T, evidence collector.Evidence) collector.RuntimeStatu
 	t.Fatal("no runtime row for runner-example")
 	return collector.RuntimeStatus{}
 }
-
-// TestBoundedFailureClassOtherKindClassesReadUnknown pins the documented known
-// limit (#8896): the allowlist holds only the security-alert provider and claim
-// runner classes, so the bounded classes other collector kinds persist for
-// themselves read as unknown. Widening the set must update this test, both
-// OpenAPI last_failure_class enums, and the docs together.
-func TestBoundedFailureClassOtherKindClassesReadUnknown(t *testing.T) {
-	t.Parallel()
-	for _, class := range []string{"registry_auth_denied", "permission_denied", "stale_fence"} {
-		t.Run(class, func(t *testing.T) {
-			t.Parallel()
-			if got := collector.BoundedFailureClass(class); got != collector.UnknownFailureToken {
-				t.Fatalf("BoundedFailureClass(%q) = %q, want %q (known limit #8896)", class, got, collector.UnknownFailureToken)
-			}
-		})
-	}
-}

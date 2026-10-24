@@ -47,6 +47,27 @@ recent shipped work grouped by feature area.
   when its reconciliation sweep next comes due. Collector output for real
   repositories does not change.
 
+### Collector readiness names each kind's own terminal failure class
+
+- **Collector readiness reports a bounded failure class for every collector
+  kind** ([#8896](https://github.com/eshu-hq/eshu/issues/8896)). A terminal
+  failure on Jira, AWS, the OCI and package registries, SBOM attestation,
+  vulnerability intelligence, the scanner worker, or the Terraform state
+  collector used to read `last_failure_class: unknown` when the class was one
+  only that kind writes. Each kind now reports the nine classes every kind
+  shares, the four the extension host writes (a component extension can carry a
+  first-party kind such as `jira`), and its own (for example `permission_hidden`,
+  `permission_denied`, `stale_fence`, `registry_auth_denied`, `timeout`). A
+  class an extension defines for a kind that is not first-party reads the
+  single token `extension_defined`. Anything else still reads `unknown`,
+  including an extension-defined class on a first-party kind and, on a
+  first-party kind, the one-time `legacy_missing_generation_identity` upgrade
+  backfill (on any other kind it reads `extension_defined`), so no persisted text reaches the field or the
+  `failure_class` label of `eshu_runtime_coordinator_collector_terminal_failure_instances`,
+  which takes at most 41 values. The two OpenAPI `last_failure_class` enums and
+  the class table in the terminal-failure reference grow together. Existing
+  values keep their meaning; a client that treats the enum as closed must
+  accept the new members.
 ### MCP `initialize` negotiates the protocol version
 
 - **`initialize` echoes a supported requested protocol version**

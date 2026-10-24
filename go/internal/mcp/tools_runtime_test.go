@@ -3,7 +3,12 @@
 
 package mcp
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
+)
 
 func TestListCollectorsRuntimeToolRoutesToStatusCollectors(t *testing.T) {
 	t.Parallel()
@@ -191,5 +196,36 @@ func TestCapabilityCatalogRuntimeToolOmitsEmptyFilters(t *testing.T) {
 	}
 	if got, want := route.Query["limit"], "12"; got != want {
 		t.Fatalf("default limit = %q, want %q", got, want)
+	}
+}
+
+// TestCollectorFailureToolDescriptionsNameTheStatusTokens ties the MCP tool
+// descriptions to the status contract (#8896): both collector tools that
+// return last_failure_class point at the per-kind OpenAPI enum and name the
+// extension and unknown fallback tokens the status package reports, so the
+// descriptions cannot drift from the code without this test failing.
+func TestCollectorFailureToolDescriptionsNameTheStatusTokens(t *testing.T) {
+	t.Parallel()
+	found := map[string]bool{}
+	for _, tool := range ReadOnlyTools() {
+		if tool.Name != "list_collectors" && tool.Name != "get_collector_readiness" {
+			continue
+		}
+		found[tool.Name] = true
+		for _, want := range []string{
+			"per-collector-kind enum in the OpenAPI contract",
+			collector.ExtensionDefinedFailureToken,
+			collector.UnknownFailureToken,
+		} {
+			if !strings.Contains(tool.Description, want) {
+				t.Errorf("%s description missing %q", tool.Name, want)
+			}
+		}
+		if strings.Contains(tool.Description, "8896") {
+			t.Errorf("%s description still carries the known-limit reference", tool.Name)
+		}
+	}
+	if len(found) != 2 {
+		t.Fatalf("found tools %v, want list_collectors and get_collector_readiness", found)
 	}
 }
