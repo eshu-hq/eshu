@@ -97,7 +97,7 @@ func (d dependency) row(vals map[string]string, binary string) map[string]any {
 	}
 	row := map[string]any{
 		"name":                        d.org + ":" + d.name,
-		"line_number":                 d.line,
+		"line_number":                 int(d.line),
 		"value":                       value,
 		"section":                     section,
 		"config_kind":                 "dependency",

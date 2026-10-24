@@ -48,9 +48,11 @@ type dependency struct {
 	config   string
 	scope    string
 	// ctx is the grammar context (0 the bare file, n a project's settings)
-	// or noContext.
-	ctx  int
-	line int
+	// or noContext. ctx and line are int32 so the struct stays 112 bytes:
+	// at 120 the dependency slice grows into larger size classes and a
+	// 10,000-row file allocates 1.7 MB more per parse.
+	ctx  int32
+	line int32
 }
 
 // scopeUndetermined reports whether the row cannot be resolved because of
@@ -68,7 +70,7 @@ func (d *dependency) setConfig(spec configSpec) {
 // elements separated by commas, with an optional trailing comma, and the
 // closing ')'. It reports whether the collection matched and how many groups
 // are still open when it did not, so the fallback can finish the statement.
-func (s *scan) grammarCollection(ctx int) (bool, int) {
+func (s *scan) grammarCollection(ctx int32) (bool, int) {
 	head := s.peek()
 	if s.boundary(head) || head.kind != kindIdent || !isCollectionName(head.text) {
 		return false, 0
@@ -116,7 +118,7 @@ func isCollectionName(name string) bool {
 // It stores the coordinate as soon as its revision is read, so a statement
 // that fails later still emits it (as partial). It reports whether the whole
 // element matched; it never consumes the token that broke the match.
-func (s *scan) grammarElement(ctx int) bool {
+func (s *scan) grammarElement(ctx int32) bool {
 	org, ok := s.expectField()
 	if !ok {
 		return false

@@ -102,18 +102,18 @@ type scan struct {
 
 	// projectCount numbers the project vals in source order; a project's
 	// settings context is its number. The bare file is context 0.
-	projectCount int
+	projectCount int32
 	// openProject is the project whose `val x = project...` statement is
 	// still open, or 0.
-	openProject int
+	openProject int32
 	// settingsCtx is the project whose `.settings(` argument list is open,
 	// or 0; settingsDepth is the bracket depth inside that list.
-	settingsCtx   int
+	settingsCtx   int32
 	settingsDepth int
 	// resetMark records, per context, the dependency count when its last
 	// `:=`, `~=`, `-=` or `--=` ran; every earlier row of that context is
 	// superseded. rootReset is set when the bare file reset the key.
-	resetMark map[int]int
+	resetMark map[int32]int
 	rootReset bool
 	// globalReset is set by a reset outside a grammar context; it supersedes
 	// every row of the file.
@@ -121,7 +121,7 @@ type scan struct {
 }
 
 func newScan(text string) *scan {
-	return &scan{lx: newLexer(text), vals: map[string]string{}, resetMark: map[int]int{}}
+	return &scan{lx: newLexer(text), vals: map[string]string{}, resetMark: map[int32]int{}}
 }
 
 // next returns the next token, honouring a single pushed-back token.

@@ -5,7 +5,7 @@ package sbt
 
 // noContext is the context of a key outside the grammar's two contexts. Its
 // rows are always partial and never take part in superseding.
-const noContext = -1
+const noContext int32 = -1
 
 // parseLibraryDependencies reads one statement that starts at a
 // libraryDependencies key. A row is resolved only when the key sits in a
@@ -74,7 +74,7 @@ func (s *scan) parseLibraryDependencies(key token) {
 // token of an argument. Anything else, such as a key after an axis (`Test /`),
 // inside a wrapper (`inConfig(Test)(...)`), a brace block, a val or def body,
 // or an if body, is not a grammar context.
-func (s *scan) keyContext(key, prev token) (int, bool) {
+func (s *scan) keyContext(key, prev token) (int32, bool) {
 	if key.depth == 0 && s.startsStatement(key, prev) {
 		return 0, true
 	}
@@ -165,7 +165,7 @@ func (s *scan) skipLegacyAxis() bool {
 // the bare file that is end of input, ';', or a line break before a token
 // that starts a new statement (not '.', an operator, a bracket or ','). Inside
 // a settings list it is the ',' or ')' that ends the argument.
-func (s *scan) statementEnds(ctx int) bool {
+func (s *scan) statementEnds(ctx int32) bool {
 	next := s.peek()
 	if ctx > 0 {
 		return isPunct(next, ",") || (next.kind == kindClose && next.text == ")")
@@ -209,7 +209,7 @@ func (s *scan) failStatement(start, rel int) {
 // row ctx declared so far. A reset outside a grammar context (in a settings
 // val, a wrapper, a block, or under an axis) may be applied to any project at
 // any point, so it supersedes every row of the file.
-func (s *scan) markReset(ctx int, inContext bool) {
+func (s *scan) markReset(ctx int32, inContext bool) {
 	switch {
 	case !inContext:
 		s.globalReset = true

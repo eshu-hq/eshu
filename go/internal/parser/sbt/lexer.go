@@ -41,8 +41,9 @@ const maxOpaqueTextBytes = 96
 type token struct {
 	kind tokenKind
 	text string
-	// line is the 1-based source line the token starts on.
-	line int
+	// line is the 1-based source line the token starts on. It is an int32 so
+	// a stored dependency stays within one allocation size class.
+	line int32
 	// newline reports that a line terminator separates this token from the
 	// previous one.
 	newline bool
@@ -74,7 +75,7 @@ const (
 type lexer struct {
 	src   string
 	pos   int
-	line  int
+	line  int32
 	depth int
 	// stack holds one byte per open bracket. It grows with the nesting depth,
 	// so its size is bounded by the input length.
