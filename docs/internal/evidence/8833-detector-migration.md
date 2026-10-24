@@ -86,8 +86,9 @@ Moving the marker alternative first, or spelling it `REDACTED_[a-z_]*(key|token|
 The shipped detector costs 24 to 33% more per derived file than migration 138.
 It runs in the content_files trigger on every changed write and in the
 bootstrap finalizer. At the measured rate this is about 0.2 ms more per file.
-The the QA environment figure is not measured here: migration 138 recorded 0.27 ms per file
-on the QA environment, so the shipped detector would scale to about 0.35 ms there.
+The QA environment figure is not measured here: migration 138 recorded
+0.27 ms per file in the QA environment, so the shipped detector would scale to
+about 0.35 ms there.
 
 Lock window: migration 234 is a single `CREATE OR REPLACE FUNCTION`. It takes no
 table lock, and writes keep running. A lock-and-re-derive in one file is refused
