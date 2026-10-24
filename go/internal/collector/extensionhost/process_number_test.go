@@ -10,7 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/factenvelope"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
+	factschema "github.com/eshu-hq/eshu/sdk/go/factschema"
+	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 func TestProcessResultNumbersSurviveClaimedSource(t *testing.T) {
@@ -62,6 +67,71 @@ func TestProcessResultNumbersSurviveClaimedSource(t *testing.T) {
 		t.Fatalf("collected facts = %d, want 1", len(envelopes))
 	}
 	assertExactNumbers(t, envelopes[0].Clone().Payload)
+}
+
+func TestProcessResultNumberReachesPublicTypedDecoder(t *testing.T) {
+	if os.Getenv("ESHU_EXTENSIONHOST_PROCESS_HELPER") == "typed-number" {
+		var request Request
+		if err := json.NewDecoder(os.Stdin).Decode(&request); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		item := testWorkItem()
+		fact := testSDKFact(item)
+		fact.Kind = factschema.FactKindWorkItemProjectMetadata
+		payload, ok := fixturepack.ValidPayload(fact.Kind)
+		if !ok {
+			t.Fatal("missing typed payload fixture")
+		}
+		payload["issue_count"] = json.Number("9007199254740993")
+		fact.Payload = payload
+		result := completeResult(item, fact)
+		result.Claim = request.Claim
+		if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
+			t.Fatalf("encode result: %v", err)
+		}
+		os.Exit(0)
+	}
+
+	item := testWorkItem()
+	item.LeaseExpiresAt = time.Now().Add(time.Minute)
+	manifest := testManifest()
+	manifest.Spec.EmittedFacts[0].Kind = factschema.FactKindWorkItemProjectMetadata
+	manifest.Spec.EmittedFacts[0].PayloadSchemaRef = factschema.FactKindWorkItemProjectMetadata
+	grants := []component.ProducerGrant{{
+		ProducerID: manifest.Metadata.ID, Version: manifest.Metadata.Version,
+		Kind:           factschema.FactKindWorkItemProjectMetadata,
+		SchemaVersions: []string{"1.0.0"}, Scope: "repo",
+		ExpiresAt: time.Now().Add(time.Hour).UTC(),
+	}}
+	runner := ProcessRunner{
+		Command: os.Args[0],
+		Args:    []string{"-test.run=^TestProcessResultNumberReachesPublicTypedDecoder$"},
+		Env:     []string{"ESHU_EXTENSIONHOST_PROCESS_HELPER=typed-number"},
+	}
+	source, err := NewSource(Config{
+		Manifest: manifest, CollectorInstanceID: item.CollectorInstanceID,
+		ScopeKind: scope.KindRepository, ConfigHandle: "cfg-scorecard",
+		Config: map[string]any{"fixture": "scorecard"}, Runner: runner,
+		Clock: testObservedAt, Grants: grants,
+	})
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil || !ok {
+		t.Fatalf("NextClaimed ok=%t, err=%v", ok, err)
+	}
+	envelopes := collectFacts(t, collected)
+	if len(envelopes) != 1 {
+		t.Fatalf("envelopes = %d", len(envelopes))
+	}
+	decoded, err := factschema.DecodeWorkItemProjectMetadata(factenvelope.FactSchemaFromInternal(envelopes[0].Clone()))
+	if err != nil {
+		t.Fatalf("typed decode: %v", err)
+	}
+	if decoded.IssueCount == nil || *decoded.IssueCount != int64(9007199254740993) {
+		t.Fatalf("typed issue count = %v", decoded.IssueCount)
+	}
 }
 
 func assertExactNumbers(t *testing.T, payload map[string]any) {

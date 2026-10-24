@@ -102,6 +102,15 @@ missing required identity from silently becoming an empty-string graph node.
 
 ## Decode seam and classified errors
 
+The typed decoder also accepts `encoding/json.Number` values from a
+number-preserving `json.Decoder`. Integer fields use exact JSON decimal value
+semantics: integral decimal and exponent forms are accepted within the target
+Go integer range, while fractional, malformed, and out-of-range values return
+classified `input_invalid` errors. Float fields accept finite JSON numbers
+with normal float64 rounding. The historical float64 and in-memory integer
+input paths remain available. This is a decoder correction; the wire schema
+and fixture bytes do not change.
+
 ```go
 resource, err := factschema.DecodeAWSResource(env)
 if err != nil {

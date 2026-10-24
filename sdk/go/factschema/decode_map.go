@@ -4,6 +4,7 @@
 package factschema
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -32,6 +33,8 @@ const attributesField = "Attributes"
 // only for a structurally complex field (a *map[string]string, or a slice of
 // structs such as []BlockDevice) — which are small and rare, so the bounded
 // fallback keeps the hot identity path serialization-free.
+// Number-preserving extension payloads can also supply json.Number; numeric
+// fields decode those values exactly within their target integer range.
 //
 // A field named Attributes with a map[string]any type and an exact `json:"-"`
 // tag receives every remaining payload key, replacing the custom UnmarshalJSON
@@ -191,6 +194,18 @@ func assignField(field reflect.Value, raw any) error {
 			return err
 		}
 		field.SetInt(n)
+		return nil
+
+	case reflect.Int32:
+		// Preserve the historical fallback for all other input types.
+		if _, ok := raw.(json.Number); !ok {
+			return jsonRoundTripValue(field, raw)
+		}
+		n, err := jsonNumberToInt32(raw)
+		if err != nil {
+			return err
+		}
+		field.SetInt(int64(n))
 		return nil
 
 	case reflect.Float64:
