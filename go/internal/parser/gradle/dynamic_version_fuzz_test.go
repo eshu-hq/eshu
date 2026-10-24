@@ -21,9 +21,10 @@ import (
 // family must resolve to the text as written, every selector family must stay
 // unresolved with the literal kept.
 var (
-	fuzzQualifiers = []string{"", "", "-SNAPSHOT", "-rc1", "-RC2", ".Final", "-jre", "-M1", "_beta", "-alpha.3", "-android"}
-	fuzzStatuses   = []string{"release", "integration", "milestone", "Release", "INTEGRATION", "nightly"}
-	fuzzExtensions = []string{"jar", "aar", "pom", "zip", "war"}
+	fuzzQualifiers  = []string{"", "", "-SNAPSHOT", "-rc1", "-RC2", ".Final", "-jre", "-M1", "_beta", "-alpha.3", "-android"}
+	fuzzStatuses    = []string{"release", "integration", "milestone", "Release", "INTEGRATION", "nightly"}
+	fuzzExtensions  = []string{"jar", "aar", "pom", "zip", "war"}
+	fuzzClassifiers = []string{"jdk8", "tests", "sources", "linux-x86_64", "javadoc"}
 )
 
 func fuzzExact(rng *rand.Rand) string {
@@ -121,10 +122,20 @@ func fuzzStatement(rng *rand.Rand, kotlin bool, i int, version string) (string, 
 	}
 	switch rng.Intn(5) {
 	case 0:
-		if kotlin {
-			return fmt.Sprintf("implementation(\"%s:%s\")", coord, version), "", coord, version
+		// String notation is group:name:version[:classifier][@ext]. The
+		// classifier is artifact text and never part of the version.
+		notation := version
+		if rng.Intn(2) == 0 {
+			base, ext, hasExt := strings.Cut(version, "@")
+			notation = base + ":" + fuzzClassifiers[rng.Intn(len(fuzzClassifiers))]
+			if hasExt {
+				notation += "@" + ext
+			}
 		}
-		return fmt.Sprintf("implementation '%s:%s'", coord, version), "", coord, version
+		if kotlin {
+			return fmt.Sprintf("implementation(\"%s:%s\")", coord, notation), "", coord, version
+		}
+		return fmt.Sprintf("implementation '%s:%s'", coord, notation), "", coord, version
 	case 1:
 		if kotlin {
 			return fmt.Sprintf("api(group = \"%s\", name = \"%s\", version = \"%s\")", group, artifact, version), "", coord, version

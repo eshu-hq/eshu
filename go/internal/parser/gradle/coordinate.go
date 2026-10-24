@@ -75,9 +75,21 @@ func firstStringLiteral(value string) (string, bool) {
 	return "", false
 }
 
+// parseCoordinateLiteral reads Gradle string notation,
+// group:name[:version[:classifier]][@ext]. The classifier and the extension
+// name the artifact, not the module, so neither joins the coordinate name and
+// the classifier never joins the version. An "@ext" suffix stays on a declared
+// version ("1.0@jar") so the selector rule keeps that row unresolved; it is
+// dropped when no version is declared. Text past the classifier is not a
+// notation Gradle accepts; it is kept as the version, where the ':' it holds
+// keeps the row unresolved.
 func parseCoordinateLiteral(literal string) (coordinate, bool) {
 	literal = strings.TrimSpace(literal)
-	parts := strings.SplitN(literal, ":", 3)
+	body, ext := literal, ""
+	if at := strings.LastIndexByte(literal, '@'); at > strings.LastIndexByte(literal, ':') {
+		body, ext = literal[:at], literal[at:]
+	}
+	parts := strings.SplitN(body, ":", 4)
 	if len(parts) < 2 {
 		return coordinate{}, false
 	}
@@ -93,8 +105,15 @@ func parseCoordinateLiteral(literal string) (coordinate, bool) {
 		return coordinate{}, false
 	}
 	version := ""
-	if len(parts) == 3 {
+	switch len(parts) {
+	case 3, 4:
 		version = strings.TrimSpace(parts[2])
+		if len(parts) == 4 && strings.Contains(parts[3], ":") {
+			version = strings.TrimSpace(strings.Join(parts[2:], ":"))
+		}
+	}
+	if version != "" {
+		version += ext
 	}
 	return coordinate{group: group, artifact: artifact, version: version}, true
 }

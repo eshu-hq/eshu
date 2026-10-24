@@ -51,13 +51,13 @@ func TestExactRejectsTextBelowTheCharacterFloor(t *testing.T) {
 	for _, text := range []string{
 		"", " ", "1 0", "1.0 ", "\t1.0", "1'0", "1\"0", "1\\0", "$v", "${v}",
 		"1`0", "1{0", "1}0", "1<0", "1>0", "1|0", "1;0", "1&0", "1\x000", "1\x7f",
-		"1.0-ß", "é", "latest.", "LATEST.", "latest.x",
+		"1.0-ß", "é", "latest.", "LATEST.", "latest.x", "1.0:jdk8", ":",
 	} {
 		if Exact(text) {
 			t.Errorf("Exact(%q) = true, want false", text)
 		}
 	}
-	for _, text := range []string{"1", "lates", "latest", "latest-release", "latestx.y", "1.0:jdk8", "1.0-r#1"} {
+	for _, text := range []string{"1", "lates", "latest", "latest-release", "latestx.y", "1.0-r#1"} {
 		if !Exact(text) {
 			t.Errorf("Exact(%q) = false, want true", text)
 		}

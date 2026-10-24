@@ -23,6 +23,8 @@ const latestPrefix = "latest."
 //   - '!': the strict short-hand ("1.0!!", "[1.0,2.0)!!1.5"). Gradle reads
 //     "1.0!!" as strictly 1.0, so even that text is not the version.
 //   - '@': the artifact-only notation ("1.0@jar").
+//   - ':': the string-notation separator. A version never holds one, so a
+//     ':' means a classifier or other notation text leaked into it.
 //   - a "latest." prefix in any letter case: a status selector.
 //
 // Exact applies no length cap; a caller with a field bound checks it first.
@@ -45,7 +47,7 @@ func exactByte(b byte) bool {
 	}
 	switch b {
 	case '"', '\'', '\\', '$', '`', '{', '}', '<', '>', '|', ';', '&',
-		'+', '!', '@', '[', ']', '(', ')', ',':
+		'+', '!', '@', '[', ']', '(', ')', ',', ':':
 		return false
 	}
 	return true

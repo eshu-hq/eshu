@@ -60,6 +60,15 @@ map, Kotlin string and named arguments, `kotlin()`, `platform()`, and an
 interpolated property. Rich-version closures (`version { strictly(...) }`)
 are not read and stay `partial`.
 
+String notation is `group:name[:version[:classifier]][@ext]`. The classifier
+and the extension name the artifact, so neither joins `name`, and the
+classifier never joins `value`: `g:a:1.0:jdk8` is `resolved` at `1.0`. An
+`@ext` suffix stays on a declared version (`g:a:1.0:jdk8@jar` keeps
+`1.0@jar`, `unresolved`) and is dropped when there is no version
+(`g:a@jar` is `partial` with name `g:a`). Text past the classifier is not a
+Gradle notation; it is kept as the version, where its `:` keeps the row
+`unresolved`.
+
 ## Dependencies
 
 Imports only the Go standard library, `internal/parser/shared`, and

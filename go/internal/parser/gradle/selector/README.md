@@ -13,7 +13,9 @@ Gradle reads much version text as a selector instead:
 | Strict | `1.0!!`, `[1.0,2.0)!!1.5` | strictly that version or range |
 | Artifact only | `1.0@jar` | that version, artifact type `jar` only |
 
-None of those texts is an installed version. A row that marks one resolved
+None of those texts is an installed version. Nor is text with a `:`, the
+string-notation separator: a version never holds one, so a `:` means a
+classifier or other notation text leaked into the version. A row that marks one resolved
 lets the reducer use `1.+` as the observed version for package matching and
 security-alert comparison (issue #8988). `Exact` rejects all of them and any
 text outside a printable-ASCII floor, so a reader marks the row unresolved.
