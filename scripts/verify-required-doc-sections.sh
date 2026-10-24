@@ -36,7 +36,8 @@ fi
 
 # has_heading <file> <heading>: succeeds when a line equals <heading> (leading
 # text exact, trailing whitespace and CR ignored) outside a fenced code block
-# and outside an HTML comment. Fences follow CommonMark: up to three spaces of
+# and outside an HTML comment (a comment opener inside an inline code span is
+# not one). Fences follow CommonMark: up to three spaces of
 # indent, an opener of three or more backticks or tildes, and a closer of the
 # same character at least as long as the opener with nothing after it.
 # The heading goes in through ENVIRON, not awk -v, which would process
@@ -44,6 +45,28 @@ fi
 has_heading() {
 	WANT_HEADING="$2" awk '
 		BEGIN { want = ENVIRON["WANT_HEADING"] }
+		# mask returns s with the text inside inline code spans replaced by x,
+		# same length, so a comment opener shown as code is not found.
+		function mask(s,   out, i, n, k, j, m, t, found) {
+			out = s; n = length(s); i = 1
+			while (i <= n) {
+				if (substr(s, i, 1) != "`") { i++; continue }
+				k = 0
+				while (substr(s, i + k, 1) == "`") k++
+				j = i + k; found = 0
+				while (j <= n) {
+					if (substr(s, j, 1) != "`") { j++; continue }
+					m = 0
+					while (substr(s, j + m, 1) == "`") m++
+					if (m == k) { found = 1; break }
+					j += m
+				}
+				if (!found) { i += k; continue }
+				for (t = i + k; t < j; t++) out = substr(out, 1, t - 1) "x" substr(out, t + 1)
+				i = j + k
+			}
+			return out
+		}
 		{
 			line = $0
 			sub(/[ \t\r]+$/, "", line)
@@ -66,11 +89,14 @@ has_heading() {
 					m = substr(t, 1, 1)
 					n = 0
 					while (substr(t, n + 1, 1) == m) n++
-					fence = substr(t, 1, n)
-					next
+					# A backtick fence info string may not hold a backtick.
+					if (m != "`" || index(substr(t, n + 1), "`") == 0) {
+						fence = substr(t, 1, n)
+						next
+					}
 				}
 			}
-			while ((i = index(line, "<!--")) > 0) {
+			while ((i = index(mask(line), "<!--")) > 0) {
 				rest = substr(line, i + 4)
 				j = index(rest, "-->")
 				if (j == 0) { line = substr(line, 1, i - 1); incomment = 1; break }

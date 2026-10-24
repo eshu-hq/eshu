@@ -114,6 +114,27 @@ page_case "heading in one-line comment" fail '## H' '<!-- ## H -->'
 page_case "heading in multi-line comment" fail '## H' '<!--' '## H' '-->'
 page_case "heading after a closed comment" ok '## H' '<!-- note -->' '## H'
 
+# A backtick opener whose info string holds a backtick is not a fence.
+page_case "backtick info string with backtick" ok '## H' '```code``` text' '## H'
+page_case "tilde info string with backtick still fences" fail '## H' '~~~ a`b' '## H'
+# An indented-code line (4+ spaces) is not a fence opener.
+page_case "four-space indented opener is not a fence" ok '## H' '    ```' '## H'
+# A comment opener inside an inline code span is not a comment.
+page_case "comment opener in code span" ok '## H' 'use `<!--` to open a comment' '## H'
+page_case "comment opener in double-backtick span" ok '## H' 'use ``<!-- x`` to open' '## H'
+# A trailing comment on the heading line leaves the heading.
+page_case "heading with trailing comment" ok '## H' '## H <!-- note -->'
+page_case "text after a closed comment is kept" ok '## H' '## <!-- c -->H'
+# A multi-line comment closes at the first --> and the heading after it counts.
+page_case "multi-line comment, heading after" ok '## H' '<!--' 'one' 'two' '-->' '## H'
+page_case "multi-line comment swallows inner lines" fail '## H' '<!--' 'one' '## H' 'two' '-->'
+# A fence closer with trailing spaces or CR still closes.
+page_case "closer with trailing spaces" ok '## H' '```' 'x' '```   ' '## H'
+printf '# P\r\n```\r\nx\r\n```\r\n## H\r\n' >"${fenced}/docs/p.md"
+write_list "${tmp_root}/case.txt" "docs/p.md${tab}## H"
+run_verifier "${fenced}" "${tmp_root}/case.txt"
+[[ "${rc}" -eq 0 ]] || fail "CRLF fence closer: expected exit 0, got ${rc}: ${out}"
+
 # Trailing spaces and CRLF on the page, and trailing spaces on the list entry,
 # are ignored.
 printf '# P\r\n## H  \r\n' >"${fenced}/docs/p.md"
