@@ -4,7 +4,7 @@ The git collector now emits `runtime_declaration.version` facts from the
 version-pin files. This note records the cost of that emission and why no new
 operator signal is added.
 
-## No-Regression Evidence
+**No-Regression Evidence:**
 
 - **Baseline:** before this change the collector emitted no fact for a pin
   file. The path ran one `NoteCodeownersCandidate` and one
@@ -33,9 +33,7 @@ operator signal is added.
   The emission order is sorted by path, so the stream stays deterministic.
   A delta generation re-emits only the pin files it changed.
 
-## No-Observability-Change
-
-The new facts flow through the shared fact stream writer, so they are counted
+**No-Observability-Change:** The new facts flow through the shared fact stream writer, so they are counted
 by the existing per-generation fact count. A malformed payload cannot occur on emit, because every field is a
 plain string, integer or boolean. An operator who needs to see the facts reads
 them from the fact store by kind `runtime_declaration.version`. The reducer
