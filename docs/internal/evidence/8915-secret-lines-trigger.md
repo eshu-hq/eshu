@@ -39,7 +39,7 @@ Wall time per round (ms, in order): 9451 9127 9766 9567 10189 9820 9084 9056
 | Statistic | Seconds |
 |---|---|
 | min | 9.056 |
-| median | 9.780 |
+| median | 9.80 |
 | max | 13.317 |
 | max / min | 1.47 |
 
@@ -63,7 +63,9 @@ Correlation of round wall time with each signal, over the 36 rounds:
 | Trigger function time | 0.46 |
 | Samples on CPU | 0.20 |
 
-Fastest and slowest rounds side by side:
+Fastest and slowest rounds side by side. Round numbers are 0-based indexes
+into the 36 wall times listed under Result 1 (index 7 is 9056 ms, index 16 is
+13317 ms):
 
 | Round | Wall ms | WALWrite samples | `blks_read` | Trigger ms |
 |---|---|---|---|---|
