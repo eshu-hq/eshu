@@ -12,9 +12,29 @@ import (
 	"github.com/pelletier/go-toml/v2"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared/toml/nesting"
 )
 
 const cargoPackageManager = "cargo"
+
+// cargoMaxNesting bounds how deep a Cargo.toml or Cargo.lock may nest before
+// it reaches the TOML decoder (see nesting.Check for how depth is counted).
+// go-toml v2.3.1 has no depth bound and dies with an unrecoverable stack
+// overflow at about 885,000 nested arrays or a million dotted-key segments.
+// Real Cargo files nest about four levels: a target header such as
+// [target.'cfg(unix)'.dependencies] is depth 2 and an inline dependency
+// table with a features array adds 2. 64 leaves wide room for legal files.
+const cargoMaxNesting = 64
+
+// decodeCargoTOML checks source with the nesting guard and then decodes it
+// into target. A too-deep file returns an error wrapping nesting.ErrTooDeep,
+// and an unterminated string one wrapping nesting.ErrUnterminatedString.
+func decodeCargoTOML(source []byte, target any) error {
+	if err := nesting.Check(source, cargoMaxNesting); err != nil {
+		return err
+	}
+	return toml.Unmarshal(source, target)
+}
 
 // IsCargoDependencyFile reports whether path is a Cargo dependency manifest or
 // lockfile handled by the Rust parser package.
@@ -38,13 +58,13 @@ func ParseCargoDependencyFile(repoRoot string, path string, isDependency bool) (
 	switch strings.ToLower(filepath.Base(path)) {
 	case "cargo.toml":
 		var document map[string]any
-		if err := toml.Unmarshal(source, &document); err != nil {
+		if err := decodeCargoTOML(source, &document); err != nil {
 			return nil, fmt.Errorf("parse Cargo.toml %q: %w", path, err)
 		}
 		payload["variables"] = cargoManifestDependencyRows(repoRoot, path, document)
 	case "cargo.lock":
 		var lock cargoLockDocument
-		if err := toml.Unmarshal(source, &lock); err != nil {
+		if err := decodeCargoTOML(source, &lock); err != nil {
 			return nil, fmt.Errorf("parse Cargo.lock %q: %w", path, err)
 		}
 		payload["variables"] = cargoLockDependencyRows(repoRoot, path, lock)
@@ -199,8 +219,11 @@ func cargoAncestorWorkspaceDependencies(repoRoot string, path string) map[string
 		} else {
 			manifest := filepath.Join(current, "Cargo.toml")
 			if source, err := shared.ReadSource(manifest); err == nil {
+				// A missing, unreadable, too-deep, or invalid ancestor
+				// manifest is skipped: it only adds workspace versions, and
+				// the member manifest still parses without them.
 				var document map[string]any
-				if toml.Unmarshal(source, &document) == nil {
+				if decodeCargoTOML(source, &document) == nil {
 					for key, value := range cargoWorkspaceDependenciesFromDocument(document) {
 						out[key] = value
 					}

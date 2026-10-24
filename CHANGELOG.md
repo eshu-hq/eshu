@@ -9,6 +9,20 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Parser: hostile Cargo TOML no longer crashes the ingester
+
+- **Nesting guard before every Cargo TOML decode**
+  ([#8985](https://github.com/eshu-hq/eshu/issues/8985)). A `Cargo.toml` or
+  `Cargo.lock` of about 0.9 MB with nested `[`, inline tables, or a long
+  dotted key used to overflow the goroutine stack inside go-toml v2.3.1, a
+  fatal error that killed the whole ingester. The new shared guard
+  `go/internal/parser/shared/toml/nesting` measures nesting in one
+  allocation-free pass that skips strings and comments, and the Rust parser
+  rejects a file deeper than 64 levels as unparseable. The collector skips
+  that file and keeps indexing the repository; a too-deep ancestor workspace
+  manifest is skipped and the member still parses. A collector-wide read cap
+  is tracked separately in #8986.
+
 ### CI: readiness shard weights refreshed from the first weighted wave
 
 - **Live PostgreSQL readiness shard weights refreshed**
