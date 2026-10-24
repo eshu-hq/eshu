@@ -78,7 +78,7 @@ carries the godoc contract for callers.
 ## Dependencies
 
 Production files and same-package `rust` tests import the shared parser helper
-package and tree-sitter types. Neither may import the parent parser package.
+package, the shared TOML nesting guard, and tree-sitter types. Neither may import the parent parser package.
 External `rust_test` black-box tests may import the parent only to drive the
 public `parser.DefaultEngine` and `parser.Options` boundary; the coverage test
 may use the public JSON parser dependency-coverage registry.
@@ -157,6 +157,17 @@ dependency paths are emitted only when a source-empty root package proves the
 reachable chain and each dependency edge resolves uniquely by name, version, and
 source when Cargo provides a parenthesized source qualifier. Unsupported or
 ambiguous Cargo dependency shapes are skipped instead of guessed.
+
+Every Cargo decode goes through `decodeCargoTOML`, which runs the shared
+`internal/parser/shared/toml/nesting` guard at depth 64 (`cargoMaxNesting`)
+before `toml.Unmarshal`. go-toml v2.3.1 has no depth bound: about 885,000
+nested `[`, 483,000 inline tables, or a million dotted-key segments overflow
+the goroutine stack and kill the process (#8985). A too-deep `Cargo.toml` or
+`Cargo.lock` returns an error wrapping `nesting.ErrTooDeep` (or
+`nesting.ErrUnterminatedString`), so the collector skips that one file and
+keeps indexing the repository. A too-deep ancestor workspace manifest is
+skipped like any other unreadable one, and the member still parses. Real
+Cargo files nest about four levels.
 `ResolveModuleRowFileCandidates` does not probe the filesystem; it returns
 Rust's candidate paths for direct module declarations, honors explicit
 `#[path = "..."]` rows, and leaves macro-origin rows blocked. The parent parser

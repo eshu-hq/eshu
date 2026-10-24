@@ -23,6 +23,12 @@
   `parser.DefaultEngine` / `parser.Options` boundary.
 - The caller owns tree-sitter parser construction and closing.
 - Parse and PreScan must preserve the parent engine payload shape.
+- Every TOML decode of a repository file goes through `decodeCargoTOML`, so
+  the `shared/toml/nesting` guard runs first (#8985). Never call
+  `toml.Unmarshal` on repository bytes directly: go-toml has no depth bound,
+  and a stack overflow kills the ingester without a recoverable panic. The
+  regressions in `cargo_nesting_test.go` run in a re-executed child process so
+  a crash fails one subtest instead of the test binary.
 
 ## Common Changes And Scope
 
