@@ -179,6 +179,21 @@ recent shipped work grouped by feature area.
   log. See the [3 AM runbook](docs/public/operate/3am-operator-runbook.md) and
   [Security Alert Reconciliation Impact Wait](docs/public/reference/telemetry/security-alert-reconciliation-impact-wait.md).
 
+### Scala build.sbt is parsed for dependencies
+
+- **`build.sbt` is admitted and parsed**
+  ([#8938](https://github.com/eshu-hq/eshu/issues/8938)). The Scala manifest
+  named by the language ledger was not admitted, so Scala dependency
+  declarations never became facts. `build.sbt` now binds to a bounded sbt
+  scanner that reads literal `libraryDependencies` coordinates (`+=`, `++=`,
+  `:=`; `%`, `%%`, `%%%`; optional configuration such as `Test`) and the literal
+  `scalaVersion`, and emits them as the same dependency rows Gradle and Maven
+  use, with `package_manager` `sbt`. Non-literal forms are reported as
+  `unresolved` or counted in `sbt_state.unresolved_declaration_count`; sbt is
+  never evaluated. Package-registry correlation for sbt rows is a follow-up.
+  The git collector content version moves to `git-collector.v10`, so every
+  repository re-collects once.
+
 ### Service story defaults to a bounded handles view over MCP
 
 - **`get_service_story` defaults to a bounded `handles` view**

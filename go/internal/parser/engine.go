@@ -443,6 +443,8 @@ func (e *Engine) parseDefinition(
 		return e.parseHCL(resolvedPath, isDependency, options)
 	case "gradle":
 		return e.parseGradle(resolvedPath, isDependency, options)
+	case "sbt":
+		return e.parseSbt(resolvedPath, isDependency, options)
 	case "groovy":
 		return e.parseGroovy(resolvedPath, isDependency, options)
 	case "maven":

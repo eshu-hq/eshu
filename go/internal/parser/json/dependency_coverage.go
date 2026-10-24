@@ -290,6 +290,18 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			Notes:                   "Kotlin DSL dependencies blocks emit content_entity rows mirroring the Groovy parser; configuration closures (e.g., version { strictly(...) }) without a top-level coordinate version remain partial.",
 		},
 		{
+			Ecosystem:               "sbt",
+			FilePattern:             "build.sbt",
+			FileKind:                "build",
+			Status:                  DependencyCoverageCovered,
+			CapturesPackageIdentity: true,
+			CapturesVersionRange:    true,
+			CapturesScope:           true,
+			CapturesDevRuntimeSplit: true,
+			SourceReference:         "go/internal/parser/sbt/parser.go",
+			Notes:                   "Literal libraryDependencies += / ++= / := coordinates (% and %% and %%% forms, optional configuration such as Test) emit content_entity rows with organization:name identity; versions held in top-level string vals resolve in-file, while other non-literal forms (variables, .value settings, interpolation, conditional blocks) stay unresolved or are counted in sbt_state.unresolved_declaration_count. sbt is a Scala DSL: the parser never evaluates it, and project/*.sbt, plugins.sbt and Build.scala are not read.",
+		},
+		{
 			Ecosystem:               "nuget",
 			FilePattern:             "*.csproj",
 			FileKind:                "manifest",

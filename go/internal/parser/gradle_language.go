@@ -5,6 +5,7 @@ package parser
 
 import (
 	gradleparser "github.com/eshu-hq/eshu/go/internal/parser/gradle"
+	sbtparser "github.com/eshu-hq/eshu/go/internal/parser/sbt"
 )
 
 // parseGradle returns the Gradle build script parser payload for one
@@ -14,4 +15,14 @@ import (
 // so the supply-chain reducer never sees fabricated versions.
 func (e *Engine) parseGradle(path string, isDependency bool, options Options) (map[string]any, error) {
 	return gradleparser.Parse(path, isDependency, sharedOptions(options))
+}
+
+// parseSbt returns the sbt build definition parser payload for one build.sbt.
+// It lives beside the Gradle wrapper because both are JVM build manifests that
+// emit the same dependency row contract. sbt is a Scala DSL, so the parser
+// reads literal string forms only and reports non-literal declarations as
+// bounded counts instead of evaluating Scala or resolving settings across
+// files.
+func (e *Engine) parseSbt(path string, isDependency bool, options Options) (map[string]any, error) {
+	return sbtparser.Parse(path, isDependency, sharedOptions(options))
 }

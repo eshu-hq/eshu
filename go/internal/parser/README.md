@@ -328,7 +328,7 @@ parser path.
 permanent no-tree-sitter exception only when it appears in the "Permanent
 parser exceptions (no tree-sitter migration)" section of `AGENTS.md`: YAML,
 JSON, HCL/Terraform/Terragrunt, Go modules, node lockfiles, Python dependency
-manifests, Maven, NuGet, Gradle DSL, CloudFormation/SAM, `dbtsql`,
+manifests, Maven, NuGet, Gradle DSL, sbt, CloudFormation/SAM, `dbtsql`,
 `content`, raw text, SCIP, Dockerfile, and Java metadata. All other
 `—` rows need design or migration follow-up; do not use the dash to exempt a
 source-language adapter that has a runtime tree-sitter loader or language-owned
