@@ -7,6 +7,10 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/reducer_queue_producer_terminal_live_test.go": (
+            "TestOwnGateProducerDeadLetteredConsumerDeadLettersLive",
+            "TestOwnGateProducerRetryingConsumerKeepsDeferringLive",
+        ),
         "go/internal/storage/postgres/reducer_queue_security_alert_impact_wait_concurrent_live_test.go": (
             "TestReducerContentionGateSecurityAlertReconciliationImpactFenceUnderContention",
         ),

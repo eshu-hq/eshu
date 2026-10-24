@@ -486,9 +486,5 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_producer_refinalize_live_test.go": (
             "TestOwnGateWaitsThroughRefinalizeReResolutionLive",
         ),
-        "go/internal/storage/postgres/reducer_queue_producer_terminal_live_test.go": (
-            "TestOwnGateProducerDeadLetteredConsumerDeadLettersLive",
-            "TestOwnGateProducerRetryingConsumerKeepsDeferringLive",
-        ),
     },
 }
