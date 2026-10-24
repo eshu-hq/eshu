@@ -43,10 +43,16 @@ in the same shape the Gradle and Maven parsers use, with `package_manager`
 
 The scope comes from `% Test`, `% "it,test"` (a list split on `,` and `;`), a
 trailing `% Test` after a parenthesised coordinate, `Seq(...).map(_ % Test)`,
-or a `Test /` or `in Test` axis. A scope the parser cannot map (a custom
-`Config`, a variable, a lambda over the collection) leaves the row `partial`
-and is counted in `sbt_state.unresolved_declaration_count`; it is never a
-resolved `compile`.
+or a `Test /` or `in Test` axis. When a coordinate has several `% config`
+operands the last wins, as in sbt. A list resolves to `compile` when any part is
+`compile`, to `runtime` when it has `runtime` and no `compile` (a runtime
+dependency is also on the test classpath), to `provided` for `provided` with
+`test`, and otherwise to the one scope its parts share. A scope the parser
+cannot map (a custom `Config`, a variable, a lambda over the collection, the
+compiler-tool configurations `plugin`, `scala-tool` and `scala-doc-tool`,
+`runtime` with `provided`, or a configuration string over 256 bytes) leaves the
+row `partial` and is counted in `sbt_state.unresolved_declaration_count`; it is
+never a resolved `compile`.
 
 sbt build files are Scala, so the parser never evaluates them. Versions held in
 top-level string vals resolve in the same file. Variables, `.value` settings,

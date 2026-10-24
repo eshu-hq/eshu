@@ -60,14 +60,31 @@ scope.
 
 A configuration is a list split on `,` and `;`, and each part is judged by the
 left side of a `->` mapping. `test`, `it`, `integrationtest`, and
-`test-internal` mean `test`; `runtime` means `runtime`; `provided` means
-`provided`; `compile`, `optional`, `docs`, `sources`, `plugin`, `pom` and the
-internal compile configurations mean `compile`. When parts disagree, any
-compile or runtime part gives `compile`, and provided with test parts gives
-`provided`; all-test lists such as `"it,test"` give `test`.
+`test-internal` mean `test`; `runtime` and `runtime-internal` mean `runtime`;
+`provided` means `provided`; `compile`, `optional` and `compile-internal` mean
+`compile`. A list resolves by this table:
+
+| Parts | `dependency_scope` | Why |
+|---|---|---|
+| all one scope (`"it,test"`) | that scope | no disagreement |
+| any `compile` part (`"compile;test"`) | `compile` | a compile dependency is on every classpath |
+| `runtime` without `compile` (`"runtime,test"`, `"runtime->runtime;test->test"`) | `runtime` | runtime is also on the test classpath, so the dependency is not compile |
+| `provided` with `test`, no compile or runtime | `provided` | provided is on the test classpath |
+| `runtime` with `provided` | undetermined | compile-time only plus run-time only: not one scope |
+
+The compiler-tool configurations (`plugin`, `scala-tool`, `scala-doc-tool`) and
+the artifact-type configurations (`docs`, `sources`, `pom`) are not classpath
+scopes, so they are undetermined, the same way Gradle gives `annotationProcessor`
+and `kapt` their own scope instead of folding them into `compile`. `addCompilerPlugin`
+expands to `"plugin->default(compile)"` and is therefore undetermined.
+
+When a coordinate carries more than one `% config`, the last one wins, as in
+sbt, where each `moduleID % config` replaces the configuration. Chained
+`.map(_ % A).map(_ % B)` calls resolve the same way, as one replayed effect.
 
 A scope the scanner cannot read is never a resolved `compile`. A custom
 `Config` value, a variable such as `% testConfig`, an unrecognised string, a
+configuration string over `MaxConfigBytes` (256), a
 `.map(dep => dep % Test)` lambda, or `libraryDependencies in (a, Test)` keeps
 `dependency_scope` `compile` as a placeholder, sets the row's
 `dependency_resolution_state` to `partial`, and adds the row to
@@ -75,14 +92,23 @@ A scope the scanner cannot read is never a resolved `compile`. A custom
 
 ## Bounds
 
-One forward pass, no recursion, one token of pushback: work is linear in the
-input for a 100 KB single line, 200k nested parentheses, or 100k dependency
-lines. Rows cap at `MaxDependencyRows` (10,000); the excess is counted, not
+One forward pass, no recursion, one token of pushback: work and allocation are
+linear in the input for a 100 KB single line, 200k nested parentheses, 100k
+dependency lines, a 10 MB configuration list, or a 100 KB configuration applied
+with `.map(_ % "...")` to 1,000 dependencies. A configuration is resolved once
+per `% config` or per collection `.map`, never per dependency, and the result
+(scope, optional flag, canonical text) is copied by value to each dependency.
+`.map` calls after one collection are replayed into one effect and written to
+its dependencies once, however many calls are chained. `dependency_scope` is
+undetermined for a configuration string over `MaxConfigBytes` (256): it is not
+split or stored, the row is `partial`, and `sbt_configuration` and `section`
+carry `(overlong)` instead. Real configurations are a few bytes and the longest
+common mapping is under 50. Rows cap at `MaxDependencyRows` (10,000); the excess is counted, not
 stored. A coordinate field over `MaxFieldBytes` (512) is not a coordinate, and
 an identifier chain over that length (a version reference or a configuration)
 is consumed without being buffered: a version chain is counted as unresolved
 and a configuration chain is recorded as `(overlong)` with an undetermined
-scope. At most 1,024 top-level string vals and 64 distinct Scala versions are
+scope, the same as an overlong configuration string. At most 1,024 top-level string vals and 64 distinct Scala versions are
 tracked. A leading UTF-8 byte order mark is ignored.
 
 ## What this parser never does

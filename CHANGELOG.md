@@ -193,7 +193,10 @@ recent shipped work grouped by feature area.
   never evaluated. Test-only dependencies keep their scope through
   `% Test` after a parenthesised coordinate, `% "it,test"` lists, and
   `Seq(...).map(_ % Test)`; a scope the scanner cannot map is `partial` and
-  counted, never a resolved `compile`. Package-registry correlation for sbt rows
+  counted, never a resolved `compile`. A runtime-plus-test list is `runtime`, the last
+  of several `% config` operands wins, compiler-tool configurations are
+  undetermined, and a configuration string over 256 bytes is never split or
+  stored. Package-registry correlation for sbt rows
   ([#8961](https://github.com/eshu-hq/eshu/issues/8961)) and the line-keyed
   entity id ([#8962](https://github.com/eshu-hq/eshu/issues/8962)) stay open.
   The registry fingerprint moves with the new exact name, so every repository

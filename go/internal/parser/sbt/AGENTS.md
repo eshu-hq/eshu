@@ -8,7 +8,7 @@
 4. `parser.go` - `Parse`, the main dispatch loop, `sbt_state`, val resolution.
 5. `declaration.go` - `libraryDependencies` operator, collection, and element
    parsing, and the resynchronisation helpers.
-6. `scope.go` - configuration list splitting and the scope mapping.
+6. `scope.go` - configuration resolution (`resolveConfig`) and the scope table.
 7. `trailing.go` - a trailing `% config`, collection `.map(_ % config)`, and
    the shared element skipper.
 8. `rows.go` - Scala binary version and row construction.
@@ -26,6 +26,12 @@
   so work is linear in the input. A change that adds recursion or lookahead
   beyond one pushed-back token breaks the 200k-parenthesis and 100k-line
   tests in `adversarial_test.go`.
+- A configuration string is resolved once (`resolveConfig`) into a small
+  `configSpec` and copied by value. Never split, scan, or store a string over
+  `MaxConfigBytes`, never re-resolve per dependency, and never build a row
+  field from the raw operand. `alloc_test.go` pins this with allocation
+  ceilings and a write counter; add a case there for any new loop over
+  dependencies.
 - A scope the scanner cannot map is `partial` and counted in
   `unresolved_declaration_count`; it is never a resolved `compile`. Add a new
   configuration name to `configPartScope` with a test, or leave it unknown.
@@ -71,6 +77,15 @@ faster on this shape and allocates about 29 percent more bytes, because it
 builds one row map per dependency and keeps each token's source slice. This is
 a new parser on a path no existing file reaches (`build.sbt` was unadmitted),
 so existing files see no change.
+
+No-Regression Evidence (configuration bound): on the previous commit,
+`alloc_test.go` failed with `.map(_ % "<100 KB>")` over 1,000 dependencies at
+3,934,180,448 bytes allocated (32,804 times the 119,930-byte input), a 10 MB
+`"a,a,..."` configuration at 1,035,783,832 bytes (103.6 times), and 20,000
+chained `.map(_ % Test)` over 5,000 dependencies at 200,070,096 mallocs. After
+the bound and the resolve-once rewrite the same tests allocate 1,473,128 bytes
+(12.3 times), 20,007,944 bytes (2.0 times) and 85,079 mallocs, with
+one configuration write per dependency. Counts of bytes and objects, not time.
 
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
 single-pass scanner with no recursion. 200,000 nested parentheses finish in
