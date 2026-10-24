@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // genuineNoMatchPayloadSHA256 is the sha256 of the marshaled payload of
@@ -75,15 +77,20 @@ func TestSecurityAlertReconciliationWriterPersistsTheGiveUpOutcome(t *testing.T)
 			providerOnly.ProviderAlertNumber = 9
 			providerOnly.Status = SecurityAlertReconciliationProviderOnly
 			providerOnly.DependencyEvidenceID = ""
+			// A stale decision carries dependency evidence and no impact
+			// evidence, so only the status check keeps it unstamped.
+			stale := impactWaitPendingDecision()
+			stale.ProviderAlertNumber = 10
+			stale.Status = SecurityAlertReconciliationStale
 
-			payloads, _ := writtenPayloads(t, impactWaitPendingWrite(outcome, impactWaitPendingDecision(), matched, providerOnly))
-			if len(payloads) != 3 {
-				t.Fatalf("rows = %d, want 3", len(payloads))
+			payloads, _ := writtenPayloads(t, impactWaitPendingWrite(outcome, impactWaitPendingDecision(), matched, providerOnly, stale))
+			if len(payloads) != 4 {
+				t.Fatalf("rows = %d, want 4", len(payloads))
 			}
 			if got := payloads[0]["impact_wait_outcome"]; got != outcome {
 				t.Fatalf("waiting decision impact_wait_outcome = %v, want %q", got, outcome)
 			}
-			for i, label := range map[int]string{1: "matched", 2: "provider_only"} {
+			for i, label := range map[int]string{1: "matched", 2: "provider_only", 3: "stale"} {
 				if got, ok := payloads[i]["impact_wait_outcome"]; ok {
 					t.Fatalf("%s decision carries impact_wait_outcome %v; only a decision that waited on impact evidence may", label, got)
 				}
@@ -123,5 +130,25 @@ func TestSecurityAlertReconciliationWriterRejectsAnOutcomeOutsideTheClosedSet(t 
 		if len(db.execs) != 0 {
 			t.Fatalf("outcome %q: exec calls = %d, want 0", outcome, len(db.execs))
 		}
+	}
+}
+
+// TestSecurityAlertReconciliationStaleDecisionDoesNotWaitOnImpact proves a
+// stale decision, which has dependency evidence and no impact evidence, is not
+// the waiting shape: it neither defers the pass nor carries a give-up.
+func TestSecurityAlertReconciliationStaleDecisionDoesNotWaitOnImpact(t *testing.T) {
+	t.Parallel()
+
+	stale := impactWaitPendingDecision()
+	stale.Status = SecurityAlertReconciliationStale
+	if decisionWaitsOnImpactEvidence(stale) {
+		t.Fatal("decisionWaitsOnImpactEvidence(stale) = true, want false")
+	}
+	intent := reducercontract.Intent{SourceSystem: "security_alert", AttemptCount: 1}
+	if hasPendingImpactDecision(intent, []SecurityAlertReconciliationDecision{stale}) {
+		t.Fatal("hasPendingImpactDecision([stale]) = true, want false: a stale decision must not defer the pass")
+	}
+	if !hasPendingImpactDecision(intent, []SecurityAlertReconciliationDecision{stale, impactWaitPendingDecision()}) {
+		t.Fatal("hasPendingImpactDecision([stale, unmatched]) = false, want true")
 	}
 }

@@ -6,10 +6,13 @@ package reducer
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
@@ -145,5 +148,94 @@ func TestSecurityAlertReconciliationPersistedOutcomesAreClosed(t *testing.T) {
 	want := []string{securityalert.ImpactWaitGaveUpBoundExceeded, securityalert.ImpactWaitGaveUpUnmatched}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("PersistedImpactWaitOutcomes() = %v, want %v", got, want)
+	}
+}
+
+// impactCommitsDuringLoadLoader simulates the supply_chain_impact work writing
+// its finding and acking succeeded right after the reconciliation loaded its
+// evidence: the loaded evidence has no finding, but any producer probe taken
+// after the load reads the generation as settled.
+type impactCommitsDuringLoadLoader struct {
+	*recordingSecurityAlertReconciliationFactLoader
+	loaded bool
+}
+
+func (l *impactCommitsDuringLoadLoader) ListActiveSecurityAlertReconciliationFacts(
+	ctx context.Context,
+	filter securityalert.SecurityAlertReconciliationFactFilter,
+) ([]facts.Envelope, error) {
+	envelopes, err := l.recordingSecurityAlertReconciliationFactLoader.ListActiveSecurityAlertReconciliationFacts(ctx, filter)
+	l.loaded = true
+	return envelopes, err
+}
+
+// phasedImpactReadiness answers running before the evidence load and settled
+// after it.
+type phasedImpactReadiness struct {
+	loader *impactCommitsDuringLoadLoader
+	calls  int
+}
+
+func (r *phasedImpactReadiness) ImpactProducerState(context.Context, string, string) (securityalert.ImpactProducerState, error) {
+	r.calls++
+	if r.loader.loaded {
+		return securityalert.ImpactProducerState{Succeeded: 1, Total: 1}, nil
+	}
+	return securityalert.ImpactProducerState{
+		Running: 1, Total: 1, NewestInFlightWorkableAt: impactFenceNow.Add(-time.Minute),
+	}, nil
+}
+
+// TestSecurityAlertReconciliationReadsSettlementBeforeTheEvidenceLoad is the
+// #8956 review TOCTOU: on the cap attempt the impact work can commit its
+// finding and ack between the evidence load and a later probe. Read after the
+// load, settlement would publish the stale unmatched row as a genuine
+// no-match. Read before the load, the producer is still running, so the pass
+// defers without spending an attempt and writes nothing.
+func TestSecurityAlertReconciliationReadsSettlementBeforeTheEvidenceLoad(t *testing.T) {
+	t.Parallel()
+
+	handler, writer := pendingImpactFenceHandler(nil, nil)
+	loader := &impactCommitsDuringLoadLoader{
+		recordingSecurityAlertReconciliationFactLoader: handler.FactLoader.(*recordingSecurityAlertReconciliationFactLoader),
+	}
+	readiness := &phasedImpactReadiness{loader: loader}
+	handler.FactLoader = loader
+	handler.ImpactProducerReadiness = readiness
+
+	_, err := handler.Handle(context.Background(), impactFenceIntent(3))
+	if got, want := impactFenceFailureClass(err), securityalert.ImpactNotReadyFailureClass; got != want {
+		t.Fatalf("cap attempt: failure class = %q (err %v), want %q: settlement read after the load claimed a stale no-match", got, err, want)
+	}
+	if writer.calls != 0 {
+		t.Fatalf("writer calls = %d, want 0: the stale unmatched row must not be published", writer.calls)
+	}
+	if readiness.calls != 1 {
+		t.Fatalf("readiness probes = %d, want 1 (one probe, taken before the load)", readiness.calls)
+	}
+}
+
+// TestSecurityAlertReconciliationEarlyProbeErrorStaysCounting keeps the probe
+// error rule on the cap attempt, where the probe now runs before the load: a
+// store that cannot answer is a counting failure, never the non-counting wait,
+// and nothing loads or writes.
+func TestSecurityAlertReconciliationEarlyProbeErrorStaysCounting(t *testing.T) {
+	t.Parallel()
+
+	readiness := &stubImpactProducerReadiness{err: errors.New("connection refused")}
+	handler, writer := pendingImpactFenceHandler(readiness, nil)
+
+	_, err := handler.Handle(context.Background(), impactFenceIntent(3))
+	if err == nil {
+		t.Fatal("cap attempt: Handle() error = nil, want the probe failure")
+	}
+	if got := impactFenceFailureClass(err); got == securityalert.ImpactNotReadyFailureClass {
+		t.Fatalf("cap attempt probe failure classified %q: it must never read as a non-counting wait", got)
+	}
+	if reducercontract.IsExpectedWait(err) {
+		t.Fatalf("cap attempt probe failure %v must not be an expected wait", err)
+	}
+	if writer.calls != 0 || readiness.calls != 1 {
+		t.Fatalf("writer calls = %d probes = %d, want 0 writes and 1 probe", writer.calls, readiness.calls)
 	}
 }

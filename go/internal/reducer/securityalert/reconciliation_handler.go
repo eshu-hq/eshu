@@ -114,6 +114,12 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 		return reducercontract.Result{}, fmt.Errorf("security alert reconciliation manifest consumption extractor is required")
 	}
 
+	// On the cap attempt settlement is read before any evidence loads, so a
+	// finding that commits during the load is never claimed absent (#8956).
+	earlyImpactState, err := h.probeImpactProducerBeforeLoad(ctx, intent)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
 	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
@@ -153,7 +159,7 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 	// visible input_invalid dead-letter — counter + structured error log — while
 	// every valid sibling alert still produces its reconciliation decision.
 	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainSecurityAlertReconciliation, intent.ScopeID, intent.GenerationID, quarantined)
-	impactWait, err := h.resolveImpactWait(ctx, intent, decisions)
+	impactWait, err := h.resolveImpactWait(ctx, intent, decisions, earlyImpactState)
 	if err != nil {
 		return reducercontract.Result{}, err
 	}

@@ -179,18 +179,73 @@ func (d impactWaitDecision) subSignals(base map[string]float64) map[string]float
 	return out
 }
 
+// impactProducerSnapshot is a producer state read before the evidence load;
+// ok is false when no early read was taken.
+type impactProducerSnapshot struct {
+	state ImpactProducerState
+	ok    bool
+}
+
+// probeImpactProducerBeforeLoad reads the producer state BEFORE the handler
+// loads its evidence, on the attempt where the handler may write at its cap
+// (#8956 review). Settled() read before the load means every impact work item
+// committed its findings before the load began (the impact writer commits in
+// its own transaction inside Handle and the queue acks succeeded only after
+// Handle returns), so the loaded evidence already holds every finding. Read
+// after the load, a finding that committed in between would be absent from the
+// decisions while the probe reports settled, and the stale unmatched row would
+// be published as a genuine no-match. Below the cap no write can happen, so the
+// probe stays after the load and is skipped when nothing waits on impact.
+func (h SecurityAlertReconciliationHandler) probeImpactProducerBeforeLoad(
+	ctx context.Context,
+	intent reducercontract.Intent,
+) (impactProducerSnapshot, error) {
+	if h.ImpactProducerReadiness == nil ||
+		intent.AttemptCount < pendingImpactSecurityAlertReconciliationMaxAttempts ||
+		!impactProducingSecurityAlertReconciliation(intent) {
+		return impactProducerSnapshot{}, nil
+	}
+	state, err := h.probeImpactProducer(ctx, intent)
+	if err != nil {
+		return impactProducerSnapshot{}, err
+	}
+	return impactProducerSnapshot{state: state, ok: true}, nil
+}
+
+// probeImpactProducer asks the port for the producer state of the intent's
+// scope generation.
+func (h SecurityAlertReconciliationHandler) probeImpactProducer(
+	ctx context.Context,
+	intent reducercontract.Intent,
+) (ImpactProducerState, error) {
+	state, err := h.ImpactProducerReadiness.ImpactProducerState(ctx, intent.ScopeID, intent.GenerationID)
+	if err != nil {
+		// A torn connection is the retryable fact_load_transient class, which
+		// still counts against the retry budget; every other error is returned
+		// as is. Neither is ever converted into the non-counting class: that
+		// would retry forever without surfacing.
+		return ImpactProducerState{}, fmt.Errorf(
+			"check supply chain impact producer readiness: %w", factload.ClassifyFactLoadError(err))
+	}
+	return state, nil
+}
+
 // resolveImpactWait decides what a reconciliation with decisions waiting on
 // impact evidence does: defer without spending an attempt while the impact
 // work of its scope generation is in flight inside the bound, defer on the
 // counting path below the handler cap, or write at the cap. At the cap a
 // settled producer (every impact work item succeeded) is a genuine no-match
 // and records producer_settled; anything else is a visible give-up whose
-// outcome the write persists on the waiting rows (#8956). It returns a zero
-// decision and a nil error when nothing waits on impact.
+// outcome the write persists on the waiting rows (#8956). early is the state
+// probeImpactProducerBeforeLoad read before the evidence load; when present it
+// is used instead of a second probe, so settlement is never read after the
+// load. It returns a zero decision and a nil error when nothing waits on
+// impact.
 func (h SecurityAlertReconciliationHandler) resolveImpactWait(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	decisions []SecurityAlertReconciliationDecision,
+	early impactProducerSnapshot,
 ) (impactWaitDecision, error) {
 	if !hasPendingImpactDecision(intent, decisions) {
 		return impactWaitDecision{}, nil
@@ -199,15 +254,13 @@ func (h SecurityAlertReconciliationHandler) resolveImpactWait(
 	probed := false
 	var state ImpactProducerState
 	if h.ImpactProducerReadiness != nil {
-		var err error
-		state, err = h.ImpactProducerReadiness.ImpactProducerState(ctx, intent.ScopeID, intent.GenerationID)
-		if err != nil {
-			// A torn connection is the retryable fact_load_transient class,
-			// which still counts against the retry budget; every other error
-			// is returned as is. Neither is ever converted into the
-			// non-counting class: that would retry forever without surfacing.
-			return impactWaitDecision{}, fmt.Errorf(
-				"check supply chain impact producer readiness: %w", factload.ClassifyFactLoadError(err))
+		if early.ok {
+			state = early.state
+		} else {
+			var err error
+			if state, err = h.probeImpactProducer(ctx, intent); err != nil {
+				return impactWaitDecision{}, err
+			}
 		}
 		probed = true
 		if state.InFlight() > 0 {
