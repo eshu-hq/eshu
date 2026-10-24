@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/component/activation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
@@ -32,7 +33,8 @@ SELECT
     last_observed_at,
     updated_at,
     deactivated_at,
-    (configuration->'scan_interval')::text
+    (configuration->'scan_interval')::text,
+    configuration::text
 FROM collector_instances
 ORDER BY collector_kind ASC, instance_id ASC
 `
@@ -219,6 +221,7 @@ func listCoordinatorCollectorInstances(ctx context.Context, queryer db.Queryer) 
 		var instance collector.InstanceSummary
 		var deactivatedAt sql.NullTime
 		var scanInterval sql.NullString
+		var configuration string
 		if err := rows.Scan(
 			&instance.InstanceID,
 			&instance.CollectorKind,
@@ -231,9 +234,14 @@ func listCoordinatorCollectorInstances(ctx context.Context, queryer db.Queryer) 
 			&instance.UpdatedAt,
 			&deactivatedAt,
 			&scanInterval,
+			&configuration,
 		); err != nil {
 			return nil, fmt.Errorf("list coordinator collector instances: %w", err)
 		}
+		// The component activation marker is a boolean, never a label value:
+		// the configuration text is parsed here and dropped, so only the
+		// bounded flag reaches the status layer (#8951).
+		instance.ExtensionHosted = activation.IsConfiguration(configuration)
 		if deactivatedAt.Valid {
 			instance.DeactivatedAt = deactivatedAt.Time.UTC()
 		}

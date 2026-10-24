@@ -33,7 +33,7 @@ const maxFailureOperationLength = 48
 // terminal flag to consult.
 //
 // FailureClass and FailureOperation are the persisted tokens;
-// BoundedFailureClassForKind and BoundedFailureOperation bound them before any
+// BoundedFailureClassForInstance and BoundedFailureOperation bound them before any
 // status surface. The failure message and provider status code are deliberately
 // absent: they can carry provider response text and must not reach a status
 // payload. ScopeID and WorkItemID name the failed work item for audit and are
@@ -136,8 +136,14 @@ func (b *runtimeStatusBuilder) applyTerminalFailures(failures []TerminalFailure)
 		if row.LastFailureTerminal && !failure.ObservedAt.After(row.LastFailureAt) {
 			continue
 		}
+<<<<<<< HEAD
 		row.LastFailureClass = class
 		row.LastFailureOperation = operation
+=======
+		row.LastFailureClass = BoundedFailureClassForInstance(
+			failure.CollectorKind, failure.FailureClass, b.extensionHosted[key])
+		row.LastFailureOperation = BoundedFailureOperation(failure.FailureOperation)
+>>>>>>> 0db2364a6b (feat(status): read extension-defined failure classes on component-activated first-party instances)
 		row.LastFailureTerminal = true
 		row.LastFailureAt = failure.ObservedAt
 		row.Health = combineRuntimeHealth(row.Health, "degraded")

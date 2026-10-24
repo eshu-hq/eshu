@@ -225,8 +225,8 @@ A source is not refreshing, or a collector family reports unhealthy.
   kinds `registry_auth_denied` (fix the registry credential), and `scanner_worker`
   `timeout`; any kind running under the extension host can also report
   `invalid_claim`, `invalid_result`, `launch_failure`, or `status_record`, and a
-  class an extension defines for a kind that is not first-party reads
-  `extension_defined`.
+  class an extension defines reads `extension_defined`, on a kind that is not
+  first-party or on a component-activated instance of a first-party kind.
   The full table is in
   [Collector Terminal Failure Readiness](../reference/http-api/collector-terminal-failure.md#values). The
   gauge `eshu_runtime_coordinator_collector_terminal_failure_instances` counts

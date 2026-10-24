@@ -46,13 +46,22 @@ first-party kind such as `jira`. A first-party kind adds its own classes from
 `kindFailureClasses`; a class only another kind owns reads `unknown` for it.
 A kind that is not first-party is hosted by the extension host, and every other
 class matching the host's pattern collapses to `extension_defined`, so the set
-never grows with third-party text. First-party kinds do not collapse: the leaf
-has no signal that an instance is extension-hosted, so an extension-defined
-class on a first-party kind reads `unknown`, and an in-tree class a writer
-forgot to register is not relabeled. The one-time
-`legacy_missing_generation_identity` backfill class (schema bootstrap) also
-reads `unknown` on a first-party kind (`extension_defined` on any other kind);
-both limits are in the reference doc. A class added to any set must also land, in the same change, in both
+never grows with third-party text. The same collapse applies to an instance with
+`InstanceSummary.ExtensionHosted` set (#8951): the status reader fills that
+boolean from the stored configuration with `activation.IsConfiguration`, the
+check the coordinator uses to hand an instance to the extension host, so a
+component-activated instance carrying a first-party kind such as `jira` reads
+`extension_defined` for the classes its extension defines. Use
+`BoundedFailureClassForInstance` wherever an instance is known;
+`BoundedFailureClassForKind` is the kind-only form and never collapses a
+first-party kind. An in-tree instance of a first-party kind does not collapse,
+so an in-tree class a writer forgot to register stays `unknown` and the tie test
+catches it. The marker is a boolean: do not add the component id or any
+configuration text to the summary or to a label. The one-time
+`legacy_missing_generation_identity` backfill class (schema bootstrap) reads
+`unknown` on an in-tree first-party instance and `extension_defined` on an
+extension-hosted one or any other kind; the limit is in the reference doc.
+A class added to any set must also land, in the same change, in both
 OpenAPI `last_failure_class` enums
 (`TestOpenAPITerminalFailureFieldsMatchStatusContract` in `query`), the class
 table in `docs/public/reference/http-api/collector-terminal-failure.md`

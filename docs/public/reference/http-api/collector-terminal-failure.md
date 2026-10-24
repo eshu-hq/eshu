@@ -34,31 +34,38 @@ scoped token.
 ## Values
 
 `last_failure_class` is a bounded class or `unknown`. Each collector kind may
-report the classes that apply to it in the table below. On a first-party kind
-any persisted value outside that kind's set reads `unknown`, including free
-text, an empty class, and a class that only another kind owns. On a kind that
-is not first-party, any other pattern-matching class reads `extension_defined`.
-Either way a provider message never reaches the field.
+report the classes that apply to it in the table below. On an in-tree instance
+of a first-party kind, any persisted value outside that kind's set reads
+`unknown`, including free text, an empty class, and a class that only another
+kind owns. On an extension-hosted instance, any other pattern-matching class
+reads `extension_defined`. Either way a provider message never reaches the
+field.
 
 Every kind reports the extension host's own classes (`invalid_claim`,
 `invalid_result`, `launch_failure`, `status_record`), because a component
 extension can be configured with a first-party kind such as `jira` and the host
-then writes those classes for it. A kind that is not first-party is always
-hosted by the extension host: any other class it defines itself (a lowercase
-token of at most 96 characters) reads `extension_defined`, so third-party
-classes never grow the set.
+then writes those classes for it.
 
-Known limits, both reading `unknown` rather than leaking text:
+An instance is extension-hosted when its stored configuration is a component
+activation document (the same check the coordinator uses to hand an instance to
+the extension host), or when its kind is not first-party, because only the
+extension host runs a kind the platform does not ship. On such an instance any
+other class it defines itself (a lowercase token of at most 96 characters)
+reads `extension_defined`, so third-party classes never grow the set, whether
+the instance carries a first-party kind such as `jira` or a kind of its own. An
+in-tree instance of a first-party kind never collapses: a class an in-tree
+writer forgot to register stays `unknown`, so the writer tie test keeps
+catching it. The marker is a boolean the status reader derives from existing
+state; it adds no field to the payload and no label value to the gauge.
 
-- A class an extension defines itself, on a component-configured instance of a
-  first-party kind, reads `unknown`. The status leaf has no signal that such an
-  instance is extension-hosted, so `extension_defined` stays limited to kinds
-  that are not first-party. Tracked in #8951.
-- `legacy_missing_generation_identity` reads `unknown` on a first-party kind. On
-  any other kind it matches the extension host class pattern and reads
-  `extension_defined`. The schema bootstrap backfill writes it once, for every
-  kind, on pending or claimed work items that predate generation identity, and
-  it ages out with the window below.
+Known limit, reading `unknown` rather than leaking text:
+
+- `legacy_missing_generation_identity` reads `unknown` on an in-tree instance of
+  a first-party kind. On an extension-hosted instance or any other kind it
+  matches the extension host class pattern and reads `extension_defined`. The
+  schema bootstrap backfill writes it once, for every kind, on pending or
+  claimed work items that predate generation identity, and it ages out with
+  the window below.
 
 | Class | Kinds | Meaning |
 | --- | --- | --- |
@@ -101,7 +108,7 @@ Known limits, both reading `unknown` rather than leaking text:
 | `invalid_result` | every kind, from the extension host | The host rejected the extension's output before commit. |
 | `launch_failure` | every kind, from the extension host | The host could not launch the extension. |
 | `status_record` | every kind, from the extension host | The host failed to record the extension's status. |
-| `extension_defined` | extension host | The extension reported a class of its own. |
+| `extension_defined` | extension-hosted instances | The extension reported a class of its own. |
 
 `last_failure_operation` is a short lowercase token such as `list_org_alerts`,
 `collect_failure`, or `commit_failure`, or `unknown`.
