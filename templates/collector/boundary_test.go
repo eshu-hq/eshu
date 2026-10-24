@@ -33,7 +33,7 @@ func TestImportBoundaryRejectsCoreAndCrossCollectorImports(t *testing.T) {
 			return err
 		}
 		if info.IsDir() {
-			if info.Name() == "testdata" || info.Name() == "compose" || info.Name() == "scripts" {
+			if info.Name() == "testdata" || info.Name() == "scripts" {
 				return filepath.SkipDir
 			}
 			return nil
