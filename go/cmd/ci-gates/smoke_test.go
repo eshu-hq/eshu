@@ -73,7 +73,7 @@ func TestProbeSmoke_LegacyUnboundFullRefuses(t *testing.T) {
 
 	runner := &mappedGHRunner{routes: smokeRoutes(compareJSON("docs/x.md", "go/internal/other/y.go"))}
 	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
-		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go/cmd/ci-gates/reuse.go"}, false,
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 	if err != nil {
 		t.Fatalf("probeSmoke returned error: %v", err)
@@ -88,7 +88,7 @@ func TestProbeSmoke_OverlappingBaseDeltaRefuses(t *testing.T) {
 
 	runner := &mappedGHRunner{routes: smokeRoutes(compareJSON("go/cmd/ci-gates/reuse.go"))}
 	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
-		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go/cmd/ci-gates/reuse.go"}, false,
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 	if err != nil {
 		t.Fatalf("probeSmoke returned error: %v", err)
@@ -103,7 +103,7 @@ func TestProbeSmoke_WorkflowDeltaRefuses(t *testing.T) {
 
 	runner := &mappedGHRunner{routes: smokeRoutes(compareJSON(".github/workflows/test.yml"))}
 	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
-		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go/cmd/ci-gates/reuse.go"}, false,
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 	if err != nil {
 		t.Fatalf("probeSmoke returned error: %v", err)
@@ -120,7 +120,7 @@ func TestProbeSmoke_GateDefinitionDeltaRefuses(t *testing.T) {
 
 	runner := &mappedGHRunner{routes: smokeRoutes(compareJSON("specs/ci-gates.v1.yaml"))}
 	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
-		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go/cmd/ci-gates/reuse.go"}, false,
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 	if err != nil {
 		t.Fatalf("probeSmoke returned error: %v", err)
@@ -139,7 +139,7 @@ func TestProbeSmoke_SmokeCandidateRefusesChain(t *testing.T) {
 
 	runner := &mappedGHRunner{routes: smokeRoutesDesc(compareJSON("docs/x.md"), smokeDescription)}
 	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
-		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go/cmd/ci-gates/reuse.go"}, false,
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 	if err != nil {
 		t.Fatalf("probeSmoke returned error: %v", err)
@@ -156,7 +156,7 @@ func TestProbeSmoke_LegacyReuseV2Refuses(t *testing.T) {
 
 	runner := &mappedGHRunner{routes: smokeRoutesDesc(compareJSON("docs/x.md"), reuseV2Description)}
 	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
-		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go/cmd/ci-gates/reuse.go"}, false,
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 	if err != nil {
 		t.Fatalf("probeSmoke returned error: %v", err)
@@ -169,7 +169,7 @@ func TestProbeSmoke_LegacyReuseV2Refuses(t *testing.T) {
 func TestProbeSmoke_HistoricalGenericReuseRefuses(t *testing.T) {
 	runner := &mappedGHRunner{routes: smokeRoutesDesc(compareJSON("docs/x.md"), reuseDescription)}
 	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
-		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go/cmd/ci-gates/reuse.go"}, false,
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 	if err != nil || got {
 		t.Fatalf("historical generic reuse must refuse smoke: got=%v err=%v", got, err)
@@ -188,7 +188,7 @@ func TestProbeSmoke_TruncatedTreeRefuses(t *testing.T) {
 	routes := append([]mappedGHRoute{{match: "git/trees/" + reuseOtherTree, output: `{"truncated":true,"tree":[]}`}}, smokeRoutes(compareJSON("docs/disjoint.md"))...)
 	runner := &mappedGHRunner{routes: routes}
 	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
-		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go/cmd/ci-gates/reuse.go"}, false,
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 	if err != nil {
 		t.Fatalf("probeSmoke returned error: %v", err)
@@ -251,7 +251,7 @@ func TestProbeSmoke_PRPlanManifestDeltaRefuses(t *testing.T) {
 	t.Parallel()
 	runner := &mappedGHRunner{routes: smokeRoutes(compareJSON("specs/ci-pr-workflows.d/frontend.yaml"))}
 	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
-		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go/cmd/ci-gates/reuse.go"}, false,
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 	if err != nil {
 		t.Fatal(err)
@@ -265,7 +265,7 @@ func TestProbeSmokeEvidenceBindsFullBackedSourceAndCurrentTree(t *testing.T) {
 	t.Parallel()
 	runner := &mappedGHRunner{routes: smokeRoutes(compareJSON("docs/x.md"))}
 	verdict, err := probeSmokeEvidence(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
-		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go/cmd/ci-gates/reuse.go"}, false,
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 	if err != nil || verdict.Applied {
 		t.Fatalf("smoke provenance = %#v, err=%v", verdict, err)

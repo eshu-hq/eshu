@@ -92,7 +92,7 @@ func TestProbeSmokeUnchangedEndpointWorkflowIgnoresThreeDotNoise(t *testing.T) {
 		{match: "git/trees/" + reuseOtherTree, output: `{"truncated":false,"tree":[{"path":".github/workflows/required-gates.yml","mode":"100644","type":"blob","sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"path":"docs/new.md","mode":"100644","type":"blob","sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}`},
 		{match: "commits/" + reuseOldSHA + "/statuses", output: `[{"context":"required-gates-complete","state":"success","description":"` + fullRunDescription + `"}]`},
 	}, successRoutes(reuseOldSHA)...)
-	got, err := probeSmoke(context.Background(), &mappedGHRunner{routes: routes}, "eshu-hq/eshu", 42, reuseHeadSHA, []string{"go/cmd/ci-gates/reuse.go"}, []string{"go-core-complete", "go-race-complete", "required-gates-complete"})
+	got, err := probeSmoke(context.Background(), &mappedGHRunner{routes: routes}, "eshu-hq/eshu", 42, reuseHeadSHA, []string{"go/cmd/ci-gates/reuse.go"}, false, []string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestProbeSmokeDeletedProtectedOrPRPathRefuses(t *testing.T) {
 				{match: "git/trees/" + reuseOtherTree, output: `{"truncated":false,"tree":[]}`},
 			}, smokeRoutes(compareJSON())...)
 			got, err := probeSmoke(context.Background(), &mappedGHRunner{routes: routes}, "eshu-hq/eshu", 42, reuseHeadSHA,
-				[]string{"go/cmd/ci-gates/reuse.go"},
+				[]string{"go/cmd/ci-gates/reuse.go"}, false,
 				[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 			if err != nil || got {
 				t.Fatalf("deleted path %q: smoke=%v error=%v", path, got, err)

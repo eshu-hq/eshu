@@ -327,9 +327,11 @@ func TestProbeSmokeChecksHeadAndTestedMergeDeltas(t *testing.T) {
 		name       string
 		mergeTree  string
 		mergePaths []string
+		truncated  bool
 		wantSmoke  bool
 	}{
 		{name: "disjoint base", mergeTree: reuseOtherTree, mergePaths: []string{"go/subject.go", "docs/disjoint.md"}, wantSmoke: true},
+		{name: "truncated PR paths", mergeTree: reuseOtherTree, mergePaths: []string{"go/subject.go", "docs/disjoint.md"}, truncated: true},
 		{name: "merge-only protected workflow", mergeTree: protectedMergeTree, mergePaths: []string{"go/subject.go", "docs/disjoint.md", ".github/workflows/test.yml"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -348,7 +350,7 @@ func TestProbeSmokeChecksHeadAndTestedMergeDeltas(t *testing.T) {
 			}, routes...)
 			ctx := withTestedInput(context.Background(), testedInput{RunID: 102, Attempt: 1, MergeSHA: testedBaseSHA, MergeTree: tc.mergeTree})
 			got, err := probeSmokeEvidence(ctx, &mappedGHRunner{routes: routes}, "eshu-hq/eshu", 42, reuseHeadSHA,
-				[]string{"go/subject.go"}, []string{"go-core-complete", "go-race-complete", "required-gates-complete"})
+				[]string{"go/subject.go"}, tc.truncated, []string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 			if err != nil || got.Applied != tc.wantSmoke {
 				t.Fatalf("smoke=%#v err=%v, want %v", got, err, tc.wantSmoke)
 			}
