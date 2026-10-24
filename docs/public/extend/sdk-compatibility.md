@@ -205,8 +205,10 @@ github.com/eshu-hq/eshu/sdk/go/collector@v0.1.0` resolves through the public
 Go module proxy. The `sdk/go/factschema` pin is also the fixture-pack pin.
 For the original paths, removing the monorepo `replace` directives and pinning
 the published versions in the compatibility table remains valid. The separate
-`eshu-sdk` paths are now mapped above as available candidates; migrate to them
-only after the intended consumer/core pair qualifies.
+`eshu-sdk` paths are now mapped above as available candidates. Use these exact
+candidates for consumer implementation and qualification now; make a new-path
+pair authoritative in production only after the intended consumer/core pair
+qualifies. Original-path pins remain supported until cutover.
 Use exact versions and no workspace or local replacement for that proof.
 
 ## How to read a row
