@@ -1,9 +1,10 @@
 # Cleanup runbook and census for #8813
 
 Companion to [the #8813 record](8813-credential-file-exposure.md). It holds the
-operator-facing parts: the order in which the cleanup runs, the read-only census
-query, the one-shot purge SQL with what was run, the fact-payload ruling, the
-exit criterion, and the #8833 proof list. It approves no deployment. If this
+operator-facing parts: the order in which the cleanup runs, the fact-payload
+ruling, the exit criterion, and the #8833 proof list. The read-only census and
+the one-shot purge SQL, with what was run, are on
+[the purge SQL page](8813-credential-file-exposure-purge-sql.md). It approves no deployment. If this
 page and an issue body differ, the issue body wins.
 
 ## Cleanup order
@@ -11,23 +12,19 @@ page and an issue body differ, the issue body wins.
 `.yarnrc.yml` and `*.tfvars` stay `store` until #8833 binds them (see "Rule per
 file" and item 1 of "Decisions for the arbiter" in the record). #8812 alone
 changes the fingerprint but not the stored form of either file, so a
-re-collection after the #8812 deploy still writes both verbatim.
-**Between the #8812 and #8833 deploys the tfvars rows and the `.yarnrc.yml`
-rows stay verbatim, and every re-collection rewrites them verbatim.** The
-operator SQL must not run in that gap, because the next re-collection would
-write the credential back. The fingerprint flip does not force a sweep. It only
-makes a forced full snapshot store a new generation instead of re-projecting
-the active one, so the flip alone visits nothing; the sweep or a reindex
-request does (decision table in `docs/public/reference/reconciliation-sweep.md`).
-The order is:
+re-collection after the #8812 deploy still writes both verbatim. The fingerprint
+flip does not force a sweep. It only makes a forced full snapshot store a new
+generation instead of re-projecting the active one, so the flip alone visits
+nothing; the sweep or a reindex request does (decision table in
+`docs/public/reference/reconciliation-sweep.md`). The order is:
 
-1. Deploy #8833 (the binding). Wait until every ingester runs the new binary.
-2. Run the operator SQL (floor). It covers repositories the sweep will not reach
-   soon.
-3. Send `POST /api/v0/admin/reindex`. It records a fleet watermark that every git
-   ingester shard reads each cycle, honored even with the interval at `0`. Send
-   it only after step 1: a scope re-parsed by an old binary after the watermark
-   counts as `fresh` and is not re-parsed again
+1. Deploy #8833 (the binding). Wait until every ingester runs the new binary. A
+   scope re-parsed by an old binary after step 2 counts as `fresh` and is not
+   re-parsed again, so its raw copy would be written after the watermark.
+2. Send `POST /api/v0/admin/reindex` and record the response `requested_at` as
+   the watermark `W` (`runtime_ingester_control.reindex_request_requested_at` for
+   the `repository` ingester, migration 009). Every git ingester shard reads it
+   each cycle, honored even with the interval at `0`
    (`docs/public/reference/reconciliation-sweep.md`, "Reindex requests"). Raise
    `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` temporarily (for example to 50) so the
    fleet drains faster. Do not set it to `0`: `0` removes the per-cycle cap, so
@@ -35,12 +32,22 @@ The order is:
    prevent. It does not disable the sweep either. Reconciliation is off only
    with `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0` (`go/internal/collector/repo/git/selection_baseline.go`,
    `reconcileBudgetRemaining`; `docs/public/reference/env-registry/collectors-platform.md`).
+3. Run the operator SQL fleet-wide: statement L (on the purge SQL page) lists the repositories, and
+   every other statement runs per repository with `w = W`. Each statement
+   carries the guard "the copy's writing generation was ingested before `W` and
+   the copy is non-empty", so it can run while the reindex rebuilds. The
+   statements that rewrite a row in place lock a batch first and test the guard
+   again in a second statement of the same transaction. A writer upsert that
+   committed first shows its post-`W` generation to that second statement, which
+   skips the row; one that lands after the lock overwrites the blank. A single
+   CTE statement does not do this (measured on the purge SQL page, "Race"). The
+   SQL never blanks a body the reindex rebuilt.
 4. Watch `eshu_dp_collector_reconciliation_due_unvisited`. When it reads zero
-   for every reason, run the operator SQL again. It catches rows an ingester on
-   the old binary wrote during the rollout and any scope whose forced full
-   failed and was retried. A scope the sync never visits (a sweep-off or
-   webhook-only ingester) is not covered by the reindex; the second SQL run is
-   what reaches it.
+   for every reason, run the same statements again. They catch rows an ingester
+   on the old binary wrote before `W` during the rollout and any scope whose
+   forced full failed and was retried. A scope the sync never visits (a
+   sweep-off or webhook-only ingester) is not covered by the reindex; this
+   second run is what reaches it.
 5. Restore the cap.
 
 Expected duration is `ceil(repositories / cap)` selection cycles, because the
@@ -48,195 +55,7 @@ sweep visits scopes in rotating order within `ceil(due / limit)` cycles
 (`docs/public/reference/reconciliation-sweep.md`, "Visiting order"). That is a
 bounded cycle count, not days. A scope with a pending full that has live
 projector work waits one activation first (the `in_flight_expired_held` row in
-the same doc).
-
-## Deployment census
-
-No deployment was queried. The two quoted samples are in the record, under
-"Evidence on how common it is". Neither is a census. The detector has the shape
-gaps in the evidence page ("Detector probe (the gap corpus)"), so zero hits does
-not prove zero credentials. An operator runs the read-only queries below. They
-return counts and never values. They were not run against a database.
-
-```sql
--- 1. Is the side table current? Zero hits are only meaningful when ready.
-SELECT state FROM content_file_secret_lines_state;
-
--- 2. Files and detector hits per file type. Counts only.
-SELECT
-  CASE WHEN lower(f.relative_path) ~ '(^|/)\.yarnrc\.yml$' THEN 'yarnrc_yml'
-       ELSE 'tfvars' END                                   AS file_kind,
-  count(*)                                                 AS files,
-  count(DISTINCT f.repo_id)                                AS repos,
-  count(*) FILTER (WHERE EXISTS (
-    SELECT 1 FROM content_file_secret_lines s
-    WHERE s.repo_id = f.repo_id AND s.relative_path = f.relative_path
-      AND NOT s.suppressed))                               AS files_with_detector_hit
-FROM content_files f
-WHERE lower(f.relative_path) ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$'
-GROUP BY 1;
-
--- 3. Derived copies that must also be cleaned. Counts only.
-SELECT
-  (SELECT count(*) FROM content_entities
-    WHERE lower(relative_path) ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$'
-      AND source_cache <> '')                              AS entity_rows_with_source,
-  (SELECT count(*) FROM content_file_references
-    WHERE lower(relative_path) ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$')
-                                                           AS reference_rows,
-  -- Search index copy: active-generation documents with non-empty context text.
-  -- Counted from the documents alone, so a document with no fact row still counts.
-  (SELECT count(*) FROM eshu_search_index_documents d
-    JOIN ingestion_scopes sc ON sc.scope_id = d.scope_id
-                            AND sc.active_generation_id = d.generation_id
-    WHERE d.document->>'ContextText' <> ''
-      AND lower(d.document->>'Path') ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$')
-                                                           AS search_documents,
-  -- Search fact payload copy: active-generation reducer_eshu_search_document
-  -- facts with non-empty context text. Served by the semantic and hybrid read
-  -- when embeddings are enabled. Counted from the facts alone, so a fact with no
-  -- index document still counts. The document sits under the lowercase
-  -- `document` key; its fields are Go field names (no JSON tags).
-  (SELECT count(*) FROM fact_records f
-    JOIN ingestion_scopes sc ON sc.scope_id = f.scope_id
-                            AND sc.active_generation_id = f.generation_id
-    WHERE f.fact_kind = 'reducer_eshu_search_document'
-      AND NOT f.is_tombstone
-      AND f.payload->'document'->>'ContextText' <> ''
-      AND lower(f.payload->'document'->>'Path') ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$')
-                                                           AS search_fact_payloads;
-```
-
-These count candidates by path. A `redact` row keeps a non-empty, redacted body,
-so the zero criterion below applies to the exposure predicate #8833 defines once
-for the gauge ("Operator signals" under "Rows already stored" in the record:
-path predicate, and a body that is not in the policy's output form). The census
-reuses that predicate for each copy. The document keys are Go field names
-(`Labels` is read as `doc.document->'Labels'` in
-`go/internal/storage/postgres/eshu_search_vector_documents.go`), so the context
-text is `ContextText` and the path is `Path`. The fact payload wraps the same
-document under a lowercase `document` key (`eshuSearchDocumentPayload`; the
-reader selects `fact.payload->'document'->'Labels'` in
-`go/internal/storage/postgres/eshu_search_document.go`), so the census reads
-`payload->'document'->>'Path'`. The `search_fact_payloads` column is part of the
-exit criterion. It counts a copy that the semantic and hybrid read serves when
-embeddings are enabled. This query was not run.
-
-The search predicate tests `Path`, never `document_id`. A content-file
-document id is `searchdoc:content_file:<repo>:<path>`
-(`go/internal/searchdocs/project.go`, `ProjectContentFile`), so a `:` precedes
-a root-level `.yarnrc.yml` and the `(^|/)` alternative cannot match the id. The
-census would read zero and the purge would skip the most common location. The
-key is also case-sensitive: `document->>'path'` (lowercase) matches nothing,
-because `searchdocs.Document` has no JSON tags and the keys are `Path` and
-`ContextText`. `ProjectContentFile` and `ProjectContentEntity` both set `Path`
-to the repository-relative path, so one predicate covers both document kinds. A
-scratch Python `re` check of the path predicate (not Postgres ARE) on invented
-paths matched `.yarnrc.yml`, `app/.yarnrc.yml`, `prod.tfvars`,
-`a/b/prod.auto.tfvars` and `envs/x.tfvars.json`. It did not match
-`x.yarnrc.yml.bak`, `my.yarnrc.yml` or `tfvars`. The old id-based form missed
-the root `.yarnrc.yml`.
-
-## Operator SQL scope
-
-#8833 writes the one-shot SQL. It runs per repository, 500 rows per statement,
-and a second run touches 0 rows. It blanks `content_files.content`, deletes
-`content_file_references`, blanks `content_entities.source_cache` and purges the
-active-generation search copies: index documents, index terms and the matching
-`reducer_eshu_search_document` fact rows (ruling in
-[the fact payload cleanup](#the-fact-payload-cleanup-arbiter-ruling)). The
-search purge is two statements, A and B, each locking one table and each run
-until it deletes 0 rows. This replaces one statement that joined the two
-tables. It refines the mechanism; the arbiter's ruling (delete the fact row by
-`fact_id`) is unchanged.
-
-The split is needed because the writer commits the fact and index rows in
-separate autocommit statements: `InsertPage` inserts facts, then index rows;
-`Finalize` retires facts (`retireSearchDocumentFacts`), then index documents
-(`finalizeSearchIndex`); `Cancel` does the same
-(`go/internal/reducer/eshusearch/eshu_search_document_writer.go`). A failure or
-cancel between the two leaves an index document with no fact row, or a fact row
-with no index document. An inner join between the two tables misses both. The
-keyword read serves the first state: it walks terms to
-`eshu_search_index_documents` and never touches `fact_records`
-(`go/internal/storage/postgres/search/index/store.go`). The semantic and hybrid
-read serves the second. A reviewer reproduced both on PostgreSQL 18.6
-(`orphan/.yarnrc.yml` and `lonely.tfvars` survived the joined statement).
-
-```sql
--- Statement A: index documents and terms, keyed on the documents alone.
-WITH batch AS (
-  SELECT d.scope_id, d.generation_id, d.document_id
-  FROM eshu_search_index_documents d
-  JOIN ingestion_scopes sc ON sc.scope_id = d.scope_id
-                          AND sc.active_generation_id = d.generation_id
-  WHERE d.repo_id = $1
-    AND lower(d.document->>'Path') ~ $2                -- $2: the path predicate
-  ORDER BY d.scope_id, d.generation_id, d.document_id
-  LIMIT 500
-  FOR UPDATE OF d SKIP LOCKED
-), gone_terms AS (
-  DELETE FROM eshu_search_index_terms t USING batch b
-  WHERE t.scope_id = b.scope_id AND t.generation_id = b.generation_id
-    AND t.document_id = b.document_id
-)
-DELETE FROM eshu_search_index_documents d USING batch b
-WHERE d.scope_id = b.scope_id AND d.generation_id = b.generation_id
-  AND d.document_id = b.document_id;
-
--- Statement B: fact payloads, keyed on the facts alone.
-WITH batch AS (
-  SELECT f.fact_id
-  FROM fact_records f
-  JOIN ingestion_scopes sc ON sc.scope_id = f.scope_id
-                          AND sc.active_generation_id = f.generation_id
-  WHERE f.fact_kind = 'reducer_eshu_search_document'
-    AND f.payload->>'repo_id' = $1
-    AND lower(f.payload->'document'->>'Path') ~ $2
-  ORDER BY f.fact_id
-  LIMIT 500
-  FOR UPDATE OF f SKIP LOCKED
-)
-DELETE FROM fact_records f USING batch b WHERE f.fact_id = b.fact_id;
-```
-
-`repo_id` is a top-level payload key (`eshuSearchDocumentPayload` in the writer
-file above). Each statement locks one table, so the purge adds no lock-order
-question between the fact and index tables. In A, the two deletes are siblings in
-one statement. PostgreSQL runs data-modifying CTEs against one snapshot and does
-not order them, so neither reads the other's effect; both take their rows from
-`batch`, and no row is targeted twice (terms and documents are different
-tables). The terms primary key is `(scope_id, generation_id, term_key,
-document_id)` (migration `003b`, kept by `039a`; `191` drops only the generation
-foreign key), so the `gone_terms` match on `(scope_id, generation_id,
-document_id)` is expected to prune to one hash partition by `scope_id`. Runtime
-pruning is NOT_CHECKED.
-
-Both statements filter on `repo_id`. The existing index on
-`eshu_search_index_documents` is `(scope_id, generation_id, repo_id,
-source_kind)`, so A may scan sequentially per batch when `$1` alone is the
-filter. B has no `repo_id` index on `fact_records`. The `EXPLAIN (ANALYZE,
-BUFFERS)` item at 145k rows must cover both, and #8833 may need to iterate A per
-scope (add `AND d.scope_id = $3`). They were run on scratch data (next paragraph), not at that size.
-
-**What was run.** Statements A and B, copied from this page, ran on a scratch
-PostgreSQL 18.6 built from migrations 001, 002, 003, 003b, 039a and 191. The seed
-held 1,214 index documents, 2,428 terms and 1,215 fact rows: five matching path
-shapes, one mixed-case path, 1,200 bulk rows, an index document with no fact row,
-a fact row with no index document, a second repository, a superseded generation,
-a file-kind fact and the non-matching names `my.yarnrc.yml`,
-`x.yarnrc.yml.bak`, `tfvars` and a README. Before the purge the census read 1,209
-search documents and 1,209 search fact payloads. A deleted 500, 500, 207 and 0
-rows over four runs, and B deleted 500, 500, 207 and 0. Both orphans were gone,
-a second pass deleted nothing, and the census read zero on every search column
-afterwards. The other repository, the superseded generation, the non-matching
-names and the file-kind fact survived. With the document and fact locks of one
-row held by a second session, A and B each deleted the other row in 63 ms
-without waiting, and deleted the held row once it was released. It was not run
-at 145k rows. Runtime partition pruning of the terms delete, the interleaving
-with the search-document writer, and term rows whose document row is already
-gone (the census has no terms column; readers join through documents, so such a
-row is not served) are NOT_CHECKED.
+the same doc). The cycle period is NOT_CHECKED (it is not in the env registry).
 
 Superseded generations stay out of reach of the active reader until the
 retention cascade removes them ("Decisions for the arbiter", item 2, and gap 3
@@ -389,14 +208,23 @@ on scratch data); statements A and B cover both.
 
 ## Exit criterion
 
-The cleanup is done when both hold:
+Done when, on two consecutive scrapes, both hold:
 
-- The exposure gauge from "Rows already stored" in the record reads zero on two
-  consecutive scrapes.
-- The census counts are zero for `content_files`, `content_entities.source_cache`,
-  `content_file_references`, the active search documents and terms, and the
-  active `reducer_eshu_search_document` fact payloads (`search_fact_payloads`
-  reads zero; an API serves that copy when embeddings are enabled).
+- `eshu_dp_content_policy_raw_rows` reads zero. It is test (b) from
+  [the purge SQL page](8813-credential-file-exposure-purge-sql.md): an
+  unsuppressed `content_file_secret_lines` row on a policy path whose
+  `line_text` carries no `REDACTED_<finding_kind>` marker. #8833 defines it once;
+  the record's "Operator signals" cites it.
+- The census reads zero in `raw_files`, `raw_entity_rows`, `raw_reference_rows`,
+  `raw_search_documents` and `raw_search_fact_payloads` (test (a): the copy is
+  non-empty and its writing generation was ingested before the watermark; a NULL
+  generation counts raw) and in `files_with_raw_finding` (test (b) by file).
+
+`files`, `repos`, `reference_rows`, `search_documents` and `search_fact_payloads`
+size the work and are not exit columns: a `redact` row keeps a redacted body, so
+they never reach zero. A path-count zero is not the criterion, and neither is a
+body-only test: marker mode is a fixed point, so no body test tells a raw
+`.yarnrc.yml` from its redacted form.
 
 Days are not a criterion. Record the expected duration as
 `ceil(repositories / cap)` cycles once
@@ -433,9 +261,13 @@ For the purge, #8833 also proves:
    returns empty hits.
 3. The vector pending lister does not re-list the scope. The document pending
    lister is unchanged.
-4. Concurrency: the purge runs interleaved with the search-document writer on the
-   same active generation and on a new generation. Statements A and B each lock
-   one table, so there is no cross-table lock order. No deadlock.
-5. Census column `search_fact_payloads` reads zero after one cycle, and the
-   exposure gauge covers it.
+4. Concurrency: the purge runs interleaved with the content writer and the
+   search-document writer on the same active generation and on a new generation,
+   with the real writers rather than a sleep. A row the writer rewrote after
+   `W` is never blanked or deleted, and a row the purge locked is overwritten by
+   the writer's later upsert. Statements A and B each lock one table, so there is
+   no cross-table lock order. No deadlock.
+5. Census columns `raw_search_documents` and `raw_search_fact_payloads` read zero
+   after the second run, and `eshu_dp_content_policy_raw_rows` covers the
+   rebuilt rows.
 6. A test asserts the kind is not in `factKeySidecarKinds`.
