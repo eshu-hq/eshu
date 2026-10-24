@@ -68,6 +68,33 @@ recent shipped work grouped by feature area.
   change under `docs/public/`. To protect another section, add a line to the
   list.
 
+### Collector readiness: acknowledge an expected terminal failure
+
+- **An operator can acknowledge one terminal collector failure**
+  ([#8830](https://github.com/eshu-hq/eshu/issues/8830)). A failure on a target
+  nobody will fix (a deleted repository, a credential revoked on purpose) used
+  to keep the instance `degraded` and `failed` for as long as the target kept
+  failing. `POST /api/v0/admin/collector-failures/acknowledge` and
+  `eshu admin collector-failure acknowledge` record the acknowledgement for one
+  instance and scope with a required reason and idempotency key, behind an admin
+  token, with one governance audit event per decision (migration 231).
+  `POST /api/v0/admin/collector-failures/query` and `eshu admin collector-failure
+  list` list the failed scopes of one instance, because no status surface carries
+  a scope id. The
+  instance then reads `partial` with the blocker `terminal fetch failure
+  acknowledged: <class> (<operation>)`, never healthy or implemented, and the
+  failure stays visible as an `acknowledged_failure` object on collector status
+  and readiness. The acknowledgement covers that failure and later failures on the
+  scope with the same raw class; a completed work item after it, or a failure of
+  another class, reports the failure again with no further write. It has no
+  expiry. An acknowledgement of a scope with no unresolved failure inside the
+  window is refused with 422. The operator's reason is returned only by
+  `POST /api/v0/admin/collector-failures/acknowledgements/query`. The
+  terminal-failure gauge counts only unacknowledged failures; the new
+  `eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances`
+  gauge and `eshu_dp_collector_terminal_failure_acknowledgements_total` counter
+  cover the rest. The 3 AM runbook says when to acknowledge and when not to.
+
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
 - **Nesting guard before every Cargo TOML decode**

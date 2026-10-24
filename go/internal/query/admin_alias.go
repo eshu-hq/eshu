@@ -9,6 +9,7 @@ import (
 	pgdb "github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
+	"github.com/eshu-hq/eshu/go/internal/query/admin/acknowledgement"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/identity"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/provider/config"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/retirement"
@@ -163,6 +164,12 @@ type AdminIdentityMutationHandler = identity.MutationHandler
 // APIRouter wiring and the cmd/api constructors spelling
 // query.AdminRetirementHandler unchanged. See #8602.
 type AdminRetirementHandler = retirement.Handler
+
+// AdminTerminalFailureHandler serves the operator acknowledgement of a
+// collector terminal failure (#8830). Its home is admin/acknowledgement/; this
+// alias keeps the APIRouter wiring and the cmd/api constructors spelling
+// query.AdminTerminalFailureHandler.
+type AdminTerminalFailureHandler = acknowledgement.Handler
 
 // AdminInvitationListItem is the metadata-only invitation view returned to a
 // tenant admin. Its home is admin/identity/. See #6060.

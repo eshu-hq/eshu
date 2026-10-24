@@ -7,6 +7,21 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/recovery_replay_lock_order_interleave_live_test.go": (
+            "TestRecoveryReplayTwoSessionsBlockOneWayLive",
+            "TestRecoveryReplayHeldRowRaceLive",
+            "TestRecoveryReplayDropsRowChangedBeforeItsLockLive",
+        ),
+        "go/internal/storage/postgres/recovery_replay_lock_order_live_test.go": (
+            "TestRecoveryReplayConcurrentReplaysNeverDeadlockLive",
+        ),
+        "go/internal/storage/postgres/reducer_claim_sweep_lock_order_live_test.go": (
+            "TestReducerClaimSweepAndReplayBlockOneWayLive",
+            "TestReducerClaimSweepHeldRowRaceLive",
+            "TestReducerClaimSweepConcurrentWithReplaysNeverDeadlockLive",
+            "TestReducerClaimSweepKeepsActiveGenerationRowsLive",
+            "TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive",
+        ),
         "go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go": (
             "TestReducerQueueAckBatchFencesSupersededClaimLive",
             "TestReducerQueueExpiryInterleaveLive",
@@ -151,6 +166,9 @@ TABLE = {
         ),
         "go/internal/storage/postgres/workflow_control_quota_plan_live_test.go": (
             "TestClaimQuotaGatedPlanStaysIndexServed",
+        ),
+        "go/internal/storage/postgres/workflow_terminal_failure_ack_live_test.go": (
+            "TestCollectorTerminalFailureAcknowledgementSemanticsLive",
         ),
         "go/internal/storage/postgres/workflow_terminal_failure_index_live_test.go": (
             "TestCollectorTerminalFailureReadUsesPartialIndexLive",

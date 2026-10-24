@@ -219,7 +219,23 @@ A source is not refreshing, or a collector family reports unhealthy.
   3 x the instance's `scan_interval`, 30 minute floor) and no later completed
   work item exists for the same instance and scope. It clears when you fix the
   cause and the next cycle completes that scope, or when you remove the target
-  and wait one window. Pending or retrying items do not clear it. A failure that
+  and wait one window. Pending or retrying items do not clear it. If the
+  failure is expected and nobody will fix it (a repository deleted upstream, a
+  credential revoked on purpose, a removed target you will not wait a window
+  for), find its scope with `eshu admin collector-failure list` (collector
+  kind, instance; admin token) and acknowledge it with
+  `eshu admin collector-failure acknowledge` (collector kind, instance, scope,
+  reason; admin token). The instance then reads
+  `partial` with the blocker `terminal fetch failure acknowledged: <class>
+  (<operation>)` instead of `failed`, never healthy, and the failure is reported
+  again if it changes class or fails after a completed work item on that scope.
+  Do not acknowledge anything you intend to fix: fix it and let a completed work
+  item clear it. Check that the coordinator is running first, because a failure
+  that vanishes with a stopped coordinator is not an expected failure. See
+  [Acknowledge a failure](../reference/http-api/collector-terminal-failure.md#acknowledge-a-failure).
+  The gauge
+  `eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances`
+  counts what is acknowledged. A failure that
   disappears while the coordinator is down or the backlog is stuck is not
   recovery: check coordinator liveness first. Empty security-alert answers are
   not proof of health while this is set.

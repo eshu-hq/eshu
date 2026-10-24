@@ -32,7 +32,7 @@
 
 - **Idempotency** — all INSERT paths use `ON CONFLICT DO NOTHING` or
   `ON CONFLICT DO UPDATE`; schema DDL uses `IF NOT EXISTS`. Do not add
-  non-idempotent INSERTs or CREATE TABLE without IF NOT EXISTS.
+  non-idempotent INSERTs or CREATE TABLE without IF NOT EXISTS. The terminal-failure acknowledgement covering rule has one definition (`workflowTerminalFailureAckCovers`, see `terminal-failure-acknowledgement.md`); never copy it into another query.
 - **Go DDL never outruns the migrations (#7777, #7792)** — a column, index,
   table, named constraint (table-level or inline), trigger, function,
   sequence, view, materialized view, procedure, type, or domain added to a

@@ -317,4 +317,8 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 230 (#8943) creates the collector-owned security-alert org read
 	// state and its unread-repository child rows; DDL only, no backfill.
 	"security_alert_target_read_states",
+	// Migration 231 (#8830) creates the collector terminal-failure
+	// acknowledgement table the status read anti-joins. DDL only; rows are
+	// written by the admin acknowledge route, so no backfill exists.
+	"collector_terminal_failure_acknowledgements",
 }

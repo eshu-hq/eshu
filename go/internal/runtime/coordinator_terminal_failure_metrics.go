@@ -19,6 +19,14 @@ import (
 // recovers must drop out of the series. The shared collector runtime readback
 // supplies the matching and the bounded class, so a persisted class outside
 // the allowlist reads as "unknown" and an unregistered instance never appears.
+//
+// A failure an operator acknowledged (#8830) is not in that gauge: it is the
+// AcknowledgedFailure sub-record, and an instance whose only failures are
+// acknowledged is not degraded. eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances
+// counts instances with an acknowledged failure by the same bounded labels, so
+// an alert on the first gauge pages only for failures nobody has said are
+// expected, and the second keeps them countable. An instance with both an
+// acknowledged and an unacknowledged failure counts in both.
 func writeCollectorTerminalFailureMetrics(
 	writeGauge func(name string, labels map[string]string, value string),
 	serviceName string,
@@ -27,18 +35,35 @@ func writeCollectorTerminalFailureMetrics(
 	if snapshot == nil || len(snapshot.CollectorTerminalFailures) == 0 {
 		return
 	}
-	type key struct{ kind, class string }
+	type key = terminalFailureSeriesKey
 	counts := map[key]int{}
+	acknowledged := map[key]int{}
 	for _, row := range collector.RuntimeStatuses(collector.Evidence{
 		Instances:        snapshot.CollectorInstances,
 		TerminalFailures: snapshot.CollectorTerminalFailures,
 	}) {
-		if !row.LastFailureTerminal || row.Health != "degraded" {
-			continue
+		if row.LastFailureTerminal && row.Health == "degraded" {
+			counts[key{row.CollectorKind, row.LastFailureClass}]++
 		}
-		counts[key{row.CollectorKind, row.LastFailureClass}]++
+		if row.AcknowledgedFailure != nil {
+			acknowledged[key{row.CollectorKind, row.AcknowledgedFailure.FailureClass}]++
+		}
 	}
-	keys := make([]key, 0, len(counts))
+	writeTerminalFailureSeries(writeGauge, serviceName,
+		"eshu_runtime_coordinator_collector_terminal_failure_instances", counts)
+	writeTerminalFailureSeries(writeGauge, serviceName,
+		"eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances", acknowledged)
+}
+
+// writeTerminalFailureSeries writes one gauge series per (kind, class) in
+// sorted order, so a scrape is stable.
+func writeTerminalFailureSeries(
+	writeGauge func(name string, labels map[string]string, value string),
+	serviceName string,
+	name string,
+	counts map[terminalFailureSeriesKey]int,
+) {
+	keys := make([]terminalFailureSeriesKey, 0, len(counts))
 	for k := range counts {
 		keys = append(keys, k)
 	}
@@ -50,7 +75,7 @@ func writeCollectorTerminalFailureMetrics(
 	})
 	for _, k := range keys {
 		writeGauge(
-			"eshu_runtime_coordinator_collector_terminal_failure_instances",
+			name,
 			map[string]string{
 				"service_name":   serviceName,
 				"collector_kind": k.kind,
@@ -60,3 +85,7 @@ func writeCollectorTerminalFailureMetrics(
 		)
 	}
 }
+
+// terminalFailureSeriesKey is the bounded label pair of a terminal failure
+// gauge series.
+type terminalFailureSeriesKey struct{ kind, class string }
