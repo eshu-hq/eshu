@@ -239,8 +239,58 @@ run_ifa_fault_injection_authenticates_vault_role_cases() {
 	test_ifa_authenticates_vault_role_overlong_lock_name_is_rejected
 	test_ifa_authenticates_vault_role_lock_start_and_release_agree_on_name
 	test_ifa_authenticates_vault_role_wait_for_read_models_cases
+	test_ifa_authenticates_vault_role_waits_for_trust_chain_ack
 	test_ifa_authenticates_vault_role_kill_cell_proves_attempts_above_baseline
 }
+
+# Read-model facts can commit before the trust-chain queue acknowledgment.
+# Stopping the reducer in that window strands the claimed row and fences the
+# projection row with the same scope key. Drive the real stage against a queue
+# that advances from claimed to succeeded and observe when it sends SIGTERM.
+test_ifa_authenticates_vault_role_waits_for_trust_chain_ack() (
+	source "${det_lib}"
+	source "${authenticates_vault_role_cells_lib}"
+	local case_dir poll_count killed_at
+	case_dir="$(mktemp -d -t ifa-auth-vault-ack.XXXXXX)"
+	trap 'rm -rf "${case_dir}"' EXIT
+	printf '0\n' >"${case_dir}/polls"
+	log_dir="${case_dir}"
+	use_compose=0
+	FAULT_COMPOSE_PROJECT="test"
+	ESHU_POSTGRES_DSN="postgresql://unused"
+	compose_file="docker-compose.yaml"
+	bin_dir="${case_dir}"
+	bg_pids=()
+	ifa_det_start_bg() { printf -v "$3" '%s' 41007; }
+	ifa_authenticates_vault_role_wait_for_read_models() { return 0; }
+	ifa_det_pg() {
+		local n
+		n="$(cat "${case_dir}/polls")"
+		n=$((n + 1))
+		printf '%s\n' "${n}" >"${case_dir}/polls"
+		if ((n == 1)) || [[ "${queue_stuck:-0}" -eq 1 ]]; then printf 'claimed|1\n'; else printf 'succeeded|1\n'; fi
+	}
+	sleep() { :; }
+	kill() { cat "${case_dir}/polls" >"${case_dir}/killed-at"; }
+	wait() { :; }
+	ifa_det_untrack_bg_pid() { :; }
+	ifa_authenticates_vault_role_run_trust_chain_stage staged
+	poll_count="$(cat "${case_dir}/polls")"
+	killed_at="$(cat "${case_dir}/killed-at")"
+	[[ "${poll_count}" -ge 2 && "${killed_at}" -ge 2 ]] \
+		|| fail "trust-chain worker stopped before its claimed queue row reached succeeded (polls=${poll_count}, kill=${killed_at})"
+
+	# Exhausting the ACK wait must fail without a SIGTERM. The live driver
+	# owns teardown of the still-running reducer after the cell fails.
+	printf '0\n' >"${case_dir}/polls"
+	rm "${case_dir}/killed-at"
+	queue_stuck=1
+	die() { exit 7; }
+	local rc=0
+	(ifa_authenticates_vault_role_run_trust_chain_stage stuck) || rc=$?
+	[[ "${rc}" -ne 0 && ! -e "${case_dir}/killed-at" ]] \
+		|| fail "trust-chain worker stopped while its queue row remained claimed (rc=${rc})"
+)
 
 # Same saturating single-row shape as the k8s kill cell (proved behaviorally
 # in test_ifa_direct_family_retry_attempts_above_counts_attempts_not_rows):
