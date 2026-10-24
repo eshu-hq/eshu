@@ -238,6 +238,19 @@ class TestCancellation(unittest.TestCase):
         self.assertEqual(classify_cancellation(2, [zero, zero_copy]),
                          ("unknown", None))
 
+    def test_same_native_job_id_with_different_interval_is_unknown(self):
+        first = {"id": 120767825444, "run_id": 40058877874,
+                 "run_attempt": 1, "status": "completed",
+                 "conclusion": "success", "name": "queue-selection / select",
+                 "runner_id": 1000613418,
+                 "started_at": "2026-10-24T03:34:48Z",
+                 "completed_at": "2026-10-24T03:34:53Z"}
+        conflicting = dict(first, run_attempt=2,
+                           started_at="2026-10-24T03:34:54Z",
+                           completed_at="2026-10-24T03:34:59Z")
+        self.assertEqual(classify_cancellation(2, [first, conflicting]),
+                         ("unknown", None))
+
     def test_workflow_categories_include_missing_budget_and_failed_jobs(self):
         end = datetime(2026, 10, 23, tzinfo=timezone.utc)
         names = {1: "Required Gates", 2: "Required Gates",

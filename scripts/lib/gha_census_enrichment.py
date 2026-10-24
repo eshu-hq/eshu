@@ -137,6 +137,7 @@ def classify_cancellation(job_count: int | None,
     # new job ID. Only the full native identity can prove one physical interval.
     seen: dict[tuple[int, datetime, datetime],
                dict[int | None, dict[str, dict[str, Any]]]] = {}
+    seen_job_ids: set[int] = set()
     seconds = 0.0
     for job, runner_id, start, end in allocated:
         name = job.get("name")
@@ -144,6 +145,10 @@ def classify_cancellation(job_count: int | None,
         run_id = job.get("run_id")
         native_run_id = run_id if type(run_id) is int and run_id > 0 else None
         job_id = job.get("id")
+        if type(job_id) is int and job_id > 0:
+            if job_id in seen_job_ids:
+                return "unknown", None
+            seen_job_ids.add(job_id)
         attempt = job.get("run_attempt")
         copy_proof = (end > start and bool(exact_name) and
                       native_run_id is not None and
