@@ -80,7 +80,11 @@
   `extensions.xml` is too generic to bind by name. Path rules sit outside
   `Registry.Fingerprint`, so adding one needs a bump of
   `gitGenerationContentVersion` and a re-pin.
-
+- **Ecosystem gate (#8825)** — each ledger row declares `ecosystem`,
+  `manifest_files` (admitted at L2), and `pin_files` (admitted at L1 or better).
+  `registry_ecosystem_gate_test.go` fails on a name the registry does not admit.
+  A name already missing today sits in `knownEcosystemGaps` with one issue per
+  entry; the test fails when an entry stops being a gap, so remove it then.
 - **No duplicate keys or extensions** — `NewRegistry` rejects duplicate
   `ParserKey`, extension, and exact filename entries with an error.
   `DefaultRegistry` panics on construction failure because a duplicate in
