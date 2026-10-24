@@ -127,6 +127,9 @@ else is skipped or partial, and counted. Element and attribute names are read
 case-sensitively. MSBuild matches them case-insensitively, so a wrongly cased
 item type (`packagereference`) is skipped, counted, and demotes every row of
 its type, and a wrongly cased attribute (`version=`) makes its item a conflict.
+A wrongly cased `update=` or `remove=` also skips its item and demotes every
+earlier row of its type as updated or removed, because MSBuild still applies it
+to earlier items.
 
 - Root element must be `Project`. A different root, a second root, an empty
   document, or malformed XML (unterminated tag, comment or CDATA, mismatched
