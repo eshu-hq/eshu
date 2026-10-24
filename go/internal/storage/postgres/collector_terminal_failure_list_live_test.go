@@ -26,6 +26,7 @@ func seedListFixture(f *terminalFailureLiveFixture) {
 	f.instance(sa, "li", true, false, fifteen)
 	f.instance(sa, "twin", true, false, fifteen)
 	f.instance(sa, "off", false, false, fifteen)
+	f.instance(sa, "gone", true, true, fifteen)
 	// scope-a: acknowledged, and the same episode keeps failing.
 	f.item("a1", sa, "li", "scope-a", "failed_terminal", "auth_denied", true, 20*time.Minute)
 	f.item("a2", sa, "li", "scope-a", "failed_terminal", "auth_denied", true, 5*time.Minute)
@@ -47,6 +48,7 @@ func seedListFixture(f *terminalFailureLiveFixture) {
 	// The twin and the disabled instance share scope ids and must not leak in.
 	f.item("tw-a", sa, "twin", "scope-a", "failed_terminal", "auth_denied", true, 4*time.Minute)
 	f.item("off-a", sa, "off", "scope-a", "failed_terminal", "auth_denied", true, 4*time.Minute)
+	f.item("gone-a", sa, "gone", "scope-a", "failed_terminal", "auth_denied", true, 4*time.Minute)
 }
 
 func listIDs(page TerminalFailureListPage) []string {
@@ -121,6 +123,7 @@ func TestTerminalFailureListSemanticsLive(t *testing.T) {
 		"unknown":       {CollectorKind: "security_alert", InstanceID: "nope"},
 		"kind mismatch": {CollectorKind: "git", InstanceID: "li"},
 		"disabled":      {CollectorKind: "security_alert", InstanceID: "off"},
+		"deactivated":   {CollectorKind: "security_alert", InstanceID: "gone"},
 	} {
 		got, err := store.ListTerminalFailures(f.ctx, filter)
 		if err != nil || len(got.Items) != 0 {
