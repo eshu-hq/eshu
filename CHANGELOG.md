@@ -9,6 +9,20 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### CI: readiness shard weights refreshed from the first weighted wave
+
+- **Live PostgreSQL readiness shard weights refreshed**
+  ([#8930](https://github.com/eshu-hq/eshu/issues/8930)).
+  `specs/live-postgres-readiness-weights.v1.json` now also fits run
+  40071537963, the first wave on the weighted cut (shard jobs 1242, 958, 1244,
+  and 1418 s). The two packages the first cut priced at the default are now
+  measured, leaving one unweighted test. The refreshed cut predicts 1176.3,
+  1204.3, 1291.2, and 1318.1 s (worst 1318.1 s, largest deviation from the mean
+  5.7%) against the 1440 s budget. Replayed on the wave's own cut, shard 2
+  predicted +25.2% over its measured 958 s. A second wave on the refreshed cut
+  is not yet checked. Evidence:
+  `docs/internal/evidence/8930-readiness-weights-refresh.md`.
+
 ### Gate: supported languages declare manifest and pin files
 
 - **Ledger-driven manifest and pin gate**
