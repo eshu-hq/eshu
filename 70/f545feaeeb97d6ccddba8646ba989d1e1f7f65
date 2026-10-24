@@ -1,0 +1,41 @@
+sdk/go/collector/CHANGELOG.md
+  s_ff8a600f1fc93e::t_3c60ada5b9c300 26-39
+go/internal/collector/extensionhost/process_posture_test.go
+  s_ff8a600f1fc93e::t_7bce8ad6bc46aa 1-187
+go/internal/collector/extensionhost/README.md
+  s_ff8a600f1fc93e::t_318fa42585ca05 26-31
+sdk/go/collector/README.md
+  s_ff8a600f1fc93e::t_90be0486911f4d 51-72
+sdk/go/collector/azure_tag_validation_test.go
+  s_ff8a600f1fc93e::t_284af153b1d551 1-125
+sdk/go/collector/kubernetes_posture_validation.go
+  s_ff8a600f1fc93e::t_1b8ab26dd020dc 1-74
+sdk/go/collector/kubernetes_posture_validation_test.go
+  s_ff8a600f1fc93e::t_01c525cfbdbf19 1-155
+sdk/go/collector/payload_validation.go
+  s_ff8a600f1fc93e::t_acb782bd503d43 1-140
+sdk/go/collector/redaction.go
+  s_ff8a600f1fc93e::t_a807f2bc5a0c4b 6-7,11-14,23-24,26-30
+sdk/go/collector/validation.go
+  s_ff8a600f1fc93e::t_1a758b9e8903bf 209
+sdk/go/factschema/fixturepack/payloads/azure_tag_observation.invalid.json
+  s_ff8a600f1fc93e::t_4c61d2a122320f 5
+sdk/go/factschema/fixturepack/payloads/azure_tag_observation.valid.json
+  s_ff8a600f1fc93e::t_18212a2e906056 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "70f545feaeeb97d6ccddba8646ba989d1e1f7f65",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
