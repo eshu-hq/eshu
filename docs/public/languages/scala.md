@@ -148,6 +148,12 @@ Known limits of the sbt reading:
   `libraryDependencies` row, so a build that only reads a key through
   another member (`libraryDependencies.map(f)`) or shadows it loses rows it
   could have kept.
+- A bare key passed as a value is denied: sbt-buildinfo's
+  `buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)`
+  clears `scala_version`, and `Global / excludeLintKeys += libraryDependencies`
+  supersedes every row ([#9007](https://github.com/eshu-hq/eshu/issues/9007)).
+  Reads with axes or closers inside a dependency, such as
+  `% (ThisBuild / scalaVersion).value`, are left alone.
 - `scala_version` fails closed: a `ThisBuild` literal plus a different
   project override, or two literals in one scope, report no version, even
   where sbt's last assignment would name one.

@@ -215,7 +215,11 @@ recent shipped work grouped by feature area.
   axes, an infix `set` or `withRank`, a member that returns no Setting such as
   `.map`, a bare key) supersedes every row and is counted, and any other
   `scalaVersion` occurrence poisons the envelope; only reads (`.value`,
-  `.in(Test).value`, `(k in Test).value`) are left alone. `<+=`, `<++=`,
+  `.in(Test).value`, `(k in Test).value`, and the same reads with axes or
+  closers inside a dependency, such as `% (ThisBuild / scalaVersion).value`)
+  are left alone, and one statement is counted once. A bare key passed as a
+  value (sbt-buildinfo's `buildInfoKeys`) is still denied
+  ([#9007](https://github.com/eshu-hq/eshu/issues/9007)). `<+=`, `<++=`,
   `.append1`, `.appendN`, `.withRank(...) +=` and any other assignment
   operator fall back with partial rows. `scalaVersion` is read only where
   `libraryDependencies` would resolve; an unreadable `scalaVersion` statement

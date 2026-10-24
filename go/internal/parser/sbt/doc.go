@@ -38,7 +38,10 @@
 // parenthesized key, chained `in` axes, an infix member (`set`, `withRank`),
 // a member that returns no Setting (`map`, `filter`), and a bare key; it
 // supersedes every row and is counted. A key that a statement handler consumes
-// itself is judged by a one-token watch in the scanner. Only a val that heads
+// itself is judged by a watch in the scanner that follows the same read
+// grammar (axes, `in` chains, `.in(...)` and closers before a read member),
+// one token at a time; an inner occurrence whose verdict its statement
+// already applied is not counted again. Only a val that heads
 // a column-0 line resolves a version reference.
 //
 // Configuration lists split on ',' and ';' and resolve once, matching names

@@ -59,7 +59,12 @@
   silent `return` to either handler: every exit is a recognised form, a read,
   or a deny. A key that a handler consumes itself reaches `keyWatch` in
   `scan.next` unclaimed; keep the main loop's `claiming` flag and the
-  `unread` restore, or nested keys go unjudged or count twice.
+  `unread` restore, or nested keys go unjudged or count twice. The watch
+  (`watchStep`) and the handlers (`skipLegacyAxes`, `readThroughClosers`)
+  must accept the same read shapes: a shape added to one goes into
+  `keyReadExprs` in `read_test.go`, which runs every read through both. Only
+  a global reset or a poison sets `scan.cover`; a context reset must not, or
+  an inner global rewrite goes uncounted.
 - A member called on the key rewrites when sbt's SettingKey API says it
   returns a Setting that rewrites the key, or returns the key itself
   (`settingMemberOf`); quote the sbt definition for any new name. A member that
@@ -237,6 +242,24 @@ removed as an equivalent mutant, since the main loop consumes EOF through
 measured 15.51 to 15.87 ms/op before and 15.85 to 16.19 ms/op after (about
 3 percent), with 16.45 MB/op and 139,757 to 139,758 allocs/op on both: no
 byte or allocation change.
+
+No-Regression Evidence (watch read grammar): the member arm now draws reads
+and writes of either key with axes and closers inside a statement the
+fallback consumes (`(ThisBuild / k).value`, `(k in Test).value`,
+`k.in(Test).value`, `(k in (Test, compile)).value`, and the same shapes ending
+in `:=` or a non-read member) at five positions. On the code before this fix
+it reported state=8, count=332, scala=8 and hint=7 over 3,000 cases and
+state=59, count=3,173, scala=52 and hint=53 over 30,000; with the fix, zero
+at 3,000 (5,589 rows) and at 30,000 (55,969 rows), and the grammar and
+indentation arms stay zero with their row counts unchanged. 11 overlay
+mutants (closer read, in-axis read and `.in(...)` read rejected, group end
+read as a read, any member after closers, `.in` without a group, a nested
+key in a group ignored, end-of-input `scalaVersion :=` uncounted, cover
+ignored, never cleared, or set on a context reset) were all killed. The same
+benchmark, run alternately at load average about 4 to 8, measured 18.77 to
+21.10 ms/op (median 19.86) before and 17.49 to 20.95 ms/op (median 20.16)
+after, with 16.45 MB/op and 139,758 to 139,759 allocs/op on both: no byte or
+allocation change.
 
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
 single-pass scanner with no recursion. 200,000 nested parentheses finish in

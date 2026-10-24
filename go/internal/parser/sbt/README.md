@@ -103,10 +103,17 @@ Denied shapes include a parenthesized key at any depth (`(k) := v`,
 (`k.map(f)`), a comparison, a bare key (`lazy val s = k`), and a local
 definition that shadows the key. The statement handlers decide the key the
 main loop hands them. A key that a handler consumes itself (inside a fallback
-statement, a skipped group, or the grammar) is judged by a one-token watch in
-`scan.next` (`key_watch.go`): it is a read only when `.` and a read member
-follow, and a rewrite otherwise. The watch allocates nothing and needs no
-lookahead.
+statement, a skipped group, or the grammar) is judged by a watch in
+`scan.next` (`key_watch.go`) that steps one token at a time through the same
+read grammar the handlers use: after any legacy axes (`in Test`,
+`in (Test, compile)`, `.in(Test)`, chained) and any `)` closers, a `.` and a
+read member make it a read, so `% (ThisBuild / scalaVersion).value`,
+`% (scalaVersion in Test).value` and `% scalaVersion.in(Test).value` inside a
+dependency statement change nothing. Anything else is a rewrite, and a key
+inside another key's axis group denies the outer key. An inner occurrence
+whose verdict its statement already applied (a reset that supersedes every
+row, or a poison) is not counted again, so one statement counts once. The
+watch allocates nothing and needs no lookahead.
 
 `meta_build` is `true` when the file sits directly in a directory named
 `project`. The registry admits `build.sbt` by base name, so
@@ -344,6 +351,11 @@ tracked. A leading UTF-8 byte order mark is ignored.
   statement the scanner cannot read, or one assignment outside a grammar
   context leave it empty for the whole file, even where sbt's
   last-assignment order would name one version.
+- A bare key passed as a value is denied, because the scanner cannot tell it
+  from a rewrite: sbt-buildinfo's
+  `buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)`
+  clears `scala_version`, and `Global / excludeLintKeys += libraryDependencies`
+  supersedes every row ([#9007](https://github.com/eshu-hq/eshu/issues/9007)).
 - A bare-file reset makes every project row partial, even a project that is
   not the root, because the scanner does not decide which project is the root.
 - `ThisBuild /` and `Global /` keys and a declared-project axis (`core /`) are
