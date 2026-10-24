@@ -20,14 +20,15 @@ func TestImpactProducerStateMapsTheAggregateRow(t *testing.T) {
 	t.Parallel()
 
 	workableAt := time.Date(2026, time.October, 15, 11, 59, 0, 0, time.UTC)
-	fake := &fakeQueryer{rows: [][]any{{1, 2, 0, 1, 7, workableAt}}}
+	fake := &fakeQueryer{rows: [][]any{{1, 2, 0, 1, 2, 1, 7, workableAt}}}
 
 	got, err := ImpactStore{DB: fake}.ImpactProducerState(context.Background(), "scope-a", "gen-1")
 	if err != nil {
 		t.Fatalf("ImpactProducerState() error = %v", err)
 	}
 	want := securityalert.ImpactProducerState{
-		Pending: 1, Retrying: 2, Claimed: 0, Running: 1, Total: 7, NewestInFlightWorkableAt: workableAt,
+		Pending: 1, Retrying: 2, Claimed: 0, Running: 1, Succeeded: 2, Failed: 1, Total: 7,
+		NewestInFlightWorkableAt: workableAt,
 	}
 	if got != want {
 		t.Fatalf("ImpactProducerState() = %+v, want %+v", got, want)
@@ -39,6 +40,8 @@ func TestImpactProducerStateMapsTheAggregateRow(t *testing.T) {
 		t.Fatalf("args = %v, want [scope-a gen-1 supply_chain_impact]", fake.args)
 	}
 	for _, want := range []string{
+		"count(*) FILTER (WHERE work.status = 'succeeded')",
+		"count(*) FILTER (WHERE work.status IN ('dead_letter', 'failed'))",
 		"work.scope_id = $1",
 		"work.generation_id = $2",
 		"work.stage = 'reducer'",
@@ -56,13 +59,38 @@ func TestImpactProducerStateMapsTheAggregateRow(t *testing.T) {
 func TestImpactProducerStateTreatsNoWorkAsTerminal(t *testing.T) {
 	t.Parallel()
 
-	fake := &fakeQueryer{rows: [][]any{{0, 0, 0, 0, 0, nil}}}
+	fake := &fakeQueryer{rows: [][]any{{0, 0, 0, 0, 0, 0, 0, nil}}}
 	got, err := ImpactStore{DB: fake}.ImpactProducerState(context.Background(), "scope-a", "gen-1")
 	if err != nil {
 		t.Fatalf("ImpactProducerState() error = %v", err)
 	}
 	if got.InFlight() != 0 || got.Total != 0 || !got.NewestInFlightWorkableAt.IsZero() {
 		t.Fatalf("ImpactProducerState() = %+v, want the zero state", got)
+	}
+	if got.Settled() {
+		t.Fatal("Settled() = true for no impact work, want false: no producer ran, so no-match is not proven (#8956)")
+	}
+}
+
+// TestImpactProducerStateSettledNeedsEveryRowSucceeded pins the #8956 genuine
+// no-match rule: the producer ran and every row of the generation succeeded.
+func TestImpactProducerStateSettledNeedsEveryRowSucceeded(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		state securityalert.ImpactProducerState
+		want  bool
+	}{
+		{"all succeeded", securityalert.ImpactProducerState{Succeeded: 2, Total: 2}, true},
+		{"none enqueued", securityalert.ImpactProducerState{}, false},
+		{"dead-lettered", securityalert.ImpactProducerState{Succeeded: 1, Failed: 1, Total: 2}, false},
+		{"superseded or other terminal", securityalert.ImpactProducerState{Succeeded: 1, Total: 2}, false},
+		{"still pending", securityalert.ImpactProducerState{Pending: 1, Succeeded: 1, Total: 2}, false},
+	} {
+		if got := tc.state.Settled(); got != tc.want {
+			t.Fatalf("%s: Settled() = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }
 

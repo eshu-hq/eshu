@@ -164,6 +164,9 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 		SourceSystem: intent.SourceSystem,
 		Cause:        intent.Cause,
 		Decisions:    decisions,
+		// Empty unless the handler gave up (#8956): a settled producer is a
+		// genuine no-match and its rows keep the pre-#8956 payload.
+		ImpactWaitOutcome: impactWait.giveUp,
 	})
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("write security alert reconciliations: %w", err)

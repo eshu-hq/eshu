@@ -47,7 +47,8 @@ manifest-consumption seam" under Gotchas / invariants below.
 | `SecurityAlertReconciliationDomainDefinition` | the additive domain registration |
 | `ImpactProducerReadiness` / `ImpactProducerState` | the injected port reporting the same scope generation's `supply_chain_impact` work by status; the Postgres store is `storage/postgres/readiness/producer.ImpactStore` |
 | `ImpactNotReadyFailureClass` | the non-counting failure class of the in-flight wait, enrolled in `nonCountingReducerRetryFailureClasses` |
-| `ImpactWaitDeferredInFlight` / `ImpactWaitGaveUpUnmatched` / `ImpactWaitGaveUpBoundExceeded` | the closed outcome set of `eshu_dp_security_alert_reconciliation_impact_wait_total` |
+| `ImpactWaitDeferredInFlight` / `ImpactWaitGaveUpUnmatched` / `ImpactWaitGaveUpBoundExceeded` / `ImpactWaitProducerSettled` | the closed outcome set of `eshu_dp_security_alert_reconciliation_impact_wait_total` |
+| `PersistedImpactWaitOutcomes` | the closed set a reconciliation row may carry as `impact_wait_outcome` (#8956): the two give-up outcomes; the query OpenAPI enum is pinned to it |
 | `SecurityAlertReconciliationWriter` / `SecurityAlertReconciliationWrite` / `WriteResult` | the writer interface and its publication I/O |
 | `PostgresSecurityAlertReconciliationWriter` | the Postgres writer implementation |
 | `SecurityAlertReconciliationStatus` and its constants | the comparison outcome enum |
@@ -103,9 +104,10 @@ the reducer executions that run this handler stay covered by
 The package emits one counter registered in `internal/telemetry`,
 `eshu_dp_security_alert_reconciliation_impact_wait_total{domain,outcome}`, from
 `reconciliation_impact_fence.go` (#8827): `deferred_in_flight`,
-`gave_up_unmatched`, `gave_up_bound_exceeded`. The defer logs at INFO and the
-give-up at WARN with `scope_id`, `generation_id`, and `impact_wait_outcome`; a
-give-up also sets `sub_signal_impact_wait_gave_up` on the success line. See
+`gave_up_unmatched`, `gave_up_bound_exceeded`, `producer_settled` (#8956). The
+defer and the settled write log at INFO and the give-up at WARN with
+`scope_id`, `generation_id`, and `impact_wait_outcome`; a give-up also sets
+`sub_signal_impact_wait_gave_up` on the success line. See
 [Security Alert Reconciliation Impact Wait](../../../../docs/public/reference/telemetry/security-alert-reconciliation-impact-wait.md).
 
 ## Gotchas / invariants
@@ -124,8 +126,16 @@ a counting attempt, and give up at attempt 3 before impact existed.
   which the queue exempts from the retry budget;
 - otherwise, below the handler cap of 3 attempts: the counting
   `security_alert_reconciliation_waiting_for_impact` wait;
-- at the cap: write `unmatched`, record `gave_up_unmatched` or
-  `gave_up_bound_exceeded`, log WARN, and set `sub_signal_impact_wait_gave_up`.
+- at the cap with a settled producer (`ImpactProducerState.Settled`: at least
+  one impact row and every one succeeded): write `unmatched` with no give-up,
+  record `producer_settled`, log INFO. That is a genuine no-match (#8956);
+- at the cap otherwise: write `unmatched`, record `gave_up_unmatched` or
+  `gave_up_bound_exceeded`, log WARN, set `sub_signal_impact_wait_gave_up`, and
+  pass the outcome on `SecurityAlertReconciliationWrite.ImpactWaitOutcome`. The
+  writer stamps it as the `impact_wait_outcome` payload key only on decisions
+  that waited on impact evidence and refuses any value outside
+  `PersistedImpactWaitOutcomes`; with no give-up the payload bytes are the
+  pre-#8956 bytes (`TestSecurityAlertReconciliationWriterKeepsTheGenuineNoMatchPayload`).
 
 The non-counting class freezes `attempt_count`, so the in-flight wait is
 bounded by ELAPSED TIME only; never compare the attempt count to bound it. A

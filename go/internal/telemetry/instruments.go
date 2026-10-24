@@ -743,7 +743,8 @@ type Instruments struct {
 	// SecurityAlertReconciliationImpactWait counts the #8827 impact-wait
 	// decisions of the security alert reconciliation handler by reducer domain
 	// and closed outcome: deferred_in_flight, gave_up_unmatched,
-	// gave_up_bound_exceeded.
+	// gave_up_bound_exceeded, producer_settled (#8956: the cap write after
+	// every impact work item succeeded, a genuine no-match).
 	SecurityAlertReconciliationImpactWait metric.Int64Counter
 	// ServiceCatalogRuntimeRetrigger counts the #8169 re-trigger of service
 	// catalog correlation by a succeeded workload_materialization ACK, by the

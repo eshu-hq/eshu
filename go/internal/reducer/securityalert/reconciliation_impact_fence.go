@@ -57,7 +57,22 @@ const (
 	// decisions at the attempt cap because the in-flight impact work had shown
 	// no sign of life for crossscope.ProducerReadinessMaxWait.
 	ImpactWaitGaveUpBoundExceeded = "gave_up_bound_exceeded"
+	// ImpactWaitProducerSettled means the handler wrote its unmatched decisions
+	// at the attempt cap after every supply_chain_impact work item of the same
+	// scope generation succeeded (ImpactProducerState.Settled): the producer
+	// ran and wrote no finding for the advisory, so the rows are a genuine
+	// no-match, not a give-up (#8956). It is never persisted on a row.
+	ImpactWaitProducerSettled = "producer_settled"
 )
+
+// PersistedImpactWaitOutcomes returns, sorted, the closed set of outcomes a
+// persisted reconciliation row may carry as impact_wait_outcome (#8956): the
+// two give-up outcomes. A row with no impact_wait_outcome is a genuine
+// no-match or a decision that never waited on impact evidence. The query
+// surface's OpenAPI enum is pinned to this set.
+func PersistedImpactWaitOutcomes() []string {
+	return []string{ImpactWaitGaveUpBoundExceeded, ImpactWaitGaveUpUnmatched}
+}
 
 // ImpactProducerState counts the supply_chain_impact work items of one scope
 // generation by queue status.
@@ -66,6 +81,11 @@ type ImpactProducerState struct {
 	Retrying int
 	Claimed  int
 	Running  int
+	// Succeeded counts rows the producer finished successfully.
+	Succeeded int
+	// Failed counts dead_letter and failed rows: the producer stopped without
+	// writing its evidence.
+	Failed int
 	// Total counts every status, terminal ones included. Zero means no impact
 	// work was ever enqueued for the generation.
 	Total int
@@ -80,6 +100,15 @@ type ImpactProducerState struct {
 // InFlight reports how many impact work items are not yet terminal.
 func (s ImpactProducerState) InFlight() int {
 	return s.Pending + s.Retrying + s.Claimed + s.Running
+}
+
+// Settled reports whether the producer ran to completion: at least one impact
+// work item exists for the generation and every one of them succeeded. A
+// settled producer that wrote no matching finding makes an unmatched decision a
+// genuine no-match (#8956). A dead_letter, failed, superseded, or any other
+// non-succeeded row, an in-flight row, or no row at all is not settled.
+func (s ImpactProducerState) Settled() bool {
+	return s.Total > 0 && s.InFlight() == 0 && s.Succeeded == s.Total
 }
 
 // ImpactProducerReadiness reports the state of the supply_chain_impact work of
@@ -153,8 +182,11 @@ func (d impactWaitDecision) subSignals(base map[string]float64) map[string]float
 // resolveImpactWait decides what a reconciliation with decisions waiting on
 // impact evidence does: defer without spending an attempt while the impact
 // work of its scope generation is in flight inside the bound, defer on the
-// counting path below the handler cap, or give up visibly at the cap. It
-// returns a zero decision and a nil error when nothing waits on impact.
+// counting path below the handler cap, or write at the cap. At the cap a
+// settled producer (every impact work item succeeded) is a genuine no-match
+// and records producer_settled; anything else is a visible give-up whose
+// outcome the write persists on the waiting rows (#8956). It returns a zero
+// decision and a nil error when nothing waits on impact.
 func (h SecurityAlertReconciliationHandler) resolveImpactWait(
 	ctx context.Context,
 	intent reducercontract.Intent,
@@ -164,8 +196,11 @@ func (h SecurityAlertReconciliationHandler) resolveImpactWait(
 		return impactWaitDecision{}, nil
 	}
 	boundExceeded := false
+	probed := false
+	var state ImpactProducerState
 	if h.ImpactProducerReadiness != nil {
-		state, err := h.ImpactProducerReadiness.ImpactProducerState(ctx, intent.ScopeID, intent.GenerationID)
+		var err error
+		state, err = h.ImpactProducerReadiness.ImpactProducerState(ctx, intent.ScopeID, intent.GenerationID)
 		if err != nil {
 			// A torn connection is the retryable fact_load_transient class,
 			// which still counts against the retry budget; every other error
@@ -174,6 +209,7 @@ func (h SecurityAlertReconciliationHandler) resolveImpactWait(
 			return impactWaitDecision{}, fmt.Errorf(
 				"check supply chain impact producer readiness: %w", factload.ClassifyFactLoadError(err))
 		}
+		probed = true
 		if state.InFlight() > 0 {
 			now := h.now()
 			// A zero anchor is unknown elapsed time, not infinite: keep waiting.
@@ -197,6 +233,15 @@ func (h SecurityAlertReconciliationHandler) resolveImpactWait(
 			packageID: firstUnmatchedPackageWithDependency(decisions),
 		}
 	}
+	if probed && state.Settled() {
+		// The producer ran to completion and wrote no finding that matches:
+		// the unmatched rows are a genuine no-match, not a give-up.
+		h.recordImpactWait(ctx, ImpactWaitProducerSettled)
+		h.logImpactWait(ctx, slog.LevelInfo,
+			"security alert reconciliation wrote unmatched decisions after supply chain impact settled with no matching finding",
+			intent, ImpactWaitProducerSettled, state, h.now())
+		return impactWaitDecision{}, nil
+	}
 	outcome := ImpactWaitGaveUpUnmatched
 	if boundExceeded {
 		outcome = ImpactWaitGaveUpBoundExceeded
@@ -204,7 +249,7 @@ func (h SecurityAlertReconciliationHandler) resolveImpactWait(
 	h.recordImpactWait(ctx, outcome)
 	h.logImpactWait(ctx, slog.LevelWarn,
 		"security alert reconciliation gave up waiting for impact evidence and wrote unmatched decisions",
-		intent, outcome, ImpactProducerState{}, h.now())
+		intent, outcome, state, h.now())
 	return impactWaitDecision{giveUp: outcome}, nil
 }
 
@@ -219,13 +264,20 @@ func hasPendingImpactDecision(
 		return false
 	}
 	for _, decision := range decisions {
-		if decision.Status == SecurityAlertReconciliationUnmatched &&
-			strings.TrimSpace(decision.DependencyEvidenceID) != "" &&
-			strings.TrimSpace(decision.ImpactEvidenceID) == "" {
+		if decisionWaitsOnImpactEvidence(decision) {
 			return true
 		}
 	}
 	return false
+}
+
+// decisionWaitsOnImpactEvidence reports whether one decision is the shape that
+// waits on impact evidence: unmatched, with owned dependency evidence and no
+// impact evidence. Only such a decision carries a persisted give-up outcome.
+func decisionWaitsOnImpactEvidence(decision SecurityAlertReconciliationDecision) bool {
+	return decision.Status == SecurityAlertReconciliationUnmatched &&
+		strings.TrimSpace(decision.DependencyEvidenceID) != "" &&
+		strings.TrimSpace(decision.ImpactEvidenceID) == ""
 }
 
 func (h SecurityAlertReconciliationHandler) now() time.Time {
@@ -252,10 +304,12 @@ func (h SecurityAlertReconciliationHandler) recordImpactWait(ctx context.Context
 	))
 }
 
-// logImpactWait writes the defer (INFO) or give-up (WARN) line. It carries
-// attempt_count for the give-up, where the count is live; a non-counting defer
+// logImpactWait writes the defer (INFO), settled (INFO), or give-up (WARN)
+// line. It carries attempt_count and the producer's terminal counts for the
+// settled and give-up lines, where the count is live; a non-counting defer
 // freezes it, so the defer line reports producer state and elapsed time
-// against producer_max_wait instead.
+// against producer_max_wait instead. The terminal counts are zero when the
+// fence is not wired.
 func (h SecurityAlertReconciliationHandler) logImpactWait(
 	ctx context.Context,
 	level slog.Level,
@@ -275,6 +329,9 @@ func (h SecurityAlertReconciliationHandler) logImpactWait(
 		attrs = append(attrs,
 			slog.Int("attempt_count", intent.AttemptCount),
 			slog.Int("handler_attempt_cap", pendingImpactSecurityAlertReconciliationMaxAttempts),
+			slog.Int("impact_total", state.Total),
+			slog.Int("impact_succeeded", state.Succeeded),
+			slog.Int("impact_failed", state.Failed),
 		)
 	} else {
 		attrs = append(attrs,

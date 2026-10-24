@@ -195,7 +195,7 @@ func TestSecurityAlertReconciliationFallsBackToTheCountingWaitPastTheProducerBou
 func TestSecurityAlertReconciliationGiveUpIsVisible(t *testing.T) {
 	t.Parallel()
 
-	readiness := &stubImpactProducerReadiness{state: securityalert.ImpactProducerState{Total: 1}}
+	readiness := &stubImpactProducerReadiness{state: securityalert.ImpactProducerState{Failed: 1, Total: 1}}
 	var logs bytes.Buffer
 	handler, writer := pendingImpactFenceHandler(readiness, &logs)
 
@@ -285,7 +285,8 @@ func TestSecurityAlertReconciliationImpactWaitCounterRecordsEveryOutcome(t *test
 		state   securityalert.ImpactProducerState
 	}{
 		{securityalert.ImpactWaitDeferredInFlight, 1, securityalert.ImpactProducerState{Pending: 1, Total: 1}},
-		{securityalert.ImpactWaitGaveUpUnmatched, 3, securityalert.ImpactProducerState{Total: 1}},
+		{securityalert.ImpactWaitGaveUpUnmatched, 3, securityalert.ImpactProducerState{Failed: 1, Total: 1}},
+		{securityalert.ImpactWaitProducerSettled, 3, securityalert.ImpactProducerState{Succeeded: 1, Total: 1}},
 		{securityalert.ImpactWaitGaveUpBoundExceeded, 3, securityalert.ImpactProducerState{Retrying: 1, Total: 1, NewestInFlightWorkableAt: stale}},
 	}
 	for _, tc := range cases {

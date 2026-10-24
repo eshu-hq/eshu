@@ -100,6 +100,7 @@ const SecurityAlerts = `
                           "reconciliation_status": {"type": "string", "enum": ["matched", "unmatched", "stale", "dismissed", "fixed", "provider_only", "unsupported", "ambiguous"]},
                           "reason": {"type": "string"},
                           "reason_code": {"type": "string"},
+                          "impact_wait_outcome": {"type": "string", "enum": ["gave_up_bound_exceeded", "gave_up_unmatched"], "description": "Present only on an unmatched row the reducer wrote after it stopped waiting for impact evidence: gave_up_unmatched (impact work was never enqueued, dead-lettered, failed, or superseded) or gave_up_bound_exceeded (impact work stayed in flight with no sign of life past the readiness bound). Absent on a genuine no-match, where every impact work item for the generation succeeded and none matched the advisory."},
                           "missing_evidence": {
                             "type": "array",
                             "description": "Structured row-level gaps that explain provider-only, stale, unsupported, or ambiguous outcomes without embedding raw provider payloads.",
