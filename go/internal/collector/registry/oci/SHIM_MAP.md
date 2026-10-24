@@ -54,7 +54,7 @@ One declaration per kind, each `schema_versions: ["1.0.0"]`
 ```json
 [
   {"kind": "oci_registry.repository", "schema_versions": ["1.0.0"],
-   "source_confidence": ["observed", "reported"]},
+   "source_confidence": ["reported"]},
   {"kind": "oci_registry.image_tag_observation", "schema_versions": ["1.0.0"],
    "source_confidence": ["reported"]},
   {"kind": "oci_registry.image_manifest", "schema_versions": ["1.0.0"],
@@ -64,7 +64,7 @@ One declaration per kind, each `schema_versions: ["1.0.0"]`
   {"kind": "oci_registry.image_descriptor", "schema_versions": ["1.0.0"],
    "source_confidence": ["reported"]},
   {"kind": "oci_registry.image_referrer", "schema_versions": ["1.0.0"],
-   "source_confidence": ["observed", "reported"]},
+   "source_confidence": ["reported"]},
   {"kind": "oci_registry.warning", "schema_versions": ["1.0.0"],
    "source_confidence": ["reported"]}
 ]
