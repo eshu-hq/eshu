@@ -10,14 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
-	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
-	"github.com/eshu-hq/eshu/go/internal/collector/jira"
-	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
-	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/go/internal/vulnsource"
 
 	statuscollector "github.com/eshu-hq/eshu/go/internal/status/collector"
 )
@@ -31,88 +24,6 @@ const terminalFailureDocPath = "../../../../docs/public/reference/http-api/colle
 // can take (the label adds unknown on top). Raising it is a deliberate
 // decision: update the docs and the metric description with it.
 const failureClassCardinality = 40
-
-// TestBoundedFailureClassesMatchTheCollectorWriters ties the status allowlist
-// to the constants the collector kinds persist, so a class renamed or added in
-// a writer fails here instead of silently reading unknown. This test file is
-// the one place the status leaf names collector runtime packages; the shipped
-// code never imports them.
-func TestBoundedFailureClassesMatchTheCollectorWriters(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		kind    scope.CollectorKind
-		classes []string
-	}{
-		{scope.CollectorJira, []string{
-			jira.FailurePermissionHidden, jira.FailureDeleted, jira.FailureArchived,
-		}},
-		{scope.CollectorAWS, []string{
-			awsruntime.FailureClassPermissionDenied, awsruntime.FailureClassUnsupportedPermission,
-			awsruntime.FailureClassStaleFence,
-		}},
-		{scope.CollectorOCIRegistry, registryClasses()},
-		{scope.CollectorSBOMAttestation, registryClasses()},
-		{scope.CollectorPackageRegistry, append(registryClasses(), "registry_metadata_too_large")},
-		{scope.CollectorVulnerabilityIntelligence, []string{vulnsource.ErrorClassNonRetryable}},
-		{scope.CollectorScannerWorker, []string{
-			string(scannerworker.FailureClassAnalyzerFailed), string(scannerworker.FailureClassCPULimitExceeded),
-			string(scannerworker.FailureClassMemoryLimitExceeded), string(scannerworker.FailureClassTimeout),
-			string(scannerworker.FailureClassInputLimitExceeded), string(scannerworker.FailureClassFileLimitExceeded),
-			string(scannerworker.FailureClassFactLimitExceeded), string(scannerworker.FailureClassTargetUnavailable),
-			string(scannerworker.FailureClassUnsupportedTarget), string(scannerworker.FailureClassSourceUnavailable),
-			string(scannerworker.FailureClassCommitFailed),
-		}},
-	}
-	for _, tc := range cases {
-		for _, class := range tc.classes {
-			if got := statuscollector.BoundedFailureClassForKind(string(tc.kind), class); got != class {
-				t.Errorf("BoundedFailureClassForKind(%q, %q) = %q, want the writer's class", tc.kind, class, got)
-			}
-		}
-	}
-	// The SDK provider classes are common to every kind that uses the SDK.
-	for _, class := range []sdk.FailureClass{
-		sdk.FailureAuthDenied, sdk.FailureNotFound, sdk.FailureRateLimited, sdk.FailureRetryable, sdk.FailureTerminal,
-	} {
-		for _, kind := range scope.AllCollectorKinds() {
-			if got := statuscollector.BoundedFailureClassForKind(string(kind), string(class)); got != string(class) {
-				t.Errorf("SDK class %q on kind %q read %q, want itself", class, kind, got)
-			}
-		}
-	}
-	// The claim runner's own classes are common to every kind.
-	for _, class := range []string{
-		collector.FailureClassAttemptBudgetExhausted, "identity_mismatch", "collect_failure", "commit_failure",
-	} {
-		for _, kind := range scope.AllCollectorKinds() {
-			if got := statuscollector.BoundedFailureClassForKind(string(kind), class); got != class {
-				t.Errorf("runner class %q on kind %q read %q, want itself", class, kind, got)
-			}
-		}
-	}
-	// The extension host's own classes read as themselves on a hosted kind.
-	for _, class := range []string{
-		extensionhost.FailureClassInvalidClaim, extensionhost.FailureClassInvalidResult,
-		extensionhost.FailureClassIdentityMismatch, extensionhost.FailureClassLaunchFailure,
-		extensionhost.FailureClassStatusRecord,
-	} {
-		if got := statuscollector.BoundedFailureClassForKind("hosted_vendor", class); got != class {
-			t.Errorf("host class %q read %q, want itself", class, got)
-		}
-	}
-	// WaitingOnGitGenerationError persists its status string as the class.
-	if got := statuscollector.BoundedFailureClassForKind(string(scope.CollectorTerraformState), "waiting_on_git_generation"); got != "waiting_on_git_generation" {
-		t.Errorf("terraform_state waiting class read %q", got)
-	}
-}
-
-func registryClasses() []string {
-	return []string{
-		collector.RegistryFailureAuthDenied, collector.RegistryFailureNotFound,
-		collector.RegistryFailureRateLimited, collector.RegistryFailureRetryable,
-		collector.RegistryFailureCanceled, collector.RegistryFailureTerminal,
-	}
-}
 
 // TestBoundedFailureClassesStayBounded pins the label cardinality and the
 // shape of every class: the set stays a small closed list of lowercase

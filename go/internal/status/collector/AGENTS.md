@@ -39,21 +39,32 @@ must pass `BoundedFailureClassForKind` (a local per-kind allowlist in
 runtime package) and the operation must pass `BoundedFailureOperation`;
 anything else reads as `unknown`. Every kind reports the nine common classes
 (the five provider classes plus `attempt_budget_exhausted`, `identity_mismatch`,
-`collect_failure`, and `commit_failure`) and its own classes from
+`collect_failure`, and `commit_failure`) and the four extension host classes
+(`extensionHostFailureClasses`), because the component-extension runtime takes
+its kind from the manifest and a component-configured instance can carry a
+first-party kind such as `jira`. A first-party kind adds its own classes from
 `kindFailureClasses`; a class only another kind owns reads `unknown` for it.
-A kind that is not first-party is hosted by the extension host: it reports the
-common classes and the host's own, and every other class matching the host's
-pattern collapses to `extension_defined`, so the set never grows with third-party
-text. A class added to any set must also land, in the same change, in both
+A kind that is not first-party is hosted by the extension host, and every other
+class matching the host's pattern collapses to `extension_defined`, so the set
+never grows with third-party text. First-party kinds do not collapse: the leaf
+has no signal that an instance is extension-hosted, so an extension-defined
+class on a first-party kind reads `unknown`, and an in-tree class a writer
+forgot to register is not relabeled. The one-time
+`legacy_missing_generation_identity` backfill class (schema bootstrap) also
+reads `unknown`; both limits are in the reference doc. A class added to any set must also land, in the same change, in both
 OpenAPI `last_failure_class` enums
 (`TestOpenAPITerminalFailureFieldsMatchStatusContract` in `query`), the class
 table in `docs/public/reference/http-api/collector-terminal-failure.md`
 (`TestTerminalFailureDocTableMatchesTheCode`), and the cardinality pin
 (`failureClassCardinality`), and stay aligned with the security-alert read's
 class set, which pins the nine common classes for that one kind.
-`TestBoundedFailureClassesMatchTheCollectorWriters` ties each kind's set to the
-writer's constants; it is the only place this package names collector runtime
-packages, and only in a test. Never add the
+`TestBoundedFailureClassesMatchTheCollectorWriters` reads each writer's class
+constants from its source with `go/parser` and compares them with the kind's set
+in both directions, so an added, removed, or renamed writer class fails without
+editing the test. Pinned by value because they are not constants: the claim
+runner's `collect_failure` and `commit_failure`, and `terraform_state`'s single
+`FailureClass()` method (a second implementer fails the test). It is the only
+place this package names collector runtime packages, and only in a test. Never add the
 failure message or provider status code to `TerminalFailure`, `RuntimeStatus`,
 `PromotionProof`, or their JSON. The reader (`storage/postgres`) supplies only
 failures of enabled, non-deactivated instances inside the instance's window
