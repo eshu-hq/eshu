@@ -76,6 +76,7 @@ func TestLoadGrantedManifestFailsClosedWithoutLiveGrant(t *testing.T) {
 		{name: "expired", grant: mutate(func(g *ProducerGrant) { g.ExpiresAt = time.Now().Add(-time.Hour) })},
 		{name: "revoked", grant: mutate(func(g *ProducerGrant) { g.Revoked = true })},
 		{name: "other scope", grant: mutate(func(g *ProducerGrant) { g.Scope = "gcp" })},
+		{name: "wildcard scope", grant: mutate(func(g *ProducerGrant) { g.Scope = "*" })},
 		{name: "other kind", grant: mutate(func(g *ProducerGrant) { g.Kind = "aws_relationship" })},
 		{name: "other version", grant: mutate(func(g *ProducerGrant) { g.Version = "0.2.0" })},
 		{name: "other schema version", grant: mutate(func(g *ProducerGrant) { g.SchemaVersions = []string{"2.0.0"} })},
