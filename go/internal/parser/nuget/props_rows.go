@@ -94,9 +94,14 @@ func propsItemRow(item itemDecl, states map[string]*propState, lineNumber int, l
 		"section":           item.kind,
 		"config_kind":       "dependency",
 		"package_manager":   "nuget",
+		"dependency_scope":  scope,
 		"lang":              "nuget_project",
 	}
-	setNuGetProjectString(row, "dependency_scope", scope)
+	if scope == "" {
+		// Unproven asset metadata: leave the scope absent, not guessed. The
+		// key stays in the literal so the map is sized once.
+		delete(row, "dependency_scope")
+	}
 	for key, val := range metadata {
 		row[key] = val
 	}
