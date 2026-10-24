@@ -114,14 +114,20 @@ non-string value, a string notation with the wrong part count. A sub-table,
 array table, dotted or over-long alias in a catalog table still collides with
 the other spellings of its alias (see Aliases).
 
-Not valid and returns no rows (`state: malformed`): a TOML syntax error, a
-repeated table header, a repeated alias in one table, or any other input TOML
-rejects, such as a table defined by dotted keys and again by a header. After
-the streaming parse succeeds, a decode into an empty struct applies TOML's
-semantic checks. A file over 2 MiB (`oversize`) or nested deeper than 16
+Not valid and returns no rows (`state: malformed`): a TOML syntax error, or
+any key or table TOML forbids defining twice, in any table, the root, or an
+inline table. That covers a repeated header or alias, `x = ...` with
+`x.module = ...` or a `[libraries.x]` sub-table, a table defined by dotted
+keys and again by a header, a `[versions]` alias that is a string and a rich
+version at once, a dotted key that extends a table a header defined, `[x]`
+and `[[x]]` for one name, and a repeated key in an inline table. A key tree
+(`keys.go`) checks every expression as the streaming parse yields it, with
+go-toml's rules; the test reference is go-toml's full decode into a map. A
+legal spread of one alias stays parsed: `x.module` with `x.version`, a
+deeper `[libraries.x.version]` table after `x.module`, a sub-table before its
+super-table, and repeated `[[x]]` elements. A file over 2 MiB (`oversize`) or nested deeper than 16
 levels (`too_deep`) is not parsed. A key with more than 64 dotted segments,
-anywhere in the file, is also `too_deep`, found by the streaming parse before
-the semantic decode.
+or a file with more than 262,144 key segments in all, is also `too_deep`.
 
 ### Known limits
 
@@ -178,6 +184,7 @@ All work is linear in the input. The limits are constants in `types.go`:
 | File size | 2 MiB | `oversize`, no parse |
 | Array and inline-table depth | 16 | `too_deep`, no parse |
 | Dotted segments in one key | 64 | `too_deep`, no rows |
+| Key segments in the file, headers and inline keys included | 262,144 | `too_deep`, no rows |
 | Rows, version aliases and bundle aliases per file | 5000 each | counted in `dropped_count` |
 | Alias, coordinate part, plugin id, version text | 256 bytes | entry unsupported |
 
@@ -186,14 +193,21 @@ measured on `go-toml/v2` v2.3.1, a one-million-level input ends in a fatal
 stack overflow, and a 256 KiB input of 262144 `[` allocates about 77 MB.
 `nestingExceeds` rejects such input first with one linear pass.
 
-The key-segment bound exists because the semantic decode allocates in
-proportion to dotted segments: a 1.8 MB file of one 900,000-segment key
-allocated 715.7 MB with the decode and 250.2 MB now that the key is refused
-first (`TestScanLongDottedKeyAllocationStaysBounded`). The remaining 139 bytes
-per input byte are the streaming parse, which builds one node per segment
-before the scanner can count them. A byte-level guard that counts dotted
-segments before the parser would remove that cost; it is a follow-up to the
-shared nesting guard (#8992).
+The key-segment bounds exist because the streaming parse builds one node
+per segment and the key tree keeps one entry (about 70 bytes) per distinct
+segment. A 1.8 MB file of one 900,000-segment key allocated 715.7 MB with
+the earlier semantic decode and 250.2 MB now that the key is refused first
+(`TestScanLongDottedKeyAllocationStaysBounded`); those 139 bytes per input
+byte are the streaming parse, which builds every node of an expression before
+the scanner can count them. The file bound caps the parsed worst case: 2 MiB
+of unique 64-segment headers allocated 271.6 MB and parsed before, and is now
+`too_deep` at 38.5 MB. The costliest file inside the bounds, unique
+64-segment headers up to 262,144 segments, allocates 40.6 MB
+(`TestScanFileKeySegmentBoundIsExactlyMaxFileKeySegments`). One inline table
+of 150,000 keys allocates 150.2 MB, 127 MB of it the streaming parse (254.5 MB
+before). A byte-level guard that counts dotted segments before the parser
+would remove the streaming-parse cost; it is a follow-up to the shared nesting
+guard in [#8992](https://github.com/eshu-hq/eshu/pull/8992).
 
 ## What this parser never does
 
@@ -220,8 +234,10 @@ file fact's `gradle_catalog_state`: `state` other than `parsed`, or non-zero
 No-Regression Evidence: the code runs only for `libs.versions.toml` and adds
 no work to build-script parsing. `BenchmarkParseConfig` on a 10,005-line
 catalog (3,335 entries per table), `-benchtime=100x`. The build-script rows
-are from an earlier session; the three catalog rows are three interleaved
-runs each in one later session on the same host:
+are from an earlier session; the first three catalog rows are three
+interleaved runs each in one later session, and the last row is six runs
+interleaved with a rebuild of the row above, in a third session on the same
+host under a load average of 7 to 18:
 
 | Case | ns/op | B/op | allocs/op |
 | --- | --- | --- | --- |
@@ -229,16 +245,20 @@ runs each in one later session on the same host:
 | `gomod` | 14,755,776 to 14,874,295 | 13.7 MB | 179,804 |
 | `gradle_catalog` before alias normalization and the TOML check | 9,403,277 to 9,500,783 | 10.63 MB | 133,552 |
 | `gradle_catalog` with flat alias collisions only | 10,931,196 to 11,101,267 | 11.13 MB | 133,606 |
-| `gradle_catalog` (this package) | 10,925,659 to 11,089,130 | 10.89 MB | 123,601 |
+| `gradle_catalog` before the key tree (empty-struct decode) | 10,925,659 to 11,089,130 | 10.89 MB | 123,601 |
+| `gradle_catalog` (this package, key tree) | 11,476,968 to 11,880,070 | 11.56 MB | 133,638 |
 
 The correctness checks cost about 15% on this input (medians 9.48 ms and
-10.93 ms): mostly the semantic TOML decode, then the alias table. Registering
-dotted and sub-table aliases, keying slots on accessor names, and the key
-segment walk cost nothing measurable; reading only the first key segments
+10.93 ms): mostly the semantic TOML decode, then the alias table. The key
+tree replaces that decode, which skipped every key under a table header. In
+six runs interleaved with the row above (base 11,010,758 to 11,824,432 ns/op
+in that session), the medians are 11.37 ms and 11.63 ms (+2.3%), with 0.67 MB
+and 10,037 allocations more per file: one index entry and one map key for
+each key outside a small inline table. Registering dotted and sub-table
+aliases, keying slots on accessor names, and the key segment walk cost
+nothing measurable; reading only the first key segments
 instead of building a slice per key saves 10,005 allocations. A real catalog
-of a few hundred lines costs tens of microseconds. The decode keeps no
-values, but it builds its own parse tree, so it allocates in proportion to
-the input.
+of a few hundred lines costs tens of microseconds.
 
 Every alias-table check is one map operation. `BenchmarkScanManySpellingsOfOneAlias`
 writes 15,000 spellings of one normalized alias (5,000 kept, 10,000 dropped):
@@ -249,7 +269,7 @@ a slice scan of earlier spellings took 132.5 ms per file, and the map takes
 
 `go test -race -count=1 ./internal/parser/gradle/catalog` runs the grammar
 fixtures, the allocation ceilings (bytes and objects relative to input size, no
-wall time), and three seeded generators:
+wall time), and four seeded generators:
 
 - a grammar oracle across 3000 catalogs;
 - a Gradle model across 3000 catalogs (set `ESHU_CATALOG_MODEL_CASES` for a
@@ -258,5 +278,10 @@ wall time), and three seeded generators:
   exact versions, and wrong part counts. It models Gradle's keySet walk, its
   normalization and its accessor names, and checks every row: a collision
   never resolves and a selector never resolves;
+- a key-redefinition generator across 3000 catalogs (`ESHU_CATALOG_MODEL_CASES`
+  too). It repeats and redefines keys across the dotted, header, array-table
+  and inline forms in every table and the root, and requires `malformed` with
+  no rows exactly when go-toml's full decode into a map rejects the file,
+  `parsed` otherwise;
 - 4000 byte-level mutations of the positive fixture. No row may name text
   absent from the source, and no resolved value may be a selector.

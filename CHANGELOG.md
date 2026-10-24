@@ -78,10 +78,14 @@ recent shipped work grouped by feature area.
   colliding row stays `unresolved` and is counted in `alias_collision_count`.
   An alias written as a dotted entry or a `[libraries.alias]` sub-table emits
   no row but still collides, and two aliases with one Gradle accessor name
-  (`fooBar`, `foo-bar`) collide too. A key with more than 64 dotted segments
-  makes the file `too_deep`.
+  (`fooBar`, `foo-bar`) collide too. A key with more than 64 dotted segments,
+  or a file with more than 262,144 key segments in all, makes the file
+  `too_deep`.
   A library string needs exactly three parts and a plugin string two, and a
-  file TOML rejects, such as a table defined twice, yields no rows. Plugin rows use `config_kind=gradle_plugin`, so the
+  file TOML rejects yields no rows: a key tree checks every key and header
+  with go-toml's rules, so `x = ...` with `x.module = ...` or a
+  `[libraries.x]` sub-table, a `[versions]` alias that is also a rich version,
+  or a key repeated in any table or inline table is `malformed`. Plugin rows use `config_kind=gradle_plugin`, so the
   package reducer ignores them. The parser refuses a file over 2 MiB, nesting
   over 16 levels, and rows past 5000 per table, and counts each. The TOML
   library overflows the stack on a one-million-level array, so the nesting

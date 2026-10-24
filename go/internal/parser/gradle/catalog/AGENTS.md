@@ -7,8 +7,10 @@
 3. `scan.go` - `Scan`, the section walk, alias and header checks.
 4. `entries.go` - library, plugin and version decoding, and the validators.
 5. `rows.go` - version resolution and row shape.
-6. `depth.go` - `nestingExceeds`, the guard that runs before the TOML parser.
-7. The parent hook `../../gradle_language.go` and the registry entry in
+6. `depth.go` - `nestingExceeds`, the guard that runs before the TOML parser,
+   and `keyBudget`, the key-segment bounds.
+7. `keys.go` - `keyTree`, which rejects any key or table defined twice.
+8. The parent hook `../../gradle_language.go` and the registry entry in
    `../../registry_definitions.go`.
 
 ## Invariants this package enforces
@@ -36,9 +38,10 @@
   of one exact spelling is a no-op, a new spelling shares the slot, and it
   counts toward `MaxRows`. Read keys with `keyHead`, which stops after three
   components, never with a slice of every component.
-- Run `keysExceed` on every top-level expression before `validTOML`. It
-  refuses a key with more than `MaxKeySegments` dotted segments, including
-  keys inside inline tables, because the decode allocates per segment.
+- Run `keyBudget.exceeded` on every top-level expression before the grammar
+  and the key tree. It refuses a key with more than `MaxKeySegments` dotted
+  segments and a file with more than `MaxFileKeySegments` in all, inline-table
+  keys included, because the key tree allocates per segment.
 - Run `nestingExceeds` before the TOML parser. The parser has no depth bound
   and overflows the stack on deeply nested input. Do not move the check after
   `parser.Reset`.
@@ -50,16 +53,20 @@
   by the package reducer, and a plugin id is not a Maven coordinate.
 - Rows set no `direct_dependency` and no `dependency_scope`: a catalog entry
   declares, it does not use.
-- A repeated table header, an exactly repeated alias, or input the semantic
-  TOML decode rejects makes the whole file `malformed`. The decode runs after
-  the streaming parse, never before it: on an unterminated string it copies the
-  rest of the file before reporting the error. Keep its target an empty
-  struct. The decoder recurses once per dotted-key segment into a field or map
-  it fills, and `nestingExceeds` does not count dotted keys, so a map target
-  overflows the stack on a long dotted key. `keysExceed` now refuses such a
-  key first; keep the empty struct anyway.
-- The package imports the standard library, `go-toml/v2`, `go-toml/v2/unstable`,
-  and `internal/parser/shared` only.
+- Any key or table TOML forbids defining twice makes the whole file
+  `malformed` with no rows. `keyTree` (`keys.go`) checks every expression,
+  in every table, the root and inline tables, with go-toml's tracker rules.
+  Never go back to a go-toml decode for this: into an empty struct it skips
+  every key under a table header (so a library defined twice parsed with
+  rows), and into a map it stores every value, searches each table's keys in
+  a list (11.6 s on 80,000 entries), and recurses once per dotted segment.
+  Keep each check one map operation per segment; small inline tables use the
+  list scan in `smallInline`, which counts the table first so nothing is
+  checked twice. The test reference for "is this valid TOML" is
+  `tomlRejects`, a map decode, in tests only.
+- The package imports the standard library, `go-toml/v2/unstable` and
+  `internal/parser/shared` only. Tests also import `go-toml/v2` for the
+  `tomlRejects` reference.
 
 ## Common changes
 
@@ -94,7 +101,8 @@ dropped aliases, forget a later spelling (so its exact repeat passes), accept
 an exact repeat past the cap, look up a reference
 without normalizing it, allow each of `+`, `latest.`, `!`, `@` and the range
 characters, use `validVersionText` for a literal or a reference target, accept
-a string notation one part short, drop the semantic TOML check, miscount
+a string notation one part short, drop the semantic TOML check (now the key
+tree), miscount
 `alias_collision_count`, and allow `$`. One is equivalent: letting a later
 `[versions]` definition overwrite the first, because a shared slot never
 resolves.
@@ -106,4 +114,20 @@ collide with itself; ignore a shadow past the cap or count its repeats twice;
 stop counting a new shadow spelling toward the cap; key slots on the
 normalized form; skip the capital after a separator; skip the normalized
 check in `lookup`; make `sameNormalized` exact; move the segment bound by
-one; ignore inline tables or arrays in `keysExceed`; and drop `keysExceed`.
+one; ignore inline tables or arrays in `keysExceed`; and drop `keysExceed`
+(now `keyBudget.exceeded`).
+
+The key-tree and file-budget set, 30 of 31 killed: drop each rule (a table
+defined twice, a repeated last key, a dotted key into a closed table, a dotted
+key through an array table, a value as a dotted or header parent, `[[x]]` over
+a table, `[x]` over an array table or a value); never mark a leaf a value;
+reuse an array element's node; ignore the section of a dotted table, or close
+it at once; skip the section count; drop the repeat or value check, or the
+nested values, in `smallInline`; ignore the parent in `findInline` or the
+index key; skip inline tables, arrays or the large-inline index path; drop
+the key tree from `Scan`; move the file bound or the per-key bound by one;
+stop counting inline keys toward the file bound; presize nothing; and accept a
+repeated alias, a repeated catalog header or an exact repeat past the cap
+(each still `malformed` through the key tree, killed by its reason text). One
+is equivalent: `maxInlineKeys = 0` sends every inline table through the index,
+which gives the same answers more slowly.
