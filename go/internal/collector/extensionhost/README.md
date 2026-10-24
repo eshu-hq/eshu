@@ -122,8 +122,9 @@ change (`d1ab1d8187`). Numeric-array JSON results of about 1 KiB measured
 64 KiB measured 10.607 to 7.126 ms/op at the sample medians, with sample
 maxima 10.913 to 7.325 ms/op; bytes/op rose 908,387 to 941,155 and allocs/op
 stayed 8,338. These are aggregate benchmark samples, not individual request
-p95 values. The additional bytes scale with decoded numeric payload and remain
-inside the existing 4 MiB stdout cap. No queue or row counts apply to this
+p95 values. The additional bytes scale with decoded numeric payload. Stdout input
+remains capped at 4 MiB; total decoder allocations were measured only at the
+stated shapes. No queue or row counts apply to this
 standalone subprocess decode.
 
 Number Fidelity No-Observability-Change: decoding changes only the in-memory
