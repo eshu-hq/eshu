@@ -37,7 +37,28 @@ allowlisted repository's alerts. When the org read is truncated,
 each allowlisted repository of the organization with
 `ListRepositoryAlertsPages`, bounded by the same `max_pages`, sequentially in
 allowlist order and capped at `maxOrganizationFanoutRepositories` (100) per
-claim. `mergeFanoutAlerts` merges the reads into the claim's generation and
+claim, starting at the fan-out cursor for an allowlist that fits (#8946,
+`fanout_cursor.go`). The start moves forward through the allowlist, to the
+repository after a failed read. A failed read at the last position closes the
+lap: the start returns to the top and stays there until a claim reads every
+repository or that last repository leaves the allowlist. A rate limit leaves
+the start where the claim began. Several persistent stoppers therefore settle
+in at most one stored generation per stopper plus one, then the committer
+skips the unchanged generation, and the settled read set is never smaller than
+the start-at-top set. A target over the cap always starts at the top and reads the same
+first 100 (rotating a window through a full-snapshot scope stored a generation
+per claim and was withdrawn; the fix is a split target, #9019), and
+`NewClaimedSource` logs one `security_alert.org_fanout_over_cap` warning for it.
+`NextClaimed` only computes the cursor. It travels on `TargetReadState`
+(`FanoutStartRepository`, `FanoutNextRepository`, `FanoutLapRepository`) and commits with the
+generation (migration 232, the `unread.Writer` in the commit transaction), so a
+rollback or an unchanged-generation skip leaves it where it was.
+`FanoutCursorReader` (implemented by `unread.CursorReader`) reads it at the
+start of the next fan-out; a read error fails the claim as a retryable storage
+failure (`cursorReadError`: message `security alert fan-out cursor read from
+postgres failed`, operation `read_fanout_cursor`, no cause text), a missing
+cursor starts at the top, and `NewClaimedSource` rejects a `ReadStateWriter`
+without a reader. `mergeFanoutAlerts` merges the reads into the claim's generation and
 org `scope_id`: a complete repository read replaces that repository's
 org-window alerts, every other allowlisted repository keeps its org-window
 alerts, and duplicates collapse on (repository, alert number). Fan-out alerts

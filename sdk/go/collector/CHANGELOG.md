@@ -23,6 +23,24 @@ Tags for this module use the Go subdirectory-module format:
   extension wire contract, admitted only when explicitly configured;
   v1alpha1 default unchanged.
 
+### Fixed
+
+- Native fact payloads with custom JSON serialization reject duplicate decoded
+  member names at every object depth before later values can overwrite earlier
+  raw values. Validation does not mutate or freeze the caller's result; callers
+  must keep serialization stable through subsequent use.
+- Fact validation admits Kubernetes posture fields only at schema `1.0.0`
+  roots: `k8s_service_account` and `k8s_service_account_token_posture` allow
+  `secret_ref_count` and `image_pull_secret_ref_count` as JSON numbers or null,
+  and `automount_token` as `"true"`, `"false"`, `"unknown"`, or null.
+  `k8s_workload_identity_use` allows `projected_service_account_token` only as
+  a boolean. Generic sensitive-key checks remain strict; payload schemas
+  separately own integer validity.
+- Fact validation admits original tag names only in the root fingerprint map
+  of `azure_tag_observation` schema `1.0.0`, and requires every value to be a
+  complete HMAC-SHA256 redaction marker. Native and JSON-decoded payloads
+  reject credential-shaped keys everywhere else.
+
 ## [0.2.0] - 2026-09-16
 
 Additive post-`v0.1.0` changes only. Verified against tag

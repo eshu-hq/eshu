@@ -45,15 +45,16 @@ func TestCatalogClassifications(t *testing.T) {
 	}
 
 	wantClass := map[scope.CollectorKind]Classification{
-		scope.CollectorGit:            KeepInTree,
-		scope.CollectorTerraformState: KeepInTree,
-		scope.CollectorAWS:            KeepInTree,
-		scope.CollectorGCP:            KeepInTree,
-		scope.CollectorAzure:          KeepInTree,
-		scope.CollectorKubernetesLive: KeepInTree,
-		scope.CollectorPagerDuty:      ExtractionCandidate,
-		scope.CollectorJira:           Blocked,
-		scope.CollectorGrafana:        Blocked,
+		scope.CollectorGit:             KeepInTree,
+		scope.CollectorTerraformState:  KeepInTree,
+		scope.CollectorAWS:             KeepInTree,
+		scope.CollectorGCP:             KeepInTree,
+		scope.CollectorAzure:           KeepInTree,
+		scope.CollectorKubernetesLive:  KeepInTree,
+		scope.CollectorSBOMAttestation: KeepInTree,
+		scope.CollectorPagerDuty:       ExtractionCandidate,
+		scope.CollectorJira:            Blocked,
+		scope.CollectorGrafana:         Blocked,
 	}
 	for family, want := range wantClass {
 		got, ok := byFamily[family]
@@ -109,6 +110,19 @@ func TestCatalogBlockedFamiliesReportBlockers(t *testing.T) {
 		if blocker.State != Unmet {
 			t.Errorf("blocker %s state = %q, want unmet", blocker.Criterion, blocker.State)
 		}
+	}
+}
+
+func TestCatalogTracksSBOMAttestation(t *testing.T) {
+	// The SBOM subject digest is a join key the core projection consumes,
+	// so the family must be tracked as correlation-critical until the
+	// architecture gate for a producer split passes.
+	got, ok := Lookup(scope.CollectorSBOMAttestation)
+	if !ok {
+		t.Fatal("Lookup(sbom_attestation) not found in catalog")
+	}
+	if got.Classification != KeepInTree {
+		t.Fatalf("SBOM attestation classification = %q, want keep_in_tree", got.Classification)
 	}
 }
 

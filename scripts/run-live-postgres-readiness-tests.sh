@@ -59,6 +59,9 @@ done
 for name in "${READINESS_DISPOSABLE_VARS[@]}"; do
   [[ "${!name:-}" == "1" ]] || die "${name} must be 1"
 done
+for name in "${READINESS_OPT_IN_VARS[@]}"; do
+  [[ "${!name:-}" == "1" ]] || die "${name} must be 1"
+done
 # Only the Neo4j graph proofs need a backend; everything else runs on plain
 # Postgres. All three Neo4j variables set selects strict mode (the CI path):
 # the backend must be neo4j and every enrolled proof must pass. None set

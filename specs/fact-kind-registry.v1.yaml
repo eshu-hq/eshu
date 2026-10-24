@@ -210,6 +210,17 @@ families:
         provider_key_independent: true
         payload_schema_overrides: {config_key_divergence: sdk/go/factschema/schema/config_key_divergence.v1.schema.json, ref_overlay.branch_observation: sdk/go/factschema/schema/ref_overlay.branch_observation.v1.schema.json}
         kinds: [config_key_divergence, ref_overlay.branch_observation]
+    runtime_declaration:
+        lifecycle_owner: go/internal/facts
+        schema_version: 1.0.0
+        reducer_domain: runtime_declaration_projection
+        projection_hook: runtime_declaration_projection
+        admission_hook: facts.ValidateSchemaVersion
+        read_surface: "none"
+        truth_profile: deterministic
+        provider_key_independent: true
+        payload_schema_overrides: {runtime_declaration.version: sdk/go/factschema/schema/runtime_declaration.version.v1.schema.json}
+        kinds: [runtime_declaration.version]
     s3_bucket_posture:
         lifecycle_owner: go/internal/facts
         schema_version: 1.0.0

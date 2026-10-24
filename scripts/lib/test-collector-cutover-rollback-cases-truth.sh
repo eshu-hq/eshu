@@ -246,9 +246,10 @@ pin_sql() { # name digest
 		fail "SQL pin: $1 changed (now ${got}); run scripts/test-collector-cutover-rollback-sql.sh against real Postgres, then update this pin"
 	fi
 }
-pin_sql drain d792929f902eb39344ad215bbdc21f7b56400079e4de6ee2d29af45dac07c72b
-pin_sql dual b054695006f681669f3412b71e50fb3119a72b6df72ce410922c81eb467c7e51
+pin_sql drain 38cab181211b4405bda56f0097cedcc756fff12af18c49b4513560da6eff2b58
+pin_sql dual 4585f6cf02776c9740c3f5087e2723d026ad4f0887129660eeafc4cbfc30e9d7
 pin_sql now a8dc9a97eab35bd531fa7480308f498946ee2258ce86383acdfe11e0b9e11612
 pin_sql replay a0705986ea5174764fda9ad155daf182a3b9efea48f02bdb2b03c4b16d196188
 pin_sql truth fb26daf042d8218223399d6cdec24877f03ee7b080af014129820ed1d183d1a0
+pin_sql direct-commit 1317dfe7c71671c3db5d54da199a1de7feccdb25d35b12cec9c82a1e8d191834
 pin_sql keys 686ec5d8e33a537c5004c154eaa4d734c618ceabce0dce4d588aafdff5db60b3

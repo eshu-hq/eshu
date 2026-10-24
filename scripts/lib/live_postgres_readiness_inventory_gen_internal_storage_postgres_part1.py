@@ -26,6 +26,9 @@ TABLE = {
             "TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsFixturePackageManifests",
             "TestFixtureDirPatternAgreesBetweenPostgresAndGo",
         ),
+        "go/internal/storage/postgres/alert_fanout_cursor_live_test.go": (
+            "TestSecurityAlertFanoutCursorLive",
+        ),
         "go/internal/storage/postgres/alert_read_state_commit_live_test.go": (
             "TestSecurityAlertReadStateLiveCommit",
         ),

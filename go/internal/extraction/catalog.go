@@ -67,11 +67,12 @@ func candidateNotStartedCriteriaMissingSchemas() []CriterionResult {
 	return rows
 }
 
-// catalog is the evidence-based set of collector-family profiles. It mirrors the
-// "Keep In Tree" and "Extraction Candidates" lists in
-// docs/public/reference/collector-extraction-policy.md. Entries are authored
-// from documented repo evidence, so the classifications stay reproducible and
-// reviewable; the policy doc is the single source of truth for membership.
+// catalog is the evidence-based set of collector-family profiles. Entries are
+// authored from documented repo evidence, so the classifications stay
+// reproducible and reviewable. The diagnostic mapping table in
+// docs/public/reference/collector-extraction-policy.md is the single source of
+// truth for interpreting a classification; the policy holds no family
+// membership list, and this catalog grants no cutover authority.
 var catalog = []Profile{
 	{Family: scope.CollectorGit, DisplayName: "Git", CorrelationCritical: true, Criteria: coreCriteria()},
 	{Family: scope.CollectorTerraformState, DisplayName: "Terraform state", CorrelationCritical: true, Criteria: coreCriteria()},
@@ -79,6 +80,7 @@ var catalog = []Profile{
 	{Family: scope.CollectorGCP, DisplayName: "GCP cloud inventory", CorrelationCritical: true, Criteria: coreCriteria()},
 	{Family: scope.CollectorAzure, DisplayName: "Azure cloud inventory", CorrelationCritical: true, Criteria: coreCriteria()},
 	{Family: scope.CollectorKubernetesLive, DisplayName: "Kubernetes live", CorrelationCritical: true, Criteria: coreCriteria()},
+	{Family: scope.CollectorSBOMAttestation, DisplayName: "SBOM attestation", CorrelationCritical: true, Criteria: coreCriteria()},
 	{
 		Family:                scope.CollectorPagerDuty,
 		DisplayName:           "PagerDuty incident routing",

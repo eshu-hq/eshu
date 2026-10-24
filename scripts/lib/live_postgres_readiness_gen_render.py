@@ -163,6 +163,9 @@ def render_env_sh(required: list[str], optional: list[str]) -> str:
     lines += [")", "READINESS_DISPOSABLE_VARS=("]
     lines += [f"  {var}" for var in sorted(
         var for var in required if var.endswith("_DISPOSABLE"))]
+    lines += [")", "READINESS_OPT_IN_VARS=("]
+    lines += [f"  {var}" for var in sorted(
+        var for var in required if var == "ESHU_IAC_INVENTORY_LIVE")]
     lines += [")", "READINESS_OPTIONAL_WORKFLOW_VARS=("]
     lines += [f"  {var}" for var in optional]
     lines += [")", ""]
@@ -173,6 +176,8 @@ def workflow_value(var: str) -> str:
     """Map an env var to its workflow step value, failing closed."""
     if var == "ESHU_GRAPH_BACKEND":
         return "neo4j"
+    if var == "ESHU_IAC_INVENTORY_LIVE":
+        return "'1'"
     if var == "ESHU_NEO4J_URI":
         return "neo4j://127.0.0.1:7687"
     if var == "ESHU_NEO4J_USERNAME":

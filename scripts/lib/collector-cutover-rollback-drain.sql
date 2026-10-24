@@ -2,7 +2,8 @@
 -- Read-only. Work that any producer other than the in-tree instances still holds
 -- for one collector kind.
 -- Output: claimed_work_items|active_claims
--- Variables: kind, in_tree (comma-separated in-tree collector instance IDs).
+-- Variables: kind, in_tree (comma-separated in-tree collector instance IDs; empty
+-- for a direct in-tree producer, so every claim of the kind counts as external).
 --
 -- The gate is the collector kind minus the in-tree instances, not the external
 -- instance IDs the caller typed. A mistyped --external-instance therefore cannot

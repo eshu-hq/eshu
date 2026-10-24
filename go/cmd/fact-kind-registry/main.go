@@ -442,6 +442,7 @@ func liveFamilies() []liveFamily {
 		{"rds_posture", cloud.RDSPostureFactKinds, cloud.RDSPostureSchemaVersion},
 		{"reducer_derived", facts.ReducerDerivedFactKinds, facts.ReducerDerivedSchemaVersion},
 		{"ref_overlay", facts.RefOverlayFactKinds, facts.RefOverlaySchemaVersion},
+		{"runtime_declaration", facts.RuntimeDeclarationFactKinds, facts.RuntimeDeclarationSchemaVersion},
 		{"s3_bucket_posture", cloud.S3BucketPostureFactKinds, cloud.S3BucketPostureSchemaVersion},
 		{"s3_external_principal_grant", cloud.S3ExternalPrincipalGrantFactKinds, cloud.S3ExternalPrincipalGrantSchemaVersion},
 		{"sbom_attestation", chain.SBOMAttestationFactKinds, chain.SBOMAttestationSchemaVersion},

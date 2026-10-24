@@ -6,6 +6,7 @@ package alertruntime //nolint:filelength // 544 lines: claim-driven hosted provi
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"sort"
 	"strings"
@@ -100,6 +101,15 @@ type SourceConfig struct {
 	// organization target's read state with its generation (#8943). It is
 	// called once per organization claim; repository targets never call it.
 	ReadStateWriter func(securityalerts.TargetReadState) collector.GenerationStateWriter
+	// FanoutCursorReader returns where an org target's next fan-out claim
+	// starts (#8946). The cursor itself commits with the generation through
+	// ReadStateWriter, so a ReadStateWriter without a reader is a
+	// construction error. Both nil (cassettes, tests) starts every claim at the
+	// top of the allowlist and records nothing.
+	FanoutCursorReader FanoutCursorReader
+	// Logger receives the construction warning for an org target whose
+	// allowlist exceeds the per-claim fan-out cap. Nil disables it.
+	Logger *slog.Logger
 }
 
 // TargetConfig describes one provider security-alert target. A repository
@@ -154,6 +164,7 @@ type ClaimedSource struct {
 	tracer              trace.Tracer
 	instruments         *telemetry.Instruments
 	readStateFactory    func(securityalerts.TargetReadState) collector.GenerationStateWriter
+	cursors             FanoutCursorReader
 }
 
 // NewClaimedSource validates configuration and builds a claim-driven source.
@@ -188,8 +199,15 @@ func NewClaimedSource(config SourceConfig) (*ClaimedSource, error) {
 	if now == nil {
 		now = time.Now
 	}
+	if config.ReadStateWriter != nil && config.FanoutCursorReader == nil {
+		// Without the reader every claim would restart at the top and the
+		// committed cursor would never be read (#8946).
+		return nil, fmt.Errorf("security alert read state writer requires a fan-out cursor reader")
+	}
+	warnOversizedTargets(config.Logger, targets)
 	return &ClaimedSource{
 		collectorInstanceID: collectorID,
+		cursors:             config.FanoutCursorReader,
 		targets:             targets,
 		now:                 now,
 		tracer:              config.Tracer,

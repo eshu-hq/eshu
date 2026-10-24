@@ -90,6 +90,7 @@ subcommand=""
 collector_kind=""
 external_instances=""
 in_tree_instances=""
+in_tree_direct="false"
 component_id=""
 component_version=""
 component_home=""
@@ -168,6 +169,11 @@ parse_args() {
 			;;
 		--restore-applied-by-gitops)
 			restore_by_gitops="true"
+			shift
+			continue
+			;;
+		--in-tree-direct)
+			in_tree_direct="true"
 			shift
 			continue
 			;;
@@ -265,8 +271,15 @@ check_seconds() {
 validate() {
 	check_token "--collector-kind" "$collector_kind"
 	check_list "--external-instance" "$external_instances"
-	check_list "--in-tree-instance" "$in_tree_instances"
-	check_disjoint
+	if [[ "$in_tree_direct" == "true" ]]; then
+		# A direct collector has no instance ID and writes no work items, so the
+		# in-tree set is empty on purpose and every claim of the kind is external.
+		[[ -z "$in_tree_instances" ]] ||
+			die "$EX_USAGE" "--in-tree-direct excludes --in-tree-instance: a direct collector has no collector instance"
+	else
+		check_list "--in-tree-instance" "$in_tree_instances"
+		check_disjoint
+	fi
 	check_number "--poll-seconds" "$poll_seconds"
 	check_seconds "--drift-keys" "$drift_keys"
 	check_seconds "ROLLBACK_CLOCK_SKEW_SECONDS" "$ROLLBACK_CLOCK_SKEW_SECONDS"

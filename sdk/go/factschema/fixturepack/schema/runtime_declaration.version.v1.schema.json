@@ -1,0 +1,119 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/runtimedeclaration/v1/version.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "distribution": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "line_number": {
+      "type": "integer"
+    },
+    "order_index": {
+      "type": "integer"
+    },
+    "range_lower": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "range_lower_inclusive": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "range_lower_major": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "range_upper": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "range_upper_inclusive": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "range_upper_major": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "raw_spec": {
+      "type": "string"
+    },
+    "relative_path": {
+      "type": "string"
+    },
+    "repo_id": {
+      "type": "string"
+    },
+    "runtime": {
+      "type": "string"
+    },
+    "scope_dir": {
+      "type": "string"
+    },
+    "source_kind": {
+      "type": "string"
+    },
+    "spec_kind": {
+      "type": "string"
+    },
+    "tool_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version_major": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "version_minor": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "version_patch": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "repo_id",
+    "relative_path",
+    "scope_dir",
+    "line_number",
+    "order_index",
+    "source_kind",
+    "runtime",
+    "raw_spec",
+    "spec_kind"
+  ],
+  "title": "Eshu runtime_declaration.version Payload (schema version 1)",
+  "type": "object"
+}

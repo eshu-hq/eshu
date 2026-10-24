@@ -9,6 +9,7 @@ import unittest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "lib"))
 
 from live_postgres_readiness_gen_scan import check_env_honesty, parse_marker  # noqa: E402
+from live_postgres_readiness_gen_render import render_env_sh, workflow_value  # noqa: E402
 
 
 CHILD = "ESHU_CHANGED_SINCE_LINK_CHILD_DSN"
@@ -83,6 +84,29 @@ class ChildEnvTest(unittest.TestCase):
         """The exception does not apply to another live test file."""
         with self.assertRaisesRegex(ValueError, CHILD):
             self.check_file(PROCESS.replace("process_live", "other_live"))
+
+    def test_iac_opt_in_is_bound_to_source_and_required_runner_env(self) -> None:
+        """A test-only opt-in must reach both the workflow and local runner."""
+        var = "ESHU_IAC_INVENTORY_LIVE"
+        path = "go/internal/query/iac/inventory_postgres_live_test.go"
+        source = (
+            "package iac\n"
+            "//eshu:readiness live-postgres-readiness\n"
+            "//eshu:readiness:reason seeded IaC opt-in proof\n"
+            f"//eshu:readiness:env ESHU_POSTGRES_DSN {var}\n"
+            "func TestSeededLive(t *testing.T) {}\n"
+            f'const optIn = "{var}"\n'
+            'const dsn = "ESHU_POSTGRES_DSN"\n'
+        )
+        file_path = self.root / path
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(source, encoding="utf-8")
+        marker = parse_marker(path, source)
+        self.assertIsNotNone(marker)
+        check_env_honesty(self.root, {path: marker})
+        self.assertIn("READINESS_OPT_IN_VARS=(\n  ESHU_IAC_INVENTORY_LIVE\n)",
+                      render_env_sh(marker["env"], []))
+        self.assertEqual(workflow_value(var), "'1'")
 
 
 if __name__ == "__main__":

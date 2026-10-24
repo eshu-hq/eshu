@@ -1,0 +1,111 @@
+# Delta union scheduled enrollment (#8785)
+
+The existing `go/cmd/projector/delta_union_live_test.go` contains two exact
+proofs. The workflow is configured for daily, manual, and scoped PR runs on
+isolated PostgreSQL 18.6 and Neo4j services. Its PostgreSQL database is
+disposable: the shared overlay harness drops the public schema. Its Neo4j
+graph is likewise owned by the job, because the harness clears it. The job uses pinned service
+images, an anchored Go selector, `-race -count=1`, a twelve minute test timeout,
+`pipefail`, strict Go JSON event accounting, and uploaded events. Its artifact
+also records the checkout SHA, Go version, PostgreSQL and Neo4j versions,
+service image IDs, and wall seconds after a successful proof. The workflow
+sets nonempty Neo4j username and password values even with `NEO4J_AUTH: none`.
+
+The static mirror compares the actual source functions with the selector and
+rejects disabled jobs or steps, suppressed failures, changed service pins,
+missing routes, and missing event verification. The ledger pins this file alone
+to `delta-union-scheduled` and `backends: neo4j`. The five tests in
+`superseded_delta_overlay_live_test.go` remain scheduled.
+
+The PR route includes `go/cmd/projector/**`, `go/internal/**`, `go/pkg/**`,
+and the locally replaced `sdk/go/collector/**` and `sdk/go/factschema/**`
+modules. The projector package compiles many shared internal dependencies even
+when the selector runs only two roots. The broader route can run a 20-minute
+backend job for an unrelated internal change; that cost is accepted to keep the
+PR proof sensitive to changes in its compiled dependencies. The static mirror
+checks the workflow route and registry triggers against actual package imports.
+
+## Pinned local proof before the latest rebase
+
+The isolated local run at `4c1e5dc43614dbc7f6e561427785873b1a368472`
+used the pinned PostgreSQL 18.6 Bookworm image
+`ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c`
+and Neo4j image
+`neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f`.
+Their local image IDs were respectively
+`sha256:2e182ed2ff8f5d0835353864264437a26dffc542a9a6c677ec495aa54e491627`
+and `sha256:2011a203e1a75bf71d51093b577dc1242bb56b94ddfee05d22f2486465a4fbe6`.
+The services reported PostgreSQL `18.6 (Debian 18.6-1.pgdg12+2)` and Neo4j
+Kernel `2026.08.1`. The effective Go version inside the module was
+`go1.26.10 linux/amd64`; the launcher outside the module was
+`go1.26.2 linux/amd64`.
+
+The run used:
+
+```bash
+go test ./cmd/projector \
+  -run '^(TestDeltaUnionProjectsFullTreeFromEmptyLive|TestDeltaUnionBaseMissingRefusesWithoutPartialLive)$' \
+  -json -race -count=1 -p 4 -timeout 8m
+```
+
+Each root had exactly one run and one pass, with no skip, fail, or unexpected
+test. The Go command and strict event verifier both exited 0. The JSON event stream SHA-256 is
+`1e52018dc0cf4691f2f85867f14132d577d3a69c4c3846a8df073df83ea8c756`.
+The package reported 9.626 seconds; the Go process took 83.219247568 seconds
+including compilation, and the whole local proof took 96.590880451 seconds.
+These are different timing boundaries, and no speed comparison is claimed.
+Both owned service containers were removed with exit 0.
+
+The receipt and event stream are at
+`/tmp/eshu-7533-drive/8785-current-local/receipt.json` and `events.jsonl` on
+the proof host. This run proves the two Go roots against the runtime at the
+tested commit and pinned local services. A later rebase onto
+`34922d077381bbef2b44cb70f518c12bd3f8b24a` added upstream changes;
+the fresh combined-tree replay below supersedes that local-proof gap. The older
+`/tmp/eshu-7533-drive/8785-local/manifest.txt` run is historical after an
+earlier runtime-base change. Hosted PR and scheduled delivery, plus deployed
+QA, are NOT_CHECKED. Keep #8785 open for that evidence.
+
+
+## Local replay before the runtime merge wave
+
+At `a4698cd87ed66d0e7e174ae041f21832f05d0bfe`, based on main
+`34922d077381bbef2b44cb70f518c12bd3f8b24a`, the same two roots passed
+with Go 1.26.10 and race detection on fresh instances of the pinned backends
+above. Each root ran and passed once, with zero skips or failures; the strict
+event verifier exited 0. Both owned containers were removed. The test source
+and current workflow hashes match the receipt.
+
+The Go process took 30.588538 seconds and the complete local run took
+44.251013 seconds. These are observed boundaries on this host, not a speed
+comparison. The local command retained its eight-minute test bound; the
+workflow uses twelve minutes. The compact receipt is
+`8785-latest-local-proof-summary.json`; raw events and the complete receipt
+are in `/tmp/eshu-7533-drive/8785-latest-local/`. This replay establishes
+local acceptance on the latest base. Hosted delivery and deployed QA remain
+NOT_CHECKED, so #8785 stays open.
+
+
+## Post-merge local acceptance
+
+Main's supply-index, publishes-projection, and parser-admission changes were
+integrated before a fresh replay at
+`59258b81216035ce4badf50df553c1fdd9a4e0ea`, based on
+`4d78b8327311c56baa2fe54c9b59b56ba6d6935f`. Both exact roots ran and passed
+once with race detection, with zero skips, failures, or unexpected roots.
+The existing strict event verifier exited 0. The same pinned PostgreSQL 18.6
+Bookworm and Neo4j 2026.08.1 images were used, and both owned containers
+were removed with exit 0. The source and event hashes were independently
+rechecked after the run.
+
+The observed Go-process wall was 24.32 seconds, and the complete fixture run
+was 37.97 seconds. These are functional observations, not a speed comparison
+with earlier bases. `8785-latest-local-proof-summary.json` records this
+checkpoint; its complete raw receipt and events are retained under
+`/tmp/eshu-7533-drive/8785-postmerge-local/`. The earlier runs remain
+historical evidence. Hosted delivery and deployed QA remain NOT_CHECKED.
+
+
+## Combined delivery and queue image
+
+PR #8937 combines this enrollment with #8927’s IaC readiness mapping. The delta workflow now uses the existing GHCR Neo4j mirror with the same immutable digest. The original Docker Hub reference failed the queue-path image gate; the existing verifier is the regression check. Image contents and projector test sources are unchanged, so the recorded backend replays remain historical source-bound evidence. Current combined-head hosted execution and deployed QA remain NOT_CHECKED.

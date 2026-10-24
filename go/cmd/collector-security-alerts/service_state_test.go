@@ -17,6 +17,11 @@ import (
 
 // orgStateGetenv configures one org target.
 func orgStateGetenv() func(string) string {
+	return orgStateGetenvAllowing(`"example-org/example-repo"`)
+}
+
+// orgStateGetenvAllowing is orgStateGetenv with the given JSON allowlist.
+func orgStateGetenvAllowing(allowedJSON string) func(string) string {
 	return func(key string) string {
 		switch key {
 		case envCollectorInstances:
@@ -33,7 +38,7 @@ func orgStateGetenv() func(string) string {
 						"scope_id": "security-alert:github-org:example-org",
 						"organization": "example-org",
 						"token_env": "GITHUB_TOKEN",
-						"allowed_repositories": ["example-org/example-repo"],
+						"allowed_repositories": [` + allowedJSON + `],
 						"max_pages": 1
 					}]
 				}

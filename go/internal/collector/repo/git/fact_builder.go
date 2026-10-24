@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/docs"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/observability"
+	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/collector/repo/git/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/service/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/submodule"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/tfstate"
@@ -234,16 +235,12 @@ func streamFacts(
 	// Content file facts — two-phase re-read path or legacy path.
 	gitDocumentationSourceEmitted := false
 	documentationPaths := docs.DocumentationMetaRelativePaths(snapshot.DocumentationFileMetas)
-	// gitmodulesCandidates accumulates the .gitmodules body if present across
-	// both content branches; there is exactly one recognized location (see
-	// submodule.IsGitmodulesPath), so emission happens once after both
-	// branches close (see noteSubmoduleCandidate).
+	// Candidate bodies accumulate across both content branches and emit once
+	// after both close: .gitmodules (one recognized location, see
+	// submodule.IsGitmodulesPath), CODEOWNERS (GitHub honors one file per
+	// repo) and the version-pin files at any depth, each independent.
 	var tally contentStoreTally // content-store policy outcomes (#8812)
-	gitmodulesCandidates := map[string]string{}
-	// codeownersCandidates accumulates recognized CODEOWNERS bodies across both
-	// content branches; GitHub honors one file per repo, so emission happens
-	// once after both branches close (see noteCodeownersCandidate).
-	codeownersCandidates := map[string]string{}
+	gitmodulesCandidates, codeownersCandidates, runtimeDeclarationCandidates := map[string]string{}, map[string]string{}, map[string]runtimedeclaration.Candidate{}
 	if len(snapshot.ContentFileMetas) > 0 {
 		for i, meta := range snapshot.ContentFileMetas {
 			body, err := streamContentBodyReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads indexed repo content file at a path derived from the scan target, not user-supplied input
@@ -263,6 +260,7 @@ func streamFacts(
 			bodyStr := string(body)
 			submodule.NoteSubmoduleCandidate(gitmodulesCandidates, meta.RelativePath, bodyStr)
 			codeowners.NoteCodeownersCandidate(codeownersCandidates, meta.RelativePath, bodyStr)
+			runtimedeclaration.NoteRuntimeDeclarationCandidate(runtimeDeclarationCandidates, meta.RelativePath, bodyStr)
 
 			w.Send(gitcontent.ContentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, model.ContentFileSnapshot{
 				RelativePath:    meta.RelativePath,
@@ -309,6 +307,7 @@ func streamFacts(
 			fileSnapshot.Body = tally.storedBody(snapshot.ContentStores, fileSnapshot.RelativePath, fileSnapshot.Body)
 			submodule.NoteSubmoduleCandidate(gitmodulesCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
 			codeowners.NoteCodeownersCandidate(codeownersCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
+			runtimedeclaration.NoteRuntimeDeclarationCandidate(runtimeDeclarationCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
 			w.Send(gitcontent.ContentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileSnapshot))
 			catalog.EmitServiceCatalogFactsForContentFile(w,
 				scopeID,
@@ -378,6 +377,7 @@ func streamFacts(
 	}
 	submodule.EmitSubmoduleFactsForCandidates(ctx, w, repo.ID, gitTreePath, snapshot.HeadCommitSHA, scopeID, generationID, observedAt, gitmodulesCandidates)
 	codeowners.EmitCodeownersFactsForCandidates(w, repo.ID, scopeID, generationID, observedAt, codeownersCandidates)
+	runtimedeclaration.EmitRuntimeDeclarationFactsForCandidates(w, repo.ID, scopeID, generationID, observedAt, runtimeDeclarationCandidates, pinSkipRecorder(ctx, repo.ID, scopeID, generationID))
 	for i, meta := range snapshot.DocumentationFileMetas {
 		body, ok, readErr := docs.ReadDocumentationBodyWithError(repoPath, meta.RelativePath, nil)
 		if !ok {
