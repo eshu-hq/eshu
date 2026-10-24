@@ -154,3 +154,34 @@ func TestSecurityAlertReconciliationRegistrationCarriesTheManifestConsumptionSea
 		t.Fatalf("decision DependencyEvidenceID = %q, want manifest-derived %q", got, want)
 	}
 }
+
+// TestSecurityAlertReconciliationRegistrationCarriesTheImpactProducerReadinessSeam
+// guards the #8827 wire on the reducer-root side: the registered handler must
+// carry the readiness port the handlers bundle was given, because a nil port
+// disables the fence without failing any logic test.
+func TestSecurityAlertReconciliationRegistrationCarriesTheImpactProducerReadinessSeam(t *testing.T) {
+	t.Parallel()
+
+	readiness := &stubImpactProducerReadiness{}
+	definitions := appendSupplyChainCorrelationAdditiveDomains(nil, DefaultHandlers{
+		FactLoader: &recordingSecurityAlertReconciliationFactLoader{},
+		SupplyChainSecurityHandlers: SupplyChainSecurityHandlers{
+			SecurityAlertReconciliationWriter:    &recordingSecurityAlertReconciliationWriter{},
+			SecurityAlertImpactProducerReadiness: readiness,
+		},
+	})
+	for _, definition := range definitions {
+		if definition.Domain != DomainSecurityAlertReconciliation {
+			continue
+		}
+		handler, ok := definition.Handler.(securityalert.SecurityAlertReconciliationHandler)
+		if !ok {
+			t.Fatalf("handler for %s = %T, want securityalert.SecurityAlertReconciliationHandler", definition.Domain, definition.Handler)
+		}
+		if handler.ImpactProducerReadiness != securityalert.ImpactProducerReadiness(readiness) {
+			t.Fatal("ImpactProducerReadiness is not the bundle's port: the #8827 impact fence would ship inert")
+		}
+		return
+	}
+	t.Fatalf("no %s registration found", DomainSecurityAlertReconciliation)
+}

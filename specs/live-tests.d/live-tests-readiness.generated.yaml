@@ -1054,6 +1054,16 @@ tests:
     class: postgres_ci
     reason: "#7597 own gate bounded by its deployment_mapping producer through the real ReducerQueue claim/Fail SQL and the production Postgres lookups: a dead-lettered producer dead-letters the deployable-unit and workload consumers within MaxAttempts in the counting producer-terminal class, a producer retrying on backward evidence keeps them non-counting with attempt_count frozen; isolated schema per subtest, about 6 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_security_alert_impact_wait_concurrent_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8827 disposable PostgreSQL 18 contention proof that six workers on independent connections draining twelve scopes that each hold a pending reconciliation (the older row) and a pending supply_chain_impact row never run the two domains of one scope at once, defer every reconciliation that runs first without spending an attempt, and finish with every reconciliation matched at attempt_count 1 and every producer succeeded; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 4s on postgres:18; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_security_alert_impact_wait_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8827 disposable PostgreSQL 18 proof, on the real ReducerQueue claim/fail/ack SQL, the real readiness/producer.ImpactStore, and the real SecurityAlertReconciliationHandler, that a reconciliation waiting on its own scope generation's supply_chain_impact work keeps attempt_count frozen at 1 through more cycles than MaxAttempts and past the handler's own cap, is fenced while the producer is claimed, matches once the producer acks, and that without the fence or after the producer dead-letters it still gives up visibly after three counting attempts; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 3s on postgres:18; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_bound_live_test.go
     tag: ~
     class: postgres_ci
@@ -1158,6 +1168,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8231 disposable PostgreSQL 18 proof of the superseded-generation search index sweep: only a superseded generation with a live active pointer elsewhere loses rows while the active generation's rows and its active-generation reader view stay byte-identical, and generations with running work, a NULL active pointer, a missing generation row, or the active pointer itself lose nothing; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema per test. local run passed both tests in 6.5s wall on PostgreSQL 18 (container postgres:18) on 2026-10-18; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/security_alert_impact_producer_store_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8827 disposable PostgreSQL 18 proof that readiness/producer.ImpactStore counts only the requested scope generation's supply_chain_impact rows (other generations, other scopes, and sibling domains never count), reports the last-workable anchor over in-flight rows only, and that its plan reaches fact_work_items through fact_work_items_scope_generation_idx with no sequential scan on a 350,000-row backlog; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 6s on postgres:18; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/service_catalog_runtime_producer_store_live_test.go
     tag: ~
