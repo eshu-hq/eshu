@@ -41,35 +41,49 @@ in the same shape the Gradle and Maven parsers use, with `package_manager`
 `org.typelevel:cats-core_2.13`) when the file holds exactly one literal
 `scalaVersion`.
 
-The scope comes from `% Test`, `% "it,test"` (a list split on `,` and `;`), a
-trailing `% Test` after a parenthesised coordinate or leading the next line,
-or `Seq(...).map(_ % Test)`. Without one the scope is `compile`. When a
-coordinate has several `% config` operands the last wins, as in sbt. A list resolves to `compile` when any part is
-`compile`, to `runtime` when it has `runtime` and no `compile` (a runtime
-dependency is also on the test classpath), to `provided` for `provided` with
-`test`, and otherwise to the one scope its parts share. A scope the parser
-cannot map leaves the row `partial` and is counted in
-`sbt_state.unresolved_declaration_count`; it is never a resolved `compile`. That
-covers a custom `Config`, a variable, a lambda or other body over the
-collection, the compiler-tool configurations `plugin`, `scala-tool` and
-`scala-doc-tool`, `runtime` with `provided`, an empty configuration (`% ""`), a
-configuration string over 256 bytes, and any tail the parser does not know. After
-a coordinate only `% config` and the ModuleID methods that cannot change the
-configuration (`exclude`, `excludeAll`, `classifier`, `artifacts`, `from`,
-`intransitive`, `notTransitive`, `withSources`, `withJavadoc`, `cross`,
-`withCrossVersion`, `force`, `changing`) keep the scope readable;
-`withConfigurations`, `configure`, a user extension method, or an unknown
-operator make it undetermined. A key under a `Test /` or `Compile /` axis, a
-`libraryDependencies in Test` form, or an `inConfig(...)` wrapper is also
-undetermined, because sbt resolves from the project-level key: only plain,
-`ThisBuild /`, `Global /` and declared-project (`core /`) keys are read as
-`compile`.
+A row is `resolved` only when its whole statement matches a closed grammar
+(the full EBNF is in `go/internal/parser/sbt/README.md`): a bare
+`libraryDependencies` key at the top level of the file or as an argument of a
+project's `.settings(...)`, then `+=` with one element or `++=`/`:=` with a
+`Seq(...)`, `List(...)` or `Vector(...)` of elements. An element is
+`"org" %% "name" % "1.0"` (or `%`, `%%%`; the revision may be a top-level string
+`val`), at most one `% config`, and infix calls from a short allowlist of
+ModuleID methods that change neither coordinates nor configurations.
+
+| Form | Row |
+|---|---|
+| `libraryDependencies += "a" %% "b" % "1" % Test` | `test`, resolved |
+| `++= Seq("a" % "b" % "1", "c" % "d" % "2" % "provided")` | `compile` and `provided`, resolved |
+| `% "it,test"`, `% Runtime`, `% Optional` | `test`, `runtime`, `compile` (optional), resolved |
+| infix `exclude("o", "n")`, `excludeAll(...)`, `classifier "c"`, `intransitive()`, `withSources()`, `withJavadoc()`, `cross CrossVersion.full`, `force()`, `changing()` | scope unchanged, resolved |
+| `lazy val core = project.settings(libraryDependencies += ...)` | resolved |
+| a non-literal revision (`Versions.cats`, `s"${v}"`) | `unresolved`; siblings stay resolved |
+| `Test /`, `ThisBuild /`, `Global /`, `core /`, `in Test`, `.in(Test)` | partial |
+| `inConfig(...)`, `inThisBuild(...)`, any `in<Name>(...)`, a brace block, a settings `val` | partial |
+| `.map(_ % Test)`, `.flatMap`, `.distinct`, `.filterNot`, `++ Seq(...)`, a lambda | partial |
+| `("a" % "b" % "1") % Test`, a dotted call, `withConfigurations`, `withRevision`, `withName`, an unknown call | partial |
+| a repeated `% config`, `% ""`, `% Custom`, `% "e2e"`, a compiler-tool configuration | partial |
+| `% Test` leading the next line in the bare file | partial (inside `(` it is read) |
+
+A partial row keeps the coordinates read literally, carries a placeholder
+`compile` scope, and is counted in `sbt_state.unresolved_declaration_count`; it
+is never a resolved `compile`. sbt accepts one configuration per module: `%`
+requires a module with no configuration yet, and `% ""` fails sbt's non-empty
+check, so a repeated or empty configuration is a load error, not a replacement.
+A list resolves to `compile` when any part is `compile`, to `runtime` when it
+has `runtime` and no `compile` (a runtime dependency is also on the test
+classpath), to `provided` for `provided` with `test`, and otherwise to the one
+scope its parts share. `:=`, `~=`, `-=` and `--=` supersede the earlier rows of
+the same project (a bare-file one supersedes every project row, and one in a
+settings `val` or wrapper supersedes every row), which become partial.
 
 sbt build files are Scala, so the parser never evaluates them. Versions held in
-top-level string vals resolve in the same file. Variables, `.value` settings,
-interpolated strings, helper objects, and conditional or block-bodied
-collections are reported as `unresolved` or counted in
-`sbt_state.unresolved_declaration_count`. `project/*.sbt`, `plugins.sbt`, and
+top-level string vals resolve in the same file; a val whose literal continues
+on the next line (`.concat(...)`, `+ "x"`) does not. Ivy dynamic revisions and
+ranges (`1.+`, `latest.release`, `[1.0,2.0)`, `]1.0,2.0]`) are partial.
+Variables, `.value` settings, interpolated strings, helper objects, and
+conditional or block-bodied collections are reported as `unresolved` or as
+partial rows counted in `sbt_state.unresolved_declaration_count`. `project/*.sbt`, `plugins.sbt`, and
 `Build.scala` are not read. Package-registry correlation for sbt rows is not
 wired yet: `sbt` is not a recognised package-manager alias, so these rows do not
 join registry identities until [#8961](https://github.com/eshu-hq/eshu/issues/8961)
@@ -80,10 +94,15 @@ Known limits of the sbt reading:
 
 - `sbt_binary_artifact` is a file-wide hint, not sbt's resolved value. A single
   literal `scalaVersion` inside one project's settings also drives the `%%`
-  rows of every other project in the file, `crossScalaVersions` is ignored, and
-  a suffixed version such as `2.13.0-M5` gets no hint.
+  rows of every other project in the file, `crossScalaVersions` is ignored, a
+  suffixed version such as `2.13.0-M5` gets no hint, and a Scala before 2.10
+  gets no hint because sbt cross-built those with the full version.
 - A `val` declared inside a block that shares a name with a top-level `val`
   resolves to the top-level value.
+- A settings value from outside the file (`.settings(Common.settings)`) applied
+  after a row can supersede it unseen.
+- `ThisBuild /` and `Global /` keys are partial even where sbt delegation
+  would read them, because the grammar keeps only the forms it can prove.
 
 ## Known Limitations
 - Implicit conversions and given/using clauses (Scala 3) are not separately tracked

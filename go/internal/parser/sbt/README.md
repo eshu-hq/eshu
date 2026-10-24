@@ -32,9 +32,11 @@ The payload follows `shared.BasePayload(path, "sbt", isDependency)`. The
 - `config_kind`: always `dependency`; `package_manager` and `lang`: `sbt`.
 - `dependency_scope`: `compile`, `test`, `provided`, or `runtime`, mapped as
   described under "Scope mapping". The raw spelling stays in
-  `sbt_configuration`.
-- `dependency_resolution_state`: `resolved`, `partial`, or `unresolved`, with
-  `dependency_unresolved_keys` when unresolved.
+  `sbt_configuration`. On a `partial` row the scope is a placeholder.
+- `dependency_resolution_state`: `resolved` only for a statement that matches
+  the grammar below, else `partial`; `unresolved` for a non-literal revision,
+  with `dependency_unresolved_keys`. An Ivy dynamic revision (`1.+`,
+  `latest.release`, any range such as `[1.0,2.0)` or `]1.0,2.0]`) is `partial`.
 - `direct_dependency`: `true`; `dependency_path_kind`: `manifest`;
   `dependency_optional`: `true` for an `Optional` configuration.
 - `sbt_cross_version`: `none` (`%`), `binary` (`%%`), `scalajs` (`%%%`), or
@@ -48,57 +50,96 @@ literal, else the first literal, else empty), `scala_version_count`,
 `dependency_count`, `dependency_overflow_count`, and
 `unresolved_declaration_count`.
 
-## Scope mapping
+## Grammar
 
-The scope comes from an explicit `% config` operand, which may sit after the
-coordinate (`"a" % "b" % "1" % Test`), on the next line as a leading infix
-(`"a" % "b" % "1"` then `  % Test`, valid in sbt 2 and Scala 3), after a
-parenthesised coordinate (`("a" %% "b" % "1").cross(...) % Test`), or on a
-collection (`Seq(...).map(_ % Test)`, `Seq(...) map (_ % "test")`). Without one
-the scope is `compile`.
+A row is `resolved` only when its whole statement matches this closed grammar
+token for token. Comments and whitespace are free; a line break may sit
+anywhere inside `(` and `[`, and after an operator token (`+=`, `%`) in the bare
+file.
 
-### Default is undetermined
+```ebnf
+statement   = key ( "+=" element | ( "++=" | ":=" ) collection ) end ;
+key         = "libraryDependencies" ;            (* bare: no axis, no in/.in *)
+collection  = ( "Seq" | "List" | "Vector" ) "(" [ element { "," element } [ "," ] ] ")" ;
+element     = string coordOp string "%" version [ "%" config ] { call } ;
+coordOp     = "%" | "%%" | "%%%" ;
+version     = string | interpolated | ident { "." ident } ;
+config      = string | "Compile" | "Test" | "Runtime" | "Provided"
+            | "Optional" | "IntegrationTest" ;
+call        = flag "(" ")" | "exclude" "(" string "," string ")"
+            | "excludeAll" group | "classifier" ( string | "(" string ")" )
+            | "cross" ( group | ident { "." ident } [ group ] ) ;
+flag        = "intransitive" | "withSources" | "withJavadoc" | "force" | "changing" ;
+end         = EOF | ";" | newline-before-statement   (* bare file *)
+            | "," | ")" ;                             (* settings argument *)
+```
 
-After a coordinate the scanner reads the tail with an allowlist, not a denylist.
-Only these keep the scope readable:
+`string` is a plain literal with no escapes; organization and name are at most
+`MaxFieldBytes` and hold no space or `:`; the revision is not empty. `group` is
+a balanced `(...)`. A statement is in a grammar context only in two places:
 
-| Tail | Why it is safe |
+- **The bare file.** The key starts a top-level statement: it is the first
+  token, follows `;`, or starts a line after a token that can end a statement
+  (not an operator, an opener, a keyword such as `else` or `then`, or the closed
+  condition of an `if`, `while` or `for`). Rows belong to the root project.
+- **A project's settings.** The key is the first token of an argument of a
+  `.settings(` call, at depth zero of a `val x = project...` statement whose
+  initializer starts with `project`, `(project ...)`, `Project(...)`,
+  `crossProject(...)` or `projectMatrix`, with any `.in(...)`, `.dependsOn(...)`
+  style calls between. Rows belong to that project.
+
+`+=` takes one element and `++=` and `:=` take a collection, as sbt's `Append`
+instances type them.
+
+### Fail-closed fallback
+
+Anything that does not match is never resolved. Every literal coordinate
+(`"org" op "name" % revision`) found in the statement is emitted with
+`dependency_resolution_state` `partial`, `dependency_scope` `compile` as a
+placeholder, and its literal fields as read, and it is counted in
+`sbt_state.unresolved_declaration_count`. A statement with no coordinate is
+counted once. The fallback reads to the end of the statement (a `,`, `;` or
+closer outside its own groups, or a line break that ends the expression) and
+then hands back to the main loop, so a following statement is read normally.
+
+| Accepted (resolved, exact scope) | Partial (fallback) |
 |---|---|
-| `% config` | the configuration operand; the last one wins |
-| `exclude`, `excludeAll` | add exclusion rules |
-| `classifier`, `artifacts`, `from` | add or locate artifacts |
-| `intransitive`, `notTransitive` | set the transitive flag |
-| `withSources`, `withJavadoc` | add sources and javadoc artifacts |
-| `cross`, `withCrossVersion` | set the cross-version rule (`sbt_cross_version` is `custom`) |
-| `force`, `changing` | set the force and changing flags |
+| `libraryDependencies += "a" %% "b" % "1"` | any axis: `Test /`, `ThisBuild /`, `Global /`, `core /`, `in Test`, `.in(Test)` |
+| `... % Test`, `% "test"`, `% "it,test"`, `% Provided`, `% Optional` | `inConfig(...)`, `inTask`, `inScope`, `inThisBuild`, any `in<Name>(...)` |
+| `++= Seq(` / `List(` / `Vector(` elements, trailing comma | a brace block, a closure, a `val`/`def` body, an `if` body |
+| `:= Seq(...)` | `.settings { ... }`, `.settings({ ... })`, `.jvmSettings(...)`, a settings `Seq` |
+| `% Test` or a call on the next line inside `(` | `% Test` leading the next line in the bare file (Scala 3 leading infix) |
+| infix `exclude("o", "n")`, `excludeAll(...)`, `classifier "c"` | any dotted call, `("a" % "b" % "1") % Test`, a tuple |
+| `intransitive()`, `withSources()`, `withJavadoc()`, `force()`, `changing()` | `withConfigurations`, `withRevision`, `withName`, `configure`, `from`, `artifacts`, `notTransitive`, `withCrossVersion`, an extension method, an unknown operator |
+| `cross CrossVersion.full`, `cross(...)` | a repeated `% config`, a config identifier off the list (`% Custom`, `% testConfig`) |
+| `lazy val core = project.settings(libraryDependencies += ...)` | `.map`, `.flatMap`, `.distinct`, `.filter`, `.filterNot`, `.toSeq`, `++ Seq(...)`, a lambda, `Seq[ModuleID](`, `Set(` |
 
-These are the ModuleID methods that change something other than the module's
-configurations. Any other identifier, call, operator, literal, or bare group in
-the tail leaves the scope undetermined: `withConfigurations`, `configure`, an
-unknown `%?` operator, a user-defined extension method, a line that starts with
-an infix operator other than `%`, a `(a, b)` tuple. The row is `partial` and
-counted, never a resolved `compile`. The same rule applies to a `.map(...)`
-body: it must be `_` followed by the shapes above (`_ % Test`,
-`_.withSources()`). A lambda (`d => d.withSources()`), a block, or an unknown
-call in the body is undetermined. After a collection only `toSeq`, `toList`,
-`toVector`, `toSet`, `toArray`, `distinct`, `filter`, `filterNot`, and `map` keep
-the scope; a `flatMap`, `collect`, `zip`, or fold does not.
+A configuration string the scope table cannot map (`% "e2e"`, `% ""`, `% ","`,
+`% "plugin->default(compile)"`, over `MaxConfigBytes`) matches the grammar but
+leaves that row `partial` with an unknown scope. A non-literal revision
+(`Versions.cats`, `s"${v}"`, an unknown identifier) matches the grammar too:
+that row is `unresolved` and its siblings stay resolved, because a String-typed
+revision cannot change a configuration. A revision identifier followed by a
+call or a `.` on the next line (`v("x")`, `v\n  .trim`) does not match.
 
-### Where the key is declared
+### Assignments that supersede rows
 
-A plain `libraryDependencies`, `ThisBuild /`, `Global /`, `ThisProject /`,
-`libraryDependencies in ThisBuild`, `inThisBuild(...)`, and `core /` for a
-`core` the file declares as a project (`lazy val core = project`,
-`(project in file(...))`, `crossProject(...)`) are the project-level key and
-read as `compile` unless an operand says otherwise. Every other form is
-undetermined, and an explicit `% Test` does not rescue it: `Test /`, `Compile /`,
-`IntegrationTest /`, a custom configuration, a task axis, `libraryDependencies in
-Test`, `libraryDependencies.in(Test)`, and anything inside `inConfig(...)`,
-`inTask(...)`, `inScope(...)` or another `in<Name>(...)(...)` wrapper. sbt
-resolves `update` from the project-level key, so a configuration-scoped key is
-not evidence of a test dependency, and the scanner no longer reports one. A
-project referenced before its `lazy val` is also undetermined: the scan is one
-pass.
+`:=` replaces the key and `~=`, `-=` and `--=` transform or remove what came
+before, so they supersede earlier rows of the same context: those rows are
+`partial` and counted. A reset in the bare file applies to the root project,
+which may be any project the file declares, so it supersedes every project row
+wherever it appears. A reset outside a grammar context (in a settings `val`, a
+wrapper, a block, or under an axis) may be applied anywhere, so it supersedes
+every row in the file. The operands of `--=` and `-=` are not dependencies and
+emit no rows.
+
+### Scope mapping
+
+The scope comes from the element's single `% config`; without one it is
+`compile`. sbt allows one configuration per module: `% config` requires a
+module whose configurations are empty (`DependencyBuilders.moduleIDConfigurable`
+in sbt librarymanagement), and `% ""` fails its non-empty check, so a second
+`% config` or an empty one is a load error, not a replacement.
 
 A configuration is a list split on `,` and `;`, and each part is judged by the
 left side of a `->` mapping. `test`, `it`, `integrationtest`, and
@@ -120,42 +161,22 @@ scopes, so they are undetermined, the same way Gradle gives `annotationProcessor
 and `kapt` their own scope instead of folding them into `compile`. `addCompilerPlugin`
 expands to `"plugin->default(compile)"` and is therefore undetermined.
 
-When a coordinate carries more than one `% config`, the last one wins, as in
-sbt, where each `moduleID % config` replaces the configuration. Chained
-`.map(_ % A).map(_ % B)` calls resolve the same way, as one replayed effect.
-
-An empty configuration (`% ""`) or one made only of separators (`% ","`) names
-no configuration and is undetermined, because sbt gives it no documented
-meaning and the default `compile` would be a guess. The empty `.map(_ % "")` is
-the same.
-
-A scope the scanner cannot read is never a resolved `compile`. A custom
-`Config` value, a variable such as `% testConfig`, an unrecognised string, a
-configuration string over `MaxConfigBytes` (256), a
-`.map(dep => dep % Test)` lambda, an unknown tail, or a scoped key keeps
-`dependency_scope` `compile` as a placeholder, sets the row's
-`dependency_resolution_state` to `partial`, and adds the row to
-`sbt_state.unresolved_declaration_count`.
-
 ## Bounds
 
 One forward pass, no recursion, one token of pushback: work and allocation are
 linear in the input for a 100 KB single line, 200k nested parentheses, 100k
-dependency lines, a 10 MB configuration list, or a 100 KB configuration applied
-with `.map(_ % "...")` to 1,000 dependencies. A configuration is resolved once
-per `% config` or per collection `.map`, never per dependency, and the result
-(scope, optional flag, canonical text) is copied by value to each dependency.
-`.map` calls after one collection are replayed into one effect and written to
-its dependencies once, however many calls are chained. `dependency_scope` is
-undetermined for a configuration string over `MaxConfigBytes` (256): it is not
-split or stored, the row is `partial`, and `sbt_configuration` and `section`
-carry `(overlong)` instead. Real configurations are a few bytes and the longest
+dependency lines, a 10 MB configuration list, 200,000 repeated `% "test"`
+operands, or 20,000 chained `.map` calls over 5,000 dependencies. The fallback
+reads each token once and keeps only the coordinate prefix it is matching. A
+configuration is resolved once per `% config`, and a string over
+`MaxConfigBytes` (256) is not split or stored: the row is `partial`, and
+`sbt_configuration` and `section` carry `(overlong)` instead. Superseding
+assignments are applied in one pass at the end of the file. The lexer keeps one
+byte per open bracket to know whether a line break sits inside `(`. Real configurations are a few bytes and the longest
 common mapping is under 50. Rows cap at `MaxDependencyRows` (10,000); the excess is counted, not
 stored. A coordinate field over `MaxFieldBytes` (512) is not a coordinate, and
 an identifier chain over that length (a version reference or a configuration)
-is consumed without being buffered: a version chain is counted as unresolved
-and a configuration chain is recorded as `(overlong)` with an undetermined
-scope, the same as an overlong configuration string. At most 1,024 top-level string vals and 64 distinct Scala versions are
+is consumed without being buffered and is not a coordinate. At most 1,024 top-level string vals and 64 distinct Scala versions are
 tracked. A leading UTF-8 byte order mark is ignored.
 
 ## What this parser never does
@@ -163,14 +184,11 @@ tracked. A leading UTF-8 byte order mark is ignored.
 - Evaluate Scala, run sbt, or read `project/*.sbt`, `plugins.sbt`,
   `Build.scala`, `Dependencies.scala`, or any sibling file.
 - Resolve `.value` settings, interpolated strings, helper objects, or
-  conditional (`if`) and block-bodied collections. These are counted in
-  `unresolved_declaration_count`.
+  conditional (`if`) and block-bodied collections. Their literal coordinates
+  are partial and counted in `unresolved_declaration_count`.
 - Resolve a version through a `val` declared inside a block or after the
   reference's own statement is parsed; only top-level literal vals resolve, at
   the end of the file, so declaration order does not matter.
-- Read a second `Seq(...)` joined by `++` as anything but another literal
-  collection: a non-literal operand is counted in
-  `unresolved_declaration_count`.
 - Emit a row for `addSbtPlugin`, `dependsOn`, resolvers, or `crossScalaVersions`.
 
 ## Known limits
@@ -179,11 +197,21 @@ tracked. A leading UTF-8 byte order mark is ignored.
   `scalaVersion`, not sbt's resolved value. It is a file-wide guess: a literal
   inside one project's settings also applies to the `%%` rows of every other
   project in the file; `crossScalaVersions` is ignored, so a cross-built
-  project gets one suffix; and a suffixed version (`2.13.0-M5`, `3.0.0-RC1`,
+  project gets one suffix; a suffixed version (`2.13.0-M5`, `3.0.0-RC1`,
   `2.13.12-bin-typelevel-4`) gets no hint, because sbt does not always shorten
-  it to the x.y form.
+  it to the x.y form; and a Scala before 2.10 gets no hint, because sbt
+  cross-built those with the full version (`_2.9.2`).
 - A `val` declared inside a block is not tracked. When it shares a name with a
   top-level `val`, a reference inside that block resolves to the top-level
-  value, not the block-local one.
+  value, not the block-local one. A top-level `val` whose literal continues on
+  the next line (`"1"` then `.concat("-M1")` or `+ "-M1"`) is not a literal.
+- A settings value defined outside the file (`.settings(Common.settings)` from
+  `project/*.scala`) and applied after a row can supersede it; the scanner
+  cannot see it. A reset defined in the file, anywhere, is seen.
+- A bare-file reset makes every project row partial, even a project that is
+  not the root, because the scanner does not decide which project is the root.
+- `ThisBuild /` and `Global /` keys and a declared-project axis (`core /`) are
+  partial. sbt can read them through delegation, but the grammar keeps only the
+  forms it can prove.
 - Sbt rows do not yet join a registry package identity (#8961) and keep the
   line-keyed entity id (#8962).

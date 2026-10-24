@@ -299,7 +299,7 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			CapturesScope:           true,
 			CapturesDevRuntimeSplit: true,
 			SourceReference:         "go/internal/parser/sbt/parser.go",
-			Notes:                   "Literal libraryDependencies += / ++= / := coordinates (% and %% and %%% forms, optional configuration such as Test) emit content_entity rows with organization:name identity; versions held in top-level string vals resolve in-file, while other non-literal forms (variables, .value settings, interpolation, conditional blocks) stay unresolved or are counted in sbt_state.unresolved_declaration_count. sbt is a Scala DSL: the parser never evaluates it, and project/*.sbt, plugins.sbt and Build.scala are not read.",
+			Notes:                   "Literal libraryDependencies += / ++= / := coordinates (% and %% and %%% forms) emit content_entity rows with organization:name identity. Scope and the dev/runtime split are captured only for statements that match the closed grammar in go/internal/parser/sbt/README.md (a bare key at the file top level or in a project's .settings(...), one % config such as Test, allowlisted infix ModuleID calls); every other form (an axis, inConfig, a brace block, .map, ++, a dotted or parenthesised call, a repeated or empty configuration) emits partial rows with a placeholder scope, counted in sbt_state.unresolved_declaration_count. Versions held in top-level string vals resolve in-file; other non-literal revisions stay unresolved. sbt is a Scala DSL: the parser never evaluates it, and project/*.sbt, plugins.sbt and Build.scala are not read.",
 		},
 		{
 			Ecosystem:               "nuget",

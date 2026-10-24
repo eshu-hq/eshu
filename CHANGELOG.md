@@ -190,19 +190,20 @@ recent shipped work grouped by feature area.
   `scalaVersion`, and emits them as the same dependency rows Gradle and Maven
   use, with `package_manager` `sbt`. Non-literal forms are reported as
   `unresolved` or counted in `sbt_state.unresolved_declaration_count`; sbt is
-  never evaluated. Test-only dependencies keep their scope through
-  `% Test` after a parenthesised coordinate or leading the next line,
-  `% "it,test"` lists, and `Seq(...).map(_ % Test)`. The default after a
-  coordinate is undetermined: only `% config` and a small allowlist of
-  ModuleID methods that cannot change the configuration (`exclude`,
-  `classifier`, `intransitive`, `withSources`, `cross`, and the like) keep the
-  scope, so `withConfigurations`, `configure`, an unknown operator or
-  extension, a `.map` body that is not `_ % config`, an empty configuration,
-  and a key under a `Test /` axis or `inConfig(...)` are `partial` and
-  counted, never a resolved `compile`. A runtime-plus-test list is `runtime`, the last
-  of several `% config` operands wins, compiler-tool configurations are
-  undetermined, and a configuration string over 256 bytes is never split or
-  stored. Package-registry correlation for sbt rows
+  never evaluated. A row is `resolved` only when its whole statement matches a
+  closed grammar: a bare key at the file top level or in a project's
+  `.settings(...)`, `+=` with one element or `++=`/`:=` with a `Seq`, `List` or
+  `Vector`, at most one `% config` (`Test`, `"it,test"`, `Provided`), and
+  allowlisted infix ModuleID calls (`exclude`, `classifier`, `intransitive`,
+  `withSources`, `cross`, and the like). Every other statement falls back:
+  its literal coordinates are emitted `partial` and counted, never a resolved
+  `compile`. That covers any axis (`Test /`, `ThisBuild /`), `inConfig(...)`, a
+  brace block, `.map(_ % Test)`, `++`, a parenthesised or dotted call,
+  `withConfigurations`, `withRevision`, a repeated `% config` (a load error in
+  sbt, not a replacement) and an empty one. `:=`, `~=`, `-=` and `--=` make the
+  rows they supersede partial. A runtime-plus-test list is `runtime`,
+  compiler-tool configurations are undetermined, Ivy ranges are partial, and a
+  configuration string over 256 bytes is never split or stored. Package-registry correlation for sbt rows
   ([#8961](https://github.com/eshu-hq/eshu/issues/8961)) and the line-keyed
   entity id ([#8962](https://github.com/eshu-hq/eshu/issues/8962)) stay open.
   The registry fingerprint moves with the new exact name, so every repository

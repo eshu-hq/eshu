@@ -6,12 +6,14 @@
 2. `doc.go` - godoc contract.
 3. `lexer.go` - the single-pass tokenizer (comments, strings, interpolators).
 4. `parser.go` - `Parse`, the main dispatch loop, `sbt_state`, val resolution.
-5. `declaration.go` - `libraryDependencies` operator, collection, and element
-   parsing, and the resynchronisation helpers.
-6. `scope.go` - configuration resolution (`resolveConfig`) and the scope table.
-7. `tail.go` - the scope-neutral tail allowlist and `scanTail`; `trailing.go` -
-   collection calls, `.map` bodies, and the resync skipper; `axis.go` - the
-   `libraryDependencies` operator, axis chains, and `in<Name>(...)` wrappers.
+5. `statement.go` - the statement entry (`parseLibraryDependencies`), the two
+   grammar contexts (`keyContext`), the statement end, the fail-closed
+   fallback entry (`failStatement`), and superseding (`markReset`).
+6. `element.go` - the element and collection grammar, the configuration
+   operand, and the infix call allowlist (`classifyCall`).
+7. `salvage.go` - the fallback scanner that emits every literal coordinate of
+   an unmatched statement as partial; `scope.go` - configuration resolution
+   (`resolveConfig`) and the scope table.
 8. `rows.go` - Scala binary version and row construction.
 9. `../gradle/AGENTS.md` - the sibling manifest parser whose row contract this
    package mirrors.
@@ -30,20 +32,23 @@
 - A configuration string is resolved once (`resolveConfig`) into a small
   `configSpec` and copied by value. Never split, scan, or store a string over
   `MaxConfigBytes`, never re-resolve per dependency, and never build a row
-  field from the raw operand. `alloc_test.go` pins this with allocation
-  ceilings and a write counter; add a case there for any new loop over
-  dependencies.
+  field from the raw operand. `alloc_test.go` pins this with allocation and
+  malloc ceilings; add a case there for any new loop over dependencies.
 - A scope the scanner cannot map is `partial` and counted in
   `unresolved_declaration_count`; it is never a resolved `compile`. Add a new
   configuration name to `configPartScope` with a test, or leave it unknown.
-- The tail scanner defaults to undetermined. `classifyTail` in `tail.go` is an
-  allowlist of ModuleID methods that cannot change the configuration; an
-  unlisted name, operator, literal, or `.map` body is unknown. Never turn it
-  into a denylist, and never skip a tail or body unread. A name joins the list
-  only with a test and a ModuleID API citation.
-- A key under a configuration axis or an `in<Name>(...)` wrapper is partial
-  whatever `% config` follows. Only plain, `ThisBuild`, `Global`, `ThisProject`,
-  and declared-project axes are project-level.
+- A row is resolved only when its whole statement matches the closed grammar
+  in README.md. Never widen it to recover a form: add a production only with
+  an accepted-form test, a rejected-form test, and (for a ModuleID call) a
+  quote of the method from sbt librarymanagement. Never turn the allowlist into
+  a denylist, and never resolve a row from a statement that did not match.
+- The fallback is the default. Any token the grammar does not expect sends
+  the whole statement to `failStatement`: rows already read become partial and
+  the rest of the statement is salvaged as partial rows. Do not add a path that
+  skips a token and keeps matching.
+- `TestGrammarSeededFuzzInvariants` (`fuzz_test.go`) is the regression net:
+  it must report zero I1, I2, I3, missing and fabricated cases. Run it with
+  `SBT_GRAMMAR_FUZZ_CASES=30000` after a grammar change.
 - `dependency_resolution_state` stays in the `resolved`/`partial`/`unresolved`
   vocabulary the reducer and docs depend on.
 - `name` is `organization:name` as written. Do not append the Scala suffix to
@@ -53,11 +58,11 @@
 
 ## Common changes and how to scope them
 
-- Add a failing case to `parser_test.go` before changing the scanner, with a
-  positive and a negative fixture.
-- A new modifier on a coordinate that cannot change the configuration belongs
-  in `classifyTail`, with a positive test and an unlisted-name negative test.
-  `skipElement` only resynchronises after an unreadable element.
+- Add a failing case to `grammar_test.go` before changing the scanner: an
+  accepted-form row for a new production, a rejected-form row for what stays
+  partial.
+- A new infix call on an element belongs in `classifyCall`, with a positive
+  test, an unlisted-name negative test, and its ModuleID definition quoted.
 - Plugin coordinates (`addSbtPlugin`) and `project/*.sbt` files are a separate
   admission and fact decision, not a change here.
 - Telemetry, registry dispatch, and engine wrappers belong in the parent
@@ -78,28 +83,39 @@
 Performance Evidence: baseline is the sibling Gradle manifest parser, measured
 with `go test -run '^$' -bench 'BenchmarkParseConfig/(sbt|gradle)$' -benchmem
 -count=3 ./internal/parser` on the same host and the same engine path
-(`Engine.ParsePath`, linux/arm64, Go 1.26). Input shape: a synthetic manifest
-of about 10,000 lines (10,001 for Gradle, 10,000 for sbt), one literal
-dependency per line. After: sbt takes 13.7 to 14.4 ms/op (52.6 to 55.3 MB/s),
-16.4 MB/op, 139,756 allocs/op; Gradle takes 56.8 to 58.2 ms/op (10.8 to
-11.1 MB/s), 12.8 MB/op, 119,743 to 119,753 allocs/op. The sbt parser is about 4.0 times
-faster on this shape and allocates about 29 percent more bytes, because it
-builds one row map per dependency and keeps each token's source slice. This is
-a new parser on a path no existing file reaches (`build.sbt` was unadmitted),
-so existing files see no change.
+(`Engine.ParsePath`, linux/arm64, Go 1.26, shared host at load average 4 to
+9). Input shape: a synthetic manifest of about 10,000 lines (10,001 for Gradle,
+10,000 for sbt), one literal dependency per line. With the closed grammar sbt
+takes 15.2 to 15.4 ms/op (49.4 to 50.0 MB/s), 16.4 MB/op, 139,757 allocs/op;
+Gradle takes 54.9 to 56.0 ms/op (11.3 to 11.5 MB/s), 12.7 to 12.9 MB/op,
+119,732 to 119,774 allocs/op. The allowlist-tail scanner it replaces measured
+13.5 to 13.6 ms/op and 16.4 MB/op in the same session, so the statement checks
+cost about 13 percent of parse time and no bytes; sbt stays about 3.6 times
+faster than Gradle and allocates about 29 percent more bytes, because it builds
+one row map per dependency. A 120-byte `dependency` struct measured 18.1 MB/op
+(slice growth into larger size classes), which is why `ctx` and `line` are
+int32. This is a new parser on a path no existing file reaches (`build.sbt`
+was unadmitted), so existing files see no change.
 
-No-Regression Evidence (configuration bound): on the previous commit,
-`alloc_test.go` failed with `.map(_ % "<100 KB>")` over 1,000 dependencies at
-3,934,180,448 bytes allocated (32,804 times the 119,930-byte input), a 10 MB
-`"a,a,..."` configuration at 1,035,783,832 bytes (103.6 times), and 20,000
-chained `.map(_ % Test)` over 5,000 dependencies at 200,070,096 mallocs. After
-the bound and the resolve-once rewrite the same tests allocate about 1.47 million bytes
-(12.3 times), about 20.0 million bytes (2.0 times) and about 85,000 mallocs, with
-one configuration write per dependency. Counts of bytes and objects, not time.
+No-Regression Evidence (configuration bound): before the bound, `alloc_test.go`
+failed with `.map(_ % "<100 KB>")` over 1,000 dependencies at 3,934,180,448
+bytes allocated (32,804 times the 119,930-byte input), a 10 MB `"a,a,..."`
+configuration at 1,035,783,832 bytes (103.6 times), and 20,000 chained
+`.map(_ % Test)` over 5,000 dependencies at 200,070,096 mallocs. With the
+closed grammar the same tests allocate 1,425,016 bytes (11.9 times; 1,000 rows
+dominate), 20,013,456 bytes (2.0 times) and 55,077 mallocs. 200,000 repeated
+`% "test"` operands and 100,000-element tails (allowlisted calls, unknown
+calls, a `.map` body, leading-infix lines) allocate 2.0 times the input: the
+read buffer plus its string copy. Counts of bytes and objects, not time.
+
+No-Regression Evidence (grammar): the seeded fuzz in `fuzz_test.go` reported
+I1=1,218, I2=155 and I3=1,208 over 4,000 cases on the allowlist-tail scanner,
+and I1=0, I2=0, I3=0, missing=0, fabricated=0 with the closed grammar, at
+4,000 cases and at 30,000 (140,469 rows).
 
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
 single-pass scanner with no recursion. 200,000 nested parentheses finish in
-0.02 s, and 100,000 dependency lines finish in 0.06 s while emitting exactly
+0.03 s, and 100,000 dependency lines finish in 0.08 s while emitting exactly
 `MaxDependencyRows` (10,000) rows with the remaining 90,000 counted in
 `sbt_state.dependency_overflow_count`. Backend: none (file bytes only, no
 Postgres or graph access). Terminal counts: a 100,000-line file yields 10,000
