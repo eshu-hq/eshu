@@ -57,8 +57,13 @@ job and fails when:
   crosses the 1800 s cap, so the 80% rule (1.25x) does not cover that spread by
   itself. The cut's worst predicted shard can sit above that line, so read the
   first CI wave on the new cut, and refresh the weights from it, before
-  relaxing anything. Predicted figures are model output until a CI run on the
-  new cut records the measured job seconds;
+  relaxing anything. The first wave on the weighted cut (run 40071537963)
+  measured 1242, 958, 1244, and 1418 s for shards 1 to 4, so the cut did hold
+  every shard under the cap. The refreshed weights, replayed on that wave's
+  own cut, miss it by -5.3%, +25.2%, +6.4%, and -9.3% (shard 2, whose
+  proofs ran 126 s under their summed weights, is the +25.2%). That wave is
+  also in the fit, so the band stays a floor. The 20% headroom, not the fit,
+  is what keeps a slow runner under the cap;
 - the live plan's shard spread passes 15% of the mean (the acceptance bound of
   #8930), or the cut on a fixed synthetic plan passes 1%. The fixed plan guards
   the cut itself and does not change when tests are enrolled, so an unrelated
@@ -92,6 +97,13 @@ readiness proofs" step duration. Read both from
 inventory, so a test missing from every log uses the default until the next
 refresh. Commit the regenerated file with the change that needed it, then run
 the shard contract test again.
+
+Keep the earlier runs as extra `--sample` arguments, each in its own directory,
+and pass `--fixed-job-seconds` as the mean over every shard job of every
+sample. The refresh after the first wave on the weighted cut used runs
+40047410741, 40049588589, and 40071537963 (12 shard jobs, mean 85.75 s). The
+shard job logs of a run stay downloadable for the retention window of
+GitHub Actions logs, so refresh before they expire.
 
 ### A PR that enrolls more than 40 unweighted tests
 
