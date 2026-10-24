@@ -188,7 +188,14 @@ func dropExactName(definition Definition, name string) Definition {
 func requireViolation(t *testing.T, violations []string, wants ...string) {
 	t.Helper()
 	for _, violation := range violations {
-		if !slices.ContainsFunc(wants, func(want string) bool { return !strings.Contains(violation, want) }) {
+		matchesAll := true
+		for _, want := range wants {
+			if !strings.Contains(violation, want) {
+				matchesAll = false
+				break
+			}
+		}
+		if matchesAll {
 			return
 		}
 	}
@@ -291,14 +298,18 @@ func TestEcosystemGateFailsOnMissingKeys(t *testing.T) {
 		}, ""},
 	}
 	for name, tc := range cases {
-		violations := ecosystemViolations(registry, []ledgerEcosystemRow{tc.row}, nil)
-		if tc.want == "" {
-			if len(violations) != 0 {
-				t.Errorf("%s: unexpected violations: %v", name, violations)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			violations := ecosystemViolations(registry, []ledgerEcosystemRow{tc.row}, nil)
+			if tc.want == "" {
+				if len(violations) != 0 {
+					t.Errorf("unexpected violations: %v", violations)
+				}
+				return
 			}
-			continue
-		}
-		requireViolation(t, violations, tc.want)
+			requireViolation(t, violations, tc.want)
+		})
 	}
 }
 
