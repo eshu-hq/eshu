@@ -40,7 +40,24 @@ const (
 	FileRepositoryScopeIDs
 	FileRepositoryGenerationIDs
 	SuppressionLimit
+	// paramEnd ends the block; keep it last so TestEveryParamIsClassified
+	// reaches every list added above it.
+	paramEnd
 )
+
+// IsBase reports whether p is a list the loader binds straight from the
+// filter. Every other list is derived from one of these or is the cap, so a
+// branch's RunWhen is its base lists (baseParams). The cases are listed by
+// name, not by const order, so adding a list cannot silently reclassify it.
+func (p Param) IsBase() bool {
+	switch p {
+	case PackageIDs, PURLs, CVEIDs, AdvisoryIDs, SubjectDigests, ProductCriteria,
+		DocumentIDs, RepositoryIDs, ImageRefs, FileRepositoryIDs:
+		return true
+	default:
+		return false
+	}
+}
 
 // LowerTwin returns the normalized twin of a base list and whether one
 // exists. A normalized arm can only match when its base list is non-empty.

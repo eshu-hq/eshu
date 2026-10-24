@@ -117,11 +117,12 @@ func fullFilter(name, anchor, kind string) Branch {
 }
 
 // baseParams drops the derived lists from a bind order: a normalized twin is
-// empty exactly when its base list is, and the cap is not an input.
+// empty exactly when its base list is, and the cap is not an input
+// (TestBranchRunWhenCoversEveryBoundInput).
 func baseParams(order []Param) []Param {
 	var base []Param
 	for _, p := range order {
-		if p <= FileRepositoryIDs {
+		if p.IsBase() {
 			base = append(base, p)
 		}
 	}
