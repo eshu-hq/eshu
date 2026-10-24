@@ -40,9 +40,13 @@ backfill insert, because the lock can wait in the update-chain walk (arbiter
 ruling arb-7127-3e-wait). A 55P03 rolls the pass back as the non-counting
 `generation_lock_timeout`, which `Runner.journalRetry` already handles.
 
-A skipped generation costs a delay, never an activation. The sweeper repeats
-every pass, and retention locks only a generation that is superseded, so the
-generation a scope has active is journaled by the next pass.
+A skipped generation is one that retention is pruning (it locks only a
+superseded generation) or that the purge cascade is deleting with its scope.
+Its activation is dropped on purpose and is harmless: the scope's current active
+generation is journaled by the next pass or by its Ack, and readers fall back to
+the exact diff until then. The skip test proves the skip mechanics (no wait, no
+error, the rest of the pass proceeds, a later pass journals the row if the
+generation is still active), not a retry of a generation retention prunes.
 
 ## Proof
 
@@ -107,6 +111,18 @@ rows (892 dirtied heap pages against 649), and the host was loaded: the 3,126 ms
 first run includes JIT and a CTE spill to disk at the default `work_mem`. It
 happens once, when a fleet's active generations first enter the ledger. Not
 measured: the bulk case on a quiet host.
+
+Scale bound. Row locks live in the tuple headers, not in the shared lock table:
+the pass's backend held 35 `pg_locks` entries with 50,001 rows locked, so
+`max_locks_per_transaction` does not bind (the PostgreSQL explicit-locking page
+says there is no limit on rows locked at one time, though a lock can write to
+disk). `lock_timeout` bounds each lock wait, not the statement, and the journal
+transaction sets no `statement_timeout`, so the first pass takes as long as it
+takes and grows with the number of unjournaled active generations. Through
+`Journal()` at 50,000 scopes (50,001 rows, no 55P03) the first pass took 883,
+717 and 559 ms (median 717 ms) and the second pass about 37 ms with 0 rows, on a
+host at load average 7 to 12. While the first pass runs it holds the exclusive
+advisory key, so Acks skip the journal gate and the purge cascade waits for it.
 
 ## Observability
 

@@ -27,13 +27,16 @@ func (l *ledgerDB) seedSweeperScopes(t *testing.T) {
 }
 
 // TestJournalSweeperSkipsAGenerationRetentionHoldsAndJournalsItNextPass proves
-// the sweeper's SKIP LOCKED costs no activation (#8932). A session holding the
+// the mechanics of the sweeper's SKIP LOCKED (#8932). A session holding the
 // active generation FOR UPDATE, as generation retention does, makes the pass
 // skip that generation without waiting and without an error; the other scopes
 // are journaled in the same pass, including the scope whose generation row is
-// absent (there is nothing to lock). The pass after the holder ends journals
-// the skipped generation: the sweeper is a catch-all that every pass repeats,
-// so a skip delays an activation by one pass and never loses it.
+// absent (there is nothing to lock). A pass after the holder ends journals the
+// generation if it is still active. In production a skipped generation is one
+// that retention is pruning or the purge is deleting, so its activation is
+// dropped on purpose and the scope's current active generation is journaled
+// by the next pass or by its Ack; no production writer holds an active
+// generation FOR UPDATE and then releases it.
 func TestJournalSweeperSkipsAGenerationRetentionHoldsAndJournalsItNextPass(t *testing.T) {
 	l := openLedgerDB(t)
 	l.seedSweeperScopes(t)

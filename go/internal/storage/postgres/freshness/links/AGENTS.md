@@ -66,9 +66,12 @@
   `locked` CTE (an inner join, because PostgreSQL refuses a row lock on the
   nullable side of a LEFT JOIN), until the pass commits. A generation that
   retention holds or has pruned is skipped without waiting and without an
-  error; the sweeper repeats every pass, so a skip delays that activation by
-  one pass and never loses it
-  (`TestJournalSweeperSkipsAGenerationRetentionHoldsAndJournalsItNextPass`).
+  error. Retention locks only a superseded generation, and the purge cascade
+  deletes a generation with its scope, so the skipped generation's activation
+  is dropped on purpose: its successor is journaled by the next pass or by its
+  Ack, and readers fall back to the exact diff until then
+  (`TestJournalSweeperSkipsAGenerationRetentionHoldsAndJournalsItNextPass`
+  proves the skip mechanics, not a retry of a generation retention prunes).
   A scope whose active generation has no generation row is journaled as
   before: there is no row to lock and nothing to prune. Like every
   generation lock the statement can wait in the update-chain walk, so the
