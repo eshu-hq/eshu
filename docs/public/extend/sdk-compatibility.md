@@ -9,7 +9,7 @@ Both SDK modules are public Go subdirectory modules with independent tags —
 `RELEASING.md`. Core Eshu itself tags as `vX.Y.Z` at the repository root. The
 three version lines move independently. The compatibility table states the
 combinations supported under the original module paths. The new-path mapping
-below records source preparation without adding a supported combination.
+below records candidate availability without adding a supported combination.
 
 ## Compatibility table
 
@@ -44,33 +44,54 @@ identities. Both first `v0.1.0-rc.1` candidates are available from the source
 in [SDK PR #9](https://github.com/eshu-hq/eshu-sdk/pull/9); fresh public-proxy
 resolution and the immutable tag origins agree. The later
 `collector/v0.2.0-rc.1` and `factschema/v0.1.0-rc.2` tags are published.
-Fresh public-proxy proof now exists for factschema `v0.1.0-rc.2`;
-collector `v0.2.0-rc.1` proxy proof remains pending. The preferred next collector
-candidate is `collector/v0.1.0-rc.2`; its mapping must merge here before
-separate tag approval. No new-path pair has a qualified core release or
-deployed acceptance.
+The preferred collector `v0.1.0-rc.2` and factschema `v0.1.0-rc.2`
+candidates are now published and verified together through the public Go
+proxy. Fresh proxy proof for the historical collector `v0.2.0-rc.1` remains
+pending. No new-path pair has a qualified core release or deployed acceptance.
 
-| Original published module | New module identity | Available first candidate | Other published candidate | Preferred next candidate |
+| Original published module | New module identity | Available first candidate | Other published candidate | Preferred candidate |
 | --- | --- | --- | --- | --- |
-| `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` | `collector/v0.1.0-rc.2` (prepared) |
+| `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` | `collector/v0.1.0-rc.2` (published; proxy verified) |
 | `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) |
 
 The new module version histories are independent of the original paths'
 `v0.2.0` lines. The migration starts on the initial `v0.1.0` prerelease line,
-so its preferred next collector candidate is `collector/v0.1.0-rc.2`;
+so its preferred collector candidate is `collector/v0.1.0-rc.2`;
 `collector/v0.2.0-rc.1` remains a published historical candidate.
 `factschema/v0.1.0-rc.2` is published and
 [public-proxy verified](https://github.com/eshu-hq/eshu-sdk/blob/f271e0cb199fd81a24de27ca46d64de06ce12dba/docs/evidence/factschema-v0.1.0-rc.2.md).
-Use exact candidate pins; the
-higher historical collector version makes `@latest` especially unsuitable.
+Use exact candidate pins; the higher historical collector version makes
+`@latest` especially unsuitable.
 Go named types from the old and new import paths have different identities;
 the new paths are not drop-in replacements. Keep exact pins to the original
 published versions until the target consumer and core pair qualifies. Never
 use `@latest` as migration evidence.
 
+### Preferred RC2 public availability
+
+On 2026-10-24, a 21.132-second external Go consumer proof downloaded both
+exact versions from
+`proxy.golang.org`, checked them through `sum.golang.org`, built, and ran with
+fresh module and build caches, `GOWORK=off`, and no `replace` directive. The
+build used `-buildvcs=false`. The run exercised the collector's neutral marker
+API and factschema's typed decoder, which retained the integer
+`9007199254740993`. The [public release handoff](https://github.com/eshu-hq/eshu/issues/8851#issuecomment-6385625301)
+records the pair proof and its scope.
+
+| Exact module pin | Tag origin | Module zip checksum | `go.mod` checksum |
+| --- | --- | --- | --- |
+| `github.com/eshu-hq/eshu-sdk/collector@v0.1.0-rc.2` | `collector/v0.1.0-rc.2` → `5edaac73b354501c8a452a301becccd1de2cc361` | `h1:ghCdpl0yi3r8lvsqu/1pWwJ6/UvAfNZNrnciwhs40M4=` | `h1:ysNLZcpQe9ZGYFZnTLyYTCHNaLrPRJjb1f9aLPOXdtA=` |
+| `github.com/eshu-hq/eshu-sdk/factschema@v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` → `94e162b568815f4be90489d4b74ceb1a56927b3c` | `h1:zgPRuX0OpqOpIO23Y9sp+nMd0x4Y9sNE3cnexgJWlp4=` | `h1:CnwND1yYkq0K/gMO7k746nEKmTKvVCRYrHB3TZpsJqk=` |
+
+The [factschema RC2 evidence](https://github.com/eshu-hq/eshu-sdk/blob/f271e0cb199fd81a24de27ca46d64de06ce12dba/docs/evidence/factschema-v0.1.0-rc.2.md)
+remains bound to its immutable source snapshot. This public check proves
+candidate availability and the stated external API paths. It does not
+qualify a consumer/core pair or prove deployment, persisted numeric
+round-trip (#8941), reducer/graph behavior, or API/MCP results.
+
 | State | Required evidence | Current recorded status for the new paths |
 | --- | --- | --- |
-| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s, collector `v0.2.0-rc.1`, and factschema `v0.1.0-rc.2` tagged; fresh proxy proof for collector `v0.2.0-rc.1` pending; factschema `v0.1.0-rc.2` proxy verified. Collector `v0.1.0-rc.2` prepared, not published |
+| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s and both preferred `v0.1.0-rc.2` modules tagged and proxy verified; historical collector `v0.2.0-rc.1` tagged, with fresh proxy proof pending |
 | Qualified consumer/core pair | Exact new module pins, contract and runtime proof against a named core version, including grant-aware conformance for reserved fact kinds | No pair qualified or core range assigned |
 | Deployed accepted pair | Matching deployment, reducer, graph, API/MCP, retry, operator, and rollback proof | No deployment accepted |
 
@@ -86,9 +107,8 @@ The preferred collector `v0.1.0-rc.2` candidate includes the neutral marker API 
 is already in the published historical `v0.2.0-rc.1` candidate. Factschema
 `v0.1.0-rc.2` repairs number-preserving typed decoding, including nested
 integer lists, merged in [SDK PR #11](https://github.com/eshu-hq/eshu-sdk/pull/11). Schemas, fixture bytes and wire protocols are unchanged by these
-changes. Preserve both first RC1 tags and the later published tags. Prepared
-collector `v0.1.0-rc.2` is neither tag approval nor a supported consumer/core
-combination.
+changes. Preserve both first RC1 tags and the later published tags. Published
+collector `v0.1.0-rc.2` is not a supported consumer/core combination.
 
 `CoreFacts` validates a caller-supplied authorization snapshot; it does not
 load grants or determine authority. The caller must validate live grants,
@@ -113,9 +133,10 @@ a mistake cannot be un-pushed. Contributors prepare the release in a PR
 (CHANGELOG entry, this compatibility row, schema/fixture proof); a maintainer
 cuts the tag after merge with the exact commands in `RELEASING.md`. Never tag
 from a worktree or a stale checkout — only from a clean, fast-forwarded
-`main`. For the new repository, merge this mapping first, then bind separate
-tag approval to its exact reviewed and merged source SHA with green CI. Check
-Git tags and the public Go proxy for current candidate availability.
+`main`. For the new repository, this mapping merged before the preferred RC2
+tags; their separate tag approvals were bound to exact reviewed source SHAs
+with green CI. Check Git tags and the public Go proxy for current candidate
+availability.
 
 ## Version support policy
 
@@ -184,8 +205,8 @@ github.com/eshu-hq/eshu/sdk/go/collector@v0.1.0` resolves through the public
 Go module proxy. The `sdk/go/factschema` pin is also the fixture-pack pin.
 For the original paths, removing the monorepo `replace` directives and pinning
 the published versions in the compatibility table remains valid. The separate
-`eshu-sdk` paths are now mapped above as candidate source; migrate to them only
-after their tags are available and the intended consumer/core pair qualifies.
+`eshu-sdk` paths are now mapped above as available candidates; migrate to them
+only after the intended consumer/core pair qualifies.
 Use exact versions and no workspace or local replacement for that proof.
 
 ## How to read a row
