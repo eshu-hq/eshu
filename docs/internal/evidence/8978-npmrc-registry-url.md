@@ -46,7 +46,7 @@ the content-version pin, and `go test` for `internal/parser/...`,
 `internal/mcp`, `internal/relationships`, and `cmd/eshu` pass on this branch.
 
 `snapshot_content_version_gate_test.go` pins the emitted facts for
-`testdata/content_version`, now with a `.npmrc`: 317 facts before, 320 after (the
+the `content_version` fixture directory under `go/internal/collector/repo/git`, now with a `.npmrc`: 317 facts before, 320 after (the
 file fact, the content fact, and the registry-URL entity). The content version
 stays at `git-collector.v10`; the fingerprint moves because the registry gains a
 name.
