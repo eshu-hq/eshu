@@ -28,6 +28,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 )
@@ -193,6 +194,15 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// elapsed time past crossscope.ProducerReadinessMaxWait from each in-flight
 	// repository's own producer last-workable time, not by this budget.
 	servicecatalog.RuntimeNotReadyFailureClass,
+	// #8827: security alert reconciliation deferred while the
+	// supply_chain_impact work of the same scope generation is in flight. The
+	// reconciliation can only match an alert once its producer wrote an impact
+	// finding; counting the wait let the handler reach its own attempt cap and
+	// write unmatched rows although impact evidence was about to exist. The
+	// handler bounds the wait by elapsed time past
+	// crossscope.ProducerReadinessMaxWait from the producer row's last-workable
+	// time, not by this budget (the freeze also freezes the handler's cap).
+	securityalert.ImpactNotReadyFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt

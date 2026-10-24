@@ -6,7 +6,9 @@ package securityalert
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
@@ -68,6 +70,19 @@ type SecurityAlertReconciliationHandler struct {
 	// nil value: unlike the exported builder, the intent path may not fall
 	// back to consumption evidence it silently knows is incomplete.
 	ExtractManifestConsumptions ManifestConsumptionExtractor
+	// ImpactProducerReadiness reports whether the supply_chain_impact work of
+	// the intent's scope generation is still in flight (#8827). While it is, a
+	// reconciliation waiting on impact evidence defers with the non-counting
+	// ImpactInFlightFailureClass instead of spending an attempt. Nil disables
+	// the fence and keeps the counting wait only; the reducer root wires the
+	// Postgres-backed store, and TestSecurityAlertReconciliationRegistration
+	// CarriesTheImpactProducerReadinessSeam fails when that wire is dropped.
+	ImpactProducerReadiness ImpactProducerReadiness
+	// Now supplies the clock for the producer bound; nil uses time.Now.
+	Now func() time.Time
+	// Logger receives the impact-wait defer and give-up lines; nil uses
+	// slog.Default.
+	Logger *slog.Logger
 }
 
 // Handle executes one provider alert reconciliation reducer intent.
@@ -138,10 +153,9 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 	// visible input_invalid dead-letter — counter + structured error log — while
 	// every valid sibling alert still produces its reconciliation decision.
 	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainSecurityAlertReconciliation, intent.ScopeID, intent.GenerationID, quarantined)
-	if shouldDeferSecurityAlertReconciliationForPendingImpact(intent, decisions) {
-		return reducercontract.Result{}, retryableSecurityAlertReconciliationEvidenceError{
-			packageID: firstUnmatchedPackageWithDependency(decisions),
-		}
+	impactWait, err := h.resolveImpactWait(ctx, intent, decisions)
+	if err != nil {
+		return reducercontract.Result{}, err
 	}
 	writeResult, err := h.Writer.WriteSecurityAlertReconciliations(ctx, SecurityAlertReconciliationWrite{
 		IntentID:     intent.IntentID,
@@ -156,10 +170,11 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 	}
 
 	return reducercontract.Result{
-		IntentID:        intent.IntentID,
-		Domain:          reducercontract.DomainSecurityAlertReconciliation,
-		Status:          reducercontract.ResultStatusSucceeded,
-		EvidenceSummary: securityAlertReconciliationSummary(decisions, writeResult.CanonicalWrites),
+		IntentID: intent.IntentID,
+		Domain:   reducercontract.DomainSecurityAlertReconciliation,
+		Status:   reducercontract.ResultStatusSucceeded,
+		EvidenceSummary: securityAlertReconciliationSummary(decisions, writeResult.CanonicalWrites) +
+			impactWait.summarySuffix(),
 		CanonicalWrites: writeResult.CanonicalWrites,
 		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
@@ -290,22 +305,15 @@ func dedupeSecurityAlertReconciliationEnvelopes(envelopes []facts.Envelope) []fa
 	return out
 }
 
+// shouldDeferSecurityAlertReconciliationForPendingImpact reports whether the
+// counting wait still applies: a decision waits on impact evidence and the
+// handler has not reached its attempt cap.
 func shouldDeferSecurityAlertReconciliationForPendingImpact(
 	intent reducercontract.Intent,
 	decisions []SecurityAlertReconciliationDecision,
 ) bool {
-	if intent.AttemptCount >= pendingImpactSecurityAlertReconciliationMaxAttempts ||
-		!impactProducingSecurityAlertReconciliation(intent) {
-		return false
-	}
-	for _, decision := range decisions {
-		if decision.Status == SecurityAlertReconciliationUnmatched &&
-			strings.TrimSpace(decision.DependencyEvidenceID) != "" &&
-			strings.TrimSpace(decision.ImpactEvidenceID) == "" {
-			return true
-		}
-	}
-	return false
+	return intent.AttemptCount < pendingImpactSecurityAlertReconciliationMaxAttempts &&
+		hasPendingImpactDecision(intent, decisions)
 }
 
 func impactProducingSecurityAlertReconciliation(intent reducercontract.Intent) bool {
