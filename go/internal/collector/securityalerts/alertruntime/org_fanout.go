@@ -70,7 +70,9 @@ func (s *ClaimedSource) collectTarget(
 // maxOrganizationFanoutRepositories. Reads run sequentially on purpose: they
 // share one credential and one provider rate-limit budget. A not_found read, or
 // a 403 the provider marked as Dependabot alerts disabled, is reported and the
-// fan-out continues; the first read that fails any other way stops it (see fanoutFailureOutcome) instead of spending more of the budget.
+// fan-out continues; the first read that fails any other way stops it (see
+// fanoutFailureOutcome) instead of spending more of the budget. An allowlist
+// with no repository of the organization yields the truncated single read.
 // Only a cancelled claim context fails the whole claim.
 func (s *ClaimedSource) fanOutOrganization(
 	ctx context.Context,
@@ -79,6 +81,13 @@ func (s *ClaimedSource) fanOutOrganization(
 	org securityalerts.GitHubDependabotAlertResult,
 ) (alertCollection, error) {
 	repositories := organizationFanoutRepositories(target.config)
+	if len(repositories) == 0 {
+		// Validation permits an allowlist whose entries all belong to other
+		// accounts. Nothing is eligible to read, so this is not a fan-out: keep
+		// the truncated single read, its digest, and the org-window page-limit
+		// coverage instead of reporting a complete-looking claim.
+		return singleReadCollection(org), nil
+	}
 	orgCoverage := repositoryAlertCollectionCoverageFromResult(org)
 	collection := alertCollection{
 		observedAt:         org.ObservedAt,
