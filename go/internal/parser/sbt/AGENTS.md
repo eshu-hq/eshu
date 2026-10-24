@@ -102,8 +102,9 @@ failed with `.map(_ % "<100 KB>")` over 1,000 dependencies at 3,934,180,448
 bytes allocated (32,804 times the 119,930-byte input), a 10 MB `"a,a,..."`
 configuration at 1,035,783,832 bytes (103.6 times), and 20,000 chained
 `.map(_ % Test)` over 5,000 dependencies at 200,070,096 mallocs. With the
-closed grammar the same tests allocate 1,425,016 bytes (11.9 times; 1,000 rows
-dominate), 20,013,456 bytes (2.0 times) and 55,077 mallocs. 200,000 repeated
+closed grammar the same tests allocate about 1.42 million bytes (11.8 to 11.9
+times across runs; 1,000 rows dominate), about 20.0 million bytes (2.0 times)
+and about 55,100 mallocs. 200,000 repeated
 `% "test"` operands and 100,000-element tails (allowlisted calls, unknown
 calls, a `.map` body, leading-infix lines) allocate 2.0 times the input: the
 read buffer plus its string copy. Counts of bytes and objects, not time.
