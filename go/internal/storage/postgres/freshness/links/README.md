@@ -139,8 +139,14 @@ until it commits. A row that inserts nothing (the generation is held by
 retention or already pruned) ends that scope's chain for the pass; the rows
 after it would name it as their prior. The inserts run under the generation
 lock timeout: a 55P03 rolls the whole pass back as `generation_lock_timeout`,
-and the next cycle retries. The timeout is reset before the sweeper insert. Then it journals every active
-generation that has no row, with a `NULL` prior. `BacklogScopes`, `Stats` and
+and the next cycle retries. The timeout is reset after the backfill. Then it journals every active
+generation that has no row, with a `NULL` prior, under the same bound: the
+sweeper insert locks each generation it names `FOR KEY SHARE OF generation
+SKIP LOCKED` until the pass commits (#8932), so retention skips it and its
+ledger delete cannot miss the sweeper's row. A generation that retention
+holds or has pruned is skipped; the next pass journals whatever is active
+then. A scope whose active generation has no generation row is journaled
+without a lock, as before. `BacklogScopes`, `Stats` and
 `OrphanScopes`/`DeleteOrphanScope` serve the runner.
 
 ## Ack writer (PR-3b)

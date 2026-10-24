@@ -54,11 +54,28 @@
   The gate expression stays in this package so the lock-class scan, which
   skips this directory, never sees class 7127 elsewhere; the parent package
   only concatenates it. `TestAckJournalGateUsesTheJournalKey` derives it.
-- The sweeper insert (`journalActiveGenerationsQuery`) is the one ledger
-  writer exempt from the lock rule: it names only a generation that is
-  active at its snapshot, and retention prunes only generations superseded
-  longer than its age cutoff, so a named generation cannot be pruned within
-  that one statement.
+- The sweeper insert (`journalActiveGenerationsQuery`) follows the lock rule
+  (#8932). It used to be exempt on the premise that retention prunes only
+  generations superseded longer than its age cutoff. That premise is a time
+  assumption, not a lock: an Ack can supersede the swept generation and
+  commit before the pass does, and a retention prune that finds it eligible
+  then deletes the generation while the pass's uncommitted row is invisible
+  to retention's ledger delete, orphaning the row
+  (`TestSweeperActivationSurvivesRetentionPrune`). The statement now locks
+  each generation it names, `FOR KEY SHARE OF generation SKIP LOCKED` in the
+  `locked` CTE (an inner join, because PostgreSQL refuses a row lock on the
+  nullable side of a LEFT JOIN), until the pass commits. A generation that
+  retention holds or has pruned is skipped without waiting and without an
+  error; the sweeper repeats every pass, so a skip delays that activation by
+  one pass and never loses it
+  (`TestJournalSweeperSkipsAGenerationRetentionHoldsAndJournalsItNextPass`).
+  A scope whose active generation has no generation row is journaled as
+  before: there is no row to lock and nothing to prune. Like every
+  generation lock the statement can wait in the update-chain walk, so the
+  pass runs it under the generation lock timeout and a 55P03 rolls the pass
+  back as `generation_lock_timeout` (`TestJournalSweeperLockWaitIsBounded`,
+  with its unbounded RED). Never turn the sweeper back into a plain LEFT JOIN
+  insert, and never take the lock on the scope row or on `ingestion_scopes`.
 - The backfill inserts each activation through its generation row
   (`insertActivationQuery`, `FOR KEY SHARE OF generation SKIP LOCKED`); a row
   not inserted ends the scope's chain for the pass.
