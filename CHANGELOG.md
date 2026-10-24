@@ -68,11 +68,17 @@ recent shipped work grouped by feature area.
   NuGet project parser reads them with a fail-closed XML scanner. `PackageVersion`,
   `GlobalPackageReference`, and `PackageReference` items become dependency rows
   in their own section, and literal `PropertyGroup` values become
-  `msbuild_property` rows. A `PackageVersion` is a version policy: it is not
-  joined to the project `PackageReference` rows that use it. Conditional,
-  expression, and ambiguous values stay partial, and constructs outside the
-  documented grammar are skipped and counted in `msbuild_props_limits`. Input
-  size, nesting depth, row counts, and field lengths are bounded. The change
+  `msbuild_property` rows. A `PackageVersion` is a version pin: it is not
+  joined to the project `PackageReference` rows that use it, and the reducer
+  never counts it as package consumption, a `DEPENDS_ON` edge, or
+  security-alert evidence. Conditional, expression, and ambiguous values stay
+  partial, and constructs outside the documented grammar are skipped and
+  counted in `msbuild_props_limits`. A row that MSBuild can change after its
+  `Include` (a later `Update` or `Remove`, a duplicate `Include`, a conditioned
+  metadata child, `Exclude`, an `Import` or other unread element, or a
+  `ManagePackageVersionsCentrally` that is not a literal `true`) is partial
+  with an `item_ambiguity` reason. Input size, nesting depth, row counts,
+  tracked item names, and field lengths are bounded. The change
   adds two registry names, so every repository re-collects once; the content
   version constant stays at `git-collector.v10` because the parser registry
   fingerprint already moves the generation version. The ecosystem-gate

@@ -311,7 +311,7 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			CapturesScope:           true,
 			CapturesDevRuntimeSplit: true,
 			SourceReference:         "go/internal/parser/nuget/props.go",
-			Notes:                   "Shared PackageReference rows and literal PropertyGroup values from the file itself; conditional, expression, or ambiguous values stay partial, and no sibling project file is read.",
+			Notes:                   "Shared PackageReference rows and literal PropertyGroup values from the file itself; conditional, expression, or ambiguous values stay partial, a row that a later Update or Remove, a duplicate Include, or an Import can change is partial with item_ambiguity, and no sibling project file is read.",
 		},
 		{
 			Ecosystem:               "nuget",
@@ -323,7 +323,7 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			CapturesScope:           true,
 			CapturesDevRuntimeSplit: true,
 			SourceReference:         "go/internal/parser/nuget/props.go",
-			Notes:                   "Central PackageVersion and GlobalPackageReference rows; a PackageVersion is a version policy, not proof that a project references the package, and project PackageReference rows are not joined to it.",
+			Notes:                   "Central PackageVersion and GlobalPackageReference rows; a PackageVersion is a version pin, not proof that a project references the package, so the reducer never counts it as package consumption, and project PackageReference rows are not joined to it. A row that a later Update or Remove, a duplicate Include, an Import, or an unproven ManagePackageVersionsCentrally can change is partial with item_ambiguity.",
 		},
 		{
 			Ecosystem:               "nuget",

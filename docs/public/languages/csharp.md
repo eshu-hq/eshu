@@ -61,11 +61,18 @@ Supported today:
   file name and parsed by the same `nuget_project` path (#8824). Central
   `PackageVersion` and `GlobalPackageReference` declarations, shared
   `PackageReference` items, and literal `PropertyGroup` values become rows of
-  their own; a `PackageVersion` is a version policy and is not joined to the
-  project `PackageReference` rows that use it. The scanner is fail-closed:
-  conditional, expression, ambiguous, or out-of-grammar constructs are partial
-  or skipped and counted in `msbuild_props_limits`, and size, depth, row, and
-  field bounds apply. The grammar is in `go/internal/parser/nuget/README.md`.
+  their own; a `PackageVersion` is a version pin and is not joined to the
+  project `PackageReference` rows that use it. The reducer never counts a pin
+  as package consumption, so an unused pin creates no `DEPENDS_ON` edge and no
+  security-alert match. The scanner is fail-closed: conditional, expression,
+  ambiguous, or out-of-grammar constructs are partial or skipped and counted
+  in `msbuild_props_limits`. A row that MSBuild can change after its `Include`
+  (a later `Update` or `Remove`, a duplicate `Include`, a conditioned metadata
+  child, `Exclude`, an `Import` or other unread element, or a
+  `ManagePackageVersionsCentrally` that is not a literal `true`) stays partial
+  with an `item_ambiguity` reason. Size, depth, row, and field bounds apply.
+  `$(Property)` resolves from the same file only. The grammar is in
+  `go/internal/parser/nuget/README.md`.
 - `.csproj` PackageReference entries are parsed into repository dependency
   evidence by the separate `nuget_project` parser path. That parser lives in
   `go/internal/parser/nuget`; a thin dispatch wrapper stays in

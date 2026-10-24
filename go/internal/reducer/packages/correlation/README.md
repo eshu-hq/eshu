@@ -22,7 +22,7 @@ read the durable facts; they never import this package.
 | `source.go` | Source-hint classification, repository-ID narrowing, outcome derivation |
 | `source_handler.go` | `PackageSourceHandler`, fact loading, refresh/retract edges, narrow loader interfaces |
 | `source_admission_decisions.go` | Ownership/consumption/publication admission writers |
-| `consumption.go` | Manifest-dependency extraction, consumption keys, consumption builder |
+| `consumption.go` | Manifest-dependency extraction (central version pins such as a NuGet `PackageVersion` with `central_version_declaration` are excluded, #8824), consumption keys, consumption builder |
 | `consumption_manifest_metadata.go` | Manifest metadata join and payload shaping |
 | `consumption_repo_edge.go` | Owner resolution, consumer-edge intents, repo-edge writer |
 | `consumption_rubygems.go` | RubyGems composite-version join |

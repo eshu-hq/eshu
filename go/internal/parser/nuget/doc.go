@@ -35,8 +35,14 @@
 // grammar). PackageVersion, GlobalPackageReference, and PackageReference items
 // become dependency rows in their own section; literal PropertyGroup entries
 // become msbuild_property rows. A construct outside the grammar yields no row
-// and a counter in the msbuild_props_limits bucket. Input size, nesting depth,
-// row counts, and field lengths are bounded (Max* constants in props.go).
+// and a counter in the msbuild_props_limits bucket. A later Update or Remove,
+// a duplicate Include, a conditioned metadata child, an Exclude, an Import or
+// other unread Project child, or an unproven ManagePackageVersionsCentrally
+// keeps the row but marks it partial with an item_ambiguity reason
+// (props_items.go). Input size, nesting depth, row counts, tracked item names,
+// and field lengths are bounded (Max* constants in props.go). A PackageVersion
+// row is a version pin, not consumption: the reducer excludes rows flagged
+// central_version_declaration from package consumption.
 //
 // NuGet lockfiles (packages.lock.json) are JSON and are parsed by
 // go/internal/parser/json instead; they share the same row contract so the

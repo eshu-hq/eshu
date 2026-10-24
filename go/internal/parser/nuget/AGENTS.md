@@ -6,9 +6,11 @@
 2. `doc.go` - godoc contract for the MSBuild project-file parser.
 3. `parser.go` - `Parse`, dependency row construction, MSBuild property
    resolution, and scope classification for `.csproj`.
-3a. `props.go`, `props_scan.go`, `props_rows.go` - the fail-closed scanner for
-   `Directory.Packages.props` and `Directory.Build.props`; its grammar and
-   bounds are in `README.md`.
+3a. `props.go`, `props_scan.go`, `props_items.go`, `props_rows.go` - the
+   fail-closed scanner for `Directory.Packages.props` and
+   `Directory.Build.props`; `props_items.go` tracks the Update, Remove,
+   duplicate, and unread constructs that demote a row (`item_ambiguity`). The
+   grammar, reasons, and bounds are in `README.md`.
 4. `parser_test.go` / `parity_test.go` - behavior coverage for package
    references, property substitution, item vs group conditions, ambiguous
    properties, and malformed XML. `props_*_test.go` cover the props scanner:
@@ -43,6 +45,15 @@
 - A `<PackageReference>` with neither `Include` nor `Update` is skipped. Never
   emit a row with no package name.
 - Malformed XML returns an error rather than a partial payload.
+- A props item row whose package MSBuild may change after the `Include`
+  stays partial with an `item_ambiguity` reason; never resolve it by
+  replaying the `Update`. Item-name tracking stays capped
+  (`maxTrackedItemNames`), and the oracle fuzz must keep every reason
+  occurring.
+- `PackageVersion` rows keep `central_version_declaration: true` and
+  `config_kind: dependency`. The reducer's `ExtractPackageManifestDependencies`
+  drops them by that flag, so renaming or removing it turns every pin back
+  into package consumption.
 
 ## Common changes and how to scope them
 

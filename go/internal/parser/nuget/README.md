@@ -116,33 +116,38 @@ rather than emitting a partial payload.
 ## Shared props files (Directory.Packages.props, Directory.Build.props)
 
 `Parse` routes the two exact file names (matched case-insensitively) to a
-streaming `encoding/xml` token scanner in `props.go`, `props_scan.go`, and
-`props_rows.go`. Both files accept the same grammar; the file name does not
+streaming `encoding/xml` token scanner in `props.go`, `props_scan.go`,
+`props_items.go`, and `props_rows.go`. Both files accept the same grammar; the file name does not
 change what is read.
 
 ### Grammar (fail-closed)
 
 A row is resolved only when the construct matches the grammar below. Anything
-else is skipped or partial, and counted. Element and attribute names are
-case-sensitive; a wrongly cased `packagereference` is skipped and counted.
+else is skipped or partial, and counted. Element and attribute names are read
+case-sensitively. MSBuild matches them case-insensitively, so a wrongly cased
+item type (`packagereference`) is skipped, counted, and demotes every row of
+its type, and a wrongly cased attribute (`version=`) makes its item a conflict.
 
 - Root element must be `Project`. A different root, a second root, an empty
   document, or malformed XML (unterminated tag, comment or CDATA, mismatched
   end tag, undefined entity) returns an error and no partial payload.
 - Direct children of `Project`: `PropertyGroup` and `ItemGroup` are read.
-  Every other child (`Import`, `Choose`, `Target`, ...) is skipped and counted
-  in `skipped_elements`, so a declaration inside a `Choose/When` is never
-  guessed.
+  Every other child (`Import`, `ImportGroup`, `Choose`, `ItemDefinitionGroup`,
+  `Target`, ...) is skipped and counted in `skipped_elements`, so a
+  declaration inside a `Choose/When` is never guessed. Any such child, or an
+  `Sdk` attribute on `Project`, also demotes every item row (see below).
 - `ItemGroup` items read: `PackageVersion`, `GlobalPackageReference`,
   `PackageReference`. Other item types are ignored. Attributes read: `Include`,
-  `Update`, `Version`, `VersionOverride`, `PrivateAssets`, `IncludeAssets`,
-  `ExcludeAssets`, `Condition`. The same five metadata names may be child
-  elements (matched case-insensitively), as in a `.csproj`.
+  `Update`, `Remove`, `Exclude`, `Version`, `VersionOverride`, `PrivateAssets`,
+  `IncludeAssets`, `ExcludeAssets`, `Condition`. The same five metadata names
+  may be child elements (matched case-insensitively), as in a `.csproj`.
+  MSBuild applies child metadata after the attribute, so the last child wins.
 - An item is skipped and counted in `skipped_items` when it has no `Include`,
-  has `Update` (alone or with `Include`), names more than one package
-  (`;`, `*`, `?`), names a package through `$(`, `@(` or `%(`, repeats an
-  attribute, gives an attribute and a child element that disagree, or carries
-  both `Version` and `VersionOverride`.
+  has `Update` or `Remove` (alone or with `Include`), names more than one
+  package (`;`, `*`, `?`), names a package through `$(`, `@(` or `%(`, repeats
+  an attribute or carries a case-variant one, gives an attribute and a child
+  element that disagree (an empty child over a set attribute counts), or
+  carries both `Version` and `VersionOverride`.
 - `PropertyGroup` children are leaf elements. A child with nested elements is
   skipped, counted, and makes the property unresolvable.
 
@@ -165,6 +170,33 @@ After substitution, a version that still contains `$(` (for example a property
 function) stays unresolved and keeps the declared text. `value` is the literal
 text exactly as written whenever nothing was substituted.
 
+### Item operations (`item_ambiguity`)
+
+MSBuild can change an item after its `Include`. When the file shows such a
+construct, the row stays but is demoted: it carries `item_ambiguity` (the
+reasons below, sorted and comma-joined) and `partial_evidence: true`. Its
+`value` and `version_evidence` are unchanged, so a reader still sees what the
+file declared.
+
+| Reason | When |
+| --- | --- |
+| `conditional_metadata` | a metadata child (`<Version Condition=...>`) has a `Condition` |
+| `duplicate_include` | another `Include` of the same type names the package (case-insensitive, NU1506), including an item skipped for another reason |
+| `updated` | a later `Update` of the same type names the package, or is a list part, wildcard, or expression |
+| `removed` | the same for a later `Remove` |
+| `exclude` | the item has an `Exclude` attribute |
+| `unresolved_item_spec` | an `Include` of the same type is a list, wildcard, expression, or over 256 bytes, or an item type is wrongly cased |
+| `unevaluated_element` | the file has any `Project` child other than `PropertyGroup`/`ItemGroup`, or `Project` has `Sdk` |
+| `central_management_unproven` | the file sets `ManagePackageVersionsCentrally` to anything but one unconditional literal `true` (case-insensitive); `PackageVersion` and `GlobalPackageReference` rows only |
+
+`Update` and `Remove` follow MSBuild evaluation order: they affect only items
+of the same type defined before them, and an `Include` after a `Remove`
+re-adds the package and stays resolved. An absent
+`ManagePackageVersionsCentrally` proves nothing either way and changes no row.
+The duplicate tracker remembers at most 10,000 distinct names; past that,
+every row of the affected type gets `duplicate_include`, because uniqueness
+can no longer be proven.
+
 ### Rows
 
 Item rows keep the `.csproj` row contract (`name`, `value`,
@@ -175,7 +207,16 @@ with these differences:
   `PackageReference`.
 - `PackageVersion` rows carry `central_version_declaration: true` and no
   `direct_dependency`: a central version is a policy, not proof any project
-  references the package. The other two carry `direct_dependency: true`.
+  references the package. The other two carry `direct_dependency: true`. The
+  reducer's `ExtractPackageManifestDependencies`
+  (`go/internal/reducer/packages/correlation/consumption.go`) skips every row
+  with `central_version_declaration: true`, so a pin is never package
+  consumption, a `DEPENDS_ON` edge, or security-alert evidence. The row keeps
+  `config_kind: dependency` for its section-keyed content identity, so readers
+  that count manifest input facts still see it: the Postgres
+  `package_manifest_consumption_keys` sidecar (a load prefilter the reducer
+  filters after) and the supply-chain readiness `package.consumption` fact
+  count.
 - A `VersionOverride` with no `Version` is used as the version and also kept in
   `version_override`.
 - A row with a group or item `Condition` is `conditional_declaration: true` and
@@ -210,18 +251,42 @@ excess is counted in the payload bucket `msbuild_props_limits`
 `encoding/xml` does not expand custom entities, so no entity bomb is possible;
 depth is capped by this scanner before the decoder stack grows.
 
+### Known limits
+
+- `$(Name)` resolves only from this file's `PropertyGroup`s. A property set by
+  an imported file, the SDK, or the command line stays unresolved, and an
+  imported file's items are never seen (the `Import` demotes every row).
+- Conditions are never evaluated. A conditional item stays partial; two
+  `Include`s of one package under opposite conditions are both partial
+  duplicates, which is the honest answer for multi-targeting.
+- Two same-case duplicate `Include`s without conditions share one content
+  identity (`go/internal/content/dependency_identity.go` keys NuGet rows by
+  section, name, and the condition pair), so the content store keeps one of
+  them. Both rows are `duplicate_include` partial, so the kept row never
+  claims a resolved version.
+- A `Target` cannot change what NuGet restore reads at evaluation time in the
+  common case, but this scanner does not prove that, so a `Target` demotes
+  every row like any other unread element.
+
 ## Performance and observability
 
 No-Regression Evidence: the props path is new and runs only for the two exact
 file names, so `.csproj` parsing is unchanged. `BenchmarkParseConfig` at the
-10,002-line floor (`-benchtime=30x`, one run on a shared 16-thread host)
-measured `nuget_project` (.csproj) 28.0 ms/op, 25.0 MB B/op, 289,791 allocs/op,
-`nuget_directory_packages_props` 22.3 ms/op, 18.0 MB B/op, 212,339 allocs/op,
-and `nuget_directory_build_props` 24.3 ms/op, 19.9 MB B/op, 234,819 allocs/op.
-The props files stay under the closest existing parser. Allocation ceilings in
+10,002-line floor (`-benchtime=30x`, a shared 16-thread host) measured
+`nuget_project` (.csproj) 28.8 ms/op, 24.8 MB B/op, 289,767 allocs/op,
+`nuget_directory_packages_props` 25.3 ms/op, 20.7 MB B/op, 222,406 allocs/op,
+and `nuget_directory_build_props` 28.3 ms/op, 22.5 MB B/op, 244,885 allocs/op.
+The item-operation tracker added about 14% time, 14% bytes, and 5% allocations
+to the props cases (same host, alternating runs against the scanner before it:
+22.2 ms, 18.0 MB, 212,340 allocs and 24.3 ms, 19.9 MB, 234,820 allocs). The
+props files stay at or under the `.csproj` parser. Allocation ceilings in
 `props_limits_test.go` bound a 10 MiB single line, 90,000 entries, 500,000
 nested tags, and unterminated tags, comments and CDATA by input size, and a
 doubling test requires allocation to grow at most 2.3x for 2x entries.
+The item-operation tracker adds a map of at most 10,000 names: on a 4 MiB
+file of Includes, named and wildcard Updates, and Removes, allocation went from
+59.2 MB (14.1x input) to 67.0 MB (16.0x), and a 4 MiB element of repeated
+`Version` attributes stayed at 78.0 MB (18.6x) before and after.
 
 No-Observability-Change: the parser emits no spans, metrics, or logs, like the
 rest of this package. An operator sees skipped and capped constructs in the
@@ -236,8 +301,10 @@ engine.
 ## Verification
 
 `go test ./internal/parser/nuget -count=1` runs the `.csproj` behavior tests and
-the props tests: grammar, limits and allocation ceilings, a 3,000-case seeded
-oracle fuzz, and a 2,000-case mutated-document survival test. The behavior
+the props tests: grammar, item operations, limits and allocation ceilings, a
+3,000-case seeded oracle fuzz, and a 2,000-case mutated-document survival
+test. The oracle models every `item_ambiguity` reason and fails if one stops
+occurring; `ESHU_PROPS_FUZZ_CASES=30000` runs a deeper pass. The behavior
 tests drive the real engine through `parsertest.MustParsePath` (or
 `parser.DefaultEngine` for the malformed-XML error), so registry dispatch is
 covered along with the parse itself. The limit and fuzz tests call `Parse`
