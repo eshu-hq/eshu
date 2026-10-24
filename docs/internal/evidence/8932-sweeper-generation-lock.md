@@ -75,10 +75,14 @@ shared host with load average 12 to 19.
 
 ## Performance Evidence
 
-Conflict domain: the `scope_generations` row of each generation the sweeper
-journals, against retention's `FOR UPDATE SKIP LOCKED`. No worker count, batch
-size or lease setting changes. The pass still holds its exclusive advisory key
-and never waits on it.
+Performance Evidence: baseline `origin/main` `c664b72cb0`, PostgreSQL 18.6, 50,000
+scopes with one active generation each plus the bootstrap `eshu:global` scope.
+Terminal counts: 11 rows inserted in the steady case, 50,001 in the bulk case.
+
+The conflict domain is the `scope_generations` row of each generation the
+sweeper journals, against retention's `FOR UPDATE SKIP LOCKED`. No worker count,
+batch size or lease setting changes. The pass still holds its exclusive advisory
+key and never waits on it.
 
 `EXPLAIN (ANALYZE, BUFFERS)` of the old and new statement on 50,000 scopes with
 one active generation each, in a rolled-back transaction, execution time, median
