@@ -310,6 +310,9 @@ func assignField(field reflect.Value, raw any) error {
 		}
 
 	case reflect.Slice:
+		if err, handled := assignNumberSlice(field, raw); handled {
+			return err
+		}
 		switch field.Type().Elem().Kind() {
 		case reflect.String:
 			strs, err := anyToStringSlice(raw)

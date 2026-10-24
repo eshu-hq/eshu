@@ -244,3 +244,7 @@ No-Observability-Change: this module has no runtime, network, queue, graph,
 or telemetry emission path, the same as `sdk/go/collector`. Runtime
 telemetry for the decode seam, once reducer handlers call it, is owned by
 the migration PRs in Contract System v1 §7, not by this scaffold.
+
+Number-preserving integer slices (`[]int` and `[]int32`) use the same exact
+decimal conversion as scalar fields. Mixed legacy members retain their JSON
+conversion, including null-to-zero; invalid numbers fail with bounded errors.

@@ -100,8 +100,10 @@ Number Fidelity No-Regression Evidence: `go test
 without a float64 conversion. The subprocess, SDK validator, claimed source,
 fact envelope clone, and JSON consumer retain the exact integer, negative
 integer, int64 boundary, nested array, and decimal values. The full package
-test, race test, and vet also pass. This is an intake proof, not a database,
-graph, or typed factschema consumer proof.
+test, race test, and vet also pass. The separate public typed-consumer tests preserve an exact issue count and
+nested Kubernetes ports through the subprocess, grant/schema validation,
+claimed source and envelope clone. Database reload, graph and deployed
+consumer compatibility remain unverified.
 
 Number Fidelity Benchmark Evidence: on linux/amd64, Intel i7-8700K, Go
 1.26.10, the same `ProcessRunner.RunCollector` subprocess benchmark ran five

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"strconv"
 )
 
@@ -272,4 +273,43 @@ func parseJSONInteger(s string, bits int) (int64, error) {
 		return 0, fmt.Errorf("JSON number out of int%d range", bits)
 	}
 	return value, nil
+}
+
+// assignNumberSlice handles the integer collections that contain preserved
+// JSON numbers. Other collection shapes retain the legacy whole-value decoder.
+// Legacy members use their original JSON conversion, including null-to-zero.
+// The destination is updated only after every fresh element succeeds.
+func assignNumberSlice(field reflect.Value, raw any) (error, bool) {
+	kind := field.Type().Elem().Kind()
+	if kind != reflect.Int && kind != reflect.Int32 {
+		return nil, false
+	}
+	values, ok := raw.([]any)
+	if !ok {
+		return nil, false
+	}
+	containsNumber := false
+	for _, value := range values {
+		if _, ok := value.(json.Number); ok {
+			containsNumber = true
+			break
+		}
+	}
+	if !containsNumber {
+		return nil, false
+	}
+	result := reflect.MakeSlice(field.Type(), len(values), len(values))
+	for i, value := range values {
+		var err error
+		if _, ok := value.(json.Number); ok {
+			err = assignField(result.Index(i), value)
+		} else {
+			err = jsonRoundTripValue(result.Index(i), value)
+		}
+		if err != nil {
+			return fmt.Errorf("element %d: %w", i, err), true
+		}
+	}
+	field.Set(result)
+	return nil, true
 }

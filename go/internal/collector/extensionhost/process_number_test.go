@@ -134,6 +134,71 @@ func TestProcessResultNumberReachesPublicTypedDecoder(t *testing.T) {
 	}
 }
 
+func TestProcessResultNumberReachesNestedTypedDecoder(t *testing.T) {
+	if os.Getenv("ESHU_EXTENSIONHOST_PROCESS_HELPER") == "typed-nested-number" {
+		var request Request
+		if err := json.NewDecoder(os.Stdin).Decode(&request); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		item := testWorkItem()
+		fact := testSDKFact(item)
+		fact.Kind = factschema.FactKindKubernetesLivePodTemplate
+		payload, ok := fixturepack.ValidPayload(fact.Kind)
+		if !ok {
+			t.Fatal("missing typed payload fixture")
+		}
+		payload["containers"] = []any{map[string]any{"ports": []any{json.Number("8e1")}}}
+		fact.Payload = payload
+		result := completeResult(item, fact)
+		result.Claim = request.Claim
+		if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
+			t.Fatalf("encode result: %v", err)
+		}
+		os.Exit(0)
+	}
+
+	item := testWorkItem()
+	item.LeaseExpiresAt = time.Now().Add(time.Minute)
+	manifest := testManifest()
+	manifest.Spec.EmittedFacts[0].Kind = factschema.FactKindKubernetesLivePodTemplate
+	manifest.Spec.EmittedFacts[0].PayloadSchemaRef = factschema.FactKindKubernetesLivePodTemplate
+	grants := []component.ProducerGrant{{
+		ProducerID: manifest.Metadata.ID, Version: manifest.Metadata.Version,
+		Kind:           factschema.FactKindKubernetesLivePodTemplate,
+		SchemaVersions: []string{"1.0.0"}, Scope: "repo",
+		ExpiresAt: time.Now().Add(time.Hour).UTC(),
+	}}
+	runner := ProcessRunner{
+		Command: os.Args[0],
+		Args:    []string{"-test.run=^TestProcessResultNumberReachesNestedTypedDecoder$"},
+		Env:     []string{"ESHU_EXTENSIONHOST_PROCESS_HELPER=typed-nested-number"},
+	}
+	source, err := NewSource(Config{
+		Manifest: manifest, CollectorInstanceID: item.CollectorInstanceID,
+		ScopeKind: scope.KindRepository, ConfigHandle: "cfg-scorecard",
+		Config: map[string]any{"fixture": "scorecard"}, Runner: runner,
+		Clock: testObservedAt, Grants: grants,
+	})
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil || !ok {
+		t.Fatalf("NextClaimed ok=%t, err=%v", ok, err)
+	}
+	envelopes := collectFacts(t, collected)
+	if len(envelopes) != 1 {
+		t.Fatalf("envelopes = %d", len(envelopes))
+	}
+	decoded, err := factschema.DecodeKubernetesLivePodTemplate(factenvelope.FactSchemaFromInternal(envelopes[0].Clone()))
+	if err != nil {
+		t.Fatalf("typed decode: %v", err)
+	}
+	if len(decoded.Containers) != 1 || len(decoded.Containers[0].Ports) != 1 || decoded.Containers[0].Ports[0] != 80 {
+		t.Fatalf("typed containers = %+v", decoded.Containers)
+	}
+}
+
 func assertExactNumbers(t *testing.T, payload map[string]any) {
 	t.Helper()
 	want := map[string]string{
