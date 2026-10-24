@@ -60,8 +60,12 @@ table in `docs/public/reference/http-api/collector-terminal-failure.md`
 class set, which pins the nine common classes for that one kind.
 `TestBoundedFailureClassesMatchTheCollectorWriters` reads each writer's class
 constants from its source with `go/parser` and compares them with the kind's set
-in both directions, so an added, removed, or renamed writer class fails without
-editing the test. Pinned by value because they are not constants: the claim
+in both directions, so an added, removed, or renamed class constant in a tied
+writer package fails without editing the test. It reads `const` declarations
+only: a class written as a `var`, an untyped constant outside the typed group,
+or a string literal returned from a `FailureClass()` method, and a writer
+package it does not list (for example the pagerduty and security-alert
+collectors), are not seen. Pinned by value because they are not constants: the claim
 runner's `collect_failure` and `commit_failure`, and `terraform_state`'s single
 `FailureClass()` method (a second implementer fails the test). It is the only
 place this package names collector runtime packages, and only in a test. Never add the
