@@ -46,8 +46,13 @@ The added steps run in its bulk leg and retain their Go JSON streams in the
 aggregate proof bundle. They use one pinned service image with fresh named
 admin, reachability and completion databases, while secret lines uses the
 administrative connection. The 13 ledger rows are `verified_scheduled`, owned
-by `postgres-scheduled`; the legacy scheduled pin shrinks from 383 to 370
-paths with SHA256 `9a2270dcfacc375cb42a9fc2d87c826f83c6574afcc1bbbe06c59c6bdd125720`.
+by `postgres-scheduled`. On the current main base `6b662d182c659e6ae4afb142c78d535bf1fc2231`,
+the legacy scheduled pin shrinks from 373 to 360 paths with SHA256
+`4d735f8eaa840fe43c7ad9030efbfa9fe9a69e4483ed4e9e97df1c6ca63ac9fc`.
+The combined runner has 133 files and 269 roots, including the merged
+supply-chain index restart proof. The compact workflow receipt remains a
+historical replay at `153feea755`; it does not prove this rebased head ran
+against PostgreSQL.
 
 Hosted execution on the reviewed revision and actual cron delivery remain
 NOT_CHECKED until CI and scheduled delivery evidence is retained. The bulk
