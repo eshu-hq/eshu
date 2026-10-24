@@ -20,6 +20,15 @@ reason instead of `complete` (#8943).
   each repository slug the way the read probe does, upserts the parent row,
   replaces the generation's child rows, and returns errors that carry no
   repository name.
+- Migration `232_security_alert_fanout_cursor.sql` adds the nullable
+  `fanout_start_repository`, `fanout_next_repository`, and
+  `fanout_lap_repository` columns to the parent row (#8946). `Writer` stores
+  them (NULL for the top of the allowlist and for no lap).
+  `CursorReader.FanoutCursor(scopeID)` returns `fanout_next_repository` and
+  `fanout_lap_repository` of the newest pending-or-active generation of the scope, ordered as
+  `activeGenerationFreshnessQuery` orders (not `ingestion_scopes.active_generation_id`),
+  and "" for no generation or no cursor; a query error is returned, never
+  answered with "". `FanoutCursorQuery` is exported for the live plan proof.
 - The collector (`internal/collector/securityalerts/alertruntime`) builds the
   state; `cmd/collector-security-alerts` passes `Writer` to the source; the
   ingestion store (`storage/postgres.IngestionStore.CommitClaimedScopeGenerationWithState`)
@@ -48,6 +57,12 @@ ORDER BY s.unread_total DESC;
 ```
 
 ## Proof
+
+`alert_fanout_cursor_live_test.go` (parent `postgres` package) proves the
+cursor on Postgres: commit and read, a newer generation without a read state,
+rollback, the unchanged-generation skip, replay, two generations racing from the
+same start, and the cursor read's plan (an index range on the scope plus a
+primary-key lookup, 0.042 ms on 20,000 generations).
 
 `alert_read_state_commit_live_test.go` and
 `alert_read_state_concurrency_live_test.go` (in the parent `postgres`

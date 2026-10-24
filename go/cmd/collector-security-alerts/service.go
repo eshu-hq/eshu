@@ -82,7 +82,8 @@ func buildClaimedServiceWithClients(
 	config.Source.ClientFactory = clients
 	config.Source.Tracer = tracer
 	config.Source.Instruments = instruments
-	attachReadState(&config.Source)
+	attachReadState(&config.Source, database)
+	config.Source.Logger = logger
 	source, err := alertruntime.NewClaimedSource(config.Source)
 	if err != nil {
 		return collector.ClaimedService{}, err
@@ -111,9 +112,12 @@ func buildClaimedServiceWithClients(
 
 // attachReadState has the source hand each organization claim's read state to
 // the Postgres writer, which the ingestion store runs in the generation's
-// commit transaction (#8943).
-func attachReadState(source *alertruntime.SourceConfig) {
+// commit transaction (#8943), and read the org fan-out cursor that state
+// committed from the same tables (#8946). The two always travel together: a
+// writer without the reader would commit a cursor no claim ever reads.
+func attachReadState(source *alertruntime.SourceConfig, database db.Queryer) {
 	source.ReadStateWriter = unread.Writer
+	source.FanoutCursorReader = unread.NewCursorReader(database)
 }
 
 func newClaimID() string {

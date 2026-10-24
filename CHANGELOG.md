@@ -68,6 +68,32 @@ recent shipped work grouped by feature area.
   change under `docs/public/`. To protect another section, add a line to the
   list.
 
+### Security alerts: a failing repository no longer pins the org fan-out
+
+- **The org fan-out start moves forward past a failing repository**
+  ([#8946](https://github.com/eshu-hq/eshu/issues/8946)). An org-scope claim
+  stopped at the first repository whose read failed for a reason that is not
+  repository-specific, and every later claim restarted at the top and stopped
+  there again, so the repositories behind it were never read. For an allowlist
+  of at most 100 same-org repositories the next claim now starts after the
+  failing repository, reads the rest, wraps around, and retries it last. A
+  failed read at the last position closes a lap: the start returns to the top,
+  where it was before, and stays there until a claim reads every repository or
+  that last repository leaves the allowlist; a rate limit leaves the start. With
+  several failing repositories the start settles after at most one stored
+  generation per failing repository plus one, the committer then skips
+  unchanged generations, and the settled read set is never smaller than the
+  one before. A repository behind a failing one can stay unread, labeled
+  `org_repository_fanout_stopped`, until the failing repository is fixed or
+  removed. The position commits with the generation in the org read state row
+  (migration 232: `fanout_start_repository`, `fanout_next_repository`,
+  `fanout_lap_repository`), so it survives a restart. A target with more than
+  100 same-org repositories still reads only its first 100 on every claim; the
+  collector now logs one `security_alert.org_fanout_over_cap` warning for it at
+  startup, and splitting it into targets of at most 100 repositories is the fix
+  (#9019 tracks doing it automatically). Spans gain
+  `eshu.security_alert.org_fanout.start_offset`, `.next_offset`, and `.lapped`.
+
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
 - **Nesting guard before every Cargo TOML decode**

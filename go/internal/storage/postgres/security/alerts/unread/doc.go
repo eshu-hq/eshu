@@ -19,6 +19,15 @@
 // generation; nothing here owns a sweeper and nothing depends on
 // workflow_work_items.
 //
+// The same row carries the org fan-out cursor (#8946, migration 232):
+// fanout_start_repository, fanout_next_repository, and fanout_lap_repository
+// name the allowlisted repository this generation's fan-out started at, the
+// next claim starts at, and, when a failed read at the last position closed a
+// lap, that last repository.
+// CursorReader reads the cursor of the newest pending-or-active generation of a
+// scope, so the cursor advances only when a generation commits and survives a
+// restart.
+//
 // The package imports the collector contract and the shared value types only,
 // never the parent postgres package.
 package unread
