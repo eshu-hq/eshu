@@ -126,8 +126,8 @@ the default-host identity stability (#7764).
 
 The managed-workspace copy prunes dot-prefixed entries unless
 `preserveFilesystemHiddenPath` (`selection_copy_workspace.go`) allows them. When
-the parser registry admits a new dot-prefixed name (#8814), add its basename
-there, or filesystem mode never sees it. Never add a credential-bearing dotfile
+the parser registry admits a new dot-prefixed name (#8814, and the #8809
+version pins), add its basename there, or filesystem mode never sees it. Never add a credential-bearing dotfile
 (`.env`, `.npmrc`, `.pypirc`, `.netrc`), and keep `.gitignore` out: the copy
 applies the source ignore rules itself, and copying the file would make
 discovery filter a second time. Names match case-insensitively, like the
@@ -145,8 +145,9 @@ text, a `.java` file under `.mvn/wrapper` is parsed as Java, and `.mvn/jvm.confi
 `TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails when a
 dot-prefixed registry exact name (all except `.gitignore`) is missing from
 `preservedHiddenFilesystemFileNames`. A PR that adds dotfile names to the
-registry, for example the version-pin names in #8882, goes red on it until it
-adds them to that map in the same change.
+registry goes red on it until it adds them to that map in the same change; the
+version-pin names from #8882 (`.nvmrc`, `.node-version`, `.tool-versions` and
+the rest) are in the map for that reason.
 
 No-Regression Evidence (#8814): discovery path. `LookupByPath` over 29,083
 repository paths averaged 14.94 ms before and 15.29 ms after the new names and

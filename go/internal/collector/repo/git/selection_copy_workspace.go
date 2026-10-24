@@ -52,8 +52,8 @@ func cleanManagedWorkspace(reposDir string) error {
 // (TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories). Keys
 // are lower case; the lookup lowercases the entry name.
 //
-// The tool configuration names (#8814) are the dot-prefixed names the parser
-// registry admits as plain text. .gitignore is deliberately absent: the copy
+// The tool configuration names (#8814) and the runtime-version pin names (#8809)
+// are the dot-prefixed names the parser registry admits as plain text. .gitignore is deliberately absent: the copy
 // applies the source repository's ignore rules itself, and copying the file
 // would let discovery filter a second time, dropping files the copy kept
 // because git tracks them (#5591). Credential-bearing dotfiles (.env, .npmrc,
@@ -70,6 +70,17 @@ var preservedHiddenFilesystemFileNames = map[string]struct{}{
 	".babelrc":        {},
 	".npmignore":      {},
 	".flake8":         {},
+
+	// Runtime-version pin files (#8809). Each holds only a version string.
+	".nvmrc":             {},
+	".node-version":      {},
+	".tool-versions":     {},
+	".python-version":    {},
+	".ruby-version":      {},
+	".java-version":      {},
+	".go-version":        {},
+	".sdkmanrc":          {},
+	".terraform-version": {},
 }
 
 // preserveFilesystemHiddenPath reports whether the managed-workspace copy keeps

@@ -93,7 +93,8 @@ Some names are left out on purpose:
   admitted.
 
 In filesystem source mode, the managed-workspace copy keeps the admitted
-dot-prefixed names (matched case-insensitively) under non-hidden directories and
+dot-prefixed names, including the runtime-version pins such as `.nvmrc` and
+`.tool-versions` (matched case-insensitively) under non-hidden directories and
 under `.github`, `.github/workflows` and `.mvn`, but not `.gitignore`: the copy
 already applies the source repository's ignore rules, so `.gitignore` is not
 indexed in that mode. Discovery then applies the registry to what the copy kept,
