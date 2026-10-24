@@ -92,7 +92,7 @@ type pullRequestFilter struct {
 // workflow has the zero filter.
 func readPullRequestFilter(repoRoot, workflow string) pullRequestFilter {
 	fragmentPath := filepath.Join(repoRoot, "specs", "ci-pr-workflows.d", filepath.Base(workflow))
-	if fragment, err := os.ReadFile(fragmentPath); err == nil {
+	if fragment, err := os.ReadFile(fragmentPath); err == nil { // #nosec G304 -- basename-confined workflow from the committed registry
 		if definitions, parseErr := ParsePRPlanFragment(fragment); parseErr == nil {
 			for _, definition := range definitions {
 				if definition.File == filepath.Base(workflow) {
