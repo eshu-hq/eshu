@@ -4,7 +4,6 @@
 package collector
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,11 +23,9 @@ func validateFactPayload(fact Fact) error {
 	if err := walkFactPayload(fact.Payload, "", fact.Kind, fact.SchemaVersion, 0); !errors.Is(err, errCanonicalPayloadRequired) {
 		return err
 	}
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	var canonical map[string]any
-	if err := decoder.Decode(&canonical); err != nil {
-		return fmt.Errorf("decode canonical payload: %w", err)
+	canonical, err := decodeCanonicalPayload(raw)
+	if err != nil {
+		return err
 	}
 	return walkFactPayload(canonical, "", fact.Kind, fact.SchemaVersion, 0)
 }

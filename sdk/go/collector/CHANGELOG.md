@@ -25,6 +25,10 @@ Tags for this module use the Go subdirectory-module format:
 
 ### Fixed
 
+- Native fact payloads with custom JSON serialization reject duplicate decoded
+  member names at every object depth before later values can overwrite earlier
+  raw values. Validation does not mutate or freeze the caller's result; callers
+  must keep serialization stable through subsequent use.
 - Fact validation admits Kubernetes posture fields only at schema `1.0.0`
   roots: `k8s_service_account` and `k8s_service_account_token_posture` allow
   `secret_ref_count` and `image_pull_secret_ref_count` as JSON numbers or null,

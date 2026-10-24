@@ -80,6 +80,8 @@ func NewValidator(contract Contract) Validator {
 }
 
 // ValidateResult validates a complete extension result before host commit.
+// Callers must keep the result and custom marshalers stable through validation
+// and subsequent use; the report does not freeze or copy the payload.
 func (v Validator) ValidateResult(result Result) (ValidationReport, error) {
 	var report ValidationReport
 	if err := v.validateResultEnvelope(result); err != nil {
