@@ -1,0 +1,59 @@
+{
+  "head": "a4698cd87ed66d0e7e174ae041f21832f05d0bfe",
+  "base": "34922d077381bbef2b44cb70f518c12bd3f8b24a",
+  "purpose": "functional accuracy replay; no performance comparison",
+  "images": {
+    "postgres": "ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c",
+    "neo4j": "neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f"
+  },
+  "image_ids": {
+    "eshu-7533-8785-latest-pg": "sha256:2e182ed2ff8f5d0835353864264437a26dffc542a9a6c677ec495aa54e491627",
+    "eshu-7533-8785-latest-neo": "sha256:2011a203e1a75bf71d51093b577dc1242bb56b94ddfee05d22f2486465a4fbe6"
+  },
+  "postgres_version": "18.6 (Debian 18.6-1.pgdg12+2)",
+  "neo4j_version": "name, versions\n\"Neo4j Kernel\", [\"2026.08.1\"]\n\"Cypher\", [\"5\", \"25\"]",
+  "go_version": "go version go1.26.10 linux/amd64",
+  "source_hashes": {
+    "go/cmd/projector/delta_union_live_test.go": "b8de8c58fd4c84f351018e8d9f69fff353e2e2e4dda22641716b1b95cf51f1ba",
+    ".github/workflows/delta-union-scheduled.yml": "0e5a5a3bf67a6ea3c159f3942c294a7c8140529acfe8e3676d1c8ce843d703b2"
+  },
+  "command": [
+    "go",
+    "test",
+    "./cmd/projector",
+    "-run",
+    "^(TestDeltaUnionProjectsFullTreeFromEmptyLive|TestDeltaUnionBaseMissingRefusesWithoutPartialLive)$",
+    "-json",
+    "-race",
+    "-count=1",
+    "-p",
+    "4",
+    "-timeout",
+    "8m"
+  ],
+  "exit_code": 0,
+  "test_wall_seconds": 30.588538251817226,
+  "strict_verifier_exit_code": 0,
+  "events_sha256": "19f7a3a8df93b509b3a96d1c83270b61c81954432fa05db2385b06d7f3b88d71",
+  "events": {
+    "TestDeltaUnionProjectsFullTreeFromEmptyLive": {
+      "run": 1,
+      "output": 652,
+      "pass": 1
+    },
+    "TestDeltaUnionBaseMissingRefusesWithoutPartialLive": {
+      "run": 1,
+      "output": 646,
+      "pass": 1
+    }
+  },
+  "unexpected_tests": [],
+  "proof_ok": true,
+  "cleanup": {
+    "eshu-7533-8785-latest-neo": 0,
+    "eshu-7533-8785-latest-pg": 0
+  },
+  "total_wall_seconds": 44.251012799330056,
+  "post_head": "a4698cd87ed66d0e7e174ae041f21832f05d0bfe",
+  "status_after": ""
+}
