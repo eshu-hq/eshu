@@ -148,6 +148,12 @@ func TestParseUVLockSourceKindsNeverMasqueradeAsRegistryConsumption(t *testing.T
 		{"directory", `{ directory = "libs/x" }`, "path_dependency", "path", "libs/x", "", 0},
 		{"virtual", `{ virtual = "." }`, "path_dependency", "path", ".", "", 0},
 		{"editable", `{ editable = "../x" }`, "editable_dependency", "path", "../x", "", 0},
+		{"url signed query dropped", `{ url = "https://example.com/x-1.2.3.tar.gz?token=SECRET#frag" }`, "url_dependency", "url", "https://example.com/x-1.2.3.tar.gz", "", 1},
+		{"url userinfo and query", `{ url = "https://user:SECRET@example.com/x.tar.gz?sig=SECRET" }`, "url_dependency", "url", "https://example.com/x.tar.gz", "", 1},
+		{"at sign in query is not userinfo", `{ url = "https://example.com/x.tar.gz?mail=a@b" }`, "url_dependency", "url", "https://example.com/x.tar.gz", "", 1},
+		{"registry query dropped and not pypi", `{ registry = "https://pypi.org/simple?token=SECRET" }`, "url_dependency", "registry", "https://pypi.org/simple", "", 1},
+		{"registry userinfo host is not pypi", `{ registry = "https://pypi.org@evil.example/simple" }`, "url_dependency", "registry", "https://evil.example/simple", "", 1},
+		{"git query dropped", `{ git = "https://github.com/acme/x.git?rev=main&token=SECRET" }`, "vcs_dependency", "vcs", "https://github.com/acme/x.git", "main", 1},
 		{"url", `{ url = "https://example.com/x-1.2.3.tar.gz" }`, "url_dependency", "url", "https://example.com/x-1.2.3.tar.gz", "", 0},
 	}
 	for _, tc := range cases {
@@ -172,7 +178,7 @@ func TestParseUVLockSourceKindsNeverMasqueradeAsRegistryConsumption(t *testing.T
 			if result.State.RedactedURLs != tc.redacted {
 				t.Fatalf("RedactedURLs = %d, want %d", result.State.RedactedURLs, tc.redacted)
 			}
-			if strings.Contains(row["source_url"].(string), "tok") {
+			if strings.Contains(row["source_url"].(string), "tok") || strings.Contains(row["source_url"].(string), "SECRET") {
 				t.Fatalf("credential leaked into source_url: %#v", row)
 			}
 		})
@@ -215,6 +221,8 @@ func TestParseUVLockFailsClosedOnUnknownConstructs(t *testing.T) {
 		{"unterminated name string", "name = \"x\nversion = \"1.0\"\n" + pypi, 0, 1},
 		{"quoted key", "\"name\" = \"x\"\nversion = \"1.0\"\n" + pypi, 0, 1},
 		{"dotted extra key", "name = \"x\"\nversion = \"1.0\"\n" + pypi + "\nfoo.bar = \"z\"", 1, 1},
+		{"path with url scheme", "name = \"x\"\nversion = \"1.0\"\nsource = { path = \"https://user:SECRET@host/x\" }", 1, 1},
+		{"editable with url scheme", "name = \"x\"\nversion = \"1.0\"\nsource = { editable = \"file://host/x\" }", 1, 1},
 		{"bare junk line", "name = \"x\"\nversion = \"1.0\"\n" + pypi + "\nthis is not toml", 1, 1},
 	}
 	for _, tc := range cases {

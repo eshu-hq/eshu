@@ -79,37 +79,53 @@ func parseUVSource(value []byte) (uvSource, bool) {
 // classifyUVSource maps one primary source key to the row's config_kind,
 // source_kind, source_url, and source_ref. Only the PyPI index yields
 // config_kind=dependency: any other index may serve a package that merely
-// shares a PyPI name, so it must not match PyPI advisories.
+// shares a PyPI name, so it must not match PyPI advisories. Persisted URLs
+// never carry userinfo, a query, or a fragment, because any of them can hold
+// a credential or a signed token; each removal is counted in Redacted.
 func classifyUVSource(key, value string) (uvSource, bool) {
 	switch key {
-	case "registry":
+	case "registry", "url":
 		if strings.ContainsAny(value, " \t") {
 			return uvSource{}, false
 		}
 		url, redacted := stripURLUserinfo(value)
-		kind := "url_dependency"
-		if isPyPIIndex(url) {
-			kind = configKindDependency
+		kind, sourceKind := configKindURL, "url"
+		if key == "registry" {
+			sourceKind = "registry"
+			if isPyPIIndex(url) {
+				kind = configKindDependency
+			}
 		}
-		return uvSource{ConfigKind: kind, SourceKind: "registry", URL: url, Redacted: redacted}, true
+		url, dropped := dropURLQueryFragment(url)
+		return uvSource{ConfigKind: kind, SourceKind: sourceKind, URL: url, Redacted: redacted || dropped}, true
 	case "git":
 		if strings.ContainsAny(value, " \t") {
 			return uvSource{}, false
 		}
-		base, ref := splitGitSource(value)
+		base, ref, dropped := splitGitSource(value)
 		url, redacted := stripURLUserinfo(base)
-		return uvSource{ConfigKind: configKindVCS, SourceKind: "vcs", URL: url, Ref: ref, Redacted: redacted}, true
-	case "url":
-		if strings.ContainsAny(value, " \t") {
+		return uvSource{ConfigKind: configKindVCS, SourceKind: "vcs", URL: url, Ref: ref, Redacted: redacted || dropped}, true
+	default: // path, directory, editable, virtual
+		if strings.Contains(value, "://") {
+			// A local path never carries a scheme; a URL here could hold a
+			// credential this reader does not strip.
 			return uvSource{}, false
 		}
-		url, redacted := stripURLUserinfo(value)
-		return uvSource{ConfigKind: configKindURL, SourceKind: "url", URL: url, Redacted: redacted}, true
-	case "editable":
-		return uvSource{ConfigKind: configKindEditable, SourceKind: "path", URL: value}, true
-	default: // path, directory, virtual
-		return uvSource{ConfigKind: configKindPath, SourceKind: "path", URL: value}, true
+		kind := configKindPath
+		if key == "editable" {
+			kind = configKindEditable
+		}
+		return uvSource{ConfigKind: kind, SourceKind: "path", URL: value}, true
 	}
+}
+
+// dropURLQueryFragment removes a `?query` and `#fragment` from value and
+// reports whether anything was removed.
+func dropURLQueryFragment(value string) (string, bool) {
+	if index := strings.IndexAny(value, "?#"); index >= 0 {
+		return value[:index], true
+	}
+	return value, false
 }
 
 // isPyPIIndex reports whether url is exactly the public PyPI simple index.
@@ -140,8 +156,10 @@ func stripURLUserinfo(value string) (string, bool) {
 
 // splitGitSource splits uv's `url?rev=...#commit` form into the clone URL
 // and the most specific reference the lockfile proves: the resolved commit
-// fragment when it is hex, otherwise a rev/tag/branch query value.
-func splitGitSource(value string) (base, ref string) {
+// fragment when it is hex, otherwise a rev/tag/branch query value. dropped is
+// true when a query key other than rev, tag, branch, or subdirectory, or a
+// non-commit fragment, was discarded.
+func splitGitSource(value string) (base, ref string, dropped bool) {
 	base = value
 	fragment := ""
 	if index := strings.IndexByte(base, '#'); index >= 0 {
@@ -151,16 +169,27 @@ func splitGitSource(value string) (base, ref string) {
 	if index := strings.IndexByte(base, '?'); index >= 0 {
 		base, query = base[:index], base[index+1:]
 	}
-	if isHexCommit(fragment) {
-		return base, fragment
+	if fragment != "" && !isHexCommit(fragment) {
+		dropped = true
 	}
+	var queryRef string
 	for _, pair := range strings.Split(query, "&") {
 		name, val, found := strings.Cut(pair, "=")
-		if found && (name == "rev" || name == "tag" || name == "branch") && validGitRefName(val) {
-			return base, val
+		switch {
+		case !found && pair == "":
+		case found && (name == "rev" || name == "tag" || name == "branch") && validGitRefName(val):
+			if queryRef == "" {
+				queryRef = val
+			}
+		case found && name == "subdirectory":
+		default:
+			dropped = true
 		}
 	}
-	return base, ""
+	if isHexCommit(fragment) {
+		return base, fragment, dropped
+	}
+	return base, queryRef, dropped
 }
 
 func isHexCommit(s string) bool {
