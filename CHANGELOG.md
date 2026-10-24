@@ -67,11 +67,17 @@ recent shipped work grouped by feature area.
   the exact name `libs.versions.toml` on the existing `gradle` definition, and
   a new `go/internal/parser/gradle/catalog` package reads `[libraries]` and
   `[plugins]` entries into the existing Gradle dependency row shape. A version
-  is `resolved` only when the file writes it out or points at a plain
-  `[versions]` string with `version.ref`; a rich version, a missing reference,
-  or an interpolation stays `unresolved` with no value, and a construct outside
+  is `resolved` only when the file writes out one exact version or points at a
+  plain `[versions]` string with `version.ref`; a rich version, a missing
+  reference, an interpolation, or a selector (`1.+`, `latest.release`, a range,
+  `1.0!!`, `1.0@jar`) stays `unresolved` with no value, and a construct outside
   the documented grammar yields no row and is counted in
-  `gradle_catalog_state`. Plugin rows use `config_kind=gradle_plugin`, so the
+  `gradle_catalog_state`. Aliases match the way Gradle normalizes them (`-`,
+  `_` and `.` are one separator); Gradle keeps only one of two colliding
+  aliases, chosen by registration order the file does not show, so every
+  colliding row stays `unresolved` and is counted in `alias_collision_count`.
+  A library string needs exactly three parts and a plugin string two, and a
+  file TOML rejects, such as a table defined twice, yields no rows. Plugin rows use `config_kind=gradle_plugin`, so the
   package reducer ignores them. The parser refuses a file over 2 MiB, nesting
   over 16 levels, and rows past 5000 per table, and counts each. The TOML
   library overflows the stack on a one-million-level array, so the nesting
