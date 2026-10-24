@@ -23,12 +23,24 @@ in-tree `jira` instance stays `unknown`, and no class text reaches the scrape.
 
 ## Input shape
 
-- Component-activated instance: stored `configuration` carries
-  `schema_version=eshu.component.instance.v1` and a `component_id`, the check
-  `activation.IsConfiguration` shares with the coordinator scheduler. The reader
-  parses the text, keeps the boolean in `InstanceSummary.ExtensionHosted`, and
-  drops the text.
+- Extension-hosted instance: any stored `configuration` the generic planner
+  claims, which `activation.IsConfiguration` shares with the coordinator
+  scheduler. That is a valid activation document
+  (`schema_version=eshu.component.instance.v1` plus a `component_id`), and also
+  a malformed or incomplete one, a non-object jsonb value (`[]`, `"x"`, `5`),
+  a wrong-typed field (`{"component_id":5}`), or a `schema_version` with no
+  `component_id`. The reader parses the text, keeps the boolean in
+  `InstanceSummary.ExtensionHosted`, and drops the text.
 - In-tree instance: blank, `{}`, or target configuration. The flag stays false.
+
+## Reader cost
+
+A reviewer microbenchmark of the parse the reader runs per instance, per status
+snapshot or scrape: cost is O(configuration bytes). A 1 MiB in-tree
+configuration took 4.74 ms/op with 1.0 MB/op and 6 allocs/op; a small
+configuration took 0.82 us/op with 10 KB/op. Before this change only the
+`scan_interval` value crossed the wire. The instance count is bounded by
+operator configuration. No live PostgreSQL timing was taken.
 
 ## Safety
 

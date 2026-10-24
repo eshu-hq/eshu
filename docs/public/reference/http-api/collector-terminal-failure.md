@@ -46,9 +46,10 @@ Every kind reports the extension host's own classes (`invalid_claim`,
 extension can be configured with a first-party kind such as `jira` and the host
 then writes those classes for it.
 
-An instance is extension-hosted when its stored configuration is a component
-activation document (the same check the coordinator uses to hand an instance to
-the extension host), or when its kind is not first-party, because only the
+An instance is extension-hosted when the generic component planner claims its
+stored configuration (the same check the coordinator uses to hand an instance
+to the extension host, which includes a malformed or non-object configuration),
+or when its kind is not first-party, because only the
 extension host runs a kind the platform does not ship. On such an instance any
 other class it defines itself (a lowercase token of at most 96 characters)
 reads `extension_defined`, so third-party classes never grow the set, whether

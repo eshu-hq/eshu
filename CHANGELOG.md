@@ -28,8 +28,8 @@ recent shipped work grouped by feature area.
   ([#8951](https://github.com/eshu-hq/eshu/issues/8951)). The status leaf
   bounded failure classes per collector kind and had no instance-level signal,
   so these classes read `unknown`. The status reader now marks an instance
-  extension-hosted when its stored configuration is a component activation
-  document, the check the coordinator already uses, and the class bound
+  extension-hosted when the generic component planner claims its stored
+  configuration, the check the coordinator already uses, and the class bound
   collapses pattern-valid extension classes only for such instances. An in-tree
   instance of the same kind still reads `unknown` for an unregistered class.
   The marker is a boolean read from existing state: no payload field and no new
