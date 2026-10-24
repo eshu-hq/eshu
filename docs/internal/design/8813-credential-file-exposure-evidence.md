@@ -92,9 +92,9 @@ detected; skeleton mode avoids that because a detector-flagged key gets
 Run on a deployment, counts only; it never selects `content` or `line_text`.
 The first query was validated on temporary tables with the shapes from
 `schema_content_store.go` and migration 138, seeded as described below; the
-second was not run. Findings
-are meaningful only while `content_file_secret_lines_state.state = 'ready'`, and
-the table misses the shapes in the probe above until the new migration lands.
+second was not run. Findings are meaningful only while
+`content_file_secret_lines_state.state = 'ready'`, and the table misses the
+shapes in the probe above until the new migration lands.
 
 ```sql
 SELECT
