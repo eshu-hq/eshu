@@ -61,9 +61,20 @@ loop metrics live in `go/internal/coordinator/metrics.go`.
 | `eshu_dp_collector_reconcile_parse_skip_persistent_drops_total` | Forced reconciles that skipped the parse while carrying the active generation's recorded stream drops (#8185), no labels. One increment per skip; the per-interval rate is the count of scopes in drop debt. Each such skip also logs INFO `git_reconcile_parse_skipped_with_persistent_drops` with `scope_id`, `generation_id`, `commit_sha`, `drop_count`, and `dropped_paths`. A recorded set that overflowed the 32-path cap forces a parse instead, since unrecorded drops cannot be re-checked. See [Reconciliation Sweep](../reconciliation-sweep.md). |
 | `eshu_dp_reconciliation_drift_retractions_total` | Graph nodes and edges actually retracted by those forced reconciliation snapshots, labeled by bounded `domain`, `write_phase`, and `kind` (`node` or `edge`). A sustained nonzero rate after the first reconciliation window means delta-path cleanup is repeatedly finding stale graph state; investigate failed delta projections, graph write errors, or missed deletion events. Scope and repo identifiers stay in logs/spans, not metric labels. Ordinary workload removal is counted separately on `eshu_dp_workload_repository_edge_retractions_total`. |
 
-Content-aware skip reasons use the `content:` prefix. Repo-local
-`.eshu/discovery.json` rules use the `user:` prefix. `.eshuignore` matches use
-`skip_reason=eshuignore`.
+Content-aware skip reasons use the `content:` prefix. A symlink whose
+resolved target fails admission counts as `skip_reason=content:symlink_target`
+(#8809). Admission fails when the target dangles, leaves the repository, is not
+a regular file, falls in a different admission category than the link name, or
+sits where discovery would skip a regular file (an ignored or hidden directory,
+an ignored extension, a hidden name, or an ignored path glob). The `discovery
+stats` log carries it as `files_skipped.content.symlink_target`. The target
+check runs before the path glob check, so a rejected link whose own path also
+matches an operator glob counts as `content:symlink_target`, not `user:`.
+`.gitignore` and `.eshuignore` run after the walk, so a dropped link those
+files would also skip counts as `content:symlink_target`, not as an ignore
+skip (it counted as an ignore skip before #8809).
+Repo-local `.eshu/discovery.json` rules use the `user:` prefix. `.eshuignore`
+matches use `skip_reason=eshuignore`.
 
 No-Regression Evidence: `go test ./internal/collector ./internal/telemetry
 -count=1` (468 tests, NornicDB-independent unit path) proves the git-collector

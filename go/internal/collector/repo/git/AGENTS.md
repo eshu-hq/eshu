@@ -247,3 +247,66 @@ yield-disabled-by-outage alerts instead of hiding behind the quiet queue;
 operator reads the wait histogram for the #8123 outcome, the yield
 counter and log for where sweeps stopped, the failed-probe stream for
 silent yield loss, and the existing sweep logs for the sweep period.
+
+## Symlink admission evidence (#8809)
+
+`symlinkAdmission` is the one symlink rule both sync modes apply. Full
+discovery calls `symlinkTargetAdmitted` from the walk matcher, and
+`resolveNativeSnapshotFileSetForTargets` calls `admitTargetSymlink` for each
+`--file-targets` entry, so a link dropped by one mode is dropped by the other
+(`TestSymlinkTargetAdmissionAgreesAcrossSyncModes`). Discovery tests the link
+name but the content read follows the link, so a target must be a regular file
+inside the root, in the link's admission category (the same parser definition,
+or both terraform state, documentation, `.gitmodules`, or CODEOWNERS), and not
+excluded by `discovery.PathRules` built from the repo-merged options. Dangling
+links, cycles, and directory links are dropped too. The delta path still
+records an admitted link under its resolved target path, as before.
+
+Behavior change in the delta path: an in-root link whose target leaves the
+repository is dropped and counted, the way full discovery drops it, where it
+used to fail the whole delta with "outside repository root". A target whose own
+path is outside the repository, link or regular file, still returns that error
+(`TestResolveNativeSnapshotFileSetForTargetsOutOfRoot` pins both).
+
+Both callers resolve `repoPath` with `EvalSymlinks` once at the top, and
+`newSymlinkAdmission` requires that resolved root: the containment check does
+not resolve it again. CODEOWNERS and `.gitmodules` detection, containment, and
+the returned `RepoRoot` all use one root
+(`TestResolveNativeSnapshotFileSetSymlinkedRepoRootKeepsSameCategoryLinks`
+covers both modes).
+
+Performance Evidence: `BenchmarkSymlinkTargetAdmitted` (committed in
+`snapshot_native_symlink_cost_test.go`) measures the matcher, not an end-to-end
+discovery before/after. `go test -run '^$' -bench BenchmarkSymlinkTargetAdmitted
+-benchtime=20000x -count=5 ./internal/collector/repo/git/`, run twice on a
+shared 16-thread arm64 Linux host, gave 0.68 to 1.40 µs per regular file (one
+`Lstat`) and 10.6 to 16.4 µs per symlink (`EvalSymlinks`, the location rules,
+and `Stat`), against zero before. The spread is host load. Both are far below
+the parse and read cost of the file they guard, and no queue, graph, or SQL
+path changes. A repository-scale discovery comparison is NOT_CHECKED.
+
+Observability Evidence: each dropped link adds one to
+`DiscoveryStats.FilesSkippedByContent["symlink_target"]`. That map already
+feeds `eshu_dp_discovery_files_skipped_total` as
+`skip_reason=content:symlink_target`, the `discovery stats` log key
+`files_skipped.content.symlink_target`, and the discovery advisory report's
+content breakdown. The delta path counts into its own stats value, which the
+production caller discards because full discovery already counted the same
+link. No instrument, label set, span, or status field is added. The matcher
+runs once per file on one goroutine, so the counter needs no lock. The walk
+asks the matcher before it checks path globs, so a rejected link whose own path
+matches an operator glob counts as `content:symlink_target`, not `user:`.
+`.gitignore` and `.eshuignore` run after the walk, so a dropped link those
+files would also skip counts as `content:symlink_target`, not
+`gitignore` or `eshuignore` (before #8809 it counted under those).
+`TestResolveNativeSnapshotFileSetCountsDroppedSymlinks` pins the count.
+
+Known limits: the target check re-applies ignored directory names, hidden
+paths and preserved hidden prefixes, ignored extensions, and ignored and
+preserved path globs (including `.eshu/discovery.json`, vendor roots, and
+`ESHU_DISCOVERY_IGNORED_PATH_GLOBS`). It does not re-apply `.gitignore` or
+`.eshuignore`, so a path excluded only by those files can still surface through
+an in-root link whose own name is admitted. The delta path checks only the
+target's leaf. Git refuses a path beyond a symbolic link, so a git-diff target
+never reaches a file through a directory link; an explicit operator
+`--file-targets` path can, and is then judged as the regular file it reaches.

@@ -21,11 +21,7 @@ func collectSupportedFiles(
 	supported SupportedFileMatcher,
 	opts Options,
 ) ([]FileWithSize, DiscoveryStats, error) {
-	ignoredDirs := normalizeIgnoredDirs(opts.IgnoredDirs)
-	ignoredExts := normalizeExtensions(opts.IgnoredExtensions)
-	preservedHidden := normalizePrefixes(opts.PreservedHiddenPrefixes)
-	ignoredPathGlobs := normalizePathGlobRules(opts.IgnoredPathGlobs)
-	preservedPathGlobs := normalizePathGlobPatterns(opts.PreservedPathGlobs)
+	rules := NewPathRules(opts)
 
 	stats := DiscoveryStats{
 		DirsSkippedByName:       make(map[string]int),
@@ -55,34 +51,34 @@ func collectSupportedFiles(
 		}
 		rel = filepath.ToSlash(filepath.Clean(rel))
 
+		// PathRules owns every location-only decision so ExcludesFile, which
+		// judges paths this walk never visits, cannot drift from it.
 		if entry.IsDir() {
-			if isIgnoredDir(entry.Name(), ignoredDirs) {
-				stats.DirsSkippedByName[strings.ToLower(entry.Name())]++
+			bucket, key := rules.dirSkip(rel, entry.Name())
+			if bucket == skipDirByName {
+				stats.DirsSkippedByName[key]++
 				return filepath.SkipDir
 			}
-			if opts.IgnoreHidden && isHiddenPath(rel) && !preservesHiddenPath(rel, preservedHidden) {
-				stats.DirsSkippedByName[".hidden"]++
-				return filepath.SkipDir
-			}
-			if reason, ok := matchedIgnoredPathGlob(rel, true, ignoredPathGlobs, preservedPathGlobs); ok {
-				stats.DirsSkippedByUser[reason]++
+			if bucket == skipDirByUser {
+				stats.DirsSkippedByUser[key]++
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		if shouldSkipFile(rel, opts.IgnoreHidden, preservedHidden) {
+		bucket, key := rules.fileSkipBeforeMatch(rel, entry.Name())
+		if bucket == skipFileHidden {
 			stats.FilesSkippedHidden++
 			return nil
 		}
-		if ext := matchedIgnoredExtension(entry.Name(), ignoredExts); ext != "" {
-			stats.FilesSkippedByExtension[ext]++
+		if bucket == skipFileByExtension {
+			stats.FilesSkippedByExtension[key]++
 			return nil
 		}
 		if !supported(path) {
 			return nil
 		}
-		if reason, ok := matchedIgnoredPathGlob(rel, false, ignoredPathGlobs, preservedPathGlobs); ok {
+		if reason, ok := rules.fileSkipByGlob(rel); ok {
 			stats.FilesSkippedByUser[reason]++
 			return nil
 		}

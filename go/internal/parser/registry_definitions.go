@@ -206,7 +206,18 @@ func defaultDefinitions() []Definition {
 			// relationships engine can extract PUPPET_MODULE_REFERENCE evidence from
 			// `mod ... :git => ...` and CHEF_COOKBOOK_DEPENDENCY evidence from
 			// `cookbook ..., git: ...` declarations without a dedicated parser.
-			ExactNames: []string{"Puppetfile", "Berksfile"},
+			//
+			// The runtime-version pin files below hold only version strings. They
+			// are an explicit name list, never a "*-version" rule, so every
+			// admitted name is reviewed. Files that can carry credentials or
+			// literal environment values (.npmrc, .pypirc, .netrc, .env*,
+			// mise.toml) stay out: the content store has no write-time redaction.
+			ExactNames: []string{
+				"Puppetfile", "Berksfile",
+				".nvmrc", ".node-version", ".tool-versions", ".python-version",
+				".ruby-version", ".java-version", ".go-version", ".sdkmanrc",
+				".terraform-version", "rust-toolchain", "rust-toolchain.toml",
+			},
 		},
 		{
 			ParserKey:  "ruby",

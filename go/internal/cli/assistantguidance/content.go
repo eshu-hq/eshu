@@ -112,7 +112,7 @@ such as ` + "`.env`" + `, are not. When ` + "`get_file_content`" + `,
 ` + "`get_file_lines`" + `, or ` + "`list_repository_files`" + ` finds no file, say it may simply not be indexed. A file that matches can
 still be absent when it is gitignored, listed in ` + "`.eshuignore`" + `, inside a
 default-pruned directory (for example ` + "`node_modules`" + ` or ` + "`dist`" + `; the ` + "`.eshuignore`" + ` reference in the Eshu docs lists the full set),
-has an ignored extension, or is generated. Do not tell the user Eshu cannot see
+has an ignored extension, is generated, or is a symlink whose target fails admission (it leaves the repository, sits in a skipped path, dangles or loops, or is a different file kind). Do not tell the user Eshu cannot see
 dotfiles.
 
 ### First prompts to try

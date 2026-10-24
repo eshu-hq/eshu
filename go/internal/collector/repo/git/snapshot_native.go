@@ -79,6 +79,9 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	// .git of its own — see buildGitTrackedResolver's doc comment.
 	discoveryOpts.GitTrackedResolver = buildGitTrackedResolver(ctx, repoPath, gitTreePath, repository.SourceCommitSHA, s.Logger)
 	fullFileSet, discoveryStats, err := resolveNativeSnapshotFileSet(repoPath, registry, discoveryOpts)
+	if err != nil {
+		return RepositorySnapshot{}, err
+	}
 	fileSet := fullFileSet
 	if len(repository.FileTargets) > 0 {
 		// Deliberately a throwaway stats value rather than &discoveryStats. The
@@ -89,10 +92,10 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		// reads. The filter still has to run here, because the delta file set
 		// is built from the targets rather than from fullFileSet.
 		var deltaFilterStats discovery.DiscoveryStats
-		fileSet, err = resolveNativeSnapshotFileSetForTargets(repoPath, repository.FileTargets, registry, &deltaFilterStats)
-	}
-	if err != nil {
-		return RepositorySnapshot{}, err
+		fileSet, err = resolveNativeSnapshotFileSetForTargets(repoPath, repository.FileTargets, registry, discoveryOpts, &deltaFilterStats)
+		if err != nil {
+			return RepositorySnapshot{}, err
+		}
 	}
 	deltaChangedRelativePaths := relativePathsForSnapshotTargets(repoPath, repository.FileTargets)
 	deltaDeletedRelativePaths := normalizeSnapshotRelativePaths(repository.DeletedRelativePaths)

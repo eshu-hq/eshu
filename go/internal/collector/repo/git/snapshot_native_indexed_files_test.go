@@ -15,9 +15,10 @@ import (
 // search_file_content tool descriptions, the MCP guide, and the assistant
 // guidance state (#8808): a file is indexed only if it matched a
 // parser-registry name, prefix, extension, or documentation format, or is a
-// .gitmodules or CODEOWNERS file; dotfiles are not hidden. If discovery
-// changes what it admits, this test goes red and that text must change with
-// it.
+// .gitmodules or CODEOWNERS file; dotfiles are not hidden. A matching name
+// can still be absent when it is a symlink whose target fails admission. If
+// discovery changes what it admits, this test goes red and that text must
+// change with it.
 func TestResolveNativeSnapshotFileSetIndexedFileRule(t *testing.T) {
 	t.Parallel()
 
@@ -25,18 +26,30 @@ func TestResolveNativeSnapshotFileSetIndexedFileRule(t *testing.T) {
 		name    string
 		path    string
 		indexed bool
+		// linkTo, when set, makes path a symlink to this repo-relative target
+		// instead of a regular file.
+		linkTo string
 	}{
 		{name: "dotfile with registry extension", path: ".eslintrc.js", indexed: true},
 		{name: "dot directory workflow", path: ".github/workflows/ci.yml", indexed: true},
 		{name: "gitmodules", path: ".gitmodules", indexed: true},
 		{name: "github CODEOWNERS", path: ".github/CODEOWNERS", indexed: true},
 		{name: "extensionless dotfile with no registry entry", path: ".env", indexed: false},
+		{name: "pin name that is a symlink to a target that fails admission", path: ".nvmrc", indexed: false, linkTo: ".env"},
 	}
 
 	repoRoot := t.TempDir()
 	writeCollectorTestFile(t, filepath.Join(repoRoot, ".git", "HEAD"), "ref: refs/heads/main\n")
 	for _, tt := range tests {
+		if tt.linkTo != "" {
+			continue
+		}
 		writeCollectorTestFile(t, filepath.Join(repoRoot, filepath.FromSlash(tt.path)), "x = 1\n")
+	}
+	for _, tt := range tests {
+		if tt.linkTo != "" {
+			mustSymlink(t, tt.linkTo, filepath.Join(repoRoot, filepath.FromSlash(tt.path)))
+		}
 	}
 	resolvedRepoRoot, err := filepath.EvalSymlinks(repoRoot)
 	if err != nil {

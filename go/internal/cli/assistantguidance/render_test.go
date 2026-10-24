@@ -253,6 +253,7 @@ func TestGuidanceBodyStatesIndexedFileRule(t *testing.T) {
 			"get_file_lines",
 			"for example",
 			"may simply not be indexed",
+			"symlink whose target fails admission",
 		} {
 			if !strings.Contains(body, want) {
 				t.Errorf("%s guidance missing %q", p.ID, want)

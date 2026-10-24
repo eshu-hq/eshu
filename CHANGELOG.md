@@ -44,6 +44,50 @@ recent shipped work grouped by feature area.
   and points there with `endpoints_shipped_at`. Pass `evidence_detail: full` for
   every row.
 
+### Version pin files indexed as raw text
+
+- **Runtime-version pin files are now admitted as `raw_text`**
+  ([#8809](https://github.com/eshu-hq/eshu/issues/8809)): `.nvmrc`,
+  `.node-version`, `.tool-versions`, `.python-version`, `.ruby-version`,
+  `.java-version`, `.go-version`, `.sdkmanrc`, `.terraform-version`,
+  `rust-toolchain`, and `rust-toolchain.toml`. Credential carriers such as
+  `.npmrc`, `.env*`, and `mise.toml` stay excluded.
+- **Existing repositories pick the pins up at their next reconciliation, not
+  at release.** Admitting a registry name changes the registry fingerprint and
+  therefore `GenerationContentVersion`, but nothing forces a re-snapshot on
+  that change. An unchanged repository is re-snapshotted when its sweep comes
+  due (`interval_elapsed`, `ESHU_REPO_RECONCILE_INTERVAL_HOURS`, default 24),
+  and the sweep forces at most `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` scopes per
+  cycle (default 10), so a large fleet drains over several cycles. A delta sync
+  parses only the files a commit changed, so a pin in an untouched file stays
+  unindexed until that sweep. With the sweep disabled
+  (`ESHU_REPO_RECONCILE_INTERVAL_HOURS=0`), request a reindex to pick the pins
+  up. Per-repository cost is in the
+  [reconciliation sweep](docs/public/reference/reconciliation-sweep.md); watch
+  the ingester queue and the reducer backlog while the sweep drains.
+- **Hardening for every admitted name:** full and delta (`--file-targets`)
+  discovery now drop a symlink unless its resolved target is a regular file
+  inside the repository in the same admission category (same parser
+  definition, or both terraform state, documentation, `.gitmodules`, or
+  CODEOWNERS), at a path discovery would admit as a regular file (no ignored or
+  hidden directory, hidden name, ignored extension, or ignored path glob). So
+  `.nvmrc -> .env` or a link into `.git/config` no longer stores the target's
+  text. `.gitignore` and `.eshuignore` are not re-applied to the target.
+  Dangling links, cycles, and directory links are dropped too. In a delta
+  sync, an in-repository link whose target leaves the repository is now
+  dropped and counted instead of failing the whole delta with "outside
+  repository root"; a target path that is itself outside the repository still
+  fails. Each dropped link is counted as `skip_reason=content:symlink_target` on
+  `eshu_dp_discovery_files_skipped_total` and logged in the `discovery stats`
+  line as `files_skipped.content.symlink_target`; a repository that relied on
+  such a link, for example `sub/app.conf -> ../vendor/x/app.conf`, stops
+  indexing it.
+- **A failed full discovery is no longer hidden in a delta sync.** When
+  `--file-targets` was set, the delta file-set call overwrote the error from
+  the full walk, so a failed walk (for example a missing repository root)
+  surfaced as a later, unrelated error, or none. The snapshot now returns the
+  discovery error itself.
+
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 
 - **Code-topic shared-snapshot reads now refuse an unqualified PostgreSQL

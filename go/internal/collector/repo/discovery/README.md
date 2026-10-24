@@ -75,6 +75,13 @@ filtered sorted slice is placed in `RepoFileSet.Files`.
   `FilesSkippedByUser`, `FilesSkippedHidden`, `FilesSkippedGitignore`,
   `FilesSkippedEshuIgnore`; aggregated via `TotalDirsSkipped()` and
   `TotalFilesSkipped()`
+- `PathRules` / `NewPathRules(Options)` — the compiled location-only rules
+  (ignored and hidden directories, hidden names, ignored extensions, path
+  globs). The walk applies them, and `ExcludesFile(rel)` answers the same
+  question for a path the walk never visited, such as a symlink target. The git
+  collector uses it so both sync modes judge a link target the way discovery
+  judges a regular file (#8809). It does not apply `.gitignore` or
+  `.eshuignore`.
 - `SupportedFileMatcher` — `func(path string) bool`; the parser registry
   supplies this so discovery skips files no parser claims
 - `ResolveRepositoryFileSets(root, SupportedFileMatcher, Options) ([]RepoFileSet, error)`
