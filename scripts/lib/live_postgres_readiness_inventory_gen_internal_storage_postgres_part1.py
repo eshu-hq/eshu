@@ -139,6 +139,9 @@ TABLE = {
         "go/internal/storage/postgres/corpus_fence_observer_live_test.go": (
             "TestQueueObserverStoreCorpusFenceCountsRunOnPostgres",
         ),
+        "go/internal/storage/postgres/credential_cleanup_purge_live_test.go": (
+            "TestCredentialCleanupPurgeFromThePageLive",
+        ),
         "go/internal/storage/postgres/dead_letter_recovery_lock_order_live_test.go": (
             "TestPoisonRecoveryHeldRowRaceLive",
             "TestPoisonRecoveryDropsRowChangedBeforeItsLockLive",
