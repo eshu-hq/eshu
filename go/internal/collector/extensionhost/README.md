@@ -113,12 +113,17 @@ the latest result for the kind, `0` when it was not retryable). One log line
 per result (`component extension result`, keys `collector_kind`,
 `failure_class`, `extension_status.*`) logs at WARN for retryable, terminal,
 and host verdicts and at INFO otherwise. Failure classes past 64 distinct
-values per process fold to `other`.
+values per process fold to `other`. Failure classes are collector-defined, so
+the cap is per process and which classes fold depends on arrival order: the
+first 64 seen keep their own label for the life of the process.
 
 A `retryable` result's classified failure carries the largest
 `status.retry_after_seconds` as `RetryAfterDelay()`, which
 `collector.ClaimedService` uses for `VisibleAt` and for
 `eshu_dp_workflow_claim_provider_throttle_total{outcome="retry_after_honored"}`.
+For extension collectors that counter counts every retryable result that asked
+the host to back off (`retry_after_seconds > 0`, which the SDK requires on
+every retryable result), not only HTTP rate limiting; the metric name is kept.
 The delay is clamped to `MaxRetryAfterDelay` (one hour, the GitHub App
 token-mint precedent): the SDK only requires `retry_after_seconds >= 0`, so an
 unclamped value could hide a work item for years or overflow `time.Duration`.
