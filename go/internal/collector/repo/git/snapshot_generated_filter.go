@@ -374,3 +374,56 @@ func isVendoredPEARFile(path string) bool {
 	normalized := strings.ToLower(filepath.ToSlash(path))
 	return strings.Contains(normalized, "/pear/php/")
 }
+
+// oversizeSkipReason is the content skip reason for a parser file over the
+// per-file read cap (#8986). It surfaces as skip_reason "content:oversize" on
+// eshu_dp_discovery_files_skipped_total and as the discovery stats log key
+// files_skipped.content.oversize.
+const oversizeSkipReason = "oversize"
+
+// SkippedOversizeFile is one parser file the git collector skipped because its
+// discovered size is over shared.SourceReadCap (#8986). It carries the
+// repository-relative path and the size, never the content or a host path.
+type SkippedOversizeFile struct {
+	RelativePath string `json:"relative_path"`
+	SizeBytes    int64  `json:"size_bytes"`
+}
+
+// splitOversizeParserFiles removes every parser file whose discovered size is
+// over capBytes (#8986) and returns the kept files and the removed ones as
+// repository-relative paths with sizes. It must run before the import
+// pre-scan: pre-scan reads every parser file and one read failure fails the
+// whole snapshot, so a file over the cap left in the set would stop the
+// repository from indexing. A file of unknown size (discovery.SizeUnavailable)
+// stays; the capped reads in the parse and the fact stream refuse it if it is
+// over. A Terraform state candidate stays too: the full discovery set still
+// holds them, and the collector records only their metadata, never reading
+// them whole. files is filtered in place.
+func splitOversizeParserFiles(repoRoot string, files []discovery.FileWithSize, capBytes int64) ([]discovery.FileWithSize, []SkippedOversizeFile) {
+	kept := files[:0]
+	var oversize []SkippedOversizeFile
+	for _, file := range files {
+		if file.Size <= capBytes || isTerraformStateCandidateName(filepath.Base(file.Path)) {
+			kept = append(kept, file)
+			continue
+		}
+		relativePath, err := filepath.Rel(repoRoot, file.Path)
+		if err != nil {
+			relativePath = filepath.Base(file.Path)
+		}
+		oversize = append(oversize, SkippedOversizeFile{RelativePath: filepath.ToSlash(relativePath), SizeBytes: file.Size})
+	}
+	return kept, oversize
+}
+
+// addOversizeSkips records n parser files skipped over the read cap under the
+// content skip reason oversizeSkipReason.
+func addOversizeSkips(stats *discovery.DiscoveryStats, n int) {
+	if n == 0 {
+		return
+	}
+	if stats.FilesSkippedByContent == nil {
+		stats.FilesSkippedByContent = make(map[string]int)
+	}
+	stats.FilesSkippedByContent[oversizeSkipReason] += n
+}

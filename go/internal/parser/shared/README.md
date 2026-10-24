@@ -52,7 +52,8 @@ The godoc contract is in `doc.go` and `shared.go`. Current exports are
 `Options`, `GoImportedInterfaceParamMethods`, `GoDirectMethodCallRoots`,
 `GoPackageSemanticRoots`, `GoPackageSemanticRootOptions`, `BasePayload`, `ReadSource`,
 `NormalizeLineEndings`, `PrimeSource`, `ClearSource`, `SetReadSourceHookForTest`,
-`WalkNamed`, `NodeText`, `NodeLine`, `NodeEndLine`, `CloneNode`,
+`MaxSourceBytes`, `ErrSourceTooLarge`, `SourceReadCap`, `SetSourceReadCapForTest`,
+`ReadFileCapped` (`read_cap.go`, issue #8986), `WalkNamed`, `NodeText`, `NodeLine`, `NodeEndLine`, `CloneNode`,
 `AppendBucket`, `SortNamedBucket`, `SortNamedMaps`, `CollectBucketNames`,
 `IntValue`, `LastPathSegment`, `DedupeNonEmptyStrings`, `BranchNodeSet`,
 `NewBranchNodeSet`, `CyclomaticComplexity`, and the import-entry flag keys
@@ -103,6 +104,21 @@ README's "Single physical read per `ParsePath` call" section for the full
 contract. `SetReadSourceHookForTest` is test-only instrumentation for counting
 physical `ReadSource` reads without changing its signature; production code
 never calls it.
+
+`ReadSource` enforces one per-file read cap, `MaxSourceBytes` (64 MiB, issue
+#8986). A file over it, read from disk or primed, returns an error wrapping
+`ErrSourceTooLarge`, so it never reaches a parser. `ReadFileCapped` is the
+capped read itself: it refuses a file whose reported size is over the cap
+before reading, reads at most one byte past the cap so a file that grew is
+still refused, and sizes its buffer like `os.ReadFile`. The git collector reads
+parse and content-stream bodies through it and skips a parser file over the
+cap at discovery, before the import pre-scan, because one pre-scan read failure
+fails the whole snapshot. The cap was measured against the largest lock file in
+the repository and golden corpus (274,035 bytes); per-parser caps such as the
+2 MiB Gradle catalog cap still apply below it. `SourceReadCap` returns the cap
+in force; `SetSourceReadCapForTest` lowers it for a test and is never called by
+production code. There is no environment variable: no operator need for one
+was shown.
 
 `CyclomaticComplexity` is the shared McCabe walker. Each tree-sitter language
 adapter passes a `BranchNodeSet` (built with `NewBranchNodeSet`) that names the

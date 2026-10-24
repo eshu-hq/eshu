@@ -9,6 +9,26 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Parser reads: one per-file read cap
+
+- **A parser file over 64 MiB is skipped instead of read whole**
+  ([#8986](https://github.com/eshu-hq/eshu/issues/8986)). `shared.ReadSource`,
+  the read every language parser uses, now refuses a file over
+  `shared.MaxSourceBytes` with `ErrSourceTooLarge`. The git collector skips such
+  a parser file at discovery from its recorded size, before the import
+  pre-scan, so the rest of the repository keeps indexing; before this change
+  the file was read whole by every parse worker that touched it, and with only
+  the shared cap a single such file would have failed the whole snapshot at
+  pre-scan. The skip counts as `skip_reason=content:oversize` on
+  `eshu_dp_discovery_files_skipped_total` and logs WARN
+  `git_snapshot_file_skipped_oversize` per file with the repository, scope, and
+  generation ids, the path, and the size. The parse and content-stream reads
+  are capped too, for a file that grows after discovery. The largest lock file
+  measured in the repository and golden corpus is 274,035 bytes, so no lock
+  file below the cap is affected. `gitGenerationContentVersion` moves from
+  `git-collector.v10` to `git-collector.v11`, so each repository re-collects
+  once when its reconciliation sweep next comes due.
+
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
 
 - **A 403 saying Dependabot alerts are disabled classifies as `not_found`**

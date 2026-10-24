@@ -21,6 +21,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	"github.com/eshu-hq/eshu/go/internal/parser/scip"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
@@ -233,4 +234,28 @@ func PreparseConfigFor(
 		config.SCIPBinaries = append(config.SCIPBinaries, binaryResult)
 	}
 	return config
+}
+
+// recordOversizeSkips logs WARN git_snapshot_file_skipped_oversize once per
+// parser file the snapshot skipped over the read cap (#8986), with the
+// repository, scope, and generation ids, the repository-relative path, the
+// size, and the cap. It never logs file content or the host path. The count is
+// already on eshu_dp_discovery_files_skipped_total as
+// skip_reason=content:oversize; this log names the files. A size skip is
+// deterministic for the commit, so it does not degrade the snapshot.
+func (s *GitSource) recordOversizeSkips(ctx context.Context, files []SkippedOversizeFile, repositoryID, scopeID, generationID string) {
+	if s.Logger == nil {
+		return
+	}
+	capBytes := shared.SourceReadCap()
+	for _, file := range files {
+		s.Logger.WarnContext(ctx, "git_snapshot_file_skipped_oversize",
+			slog.String("repository_id", repositoryID),
+			slog.String(telemetry.LogKeyScopeID, scopeID),
+			slog.String(telemetry.LogKeyGenerationID, generationID),
+			slog.String("relative_path", file.RelativePath),
+			slog.Int64("size_bytes", file.SizeBytes),
+			slog.Int64("cap_bytes", capBytes),
+		)
+	}
 }

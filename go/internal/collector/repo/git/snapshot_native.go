@@ -23,6 +23,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -128,6 +129,11 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	codeownersCandidateRelativePaths = codeowners.ResolvedCodeownersCandidateRelativePaths(repoPath, repository.Delta, deltaRelativePaths, codeownersCandidateRelativePaths)
 	parserFiles, documentationFiles := partitionNativeSnapshotFiles(fileSet.Files, registry)
 	fullParserFiles, _ := partitionNativeSnapshotFiles(fullFileSet.Files, registry)
+	// #8986: a parser file over the read cap is never read. Only the full set
+	// counts, so a delta does not count a file full discovery already counted.
+	parserFiles, _ = splitOversizeParserFiles(fullFileSet.RepoRoot, parserFiles, shared.SourceReadCap())
+	fullParserFiles, oversizeFiles := splitOversizeParserFiles(fullFileSet.RepoRoot, fullParserFiles, shared.SourceReadCap())
+	addOversizeSkips(&discoveryStats, len(oversizeFiles))
 	parserFileSet := fileSet
 	parserFileSet.Files = parserFiles
 	preScanFileSet := parserFileSet
@@ -154,6 +160,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		ContentFiles:             []model.ContentFileSnapshot{},
 		ContentEntities:          []model.ContentEntitySnapshot{},
 		TerraformStateCandidates: tfstateCandidates,
+		OversizeSkippedFiles:     oversizeFiles,
 		Delta:                    repository.Delta,
 		DeltaRelativePaths:       deltaRelativePaths,
 		DeletedRelativePaths:     deltaDeletedRelativePaths,
