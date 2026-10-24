@@ -449,6 +449,11 @@ tests:
     class: postgres_ci
     reason: "#7592 disposable PostgreSQL 18 proof that the reachability edge loader reads the consumer scope's own edges only (a chain X -> Z.g -> P never lands in X); enrolled in the live-postgres-readiness runner. Upper-bound timing: 1.31s cold including one-time schema bootstrap, 0.09s warm, on local postgres:18"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/collector_terminal_failure_ack_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8830 disposable PostgreSQL 18 proof of the collector terminal-failure acknowledgement write: it records the failure the operator read (class, failed_terminal updated_at), refuses an unknown, disabled, or deactivated instance, a scope with no unresolved failure, a scope a later completed item already resolved, and a failure whose class changed since it was read; a repeat of a covering acknowledgement is Unchanged and keeps the first reason and actor; the status read then reports the failure as acknowledged and reports a later different-class failure again; 16 concurrent acknowledgements of one failure all succeed and leave one row, and an acknowledgement racing a new failure never suppresses a failure class it did not name; isolated bootstrapped schema per test; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/config/artifacts/backfill_live_test.go
     tag: ~
     class: postgres_ci
@@ -1343,6 +1348,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8834 real PostgreSQL quota-gated claim plan proof: indexed fair candidate walk and quota primary-key budget filter without a backlog sequential scan; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/workflow_terminal_failure_ack_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8830 disposable PostgreSQL 18 proof of the acknowledged collector terminal-failure read: an acknowledgement suppresses the failure episode of its own instance, scope, and class (later same-class rows stay suppressed and are returned as acknowledged), a different failure class, a completed item after the acknowledged failure, another scope, another instance, and another collector kind each report the failure again, an unacknowledged failure on a sibling scope wins over an acknowledged newer one, and the acknowledged probe never reads a row outside its own key; isolated bootstrapped schema per test; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/workflow_terminal_failure_index_live_test.go
     tag: ~
