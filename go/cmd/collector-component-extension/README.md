@@ -56,8 +56,11 @@ so each SDK status row and claim result records the
 `eshu_dp_component_extension_*` instruments (labels `collector_kind`, `state`,
 `status_class`, `failure_class`) and one `component extension result` log line
 with `extension_status.*` keys. A retryable result's largest
-`retry_after_seconds` (capped at one hour) paces the claim retry and shows on
-`eshu_dp_workflow_claim_provider_throttle_total{outcome="retry_after_honored"}`.
+`retry_after_seconds` (capped at one hour) paces the claim retry, as the larger
+of the poll interval and that request, until the attempt budget is spent; the
+counter `eshu_dp_workflow_claim_provider_throttle_total{outcome="retry_after_honored"}`
+fires when the applied delay exceeds the poll interval. The status gauge and
+log line record the request, not the applied delay.
 `TestBuildClaimedServiceRecordsExtensionStatusAndHonorsRetryAfter` proves the
 wiring end to end through the real process runner.
 

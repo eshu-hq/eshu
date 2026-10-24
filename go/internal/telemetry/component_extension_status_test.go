@@ -6,6 +6,7 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -210,6 +211,64 @@ func TestComponentExtensionStatusRecorderConcurrent(t *testing.T) {
 	}
 	if total != workers*perWorker {
 		t.Fatalf("results total = %d, want %d", total, workers*perWorker)
+	}
+}
+
+// TestComponentExtensionRetryAfterGaugeDescribesTheRequest pins the operator
+// contract (#8908 review F1): the gauge reports the delay the extension
+// requested after the one-hour cap, not the delay ClaimedService applied. The
+// host records it before ClaimedService applies max(poll interval, request)
+// or spends the attempt budget, so a description that says "honored" would
+// mislead an operator reading a throttled collector at 3 AM.
+func TestComponentExtensionRetryAfterGaugeDescribesTheRequest(t *testing.T) {
+	t.Parallel()
+
+	recorder, reader := newExtensionStatusRecorder(t)
+	recorder.RecordResult(context.Background(), "jira", "retryable", "rate_limited", time.Second)
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	var description string
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name == contract.MetricComponentExtensionRetryAfter {
+				description = m.Description
+			}
+		}
+	}
+	if description == "" {
+		t.Fatalf("%s was not collected", contract.MetricComponentExtensionRetryAfter)
+	}
+	if !strings.Contains(description, "requested") {
+		t.Fatalf("description = %q, want it to say the delay is what the extension requested", description)
+	}
+	if strings.Contains(description, "honored") {
+		t.Fatalf("description = %q, must not claim the delay was honored: ClaimedService decides afterwards", description)
+	}
+}
+
+// TestComponentExtensionFailureClassCapIsDocumented pins the number the
+// operator docs state ("past 64"), so changing the cap forces a docs edit.
+func TestComponentExtensionFailureClassCapIsDocumented(t *testing.T) {
+	t.Parallel()
+
+	if got := contract.ComponentExtensionFailureClassCap; got != 64 {
+		t.Fatalf("ComponentExtensionFailureClassCap = %d, want 64 as documented in metrics.md and the extensionhost README", got)
+	}
+}
+
+// TestComponentExtensionStatusRecorderFoldsUnpatternedKind proves a
+// collector_kind outside the bounded pattern folds to unknown even though the
+// host passes only manifest kinds: the recorder must stay safe on its own.
+func TestComponentExtensionStatusRecorderFoldsUnpatternedKind(t *testing.T) {
+	t.Parallel()
+
+	recorder, reader := newExtensionStatusRecorder(t)
+	recorder.RecordResult(context.Background(), "https://tenant.example/x", "complete", "", 0)
+	results := sumByAttrs(t, collectExtension(t, reader)[contract.MetricComponentExtensionResults])
+	if got := results["collector_kind=unknown,failure_class=none,state=complete,"]; got != 1 {
+		t.Fatalf("results = %v, want the unpatterned kind folded to unknown", results)
 	}
 }
 

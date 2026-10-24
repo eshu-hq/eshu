@@ -108,8 +108,9 @@ only; see [Telemetry Metrics](../../../../docs/public/reference/telemetry/metric
 `eshu_dp_component_extension_reported_facts_total`,
 `eshu_dp_component_extension_reported_warnings_total`,
 `eshu_dp_component_extension_source_latency_seconds`, and the
-`eshu_dp_component_extension_retry_after_seconds` gauge (the honored delay on
-the latest result for the kind, `0` when it was not retryable). One log line
+`eshu_dp_component_extension_retry_after_seconds` gauge (the delay the extension
+requested on the latest result for the kind, after the cap; `0` when it was not
+retryable; the request, not the applied delay). One log line
 per result (`component extension result`, keys `collector_kind`,
 `failure_class`, `extension_status.*`) logs at WARN for retryable, terminal,
 and host verdicts and at INFO otherwise. Failure classes past 64 distinct
@@ -127,10 +128,25 @@ every retryable result), not only HTTP rate limiting; the metric name is kept.
 The delay is clamped to `MaxRetryAfterDelay` (one hour, the GitHub App
 token-mint precedent): the SDK only requires `retry_after_seconds >= 0`, so an
 unclamped value could hide a work item for years or overflow `time.Duration`.
-Terminal results never carry a delay. A zero value falls back to the poll
-interval, and a negative value fails the result as a terminal
-`invalid_result`. The result log line shows the clamp: `retry_after_seconds`
-is the honored delay and `retry_after_requested_seconds` is the raw request.
+Terminal results never carry a delay. The SDK requires `retry_after_seconds`
+>= 1 on the failure status every retryable result carries, so a validated
+retryable result always requests at least one second; zero only appears on
+other status rows and means no request. A negative value fails the result as a
+terminal `invalid_result`. The result log line shows the clamp:
+`retry_after_seconds` is the capped request and `retry_after_requested_seconds`
+is the raw request.
+
+Both the gauge and the log key record the request, not the applied delay. They
+are written inside `NextClaimed`, before `ClaimedService` decides. It then
+applies the larger of its poll interval (`ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL`)
+and the request, so a request below the poll interval shows a delay that was
+not applied. On the last attempt (`AttemptCount >= MaxAttempts`) it applies
+none: the claim fails terminally, counted by
+`eshu_dp_workflow_claim_attempt_budget_exhausted_total`, while the gauge, the
+log line, and `results_total{state="retryable"}` still show the extension's
+request. A fenced write that loses its lease applies nothing either.
+`results_total{state}` is the extension's result state, not the durable claim
+outcome. `TestResultRecordRetryAfterIsTheRequestNotTheAppliedDelay` pins this.
 
 Performance Evidence: `go test ./internal/collector/extensionhost -run '^$'
 -bench 'NextClaimed' -benchmem -count=5` on darwin/arm64 (shared host, load

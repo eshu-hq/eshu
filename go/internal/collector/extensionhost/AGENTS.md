@@ -28,3 +28,8 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
 - A retryable result's delay comes only from `status.retry_after_seconds`,
   clamped to `MaxRetryAfterDelay`; keep the clamp in seconds before the
   multiply so no value overflows `time.Duration`.
+- `ResultRecord.RetryAfter`, the retry-after gauge, and the
+  `extension_status.retry_after_seconds` log key are the extension's capped
+  request, recorded before `ClaimedService` decides. Never document them as the
+  applied or honored delay: `ClaimedService` applies `max(PollInterval,
+  request)`, and none once the attempt budget is spent.

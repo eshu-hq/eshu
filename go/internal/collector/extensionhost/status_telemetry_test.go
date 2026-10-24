@@ -86,12 +86,12 @@ func TestNextClaimedReportsOneResultForEveryFinalState(t *testing.T) {
 		},
 		{
 			name:   "retryable",
-			result: func(item workflow.WorkItem) sdkcollector.Result { return retryableResultWithDelays(item, 30, 120) },
+			result: func(item workflow.WorkItem) sdkcollector.Result { return retryableResultWithDelays(item, 30, 120, 45) },
 			want: ResultRecord{
 				CollectorKind: "repo", Origin: ResultOriginSDK, State: sdkcollector.ResultRetryable,
-				FailureClass: "rate_limited", StatusCount: 2, RetryAfter: 120 * time.Second, RetryAfterRequestedSeconds: 120,
+				FailureClass: "rate_limited", StatusCount: 3, RetryAfter: 120 * time.Second, RetryAfterRequestedSeconds: 120,
 			},
-			wantRecords: 2,
+			wantRecords: 3,
 		},
 		{
 			name: "terminal",

@@ -24,8 +24,12 @@ package contract
 //   - eshu_dp_component_extension_source_latency_seconds (collector_kind,
 //     state): source_latency_ms from each status row that reports one.
 //   - eshu_dp_component_extension_retry_after_seconds (collector_kind): the
-//     retry delay the host honored on the latest result for the kind, 0 when
-//     the latest result was not retryable.
+//     retry delay the extension requested on the latest result for the kind
+//     (after the one-hour cap), 0 when the latest result was not retryable.
+//     The host records it before ClaimedService decides: ClaimedService
+//     applies max(poll interval, this), or none once the attempt budget is
+//     spent, so it is the request, not the applied delay. state is likewise
+//     the extension's result state, not the durable claim outcome.
 //
 // collector_kind is bounded by the component manifest. state and status_class
 // are closed sets. failure_class is pattern-bounded by the host and capped per
@@ -46,7 +50,8 @@ const (
 	MetricComponentExtensionReportedWarnings = "eshu_dp_component_extension_reported_warnings_total"
 	// MetricComponentExtensionSourceLatency observes reported source latency.
 	MetricComponentExtensionSourceLatency = "eshu_dp_component_extension_source_latency_seconds"
-	// MetricComponentExtensionRetryAfter is the honored retry delay gauge.
+	// MetricComponentExtensionRetryAfter is the gauge of the retry delay the
+	// extension requested, after the one-hour cap (not the applied delay).
 	MetricComponentExtensionRetryAfter = "eshu_dp_component_extension_retry_after_seconds"
 )
 
@@ -70,8 +75,9 @@ const (
 	LogKeyExtensionStatusSourceLatencyMS = "extension_status.source_latency_ms"
 	// LogKeyExtensionStatusPartial is true when any status row was partial.
 	LogKeyExtensionStatusPartial = "extension_status.partial"
-	// LogKeyExtensionStatusRetryAfterSeconds is the retry delay the host
-	// honored, after the cap.
+	// LogKeyExtensionStatusRetryAfterSeconds is the retry delay the extension
+	// requested, after the one-hour cap. ClaimedService applies
+	// max(poll interval, this), or none once the attempt budget is spent.
 	LogKeyExtensionStatusRetryAfterSeconds = "extension_status.retry_after_seconds"
 	// LogKeyExtensionStatusRetryAfterRequestedSeconds is the largest
 	// retry_after_seconds the extension requested, before the cap.

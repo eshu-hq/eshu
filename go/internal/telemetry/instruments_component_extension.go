@@ -50,7 +50,7 @@ func registerComponentExtensionInstruments(meter metric.Meter, inst *Instruments
 	}
 	if inst.ComponentExtensionRetryAfter, err = meter.Float64Gauge(
 		"eshu_dp_component_extension_retry_after_seconds",
-		metric.WithDescription("Retry delay the extension host honored on the latest claim result for the collector_kind, after the one-hour cap; 0 when the latest result was not retryable (#8908)"),
+		metric.WithDescription("Retry delay the extension requested on the latest claim result for the collector_kind, after the one-hour cap; 0 when the latest result was not retryable. Recorded before ClaimedService decides: it applies max(poll interval, this), and none once the attempt budget is spent (#8908)"),
 		metric.WithUnit("s"),
 	); err != nil {
 		return fmt.Errorf("register ComponentExtensionRetryAfter gauge: %w", err)
