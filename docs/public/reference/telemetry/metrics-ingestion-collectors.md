@@ -223,7 +223,7 @@ values, and provider response bodies stay out of metric labels. Use
 class to a specific private target in the operator environment.
 When a bounded GitHub open-alert read reaches `max_pages`, API and MCP
 reconciliation count/list responses expose `coverage.state=target_incomplete`
-and `source_freshness=partial`; this is response metadata, not a metric label.
+and `source_freshness=partial`; this is response metadata, not a metric label. Org fan-out counters: [Security Alert Org Fan-Out Telemetry](security-alert-org-fanout.md).
 
 ## CI/CD Run Collector
 

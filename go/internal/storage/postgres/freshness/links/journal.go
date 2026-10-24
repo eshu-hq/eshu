@@ -108,12 +108,24 @@ func (s *JournalStore) Journal(ctx context.Context, backfillScopes int) (Journal
 			return JournalResult{}, err
 		}
 	}
+	// The sweeper locks each generation it names, bounded like the backfill's
+	// insert (#8932, arbiter ruling arb-7127-3e-wait): a 55P03 rolls the pass
+	// back as the non-counting generation_lock_timeout.
+	if _, err := tx.ExecContext(ctx, setGenerationLockTimeoutStatement); err != nil {
+		return JournalResult{}, fmt.Errorf("changed-since journal: set generation lock timeout: %w", err)
+	}
 	res, err := tx.ExecContext(ctx, journalActiveGenerationsQuery, s.now())
+	if timeout := asLockTimeout(err); timeout != nil {
+		return JournalResult{}, timeout
+	}
 	if err != nil {
 		return JournalResult{}, fmt.Errorf("changed-since journal: sweep active generations: %w", err)
 	}
 	if n, err := res.RowsAffected(); err == nil {
 		result.SweeperRows = n
+	}
+	if _, err := tx.ExecContext(ctx, resetLockTimeoutStatement); err != nil {
+		return JournalResult{}, fmt.Errorf("changed-since journal: reset lock timeout: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, createCursorsQuery, DigestVersion, s.now()); err != nil {
 		return JournalResult{}, fmt.Errorf("changed-since journal: create cursors: %w", err)
@@ -191,7 +203,8 @@ func (s *JournalStore) backfill(ctx context.Context, tx db.Transaction, limit in
 			lastScope = row.scopeID
 		}
 	}
-	// The sweeper and cursor statements that follow run unbounded, as before.
+	// The sweeper sets the bound again for its own generation locks; the
+	// cursor statement runs unbounded, as before.
 	if _, err := tx.ExecContext(ctx, resetLockTimeoutStatement); err != nil {
 		return fmt.Errorf("changed-since journal: reset lock timeout: %w", err)
 	}

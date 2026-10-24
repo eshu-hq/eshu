@@ -35,7 +35,10 @@ type supplyChainImpactLoadedEvidence struct {
 	suppressionEvidenceTruncated bool
 	// expansionEnvelopes counts the expansion envelopes charged against the
 	// per-intent evidence budget.
-	expansionEnvelopes              int
+	expansionEnvelopes int
+	// activeEvidence is the pass's per-statement active-evidence accounting
+	// (#8880), merged into the success log's sub-signals and sub-durations.
+	activeEvidence                  supplyChainImpactActiveEvidenceTally
 	osPackageAdvisoryFacts          int
 	osPackageAdvisoryTargetsSkipped int
 	scannerAnalysisScopeFacts       int
@@ -204,6 +207,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		truncation:                      truncation,
 		suppressionEvidenceTruncated:    truncation.any(),
 		expansionEnvelopes:              budget.used,
+		activeEvidence:                  budget.activeEvidence,
 		osPackageAdvisoryFacts:          osPackageAdvisoryFacts,
 		osPackageAdvisoryTargetsSkipped: osPackageAdvisorySkipped,
 		scannerAnalysisScopeFacts:       scannerAnalysisScopeFacts,

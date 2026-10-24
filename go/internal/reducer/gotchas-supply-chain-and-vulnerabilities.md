@@ -239,12 +239,11 @@ for the same reason.
   scope, so the existing `go test ./internal/reducer -count=1` gate is the
   baseline.
   No-Regression Evidence: the additions to the bounded Postgres active
-  evidence query (`go/internal/storage/postgres/facts_active_supply_chain_impact.go`)
-  reuse the existing OR-branch shape and only add four `payload->'scope'->>...`
-  predicates and one extra `fact_kind` value; row counts in
-  `TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression`
-  show the same bounded page semantics, so no new full table scan is
-  introduced. Operators can re-run the same `cd go && go test
+  evidence query reused the OR-branch shape; #8880 replaced that statement
+  with the `storage/postgres/facts/impact` branch catalog, where the
+  suppression statement evaluates the same arms over its kind-partial anchor
+  (`TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression`
+  pins it), so no new full table scan is introduced. Operators can re-run the same `cd go && go test
   ./internal/storage/postgres -count=1` gate to confirm the predicate set
   before/after a change.
   Observability Evidence: `SupplyChainSuppressionDecisions`

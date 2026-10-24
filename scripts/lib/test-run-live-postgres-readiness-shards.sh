@@ -1,7 +1,7 @@
 # Sourced by test-run-live-postgres-readiness-tests.sh after its shared fixtures are initialized.
 # Shard fixture checks live here to keep the parent self-test below the file-size cap.
-# Sharded execution selects a pinned quarter of the enrolled proofs through
-# the shards planner (the same pipe the CI matrix uses), runs only those
+# Sharded execution selects a time-weighted contiguous slice of the enrolled
+# proofs through the shards planner (the same pipe the CI matrix uses), runs only those
 # packages, and leaves a fail-closed per-shard report. The subset comes from
 # the planner, so this file still carries no test-name copy.
 shards_lib="${repo_root}/scripts/lib/live_postgres_readiness_shards.py"

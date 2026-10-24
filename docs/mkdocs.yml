@@ -251,6 +251,7 @@ nav:
       - Local Testing:
         - Overview: reference/local-testing.md
         - Quick Verification Matrix: reference/local-testing/quick-verification-matrix.md
+        - Live PostgreSQL Readiness Shards: reference/local-testing/live-postgres-readiness-shards.md
         - First Five Minutes Benchmark: reference/local-testing/first-five-minutes-benchmark.md
         - Demo TTFA Benchmark: reference/local-testing/demo-ttfa-benchmark.md
         - Answer Quality Scorecard: reference/local-testing/answer-quality-scorecard.md
@@ -355,6 +356,7 @@ nav:
       - Fair-Claim Rotation Signals: reference/telemetry/fair-claim-rotation.md
       - Claim-Pacing Signals: reference/telemetry/claim-pacing.md
       - Claim Quota Signals: reference/telemetry/claim-quotas.md
+      - Supply-Chain Active Evidence Signals: reference/telemetry/supply-chain-active-evidence.md
       - Retirement Trigger And Purge Signals: reference/telemetry/retirement-purge.md
       - Id-Anchor Census: reference/telemetry/id-anchor-census.md
       - Traces: reference/telemetry/traces.md
@@ -369,6 +371,7 @@ nav:
       - MCP Router: reference/telemetry/mcp-router.md
       - MCP Tool Calls: reference/telemetry/mcp-tool-calls.md
       - Relevance Walk Signals: reference/telemetry/rank-cursor.md
+      - Security Alert Org Fan-Out: reference/telemetry/security-alert-org-fanout.md
       - Service Catalog Runtime Re-trigger: reference/telemetry/service-catalog-runtime-retrigger.md
     - Observability:
       - Telemetry Coverage Contract: observability/telemetry-coverage.md

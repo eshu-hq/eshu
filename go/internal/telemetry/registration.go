@@ -75,6 +75,7 @@ var registrationSteps = []func(){
 	registerConfigArtifactDerives,
 	registerClaimQuota,
 	registerMCPRouter,
+	registerSupplyChainActiveEvidence,
 }
 
 func init() {

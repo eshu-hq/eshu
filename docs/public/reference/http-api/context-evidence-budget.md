@@ -142,11 +142,11 @@ Under `full` even one copy is over the 262,144-byte budget (366,409 bytes
 structured, 405,267 escaped), so the resource-copy fallback cannot help and the
 dispatch returns `mcp_response_over_budget`, the #8798 failure. Under `handles`
 the single copy fits the budget (138,263 bytes structured, 152,707 escaped). The
-MCP result still carries the payload twice (290,970 bytes), so the dispatch
-answers it as the resource copy alone and records
-`eshu_dp_mcp_response_resource_fallback_total` until #8800 sends the result
-once. A story with no attached cloud resources and 60 uncorrelated
-cloud-resource candidates (the enrichment loads candidates only when no cloud
+MCP result on the default `dual` shape still carries the payload twice (290,970
+bytes), so the dispatch answers it as the resource copy alone and records
+`eshu_dp_mcp_response_resource_fallback_total`. The opt-in `structured` shape
+(#8800) sends the result once; the default stays `dual`. A story with no
+attached cloud resources and 60 uncorrelated cloud-resource candidates (the enrichment loads candidates only when no cloud
 resource attached, so the two lists never ship together; the fixture holds 60
 and the story ships 50) is 366,502 bytes under `full`, 125,578 under `handles`,
 and 284,854 in the dual shape, and also falls back: 135,320 bytes as the
@@ -179,7 +179,8 @@ cap, so the story ships 50 per list, with the production row keys, plus CI/CD an
 360,361 bytes. Under `handles`: 128,547 bytes (35.7 percent of `full`); the
 escaped single copy is 152,707 bytes against the unchanged 262,144-byte budget
 (`full`: 405,267), and the dual result, 290,970 bytes (`full`: 771,676), takes
-the resource-copy fallback until #8800.
+the resource-copy fallback on the default `dual` shape (the opt-in `structured`
+shape from #8800 sends it once).
 `go test ./internal/query/service -run 'OversizedServiceStory|StoryHandles'
 -count=1` pins the budget on the escaped size, the unchanged truth and count
 fields, the preview and node-cut markers and the ship-once pointers, no empty handle row, the omission total of

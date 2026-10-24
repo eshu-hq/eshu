@@ -924,6 +924,11 @@ tests:
     class: postgres_ci
     reason: "#7127 PR-3b Ack journal atomicity (success, planted abort after the insert, deferred commit failure, superseded target, re-ack), prior (superseded, first activation NULL, ambiguous NULL) and the flag-off Ack writing no ledger SQL; one disposable database per test created from the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN admin DSN (env Skip); Postgres only; about 3 s locally on PostgreSQL 18.6; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_ack_journal_sweeper_retention_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8932 seeded RED/GREEN of the sweeper-versus-retention orphan: a journal pass paused after its sweeper insert, an Ack that supersedes the swept generation and commits, then a retention prune at a clock that makes it eligible; the pass must hold the generation until it commits, so retention skips it and no activation row is orphaned; disposable database from ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN (env Skip); about 3 s locally on PostgreSQL 18.6; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_ack_obsolete_marker_live_test.go
     tag: ~
     class: postgres_ci
@@ -1188,6 +1193,16 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8750 disposable PostgreSQL 18 measurement of the destructive-successor guard's in-tx recheck reads (the candidate read and the active read) with EXPLAIN (ANALYZE, BUFFERS) on a proof scope seeded with 3,000 generations beside 3,000 other-scope generations; reuses the #7978 bootstrapped proof schema; plans and timings are logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_evidence_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8880 disposable PostgreSQL 18 proofs that the supply-chain impact active-evidence loader returns byte-identical rows, order, and truncation to the frozen pre-#8880 statement across the arm matrix, and spends at least 100x fewer shared buffers than it on a scaled TOASTed file corpus under both plan_cache_mode values; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_evidence_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8880 disposable PostgreSQL 18 proof that every supply-chain impact active-evidence branch plans on its catalog anchor under force_generic_plan and force_custom_plan, and that dropping each new anchor index (RED) moves the plan off it at higher buffer cost until the migration statement rebuilds it (GREEN); wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go
     tag: ~

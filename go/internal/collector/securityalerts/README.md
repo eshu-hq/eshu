@@ -46,7 +46,7 @@ the provider alert.
   `ListRepositoryAlertsPages` reads one allowlisted repository
   (`/repos/{owner}/{repo}/dependabot/alerts`); `ListOrganizationAlertsPages`
   reads one organization (`/orgs/{org}/dependabot/alerts`) with each returned
-  alert carrying its source repository for per-repository fan-out.
+  alert carrying its source repository, used to derive per-repository scopes.
 - `GitHubDependabotRepository` — the per-alert repository object populated only
   by the organization endpoint, used to derive per-repository fact scopes.
 
@@ -75,9 +75,15 @@ the provider alert.
   forwarded outside the configured provider host. Both endpoints share one
   bounded pagination loop, so truncation, per-page clamping, and rate-limit
   handling stay identical.
+- A failed read reads at most 4096 bytes of the response body. A 403 with no
+  rate-limit signal whose complete JSON `message` says Dependabot alerts are
+  disabled sets `GitHubDependabotError.AlertsDisabled` (#8805). The failure
+  class stays `auth_denied`; the message is only compared, never stored or
+  returned by `Error()`. A body that is unreadable, cut off, not JSON, or worded
+  differently leaves the marker false.
 - Organization alerts (`/orgs/{org}/dependabot/alerts`) preserve each alert's
   source `repository`. The hosted runtime derives a per-repository scope from
-  it so org fan-out facts carry the same `repository_id` shape as the
+  it so org-window facts carry the same `repository_id` shape as the
   per-repository path and reducer reconciliation is unchanged.
 - The GitHub Dependabot repository-alert client requests the provider's
   `state=open` view so newer fixed alerts in default provider ordering cannot
@@ -90,8 +96,8 @@ the provider alert.
 This package emits no metrics, spans, or logs by itself. Runtime telemetry is
 owned by `alertruntime` and the `collector-security-alerts` binary: provider
 request totals, provider fetch duration, provider rate-limit counts,
-repository-alert fact counts, `security_alert.observe`, and
-`security_alert.fetch`.
+repository-alert fact counts, truncated-read and org fan-out repository
+outcome counts, `security_alert.observe`, and `security_alert.fetch`.
 
 Collector Performance Evidence: request work is bounded by explicit repository
 allowlists, `RepositoryAlertLimit`, the provider `state=open` filter, and

@@ -15,12 +15,11 @@ by the target `scope` field (default `repository`):
   and a `allowed_repositories` allowlist. Every repository must appear in the
   target's `allowed_repositories` list before the runtime issues an HTTP request.
 - `org`-scoped targets poll one organization
-  (`GET /orgs/{org}/dependabot/alerts`) and fan the response out into
+  (`GET /orgs/{org}/dependabot/alerts`) and split the response into
   per-repository `security_alert.repository_alert` facts keyed on each alert's
-  source repository. One org target replaces N per-repository targets and
-  collapses N per-repository requests into one paginated org request per
-  collection, while producing the same per-repository fact shape so reducer
-  reconciliation is unchanged.
+  source repository, with the same per-repository fact shape so reducer
+  reconciliation is unchanged. The org read is a bounded window, not a full
+  scan; see [Org-scope window and per-repository fan-out](#org-scope-window-and-per-repository-fan-out).
 
 Targets name a `token_env` rather than a token value. Any `api_base_url`
 override must use HTTPS because the runtime sends the bearer token to that
@@ -28,8 +27,77 @@ endpoint. Both scopes share the same bounded cursor pagination, cross-host
 next-link rejection, and rate-limit handling. Collection is bounded by
 `repository_alert_limit` and `max_pages`, requests GitHub's open-alert view
 directly, and surfaces `source_freshness=partial` plus a coverage summary when
-the open-alert provider page cap is reached. Provider rate-limit responses are
-surfaced as retryable workflow failures.
+the open-alert provider page cap is reached. A rate-limited first read for a
+target is surfaced as a retryable workflow failure.
+
+### Org-scope window and per-repository fan-out
+
+GitHub returns an organization's open alerts newest first across every
+repository and pages them by cursor only. An org read therefore covers at most
+`max_pages` x 100 alerts for the whole organization before the
+`allowed_repositories` filter runs. On a large organization a quiet allowlisted
+repository can have few or none of its alerts inside that window, even with the
+maximum of 100 pages.
+
+When the org read hits `max_pages`, the runtime reads each allowlisted
+repository of that organization through
+`GET /repos/{owner}/{repo}/dependabot/alerts`, each read bounded by the same
+`max_pages`, and merges the results into the same generation and `scope_id`:
+
+- A repository whose own read completes replaces its org-window alerts and
+  reports complete coverage. Facts keep one stable key whichever read produced
+  them, so the org path and the per-repository path are idempotent.
+- A repository whose own read still hits `max_pages` keeps
+  `collection_incomplete_reasons=["provider_open_alert_page_limit_reached"]`
+  and counts on `eshu_dp_security_alert_truncated_reads_total`.
+- Reads run one at a time in allowlist order. The first rate-limited read stops
+  the fan-out; that repository and every later one keep only their org-window
+  facts with `org_repository_read_rate_limited`. The claim still commits, and
+  the next scheduled claim reads again. Nothing retries inside the claim.
+- A `not_found` read marks that repository `org_repository_read_failed` and the
+  fan-out continues. A 403 with no rate-limit exhaustion signal (no `Retry-After`, and
+  `X-RateLimit-Remaining` not 0) whose JSON body says
+  `Dependabot alerts are disabled for this repository.` marks that repository
+  `org_repository_alerts_disabled` and the fan-out continues too: the answer is
+  specific to one repository. The match is on GitHub's message text, which the
+  REST reference does not document, so a body that is not JSON, is cut off,
+  or is worded differently falls back to the stop below. A repository-scope
+  target that gets this 403 still fails as terminal `auth_denied` (#8947
+  tracks that classification). Any other failure (`auth_denied`
+  without that message, including a plain 403, a 5xx or transport error, or a
+  terminal 4xx) marks that
+  repository `org_repository_read_failed` and stops the fan-out: later
+  repositories keep their org-window facts with `org_repository_fanout_stopped`.
+  GitHub warns that continuing to call while limited can get an integration
+  banned, and the next read would use the same credential.
+- At most 100 repositories are read per claim, and a repository that answers
+  `alerts_disabled` counts toward that cap. Later allowlisted repositories
+  keep their org-window facts with `org_repository_fanout_cap_reached`. Each
+  claim starts again at the top of the allowlist; #8946 tracks
+  rotating the start.
+
+One claim sends at most `max_pages` x (1 + min(allowlisted repositories in the
+organization, 100)) alert-page requests. Under `github_app` auth each listing
+call also mints one installation token. Allowlisted repositories owned by
+another account are never read through an org target. If every allowlisted
+repository belongs to another account, a truncated org read fans out nothing and
+keeps the plain truncated single-read result and digest.
+
+Facts from a per-repository read carry a lowercase `repository_name`, because
+that endpoint returns no repository object; org-window facts keep the
+provider's casing. `repository_id` is lowercase on both paths.
+
+A repository that the fan-out could not read and that has no alert in the org
+window emits no fact, so no fact carries its reason. The
+`eshu_dp_security_alert_org_fanout_repositories_total` outcome counter still
+counts it.
+
+Prefer `repository`-scoped targets when the allowlist is a small part of a
+large organization. They cost the sum of `ceil(open alerts / 100)` requests
+across the allowlisted repositories, while an org target whose window
+truncates pays for the org window and then the same per-repository reads. Use
+an `org` target when the organization's whole open-alert stream fits inside
+`max_pages` x 100 alerts.
 
 `security_alert.repository_alert` facts preserve repository-scoped provider
 alert state from GitHub Dependabot. The runtime emits only that source fact
@@ -143,12 +211,19 @@ The answer never names a target, another repository, an allowlist, or a failure
 message. A scoped token reaches the collector read only for a repository inside
 its grants; a selector outside them answers `404` first.
 
-One gap remains. An organization target reads at most `max_pages` pages of the
-org-wide open-alert stream, and the allowlist filters that window. If the
-window holds no alert for the repository, no fact records the truncation, so
-the empty answer still reads `complete`. #8803 tracks the collector-side
-carrier that closes this case with reason
-`provider_open_alert_page_limit_reached`.
+One gap remains, and it is narrower than the org window. When the org read
+truncates, the collector reads each allowlisted repository on its own (see
+[Org-scope window and per-repository fan-out](#org-scope-window-and-per-repository-fan-out)),
+so a repository whose own read completes is covered whatever the window held.
+The gap holds only for a repository the fan-out could not read: one past the
+100-repository per-claim cap, one whose read failed (`not_found` or another
+failure), one whose Dependabot alerts are disabled, or one after a rate-limited or failed read that stopped the fan-out.
+If the org window also holds no alert for such a repository, no fact records the
+truncation or the reason, so the empty answer still reads `complete`. The
+`eshu_dp_security_alert_org_fanout_repositories_total` counter and the
+`eshu.security_alert.org_fanout.*` attributes on the `security_alert.observe`
+span are the only signals for it. #8943 tracks the collector-side carrier that closes this case
+with reason `provider_open_alert_page_limit_reached`.
 
 Eshu should match provider alert counts when it has equivalent owned target
 evidence and advisory data. Eshu may exceed provider alert output when it can

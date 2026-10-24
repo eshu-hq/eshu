@@ -353,6 +353,13 @@ func registerClaimQuota() {
 	)
 }
 
+// registerSupplyChainActiveEvidence appends the active-evidence branch
+// dimension (#8880) at the end, independent of every earlier step. The
+// instruments add no span names or log keys.
+func registerSupplyChainActiveEvidence() {
+	metricDimensionKeys = append(metricDimensionKeys, contract.MetricDimensionBranch)
+}
+
 // registerMCPRouter appends the MCP router find_tool and call_tool spans
 // (#8757) at the end, independent of every earlier step.
 func registerMCPRouter() {

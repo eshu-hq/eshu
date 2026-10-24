@@ -21,9 +21,9 @@ import (
 // `fact.payload->>'field'` straight in the query text — invisible to that
 // gate:
 //
-//   - listActiveSupplyChainImpactFactsQuery
-//     (facts_active_supply_chain_impact.go) reads package_id (among other
-//     kinds' fields) against package_registry.vulnerability_hint, a
+//   - the supply-chain impact branch catalog (storage/postgres/facts/impact,
+//     run by facts_active_supply_chain_impact.go) reads package_id (among
+//     other kinds' fields) against package_registry.vulnerability_hint, a
 //     typed-but-not-yet-consumed kind (packageregistry/v1/doc.go).
 //   - registryMetadataTargetStatusQuery (status_registry.go) reads ecosystem
 //     and warning_code against package_registry.warning, also
@@ -58,7 +58,7 @@ func TestPackageRegistrySQLProjectedFieldsAreSchemaDeclared(t *testing.T) {
 	// Prove the field literals we assert are actually present in the SQL text,
 	// so this test cannot pass by asserting a stale field the query no longer
 	// reads.
-	sqlText := listActiveSupplyChainImpactFactsQuery + registryMetadataTargetStatusQuery
+	sqlText := supplyChainImpactCatalogSQL() + registryMetadataTargetStatusQuery
 	fieldRef := regexp.MustCompile(`payload->>?'([a-z_]+)'`)
 	referenced := map[string]bool{}
 	for _, m := range fieldRef.FindAllStringSubmatch(sqlText, -1) {

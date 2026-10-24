@@ -57,3 +57,35 @@ func TestSecurityAlertFreshnessHintChangesWhenProviderTruthChanges(t *testing.T)
 		t.Fatalf("securityAlertFreshnessHint() did not change after provider state changed: %q", openHint)
 	}
 }
+
+// TestSecurityAlertFreshnessHintSeparatesRepositories proves org alerts that
+// share a provider alert number across repositories keep their repository in
+// the digest (#8805): swapping which repository owns which package is a
+// provider-truth change, not a reorder.
+func TestSecurityAlertFreshnessHintSeparatesRepositories(t *testing.T) {
+	t.Parallel()
+
+	alert := func(repository string, packageName string) securityalerts.GitHubDependabotAlert {
+		value := orgAlert(1, repository)
+		value.Dependency.Package.Name = packageName
+		return value
+	}
+	before := securityAlertFreshnessHint(securityAlertFreshnessInput{alerts: []securityalerts.GitHubDependabotAlert{
+		alert("example-org/alpha-repo", "left-pad"),
+		alert("example-org/beta-repo", "right-pad"),
+	}})
+	swapped := securityAlertFreshnessHint(securityAlertFreshnessInput{alerts: []securityalerts.GitHubDependabotAlert{
+		alert("example-org/alpha-repo", "right-pad"),
+		alert("example-org/beta-repo", "left-pad"),
+	}})
+	reordered := securityAlertFreshnessHint(securityAlertFreshnessInput{alerts: []securityalerts.GitHubDependabotAlert{
+		alert("example-org/beta-repo", "right-pad"),
+		alert("example-org/alpha-repo", "left-pad"),
+	}})
+	if before == swapped {
+		t.Fatal("freshness hint unchanged after packages moved between repositories")
+	}
+	if before != reordered {
+		t.Fatalf("freshness hint changed on reorder: %q vs %q", before, reordered)
+	}
+}

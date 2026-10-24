@@ -293,6 +293,26 @@ and the old raw predicates usable. If an operator deliberately drops one of
 these new indexes on a disposable rollback, its recorded migration must also
 be removed before the tracked migrator can recreate it.
 
+## Migrations 217 to 229: supply-chain impact active-evidence anchors (#8880)
+
+These thirteen files are generated from `storage/postgres/facts/impact`
+(`TestNewIndexStatementsMatchMigrations`), one `CREATE INDEX CONCURRENTLY` each,
+all on `fact_records`. They run one after another, and each build scans the
+table twice; 228 and 229 also read every file fact's payload. On the local
+fixture each built in about 2 seconds at 16 KB to 2.5 MB; hosted build time
+and size are not measured.
+
+Before the schema Job runs, pause `supply_chain_impact` claims (an
+`ESHU_REDUCER_CLAIM_DOMAINS` allowlist that leaves the domain out) and wait for
+claimed items to finish. A concurrent build waits for every transaction holding
+an older snapshot, and the pre-#8880 loader holds one repeatable-read
+transaction per load call, across all of that call's pages: on one hosted
+deployment a single call held its transaction open for about 83 minutes. Raise the schema Job's deadline above the chart's 600 s
+default for this rollout. If the new code starts before an index is valid it
+returns the same rows, only slower; a missing 229 costs the most. Steps and
+progress signals: `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md`
+(Deployment).
+
 ## Verification
 
 ```bash

@@ -196,7 +196,7 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 	}
 	if !slices.Equal(shards.Strategy.Matrix["shard"], []int{1, 2, 3, 4}) ||
 		len(shards.Strategy.Matrix) != 1 {
-		return "shards must pin exactly four ledger quarters"
+		return "shards must pin exactly four shard legs"
 	}
 	if len(hermetic.Services) != 0 || len(shards.Services) != 2 || len(aggregate.Services) != 0 {
 		return "only the shard legs must start both disposable backends"

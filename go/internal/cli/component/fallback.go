@@ -39,11 +39,20 @@ func FallbackList(flagValue []string, flagPassed bool, envValue string) []string
 // the environment: a revoke list that a flag could empty would let a shell
 // that carries the service revocations judge a component the services block.
 // Flag entries come first, then environment entries the flag did not already
-// name. The result never shares storage with flagValue.
+// name. Flag entries are trimmed like environment entries and blanks are
+// dropped, because policy matching compares exactly and a padded entry would
+// otherwise revoke nothing. The result never shares storage with flagValue.
 func UnionList(flagValue []string, envValue string) []string {
 	var merged []string
 	seen := make(map[string]struct{}, len(flagValue))
-	for _, entry := range flagValue {
+	for _, raw := range flagValue {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			continue
+		}
+		if _, ok := seen[entry]; ok {
+			continue
+		}
 		seen[entry] = struct{}{}
 		merged = append(merged, entry)
 	}

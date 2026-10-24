@@ -115,19 +115,52 @@ ON CONFLICT (scope_id, generation_id) DO NOTHING
 // It reads ingestion_scopes (one row per scope) and probes the journal's
 // unique (scope_id, generation_id) index per scope.
 //
+// Like every ledger writer, the pass holds each generation it names FOR KEY
+// SHARE until it commits (#8932, arbiter ruling arb-7127-3d, C4): a
+// generation that is active at the statement's snapshot can be superseded by
+// an Ack that commits before the pass does, and generation retention could
+// then lock, prune and delete it while the pass's uncommitted row is
+// invisible to retention's ledger delete, orphaning the row. The lock makes
+// retention (FOR UPDATE SKIP LOCKED) skip the generation, and KEY SHARE does
+// not conflict with Ack's status update. PostgreSQL refuses a row lock on the
+// nullable side of a LEFT JOIN, so the lock is taken by the locked CTE, which
+// is an inner join; a generation that retention holds or has pruned is
+// absent from it and gets no row, without waiting (the next pass journals
+// whatever is active then, which is never the generation retention is
+// pruning). A scope whose active generation has no generation row at all is
+// journaled as before, with the fallback activated_at: there is no row to
+// lock and nothing for retention to prune. The lock can still wait in the
+// update-chain walk, so the caller bounds it with the generation lock
+// timeout, like the backfill's insert.
+//
 // $1 activated_at fallback for a generation without activated_at.
 const journalActiveGenerationsQuery = `
+WITH pending AS (
+    SELECT scope.scope_id, scope.active_generation_id
+    FROM ingestion_scopes AS scope
+    WHERE scope.active_generation_id IS NOT NULL
+      AND NOT EXISTS (
+          SELECT 1 FROM changed_since_activations AS journal
+          WHERE journal.scope_id = scope.scope_id
+            AND journal.generation_id = scope.active_generation_id
+      )
+),
+locked AS (
+    SELECT generation.generation_id, generation.activated_at
+    FROM scope_generations AS generation
+    JOIN pending ON pending.active_generation_id = generation.generation_id
+    FOR KEY SHARE OF generation SKIP LOCKED
+)
 INSERT INTO changed_since_activations (scope_id, generation_id, prior_generation_id, source, activated_at)
-SELECT scope.scope_id, scope.active_generation_id, NULL, 'sweeper', COALESCE(generation.activated_at, $1)
-FROM ingestion_scopes AS scope
-LEFT JOIN scope_generations AS generation ON generation.generation_id = scope.active_generation_id
-WHERE scope.active_generation_id IS NOT NULL
-  AND NOT EXISTS (
-      SELECT 1 FROM changed_since_activations AS journal
-      WHERE journal.scope_id = scope.scope_id
-        AND journal.generation_id = scope.active_generation_id
-  )
-ORDER BY scope.scope_id
+SELECT pending.scope_id, pending.active_generation_id, NULL, 'sweeper', COALESCE(locked.activated_at, $1)
+FROM pending
+LEFT JOIN locked ON locked.generation_id = pending.active_generation_id
+WHERE locked.generation_id IS NOT NULL
+   OR NOT EXISTS (
+       SELECT 1 FROM scope_generations AS present
+       WHERE present.generation_id = pending.active_generation_id
+   )
+ORDER BY pending.scope_id
 ON CONFLICT (scope_id, generation_id) DO NOTHING
 `
 

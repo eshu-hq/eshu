@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -59,18 +60,12 @@ func TestSupplyChainImpactAdvisoryFilterPlanLive(t *testing.T) {
 		[]string{suppressionSQLProofCVE},
 		nil,
 	)
-	currentCVEArgs := suppressionSQLProofCurrentArgs(
-		[]string{suppressionSQLProofCVE},
-		nil,
-	)
+	currentCVEFilter := supplychaincore.SupplyChainImpactFactFilter{CVEIDs: []string{suppressionSQLProofCVE}}
 	baseAdvisoryArgs := suppressionSQLProofBaseArgs(
 		nil,
 		[]string{suppressionSQLProofAdvisory},
 	)
-	currentAdvisoryArgs := suppressionSQLProofCurrentArgs(
-		nil,
-		[]string{suppressionSQLProofAdvisory},
-	)
+	currentAdvisoryFilter := supplychaincore.SupplyChainImpactFactFilter{AdvisoryIDs: []string{suppressionSQLProofAdvisory}}
 
 	baseCVEIDs := suppressionSQLProofFactIDs(
 		t,
@@ -79,13 +74,7 @@ func TestSupplyChainImpactAdvisoryFilterPlanLive(t *testing.T) {
 		suppressionSQLProofBaseQuery,
 		baseCVEArgs,
 	)
-	currentCVEIDs := suppressionSQLProofFactIDs(
-		t,
-		ctx,
-		db,
-		listActiveSupplyChainImpactFactsQuery,
-		currentCVEArgs,
-	)
+	currentCVEIDs, currentCVEStatements := suppressionSQLProofCurrent(t, ctx, db, currentCVEFilter)
 	if strings.Join(baseCVEIDs, "\n") != strings.Join(currentCVEIDs, "\n") {
 		t.Fatal("current query changed the exact-base CVE result set")
 	}
@@ -100,13 +89,7 @@ func TestSupplyChainImpactAdvisoryFilterPlanLive(t *testing.T) {
 		suppressionSQLProofBaseQuery,
 		baseAdvisoryArgs,
 	)
-	currentAdvisoryIDs := suppressionSQLProofFactIDs(
-		t,
-		ctx,
-		db,
-		listActiveSupplyChainImpactFactsQuery,
-		currentAdvisoryArgs,
-	)
+	currentAdvisoryIDs, currentAdvisoryStatements := suppressionSQLProofCurrent(t, ctx, db, currentAdvisoryFilter)
 	if got, want := len(baseAdvisoryIDs), suppressionSQLProofMatches/2; got != want {
 		t.Fatalf("exact-base advisory rows = %d, want %d exact top-level matches", got, want)
 	}
@@ -129,13 +112,7 @@ func TestSupplyChainImpactAdvisoryFilterPlanLive(t *testing.T) {
 		suppressionSQLProofBaseQuery,
 		baseCVEArgs,
 	)
-	currentCVEPlans := suppressionSQLProofPlans(
-		t,
-		ctx,
-		db,
-		listActiveSupplyChainImpactFactsQuery,
-		currentCVEArgs,
-	)
+	currentCVEPlans := suppressionSQLProofStatementPlans(t, ctx, db, currentCVEStatements)
 	baseAdvisoryPlans := suppressionSQLProofPlans(
 		t,
 		ctx,
@@ -143,13 +120,7 @@ func TestSupplyChainImpactAdvisoryFilterPlanLive(t *testing.T) {
 		suppressionSQLProofBaseQuery,
 		baseAdvisoryArgs,
 	)
-	currentAdvisoryPlans := suppressionSQLProofPlans(
-		t,
-		ctx,
-		db,
-		listActiveSupplyChainImpactFactsQuery,
-		currentAdvisoryArgs,
-	)
+	currentAdvisoryPlans := suppressionSQLProofStatementPlans(t, ctx, db, currentAdvisoryStatements)
 	baseCVEMedian := suppressionSQLProofMedian(baseCVEPlans)
 	currentCVEMedian := suppressionSQLProofMedian(currentCVEPlans)
 	baseCVEP95 := suppressionSQLProofP95(baseCVEPlans)
@@ -169,13 +140,6 @@ func TestSupplyChainImpactAdvisoryFilterPlanLive(t *testing.T) {
 		)
 	}
 	lastAdvisory := currentAdvisoryPlans[len(currentAdvisoryPlans)-1]
-	if int(lastAdvisory.Plan.ActualRows) != suppressionSQLProofMatches {
-		t.Fatalf(
-			"advisory plan actual rows = %.0f, want %d",
-			lastAdvisory.Plan.ActualRows,
-			suppressionSQLProofMatches,
-		)
-	}
 	t.Logf(
 		"100k active facts; exact base %s; 10 warm measurements: "+
 			"CVE base median=%.3fms p95=%.3fms, CVE current median=%.3fms p95=%.3fms; "+
@@ -192,7 +156,7 @@ func TestSupplyChainImpactAdvisoryFilterPlanLive(t *testing.T) {
 		len(baseAdvisoryIDs),
 		suppressionSQLProofMedian(currentAdvisoryPlans),
 		suppressionSQLProofP95(currentAdvisoryPlans),
-		int(lastAdvisory.Plan.ActualRows),
+		len(currentAdvisoryIDs),
 		lastAdvisory.Plan.SharedHitBlocks,
 		lastAdvisory.Plan.SharedReadBlocks,
 	)
@@ -250,16 +214,15 @@ func applySuppressionSQLProofDefinitions(t *testing.T, ctx context.Context, db *
 		"scope_generations":                     true,
 		"fact_records":                          true,
 		"supply_chain_impact_canonical_winners": true,
+		// The #8880 loader also pages the canonical identity stream.
+		"fact_work_items":                                         true,
+		"container_image_identity_support_store":                  true,
+		"container_image_identity_support_current_view":           true,
+		"container_image_identity_current_facts_function":         true,
+		"container_image_identity_current_support_facts_function": true,
 	}
-	var definitions []Definition
-	for _, definition := range BootstrapDefinitions() {
-		if required[definition.Name] {
-			definitions = append(definitions, definition)
-		}
-	}
-	if len(definitions) != len(required) {
-		t.Fatalf("isolated schema definitions = %d, want %d", len(definitions), len(required))
-	}
+	// The #8880 loader plans on every index its branches anchor on.
+	definitions := supplyChainImpactDefinitionsWithAnchors(t, required)
 	if err := ApplyDefinitions(ctx, SQLDB{DB: db}, definitions); err != nil {
 		t.Fatalf("apply isolated Postgres schema: %v", err)
 	}
@@ -345,27 +308,56 @@ ANALYZE scope_generations;`); err != nil {
 	}
 }
 
-// suppressionSQLProofCurrentArgs binds against the current, full
-// listActiveSupplyChainImpactFactsQuery (19 placeholders). cveIDs and
-// advisoryIDs each feed BOTH their exact-match slot and their lower(btrim(...))
-// normalized sibling slot, mirroring exactly how
-// listActiveSupplyChainImpactFactsPage binds the same filter value twice in
-// production. The final `false` is the compound keyset cursor's boolean
-// half ($19, #5466 round-8 review F-3); its value is irrelevant here since
-// $11 (the cursor's fact_id half) is empty, which bypasses the cursor
-// predicate entirely (first page), but it must still be present and
-// well-typed for Postgres to plan the query.
-func suppressionSQLProofCurrentArgs(cveIDs, advisoryIDs []string) []any {
-	empty := []string{}
-	return []any{
-		empty, empty, cveIDs, advisoryIDs, empty, empty,
-		empty, empty, empty, empty, "", 1_000,
-		empty, empty,
-		lowerCleanedStringFilterValues(cveIDs),
-		empty, empty,
-		lowerCleanedStringFilterValues(advisoryIDs),
-		false,
+// suppressionSQLProofCurrent loads one filter through the production
+// #8880 loader, records every statement it ran, and returns the loaded fact
+// IDs sorted like the base statement's fact_id ORDER BY.
+func suppressionSQLProofCurrent(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	filter supplychaincore.SupplyChainImpactFactFilter,
+) ([]string, []supplyChainImpactRecordedStatement) {
+	t.Helper()
+	recorder := &supplyChainImpactRecordingDB{SQLDB: SQLDB{DB: db}}
+	result, statements := supplyChainImpactProductionRows(t, ctx, recorder, filter)
+	return sortedSupplyChainImpactFactIDs(result), statements
+}
+
+// suppressionSQLProofStatementPlans times one production call as the sum of
+// its statements' warm EXPLAIN ANALYZE execution times, ten measurements
+// after one warmup, matching suppressionSQLProofPlans for the base.
+func suppressionSQLProofStatementPlans(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	statements []supplyChainImpactRecordedStatement,
+) []suppressionSQLPlan {
+	t.Helper()
+	plans := make([]suppressionSQLPlan, 0, 10)
+	for run := 0; run < 11; run++ {
+		var total suppressionSQLPlan
+		for _, statement := range statements {
+			var raw []byte
+			if err := db.QueryRowContext(ctx, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+statement.Query, statement.Args...).Scan(&raw); err != nil {
+				t.Fatalf("EXPLAIN run %d: %v", run, err)
+			}
+			var decoded []suppressionSQLPlan
+			if err := json.Unmarshal(raw, &decoded); err != nil || len(decoded) != 1 {
+				t.Fatalf("decode EXPLAIN run %d: plans=%d err=%v", run, len(decoded), err)
+			}
+			total.ExecutionTime += decoded[0].ExecutionTime
+			total.Plan.SharedHitBlocks += decoded[0].Plan.SharedHitBlocks
+			total.Plan.SharedReadBlocks += decoded[0].Plan.SharedReadBlocks
+		}
+		if run == 0 {
+			continue
+		}
+		if total.Plan.SharedReadBlocks != 0 {
+			t.Fatalf("EXPLAIN run %d read %d shared blocks after warmup", run, total.Plan.SharedReadBlocks)
+		}
+		plans = append(plans, total)
 	}
+	return plans
 }
 
 // suppressionSQLProofBaseArgs binds the exact 12-placeholder query from
