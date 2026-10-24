@@ -27,6 +27,7 @@ func TestDependencyCoverageCoveredJSONFilesEmitDependencyRows(t *testing.T) {
 		"pyproject.toml":   true,
 		"pipfile":          true,
 		"poetry.lock":      true,
+		"uv.lock":          true,
 	}
 	for _, entry := range DependencyCoverage() {
 		if entry.Status != DependencyCoverageCovered {

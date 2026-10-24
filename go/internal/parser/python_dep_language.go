@@ -25,8 +25,8 @@ func parsePythonRequirements(path string, isDependency bool) (map[string]any, er
 }
 
 // parsePythonTOML dispatches one Python TOML manifest (pyproject.toml,
-// Pipfile, or poetry.lock) to the right pythondep entrypoint based on its
-// filename. The registry only routes these three exact names to the
+// Pipfile, poetry.lock, or uv.lock) to the right pythondep entrypoint based on its
+// filename. The registry only routes these four exact names to the
 // `python_toml` language, so an unknown filename here means the registry has
 // drifted from the dispatch table and the engine surfaces an error rather
 // than silently emitting an empty payload.
@@ -41,6 +41,8 @@ func parsePythonTOML(path string, isDependency bool) (map[string]any, error) {
 		payload, err = pythondep.ParsePipfile(path)
 	case "poetry.lock":
 		payload, err = pythondep.ParsePoetryLock(path)
+	case "uv.lock":
+		payload, err = pythondep.ParseUVLock(path)
 	default:
 		return nil, fmt.Errorf("python_toml dispatch received unexpected filename %q; update the registry or this dispatcher to keep them in sync", name)
 	}

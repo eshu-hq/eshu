@@ -45,7 +45,6 @@ var knownEcosystemGaps = []ecosystemGap{
 	{Language: "csharp", File: "Directory.Packages.props", Issue: "#8824"},
 	{Language: "java", File: "libs.versions.toml", Issue: "#8822"},
 	{Language: "java", File: "gradle-wrapper.properties", Issue: "#8822"},
-	{Language: "python", File: "uv.lock", Issue: "#8821"},
 	{Language: "scala", File: "build.sbt", Issue: "#8938"},
 }
 

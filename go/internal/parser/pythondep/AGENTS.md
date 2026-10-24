@@ -39,6 +39,43 @@ follow when editing this package.
   surfaces as a zero-row payload so the readiness envelope can report
   missing evidence rather than safe.
 
+## uv.lock rules
+
+- `uv_lock*.go` is a fail-closed reader. A row resolves only when the entry
+  matches the grammar in [README.md](README.md#uvlock-grammar). Do not widen the
+  grammar to accept a construct "that is probably fine"; count it as
+  unresolved instead.
+- Keep every loop linear in the input. Use the integer bracket counter in
+  `scanValueBytes`; never recurse, never rescan accumulated text, never
+  allocate per entry past the row cap (`uvParser.scratch` backs the open
+  entry for that reason). `uv_lock_bounds_test.go` fails on an allocation or
+  scan-length regression.
+- Only `https://pypi.org/simple` may produce `config_kind=dependency`. Do not
+  persist userinfo, a query, or a fragment from a URL, and never persist any
+  text that contains an `@`: refuse the source instead.
+- Count the project itself (`editable`/`virtual` `"."`) and trusted
+  `[manifest] members` in `root_packages`/`workspace_members`; never emit them
+  as rows, because readiness reads an editable or path row as an unsupported
+  dependency gap. A genuine local path dependency stays a row. Keep
+  `resolved + unresolved + dropped_over_cap + root_packages + workspace_members == entries`.
+- A package form the reader does not read (quoted header key, `[package]`
+  table, root `package` key) must make the state partial, never `complete`
+  with zero entries. The same holds for a value left open outside an entry:
+  count the swallowed lines as one unresolved unit (`countUnreadUnit`) at the
+  resync and at end of file. Resync on any line `startsPackageHeader`
+  accepts, not only the exact `[[package]]` text.
+- Trust a `[manifest] members` list only when it follows the array grammar
+  (single commas, one trailing comma) and lists at most `uvLockMaxMembers`
+  names, counting duplicates. Never allocate per listed name: normalise into
+  `uvWorkspace.scratch` and write the map only for a new distinct name.
+  Omit a member only when its path is relative with no `..` segment.
+- Any entry or unit the reader could not read exactly, whose source may be
+  `"."`, makes a later `"."` entry stay a row.
+- Do not set `dev_dependency`, `extras`, or `marker` on a uv row without
+  proving the value from the lockfile; the entry itself does not carry it.
+- A grammar change needs a failing case in `uv_lock_test.go`, a seeded-fuzz
+  invariant that still holds, and a README grammar edit in the same commit.
+
 ## When changing parser behavior
 
 1. Add or extend the failing fixture in the relevant `*_test.go` first.
