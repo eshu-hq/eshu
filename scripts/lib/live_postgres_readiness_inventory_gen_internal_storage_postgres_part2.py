@@ -7,6 +7,35 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go": (
+            "TestReducerQueueAckBatchFencesSupersededClaimLive",
+            "TestReducerQueueExpiryInterleaveLive",
+        ),
+        "go/internal/storage/postgres/reducer_queue_producer_refinalize_live_test.go": (
+            "TestOwnGateWaitsThroughRefinalizeReResolutionLive",
+        ),
+        "go/internal/storage/postgres/reducer_queue_producer_terminal_live_test.go": (
+            "TestOwnGateProducerDeadLetteredConsumerDeadLettersLive",
+            "TestOwnGateProducerRetryingConsumerKeepsDeferringLive",
+        ),
+        "go/internal/storage/postgres/reducer_queue_security_alert_impact_wait_concurrent_live_test.go": (
+            "TestReducerContentionGateSecurityAlertReconciliationImpactFenceUnderContention",
+        ),
+        "go/internal/storage/postgres/reducer_queue_security_alert_impact_wait_live_test.go": (
+            "TestReducerContentionGateSecurityAlertReconciliationImpactFenceKeepsItsAttemptBudget",
+            "TestReducerContentionGateSecurityAlertReconciliationGivesUpVisiblyWithoutAFence",
+        ),
+        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_bound_live_test.go": (
+            "TestReducerContentionGateServiceCatalogRuntimeFenceBoundsOnProducerNotCatalogAge",
+            "TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerIsWorked",
+            "TestReducerContentionGateServiceCatalogRuntimeFenceConvergesAtTheElapsedBound",
+            "TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerLeaseIsLive",
+            "TestReducerContentionGateServiceCatalogRuntimeFenceReopenedProducerWaits",
+        ),
+        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_interleave_live_test.go": (
+            "TestReducerContentionGateServiceCatalogRuntimeFenceProducerCompletesMidCheck",
+            "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers",
+        ),
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_readiness_live_test.go": (
             "TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget",
         ),

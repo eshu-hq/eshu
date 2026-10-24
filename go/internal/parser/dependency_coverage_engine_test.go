@@ -294,6 +294,16 @@ dependencies {
 			expectedDependencies: map[string]string{"org.springframework:spring-core": "5.3.20"},
 			expectedPackageMgr:   "gradle",
 		},
+		"libs.versions.toml": {
+			body: `[versions]
+spring = "5.3.20"
+
+[libraries]
+spring-core = { module = "org.springframework:spring-core", version.ref = "spring" }
+`,
+			expectedDependencies: map[string]string{"org.springframework:spring-core": "5.3.20"},
+			expectedPackageMgr:   "gradle",
+		},
 		"requirements.txt": {
 			body: "requests==2.31.0\n" +
 				"Django>=4.2,<5.0\n",

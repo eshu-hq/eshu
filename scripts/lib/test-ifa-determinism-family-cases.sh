@@ -318,8 +318,8 @@ require_vault_family_lib() {
 }
 require_vault_family_lib "authenticates-vault-role assert-edges domain" "-domain authenticates_vault_role"
 require_vault_family_lib "authenticates-vault-role drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
-require_vault_family_lib "uses-vault-policy assert-edges domain" "-domain uses_vault_policy"
-require_vault_family_lib "uses-vault-policy drive takes the labeled signature" 'ifa_uses_vault_policy_drive()'
+require_vault_family_lib "uses-vault-policy assert-edges domain" "-domain uses_vault_policy"; require_vault_family_lib "grants-secret-read assert-edges domain" "-domain grants_secret_read"  # vault siblings, packed for the 500-line cap
+require_vault_family_lib "uses-vault-policy drive takes the labeled signature" 'ifa_uses_vault_policy_drive()'; require_vault_family_lib "grants-secret-read drive takes the labeled signature" 'ifa_grants_secret_read_drive()'  # vault siblings, packed for the 500-line cap
 require_direct_family_lib "kubernetes-correlation assert-edges domain" "-domain kubernetes_correlation"
 require_direct_family_lib "kubernetes-correlation drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "cloud-resource assert-edges domain" "-domain cloud_resource"
@@ -383,7 +383,7 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[observability_coverage]="-domain observability_coverage"
 	[incident_routing_evidence]="-domain incident_routing_evidence" [publishes]="-domain publishes"  # packed for the 500-line cap
 	[authenticates_vault_role]="-domain authenticates_vault_role"
-	[uses_vault_policy]="-domain uses_vault_policy"
+	[uses_vault_policy]="-domain uses_vault_policy" [grants_secret_read]="-domain grants_secret_read"  # packed for the 500-line cap
 	[kubernetes_correlation]="-domain kubernetes_correlation"
 	[cloud_resource]="-domain cloud_resource"
 	[semantic_entity_containment]="-domain semantic_entity_containment"

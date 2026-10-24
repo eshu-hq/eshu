@@ -71,6 +71,7 @@ var catalogSeed = []familyodu.CatalogOdu{
 	familyodu.UsesServiceAccountFamilyOdu(),
 	familyodu.AuthenticatesVaultRoleFamilyOdu(),
 	familyodu.UsesVaultPolicyFamilyOdu(),
+	familyodu.GrantsSecretReadFamilyOdu(),
 	familyodu.CrossplaneSatisfiedByFamilyOdu(),
 	familyodu.CloudResourceContainerImageFamilyOdu(),
 	familyodu.BuiltFromFamilyOdu(),

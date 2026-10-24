@@ -1,0 +1,539 @@
+{
+  "collector": "kubernetes_live",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "collector_kind": "kubernetes_live",
+      "facts": [
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "secrets_iam_coverage_warning",
+          "fencing_token": 9,
+          "payload": {
+            "attributes": null,
+            "cluster_id": "parity-hostile",
+            "collector_instance_id": "k8s-parity-8859",
+            "error_class": "forbidden_resource",
+            "message": "",
+            "provider": "kubernetes",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "resource_scope": "deployments",
+            "source_state": "permission_hidden",
+            "warning_kind": "forbidden_resource"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_uri": "https://svc:HOSTILESECRET@api.parity-hostile.example.test/cluster?token=HOSTILETOKEN&region=us-east-1",
+          "stable_fact_key": "866d16dcb2626231df5330de74d2d3855429c744ca2b49c2240b9433a290f3d3"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.warning",
+          "fencing_token": 9,
+          "payload": {
+            "cluster_id": "parity-hostile",
+            "collector_instance_id": "k8s-parity-8859",
+            "correlation_anchors": [
+              "parity-hostile"
+            ],
+            "message": "",
+            "reason": "invalid_owner_reference",
+            "resource_scope": "deployments"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_record_id": "invalid_owner_reference:deployments",
+          "source_uri": "https://api.parity-hostile.example.test/cluster?region=us-east-1",
+          "stable_fact_key": "abaff74b7503f4c116a053fbd6e5c6919a488092b1dbfa1987cf0b3038e00af4"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.namespace",
+          "fencing_token": 9,
+          "payload": {
+            "cluster_id": "parity-hostile",
+            "collector_instance_id": "k8s-parity-8859",
+            "correlation_anchors": [
+              "ae056825bfc104b1b02b0434b7448dce7263aea0dd20ba05537bfc2a906dded1"
+            ],
+            "namespace": "default",
+            "object_id": "ae056825bfc104b1b02b0434b7448dce7263aea0dd20ba05537bfc2a906dded1"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-hostile.example.test/cluster?region=us-east-1",
+          "stable_fact_key": "ae056825bfc104b1b02b0434b7448dce7263aea0dd20ba05537bfc2a906dded1"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.warning",
+          "fencing_token": 9,
+          "payload": {
+            "cluster_id": "parity-hostile",
+            "collector_instance_id": "k8s-parity-8859",
+            "correlation_anchors": [
+              "parity-hostile"
+            ],
+            "message": "",
+            "reason": "forbidden_resource",
+            "resource_scope": "deployments"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_record_id": "forbidden_resource:deployments",
+          "source_uri": "https://api.parity-hostile.example.test/cluster?region=us-east-1",
+          "stable_fact_key": "d101926aee43e0c1c561ea60544ef2b561f7507d4d6b23759f54dc58e6454bed"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.pod_template",
+          "fencing_token": 9,
+          "payload": {
+            "cluster_id": "parity-hostile",
+            "collector_instance_id": "k8s-parity-8859",
+            "containers": [
+              {
+                "env_from_secret": false,
+                "env_keys": [
+                  "DB_PASSWORD"
+                ],
+                "image": "ghcr.io/parity/orphan:0.0.1",
+                "init": false,
+                "name": "app",
+                "ports": []
+              }
+            ],
+            "correlation_anchors": [
+              "f061f5abd8643c137261fb35cae2c1060801fb51ad4a876e0d30621479b7b0d6",
+              "ghcr.io/parity/orphan:0.0.1"
+            ],
+            "group_version_resource": "core/v1/pods",
+            "image_refs": [
+              "ghcr.io/parity/orphan:0.0.1"
+            ],
+            "name": "orphan",
+            "namespace": "default",
+            "object_id": "f061f5abd8643c137261fb35cae2c1060801fb51ad4a876e0d30621479b7b0d6",
+            "service_account": "",
+            "uid": "uid-orphan"
+          },
+          "schema_version": "1.3.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-hostile.example.test/cluster?region=us-east-1",
+          "stable_fact_key": "f061f5abd8643c137261fb35cae2c1060801fb51ad4a876e0d30621479b7b0d6"
+        }
+      ],
+      "generation_id": "canonical-generation-421b7380602ae2fc",
+      "metadata": {
+        "cluster_id": "parity-hostile"
+      },
+      "observed_at": "2000-01-01T00:00:00Z",
+      "partition_key": "parity-hostile",
+      "scope_id": "kubernetes_live:28ab58282660ae48106298fa4dc8f777eb8e0ff578999bfed77784c381fc479f",
+      "scope_kind": "cluster",
+      "source_system": "kubernetes_live",
+      "trigger_kind": "snapshot"
+    },
+    {
+      "collector_kind": "kubernetes_live",
+      "facts": [
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.pod_template",
+          "fencing_token": 7,
+          "payload": {
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "containers": [
+              {
+                "env_from_secret": false,
+                "image": "ghcr.io/parity/checkout:1.2.3",
+                "init": false,
+                "name": "app",
+                "ports": [],
+                "resolved_image_digest": "ghcr.io/parity/checkout@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+              }
+            ],
+            "correlation_anchors": [
+              "099831fab1c2bc0e5edc344f3dbaf50810b64ac4e07588f4f4658866de1b5b2a",
+              "ghcr.io/parity/checkout:1.2.3"
+            ],
+            "group_version_resource": "core/v1/pods",
+            "image_refs": [
+              "ghcr.io/parity/checkout:1.2.3"
+            ],
+            "labels": {
+              "app": "checkout"
+            },
+            "name": "checkout-pod",
+            "namespace": "payments",
+            "object_id": "099831fab1c2bc0e5edc344f3dbaf50810b64ac4e07588f4f4658866de1b5b2a",
+            "service_account": "checkout-sa",
+            "uid": "uid-pod-full"
+          },
+          "schema_version": "1.3.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "099831fab1c2bc0e5edc344f3dbaf50810b64ac4e07588f4f4658866de1b5b2a"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.relationship",
+          "fencing_token": 7,
+          "payload": {
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "correlation_anchors": [
+              "099831fab1c2bc0e5edc344f3dbaf50810b64ac4e07588f4f4658866de1b5b2a",
+              "b87072d43645d60b06f428448f881eb3bc18b575337cd4c5938eaee4f1916f87"
+            ],
+            "from_group_version_resource": "core/v1/pods",
+            "from_object_id": "099831fab1c2bc0e5edc344f3dbaf50810b64ac4e07588f4f4658866de1b5b2a",
+            "relationship_type": "owner_reference",
+            "to_group_version_resource": "apps/v1/replicasets",
+            "to_object_id": "b87072d43645d60b06f428448f881eb3bc18b575337cd4c5938eaee4f1916f87"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_record_id": "099831fab1c2bc0e5edc344f3dbaf50810b64ac4e07588f4f4658866de1b5b2a->b87072d43645d60b06f428448f881eb3bc18b575337cd4c5938eaee4f1916f87",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "1da72fb1b6d0e3e8eb7a4337d2e6fd70d31f1c7d9acfff199cf0825251b1d2e8"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_workload_identity_use",
+          "fencing_token": 7,
+          "payload": {
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "namespace_fingerprint": "sha256:90cb5661f4499ae74d935f608b0766fe2327ec12199b3f6b7f7ab3909a017d87",
+            "projected_service_account_token": false,
+            "provider": "kubernetes",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "service_account_fingerprint": "sha256:e538c558acd58ba12159068471992b75a3a50ba456f66b01dac938978e10f5fa",
+            "service_account_join_key": "sha256:70311ac91d4a52a5729812191636db43db4961399d39f3ee2b3d20d30f06763a",
+            "service_account_uid_fingerprint": "sha256:074de9a327a7be2384d27a39caa46eff611b2d820506d74b8536077a95059bd7",
+            "workload_kind": "deployments",
+            "workload_object_id": "7dd32cb29d797f3382e4818e549970c7e5ca53d023e35d3f0ac24707978f3677"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "4e1842c977543b386cbd5b41a1b26ccd8537e3a6e68de32ef3b912cd593b2984"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_workload_identity_use",
+          "fencing_token": 7,
+          "payload": {
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "namespace_fingerprint": "sha256:90cb5661f4499ae74d935f608b0766fe2327ec12199b3f6b7f7ab3909a017d87",
+            "projected_service_account_token": false,
+            "provider": "kubernetes",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "service_account_fingerprint": "sha256:e538c558acd58ba12159068471992b75a3a50ba456f66b01dac938978e10f5fa",
+            "service_account_join_key": "sha256:70311ac91d4a52a5729812191636db43db4961399d39f3ee2b3d20d30f06763a",
+            "service_account_uid_fingerprint": "sha256:074de9a327a7be2384d27a39caa46eff611b2d820506d74b8536077a95059bd7",
+            "workload_kind": "pods",
+            "workload_object_id": "099831fab1c2bc0e5edc344f3dbaf50810b64ac4e07588f4f4658866de1b5b2a"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "4f09445df08c26161be9c94cc02223072dd6247cc58b97eb3ff1ac50803b7ac1"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_service_account",
+          "fencing_token": 7,
+          "payload": {
+            "annotation_count": 1,
+            "annotation_keys": [
+              "eks.amazonaws.com/role-arn"
+            ],
+            "automount_token": "true",
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "image_pull_secret_ref_count": 0,
+            "namespace_fingerprint": "sha256:90cb5661f4499ae74d935f608b0766fe2327ec12199b3f6b7f7ab3909a017d87",
+            "provider": "kubernetes",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "resource_version_fingerprint": "",
+            "secret_ref_count": 1,
+            "service_account_fingerprint": "sha256:e538c558acd58ba12159068471992b75a3a50ba456f66b01dac938978e10f5fa",
+            "service_account_join_key": "sha256:70311ac91d4a52a5729812191636db43db4961399d39f3ee2b3d20d30f06763a",
+            "uid_fingerprint": "sha256:074de9a327a7be2384d27a39caa46eff611b2d820506d74b8536077a95059bd7"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "7847719e77b27c52954401a0fd2d8a83a0789d7578d3cf6daf6a36334e61f209"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.pod_template",
+          "fencing_token": 7,
+          "payload": {
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "containers": [
+              {
+                "env_from_secret": false,
+                "env_keys": [
+                  "DB_PASSWORD",
+                  "PORT"
+                ],
+                "image": "ghcr.io/parity/checkout:1.2.3",
+                "init": false,
+                "name": "app",
+                "ports": [
+                  8080
+                ]
+              }
+            ],
+            "correlation_anchors": [
+              "7dd32cb29d797f3382e4818e549970c7e5ca53d023e35d3f0ac24707978f3677",
+              "ghcr.io/parity/checkout:1.2.3"
+            ],
+            "group_version_resource": "apps/v1/deployments",
+            "image_refs": [
+              "ghcr.io/parity/checkout:1.2.3"
+            ],
+            "labels": {
+              "app": "checkout"
+            },
+            "name": "checkout",
+            "namespace": "payments",
+            "object_id": "7dd32cb29d797f3382e4818e549970c7e5ca53d023e35d3f0ac24707978f3677",
+            "selector": {
+              "app": "checkout"
+            },
+            "service_account": "checkout-sa",
+            "uid": "uid-deploy-full"
+          },
+          "schema_version": "1.3.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "7dd32cb29d797f3382e4818e549970c7e5ca53d023e35d3f0ac24707978f3677"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.relationship",
+          "fencing_token": 7,
+          "payload": {
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "correlation_anchors": [
+              "b87072d43645d60b06f428448f881eb3bc18b575337cd4c5938eaee4f1916f87",
+              "7dd32cb29d797f3382e4818e549970c7e5ca53d023e35d3f0ac24707978f3677"
+            ],
+            "from_group_version_resource": "apps/v1/replicasets",
+            "from_object_id": "b87072d43645d60b06f428448f881eb3bc18b575337cd4c5938eaee4f1916f87",
+            "relationship_type": "owner_reference",
+            "to_group_version_resource": "apps/v1/deployments",
+            "to_object_id": "7dd32cb29d797f3382e4818e549970c7e5ca53d023e35d3f0ac24707978f3677"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_record_id": "b87072d43645d60b06f428448f881eb3bc18b575337cd4c5938eaee4f1916f87->7dd32cb29d797f3382e4818e549970c7e5ca53d023e35d3f0ac24707978f3677",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "860b4550a657d6c929a0971c10764e2107b9724b7e16a77b1401a5a37af50c29"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.namespace",
+          "fencing_token": 7,
+          "payload": {
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "correlation_anchors": [
+              "aa8a821b8973a404de4eddcaca6f8bf13d9c59252bd50af7092ce9b07b52f431"
+            ],
+            "labels": {
+              "environment": "staging"
+            },
+            "namespace": "payments",
+            "object_id": "aa8a821b8973a404de4eddcaca6f8bf13d9c59252bd50af7092ce9b07b52f431"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "aa8a821b8973a404de4eddcaca6f8bf13d9c59252bd50af7092ce9b07b52f431"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.pod_template",
+          "fencing_token": 7,
+          "payload": {
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "containers": [
+              {
+                "env_from_secret": false,
+                "image": "ghcr.io/parity/db:4.5.6",
+                "init": false,
+                "name": "db",
+                "ports": []
+              }
+            ],
+            "correlation_anchors": [
+              "b641cc60dd1127df152c2fc7a233bbe4b380fa837f5553af561cbcf5575238d4",
+              "ghcr.io/parity/db:4.5.6"
+            ],
+            "group_version_resource": "apps/v1/statefulsets",
+            "image_refs": [
+              "ghcr.io/parity/db:4.5.6"
+            ],
+            "name": "checkout-db",
+            "namespace": "payments",
+            "object_id": "b641cc60dd1127df152c2fc7a233bbe4b380fa837f5553af561cbcf5575238d4",
+            "service_account": "",
+            "uid": "uid-ss-full"
+          },
+          "schema_version": "1.3.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "b641cc60dd1127df152c2fc7a233bbe4b380fa837f5553af561cbcf5575238d4"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.pod_template",
+          "fencing_token": 7,
+          "payload": {
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "containers": [
+              {
+                "env_from_secret": false,
+                "image": "ghcr.io/parity/checkout:1.2.3",
+                "init": false,
+                "name": "app",
+                "ports": []
+              }
+            ],
+            "correlation_anchors": [
+              "b87072d43645d60b06f428448f881eb3bc18b575337cd4c5938eaee4f1916f87",
+              "ghcr.io/parity/checkout:1.2.3"
+            ],
+            "group_version_resource": "apps/v1/replicasets",
+            "image_refs": [
+              "ghcr.io/parity/checkout:1.2.3"
+            ],
+            "name": "checkout-rs",
+            "namespace": "payments",
+            "object_id": "b87072d43645d60b06f428448f881eb3bc18b575337cd4c5938eaee4f1916f87",
+            "service_account": "",
+            "uid": "uid-rs-full"
+          },
+          "schema_version": "1.3.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "b87072d43645d60b06f428448f881eb3bc18b575337cd4c5938eaee4f1916f87"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_live.relationship",
+          "fencing_token": 7,
+          "payload": {
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "correlation_anchors": [
+              "e5d9fb2d358c1e3c37be796220ba9a775aada2c3150b41f1120e3fa61912dcb2",
+              "099831fab1c2bc0e5edc344f3dbaf50810b64ac4e07588f4f4658866de1b5b2a"
+            ],
+            "from_group_version_resource": "core/v1/services",
+            "from_object_id": "e5d9fb2d358c1e3c37be796220ba9a775aada2c3150b41f1120e3fa61912dcb2",
+            "relationship_type": "selector_match",
+            "to_group_version_resource": "core/v1/pods",
+            "to_object_id": "099831fab1c2bc0e5edc344f3dbaf50810b64ac4e07588f4f4658866de1b5b2a"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_record_id": "e5d9fb2d358c1e3c37be796220ba9a775aada2c3150b41f1120e3fa61912dcb2->099831fab1c2bc0e5edc344f3dbaf50810b64ac4e07588f4f4658866de1b5b2a",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "d39f395bb17b489f50d5716082692b5df581cb6d3a3cb4be6b8ffa30e08413cf"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_service_account_token_posture",
+          "fencing_token": 7,
+          "payload": {
+            "automount_token": "true",
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "image_pull_secret_ref_count": 0,
+            "namespace_fingerprint": "sha256:90cb5661f4499ae74d935f608b0766fe2327ec12199b3f6b7f7ab3909a017d87",
+            "provider": "kubernetes",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "secret_ref_count": 1,
+            "service_account_fingerprint": "sha256:e538c558acd58ba12159068471992b75a3a50ba456f66b01dac938978e10f5fa",
+            "service_account_join_key": "sha256:70311ac91d4a52a5729812191636db43db4961399d39f3ee2b3d20d30f06763a",
+            "service_account_uid_fingerprint": "sha256:074de9a327a7be2384d27a39caa46eff611b2d820506d74b8536077a95059bd7"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "df35e6bfaeaef026272e1287fc0c3c6e2be475ade65150c0f18b95777b9367ca"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_gcp_workload_identity_binding",
+          "fencing_token": 7,
+          "payload": {
+            "annotation_present": true,
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "gcp_service_account_email_digest": "sha256:c1ceb2da6a2c37e27eb2bf0e559eb1d2b68d7202cb74f76dcfd0a038dfa86c80",
+            "gcp_workload_identity_pool_fingerprint": "sha256:ab336da1fb1b4d61e9ceaa18cbcbebcd316b4fb8313811054b78bef51186da34",
+            "gcp_workload_identity_subject_fingerprint": "sha256:d0bc4b0649ccfa2897a832301f1412c6c3af0a5091e3d10bfb90b4bcd8776162",
+            "namespace_fingerprint": "sha256:90cb5661f4499ae74d935f608b0766fe2327ec12199b3f6b7f7ab3909a017d87",
+            "provider": "kubernetes",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "service_account_fingerprint": "sha256:e538c558acd58ba12159068471992b75a3a50ba456f66b01dac938978e10f5fa",
+            "service_account_join_key": "sha256:70311ac91d4a52a5729812191636db43db4961399d39f3ee2b3d20d30f06763a",
+            "service_account_uid_fingerprint": "sha256:074de9a327a7be2384d27a39caa46eff611b2d820506d74b8536077a95059bd7"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "e30cab1b27ee7e1352030ee6451ad1401691f3bd611293d1d0d1b56d36b29a02"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "eks_irsa_annotation",
+          "fencing_token": 7,
+          "payload": {
+            "annotation_present": true,
+            "cluster_id": "parity-full",
+            "collector_instance_id": "k8s-parity-8859",
+            "namespace_fingerprint": "sha256:90cb5661f4499ae74d935f608b0766fe2327ec12199b3f6b7f7ab3909a017d87",
+            "provider": "kubernetes",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "role_arn": "arn:aws:iam::123456789012:role/parity-role",
+            "service_account_fingerprint": "sha256:e538c558acd58ba12159068471992b75a3a50ba456f66b01dac938978e10f5fa",
+            "service_account_join_key": "sha256:70311ac91d4a52a5729812191636db43db4961399d39f3ee2b3d20d30f06763a",
+            "service_account_uid_fingerprint": "sha256:074de9a327a7be2384d27a39caa46eff611b2d820506d74b8536077a95059bd7",
+            "web_identity_subject_fingerprint": "sha256:61bdba1e3201a78211fd29fd2edf588c497cc8a44abf75f04a14d609f2c7a0ed"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "reported",
+          "source_uri": "https://api.parity-full.example.test:6443",
+          "stable_fact_key": "ec56da023c42ca7b94730e8da0a25d5c0f9153e1370d7ee8ebc1052423d09662"
+        }
+      ],
+      "generation_id": "canonical-generation-39919f60dbe60d9d",
+      "metadata": {
+        "cluster_id": "parity-full",
+        "environment": "staging",
+        "provider": "eks"
+      },
+      "observed_at": "2000-01-01T00:00:00Z",
+      "partition_key": "parity-full",
+      "scope_id": "kubernetes_live:affcbbd2ff70aa97d40854fc86d9911bbef3ea19c3c6d7be1e90afc30e6980df",
+      "scope_kind": "cluster",
+      "source_system": "kubernetes_live",
+      "trigger_kind": "snapshot"
+    }
+  ]
+}

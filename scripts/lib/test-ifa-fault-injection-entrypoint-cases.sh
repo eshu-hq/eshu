@@ -139,6 +139,7 @@ run_ifa_fault_cell_catalog_cases() {
 			baseline_*) rest="${cell#baseline_}"; label="baseline-${rest//_/-}" ;;
 			baseline) label="baseline" ;;
 			kill_uses_vault_policy) label="kill-statement-hold-uses-vault-policy" ;;
+			kill_grants_secret_read) label="kill-statement-hold-grants-secret-read" ;;
 			killworker_derived_from) label="kill-statement-hold-derived-from" ;;
 			killworker_handles_route|killworker_runs_in|killworker_invokes_cloud_action)
 				rest="${cell#killworker_}"; label="kill-worker-after-runner-lease-wait-${rest//_/-}" ;;

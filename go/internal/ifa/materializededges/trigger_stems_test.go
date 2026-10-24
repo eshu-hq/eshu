@@ -116,6 +116,10 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// build: same stem shape, read off the fault cells file and the cypher
 	// writer the triggers name.
 	"uses_vault_policy": "uses_vault_policy",
+	// grants_secret_read joins them with the #6228 remainder full
+	// build: same stem shape, read off the fault cells file and the cypher
+	// writer the triggers name.
+	"grants_secret_read": "grants_secret_read",
 	// built_from joins them with the #6228 slice C live leaf: same stem
 	// shape, read off the fault cells file
 	// (scripts/lib/ifa_fault_injection_built_from_cells.sh), the fault

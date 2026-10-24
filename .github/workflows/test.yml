@@ -603,6 +603,11 @@ jobs:
         run: |
           scripts/test-verify-docs-catalog.sh
           scripts/verify-docs-catalog.sh
+      - name: Verify required hand-written doc sections
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
+        run: |
+          scripts/test-verify-required-doc-sections.sh
+          scripts/verify-required-doc-sections.sh
       - name: Verify context and story reference layout
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: |

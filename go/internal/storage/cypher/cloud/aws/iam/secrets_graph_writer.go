@@ -182,6 +182,12 @@ const (
 	CanonicalSecretsIAMUsesServiceAccountEdgeUpsertCypher = secretsIAMUsesServiceAccountEdgeUpsertCypher
 	// #nosec G101 -- Cypher retract holder; const name contains "Secret"/"Account" but the value is a scoped DELETE query alias with bound parameters, not a credential literal
 	RetractSecretsIAMUsesServiceAccountEdgeCypher = secretsIAMUsesServiceAccountEdgeRetractCypher
+	// #nosec G101 -- Cypher template holder (#6228 grants_secret_read); const name contains "Secret"/"Read" but the value is a parameterized graph-write query alias, not a credential literal
+	SecretsIAMGrantsSecretReadEdgeUpsertCypher = secretsIAMGrantsSecretReadEdgeUpsertCypher
+	// #nosec G101 -- Cypher template holder (#6228 grants_secret_read); const name contains "Secret"/"Metadata" but the value is a parameterized graph-write query alias, not a credential literal
+	SecretsIAMSecretMetadataPathNodeUpsertCypher = secretsIAMSecretMetadataPathNodeUpsertCypher
+	// #nosec G101 -- Cypher retract holder (#6228 grants_secret_read); const name contains "Secret"/"Metadata" but the value is a scoped DETACH DELETE query alias with bound parameters, not a credential literal
+	SecretsIAMSecretMetadataPathNodeRetractCypher = secretsIAMSecretMetadataPathNodeRetractCypher
 )
 
 // SecretsIAMGraphWriter materializes the reducer-owned secrets/IAM graph

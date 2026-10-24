@@ -80,9 +80,13 @@ const (
 	crossplaneRedriveOutcomeReclaimedMidSweep = "reclaimed_mid_sweep"
 )
 
-// CrossplaneRedriveIntentReplayer enqueues or reopens exactly one target
-// Claim scope's SATISFIED_BY materialization intent. ReducerQueue implements
-// this via ReplayCrossplaneSatisfiedByMaterialization.
+// CrossplaneRedriveIntentReplayer durably schedules one target Claim scope's
+// SATISFIED_BY materialization on its stable queue item. A succeeded item
+// reopens; a claimed or running item retains its lease and records replay
+// debt; a missing item is enqueued. True means scheduling succeeded, not that
+// an edge was written. False means a terminal or missing item could not be
+// scheduled, so the caller must leave the sweep incomplete for recovery.
+// ReducerQueue implements this via ReplayCrossplaneSatisfiedByMaterialization.
 type CrossplaneRedriveIntentReplayer interface {
 	ReplayCrossplaneSatisfiedByMaterialization(ctx context.Context, targetScopeID, targetGenerationID string) (bool, error)
 }
@@ -90,9 +94,8 @@ type CrossplaneRedriveIntentReplayer interface {
 // CrossplaneSatisfiedByRedriveSweeper runs the durable, bounded, paged
 // cross-scope Claim re-drive sweep for one XRD source-generation (issue
 // #5476). It is deliberately NOT run inside the projector Ack transaction:
-// each page of the fan-out commits its own reducer-intent enqueue/reopen
-// independently, so a crash or transient error mid-sweep loses at most the
-// unprocessed remainder of the current page.
+// each target's replay request is persisted independently, so a crash or
+// transient error mid-sweep leaves the claim for catch-up recovery.
 //
 // A live-trigger Sweep call that errors or whose process crashes mid-fan-out
 // leaves crossplane_satisfied_by_redrive_state 'claimed' with an expiring
@@ -110,7 +113,7 @@ type CrossplaneSatisfiedByRedriveSweeper struct {
 	DB db.Queryer
 	// State tracks durable claim/completion for the XRD generation being swept.
 	State CrossplaneRedriveStateStore
-	// Replayer enqueues or reopens each target scope's SATISFIED_BY intent.
+	// Replayer durably schedules each target scope's SATISFIED_BY intent.
 	Replayer CrossplaneRedriveIntentReplayer
 	// Owner identifies this process class for the claim lease (mirrors
 	// ProjectorQueue/ReducerQueue's LeaseOwner). NOT used as a completion
@@ -241,8 +244,8 @@ func (s CrossplaneSatisfiedByRedriveSweeper) Sweep(
 // error here, leaving the sweep claimed for catch-up or operator repair
 // instead of completing with a silently lost replay.
 //
-// Scheduling returns before the reducer handler runs and does not establish
-// that a SATISFIED_BY edge exists. This function must never write the target
+// Scheduling does not wait for or establish successful handler or edge
+// completion. This function must never write the target
 // ledger: an enqueued intent can later fail or dead-letter without committing
 // an edge. CrossplaneSatisfiedByMaterializationHandler.recordRedriveLedger
 // owns that write, strictly after confirmed edge materialization. Repeated

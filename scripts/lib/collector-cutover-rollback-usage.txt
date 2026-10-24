@@ -1,0 +1,55 @@
+Usage: collector-cutover-rollback.sh <plan|run|verify> [options]
+
+Identity (plan and run require all of these; verify needs the first three):
+  --collector-kind KIND         workflow collector kind, for example jira
+  --external-instance ID[,ID]   every collector instance the external component
+                                runs; step 1 refuses when the component still has
+                                an enabled activation after these are disabled
+  --in-tree-instance ID[,ID]    EVERY in-tree collector instance of the kind; the
+                                drain and authority checks treat any other
+                                instance of the kind as external
+  --component-id ID             component package ID of the external producer
+  --component-version VERSION   component version whose grants are revoked
+  --component-home DIR          component registry home the workloads use
+  --producer-id ID              grant producer ID (default: the component ID)
+  --grant-kind FACT_KIND        granted core fact kind; repeat for each kind
+  --grant-scope SCOPE           grant scope, a manifest collector kind
+                                (default: the collector kind)
+
+Workloads:
+  --namespace NS                Kubernetes namespace of the Eshu release
+  --worker-deployment NAME      component-extension worker Deployment
+  --coordinator-deployment NAME workflow-coordinator Deployment
+  --in-tree-deployment NAME     in-tree collector Deployment to restore
+  --in-tree-replicas N          replicas to restore (default 1)
+  --worker-selector LABELS      worker pod selector
+                                (default app.kubernetes.io/component=component-extension-collector)
+
+Restore (step 4) uses exactly one of:
+  --helm-release R --helm-chart C --restore-values FILE
+                                helm upgrade --reuse-values with the rehearsed
+                                rollback values overlay
+  --restore-applied-by-gitops   the same values change was already applied
+                                through GitOps AFTER step 3 completed
+
+Run control:
+  --yes                         required for run
+  --baseline FILE               pre-cutover truth snapshot (required for run)
+  --capture FILE                verify only: write a truth snapshot and exit
+  --capture-keys                with --capture: also write FILE.keys (one line per
+                                fact) so --report-drift can name the keys that moved
+  --report-drift                on a truth mismatch, also print per-kind added,
+                                removed, and changed key counts (still exits 6)
+  --drift-keys N                keys to print per kind and class (default 20)
+  --keys-only                   compare kind, count, and stable keys but not payload
+  --from-step N                 start at step N (earlier predicates re-checked)
+  --through-step N              stop after step N
+  --since TIMESTAMP             replay window start; required with --from-step 5
+  --drain-timeout SECONDS       step 2 limit (default 600; env ROLLBACK_DRAIN_TIMEOUT)
+  --step-timeout SECONDS        step 1 confirmation limit (default 180)
+  --replay-timeout SECONDS      step 5 limit (default 1800)
+  --poll-seconds SECONDS        poll interval (default 5)
+  -h, --help                    show this help
+
+Exit codes: 0 ok, 2 usage, 3 step failed, 4 refused (precondition not met),
+5 timeout, 6 truth mismatch, 7 dual authority detected.

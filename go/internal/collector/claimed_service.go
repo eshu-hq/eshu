@@ -347,6 +347,9 @@ func (s ClaimedService) commitCollected(
 		ctx, span = s.Tracer.Start(ctx, telemetry.SpanTerraformStateFactEmitBatch)
 		defer span.End()
 	}
+	if collected.StateWriter != nil {
+		return s.commitCollectedWithState(ctx, mutation, collected)
+	}
 	if committer, ok := s.Committer.(ClaimedCommitter); ok {
 		if collected.FactStreamErr != nil {
 			streamCommitter, ok := s.Committer.(StreamErrorClaimedCommitter)

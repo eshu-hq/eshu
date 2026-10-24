@@ -34,8 +34,9 @@
 - New configuration keywords belong in `configurationKeywords` only when
   they are documented Gradle defaults or framework conventions that map
   cleanly to a Maven scope.
-- Version catalog (`libs.versions.toml`) support belongs in a separate
-  TOML parser package, not here.
+- Version catalog (`libs.versions.toml`) support lives in the separate TOML
+  parser package `catalog/`, not here. The parent hook
+  `../gradle_language.go` routes by base name.
 - Telemetry, registry dispatch, and engine wrappers belong in the parent
   parser package.
 

@@ -17,6 +17,64 @@ const (
 	columnsPerRepositoryRef = 7
 )
 
+// upsertContentFileConflictClause is the one ON CONFLICT clause shared by the
+// single-row and batch file upserts, so the update list and its guard cannot
+// drift between the two shapes (TestUpsertContentFileConflictClauseLockstep
+// fails when they do).
+//
+// The WHERE guard skips the update when the stored row already equals the
+// incoming one in every column except indexed_at (#8915). Postgres otherwise
+// writes a new row version for an identical re-upsert: every index entry,
+// including the two large trigram GIN indexes, is inserted again and the row
+// is logged, so an unchanged findings-heavy replay wrote tens of MiB of WAL per
+// 50-row batch (docs/internal/evidence/8915-content-file-upsert-guard.md). The
+// row compare is NULL-safe (IS DISTINCT FROM), and content is compared on its
+// own so an edit that kept its content_hash still writes.
+//
+// indexed_at is deliberately not compared: it moves on every write, so
+// comparing it would stop the guard from ever skipping. A skipped row keeps its
+// old indexed_at: it means "when this row was last written with a change to its
+// content, commit, generation, or another stored column", not "when it was last
+// replayed".
+//
+// A skipped row writes nothing, but the statement still locks it and still
+// fires the statement-level triggers. The migration-138 secret-line and
+// migration-186 version-fence UPDATE triggers are statement-level, so they fire
+// with an empty transition table when every row is skipped: they stage no
+// repository and derive no secret line, which is correct because no indexed
+// column changed. Callers must not read RowsAffected from these statements as
+// "files written".
+//
+// A (repo_id, relative_path) key may appear once per multi-row upsert. Postgres
+// rejects a second copy of a key ("cannot affect row a second time"), but the
+// guard alone would accept a duplicate over a stored row that the first copy
+// leaves unchanged and let a differing second copy win silently, so
+// upsertContentFileBatch rejects the duplicate pair before any statement runs.
+// The same path under two repositories is two rows and is accepted.
+const upsertContentFileConflictClause = `
+ON CONFLICT (repo_id, relative_path) DO UPDATE
+SET commit_sha = EXCLUDED.commit_sha,
+    content = EXCLUDED.content,
+    content_hash = EXCLUDED.content_hash,
+    line_count = EXCLUDED.line_count,
+    language = EXCLUDED.language,
+    artifact_type = EXCLUDED.artifact_type,
+    template_dialect = EXCLUDED.template_dialect,
+    iac_relevant = EXCLUDED.iac_relevant,
+    indexed_at = EXCLUDED.indexed_at,
+    generation_id = EXCLUDED.generation_id
+WHERE (
+    content_files.commit_sha, content_files.content_hash, content_files.line_count,
+    content_files.language, content_files.artifact_type, content_files.template_dialect,
+    content_files.iac_relevant, content_files.generation_id
+) IS DISTINCT FROM (
+    EXCLUDED.commit_sha, EXCLUDED.content_hash, EXCLUDED.line_count,
+    EXCLUDED.language, EXCLUDED.artifact_type, EXCLUDED.template_dialect,
+    EXCLUDED.iac_relevant, EXCLUDED.generation_id
+)
+   OR content_files.content IS DISTINCT FROM EXCLUDED.content
+`
+
 // upsertContentFileQuery is the single-row upsert used by callers that
 // write one file at a time (not the batched path). Kept alongside the
 // batch prefix/suffix so the conflict update list cannot drift between
@@ -30,18 +88,7 @@ INSERT INTO content_files (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 )
-ON CONFLICT (repo_id, relative_path) DO UPDATE
-SET commit_sha = EXCLUDED.commit_sha,
-    content = EXCLUDED.content,
-    content_hash = EXCLUDED.content_hash,
-    line_count = EXCLUDED.line_count,
-    language = EXCLUDED.language,
-    artifact_type = EXCLUDED.artifact_type,
-    template_dialect = EXCLUDED.template_dialect,
-    iac_relevant = EXCLUDED.iac_relevant,
-    indexed_at = EXCLUDED.indexed_at,
-    generation_id = EXCLUDED.generation_id
-`
+` + upsertContentFileConflictClause
 
 // upsertContentFileBatchPrefix and upsertContentFileBatchSuffix bracket
 // the per-row VALUES list assembled by upsertContentFileBatch; keeping
@@ -53,19 +100,7 @@ const upsertContentFileBatchPrefix = `INSERT INTO content_files (
     iac_relevant, indexed_at, generation_id
 ) VALUES `
 
-const upsertContentFileBatchSuffix = `
-ON CONFLICT (repo_id, relative_path) DO UPDATE
-SET commit_sha = EXCLUDED.commit_sha,
-    content = EXCLUDED.content,
-    content_hash = EXCLUDED.content_hash,
-    line_count = EXCLUDED.line_count,
-    language = EXCLUDED.language,
-    artifact_type = EXCLUDED.artifact_type,
-    template_dialect = EXCLUDED.template_dialect,
-    iac_relevant = EXCLUDED.iac_relevant,
-    indexed_at = EXCLUDED.indexed_at,
-    generation_id = EXCLUDED.generation_id
-`
+const upsertContentFileBatchSuffix = upsertContentFileConflictClause
 
 // contentFileTagParam is the single blank-to-NULL rule for the
 // content_files generation tag (#7760). Both write paths (the batched
