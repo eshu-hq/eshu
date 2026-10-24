@@ -121,6 +121,7 @@ type APIRouter struct {
 	AdminChangedSincePoisonedLinks *AdminChangedSincePoisonedLinksHandler
 	Admin                          *AdminHandler
 	AdminRetirement                *AdminRetirementHandler
+	AdminTerminalFailure           *AdminTerminalFailureHandler
 	Ask                            *AskHandler
 	Setup                          *SetupHandler
 	LocalIdentity                  *LocalIdentityHandler
@@ -419,6 +420,12 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// the mark-fence-purge sequence; the root only mounts it.
 	if a.AdminRetirement != nil {
 		a.AdminRetirement.Mount(mux)
+	}
+
+	// Operator acknowledgement of a collector terminal failure (#8830). The
+	// leaf owns the request contract and the audit; the root only mounts it.
+	if a.AdminTerminalFailure != nil {
+		a.AdminTerminalFailure.Mount(mux)
 	}
 
 	// Ask Eshu (default-off; nil Asker returns 503 unavailable)
