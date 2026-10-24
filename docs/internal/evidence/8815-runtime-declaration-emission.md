@@ -55,7 +55,7 @@ writer, so the existing per-generation fact count covers them. The cap skip is
 the one new signal: the stream logs WARN `git_runtime_declaration_file_skipped`
 with `reason=token_cap_exceeded`, `repository_id`, `scope_id`, `generation_id`,
 `relative_path`, `token_count` and `token_cap`
-(`go/internal/collector/repo/git/pin_skip_log.go`). It is a log
+(`go/internal/collector/repo/git/snapshot_native_helpers.go`). It is a log
 only: no metric, no label and no closed reason enum change. An operator who
 wants to see a repository's declarations reads the fact store by kind
 `runtime_declaration.version`; an operator who sees a pin file with no facts
