@@ -74,3 +74,45 @@ func TestRedactMarkerRedactsDetectorShapeMatchToEndOfLine(t *testing.T) {
 		}
 	}
 }
+
+// TestRedactMarkerDetectorKeyMatchIsNeverAYAMLComment pins the review finding:
+// the detector flags `password: #abcdefgh` (the value class holds "#"), so the
+// redactor must not read the "#" as a YAML comment and keep the line.
+func TestRedactMarkerDetectorKeyMatchIsNeverAYAMLComment(t *testing.T) {
+	t.Parallel()
+
+	for _, in := range []string{
+		"password: #" + tailSeed + "\n",
+		"password: !" + tailSeed + "\n",
+		"# note\napi_key: #" + tailSeed + "\n",
+	} {
+		got := redactForTest(t, in)
+		if strings.Contains(got, tailSeed) {
+			t.Errorf("%q survived as %q", in, got)
+		}
+		if again := redactForTest(t, got); again != got {
+			t.Errorf("not a fixed point: %q -> %q", got, again)
+		}
+	}
+}
+
+// TestRedactMarkerDetectorKeyMarkerWithATailIsRedacted pins the review finding
+// on the marker skip: a key match whose value is already a marker is kept only
+// when nothing else follows it on the line.
+func TestRedactMarkerDetectorKeyMarkerWithATailIsRedacted(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct{ in, want string }{
+		{"api_key=REDACTED_api_token " + tailSeed + "\n", "api_key=REDACTED_api_token\n"},
+		{"password: REDACTED_password_literal # " + tailSeed + "\n", "password: REDACTED_password_literal\n"},
+		{"password: \"REDACTED_password_literal\" " + tailSeed + "\n", "password: \"REDACTED_password_literal\"\n"},
+		// Nothing follows the marker: the line is already redacted and stays.
+		{"api_key=REDACTED_api_token\n", "api_key=REDACTED_api_token\n"},
+		{"password: \"REDACTED_password_literal\"\n", "password: \"REDACTED_password_literal\"\n"},
+	}
+	for _, tc := range cases {
+		if got := redactForTest(t, tc.in); got != tc.want {
+			t.Errorf("got %q, want %q", got, tc.want)
+		}
+	}
+}

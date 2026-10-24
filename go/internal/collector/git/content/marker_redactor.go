@@ -210,7 +210,7 @@ func (s *markerState) redactText(line string) string {
 	kind := detect.Classify(line)
 	out := line
 	if keyLoc != nil {
-		out = s.redactListedKey(line, line[keyLoc[2]:keyLoc[3]], keyLoc[3], keyLoc[1], kind)
+		out = s.redactListedKey(line, line[keyLoc[2]:keyLoc[3]], keyLoc[3], keyLoc[1], kind, false)
 		spans = detect.Spans(out)
 	}
 	return s.redactDetectorMatch(out, spans, kind)
@@ -275,7 +275,7 @@ func isSequenceItem(trimmed string) bool {
 // opens the continuation state its value needs. A value that is empty, only a
 // comment, tag, or anchor, or a block scalar indicator carries its text on the
 // following lines; a quote that does not close on the line carries it too.
-func (s *markerState) redactListedKey(line, keyText string, keyEnd, valueStart int, rawKind string) string {
+func (s *markerState) redactListedKey(line, keyText string, keyEnd, valueStart int, rawKind string, detectorMatch bool) string {
 	kind := rawKind
 	if kind == "" {
 		kind = detect.Classify(keyText + "=")
@@ -295,8 +295,11 @@ func (s *markerState) redactListedKey(line, keyText string, keyEnd, valueStart i
 	// Comment, tag, and anchor syntax is YAML's: it applies after a colon, and a
 	// comment needs whitespace after the separator. After "=" (.npmrc, ini,
 	// .env) the whole remainder is the value, "#" and "!" included.
+	// A detector key match is never a comment, tag, or anchor: the detector's
+	// value class holds "#", "!" and "&", and it flagged the line, so the whole
+	// remainder is the value.
 	head := value
-	if strings.Contains(separator, ":") {
+	if !detectorMatch && strings.Contains(separator, ":") {
 		head = stripCommentTagAnchor(value, strings.HasSuffix(separator, " ") || strings.HasSuffix(separator, "\t"))
 	}
 	if head == "" {
@@ -404,8 +407,8 @@ func closesQuote(line string, quote byte) bool {
 	return quoteEnd(line, quote) >= 0
 }
 
-// redactDetectorMatch redacts the leftmost detector match on a line that is not
-// already a marker (arbiter ruling B1, 2026-10-24). A key match applies the
+// redactDetectorMatch redacts the leftmost detector match on a line (arbiter
+// ruling B1, 2026-10-24). A key match applies the
 // listed-key rule at the detector's key: everything from the separator to the
 // end of the line is replaced, so a Bearer scheme word, text after a comma, or
 // a trailing comment cannot survive, and the continuation state opens as for a
@@ -413,21 +416,23 @@ func closesQuote(line string, quote byte) bool {
 // replaced from its start to the end of the line. One marker per line, so a
 // second pass finds only markers and returns the line unchanged.
 func (s *markerState) redactDetectorMatch(line string, spans []detect.Span, rawKind string) string {
-	for _, span := range spans {
-		if existingMarker.MatchString(line[span.Start:span.End]) {
-			continue
-		}
-		kind := rawKind
-		if kind == "" {
-			kind = defaultMarkerKind
-		}
-		if span.IsKey {
-			return s.redactListedKey(line, line[span.KeyStart:span.KeyEnd], span.KeyEnd, span.SepEnd, kind)
-		}
-		s.replaced++
-		return line[:span.Start] + markerPrefix + kind
+	if len(spans) == 0 {
+		return line
 	}
-	return line
+	// The leftmost match decides. A key span whose value is already a marker is
+	// not skipped: redactListedKey keeps it only when nothing follows the marker
+	// (keepsVerbatim on the whole remainder), so `key=REDACTED_x tail` loses its
+	// tail and a marker alone is a fixed point.
+	span := spans[0]
+	kind := rawKind
+	if kind == "" {
+		kind = defaultMarkerKind
+	}
+	if span.IsKey {
+		return s.redactListedKey(line, line[span.KeyStart:span.KeyEnd], span.KeyEnd, span.SepEnd, kind, true)
+	}
+	s.replaced++
+	return line[:span.Start] + markerPrefix + kind
 }
 
 func leadingWhitespace(line string) string {

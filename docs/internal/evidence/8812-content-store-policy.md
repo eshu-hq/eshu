@@ -158,6 +158,10 @@ and the two kind changes to "same kind".
   rule at the detector's key and a value-shape match is replaced to the end of the
   line (F4 closed). `Authorization: Bearer <token>` and `db_password=a,<tail>` no
   longer leave a tail. The design record sentence and decision (9) are updated.
+- Review follow-up on B1 (automated security review, both fixed with tests): a
+  detector key match is never read as a YAML comment (`password: #<secret>` is
+  redacted), and a key match whose value is already a marker is kept only when
+  nothing follows the marker (`api_key=REDACTED_api_token <tail>` loses the tail).
 - Fuzz: `FuzzRedactMarker` (seed corpus under `go test`; planted listed-key,
   Bearer, comma-tail, AWS-key, and one-line PEM seeds never survive, a second pass
   is a no-op, line count is kept) ran 60 s with `-fuzz`: 1,411,919 execs, no
