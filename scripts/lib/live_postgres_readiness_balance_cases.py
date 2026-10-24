@@ -188,8 +188,17 @@ class BalanceContractTest(unittest.TestCase):
         weights = with_slow(self.weights, appended, 20.0)
         jobs = self.job_seconds(plan, weights, wt.weighted_bounds(plan, weights))
         self.assertLessEqual(max(jobs), wt.BUDGET_SECONDS, jobs)
-        base = self.job_seconds(self.plan, self.weights,
-                                wt.weighted_bounds(self.plan, self.weights))
+
+    def test_fixture_tail_growth_is_bounded(self) -> None:
+        # Exact growth depends on indivisible tests and package-start costs.
+        # Keep this bound on a fixed plan; enrollments change the live cuts.
+        plan, weights = self.fixture()
+        base = self.job_seconds(plan, weights, wt.weighted_bounds(plan, weights))
+        appended = slow_runs(10, prefix="TestAppendedTail",
+                             package=plan[-1].split("|")[0])
+        plan = [*plan, *appended]
+        weights = with_slow(weights, appended, 20.0)
+        jobs = self.job_seconds(plan, weights, wt.weighted_bounds(plan, weights))
         self.assertLessEqual(max(jobs) - max(base), 20.0 * 10 / 2, (base, jobs))
 
     def test_bounds_are_deterministic_contiguous_and_nonempty(self) -> None:
@@ -334,6 +343,16 @@ class RefreshTest(unittest.TestCase):
     def build(self) -> dict[str, object]:
         sample = refresh.parse_sample([self.SHARD_ONE, self.SHARD_TWO])
         return refresh.build_weights([sample], self.PLAN, ["1"], 82.0)
+
+    def test_large_weights_render_within_file_cap_without_data_loss(self) -> None:
+        """Keep a realistic large plan under the file cap with exact JSON data."""
+        document = self.build()
+        document["test_seconds"] = {
+            f"./internal/p1|TestProof{index}Live": 0.1 for index in range(600)
+        }
+        rendered = refresh.render(document)
+        self.assertLessEqual(len(rendered.splitlines()), 500)
+        self.assertEqual(json.loads(rendered), document)
 
     def test_per_test_seconds_package_cost_and_cold_constant(self) -> None:
         built = self.build()

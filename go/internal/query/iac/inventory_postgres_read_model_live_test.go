@@ -3,6 +3,10 @@
 
 package iac
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8927 pinned PostgreSQL 18.6 IaC inventory read-model and failed-generation proofs; both roots passed in 0.07 to 0.12 seconds of test time on the unchanged source
+//eshu:readiness:env ESHU_IAC_INVENTORY_LIVE ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

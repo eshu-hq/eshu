@@ -77,6 +77,10 @@ on:
       - 'scripts/test-postgres-scheduled-matrix.py'
       - 'scripts/test-postgres-scheduled-runner.py'
       - 'scripts/test-postgres-scheduled-ledger-policy.py'
+      - 'scripts/lib/delta_union_scheduled.py'
+      - 'scripts/lib/live_tests_legacy_policy.py'
+      - 'scripts/test-delta-union-scheduled.py'
+      - '.github/workflows/delta-union-scheduled.yml'
       - 'scripts/lib/ifa_scheduled_events.py'
       - 'scripts/lib/ifa_scheduled_inventory.json'
       - 'scripts/lib/ifa_scheduled_manifest.py'
@@ -168,6 +172,7 @@ jobs:
           python3 scripts/test-ifa-scheduled-manifest.py
           python3 scripts/test-ifa-scheduled-bundle.py
           python3 scripts/test-ifa-scheduled-ledger-policy.py
+          python3 scripts/test-delta-union-scheduled.py
 
   live-backend-shards:
     needs: queue-selection
