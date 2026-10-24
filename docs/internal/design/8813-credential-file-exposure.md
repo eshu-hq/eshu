@@ -6,9 +6,9 @@ and the search-document gap after an independent review). This record approves
 no code, schema change, or deployment action. Part of #8807. The work splits
 across #8812 (policy enum, marker-mode redactor, digest rule, fingerprint) and
 #8833 (skeleton mode, the tfvars binding, the detector migration with its marker
-arm, the differential). Citations were taken at `238b4015a9`,
-re-checked at `4d78b83273` (`origin/main` after #8922, 2026-10-24), and name the
-function, so they survive small line drift.
+arm, the differential). Citations were taken at `238b4015a9`, re-checked at
+`4d78b83273` (`origin/main` after #8922, 2026-10-24), and name the function, so
+they survive small line drift.
 
 **Decision.** Both files use the `redact` policy from #8812, in two modes.
 `.yarnrc.yml` is closed-schema and uses **marker mode**: credential values are
@@ -44,12 +44,12 @@ discovery package and `snapshot_discovery.go` for credential, secret, `.env`,
 | Project | `BuildContentRecord` in `go/internal/projector/runtime/content_record.go` | `content_body` becomes `content.Record.Body` untouched. |
 | Store | `ContentWriter.Write` (`content_writer.go`, `body: record.Body`) and `upsertContentFileBatch` (`content_writer_upserts.go`, `row.body`) | The body is upserted into `content_files.content` (`schema_content_store.go`). |
 
-No step transforms the body; #8812 adds the per-definition store policy.
-The registry still withholds the credential-bearing names (`phpunit.xml(.dist)`,
+No step transforms the body; #8812 adds the per-definition store policy. The
+registry still withholds the credential-bearing names (`phpunit.xml(.dist)`,
 `.mvn/jvm.config`, `.mvn/maven.config`, `.mvn/settings.xml`, `settings.xml`,
-`.npmrc`, `.pypirc`, `.netrc`, `.env*`, `mise.toml`) while the store has no write-time redaction
-(`TestDefaultRegistryKeepsCredentialBearing*`). Admitting one needs a new
-record.
+`.npmrc`, `.pypirc`, `.netrc`, `.env*`, `mise.toml`) while the store has no
+write-time redaction (`TestDefaultRegistryKeepsCredentialBearing*`). Admitting
+one needs a new record.
 
 ### Where the body is then readable
 
@@ -268,10 +268,10 @@ body. No `RetainedPaths` edit and no entity-ordering dependency is needed.
 5. **Trigger** (arbiter decision, 2026-10-24). The trigger is the definition's
    credential-key list. For `.yarnrc.yml` that is `npmAuthToken` and
    `npmAuthIdent` at top level and under `npmScopes.*` and `npmRegistries.*`,
-   plus userinfo in `npmRegistryServer`, `httpProxy`, and `httpsProxy`. Those
-   values are redacted at any length and charset. Only an exact `${NAME}`
-   reference survives; a `${NAME:-literal}` default is redacted. A detector match
-   on any other line redacts the matched span. Inside a PEM `BEGIN`..`END`
+   plus userinfo in `npmRegistryServer`, `npmPublishRegistry`, `httpProxy`, and
+   `httpsProxy`. Those values are redacted at any length and charset. Only an
+   exact `${NAME}` reference survives; a `${NAME:-literal}` default is redacted.
+   A detector match on any other line redacts the matched span. Inside a PEM `BEGIN`..`END`
    block every line is redacted. The detector's `{6,}` floor is unchanged: it
    limits detection, not redaction of a listed key, so a short value under a
    listed key gains a finding through the marker (accepted). The file is a
@@ -389,9 +389,9 @@ Good: a tfvars value cannot be stored or searched unless its shape is
 allowlisted; `.yarnrc.yml` keeps its registry URLs readable;
 `investigate_hardcoded_secrets` keeps reporting every kind-marked finding with
 its raw kind once the marker arm lands (before it only the key-identified kinds
-survive, so nothing binds earlier); the substring oracle closes because `content_lower` derives from what is
-stored; tree, counts, language inventory, and coverage are unchanged because no
-row is deleted; no new background job.
+survive, so nothing binds earlier); the substring oracle closes because
+`content_lower` derives from what is stored; tree, counts, language inventory,
+and coverage are unchanged because no row is deleted; no new background job.
 
 Bad: one fleet-wide re-collect when the fingerprint changes; a stored tfvars
 body is not parseable and reads poorly in `get_file_content`; old bytes persist
