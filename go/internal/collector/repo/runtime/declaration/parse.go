@@ -16,6 +16,9 @@ type declaration struct {
 	toolName     *string
 	rawSpec      string
 	distribution *string
+	// whole marks a value that is not a list of versions (see values.go): it
+	// is one declaration classified alias or unresolved, never parsed.
+	whole bool
 }
 
 // fileRuntime is the runtime a single-runtime pin file declares.
@@ -128,9 +131,9 @@ func parseSingleRuntime(sourceKind, body string, sink *declarationSink) {
 	allLines := sourceKind == sourceKindPythonVersion
 	eachLine(body, func(number int, line string) bool {
 		seen := false
-		eachToken(stripComment(line), func(order int, token string) bool {
+		eachValue(stripComment(line), func(order int, raw string, whole bool) bool {
 			seen = true
-			sink.add(declaration{line: number, order: order, runtime: runtime, rawSpec: token})
+			sink.add(declaration{line: number, order: order, runtime: runtime, rawSpec: raw, whole: whole})
 			return true
 		})
 		return !seen || allLines
@@ -139,14 +142,15 @@ func parseSingleRuntime(sourceKind, body string, sink *declarationSink) {
 
 func parseToolVersions(body string, sink *declarationSink) {
 	eachLine(body, func(number int, line string) bool {
-		var runtime string
-		var tool *string
-		eachToken(stripComment(line), func(index int, token string) bool {
-			if index == 0 {
-				runtime, tool = normalizeRuntime(token)
-				return true
-			}
-			sink.add(declaration{line: number, order: index - 1, runtime: runtime, toolName: tool, rawSpec: token})
+		line = stripComment(line)
+		scanner := tokenScanner{line: line}
+		start, end, ok := scanner.next()
+		if !ok {
+			return true
+		}
+		runtime, tool := normalizeRuntime(line[start:end])
+		eachValue(line[end:], func(order int, raw string, whole bool) bool {
+			sink.add(declaration{line: number, order: order, runtime: runtime, toolName: tool, rawSpec: raw, whole: whole})
 			return true
 		})
 		return true
@@ -161,7 +165,8 @@ func parseSdkmanrc(body string, sink *declarationSink) {
 			return true
 		}
 		runtime, tool := normalizeRuntime(key)
-		d := declaration{line: number, runtime: runtime, toolName: tool, rawSpec: value}
+		_, whole := valueShape(value)
+		d := declaration{line: number, runtime: runtime, toolName: tool, rawSpec: value, whole: whole}
 		if runtime == "java" {
 			if m := sdkmanDistribution.FindStringSubmatch(value); m != nil {
 				dist := m[2]
@@ -194,8 +199,8 @@ func parseRustToolchain(body string, sink *declarationSink) {
 			return true
 		}
 		found := false
-		eachToken(stripComment(line), func(_ int, token string) bool {
-			sink.add(declaration{line: number, runtime: "rust", rawSpec: token})
+		eachValue(stripComment(line), func(_ int, raw string, whole bool) bool {
+			sink.add(declaration{line: number, runtime: "rust", rawSpec: raw, whole: whole})
 			found = true
 			return false
 		})

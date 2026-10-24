@@ -142,11 +142,12 @@ func EmitFile(ctx FixtureContext, repoID, relativePath, body string) (envelopes 
 	return envelopes, Skip{}
 }
 
-// classifyDeclaration classifies one pin-file declaration. A .swift-version
-// that is not a plain numeric release never reaches Classify: it is
-// unresolved when it holds a placeholder and an alias otherwise.
+// classifyDeclaration classifies one pin-file declaration. A value that is not
+// a list of versions (values.go) and a .swift-version that is not a plain
+// numeric release never reach Classify: they are unresolved when they hold a
+// placeholder and an alias otherwise.
 func classifyDeclaration(sourceKind string, d declaration) Spec {
-	if sourceKind == sourceKindSwiftVersion && !swiftReleasePattern.MatchString(d.rawSpec) {
+	if d.whole || (sourceKind == sourceKindSwiftVersion && !swiftReleasePattern.MatchString(d.rawSpec)) {
 		return unparsedSpec(d.rawSpec)
 	}
 	return Classify(stripRuntimePrefix(d.runtime, d.rawSpec))

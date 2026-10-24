@@ -22,29 +22,45 @@ import (
 // substrings of line, so a file over the token cap is counted without a slice
 // per line.
 func eachToken(line string, fn func(index int, token string) bool) {
-	i, index := 0, 0
-	for i < len(line) {
-		i = skipSpace(line, i)
-		if i >= len(line) {
+	scanner := tokenScanner{line: line}
+	for index := 0; ; index++ {
+		start, end, ok := scanner.next()
+		if !ok || !fn(index, line[start:end]) {
 			return
 		}
-		start := i
-		for i < len(line) {
-			if end, ok := placeholderEnd(line, i); ok {
-				i = end
-				continue
-			}
-			r, width := utf8.DecodeRuneInString(line[i:])
-			if unicode.IsSpace(r) {
-				break
-			}
-			i += width
-		}
-		if !fn(index, line[start:i]) {
-			return
-		}
-		index++
 	}
+}
+
+// tokenScanner walks the tokens of one line by byte offset, with the same
+// splitting rule as eachToken. It lets a caller look at a token's neighbours
+// and slice a span of several tokens out of the line without allocating.
+type tokenScanner struct {
+	line string
+	pos  int
+}
+
+// next returns the byte offsets of the next token, or ok false at the end of
+// the line.
+func (s *tokenScanner) next() (start, end int, ok bool) {
+	i := skipSpace(s.line, s.pos)
+	if i >= len(s.line) {
+		s.pos = i
+		return 0, 0, false
+	}
+	start = i
+	for i < len(s.line) {
+		if closer, isPlaceholder := placeholderEnd(s.line, i); isPlaceholder {
+			i = closer
+			continue
+		}
+		r, width := utf8.DecodeRuneInString(s.line[i:])
+		if unicode.IsSpace(r) {
+			break
+		}
+		i += width
+	}
+	s.pos = i
+	return start, i, true
 }
 
 // skipSpace returns the index of the first non-space rune at or after i.
