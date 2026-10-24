@@ -18,13 +18,13 @@ import (
 
 // TestCrossplaneRedriveDeadLetteredTargetIsNotPermanentlySuppressedLive is the
 // hostile-read regression for the ledger-write-timing bug: the cross-scope
-// redrive sweep enqueues a target's SATISFIED_BY intent via
-// ReplayCrossplaneSatisfiedByMaterialization, which is ENQUEUE-ONLY -- it
-// returns as soon as the work item is durably queued, strictly BEFORE the
-// reducer handler runs. The original (rejected) design had the SWEEP write
-// the ledger immediately after that enqueue call. If the intent later
-// dead-lettered (a handler bug, or an infra outage exceeding the retry
-// budget -- auto-retry-on-dead-letter is disabled by default,
+// redrive sweep requests durable scheduling of a target's SATISFIED_BY intent
+// via ReplayCrossplaneSatisfiedByMaterialization. A successful request returns
+// without waiting for or proving successful handler or edge completion. The
+// original (rejected) design had the SWEEP write the ledger immediately after
+// that request. If the intent later dead-lettered (a handler bug, or an
+// infra outage exceeding the retry budget -- auto-retry-on-dead-letter is
+// disabled by default,
 // cmd/reducer/poison_liveness_wiring.go), that design would PERMANENTLY and
 // SILENTLY mark the (target scope, XRD identity) pair satisfied, since the
 // ledger's primary key is not generation-scoped and never expires --
@@ -59,7 +59,8 @@ func TestCrossplaneRedriveDeadLetteredTargetIsNotPermanentlySuppressedLive(t *te
 	}
 
 	// (1) First XRD generation activates. The sweep enqueues the target's
-	// intent but does NOT write the ledger (enqueue-only, per the fix).
+	// intent but does NOT write the ledger; the handler records it only after
+	// committing an edge.
 	const xrdGen1 = "gen-xrd-deadletter-001"
 	seedCrossplaneRedriveXRD(ctx, t, db, xrdScopeID, xrdGen1, group, claimKind, now)
 	first, err := sweeper.Sweep(ctx, xrdScopeID, xrdGen1)

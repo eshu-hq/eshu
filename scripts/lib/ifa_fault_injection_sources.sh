@@ -122,10 +122,14 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_iam_escalation
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_authenticates_vault_role_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_grants_secret_read_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_grants_secret_read_cells.sh"
 # Trust-chain commit wait for the uses_vault_policy stage function: split
 # from the cells file above under the 500-line cap.
 # shellcheck source=scripts/lib/ifa_fault_injection_uses_vault_policy_trust_chain.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_uses_vault_policy_trust_chain.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_grants_secret_read_trust_chain.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_grants_secret_read_trust_chain.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_ec2_uses_profile_cells.sh

@@ -70,8 +70,9 @@ func (r Registry) ContentStoreForPath(path string) ContentStore {
 }
 
 // HasContentStorePolicy reports whether any definition binds a non-store
-// policy. It is false for the default registry, so the collector skips the
-// per-file policy lookup entirely until #8833 binds a definition.
+// policy. The default registry is governed since #8978 binds .npmrc to
+// metadata, so the collector looks up each file's policy; a registry that binds
+// only store skips the lookup entirely.
 func (r Registry) HasContentStorePolicy() bool {
 	return r.governed
 }

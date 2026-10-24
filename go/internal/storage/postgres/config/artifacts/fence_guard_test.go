@@ -24,8 +24,8 @@ import (
 //     may issue SET CONSTRAINTS.
 //   - The UPDATE trigger reads NEW TABLE only, so an UPDATE that changes
 //     repo_id bumps the new repository and not the old one. No Go statement
-//     may change content_files.repo_id: both content_files upserts must leave
-//     repo_id out of their SET list, and no Go UPDATE content_files may set it.
+//     may change content_files.repo_id: the shared content_files upsert clause must
+//     leave repo_id out of its SET list, and no Go UPDATE content_files may set it.
 
 var (
 	// replicaRolePattern finds any mention of the setting in Go source.
@@ -36,7 +36,7 @@ var (
 	// contentFilesUpdatePattern is an UPDATE of content_files.
 	contentFilesUpdatePattern = regexp.MustCompile(`(?i)\bUPDATE\s+(?:ONLY\s+)?` + tableRef("content_files"))
 	// contentFilesUpsertPattern is the content_files conflict target with a DO
-	// UPDATE action; the batch path keeps it in a suffix literal of its own.
+	// UPDATE action; both upserts share it in one constant (#8915).
 	contentFilesUpsertPattern = regexp.MustCompile(`(?i)\bON\s+CONFLICT\s*\(\s*repo_id\s*,\s*relative_path\s*\)\s*DO\s+UPDATE\s+SET\b`)
 	// repoIDAssignPattern is a SET item that assigns repo_id.
 	repoIDAssignPattern = regexp.MustCompile(`(?i)^(?:"?\w+"?\.)?"?repo_id"?\s*=`)
@@ -180,8 +180,11 @@ func TestNoGoCodeSetsConstraintsImmediate(t *testing.T) {
 }
 
 // TestNoGoStatementChangesContentFilesRepoID fails on a Go statement that
-// changes content_files.repo_id (F4), and requires that the scan saw both
-// content_files upserts (the single-row and the batch suffix).
+// changes content_files.repo_id (F4), and requires that the scan saw the
+// content_files upsert's ON CONFLICT clause. Both upserts (the single-row query
+// and the batch suffix) take that clause from one shared constant, so the scan
+// sees it once; TestContentFilesUpsertsShareOneConflictClause proves each
+// statement uses it.
 func TestNoGoStatementChangesContentFilesRepoID(t *testing.T) {
 	var violations []string
 	upserts := 0
@@ -190,8 +193,8 @@ func TestNoGoStatementChangesContentFilesRepoID(t *testing.T) {
 		violations = append(violations, found...)
 		upserts += n
 	})
-	if upserts < 2 {
-		t.Fatalf("saw %d content_files upserts, want at least 2: the scan is broken", upserts)
+	if upserts < 1 {
+		t.Fatalf("saw %d content_files upsert clauses, want at least 1: the scan is broken", upserts)
 	}
 	if len(violations) > 0 {
 		t.Fatalf("statements that change content_files.repo_id:\n%s", strings.Join(violations, "\n"))

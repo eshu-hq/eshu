@@ -21,7 +21,7 @@ retrieval over Eshu evidence.
 | `entity_refs` | Content entity refs used for source drill-down. |
 | `graph_handles` | Stable bounded handles for later graph expansion. |
 | `labels` | Low-cardinality source labels such as language or entity type. |
-| `updated_at` | Source projection timestamp when available. |
+| `updated_at` | Source projection timestamp when available. For a `repository_file` document it is the last write of the file row that changed its content, commit, generation, or another stored column; an unchanged same-generation replay leaves it (#8915). |
 | `truth_scope` | Document authority and basis. |
 | `freshness` | Freshness state for the projected source. |
 | `access_scope` | Authorization scope, currently repository-first. |

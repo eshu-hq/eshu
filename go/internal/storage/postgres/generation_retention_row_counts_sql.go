@@ -63,6 +63,11 @@ package postgres
 // Both probes stay index-only and the cost follows the batch, measured
 // with EXPLAIN ANALYZE before landing like the arms above.
 //
+// The #8943 arms count the security-alert read state (security_alert_target_read_states)
+// and its unread-repository children, both cascade children of scope_generations
+// keyed by generation_id, so each arm probes its PRIMARY KEY prefix and the cost
+// follows the batch.
+//
 // Its cost follows the batch, not fact_records (#7279). candidate_* reads only
 // the candidates' own facts, through scope_generations and the (scope_id,
 // generation_id) prefix of fact_records_scope_generation_idx, and doomed_*
@@ -439,5 +444,17 @@ LEFT JOIN fact_work_items AS work
  AND work.generation_id = candidate.generation_id
 LEFT JOIN deployable_unit_reopen_fingerprints AS fp
   ON fp.work_item_id = work.work_item_id
+GROUP BY candidate.generation_id
+UNION ALL
+SELECT candidate.generation_id, 'security_alert_target_read_states' AS table_name, COUNT(state.generation_id) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN security_alert_target_read_states AS state
+  ON state.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
+UNION ALL
+SELECT candidate.generation_id, 'security_alert_unread_repositories' AS table_name, COUNT(unread.repository) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN security_alert_unread_repositories AS unread
+  ON unread.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
 `

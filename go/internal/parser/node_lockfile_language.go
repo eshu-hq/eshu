@@ -5,6 +5,7 @@ package parser
 
 import (
 	nodelockfile "github.com/eshu-hq/eshu/go/internal/parser/nodelockfile"
+	"github.com/eshu-hq/eshu/go/internal/parser/npmrc"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
@@ -17,6 +18,17 @@ func (e *Engine) parseNodeLockfile(
 	options Options,
 ) (map[string]any, error) {
 	return nodelockfile.Parse(path, isDependency, shared.Options{
+		IndexSource:   options.IndexSource,
+		VariableScope: options.VariableScope,
+	})
+}
+
+// parseNpmrc adapts the npmrc package into the engine contract. It lives with
+// the other npm-ecosystem adapter. The package emits credential-free
+// registry-URL rows only and ignores IndexSource, so the engine never echoes
+// an .npmrc body into parser output.
+func parseNpmrc(path string, isDependency bool, options Options) (map[string]any, error) {
+	return npmrc.Parse(path, isDependency, shared.Options{
 		IndexSource:   options.IndexSource,
 		VariableScope: options.VariableScope,
 	})

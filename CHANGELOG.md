@@ -9,6 +9,51 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Security alerts: disabled Dependabot alerts no longer read as a credential failure
+
+- **A 403 saying Dependabot alerts are disabled classifies as `not_found`**
+  ([#8947](https://github.com/eshu-hq/eshu/issues/8947)). A repository-scope
+  target whose repository has Dependabot alerts disabled used to fail
+  terminally as `auth_denied`, so readiness told the operator to fix a working
+  credential. It now fails as terminal `not_found`, the class the client
+  already documented for a disabled alert surface, and
+  `eshu_dp_security_alert_provider_requests_total` records
+  `status_class=not_found` for it. A 403 with a rate-limit signal stays
+  `rate_limited`, and every other 403 stays `auth_denied`. The org fan-out
+  still reports the repository as `alerts_disabled` and continues.
+
+### Parser: `.npmrc` registry URLs
+
+- **`.npmrc` is admitted under the `metadata` content-store policy and reports
+  its registry URLs**
+  ([#8978](https://github.com/eshu-hq/eshu/issues/8978)). Eshu could not say
+  which package registry a repository installs from, because `.npmrc` sat next
+  to its credentials and was withheld. It now has its own exact-name `npmrc`
+  definition bound to `metadata`: the content row keeps the path and the source
+  digest with an empty body, and a new parser in `go/internal/parser/npmrc` emits
+  one `config_kind=registry_url` row per `registry=` and `@scope:registry=` line
+  with the scheme, host, port, and path. Userinfo, query, and fragment are
+  removed. A line is skipped whole if it holds an environment expansion, a
+  non-http scheme, a shape the shared secret detector flags in the scheme or
+  host, or an `@` that the URL parser did not read as the userinfo delimiter
+  (`https://user:/pw@host/` would otherwise report the user name as the host).
+  The path is kept only on a documented token-free vendor layout (Artifactory,
+  Nexus, Azure Artifacts, GitLab, Gitea, Cloudsmith, Artifact Registry,
+  CodeArtifact, including Azure feed views such as `my-feed@Release`); any other path, and every Gemfury path, is dropped and the row
+  keeps the scheme and host with `registry_path_withheld`. No other key is read,
+  so `_authToken`, `_auth`, `_password`, `//host/:username`, and `email` values
+  reach no fact. Parser output is not governed by the content-store policy, so
+  the proof is a seeded full-stream scan of every emitted fact
+  (`TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding`) and a fuzz
+  target with a seeded credential tail. The parser registry fingerprint moves
+  once, so every repository re-collects once. The default registry is now
+  governed, so every repository pays one policy lookup per file: the snapshot
+  stage for 5,000 files went from 8.8 ns to 1.09 ms
+  (`BenchmarkContentStoreGovernedDefault`). Filesystem source mode now copies
+  `.npmrc` into the managed workspace. A token a vendor puts in a documented
+  path slot would still be emitted if it is a short word, digits only, or a
+  PascalCase word of up to four parts and 24 bytes.
+
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
 - **Nesting guard before every Cargo TOML decode**
@@ -60,6 +105,44 @@ recent shipped work grouped by feature area.
   verbatim in the content store until the
   [#8812](https://github.com/eshu-hq/eshu/issues/8812) policy gates land.
 
+### Gradle version catalog becomes dependency facts
+
+- **`gradle/libs.versions.toml` is parsed**
+  ([#8822](https://github.com/eshu-hq/eshu/issues/8822)). The registry admits
+  the exact name `libs.versions.toml` on the existing `gradle` definition, and
+  a new `go/internal/parser/gradle/catalog` package reads `[libraries]` and
+  `[plugins]` entries into the existing Gradle dependency row shape. A version
+  is `resolved` only when the file writes out one exact version or points at a
+  plain `[versions]` string with `version.ref`; a rich version, a missing
+  reference, an interpolation, or a selector (`1.+`, `latest.release`, a range,
+  `1.0!!`, `1.0@jar`) stays `unresolved` with no value, and a construct outside
+  the documented grammar yields no row and is counted in
+  `gradle_catalog_state`. Aliases match the way Gradle normalizes them (`-`,
+  `_` and `.` are one separator); Gradle keeps only one of two colliding
+  aliases, chosen by registration order the file does not show, so every
+  colliding row stays `unresolved` and is counted in `alias_collision_count`.
+  An alias written as a dotted entry or a `[libraries.alias]` sub-table emits
+  no row but still collides, and two aliases with one Gradle accessor name
+  (`fooBar`, `foo-bar`) collide too. A key with more than 64 dotted segments,
+  or a file with more than 262,144 key segments in all, makes the file
+  `too_deep`.
+  A library string needs exactly three parts and a plugin string two, and a
+  file TOML rejects yields no rows: a key tree checks every key and header
+  with go-toml's rules, so `x = ...` with `x.module = ...` or a
+  `[libraries.x]` sub-table, a `[versions]` alias that is also a rich version,
+  or a key repeated in any table or inline table is `malformed`, and so is a
+  number or date value go-toml's decoder rejects (`1979-02-30`, an int64
+  overflow, `1e400`). Plugin rows use `config_kind=gradle_plugin`, so the
+  package reducer ignores them. The parser refuses a file over 2 MiB, nesting
+  over 16 levels, and rows past 5000 per table, and counts each. The TOML
+  library overflows the stack on a one-million-level array, so the nesting
+  check runs before it. No fact kind, schema, or content version changes: the
+  exact name moves the registry fingerprint. A reader for
+  `gradle/wrapper/gradle-wrapper.properties` is built and tested but not
+  registered: admitting the name stores the raw file, and a `distributionUrl`
+  can carry `user:password@` userinfo, so the admission waits on the
+  content-store policy of #8812.
+
 ### Content store: per-definition policy
 
 - **Parser definitions can now withhold or redact a file body in the content
@@ -78,6 +161,23 @@ recent shipped work grouped by feature area.
   freshness hints do not move. The marker redactor shares the migration 138
   detector through the new `go/internal/secret/detect` package. See
   [Admitted File Names](docs/public/languages/admitted-files.md#content-store-policy).
+
+### Security alerts: unread org repositories no longer read as complete
+
+- **An empty security-alert answer for a repository the collector did not read
+  in full now reports `target_incomplete` with the reason**
+  ([#8943](https://github.com/eshu-hq/eshu/issues/8943)). Every org-scope
+  generation records, in the same transaction, whether the org stream
+  stopped at `max_pages` and which allowlisted repositories the fan-out left
+  unread (past the 100-repository cap, rate limited, stopped, failed, or alerts
+  disabled). The read path reports such a repository with the stored
+  `org_repository_*` or `provider_open_alert_page_limit_reached` reason, and a
+  repository read in full still reads `complete`. The record is two tables
+  (migration 230) that generation retention removes with the generation. No
+  repository name appears in a metric label or span attribute; the observe span
+  gains `eshu.security_alert.org_read_truncated`.
+  Each org target commits one extra generation after the upgrade so that its
+  first record is written; repository-scope targets are unchanged.
 
 ### Gate: supported languages declare manifest and pin files
 
@@ -176,6 +276,29 @@ recent shipped work grouped by feature area.
 - **The opt-in `structured` result shape is documented as shipped.** Earlier
   notes said the second MCP copy stays "until #8800". The `structured` shape
   from #8800 sends the result once, and it is opt-in: the default stays `dual`.
+
+### Content store skips unchanged file rewrites
+
+- **The `content_files` upsert skips a row that did not change**
+  ([#8915](https://github.com/eshu-hq/eshu/issues/8915)). Re-upserting an
+  identical file used to write a new row version, re-insert both large trigram
+  index entries, and log the whole file. For a same-generation replay of a
+  findings-heavy batch (50 files of 469 KB, 491 findings each) the upsert
+  statement took a median 4.9 to 11.0 s and wrote 65.8 to 71.4 MiB of WAL;
+  with the change it takes 135 ms and writes no row WAL. Both file upserts now
+  share one conflict clause that skips the update when every written column
+  except `indexed_at` already matches (NULL-safe). The whole `Write` call for
+  that batch falls from 7.3 to 13.4 s to 2.5 s: the rest is hostname and
+  service-name extraction over the bodies (about 2.4 s), which this change does
+  not touch. A batch whose rows all change is unchanged within noise (statement
+  median 6.3 s before, 6.5 s after). A skipped row keeps its old `indexed_at`,
+  so `content_last_indexed_at`, the language inventory `last_indexed_at`, and
+  the `updated_at` of a `repository_file` semantic-search result report the
+  last write that changed the file, not the last replay. A replay under a new
+  `generation_id` or `commit_sha` still rewrites the row (#8950). One duplicate
+  `(repo_id, path)` key inside a single batch is rejected before any statement
+  runs, as the database already rejected it. Evidence:
+  `docs/internal/evidence/8915-content-file-upsert-guard.md`.
 
 ### Security alert reconciliation waits for its own impact producer without spending attempts
 

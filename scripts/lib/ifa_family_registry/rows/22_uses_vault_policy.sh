@@ -89,6 +89,11 @@ IFA_FAMILY_DRIVE_FN[uses_vault_policy]="ifa_uses_vault_policy_drive"
 IFA_FAMILY_ASSERT_FN[uses_vault_policy]="ifa_uses_vault_policy_assert"
 IFA_FAMILY_CASSETTE_VAR[uses_vault_policy]="uses_vault_policy_cassette"
 IFA_FAMILY_EXPECTED_VAR[uses_vault_policy]="uses_vault_policy_expected_edges"
+# The shared N-cell also holds the grants-secret-read scope, whose four exact
+# chains carry token policies on their Vault roles and write this same edge
+# type: the loop must assert the eight-edge combined live file here while
+# fault cells (fresh per-family DB) keep the three-edge EXPECTED_VAR above.
+IFA_FAMILY_SHARED_EXPECTED_VAR[uses_vault_policy]="uses_vault_policy_live_expected_edges"
 
 # go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go:108, which
 # reads `MERGE (v)-[rel:SECRETS_IAM_USES_VAULT_POLICY]->(p)` in

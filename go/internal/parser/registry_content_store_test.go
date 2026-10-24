@@ -32,9 +32,19 @@ func TestContentStoreForPathDefaultsToStore(t *testing.T) {
 			t.Errorf("ContentStoreForPath(%q).Policy = %q, want %q", path, got, ContentStoreStore)
 		}
 	}
+	// #8978 binds .npmrc to metadata, which needs no marker-arm migration. No
+	// other definition may bind a non-store policy, and none may bind marker
+	// mode, before #8833's marker-arm migration lands (arbiter, 2026-10-24).
 	for _, definition := range DefaultRegistry().Definitions() {
-		if got := definition.ContentStore.Policy; got != ContentStoreStore {
-			t.Errorf("%s binds policy %q in the default registry; no production definition binds a non-store policy before #8833", definition.ParserKey, got)
+		got := definition.ContentStore
+		if definition.ParserKey == "npmrc" {
+			if got.Policy != ContentStoreMetadata {
+				t.Errorf("npmrc binds policy %q in the default registry, want metadata", got.Policy)
+			}
+			continue
+		}
+		if got.Policy != ContentStoreStore {
+			t.Errorf("%s binds policy %q in the default registry; only npmrc binds a non-store policy before #8833", definition.ParserKey, got.Policy)
 		}
 	}
 }
@@ -123,11 +133,11 @@ func TestRegistryFingerprintIncludesContentStorePolicy(t *testing.T) {
 	}
 }
 
-func TestHasContentStorePolicyIsFalseUntilADefinitionBindsOne(t *testing.T) {
+func TestHasContentStorePolicyIsTrueOnlyWhenADefinitionBindsOne(t *testing.T) {
 	t.Parallel()
 
-	if DefaultRegistry().HasContentStorePolicy() {
-		t.Fatal("the default registry binds no non-store policy before #8833")
+	if !DefaultRegistry().HasContentStorePolicy() {
+		t.Fatal("the default registry binds .npmrc to metadata (#8978), so it is governed")
 	}
 	if contentStoreRegistry(t, ContentStore{Policy: ContentStoreStore}).HasContentStorePolicy() {
 		t.Fatal("an explicit store policy is not a governed registry")
@@ -158,9 +168,23 @@ func legacyFingerprint(definitions []Definition) string {
 func TestAllStoreRegistryFingerprintEqualsThePreChangeValue(t *testing.T) {
 	t.Parallel()
 
+	// The default registry binds .npmrc to metadata (#8978), so its hash moves
+	// once. With that one policy reset to store it hashes exactly like the
+	// pre-#8812 value, which proves the policy token is the only change.
 	def := DefaultRegistry()
-	if got, want := def.Fingerprint(), legacyFingerprint(def.Definitions()); got != want {
-		t.Fatalf("default registry fingerprint = %s, want the pre-#8812 value %s: a store policy must add nothing to the hash", got, want)
+	definitions := def.Definitions()
+	for i := range definitions {
+		definitions[i].ContentStore = ContentStore{}
+	}
+	allStore, err := NewRegistry(definitions)
+	if err != nil {
+		t.Fatalf("NewRegistry: %v", err)
+	}
+	if got, want := allStore.Fingerprint(), legacyFingerprint(allStore.Definitions()); got != want {
+		t.Fatalf("all-store default registry fingerprint = %s, want the pre-#8812 value %s: a store policy must add nothing to the hash", got, want)
+	}
+	if def.Fingerprint() == allStore.Fingerprint() {
+		t.Fatal("the metadata binding for .npmrc must move the default registry fingerprint")
 	}
 	custom := contentStoreRegistry(t, ContentStore{Policy: ContentStoreStore})
 	if got, want := custom.Fingerprint(), legacyFingerprint(custom.Definitions()); got != want {

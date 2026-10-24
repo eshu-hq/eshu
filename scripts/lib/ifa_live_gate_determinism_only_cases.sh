@@ -96,6 +96,7 @@ ifa_live_gate_determinism_only_seams=(
 	'go/internal/ifa/familyodu/iam_escalation_family_odu.go|go/internal/ifa/familyodu/iam_escalation_family_odu.go'
 	'go/internal/ifa/familyodu/authenticates_vault_role_family_odu.go|go/internal/ifa/familyodu/authenticates_vault_role_family_odu.go'
 	'go/internal/ifa/familyodu/uses_vault_policy_family_odu.go|go/internal/ifa/familyodu/uses_vault_policy_family_odu.go'
+	'go/internal/ifa/familyodu/grants_secret_read_family_odu.go|go/internal/ifa/familyodu/grants_secret_read_family_odu.go'
 	'go/internal/ifa/familyodu/built_from_family_odu.go|go/internal/ifa/familyodu/built_from_family_odu.go'
 	'go/internal/ifa/familyodu/cloud_resource_container_image_family_odu.go|go/internal/ifa/familyodu/cloud_resource_container_image_family_odu.go'
 	'go/internal/ifa/familyodu/crossplane_satisfied_by_family_odu.go|go/internal/ifa/familyodu/crossplane_satisfied_by_family_odu.go'

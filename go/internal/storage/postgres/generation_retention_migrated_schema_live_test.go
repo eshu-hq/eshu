@@ -244,6 +244,9 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		"changed_since_links":              0,
 		"changed_since_link_deltas":        0,
 		"changed_since_link_bucket_counts": 0,
+		// #8943: the security-alert org read state and its unread rows.
+		"security_alert_target_read_states":  1,
+		"security_alert_unread_repositories": 2,
 	}
 
 	tx, err := SQLDB{DB: database}.Begin(ctx)
@@ -279,12 +282,12 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 	if result.GenerationsPruned != 1 {
 		t.Fatalf("GenerationsPruned = %d, want 1", result.GenerationsPruned)
 	}
-	for _, table := range []string{"fact_records", "content_file_references", "content_entities", "infra_resource_entities", "content_files", "shared_projection_intents", "activation_obligations", "producer_activation_obligations", "admission_decisions", "admission_decision_evidence", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts", "package_manifest_consumption_keys", "package_registry_identity_keys", "relationship_reference_candidate_keys", "content_file_secret_lines", "shared_projection_unroutable_intents"} {
+	for _, table := range []string{"fact_records", "content_file_references", "content_entities", "infra_resource_entities", "content_files", "shared_projection_intents", "activation_obligations", "producer_activation_obligations", "admission_decisions", "admission_decision_evidence", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts", "security_alert_target_read_states", "security_alert_unread_repositories", "package_manifest_consumption_keys", "package_registry_identity_keys", "relationship_reference_candidate_keys", "content_file_secret_lines", "shared_projection_unroutable_intents"} {
 		if got := result.RowsPruned[table]; got != want[table] {
 			t.Errorf("RowsPruned[%s] = %d, want %d", table, got, want[table])
 		}
 	}
-	for _, table := range []string{"iac_reachability_rows", "content_file_references", "activation_obligations", "producer_activation_obligations", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
+	for _, table := range []string{"iac_reachability_rows", "content_file_references", "activation_obligations", "producer_activation_obligations", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts", "security_alert_target_read_states", "security_alert_unread_repositories"} {
 		var remaining int
 		if err := database.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&remaining); err != nil {
 			t.Fatalf("count %s: %v", table, err)
@@ -487,6 +490,9 @@ VALUES ('entity-2', 'repo-1', 'main.tf', 'TerraformResource', 'r2', 1, 2, 'x', n
 		`INSERT INTO eshu_search_vector_scope_state (scope_id, generation_id, provider_profile_id, source_class, embedding_model_id, vector_index_version, projection_revision, build_fence, state, updated_at) VALUES ('scope-1', 'gen-old', 'pp', 'sc', 'model', 'v1', 1, 1, 'ready', now())`,
 		`INSERT INTO eshu_search_vector_values (scope_id, generation_id, document_id, embedding_model_id, embedding_dimensions, embedding_content_hash, vector_index_version, vector_values, created_at, updated_at) VALUES ('scope-1', 'gen-old', 'doc-1', 'model', 3, 'h', 'v1', '{0.1,0.2,0.3}', now(), now())`,
 		`INSERT INTO reducer_input_invalid_facts (fact_id, fact_kind, missing_field, failure_class, domain, scope_id, generation_id, decided_at) VALUES ('fact-1', 'fk', 'mf', 'fc', 'd', 'scope-1', 'gen-old', now())`,
+		// #8943: one read state with two unread repositories on the doomed generation.
+		`INSERT INTO security_alert_target_read_states (generation_id, scope_id, org_read_truncated, repositories_total, unread_total, unread_reasons, observed_at) VALUES ('gen-old', 'scope-1', TRUE, 5, 2, ARRAY['org_repository_read_failed'], now())`,
+		`INSERT INTO security_alert_unread_repositories (generation_id, repository, reason) VALUES ('gen-old', 'acme/a', 'org_repository_read_failed'), ('gen-old', 'acme/b', 'org_repository_read_failed')`,
 	}
 	for i, step := range steps {
 		if _, err := database.ExecContext(ctx, step); err != nil {

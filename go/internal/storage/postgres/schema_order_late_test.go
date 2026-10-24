@@ -314,4 +314,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	"fact_records_platform_materialization_active_scan_idx",
 	"fact_records_jsts_reachability_repo_file_idx",
 	"fact_records_supply_chain_impact_foreign_key_guard_idx",
+	// Migration 230 (#8943) creates the collector-owned security-alert org read
+	// state and its unread-repository child rows; DDL only, no backfill.
+	"security_alert_target_read_states",
 }

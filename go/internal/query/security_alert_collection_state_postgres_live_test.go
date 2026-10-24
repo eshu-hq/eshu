@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -132,7 +133,7 @@ func TestSecurityAlertCollectionStateSemanticsLive(t *testing.T) {
 
 	states, err := f.store().SecurityAlertTargetStates(f.ctx, []string{
 		"g-active", "g-completed", "g-failed", "g-pending", "g-superseded", "t-f3", "t-latest", "t-none", "t-tie",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("SecurityAlertTargetStates() error = %v", err)
 	}
@@ -151,7 +152,7 @@ func TestSecurityAlertCollectionStateSemanticsLive(t *testing.T) {
 		t.Fatalf("states = %+v, want one row per requested scope (%d)", states, len(want))
 	}
 	for _, state := range states {
-		if state != want[state.ScopeID] {
+		if !reflect.DeepEqual(state, want[state.ScopeID]) {
 			t.Fatalf("state %s = %+v, want %+v", state.ScopeID, state, want[state.ScopeID])
 		}
 	}
@@ -176,11 +177,11 @@ func TestSecurityAlertCollectionStateBoundsLive(t *testing.T) {
 	for i := range scopeIDs {
 		scopeIDs[i] = fmt.Sprintf("bound-%04d", i)
 	}
-	states, err := f.store().SecurityAlertTargetStates(f.ctx, scopeIDs[:1024])
+	states, err := f.store().SecurityAlertTargetStates(f.ctx, scopeIDs[:1024], nil)
 	if err != nil || len(states) != 1024 {
 		t.Fatalf("1024 targets: states=%d err=%v, want 1024 rows and no error", len(states), err)
 	}
-	if _, err := f.store().SecurityAlertTargetStates(f.ctx, scopeIDs); !errors.Is(err, supplychain.ErrSecurityAlertCollectionStateBound) {
+	if _, err := f.store().SecurityAlertTargetStates(f.ctx, scopeIDs, nil); !errors.Is(err, supplychain.ErrSecurityAlertCollectionStateBound) {
 		t.Fatalf("1025 targets: error = %v, want ErrSecurityAlertCollectionStateBound", err)
 	}
 }
@@ -214,7 +215,7 @@ FROM unnest(ARRAY['security_alert', 'git']) AS k, generate_series(1, 50) AS t, g
 
 func explainSecurityAlertTargetStates(f *collectionStateLiveFixture, scopeIDs []string) string {
 	f.t.Helper()
-	rows, err := f.database.QueryContext(f.ctx, "EXPLAIN (ANALYZE, BUFFERS) "+securityAlertTargetStatesQuery, array.Of(scopeIDs))
+	rows, err := f.database.QueryContext(f.ctx, "EXPLAIN (ANALYZE, BUFFERS) "+securityAlertTargetStatesQuery, array.Of(scopeIDs), array.Of([]string(nil)))
 	if err != nil {
 		f.t.Fatalf("EXPLAIN target states: %v", err)
 	}

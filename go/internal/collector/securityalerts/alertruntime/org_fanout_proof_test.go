@@ -121,6 +121,7 @@ func TestClaimedSourceFanoutFreshnessHintMatchesDigestInput(t *testing.T) {
 		alerts:       []securityalerts.GitHubDependabotAlert{alpha},
 		pagesFetched: 3,
 		truncated:    true,
+		orgReadState: true,
 		fanoutOutcomes: map[string]string{
 			"example-org/alpha-repo": contract.SecurityAlertFanoutOutcomeComplete,
 			"example-org/beta-repo":  contract.SecurityAlertFanoutOutcomeFailed,

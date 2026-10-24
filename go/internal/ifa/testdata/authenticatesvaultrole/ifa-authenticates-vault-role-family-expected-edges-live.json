@@ -1,6 +1,6 @@
 {
   "odu": "odu:ifa-authenticates-vault-role-family",
-  "note": "The shared-cell live variant of the authenticates_vault_role expected set. The per-Odù file (ifa-authenticates-vault-role-family-expected-edges.json) names the two edges the authenticates fixture scope produces; a shared determinism cell graph ALSO holds the uses fixture scope, whose two exact chains take the same Vault hop and therefore materialize two more SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE edges (sa-uses-app-a through role uses-app-a to Vault role uses-vault-role-1, and sa-uses-app-b through role uses-app-b to uses-vault-role-2). The projection handler writes every edge set its read models resolve in one run, so the type's exact live set is four edges, not two. Fresh-stack fault cells drive one vault cassette and keep asserting the two-edge file; only the shared-cell determinism assert uses this file.",
+  "note": "The shared-cell live variant of the authenticates_vault_role expected set. The per-Odù file (ifa-authenticates-vault-role-family-expected-edges.json) names the two edges the authenticates fixture scope produces; a shared determinism cell graph ALSO holds the uses fixture scope, whose two exact chains take the same Vault hop and therefore materialize two more SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE edges (sa-uses-app-a through role uses-app-a to Vault role uses-vault-role-1, and sa-uses-app-b through role uses-app-b to uses-vault-role-2), AND the grants fixture scope, whose four exact chains (lanes A, B, 7, 8) take the same Vault hop and therefore materialize four more edges (sa-grants-app-a through role grants-app-a to grants-vault-role-1, sa-grants-app-b through role grants-app-b to grants-vault-role-2, sa-grants-app-7 through role grants-app-7 to grants-vault-role-3, and sa-grants-app-8 through role grants-app-8 to grants-vault-role-4). The projection handler writes every edge set its read models resolve in one run, so the type's exact live set is eight edges, not two. Fresh-stack fault cells drive one vault cassette and keep asserting the two-edge file; only the shared-cell determinism assert uses this file.",
   "edges": [
     {
       "relationship_type": "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",
@@ -21,6 +21,26 @@
       "relationship_type": "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",
       "source_entity_id": "sha256:sa-uses-app-b",
       "target_entity_id": "sha256:uses-vault-role-2"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",
+      "source_entity_id": "sha256:sa-grants-app-a",
+      "target_entity_id": "sha256:grants-vault-role-1"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",
+      "source_entity_id": "sha256:sa-grants-app-b",
+      "target_entity_id": "sha256:grants-vault-role-2"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",
+      "source_entity_id": "sha256:sa-grants-app-7",
+      "target_entity_id": "sha256:grants-vault-role-3"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",
+      "source_entity_id": "sha256:sa-grants-app-8",
+      "target_entity_id": "sha256:grants-vault-role-4"
     }
   ]
 }

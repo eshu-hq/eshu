@@ -59,8 +59,9 @@
   `crossplane.CrossplaneSatisfiedByMaterializationHandler`, strictly after it
   commits a SATISFIED_BY edge — NEVER from the sweep's enqueue path.** A
   SECOND review round caught the sweep itself calling `RecordRedriven`
-  immediately after `ReplayCrossplaneSatisfiedByMaterialization` (which is
-  enqueue-only and returns before the reducer handler runs). Because
+  immediately after `ReplayCrossplaneSatisfiedByMaterialization` (which
+  confirms durable scheduling without waiting for or proving successful
+  handler or edge completion). Because
   auto-retry-on-dead-letter is disabled by default
   (`cmd/reducer/poison_liveness_wiring.go`), an intent that enqueues but later
   dead-letters would leave that design's ledger entry PERMANENTLY and

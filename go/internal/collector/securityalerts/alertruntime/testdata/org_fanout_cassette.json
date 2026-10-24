@@ -1152,7 +1152,7 @@
           {
             "name": "eshu_dp_security_alert_provider_requests_total",
             "labels": {
-              "status_class": "auth_denied"
+              "status_class": "not_found"
             },
             "value": 1
           },
