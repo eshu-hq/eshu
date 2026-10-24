@@ -282,8 +282,8 @@ at `/metrics` exposes hand-rolled Prometheus-style gauges derived from the
   through `collector.BoundedFailureClassForKind`, #8896); every runtime exports the same value, so
   read it with `max by (collector_kind, failure_class)`. It counts only
   unacknowledged failures; `eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances`
-  counts instances whose failure an operator acknowledged (#8830), with the
-  same labels and bounds
+  counts instances with a failure an operator acknowledged (#8830), with the
+  same labels and bounds; an instance with both kinds of failure counts in both
 
 When `WithPrometheusHandler` is set, `NewCompositeMetricsHandler` appends OTEL
 Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.

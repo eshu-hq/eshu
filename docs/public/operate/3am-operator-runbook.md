@@ -236,13 +236,15 @@ A source is not refreshing, or a collector family reports unhealthy.
   cause and the next cycle completes that scope, or when you remove the target
   and wait one window. Pending or retrying items do not clear it. If the
   failure is expected and nobody will fix it (a repository deleted upstream, a
-  credential revoked on purpose), acknowledge it with
-  `eshu admin collector acknowledge-failure` (instance, scope, failure class,
-  reason; admin token). The instance then stops reading `failed`, still shows
-  `last_failure_acknowledged=true` with the class, and the failure is reported
-  again if it changes class or fails after a completed item on that scope.
-  Acknowledge only after you checked that the target is meant to fail and that
-  the coordinator is running; see
+  credential revoked on purpose, a removed target you will not wait a window
+  for), acknowledge it with `eshu admin collector-failure acknowledge`
+  (collector kind, instance, scope, reason; admin token). The instance then reads
+  `partial` with the blocker `terminal fetch failure acknowledged: <class>
+  (<operation>)` instead of `failed`, never healthy, and the failure is reported
+  again if it changes class or fails after a completed work item on that scope.
+  Do not acknowledge anything you intend to fix: fix it and let a completed work
+  item clear it. Check that the coordinator is running first, because a failure
+  that vanishes with a stopped coordinator is not an expected failure. See
   [Acknowledge a failure](../reference/http-api/collector-terminal-failure.md#acknowledge-a-failure).
   The gauge
   `eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances`
