@@ -63,20 +63,22 @@ whose rows all change must write at least 64 KiB) and switch to the full
 measurement corpus with `ESHU_CONTENT_UPSERT_GUARD_BENCH=1`, where they assert
 nothing.
 
-Red and green at this head: with the guard removed from the clause, 24 test
-lines fail (8 tests and 16 subtests: seven live tests plus the hermetic lockstep
+Red and green at this head: with the guard removed from the clause, 25 test
+lines fail (9 tests and 16 subtests: eight live tests plus the hermetic lockstep
 test). Every unchanged-replay case fails (`indexed_at_only` and each
 `*_null_to_null` case, on both statement shapes), plus the writer-level replay,
-the changed-file sibling check, both lock-recheck "skip" cases, the statement
-trigger probe, the smoke benchmark (0.44 MiB of replay WAL against a 64 KiB
+the changed-file sibling check, both lock-recheck "skip" cases, the
+same-path-under-two-repositories replay (it asserts the unchanged replay leaves
+`xmin`), the statement trigger probe, the smoke benchmark (0.44 MiB of replay WAL against a 64 KiB
 bound) and the one-row WAL bound (74,705 and 96,859 WAL bytes for one 200 KB
 replay). With the guard, all 75 lines pass (14 tests and 61 subtests, under
-`-race`). The four-session race, the duplicate-path test and the changed-batch
-benchmark pass either way, as they should: they prove the guard adds no
-deadlock, keeps the old duplicate contract, and does not skip real changes.
-Earlier drafts reported 18, 21 and 22 failures; those were the same mutation
-over smaller test sets (before the recheck tests, before the smoke benchmark),
-not different code.
+`-race`). The four-session race, the duplicate-path tests (live and hermetic),
+the changed-batch benchmark and the seeded drift test pass either way, as they
+should: they prove the guard adds no deadlock, keeps the duplicate contract, and
+does not skip real changes. Earlier drafts reported 18, 21, 22 and 24 failures;
+those were the same mutation over smaller test sets (before the recheck tests,
+before the smoke benchmark, before the same-path-two-repositories test), not
+different code.
 
 What the tests assert:
 
