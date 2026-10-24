@@ -2687,6 +2687,21 @@ type Instruments struct {
 	// pre-builds attribute sets so the per-emission recheck never allocates.
 	ProducerGrantDecisions metric.Int64Counter
 
+	// ComponentExtensionResults, ComponentExtensionStatusRecords,
+	// ComponentExtensionReportedFacts, ComponentExtensionReportedWarnings,
+	// ComponentExtensionSourceLatency, and ComponentExtensionRetryAfter are the
+	// #8908 component-extension status family: what an out-of-tree collector
+	// reported on each claim result. Labels are collector_kind, state,
+	// status_class, and failure_class only. Registered by
+	// registerComponentExtensionInstruments; record through
+	// ComponentExtensionStatusRecorder.
+	ComponentExtensionResults          metric.Int64Counter
+	ComponentExtensionStatusRecords    metric.Int64Counter
+	ComponentExtensionReportedFacts    metric.Int64Counter
+	ComponentExtensionReportedWarnings metric.Int64Counter
+	ComponentExtensionSourceLatency    metric.Float64Histogram
+	ComponentExtensionRetryAfter       metric.Float64Gauge
+
 	// Pipeline overlap metric — how long collector and projector ran concurrently
 	PipelineOverlapDuration metric.Float64Histogram
 
@@ -5986,6 +6001,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerCompletionWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerComponentExtensionInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

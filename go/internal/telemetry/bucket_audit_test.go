@@ -69,6 +69,7 @@ func bucketAuditTable() []bucketAuditEntry {
 		{MetricName: "eshu_dp_loki_fetch_duration_seconds", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}},
 		{MetricName: "eshu_dp_tempo_fetch_duration_seconds", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}},
 		{MetricName: "eshu_dp_confluence_fetch_duration_seconds", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}},
+		{MetricName: "eshu_dp_component_extension_source_latency_seconds", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}},
 		{MetricName: "eshu_dp_aws_scan_duration_seconds", Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}},
 
 		// ---- cloud collector freshness lag (registered outside instruments.go) ----
