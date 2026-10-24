@@ -20,7 +20,7 @@ func (s IngestionStore) CommitScopeGenerationWithStreamError(
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
 ) error {
-	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, factStreamErr)
+	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, factStreamErr, nil)
 }
 
 // CommitClaimedScopeGenerationWithStreamError persists one claimed generation
@@ -38,5 +38,5 @@ func (s IngestionStore) CommitClaimedScopeGenerationWithStreamError(
 		drainFacts(factStream)
 		return err
 	}
-	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, factStreamErr)
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, factStreamErr, nil)
 }

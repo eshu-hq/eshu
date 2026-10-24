@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -138,7 +139,7 @@ func (s IngestionStore) CommitScopeGeneration(
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
 ) error {
-	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, nil)
+	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, nil, nil)
 }
 
 // CommitClaimedScopeGeneration persists one claimed generation only while the
@@ -156,7 +157,7 @@ func (s IngestionStore) CommitClaimedScopeGeneration(
 		drainFacts(factStream)
 		return err
 	}
-	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, nil)
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, nil, nil)
 }
 
 func (s IngestionStore) commitScopeGeneration(
@@ -167,6 +168,7 @@ func (s IngestionStore) commitScopeGeneration(
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
+	stateWriter collector.GenerationStateWriter,
 ) error {
 	if err := backfill.ValidateGenerationInput(scopeValue, generation); err != nil {
 		return errors.Join(err, drainFactsAndCheckStream(factStream, factStreamErr))
@@ -377,6 +379,10 @@ func (s IngestionStore) commitScopeGeneration(
 	if refused {
 		transactionClosed = true
 		return nil
+	}
+	// Collector-owned state commits with its generation or not at all (#8943).
+	if err := writeGenerationState(ctx, tx, stateWriter); err != nil {
+		return err
 	}
 	queue := ProjectorQueue{database: tx, Now: s.now}
 	stageStart = time.Now()
