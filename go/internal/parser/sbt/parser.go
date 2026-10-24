@@ -36,7 +36,8 @@ const (
 	// resolve version references.
 	maxStringVals = 1024
 
-	// maxScalaVersions caps the distinct scalaVersion literals tracked.
+	// maxScalaVersions caps the distinct scalaVersion literals tracked; one
+	// more poisons the envelope.
 	maxScalaVersions = 64
 )
 
@@ -69,12 +70,6 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	return payload, nil
 }
 
-// scalaVersionDecl is one literal `scalaVersion := "x"` assignment.
-type scalaVersionDecl struct {
-	value     string
-	thisBuild bool
-}
-
 // scan holds the single-pass state for one build.sbt.
 type scan struct {
 	lx      *lexer
@@ -86,9 +81,15 @@ type scan struct {
 	// the newest, so hist[2] may be empty right after an unread.
 	hist [3]token
 
-	deps          []dependency
-	vals          map[string]string
-	scalaVersions []scalaVersionDecl
+	deps []dependency
+	vals map[string]string
+	// scalaVersions holds the distinct scalaVersion literals recorded in a
+	// grammar context, in source order.
+	scalaVersions []string
+	// scalaPoisoned is set by a scalaVersion statement in a grammar context
+	// that the scanner cannot read as a literal; the envelope then reports
+	// no version and no row gets a `%%` hint.
+	scalaPoisoned bool
 
 	// unresolved counts declarations the scanner recognised but could not
 	// read as literals and that produced no row.
@@ -336,11 +337,11 @@ func (s *scan) finish() ([]map[string]any, map[string]any) {
 			s.deps[index].partial = true
 		}
 	}
-	versions := s.distinctScalaVersions()
+	version := s.scalaVersion()
 	rows := make([]map[string]any, 0, len(s.deps))
 	binary := ""
-	if len(versions) == 1 {
-		binary = scalaBinaryVersion(versions[0])
+	if version != "" {
+		binary = scalaBinaryVersion(version)
 	}
 	partial := 0
 	for _, dep := range s.deps {
@@ -357,8 +358,8 @@ func (s *scan) finish() ([]map[string]any, map[string]any) {
 
 	state := map[string]any{
 		"state":                        "parsed",
-		"scala_version":                s.primaryScalaVersion(),
-		"scala_version_count":          len(versions),
+		"scala_version":                version,
+		"scala_version_count":          len(s.scalaVersions),
 		"dependency_count":             len(rows),
 		"dependency_overflow_count":    s.overflow,
 		"unresolved_declaration_count": s.unresolved + partial,

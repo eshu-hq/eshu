@@ -89,7 +89,11 @@ func TestParseScalaVersionForms(t *testing.T) {
 	}
 }
 
-func TestParseScalaVersionPrefersThisBuildAndCountsDistinct(t *testing.T) {
+// TestParseScalaVersionCountsDistinctAndReportsNoneWhenTwo pins the
+// fail-closed envelope: two distinct literals are counted, and no single
+// version is reported, not even the ThisBuild one, because the scanner does
+// not decide which assignment sbt applies last.
+func TestParseScalaVersionCountsDistinctAndReportsNoneWhenTwo(t *testing.T) {
 	t.Parallel()
 
 	payload := parseSource(t, `lazy val a = project.settings(scalaVersion := "2.12.18")
@@ -97,7 +101,7 @@ ThisBuild / scalaVersion := "2.13.12"
 lazy val b = project.settings(scalaVersion := "2.13.12")
 `)
 	state := stateOf(t, payload)
-	requireStateField(t, state, "scala_version", "2.13.12")
+	requireStateField(t, state, "scala_version", "")
 	requireStateField(t, state, "scala_version_count", 2)
 }
 

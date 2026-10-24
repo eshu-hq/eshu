@@ -28,9 +28,12 @@
 // statement that runs on past its end, `<+=`, `<++=`, and any other Scala
 // assignment operator. A `:=`, `~=`, `-=`, `--=` or sbt 0.13 `<<=`, or a member
 // that sbt's SettingKey API defines to rewrite the key (`set`, `set0`,
-// `transform`, `remove1`, `removeN`, and `withRank` before an assignment),
-// supersedes the earlier rows it can reach, which become partial too. A member
-// that returns no Setting (`map`, `filter`, ...) is counted once and
+// `transform`, `remove1`, `removeN`, and `withRank` before `:=`, `~=`, `-=`,
+// `--=` or `<<=`), supersedes the earlier rows it can reach, which become
+// partial too. Such a member is applied wherever it appears, since the Setting
+// it returns changes the key wherever it is used; outside a grammar context it
+// supersedes every row. A member that returns no Setting (`map`, `filter`,
+// ...) is counted once at the start of an expression, is a read elsewhere, and
 // supersedes nothing. Only a val that heads a column-0 line resolves a version
 // reference.
 //
@@ -43,13 +46,18 @@
 // revision) or "unresolved" (a non-literal revision), and package_manager
 // "sbt".
 //
-// The payload also carries an sbt_state envelope with the literal
-// scalaVersion, the number of distinct scalaVersion literals, the emitted
+// The payload also carries an sbt_state envelope with the scalaVersion, the
+// number of distinct scalaVersion literals, the emitted
 // dependency count, the count of valid declarations dropped past
 // MaxDependencyRows, the count of declarations that were recognised but could
 // not be read as resolved literals, and meta_build. A scalaVersion literal is
 // read only in a grammar context (or behind a `ThisBuild /` axis that starts a
-// statement in one); a nested one is counted, never recorded. meta_build is
+// statement in one); a nested one is counted, never recorded. The envelope
+// names a version, and `%%` rows get a binary-artifact hint, only when exactly
+// one distinct literal was recorded and no scalaVersion statement in a grammar
+// context was unreadable (a non-literal value, `~=`, `<<=`, `.set`,
+// `.transform`, `.withRank(...) :=`); such a statement poisons the envelope
+// for the whole file. meta_build is
 // true for a build.sbt directly inside a `project` directory, sbt's
 // meta-build, and every row of that file is partial.
 //

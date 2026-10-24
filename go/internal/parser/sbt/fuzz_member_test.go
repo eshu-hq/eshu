@@ -10,7 +10,10 @@ package sbt
 // SettingKey API which statements supersede earlier rows, which emit partial
 // rows, and which scalaVersion literals count, so the oracle checks the exact
 // state of every row, the exact unresolved_declaration_count, and the exact
-// scala_version, scala_version_count and `%%` hint.
+// scala_version, scala_version_count and `%%` hint. Rewriting members are
+// placed at statement start and anywhere in an expression, `withRank(...)` is
+// followed by every operator class, and scalaVersion statements that the
+// scanner cannot read as a literal poison the envelope in any order.
 
 import (
 	"fmt"
@@ -33,8 +36,8 @@ type fzMemberCase struct {
 	rows       []*fzMemberRow
 	unresolved int // counted statements that emit no row
 	versions   []string
-	primary    string // first ThisBuild literal, else first literal
-	stray      int    // nested scalaVersion literals, each counted once
+	poisoned   bool // an unreadable scalaVersion statement in a grammar context
+	stray      int  // nested scalaVersion statements, each counted once
 }
 
 // fzMemberReads are members that return no Setting.
@@ -60,12 +63,56 @@ var fzStrayScala = []string{
 	"Test / scalaVersion := \"%s\"", "scalaVersion in Test := \"%s\"",
 	"inThisBuild(List(scalaVersion := \"%s\"))", "foo(ThisBuild / scalaVersion := \"%s\")",
 	"locally {\n  scalaVersion := \"%s\"\n}", "if isCI then\n  scalaVersion := \"%s\"",
+	"foo(scalaVersion ~= (_ => \"%s\"))", "lazy val s = scalaVersion.set(Def.setting(\"%s\"), pos)",
+	"Test / scalaVersion ~= (_ => \"%s\")", "x.scalaVersion <<= Def.setting(\"%s\")",
+	"inConfig(Test)(scalaVersion.withRank(r) := \"%s\")",
+}
+
+// fzPoisonScala are scalaVersion statements in a grammar context that the
+// scanner cannot read as a literal; each is counted and poisons the envelope.
+var fzPoisonScala = []string{
+	"scalaVersion := sys.env.getOrElse(\"SV\", \"%s\")", "scalaVersion := \"%s\".trim",
+	"scalaVersion ~= (_ => \"%s\")", "scalaVersion <<= Def.setting(\"%s\")",
+	"scalaVersion <+= Def.setting(\"%s\")", "scalaVersion.set(Def.setting(\"%s\"), pos)",
+	"scalaVersion.transform(_ => \"%s\", pos)", "scalaVersion.withRank(KeyRanks.Invisible) := \"%s\"",
+	"scalaVersion.in(ThisBuild) := \"%s\"", "ThisBuild / scalaVersion ~= (_ => \"%s\")",
+	"scalaVersion in ThisBuild ~= (_ => \"%s\")", "ThisBuild / scalaVersion.set(Def.setting(\"%s\"), pos)",
+	"lazy val core = project.settings(scalaVersion ~= (_ => \"%s\"))",
+}
+
+// fzRewritePositions place a rewriting member call outside statement
+// position, where it still changes the key; %s is the member call.
+var fzRewritePositions = []string{
+	"libraryDependencies.%s", "lazy val s = libraryDependencies.%s",
+	"lazy val s: Setting[_] = libraryDependencies.%s", "commonSettings :+ libraryDependencies.%s",
+	"if (ci) libraryDependencies.%s else Nil", "check := { deps => libraryDependencies.%s }",
+	"lazy val common = Seq(foo(1), libraryDependencies.%s)", "lazy val all = base ++ libraryDependencies.%s",
+}
+
+// fzRankedOps are the operators after `withRank(...)`; supersede marks the
+// ones that replace or rewrite the key, and coord the ones whose operand is a
+// coordinate emitted partial.
+var fzRankedOps = []struct {
+	format           string
+	supersede, coord bool
+}{
+	{":= Nil", true, false},
+	{"~= identity", true, false},
+	{"-= otherDeps", true, false},
+	{"--= otherDeps", true, false},
+	{"<<= otherDeps", true, false},
+	{".foo(1)", true, false},
+	{"+= %s", false, true},
+	{"++= Seq(%s)", false, true},
+	{"<+= Def.setting(%s)", false, true},
+	{"<++= Def.setting(Seq(%s))", false, true},
+	{":+= %s", false, true},
 }
 
 // fzTopScala are scalaVersion assignments in a grammar context.
 var fzTopScala = []string{
 	"scalaVersion := \"%s\"", "ThisBuild / scalaVersion := \"%s\"",
-	"scalaVersion in ThisBuild := \"%s\"",
+	"scalaVersion in ThisBuild := \"%s\"", "lazy val core = project.settings(scalaVersion := \"%s\")",
 }
 
 // fzMemberBuild generates the member-arm file for one seed.
@@ -89,6 +136,9 @@ func fzMemberBuild(seed int64) fzMemberCase {
 			row.resolved = false
 		}
 	}
+	// global is set by a reset outside a grammar context, which may be
+	// applied anywhere and so supersedes every row, later ones included.
+	global := false
 	// fallback writes a statement whose coordinate, if any, is partial and
 	// counted once; a statement without one is counted once.
 	fallback := func(format string, withCoord bool) {
@@ -100,7 +150,6 @@ func fzMemberBuild(seed int64) fzMemberCase {
 		text, _ := coord(true)
 		fmt.Fprintf(&out, format+"\n", text)
 	}
-	thisBuild := false
 	stmts := 2 + r.Intn(6)
 	for i := 0; i < stmts; i++ {
 		switch r.Intn(10) {
@@ -110,19 +159,44 @@ func fzMemberBuild(seed int64) fzMemberCase {
 		case 3:
 			read := fzMemberReads[r.Intn(len(fzMemberReads))]
 			forms := []string{"libraryDependencies.%s", "check := (libraryDependencies.%s).value", "lazy val common = Seq(libraryDependencies.%s)"}
+			if r.Intn(3) == 0 {
+				// In the middle of an expression a read is not a statement.
+				mid := []string{"check := libraryDependencies.%s", "lazy val s = base ++ libraryDependencies.%s"}
+				fmt.Fprintf(&out, mid[r.Intn(len(mid))]+"\n", read)
+				break
+			}
 			fmt.Fprintf(&out, forms[r.Intn(len(forms))]+"\n", read)
 			c.unresolved++
 		case 4:
-			fmt.Fprintf(&out, "libraryDependencies.%s\n", fzMemberRewrites[r.Intn(len(fzMemberRewrites))])
+			call := fzMemberRewrites[r.Intn(len(fzMemberRewrites))]
+			supersede()
+			if r.Intn(4) == 0 {
+				// A coordinate later in the statement is emitted partial.
+				text, _ := coord(true)
+				fmt.Fprintf(&out, "if (ci) libraryDependencies.%s else libraryDependencies += %s\n", call, text)
+				global = true
+				break
+			}
+			position := r.Intn(len(fzRewritePositions))
+			fmt.Fprintf(&out, fzRewritePositions[position]+"\n", call)
+			global = global || position > 0
 			c.unresolved++
-			supersede()
 		case 5:
-			supersede()
-			if r.Intn(2) == 0 {
-				out.WriteString("libraryDependencies.withRank(KeyRanks.Invisible) := Nil\n")
-				c.unresolved++
+			prefix := []string{"", "lazy val s = "}[r.Intn(2)]
+			op := fzRankedOps[r.Intn(len(fzRankedOps))]
+			if op.supersede {
+				supersede()
+				global = global || prefix != ""
+			}
+			format := prefix + "libraryDependencies.withRank(KeyRanks.Invisible) " + op.format
+			if op.format == ".foo(1)" {
+				format = prefix + "libraryDependencies.withRank(KeyRanks.Invisible).foo(1)"
+			}
+			if op.coord {
+				fallback(format, true)
 			} else {
-				fallback("libraryDependencies.withRank(KeyRanks.Invisible) ++= Seq(%s)", true)
+				out.WriteString(format + "\n")
+				c.unresolved++
 			}
 		case 6:
 			forms := []string{"libraryDependencies.append1(Def.setting(%s), pos)", "libraryDependencies.appendN(Def.setting(Seq(%s)), pos)"}
@@ -141,14 +215,18 @@ func fzMemberBuild(seed int64) fzMemberCase {
 		case 9:
 			versions := []string{"2.13.12", "2.13.12", "3.3.1", "2.12.18"}
 			version := versions[r.Intn(len(versions))]
-			form := r.Intn(len(fzTopScala))
-			fmt.Fprintf(&out, fzTopScala[form]+"\n", version)
-			if (form > 0 && !thisBuild) || len(c.versions) == 0 {
-				c.primary = version
+			if r.Intn(3) == 0 {
+				fmt.Fprintf(&out, fzPoisonScala[r.Intn(len(fzPoisonScala))]+"\n", version)
+				c.poisoned = true
+				c.unresolved++
+				break
 			}
-			thisBuild = thisBuild || form > 0
+			fmt.Fprintf(&out, fzTopScala[r.Intn(len(fzTopScala))]+"\n", version)
 			c.versions = append(c.versions, version)
 		}
+	}
+	if global {
+		supersede()
 	}
 	c.text = out.String()
 	return c
@@ -176,9 +254,12 @@ func (r *memberReport) check(t *testing.T, seed int64, c fzMemberCase) {
 	for _, version := range c.versions {
 		distinct[version] = true
 	}
-	binary := ""
-	if len(distinct) == 1 {
-		binary = scalaBinaryVersion(c.versions[0])
+	// The envelope names a version only when exactly one distinct literal
+	// was recorded and nothing poisoned it.
+	primary, binary := "", ""
+	if len(distinct) == 1 && !c.poisoned {
+		primary = c.versions[0]
+		binary = scalaBinaryVersion(primary)
 	}
 	want := c.unresolved + c.stray
 	for _, expect := range c.rows {
@@ -211,7 +292,7 @@ func (r *memberReport) check(t *testing.T, seed int64, c fzMemberCase) {
 		r.count++
 		r.log(t, fmt.Sprintf("unresolved=%v want %d", got, want), seed, "", c.text)
 	}
-	if state["scala_version_count"] != len(distinct) || state["scala_version"] != c.primary {
+	if state["scala_version_count"] != len(distinct) || state["scala_version"] != primary {
 		r.scala++
 		r.log(t, fmt.Sprintf("scala_version=%v count=%v want %d distinct", state["scala_version"], state["scala_version_count"], len(distinct)), seed, "", c.text)
 	}

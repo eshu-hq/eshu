@@ -65,7 +65,6 @@ func TestDottedSettingMemberSupersedes(t *testing.T) {
 		"remove1":           "libraryDependencies.remove1(Def.setting(x), pos)",
 		"removeN":           "libraryDependencies.removeN(Def.setting(xs), pos)",
 		"withRank assign":   "libraryDependencies.withRank(KeyRanks.Invisible) := Nil",
-		"withRank append":   "libraryDependencies.withRank(KeyRanks.Invisible) ++= Seq(\"c\" % \"d\" % \"2\")",
 		"nested transform":  "lazy val common = Seq(libraryDependencies.transform(identity, pos))",
 		"dotted assignment": "libraryDependencies.:=(Seq(\"c\" % \"d\" % \"2\"))",
 	} {
@@ -74,9 +73,6 @@ func TestDottedSettingMemberSupersedes(t *testing.T) {
 			t.Errorf("%s: a:b resolved; a member that rewrites the key supersedes it", name)
 		}
 	}
-
-	ranked := parseSource(t, earlierRow+"libraryDependencies.withRank(KeyRanks.Invisible) ++= Seq(\"c\" % \"d\" % \"2\")\n")
-	requireField(t, requireRow(t, ranked, "c:d"), "dependency_resolution_state", "partial")
 }
 
 // TestDottedAppendMemberFallsBackWithoutSuperseding pins `append1` and
@@ -145,5 +141,101 @@ func TestLegacyAndUnknownAssignmentOperatorsFallBack(t *testing.T) {
 	} {
 		payload := parseSource(t, source+"\n")
 		requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
+	}
+}
+
+// TestRewriteMemberAnywhereSupersedes pins a rewriting member at any position.
+// A Setting-returning member (`set`, `set0`, `transform`, `remove1`,
+// `removeN`, `withRank` before an assignment) changes the key wherever the
+// Setting it returns is applied, so a member outside statement position
+// supersedes like a `:=` in the same place: out of a grammar context it is a
+// global reset, every row becomes partial, and the statement is counted once.
+func TestRewriteMemberAnywhereSupersedes(t *testing.T) {
+	t.Parallel()
+
+	for name, source := range map[string]string{
+		"val rhs transform": "lazy val s = libraryDependencies.transform(_ => Nil, NoPosition)",
+		"typed val set":     "lazy val s: Setting[_] = libraryDependencies.set(Def.setting(Nil), pos)",
+		"after :+":          "commonSettings :+ libraryDependencies.transform(identity, pos)",
+		"if else":           "if (ci) libraryDependencies.set(Def.setting(Nil), pos) else libraryDependencies.set(Def.setting(Seq()), pos)",
+		"nested":            "lazy val common = Seq(foo(1), bar(libraryDependencies.remove1(Def.setting(x), pos)))",
+		"after opener":      "check := (libraryDependencies.removeN(Def.setting(xs), pos))",
+		"lambda body":       "check := { deps => libraryDependencies.set0(Def.setting(Nil), pos) }",
+		"withRank rhs":      "lazy val s = libraryDependencies.withRank(KeyRanks.Invisible) := Nil",
+		"after operator":    "lazy val all = base ++ libraryDependencies.transform(identity, pos)",
+	} {
+		t.Run(name, func(t *testing.T) {
+			payload := parseSource(t, earlierRow+source+"\n")
+			requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "partial")
+			requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 2)
+		})
+	}
+
+	// The reset is global, so a project row is superseded too.
+	project := parseSource(t, "lazy val core = project.settings(libraryDependencies += \"a\" % \"b\" % \"1\")\nlazy val s = libraryDependencies.transform(identity, pos)\n")
+	requireField(t, requireRow(t, project, "a:b"), "dependency_resolution_state", "partial")
+
+	// A coordinate later in the same statement is still emitted partial.
+	tail := parseSource(t, earlierRow+"if (ci) libraryDependencies.set(Def.setting(Nil), pos) else libraryDependencies += \"c\" % \"d\" % \"2\"\n")
+	requireField(t, requireRow(t, tail, "a:b"), "dependency_resolution_state", "partial")
+	requireField(t, requireRow(t, tail, "c:d"), "dependency_resolution_state", "partial")
+
+	// Reads stay reads at any position: not counted, nothing superseded.
+	for name, source := range map[string]string{
+		"value rhs":  "lazy val s = libraryDependencies.value",
+		"map rhs":    "check := libraryDependencies.map(_.size)",
+		"filter rhs": "lazy val s = base ++ libraryDependencies.filter(_ => true)",
+		"key rhs":    "lazy val k = libraryDependencies.key",
+	} {
+		t.Run(name, func(t *testing.T) {
+			payload := parseSource(t, earlierRow+source+"\n")
+			requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "resolved")
+			requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
+		})
+	}
+}
+
+// TestWithRankReadsTheOperatorAfterIt pins `withRank(...)` followed by an
+// operator the scanner can read. `+=`, `++=`, `<+=`, `<++=` and any other
+// assignment operator append, so the earlier row stays resolved and the
+// coordinates are partial; `:=` and `<<=` replace and `~=`, `-=`, `--=`
+// rewrite, so they supersede. A continuation the scanner cannot read keeps
+// the fail-closed supersede.
+func TestWithRankReadsTheOperatorAfterIt(t *testing.T) {
+	t.Parallel()
+
+	appends := map[string]string{
+		"+=":   "libraryDependencies.withRank(KeyRanks.Invisible) += \"c\" % \"d\" % \"2\"",
+		"++=":  "libraryDependencies.withRank(KeyRanks.Invisible) ++= Seq(\"c\" % \"d\" % \"2\")",
+		"<+=":  "libraryDependencies.withRank(KeyRanks.Invisible) <+= Def.setting(\"c\" % \"d\" % \"2\")",
+		"<++=": "libraryDependencies.withRank(KeyRanks.Invisible) <++= Def.setting(Seq(\"c\" % \"d\" % \"2\"))",
+		":+=":  "libraryDependencies.withRank(KeyRanks.Invisible) :+= \"c\" % \"d\" % \"2\"",
+	}
+	for name, source := range appends {
+		t.Run("append "+name, func(t *testing.T) {
+			payload := parseSource(t, earlierRow+source+"\n")
+			requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "resolved")
+			requireField(t, requireRow(t, payload, "c:d"), "dependency_resolution_state", "partial")
+			requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 1)
+		})
+	}
+
+	replaces := map[string]string{
+		":=":      "libraryDependencies.withRank(KeyRanks.Invisible) := Nil",
+		"<<=":     "libraryDependencies.withRank(KeyRanks.Invisible) <<= otherDeps",
+		"~=":      "libraryDependencies.withRank(KeyRanks.Invisible) ~= identity",
+		"-=":      "libraryDependencies.withRank(KeyRanks.Invisible) -= \"c\" % \"d\" % \"2\"",
+		"--=":     "libraryDependencies.withRank(KeyRanks.Invisible) --= otherDeps",
+		"unknown": "libraryDependencies.withRank(KeyRanks.Invisible).foo(1)",
+	}
+	for name, source := range replaces {
+		t.Run("replace "+name, func(t *testing.T) {
+			payload := parseSource(t, earlierRow+source+"\n")
+			requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "partial")
+			if got := len(dependencyRows(t, payload)); got != 1 {
+				t.Errorf("rows = %d, want 1: the operand of a rewrite emits no row", got)
+			}
+			requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 2)
+		})
 	}
 }

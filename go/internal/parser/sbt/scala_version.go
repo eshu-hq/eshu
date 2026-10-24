@@ -3,56 +3,88 @@
 
 package sbt
 
-// scalaVersionContext reports whether the scalaVersion key just consumed has a
-// `ThisBuild /` axis and whether it sits where a literal may be recorded: the
-// key itself in a grammar context (keyContext), or, with the axis, the
+// scalaVersionContext reports whether the scalaVersion key just consumed sits
+// where its assignment decides the build's version: the key itself in a
+// grammar context (keyContext), or, behind a `ThisBuild /` axis, the
 // `ThisBuild` token in one. These are the places libraryDependencies would
-// resolve, so a literal nested in a call, a wrapper, a block, a settings val,
-// a member assignment or under another axis never reaches the envelope.
-func (s *scan) scalaVersionContext(key token) (thisBuild, inContext bool) {
+// resolve, so an assignment nested in a call, a wrapper, a block, a settings
+// val, a member assignment or under another axis never reaches the envelope.
+func (s *scan) scalaVersionContext(key token) bool {
 	if isThisBuildAxis(s.hist[2], s.hist[1]) {
-		return true, s.thisBuildAt != 0 && s.thisBuildAt == s.consumed-2
+		return s.thisBuildAt != 0 && s.thisBuildAt == s.consumed-2
 	}
-	_, inContext = s.keyContext(key, s.hist[1])
-	return false, inContext
+	_, inContext := s.keyContext(key, s.hist[1])
+	return inContext
 }
 
-// parseScalaVersion reads `scalaVersion [in ThisBuild] := "literal"`. Anything
-// else after the key (for example `scalaVersion.value`) is not an assignment
-// and is left to the main loop. An assignment outside a grammar context, or
-// under a legacy `in` axis other than ThisBuild, is counted once and never
-// recorded.
-func (s *scan) parseScalaVersion(thisBuild, inContext bool) {
+// parseScalaVersion reads one statement that starts at a scalaVersion key.
+// Only `scalaVersion [in ThisBuild] := "literal"` (or a tracked top-level val)
+// in a grammar context records a version. Any other assignment there (a value
+// that is not a plain literal, `~=`, `<<=`, `<+=`, a member that returns a
+// Setting such as `set`, `transform`, `withRank(...) :=` or `in(...) :=`)
+// changes the version to something the scanner cannot read: it is counted
+// once and poisons the envelope. Any assignment outside a grammar context, or
+// under a legacy `in` axis other than ThisBuild, is counted once and changes
+// nothing. A key that is not assigned (`scalaVersion.value`, a comparison) is
+// a read and is left to the main loop.
+func (s *scan) parseScalaVersion(inContext bool) {
 	tok := s.next()
 	if tok.kind == kindIdent && tok.text == "in" {
 		scope := s.next()
-		if scope.kind == kindIdent && scope.text == "ThisBuild" {
-			thisBuild = true
-		} else {
+		if scope.kind != kindIdent || scope.text != "ThisBuild" {
 			inContext = false
 		}
 		tok = s.next()
 	}
-	if tok.kind != kindSymbol || tok.text != ":=" {
+	if isPunct(tok, ".") {
+		// The '.' stays consumed for a read; the main loop skips the member.
+		member := s.peek()
+		if member.kind == kindIdent && isScalaVersionWriter(member.text) {
+			s.unknownScalaVersion(inContext, 0)
+		}
+		return
+	}
+	if tok.kind != kindSymbol || !isAssignmentOperator(tok.text) {
 		s.unread(tok)
 		return
 	}
-	if !inContext {
-		s.unresolved++
-		s.salvage(0, false)
+	if tok.text != ":=" || !inContext {
+		s.unknownScalaVersion(inContext, 0)
 		return
 	}
 	value := s.next()
 	switch {
 	case value.kind == kindString && validField(value.text) && endsLiteral(s.peek()):
-		s.recordScalaVersion(value.text, thisBuild)
+		s.recordScalaVersion(value.text)
 	case value.kind == kindIdent && s.resolveIdentVersion(value):
-		s.recordScalaVersion(s.vals[value.text], thisBuild)
+		s.recordScalaVersion(s.vals[value.text])
 	case value.kind == kindEOF:
+		s.scalaPoisoned = true
 	default:
-		s.unresolved++
-		s.salvage(initialDepth(value), false)
+		s.unknownScalaVersion(true, initialDepth(value))
 	}
+}
+
+// isScalaVersionWriter reports a member of the scalaVersion key that returns
+// a Setting or the key itself, so the statement can change the version: the
+// rewriting and appending members of sbt's SettingKey API, `withRank`, and
+// the legacy `in(...)` axis, which an assignment may follow.
+func isScalaVersionWriter(member string) bool {
+	return member == "in" || settingMemberOf(member) != memberValue
+}
+
+// unknownScalaVersion counts a scalaVersion statement the scanner cannot read
+// and skips the rest of it from rel open groups deep. In a grammar context it
+// poisons the envelope for good: sbt applies the last assignment of a scope,
+// and the scanner does not decide the order of mixed forms across the bare
+// file, ThisBuild and each project's settings, so a later literal does not
+// clear it.
+func (s *scan) unknownScalaVersion(inContext bool, rel int) {
+	s.unresolved++
+	if inContext {
+		s.scalaPoisoned = true
+	}
+	s.salvage(rel, false)
 }
 
 // resolveIdentVersion reports whether value is a bare identifier naming a
@@ -64,36 +96,29 @@ func (s *scan) resolveIdentVersion(value token) bool {
 	return endsLiteral(s.peek())
 }
 
-func (s *scan) recordScalaVersion(value string, thisBuild bool) {
+// recordScalaVersion keeps value once among the distinct literals, up to
+// maxScalaVersions. A literal past the cap still poisons the envelope, so the
+// count stays a lower bound and never names a single version wrongly.
+func (s *scan) recordScalaVersion(value string) {
+	for _, seen := range s.scalaVersions {
+		if seen == value {
+			return
+		}
+	}
 	if len(s.scalaVersions) >= maxScalaVersions {
+		s.scalaPoisoned = true
 		return
 	}
-	s.scalaVersions = append(s.scalaVersions, scalaVersionDecl{value: value, thisBuild: thisBuild})
+	s.scalaVersions = append(s.scalaVersions, value)
 }
 
-func (s *scan) distinctScalaVersions() []string {
-	seen := map[string]struct{}{}
-	versions := make([]string, 0, len(s.scalaVersions))
-	for _, decl := range s.scalaVersions {
-		if _, ok := seen[decl.value]; ok {
-			continue
-		}
-		seen[decl.value] = struct{}{}
-		versions = append(versions, decl.value)
+// scalaVersion is the single version the envelope reports: the one distinct
+// literal when nothing poisoned the envelope, else empty. Two distinct
+// literals leave it empty, because sbt's last-assignment-wins order across
+// scopes is not decided by the scanner.
+func (s *scan) scalaVersion() string {
+	if s.scalaPoisoned || len(s.scalaVersions) != 1 {
+		return ""
 	}
-	return versions
-}
-
-// primaryScalaVersion prefers the first ThisBuild-scoped literal, else the
-// first literal in source order, and is empty when none was a literal.
-func (s *scan) primaryScalaVersion() string {
-	for _, decl := range s.scalaVersions {
-		if decl.thisBuild {
-			return decl.value
-		}
-	}
-	if len(s.scalaVersions) > 0 {
-		return s.scalaVersions[0].value
-	}
-	return ""
+	return s.scalaVersions[0]
 }

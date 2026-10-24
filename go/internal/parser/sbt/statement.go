@@ -14,8 +14,11 @@ const noContext int32 = -1
 // "Grammar"). Every other assignment falls back to salvage: each literal
 // coordinate in the statement is emitted partial and counted. A key that is
 // not followed by an assignment (`libraryDependencies.value`) is not a
-// declaration and is left to the main loop. A member called on the key at the
-// start of an expression is judged by settingMemberOf.
+// declaration and is left to the main loop. A member called on the key is
+// judged by settingMemberOf: one that returns a Setting is applied from any
+// position, because the Setting changes the key wherever it is used; one that
+// returns no Setting is counted only at the start of an expression and is
+// otherwise a read.
 func (s *scan) parseLibraryDependencies(key token) {
 	prev := s.hist[1]
 	ctx, inContext := s.keyContext(key, prev)
@@ -23,7 +26,8 @@ func (s *scan) parseLibraryDependencies(key token) {
 		inContext = false
 	}
 	op := s.peek()
-	if op.kind == kindIdent && isPunct(s.hist[0], ".") && !isKeyRead(op.text) && startsExpression(key, prev, inContext) {
+	if op.kind == kindIdent && isPunct(s.hist[0], ".") && !isKeyRead(op.text) &&
+		(settingMemberOf(op.text) != memberValue || startsExpression(key, prev, inContext)) {
 		s.applyMember(op.text, ctx, inContext)
 		return
 	}
@@ -179,25 +183,58 @@ func settingMemberOf(member string) settingMember {
 }
 
 // applyMember reads a statement whose key is followed by a member call. A
-// member that rewrites the key supersedes earlier rows and adds none. A member
-// that appends, or that returns the key so any assignment may follow, takes
-// the fallback; the second also supersedes, because the scanner cannot tell
-// which assignment follows. A member that returns no Setting cannot change
-// the key, so the statement is counted once and supersedes nothing.
+// member that rewrites the key supersedes earlier rows and takes the fallback,
+// so a literal coordinate later in the statement (`if (ci) k.set(...) else k
+// += c`) is still emitted partial. A member that appends takes the fallback.
+// A member that returns the key (`withRank`) is judged by the operator after
+// it (applyRankedOperator). A member that returns no Setting cannot change
+// the key, so the statement is counted once and supersedes nothing. Out of a
+// grammar context every reset is global (markReset).
 func (s *scan) applyMember(member string, ctx int32, inContext bool) {
 	switch settingMemberOf(member) {
 	case memberRewrite:
-		s.unresolved++
 		s.markReset(ctx, inContext)
-		s.salvage(0, false)
+		s.fallback()
 	case memberAppend:
 		s.fallback()
 	case memberKey:
-		s.markReset(ctx, inContext)
-		s.fallback()
+		s.next()
+		if open := s.peek(); open.kind == kindOpen && open.text == "(" && !open.newline {
+			s.next()
+			s.skipGroup()
+		}
+		s.applyRankedOperator(ctx, inContext)
 	default:
 		s.unresolved++
 		s.salvage(0, false)
+	}
+}
+
+// applyRankedOperator reads the operator after `withRank(...)`, which returns
+// the key itself. `:=` and `<<=` replace the key; `~=`, `-=` and `--=`
+// rewrite it and their operands are no dependencies, as on the bare key;
+// `+=`, `++=`, `<+=`, `<++=` and any other assignment operator append. Every
+// form takes the fallback, so no row after `withRank` is resolved. A
+// continuation the scanner cannot read supersedes, since any assignment may
+// follow it.
+func (s *scan) applyRankedOperator(ctx int32, inContext bool) {
+	op := s.peek()
+	if op.kind != kindSymbol || !isAssignmentOperator(op.text) {
+		s.markReset(ctx, inContext)
+		s.fallback()
+		return
+	}
+	s.next()
+	switch op.text {
+	case "~=", "-=", "--=":
+		s.unresolved++
+		s.markReset(ctx, inContext)
+		s.salvage(0, false)
+	case ":=", "<<=":
+		s.markReset(ctx, inContext)
+		s.fallback()
+	default:
+		s.fallback()
 	}
 }
 
@@ -224,10 +261,11 @@ func isAssignmentOperator(op string) bool {
 	return true
 }
 
-// startsExpression reports whether key sits where a setting can be applied: in
-// a grammar context, at the start of a line, or right after an opener, ',' or
-// ';'. A key in the middle of an expression (`x := libraryDependencies.foo`)
-// is read, not applied.
+// startsExpression reports whether key sits where a member that returns no
+// Setting is counted: in a grammar context, at the start of a line, or right
+// after an opener, ',' or ';'. Such a member in the middle of an expression
+// (`x := libraryDependencies.map(f)`) is a read. A member that returns a
+// Setting is applied from any position (parseLibraryDependencies).
 func startsExpression(key, prev token, inContext bool) bool {
 	switch {
 	case inContext, key.newline, prev.kind == kindEOF, prev.kind == kindOpen:
