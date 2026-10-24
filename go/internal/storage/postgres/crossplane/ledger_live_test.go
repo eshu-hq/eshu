@@ -32,8 +32,8 @@ import (
 // than the original bug because it is now silent and permanent. This proves
 // the fix: because the sweep no longer writes the ledger (only the reducer
 // handler does, and only after it actually commits an edge), a
-// dead-lettered target is re-enqueued by every subsequent sweep for the same
-// identity, never permanently suppressed.
+// dead-lettered target is never marked satisfied. The next sweep reports
+// unschedulable work and remains reclaimable for operator repair.
 func TestCrossplaneRedriveDeadLetteredTargetIsNotPermanentlySuppressedLive(t *testing.T) {
 	dsn, schema := crossplaneRedriveProofSchema(t)
 	db := crossplaneRedriveProofConn(t, dsn, schema)
@@ -80,18 +80,37 @@ func TestCrossplaneRedriveDeadLetteredTargetIsNotPermanentlySuppressedLive(t *te
 	// (3) The XRD platform repo produces a SECOND generation carrying the
 	// SAME (group, claim_kind) identity (e.g. an unrelated file edit). If the
 	// ledger had been written at enqueue time, this second sweep would
-	// wrongly skip the target forever. It must NOT: the target was never
-	// actually satisfied.
+	// wrongly skip the target forever. The target remains unsatisfied, but
+	// its dead-lettered work item cannot be silently reopened by a sweep.
 	const xrdGen2 = "gen-xrd-deadletter-002"
 	seedCrossplaneRedriveXRD(ctx, t, db, xrdScopeID, xrdGen2, group, claimKind, now.Add(time.Hour))
+	sweeper.LeaseDuration = 300 * time.Millisecond
 	second, err := sweeper.Sweep(ctx, xrdScopeID, xrdGen2)
-	if err != nil {
-		t.Fatalf("second sweep: %v", err)
+	if err == nil {
+		t.Fatalf("second sweep = %+v, want unschedulable dead-letter error", second)
 	}
-	if second.TargetsEnqueued != 1 {
-		t.Fatalf("expected the dead-lettered target to be RE-enqueued (not permanently suppressed), got TargetsEnqueued=%d", second.TargetsEnqueued)
+	if second.TargetsEnqueued != 0 {
+		t.Fatalf("second sweep enqueued %d targets, want zero", second.TargetsEnqueued)
 	}
 	assertCrossplaneRedriveLedgerEntry(ctx, t, db, targetScopeID, group, claimKind, false)
+	assertCrossplaneRedriveStateStatus(ctx, t, db, xrdScopeID, xrdGen2, "claimed")
+	var status string
+	if err := db.QueryRowContext(ctx, `
+		SELECT status FROM fact_work_items
+		WHERE scope_id = $1 AND generation_id = $2
+		  AND stage = 'reducer' AND domain = 'crossplane_satisfied_by_materialization'
+	`, targetScopeID, targetGenID).Scan(&status); err != nil {
+		t.Fatalf("read dead-lettered target: %v", err)
+	}
+	if status != "dead_letter" {
+		t.Fatalf("target status after failed sweep = %q, want dead_letter", status)
+	}
+	time.Sleep(500 * time.Millisecond)
+	results, err := sweeper.SweepBatch(ctx, 1)
+	if err == nil || len(results) != 0 {
+		t.Fatalf("catch-up of dead-lettered target = (%+v, %v), want no completed sweep and an error", results, err)
+	}
+	assertCrossplaneRedriveStateStatus(ctx, t, db, xrdScopeID, xrdGen2, "claimed")
 }
 
 // TestCrossplaneRedriveSuccessfulMaterializationWritesLedgerThenSkipsLive

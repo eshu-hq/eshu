@@ -295,8 +295,12 @@ func (s CrossplaneSatisfiedByRedriveSweeper) sweepJoinKey(
 			if _, seen := seenTargets[target.scopeID]; seen {
 				continue
 			}
-			if _, err := s.Replayer.ReplayCrossplaneSatisfiedByMaterialization(ctx, target.scopeID, target.generationID); err != nil {
+			scheduled, err := s.Replayer.ReplayCrossplaneSatisfiedByMaterialization(ctx, target.scopeID, target.generationID)
+			if err != nil {
 				return false, fmt.Errorf("replay crossplane satisfied-by materialization for %q: %w", target.scopeID, err)
+			}
+			if !scheduled {
+				return false, fmt.Errorf("replay crossplane satisfied-by materialization for %q: stable work item is not schedulable", target.scopeID)
 			}
 			seenTargets[target.scopeID] = struct{}{}
 		}

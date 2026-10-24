@@ -67,11 +67,11 @@ WHERE scope_id = $2
   AND status = 'succeeded'
 `
 
-// scheduleWorkloadMaterializationReplayQuery records replay debt without
+// scheduleCrossScopeMaterializationReplayQuery records replay debt without
 // stealing an active claim. Succeeded work reopens immediately; claimed or
 // running work keeps its exact lease and carries the existing durable
 // cross-scope replay bit so the database ACK trigger returns it to pending.
-const scheduleWorkloadMaterializationReplayQuery = `
+const scheduleCrossScopeMaterializationReplayQuery = `
 UPDATE fact_work_items
 SET status = CASE
         WHEN status = 'succeeded' THEN 'pending'
@@ -264,7 +264,7 @@ func (q ReducerQueue) ReplayWorkloadMaterializationOutcome(
 	}
 	workItemID := reducerWorkItemID(intent)
 
-	result, err := q.database.ExecContext(ctx, scheduleWorkloadMaterializationReplayQuery, q.now(), workItemID)
+	result, err := q.database.ExecContext(ctx, scheduleCrossScopeMaterializationReplayQuery, q.now(), workItemID)
 	if err != nil {
 		return reducer.WorkloadMaterializationReplayNotScheduled,
 			fmt.Errorf("schedule workload materialization replay: %w", err)
@@ -328,19 +328,12 @@ func (q ReducerQueue) workloadMaterializationReplayOutcome(
 	}
 }
 
-// ReplayCrossplaneSatisfiedByMaterialization re-drives one target Claim
-// scope's SATISFIED_BY materialization intent after a cross-scope XRD
-// generation activates (issue #5476). Mirrors ReplayWorkloadMaterialization
-// exactly: enqueue-only, opportunistically reopening a succeeded row so a
-// previously-resolved-with-zero-XRD-visible generation gets a fresh pass, and
-// otherwise enqueueing a fresh intent through the normal claim path. Reusing
-// the SAME per-scope EntityKey the projector's own trigger uses
-// ("crossplane_satisfied_by_materialization:<scopeID>") means the underlying
-// work_item_id is identical to the one the projector would have enqueued for
-// this exact scope generation, so this call is naturally idempotent under
-// concurrent or repeated sweep invocations: ON CONFLICT DO NOTHING (fresh
-// enqueue) or a no-op ReopenSucceeded (already pending/claimed/running) never
-// duplicates work.
+// ReplayCrossplaneSatisfiedByMaterialization schedules one target Claim
+// scope's SATISFIED_BY materialization after cross-scope XRD activation.
+// It uses the same stable identity as the projector trigger. An active claim
+// keeps its lease and receives durable replay debt, which the ACK trigger
+// returns to pending. False means a terminal or missing identity could not be
+// scheduled; the caller must leave its sweep incomplete for recovery.
 func (q ReducerQueue) ReplayCrossplaneSatisfiedByMaterialization(
 	ctx context.Context,
 	targetScopeID string,
@@ -366,18 +359,41 @@ func (q ReducerQueue) ReplayCrossplaneSatisfiedByMaterialization(
 	}
 	workItemID := reducerWorkItemID(intent)
 
-	reopened, err := q.ReopenSucceeded(ctx, workItemID)
+	scheduled, err := q.scheduleCrossScopeMaterializationReplay(ctx, workItemID)
 	if err != nil {
 		return false, fmt.Errorf("schedule crossplane satisfied-by redrive replay: %w", err)
 	}
-	if reopened {
+	if scheduled {
 		return true, nil
 	}
-	if _, err := q.enqueueReducerBatch(ctx, []runtime.ReducerIntent{intent}, q.now()); err != nil {
+	inserted, err := q.enqueueReducerBatch(ctx, []runtime.ReducerIntent{intent}, q.now())
+	if err != nil {
 		return false, fmt.Errorf("schedule crossplane satisfied-by redrive replay: %w", err)
 	}
+	if inserted > 0 {
+		return true, nil
+	}
 
-	return true, nil
+	// ON CONFLICT DO NOTHING can lose to a concurrent insert that was not
+	// visible to the first UPDATE. A fresh statement must record replay debt
+	// on the winning row, not merely read its status and assume it is owed.
+	scheduled, err = q.scheduleCrossScopeMaterializationReplay(ctx, workItemID)
+	if err != nil {
+		return false, fmt.Errorf("schedule crossplane satisfied-by redrive replay after conflict: %w", err)
+	}
+	return scheduled, nil
+}
+
+func (q ReducerQueue) scheduleCrossScopeMaterializationReplay(ctx context.Context, workItemID string) (bool, error) {
+	result, err := q.database.ExecContext(ctx, scheduleCrossScopeMaterializationReplayQuery, q.now(), workItemID)
+	if err != nil {
+		return false, err
+	}
+	matched, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("rows affected: %w", err)
+	}
+	return matched > 0, nil
 }
 
 // CountInFlightByDomain returns the number of reducer work items for one domain

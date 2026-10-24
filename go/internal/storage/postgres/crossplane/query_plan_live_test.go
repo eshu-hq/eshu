@@ -11,8 +11,78 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
 )
+
+// TestCrossplaneRedrivePagedClaimedReplayCostLive qualifies the real sweep
+// across its default 500-target page boundary with stable claim ownership.
+func TestCrossplaneRedrivePagedClaimedReplayCostLive(t *testing.T) {
+	dsn, schema := crossplaneRedriveProofSchema(t)
+	db := crossplaneRedriveProofConn(t, dsn, schema)
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	defer cancel()
+	now := time.Now().UTC()
+	const (
+		targets    = 501
+		xrdScopeID = "scope-xrd-page-proof"
+		group      = "database.example.com"
+		kind       = "PostgreSQL"
+	)
+	intents := make([]runtime.ReducerIntent, 0, targets)
+	for i := 0; i < targets; i++ {
+		scopeID := fmt.Sprintf("scope-claim-page-%04d", i)
+		generationID := fmt.Sprintf("gen-claim-page-%04d", i)
+		seedCrossplaneRedriveClaimScope(ctx, t, db, scopeID, generationID, group, kind, 1, now)
+		intents = append(intents, runtime.ReducerIntent{
+			ScopeID: scopeID, GenerationID: generationID,
+			Domain:    reducer.DomainCrossplaneSatisfiedByMaterialization,
+			EntityKey: "crossplane_satisfied_by_materialization:" + scopeID,
+			Reason:    "paged claimed replay proof", SourceSystem: "reducer",
+		})
+	}
+	queue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "page-proof-worker", 10*time.Minute)
+	queue.ClaimDomain = reducer.DomainCrossplaneSatisfiedByMaterialization
+	if _, err := queue.Enqueue(ctx, intents); err != nil {
+		t.Fatalf("enqueue target work: %v", err)
+	}
+	claimed, err := queue.ClaimBatch(ctx, targets)
+	if err != nil || len(claimed) != targets {
+		t.Fatalf("claim target work = (%d, %v), want %d", len(claimed), err, targets)
+	}
+	sweeper := crossplanestore.CrossplaneSatisfiedByRedriveSweeper{
+		DB:       postgres.SQLQueryer{DB: db},
+		State:    crossplanestore.NewCrossplaneRedriveStateStore(postgres.SQLDB{DB: db}),
+		Replayer: queue, Owner: "page-proof-projector",
+	}
+	for generation := 1; generation <= 3; generation++ {
+		if generation > 1 {
+			if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET cross_scope_replay_required = FALSE WHERE stage = 'reducer' AND domain = 'crossplane_satisfied_by_materialization'`); err != nil {
+				t.Fatalf("reset replay debt: %v", err)
+			}
+		}
+		generationID := fmt.Sprintf("gen-xrd-page-%03d", generation)
+		seedCrossplaneRedriveXRD(ctx, t, db, xrdScopeID, generationID, group, kind, now.Add(time.Duration(generation)*time.Minute))
+		sweepCtx, stop := context.WithTimeout(ctx, time.Minute)
+		started := time.Now()
+		result, err := sweeper.Sweep(sweepCtx, xrdScopeID, generationID)
+		elapsed := time.Since(started)
+		stop()
+		if err != nil || result.Outcome != crossplanestore.CrossplaneRedriveOutcomeCompletedForTest || result.TargetsEnqueued != targets || result.PagesProcessed != 2 || elapsed >= time.Minute {
+			t.Fatalf("sweep %d = (%+v, %v, %s), want completed/501 targets/2 pages/<60s", generation, result, err, elapsed)
+		}
+		var count, debt, claimedOwner int
+		if err := db.QueryRowContext(ctx, `SELECT count(*), count(*) FILTER (WHERE cross_scope_replay_required), count(*) FILTER (WHERE status = 'claimed' AND lease_owner = 'page-proof-worker') FROM fact_work_items WHERE stage = 'reducer' AND domain = 'crossplane_satisfied_by_materialization'`).Scan(&count, &debt, &claimedOwner); err != nil {
+			t.Fatalf("inspect sweep %d target work: %v", generation, err)
+		}
+		if count != targets || debt != targets || claimedOwner != targets {
+			t.Fatalf("sweep %d target rows/debt/claimed owners = %d/%d/%d, want %d each", generation, count, debt, claimedOwner, targets)
+		}
+		t.Logf("generation=%d targets=%d pages=%d elapsed=%s replay_debt=%d claimed_owners=%d", generation, result.TargetsEnqueued, result.PagesProcessed, elapsed, debt, claimedOwner)
+	}
+}
 
 // TestCrossplaneRedriveTargetDiscoveryQueryPlanLive is the committed
 // theory-proof for issue #5476's partial index
