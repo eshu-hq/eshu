@@ -152,7 +152,8 @@ A source is not refreshing, or a collector family reports unhealthy.
   for example with revoked credentials, reports `promotion_state=failed` and the
   blocker `terminal fetch failure: <class> (<operation>)` on
   `GET /api/v0/status/collector-readiness`, and `health=degraded` with
-  `last_failure_class` on `GET /api/v0/status/collectors`. Classes: `auth_denied`
+  `last_failure_class` on `GET /api/v0/status/collectors`. Classes every kind
+  shares: `auth_denied`
   (fix the credential or grant), `not_found` (check the target exists and the
   credential can see it), `rate_limited` (wait or lower the schedule),
   `retryable` or `attempt_budget_exhausted` (the retry budget ran out on a
@@ -160,7 +161,12 @@ A source is not refreshing, or a collector family reports unhealthy.
   `identity_mismatch` (the collected generation did not match its claim; check
   the collector log for the scope), and `terminal`, `collect_failure`,
   `commit_failure`, or `unknown` (read the collector log line carrying
-  `failure_class`; a class only another collector kind writes reads `unknown`). The
+  `failure_class`). A kind also reports its own classes: for example `jira`
+  `permission_hidden`, `aws` `permission_denied` or `stale_fence`, the registry
+  kinds `registry_auth_denied` (fix the registry credential), and `scanner_worker`
+  `timeout`; a class an extension collector defines reads `extension_defined`.
+  The full table is in
+  [Collector Terminal Failure Readiness](../reference/http-api/collector-terminal-failure.md#values). The
   gauge `eshu_runtime_coordinator_collector_terminal_failure_instances` counts
   affected instances by `collector_kind` and `failure_class`; read it with
   `max by (collector_kind, failure_class)`, never summed, because every runtime

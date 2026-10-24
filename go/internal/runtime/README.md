@@ -278,7 +278,8 @@ at `/metrics` exposes hand-rolled Prometheus-style gauges derived from the
   `eshu_runtime_coordinator_collector_terminal_failure_instances` is a gauge of
   registered instances with an unresolved, recent terminal fetch failure
   (inside 3 x `scan_interval`, 30 minute floor), by `collector_kind` and
-  bounded `failure_class` (#8803); every runtime exports the same value, so
+  bounded `failure_class` (#8803; at most 41 values, per collector kind
+  through `collector.BoundedFailureClassForKind`, #8896); every runtime exports the same value, so
   read it with `max by (collector_kind, failure_class)`
 
 When `WithPrometheusHandler` is set, `NewCompositeMetricsHandler` appends OTEL

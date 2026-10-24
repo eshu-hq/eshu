@@ -171,11 +171,13 @@ completeness. `eshu_runtime_coordinator_collector_terminal_failure_instances`
 (labels `collector_kind`, `failure_class`) is a point-in-time gauge of
 registered instances with a terminal work-item failure inside 3 x their
 `scan_interval` (30 minute floor) and no later completed work item for the same
-instance and scope; `failure_class` is one of `auth_denied`, `not_found`,
-`rate_limited`, `terminal`, `retryable`, `attempt_budget_exhausted`,
-`identity_mismatch`, `collect_failure`, `commit_failure`, or `unknown`. A class
-only another collector kind writes (not one of these nine) reads `unknown`
-(#8896). It is a gauge, not a counter, so a recovered or aged-out instance
+instance and scope; `failure_class` is one of the 40 bounded classes in
+[Collector Terminal Failure Readiness](../http-api/collector-terminal-failure.md#values)
+(the nine every kind shares plus each kind's own, and the one
+`extension_defined` token for a class an extension collector defines), or
+`unknown`, so the label takes at most 41 values. A class outside the kind's own
+set reads `unknown`, and no persisted text reaches the label. It is a gauge,
+not a counter, so a recovered or aged-out instance
 drops out. Every runtime that scrapes status exports the same value with its
 own `service_name`, so read it with `max by (collector_kind, failure_class)`,
 never summed.

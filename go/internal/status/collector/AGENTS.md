@@ -34,17 +34,26 @@ after on a fixture snapshot.
 `Evidence.TerminalFailures` degrades a coordinator-registered instance and
 fails its promotion proof with the blocker
 `terminal fetch failure: <class> (<operation>)`. Keep it bounded: the class
-must pass `BoundedFailureClass` (a local allowlist, deliberately not an import
-of any collector runtime package) and the operation must pass
-`BoundedFailureOperation`; anything else reads as `unknown`. The allowlist
-holds the classes the security-alert provider and the claim runner itself
-persist: the five provider classes plus `attempt_budget_exhausted`,
-`identity_mismatch`, `collect_failure`, and `commit_failure`. Other collector
-kinds' own classes read as `unknown` (known limit, #8896); do not widen the
-set without the OpenAPI enum change. A class added there must also land in
-both OpenAPI `last_failure_class` enums
-(`TestOpenAPITerminalFailureFieldsMatchStatusContract` in `query` fails
-otherwise) and stay aligned with the security-alert read's class set. Never add the
+must pass `BoundedFailureClassForKind` (a local per-kind allowlist in
+`terminal_failure_classes.go`, deliberately not an import of any collector
+runtime package) and the operation must pass `BoundedFailureOperation`;
+anything else reads as `unknown`. Every kind reports the nine common classes
+(the five provider classes plus `attempt_budget_exhausted`, `identity_mismatch`,
+`collect_failure`, and `commit_failure`) and its own classes from
+`kindFailureClasses`; a class only another kind owns reads `unknown` for it.
+A kind that is not first-party is hosted by the extension host: it reports the
+common classes and the host's own, and every other class matching the host's
+pattern collapses to `extension_defined`, so the set never grows with third-party
+text. A class added to any set must also land, in the same change, in both
+OpenAPI `last_failure_class` enums
+(`TestOpenAPITerminalFailureFieldsMatchStatusContract` in `query`), the class
+table in `docs/public/reference/http-api/collector-terminal-failure.md`
+(`TestTerminalFailureDocTableMatchesTheCode`), and the cardinality pin
+(`failureClassCardinality`), and stay aligned with the security-alert read's
+class set, which pins the nine common classes for that one kind.
+`TestBoundedFailureClassesMatchTheCollectorWriters` ties each kind's set to the
+writer's constants; it is the only place this package names collector runtime
+packages, and only in a test. Never add the
 failure message or provider status code to `TerminalFailure`, `RuntimeStatus`,
 `PromotionProof`, or their JSON. The reader (`storage/postgres`) supplies only
 failures of enabled, non-deactivated instances inside the instance's window

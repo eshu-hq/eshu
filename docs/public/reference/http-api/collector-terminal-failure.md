@@ -32,23 +32,57 @@ scoped token.
 
 ## Values
 
-`last_failure_class` is one of these, or `unknown` for any persisted value
-outside the set, including the bounded classes other collector kinds write for
-themselves (for example `registry_auth_denied`, `permission_denied`,
-`stale_fence`); health and the blocker are still reported for those kinds,
-only the class reads `unknown` (#8896):
+`last_failure_class` is a bounded class or `unknown`. Each collector kind may
+report the classes that apply to it in the table below. Any persisted value
+outside that kind's set reads `unknown`, including free text, an empty class,
+and a class that only another kind owns, so a provider message never reaches
+the field. A kind that is not first-party is hosted by the extension host: it
+reports the common classes and the host's own, and any other class it defines
+itself (a lowercase token of at most 96 characters) reads `extension_defined`,
+so third-party classes never grow the set.
 
-| Class | Written by | Meaning |
+| Class | Kinds | Meaning |
 | --- | --- | --- |
-| `auth_denied` | security-alert provider | The credential was refused or lacks the grant. |
-| `not_found` | security-alert provider | The target is missing or the credential cannot see it. |
-| `rate_limited` | security-alert provider | The provider throttled the run. |
-| `terminal` | security-alert provider | The provider returned another non-retryable error. |
-| `retryable` | security-alert provider | A transient provider failure used up the attempt budget. |
-| `attempt_budget_exhausted` | claim runner | The attempt budget ran out on a cause that carried no class. |
-| `identity_mismatch` | claim runner | The collected generation's identity did not match the claim. |
-| `collect_failure` | claim runner | A non-retryable collect error carried no class. |
-| `commit_failure` | claim runner | A non-retryable commit error carried no class. |
+| `auth_denied` | every kind | The credential was refused or lacks the grant. |
+| `not_found` | every kind | The target is missing or the credential cannot see it. |
+| `rate_limited` | every kind | The provider throttled the run. |
+| `terminal` | every kind | The provider returned another non-retryable error. |
+| `retryable` | every kind | A transient provider failure used up the attempt budget. |
+| `attempt_budget_exhausted` | every kind | The attempt budget ran out on a cause that carried no class. |
+| `identity_mismatch` | every kind | The collected generation's identity did not match the claim. |
+| `collect_failure` | every kind | A non-retryable collect error carried no class. |
+| `commit_failure` | every kind | A non-retryable commit error carried no class. |
+| `permission_hidden` | `jira` | Jira refused the credential (401 or 403) or hid the data behind a permission. |
+| `deleted` | `jira` | The Jira resource was not found (404). |
+| `archived` | `jira` | The Jira resource is gone or archived (410). |
+| `permission_denied` | `aws` | AWS rejected a service scan as access denied or unauthorized; fix the IAM permissions. |
+| `unsupported_permission` | `aws` | AWS rejected a top-level metadata operation as unsupported for the scope. |
+| `stale_fence` | `aws` | The scan-status store rejected the claim as stale, so the claim stopped retrying. |
+| `registry_auth_denied` | `oci_registry`, `package_registry`, `sbom_attestation` | The registry refused the credential (401 or 403). |
+| `registry_not_found` | `oci_registry`, `package_registry`, `sbom_attestation` | The registry repository, package, or document is missing (404). |
+| `registry_rate_limited` | `oci_registry`, `package_registry`, `sbom_attestation` | The registry throttled the run and the attempt budget ran out. |
+| `registry_retryable_failure` | `oci_registry`, `package_registry`, `sbom_attestation` | A transient registry or transport failure used up the attempt budget. |
+| `registry_canceled` | `oci_registry`, `package_registry`, `sbom_attestation` | The collector was canceled before it finished. |
+| `registry_terminal_failure` | `oci_registry`, `package_registry`, `sbom_attestation` | The registry returned another non-retryable status. |
+| `registry_metadata_too_large` | `package_registry` | Package metadata exceeded the configured byte limit. |
+| `non_retryable` | `vulnerability_intelligence` | The vulnerability source returned a non-retryable 4xx. |
+| `analyzer_failed` | `scanner_worker` | The analyzer process or tool failed. |
+| `cpu_limit_exceeded` | `scanner_worker` | The analyzer ran out of its CPU budget. |
+| `memory_limit_exceeded` | `scanner_worker` | The analyzer ran out of its memory budget. |
+| `timeout` | `scanner_worker` | The analyzer timed out. |
+| `input_limit_exceeded` | `scanner_worker` | The input payload was larger than the limit. |
+| `file_limit_exceeded` | `scanner_worker` | The target held more files than the limit. |
+| `fact_limit_exceeded` | `scanner_worker` | The analyzer produced more facts than the limit. |
+| `target_unavailable` | `scanner_worker` | The bounded target was missing or unreadable. |
+| `unsupported_target` | `scanner_worker` | The target shape is one this worker cannot scan. |
+| `source_unavailable` | `scanner_worker` | A source dependency of the scan was unavailable. |
+| `commit_failed` | `scanner_worker` | Persisting the produced facts failed. |
+| `waiting_on_git_generation` | `terraform_state` | The scan kept waiting for a Git generation until the attempt budget ran out. |
+| `invalid_claim` | extension host | The host rejected corrupt or unsupported claim input. |
+| `invalid_result` | extension host | The host rejected the extension's output before commit. |
+| `launch_failure` | extension host | The host could not launch the extension. |
+| `status_record` | extension host | The host failed to record the extension's status. |
+| `extension_defined` | extension host | The extension reported a class of its own. |
 
 `last_failure_operation` is a short lowercase token such as `list_org_alerts`,
 `collect_failure`, or `commit_failure`, or `unknown`.
