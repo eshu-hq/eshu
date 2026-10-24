@@ -168,14 +168,21 @@ relations and their indexes are evicted with `pg_buffercache_evict_relation`
 before every journal-off Ack, so the off batch reads from disk while the on
 batch hits cache. The old hit-only on-off delta is +44.80 per Ack (falsely
 over the +40 bound) while the block delta is +19.90 per Ack (within bound),
-with 930 buffers evicted and 205892 read bytes per off Ack; `pg_stat_statements`
-blocks move +10.60 per Ack when preloaded. Reproof of the balanced gate under
-the block metric: with `pg_stat_statements` preloaded, client 9 = 9, calls
-11 = 11, backend WAL +4.70, `pg_stat_statements` WAL +4.70, backend blocks
-+11.11, `pg_stat_statements` blocks +11.09; without preload, client 9 = 9,
-backend WAL +4.67, backend blocks +14.22; seeded RED caught on the block
-predicate itself both times (backend blocks +64.97 / +48.39 with the extra
-three rows).
+with 930 buffers evicted and 205892 read bytes per off Ack in both modes;
+`pg_stat_statements` blocks move +10.50 per Ack when preloaded. Reproof of the
+balanced gate under the block metric (pinned CI image, GOCACHE-isolated runs
+21:44Z and 21:47Z): with `pg_stat_statements` preloaded, client 9 = 9, calls
+14 = 14, backend WAL +5.22, `pg_stat_statements` WAL +5.20, backend blocks
++11.41, `pg_stat_statements` blocks +12.28; without preload, client 9 = 9,
+backend WAL +5.19, backend blocks +11.38. The seeded RED fails the verdict
+overall via WAL in both modes (disabled +15.80; preloaded backend +15.78 and
+`pg_stat_statements` +15.16) with the corrected block value reported
+alongside (disabled planted block delta +53.78; preloaded backend +33.30 and
+planted 153.80 vs off 121.19). The planted-vs-first-off-batch block delta
+moves with table growth between runs (one disabled run stayed within bound,
+which the pre-amendment must-fire assertion wrongly fataled on), so per the
+amended ruling (`ack-block-teeth-verdict.md`) acceptance is overall RED with
+the block predicate evaluated and reported, not a required block trip.
 
 ## Not checked
 
