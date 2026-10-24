@@ -42,13 +42,14 @@ func splitColumns(list string) []string {
 }
 
 // contentFileClauseDrift returns every way the conflict clause's SET list, its
-// guard tuples, and the INSERT column list disagree. The SET columns minus the
+// guard tuples, and every INSERT column list disagree. The SET columns minus the
 // explicit exclusion and the separately compared body must equal both guard
 // tuples in order, each tuple side
 // must name its own table's column, the content body must be compared on its
-// own, and the INSERT columns minus the key must equal the SET columns, so a
-// column added to the insert without the update (or the guard) is caught.
-func contentFileClauseDrift(clause, insertPrefix string) []string {
+// own, and the columns of each INSERT statement (the single-row query and the batch
+// prefix) minus the key must equal the SET columns, so a column added to an
+// insert without the update (or the guard) is caught.
+func contentFileClauseDrift(clause string, insertStatements ...string) []string {
 	var drift []string
 	setMatch := setClausePattern.FindStringSubmatch(clause)
 	if setMatch == nil {
@@ -88,21 +89,24 @@ func contentFileClauseDrift(clause, insertPrefix string) []string {
 			drift = append(drift, fmt.Sprintf("%s guard tuple %v != SET columns minus %v and %s = %v", side.name, got, contentFileGuardExcluded, contentFileSeparateCompare, wantGuard))
 		}
 	}
-	insertMatch := insertColumnPattern.FindStringSubmatch(insertPrefix)
-	if insertMatch == nil {
-		return append(drift, "no INSERT INTO content_files column list found")
-	}
-	var wantSet []string
-	for _, column := range splitColumns(insertMatch[1]) {
-		if !slices.Contains(contentFileKeyColumns, column) {
-			wantSet = append(wantSet, column)
+	for i, statement := range insertStatements {
+		insertMatch := insertColumnPattern.FindStringSubmatch(statement)
+		if insertMatch == nil {
+			drift = append(drift, fmt.Sprintf("insert statement %d: no INSERT INTO content_files column list found", i))
+			continue
 		}
-	}
-	gotSet, wantSorted := slices.Clone(setColumns), slices.Clone(wantSet)
-	slices.Sort(gotSet)
-	slices.Sort(wantSorted)
-	if !slices.Equal(gotSet, wantSorted) {
-		drift = append(drift, fmt.Sprintf("SET columns %v != INSERT columns minus key %v", gotSet, wantSorted))
+		var wantSet []string
+		for _, column := range splitColumns(insertMatch[1]) {
+			if !slices.Contains(contentFileKeyColumns, column) {
+				wantSet = append(wantSet, column)
+			}
+		}
+		gotSet, wantSorted := slices.Clone(setColumns), slices.Clone(wantSet)
+		slices.Sort(gotSet)
+		slices.Sort(wantSorted)
+		if !slices.Equal(gotSet, wantSorted) {
+			drift = append(drift, fmt.Sprintf("SET columns %v != insert statement %d columns minus key %v", gotSet, i, wantSorted))
+		}
 	}
 	return drift
 }
@@ -111,7 +115,7 @@ func contentFileClauseDrift(clause, insertPrefix string) []string {
 // SET list, guard tuples, and insert columns drift apart: a column that is
 // written but not compared would keep a stale value silently.
 func TestUpsertContentFileConflictClauseLockstep(t *testing.T) {
-	if drift := contentFileClauseDrift(upsertContentFileConflictClause, upsertContentFileBatchPrefix); len(drift) > 0 {
+	if drift := contentFileClauseDrift(upsertContentFileConflictClause, upsertContentFileQuery, upsertContentFileBatchPrefix); len(drift) > 0 {
 		t.Fatalf("content_files conflict clause drifted:\n%s", strings.Join(drift, "\n"))
 	}
 	// Both statements must end in the shared clause, not a copy of it.
@@ -122,30 +126,37 @@ func TestUpsertContentFileConflictClauseLockstep(t *testing.T) {
 }
 
 // TestContentFileClauseDriftSeededViolations is the RED/GREEN pair for the
-// lockstep check: a column added to one side only is reported, the clean
-// clause is not.
+// lockstep check: a column added to one side only is reported, in either
+// INSERT statement, and the clean clause is not.
 func TestContentFileClauseDriftSeededViolations(t *testing.T) {
 	t.Parallel()
-	const insertPrefix = "INSERT INTO content_files (repo_id, relative_path, commit_sha, content, indexed_at) VALUES "
+	const insertBase = "INSERT INTO content_files (repo_id, relative_path, commit_sha, content, indexed_at) VALUES "
 	const clean = `
 ON CONFLICT (repo_id, relative_path) DO UPDATE
 SET commit_sha = EXCLUDED.commit_sha, content = EXCLUDED.content, indexed_at = EXCLUDED.indexed_at
 WHERE (content_files.commit_sha) IS DISTINCT FROM (EXCLUDED.commit_sha)
    OR content_files.content IS DISTINCT FROM EXCLUDED.content`
-	if drift := contentFileClauseDrift(clean, insertPrefix); len(drift) != 0 {
+	withLanguage := strings.Replace(insertBase, "content,", "content, language,", 1)
+	if drift := contentFileClauseDrift(clean, insertBase, insertBase); len(drift) != 0 {
 		t.Fatalf("clean clause reported: %v", drift)
 	}
-	red := map[string]struct{ clause, prefix string }{
-		"column set but not guarded": {strings.Replace(clean, "SET commit_sha", "SET language = EXCLUDED.language, commit_sha", 1), strings.Replace(insertPrefix, "content,", "content, language,", 1)},
-		"guard has extra stored col": {strings.Replace(clean, "(content_files.commit_sha)", "(content_files.commit_sha, content_files.language)", 1), insertPrefix},
-		"incoming side missing col":  {strings.Replace(clean, "(EXCLUDED.commit_sha)", "(EXCLUDED.content_hash)", 1), insertPrefix},
-		"insert column not updated":  {clean, strings.Replace(insertPrefix, "content,", "content, language,", 1)},
-		"content compare removed":    {strings.Replace(clean, "OR content_files.content IS DISTINCT FROM EXCLUDED.content", "", 1), insertPrefix},
-		"indexed_at guarded":         {strings.Replace(strings.Replace(clean, "(content_files.commit_sha)", "(content_files.commit_sha, content_files.indexed_at)", 1), "(EXCLUDED.commit_sha)", "(EXCLUDED.commit_sha, EXCLUDED.indexed_at)", 1), insertPrefix},
-		"set item renamed":           {strings.Replace(clean, "content = EXCLUDED.content", "content = EXCLUDED.commit_sha", 1), insertPrefix},
+	red := map[string]struct {
+		clause string
+		single string
+		batch  string
+	}{
+		"column set but not guarded":           {strings.Replace(clean, "SET commit_sha", "SET language = EXCLUDED.language, commit_sha", 1), withLanguage, withLanguage},
+		"guard has extra stored col":           {strings.Replace(clean, "(content_files.commit_sha)", "(content_files.commit_sha, content_files.language)", 1), insertBase, insertBase},
+		"incoming side missing col":            {strings.Replace(clean, "(EXCLUDED.commit_sha)", "(EXCLUDED.content_hash)", 1), insertBase, insertBase},
+		"batch insert column not updated":      {clean, insertBase, withLanguage},
+		"single-row insert column not updated": {clean, withLanguage, insertBase},
+		"single-row insert lacks a column":     {clean, strings.Replace(insertBase, "commit_sha, ", "", 1), insertBase},
+		"content compare removed":              {strings.Replace(clean, "OR content_files.content IS DISTINCT FROM EXCLUDED.content", "", 1), insertBase, insertBase},
+		"indexed_at guarded":                   {strings.Replace(strings.Replace(clean, "(content_files.commit_sha)", "(content_files.commit_sha, content_files.indexed_at)", 1), "(EXCLUDED.commit_sha)", "(EXCLUDED.commit_sha, EXCLUDED.indexed_at)", 1), insertBase, insertBase},
+		"set item renamed":                     {strings.Replace(clean, "content = EXCLUDED.content", "content = EXCLUDED.commit_sha", 1), insertBase, insertBase},
 	}
 	for name, tc := range red {
-		if len(contentFileClauseDrift(tc.clause, tc.prefix)) == 0 {
+		if len(contentFileClauseDrift(tc.clause, tc.single, tc.batch)) == 0 {
 			t.Errorf("%s: not reported", name)
 		}
 	}

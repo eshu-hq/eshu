@@ -331,9 +331,9 @@ content-index coverage from the content files only: `content_coverage_available`
 files; it moves when a file is written with a changed content, commit, or
 generation, not on an unchanged same-generation replay (#8915). It no longer
 folds in the newest entity timestamp, so it can be older than before when
-entities were indexed after the last file; a repository with entities but no indexed files reports
-`freshness_state` as `not_reported`. The block no longer carries `entity_count`
-(#7525): it needed a per-call scan of every content entity and is unused here.
+entities were indexed after the last file; a repository with entities but no
+indexed files reports `freshness_state` as `not_reported`. The block no
+longer carries `entity_count` (#7525): a per-call scan nothing here uses.
 `entity_count` remains on `GET /api/v0/repositories/{repo_id}/stats` and
 `/coverage`. A whole-index request reports no repository coverage.
 
