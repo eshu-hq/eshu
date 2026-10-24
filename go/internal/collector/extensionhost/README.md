@@ -100,10 +100,18 @@ Number Fidelity No-Regression Evidence: `go test
 without a float64 conversion. The subprocess, SDK validator, claimed source,
 fact envelope clone, and JSON consumer retain the exact integer, negative
 integer, int64 boundary, nested array, and decimal values. The full package
-test, race test, and vet also pass. The separate public typed-consumer tests preserve an exact issue count and
-nested Kubernetes ports through the subprocess, grant/schema validation,
-claimed source and envelope clone. Database reload, graph and deployed
-consumer compatibility remain unverified.
+test, race test, and vet also pass. The separate public typed-consumer tests
+preserve an exact issue count and nested Kubernetes ports through the
+subprocess, grant/schema validation, claimed source, and envelope clone.
+
+`ProcessRunner` and `OCIRunner` now use the same bounded result decoder. The
+OCI adapter test supplies an injected runtime executor and checks exact
+numbers through grant/schema validation, the claimed source, envelope clone,
+and public typed scalar and nested-list consumers. Shared decoder tests cover
+unknown fields, empty or malformed input, and trailing values or junk. Existing
+runner tests cover output limits, cancellation, and executor failures. The OCI
+test does not run a container. Database reload, graph, and deployed consumer
+compatibility remain unverified.
 
 Number Fidelity Benchmark Evidence: on linux/amd64, Intel i7-8700K, Go
 1.26.10, the same `ProcessRunner.RunCollector` subprocess benchmark ran five
@@ -119,7 +127,7 @@ inside the existing 4 MiB stdout cap. No queue or row counts apply to this
 standalone subprocess decode.
 
 Number Fidelity No-Observability-Change: decoding changes only the in-memory
-numeric representation. The existing process launch/decode errors, bounded
+numeric representation. The existing process and OCI adapter errors, bounded
 SDK statuses, claim failure classes, and collector fact evidence remain the
-operator signals; the focused test proves accepted results reach the claimed
+operator signals; the focused tests prove accepted results reach the claimed
 source without a new status or failure path.

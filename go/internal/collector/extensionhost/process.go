@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 
@@ -69,21 +68,7 @@ func (r ProcessRunner) RunCollector(ctx context.Context, request Request) (sdkco
 		)
 	}
 
-	var result sdkcollector.Result
-	decoder := json.NewDecoder(bytes.NewReader(stdout.Bytes()))
-	decoder.DisallowUnknownFields()
-	decoder.UseNumber()
-	if err := decoder.Decode(&result); err != nil {
-		return sdkcollector.Result{}, fmt.Errorf("decode extension result: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return sdkcollector.Result{}, errors.New("decode extension result: trailing JSON value")
-		}
-		return sdkcollector.Result{}, fmt.Errorf("decode extension result trailer: %w", err)
-	}
-	return result, nil
+	return decodeSDKResult(stdout.Bytes())
 }
 
 func effectiveLimit(value int64, defaultValue int64) int64 {
