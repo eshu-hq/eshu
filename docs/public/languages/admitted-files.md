@@ -133,9 +133,13 @@ for a reference, so `db_password = var.db_password` is stored as
 `db_password = REDACTED_password_literal`. Every other value becomes
 `REDACTED_value`, which the detector never reports. A line it cannot place as
 `key = value` (a comment, a bare list element, a heredoc body line, a PEM block
-line, an unterminated string, or a credential inside the key itself) becomes the
+line, an unterminated string, a credential inside the key itself, or a value
+that starts with `=` or `:`, such as a bare base64 `TOKEN==`) becomes the
 whole-line `REDACTED_<finding_kind>` when it is a finding and `REDACTED_value`
-otherwise. The stored body is not parseable HCL or JSON. Keys are kept when
+otherwise. A heredoc or block comment opened after other text on a line
+(`keys = [<<EOF`, `x = 1 /* old`) redacts every line to its close. A detector
+match blocks the allowlist even without a finding kind, so a token inside a
+reference is not kept. The stored body is not parseable HCL or JSON. Keys are kept when
 they are names: an identifier, or a quoted key of letters, digits, `_`, `.`,
 and `-` (`"us-east-1"`, `"app.example.com"`). A quoted key holding anything
 else (a URL, a CIDR, an ARN, a password with symbols) takes the whole line. A

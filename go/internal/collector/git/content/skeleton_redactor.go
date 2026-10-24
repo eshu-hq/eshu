@@ -26,6 +26,9 @@ var (
 	skeletonKeyValue = regexp.MustCompile(`^([ \t]*)([A-Za-z_][A-Za-z0-9_-]*|"[A-Za-z0-9_][A-Za-z0-9_.-]*")([ \t]*[=:][ \t]*)(.*)$`)
 	// skeletonHeredoc is a heredoc opener value; group 1 is its delimiter.
 	skeletonHeredoc = regexp.MustCompile(`^<<-?([A-Za-z_][A-Za-z0-9_]*)$`)
+	// skeletonHeredocTail is a heredoc opened at the end of a line, after other
+	// text (keys = [<<EOF, jsonencode(<<EOT); group 1 is its delimiter.
+	skeletonHeredocTail = regexp.MustCompile(`<<-?([A-Za-z_][A-Za-z0-9_]*)$`)
 	// The allowlist: shapes that cannot carry a credential.
 	skeletonLiteral   = regexp.MustCompile(`^(true|false|null)$`)
 	skeletonNumber    = regexp.MustCompile(`^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$`)
@@ -53,14 +56,20 @@ const versionConstraint = ` *(~>|>=|<=|!=|=|>|<)? *v?[0-9]+(\.[0-9]+){1,3}(-(alp
 //   - any other value becomes REDACTED_value;
 //   - a line the classifier cannot place as key = value (a comment, a bare list
 //     element, a heredoc body line, a PEM block line, an unterminated string, a
-//     credential inside the key) becomes REDACTED_<finding_kind> when the raw
-//     line is a finding and REDACTED_value otherwise, so it keeps its finding.
+//     credential inside the key, a value that starts with "=" or ":" such as
+//     the base64 padding of a bare TOKEN==) becomes REDACTED_<finding_kind>
+//     when the raw line is a finding and REDACTED_value otherwise, so it keeps
+//     its finding;
+//   - a heredoc opened at the end of any line (key = <<EOF, keys = [<<EOF) and
+//     a block comment opened anywhere outside a string or line comment redact
+//     every line to their close.
 //
 // A finding is what migration 138 reports for the raw line: the detector line
 // gate matches and the CASE names a kind. A gate match with no kind (an
 // sk_live_ key alone) is no finding, so it becomes REDACTED_value and no marker
-// adds a finding the raw body did not have. It errors, never returns a partial
-// body, for a body that is not text or is over MaxGovernedBodyBytes.
+// adds a finding the raw body did not have; it still blocks the allowlist, so
+// var.sk_live_... is not kept. It errors, never returns a partial body, for a
+// body that is not text or is over MaxGovernedBodyBytes.
 func redactSkeleton(body string) (string, int, error) {
 	if len(body) > MaxGovernedBodyBytes {
 		return "", 0, errTooLarge
@@ -87,10 +96,14 @@ func redactSkeleton(body string) (string, int, error) {
 // skeletonState carries what crosses line boundaries: an open PEM block, an
 // open heredoc, and an open block comment.
 type skeletonState struct {
-	inPEM          bool
-	heredoc        string
-	inBlockComment bool
-	replaced       int
+	inPEM   bool
+	heredoc string
+	// heredocCloserGoes is set for a heredoc whose opener line was redacted
+	// (keys = [<<EOF). Its closer is redacted too, so a second pass, which sees
+	// no opener, gives the same body and the redactor stays a fixed point.
+	heredocCloserGoes bool
+	inBlockComment    bool
+	replaced          int
 }
 
 func (s *skeletonState) line(line string) string {
@@ -115,6 +128,10 @@ func (s *skeletonState) classify(line string) string {
 	if s.heredoc != "" {
 		if trimmed == s.heredoc {
 			s.heredoc = ""
+			if s.heredocCloserGoes {
+				s.heredocCloserGoes = false
+				return s.wholeLine(line)
+			}
 			return line
 		}
 		return s.wholeLine(line)
@@ -132,12 +149,46 @@ func (s *skeletonState) classify(line string) string {
 		return s.wholeLine(line)
 	}
 	if strings.HasPrefix(trimmed, "/*") {
-		// A comment that starts the line runs to its */; one that starts after
-		// a value is part of that value, which the allowlist already rejects.
+		// A comment that starts the line runs to its */.
 		s.inBlockComment = !strings.Contains(trimmed[2:], "*/")
 		return s.wholeLine(line)
 	}
-	return s.keyValue(line)
+	out := s.keyValue(line)
+	// A heredoc or block comment opened after other text still swallows the
+	// lines below it, so its body is classified whole, never as key = value.
+	if s.heredoc == "" {
+		if tail := skeletonHeredocTail.FindStringSubmatch(trimmed); tail != nil {
+			s.heredoc, s.heredocCloserGoes = tail[1], true
+		}
+	}
+	if s.heredoc == "" && blockCommentLeftOpen(line) {
+		s.inBlockComment = true
+	}
+	return out
+}
+
+// blockCommentLeftOpen reports whether line opens a /* outside a double-quoted
+// string and a line comment, with no */ after it on the same line.
+func blockCommentLeftOpen(line string) bool {
+	inString := false
+	for i := 0; i < len(line); i++ {
+		switch c := line[i]; {
+		case inString && c == '\\':
+			i++
+		case c == '"':
+			inString = !inString
+		case inString:
+		case c == '#', c == '/' && strings.HasPrefix(line[i:], "//"):
+			return false
+		case c == '/' && strings.HasPrefix(line[i:], "/*"):
+			end := strings.Index(line[i+2:], "*/")
+			if end < 0 {
+				return true
+			}
+			i += 2 + end + 1
+		}
+	}
+	return false
 }
 
 // keyValue handles a line that may be key = value; anything it cannot place
@@ -160,7 +211,9 @@ func (s *skeletonState) keyValue(line string) string {
 	if strings.HasSuffix(value, ",") {
 		value, comma = strings.TrimRight(strings.TrimSuffix(value, ","), " \t"), ","
 	}
-	if value == "" {
+	// No value, or one that starts with a separator (TOKEN==, a::b), is no
+	// assignment the classifier can place.
+	if value == "" || value[0] == '=' || value[0] == ':' {
 		return s.wholeLine(line)
 	}
 	if value == "{" || value == "[" || value == "{}" || value == "[]" || skeletonMarkerValue.MatchString(value) {
@@ -179,7 +232,9 @@ func (s *skeletonState) keyValue(line string) string {
 		s.replaced++
 		return head + markerPrefix + kind + comma
 	}
-	if skeletonAllowed(value) {
+	// A detector match with no kind is no finding, but the value holds a
+	// token-shaped string, so no allowlist shape (var.sk_live_...) keeps it.
+	if len(detect.Spans(line)) == 0 && skeletonAllowed(value) {
 		return line
 	}
 	s.replaced++

@@ -85,7 +85,11 @@ from a real `telemetry.Instruments` and asserts the log holds no credential.
   credential-in-key and free-text quoted-key cases.
 - `TestRedactSkeletonPropertyCorpus` checks 3000 seeded bodies with nine
   credential shapes (AWS key, `sk_live_`, Slack token, PEM block in a comment
-  and in a heredoc, base64, hex, a word with symbols, URL userinfo). It checks
+  and in a heredoc, base64, hex, a word with symbols, URL userinfo). The line
+  shapes include the review's three bypasses: a flagged token wrapped as a
+  `var.`/`module.`/`data.` reference, a bare token with `==` padding, and a
+  heredoc or block comment opened after other text. Reverting any one of the
+  four fixes fails this test and the fuzz seed corpus. It checks
   that no planted token survives, that the line count holds, that a second pass
   changes nothing, that every stored line fits a grammar the test writes itself,
   and that every raw finding keeps `REDACTED_<kind>` while no other line gains a

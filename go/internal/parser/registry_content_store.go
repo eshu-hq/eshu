@@ -138,16 +138,20 @@ func normalizeContentStore(parserKey string, store ContentStore) (ContentStore, 
 	return store, nil
 }
 
-// validateKeyList rejects a blank key and a key holding a comma or a control
-// character. The fingerprint joins keys with "," and ends each definition with
-// a newline, so such a key could make two different key lists hash alike.
+// validateKeyList rejects a blank key and a key holding ",", ":", "=", or a
+// control character. The fingerprint joins keys with ",", separates its fields
+// with ":" and "=", and ends each definition with a newline, so such a key could
+// make two different key lists hash alike: CredentialKeys
+// ["a:url_userinfo=b"] would render like CredentialKeys ["a"] with
+// URLUserinfoKeys ["b"]. Neither ":" nor "=" is a sensible key character: the
+// redactors match a key followed by ":" or "=".
 func validateKeyList(parserKey, list string, keys []string) error {
 	for _, key := range keys {
 		if strings.TrimSpace(key) == "" {
 			return fmt.Errorf("parser key %q: content store %s keys must not be blank", parserKey, list)
 		}
-		if strings.ContainsFunc(key, func(r rune) bool { return r == ',' || unicode.IsControl(r) }) {
-			return fmt.Errorf("parser key %q: content store %s key %q must not hold a comma or a control character", parserKey, list, key)
+		if strings.ContainsFunc(key, func(r rune) bool { return r == ',' || r == ':' || r == '=' || unicode.IsControl(r) }) {
+			return fmt.Errorf("parser key %q: content store %s key %q must not hold a comma, colon, equals sign, or control character", parserKey, list, key)
 		}
 	}
 	return nil

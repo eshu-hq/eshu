@@ -58,6 +58,12 @@ func TestNewRegistryRejectsInvalidModeFields(t *testing.T) {
 		"URL key blank":                 {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{"k"}, URLUserinfoKeys: []string{" "}},
 		"URL key with a comma":          {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{"k"}, URLUserinfoKeys: []string{"a,b"}},
 		"URL key with a control rune":   {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{"k"}, URLUserinfoKeys: []string{"a\tb"}},
+		// ":" and "=" separate the fingerprint's fields, so a key holding one
+		// could make two different key lists hash alike (rev-8833 F4).
+		"credential key with a colon":  {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{"a:url_userinfo=b"}},
+		"credential key with an equal": {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{"a=b"}},
+		"URL key with a colon":         {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{"k"}, URLUserinfoKeys: []string{"a:b"}},
+		"URL key with an equal":        {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{"k"}, URLUserinfoKeys: []string{"a=b"}},
 		// A key on both lists is ambiguous: whole-value or userinfo-only.
 		"key on both lists": {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{"k"}, URLUserinfoKeys: []string{"k"}},
 		// Keys match case-insensitively, so case does not separate them.

@@ -107,15 +107,20 @@ number, the trailing newline, and `\r` line endings.
   gate matches and the `CASE` names a kind), the value becomes
   `REDACTED_<finding_kind>`, even for a reference. A gate match with no kind
   (an `sk_live_` key alone) is no finding, so it becomes `REDACTED_value` and the
-  #8833 marker arm adds no finding the raw body lacked.
+  #8833 marker arm adds no finding the raw body lacked. Any detector match still
+  blocks the allowlist, so `x = var.sk_live_...` is not kept.
 - **Whole line:** a line it cannot place (comment, bare list element, heredoc
-  body, PEM block line, unterminated string, a detector match inside the key)
+  body, PEM block line, unterminated string, a detector match inside the key, a
+  value that starts with `=` or `:` such as the base64 padding of `TOKEN==`)
   becomes `REDACTED_<finding_kind>` when it is a finding, else `REDACTED_value`,
   with its indent kept and no trailing comma.
 - **State across lines:** a PEM `BEGIN` header with no `END` after it redacts
   every line through the footer, or to the end of the file; an unclosed heredoc
-  redacts to the end of the file; a block comment that starts a line redacts
-  through its `*/`. A `/*` inside a value opens nothing.
+  redacts to the end of the file. A heredoc opened at the end of any line
+  (`key = <<EOF`, `keys = [<<EOF`) redacts its body; when its opener line was
+  redacted, its closer is redacted too, which keeps the fixed point. A `/*`
+  outside a string or line comment with no `*/` after it redacts every line
+  through its `*/`, whether it starts the line or follows a value.
 - **Fixed point:** an exact marker, as a value or a whole line, is kept, so a
   second pass changes nothing.
 - **Keys are kept when they are names** (8813 record): an identifier or a quoted

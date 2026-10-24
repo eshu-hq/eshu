@@ -36,7 +36,7 @@ var skeletonKeys = []string{"region", "db_password", "api_token", "client_secret
 func skeletonLine(rng *rand.Rand, seed string) []string {
 	key := skeletonKeys[rng.IntN(len(skeletonKeys))]
 	indent := strings.Repeat(" ", rng.IntN(3)*2)
-	switch rng.IntN(20) {
+	switch rng.IntN(26) {
 	case 0:
 		return []string{indent + key + " = \"" + seed + "\""}
 	case 1:
@@ -76,6 +76,27 @@ func skeletonLine(rng *rand.Rand, seed string) []string {
 	case 18:
 		// Noise the allowlist keeps.
 		return []string{indent + key + " = " + []string{"true", "3", "-1.5", "var.x", "local.y", "module.m.id", "\"1.2.3\"", "\"~> 5.0\"", "null"}[rng.IntN(9)]}
+	case 19:
+		// A token wrapped as a reference (rev-8833 F1). A plain name the
+		// detector does not flag is a reference name and kept by design, so
+		// only a detector-flagged seed is wrapped.
+		if len(detect.Spans(seed)) == 0 {
+			return []string{indent + key + " = \"" + seed + "\""}
+		}
+		return []string{indent + key + " = " + []string{"var.", "module.", "data."}[rng.IntN(3)] + seed + []string{"", ".id"}[rng.IntN(2)]}
+	case 20:
+		// A bare token with base64 padding (rev-8833 F2).
+		return []string{indent + seed + "==" + []string{"", ","}[rng.IntN(2)]}
+	case 21:
+		// A heredoc opened inside a list (rev-8833 F3).
+		return []string{indent + key + " = [<<EOF", seed + ": true", seed + "==", "EOF", indent + "]"}
+	case 22:
+		// A block comment opened after a value (rev-8833 F3).
+		return []string{indent + key + " = 1 /* old", seed + ": true", "*/"}
+	case 23:
+		return []string{indent + key + " = jsonencode(<<-EOT", "  " + seed + ": true", "  EOT", indent + ")"}
+	case 24:
+		return []string{indent + "# rotated", indent + seed + "=="}
 	default:
 		return []string{""}
 	}
@@ -257,6 +278,9 @@ func FuzzRedactSkeleton(f *testing.F) {
 		"a = 1\n", "x = <<EOT\nb\nEOT\n", "# -----BEGIN PRIVATE KEY-----\nabc\n", "\"k\": \"v\",\n",
 		"/* c\n d\n*/\n", "k = \"unterminated\n", "{\n  \"a\": [\n    1,\n  ]\n}\n", "password　= abcdefghij\n",
 		"ſecret = abcdefghij\n", "k = REDACTED_value\n", "  REDACTED_api_token\n", "k = \"~> 1.2\"\n",
+		// The rev-8833 F1-F3 shapes.
+		"x = module.sk_" + "live_4eC39HqLyjWDarjtT1zdp7dc\n", "dGhpc2lzYXNlY3JldHRva2Vu==\n", "X==,\n",
+		"keys = [<<EOF\nPassw0rdHunter2: true\nEOF\n]\n", "x = 1 /* old\nPassw0rdHunter2: true\n*/\n",
 	} {
 		f.Add(s)
 	}
@@ -273,6 +297,10 @@ func FuzzRedactSkeleton(f *testing.F) {
 			in + "\n# QqZzSeed9988\n",
 			in + "\n\"QqZzSeed9988\",\n",
 			in + "\nx = <<EOT\nQqZzSeed9988\nEOT\n",
+			in + "\nx = var.sk_live_QqZzSeed99887766\n",
+			in + "\nQqZzSeed9988==\n",
+			in + "\nk = [<<EOF\nQqZzSeed9988: true\nEOF\n]\n",
+			in + "\nk = 1 /* c\nQqZzSeed9988: true\n*/\n",
 		} {
 			out, _, err := redactSkeleton(planted)
 			if err == nil && strings.Contains(out, "QqZzSeed9988") {

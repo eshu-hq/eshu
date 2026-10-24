@@ -69,6 +69,17 @@ func TestRedactSkeletonLineRules(t *testing.T) {
 		// A detector match with no finding kind (sk_live_ alone) is no finding,
 		// so it is a plain REDACTED_value and the marker arm adds nothing.
 		{"stripe value", "stripe = \"sk_live_abcdefgh12345678\"", "stripe = REDACTED_value"},
+		// A detector match with no kind still blocks the allowlist: a
+		// reference-shaped value holding a token is not provably safe (rev-8833 F1).
+		{"stripe in a module reference", "x = module.sk_" + "live_4eC39HqLyjWDarjtT1zdp7dc", "x = REDACTED_value"},
+		{"stripe in a var reference", "x = var.sk_" + "live_4eC39HqLyjWDarjtT1zdp7dc", "x = REDACTED_value"},
+		{"stripe in a data reference", "ami = data.sk_" + "live_4eC39HqLyjWDarjtT1zdp7dc.id", "ami = REDACTED_value"},
+		// A value that starts with a separator is no assignment: base64 padding
+		// on a bare token reads as key "TOKEN", "=", "=" (rev-8833 F2).
+		{"bare base64 token", "dGhpc2lzYXNlY3JldHRva2Vu==", "REDACTED_value"},
+		{"bare base64 token in a list", "  X==,", "  REDACTED_value"},
+		{"double colon", "token::", "REDACTED_value"},
+		{"colon then equals", "a:=b", "REDACTED_value"},
 		// A line the classifier cannot place becomes a whole-line marker.
 		{"comment", "# owner: platform", "REDACTED_value"},
 		{"slash comment", "  // note", "  REDACTED_value"},
@@ -242,6 +253,27 @@ func TestRedactSkeletonFailsClosedAcrossLines(t *testing.T) {
 		{"block comment", "/* header\n enabled = true\n*/\nn = 2\n", "REDACTED_value\n REDACTED_value\nREDACTED_value\nn = 2\n"},
 		{"one-line block comment", "/* note */\nn = 2\n", "REDACTED_value\nn = 2\n"},
 		{"slash star in a value does not open a comment", "p = \"/api/*\"\nn = 2\n", "p = REDACTED_value\nn = 2\n"},
+		// A heredoc or block comment opened mid-expression is tracked, so its
+		// body lines go whole (rev-8833 F3).
+		{
+			"heredoc in a list", "keys = [<<EOF\nPassw0rdHunter2: true\ndGhpc2lzYXNlY3JldHRva2Vu==\nEOF\n]\nn = 2\n",
+			"keys = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\n]\nn = 2\n",
+		},
+		{
+			"heredoc in a call", "policy = jsonencode(<<-EOT\n  Passw0rdHunter2: true\n  EOT\n)\n",
+			"policy = REDACTED_value\n  REDACTED_value\n  REDACTED_value\nREDACTED_value\n",
+		},
+		{
+			"heredoc as a bare element", "zones = [\n  <<EOF\n  Passw0rdHunter2: true\n  EOF\n]\n",
+			"zones = [\n  REDACTED_value\n  REDACTED_value\n  REDACTED_value\n]\n",
+		},
+		{
+			"block comment after a value", "x = 1 /* old\nPassw0rdHunter2: true\n*/\nn = 2\n",
+			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{"block comment closed on its line", "x = 1 /* a */\nm = 2\n", "x = REDACTED_value\nm = 2\n"},
+		{"slash star in a line comment opens nothing", "n = 1 # see /* here\nm = 2\n", "n = REDACTED_value\nm = 2\n"},
+		{"bare token after a comment", "# rotated\ndGhpc2lzYXNlY3JldHRva2Vu==\n", "REDACTED_value\nREDACTED_value\n"},
 	}
 	for _, tc := range cases {
 		if got := skeletonForTest(t, tc.in); got != tc.want {
