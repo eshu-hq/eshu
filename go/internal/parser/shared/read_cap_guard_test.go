@@ -9,8 +9,10 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -24,13 +26,92 @@ var uncappedReadAllowlist = map[string]string{
 	"shared/read_cap.go":          "the capped read itself",
 }
 
-// uncappedReadCalls are the whole-file reads that bypass the per-file cap.
-var uncappedReadCalls = map[string]bool{
-	"os.ReadFile":     true,
-	"io.ReadAll":      true,
-	"ioutil.ReadFile": true,
-	"ioutil.ReadAll":  true,
-	"fs.ReadFile":     true,
+// uncappedReadCalls maps an import path to its functions that read a whole
+// file or stream and so bypass the per-file cap.
+var uncappedReadCalls = map[string]map[string]bool{
+	"os":        {"ReadFile": true},
+	"io":        {"ReadAll": true},
+	"io/ioutil": {"ReadFile": true, "ReadAll": true},
+	"io/fs":     {"ReadFile": true},
+}
+
+// uncappedReadCallsIn returns each uncapped whole-file read in file as
+// "path.Func". It resolves the file's own import names, so an aliased import
+// (`osx "os"`) or a dot import (`. "os"`, then a bare ReadFile) is caught the
+// same as the default name.
+func uncappedReadCallsIn(file *ast.File) []string {
+	byName := map[string]string{}
+	dotImported := map[string]bool{}
+	for _, spec := range file.Imports {
+		importPath, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || uncappedReadCalls[importPath] == nil {
+			continue
+		}
+		name := path.Base(importPath)
+		if spec.Name != nil {
+			name = spec.Name.Name
+		}
+		switch name {
+		case "_":
+		case ".":
+			dotImported[importPath] = true
+		default:
+			byName[name] = importPath
+		}
+	}
+	var found []string
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		switch fun := call.Fun.(type) {
+		case *ast.SelectorExpr:
+			if pkg, ok := fun.X.(*ast.Ident); ok {
+				if importPath, ok := byName[pkg.Name]; ok && uncappedReadCalls[importPath][fun.Sel.Name] {
+					found = append(found, importPath+"."+fun.Sel.Name)
+				}
+			}
+		case *ast.Ident:
+			for importPath := range dotImported {
+				if uncappedReadCalls[importPath][fun.Name] {
+					found = append(found, importPath+"."+fun.Name)
+				}
+			}
+		}
+		return true
+	})
+	return found
+}
+
+// TestUncappedReadCallsInResolvesImportNames (#8986 review P3-1) seeds each
+// import form the guard must see through.
+func TestUncappedReadCallsInResolvesImportNames(t *testing.T) {
+	for _, cell := range []struct {
+		name string
+		src  string
+		want string
+	}{
+		{name: "default name", src: `import "os"; func f() { os.ReadFile("x") }`, want: "os.ReadFile"},
+		{name: "alias", src: `import osx "os"; func f() { osx.ReadFile("x") }`, want: "os.ReadFile"},
+		{name: "dot import", src: `import . "os"; func f() { ReadFile("x") }`, want: "os.ReadFile"},
+		{name: "io/fs default", src: `import "io/fs"; func f() { fs.ReadFile(nil, "x") }`, want: "io/fs.ReadFile"},
+		{name: "ioutil alias", src: `import u "io/ioutil"; func f() { u.ReadAll(nil) }`, want: "io/ioutil.ReadAll"},
+		{name: "io alias", src: `import stdio "io"; func f() { stdio.ReadAll(nil) }`, want: "io.ReadAll"},
+		{name: "local identifier named os", src: `func f() { var os reader; os.ReadFile("x") }`, want: ""},
+		{name: "capped read", src: `import "os"; func f() { os.Open("x") }`, want: ""},
+	} {
+		t.Run(cell.name, func(t *testing.T) {
+			file, err := goparser.ParseFile(token.NewFileSet(), "seed.go", "package seed\n"+cell.src, goparser.SkipObjectResolution)
+			if err != nil {
+				t.Fatalf("parse seed: %v", err)
+			}
+			got := strings.Join(uncappedReadCallsIn(file), ",")
+			if got != cell.want {
+				t.Fatalf("uncappedReadCallsIn = %q, want %q", got, cell.want)
+			}
+		})
+	}
 }
 
 // TestParserTreeReadsRepositoryFilesThroughTheCap (#8986 review P2-1): every
@@ -72,21 +153,9 @@ func TestParserTreeReadsRepositoryFilesThroughTheCap(t *testing.T) {
 			return err
 		}
 		scanned++
-		ast.Inspect(file, func(node ast.Node) bool {
-			call, ok := node.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			selector, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok {
-				return true
-			}
-			pkg, ok := selector.X.(*ast.Ident)
-			if ok && uncappedReadCalls[pkg.Name+"."+selector.Sel.Name] {
-				offenders = append(offenders, relative+": "+pkg.Name+"."+selector.Sel.Name)
-			}
-			return true
-		})
+		for _, call := range uncappedReadCallsIn(file) {
+			offenders = append(offenders, relative+": "+call)
+		}
 		return nil
 	})
 	if walkErr != nil {
