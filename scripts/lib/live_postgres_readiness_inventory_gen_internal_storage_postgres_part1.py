@@ -486,9 +486,5 @@ TABLE = {
             "TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerLeaseIsLive",
             "TestReducerContentionGateServiceCatalogRuntimeFenceReopenedProducerWaits",
         ),
-        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_interleave_live_test.go": (
-            "TestReducerContentionGateServiceCatalogRuntimeFenceProducerCompletesMidCheck",
-            "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers",
-        ),
     },
 }
