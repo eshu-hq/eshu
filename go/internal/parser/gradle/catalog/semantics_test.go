@@ -240,16 +240,24 @@ func TestScanAliasNormalizationStaysCappedByMaxRows(t *testing.T) {
 }
 
 // The semantic TOML check decodes into an empty struct. A valid value full of
-// escapes is unescaped by both passes, so allocation stays a small multiple
-// of the input and never grows with anything but the input.
+// escapes is unescaped by both passes, so allocation grows with the input and
+// with nothing else: doubling the value at most doubles the allocation. The
+// absolute ceiling is loose because -race builds allocate several times more.
 func TestScanSemanticCheckStaysLinearOnEscapedValues(t *testing.T) {
-	source := []byte("[libraries]\na = \"" + strings.Repeat("\\n", 900_000) + "\"\n")
+	escaped := func(n int) []byte {
+		return []byte("[libraries]\na = \"" + strings.Repeat("\\n", n) + "\"\n")
+	}
+	source := escaped(900_000)
 	var result Result
-	bytesAllocated, _ := allocOf(func() { result = Scan(source) })
+	full, _ := allocOf(func() { result = Scan(source) })
 	if result.State != StateParsed || result.Counts.Unsupported != 1 {
 		t.Fatalf("State=%q Counts=%+v, want parsed with one unsupported", result.State, result.Counts)
 	}
-	requireCeiling(t, "bytes allocated for a 1.8 MB escaped value", bytesAllocated, 3*uint64(len(source)))
+	requireCeiling(t, "bytes allocated for a 1.8 MB escaped value", full, 8*uint64(len(source)))
+	half, _ := allocOf(func() { Scan(escaped(450_000)) })
+	if ratio := float64(full) / float64(half); ratio > 2.5 {
+		t.Fatalf("doubling the escaped value grew allocation %.2fx, want <= 2.5x", ratio)
+	}
 }
 
 // An exact repeat stays a malformed file even past the row cap: the repeated
