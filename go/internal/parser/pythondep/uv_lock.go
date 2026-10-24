@@ -257,6 +257,12 @@ func (p *uvParser) handleHeader(trimmed []byte, lineNumber int) {
 		p.scope = uvScopeOther
 	case array && string(content) == "package" && restIsEmptyOrComment(rest):
 		p.startEntry(lineNumber)
+	case array && firstSegmentFoldsToPackage(content):
+		// A case-variant array header such as [[Package]] is a package form
+		// the reader does not read (uv writes lowercase only), and a quoted
+		// or dotted spelling of it could hide an entry the same way. Count it.
+		p.countUnreadUnit()
+		p.scope = uvScopeOther
 	case !array && string(content) == "manifest":
 		p.scope = uvScopeManifest
 		p.workspace.openManifest(p.result.State.Entries > 0)
@@ -398,4 +404,15 @@ func (p *uvParser) finishEntry() {
 	}
 	state.Resolved++
 	p.result.Rows = append(p.result.Rows, builder.finish())
+}
+
+// firstSegmentFoldsToPackage reports whether the first dotted segment of a
+// header's key equals `package` ignoring ASCII case. The exact lowercase
+// `package` array header is handled before this is asked.
+func firstSegmentFoldsToPackage(content []byte) bool {
+	end := bytes.IndexByte(content, '.')
+	if end < 0 {
+		end = len(content)
+	}
+	return bytes.EqualFold(content[:end], []byte("package"))
 }

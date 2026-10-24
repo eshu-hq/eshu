@@ -73,3 +73,32 @@ func TestParseUVLockHeaderTrailingCommentStillReadsTheEntry(t *testing.T) {
 	}
 	uvAssertResolvedRowsAreWrittenVerbatim(t, src, result)
 }
+
+// TestParseUVLockCaseVariantPackageHeaderIsNeverComplete pins that an array
+// header spelled like the package header in another case, or as a dotted
+// form, counts as an unread unit: uv writes lowercase only, so such a header
+// is a form the reader does not read and the file must not report complete
+// with the entries it may hold.
+func TestParseUVLockCaseVariantPackageHeaderIsNeverComplete(t *testing.T) {
+	t.Parallel()
+
+	body := "\nname = \"hidden\"\nversion = \"1.0\"\nsource = { registry = \"https://pypi.org/simple\" }\n"
+	for _, header := range []string{"[[Package]]", "[[PACKAGE]]", "[[pAckage]]", "[[Package.sub]]", "[[PACKAGE]] # c"} {
+		header := header
+		t.Run(header, func(t *testing.T) {
+			t.Parallel()
+			result := parseUVLockBytes([]byte("version = 1\n" + header + body))
+			if result.State.State() == "complete" {
+				t.Fatalf("state = %+v reads complete although %s was not read", result.State, header)
+			}
+			if len(result.Rows) != 0 {
+				t.Fatalf("rows = %v, want none from an unread header", result.Rows)
+			}
+		})
+	}
+	// The exact lowercase header still reads normally.
+	ok := parseUVLockBytes([]byte("version = 1\n[[package]]" + body))
+	if ok.State.State() != "complete" || len(ok.Rows) != 1 {
+		t.Fatalf("lowercase header: state %+v rows %d, want complete with one row", ok.State, len(ok.Rows))
+	}
+}
