@@ -124,8 +124,7 @@ You no longer have to remember which verifier matches your change — the
 changed-path selector picks them. Docs changes select the applicable docs
 gates; a no-op change selects none. Docker/NornicDB/Postgres/credentialed gates remain CI-only
 and are printed (with a reason), never run locally. Integration suites that need
-Postgres or NornicDB are not run here — use the focused Compose gates below for
-those.
+Postgres or NornicDB are not run here — use the focused Compose gates below for those.
 
 It also runs a **race lane** for Go changes (#4215): the targeted graph-write
 race set (the registry's `race-graph-writes` gate, mirroring
@@ -178,8 +177,7 @@ the npm commands fail loudly (run `npm ci` first) rather than skipping silently.
 
 For dependency or deploy changes, a security preflight mirrors the
 credential-free `security-scan.yml` jobs (#4217) — changed-package gosec,
-govulncheck, nancy, and an optional Trivy filesystem scan — selected by changed
-path:
+govulncheck, nancy, and an optional Trivy filesystem scan — selected by changed path:
 
 ```bash
 make security-preflight      # or: bash scripts/dev/security-preflight.sh
@@ -188,8 +186,7 @@ make security-preflight      # or: bash scripts/dev/security-preflight.sh
 govulncheck and nancy need network for their advisory databases; Trivy is
 optional and the `trivy-fs` gate prints setup guidance and defers to CI when
 `trivy` is not installed (never a silent pass). **CI remains authoritative** for
-SARIF uploads, the Trivy image scan, and release/package security checks — those
-stay CI-only.
+SARIF uploads, the Trivy image scan, and release/package security checks — those stay CI-only.
 
 To see exactly which credential-free CI verifiers apply to the paths you
 changed — and why — use the gate selector:
@@ -247,18 +244,21 @@ gates its changed paths select:
   `.agents/**`. `build.yml` skips via a `pull_request` `paths-ignore`; the mixed
   workflows (`test.yml`, `security-scan.yml`, `mcp-schema-drift.yml`) skip
   per-job via a `changes` gate, so their always-on jobs above keep running. The
-  bare `*.md` negation is **root-anchored** (`README.md`, not nested markdown), so `go/**/*.md`
-  still counts as code; `.agents/**` is negated explicitly (#5818). Any PR mixing docs with code
-  runs the full set. `main`, the nightly schedule, and tag pushes run everything unconditionally.
-  macOS CI is nightly/dispatch-only, non-blocking (`macos-build`). The manifest keeps two umbrellas:
-  `go-core-complete` (**compilation gate** — whole-module `cd go && go build ./...` plus lint/fmt,
-  catching a merge result that does not compile though every PR was green, #5814) and
-  `go-race-complete` (**race gate** over the sharded `go test -race` matrix). Each stays green when
-  its own lane is legitimately skipped, so neither strands a docs-only PR — but each also depends on
-  `changes` and fails if `changes` did not, since GitHub marks a job `skipped` (not `failed`) when a
-  dependency fails. The sharded live-PostgreSQL readiness lane (`live-postgres-readiness.yml`,
-  `blocking: false` in the registry) is also path-selected and cuts its four shards by predicted
-  seconds ([readiness shards](local-testing/live-postgres-readiness-shards.md)).
+  bare `*.md` negation is **root-anchored** (`README.md`, not nested markdown),
+  so `go/**/*.md` still counts as code; `.agents/**` is negated explicitly
+  (#5818). Any PR mixing docs with code runs the full set. `main`, the nightly
+  schedule, and tag pushes run everything unconditionally. macOS CI is
+  nightly/dispatch-only, non-blocking (`macos-build`). The manifest keeps two
+  umbrellas: `go-core-complete` (**compilation gate** — whole-module
+  `cd go && go build ./...` plus lint/fmt, catching a merge result that does not
+  compile though every PR was green, #5814) and `go-race-complete` (**race gate**
+  over the sharded `go test -race` matrix). Each stays green when its own lane
+  is legitimately skipped, so neither strands a docs-only PR — but each also
+  depends on `changes` and fails if `changes` did not, since GitHub marks a job
+  `skipped` (not `failed`) when a dependency fails. The sharded live-PostgreSQL
+  readiness lane (`live-postgres-readiness.yml`, `blocking: false` in the
+  registry) is also path-selected and cuts its four shards by predicted seconds
+  ([readiness shards](local-testing/live-postgres-readiness-shards.md)).
 - **Trusted blocking-gate aggregate:** the manifest also declares
   `required-gates-complete`. A `workflow_run` publisher executes the policy from
   the default branch, never checks out pull-request code, and evaluates the
@@ -450,8 +450,7 @@ flattened to spaces, binding the `!` to the first term only, and answered `SKIP`
 plus `PASS` without compiling the file either time.
 
 Two shapes are legitimately reported as `SKIP` rather than vetted, and the
-summary line prints the skip count so a sweep that is covering less than it
-looks like is visible:
+summary line prints the skip count so a sweep that is covering less than it looks like is visible:
 
 - a GOOS or GOARCH term (`windows`, `linux`). The go command takes those from
   the build environment, and forcing one with `-tags` pulls two copies of the
