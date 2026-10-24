@@ -84,6 +84,22 @@ recent shipped work grouped by feature area.
   notes said the second MCP copy stays "until #8800". The `structured` shape
   from #8800 sends the result once, and it is opt-in: the default stays `dual`.
 
+### Security alert reconciliation waits for its own impact producer without spending attempts
+
+- **A reconciliation no longer burns attempts while `supply_chain_impact` is in
+  flight, and its give-up is visible**
+  ([#8827](https://github.com/eshu-hq/eshu/issues/8827)). The projector enqueues
+  both domains from one scope generation, but the shared conflict key only
+  fences a producer that is claimed or running. While the producer was pending
+  or retrying, the reconciliation ran, spent a counting attempt, and wrote
+  `unmatched` decisions at attempt 3. It now defers with the non-counting class
+  `security_alert_reconciliation_impact_not_ready` while the producer is in
+  flight, bounded by 30 minutes of producer inactivity. The give-up at the
+  handler's cap now records
+  `eshu_dp_security_alert_reconciliation_impact_wait_total{outcome}` and a WARN
+  log. See the [3 AM runbook](docs/public/operate/3am-operator-runbook.md) and
+  [Security Alert Reconciliation Impact Wait](docs/public/reference/telemetry/security-alert-reconciliation-impact-wait.md).
+
 ### Service story defaults to a bounded handles view over MCP
 
 - **`get_service_story` defaults to a bounded `handles` view**

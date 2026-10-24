@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 511 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs.
+package reducer //nolint:filelength // 516 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs.
 
 import (
 	"context"
@@ -208,6 +208,11 @@ type Service struct {
 	// attempt 3 on its own (pendingImpactSecurityAlertReconciliationMaxAttempts)
 	// and writes, so that attempt succeeds: a larger queue budget does not
 	// lengthen the wait, and the wait only fails when this budget is below 3.
+	// That cap applies only to the counting wait. While the same scope
+	// generation's supply_chain_impact work is in flight the handler defers with
+	// the non-counting securityalert.ImpactNotReadyFailureClass instead, which
+	// the queue exempts from this budget (#8827), so this budget never bounds
+	// that wait; elapsed time does.
 	RetryMaxAttempts int
 
 	// Telemetry fields (optional)

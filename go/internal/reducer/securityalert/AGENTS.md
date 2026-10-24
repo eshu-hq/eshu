@@ -85,11 +85,12 @@ non-versioned pieces this package's writer test uses — the same pattern
   their contents true is on you.
 - **`verify-telemetry-coverage.sh`** — any new file under the reducer tree
   needs a row in `docs/public/observability/telemetry-coverage.md`. This
-  package registers no domain-specific instrument (it feeds the shared
-  `eshu_dp_reducer_input_invalid_facts_total` counter through
+  package's one family-specific instrument is
+  `eshu_dp_security_alert_reconciliation_impact_wait_total` (#8827); it also
+  feeds the shared `eshu_dp_reducer_input_invalid_facts_total` counter through
   `factdecode.RecordQuarantinedFacts` and the generic
   `eshu_dp_reducer_executions_total`/`_run_duration_seconds` pair every
-  handler emits), so its telemetry row must cite those, not invent one.
+  handler emits. A telemetry row must cite those, not invent one.
 - **`verify-performance-evidence.sh`** — fires on this path. It needs
   `No-Regression Evidence:` and `No-Observability-Change:` markers, unbolded
   and at the start of their line, in a tracked note. `README.md` here carries
@@ -121,3 +122,18 @@ non-versioned pieces this package's writer test uses — the same pattern
   different type, and nothing under `internal/query` imports it at all --
   check with `rg -l 'reducer/securityalert"' go/ --glob '*.go'` rather than
   trusting this list, since no gate reads it against the code.
+
+## The impact fence (#8827)
+
+- `ImpactNotReadyFailureClass` is non-counting (enrolled in
+  `storage/postgres/reducer_queue_readiness_sql.go`). It freezes
+  `attempt_count`, so never bound the in-flight wait with an attempt
+  comparison; the bound is `crossscope.ProducerReadinessMaxWait` from the
+  producer row's last-workable time. `TestEveryReadinessFailureClassIsEnrolled`
+  enforces the `*_not_ready` naming and enrollment.
+- A probe error must stay a counting error. Never convert it into the
+  non-counting class.
+- Keep the give-up visible: the counter outcome, the WARN log, and
+  `sub_signal_impact_wait_gave_up` move together with the cap.
+- A nil `ImpactProducerReadiness` disables the fence. Keep the reducer-root and
+  `cmd/reducer` wiring guards green when touching registration.

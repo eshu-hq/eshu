@@ -105,31 +105,54 @@ is not draining.
   If the migration 096 gauges identify an old reducer, roll that reducer
   forward. Do not disable the compatibility-fence triggers.
 
-### Deferred reconciliation: `security_alert_reconciliation_waiting_for_impact`
+### Deferred reconciliation: `security_alert_reconciliation_waiting_for_impact` and `..._impact_not_ready`
 
 A `security_alert_reconciliation` work item that logs WARN `reducer execution deferred`
-with `failure_class=security_alert_reconciliation_waiting_for_impact` is waiting
-by design. The repository has alert facts and owned dependency evidence, but the
-package has no impact finding yet. The queue retries it, and it is counted as
+is waiting by design. The repository has alert facts and owned dependency
+evidence, but the package has no impact finding yet. Two failure classes mark
+the wait, and they differ in what the wait costs:
+
+- `security_alert_reconciliation_impact_not_ready` (#8827): the
+  `supply_chain_impact` work of the same scope and generation is still pending,
+  retrying, claimed, or running. This wait is free: the queue keeps
+  `attempt_count`, so the reconciliation can wait through any number of
+  cycles without being given up. The INFO log `security alert reconciliation
+  deferred: supply chain impact in flight for the same scope generation` and
+  `eshu_dp_security_alert_reconciliation_impact_wait_total{outcome="deferred_in_flight"}`
+  name it, with the producer's `impact_pending`/`impact_retrying`/`impact_claimed`/`impact_running`
+  counts and `producer_elapsed` against `producer_max_wait` (30 minutes).
+- `security_alert_reconciliation_waiting_for_impact`: no impact work is in
+  flight for that scope generation (it finished, dead-lettered, or never
+  existed) yet no finding exists for the package. This wait counts against the
+  retry budget, and the handler caps it at attempt 3.
+
+Both are counted as
 `eshu_dp_reducer_executions_total{domain="security_alert_reconciliation",status="deferred"}`,
 not `failed`.
 
 - **Do nothing** while the deferred count is small and the impact findings
   arrive on the next attempt. Do not page on `deferred` alone.
-- **Worry** when reconciliations keep resolving at attempt 3 with `unmatched`
-  rows while `supply_chain_impact` is slow or backlogged. The handler waits for
-  impact evidence on attempts 1 and 2 only. At attempt 3 it stops waiting,
-  writes `unmatched` decisions, and the attempt records `succeeded`. At the
-  default budget (`ESHU_REDUCER_MAX_ATTEMPTS=3`) the wait therefore never fails
-  and nothing dead-letters. No signal marks the give-up itself yet: the
-  attempt records `succeeded`, and the execution metric has no
-  `failure_class` for it (#8827 tracks one). Check
-  `eshu_runtime_domain_oldest_age_seconds{domain="supply_chain_impact"}` and
-  the blockage view in the status endpoint above for the package's scope and
-  generation. #8827 also tracks the reconciliation burning attempts while it
-  waits on its own producer.
-- A `failed` execution with this `failure_class` is not a normal end of the
-  wait. It means `ESHU_REDUCER_MAX_ATTEMPTS` is 1 or 2, so the queue
+- **Worry** when `deferred_in_flight` keeps rising for one scope. The wait is
+  bounded by elapsed time: once the producer row shows no claim, retry, or
+  heartbeat for 30 minutes, the reconciliation stops waiting on it and takes
+  the counting path. Find the holder with
+  `eshu_runtime_domain_oldest_age_seconds{domain="supply_chain_impact"}`, and in
+  the status endpoint's blockage view: a reconciliation fenced behind a live
+  producer lease appears there under the scope's conflict key, and the holder
+  is the `supply_chain_impact` row on that same scope id.
+- **Worry** when
+  `eshu_dp_security_alert_reconciliation_impact_wait_total{outcome="gave_up_unmatched"}`
+  or `{outcome="gave_up_bound_exceeded"}` rises. That is the handler giving up:
+  it wrote `unmatched` decisions and the attempt recorded `succeeded`. The WARN
+  log `security alert reconciliation gave up waiting for impact evidence and
+  wrote unmatched decisions` names the `scope_id`, `generation_id`,
+  `attempt_count`, and `impact_wait_outcome`, and the same attempt's success
+  line carries `sub_signal_impact_wait_gave_up=1`. `gave_up_unmatched` means no impact work
+  was in flight (check whether `supply_chain_impact` dead-lettered for that
+  scope); `gave_up_bound_exceeded` means it was in flight but stuck for over 30
+  minutes.
+- A `failed` execution with the `waiting_for_impact` class is not a normal end
+  of the wait. It means `ESHU_REDUCER_MAX_ATTEMPTS` is 1 or 2, so the queue
   dead-letters before the handler's cap of 3, or the error is a real one. Replay
   the class from [deadletter growth](#symptom-deadletter-growth).
 

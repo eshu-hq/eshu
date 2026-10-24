@@ -26,6 +26,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	producerreadiness "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/producer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -230,7 +231,10 @@ func buildReducerSupplyChainSecurityHandlers(
 		SecurityAlertReconciliationWriter: securityalert.PostgresSecurityAlertReconciliationWriter{
 			DB: database,
 		},
-		SecretsIAMTrustChainEvidenceLoader: factStore,
+		// #8827: the reconciliation waits on its own scope generation's
+		// supply_chain_impact work without spending an attempt.
+		SecurityAlertImpactProducerReadiness: producerreadiness.ImpactStore{DB: database},
+		SecretsIAMTrustChainEvidenceLoader:   factStore,
 		SecretsIAMTrustChainWriter: secretsiam.PostgresSecretsIAMTrustChainWriter{
 			DB: database,
 		},

@@ -22,4 +22,11 @@
 // [RuntimeProducerStatesQuery] half reaches fact_work_items only through
 // fact_work_items_scope_generation_idx, and the [RunsOnIntentStatesQuery] half
 // reaches shared_projection_intents through shared_projection_intents_repo_run_idx.
+//
+// [ImpactStore] is the second implementation (#8827): it answers
+// securityalert.ImpactProducerReadiness, the status counts and newest in-flight
+// last-workable time of the supply_chain_impact work of one scope generation,
+// so a security alert reconciliation waits on its own producer without spending
+// an attempt. It is one aggregate, [ImpactProducerStateQuery], through
+// fact_work_items_scope_generation_idx.
 package producer

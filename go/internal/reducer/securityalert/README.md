@@ -23,6 +23,7 @@ moved out of the flat `internal/reducer` root under issue #6061 and owns the
 | observed-version resolution | `reconciliation_observed_version.go` | resolves and validates the observed installed version against manifest evidence |
 | typed decode | `reconciliation_decode.go` | decodes `security_alert.repository_alert` through the `schemadecode` seam, strict (quarantining) and lenient variants |
 | `SecurityAlertReconciliationHandler` | `reconciliation_handler.go` | the reducer handler: fact loading, dedup, pending-impact deferral, quarantine recording |
+| impact fence | `reconciliation_impact_fence.go` | `resolveImpactWait`: the non-counting wait while the same scope generation's `supply_chain_impact` work is in flight, the counting wait below the handler cap, and the visible give-up at it (#8827) |
 | `SecurityAlertReconciliationDomainDefinition` | `reconciliation_domain.go` | the additive domain registration |
 | `PostgresSecurityAlertReconciliationWriter` | `reconciliation_writer.go` | the batched Postgres fact writer |
 | `SecurityAlertReconciliationStatus` and its constants | `reconciliation_status.go` | the comparison outcome enum |
@@ -44,6 +45,9 @@ manifest-consumption seam" under Gotchas / invariants below.
 | `ManifestConsumptionExtractor` | the injected manifest-matching function type |
 | `SecurityAlertReconciliationHandler` | the reducer handler |
 | `SecurityAlertReconciliationDomainDefinition` | the additive domain registration |
+| `ImpactProducerReadiness` / `ImpactProducerState` | the injected port reporting the same scope generation's `supply_chain_impact` work by status; the Postgres store is `storage/postgres/readiness/producer.ImpactStore` |
+| `ImpactNotReadyFailureClass` | the non-counting failure class of the in-flight wait, enrolled in `nonCountingReducerRetryFailureClasses` |
+| `ImpactWaitDeferredInFlight` / `ImpactWaitGaveUpUnmatched` / `ImpactWaitGaveUpBoundExceeded` | the closed outcome set of `eshu_dp_security_alert_reconciliation_impact_wait_total` |
 | `SecurityAlertReconciliationWriter` / `SecurityAlertReconciliationWrite` / `WriteResult` | the writer interface and its publication I/O |
 | `PostgresSecurityAlertReconciliationWriter` | the Postgres writer implementation |
 | `SecurityAlertReconciliationStatus` and its constants | the comparison outcome enum |
@@ -96,9 +100,41 @@ Facts rejected for a malformed payload feed the shared
 `factdecode.RecordQuarantinedFacts` instead of a family-specific one, and
 the reducer executions that run this handler stay covered by
 `eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`.
-This package registers no instrument of its own.
+The package emits one counter registered in `internal/telemetry`,
+`eshu_dp_security_alert_reconciliation_impact_wait_total{domain,outcome}`, from
+`reconciliation_impact_fence.go` (#8827): `deferred_in_flight`,
+`gave_up_unmatched`, `gave_up_bound_exceeded`. The defer logs at INFO and the
+give-up at WARN with `scope_id`, `generation_id`, and `impact_wait_outcome`; a
+give-up also sets `sub_signal_impact_wait_gave_up` on the success line. See
+[Security Alert Reconciliation Impact Wait](../../../../docs/public/reference/telemetry/security-alert-reconciliation-impact-wait.md).
 
 ## Gotchas / invariants
+
+### The impact fence (#8827)
+
+`supply_chain_impact` and `security_alert_reconciliation` are enqueued from the
+same scope generation and share the default `(scope, scope id)` conflict key.
+That key fences them only while one is claimed or running. While the producer
+is pending or retrying the reconciliation is claimable, so it used to run, spend
+a counting attempt, and give up at attempt 3 before impact existed.
+`resolveImpactWait` asks `ImpactProducerReadiness` for the producer's state:
+
+- in flight and under `crossscope.ProducerReadinessMaxWait` (30 minutes, from
+  the newest row's last-workable time): return `ImpactNotReadyFailureClass`,
+  which the queue exempts from the retry budget;
+- otherwise, below the handler cap of 3 attempts: the counting
+  `security_alert_reconciliation_waiting_for_impact` wait;
+- at the cap: write `unmatched`, record `gave_up_unmatched` or
+  `gave_up_bound_exceeded`, log WARN, and set `sub_signal_impact_wait_gave_up`.
+
+The non-counting class freezes `attempt_count`, so the in-flight wait is
+bounded by ELAPSED TIME only; never compare the attempt count to bound it. A
+probe error is returned as a counting error and is never turned into the
+non-counting class, which would retry forever without surfacing. A nil port
+disables the fence; `TestSecurityAlertReconciliationRegistrationCarriesTheImpactProducerReadinessSeam`
+and the `cmd/reducer` wiring test guard the wire. The producer probe is keyed on
+the intent's own scope and generation, so impact evidence produced by another
+scope's impact run is not waited on.
 
 ### The manifest-consumption seam
 
