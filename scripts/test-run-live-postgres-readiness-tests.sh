@@ -61,11 +61,7 @@ if [[ -f "${ESHU_FAKE_DIR}/${key}.exit" ]]; then exit "$(cat "${ESHU_FAKE_DIR}/$
 exit 0
 EOF
 chmod +x "${seed_dir}/bin/go"
-# The fake env contract below derives from the same generated env lists the
-# runner requires (scripts/lib/live_postgres_readiness_env.sh); do not
-# hand-edit that file. A DSN whose _DISPOSABLE twin is enrolled expands to
-# both names; a twinless or reader DSN passes through as named (those suites
-# isolate their schemas instead of gating on a disposable-database flag).
+# The fake environment follows generated DSN, disposable, and opt-in lists.
 # shellcheck source=lib/live_postgres_readiness_env.sh
 source "${repo_root}/scripts/lib/live_postgres_readiness_env.sh"
 for var in "${READINESS_DSN_VARS[@]}"; do
@@ -80,6 +76,9 @@ for var in "${READINESS_DSN_VARS[@]}"; do
       fi
       ;;
   esac
+done
+for var in "${READINESS_OPT_IN_VARS[@]}"; do
+  printf '%s\n' "${var}" >>"${fake}/envs"
 done
 for var in ESHU_NEO4J_URI ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD \
   ESHU_GRAPH_BACKEND; do
@@ -276,15 +275,17 @@ out="$(run_runner)" && fail "tailed failure passed"
 [[ "${out}" == *"SEEDED-FAILURE-MARKER"* ]] || fail "failure tail not printed: ${out}"
 [[ "${out}" != *"early line 0"* ]] || fail "early noise crowded out the failure: ${out}"
 
-# A missing DSN or opt-in names the variable before any package runs. The
-# Neo4j variables are exempt: without a backend the runner degrades (see
-# below) instead of dying.
+# Missing required env fails before package execution; Neo4j may degrade.
 while read -r var; do
   out="$(env -u "${var}" bash "${runner}" 2>&1)" && fail "unset ${var} passed"
   [[ "${out}" == *"${var}"* ]] || fail "unset ${var} not named: ${out}"
 done < <(rg -v '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs")
 out="$(env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "opt-in 0 passed"
 [[ "${out}" == *"ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE"* ]] || fail "opt-in 0 not named: ${out}"
+out="$(env -u ESHU_IAC_INVENTORY_LIVE bash "${runner}" 2>&1)" && fail "missing IaC opt-in passed"
+[[ "${out}" == *"ESHU_IAC_INVENTORY_LIVE"* ]] || fail "missing IaC opt-in not named: ${out}"
+out="$(env ESHU_IAC_INVENTORY_LIVE=0 bash "${runner}" 2>&1)" && fail "wrong IaC opt-in passed"
+[[ "${out}" == *"ESHU_IAC_INVENTORY_LIVE"* ]] || fail "wrong IaC opt-in not named: ${out}"
 
 # Without a Neo4j backend the runner degrades: the graph proofs are excused
 # (absence or skip passes, a failure still fails) and the summary names

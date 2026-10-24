@@ -101,6 +101,7 @@ gates:
     triggers:
       - "go/internal/query/supply/chain/impact/**"
       - "go/internal/query/admin/**"
+      - "go/internal/query/iac/**"
       - "go/internal/query/code_topic*.go"
       - "go/internal/query/content_reader_code_topic.go"
       - "go/internal/query/content_reader_search_page.go"
@@ -514,20 +515,7 @@ gates:
     purpose: "Checks that collector content-entity buckets, projector label maps, and the drift ledger all agree with each other and the code."
     tier: pre-pr
     blocking: true
-    # Triggers name all three source files the gate reads, not just the package
-    # it runs from. A bucket added to the collector's twin or a label added to
-    # the projector map must select this gate — those are exactly the edits it
-    # exists to catch, and triggering only on the shape package would leave the
-    # two most likely edits unguarded.
-    #
-    # The -run list is hand-maintained, so a new gate test in that package is
-    # not run here until it is named. TestEveryProjectorLabelHasASource (#6206)
-    # walks projector -> bucket, the reverse of
-    # TestContentEntityLabelsHaveProjectorLabels, and catches a registry entry
-    # no bucket can ever feed. It ran only incidentally, under
-    # race-graph-writes' unfiltered ./internal/content/shape/... , until it was
-    # added below; one narrowing of that race gate's package list and the
-    # coverage would have vanished with nothing red.
+    # Trigger both map sources; the -run list includes reverse projector-to-bucket coverage (#6206).
     triggers:
       - "go/internal/content/shape/**"
       - "go/internal/collector/repo/git/snapshot_entity_buckets.go"

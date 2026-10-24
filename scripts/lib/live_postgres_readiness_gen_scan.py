@@ -5,7 +5,7 @@ The marker block (after the `package` clause of an enrolled live test):
     //eshu:readiness live-postgres-readiness
     //eshu:readiness:reason <verbatim ledger reason prose, no double quotes:
         the generated YAML scalar is double-quoted and unescaped>
-    //eshu:readiness:env <space-separated ESHU_* DSN/DISPOSABLE vars>
+    //eshu:readiness:env <space-separated ESHU_* DSN/DISPOSABLE vars and the IaC opt-in>
     //eshu:readiness:env-optional <vars the workflow sets but the runner
         does not require> (zero or one line; the completed-index proofs)
     //eshu:readiness:helper <repo-relative helper file> (consumer only)
@@ -31,7 +31,8 @@ HELPER_REASON = "//eshu:readiness-helper:reason "
 VAR_PATTERN = re.compile(r"ESHU_[A-Z0-9_]+\Z")
 TEST_DECLARATION = re.compile(r"^func (Test\w+)\(", flags=re.MULTILINE)
 BUILD_TAG = re.compile(r"^//go:build\s+(.+)$", flags=re.MULTILINE)
-ENV_LITERAL = re.compile(r'"(ESHU_[A-Z0-9_]*(?:_DSN|_DISPOSABLE))"')
+ENV_LITERAL = re.compile(
+    r'"(ESHU_[A-Z0-9_]*(?:_DSN|_DISPOSABLE)|ESHU_IAC_INVENTORY_LIVE)"')
 
 # ESHU_*_DSN/_DISPOSABLE literals an enrolled file may carry without
 # declaring them: tuning knobs and reader/snapshot handles the suite never

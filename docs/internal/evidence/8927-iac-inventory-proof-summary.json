@@ -1,0 +1,53 @@
+{
+  "head": "b3ea1a48a128e93c2b44c73f6ede33583f346a77",
+  "image_reference": "ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873",
+  "image_id": "sha256:c293117fcecda7344b5480222e813b9f673d7abd69b1dd95eff239b768b04f59",
+  "postgres_version": "postgres (PostgreSQL) 18.6",
+  "go_version": "go version go1.26.10 linux/amd64",
+  "source_sha256": {
+    "go/internal/query/iac/inventory_postgres_live_test.go": "f41f00d03b4529a58fd7dba8eef30cccff002f314708a7529830aa39d553a226",
+    "go/internal/query/iac/inventory_postgres_read_model_live_test.go": "c853e4255d23a8d00ef0e129dd39f6765f6709f8bb4b0f7f306a3ff34dbaec78"
+  },
+  "command": [
+    "go",
+    "test",
+    "-json",
+    "-race",
+    "-p",
+    "1",
+    "-count=1",
+    "-timeout=4m",
+    "-run",
+    "^(TestPostgresIaCInventoryStoreLive|TestPostgresIaCInventoryReadModelLive|TestPostgresIaCInventoryFailedGenerationServesLastProjected)$",
+    "./internal/query/iac"
+  ],
+  "exit_code": 0,
+  "test_wall_seconds": 121.52890283893794,
+  "events": {
+    "TestPostgresIaCInventoryStoreLive": {
+      "run": 1,
+      "pass": 1,
+      "skip": 0,
+      "fail": 0
+    },
+    "TestPostgresIaCInventoryReadModelLive": {
+      "run": 1,
+      "pass": 1,
+      "skip": 0,
+      "fail": 0
+    },
+    "TestPostgresIaCInventoryFailedGenerationServesLastProjected": {
+      "run": 1,
+      "pass": 1,
+      "skip": 0,
+      "fail": 0
+    }
+  },
+  "package_pass": 1,
+  "unexpected_tests": [],
+  "schemas_before": [],
+  "schemas_after": [],
+  "proof_ok": true,
+  "cleanup_exit_code": 0,
+  "total_wall_seconds": 124.89772394299507
+}
