@@ -154,16 +154,20 @@ recent shipped work grouped by feature area.
 ### Storage: security-alert empty-answer read no longer scans target history
 
 - **Latest-work-item index for the collection-state read**
-  ([#8840](https://github.com/eshu-hq/eshu/issues/8840)). Migration 233 adds
-  `workflow_work_items_collector_scope_updated_idx` on `(collector_kind,
-  scope_id, updated_at DESC, work_item_id ASC)`, built `CONCURRENTLY`. The
-  security-alert empty-answer read used to scan and sort every work item a
-  target ever had, so a long history could push it past its 1 s probe
-  deadline. It is now a one-entry index probe per target. On 561,120 work
-  items, a 120,000-item target went from 26.6 ms (5,038 buffers) to 0.03 ms
-  (10 buffers), and 50 targets from 94.1 ms to 0.66 ms. The index is 36 MB and
-  adds about 10% WAL per work-item insert, claim, and completion. Evidence:
-  `docs/internal/evidence/8840-security-alert-latest-work-item-index.md`.
+  ([#8840](https://github.com/eshu-hq/eshu/issues/8840)). Migration 231 adds
+  `workflow_work_items_security_alert_scope_updated_idx` on `(scope_id,
+  updated_at DESC, work_item_id ASC) WHERE collector_kind =
+  'security_alert'`, built `CONCURRENTLY`. The security-alert empty-answer
+  read used to scan and sort every work item a target ever had, so a long
+  history could push it past its 1 s probe deadline. It is now a one-entry
+  index-only probe per target. On 561,120 work items, a 120,000-item target
+  went from 22 to 36 ms to about 0.1 ms (13 or 14 buffers), and 50 targets
+  from 46 to 64 ms to about 1 ms. The index is partial so the work-item
+  retention prune keeps its plan; a full key made that prune 8x to 13x slower
+  on targets that recovered from a run of terminal failures.
+  Worst case, every write a `security_alert` row: about 9% more WAL per
+  insert, claim, and completion at 4 and 8 clients.
+  Evidence: `docs/internal/evidence/8840-security-alert-latest-work-item-index.md`.
 
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
