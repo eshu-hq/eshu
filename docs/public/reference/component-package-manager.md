@@ -109,7 +109,7 @@ findings block publication or hosted activation. `--mode compose` is accepted
 as a reserved mode label, but this slice still requires explicit fixtures; it
 is not remote Docker Compose proof.
 
-Uninstall fails while a component has active instances.
+Uninstall fails while a component has active instances. `enable` rejects a padded component ID, `--instance`, or `--mode`; `disable` matches the stored values exactly, so it still clears a padded instance an older build recorded.
 
 Producer-grant issuance (`grant`, `grants`, `revoke-grant`) authorizes
 first-party producers to emit core-owned fact kinds. `inspect`, `verify`, and
@@ -433,7 +433,7 @@ Required manifest fields:
 | --- | --- |
 | `apiVersion` | Must be `eshu.dev/v1alpha1`. |
 | `kind` | Must be `ComponentPackage`. |
-| `metadata.id` / `metadata.publisher` | Lowercase identifier. Revocation and allowlists match these values exactly. |
+| `metadata.id` / `metadata.publisher` | Lowercase identifier with no leading or trailing whitespace; padded values fail validation, never trimmed. Revocation and allowlists match them exactly. |
 | `metadata.version` | Semantic version. |
 | `spec.compatibleCore` | Core version range. Release builds enforce it; local `dev` builds parse it but skip release comparison. |
 | `spec.componentType` | Currently only `collector`. |
