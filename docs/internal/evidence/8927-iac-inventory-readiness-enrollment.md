@@ -10,7 +10,7 @@ Each named root had one run and one pass, with zero skips or failures; the packa
 
 The fresh database had no IaC proof schemas before or after the run, and the owned container was removed. A compact proof receipt is committed as `docs/internal/evidence/8927-iac-inventory-proof-summary.json`; raw local JSON events and the bounded runner receipt are retained under `/tmp/eshu-7533-drive/8927-baseline/`. Source SHA256 values at the baseline are `f41f00d03b4529a58fd7dba8eef30cccff002f314708a7529830aa39d553a226` and `c853e4255d23a8d00ef0e129dd39f6765f6709f8bb4b0f7f306a3ff34dbaec78`. Removing only the new marker lines from each current test file yields those baseline bytes exactly, including fixture, SQL, assertions, and blank lines; the check is retained in `/tmp/eshu-7533-drive/8927-bodyhash-carryforward.json`.
 
-On this branch the generated ledger has 896 classified live files. The two IaC files move from legacy `scheduled` to `postgres_ci`, so the branch's candidate exemption policy is 381 paths, SHA256 `5381c1ab3898157441a63dda4000de4b51edec70b0eda84a3ecf7562f44005cb`, derived from main's 383. This count and digest must be regenerated after any integration with sibling #7533 branches.
+On this branch the generated ledger has 902 classified live files. The two IaC files move from legacy `scheduled` to `postgres_ci`, so the branch's candidate exemption policy is 381 paths, SHA256 `5381c1ab3898157441a63dda4000de4b51edec70b0eda84a3ecf7562f44005cb`, derived from main's 383. This count and digest must be regenerated after any integration with sibling #7533 branches.
 
 ## Remaining acceptance
 
