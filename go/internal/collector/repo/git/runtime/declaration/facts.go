@@ -28,9 +28,10 @@ func NoteRuntimeDeclarationCandidate(candidates map[string]string, relativePath,
 // runtime_declaration.version fact per (line, token) of every accumulated pin
 // file, in path order so the stream is deterministic. A no-op when candidates
 // is empty. Each pin file is independent, so a delta generation re-emits only
-// the pin files it changed. A file over runtimedeclaration.MaxTokensPerFile
-// emits nothing and is reported through onSkip (relative path and token
-// count); onSkip may be nil.
+// the pin files it changed. A file over runtimedeclaration.MaxBytesPerFile or
+// runtimedeclaration.MaxTokensPerFile emits nothing and is reported through
+// onSkip (relative path and the runtimedeclaration.Skip saying which cap
+// tripped); onSkip may be nil.
 func EmitRuntimeDeclarationFactsForCandidates(
 	w model.FactStreamWriter,
 	repoID string,
@@ -38,7 +39,7 @@ func EmitRuntimeDeclarationFactsForCandidates(
 	generationID string,
 	observedAt time.Time,
 	candidates map[string]string,
-	onSkip func(relativePath string, tokenCount int),
+	onSkip func(relativePath string, skip runtimedeclaration.Skip),
 ) {
 	if len(candidates) == 0 {
 		return
@@ -57,9 +58,9 @@ func EmitRuntimeDeclarationFactsForCandidates(
 			SourceURI:           relativePath,
 			CollectorInstanceID: &instanceID,
 		}
-		envelopes, skippedTokens := runtimedeclaration.EmitFile(ctx, repoID, relativePath, candidates[relativePath])
-		if skippedTokens > 0 && onSkip != nil {
-			onSkip(relativePath, skippedTokens)
+		envelopes, skip := runtimedeclaration.EmitFile(ctx, repoID, relativePath, candidates[relativePath])
+		if skip.Skipped() && onSkip != nil {
+			onSkip(relativePath, skip)
 		}
 		for _, envelope := range envelopes {
 			w.Send(envelope)

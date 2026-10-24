@@ -92,11 +92,12 @@ func TestEmitKeepsAPlaceholderSpanAsOneToken(t *testing.T) {
 
 // TestEmitPlaceholderScanIsLinear proves a hostile line of unclosed openers
 // stays one token and finishes in a bounded number of steps (the test asserts
-// the result shape, not wall time).
+// the result shape, not wall time). The body is 63,000 bytes: the largest
+// hostile line that still fits under MaxBytesPerFile.
 func TestEmitPlaceholderScanIsLinear(t *testing.T) {
 	t.Parallel()
 
-	body := strings.Repeat("{{ ", 50000) + "\n"
+	body := strings.Repeat("{{ ", 21000) + "\n"
 	got := emitDecoded(t, ".nvmrc", body)
 	if len(got) != 1 || got[0].SpecKind != SpecKindUnresolved {
 		t.Fatalf("hostile opener line emitted %d facts, want 1 unresolved", len(got))

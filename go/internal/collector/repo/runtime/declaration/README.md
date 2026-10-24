@@ -30,10 +30,14 @@ land.
   declaring directory in the contract's form (`.` at the repository root).
 - `Emit` — one pin file body to fact envelopes, built from the typed
   `runtimedeclarationv1.Version` through `factschema.EncodeRuntimeDeclarationVersion`.
-- `EmitFile` — `Emit` plus the cap signal: a file over `MaxTokensPerFile`
-  (1,024 tokens) emits nothing and returns its token count so the caller can
-  count and log the skip. A prefix is never emitted, because it would pass for
-  the whole file.
+- `EmitFile` — `Emit` plus the cap signal: a file over `MaxBytesPerFile`
+  (64 KiB) or `MaxTokensPerFile` (1,024 tokens) emits nothing and returns a
+  `Skip` (reason, byte size, token count) so the caller can count and log the
+  skip. A prefix is never emitted, because it would pass for the whole file.
+  The byte cap is checked before any parsing, and past the token cap the
+  parser counts without storing, so memory is bounded by the caps and the
+  longest line, not by the body. The byte cap also bounds one line and one
+  `raw_spec`.
 - `CollectorKind`, `FixtureContext` — envelope provenance.
 
 ## Contract rules
@@ -88,14 +92,24 @@ not as a drive-by fix.
   component stays nil but the components after it are still read.
 - A `#` after a space inside a placeholder span is cut as a comment before
   tokenising, so `{{ a # b }}` reads as the unterminated `{{ a`.
+- `raw_spec` is verbatim only for valid UTF-8. A fact payload is JSON, which
+  cannot carry an invalid byte, so each invalid UTF-8 byte in a pin file is
+  decoded to U+FFFD in `raw_spec`.
+- A file over 64 KiB is skipped whole even when it holds one token, and a
+  file under it with more than 1,024 tokens is skipped whole too; neither
+  emits a prefix.
 
 ## Telemetry
 
 The package is pure parsing and logs nothing itself. The fact stream counts the
 emitted envelopes through the shared writer. A file over the token cap emits
-nothing, and the Git collector logs WARN `git_runtime_declaration_file_skipped`
-(`reason=token_cap_exceeded`, `relative_path`, `token_count`, `token_cap`); it
-is a log field only, with no metric.
+nothing, and the Git collector logs WARN `git_runtime_declaration_file_skipped`.
+Its fields are `reason` (`byte_cap_exceeded` or `token_cap_exceeded`),
+`repository_id`, `scope_id`, `generation_id`, `relative_path` and `byte_size`,
+plus `byte_cap` for a byte-cap skip or `token_count` and `token_cap` for a
+token-cap skip. A byte-cap skip has no `token_count`, because the file is never
+tokenized. The log never carries file content. It is a log field only, with no
+metric.
 
 ## Verification
 

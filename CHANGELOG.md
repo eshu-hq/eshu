@@ -46,6 +46,11 @@ recent shipped work grouped by feature area.
   minor and patch for exact and partial specs. An alias such as `lts/iron` or
   `system`, or a placeholder such as `${X}`, is reported as written and is never
   resolved or guessed. `.npmrc` and the other credential carriers emit nothing.
+- **Oversized pin files are skipped, not parsed.** A pin file over 64 KiB, or
+  with more than 1,024 tokens, emits no fact and logs WARN
+  `git_runtime_declaration_file_skipped` with the reason, sizes and caps. The
+  byte cap is checked before any parsing, so a 10 MB hostile file costs no
+  allocation (1.87 GB before).
 - **Contract only, nothing reads it yet.** The kind is registered additively as
   schema 1.0.0 and disclosed unconsumed; the graph projection (#8816), the
   query tool (#8817) and the `package.json`, `go.mod`, Dockerfile and CI sources

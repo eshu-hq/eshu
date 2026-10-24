@@ -12,11 +12,12 @@ No-Regression Evidence:
 - **After:** each content file pays one extra base-name map lookup
   (`NoteRuntimeDeclarationCandidate`). Only the eleven admitted pin names pay
   more, and a repository carries a handful of them. The per-file token scan
-  (`splitTokens`, which keeps a `{{ ... }}` placeholder as one token) is
-  compared with `strings.Fields` through `go test -overlay`: both give 873
-  allocs/op and 51.7 to 52.0 KB/op on `BenchmarkEmitToolVersions`, so the
-  scan adds no allocation. The ns/op figures moved with host load (load
-  average 63), not with the scan, so they are not a speed comparison.
+  (`eachToken`, which keeps a `{{ ... }}` placeholder as one token and hands
+  out substrings without a slice per line) replaced `splitTokens` and the
+  line `strings.Split`. On `BenchmarkEmitToolVersions` it gives 866 allocs/op
+  and 50.9 to 51.2 KB/op, against 873 allocs/op and 51.7 to 52.0 KB/op before,
+  so the scan adds no allocation. ns/op figures from the earlier run moved with
+  host load (load average 63), so they are not a speed comparison.
 - **Backend and hardware:** no database or graph backend is touched. Go 1.26.10
   on linux/arm64, 16 cores, `go test -bench` with `-count=3`.
 - **Input shape and measurement:**
@@ -24,9 +25,10 @@ No-Regression Evidence:
   | Benchmark | Input | Result (3 runs) |
   |---|---|---|
   | `BenchmarkNoteRuntimeDeclarationCandidateNonPin` | 1,024 mixed non-pin paths | 17.17 to 17.28 ns/op, 0 B/op, 0 allocs/op |
-  | `BenchmarkEmitToolVersions` | one `.tool-versions` file, 6 lines, 8 tokens | 873 allocs/op, about 51.7 to 52.0 KB/op, 8 envelopes; 71,751 to 136,274 ns/op across two interleaved runs on a host at load average 63 |
-  | `BenchmarkEmitAtTokenCap` | one `.tool-versions` file at the 1,024-token cap | 120,400 allocs/op, about 6.9 MB/op, 1,024 envelopes; 25.0 to 30.7 ms/op under the same load |
-  | `BenchmarkEmitFarOverTokenCap` | one `.tool-versions` file of 100,000 tokens, skipped | 31,282 allocs/op, about 40.7 MB/op, 0 envelopes; 42.1 to 55.1 ms/op under the same load |
+  | `BenchmarkEmitToolVersions` | one `.tool-versions` file, 6 lines, 8 tokens | 866 allocs/op, 50.9 to 51.2 KB/op, 8 envelopes; 69.4 to 72.6 us/op (load average 15) |
+  | `BenchmarkEmitAtTokenCap` | one `.tool-versions` file at the 1,024-token cap | 120,153 to 120,158 allocs/op, about 6.9 MB/op, 1,024 envelopes; 10.6 to 11.5 ms/op (load average 15) |
+  | `BenchmarkEmitOverTokenCapUnderByteCap` | one `.tool-versions` file of 60 KiB and about 30,000 one-byte tokens, skipped (count only) | 1,587 allocs/op, 171,200 B/op, 0 envelopes; 0.68 ms/op |
+  | `BenchmarkEmitOverByteCap` | one `.tool-versions` file of 10 MiB, skipped before parsing | 0 allocs/op, 0 B/op, 0 envelopes; about 27 ns/op |
 
 - **Terminal counts:** the stream tests in
   `go/internal/collector/repo/git/runtime_declaration_facts_test.go` assert the
@@ -35,27 +37,56 @@ No-Regression Evidence:
   0 facts for a repository with no pin file.
 - **Why it is safe:** the emitter is pure parsing over bodies the stream has
   already read, so it adds no file read, no query, no lock, no queue write and
-  no graph write. Pin files are a few bytes each.
+  no graph write. Real pin files are small: the largest realistic one is a
+  `.tool-versions` at the token cap, about 10 KiB. A hostile repository can
+  commit a pin file of any size, and nothing upstream bounds it (the stream
+  reads it with `os.ReadFile`), so the emitter bounds its own cost with the
+  byte cap below.
   Candidate bodies are kept in a third map beside the CODEOWNERS and
   `.gitmodules` maps (`runtimeDeclarationCandidates` in
   `git/fact_builder.go`).
   The emission order is sorted by path, so the stream stays deterministic.
   A delta generation re-emits only the pin files it changed.
 
-**Per-file token cap:** a pin file with more than 1,024 tokens
-(`MaxTokensPerFile`) emits no fact, because a prefix would pass for the whole
-file. The cap bounds output; it is not a claim about real files. The only pin
-files on the evidence host are 11 `.nvmrc` fixtures of one token each, so no
-larger real corpus backed the number. A 100,000-token file costs one parse
-(about 40.7 MB transient, 42 to 55 ms under load) and then emits nothing;
-before the cap it emitted 100,000 facts.
+**Per-file caps:** a pin file over 64 KiB (`MaxBytesPerFile`) or with more
+than 1,024 tokens (`MaxTokensPerFile`) emits no fact, because a prefix would
+pass for the whole file. The caps bound cost and output; they are not a claim
+about real files. The only pin files on the evidence host are 11 `.nvmrc`
+fixtures of one token each, so no larger real corpus backed the numbers. The
+byte cap is 64 KiB because the largest realistic pin file, a `.tool-versions`
+at the token cap, is about 10 KiB, so 64 KiB is six times that and one eighth
+of the documentation body cap (512 KiB). It is safe because a skipped file is
+reported by a WARN log and a legitimate pin file is far below it.
+
+Review finding P2-A measured the cost before the byte cap, with one `EmitFile`
+call on a generated 10 MiB `.tool-versions` (about 5,000,000 one-byte tokens),
+then skipped by the token cap:
+
+| Case | Before | After |
+|---|---|---|
+| 10 MiB file, `TotalAlloc` for one call | 1,866,598,056 B, 0.84 s | 0 B |
+| 60 KiB file, about 30,000 tokens, `TotalAlloc` for one call | 9,787,968 B | 171,216 B |
+| 100,000-token file (800 KB) | 31,282 allocs, about 40.7 MB, one full parse | 0 allocs, 0 B, byte cap |
+
+Before, `parse` built a declaration for every token before the token cap was
+checked, about 178 times the body size. After, the byte cap is the first
+check, and past 1,024 tokens the parser counts without storing, with no slice
+per line, so the exact `token_count` stays in the log. One token or one line is
+bounded by the file cap, because no `raw_spec` can be longer than the file that
+holds it. The tests assert allocation ceilings, never wall time; each fails
+when its fix is reverted (byte cap check disabled: four tests fail; the
+count-only sink reverted to store every token: the 60 KiB allocation test
+fails). The candidate map still holds each pin body until emission, as it did
+before; those bodies are already in memory from the content read.
 
 Observability Evidence: the new facts flow through the shared fact stream
 writer, so the existing per-generation fact count covers them. The cap skip is
 the one new signal: the stream logs WARN `git_runtime_declaration_file_skipped`
-with `reason=token_cap_exceeded`, `repository_id`, `scope_id`, `generation_id`,
-`relative_path`, `token_count` and `token_cap`
-(`go/internal/collector/repo/git/snapshot_native_helpers.go`). It is a log
+with `reason` (`byte_cap_exceeded` or `token_cap_exceeded`), `repository_id`,
+`scope_id`, `generation_id`, `relative_path` and `byte_size`, plus `byte_cap`
+for a byte-cap skip or `token_count` and `token_cap` for a token-cap skip
+(`go/internal/collector/repo/git/snapshot_native_helpers.go`). It never logs
+file content. It is a log
 only: no metric, no label and no closed reason enum change. An operator who
 wants to see a repository's declarations reads the fact store by kind
 `runtime_declaration.version`; an operator who sees a pin file with no facts

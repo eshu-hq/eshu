@@ -30,13 +30,15 @@ func toolVersionsWithTokens(n int) string {
 func TestEmitFileCapsTokensPerFile(t *testing.T) {
 	t.Parallel()
 
-	atCap, skipped := EmitFile(testContext(".tool-versions"), "repo-1", ".tool-versions", toolVersionsWithTokens(MaxTokensPerFile))
-	if len(atCap) != MaxTokensPerFile || skipped != 0 {
-		t.Fatalf("at cap: %d envelopes, skipped %d; want %d, 0", len(atCap), skipped, MaxTokensPerFile)
+	atCap, skip := EmitFile(testContext(".tool-versions"), "repo-1", ".tool-versions", toolVersionsWithTokens(MaxTokensPerFile))
+	if len(atCap) != MaxTokensPerFile || skip.Skipped() {
+		t.Fatalf("at cap: %d envelopes, skip %+v; want %d, none", len(atCap), skip, MaxTokensPerFile)
 	}
-	over, skipped := EmitFile(testContext(".tool-versions"), "repo-1", ".tool-versions", toolVersionsWithTokens(MaxTokensPerFile+1))
-	if len(over) != 0 || skipped != MaxTokensPerFile+1 {
-		t.Fatalf("over cap: %d envelopes, skipped %d; want 0, %d", len(over), skipped, MaxTokensPerFile+1)
+	body := toolVersionsWithTokens(MaxTokensPerFile + 1)
+	over, skip := EmitFile(testContext(".tool-versions"), "repo-1", ".tool-versions", body)
+	want := Skip{Reason: SkipReasonTokenCap, ByteSize: len(body), TokenCount: MaxTokensPerFile + 1}
+	if len(over) != 0 || skip != want {
+		t.Fatalf("over cap: %d envelopes, skip %+v; want 0, %+v", len(over), skip, want)
 	}
 }
 
@@ -47,5 +49,18 @@ func TestEmitDropsAFileOverTheTokenCap(t *testing.T) {
 
 	if got := Emit(testContext(".tool-versions"), "repo-1", ".tool-versions", toolVersionsWithTokens(MaxTokensPerFile+1)); len(got) != 0 {
 		t.Fatalf("Emit over cap = %d envelopes, want 0", len(got))
+	}
+}
+
+// TestEmitDecodesInvalidUTF8ToTheReplacementRune pins a documented behaviour:
+// the payload is JSON, which cannot carry an invalid byte, so an invalid UTF-8
+// byte in a pin file reaches raw_spec as U+FFFD. raw_spec is verbatim only for
+// valid UTF-8.
+func TestEmitDecodesInvalidUTF8ToTheReplacementRune(t *testing.T) {
+	t.Parallel()
+
+	got := emitDecoded(t, ".nvmrc", "20\xff1\n")
+	if len(got) != 1 || got[0].RawSpec != "20�1" {
+		t.Fatalf("raw_spec = %+v, want one fact with %q", got, "20�1")
 	}
 }

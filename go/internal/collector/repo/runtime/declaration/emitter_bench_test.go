@@ -34,16 +34,33 @@ func BenchmarkEmitAtTokenCap(b *testing.B) {
 	}
 }
 
-// BenchmarkEmitFarOverTokenCap measures the skip path for a 100,000-token file:
-// the file is parsed once, then dropped without building any envelope.
-func BenchmarkEmitFarOverTokenCap(b *testing.B) {
-	body := toolVersionsWithTokens(100000)
+// BenchmarkEmitOverTokenCapUnderByteCap measures the count-only skip path: a
+// ~60 KB file of ~30000 one-byte tokens is over MaxTokensPerFile but under
+// MaxBytesPerFile, so it is tokenized and counted but no declaration past the
+// cap is stored. allocs/op and B/op stay flat in the token count.
+func BenchmarkEmitOverTokenCapUnderByteCap(b *testing.B) {
+	body := hostileToolVersions(60 << 10)
 	ctx := testContext(".tool-versions")
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if got, skipped := EmitFile(ctx, "repo-1", ".tool-versions", body); len(got) != 0 || skipped != 100000 {
-			b.Fatalf("EmitFile = %d envelopes, skipped %d", len(got), skipped)
+		if got, skip := EmitFile(ctx, "repo-1", ".tool-versions", body); len(got) != 0 || skip.Reason != SkipReasonTokenCap {
+			b.Fatalf("EmitFile = %d envelopes, skip %+v", len(got), skip)
+		}
+	}
+}
+
+// BenchmarkEmitOverByteCap measures the byte-cap skip path for a 10 MB hostile
+// file: the length check rejects it before any parsing, so B/op and allocs/op
+// are zero regardless of the body size.
+func BenchmarkEmitOverByteCap(b *testing.B) {
+	body := hostileToolVersions(10 << 20)
+	ctx := testContext(".tool-versions")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if got, skip := EmitFile(ctx, "repo-1", ".tool-versions", body); len(got) != 0 || skip.Reason != SkipReasonByteCap {
+			b.Fatalf("EmitFile = %d envelopes, skip %+v", len(got), skip)
 		}
 	}
 }

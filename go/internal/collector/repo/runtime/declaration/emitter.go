@@ -28,37 +28,77 @@ var runtimeVersionPrefix = map[string]string{
 // the caller is told how many tokens it held.
 const MaxTokensPerFile = 1024
 
+// MaxBytesPerFile bounds the size of one pin file body. It is checked before
+// any parsing, so a hostile or generated file costs nothing proportional to its
+// size before the skip. The largest realistic pin file is a .tool-versions at
+// MaxTokensPerFile tokens, about 10 KiB; 64 KiB leaves six times that headroom
+// and is still small next to the documentation body cap (512 KiB). The bound
+// also covers a single line and a single token: no raw_spec can be longer than
+// the file that holds it. A file over the cap is skipped whole.
+const MaxBytesPerFile = 64 * 1024
+
+// Skip reasons reported by EmitFile. They are closed values for a log field,
+// never a metric label.
+const (
+	// SkipReasonByteCap marks a file larger than MaxBytesPerFile.
+	SkipReasonByteCap = "byte_cap_exceeded"
+	// SkipReasonTokenCap marks a file with more than MaxTokensPerFile tokens.
+	SkipReasonTokenCap = "token_cap_exceeded"
+)
+
+// Skip describes why EmitFile emitted nothing for an admitted pin file. The
+// zero value means the file was not skipped. It carries sizes and counts only,
+// never file content.
+type Skip struct {
+	// Reason is SkipReasonByteCap or SkipReasonTokenCap; empty when not skipped.
+	Reason string
+	// ByteSize is the body size in bytes.
+	ByteSize int
+	// TokenCount is the exact number of tokens the file holds. It is set for
+	// SkipReasonTokenCap only: a byte-cap skip never tokenizes the file.
+	TokenCount int
+}
+
+// Skipped reports whether the file was skipped.
+func (s Skip) Skipped() bool { return s.Reason != "" }
+
 // Emit reads one version-pin file body and returns one
 // "runtime_declaration.version" fact envelope per (line, token). relativePath
 // is the repository-relative path of the file. It returns nil when the path is
 // not an admitted pin file, so a credential carrier such as .npmrc never emits,
-// when the body holds no declaration, and when the file is over
-// MaxTokensPerFile. Use EmitFile to learn about a cap skip.
+// when the body holds no declaration, and when the file is over MaxBytesPerFile
+// or MaxTokensPerFile. Use EmitFile to learn about a cap skip.
 func Emit(ctx FixtureContext, repoID, relativePath, body string) []facts.Envelope {
 	envelopes, _ := EmitFile(ctx, repoID, relativePath, body)
 	return envelopes
 }
 
-// EmitFile is Emit plus the cap signal: when the file holds more than
-// MaxTokensPerFile tokens it emits nothing and returns the token count as
-// skippedTokens (0 otherwise), so the caller can count and log the skip.
+// EmitFile is Emit plus the cap signal: when the file is over MaxBytesPerFile
+// or holds more than MaxTokensPerFile tokens it emits nothing and returns a
+// Skip saying which cap tripped, so the caller can count and log the skip.
+// The byte cap is checked first, before any parsing; past the token cap the
+// parser counts without storing, so memory stays bounded by the cap and the
+// longest line, not by the size of the body.
 //
 // Each payload is built from the typed runtimedeclarationv1.Version through
 // factschema.EncodeRuntimeDeclarationVersion (Contract System v1 §3.1), never a
 // hand-built map. A token that fails to encode is skipped rather than emitted
 // malformed; this cannot happen in practice since every field is a plain
 // string, integer or boolean.
-func EmitFile(ctx FixtureContext, repoID, relativePath, body string) (envelopes []facts.Envelope, skippedTokens int) {
+func EmitFile(ctx FixtureContext, repoID, relativePath, body string) (envelopes []facts.Envelope, skip Skip) {
 	sourceKind, ok := SourceKindForPath(relativePath)
 	if !ok {
-		return nil, 0
+		return nil, Skip{}
 	}
-	declarations := parse(sourceKind, body)
-	if len(declarations) == 0 {
-		return nil, 0
+	if len(body) > MaxBytesPerFile {
+		return nil, Skip{Reason: SkipReasonByteCap, ByteSize: len(body)}
 	}
-	if len(declarations) > MaxTokensPerFile {
-		return nil, len(declarations)
+	declarations, total := parse(sourceKind, body, MaxTokensPerFile)
+	if total == 0 {
+		return nil, Skip{}
+	}
+	if total > MaxTokensPerFile {
+		return nil, Skip{Reason: SkipReasonTokenCap, ByteSize: len(body), TokenCount: total}
 	}
 	scopeDir := ScopeDir(relativePath)
 	envelopes = make([]facts.Envelope, 0, len(declarations))
@@ -90,7 +130,7 @@ func EmitFile(ctx FixtureContext, repoID, relativePath, body string) (envelopes 
 		})
 		envelopes = append(envelopes, newEnvelope(ctx, stableKey, relativePath, payload))
 	}
-	return envelopes, 0
+	return envelopes, Skip{}
 }
 
 // stripRuntimePrefix drops a leading runtime label such as "ruby-" or "go" when

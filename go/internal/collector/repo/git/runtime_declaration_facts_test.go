@@ -187,10 +187,56 @@ func TestStreamFactsSkipsAPinFileOverTheTokenCapAndLogsIt(t *testing.T) {
 		"level=WARN", "msg=git_runtime_declaration_file_skipped", "relative_path=big/.tool-versions",
 		"token_count=" + strconv.Itoa(runtimedeclaration.MaxTokensPerFile+1),
 		"token_cap=" + strconv.Itoa(runtimedeclaration.MaxTokensPerFile),
+		"byte_size=" + strconv.Itoa(len(huge)),
 		"reason=token_cap_exceeded", "repository_id=repository:", "scope_id=git-repository-scope:", "generation_id=",
 	} {
 		if !strings.Contains(logs.String(), want) {
 			t.Errorf("log %q lacks %q", logs.String(), want)
+		}
+	}
+}
+
+// TestStreamFactsSkipsAPinFileOverTheByteCapAndLogsIt proves a pin file over
+// the per-file byte cap emits nothing even though it holds a single token, a
+// normal pin file beside it still emits, and the WARN skip log carries the
+// byte reason, size and cap, no token count (the file was never tokenized) and
+// none of the file content.
+func TestStreamFactsSkipsAPinFileOverTheByteCapAndLogsIt(t *testing.T) {
+	repoRoot := t.TempDir()
+	marker := "hostile-marker-content"
+	huge := marker + strings.Repeat("x", runtimedeclaration.MaxBytesPerFile)
+	files := map[string]string{"big/.nvmrc": huge, ".nvmrc": "20\n"}
+	var metas []model.ContentFileMeta
+	for rel, body := range files {
+		writeCollectorTestFile(t, filepath.Join(repoRoot, filepath.FromSlash(rel)), body)
+		metas = append(metas, model.ContentFileMeta{RelativePath: rel, Digest: "sha1:" + rel})
+	}
+	snapshot := RepositorySnapshot{FileCount: len(metas), ContentFileMetas: metas}
+	source, logs, _ := dropRecordingSource(t)
+	collected := buildStreamingGenerationWithContext(source.withStreamDropRecorder(context.Background()),
+		repoRoot, testCollectorRepositoryMetadata(repoRoot), "run-1", time.Date(2026, time.October, 24, 11, 30, 0, 0, time.UTC), snapshot, false, "")
+	envelopes := drainFactChannel(collected.Facts)
+
+	got := decodeRuntimeDeclarations(t, envelopes)
+	if _, ok := got[".nvmrc#20"]; !ok || len(got) != 1 {
+		t.Fatalf("declarations = %d, want only .nvmrc#20: the over-cap file must emit nothing", len(got))
+	}
+	if collected.Generation.PreparseIdentityDropped != nil && collected.Generation.PreparseIdentityDropped.Load() {
+		t.Fatal("a deterministic cap skip marked the generation dropped")
+	}
+	for _, want := range []string{
+		"level=WARN", "msg=git_runtime_declaration_file_skipped", "relative_path=big/.nvmrc",
+		"byte_size=" + strconv.Itoa(len(huge)),
+		"byte_cap=" + strconv.Itoa(runtimedeclaration.MaxBytesPerFile),
+		"reason=byte_cap_exceeded", "repository_id=repository:", "scope_id=git-repository-scope:", "generation_id=",
+	} {
+		if !strings.Contains(logs.String(), want) {
+			t.Errorf("log %q lacks %q", logs.String(), want)
+		}
+	}
+	for _, unwanted := range []string{"token_count=", "token_cap=", marker} {
+		if strings.Contains(logs.String(), unwanted) {
+			t.Errorf("byte-cap log %q must not carry %q", logs.String(), unwanted)
 		}
 	}
 }

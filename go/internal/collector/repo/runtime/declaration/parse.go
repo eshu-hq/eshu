@@ -58,99 +58,148 @@ func normalizeRuntime(tool string) (string, *string) {
 	return runtime, &verbatim
 }
 
-// parse reads the raw version tokens of one pin file body.
-func parse(sourceKind, body string) []declaration {
-	lines := strings.Split(strings.TrimPrefix(body, "\xef\xbb\xbf"), "\n")
+// declarationSink collects the declarations of one pin file. It stores at most
+// limit of them and counts every one, so a file over the token cap costs
+// memory bounded by limit rather than by its token count, and the skip log can
+// still report the exact count.
+type declarationSink struct {
+	limit int
+	count int
+	out   []declaration
+}
+
+// add counts d and keeps it while the sink is under its limit.
+func (s *declarationSink) add(d declaration) {
+	s.count++
+	if s.count <= s.limit {
+		s.out = append(s.out, d)
+	}
+}
+
+// eachLine calls fn with the 1-based number and text of every "\n"-separated
+// line of body, in order, until fn returns false. It walks the body in place
+// and allocates nothing, unlike strings.Split, which allocates a slice header
+// per line.
+func eachLine(body string, fn func(number int, line string) bool) {
+	number := 1
+	for {
+		end := strings.IndexByte(body, '\n')
+		if end < 0 {
+			fn(number, body)
+			return
+		}
+		if !fn(number, body[:end]) {
+			return
+		}
+		body = body[end+1:]
+		number++
+	}
+}
+
+// parse reads the raw version tokens of one pin file body. It returns at most
+// limit declarations and total, the number of tokens the file holds, so total >
+// limit tells the caller the file is over the cap while memory stays bounded by
+// limit and the longest line.
+func parse(sourceKind, body string, limit int) (declarations []declaration, total int) {
+	body = strings.TrimPrefix(body, "\xef\xbb\xbf")
+	sink := &declarationSink{limit: limit}
 	switch sourceKind {
 	case sourceKindToolVersions:
-		return parseToolVersions(lines)
+		parseToolVersions(body, sink)
 	case sourceKindSdkmanrc:
-		return parseSdkmanrc(lines)
+		parseSdkmanrc(body, sink)
 	case sourceKindRustToolchain:
-		return parseRustToolchain(lines)
+		parseRustToolchain(body, sink)
+	default:
+		parseSingleRuntime(sourceKind, body, sink)
 	}
+	return sink.out, sink.count
+}
+
+// parseSingleRuntime reads a pin file that names one runtime, such as .nvmrc.
+func parseSingleRuntime(sourceKind, body string, sink *declarationSink) {
 	runtime := fileRuntime[sourceKind]
 	if runtime == "" {
-		return nil
+		return
 	}
 	// pyenv reads every line; the other tools read only the first effective
 	// line, so a trailing note never becomes a declaration.
 	allLines := sourceKind == sourceKindPythonVersion
-	var out []declaration
-	for i, line := range lines {
-		tokens := splitTokens(stripComment(line))
-		if len(tokens) == 0 {
-			continue
-		}
-		for order, token := range tokens {
-			out = append(out, declaration{line: i + 1, order: order, runtime: runtime, rawSpec: token})
-		}
-		if !allLines {
-			break
-		}
-	}
-	return out
+	eachLine(body, func(number int, line string) bool {
+		seen := false
+		eachToken(stripComment(line), func(order int, token string) bool {
+			seen = true
+			sink.add(declaration{line: number, order: order, runtime: runtime, rawSpec: token})
+			return true
+		})
+		return !seen || allLines
+	})
 }
 
-func parseToolVersions(lines []string) []declaration {
-	var out []declaration
-	for i, line := range lines {
-		tokens := splitTokens(stripComment(line))
-		if len(tokens) < 2 {
-			continue
-		}
-		runtime, tool := normalizeRuntime(tokens[0])
-		for order, token := range tokens[1:] {
-			out = append(out, declaration{line: i + 1, order: order, runtime: runtime, toolName: tool, rawSpec: token})
-		}
-	}
-	return out
+func parseToolVersions(body string, sink *declarationSink) {
+	eachLine(body, func(number int, line string) bool {
+		var runtime string
+		var tool *string
+		eachToken(stripComment(line), func(index int, token string) bool {
+			if index == 0 {
+				runtime, tool = normalizeRuntime(token)
+				return true
+			}
+			sink.add(declaration{line: number, order: index - 1, runtime: runtime, toolName: tool, rawSpec: token})
+			return true
+		})
+		return true
+	})
 }
 
-func parseSdkmanrc(lines []string) []declaration {
-	var out []declaration
-	for i, line := range lines {
+func parseSdkmanrc(body string, sink *declarationSink) {
+	eachLine(body, func(number int, line string) bool {
 		key, value, ok := strings.Cut(stripComment(line), "=")
 		key, value = strings.TrimSpace(key), strings.TrimSpace(value)
 		if !ok || key == "" || value == "" {
-			continue
+			return true
 		}
 		runtime, tool := normalizeRuntime(key)
-		d := declaration{line: i + 1, runtime: runtime, toolName: tool, rawSpec: value}
+		d := declaration{line: number, runtime: runtime, toolName: tool, rawSpec: value}
 		if runtime == "java" {
 			if m := sdkmanDistribution.FindStringSubmatch(value); m != nil {
 				dist := m[2]
 				d.distribution = &dist
 			}
 		}
-		out = append(out, d)
-	}
-	return out
+		sink.add(d)
+		return true
+	})
 }
 
 // parseRustToolchain reads the channel of a rust-toolchain file. A TOML body
 // declares a version only through its channel key; the legacy plain form is
 // one channel or release on the first effective line.
-func parseRustToolchain(lines []string) []declaration {
+func parseRustToolchain(body string, sink *declarationSink) {
 	tomlMode := false
-	for _, line := range lines {
+	eachLine(body, func(_ int, line string) bool {
 		if tomlLikePattern.MatchString(stripComment(line)) {
 			tomlMode = true
-			break
+			return false
 		}
-	}
-	for i, line := range lines {
+		return true
+	})
+	eachLine(body, func(number int, line string) bool {
 		if tomlMode {
 			if m := tomlChannelPattern.FindStringSubmatch(stripComment(line)); m != nil {
-				return []declaration{{line: i + 1, runtime: "rust", rawSpec: strings.TrimSpace(m[1])}}
+				sink.add(declaration{line: number, runtime: "rust", rawSpec: strings.TrimSpace(m[1])})
+				return false
 			}
-			continue
+			return true
 		}
-		if tokens := splitTokens(stripComment(line)); len(tokens) > 0 {
-			return []declaration{{line: i + 1, runtime: "rust", rawSpec: tokens[0]}}
-		}
-	}
-	return nil
+		found := false
+		eachToken(stripComment(line), func(_ int, token string) bool {
+			sink.add(declaration{line: number, runtime: "rust", rawSpec: token})
+			found = true
+			return false
+		})
+		return !found
+	})
 }
 
 // stripComment removes a trailing "#" comment and surrounding whitespace,

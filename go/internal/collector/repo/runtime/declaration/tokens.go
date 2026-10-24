@@ -9,22 +9,24 @@ import (
 	"unicode/utf8"
 )
 
-// splitTokens splits one pin-file line into whitespace-separated tokens, like
-// strings.Fields, except that a placeholder span stays inside one token even
-// when it holds spaces: "${{ inputs.node-version }}", "{{ v }}" and
-// "${ NODE_VERSION }". A span that is never closed keeps the rest of the line
-// as one token, so a broken template is reported as one unresolved declaration
-// instead of being cut into fragments that classify as aliases.
+// eachToken calls fn with the index and text of every whitespace-separated token
+// of one pin-file line, in order, until fn returns false. A placeholder span
+// stays inside one token even when it holds spaces: "${{ inputs.node-version
+// }}", "{{ v }}" and "${ NODE_VERSION }". A span that is never closed keeps the
+// rest of the line as one token, so a broken template is reported as one
+// unresolved declaration instead of being cut into fragments that classify as
+// aliases.
 //
 // The scan is a single pass over the line with no backtracking, so a hostile
-// line of repeated openers costs O(len(line)).
-func splitTokens(line string) []string {
-	var tokens []string
-	i := 0
+// line of repeated openers costs O(len(line)). It allocates nothing: tokens are
+// substrings of line, so a file over the token cap is counted without a slice
+// per line.
+func eachToken(line string, fn func(index int, token string) bool) {
+	i, index := 0, 0
 	for i < len(line) {
 		i = skipSpace(line, i)
 		if i >= len(line) {
-			break
+			return
 		}
 		start := i
 		for i < len(line) {
@@ -38,9 +40,11 @@ func splitTokens(line string) []string {
 			}
 			i += width
 		}
-		tokens = append(tokens, line[start:i])
+		if !fn(index, line[start:i]) {
+			return
+		}
+		index++
 	}
-	return tokens
 }
 
 // skipSpace returns the index of the first non-space rune at or after i.
