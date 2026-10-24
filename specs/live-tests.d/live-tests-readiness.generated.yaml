@@ -924,6 +924,11 @@ tests:
     class: postgres_ci
     reason: "#7127 PR-3b Ack journal atomicity (success, planted abort after the insert, deferred commit failure, superseded target, re-ack), prior (superseded, first activation NULL, ambiguous NULL) and the flag-off Ack writing no ledger SQL; one disposable database per test created from the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN admin DSN (env Skip); Postgres only; about 3 s locally on PostgreSQL 18.6; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_ack_journal_sweeper_retention_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8932 seeded RED/GREEN of the sweeper-versus-retention orphan: a journal pass paused after its sweeper insert, an Ack that supersedes the swept generation and commits, then a retention prune at a clock that makes it eligible; the pass must hold the generation until it commits, so retention skips it and no activation row is orphaned; disposable database from ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN (env Skip); about 3 s locally on PostgreSQL 18.6; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_ack_obsolete_marker_live_test.go
     tag: ~
     class: postgres_ci

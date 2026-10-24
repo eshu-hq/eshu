@@ -342,6 +342,9 @@ TABLE = {
             "TestProjectorAckJournalPriorLive",
             "TestProjectorAckJournalOffWritesNothing",
         ),
+        "go/internal/storage/postgres/projector_queue_ack_journal_sweeper_retention_live_test.go": (
+            "TestSweeperActivationSurvivesRetentionPrune",
+        ),
         "go/internal/storage/postgres/projector_queue_ack_obsolete_marker_live_test.go": (
             "TestProjectorAckSeesLockTimeMarkerTruth",
             "TestProjectorAckObsoleteSkipsFencedBusyScope",
