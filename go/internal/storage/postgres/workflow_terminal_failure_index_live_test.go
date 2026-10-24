@@ -65,10 +65,17 @@ func TestCollectorTerminalFailureReadUsesPartialIndexLive(t *testing.T) {
 	if !strings.Contains(text, "Index Scan using "+workflowTerminalFailureIndexName+" on workflow_work_items t") {
 		t.Fatalf("terminal failure read does not seek %s:\n%s", workflowTerminalFailureIndexName, text)
 	}
-	// The only Sort allowed is the outer one over the unnest rows; the
-	// per-instance read must come back in index order.
-	if sorts := strings.Count(text, "Sort Key:"); sorts > 1 {
-		t.Fatalf("plan has %d Sort nodes, want only the outer instance sort:\n%s", sorts, text)
+	// Two Sorts are allowed: the outer one over the unnest rows, and the
+	// acknowledged-failure lateral's (#8830), which sorts only the rows an
+	// acknowledgement covers and sits behind a One-Time Filter that skips it
+	// whenever the instance has an unacknowledged failure. The unacknowledged
+	// lateral, the one that scales with the instance's history, must come back
+	// in index order.
+	if sorts := strings.Count(text, "Sort Key:"); sorts > 2 {
+		t.Fatalf("plan has %d Sort nodes, want only the outer instance sort and the acknowledged lateral's:\n%s", sorts, text)
+	}
+	if !strings.Contains(text, "One-Time Filter: (t.updated_at IS NULL)") {
+		t.Fatalf("acknowledged lateral is not gated on the unacknowledged lateral finding nothing:\n%s", text)
 	}
 	if strings.Contains(text, "Sort Key: t.updated_at") {
 		t.Fatalf("per-instance read sorts instead of reading the index in order:\n%s", text)

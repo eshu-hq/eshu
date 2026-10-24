@@ -127,6 +127,9 @@ import (
 // (one CREATE INDEX CONCURRENTLY per file).
 // #8943 adds 230_security_alert_target_read_states.sql (the collector-owned
 // org read state and its unread-repository child rows; DDL only).
+// #8830 adds 231_collector_terminal_failure_acknowledgements.sql (operator
+// acknowledgement rows for the collector terminal-failure read; DDL only, rows
+// are written by the admin acknowledge route, so no backfill half exists).
 const goldenBootstrapDefinitionsDigest = "3e525fe74634d26f273ebd57465e694a21a038c69050c4fc1c941bcf57ce15e2"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the

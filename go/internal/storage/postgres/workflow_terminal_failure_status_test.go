@@ -27,9 +27,10 @@ func TestReadWorkflowCollectorTerminalFailuresScansBoundedColumns(t *testing.T) 
 
 	asOf := time.Date(2026, 10, 23, 12, 30, 0, 0, time.UTC)
 	failedAt := asOf.Add(-10 * time.Minute)
+	ackedAt := failedAt.Add(2 * time.Minute)
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{
-		{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt},
-		{"git", "git-example", "", "", failedAt.Add(-time.Minute)},
+		{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt, false, nil, ""},
+		{"git", "git-example", "", "", failedAt.Add(-time.Minute), true, ackedAt, "target removed"},
 	}}}}
 
 	got, err := readWorkflowCollectorTerminalFailures(context.Background(), queryer, []collector.InstanceSummary{
@@ -47,6 +48,13 @@ func TestReadWorkflowCollectorTerminalFailuresScansBoundedColumns(t *testing.T) 
 		first.FailureClass != "auth_denied" || first.FailureOperation != "list_org_alerts" ||
 		!first.ObservedAt.Equal(failedAt) {
 		t.Fatalf("first = %#v, want security_alert/auth_denied/list_org_alerts/terminal", first)
+	}
+	if first.Acknowledged || !first.AcknowledgedAt.IsZero() || first.AcknowledgedReason != "" {
+		t.Fatalf("first = %#v, want no acknowledgement fields", first)
+	}
+	second := got[1]
+	if !second.Acknowledged || !second.AcknowledgedAt.Equal(ackedAt) || second.AcknowledgedReason != "target removed" {
+		t.Fatalf("second = %#v, want the acknowledgement time and reason", second)
 	}
 }
 
@@ -177,7 +185,12 @@ func TestWorkflowCollectorTerminalFailuresQueryShape(t *testing.T) {
 	}
 	normalized := strings.Join(strings.Fields(query), " ")
 	for _, want := range []string{
-		"FROM unnest($1::text[], $2::text[], $3::timestamptz[]) AS i(collector_kind, instance_id, cutoff) CROSS JOIN LATERAL",
+		"FROM unnest($1::text[], $2::text[], $3::timestamptz[]) AS i(collector_kind, instance_id, cutoff) LEFT JOIN LATERAL",
+		"WHERE u.updated_at IS NULL",
+		"WHERE u.updated_at IS NOT NULL OR a.updated_at IS NOT NULL",
+		"k.failure_class = COALESCE(t.last_failure_class, '')",
+		"t.updated_at < k.failure_at",
+		"c.updated_at > k.failure_at",
 		"t.status = 'failed_terminal'",
 		"t.updated_at >= i.cutoff",
 		"NOT EXISTS",
@@ -208,7 +221,7 @@ func TestReadCoordinatorSnapshotIncludesTerminalFailures(t *testing.T) {
 			{rows: [][]any{{int64(0), int64(0), int64(0)}}},
 			{rows: [][]any{}},
 			{rows: [][]any{}},
-			{rows: [][]any{{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt}}},
+			{rows: [][]any{{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt, false, nil, ""}}},
 		},
 	}
 
