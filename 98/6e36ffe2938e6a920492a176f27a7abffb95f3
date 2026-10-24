@@ -1,0 +1,21 @@
+go/cmd/collector-cicd-run/EXTRACTION_PREP.md
+  s_faaa6d97b9551e::t_c1a5288f20e572 60
+go/cmd/collector-cicd-run/SHIM_MAP.md
+  s_faaa6d97b9551e::t_fe1ecde5229867 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "986e36ffe2938e6a920492a176f27a7abffb95f3",
+  "prompts": {},
+  "sessions": {
+    "s_faaa6d97b9551e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16dc9-24c3-75a0-91ed-f0068499db7d",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

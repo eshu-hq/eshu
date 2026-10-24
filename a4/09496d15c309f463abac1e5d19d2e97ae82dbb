@@ -1,0 +1,29 @@
+go/cmd/collector-cicd-run/EXTRACTION_PREP.md
+  s_ff8a600f1fc93e::t_433837dc761c60 1-158
+go/cmd/collector-cicd-run/PRODUCER_GRANT_DRAFT.md
+  s_ff8a600f1fc93e::t_33b48b73c5b0b6 1-73
+go/cmd/collector-cicd-run/ROLLBACK_DRAFT.md
+  s_ff8a600f1fc93e::t_f02b3316912027 1-78
+go/cmd/collector-cicd-run/SHIM_MAP.md
+  s_ff8a600f1fc93e::t_08cfed0c9eec16 1-132
+go/cmd/collector-cicd-run/extraction_prep_parity_test.go
+  s_ff8a600f1fc93e::t_a20a864485c4a5 1-329
+go/cmd/collector-cicd-run/testdata/8854-parity-cicd-run.json
+  s_ff8a600f1fc93e::t_de74db2c3d715b 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a409496d15c309f463abac1e5d19d2e97ae82dbb",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
