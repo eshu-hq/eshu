@@ -22,6 +22,13 @@ version — pinning this module pins the fixture pack too.
 
 ### Added
 
+- New `runtimedeclaration/v1` package with `DecodeRuntimeDeclarationVersion` and
+  `EncodeRuntimeDeclarationVersion` seams, a schema, and fixture-pack entries
+  for `runtime_declaration.version` (issue #8815): one runtime version a
+  repository declares in one file, with nine required fields, nullable version
+  parts and range bounds, and a closed `spec_kind` set (`exact`, `partial`,
+  `range`, `alias`, `unresolved`) that readers decode tolerantly. A new kind is
+  an additive minor change; `factschema-diff` reports the schema as new.
 - New `ref_overlay/v1` package with `Decode`/`Encode` seams, schemas, and
   fixture-pack entries for epic #5393 Phase 1 (contract only — no collector,
   reducer, or query consumer yet): `ref_overlay.branch_observation` (one
@@ -31,6 +38,12 @@ version — pinning this module pins the fixture pack too.
 - `codegraph/v1` `Import` gains three optional booleans, `type_only`, `deferred`
   and `inferred` (json tags of the same names, `omitempty`). A parser sets one
   only when it is true. An additive optional field is a minor change.
+
+### Fixed
+
+- The `azure_tag_observation` fixture-pack examples now use complete,
+  deterministic HMAC-SHA256 redaction markers. The payload schema and typed
+  decode contract are unchanged.
 
 ## [0.2.0] - 2026-09-16
 

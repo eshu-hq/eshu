@@ -22,6 +22,11 @@
   write, and the parent `unread_total` must equal the child count.
 - Reasons and errors never carry a repository name beyond the row itself; the
   caller's logs and metrics must not either.
+- The fan-out cursor columns are written by `Writer` only, in the generation's
+  commit transaction. `CursorReader` must keep selecting the newest
+  pending-or-active generation with the freshness-hint ordering, never
+  `ingestion_scopes.active_generation_id`, and must return a query error
+  instead of "" (starting at the top on an error recreates #8946).
 - Never import the parent `postgres` package.
 
 ## Common changes

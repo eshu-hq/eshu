@@ -442,6 +442,7 @@ nav:
     - Workload Identity Cutover: operate/workload-identity-cutover-runbook.md
     - Retire Leftover Workload Nodes: operate/legacy-workload-retirement-runbook.md
     - Collector Cutover Rollback: operate/collector-cutover-rollback.md
+    - Collector Cutover Rollback, Direct Producer: operate/collector-cutover-rollback-direct.md
     - Collector Cutover Truth Checks: operate/collector-cutover-truth-checks.md
     - Delta-Base Union: operate/graph-delta-union.md
     - Troubleshooting: operate/troubleshooting.md

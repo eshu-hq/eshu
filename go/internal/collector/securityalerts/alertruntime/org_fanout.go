@@ -22,8 +22,9 @@ const (
 	// max_pages x (1 + maxOrganizationFanoutRepositories) provider page
 	// requests. Allowlisted repositories past the cap are not read; their
 	// org-window facts report collectionOrgFanoutCapReachedReason and the
-	// fan-out counter records outcome=skipped_cap. The cap is per claim, so
-	// the next scheduled claim starts again from the top of the allowlist.
+	// fan-out counter records outcome=skipped_cap. The cap is per claim and a
+	// target over it always reads the same top window (fanoutNext): the
+	// fan-out start only moves for an allowlist that fits, after a stop.
 	maxOrganizationFanoutRepositories = 100
 
 	// collectionOrgRepositoryReadFailedReason marks org-window facts of a
@@ -66,13 +67,18 @@ func (s *ClaimedSource) collectTarget(
 }
 
 // fanOutOrganization issues one bounded per-repository read, in allowlist
-// order, for each allowlisted repository of the target organization, up to
+// order starting at the target's fan-out cursor and wrapping around, for each
+// allowlisted repository of the target organization, up to
 // maxOrganizationFanoutRepositories. Reads run sequentially on purpose: they
 // share one credential and one provider rate-limit budget. A not_found read, or
 // a 403 the provider marked as Dependabot alerts disabled, is reported and the
 // fan-out continues; the first read that fails any other way stops it (see
 // fanoutFailureOutcome) instead of spending more of the budget. An allowlist
 // with no repository of the organization yields the truncated single read.
+// The claim computes where the next one resumes (fanoutNext) and carries
+// it on the collection; the generation's commit persists it, so a repository
+// that fails on every claim cannot pin the tail of the allowlist and nothing
+// durable moves before the commit.
 // Only a cancelled claim context fails the whole claim.
 func (s *ClaimedSource) fanOutOrganization(
 	ctx context.Context,
@@ -80,14 +86,19 @@ func (s *ClaimedSource) fanOutOrganization(
 	target targetRuntime,
 	org securityalerts.GitHubDependabotAlertResult,
 ) (alertCollection, error) {
-	repositories := organizationFanoutRepositories(target.config)
-	if len(repositories) == 0 {
+	allowlisted := organizationFanoutRepositories(target.config)
+	if len(allowlisted) == 0 {
 		// Validation permits an allowlist whose entries all belong to other
 		// accounts. Nothing is eligible to read, so this is not a fan-out: keep
 		// the truncated single read, its digest, and the org-window page-limit
 		// coverage instead of reporting a complete-looking claim.
 		return singleReadCollection(org), nil
 	}
+	start, lap, err := s.fanoutStart(ctx, target.config.ScopeID, allowlisted)
+	if err != nil {
+		return alertCollection{}, err
+	}
+	repositories := fanoutWalkOrder(allowlisted, start)
 	orgCoverage := repositoryAlertCollectionCoverageFromResult(org)
 	collection := alertCollection{
 		observedAt:         org.ObservedAt,
@@ -101,6 +112,7 @@ func (s *ClaimedSource) fanOutOrganization(
 	// stopOutcome is set by the first read failure that is neither not_found
 	// nor an alerts-disabled 403: it is the outcome every later repository records instead of being read.
 	stopOutcome := ""
+	stopIndex := -1
 	for i, repository := range repositories {
 		var outcome string
 		var coverage repositoryAlertCollectionCoverage
@@ -117,6 +129,9 @@ func (s *ClaimedSource) fanOutOrganization(
 				return alertCollection{}, err
 			case err != nil:
 				outcome, stopOutcome = fanoutFailureOutcome(classifiedProviderFailure(err))
+				if stopOutcome != "" {
+					stopIndex = i
+				}
 			default:
 				reads[repository] = result
 				coverage = repositoryAlertCollectionCoverageFromResult(result)
@@ -140,6 +155,10 @@ func (s *ClaimedSource) fanOutOrganization(
 		s.recordFanoutOutcome(ctx, target.config, outcome)
 	}
 	collection.truncated = incomplete > 0
+	next, nextLap := fanoutNext(allowlisted, start, lap, stopIndex, stopOutcome)
+	collection.fanoutStartRepository = fanoutOffsetRepository(allowlisted, start)
+	collection.fanoutNextRepository = fanoutOffsetRepository(allowlisted, next)
+	collection.fanoutLapRepository = nextLap
 	collection.alerts = mergeFanoutAlerts(target.config, repositories, reads, collection.fanoutOutcomes, org.Alerts)
 	if observeSpan != nil {
 		observeSpan.SetAttributes(
@@ -148,6 +167,9 @@ func (s *ClaimedSource) fanOutOrganization(
 			attribute.Int(contract.AttrSecurityAlertFanoutIncomplete, incomplete),
 			attribute.Bool(contract.AttrSecurityAlertFanoutRateLimited, stopOutcome == contract.SecurityAlertFanoutOutcomeRateLimited),
 			attribute.Bool(contract.AttrSecurityAlertFanoutStopped, stopOutcome != ""),
+			attribute.Int(contract.AttrSecurityAlertFanoutStartOffset, start),
+			attribute.Int(contract.AttrSecurityAlertFanoutNextOffset, next),
+			attribute.Bool(contract.AttrSecurityAlertFanoutLapped, nextLap != ""),
 		)
 	}
 	return collection, nil

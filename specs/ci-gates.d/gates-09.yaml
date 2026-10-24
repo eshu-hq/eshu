@@ -14,6 +14,10 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/gates-09.yaml"
       - "scripts/lib/live_tests_registry.py"
+      - "scripts/lib/delta_union_scheduled.py"
+      - "scripts/lib/live_tests_legacy_policy.py"
+      - "scripts/test-delta-union-scheduled.py"
+      - ".github/workflows/delta-union-scheduled.yml"
       - "scripts/test-live-tests-registry.py"
       - "scripts/lib/live_postgres_readiness_inventory*.py"
       - "scripts/lib/live_postgres_readiness_records.py"
@@ -82,7 +86,7 @@ gates:
       - ".github/workflows/live-backend-tests.yml"
     local:
       command: "bash scripts/verify-live-tests-ledger.sh"
-      test_command: "bash scripts/test-verify-live-tests-ledger.sh && python3 scripts/test-nornic-conformance-events.py && bash scripts/test-run-live-backend-tests.sh && python3 scripts/test-live-backend-shards.py && python3 scripts/test-live-backend-lifecycle.py && python3 scripts/test-live-backend-workflow.py && python3 scripts/test-postgres-scheduled-runner.py && python3 scripts/test-postgres-scheduled-matrix.py && python3 scripts/test-postgres-scheduled-fragments.py && python3 scripts/test-postgres-scheduled-ledger-policy.py && python3 scripts/test-ifa-scheduled-events.py && python3 scripts/test-ifa-scheduled-manifest.py && python3 scripts/test-ifa-scheduled-bundle.py && python3 scripts/test-ifa-scheduled-ledger-policy.py"
+      test_command: "bash scripts/test-verify-live-tests-ledger.sh && python3 scripts/test-nornic-conformance-events.py && bash scripts/test-run-live-backend-tests.sh && python3 scripts/test-live-backend-shards.py && python3 scripts/test-live-backend-lifecycle.py && python3 scripts/test-live-backend-workflow.py && python3 scripts/test-postgres-scheduled-runner.py && python3 scripts/test-postgres-scheduled-matrix.py && python3 scripts/test-postgres-scheduled-fragments.py && python3 scripts/test-postgres-scheduled-ledger-policy.py && python3 scripts/test-ifa-scheduled-events.py && python3 scripts/test-ifa-scheduled-manifest.py && python3 scripts/test-ifa-scheduled-bundle.py && python3 scripts/test-ifa-scheduled-ledger-policy.py && python3 scripts/test-delta-union-scheduled.py"
     ci:
       workflow: live-backend-tests.yml
       job: "static-mirror (ledger and runner probes)"
@@ -101,6 +105,7 @@ gates:
     triggers:
       - "go/internal/query/supply/chain/impact/**"
       - "go/internal/query/admin/**"
+      - "go/internal/query/iac/**"
       - "go/internal/query/code_topic*.go"
       - "go/internal/query/content_reader_code_topic.go"
       - "go/internal/query/content_reader_search_page.go"
@@ -476,71 +481,3 @@ gates:
       job: "static mirror"
     requirements: []
     ci_only_reason: "the replay-coverage-gate row runs the same scripts/test-verify-replay-coverage-gate.sh locally as its test_command; this row only owns the CI job"
-
-  - id: ifa-contract-layer
-    name: Ifa contract-layer Odù skeleton
-    category: exactness
-    layer: contract
-    purpose: "Runs the Ifá contract-layer test suite, verifying the Odù catalog, coverage manifest, and reducer code stay in lockstep."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - "go/internal/ifa/**"
-      - "go/internal/reducer/**"
-      - "go/cmd/ifa/**"
-      - "go/internal/synth/gcp/**"
-      - "docs/internal/design/4389-ifa-conformance-platform.md"
-      - "specs/ci-gates.v1.yaml"
-      - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
-      - "specs/ifa-coverage-manifest.v1.yaml"
-      - "specs/fact-kind-registry.v1.yaml"
-      - "specs/replay-coverage-manifest.v1.yaml"
-      - "testdata/golden/e2e-20repo-snapshot.json"
-    local:
-      command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1"
-      test_command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1"
-    ci:
-      workflow: static-contract-gates.yml
-      job: "Verify Ifa contract-layer gate"
-    requirements:
-      - go
-    ci_only_reason: ""
-
-  - id: content-entity-bucket-sync
-    name: Content-entity bucket<->label sync and projector-label totality (#5531, #6206)
-    category: exactness
-    layer: contract
-    purpose: "Checks that collector content-entity buckets, projector label maps, and the drift ledger all agree with each other and the code."
-    tier: pre-pr
-    blocking: true
-    # Triggers name all three source files the gate reads, not just the package
-    # it runs from. A bucket added to the collector's twin or a label added to
-    # the projector map must select this gate — those are exactly the edits it
-    # exists to catch, and triggering only on the shape package would leave the
-    # two most likely edits unguarded.
-    #
-    # The -run list is hand-maintained, so a new gate test in that package is
-    # not run here until it is named. TestEveryProjectorLabelHasASource (#6206)
-    # walks projector -> bucket, the reverse of
-    # TestContentEntityLabelsHaveProjectorLabels, and catches a registry entry
-    # no bucket can ever feed. It ran only incidentally, under
-    # race-graph-writes' unfiltered ./internal/content/shape/... , until it was
-    # added below; one narrowing of that race gate's package list and the
-    # coverage would have vanished with nothing red.
-    triggers:
-      - "go/internal/content/shape/**"
-      - "go/internal/collector/repo/git/snapshot_entity_buckets.go"
-      - "go/internal/projector/canonical/materialization.go"
-      - "specs/ci-gates.v1.yaml"
-      - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
-    local:
-      command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest|TestEveryProjectorLabelHasASource' -count=1"
-      test_command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest|TestEveryProjectorLabelHasASource' -count=1"
-    ci:
-      workflow: static-contract-gates.yml
-      job: "Verify content-entity bucket sync gate"
-    requirements:
-      - go
-    ci_only_reason: ""

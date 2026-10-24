@@ -91,6 +91,7 @@ var factSchemaWireKindCases = []struct {
 	{"secrets_iam_coverage_warning", factschema.FactKindSecretsIAMCoverageWarning, factsidentity.SecretsIAMCoverageWarningFactKind},
 	{"security_alert.repository_alert", factschema.FactKindSecurityAlertRepositoryAlert, facts.SecurityAlertRepositoryAlertFactKind},
 	{"ref_overlay.branch_observation", factschema.FactKindRefOverlayBranchObservation, facts.RefOverlayBranchObservationFactKind},
+	{"runtime_declaration.version", factschema.FactKindRuntimeDeclarationVersion, facts.RuntimeDeclarationVersionFactKind},
 	{"config_key_divergence", factschema.FactKindConfigKeyDivergence, facts.ConfigKeyDivergenceFactKind},
 	{"observability.declared_folder", factschema.FactKindObservabilityDeclaredFolder, facts.ObservabilityDeclaredFolderFactKind},
 	{"observability.declared_dashboard", factschema.FactKindObservabilityDeclaredDashboard, facts.ObservabilityDeclaredDashboardFactKind},

@@ -9,9 +9,10 @@
 #
 #   bash scripts/lib/test-collector-cutover-rollback-mutants.sh [--jobs N] [ID ...]
 #
-# Exit 0 only when every selected mutant is KILLED. SQL changes are not mutated
-# here: the stub test pins the SQL digests, and scripts/test-collector-cutover-
-# rollback-sql.sh proves the SQL against real Postgres.
+# Exit 0 only when every selected mutant is KILLED. SQL predicates are proven
+# against real Postgres by scripts/test-collector-cutover-rollback-sql.sh; the stub
+# test only pins the SQL digests. M76 mutates the direct-commit SQL to show that a
+# dropped predicate cannot pass the stub test with the pin left unchanged.
 #
 # Mutant table (ID, file, what the break does):
 #   M01 steps  step 3 does not check the drain
@@ -79,6 +80,17 @@
 #   M63 main   temp files are not removed on exit
 #   M64 main   temp files ignore TMPDIR
 #   M65 truth  a recapture keeps the mode of the baseline file it overwrites
+#   M66 main   --in-tree-direct is accepted beside --in-tree-instance
+#   M67 main   direct mode still requires a non-empty in-tree list
+#   M68 steps  step 4 restarts the coordinator for a direct producer
+#   M69 steps  step 4 keeps the clock-skew margin for a direct producer
+#   M70 steps  step 5 replays work items for a direct producer
+#   M71 steps  the direct signal passes with no generation committed
+#   M72 steps  an unreadable direct signal reads as no progress, not a failure
+#   M73 steps  the direct step 5 timeout exits 0
+#   M74 truth  a claim beside the restored direct producer is not dual authority
+#   M75 steps  the direct signal is read for the wrong collector kind
+#   M76 dcsql  the direct signal drops the observed-after-window predicate
 
 # The single-quoted anchors are literal source text to find, not expansions.
 # shellcheck disable=SC2016
@@ -106,6 +118,7 @@ declare_file() { # alias -> path relative to scripts/
 	steps) printf 'lib/collector-cutover-rollback-steps.sh' ;;
 	gates) printf 'lib/collector-cutover-rollback-gates.sh' ;;
 	truth) printf 'lib/collector-cutover-rollback-truth.sh' ;;
+	dcsql) printf 'lib/collector-cutover-rollback-direct-commit.sql' ;;
 	esac
 }
 
@@ -202,6 +215,17 @@ define_mutants() {
 	add M62 main "$(pairs "${NL}umask 077${NL}" "${NL}")"
 	add M63 main "$(pairs "trap cleanup_tmp EXIT${NL}" "")"
 	add M65 truth "$(pairs "${T}rm -f \"\${capture_file}\" \"\${capture_file}.keys\"${NL}" "${T}rm -f \"\${capture_file}.keys\"${NL}")"
+	add M66 main "$(pairs "${T}${T}[[ -z \"\$in_tree_instances\" ]] ||${NL}" "${T}${T}true ||${NL}")"
+	add M67 main "$(pairs "${T}if [[ \"\$in_tree_direct\" == \"true\" ]]; then${NL}${T}${T}# A direct collector has no instance ID" "${T}if false; then${NL}${T}${T}# A direct collector has no instance ID")"
+	add M68 steps "$(pairs "${T}if [[ \"\$in_tree_direct\" != \"true\" ]]; then${NL}${T}${T}build_restart_coordinator" "${T}if true; then${NL}${T}${T}build_restart_coordinator")"
+	add M69 steps "$(pairs "${T}${T}[[ \"\$in_tree_direct\" != \"true\" ]] || skew=0${NL}" "")"
+	add M70 steps "$(pairs "${T}if [[ \"\$in_tree_direct\" == \"true\" ]]; then${NL}${T}${T}step_5_direct" "${T}if false; then${NL}${T}${T}step_5_direct")"
+	add M71 steps "$(pairs '((DIRECT_COMMITS >= 1))' '((DIRECT_COMMITS >= 0))')"
+	add M72 steps "$(pairs 'step_failed 5 "could not read the observed-generation signal (exit ${XRC})"' 'return 1')"
+	add M73 steps "$(pairs "check the collector logs.\\n' >&2${NL}${T}${T}exit \"\$EX_TIMEOUT\"" "check the collector logs.\\n' >&2${NL}${T}${T}exit 0")"
+	add M74 truth "$(pairs '((${1} < 5)) || tree=1' 'true')"
+	add M75 steps "$(pairs 'psql_run direct-commit -v "kind=${collector_kind}"' 'psql_run direct-commit -v "kind=other"')"
+	add M76 dcsql "$(pairs "  AND generation.ingested_at >= :'since'::timestamptz${NL}" "")"
 	add M64 main "$(pairs '"${TMPDIR:-/tmp}/eshu-rollback.XXXXXX"' '"/tmp/eshu-rollback.XXXXXX"')"
 }
 
@@ -231,7 +255,7 @@ apply_mutant() {
 		content="${content/"$old"/"$new"}"
 	done
 	printf '%s' "$content" >"$path"
-	bash -n "$path" 2>/dev/null || {
+	[[ "$path" == *.sql ]] || bash -n "$path" 2>/dev/null || {
 		printf 'the mutated file is not valid bash'
 		return 1
 	}

@@ -32,6 +32,14 @@ type alertCollection struct {
 	coverage           repositoryAlertCollectionCoverage
 	repositoryCoverage map[string]repositoryAlertCollectionCoverage
 	fanoutOutcomes     map[string]string
+	// fanoutStartRepository and fanoutNextRepository name the allowlisted
+	// repository this fan-out started at and the next claim starts at, "" for
+	// the top (#8946). They ride on the generation's read state.
+	fanoutStartRepository string
+	fanoutNextRepository  string
+	// fanoutLapRepository names the last-position repository whose failed read
+	// closed a lap, "" when no lap is in progress.
+	fanoutLapRepository string
 }
 
 // singleReadCollection wraps one bounded provider read without fan-out.

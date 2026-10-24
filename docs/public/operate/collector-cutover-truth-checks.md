@@ -23,6 +23,11 @@ read-only SQL in `scripts/lib/collector-cutover-rollback-dual.sql` and
 - No instance of the collector kind outside the in-tree set holds a claimed
   work item or an active claim. The check counts the whole kind, not only the
   `--external-instance` IDs you typed, so a mistyped ID cannot hide a claim.
+- With `--in-tree-direct` (the documentation collector, which has no instance and
+  writes no work items) the in-tree set is empty, so every claim of the kind
+  counts as external. After the restore, any such claim means dual authority
+  (exit 7), because the restored Deployment runs beside it. The
+  [direct producer page](collector-cutover-rollback-direct.md) has the details.
 - The external and in-tree instances never held claims on the same `scope_id`
   during overlapping time spans. A finished claim ends at the earlier of its
   `finished_at` and `lease_expires_at`, so a late reap does not invent an
@@ -68,7 +73,7 @@ What a replay covers depends on the collector:
 | --- | --- | --- | --- |
 | `work_item.*` | `jira` | Issues updated inside the target's `updated_lookback` window | Set `updated_lookback` in the restore values to at least the time since the last in-tree committed generation. The maximum is 30 days. |
 | `incident.record`, `incident.lifecycle_event`, `incident_routing.observed_pagerduty_*` | `pagerduty` | Incidents and live routing for the configured scopes, on the schedule, bootstrap, or webhook trigger | Set `incident_lookback` in the restore values to at least the time since the last in-tree committed generation. |
-| `documentation_*` | `documentation` | The configured documentation sources, read again | Compare against the baseline; step 6 shows any source the replay did not reach. |
+| `documentation_*` | `documentation` | The configured documentation sources, read again | Compare against the baseline; step 6 shows any source the replay did not reach. Step 5 passes only when a scope generation of the kind is observed and activated after the window start (`--in-tree-direct`), so an unchanged source needs a change first. |
 
 Read the collector's own configuration for the exact window setting before you
 rely on this table. A window shorter than the gap means older source changes

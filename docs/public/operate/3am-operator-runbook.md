@@ -67,14 +67,29 @@ reported `truth.freshness.state = stale`.
   healthy but did not read that repository of an `org` target in full, so the
   empty answer is `target_incomplete`, `derived`, and `fresh`: key on
   `coverage.state`, not freshness. `org_repository_fanout_cap_reached` is a
-  repository past the 100-repository per-claim cap: use `repository`-scope
-  targets or a smaller allowlist. `org_repository_read_rate_limited` is a
+  repository past the 100-repository per-claim cap: an `org` target reads only
+  its first 100 same-org repositories on every claim, so the rest keep this
+  reason until the target is split. If `skipped_cap` is non-zero on every claim
+  of one target, or the collector logged `security_alert.org_fanout_over_cap`
+  at startup, split the target into org targets of at most 100 same-org
+  repositories with disjoint allowlists and distinct `scope_id` values, or use
+  `repository`-scope targets (#9019 tracks doing it automatically). `org_repository_read_rate_limited` is a
   rate limit that stopped the fan-out: wait for the limit to reset or raise the
   credential's budget. `org_repository_alerts_disabled` means Dependabot alerts
   are off for the repository: enable them. `org_repository_read_failed` and
   `org_repository_fanout_stopped` come from a failed read (not found, a
   credential or access problem, a 5xx): check the credential and the
-  repository's access. `provider_open_alert_page_limit_reached` means the
+  repository's access. The walk stops at the first failing repository
+  (`org_repository_read_failed`) and labels the repositories behind it
+  `org_repository_fanout_stopped`; fix or remove every repository labeled
+  `org_repository_read_failed`, in order. A stuck start is
+  `fanout_next_repository IS NULL AND fanout_lap_repository IS NOT NULL` on the
+  newest generation's read state row, which means a failed read at the last
+  allowlist entry closed a lap (the span attribute
+  `eshu.security_alert.org_fanout.lapped` is true). Removing that last entry from
+  the allowlist ends the lap and the forward walk resumes. Fixing it ends the
+  lap only after every earlier failing repository is fixed too, because the lap
+  ends on a full read. `provider_open_alert_page_limit_reached` means the
   repository's own alerts exceed `max_pages` x 100: raise `max_pages`.
   `org_repository_read_incomplete` is a reason a newer collector stored that
   this build does not know. To list the cut-short targets, use the query in

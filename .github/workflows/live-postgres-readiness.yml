@@ -15,6 +15,7 @@ on:
       - 'go/internal/query/supply/chain/**'
       - 'go/internal/query/supply/chain/impact/**'
       - 'go/internal/query/admin/**'
+      - 'go/internal/query/iac/**'
       - 'go/internal/query/content_reader_dead_code*.go'
       - 'go/internal/query/code_topic*.go'
       - 'go/internal/query/content_reader_code_topic.go'
@@ -77,6 +78,7 @@ on:
       - 'go/internal/query/supply/chain/**'
       - 'go/internal/query/supply/chain/impact/**'
       - 'go/internal/query/admin/**'
+      - 'go/internal/query/iac/**'
       - 'go/internal/query/content_reader_dead_code*.go'
       - 'go/internal/query/code_topic*.go'
       - 'go/internal/query/content_reader_code_topic.go'
@@ -330,6 +332,7 @@ jobs:
           ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE: '1'
           ESHU_GENERATION_RETENTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_GRAPH_BACKEND: neo4j
+          ESHU_IAC_INVENTORY_LIVE: '1'
           ESHU_IDENTITY_EPOCH_PROOF_DISPOSABLE: '1'
           ESHU_IDENTITY_EPOCH_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_NEO4J_DATABASE: neo4j

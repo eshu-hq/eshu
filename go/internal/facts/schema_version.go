@@ -94,6 +94,7 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{cloud.RDSPostureFactKinds, cloud.RDSPostureSchemaVersion},
 	{ReducerDerivedFactKinds, ReducerDerivedSchemaVersion},
 	{RefOverlayFactKinds, RefOverlaySchemaVersion},
+	{RuntimeDeclarationFactKinds, RuntimeDeclarationSchemaVersion},
 	{cloud.S3BucketPostureFactKinds, cloud.S3BucketPostureSchemaVersion},
 	{cloud.S3ExternalPrincipalGrantFactKinds, cloud.S3ExternalPrincipalGrantSchemaVersion},
 	{chain.SBOMAttestationFactKinds, chain.SBOMAttestationSchemaVersion},

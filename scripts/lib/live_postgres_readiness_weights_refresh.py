@@ -134,7 +134,7 @@ def build_weights(samples: list[Sample], plan: list[str], source_runs: list[str]
 
 
 def render(document: dict[str, object]) -> str:
-    """Render the weights with one entry per line so refresh diffs stay small."""
+    """Render at most two table entries per line to bound the weights file."""
     lines = ["{"]
     scalars = [key for key in document if not isinstance(document[key], dict)]
     for key in scalars:
@@ -143,9 +143,11 @@ def render(document: dict[str, object]) -> str:
     for index, key in enumerate(tables):
         table = document[key]
         lines.append(f"  {json.dumps(key)}: {{")
-        entries = [f"    {json.dumps(name)}: {json.dumps(value)}"
+        entries = [f"{json.dumps(name)}: {json.dumps(value)}"
                    for name, value in table.items()]  # type: ignore[union-attr]
-        lines.append(",\n".join(entries))
+        lines.append(",\n".join(
+            "    " + ", ".join(entries[start:start + 2])
+            for start in range(0, len(entries), 2)))
         lines.append("  }" + ("," if index < len(tables) - 1 else ""))
     lines.append("}")
     return "\n".join(lines) + "\n"

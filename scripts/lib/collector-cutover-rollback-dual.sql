@@ -1,7 +1,9 @@
 -- eshu-rollback:dual
 -- Read-only. Detects two producers holding authority for one source scope.
 -- Output: external_claimed|in_tree_claimed|overlapping_claim_pairs
--- Variables: kind, in_tree (comma-separated in-tree collector instance IDs).
+-- Variables: kind, in_tree (comma-separated in-tree collector instance IDs; empty
+-- for a direct in-tree producer, which holds no claim row, so the in-tree count
+-- and the overlap count are 0 and the caller judges authority from the Deployment).
 --
 -- "External" means every instance of the collector kind that is not an in-tree
 -- instance, so a mistyped --external-instance cannot hide the real one.
