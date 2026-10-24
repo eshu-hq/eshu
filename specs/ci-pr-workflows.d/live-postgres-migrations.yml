@@ -25,6 +25,7 @@ workflows:
   - scripts/testdata/live-postgres-migrations-fake-go.sh
   - .github/workflows/live-postgres-migrations.yml
   - .github/workflows/required-gates.yml
+  - specs/ci-pr-workflows.d/live-postgres-migrations.yml
   jobs:
   - live-postgres-migrations
   - queue-selection

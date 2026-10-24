@@ -49,6 +49,7 @@ workflows:
   - scripts/ci/install-apt-packages.sh
   - scripts/ci/go-mod-download-retry.sh
   - .github/workflows/replay-coverage-gate.yml
+  - specs/ci-pr-workflows.d/replay-coverage-gate.yml
   jobs:
   - coverage-gate
   - queue-selection

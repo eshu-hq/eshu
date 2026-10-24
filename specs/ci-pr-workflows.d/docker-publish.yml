@@ -20,6 +20,7 @@ workflows:
   - scripts/fixtures/apk-floors/**
   - scripts/verify-runtime-image-tools.sh
   - scripts/test-verify-runtime-image-tools.sh
+  - specs/ci-pr-workflows.d/docker-publish.yml
   jobs:
   - attach-release-sbom
   - build-and-push-image

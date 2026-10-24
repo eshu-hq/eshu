@@ -39,6 +39,7 @@ workflows:
   - docker-compose.yaml
   - docker-compose.read-api-latency-gate.yaml
   - .github/workflows/read-api-latency-gate.yml
+  - specs/ci-pr-workflows.d/read-api-latency-gate.yml
   jobs:
   - latency-gate
   - methodology-scale

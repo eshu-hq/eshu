@@ -63,6 +63,7 @@ workflows:
   - scripts/test-live-postgres-standby-fixture.sh
   - .github/workflows/live-postgres-readiness.yml
   - .github/workflows/required-gates.yml
+  - specs/ci-pr-workflows.d/live-postgres-readiness.yml
   jobs:
   - hermetic
   - live-postgres-readiness

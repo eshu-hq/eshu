@@ -156,8 +156,11 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 			return "missing workflow trigger " + trigger
 		}
 	}
-	if _, directPR := parsed.On["pull_request"]; directPR || len(prPaths) == 0 ||
-		!slices.Equal(prPaths, parsed.On["push"].Paths) ||
+	pushPaths := parsed.On["push"].Paths
+	if _, directPR := parsed.On["pull_request"]; directPR ||
+		len(prPaths) != len(pushPaths)+1 ||
+		!slices.Equal(prPaths[:len(pushPaths)], pushPaths) ||
+		prPaths[len(pushPaths)] != "specs/ci-pr-workflows.d/live-postgres-readiness.yml" ||
 		!slices.Contains(prPaths, ".github/workflows/live-postgres-readiness.yml") ||
 		!slices.Contains(prPaths, "go/internal/cigates/readiness_job_split_test.go") ||
 		!slices.Contains(prPaths, "scripts/lib/live_postgres_readiness_shards.py") ||

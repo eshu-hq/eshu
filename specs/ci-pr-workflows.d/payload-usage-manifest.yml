@@ -19,6 +19,7 @@ workflows:
   - scripts/ci/install-apt-packages.sh
   - scripts/ci/go-mod-download-retry.sh
   - .github/workflows/payload-usage-manifest.yml
+  - specs/ci-pr-workflows.d/payload-usage-manifest.yml
   jobs:
   - gate
   - queue-selection

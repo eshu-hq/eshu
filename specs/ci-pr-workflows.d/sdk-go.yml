@@ -9,6 +9,7 @@ workflows:
   - .github/workflows/sdk-go.yml
   - scripts/ci/install-apt-packages.sh
   - scripts/ci/go-mod-download-retry.sh
+  - specs/ci-pr-workflows.d/sdk-go.yml
   jobs:
   - queue-selection
   - sdk-go-collector
