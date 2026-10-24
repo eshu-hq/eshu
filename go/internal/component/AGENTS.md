@@ -61,5 +61,7 @@
 - Do not treat an installed package as enabled.
 - Do not make strict trust mode pass without a real provenance verifier.
 - Do not silently downgrade revocation or provenance failures to warnings.
+- Do not trim manifest identifiers at load. `validateIdentifier` rejects
+  padding so exact revoke and allow entries cannot miss a package.
 - Do not let packages execute arbitrary code during install.
 - Do not add core database DDL hooks to component manifests.
