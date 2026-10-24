@@ -16,9 +16,16 @@ since it honors `.gitignore`), then `rg -q` per file. Exit 0.
 | First local root (worktree directories excluded) | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Second local root | 20 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
-Cross-check: `git ls-files | rg -c -i '(\.tfvars(\.json)?|\.yarnrc\.yml)$'` and
-`rg --files --hidden --no-ignore` for the three globs both returned 0 across the
-same roots. Developer machine, not a deployment: deployment count NOT_CHECKED.
+Cross-check, run from each repository root (both print `0`; on this branch's
+checkout too):
+`git ls-files | rg -i '(\.tfvars(\.json)?|\.yarnrc\.yml)$' | wc -l` and
+`rg --files --hidden --no-ignore -g '*.tfvars' -g '*.tfvars.json' -g '.yarnrc.yml' | wc -l`.
+Seeded on a scratch directory with `a/.yarnrc.yml`, `.yarnrc.yml`, `x/y.tfvars`,
+`z.tfvars.json`, `b/yarnrc.yml`, and a decoy, `rg --files` piped to the regex
+and the `-g` form both print 4; the regex with `\\.` (double backslash) prints
+nothing. In a `git init` directory with only `.yarnrc.yml` and `x.tfvars`, the
+`git ls-files` form prints 2 and its double-backslash twin prints 0.
+Developer machine, not a deployment: deployment count NOT_CHECKED.
 
 ## Detector probe (the gap corpus)
 
@@ -84,7 +91,8 @@ detected; skeleton mode avoids that because a detector-flagged key gets
 
 Run on a deployment, counts only; it never selects `content` or `line_text`.
 The first query was validated on temporary tables with the shapes from
-`schema_content_store.go` and migration 138; the second was not run. Findings
+`schema_content_store.go` and migration 138, seeded as described below; the
+second was not run. Findings
 are meaningful only while `content_file_secret_lines_state.state = 'ready'`, and
 the table misses the shapes in the probe above until the new migration lands.
 
@@ -106,6 +114,20 @@ FROM content_files f;
 SELECT count(*) FROM content_entities
 WHERE relative_path ~* '\.tfvars(\.json)?$' OR relative_path ~* '(^|/)\.yarnrc\.yml$';
 ```
+
+Seeded semantic check (temporary tables, `standard_conforming_strings = on`).
+`content_files` rows: `a/.yarnrc.yml`, `.yarnrc.yml`, `x/y.tfvars`,
+`z.tfvars.json`, `b/yarnrc.yml`, `decoy.txt`. `content_file_secret_lines` rows:
+`.yarnrc.yml` unsuppressed, `x/y.tfvars` suppressed, `z.tfvars.json`
+unsuppressed. Expected and observed, in column order:
+
+| Pattern form | `yarnrc_yml_files` | `tfvars_files` | `yarnrc_with_unsuppressed_finding` | `tfvars_with_unsuppressed_finding` |
+| --- | --- | --- | --- | --- |
+| Single backslash (as above) | 2 | 2 | 1 | 1 |
+| Double backslash (broken) | 0 | 0 | 0 | 0 |
+
+The broken form reads a literal backslash plus any character, so it matches no
+path and reports a false zero. Keep single backslashes in psql, `rg`, and shell.
 
 ## Claim status
 
