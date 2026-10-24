@@ -30,7 +30,7 @@ truth, not the producer's logs.
 ### 3. Revoke the external grant
 
 ```bash
-for kind in cloud_resource cloud_relationship tag_observation \
+for kind in cloud_relationship tag_observation \
     iam_policy_observation dns_record image_reference collection_warning; do
   eshu component revoke-grant dev.eshu.collector.gcp-cloud \
     --component-home ~/.eshu/components \

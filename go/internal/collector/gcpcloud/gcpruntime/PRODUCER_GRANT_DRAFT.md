@@ -35,7 +35,7 @@ either choice is verifiable.
 One grant per core-owned kind (the CLI binds one kind per grant):
 
 ```bash
-for kind in cloud_resource cloud_relationship tag_observation \
+for kind in cloud_relationship tag_observation \
     iam_policy_observation dns_record image_reference collection_warning; do
   eshu component grant dev.eshu.collector.gcp-cloud \
     --component-home ~/.eshu/components \
