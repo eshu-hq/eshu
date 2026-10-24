@@ -24,13 +24,11 @@ func redactForTest(t *testing.T, body string, keys ...string) string {
 	return got
 }
 
-// detectedKind mirrors migration 138 on one stored line: the line gate
-// (SQLPattern) then the CASE. It returns "" when the line is not a finding.
+// detectedKind mirrors the detector migration on one stored line: the line
+// gate then the CASE (detect.Finding). It returns "" when the line is no
+// finding.
 func detectedKind(line string) string {
-	if len(detect.Spans(line)) == 0 {
-		return ""
-	}
-	return detect.Classify(line)
+	return detect.Finding(line)
 }
 
 func TestRedactMarkerReplacesListedKeyValuesAtAnyLength(t *testing.T) {
@@ -202,31 +200,26 @@ func TestRedactMarkerRejectsBlindingMarkers(t *testing.T) {
 	}
 }
 
-// TestRedactMarkerPerKindResultUnderMigration138 is the per-kind table for the
-// six finding kinds (a key line and a free-text line each). It pins the
-// MEASURED result of migration 138 on the marked line: survives (same kind),
-// lost (not detected), or kind changed. #8833's marker arm updates every row to
-// "same kind". Re-measured after arbiter ruling B1 (a detector match redacts to
-// the end of the line) against the real migration 138 CASE and line gate on
-// PostgreSQL 18.6; the probe lines are the evidence page's marker probe. A
-// shape match now takes the closing quote with the rest of the line.
-func TestRedactMarkerPerKindResultUnderMigration138(t *testing.T) {
+// TestRedactMarkerPerKindKeepsKindUnderMarkerArm is the per-kind table for the
+// six finding kinds (a key line and a free-text line each). Under migration
+// 138 the marked aws_access_key, slack_token, and private_key lines were lost
+// (measured on PostgreSQL 18.6, the evidence page's marker probe); #8833's
+// marker arm makes every marked line keep its raw kind, which this table now
+// pins. A shape match takes the closing quote with the rest of the line
+// (arbiter ruling B1).
+func TestRedactMarkerPerKindKeepsKindUnderMarkerArm(t *testing.T) {
 	t.Parallel()
 
-	const (
-		survives = "survives"
-		lost     = "lost"
-	)
 	cases := []struct {
 		kind, shape, in, wantMarked string
-		after                       string // detected kind on the marked line under migration 138
+		after                       string // detected kind on the marked line; "" means the raw kind
 	}{
-		{"aws_access_key", "key", `access_key_id = "AKIAABCDEFGHIJKLMNOP"`, `access_key_id = "REDACTED_aws_access_key`, lost},
-		{"aws_access_key", "free", `# rotate AKIAABCDEFGHIJKLMNOP soon`, `# rotate REDACTED_aws_access_key`, lost},
-		{"slack_token", "key", `slack_webhook = "xoxb-0123456789ab"`, `slack_webhook = "REDACTED_slack_token`, lost},
-		{"slack_token", "free", `# post with xoxb-0123456789ab here`, `# post with REDACTED_slack_token`, lost},
-		{"private_key", "key", `key = "-----BEGIN RSA PRIVATE KEY-----"`, `key = "REDACTED_private_key"`, lost},
-		{"private_key", "free", `# -----BEGIN RSA PRIVATE KEY-----`, `# REDACTED_private_key`, lost},
+		{"aws_access_key", "key", `access_key_id = "AKIAABCDEFGHIJKLMNOP"`, `access_key_id = "REDACTED_aws_access_key`, ""},
+		{"aws_access_key", "free", `# rotate AKIAABCDEFGHIJKLMNOP soon`, `# rotate REDACTED_aws_access_key`, ""},
+		{"slack_token", "key", `slack_webhook = "xoxb-0123456789ab"`, `slack_webhook = "REDACTED_slack_token`, ""},
+		{"slack_token", "free", `# post with xoxb-0123456789ab here`, `# post with REDACTED_slack_token`, ""},
+		{"private_key", "key", `key = "-----BEGIN RSA PRIVATE KEY-----"`, `key = "REDACTED_private_key"`, ""},
+		{"private_key", "free", `# -----BEGIN RSA PRIVATE KEY-----`, `# REDACTED_private_key`, ""},
 		{"api_token", "key", `npmAuthToken: abcdef123456`, `npmAuthToken: REDACTED_api_token`, "api_token"},
 		{"api_token", "free", `# the api_key=abcdef123456 was pasted`, `# the api_key=REDACTED_api_token`, "api_token"},
 		{"password_literal", "key", `db_password = "abcdef123456"`, `db_password = "REDACTED_password_literal"`, "password_literal"},
@@ -244,13 +237,12 @@ func TestRedactMarkerPerKindResultUnderMigration138(t *testing.T) {
 		if marked != tc.wantMarked {
 			t.Errorf("%s/%s: marked %q, want %q", tc.kind, tc.shape, marked, tc.wantMarked)
 		}
-		got := detectedKind(marked)
 		want := tc.after
-		if want == lost {
-			want = ""
+		if want == "" {
+			want = tc.kind
 		}
-		if got != want {
-			t.Errorf("%s/%s: marked line detected as %q under migration 138, want %q (%s)", tc.kind, tc.shape, got, want, tc.after)
+		if got := detectedKind(marked); got != want || got != tc.kind {
+			t.Errorf("%s/%s: marked line detected as %q, want the raw kind %q", tc.kind, tc.shape, got, tc.kind)
 		}
 	}
 	for _, kind := range detect.Kinds() {
@@ -260,21 +252,22 @@ func TestRedactMarkerPerKindResultUnderMigration138(t *testing.T) {
 	}
 }
 
-// TestRedactMarkerKindChangesUnderMigration138 pins the two measured kind
-// changes: a shape marker under a listed key is detected as api_token.
-func TestRedactMarkerKindChangesUnderMigration138(t *testing.T) {
+// TestRedactMarkerKeepsKindUnderAListedKey pins the two kind changes measured
+// under migration 138 (a shape marker under a listed key read as api_token),
+// which the marker arm, first in the CASE, removes.
+func TestRedactMarkerKeepsKindUnderAListedKey(t *testing.T) {
 	t.Parallel()
 
 	got := redactForTest(t, "npmAuthToken: AKIAABCDEFGHIJKLMNOP\n", "npmAuthToken")
 	if got != "npmAuthToken: REDACTED_aws_access_key\n" {
 		t.Fatalf("got %q", got)
 	}
-	if kind := detectedKind(strings.TrimSuffix(got, "\n")); kind != "api_token" {
-		t.Fatalf("migration 138 detects %q, want the measured api_token (raw kind was aws_access_key)", kind)
+	if kind := detectedKind(strings.TrimSuffix(got, "\n")); kind != "aws_access_key" {
+		t.Fatalf("marked line detected as %q, want the raw aws_access_key", kind)
 	}
 	slack := redactForTest(t, "slack_token = \"xoxb-0123456789ab\"\n")
-	if kind := detectedKind(strings.TrimSuffix(slack, "\n")); kind != "api_token" {
-		t.Fatalf("slack_token key line detected as %q, want api_token", kind)
+	if kind := detectedKind(strings.TrimSuffix(slack, "\n")); kind != "slack_token" {
+		t.Fatalf("slack_token key line detected as %q, want the raw slack_token", kind)
 	}
 }
 

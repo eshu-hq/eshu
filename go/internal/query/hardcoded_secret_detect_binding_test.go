@@ -59,7 +59,7 @@ func TestHardcodedSecretDetectBindingFailsOnDetectOnlyEdits(t *testing.T) {
 		t.Fatal("binding accepted a reordered CASE arm list")
 	}
 	widened := slices.Clone(arms)
-	widened[3].regex += "|bearer"
+	widened[len(widened)-1].regex += "|bearer"
 	if err := verifyHardcodedSecretMigrationBinding(migrationSQL, detect.SQLPattern, predicate, widened); err == nil {
 		t.Fatal("binding accepted a widened CASE arm")
 	}

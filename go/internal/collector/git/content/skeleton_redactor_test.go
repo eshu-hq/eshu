@@ -28,6 +28,9 @@ func TestRedactSkeletonLineRules(t *testing.T) {
 		{"close brace comma", "  },", "  },"},
 		{"close bracket", "]", "]"},
 		{"object opener", "tags = {", "tags = {"},
+		// A secret-named opener is a finding (block-opener extra) and keeps its
+		// structure: the line holds no value.
+		{"secret-named opener", "app_secrets = {", "app_secrets = {"},
 		{"list opener", "  zones = [", "  zones = ["},
 		{"json object opener", "  \"tags\": {", "  \"tags\": {"},
 		{"empty object", "labels = {}", "labels = {}"},
@@ -60,7 +63,7 @@ func TestRedactSkeletonLineRules(t *testing.T) {
 		{"inline list", "zones = [\"a\", \"b\"]", "zones = REDACTED_value"},
 		{"trailing comment", "count = 3 # three", "count = 3"},
 		{"string with trailing comment", "region = \"us-east-1\" # main", "region = REDACTED_value"},
-		{"url userinfo", "endpoint = \"https://admin:hunter2@db.example.com/x\"", "endpoint = REDACTED_value"},
+		{"url userinfo", "endpoint = \"https://admin:hunter2@db.example.com/x\"", "endpoint = REDACTED_password_literal"},
 		{"uppercase reference is not a reference", "x = VAR.thing", "x = REDACTED_value"},
 		// A detector-flagged key is checked first and keeps its finding kind.
 		{"password literal", "db_password = \"hunter2hunter2\"", "db_password = REDACTED_password_literal"},
@@ -101,7 +104,7 @@ func TestRedactSkeletonLineRules(t *testing.T) {
 		{"key value inside a quoted key", "  \"client_secret = abcdefghij\": 1,", "  REDACTED_secret_literal"},
 		// A quoted key is kept only when it reads as a name; free text in a key
 		// (URL userinfo, a password with symbols, a CIDR, an ARN) takes the line.
-		{"url userinfo as a key", "  \"https://u:hunter2@h.example.com\" = true", "  REDACTED_value"},
+		{"url userinfo as a key", "  \"https://u:hunter2@h.example.com\" = true", "  REDACTED_password_literal"},
 		{"symbols in a key", "  \"P@ss!w0rd\": 1,", "  REDACTED_value"},
 		{"cidr key", "  \"10.0.0.0/16\" = \"office\"", "  REDACTED_value"},
 		{"spaced key", "  \"my key\" = 1", "  REDACTED_value"},
@@ -163,7 +166,7 @@ EOF
 REDACTED_private_key
 REDACTED_value
 REDACTED_value
-endpoint = REDACTED_value
+endpoint = REDACTED_password_literal
 enabled  = true
 `
 
@@ -205,25 +208,23 @@ const skeletonTfvarsJSON = `{
 const skeletonTfvarsJSONWant = `{
   "region": REDACTED_value,
   "replicas": 2,
-  "db_password": REDACTED_value,
+  "db_password": REDACTED_password_literal,
   "nested": {
-    "client_secret": REDACTED_value,
+    "client_secret": REDACTED_secret_literal,
     "zones": [
       REDACTED_value
       REDACTED_value
     ]
   },
-  "endpoint": REDACTED_value
+  "endpoint": REDACTED_password_literal
 }
 `
 
 // TestRedactSkeletonTfvarsJSONBody covers the "key": value form. A value
 // replacement keeps its trailing comma; a whole-line marker (a bare list
-// element) does not, so every whole-line marker has one shape. Migration 138
-// cannot see a JSON-quoted key (the closing quote sits between the key word and
-// the colon), so db_password is no finding today and becomes REDACTED_value;
-// #8833's detector migration adds JSON-quoted keys, and the redactor then marks
-// the same lines with their kind through the shared detector.
+// element) does not, so every whole-line marker has one shape. The detector
+// migration reads JSON-quoted keys and URL userinfo, so those lines keep their
+// finding kind.
 func TestRedactSkeletonTfvarsJSONBody(t *testing.T) {
 	t.Parallel()
 

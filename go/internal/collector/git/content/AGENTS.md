@@ -41,8 +41,9 @@ body. Rules that keep it safe:
   mode's marker for a value or line that is no finding; the marker mode never
   writes it.
 - The redactor binds to `go/internal/secret/detect`; do not copy its pattern.
-  `TestRedactMarkerPerKindResultUnderMigration138` pins the measured result per
-  finding kind and must be updated, not loosened, when #8833's marker arm lands.
+  `TestRedactMarkerPerKindKeepsKindUnderMarkerArm` pins that every marked line
+  keeps its raw kind under the migration 234 marker arm (it pinned the measured
+  migration 138 losses before #8833); do not loosen it.
 - Keep `redactMarker` fail-closed for YAML value shapes. A new key shape needs a
   seeded-violation test in `marker_redactor_test.go`.
 - Keep the URL userinfo rule (`marker_url_userinfo.go`) narrower than the

@@ -331,14 +331,10 @@ func (s *skeletonState) wholeLine(line string) string {
 	return leadingWhitespace(line) + markerPrefix + kind
 }
 
-// findingKind returns the kind migration 138 reports for one raw line, or ""
-// when the line is no finding: the line gate must match and the CASE must name
-// a kind.
+// findingKind returns the kind the detector migration stores for one raw line,
+// or "" when the line is no finding (detect.Finding).
 func findingKind(line string) string {
-	if len(detect.Spans(line)) == 0 {
-		return ""
-	}
-	return detect.Classify(line)
+	return detect.Finding(line)
 }
 
 func skeletonAllowed(value string) bool {

@@ -55,9 +55,15 @@ func TestClassifyUsesTheFirstMatchingCaseArm(t *testing.T) {
 func TestSQLPatternIsTheComposedKeyAndShapeBranches(t *testing.T) {
 	t.Parallel()
 
-	const want = `(password|passwd|pwd|api[_-]?key|apikey|token|secret|client[_-]?secret|private[_-]?key|authorization)[[:space:]]*[:=][[:space:]]*['"]?[A-Za-z0-9_./+=:@!#$%^-]{6,}|AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----`
+	const want = `(password|passwd|pwd|api[_-]?key|apikey|token|secret|client[_-]?secret|private[_-]?key|authorization|npm[_-]?auth[_-]?ident)['"]?[[:space:]]*[:=][[:space:]]*['"]?[A-Za-z0-9_./+=:@!#$%^-]{6,}` +
+		`|AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----` +
+		`|//[^/?#@[:space:]:]+:[^/?#@[:space:]]+@` +
+		`|(password|passwd|pwd|api[_-]?key|apikey|token|secret|credential)s?[[:space:]]*=[[:space:]]*[{][[:space:]]*$`
 	if detect.SQLPattern != want {
-		t.Fatalf("SQLPattern = %q, want the migration 138 pattern", detect.SQLPattern)
+		t.Fatalf("SQLPattern = %q, want the migration 234 pattern", detect.SQLPattern)
+	}
+	if detect.MarkerPrefix != "REDACTED_" {
+		t.Fatalf("MarkerPrefix = %q", detect.MarkerPrefix)
 	}
 	// MustCompile panics if the Postgres pattern is not valid RE2.
 	_ = regexp.MustCompile("(?i)" + detect.SQLPattern)

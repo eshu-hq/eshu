@@ -11,22 +11,39 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/secret/detect"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/migrations"
 )
 
 const secretLinesMigrationName = "content_file_secret_lines"
 
-// secretLinesMigrationSQL returns the embedded migration that owns the
-// content_file_secret_lines table, its derivation function, and its triggers.
+// secretLinesFunctionPattern finds one CREATE OR REPLACE FUNCTION
+// eshu_secret_line_findings statement, through its closing $fn$;.
+var secretLinesFunctionPattern = regexp.MustCompile(`(?s)CREATE OR REPLACE FUNCTION eshu_secret_line_findings\(.*?\$fn\$;`)
+
+// secretLinesMigrationSQL returns the effective schema of the hardcoded-secret
+// side table: migration 138 (the table, its suppressed column, the triggers,
+// and readiness) with its eshu_secret_line_findings replaced by the latest
+// migration that redefines the function (234, #8833). Bootstrap applies every
+// file in path order, so the latest definition is the one that runs.
 func secretLinesMigrationSQL(t testing.TB) string {
 	t.Helper()
+	var table, latest string
 	for _, def := range migrations.BootstrapDefinitions() {
 		if def.Name == secretLinesMigrationName {
-			return def.SQL
+			table = def.SQL
+		}
+		if function := secretLinesFunctionPattern.FindString(def.SQL); function != "" {
+			latest = function
 		}
 	}
-	t.Fatalf("embedded migration %q not found; #7125 needs 138_%s.sql", secretLinesMigrationName, secretLinesMigrationName)
-	return ""
+	if table == "" {
+		t.Fatalf("embedded migration %q not found; #7125 needs 138_%s.sql", secretLinesMigrationName, secretLinesMigrationName)
+	}
+	if latest == "" {
+		t.Fatal("no migration defines eshu_secret_line_findings")
+	}
+	return secretLinesFunctionPattern.ReplaceAllLiteralString(table, latest)
 }
 
 var (
@@ -66,6 +83,14 @@ func verifyHardcodedSecretMigrationBinding(
 	if got := strings.Count(migrationSQL, "~* '"+escaped+"'"); got != 2 {
 		return fmt.Errorf("migration applies the secret pattern %d times, want 2 (file prefilter and line filter)", got)
 	}
+	// The marker arm's place in the gate (#8833): a case-sensitive substring
+	// test OR'd with the pattern, at file and line level.
+	for _, subject := range []string{"file_content", "lines.line_text"} {
+		gate := "(strpos(" + subject + ", '" + detect.MarkerPrefix + "') > 0 OR " + subject + " ~* '" + escaped + "')"
+		if !strings.Contains(migrationSQL, gate) {
+			return fmt.Errorf("migration does not gate %s on the marker prefix OR the pattern", subject)
+		}
+	}
 	migrationArms := secretLineCaseArms(migrationSQL)
 	if !slices.Equal(migrationArms, caseArms) {
 		return fmt.Errorf("migration CASE arms = %#v, want the legacy classification %#v", migrationArms, caseArms)
@@ -85,8 +110,8 @@ func legacyCaseArms(t testing.TB) []secretLineCaseArm {
 	t.Helper()
 	query, _ := legacyHardcodedSecretInvestigationQuery(codequery.HardcodedSecretInvestigationRequest{})
 	arms := secretLineCaseArms(query)
-	if len(arms) != 6 {
-		t.Fatalf("legacy golden CASE has %d arms, want 6", len(arms))
+	if len(arms) != len(detect.ArmSources()) {
+		t.Fatalf("legacy golden CASE has %d arms, want %d", len(arms), len(detect.ArmSources()))
 	}
 	return arms
 }
@@ -120,7 +145,11 @@ func TestHardcodedSecretMigrationBindingFailsOnGoOnlyPolicyEdits(t *testing.T) {
 	}
 
 	changedArms := slices.Clone(arms)
-	changedArms[3].regex = strings.Replace(changedArms[3].regex, "apikey", "apikey|bearer", 1)
+	apiKeyArm := slices.IndexFunc(changedArms, func(arm secretLineCaseArm) bool { return strings.Contains(arm.regex, "apikey") })
+	if apiKeyArm < 0 {
+		t.Fatal("no CASE arm names apikey; the seeded edit has nothing to change")
+	}
+	changedArms[apiKeyArm].regex = strings.Replace(changedArms[apiKeyArm].regex, "apikey", "apikey|bearer", 1)
 	for name, run := range map[string]func() error{
 		"pattern gains a branch in Go only": func() error {
 			return verifyHardcodedSecretMigrationBinding(migrationSQL, pattern+"|glpat-[A-Za-z0-9]{20}", predicate, arms)
@@ -135,6 +164,10 @@ func TestHardcodedSecretMigrationBindingFailsOnGoOnlyPolicyEdits(t *testing.T) {
 		},
 		"classification arm changed in Go only": func() error {
 			return verifyHardcodedSecretMigrationBinding(migrationSQL, pattern, predicate, changedArms)
+		},
+		"migration drops the marker gate": func() error {
+			trimmed := strings.Replace(migrationSQL, "strpos(lines.line_text, '"+detect.MarkerPrefix+"') > 0 OR ", "", 1)
+			return verifyHardcodedSecretMigrationBinding(trimmed, pattern, predicate, arms)
 		},
 		"migration drops the file prefilter": func() error {
 			trimmed := strings.Replace(migrationSQL, "file_content ~* '"+strings.ReplaceAll(pattern, "'", "''")+"'", "TRUE", 1)

@@ -168,25 +168,21 @@ func checkSkeletonProperties(t *testing.T, body string) {
 	}
 	for i := range rawLines {
 		raw, stored := strings.TrimSuffix(rawLines[i], "\r"), strings.TrimSuffix(outLines[i], "\r")
-		kind := rawFindingKind(raw)
-		switch {
-		case stored == raw:
-		case kind != "" && !strings.Contains(stored, markerPrefix+kind):
-			t.Fatalf("line %d: raw finding %s lost: %q -> %q", i+1, kind, raw, stored)
-		case kind == "" && holdsKindMarker(stored):
+		// The (line_number, finding_kind) differential, per line: the detector
+		// migration stores the same finding for the skeleton line as for the
+		// raw line, for all six kinds and for no finding.
+		if want, got := rawFindingKind(raw), rawFindingKind(stored); got != want {
+			t.Fatalf("line %d: raw finding %q, stored finding %q: %q -> %q", i+1, want, got, raw, stored)
+		}
+		if rawFindingKind(raw) == "" && holdsKindMarker(stored) && stored != raw {
 			t.Fatalf("line %d: no raw finding but a kind marker was added: %q -> %q", i+1, raw, stored)
-		case kind == "" && rawFindingKind(stored) != "":
-			t.Fatalf("line %d: the stored line is a %s finding the raw line is not: %q -> %q", i+1, rawFindingKind(stored), raw, stored)
 		}
 	}
 }
 
-// rawFindingKind is migration 138 on one line: the line gate, then the CASE.
+// rawFindingKind is the detector migration on one line (detect.Finding).
 func rawFindingKind(line string) string {
-	if len(detect.Spans(line)) == 0 {
-		return ""
-	}
-	return detect.Classify(line)
+	return detect.Finding(line)
 }
 
 func holdsKindMarker(line string) bool {

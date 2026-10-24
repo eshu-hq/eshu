@@ -28,12 +28,12 @@ func TestRedactMarkerURLUserinfoKeepsTheHost(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct{ name, in, want string }{
-		{"user and password", "npmRegistryServer: \"https://user:pass@npm.example.com/\"\n", "npmRegistryServer: \"https://REDACTED_secret_literal@npm.example.com/\"\n"},
-		{"unquoted with port", "httpsProxy: http://u:p@proxy.example.com:8080\n", "httpsProxy: http://REDACTED_secret_literal@proxy.example.com:8080\n"},
+		{"user and password", "npmRegistryServer: \"https://user:pass@npm.example.com/\"\n", "npmRegistryServer: \"https://REDACTED_password_literal@npm.example.com/\"\n"},
+		{"unquoted with port", "httpsProxy: http://u:p@proxy.example.com:8080\n", "httpsProxy: http://REDACTED_password_literal@proxy.example.com:8080\n"},
 		{"token only userinfo", "npmPublishRegistry: 'https://tok3n@registry.example.com/'\n", "npmPublishRegistry: 'https://REDACTED_secret_literal@registry.example.com/'\n"},
-		{"raw at sign in password", "httpProxy: \"http://user:p@ss@proxy.example.com\"\n", "httpProxy: \"http://REDACTED_secret_literal@proxy.example.com\"\n"},
-		{"nested scope", "npmScopes:\n  acme:\n    npmRegistryServer: \"https://u:p@acme.example.com\"\n", "npmScopes:\n  acme:\n    npmRegistryServer: \"https://REDACTED_secret_literal@acme.example.com\"\n"},
-		{"key is case insensitive", "HTTPSPROXY: http://u:p@proxy.example.com\n", "HTTPSPROXY: http://REDACTED_secret_literal@proxy.example.com\n"},
+		{"raw at sign in password", "httpProxy: \"http://user:p@ss@proxy.example.com\"\n", "httpProxy: \"http://REDACTED_password_literal@proxy.example.com\"\n"},
+		{"nested scope", "npmScopes:\n  acme:\n    npmRegistryServer: \"https://u:p@acme.example.com\"\n", "npmScopes:\n  acme:\n    npmRegistryServer: \"https://REDACTED_password_literal@acme.example.com\"\n"},
+		{"key is case insensitive", "HTTPSPROXY: http://u:p@proxy.example.com\n", "HTTPSPROXY: http://REDACTED_password_literal@proxy.example.com\n"},
 		// No userinfo: the value is kept.
 		{"no userinfo", "npmRegistryServer: \"https://registry.example.com/\"\n", "npmRegistryServer: \"https://registry.example.com/\"\n"},
 		{"env reference", "npmRegistryServer: \"${REGISTRY}\"\n", "npmRegistryServer: \"${REGISTRY}\"\n"},
@@ -48,20 +48,20 @@ func TestRedactMarkerURLUserinfoKeepsTheHost(t *testing.T) {
 		// YAML decodes escapes in a double-quoted scalar, so "\x40" is an "@"
 		// the raw text does not show; a backslash sends the whole value.
 		{"yaml escape hides the at sign", "npmRegistryServer: \"https://pass\\x40npm.example.com/\"\n", "npmRegistryServer: \"REDACTED_secret_literal\"\n"},
-		{"yaml escape after the userinfo", "npmRegistryServer: \"https://u:p@npm.example.com\\x2Fx\"\n", "npmRegistryServer: \"REDACTED_secret_literal\"\n"},
+		{"yaml escape after the userinfo", "npmRegistryServer: \"https://u:p@npm.example.com\\x2Fx\"\n", "npmRegistryServer: \"REDACTED_password_literal\"\n"},
 		// A host it cannot read as a plain name goes whole.
 		{"percent escape in the host", "httpsProxy: http://pass%40proxy.example.com\n", "httpsProxy: REDACTED_secret_literal\n"},
 		{"backslash in an unquoted host", "httpsProxy: http://pass\\x40proxy.example.com\n", "httpsProxy: REDACTED_secret_literal\n"},
 		{"not a url", "npmRegistryServer: hunter2hunter2\n", "npmRegistryServer: REDACTED_secret_literal\n"},
 		{"trailing comment", "npmRegistryServer: \"https://h.example.com/\" # was u:p@h\n", "npmRegistryServer: \"REDACTED_secret_literal\"\n"},
-		{"two urls", "httpProxy: http://a.example.com http://u:p@b.example.com\n", "httpProxy: REDACTED_secret_literal\n"},
-		{"env default", "npmRegistryServer: \"${REGISTRY:-https://u:p@h.example.com}\"\n", "npmRegistryServer: \"REDACTED_secret_literal\"\n"},
+		{"two urls", "httpProxy: http://a.example.com http://u:p@b.example.com\n", "httpProxy: REDACTED_password_literal\n"},
+		{"env default", "npmRegistryServer: \"${REGISTRY:-https://u:p@h.example.com}\"\n", "npmRegistryServer: \"REDACTED_password_literal\"\n"},
 		{"block scalar", "npmRegistryServer: |\n  https://u:p@h.example.com\nx: 1\n", "npmRegistryServer: REDACTED_secret_literal\n  REDACTED_secret_literal\nx: 1\n"},
-		{"unterminated quote", "npmRegistryServer: \"https://u:p@h\nmore\"\nx: 1\n", "npmRegistryServer: \"REDACTED_secret_literal\"\nREDACTED_secret_literal\nx: 1\n"},
+		{"unterminated quote", "npmRegistryServer: \"https://u:p@h\nmore\"\nx: 1\n", "npmRegistryServer: \"REDACTED_password_literal\"\nREDACTED_secret_literal\nx: 1\n"},
 		// Any other detector match on the line makes the whole value go, with the
 		// line's raw kind.
 		{"token in the query", "npmRegistryServer: \"https://u:p@h.example.com/?token=abcdefgh\"\n", "npmRegistryServer: \"REDACTED_api_token\"\n"},
-		{"ipv6 host", "httpsProxy: \"http://u:p@[::1]:3128\"\n", "httpsProxy: \"http://REDACTED_secret_literal@[::1]:3128\"\n"},
+		{"ipv6 host", "httpsProxy: \"http://u:p@[::1]:3128\"\n", "httpsProxy: \"http://REDACTED_password_literal@[::1]:3128\"\n"},
 		{"ipv6 host without userinfo", "httpsProxy: \"http://[::1]\"\n", "httpsProxy: \"http://[::1]\"\n"},
 		// A flow mapping holding a URL key and a credential key: the credential
 		// rule from the leftmost key's separator covers both values.
@@ -98,9 +98,9 @@ func TestRedactMarkerURLUserinfoIsAFixedPoint(t *testing.T) {
 	}
 }
 
-// TestRedactMarkerWithoutURLKeysIsUnchanged pins that #8812's redactor keeps
-// its behavior when a definition lists no URL keys: a URL key is an ordinary
-// unlisted key, and redactMarker is the same function with no URL keys.
+// TestRedactMarkerWithoutURLKeysIsUnchanged pins that a definition with no URL
+// keys gets the plain marker behavior: a URL key is an ordinary unlisted key,
+// and redactMarker is the same function with no URL keys.
 func TestRedactMarkerWithoutURLKeysIsUnchanged(t *testing.T) {
 	t.Parallel()
 
@@ -113,7 +113,9 @@ func TestRedactMarkerWithoutURLKeysIsUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plain != none || plain != "npmRegistryServer: \"https://user:pass@npm.example.com/\"\nnpmAuthToken: REDACTED_api_token\n" {
+	// Without URL keys the detector's userinfo extra still redacts the URL,
+	// from its scheme to the end of the line (ruling B1).
+	if plain != none || plain != "npmRegistryServer: \"REDACTED_password_literal\nnpmAuthToken: REDACTED_api_token\n" {
 		t.Fatalf("redactMarker = %q, with nil URL keys = %q", plain, none)
 	}
 }

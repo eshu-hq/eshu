@@ -329,4 +329,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// security-alert collection-state read probes per target. Migration-only
 	// and built CONCURRENTLY, like migrations 156 and 211.
 	"workflow_work_items_security_alert_scope_updated_idx",
+	// Migration 234 (#8833) replaces eshu_secret_line_findings with the marker
+	// arm and the detector extras.
+	"content_file_secret_lines_marker_arm",
 }
