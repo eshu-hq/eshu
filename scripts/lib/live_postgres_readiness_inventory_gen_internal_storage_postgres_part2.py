@@ -7,6 +7,14 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/recovery_replay_lock_order_interleave_live_test.go": (
+            "TestRecoveryReplayTwoSessionsBlockOneWayLive",
+            "TestRecoveryReplayHeldRowRaceLive",
+            "TestRecoveryReplayDropsRowChangedBeforeItsLockLive",
+        ),
+        "go/internal/storage/postgres/recovery_replay_lock_order_live_test.go": (
+            "TestRecoveryReplayConcurrentReplaysNeverDeadlockLive",
+        ),
         "go/internal/storage/postgres/reducer_claim_sweep_lock_order_live_test.go": (
             "TestReducerClaimSweepAndReplayBlockOneWayLive",
             "TestReducerClaimSweepHeldRowRaceLive",
