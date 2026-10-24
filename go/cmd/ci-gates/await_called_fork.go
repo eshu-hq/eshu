@@ -16,13 +16,18 @@ import (
 // calledWorkflowRun retains the raw PR field: only an explicit empty array permits
 // fork fallback. Missing or null association must never become that signal.
 type calledWorkflowRun struct {
-	ID                  int64           `json:"id"`
-	Name                string          `json:"name"`
-	Path                string          `json:"path"`
-	Event               string          `json:"event"`
-	HeadSHA             string          `json:"head_sha"`
-	HeadBranch          string          `json:"head_branch"`
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	Event      string `json:"event"`
+	HeadSHA    string `json:"head_sha"`
+	HeadBranch string `json:"head_branch"`
+	Repository struct {
+		FullName string `json:"full_name"`
+	} `json:"repository"`
 	RunAttempt          int             `json:"run_attempt"`
+	Status              string          `json:"status"`
+	Conclusion          string          `json:"conclusion"`
 	PullRequests        json.RawMessage `json:"pull_requests"`
 	ReferencedWorkflows json.RawMessage `json:"referenced_workflows"`
 }

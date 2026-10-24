@@ -62,6 +62,19 @@ func changedPRPlanDefinition(paths []string, truncated bool) bool {
 	return false
 }
 
+func transferPRPathsSafe(paths []string, truncated bool) bool {
+	if truncated {
+		return false
+	}
+	for _, path := range paths {
+		if strings.HasPrefix(path, ".github/") || strings.HasPrefix(path, "specs/ci-gates") ||
+			strings.HasPrefix(path, "specs/ci-pr-workflows.d/") || strings.HasPrefix(path, "scripts/") {
+			return false
+		}
+	}
+	return true
+}
+
 // transferProvenReuse requires the current trusted planner to pass before a
 // full-backed tree-identical verdict can bypass leaf jobs after migration.
 func transferProvenReuse(ctx context.Context, runner ghRunner, root, repo string, pr int, headSHA string, pollInterval time.Duration, verdict reuseVerdict) (bool, error) {
@@ -74,13 +87,22 @@ func transferProvenReuse(ctx context.Context, runner ghRunner, root, repo string
 		if err != nil {
 			return false, err
 		}
-		if changedPRPlanDefinition(paths, truncated) {
+		if !transferPRPathsSafe(paths, truncated) || changedPRPlanDefinition(paths, truncated) {
 			_, _ = fmt.Fprintln(os.Stdout, "required-gates: planner definition changed; reuse refused")
 			return false, nil
 		}
 		if err := awaitPRRequiredChecks(ctx, runner, repo, pr, headSHA, []resolvedRequiredGate{planner}, pollInterval, os.Stdout); err != nil {
 			return false, err
 		}
+	}
+	input, bound := currentTestedInput(ctx)
+	if !bound {
+		return false, nil
+	}
+	mode, err := planModeProven(ctx, runner, repo, input, "reuse")
+	if err != nil || !mode {
+		_, _ = fmt.Fprintln(os.Stdout, "required-gates: caller planner did not record reuse mode; transfer refused")
+		return false, err
 	}
 	_, _ = fmt.Fprintf(os.Stdout, "required-gates: reuse source=%s tree=%s (%s)\n", verdict.SourceSHA, verdict.Tree, verdict.Reason)
 	if err := verifyPRHead(ctx, runner, repo, pr, headSHA); err != nil {

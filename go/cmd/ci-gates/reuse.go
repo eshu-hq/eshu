@@ -20,10 +20,13 @@ import (
 // reuseVerdict is the probe's answer: whether a prior head of the same pull
 // request already proved this exact tree green on every required context.
 type reuseVerdict struct {
-	Reuse     bool
-	SourceSHA string
-	Tree      string
-	Reason    string
+	Reuse       bool
+	SourceSHA   string
+	Tree        string
+	MergeSHA    string
+	MergeTree   string
+	FullRootSHA string
+	Reason      string
 }
 
 // runReuse backs `ci-gates reuse`: it prints key=value lines a workflow step
@@ -50,12 +53,27 @@ func runReuse(args []string) error {
 	// never stall the caller to its job timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	verdict, err := probeReuseForAwait(ctx, execGHRunner{}, reg, *repo, *pr, *headSHA)
+	if runID, attempt, identityErr := nativeRunAttempt(); identityErr == nil {
+		if input, bindErr := readTestedInput(ctx, execGHRunner{}, *repo, *pr, *headSHA, runID, attempt); bindErr == nil {
+			ctx = withTestedInput(ctx, input)
+		}
+	}
+	paths, truncated, err := changedPathsForPR(ctx, execGHRunner{}, *repo, *pr)
 	if err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "reuse=%v\nsource_sha=%s\ntree=%s\nreason=%s\n",
-		verdict.Reuse, verdict.SourceSHA, verdict.Tree, verdict.Reason)
+	var verdict reuseVerdict
+	if transferPRPathsSafe(paths, truncated) {
+		verdict, err = probeReuseForAwait(ctx, execGHRunner{}, reg, *repo, *pr, *headSHA)
+	} else {
+		verdict.Reason = "PR changes gate definitions or changed-file listing is incomplete"
+	}
+	if err != nil {
+		return err
+	}
+	input, _ := currentTestedInput(ctx)
+	_, _ = fmt.Fprintf(os.Stdout, "reuse=%v\nsource_sha=%s\nsource_full_sha=%s\ntree=%s\ntarget_run_id=%d\ntarget_run_attempt=%d\nmerge_sha=%s\nmerge_tree=%s\nreason=%s\n",
+		verdict.Reuse, verdict.SourceSHA, verdict.FullRootSHA, verdict.Tree, input.RunID, input.Attempt, input.MergeSHA, input.MergeTree, verdict.Reason)
 	return nil
 }
 
@@ -118,6 +136,11 @@ func probeReuse(ctx context.Context, runner ghRunner, repo string, pr int, headS
 		return reuseVerdict{}, err
 	}
 	verdict := reuseVerdict{Tree: head.Tree.SHA, Reason: "no previous head with an identical tree and a full green verdict"}
+	target, bound := currentTestedInput(ctx)
+	if !bound {
+		verdict.Reason = "target Build Test input is not bound to an exact run and attempt"
+		return verdict, nil
+	}
 	for _, candidate := range candidates {
 		if candidate == headSHA || !commitSHAPattern.MatchString(candidate) {
 			continue
@@ -134,18 +157,21 @@ func probeReuse(ctx context.Context, runner ghRunner, repo string, pr int, headS
 			return reuseVerdict{}, err
 		}
 		if green {
-			fullBacked, err := candidateRanFull(ctx, runner, repo, candidate)
+			proof, source, fullBacked, err := fullBackedSource(ctx, runner, repo, pr, candidate, contexts)
 			if err != nil {
 				return reuseVerdict{}, err
 			}
-			if !fullBacked {
+			if !fullBacked || source.MergeTree != target.MergeTree {
 				continue
 			}
 			return reuseVerdict{
-				Reuse:     true,
-				SourceSHA: candidate,
-				Tree:      head.Tree.SHA,
-				Reason:    "identical tree has a full-backed green verdict on every required context",
+				Reuse:       true,
+				SourceSHA:   candidate,
+				Tree:        head.Tree.SHA,
+				MergeSHA:    target.MergeSHA,
+				MergeTree:   target.MergeTree,
+				FullRootSHA: proof.FullRootSHA,
+				Reason:      "identical head and tested merge trees have a v3 full-backed verdict",
 			}, nil
 		}
 	}

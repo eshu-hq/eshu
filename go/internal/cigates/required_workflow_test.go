@@ -48,10 +48,18 @@ jobs:
             10) state=failure; description='A required gate failed' ;;
             11) exit 0 ;;
             13) state=error; description='A required gate was cancelled' ;;
-            14) state=success; description='Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)' ;;
-            15) state=success; description='Smoke subset passed on a clean rebase' ;;
+            14) state=success; description='Transfer requires bound proof' ;;
+            15) state=success; description='Smoke requires bound proof' ;;
             *) state=error; description='Aggregation broke' ;;
           esac
+          if [[ "${AGGREGATE_CODE}" == 14 || "${AGGREGATE_CODE}" == 15 ]]; then
+            if [[ -f "${RUNNER_TEMP}/required-gates-proof" ]]; then
+              IFS= read -r description < "${RUNNER_TEMP}/required-gates-proof"
+            else
+              state=error
+              description='Transfer lacked bound proof'
+            fi
+          fi
           gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state="${state}" -f context=required-gates-complete -f description="${description}"
 `
 

@@ -206,6 +206,8 @@ jobs:
           GOCACHE: ${{ runner.temp }}/go-build-required-gates
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
+          TARGET_RUN_ID: ${{ github.event.workflow_run.id }}
+          TARGET_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           RUN_EVENT: ${{ github.event.workflow_run.event }}
           BASE_REF: ${{ github.event.repository.default_branch }}
           # For a merge_group source run this is the queue branch
@@ -238,12 +240,16 @@ jobs:
             target=(--event pull_request --pr "${PR_NUMBER}")
           fi
           set +e
+          rm -f "${RUNNER_TEMP}/required-gates-proof"
           "${RUNNER_TEMP}/ci-gates-bin" await \
             --registry ../specs/ci-gates.v1.yaml \
             --repo-root .. \
             --repo "${GITHUB_REPOSITORY}" \
             "${target[@]}" \
             --head-sha "${HEAD_SHA}" \
+            --target-run-id "${TARGET_RUN_ID}" \
+            --target-run-attempt "${TARGET_RUN_ATTEMPT}" \
+            --proof-file "${RUNNER_TEMP}/required-gates-proof" \
             --poll-interval 30s \
             --timeout 80m
           code=$?
@@ -374,10 +380,10 @@ jobs:
               # proved this exact tree green on every required context, so
               # the verdict transfers. The await log names the source SHA
               # and tree; this description must not claim the gates ran now.
-              14) state=success; description='Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)' ;;
+              14) state=success; description='Tree-identical reuse requires bound v3 proof' ;;
               # 15 (#8617 step 5): clean rebase, disjoint base delta; the
               # fast subset ran and passed, heavy verdicts transferred.
-              15) state=success; description='Smoke subset passed on a clean rebase; heavy verdicts transferred (see run log)' ;;
+              15) state=success; description='Smoke subset requires bound v3 proof' ;;
               # An empty code is not a broken aggregator: the aggregate step
               # produced no verdict. Two things do that. A step before it failed,
               # so GitHub skipped it -- `continue-on-error` does not add
@@ -391,6 +397,18 @@ jobs:
               "") state=error; description='Required gate aggregation produced no verdict; the step was skipped or failed before classifying (see the run log)' ;;
               *) state=error; description='Required gate aggregation broke (not a gate result)' ;;
             esac
+          fi
+          if [[ "${state}" == success && ( "${RUN_EVENT}" == pull_request || "${AGGREGATE_CODE}" == 14 || "${AGGREGATE_CODE}" == 15 ) ]]; then
+            if [[ -f "${RUNNER_TEMP}/required-gates-proof" ]]; then
+              IFS= read -r description < "${RUNNER_TEMP}/required-gates-proof"
+              if [[ "${description}" != v3\ * || ${#description} -gt 140 ]]; then
+                state=error
+                description='Bound gate proof was malformed; no verdict was transferred'
+              fi
+            elif [[ "${AGGREGATE_CODE}" == 14 || "${AGGREGATE_CODE}" == 15 ]]; then
+              state=error
+              description='Transfer lacked bound gate proof; run all selected gates'
+            fi
           fi
           gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
             -f state="${state}" \

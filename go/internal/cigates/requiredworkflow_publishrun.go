@@ -59,6 +59,8 @@ const (
 	publisherProbeRepository = "eshu-hq/required-gates-probe"
 	publisherProbeHeadSHA    = "0000000000000000000000000000000000006189"
 	publisherProbeTargetURL  = "https://example.invalid/actions/runs/6189"
+	publisherProbeReuseProof = "v3 reuse m=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa r=6189 a=1 s=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	publisherProbeSmokeProof = "v3 smoke m=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa r=6189 a=1 s=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 	// publisherRecordSeparator and publisherFieldSeparator frame the recorded
 	// argv. ASCII RS and US are used rather than a newline or a space because
@@ -255,6 +257,16 @@ func (h *publisherHarness) evaluate(pendingOutcome, aggregateCode string) (Publi
 	if err := os.WriteFile(h.record, nil, 0o600); err != nil {
 		return PublisherRun{}, fmt.Errorf("reset publisher call record: %w", err)
 	}
+	proof := ""
+	switch aggregateCode {
+	case strconv.Itoa(awaitExitReusedCode):
+		proof = publisherProbeReuseProof
+	case strconv.Itoa(awaitExitSmokePassedCode):
+		proof = publisherProbeSmokeProof
+	}
+	if err := os.WriteFile(filepath.Join(h.dir, "required-gates-proof"), []byte(proof+"\n"), 0o600); err != nil {
+		return PublisherRun{}, fmt.Errorf("write publisher proof fixture: %w", err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), publisherEvalTimeout)
 	defer cancel()
 	// #nosec G204 -- bashPath comes from LookPath and every argument is a
@@ -274,6 +286,7 @@ func (h *publisherHarness) evaluate(pendingOutcome, aggregateCode string) (Publi
 		"GITHUB_REPOSITORY=" + publisherProbeRepository,
 		"HEAD_SHA=" + publisherProbeHeadSHA,
 		"TARGET_URL=" + publisherProbeTargetURL,
+		"RUNNER_TEMP=" + h.dir,
 		// The outcome contract exercises the merge-group path, which has no
 		// pull request to re-check before publishing its verdict.
 		"RUN_EVENT=merge_group",

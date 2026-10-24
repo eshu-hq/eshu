@@ -10,6 +10,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 import json
 import math
+import re
 import subprocess
 from typing import Any
 from urllib.parse import quote
@@ -23,6 +24,36 @@ PAGE_SIZE = 100
 MAX_PAGES = 10
 MAX_JOB_ENRICHMENTS = 500
 MAX_JOB_PAGES = 2
+_V3_DESCRIPTION = re.compile(
+    r"v3 (?P<kind>full|reuse|smoke) m=[0-9a-f]{40} "
+    r"r=(?P<run>[1-9][0-9]*) a=(?P<attempt>[1-9][0-9]*)"
+    r"(?P<source> s=[0-9a-f]{40})?")
+
+
+def _publisher_kind(description: str | None) -> str:
+    """Classify an exact v3 proof or a historical publisher description."""
+    if not isinstance(description, str):
+        return "unknown"
+    if description.startswith("v3"):
+        if not description.isascii() or len(description) > 140:
+            return "unknown"
+        match = _V3_DESCRIPTION.fullmatch(description)
+        if match is None:
+            return "unknown"
+        kind = match.group("kind")
+        if (kind == "full") != (match.group("source") is None):
+            return "unknown"
+        if int(match.group("run")) > 1_000_000_000_000_000 or \
+                int(match.group("attempt")) > 1000:
+            return "unknown"
+        return "ordinary" if kind == "full" else kind
+    if "Tree-identical reuse" in description:
+        return "reuse"
+    if "Smoke subset" in description:
+        return "smoke"
+    if description == "All path-selected blocking gates passed":
+        return "ordinary"
+    return "unknown"
 
 
 def timestamp(value: str | None) -> datetime | None:
@@ -94,10 +125,7 @@ def measure_head(pr: Json, runs: list[Json], checks: list[Json],
     else:
         outcome = "unknown"
     description = latest_status.get("description") if latest_status else ""
-    kind = ("reuse" if description and "Tree-identical reuse" in description
-            else "smoke" if description and "Smoke subset" in description
-            else "ordinary" if description ==
-            "All path-selected blocking gates passed" else "unknown")
+    kind = _publisher_kind(description)
     green_times = ([timestamp(selected[name].get("completed_at"))
                     for name in REQUIRED_CHECKS] +
                    [timestamp(latest_status.get("created_at"))]) \

@@ -29,9 +29,12 @@ import (
 // fast subset still runs on the new tree, and the full set re-runs on
 // the merge result via Main Health, where a miss surfaces.
 type smokeEvidence struct {
-	Applied   bool
-	SourceSHA string
-	Tree      string
+	Applied     bool
+	SourceSHA   string
+	Tree        string
+	MergeSHA    string
+	MergeTree   string
+	FullRootSHA string
 }
 
 func probeSmoke(ctx context.Context, runner ghRunner, repo string, pr int, headSHA string, changedPaths, contexts []string) (bool, error) {
@@ -51,6 +54,13 @@ func probeSmokeEvidence(ctx context.Context, runner ghRunner, repo string, pr in
 	if len(contexts) == 0 {
 		return smokeEvidence{}, fmt.Errorf("no required status contexts to transfer against")
 	}
+	if !transferPRPathsSafe(changedPaths, false) {
+		return smokeEvidence{}, nil
+	}
+	target, bound := currentTestedInput(ctx)
+	if !bound {
+		return smokeEvidence{}, nil
+	}
 	candidate, err := forcePushBefore(ctx, runner, repo, pr, headSHA)
 	if err != nil {
 		return smokeEvidence{}, err
@@ -62,7 +72,7 @@ func probeSmokeEvidence(ctx context.Context, runner ghRunner, repo string, pr in
 	if err != nil || !green {
 		return smokeEvidence{}, err
 	}
-	fullBacked, err := candidateRanFull(ctx, runner, repo, candidate)
+	proof, source, fullBacked, err := fullBackedSource(ctx, runner, repo, pr, candidate, contexts)
 	if err != nil || !fullBacked {
 		return smokeEvidence{}, err
 	}
@@ -73,6 +83,11 @@ func probeSmokeEvidence(ctx context.Context, runner ghRunner, repo string, pr in
 	if !complete {
 		return smokeEvidence{}, nil
 	}
+	mergeDelta, complete, err := endpointTreeDelta(ctx, runner, repo, source.MergeSHA, target.MergeSHA)
+	if err != nil || !complete {
+		return smokeEvidence{}, err
+	}
+	delta = append(delta, mergeDelta...)
 	changed := make(map[string]bool, len(changedPaths))
 	for _, path := range changedPaths {
 		changed[path] = true
@@ -87,49 +102,7 @@ func probeSmokeEvidence(ctx context.Context, runner ghRunner, repo string, pr in
 	if err != nil {
 		return smokeEvidence{}, err
 	}
-	return smokeEvidence{Applied: true, SourceSHA: candidate, Tree: head.Tree.SHA}, nil
-}
-
-// candidateRanFull requires the candidate's aggregating status to name
-// a full gate run or a tree-identical reuse of one. A smoke-passed
-// candidate (or any unrecognized description, including none) refuses,
-// so transferred verdicts can never chain: each smoke hop must start
-// from a tree whose heavy gates actually ran.
-func candidateRanFull(ctx context.Context, runner ghRunner, repo, candidate string) (bool, error) {
-	description, found, err := latestStatusDescription(ctx, runner, repo, candidate, "required-gates-complete")
-	if err != nil || !found {
-		return false, err
-	}
-	switch description {
-	case "All path-selected blocking gates passed",
-		cigates.FullBackedReuseDescription:
-		return true, nil
-	}
-	return false, nil
-}
-
-type statusDescriptionEntry struct {
-	Context     string `json:"context"`
-	Description string `json:"description"`
-}
-
-// latestStatusDescription returns the newest status description for a
-// context. The endpoint returns newest first, so the first match wins.
-func latestStatusDescription(ctx context.Context, runner ghRunner, repo, sha, contextName string) (string, bool, error) {
-	out, err := runner.Run(ctx, "api", "repos/"+repo+"/commits/"+sha+"/statuses?per_page=100")
-	if err != nil {
-		return "", false, fmt.Errorf("read commit statuses: %w", err)
-	}
-	var entries []statusDescriptionEntry
-	if err := json.Unmarshal(out, &entries); err != nil {
-		return "", false, fmt.Errorf("parse commit statuses: %w", err)
-	}
-	for _, entry := range entries {
-		if entry.Context == contextName {
-			return entry.Description, true, nil
-		}
-	}
-	return "", false, nil
+	return smokeEvidence{Applied: true, SourceSHA: candidate, Tree: head.Tree.SHA, MergeSHA: target.MergeSHA, MergeTree: target.MergeTree, FullRootSHA: proof.FullRootSHA}, nil
 }
 
 type gitTreeEntry struct {

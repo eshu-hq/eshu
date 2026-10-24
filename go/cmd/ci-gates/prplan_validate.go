@@ -8,11 +8,14 @@ import "fmt"
 // validatePRPlan checks the JSON contract before it can be consumed as a
 // successful schedule. An unsupported schema or absent result is an error.
 func validatePRPlan(plan prPlan) error {
-	if plan.SchemaVersion != 1 {
+	if plan.SchemaVersion != 2 {
 		return fmt.Errorf("unsupported PR plan schema %d", plan.SchemaVersion)
 	}
 	if !commitSHAPattern.MatchString(plan.HeadSHA) {
 		return fmt.Errorf("PR plan has no exact head SHA")
+	}
+	if plan.TargetRunID <= 0 || plan.TargetRunID > 1_000_000_000_000_000 || plan.TargetAttempt <= 0 || plan.TargetAttempt > 1000 || !commitSHAPattern.MatchString(plan.MergeSHA) || !commitSHAPattern.MatchString(plan.MergeTree) {
+		return fmt.Errorf("PR plan has no exact tested caller input")
 	}
 	if plan.Jobs == nil || plan.Workflows == nil || plan.Gates == nil {
 		return fmt.Errorf("PR plan has missing jobs or workflows output")
@@ -22,16 +25,16 @@ func validatePRPlan(plan prPlan) error {
 	}
 	switch plan.Mode {
 	case "reuse":
-		if !commitSHAPattern.MatchString(plan.SourceSHA) || !commitSHAPattern.MatchString(plan.Tree) || len(plan.Workflows) != 0 || len(plan.Jobs) != 0 || len(plan.Gates) != 0 {
+		if !commitSHAPattern.MatchString(plan.SourceSHA) || !commitSHAPattern.MatchString(plan.SourceFullSHA) || !commitSHAPattern.MatchString(plan.Tree) || len(plan.Workflows) != 0 || len(plan.Jobs) != 0 || len(plan.Gates) != 0 {
 			return fmt.Errorf("reuse plan lacks source proof or schedules leaf jobs")
 		}
 	case "smoke":
-		if !commitSHAPattern.MatchString(plan.SourceSHA) || !commitSHAPattern.MatchString(plan.Tree) {
+		if !commitSHAPattern.MatchString(plan.SourceSHA) || !commitSHAPattern.MatchString(plan.SourceFullSHA) || !commitSHAPattern.MatchString(plan.Tree) {
 			return fmt.Errorf("smoke plan lacks source proof")
 		}
 		fallthrough
 	case "full":
-		if plan.Mode == "full" && (plan.SourceSHA != "" || plan.Tree != "") {
+		if plan.Mode == "full" && (plan.SourceSHA != "" || plan.SourceFullSHA != "" || plan.Tree != "") {
 			return fmt.Errorf("full plan cannot claim transferred provenance")
 		}
 		if len(plan.Workflows) == 0 || len(plan.Jobs) == 0 {

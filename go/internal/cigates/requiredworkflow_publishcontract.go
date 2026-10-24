@@ -29,10 +29,6 @@ import (
 // TestPublisherProbeCodeIsNotARealAwaitExitCode holds that.
 const publisherUnclassifiedProbeCode = 97
 
-// FullBackedReuseDescription identifies a copied verdict whose source ran all gates.
-// Admission and publication share this versioned provenance contract.
-const FullBackedReuseDescription = "Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)"
-
 // publisherOutcome is one row of the contract: for this await exit code, the
 // publisher must post exactly this.
 type publisherOutcome struct {
@@ -233,11 +229,13 @@ func publishedDescriptionErrors(check RequiredStatusCheck, descriptions map[int]
 		// a second time in a less useful shape.
 		return errs
 	}
-	// Code 14 is accepted as a future smoke source. Its versioned text is a
-	// provenance assertion, so a generic historical reuse result must never
-	// be published by the new workflow or accepted as full-backed evidence.
-	if descriptions[awaitExitReusedCode] != FullBackedReuseDescription {
-		errs = append(errs, fmt.Errorf("required status context %q: reuse outcome must publish the v2 full-backed provenance description", check.Context))
+	// The harness writes a bound proof file. Both transfer outcomes must
+	// publish that exact versioned value, not a free-form success label.
+	if descriptions[awaitExitReusedCode] != publisherProbeReuseProof {
+		errs = append(errs, fmt.Errorf("required status context %q: reuse outcome did not publish its bound v3 proof", check.Context))
+	}
+	if descriptions[awaitExitSmokePassedCode] != publisherProbeSmokeProof {
+		errs = append(errs, fmt.Errorf("required status context %q: smoke outcome did not publish its bound v3 proof", check.Context))
 	}
 	seen := make(map[string][]int, len(distinct))
 	for _, code := range distinct {
