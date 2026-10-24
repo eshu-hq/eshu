@@ -52,9 +52,11 @@ Known limits, both reading `unknown` rather than leaking text:
   first-party kind, reads `unknown`. The status leaf has no signal that such an
   instance is extension-hosted, so `extension_defined` stays limited to kinds
   that are not first-party. Tracked in #8951.
-- `legacy_missing_generation_identity` reads `unknown`. The schema bootstrap
-  backfill writes it once, for every kind, on pending or claimed work items that
-  predate generation identity, and it ages out with the window below.
+- `legacy_missing_generation_identity` reads `unknown` on a first-party kind. On
+  any other kind it matches the extension host class pattern and reads
+  `extension_defined`. The schema bootstrap backfill writes it once, for every
+  kind, on pending or claimed work items that predate generation identity, and
+  it ages out with the window below.
 
 | Class | Kinds | Meaning |
 | --- | --- | --- |

@@ -46,8 +46,9 @@ recent shipped work grouped by feature area.
   `permission_denied`, `stale_fence`, `registry_auth_denied`, `timeout`). A
   class an extension defines for a kind that is not first-party reads the
   single token `extension_defined`. Anything else still reads `unknown`,
-  including an extension-defined class on a first-party kind and the one-time
-  `legacy_missing_generation_identity` upgrade backfill, so no persisted text reaches the field or the
+  including an extension-defined class on a first-party kind and, on a
+  first-party kind, the one-time `legacy_missing_generation_identity` upgrade
+  backfill (on any other kind it reads `extension_defined`), so no persisted text reaches the field or the
   `failure_class` label of `eshu_runtime_coordinator_collector_terminal_failure_instances`,
   which takes at most 41 values. The two OpenAPI `last_failure_class` enums and
   the class table in the terminal-failure reference grow together. Existing

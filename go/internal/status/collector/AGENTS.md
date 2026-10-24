@@ -51,7 +51,8 @@ has no signal that an instance is extension-hosted, so an extension-defined
 class on a first-party kind reads `unknown`, and an in-tree class a writer
 forgot to register is not relabeled. The one-time
 `legacy_missing_generation_identity` backfill class (schema bootstrap) also
-reads `unknown`; both limits are in the reference doc. A class added to any set must also land, in the same change, in both
+reads `unknown` on a first-party kind (`extension_defined` on any other kind);
+both limits are in the reference doc. A class added to any set must also land, in the same change, in both
 OpenAPI `last_failure_class` enums
 (`TestOpenAPITerminalFailureFieldsMatchStatusContract` in `query`), the class
 table in `docs/public/reference/http-api/collector-terminal-failure.md`
