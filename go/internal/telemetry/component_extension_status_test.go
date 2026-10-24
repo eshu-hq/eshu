@@ -97,8 +97,8 @@ func TestComponentExtensionStatusRecorderRecordsEveryInstrument(t *testing.T) {
 		t.Fatalf("retry-after attrs = %v, want only collector_kind=jira", gauge.DataPoints[0].Attributes.ToSlice())
 	}
 
-	// A later non-retryable result resets the honored delay to zero so the
-	// gauge reports current backoff, not the last throttle forever.
+	// A later non-retryable result resets the requested delay to zero so the
+	// gauge reports the latest request, not the last throttle forever.
 	recorder.RecordResult(ctx, "jira", "complete", "", 0)
 	gauge = collectExtension(t, reader)[contract.MetricComponentExtensionRetryAfter].(metricdata.Gauge[float64])
 	if gauge.DataPoints[0].Value != 0 {

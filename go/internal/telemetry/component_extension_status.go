@@ -107,9 +107,11 @@ func (r *ComponentExtensionStatusRecorder) RecordStatus(
 }
 
 // RecordResult records one claim result and sets the retry-after gauge for
-// the collector kind to the honored delay (zero for a result that is not
-// retryable), so the gauge reports current backoff rather than the last
-// throttle forever.
+// the collector kind to the delay the extension requested, after the one-hour
+// cap (zero for a result that is not retryable), so the gauge reports the
+// latest request rather than the last throttle forever. It is the request, not
+// the applied delay: the claim service applies the larger of the poll interval
+// and this value, and none once the attempt budget is spent.
 func (r *ComponentExtensionStatusRecorder) RecordResult(
 	ctx context.Context,
 	collectorKind, state, failureClass string,
