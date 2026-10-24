@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_batch_live_test.go": (
+            "TestReducerContentionGateServiceCatalogRetriggerBatchAckAndTelemetry",
+        ),
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_fence_live_test.go": (
             "TestReducerContentionGateServiceCatalogFenceWaitsOnRunsOnIntent",
             "TestReducerContentionGateServiceCatalogConcurrentAcksReopenOnce",
