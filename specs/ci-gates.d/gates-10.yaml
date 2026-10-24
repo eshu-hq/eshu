@@ -16,6 +16,7 @@ gates:
       - "go/internal/collector/**"
       - "go/go.mod"
       - "go/go.sum"
+      - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/lib/delta_union_scheduled.py"
       - "scripts/lib/live_tests_legacy_policy.py"
       - "scripts/test-delta-union-scheduled.py"

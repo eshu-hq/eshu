@@ -30,7 +30,10 @@ class DeltaUnionScheduledTest(unittest.TestCase):
         """Source, selection, services, and activation stay tied together."""
         self.guard.verify(ROOT)
         workflow = (ROOT / self.guard.WORKFLOW).read_text()
+        dependency = "      - 'scripts/ci/go-mod-download-retry.sh'\n"
+        self.assertIn(dependency, workflow)
         changes = {
+            "missing_module_prewarm_route": workflow.replace(dependency, "", 1),
             "missing_root": workflow.replace("  schedule:\n", "  inactive_schedule:\n", 1),
             "disabled_job": workflow.replace("    runs-on: ubuntu-latest", "    if: false\n    runs-on: ubuntu-latest", 1),
             "root_shell_override": workflow.replace(

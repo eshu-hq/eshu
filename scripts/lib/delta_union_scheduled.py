@@ -10,7 +10,7 @@ import sys
 from reducer_contention_events import canonical_keys, verify_events
 
 WORKFLOW = Path(".github/workflows/delta-union-scheduled.yml")
-WORKFLOW_SHA256 = "f710c539ff8b6d164eab98359bc7bd28f203dbd41318f392fe33c59ae0057c76"
+WORKFLOW_SHA256 = "0e5a5a3bf67a6ea3c159f3942c294a7c8140529acfe8e3676d1c8ce843d703b2"
 SOURCE = Path("go/cmd/projector/delta_union_live_test.go")
 PACKAGE = "github.com/eshu-hq/eshu/go/cmd/projector"
 TESTS = (
@@ -23,7 +23,8 @@ PR_PATHS = (
     "go/cmd/projector/**", "go/internal/projector/**",
     "go/internal/storage/cypher/**", "go/internal/projector/runtime/**",
     "go/internal/facts/**", "go/internal/collector/**",
-    "go/go.mod", "go/go.sum", "scripts/lib/delta_union_scheduled.py",
+    "go/go.mod", "go/go.sum", "scripts/ci/go-mod-download-retry.sh",
+    "scripts/lib/delta_union_scheduled.py",
     "scripts/lib/live_tests_legacy_policy.py", "scripts/test-delta-union-scheduled.py",
     "scripts/lib/reducer_contention_events.py",
     "scripts/lib/verify-live-tests-ledger.py", "scripts/verify-live-tests-ledger.sh",
