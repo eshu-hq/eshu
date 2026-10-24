@@ -32,8 +32,15 @@ recent shipped work grouped by feature area.
   grammar. Only the public PyPI index yields `config_kind=dependency`; git,
   path, editable, url, and other-index entries get sibling kinds, and anything
   else is a counted `malformed_dependency` row, with totals in the payload's
-  `uv_lock_state`. Source URLs lose userinfo, query, and fragment. Dev or
+  `uv_lock_state`. The project itself and its `[manifest]` workspace members
+  are counted there, not emitted, so a uv-locked repository with only PyPI
+  pins can read `ready_zero_findings` instead of `unsupported`. Source URLs
+  lose userinfo, query, and fragment, and a source with any other `@` is
+  refused. Quoted-key and root-array package forms read partial. Dev or
   runtime scope is not captured. `constraints*.txt` is not part of this change.
+  The raw lock body, including direct-URL credentials `uv` persists, is stored
+  verbatim in the content store until the
+  [#8812](https://github.com/eshu-hq/eshu/issues/8812) policy gates land.
 
 ### Gate: supported languages declare manifest and pin files
 

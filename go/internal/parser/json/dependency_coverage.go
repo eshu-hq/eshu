@@ -232,7 +232,7 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			CapturesPackageIdentity: true,
 			CapturesExactVersion:    true,
 			SourceReference:         "go/internal/parser/pythondep/uv_lock.go",
-			Notes:                   "Each [[package]] entry that matches the uv.lock version-1 grammar emits one exact-version row; only entries from the public PyPI index are config_kind=dependency. Git, path, directory, editable, virtual, url, and non-PyPI index entries use sibling config_kinds, and anything outside the grammar is a malformed row counted in uv_lock_state. Scope is not captured: a lock entry does not say whether a package is a dev dependency.",
+			Notes:                   "Each [[package]] entry that matches the uv.lock version-1 grammar emits one exact-version row; only entries from the public PyPI index are config_kind=dependency. Git, path, directory, editable, virtual, url, and non-PyPI index entries use sibling config_kinds, and anything outside the grammar is a malformed row counted in uv_lock_state. The project itself (editable or virtual \".\") and [manifest] workspace members are counted in uv_lock_state, not emitted, so they never read as unsupported dependency sources. Scope is not captured: a lock entry does not say whether a package is a dev dependency. The raw lock body, including direct-URL credentials uv persists, is stored verbatim until the #8812 content-store policy gates land.",
 		},
 		{
 			Ecosystem:               "go",

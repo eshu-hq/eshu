@@ -101,7 +101,12 @@ reader never guesses a name, version, or source.
   rows, every `[[package]]` counted unresolved. A file that contains a
   triple-quoted string (three double or three single quotes in a row) is
   unsupported the same way, because the line scanner cannot track multi-line
-  strings. `uv` writes neither.
+  strings. `uv` writes neither. A root `package` key, or a quoted or dotted
+  root key, makes the file unsupported the same way, because it can define
+  packages (`package = [{ ... }]`) that this reader does not read.
+- **Headers.** A header must be bare keys joined by dots. A quoted header key
+  (`[["package"]]`), a `[package]` table, or mismatched brackets counts as one
+  unresolved entry, so the file is never `complete` with an unread package.
 - **Entry.** `[[package]]` (exact header, optional `#` comment) opens an entry.
   Its keys run until the next header. Only the top-level keys `name`,
   `version`, and `source` are read; other keys (`dependencies`, `wheels`,
@@ -125,10 +130,28 @@ reader never guesses a name, version, or source.
   URL-like values may not contain whitespace and must start with a
   `scheme://` (a `registry` may instead be a plain path with no `@` or `:`;
   scp-style git values are refused because userinfo cannot be told from a
-  host), and a path-like value may not contain `://`. Userinfo is cut at the
-  last `@` before the first `/`. A `?` or `#` before that slash with an `@`
-  after it is refused, because a standards parser and this reader would
-  disagree about the host (`https://evil.example?x@pypi.org/simple`).
+  host), and a path-like value may not contain `@` or `:` (so a scheme, an
+  scp-style `user:secret@host:path`, and a Windows drive path are refused).
+  Userinfo is cut at the last `@` before the first `/`. A `?` or `#` before
+  that slash with an `@` after it is refused, because a standards parser and
+  this reader would disagree about the host
+  (`https://evil.example?x@pypi.org/simple`). Any `@` left after the cut, in
+  the path, query, or fragment, is refused too: a raw `/` in a password
+  (`https://u:S3/CR3T@host/simple`) moves the real userinfo past the cut, so
+  a persisted URL never contains an `@`. A refused source makes the row
+  malformed and stores none of its text.
+- **Project and workspace members.** The first well-formed entry whose source
+  is `editable = "."` or `virtual = "."` is the project itself. It is counted
+  in `root_packages` and emits no row. A well-formed entry with an `editable`
+  or `virtual` source whose PEP 503 normalized name is listed in
+  `[manifest] members` is counted in `workspace_members` and emits no row.
+  These are the repository's own code; as rows they would read as unsupported
+  local dependencies in supply-chain readiness. The members list is trusted
+  only when it is one `members` key of basic-string names in a single
+  `[manifest]` table that comes before every `[[package]]`, and its array
+  closes. Otherwise no member is omitted. A second `.` entry, a member with a
+  `path`, `directory`, or index source, and a local path outside the members
+  list all stay ordinary rows.
 - **Unterminated value.** If an array or table is never closed, the next exact
   `[[package]]` line ends it, the entry is marked unresolved, and scanning
   resumes there. A value still open at end of file marks its entry unresolved.
@@ -146,6 +169,7 @@ reader never guesses a name, version, or source.
 | `path`, `directory`, `virtual` | `path_dependency` | `path` | the path | none |
 | `editable` | `editable_dependency` | `path` | the path | none |
 | outside the grammar | `malformed_dependency` | none | none | none |
+| the project (`.`) or a `[manifest]` member | no row; counted in `root_packages` or `workspace_members` | | | |
 
 Every row carries `lockfile=true`, `section=package`, `package_manager=pypi`
 (the reducer joins PyPI identity through that value), and `line_number` of the
@@ -159,8 +183,9 @@ PyPI advisories.
 ### Payload state
 
 The payload adds `uv_lock_state` with `state` (`complete` or `partial`),
-`entries`, `resolved`, `unresolved`, `dropped_over_cap`, `redacted_urls`, and
-`unsupported`. `resolved + unresolved + dropped_over_cap == entries`.
+`entries`, `resolved`, `unresolved`, `dropped_over_cap`, `root_packages`,
+`workspace_members`, `redacted_urls`, and `unsupported`.
+`resolved + unresolved + dropped_over_cap + root_packages + workspace_members == entries`.
 
 ### Known limits
 
@@ -170,9 +195,21 @@ The payload adds `uv_lock_state` with `state` (`complete` or `partial`),
   `resolution-markers` are skipped, not interpreted.
 - Resolution forks that lock one package at several versions emit one row per
   entry; the reader does not choose between them.
-- The workspace root and members appear as editable or virtual rows.
+- The project itself and the `[manifest]` members are counted, not emitted
+  (see the grammar). A local path dependency outside the workspace stays a
+  `path_dependency` or `editable_dependency` row and reads as an unsupported
+  dependency source in readiness.
 - Hand-written `uv.lock` files that use TOML features `uv` never writes
-  (multi-line inline tables, dotted keys, quoted keys) come back partial.
+  (multi-line inline tables, dotted keys, quoted keys, a `[package]` table, a
+  root `package` array) come back partial.
+- A source URL with an `@` outside its userinfo, and a local path with `@` or
+  `:`, is a malformed row, even where the value is harmless.
+- The parser keeps credentials out of rows, but the raw lock body still
+  reaches the content store verbatim. `uv` persists credentials for direct
+  URLs in `uv.lock`, so those credentials are stored as written until the
+  content-store policy gates of #8812 land. `uv.lock` is in the #8812 scope,
+  like the `poetry.lock`, `Pipfile.lock`, `yarn.lock`, and
+  `package-lock.json` bodies already admitted.
 - `constraints*.txt` files are not covered by this reader.
 
 ## Performance evidence

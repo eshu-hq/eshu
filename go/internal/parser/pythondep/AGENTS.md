@@ -51,7 +51,16 @@ follow when editing this package.
   entry for that reason). `uv_lock_bounds_test.go` fails on an allocation or
   scan-length regression.
 - Only `https://pypi.org/simple` may produce `config_kind=dependency`. Do not
-  persist userinfo, a query, or a fragment from a URL.
+  persist userinfo, a query, or a fragment from a URL, and never persist any
+  text that contains an `@`: refuse the source instead.
+- Count the project itself (`editable`/`virtual` `"."`) and trusted
+  `[manifest] members` in `root_packages`/`workspace_members`; never emit them
+  as rows, because readiness reads an editable or path row as an unsupported
+  dependency gap. A genuine local path dependency stays a row. Keep
+  `resolved + unresolved + dropped_over_cap + root_packages + workspace_members == entries`.
+- A package form the reader does not read (quoted header key, `[package]`
+  table, root `package` key) must make the state partial, never `complete`
+  with zero entries.
 - Do not set `dev_dependency`, `extras`, or `marker` on a uv row without
   proving the value from the lockfile; the entry itself does not carry it.
 - A grammar change needs a failing case in `uv_lock_test.go`, a seeded-fuzz

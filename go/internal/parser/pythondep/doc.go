@@ -26,7 +26,9 @@
 //   - ParseUVLock parses uv.lock with a fail-closed version-1 grammar: only
 //     entries that match it resolve, only the public PyPI index yields a
 //     registry-admissible row, and everything else is a malformed row counted
-//     in the payload's uv_lock_state. See README.md for the grammar.
+//     in the payload's uv_lock_state. The project itself and its workspace
+//     members are counted there instead of emitted. See README.md for the
+//     grammar.
 //
 // Pipfile.lock is JSON and is parsed by go/internal/parser/json instead of
 // this package; it shares the same content_entity row contract so the
