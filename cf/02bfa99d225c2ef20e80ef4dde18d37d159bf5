@@ -1,0 +1,23 @@
+go/internal/collector/observability/prometheus/PRODUCER_GRANT_DRAFT.md
+  s_ff8a600f1fc93e::t_fdce8793d139d5 1-69
+go/internal/collector/observability/prometheus/ROLLBACK_DRAFT.md
+  s_ff8a600f1fc93e::t_e7449f312bde02 1-74
+go/internal/collector/observability/prometheus/testdata/8864-parity-prometheus-mimir.json
+  s_ff8a600f1fc93e::t_05d0d98d7bc013 1-679
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cf02bfa99d225c2ef20e80ef4dde18d37d159bf5",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
