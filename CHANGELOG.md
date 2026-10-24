@@ -60,6 +60,24 @@ recent shipped work grouped by feature area.
   verbatim in the content store until the
   [#8812](https://github.com/eshu-hq/eshu/issues/8812) policy gates land.
 
+### NuGet central package files parsed
+
+- **`Directory.Packages.props` and `Directory.Build.props` are now parsed**
+  ([#8824](https://github.com/eshu-hq/eshu/issues/8824)). The registry admits
+  the two exact names (case-insensitive, no generic `.props` rule) and the
+  NuGet project parser reads them with a fail-closed XML scanner. `PackageVersion`,
+  `GlobalPackageReference`, and `PackageReference` items become dependency rows
+  in their own section, and literal `PropertyGroup` values become
+  `msbuild_property` rows. A `PackageVersion` is a version policy: it is not
+  joined to the project `PackageReference` rows that use it. Conditional,
+  expression, and ambiguous values stay partial, and constructs outside the
+  documented grammar are skipped and counted in `msbuild_props_limits`. Input
+  size, nesting depth, row counts, and field lengths are bounded. The change
+  adds two registry names, so every repository re-collects once; the content
+  version constant stays at `git-collector.v10` because the parser registry
+  fingerprint already moves the generation version. The ecosystem-gate
+  allowlist drops its `Directory.Packages.props` entry.
+
 ### Gate: supported languages declare manifest and pin files
 
 - **Ledger-driven manifest and pin gate**

@@ -5,10 +5,14 @@
 1. `README.md` - package purpose, ownership boundary, and emitted row fields.
 2. `doc.go` - godoc contract for the MSBuild project-file parser.
 3. `parser.go` - `Parse`, dependency row construction, MSBuild property
-   resolution, and scope classification.
+   resolution, and scope classification for `.csproj`.
+3a. `props.go`, `props_scan.go`, `props_rows.go` - the fail-closed scanner for
+   `Directory.Packages.props` and `Directory.Build.props`; its grammar and
+   bounds are in `README.md`.
 4. `parser_test.go` / `parity_test.go` - behavior coverage for package
    references, property substitution, item vs group conditions, ambiguous
-   properties, and malformed XML.
+   properties, and malformed XML. `props_*_test.go` cover the props scanner:
+   grammar, limits and allocation ceilings, and a seeded oracle fuzz.
 5. `../nuget_project_language.go` - the parent engine's dispatch wrapper.
 6. `../json/nuget_lock.go` - the NuGet **lockfile** parser, which is a
    different package and a different file kind.
@@ -21,7 +25,15 @@
 - Never invoke MSBuild, restore packages, evaluate a `Condition` expression, or
   read a sibling file. A `$(Property)` only a sibling file defines must stay
   unresolved; that includes Central Package Management versions in
-  `Directory.Packages.props`.
+  `Directory.Packages.props`. Parsing a props file as the file under parse is
+  allowed; completing a `.csproj` from one is not, and project
+  `PackageReference` rows are never joined to central `PackageVersion` rows.
+- The props scanner is fail-closed: a row is resolved only when the construct
+  matches the README grammar, otherwise it is skipped or partial and counted in
+  `msbuild_props_limits`. Never widen the grammar without a seeded-violation
+  test, an oracle-fuzz case, and a mutation check.
+- Every props bound is a count or byte length (`Max*` in `props.go`), asserted
+  by allocation ceilings in `props_limits_test.go`, never by wall time.
 - `value` never carries a version the file did not prove. When resolution
   fails, `value` keeps the declared text and the row is stamped
   `partial_evidence` with the matching `version_evidence`.
@@ -78,7 +90,8 @@ one needing a bool form.
 - Picking a value for an ambiguous property, or defaulting a missing version.
 - Evaluating `Condition` expressions to decide which `<ItemGroup>` "wins".
 - Reading `Directory.Build.props` / `Directory.Packages.props` to complete a
-  version.
+  `.csproj` version (parsing them as their own files is the supported path).
+- Registering a generic `.props` extension: only the two exact names bind.
 - Parsing `packages.lock.json` here; that is `../json/nuget_lock.go`.
 
 ## What NOT to change without an ADR

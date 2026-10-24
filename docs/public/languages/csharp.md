@@ -57,6 +57,15 @@ Supported today:
   that handler to exactly one Function entity.
 - Main methods, constructors, overrides, and same-file interface methods and
   implementations are also modeled as root evidence.
+- `Directory.Packages.props` and `Directory.Build.props` are admitted by exact
+  file name and parsed by the same `nuget_project` path (#8824). Central
+  `PackageVersion` and `GlobalPackageReference` declarations, shared
+  `PackageReference` items, and literal `PropertyGroup` values become rows of
+  their own; a `PackageVersion` is a version policy and is not joined to the
+  project `PackageReference` rows that use it. The scanner is fail-closed:
+  conditional, expression, ambiguous, or out-of-grammar constructs are partial
+  or skipped and counted in `msbuild_props_limits`, and size, depth, row, and
+  field bounds apply. The grammar is in `go/internal/parser/nuget/README.md`.
 - `.csproj` PackageReference entries are parsed into repository dependency
   evidence by the separate `nuget_project` parser path. That parser lives in
   `go/internal/parser/nuget`; a thin dispatch wrapper stays in

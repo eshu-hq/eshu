@@ -48,6 +48,8 @@ var configBenchCases = []configBenchCase{
 	{language: "maven", parserKey: "maven", fileName: "pom.xml", build: buildMavenPOM},
 	{language: "node_lockfile", parserKey: "node_lockfile", fileName: "yarn.lock", build: buildYarnLock},
 	{language: "nuget_project", parserKey: "nuget_project", fileName: "project.csproj", build: buildCsproj},
+	{language: "nuget_directory_packages_props", parserKey: "nuget_project", fileName: "Directory.Packages.props", build: buildDirectoryPackagesProps},
+	{language: "nuget_directory_build_props", parserKey: "nuget_project", fileName: "Directory.Build.props", build: buildDirectoryBuildProps},
 	{language: "python_requirements", parserKey: "python_requirements", fileName: "requirements.txt", build: buildRequirements},
 	{language: "python_toml", parserKey: "python_toml", fileName: "pyproject.toml", build: buildPyproject},
 	{language: "yaml", parserKey: "yaml", fileName: "values.yaml", build: buildYAMLValues},

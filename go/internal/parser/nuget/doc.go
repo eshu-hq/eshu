@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package nuget parses MSBuild project files (.csproj) into the parent parser
-// engine's content_entity dependency rows so the supply-chain reducer can match
+// Package nuget parses MSBuild project files (.csproj) and the two shared
+// MSBuild props files Directory.Packages.props and Directory.Build.props into
+// the parent parser engine's content_entity dependency rows so the supply-chain reducer can match
 // NuGet package-registry identity against repository dependency truth.
 //
 // Parse decodes the project XML with encoding/xml and emits one "variables" row
@@ -26,9 +27,18 @@
 // otherwise.
 //
 // The package never invokes MSBuild, evaluates Condition expressions, restores
-// packages, or reads Directory.Build.props, Directory.Packages.props, or any
-// other sibling file: a property that only a sibling file defines stays
-// unresolved. NuGet lockfiles (packages.lock.json) are JSON and are parsed by
+// packages, or reads a sibling file: a property that only a sibling file defines
+// stays unresolved, and a .csproj is never completed from a props file.
+//
+// Directory.Packages.props and Directory.Build.props are scanned on their own,
+// fail-closed, with a streaming XML tokenizer (see props.go and the README
+// grammar). PackageVersion, GlobalPackageReference, and PackageReference items
+// become dependency rows in their own section; literal PropertyGroup entries
+// become msbuild_property rows. A construct outside the grammar yields no row
+// and a counter in the msbuild_props_limits bucket. Input size, nesting depth,
+// row counts, and field lengths are bounded (Max* constants in props.go).
+//
+// NuGet lockfiles (packages.lock.json) are JSON and are parsed by
 // go/internal/parser/json instead; they share the same row contract so the
 // reducer treats NuGet manifest and lockfile evidence consistently.
 package nuget
