@@ -317,3 +317,20 @@ func TestScanExactRepeatOfALaterSpellingIsMalformed(t *testing.T) {
 		t.Fatalf("State=%q rows=%d, want malformed with none", result.State, len(result.Rows))
 	}
 }
+
+// go-toml's decoder recurses once per dotted-key segment when it fills a
+// matching field, with no depth bound. The semantic check decodes into an
+// empty struct, which matches no key, so a 900,000-segment key must parse
+// without growing the stack. Decoding into a map here overflows it.
+func TestScanSemanticCheckDoesNotRecurseOnDottedKeys(t *testing.T) {
+	key := "a" + strings.Repeat(".a", 900_000)
+	for name, text := range map[string]string{
+		"root":   key + " = 1\n",
+		"header": "[" + key + "]\nb = 1\n",
+		"inline": "[libraries]\nx = { " + key + " = 1 }\n",
+	} {
+		if result := Scan([]byte(text)); result.State != StateParsed || len(result.Rows) != 0 {
+			t.Errorf("%s: State=%q rows=%d, want parsed with none", name, result.State, len(result.Rows))
+		}
+	}
+}

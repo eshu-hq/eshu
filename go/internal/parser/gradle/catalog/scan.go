@@ -87,6 +87,12 @@ func Scan(source []byte) Result {
 // which bound its work and its recursion, and after the streaming parser
 // accepted the syntax, so a syntax error never reaches the decoder (which
 // copies an unterminated string before it reports one).
+//
+// The target must stay an empty struct. go-toml's decoder recurses once per
+// dotted-key segment while it fills a matching field or map, with no bound,
+// and nestingExceeds does not count dotted keys: decoding into a map
+// overflows the stack on a 900,000-segment key. An empty struct matches no
+// key, so the decoder never descends.
 func validTOML(source []byte) error {
 	var discard struct{}
 	return toml.Unmarshal(source, &discard)

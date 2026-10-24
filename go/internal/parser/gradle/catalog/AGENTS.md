@@ -40,7 +40,10 @@
 - A repeated table header, an exactly repeated alias, or input the semantic
   TOML decode rejects makes the whole file `malformed`. The decode runs after
   the streaming parse, never before it: on an unterminated string it copies the
-  rest of the file before reporting the error.
+  rest of the file before reporting the error. Keep its target an empty
+  struct. The decoder recurses once per dotted-key segment into a field or map
+  it fills, and `nestingExceeds` does not count dotted keys, so a map target
+  overflows the stack on a long dotted key.
 - The package imports the standard library, `go-toml/v2`, `go-toml/v2/unstable`,
   and `internal/parser/shared` only.
 
