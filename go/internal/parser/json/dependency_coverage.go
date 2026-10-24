@@ -225,6 +225,16 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			Notes:                   "Each [[package]] array entry emits one exact-version row. Attached [package.source] type=git/directory/url swaps the row to vcs/path/url config_kind so non-registry lock entries cannot be treated as PyPI registry versions.",
 		},
 		{
+			Ecosystem:               "pypi",
+			FilePattern:             "uv.lock",
+			FileKind:                "lockfile",
+			Status:                  DependencyCoverageCovered,
+			CapturesPackageIdentity: true,
+			CapturesExactVersion:    true,
+			SourceReference:         "go/internal/parser/pythondep/uv_lock.go",
+			Notes:                   "Each [[package]] entry that matches the uv.lock version-1 grammar emits one exact-version row; only entries from the public PyPI index are config_kind=dependency. Git, path, directory, editable, virtual, url, and non-PyPI index entries use sibling config_kinds, and anything outside the grammar is a malformed row counted in uv_lock_state. Scope is not captured: a lock entry does not say whether a package is a dev dependency.",
+		},
+		{
 			Ecosystem:               "go",
 			FilePattern:             "go.mod",
 			FileKind:                "manifest",

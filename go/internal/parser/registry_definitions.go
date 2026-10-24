@@ -198,7 +198,7 @@ func defaultDefinitions() []Definition {
 			Language:   "python_toml",
 			Ecosystem:  "python",
 			Admission:  AdmissionStructuredFact,
-			ExactNames: []string{"pyproject.toml", "Pipfile", "poetry.lock"},
+			ExactNames: []string{"pyproject.toml", "Pipfile", "poetry.lock", "uv.lock"},
 		},
 		{
 			ParserKey:  "raw_text",
