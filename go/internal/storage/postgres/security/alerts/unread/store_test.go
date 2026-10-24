@@ -130,3 +130,42 @@ func TestWriterWrapsStatementFailureWithoutRepositoryNames(t *testing.T) {
 		t.Errorf("error %q names a repository", err)
 	}
 }
+
+func TestWriterStoresRepositorySlugsLowercaseLikeTheReadProbe(t *testing.T) {
+	state := sampleState()
+	state.Unread = []securityalerts.UnreadRepository{
+		{Repository: " Acme/Zeta ", Reason: "org_repository_fanout_cap_reached"},
+		{Repository: "ACME/alpha", Reason: "org_repository_read_rate_limited"},
+		{Repository: "acme/Alpha", Reason: "org_repository_read_rate_limited"},
+	}
+	exec := &recordingExecutor{}
+	if err := Writer(state)(context.Background(), exec); err != nil {
+		t.Fatalf("Writer() error = %v", err)
+	}
+	repos, ok := exec.calls[2].args[1].(driver.Valuer)
+	if !ok {
+		t.Fatalf("child insert repositories arg = %T, want a Postgres array value", exec.calls[2].args[1])
+	}
+	literal, err := repos.Value()
+	if err != nil {
+		t.Fatalf("repositories Value() error = %v", err)
+	}
+	if want := `{"acme/alpha","acme/zeta"}`; literal != want {
+		t.Errorf("child insert repositories = %v, want %s (lowercase, case twins collapsed)", literal, want)
+	}
+}
+
+func TestWriterRejectsCaseTwinsWithConflictingReasons(t *testing.T) {
+	state := sampleState()
+	state.Unread = []securityalerts.UnreadRepository{
+		{Repository: "Acme/Alpha", Reason: "org_repository_read_rate_limited"},
+		{Repository: "acme/alpha", Reason: "org_repository_fanout_cap_reached"},
+	}
+	exec := &recordingExecutor{}
+	if err := Writer(state)(context.Background(), exec); err == nil {
+		t.Fatal("Writer() error = nil, want a conflicting-reasons error for case twins")
+	}
+	if len(exec.calls) != 0 {
+		t.Errorf("statements = %d, want none for invalid state", len(exec.calls))
+	}
+}

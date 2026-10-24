@@ -16,9 +16,10 @@ reason instead of `complete` (#8943).
   `security_alert_target_read_states` (one row per generation, primary key
   `generation_id`) and `security_alert_unread_repositories` (one row per unread
   repository, primary key `(generation_id, repository)`).
-- `Writer(state)` is the only write path. It validates the state, upserts the
-  parent row, replaces the generation's child rows, and returns errors that
-  carry no repository name.
+- `Writer(state)` is the only write path. It validates the state, lowercases
+  each repository slug the way the read probe does, upserts the parent row,
+  replaces the generation's child rows, and returns errors that carry no
+  repository name.
 - The collector (`internal/collector/securityalerts/alertruntime`) builds the
   state; `cmd/collector-security-alerts` passes `Writer` to the source; the
   ingestion store (`storage/postgres.IngestionStore.CommitClaimedScopeGenerationWithState`)

@@ -94,13 +94,14 @@ func write(ctx context.Context, exec collector.CommitExecutor, state securityale
 	return nil
 }
 
-// normalizeUnread validates the unread repositories, drops exact repeats, and
-// sorts by repository so every writer of one generation inserts in one order.
-// Two different reasons for one repository are a collector bug, not a merge.
+// normalizeUnread validates the unread repositories, lowercases each slug the
+// way the read probe does, drops exact repeats, and sorts by repository so
+// every writer of one generation inserts in one order. Two different reasons
+// for one repository, including a case twin, are a collector bug, not a merge.
 func normalizeUnread(unread []securityalerts.UnreadRepository) ([]securityalerts.UnreadRepository, error) {
 	out := make([]securityalerts.UnreadRepository, 0, len(unread))
 	for _, row := range unread {
-		row.Repository = strings.TrimSpace(row.Repository)
+		row.Repository = strings.ToLower(strings.TrimSpace(row.Repository))
 		row.Reason = strings.TrimSpace(row.Reason)
 		if row.Repository == "" || row.Reason == "" {
 			return nil, fmt.Errorf("security alert unread repository needs a repository and a reason")
