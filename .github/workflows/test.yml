@@ -66,11 +66,7 @@ jobs:
   pr-plan:
     needs: queue-selection
     runs-on: ubuntu-latest
-    permissions:
-      checks: read
-      contents: read
-      pull-requests: read
-      statuses: read
+    permissions: {checks: read, contents: read, pull-requests: read, statuses: read}
     timeout-minutes: 5
     outputs:
       mode: ${{ steps.plan.outputs.mode }}
@@ -129,6 +125,9 @@ jobs:
           jq -r '"mode=\(.mode)", "reuse=\(.mode == "reuse")", "head_sha=\(.head_sha)", "source_sha=\(.source_sha // "")", "tree=\(.tree // "")", "workflows=\(.workflows | tojson)", "jobs=\(.jobs | tojson)", "gates=\(.gates | tojson)"' \
             "${RUNNER_TEMP}/pr-plan.json" >> "$GITHUB_OUTPUT"
           cat "${RUNNER_TEMP}/pr-plan.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Record full plan mode
+        if: ${{ steps.plan.outputs.mode == 'full' }}
+        run: test "${{ steps.plan.outputs.mode }}" = full
   markdown-file-cap:
     if: ${{ github.event_name == 'merge_group' || (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'markdown-file-cap'))) }}
     needs: [queue-selection, pr-plan]

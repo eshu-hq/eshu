@@ -22,6 +22,15 @@ group; scheduled and manual runs retain noncancelling behavior.
 | Reuse | No leaf job runs; trusted previously green verdicts transfer to the identical tree. |
 | Smoke | Selected fast gate commands and the required build run; other full-backed verdicts transfer. |
 
+The disabled-by-default `CI_SMOKE_GO_BUILD_FAIL_CANARY` repository variable is
+reserved for a reviewed live negative canary. Its JSON must name the exact
+repository, PR number, 40-hex head SHA, run attempt, `mode: smoke`,
+`gate: go-build`, and absolute UTC `expires_at` timestamp. The selected Go build
+runs first; only a successful build can reach the fixed deliberate failure.
+Missing, malformed, mismatched, or expired settings leave normal CI behavior.
+The value cannot supply a command, path, or exit code. Activate it only for a
+reviewed target and remove it afterward; deploying this hook activates nothing.
+
 The `go-core-complete` and `go-race-complete` jobs remain required. They reject
 a failed or malformed plan and verify the source/head binding before accepting
 a transferred verdict. `required-gates-complete` is still published by trusted
