@@ -25,6 +25,9 @@ permissions:
 
 jobs:
   build:
+    # Binary builds need read access; release publishing retains write access.
+    permissions:
+      contents: read
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'build') }}
     name: Build on ${{ matrix.os }}
     timeout-minutes: 20

@@ -2,6 +2,8 @@
 
 `cigates` is the typed core of the CI gate registry ([#4213](https://github.com/eshu-hq/eshu/issues/4213), drift [#4220](https://github.com/eshu-hq/eshu/issues/4220)). It provides the loader, selector, validator, drift checker, and glob matcher that back the `cmd/ci-gates` CLI and the `scripts/dev/select-gates.sh` / `scripts/dev/run-selected-gates.sh` wrappers.
 
+Workflow ownership follows executable `run:` steps in directly invoked local composite actions. Nested local actions are rejected with both action names, so unsupported nesting cannot hide a script from the ownership check.
+
 It answers two related questions:
 
 1. Given changed paths and a tier ceiling, which credential-free verifiers run locally?

@@ -67,7 +67,7 @@ results are derived from the inputs rather than written by hand. See
 - `license-header` (blocking): Checks every .go file in the repo carries the required license header.
 - `ci-install-apt-packages` (blocking): Self-tests the CI ripgrep/apt installer script's checksum and fallback logic, with no network or Docker.
 - `ci-go-mod-download-retry` (blocking): Self-tests the go-mod-download retry wrapper: it must retry failed downloads and record each attempt.
-- `ci-go-install-retry` (blocking): Self-tests the go-install retry wrapper and fails if any workflow runs a bare go install instead of it.
+- `ci-go-install-retry` (blocking): Self-tests the go-install retry wrapper and fails if any workflow or local composite action runs a bare go install instead of it.
 - `main-health-watcher` (blocking): Self-tests the post-merge main-health watcher's logic for opening and closing its tracking issue.
 - `pre-enqueue-check` (blocking): Self-tests the pre-merge check, which confirms the reviewed head, merge cleanliness, checks and review threads before a merge.
 - `heredoc-budget` (blocking): Blocks new bash heredocs beyond a fixed budget to prevent a known bash 5.1+ pipe-buffer deadlock.

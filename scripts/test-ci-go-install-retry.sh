@@ -182,7 +182,7 @@ else
 fi
 
 # check_workflow_wiring <fixture-root> is the CI-wiring guard: no
-# non-comment workflow line may run a bare `go install` (each install goes
+# non-comment workflow or local-action line may run a bare `go install` (each install goes
 # through the wrapper), and test.yml's go-core job must invoke the composite
 # action that runs this mirror. Prints findings; returns 0 clean, 1 on a
 # violation, 2 when the scan itself fails, so an unreadable tree fails
@@ -193,7 +193,7 @@ check_workflow_wiring() {
 	local action="${fixture_root}/.github/actions/ci-go-core/action.yml"
 	local found=""
 	local scan_rc=0
-	found="$(rg -n '^[^#]*\bgo[[:space:]]+install\b' "${wf_dir}" "${action}" 2>&1)" || scan_rc=$?
+	found="$(rg -n '^[^#]*\bgo[[:space:]]+install\b' "${wf_dir}" "${fixture_root}/.github/actions" 2>&1)" || scan_rc=$?
 	case "${scan_rc}" in
 	0)
 		printf 'bare go install:\n%s\n' "${found}"
@@ -226,9 +226,9 @@ wiring_case() {
 	dir="$(new_case "wiring-$1")"
 	local file="$2"
 	shift 2
-	mkdir -p "${dir}/.github/actions/ci-go-core"
+	mkdir -p "${dir}/.github"
 	cp -R "${repo_root}/.github/workflows" "${dir}/.github/workflows"
-	cp "${repo_root}/.github/actions/ci-go-core/action.yml" "${dir}/.github/actions/ci-go-core/action.yml"
+	cp -R "${repo_root}/.github/actions" "${dir}/.github/actions"
 	if [ "$#" -gt 0 ]; then
 		"$@" <"${dir}/.github/${file}" >"${dir}/edited"
 		if cmp -s "${dir}/edited" "${dir}/.github/${file}"; then
@@ -261,6 +261,8 @@ wiring_case bare-spaces workflows/bench.yml sed -e "s|${benchstat_step}|run: go 
 check "seeded RED: planted 'go   install' (extra spaces) fails the guard" "$([ "${wiring_rc}" -eq 1 ] && echo 0 || echo 1)"
 wiring_case bare-composite actions/ci-go-core/action.yml sed -e 's|run: scripts/ci/go-mod-download-retry.sh tools/golangci-lint-filelength|run: go install foo@v1|'
 check "seeded RED: bare go install in the invoked composite fails the guard" "$([ "${wiring_rc}" -eq 1 ] && echo 0 || echo 1)"
+wiring_case bare-other-composite actions/ci-verify-contracts/action.yml sed -e 's|run: python -m pip install pre-commit==4.6.2|run: go install foo@v1|'
+check "seeded RED: bare go install in another composite fails the guard" "$([ "${wiring_rc}" -eq 1 ] && echo 0 || echo 1)"
 # shellcheck disable=SC2016 # The awk program must stay literal.
 wiring_case bare-block workflows/bench.yml awk -v step="${benchstat_step}" '
 	index($0, step) { sub(/run: .*/, "run: |"); print; sub(/run: \|/, "  go install foo@v1"); print; next }
