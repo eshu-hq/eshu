@@ -81,8 +81,14 @@ func componentListJSON(entries ...listedComponent) string {
 // container script together with the literal env the chart gives it.
 func reconcileScript(t *testing.T) (string, map[string]string) {
 	t.Helper()
+	return reconcileScriptFromManifests(t, renderComponentActivations(t, componentActivationsValues(twoGrantPagerDuty)))
+}
 
-	manifests := renderComponentActivations(t, componentActivationsValues(twoGrantPagerDuty))
+// reconcileScriptFromManifests returns the pagerduty-a reconcile script and its
+// literal env from an already rendered chart.
+func reconcileScriptFromManifests(t *testing.T, manifests []helmManifest) (string, map[string]string) {
+	t.Helper()
+
 	deployment := requireHelmManifest(t, manifests, "Deployment", "eshu-cx-pagerduty-a")
 	var reconcile map[string]any
 	for _, init := range helmMapSlice(helmPodSpec(t, deployment)["initContainers"]) {
@@ -116,6 +122,12 @@ type scriptRun struct {
 // chart's own env is the base, so a renamed variable breaks the run.
 func runReconcileScript(t *testing.T, script string, chartEnv map[string]string, extra map[string]string, seed func(runtimeDir string)) scriptRun {
 	t.Helper()
+	return runReconcileScriptWithStub(t, stubEshu, script, chartEnv, extra, seed)
+}
+
+// runReconcileScriptWithStub is runReconcileScript with a chosen stub eshu.
+func runReconcileScriptWithStub(t *testing.T, stub, script string, chartEnv map[string]string, extra map[string]string, seed func(runtimeDir string)) scriptRun {
+	t.Helper()
 
 	dir := t.TempDir()
 	binDir := filepath.Join(dir, "bin")
@@ -125,7 +137,7 @@ func runReconcileScript(t *testing.T, script string, chartEnv map[string]string,
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(binDir, "eshu"), []byte(stubEshu), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(binDir, "eshu"), []byte(stub), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	seed(runtimeDir)
