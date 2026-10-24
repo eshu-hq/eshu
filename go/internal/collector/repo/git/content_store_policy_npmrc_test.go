@@ -24,12 +24,18 @@ var npmrcSeeds = []string{
 	"npmrcSeedQueryToken0123456789",
 	"npmrcSeedFragment0123456789",
 	"npmrcSeedPathToken0123456789",
+	"npmrcSeedSplitUser0123456789",
+	"npmrcSeedSplitPass0123456789",
+	"npmrcSeedFuryToken0123456789",
 }
 
 const npmrcSeededBody = "" +
 	"# build registry\n" +
-	"registry=https://npmrcSeedUserinfoUser0123456789:npmrcSeedUserinfoPass0123456789@registry.example.com/npm/?token=npmrcSeedQueryToken0123456789#npmrcSeedFragment0123456789\n" +
-	"@acme:registry=https://npm.acme.example/repo/\n" +
+	"registry=https://npmrcSeedUserinfoUser0123456789:npmrcSeedUserinfoPass0123456789@registry.example.com/repository/npm/?token=npmrcSeedQueryToken0123456789#npmrcSeedFragment0123456789\n" +
+	"@acme:registry=https://npm.acme.example/repository/repo/\n" +
+	"registry=https://npmrcSeedSplitUser0123456789:#npmrcSeedSplitPass0123456789@registry.example.com/repository/npm/\n" +
+	"registry=https://npmrcSeedSplitUser0123456789:/npmrcSeedSplitPass0123456789@registry.example.com/repository/npm/\n" +
+	"@fury:registry=https://npm-proxy.fury.io/npmrcSeedFuryToken0123456789/acme/\n" +
 	"@tok:registry=https://npm.tok.example/t/npmrcSeedPathToken0123456789/npm/\n" +
 	"//registry.example.com/:_authToken=npmrcSeedAuthToken0123456789\n" +
 	"//registry.example.com/:_auth=npmrcSeedAuthBase64Value0123456789\n" +
@@ -93,14 +99,15 @@ func TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding(t *testing.
 		}
 
 		urls := npmrcRegistryEntities(t, envelopes, path)
-		if len(urls) != 3 {
-			t.Fatalf("%s: registry-URL entities = %v, want the three registry lines", path, urls)
+		if len(urls) != 4 {
+			t.Fatalf("%s: registry-URL entities = %v, want the registry lines that survive (the split-userinfo lines emit nothing)", path, urls)
 		}
 		want := map[string]string{
-			"registry":       "https://registry.example.com/npm/",
-			"@acme:registry": "https://npm.acme.example/repo/",
+			"registry":       "https://registry.example.com/repository/npm/",
+			"@acme:registry": "https://npm.acme.example/repository/repo/",
 			// The token-shaped path is withheld; the host still answers.
-			"@tok:registry": "https://npm.tok.example",
+			"@tok:registry":  "https://npm.tok.example",
+			"@fury:registry": "https://npm-proxy.fury.io",
 		}
 		for _, row := range urls {
 			name, _ := row["name"].(string)

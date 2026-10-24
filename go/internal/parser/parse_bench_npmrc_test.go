@@ -16,7 +16,7 @@ func buildNpmrc(minLOC int) []byte {
 	for line := 0; line < minLOC; line++ {
 		switch line % 5 {
 		case 0:
-			fmt.Fprintf(&b, "@scope%d:registry=https://user:pass@npm-%d.example.com/repo/?x=1#f\n", line, line)
+			fmt.Fprintf(&b, "@scope%d:registry=https://user:pass@npm-%d.example.com/repository/repo/?x=1#f\n", line, line)
 		case 1:
 			fmt.Fprintf(&b, "//npm-%d.example.com/:_authToken=NpmrcBenchToken%06d\n", line, line)
 		case 2:

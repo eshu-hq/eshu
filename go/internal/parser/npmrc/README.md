@@ -39,8 +39,8 @@ these keys:
 | `value` | `scheme://host[:port]/path`, with no userinfo, query, or fragment |
 | `registry_scheme` | `http` or `https` |
 | `registry_host` | lower-case host, with `:port` when present; an IPv6 literal keeps its brackets |
-| `registry_path` | the escaped URL path, possibly empty; empty when withheld |
-| `registry_path_withheld` | `true` only when the path might carry a credential and was dropped; the scheme and host stay |
+| `registry_path` | the escaped URL path on a documented layout, possibly empty; empty when withheld |
+| `registry_path_withheld` | `true` only when the path is off the allowlist and was dropped; the scheme and host stay |
 | `registry_scope` | `@scope`, only on a scoped row |
 | `config_kind` | `registry_url` |
 | `section` | `registry` or `scope_registry` |
@@ -53,27 +53,58 @@ A repeated key keeps every line, in file order. The payload never carries
 
 ## A line is skipped, never partly emitted
 
-The parser skips the line when the key is not `registry` or `@scope:registry`;
-the line sits under an ini `[section]`; the value is empty, holds `${...}`, a
-control byte, or a non-ASCII byte, or is longer than the 8 KiB line bound; the
-value is not an absolute `http` or `https` URL with a DNS-style or IPv6 host; the
-path is longer than 512 bytes; or the shared detector
-(`internal/secret/detect`) flags the sanitized scheme and host. Parse errors never reach the
-caller or a log, because `net/url` errors quote the input.
+The parser skips the whole line when the key is not `registry` or
+`@scope:registry`; the line sits under an ini `[section]`; the value is empty,
+holds `${...}`, a control byte, or a non-ASCII byte, or is longer than the 8 KiB
+line bound; the value is not an absolute `http` or `https` URL with a DNS-style
+or IPv6 host; the path is longer than 512 bytes; the shared detector
+(`internal/secret/detect`) flags the sanitized scheme and host; or the userinfo
+split is suspect.
 
-## Path guard and residual risk
+The userinfo rule exists because `net/url` ends the authority at the first `/`,
+`?`, or `#` and accepts an empty or all-digit port. `https://user:/pw@host/` then
+parses with the user name as the host and the password in the path. The parser
+counts the `@` in the whole value text, before comment truncation and quote
+stripping. It keeps the line only when that count is 0, or is 1 and `net/url`
+read it as the userinfo delimiter. Any other count drops the line, including an
+`@` in a path, query, fragment, or trailing comment. Parse errors never reach
+the caller or a log, because `net/url` errors quote the input.
 
-A token can sit in a URL path as a bare segment (`https://host/t/9f86d0...`),
-where the detector sees no key. `pathMayHoldCredential` (`path_guard.go`) drops
-the path, keeps the scheme and host, and sets `registry_path_withheld`, when the
-decoded path is double-encoded, holds a detector match, has a segment with `=` or
-`:`, a UUID, a 20-byte alphanumeric run with a letter and a digit, a 32-byte
-letters-only run, or a 20-byte segment mixing upper case, lower case, and a
-digit. Ordinary registry paths (`/artifactory/api/npm/npm-virtual/`,
-`_packaging/feed/npm/registry/`, numeric project ids) pass. The guard is
-structural, so a path token shorter than 20 bytes, or made only of lower-case
-letters and under 32 bytes, is still emitted as path. Userinfo and query, the
-positions npm documents for credentials, are always removed.
+An unquoted value follows the npm `ini` reader: it ends at the first unescaped
+`;` or `#`, and `\;`, `\#`, and `\\` are literal. A backslash inside quotes drops
+the line.
+
+## Path allowlist and residual risk
+
+A token can sit in a URL path as a bare segment with no key and no known value
+shape. Gemfury documents exactly that: `https://npm-proxy.fury.io/<token>/<user>/`.
+No heuristic sees such a token reliably, so the path is an allowlist.
+`registryPathAllowed` (`path_guard.go`) keeps the path only when the host is not
+`*.fury.io` and the path is empty, `/`, or one of these documented layouts, with
+every `*` slot reading as a name:
+
+| Layout | Host |
+| --- | --- |
+| `/artifactory/api/npm/*` | any |
+| `/repository/*`, `/nexus/repository/*` | any |
+| `/*/_packaging/*/npm/registry`, `/*/*/_packaging/*/npm/registry` | any |
+| `/_packaging/*/npm/registry` | `*.pkgs.visualstudio.com` |
+| `/api/v4/projects/*/packages/npm`, `/api/v4/groups/*/-/packages/npm`, `/api/v4/packages/npm` | any |
+| `/api/packages/*/npm` | any |
+| `/*/*` | `npm.cloudsmith.io` and `*-npm.pkg.dev` |
+| `/npm/*` | AWS CodeArtifact hosts |
+
+Any other path, and every path on a Gemfury host, is dropped: the row keeps the
+scheme and host and sets `registry_path_withheld`. A slot reads as a name when it
+is at most 64 bytes of `[A-Za-z0-9._~-]` made of words of at most 16 bytes, each
+all lower case, all upper case, or Capitalized, with no letter-and-digit mix of 8
+bytes or more. Hex, base64url, and UUID tokens fail that test.
+
+Residual: a token that a vendor puts in a documented slot, drawn as a short word
+or as digits only, would pass. The documented vendors above put the credential in
+`_authToken` or `_auth`, not in the path. A host the table does not know loses its
+path, so a private registry on a custom layout reports the host only. Userinfo
+and query, the positions npm documents for credentials, are always removed.
 
 ## Dependencies
 

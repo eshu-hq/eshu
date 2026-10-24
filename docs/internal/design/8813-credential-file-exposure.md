@@ -195,16 +195,23 @@ These decide what each policy costs for `*.tfvars`.
 its own exact-name `npmrc` definition (never the `hcl`, `yaml`, or `raw_text`
 definitions) bound to `metadata`: the row keeps the path and the source digest
 with an empty body, and `metadata` needs no marker-arm migration. A registry-URL
-fact replaces the body as the answer to "which registry does this repository
-install from". Parser output is outside the policy, so the `npmrc` parser emits
-only the scheme, host, port, and path of `registry=` and `@scope:registry=`
-lines, with the userinfo, query, and fragment removed, and drops a line it
-cannot prove clean (an environment expansion, a non-http scheme, a detector
-match in the scheme or host). It drops a path that might carry a token and keeps the host. It never reads a credential key. The seeded full-stream scan
-the A1 ruling requires is `TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding`
-in `go/internal/collector/repo/git`. A path token shorter than 20 bytes, or
-lower-case letters under 32 bytes, is not recognizable and would still be
-emitted as path; that residual is named in the parser README.
+fact answers "which registry does this repository install from". Parser output
+is outside the policy, so the `npmrc` parser emits only the scheme, host, port,
+and path of `registry=` and `@scope:registry=` lines. It removes the userinfo,
+query, and fragment, drops a whole line it cannot prove clean (an environment
+expansion, a non-http scheme, a detector match in the scheme or host, or an `@`
+that `net/url` did not read as the userinfo delimiter), and never reads a
+credential key. The path is an allowlist of documented, token-free vendor
+layouts (Artifactory, Nexus, Azure Artifacts, GitLab, Gitea, Cloudsmith,
+Artifact Registry, CodeArtifact); any other path, and every Gemfury path, is
+dropped to a host-only row, because Gemfury documents the token as the first
+path segment and no heuristic sees a bare path token reliably. The seeded
+full-stream scan the A1 ruling requires is
+`TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding` in
+`go/internal/collector/repo/git`. Residual: a token a vendor puts in a
+documented slot, drawn as a short word or digits only, would pass; the
+documented vendors keep the credential in `_authToken`. A private registry on a
+custom layout reports its host only.
 
 Ordering (arbiter, 2026-10-24): no production definition binds to marker mode
 before #8833's marker-arm migration lands. That covers `.yarnrc.yml` and the

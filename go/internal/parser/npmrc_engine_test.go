@@ -68,8 +68,8 @@ func TestEngineParsesNpmrcRegistryURLsThroughTheRegistry(t *testing.T) {
 	t.Parallel()
 
 	const seed = "EngineSeedCredential0123456789"
-	body := "registry=https://deploy:" + seed + "@registry.example.com/npm/?token=" + seed + "\n" +
-		"@acme:registry=https://npm.acme.example/repo/\n" +
+	body := "registry=https://deploy:" + seed + "@registry.example.com/repository/npm/?token=" + seed + "\n" +
+		"@acme:registry=https://npm.acme.example/repository/repo/\n" +
 		"//registry.example.com/:_authToken=" + seed + "\n" +
 		"email=" + seed + "@example.com\n"
 	dir := t.TempDir()
@@ -95,8 +95,8 @@ func TestEngineParsesNpmrcRegistryURLsThroughTheRegistry(t *testing.T) {
 		got[row["name"].(string)] = row["value"].(string)
 	}
 	want := map[string]string{
-		"registry":       "https://registry.example.com/npm/",
-		"@acme:registry": "https://npm.acme.example/repo/",
+		"registry":       "https://registry.example.com/repository/npm/",
+		"@acme:registry": "https://npm.acme.example/repository/repo/",
 	}
 	if len(got) != len(want) || got["registry"] != want["registry"] || got["@acme:registry"] != want["@acme:registry"] {
 		t.Fatalf("registry rows = %v, want %v", got, want)

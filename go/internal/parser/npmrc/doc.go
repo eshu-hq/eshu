@@ -17,14 +17,17 @@
 // per accepted registry line. A row carries the key (`registry` or
 // `@scope:registry`), the scheme, the host with any port, and the path of the
 // URL. The userinfo (`user:pass@`), the query string, and the fragment are
-// removed before any field is built. A path that might carry a token (a UUID,
-// a long mixed alphanumeric run, a `key=value` segment, a detector match) is
-// dropped, and the row keeps the scheme and host with
-// `registry_path_withheld: true`. A line is skipped, never partially emitted,
-// when the value is not an absolute http or https URL with a valid
-// host, holds an environment expansion (`${...}`), a control character, or a
-// non-ASCII byte, exceeds the line bound, sits under an ini section, or holds
-// a credential shape in its scheme or host according to the shared detector.
+// removed before any field is built. The path is kept only on a documented,
+// token-free registry layout (Artifactory, Nexus, Azure Artifacts, GitLab,
+// Gitea, Cloudsmith, Artifact Registry, CodeArtifact) or when it is empty; any
+// other path, and every path on a Gemfury host, is dropped, and the row keeps
+// the scheme and host with `registry_path_withheld: true`. A line is skipped,
+// never partially emitted, when the value is not an absolute http or https URL
+// with a valid host, holds an environment expansion (`${...}`), a control
+// character, or a non-ASCII byte, exceeds the line bound, sits under an ini
+// section, holds an '@' that net/url did not read as the userinfo delimiter
+// (so a user name or password could land in the host or path), or holds a
+// credential shape in its scheme or host according to the shared detector.
 //
 // Parse never sets `source`, never reads a credential key, and never reports
 // an error that quotes file text.

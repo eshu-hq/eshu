@@ -106,14 +106,17 @@ func registryRow(line string, lineNumber int) map[string]any {
 	if !ok {
 		return nil
 	}
-	scheme, hostPort, urlPath, ok := sanitizeRegistryURL(raw)
+	// Count the '@' in the whole value text, before comment truncation and
+	// quote stripping, so a credential that net/url splits out of the userinfo
+	// cannot hide in the part the parser discards.
+	scheme, hostname, hostPort, urlPath, ok := sanitizeRegistryURL(raw, strings.Count(valuePart, "@"))
 	if !ok {
 		return nil
 	}
-	withheld := pathMayHoldCredential(urlPath)
+	withheld := !registryPathAllowed(hostname, urlPath)
 	if withheld {
-		// A path that might carry a token is dropped; the scheme and host still
-		// answer which registry the repository uses.
+		// A path off the documented layouts is dropped; the scheme and host
+		// still answer which registry the repository uses.
 		urlPath = ""
 	}
 	value := scheme + "://" + hostPort + urlPath
@@ -144,9 +147,11 @@ func registryRow(line string, lineNumber int) map[string]any {
 	return row
 }
 
-// registryValue extracts the value text the way the npm ini reader does: a
-// quoted value is the text inside the quotes, and an unquoted value ends at
-// the first `;` or `#`. It rejects a value with an environment expansion, a
+// registryValue extracts the value text the way the npm ini reader does. A
+// quoted value is the text inside the quotes; a backslash inside quotes is not
+// interpreted, so the line is skipped. An unquoted value ends at the first
+// unescaped `;` or `#`, and a backslash before `;`, `#`, or `\` makes that
+// character literal. It rejects a value with an environment expansion, a
 // control character, or a non-ASCII byte.
 func registryValue(valuePart string) (string, bool) {
 	value := strings.Trim(valuePart, " \t")
@@ -156,8 +161,11 @@ func registryValue(valuePart string) (string, bool) {
 			return "", false
 		}
 		value = value[1 : 1+end]
-	} else if i := strings.IndexAny(value, ";#"); i >= 0 {
-		value = strings.TrimRight(value[:i], " \t")
+		if strings.IndexByte(value, '\\') >= 0 {
+			return "", false
+		}
+	} else {
+		value = unescapeIniValue(value)
 	}
 	if value == "" || strings.Contains(value, "${") {
 		return "", false
@@ -170,31 +178,70 @@ func registryValue(valuePart string) (string, bool) {
 	return value, true
 }
 
-// sanitizeRegistryURL parses one registry value and returns its scheme, host
-// with port, and path. It drops the userinfo, query, and fragment, and it
-// rejects a value that is not an absolute http or https URL with a valid host.
-// It never returns a parse error, because url.Parse errors quote the input.
-func sanitizeRegistryURL(raw string) (scheme, hostPort, urlPath string, ok bool) {
+// unescapeIniValue follows the npm `ini` reader for an unquoted value: it stops
+// at the first unescaped `;` or `#`, turns `\;`, `\#`, and `\\` into the bare
+// character, and keeps any other backslash pair as written.
+func unescapeIniValue(value string) string {
+	var out strings.Builder
+	escaped := false
+	for i := 0; i < len(value); i++ {
+		c := value[i]
+		switch {
+		case escaped:
+			if c != ';' && c != '#' && c != '\\' {
+				out.WriteByte('\\')
+			}
+			out.WriteByte(c)
+			escaped = false
+		case c == ';' || c == '#':
+			return strings.TrimRight(out.String(), " \t")
+		case c == '\\':
+			escaped = true
+		default:
+			out.WriteByte(c)
+		}
+	}
+	if escaped {
+		out.WriteByte('\\')
+	}
+	return strings.TrimRight(out.String(), " \t")
+}
+
+// sanitizeRegistryURL parses one registry value and returns its scheme, bare
+// host, host with port, and path. It drops the userinfo, query, and fragment,
+// and it rejects a value that is not an absolute http or https URL with a
+// valid host. atCount is the number of '@' in the whole value text before any
+// truncation. net/url ends the authority at the first '/', '?', or '#', and
+// accepts an empty or all-digit port, so a value such as
+// `https://user:/pw@host/` parses with the username as the host and the
+// password in the path. The line is rejected unless it has no '@' at all, or
+// exactly one that net/url consumed as the userinfo delimiter. It never returns
+// a parse error, because url.Parse errors quote the input.
+func sanitizeRegistryURL(raw string, atCount int) (scheme, hostname, hostPort, urlPath string, ok bool) {
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Opaque != "" {
-		return "", "", "", false
+		return "", "", "", "", false
+	}
+	if atCount > 1 || atCount == 1 && parsed.User == nil {
+		return "", "", "", "", false
 	}
 	scheme = strings.ToLower(parsed.Scheme)
 	if scheme != "http" && scheme != "https" {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
-	host := strings.ToLower(parsed.Hostname())
-	if host == "" {
-		return "", "", "", false
+	hostname = strings.ToLower(parsed.Hostname())
+	if hostname == "" {
+		return "", "", "", "", false
 	}
+	host := hostname
 	if strings.Contains(host, ":") {
 		ip := net.ParseIP(host)
 		if ip == nil || strings.Contains(host, "%") {
-			return "", "", "", false
+			return "", "", "", "", false
 		}
 		host = "[" + host + "]"
 	} else if !hostPattern.MatchString(host) {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 	hostPort = host
 	if port := parsed.Port(); port != "" {
@@ -202,7 +249,7 @@ func sanitizeRegistryURL(raw string) (scheme, hostPort, urlPath string, ok bool)
 	}
 	urlPath = parsed.EscapedPath()
 	if len(urlPath) > maxPathBytes {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
-	return scheme, hostPort, urlPath, true
+	return scheme, hostname, hostPort, urlPath, true
 }

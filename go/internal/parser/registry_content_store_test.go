@@ -191,3 +191,51 @@ func TestAllStoreRegistryFingerprintEqualsThePreChangeValue(t *testing.T) {
 		t.Fatalf("all-store registry fingerprint = %s, want the pre-#8812 value %s", got, want)
 	}
 }
+
+// TestFlippingOneDefinitionMovesTheFingerprint flips one definition at a time
+// away from store and checks each flip, and each field of the policy, changes
+// the hash.
+func TestFlippingOneDefinitionMovesTheFingerprint(t *testing.T) {
+	t.Parallel()
+
+	base := contentStoreRegistry(t, ContentStore{}).Fingerprint()
+	marker := func(mode RedactorMode, keys ...string) ContentStore {
+		return ContentStore{Policy: ContentStoreRedact, Redactor: mode, CredentialKeys: keys}
+	}
+	flips := map[string]ContentStore{
+		"store to metadata":     {Policy: ContentStoreMetadata},
+		"store to redact":       marker(RedactorMarker, "npmAuthToken"),
+		"redact keys changed":   marker(RedactorMarker, "npmAuthToken", "npmAuthIdent"),
+		"redact keys replaced":  marker(RedactorMarker, "password"),
+		"redact key reordering": marker(RedactorMarker, "npmAuthIdent", "npmAuthToken"),
+	}
+	seen := map[string]string{"store": base}
+	for name, store := range flips {
+		fingerprint := contentStoreRegistry(t, store).Fingerprint()
+		if fingerprint == base {
+			t.Errorf("%s did not change the fingerprint", name)
+		}
+		if name == "redact key reordering" {
+			// Keys are sorted at construction, so order is not identity.
+			if fingerprint != fingerprintWith(t, marker(RedactorMarker, "npmAuthToken", "npmAuthIdent")) {
+				t.Errorf("key order changed the fingerprint")
+			}
+			continue
+		}
+		if prior, dup := seen[fingerprint]; dup {
+			t.Errorf("%s fingerprints like %s", name, prior)
+		}
+		seen[fingerprint] = name
+	}
+
+	// The redactor mode is part of the hash. NewRegistry rejects a mode it does
+	// not know, so this checks the renderer directly.
+	if fingerprintContentStore(marker(RedactorMarker, "k")) == fingerprintContentStore(marker("skeleton", "k")) {
+		t.Error("the redactor mode is not part of the fingerprint token")
+	}
+}
+
+func fingerprintWith(t *testing.T, store ContentStore) string {
+	t.Helper()
+	return contentStoreRegistry(t, store).Fingerprint()
+}

@@ -17,7 +17,7 @@ each file's policy through `Registry.LookupByPath`.
 |---|---|---|
 | Before, `BenchmarkContentStoreUngoverned/snapshot_stage_5000_files` on origin/main (261fcd2258) | 8.8 ns/op | 0 |
 | After, same benchmark on a registry with every policy reset to store | 8.8 ns/op | 0 |
-| After, `BenchmarkContentStoreGovernedDefault/snapshot_stage_5000_files_no_npmrc` on the default registry | 1.12 ms/op | 5,001 (80 KB) |
+| After, `BenchmarkContentStoreGovernedDefault/snapshot_stage_5000_files_no_npmrc` on the default registry | 1.09 ms/op | 5,001 (80 KB) |
 | Emit stage per file, before (nil map) | 8.2 ns/op | 0 |
 | Emit stage per file, after (empty map) | 5.9 ns/op | 0 |
 
@@ -30,8 +30,8 @@ per 5,000 files, and was reverted because `TestPathDispatchesKeysMatchLookupByPa
 pins the `LookupByPath` source.
 
 The parser, `BenchmarkParseConfig/npmrc` on a 10,000-line file with 2,000
-registry lines, 7,000 credential, comment, and other lines: 5.2 ms/op, 80 MB/s,
-3.9 MB and 32,004 allocations per parse. It runs once per `.npmrc` file.
+registry lines, 8,000 credential, comment, and other lines: 5.7 ms/op, 77 MB/s,
+4.3 MB and 42,005 allocations per parse. It runs once per `.npmrc` file.
 
 ## No-Regression Evidence
 
@@ -46,7 +46,7 @@ the content-version pin, and `go test` for `internal/parser/...`,
 `internal/mcp`, `internal/relationships`, and `cmd/eshu` pass on this branch.
 
 `snapshot_content_version_gate_test.go` pins the emitted facts for
-`testdata/content_version`, now with a `.npmrc`: 311 facts before, 314 after (the
+`testdata/content_version`, now with a `.npmrc`: 317 facts before, 320 after (the
 file fact, the content fact, and the registry-URL entity). The content version
 stays at `git-collector.v10`; the fingerprint moves because the registry gains a
 name.

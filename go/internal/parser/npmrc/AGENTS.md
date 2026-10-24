@@ -5,7 +5,7 @@
 1. `README.md` - purpose, row contract, the skip rules, the residual risk.
 2. `doc.go` - godoc contract for parent parser callers.
 3. `parser.go` - `Parse`, `registryRow`, `registryValue`, `sanitizeRegistryURL`;
-   `path_guard.go` - `pathMayHoldCredential`, the structural token check.
+   `path_guard.go` - `registryPathAllowed`, the path allowlist.
 4. `parser_test.go` - accepted and rejected shapes, the seeded-credential scan.
 5. `parser_fuzz_test.go` - the seeded-credential fuzz target.
 6. Parent wrapper `parseNpmrc` in `../node_lockfile_language.go`, the registry definition in
@@ -20,9 +20,13 @@
   (`TestParserOutputIsNotGovernedKnownLeak`), so this package is the only guard.
 - A row's URL MUST have no userinfo, query, or fragment, and MUST be an absolute
   `http` or `https` URL. A line that fails any check is skipped whole.
-- A path the guard flags MUST be dropped (host-only row with
-  `registry_path_withheld`), never emitted. Loosening `path_guard.go` needs a
-  token-shaped negative test first.
+- The path is an allowlist of documented layouts (`pathLayouts`). A path off it,
+  and every path on `*.fury.io`, MUST be dropped (host-only row with
+  `registry_path_withheld`). A new layout needs the vendor documentation that
+  puts the credential outside the path, a positive test, and a token-in-slot
+  negative test.
+- A line whose value text holds an `@` that `net/url` did not consume as the
+  userinfo delimiter MUST be dropped whole (`sanitizeRegistryURL` `atCount`).
 - The payload MUST NOT carry `source`, even with `Options.IndexSource`.
 - No error or log may quote file text. `net/url` errors quote their input, so
   they are discarded.
@@ -44,6 +48,8 @@
 ## Failure modes
 
 - Missing registry rows: the line failed a skip rule. Check for `${...}`, a
-  scheme-less value, a `[section]` above it, or a URL the detector flags.
+  scheme-less value, a `[section]` above it, a stray `@`, or a URL the detector
+  flags.
+- A host-only row: the path is off the allowlist; see `pathLayouts`.
 - A seed in a fact: stop. Find which row field copied it, add the seed to
   `credentialSeeds`, and fix the field before anything else.
