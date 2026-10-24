@@ -487,8 +487,5 @@ TABLE = {
             "TestReducerContentionGateServiceCatalogRuntimeFenceProducerCompletesMidCheck",
             "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers",
         ),
-        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_readiness_live_test.go": (
-            "TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget",
-        ),
     },
 }
