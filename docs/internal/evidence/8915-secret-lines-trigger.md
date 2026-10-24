@@ -100,9 +100,28 @@ noise from the loaded host and not a real cost of removing triggers.
 
 Heap-only-tuple (HOT) updates: `pg_stat_user_tables` showed 500 updates from
 these replays and no HOT updates (`n_tup_hot_upd` stayed 613). Dropping the
-covering index in variant H did not change the statement time, so this run does
-not show why the updates are not HOT. The replays were rolled back, which can
-leave dead tuples on the page. NOT PROVEN.
+covering index in variant H did not change the statement time and the run did
+not re-read `n_tup_hot_upd` after the drop. The replays were rolled back, which
+can leave dead tuples on the page. The cause of the non-HOT updates is **NOT
+PROVEN**. Two theories fit what the repository shows, and neither was tested:
+
+- **Theory (i): `content` compares unequal.** The writer's `SET` list assigns
+  `content` on every conflict (`upsertContentFileBatchSuffix` in
+  `go/internal/storage/postgres/content_writer_sql.go`). `content` is covered by
+  GIN trigram indexes (`content_files_content_trgm_idx`, and
+  `content_files_content_lower_trgm_idx` on the STORED generated `content_lower`
+  from migrations 176 and 177). If the update's column comparison sees the old
+  external TOAST pointer and the new inline datum as different, `content` counts
+  as modified, and a modified indexed column rules out a HOT update.
+- **Theory (ii): index 172 blocks HOT.** Migration 172 rebuilds
+  `content_files_language_repo_idx` as `(language, repo_id) INCLUDE (indexed_at)`,
+  and the same `SET` list assigns `indexed_at`. The PostgreSQL HOT page says a
+  HOT update must not modify "any columns referenced by the table's indexes"
+  (summarizing indexes aside) and needs free space on the page. It does not
+  mention `INCLUDE` columns, so whether an `INCLUDE` column counts is not settled
+  by that page. Whether `indexed_at` differs between an unchanged re-upsert and
+  its predecessor depends on the value the caller binds, which this run did not
+  check.
 
 ## Result 4: trigger plans (auto_explain, log_analyze, log_buffers)
 
@@ -149,8 +168,64 @@ corpus, the host load, and the number of phases per round.
 - Per-round `auto_explain` plans across all 36 rounds.
 - Concurrent writers of the same repository.
 - A batch of 500 files (about 250MB of transition tuples per side).
-- Why the replayed updates are not HOT.
+- Why the replayed updates are not HOT (theories (i) and (ii) above).
+- Whether the bound `indexed_at` differs between unchanged re-upserts.
 - Any fix. None is proposed: the cause of the slow mode is not proven.
+
+## Acceptance not met
+
+Criteria 1 to 3 of #8915 are **unmet**:
+
+1. No on-demand reproduction of the slow mode. The 36-round run never left
+   1.47x.
+2. No root cause. This note names no cause for the issue's 4 to 13 times slower
+   rounds, and it carries no Root-Cause marker on purpose.
+3. No fix and no documented bound. The 1.47x ratio bounds one synthetic corpus
+   on one loaded host. It is not a bound for the corpus or host in the issue.
+
+Criterion 4 (concurrency check) has no subject because no fix is proposed.
+
+### Reopen-active conditions
+
+The issue stays open for diagnosis. It becomes active again on either of:
+
+- At least 30 rounds on the #8814 review corpus, with per-round `auto_explain`
+  plans for every round, so a fast and a slow round can be compared node by node.
+- A deployed occurrence: `pg_stat_statements` p99 of the content writer's
+  `INSERT ... ON CONFLICT` statement shows the slow mode on a real deployment.
+
+## Writer-fork ruling (arbiter, recorded; no code)
+
+A fix that skips unchanged rows must not use `WHERE` on the conflict update.
+`WHERE content_hash IS DISTINCT FROM EXCLUDED.content_hash` would also skip the
+`generation_id` tag (#7760) and `commit_sha`, which have to move on every write.
+That option is rejected.
+
+Direction, if the work reopens with a proven cause:
+
+1. Pre-read `content_hash` for the batch keys.
+2. Rows whose hash changed take the full upsert.
+3. Unchanged rows take an `UPDATE` that never lists `content` in `SET`.
+   `content_lower` is a STORED generated column on `content` (migration 176), so
+   leaving `content` out of `SET` should also leave the generated copy alone.
+   That is a theory until the `UPDATE` is measured.
+4. The unchanged-row `UPDATE` is guarded by `WHERE content_hash = $expected`. A
+   row that no longer matches falls back to the full upsert.
+
+What must stay: `generation_id` and `commit_sha` move on every write;
+`content_hash` stays the source digest; the migration 138 and 186 triggers
+still fire (138's update trigger fires on every `UPDATE`, and 186 stages the
+touched repository) with identical outputs.
+
+This direction alone may not make the update HOT. Leaving `content` out of
+`SET` avoids the compare and the rewrite of `content`, but the `SET` list still
+assigns `indexed_at`, which index 172 covers (theory (ii)). Under the HOT
+conditions quoted above, a non-HOT update writes entries into every index,
+including the GIN trigram indexes. Changing the `indexed_at` semantics or index
+172 needs its own ruling, after enumerating the readers of `indexed_at`
+(`ReadRepositoriesByLanguage` in
+`go/internal/query/content_reader_language_inventory.go` is the reader migration
+172 names). Neither is part of this note.
 
 ## Reproduce
 
