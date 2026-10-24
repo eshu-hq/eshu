@@ -427,3 +427,20 @@ func addOversizeSkips(stats *discovery.DiscoveryStats, n int) {
 	}
 	stats.FilesSkippedByContent[oversizeSkipReason] += n
 }
+
+// withOversizeDeltaTombstones adds every delta target skipped over the read cap
+// to the delta's deleted paths (#8986). A delta carries only its changed
+// files, so a target that grew past the cap would otherwise emit nothing and
+// leave its earlier File node, entities, and content row served as current.
+// Listing it as deleted makes the stream emit the file and content tombstones
+// and the graph retract the file: the same end state as a full generation,
+// where the file is absent.
+func withOversizeDeltaTombstones(deleted []string, oversize []SkippedOversizeFile) []string {
+	if len(oversize) == 0 {
+		return deleted
+	}
+	for _, file := range oversize {
+		deleted = append(deleted, file.RelativePath)
+	}
+	return sortUniquePathStrings(deleted)
+}

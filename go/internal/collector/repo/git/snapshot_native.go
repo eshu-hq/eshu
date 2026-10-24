@@ -131,7 +131,12 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	fullParserFiles, _ := partitionNativeSnapshotFiles(fullFileSet.Files, registry)
 	// #8986: a parser file over the read cap is never read. Only the full set
 	// counts, so a delta does not count a file full discovery already counted.
-	parserFiles, _ = splitOversizeParserFiles(fullFileSet.RepoRoot, parserFiles, shared.SourceReadCap())
+	// A delta target over the cap is retracted, not left stale (see
+	// withOversizeDeltaTombstones).
+	parserFiles, oversizeTargets := splitOversizeParserFiles(fullFileSet.RepoRoot, parserFiles, shared.SourceReadCap())
+	if repository.Delta {
+		deltaDeletedRelativePaths = withOversizeDeltaTombstones(deltaDeletedRelativePaths, oversizeTargets)
+	}
 	fullParserFiles, oversizeFiles := splitOversizeParserFiles(fullFileSet.RepoRoot, fullParserFiles, shared.SourceReadCap())
 	addOversizeSkips(&discoveryStats, len(oversizeFiles))
 	parserFileSet := fileSet

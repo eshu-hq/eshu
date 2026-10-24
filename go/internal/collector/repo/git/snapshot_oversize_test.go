@@ -221,3 +221,81 @@ func TestStreamRefusesAContentFileThatGrewPastTheCap(t *testing.T) {
 	}
 	assertIdentityDropRecorded(t, logs.String(), dropCounts(t, reader), telemetry.PreparseDropContentReadFailed, repoRoot)
 }
+
+// TestDeltaRetractsATargetThatGrewPastTheCap (#8986 review P1-1): a delta
+// target that grew past the read cap is listed as deleted, so the stream emits
+// its file and content tombstones and the graph retracts it, the same end
+// state as a full generation where the file is absent. Without this, a delta
+// carrying only the skipped target emits nothing for it and the earlier File
+// node, entities, and content row stay served as current. Not parallel: it
+// lowers the process-wide read cap.
+func TestDeltaRetractsATargetThatGrewPastTheCap(t *testing.T) {
+	defer shared.SetSourceReadCapForTest(oversizeTestCap)()
+
+	repoRoot := t.TempDir()
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "app.py"), "def main():\n    return 1\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "big.py"), oversizeTestBody)
+	snapshot, err := NativeRepositorySnapshotter{Engine: defaultCollectorTestEngine(t)}.SnapshotRepository(context.Background(),
+		SelectedRepository{RepoPath: repoRoot, Delta: true, FileTargets: []string{filepath.Join(repoRoot, "big.py")}})
+	if err != nil {
+		t.Fatalf("SnapshotRepository() error = %v", err)
+	}
+	if len(snapshot.DeletedRelativePaths) != 1 || snapshot.DeletedRelativePaths[0] != "big.py" {
+		t.Fatalf("DeletedRelativePaths = %v, want [big.py]", snapshot.DeletedRelativePaths)
+	}
+	if len(snapshot.FileData) != 0 {
+		t.Fatalf("FileData = %d entries, want 0 (the oversize target is not parsed)", len(snapshot.FileData))
+	}
+
+	collected := buildStreamingGenerationWithContext(context.Background(),
+		repoRoot, testCollectorRepositoryMetadata(repoRoot), "run", time.Now().UTC(), snapshot, false, "")
+	tombstones := map[string]bool{}
+	for _, envelope := range drainFactChannel(collected.Facts) {
+		path, _ := envelope.Payload["relative_path"].(string)
+		if contentPath, ok := envelope.Payload["content_path"].(string); ok {
+			path = contentPath
+		}
+		if path != "big.py" {
+			continue
+		}
+		if !envelope.IsTombstone {
+			t.Fatalf("fact %q for big.py is not a tombstone", envelope.FactKind)
+		}
+		tombstones[envelope.FactKind] = true
+	}
+	if !tombstones["file"] || !tombstones["content"] {
+		t.Fatalf("big.py tombstones = %v, want file and content", tombstones)
+	}
+}
+
+// TestFullSnapshotDoesNotTombstoneOversizeFiles: a full generation already
+// retracts an absent file, so it lists no oversize file as deleted.
+func TestFullSnapshotDoesNotTombstoneOversizeFiles(t *testing.T) {
+	defer shared.SetSourceReadCapForTest(oversizeTestCap)()
+
+	repoRoot := writeOversizeRepo(t)
+	snapshot, err := NativeRepositorySnapshotter{Engine: defaultCollectorTestEngine(t)}.SnapshotRepository(context.Background(), SelectedRepository{RepoPath: repoRoot})
+	if err != nil {
+		t.Fatalf("SnapshotRepository() error = %v", err)
+	}
+	if len(snapshot.DeletedRelativePaths) != 0 {
+		t.Fatalf("DeletedRelativePaths = %v, want none on a full snapshot", snapshot.DeletedRelativePaths)
+	}
+}
+
+// TestSnapshotIndexesAParserFileExactlyAtTheCap (#8986 review P3-2): the cap is
+// inclusive, so a parser file of exactly SourceReadCap bytes is parsed, not
+// skipped. Not parallel: it lowers the process-wide read cap.
+func TestSnapshotIndexesAParserFileExactlyAtTheCap(t *testing.T) {
+	defer shared.SetSourceReadCapForTest(int64(len(oversizeTestBody)))()
+
+	repoRoot := t.TempDir()
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "big.py"), oversizeTestBody)
+	snapshot, err := NativeRepositorySnapshotter{Engine: defaultCollectorTestEngine(t)}.SnapshotRepository(context.Background(), SelectedRepository{RepoPath: repoRoot})
+	if err != nil {
+		t.Fatalf("SnapshotRepository() error = %v", err)
+	}
+	if len(snapshot.OversizeSkippedFiles) != 0 || len(snapshot.FileData) != 1 {
+		t.Fatalf("at the cap: OversizeSkippedFiles = %v, FileData = %d; want none skipped and 1 parsed", snapshot.OversizeSkippedFiles, len(snapshot.FileData))
+	}
+}
