@@ -26,8 +26,8 @@ func TestRedactSkeletonKeepsEvidenceShapes(t *testing.T) {
 		{"github ssh", `repo_url = "git@github.com:org/repo.git"`, `repo_url = "https://github.com/org/repo.git"`},
 		{"github userinfo stripped", `repo_url = "https://user:t0k3n@github.com/org/repo"`, `repo_url = "https://github.com/org/repo"`},
 		{"github query stripped", `repo_url = "https://github.com/org/repo?token=abc"`, `repo_url = "https://github.com/org/repo"`},
-		{"github fragment stripped", `doc = "https://github.com/org/repo/blob/main/x.tf#L1"`, `doc = "https://github.com/org/repo/blob/main/x.tf"`},
-		{"github module source", `src = "git::https://github.com/org/mod.git//sub?ref=v1.2.0"`, `src = "https://github.com/org/mod.git//sub"`},
+		{"github fragment stripped", `doc = "https://github.com/org/repo/blob/main/x.tf#L1"`, `doc = "https://github.com/org/repo"`},
+		{"github module source", `src = "git::https://github.com/org/mod.git//sub?ref=v1.2.0"`, `src = "https://github.com/org/mod.git"`},
 		{"github org only", `org_url = "https://github.com/org"`, `org_url = REDACTED_value`},
 		// The raw evidence pattern also reads org/re here, so the skeleton keeps it.
 		{"github odd path char", `repo_url = "https://github.com/org/re po"`, `repo_url = REDACTED_value # https://github.com/org/re`},
@@ -45,8 +45,18 @@ func TestRedactSkeletonKeepsEvidenceShapes(t *testing.T) {
 		{"comment text and url", `# see https://github.com/org/repo for releases`, `# https://github.com/org/repo`},
 		{"comment two urls", `# a: https://github.com/a/b and git@github.com:c/d.git`, `# https://github.com/a/b https://github.com/c/d.git`},
 		{"comment text only", `# rotate the key every month`, `REDACTED_value`},
+		// Only a real host boundary counts, and only owner/repo survives; the
+		// owner follows GitHub's username rule (39 characters at most), so a
+		// 40-character token cannot pass as one.
+		{"github inside another url's query", `# see https://evil.example/?u=github.com/ghp0123456789abcdefghij0123456789abcdef/x`, `REDACTED_value`},
+		{"lookalike host in text", `# notgithub.com/secretowner/secretrepo`, `REDACTED_value`},
+		{"subdomain host in text", `# codeload.github.com/org/repo`, `REDACTED_value`},
+		{"token-length owner", `repo_url = "https://github.com/ghp0123456789abcdefghij0123456789abcdefg/repo"`, `repo_url = REDACTED_value`},
+		{"managed user owner", `repo_url = "https://github.com/jdoe_acme/repo"`, `repo_url = "https://github.com/jdoe_acme/repo"`},
+		{"classic token as owner", `repo_url = "https://github.com/ghp` + `_0123456789abcdefghij0123456789abcdef/repo"`, `repo_url = REDACTED_value`},
+		{"deep path trimmed", `# https://github.com/org/repo/blob/main/secrets/key.txt`, `# https://github.com/org/repo`},
 		// A trailing comment that is exactly a github.com URL after a kept value.
-		{"version with github comment", `chart_version = "6.7.3"  # https://github.com/org/charts/tree/main/x`, `chart_version = "6.7.3" # https://github.com/org/charts/tree/main/x`},
+		{"version with github comment", `chart_version = "6.7.3"  # https://github.com/org/charts/tree/main/x`, `chart_version = "6.7.3" # https://github.com/org/charts`},
 		{"number with github comment", `replicas = 3 # https://github.com/org/repo`, `replicas = 3 # https://github.com/org/repo`},
 		{"redacted value with github comment", `region = "us-east-1" # https://github.com/org/repo`, `region = REDACTED_value # https://github.com/org/repo`},
 		{"version with text comment", `chart_version = "6.7.3" # pinned`, `chart_version = "6.7.3"`},
