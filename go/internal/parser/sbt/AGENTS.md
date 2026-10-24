@@ -283,7 +283,11 @@ check, any axis head, a handler past the list accepted, any call as a
 collection, `-=` as a single key, pending scalaVersion or libraryDependencies
 kept, single key not judged) were all killed; a non-')' closer at list depth
 read as inside survived as an equivalent mutant (only a mismatched bracket
-reaches it, and the watch denies the key after it either way).
+reaches it, and the watch denies the key after it either way). The same
+benchmark, run alternately at load average about 9, measured 16.16 to 16.36
+ms/op (median 16.33) before and 16.25 to 16.44 ms/op (median 16.31) after,
+with 16.45 MB/op and 139,757 to 139,758 allocs/op on both: no byte or
+allocation change.
 
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
 single-pass scanner with no recursion. 200,000 nested parentheses finish in
