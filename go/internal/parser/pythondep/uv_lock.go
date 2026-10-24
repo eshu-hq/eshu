@@ -26,14 +26,17 @@ const (
 )
 
 // uvLockState is the parser's account of what it could and could not read.
-// Resolved + Unresolved + Overflow always equals Entries.
+// Resolved + Unresolved + Overflow + RootPackages + WorkspaceMembers always
+// equals Entries.
 type uvLockState struct {
-	Entries      int  // [[package]] headers seen (plus unclassifiable headers)
-	Resolved     int  // entries emitted as a well-formed row
-	Unresolved   int  // entries emitted as a malformed row or not emitted
-	Overflow     int  // entries past the row cap, counted and not read
-	RedactedURLs int  // source URLs that had a userinfo component removed
-	Unsupported  bool // lock format version is not 1, or a multi-line string was seen
+	Entries          int  // [[package]] headers seen (plus unclassifiable headers)
+	Resolved         int  // entries emitted as a well-formed row
+	Unresolved       int  // entries emitted as a malformed row or not emitted
+	Overflow         int  // entries past the row cap, counted and not read
+	RootPackages     int  // the project itself (editable or virtual "."), counted and not emitted
+	WorkspaceMembers int  // [manifest] members with an editable or virtual source, counted and not emitted
+	RedactedURLs     int  // source URLs that had a userinfo component removed
+	Unsupported      bool // lock format version is not 1, a multi-line string, or a root package key was seen
 }
 
 // State names the overall outcome: "complete" when every entry resolved,
@@ -69,13 +72,15 @@ func ParseUVLock(path string) (map[string]any, error) {
 	payload := basePayload(path, LangTOML)
 	payload["variables"] = result.Rows
 	payload["uv_lock_state"] = map[string]any{
-		"state":            result.State.State(),
-		"entries":          result.State.Entries,
-		"resolved":         result.State.Resolved,
-		"unresolved":       result.State.Unresolved,
-		"dropped_over_cap": result.State.Overflow,
-		"redacted_urls":    result.State.RedactedURLs,
-		"unsupported":      result.State.Unsupported,
+		"state":             result.State.State(),
+		"entries":           result.State.Entries,
+		"resolved":          result.State.Resolved,
+		"unresolved":        result.State.Unresolved,
+		"dropped_over_cap":  result.State.Overflow,
+		"root_packages":     result.State.RootPackages,
+		"workspace_members": result.State.WorkspaceMembers,
+		"redacted_urls":     result.State.RedactedURLs,
+		"unsupported":       result.State.Unsupported,
 	}
 	return payload, nil
 }
@@ -83,9 +88,10 @@ func ParseUVLock(path string) (map[string]any, error) {
 type uvScope int
 
 const (
-	uvScopeRoot  uvScope = iota // before the first table header
-	uvScopeEntry                // top-level keys of one [[package]]
-	uvScopeOther                // a sub-table, [options], or [manifest]
+	uvScopeRoot     uvScope = iota // before the first table header
+	uvScopeEntry                   // top-level keys of one [[package]]
+	uvScopeManifest                // top-level keys of [manifest]
+	uvScopeOther                   // a sub-table or [options]
 )
 
 // uvEntry accumulates the keys of one [[package]] until the next header.
@@ -113,6 +119,7 @@ type uvParser struct {
 	depth       int     // open brackets of a multi-line value being skipped
 	lockVersion int     // 1 when the root version key is exactly 1; -1 when invalid
 	seenVersion bool
+	workspace   uvWorkspace
 }
 
 // parseUVLockBytes is the pure, testable core of ParseUVLock.
@@ -139,9 +146,14 @@ func (p *uvParser) handleLine(text []byte, lineNumber int) {
 			if p.cur != nil {
 				p.cur.bad = true
 			}
+			p.workspace.abandonMembers()
 			p.depth = 0
 		} else {
+			if p.workspace.collecting {
+				p.result.Scanned += p.workspace.collect(trimmed)
+			}
 			p.skip(trimmed)
+			p.workspace.endIfClosed(p.depth)
 			return
 		}
 	}
@@ -154,8 +166,13 @@ func (p *uvParser) handleLine(text []byte, lineNumber int) {
 	}
 	key, value, ok := splitBareKeyValue(trimmed)
 	if !ok {
-		if p.scope == uvScopeEntry && p.cur != nil {
+		switch {
+		case p.scope == uvScopeEntry && p.cur != nil:
 			p.cur.bad = true
+		case p.scope == uvScopeRoot:
+			// A quoted or dotted root key can define packages ("package" =
+			// [...], package.name = ...) in a form this reader does not read.
+			p.result.State.Unsupported = true
 		}
 		return
 	}
@@ -164,6 +181,8 @@ func (p *uvParser) handleLine(text []byte, lineNumber int) {
 		p.handleRootKey(string(key), value)
 	case p.scope == uvScopeEntry && p.cur != nil && !p.cur.overflow:
 		p.handleEntryKey(string(key), value)
+	case p.scope == uvScopeManifest && string(key) == "members":
+		p.startMembers(value)
 	default:
 		p.skip(value)
 	}
@@ -193,6 +212,11 @@ func (p *uvParser) handleRootKey(key string, value []byte) {
 		p.result.Scanned += len(value)
 		return
 	}
+	if key == "package" {
+		// A root `package = [...]` array holds entries the reader does not
+		// read; the file is unsupported rather than silently empty.
+		p.result.State.Unsupported = true
+	}
 	p.skip(value)
 }
 
@@ -201,17 +225,43 @@ func (p *uvParser) handleHeader(trimmed []byte, lineNumber int) {
 	content, rest, array, ok := splitHeader(trimmed)
 	p.result.Scanned += len(trimmed)
 	switch {
-	case !ok:
-		// A header the reader cannot classify may hide an entry. Count it as
-		// an unresolved unit so the loss is visible.
+	case !ok || !bareDottedKey(content) || (!array && string(content) == "package"):
+		// A header the reader cannot classify (mismatched brackets, a quoted
+		// key such as [["package"]], or a [package] table) may hide an entry.
+		// Count it as an unresolved unit so the loss is visible.
 		p.result.State.Entries++
 		p.result.State.Unresolved++
 		p.scope = uvScopeOther
 	case array && string(content) == "package" && restIsEmptyOrComment(rest):
 		p.startEntry(lineNumber)
+	case !array && string(content) == "manifest":
+		p.scope = uvScopeManifest
+		p.workspace.openManifest(p.result.State.Entries > 0)
 	default:
 		p.scope = uvScopeOther
 	}
+}
+
+// bareDottedKey reports whether a header's content is one or more bare keys
+// joined by dots, the only header form uv writes.
+func bareDottedKey(content []byte) bool {
+	if len(content) == 0 {
+		return false
+	}
+	start := 0
+	for i := 0; i <= len(content); i++ {
+		if i == len(content) || content[i] == '.' {
+			if i == start {
+				return false
+			}
+			start = i + 1
+			continue
+		}
+		if !isBareKeyByte(content[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // splitHeader parses `[a.b]` or `[[a.b]]`, returning the bracketed text, what
@@ -350,6 +400,9 @@ func (p *uvParser) finishEntry() {
 		builder.Malformed = true
 		state.Unresolved++
 		p.result.Rows = append(p.result.Rows, builder.finish())
+		return
+	}
+	if p.workspace.omit(entry.name, entry.source, state) {
 		return
 	}
 	builder.Value = entry.version

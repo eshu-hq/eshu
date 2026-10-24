@@ -10,6 +10,7 @@ import (
 
 // uvSource is one validated `source = { ... }` value of a [[package]] entry.
 type uvSource struct {
+	Origin     string // the primary key: registry, git, path, directory, editable, virtual, or url
 	ConfigKind string
 	SourceKind string
 	URL        string
@@ -73,7 +74,9 @@ func parseUVSource(value []byte) (uvSource, bool) {
 	if primaryKey == "" || primaryValue == "" {
 		return uvSource{}, false
 	}
-	return classifyUVSource(primaryKey, primaryValue)
+	src, ok := classifyUVSource(primaryKey, primaryValue)
+	src.Origin = primaryKey
+	return src, ok
 }
 
 // classifyUVSource maps one primary source key to the row's config_kind,
@@ -116,9 +119,10 @@ func classifyUVSource(key, value string) (uvSource, bool) {
 		url, ref, dropped := splitGitSource(clean)
 		return uvSource{ConfigKind: configKindVCS, SourceKind: "vcs", URL: url, Ref: ref, Redacted: redacted || dropped}, true
 	default: // path, directory, editable, virtual
-		if strings.Contains(value, "://") {
-			// A local path never carries a scheme; a URL here could hold a
-			// credential this reader does not strip.
+		if strings.ContainsAny(value, "@:") {
+			// A local path never carries a scheme or userinfo; a URL or an
+			// scp-style "user:secret@host:path" here could hold a credential
+			// this reader does not strip. A Windows drive path is refused too.
 			return uvSource{}, false
 		}
 		kind := configKindPath
@@ -182,8 +186,11 @@ func urlSchemeLen(value string) int {
 // a raw "#" or "?" as part of a password cannot leave a prefix behind. When a
 // "?" or "#" comes before the first slash and an "@" follows it, standards
 // parsers and this reader would disagree about the host, so the value is
-// refused (ok=false) instead of cleaned. Values with no scheme are returned
-// unchanged only when they cannot hold userinfo (see schemeOrPlainPath).
+// refused (ok=false) instead of cleaned. Any "@" left after the strip is
+// refused too: a raw "/" inside a password ("https://u:a/b@host") moves the
+// real userinfo past the cut, so a cleaned URL never contains an "@". Values
+// with no scheme are returned unchanged only when they cannot hold userinfo
+// (see schemeOrPlainPath).
 func stripURLUserinfo(value string) (clean string, redacted, ok bool) {
 	schemeLen := urlSchemeLen(value)
 	if schemeLen == 0 {
@@ -200,7 +207,13 @@ func stripURLUserinfo(value string) (clean string, redacted, ok bool) {
 	}
 	at := strings.LastIndexByte(value[authorityStart:authorityEnd], '@')
 	if at < 0 {
+		if strings.IndexByte(value[authorityStart:], '@') >= 0 {
+			return "", false, false
+		}
 		return value, false, true
+	}
+	if strings.IndexByte(value[authorityStart+at+1:], '@') >= 0 {
+		return "", false, false
 	}
 	return value[:authorityStart] + value[authorityStart+at+1:], true, true
 }

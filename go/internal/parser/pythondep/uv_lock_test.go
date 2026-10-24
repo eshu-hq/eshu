@@ -84,8 +84,8 @@ func TestParseUVLockEmitsExactVersionRowsForPyPIPackages(t *testing.T) {
 		t.Fatalf("ParseUVLock error = %v", err)
 	}
 	rows := variableRows(t, payload)
-	if len(rows) != 3 {
-		t.Fatalf("len(rows) = %d, want 3 (anyio, app, pytest): %#v", len(rows), rows)
+	if len(rows) != 2 {
+		t.Fatalf("len(rows) = %d, want 2 (anyio, pytest; the project itself is counted, not emitted): %#v", len(rows), rows)
 	}
 	anyio := rowByName(t, rows, "anyio")
 	want := map[string]any{
@@ -110,13 +110,15 @@ func TestParseUVLockEmitsExactVersionRowsForPyPIPackages(t *testing.T) {
 	if got := rowByName(t, rows, "pytest")["value"]; got != "8.3.2" {
 		t.Fatalf("pytest value = %#v, want 8.3.2", got)
 	}
-	app := rowByName(t, rows, "app")
-	if app["config_kind"] != "editable_dependency" || app["source_kind"] != "path" || app["source_url"] != "." {
-		t.Fatalf("app must be a non-registry editable row: %#v", app)
+	for _, row := range rows {
+		if row["name"] == "app" {
+			t.Fatalf("the project itself (editable \".\") must not be a dependency row: %#v", row)
+		}
 	}
 	state, _ := payload["uv_lock_state"].(map[string]any)
-	if state["state"] != "complete" || state["entries"] != 3 || state["resolved"] != 3 || state["unresolved"] != 0 {
-		t.Fatalf("uv_lock_state = %#v, want complete 3/3/0", state)
+	if state["state"] != "complete" || state["entries"] != 3 || state["resolved"] != 2 || state["unresolved"] != 0 ||
+		state["root_packages"] != 1 || state["workspace_members"] != 0 {
+		t.Fatalf("uv_lock_state = %#v, want complete 3 entries / 2 resolved / 1 root", state)
 	}
 }
 
@@ -146,11 +148,10 @@ func TestParseUVLockSourceKindsNeverMasqueradeAsRegistryConsumption(t *testing.T
 		{"git subdirectory", `{ git = "https://github.com/acme/x.git#0123456789abcdef0123456789abcdef01234567", subdirectory = "pkg" }`, "vcs_dependency", "vcs", "https://github.com/acme/x.git", "0123456789abcdef0123456789abcdef01234567", 0},
 		{"path", `{ path = "../x" }`, "path_dependency", "path", "../x", "", 0},
 		{"directory", `{ directory = "libs/x" }`, "path_dependency", "path", "libs/x", "", 0},
-		{"virtual", `{ virtual = "." }`, "path_dependency", "path", ".", "", 0},
+		{"virtual", `{ virtual = "tools/x" }`, "path_dependency", "path", "tools/x", "", 0},
 		{"editable", `{ editable = "../x" }`, "editable_dependency", "path", "../x", "", 0},
 		{"url signed query dropped", `{ url = "https://example.com/x-1.2.3.tar.gz?token=SECRET#frag" }`, "url_dependency", "url", "https://example.com/x-1.2.3.tar.gz", "", 1},
 		{"url userinfo and query", `{ url = "https://user:SECRET@example.com/x.tar.gz?sig=SECRET" }`, "url_dependency", "url", "https://example.com/x.tar.gz", "", 1},
-		{"at sign in query is not userinfo", `{ url = "https://example.com/x.tar.gz?mail=a@b" }`, "url_dependency", "url", "https://example.com/x.tar.gz", "", 1},
 		{"registry query dropped and not pypi", `{ registry = "https://pypi.org/simple?token=SECRET" }`, "url_dependency", "registry", "https://pypi.org/simple", "", 1},
 		{"registry userinfo host is not pypi", `{ registry = "https://pypi.org@evil.example/simple" }`, "url_dependency", "registry", "https://evil.example/simple", "", 1},
 		{"git query dropped", `{ git = "https://github.com/acme/x.git?rev=main&token=SECRET" }`, "vcs_dependency", "vcs", "https://github.com/acme/x.git", "main", 1},
@@ -362,8 +363,8 @@ func TestParseUVLockHandlesCRLFAndEmptyInput(t *testing.T) {
 	t.Parallel()
 
 	crlf := strings.ReplaceAll(uvLockRealistic, "\n", "\r\n")
-	if got := len(parseUVLockBytes([]byte(crlf)).Rows); got != 3 {
-		t.Fatalf("CRLF rows = %d, want 3", got)
+	if got := len(parseUVLockBytes([]byte(crlf)).Rows); got != 2 {
+		t.Fatalf("CRLF rows = %d, want 2 (the editable root is counted, not emitted)", got)
 	}
 	for _, empty := range []string{"", "   \n\n", "# only a comment\n", "version = 1\n"} {
 		result := parseUVLockBytes([]byte(empty))

@@ -6,17 +6,44 @@ package pythondep
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
 
-const uvFuzzCases = 4000
+// uvFuzzCases is the local case count; ESHU_UV_FUZZ_CASES overrides it for a
+// longer run (the PR records one 30,000-case run).
+func uvFuzzCases(t *testing.T) int {
+	t.Helper()
+	if raw := os.Getenv("ESHU_UV_FUZZ_CASES"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 {
+			t.Fatalf("ESHU_UV_FUZZ_CASES = %q, want a positive integer", raw)
+		}
+		return n
+	}
+	return 4000
+}
+
+// uvFuzzExpect is what a clean (unmutated) seed file must parse to.
+type uvFuzzExpect struct {
+	rows, root, members int
+}
 
 // uvFuzzSeedFile builds one valid uv.lock with n entries from a seeded source.
-func uvFuzzSeedFile(rng *rand.Rand, n int) string {
+// Some files carry a [manifest] members list; members, the "." root, and
+// genuine local path dependencies are mixed in so the omission rule is tested
+// against its neighbours.
+func uvFuzzSeedFile(rng *rand.Rand, n int) (string, uvFuzzExpect) {
 	var b strings.Builder
+	var want uvFuzzExpect
 	b.WriteString("version = 1\nrevision = 2\nrequires-python = \">=3.12\"\n")
+	withMembers := rng.Intn(2) == 0
+	if withMembers {
+		b.WriteString("\n[manifest]\nmembers = [\n    \"Pkg_0\",\n    \"pkg-1\",\n]\n")
+	}
 	sources := []string{
 		`{ registry = "https://pypi.org/simple" }`,
 		`{ registry = "https://index.internal.example/simple" }`,
@@ -24,9 +51,22 @@ func uvFuzzSeedFile(rng *rand.Rand, n int) string {
 		`{ editable = "." }`,
 		`{ path = "../local" }`,
 		`{ url = "https://example.com/x-1.0.tar.gz" }`,
+		`{ editable = "packages/lib" }`,
+		`{ virtual = "tools" }`,
 	}
+	rootSeen := false
 	for i := 0; i < n; i++ {
-		fmt.Fprintf(&b, "\n[[package]]\nname = \"pkg-%d\"\nversion = \"%d.%d.%d\"\nsource = %s\n", i, rng.Intn(9), rng.Intn(99), rng.Intn(99), sources[rng.Intn(len(sources))])
+		pick := rng.Intn(len(sources))
+		switch {
+		case pick == 3 && !rootSeen:
+			rootSeen = true
+			want.root++
+		case (pick == 6 || pick == 7) && withMembers && i <= 1:
+			want.members++
+		default:
+			want.rows++
+		}
+		fmt.Fprintf(&b, "\n[[package]]\nname = \"pkg-%d\"\nversion = \"%d.%d.%d\"\nsource = %s\n", i, rng.Intn(9), rng.Intn(99), rng.Intn(99), sources[pick])
 		if rng.Intn(2) == 0 {
 			b.WriteString("dependencies = [\n    { name = \"dep\" },\n    { name = \"other\", marker = \"python_full_version < '3.11'\" },\n]\n")
 		}
@@ -37,7 +77,23 @@ func uvFuzzSeedFile(rng *rand.Rand, n int) string {
 			b.WriteString("\n[package.optional-dependencies]\nextra = [\n    { name = \"more\" },\n]\n")
 		}
 	}
-	return b.String()
+	return b.String(), want
+}
+
+// uvFuzzUnreadForm rewrites a clean file into a package form the reader does
+// not read: a quoted or table header, or a root package key.
+func uvFuzzUnreadForm(rng *rand.Rand, src string) string {
+	headers := []string{`[["package"]]`, `[['package']]`, `[[ "package" ]]`, `[package]`}
+	if rng.Intn(2) == 0 {
+		return strings.Replace(src, "[[package]]", headers[rng.Intn(len(headers))], 1)
+	}
+	roots := []string{
+		"package = [{ name = \"a\", version = \"1.0\" }]\n",
+		"package = [\n  { name = \"a\" },\n]\n",
+		"\"package\" = []\n",
+		"package.name = \"a\"\n",
+	}
+	return strings.Replace(src, "revision = 2\n", "revision = 2\n"+roots[rng.Intn(len(roots))], 1)
 }
 
 // uvFuzzMutate applies one random textual mutation.
@@ -94,11 +150,13 @@ func uvAssertResolvedRowsAreWrittenVerbatim(t *testing.T, src string, result uvL
 		if start < 1 || start > len(lines) || strings.TrimSpace(lines[start-1]) != "[[package]]" {
 			t.Fatalf("row %#v does not start at a [[package]] line in:\n%s", row, src)
 		}
-		wantName := fmt.Sprintf("name = %q", row["name"])
-		wantVersion := fmt.Sprintf("version = %q", row["value"])
+		wantName := fmt.Sprintf("name=%q", row["name"])
+		wantVersion := fmt.Sprintf("version=%q", row["value"])
 		var sawName, sawVersion, sawSource bool
 		for i := start; i < len(lines); i++ {
-			line := strings.TrimSpace(lines[i])
+			// Drop all spacing: TOML allows any spacing around "=" and "{",
+			// and the grammar admits no whitespace inside these values.
+			line := strings.Join(strings.Fields(lines[i]), "")
 			if strings.HasPrefix(line, "[") {
 				break
 			}
@@ -107,7 +165,7 @@ func uvAssertResolvedRowsAreWrittenVerbatim(t *testing.T, src string, result uvL
 				sawName = true
 			case line == wantVersion:
 				sawVersion = true
-			case strings.HasPrefix(line, "source = { registry = \"https://pypi.org/simple"):
+			case strings.HasPrefix(line, "source={registry=\"https://pypi.org/simple"):
 				sawSource = true
 			}
 		}
@@ -126,17 +184,44 @@ func TestParseUVLockSeededFuzzKeepsInvariants(t *testing.T) {
 	t.Parallel()
 
 	rng := rand.New(rand.NewSource(8821))
-	for c := 0; c < uvFuzzCases; c++ {
-		src := uvFuzzSeedFile(rng, 1+rng.Intn(4))
-		for m, n := 0, rng.Intn(4); m < n; m++ {
+	var clean, unreadForms, roots, members, partial int
+	cases := uvFuzzCases(t)
+	for c := 0; c < cases; c++ {
+		src, want := uvFuzzSeedFile(rng, 1+rng.Intn(4))
+		mutations := rng.Intn(4)
+		unread := mutations == 0 && rng.Intn(8) == 0
+		if unread {
+			src = uvFuzzUnreadForm(rng, src)
+		}
+		for m := 0; m < mutations; m++ {
 			src = uvFuzzMutate(rng, src)
 		}
 		result := parseUVLockBytes([]byte(src))
+		s := result.State
+		roots, members = roots+s.RootPackages, members+s.WorkspaceMembers
+		if s.State() != "complete" {
+			partial++
+		}
 		if len(result.Rows) > uvLockMaxRows {
 			t.Fatalf("case %d: %d rows exceed the cap", c, len(result.Rows))
 		}
-		if got := result.State.Resolved + result.State.Unresolved + result.State.Overflow; got != result.State.Entries {
-			t.Fatalf("case %d: resolved+unresolved+overflow=%d != entries=%d in %+v\n%s", c, got, result.State.Entries, result.State, src)
+		if got := s.Resolved + s.Unresolved + s.Overflow + s.RootPackages + s.WorkspaceMembers; got != s.Entries {
+			t.Fatalf("case %d: accounted=%d != entries=%d in %+v\n%s", c, got, s.Entries, s, src)
+		}
+		switch {
+		case unread:
+			unreadForms++
+			if s.State() == "complete" {
+				t.Fatalf("case %d: unread package form reads complete %+v\n%s", c, s, src)
+			}
+		case mutations == 0:
+			clean++
+			if len(result.Rows) != want.rows || s.RootPackages != want.root || s.WorkspaceMembers != want.members || s.State() != "complete" {
+				t.Fatalf("case %d: rows=%d state=%+v, want %+v complete\n%s", c, len(result.Rows), s, want, src)
+			}
+		}
+		if s.RootPackages > 1 || s.RootPackages+s.WorkspaceMembers > strings.Count(src, "editable = ")+strings.Count(src, "virtual = ") {
+			t.Fatalf("case %d: omitted more entries than editable/virtual sources: %+v\n%s", c, s, src)
 		}
 		if result.Scanned > 3*len(src)+1024 {
 			t.Fatalf("case %d: scanned %d > 3x input %d", c, result.Scanned, len(src))
@@ -152,6 +237,8 @@ func TestParseUVLockSeededFuzzKeepsInvariants(t *testing.T) {
 			t.Fatalf("case %d: parse is not deterministic", c)
 		}
 	}
+	t.Logf("%d cases: %d clean exact, %d unread package forms, %d partial; omitted %d roots and %d members",
+		cases, clean, unreadForms, partial, roots, members)
 }
 
 // TestParseUVLockUnintendedConstructsNeverResolve mutates a known-good entry
@@ -197,17 +284,18 @@ func TestParseUVLockSeededCredentialsNeverReachARow(t *testing.T) {
 	t.Parallel()
 
 	rng := rand.New(rand.NewSource(88210))
-	delimiters := []string{"#", "?", "@", ":", "%40", "!", "$", "&", "=", ";"}
-	keys := []string{"git", "url", "registry"}
-	for c := 0; c < 1500; c++ {
+	delimiters := []string{"#", "?", "@", ":", "%40", "!", "$", "&", "=", ";", "/", "%2F", "\\\\", "@@", "/@"}
+	keys := []string{"git", "url", "registry", "editable", "path", "directory", "virtual"}
+	prefixes := []string{"https://user:", "git+ssh://user:", "user:", ""}
+	for c := 0; c < 3000; c++ {
 		secret := "SECRET" + delimiters[rng.Intn(len(delimiters))] + "TOKEN" + delimiters[rng.Intn(len(delimiters))] + "ZZ"
-		tail := []string{"", "/x.git", "/simple", "/a/b.tar.gz?sig=SECRETQ#SECRETF"}[rng.Intn(4)]
-		src := fmt.Sprintf("version = 1\n\n[[package]]\nname = \"x\"\nversion = \"1.0\"\nsource = { %s = \"https://user:%s@host.example%s\" }\n",
-			keys[rng.Intn(len(keys))], secret, tail)
+		tail := []string{"", "/x.git", "/simple", "/a/b.tar.gz?sig=SECRETQ#SECRETF", ":path"}[rng.Intn(5)]
+		src := fmt.Sprintf("version = 1\n\n[[package]]\nname = \"x\"\nversion = \"1.0\"\nsource = { %s = \"%s%s@host.example%s\" }\n",
+			keys[rng.Intn(len(keys))], prefixes[rng.Intn(len(prefixes))], secret, tail)
 		for _, row := range parseUVLockBytes([]byte(src)).Rows {
 			for field, value := range row {
-				if text, ok := value.(string); ok && strings.Contains(text, "SECRET") {
-					t.Fatalf("case %d: secret reached row field %q = %q for source:\n%s", c, field, text, src)
+				if text, ok := value.(string); ok && (strings.Contains(text, "SECRET") || strings.Contains(text, "TOKEN") || strings.Contains(text, "@")) {
+					t.Fatalf("case %d: credential text reached row field %q = %q for source:\n%s", c, field, text, src)
 				}
 			}
 		}

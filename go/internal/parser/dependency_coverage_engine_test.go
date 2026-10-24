@@ -346,22 +346,10 @@ dependencies {
 			expectedPackageMgr: "pypi",
 		},
 		"uv.lock": {
-			body: "version = 1\n" +
-				"\n" +
-				"[[package]]\n" +
-				"name = \"requests\"\n" +
-				"version = \"2.31.0\"\n" +
-				"source = { registry = \"https://pypi.org/simple\" }\n" +
-				"\n" +
-				"[[package]]\n" +
-				"name = \"pytest\"\n" +
-				"version = \"7.4.4\"\n" +
-				"source = { registry = \"https://pypi.org/simple\" }\n",
-			expectedDependencies: map[string]string{
-				"requests": "2.31.0",
-				"pytest":   "7.4.4",
-			},
-			expectedPackageMgr: "pypi",
+			body: "version = 1\n\n[[package]]\nname = \"requests\"\nversion = \"2.31.0\"\nsource = { registry = \"https://pypi.org/simple\" }\n\n" +
+				"[[package]]\nname = \"pytest\"\nversion = \"7.4.4\"\nsource = { registry = \"https://pypi.org/simple\" }\n",
+			expectedDependencies: map[string]string{"requests": "2.31.0", "pytest": "7.4.4"},
+			expectedPackageMgr:   "pypi",
 		},
 		"pipfile.lock": {
 			body: `{
