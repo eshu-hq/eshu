@@ -122,11 +122,13 @@ reader never guesses a name, version, or source.
 - **source.** A one-line inline table with exactly one of `registry`, `git`,
   `path`, `directory`, `editable`, `virtual`, `url`, plus an optional
   `subdirectory`. Values are basic strings without escapes, at most 2048 bytes;
-  URL-like values may not contain whitespace and need a `://` scheme (a
-  `registry` may instead be a plain path with no `@` or `:`, and scp-style git
-  values are refused because userinfo cannot be told from a host), and a
-  path-like value may not contain `://`. Userinfo is cut at the last `@` before
-  the first `/`, so a raw `#` or `?` in a password cannot leave a prefix.
+  URL-like values may not contain whitespace and must start with a
+  `scheme://` (a `registry` may instead be a plain path with no `@` or `:`;
+  scp-style git values are refused because userinfo cannot be told from a
+  host), and a path-like value may not contain `://`. Userinfo is cut at the
+  last `@` before the first `/`. A `?` or `#` before that slash with an `@`
+  after it is refused, because a standards parser and this reader would
+  disagree about the host (`https://evil.example?x@pypi.org/simple`).
 - **Unterminated value.** If an array or table is never closed, the next exact
   `[[package]]` line ends it, the entry is marked unresolved, and scanning
   resumes there. A value still open at end of file marks its entry unresolved.

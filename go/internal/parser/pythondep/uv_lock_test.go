@@ -148,8 +148,6 @@ func TestParseUVLockSourceKindsNeverMasqueradeAsRegistryConsumption(t *testing.T
 		{"directory", `{ directory = "libs/x" }`, "path_dependency", "path", "libs/x", "", 0},
 		{"virtual", `{ virtual = "." }`, "path_dependency", "path", ".", "", 0},
 		{"editable", `{ editable = "../x" }`, "editable_dependency", "path", "../x", "", 0},
-		{"raw hash inside password", `{ git = "https://user:tok#en@github.com/acme/x.git" }`, "vcs_dependency", "vcs", "https://github.com/acme/x.git", "", 1},
-		{"raw question mark inside password", `{ url = "https://user:SECRET?x@example.com/x.tar.gz" }`, "url_dependency", "url", "https://example.com/x.tar.gz", "", 1},
 		{"url signed query dropped", `{ url = "https://example.com/x-1.2.3.tar.gz?token=SECRET#frag" }`, "url_dependency", "url", "https://example.com/x-1.2.3.tar.gz", "", 1},
 		{"url userinfo and query", `{ url = "https://user:SECRET@example.com/x.tar.gz?sig=SECRET" }`, "url_dependency", "url", "https://example.com/x.tar.gz", "", 1},
 		{"at sign in query is not userinfo", `{ url = "https://example.com/x.tar.gz?mail=a@b" }`, "url_dependency", "url", "https://example.com/x.tar.gz", "", 1},
@@ -228,6 +226,14 @@ func TestParseUVLockFailsClosedOnUnknownConstructs(t *testing.T) {
 		{"scp style git", "name = \"x\"\nversion = \"1.0\"\nsource = { git = \"deploy:SECRET@github.com:acme/x.git\" }", 1, 1},
 		{"url without scheme", "name = \"x\"\nversion = \"1.0\"\nsource = { url = \"user:SECRET@example.com/x.tar.gz\" }", 1, 1},
 		{"registry credential without scheme", "name = \"x\"\nversion = \"1.0\"\nsource = { registry = \"user:SECRET@host/simple\" }", 1, 1},
+		{"raw hash inside password", "name = \"x\"\nversion = \"1.0\"\nsource = { git = \"https://user:tok#en@github.com/acme/x.git\" }", 1, 1},
+		{"raw question mark inside password", "name = \"x\"\nversion = \"1.0\"\nsource = { url = \"https://user:SECRET?x@example.com/x.tar.gz\" }", 1, 1},
+		{"query smuggles a pypi host", "name = \"x\"\nversion = \"1.0\"\nsource = { registry = \"https://evil.example?x@pypi.org/simple\" }", 1, 1},
+		{"fragment smuggles a pypi host", "name = \"x\"\nversion = \"1.0\"\nsource = { registry = \"https://evil.example#x@pypi.org/simple\" }", 1, 1},
+		{"scheme not at start", "name = \"x\"\nversion = \"1.0\"\nsource = { git = \"user:SECRET@host/x://y\" }", 1, 1},
+		{"junk before scheme", "name = \"x\"\nversion = \"1.0\"\nsource = { url = \"u:SECRET@h/x https://y\" }", 1, 1},
+		{"digit-led scheme", "name = \"x\"\nversion = \"1.0\"\nsource = { url = \"1http://example.com/x\" }", 1, 1},
+		{"empty scheme", "name = \"x\"\nversion = \"1.0\"\nsource = { url = \"://example.com/x\" }", 1, 1},
 		{"bare junk line", "name = \"x\"\nversion = \"1.0\"\n" + pypi + "\nthis is not toml", 1, 1},
 	}
 	for _, tc := range cases {

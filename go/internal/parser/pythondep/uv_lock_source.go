@@ -88,7 +88,10 @@ func classifyUVSource(key, value string) (uvSource, bool) {
 		if strings.ContainsAny(value, " \t") || !schemeOrPlainPath(key, value) {
 			return uvSource{}, false
 		}
-		url, redacted := stripURLUserinfo(value)
+		url, redacted, ok := stripURLUserinfo(value)
+		if !ok {
+			return uvSource{}, false
+		}
 		kind, sourceKind := configKindURL, "url"
 		if key == "registry" {
 			sourceKind = "registry"
@@ -99,14 +102,17 @@ func classifyUVSource(key, value string) (uvSource, bool) {
 		url, dropped := dropURLQueryFragment(url)
 		return uvSource{ConfigKind: kind, SourceKind: sourceKind, URL: url, Redacted: redacted || dropped}, true
 	case "git":
-		if strings.ContainsAny(value, " \t") || !strings.Contains(value, "://") {
+		if strings.ContainsAny(value, " \t") || urlSchemeLen(value) == 0 {
 			// scp-style "user:secret@host:path" has no scheme, so userinfo
 			// cannot be told from a host; fail closed.
 			return uvSource{}, false
 		}
 		// Strip userinfo before splitting off the query and fragment so a raw
 		// "#" or "?" inside a password cannot leave a credential prefix behind.
-		clean, redacted := stripURLUserinfo(value)
+		clean, redacted, ok := stripURLUserinfo(value)
+		if !ok {
+			return uvSource{}, false
+		}
 		url, ref, dropped := splitGitSource(clean)
 		return uvSource{ConfigKind: configKindVCS, SourceKind: "vcs", URL: url, Ref: ref, Redacted: redacted || dropped}, true
 	default: // path, directory, editable, virtual
@@ -127,7 +133,7 @@ func classifyUVSource(key, value string) (uvSource, bool) {
 // relative or absolute path. A scheme-less value that holds "@" or ":" could
 // carry userinfo this reader cannot separate from a host, so it is refused.
 func schemeOrPlainPath(key, value string) bool {
-	if strings.Contains(value, "://") {
+	if urlSchemeLen(value) > 0 {
 		return true
 	}
 	return key == "registry" && !strings.ContainsAny(value, "@:")
@@ -148,28 +154,55 @@ func isPyPIIndex(url string) bool {
 	return url == "https://pypi.org/simple" || url == "https://pypi.org/simple/"
 }
 
-// stripURLUserinfo removes a `user[:password]@` component from the authority
-// of a URL so a credential never reaches a persisted row. Values without a
-// scheme separator (relative index paths) are returned unchanged.
-func stripURLUserinfo(value string) (string, bool) {
-	schemeEnd := strings.Index(value, "://")
-	if schemeEnd < 0 {
-		return value, false
+// urlSchemeLen returns the length of a leading `scheme://` (letters, digits,
+// plus, dot, hyphen; letter first), or 0 when value does not start with one.
+// Anchoring at the start matters: a "://" later in the text could leave
+// credentials in an unparsed prefix.
+func urlSchemeLen(value string) int {
+	for i := 0; i < len(value); i++ {
+		ch := value[i]
+		switch {
+		case ch == ':':
+			if i > 0 && strings.HasPrefix(value[i:], "://") {
+				return i
+			}
+			return 0
+		case (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z'):
+		case i > 0 && (isDigit(ch) || ch == '+' || ch == '.' || ch == '-'):
+		default:
+			return 0
+		}
 	}
-	authorityStart := schemeEnd + 3
+	return 0
+}
+
+// stripURLUserinfo removes a `user[:password]@` component from the authority
+// of a URL so a credential never reaches a persisted row. The authority is
+// cut at the first slash, wider than the URL standard, so a client that reads
+// a raw "#" or "?" as part of a password cannot leave a prefix behind. When a
+// "?" or "#" comes before the first slash and an "@" follows it, standards
+// parsers and this reader would disagree about the host, so the value is
+// refused (ok=false) instead of cleaned. Values with no scheme are returned
+// unchanged only when they cannot hold userinfo (see schemeOrPlainPath).
+func stripURLUserinfo(value string) (clean string, redacted, ok bool) {
+	schemeLen := urlSchemeLen(value)
+	if schemeLen == 0 {
+		return value, false, true
+	}
+	authorityStart := schemeLen + 3
 	authorityEnd := len(value)
-	// The authority is cut at the first slash only. Cutting at "?" or "#" as
-	// well would follow the URL standard, but a client that does not would
-	// read a raw "#" or "?" inside a password as part of the userinfo; taking
-	// the wider span can only remove more, never leak a credential prefix.
 	if index := strings.IndexByte(value[authorityStart:], '/'); index >= 0 {
 		authorityEnd = authorityStart + index
 	}
+	if q := strings.IndexAny(value[authorityStart:authorityEnd], "?#"); q >= 0 &&
+		strings.IndexByte(value[authorityStart+q:], '@') >= 0 {
+		return "", false, false
+	}
 	at := strings.LastIndexByte(value[authorityStart:authorityEnd], '@')
 	if at < 0 {
-		return value, false
+		return value, false, true
 	}
-	return value[:authorityStart] + value[authorityStart+at+1:], true
+	return value[:authorityStart] + value[authorityStart+at+1:], true, true
 }
 
 // splitGitSource splits uv's `url?rev=...#commit` form into the clone URL
