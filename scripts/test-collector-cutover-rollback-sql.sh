@@ -279,7 +279,7 @@ if [[ "${bench_facts}" -gt 0 ]]; then
 	   SELECT 'bf-' || n, 'b-' || (n % 300 + 1), 'bg-' || (n % 300 + 1),
 	          (ARRAY['work_item.issue', 'work_item.comment', 'work_item.transition'])[n % 3 + 1],
 	          'PRJ-' || (n / 3) || '#' || (n % 3), 'src', 'sk', now(), now(),
-	          jsonb_build_object('issue_key', 'PRJ-' || (n / 3), 'summary', md5(n::text) || encode(sha256(convert_to((n + 1)::text, 'UTF8')), 'hex'),
+	          jsonb_build_object('issue_key', 'PRJ-' || (n / 3), 'summary', encode(sha256(convert_to(n::text, 'UTF8')), 'hex') || encode(sha256(convert_to((n + 1)::text, 'UTF8')), 'hex'),
 	                             'status', (ARRAY['open', 'done', 'review'])[n % 3 + 1], 'n', n,
 	                             'labels', jsonb_build_array('a', 'b', encode(sha256(convert_to((n + 2)::text, 'UTF8')), 'hex')))
 	   FROM generate_series(1, ${bench_facts}) AS n" >/dev/null
