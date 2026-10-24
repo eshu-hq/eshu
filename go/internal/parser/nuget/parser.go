@@ -71,6 +71,10 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		return nil, err
 	}
 
+	if isCentralPropsPath(path) {
+		return parseCentralProps(path, source, isDependency, options)
+	}
+
 	var project nugetProjectFile
 	decoder := xml.NewDecoder(bytes.NewReader(source))
 	if err := decoder.Decode(&project); err != nil {

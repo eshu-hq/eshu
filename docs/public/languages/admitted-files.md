@@ -45,7 +45,7 @@ checklist.
 | `kotlin` | kotlin | L2 structured fact | `.kt`, `.kts` |  |  |
 | `maven` | java | L2 structured fact |  | `pom.xml` |  |
 | `node_lockfile` | javascript | L2 structured fact |  | `pnpm-lock.yaml`, `pnpm-lock.yml`, `yarn.lock` |  |
-| `nuget_project` | csharp | L2 structured fact | `.csproj` |  |  |
+| `nuget_project` | csharp | L2 structured fact | `.csproj` | `Directory.Build.props`, `Directory.Packages.props` |  |
 | `perl` | perl | L2 structured fact | `.pl`, `.pm` |  |  |
 | `php` | php | L2 structured fact | `.php` |  |  |
 | `python` | python | L2 structured fact | `.ipynb`, `.py`, `.pyi`, `.pyw` |  |  |
