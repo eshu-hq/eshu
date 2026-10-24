@@ -109,7 +109,7 @@ read grammar the handlers use: after any legacy axes (`in Test`,
 `in (Test, compile)`, `.in(Test)`, chained) and any `)` closers, a `.` and a
 read member make it a read, so `% (ThisBuild / scalaVersion).value`,
 `% (scalaVersion in Test).value` and `% scalaVersion.in(Test).value` inside a
-dependency statement change nothing. Anything else is a rewrite, and a key
+dependency statement are reads, not rewrites. Anything else is a rewrite, and a key
 inside another key's axis group denies the outer key. An inner occurrence
 whose verdict its statement already applied (a reset that supersedes every
 row, or a poison) is not counted again, so one statement counts once. The
@@ -351,11 +351,13 @@ tracked. A leading UTF-8 byte order mark is ignored.
   statement the scanner cannot read, or one assignment outside a grammar
   context leave it empty for the whole file, even where sbt's
   last-assignment order would name one version.
-- A bare key passed as a value is denied, because the scanner cannot tell it
-  from a rewrite: sbt-buildinfo's
+- A key named as a plain value in an argument list is not a rewrite but is
+  denied, because the scanner has no reference-position rule:
   `buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)`
-  clears `scala_version`, and `Global / excludeLintKeys += libraryDependencies`
-  supersedes every row ([#9007](https://github.com/eshu-hq/eshu/issues/9007)).
+  clears `scala_version` and the `%%` hint for the file, and
+  `Global / excludeLintKeys += libraryDependencies` makes every row of the
+  file partial. Both are counted in `unresolved_declaration_count`; no row
+  resolves wrongly ([#9007](https://github.com/eshu-hq/eshu/issues/9007)).
 - A bare-file reset makes every project row partial, even a project that is
   not the root, because the scanner does not decide which project is the root.
 - `ThisBuild /` and `Global /` keys and a declared-project axis (`core /`) are
