@@ -77,8 +77,9 @@ bounded by the file cap, because no `raw_spec` can be longer than the file that
 holds it. The tests assert allocation ceilings, never wall time; each fails
 when its fix is reverted (byte cap check disabled: four tests fail; the
 count-only sink reverted to store every token: the 60 KiB allocation test
-fails). The candidate map still holds each pin body until emission, as it did
-before; those bodies are already in memory from the content read.
+fails). The candidate map holds a pin body until emission only when the body is
+at or under the byte cap (64 KiB at most per pin file); a larger body keeps its
+size alone, as the retention section below shows.
 
 Observability Evidence: the new facts flow through the shared fact stream
 writer, so the existing per-generation fact count covers them. The cap skip is
