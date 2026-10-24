@@ -114,3 +114,26 @@ func TestParseKeepsPascalCaseNamesAndTheDualstackCodeArtifactHost(t *testing.T) 
 		}
 	}
 }
+
+// TestParseWithholdsAlternatingCaseTokensInASlot pins that the PascalCase rule
+// does not admit tokens built from many short capitalized runs. Real names
+// (MyFeed, FabrikamFiber, DataweaversPublic) have at most four parts.
+func TestParseWithholdsAlternatingCaseTokensInASlot(t *testing.T) {
+	t.Parallel()
+
+	for _, token := range []string{"AbCdEfGhIj", "KfybZfyxIpnrZsnqTokn", "AbCdEfGhIjKlMnOpQrSt", "XyZaBcDeFgHiJkLmNoPq"} {
+		for _, layout := range []string{
+			"https://nexus.example.com/repository/%s/",
+			"https://pkgs.dev.azure.com/org/_packaging/%s/npm/registry/",
+			"https://pkgs.dev.azure.com/org/_packaging/my-feed@%s/npm/registry/",
+			"https://pkgs.dev.azure.com/org/_packaging/%s@Release/npm/registry/",
+		} {
+			rows := rowsOf(t, parseBody(t, "registry="+strings.Replace(layout, "%s", token, 1)+"\n"))
+			raw, _ := json.Marshal(rows)
+			if len(rows) != 1 || rows[0]["registry_path"] != "" || rows[0]["registry_path_withheld"] != true ||
+				strings.Contains(string(raw), token) {
+				t.Errorf("%s with %s: rows = %s, want a host-only row", layout, token, raw)
+			}
+		}
+	}
+}

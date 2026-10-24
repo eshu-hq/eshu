@@ -51,7 +51,8 @@ recent shipped work grouped by feature area.
   stage for 5,000 files went from 8.8 ns to 1.09 ms
   (`BenchmarkContentStoreGovernedDefault`). Filesystem source mode now copies
   `.npmrc` into the managed workspace. A token a vendor puts in a documented
-  path slot, drawn as a short word or digits only, would still be emitted.
+  path slot would still be emitted if it is a short word, digits only, or a
+  PascalCase word of up to four parts and 24 bytes.
 
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 

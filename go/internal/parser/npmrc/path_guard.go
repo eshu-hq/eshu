@@ -12,12 +12,18 @@ import (
 const maxSlotBytes = 64
 
 // maxPascalWordBytes bounds a PascalCase word (FabrikamFiber, MyFeed,
-// DataweaversPublic). Each part is a capital and lower-case letters, which a
-// random token almost never forms over a whole 24 bytes.
+// DataweaversPublic). Each part is a capital and lower-case letters.
 const maxPascalWordBytes = 24
 
-// pascalCaseName matches a word built from Capitalized parts.
-var pascalCaseName = regexp.MustCompile(`^([A-Z][a-z]+)+$`)
+// maxPascalParts bounds the Capitalized parts in a PascalCase word.
+const maxPascalParts = 4
+
+var (
+	// pascalCaseName matches a word built from Capitalized parts.
+	pascalCaseName = regexp.MustCompile(`^([A-Z][a-z]+)+$`)
+	// pascalCasePart matches one Capitalized part.
+	pascalCasePart = regexp.MustCompile(`[A-Z][a-z]+`)
+)
 
 // maxSlotWordBytes bounds one word of a slot. A random token is one long word;
 // a human-chosen repository name is built from short ones.
@@ -172,7 +178,10 @@ func slotLooksLikeAName(slot string) bool {
 
 func wordLooksLikeAName(word string) bool {
 	if pascalCaseName.MatchString(word) {
-		return len(word) <= maxPascalWordBytes
+		// A person-chosen name has few parts (MyFeed, FabrikamFiber,
+		// DataweaversPublic). A token built from many short capitalized runs
+		// (AbCdEfGhIj) is not one.
+		return len(word) <= maxPascalWordBytes && len(pascalCasePart.FindAllString(word, -1)) <= maxPascalParts
 	}
 	if len(word) > maxSlotWordBytes {
 		return false

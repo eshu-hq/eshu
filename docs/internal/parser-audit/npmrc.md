@@ -24,6 +24,7 @@ From `doc.go`, `README.md`, `parser.go`:
 - `TestParseWithholdsEveryTokenInAPathSlot`: seven token shapes, including the no-digit and underscore-split 20-byte tokens, in the Gemfury first segment and in every variable slot of every allowlisted layout; every one drops to a host-only row.
 - `TestParseWithholdsAPathOffTheAllowlist`: 13 paths off the allowlist, including detector and encoded shapes.
 - `TestParseKeepsAzureFeedViews`, `TestParseRejectsAnAtSignOutsideAnAzureFeedView`, `TestParseWithholdsAnAzureViewThatIsNotAName`, and `TestParseKeepsPascalCaseNamesAndTheDualstackCodeArtifactHost`: ten Azure and PascalCase URLs keep a clean path, 11 `@` placements outside the feed view drop the line, six bad feed or view shapes drop to a host-only row, and five PascalCase and CodeArtifact URLs (including `.on.aws`) keep their path.
+- `TestParseWithholdsAlternatingCaseTokensInASlot`: four alternating-case tokens in a Nexus slot, an Azure feed, and both Azure view positions (16 cases) drop to a host-only row.
 - `TestParseDropsALineWhoseUserinfoSplitsOutsideTheAuthority`, `TestParseKeepsAWellFormedUserinfoLine`, and `TestParseReadsIniBackslashEscapes`: 13 split-userinfo forms drop whole, five ordinary userinfo forms keep a clean row, and the ini escapes follow npm.
 - `TestParseKeepsLineNumbersAcrossSkippedLines`: line numbers count skipped lines.
 - `TestParseNeverEmitsSource`: no `source` key with `IndexSource`.
@@ -33,7 +34,7 @@ From `doc.go`, `README.md`, `parser.go`:
 - `TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding` (`internal/collector/repo/git`): full-stream scan of every fact for the root and a nested `.npmrc`, empty-body content row with the source digest, registry-URL entities beside it, empty `source_cache`.
 
 ## Known Gaps
-- A token that a vendor puts in a documented path slot, drawn as a short word or digits only, would be emitted. No documented vendor does.
+- A token that a vendor puts in a documented path slot would be emitted if it is a short single-case or Capitalized word, digits only, or a PascalCase word of up to four parts and 24 bytes. No documented vendor does; the README has the measured pass rates for random tokens.
 - A private registry on a custom path layout reports its host only.
 - `${NPM_REGISTRY}` and other environment-expanded values yield no row.
 - `registry` keys under an ini `[section]` are skipped.

@@ -106,10 +106,17 @@ scheme and host and sets `registry_path_withheld`. A `<feed>` slot is a name, or
 name when it is at most 64 bytes of `[A-Za-z0-9._~-]` made of words of at most 16
 bytes, each all lower case, all upper case, or Capitalized, with no
 letter-and-digit mix of 8 bytes or more. A PascalCase word (`FabrikamFiber`,
-`MyFeed`, `DataweaversPublic`) of at most 24 bytes also reads as a name. Hex, base64url, and UUID tokens fail that test.
+`MyFeed`, `DataweaversPublic`) of at most 24 bytes and four Capitalized parts also
+reads as a name; `AbCdEfGhIj` has five parts and does not. UUID groups and letter-and-digit
+mixes of 8 bytes or more fail.
 
-Residual: a token that a vendor puts in a documented slot, drawn as a short word
-or as digits only, would pass. The documented vendors above put the credential in
+Residual: a token that a vendor puts in a documented slot would pass if it is a
+short lower-case, upper-case, or Capitalized word, digits only, or a PascalCase
+word of up to four parts and 24 bytes. Random tokens passed the slot check at these rates, measured on 1,000,000 uniform
+draws per cell (a single seed): base62 1.4e-2 at 8 bytes, 2.0e-4 at 16, 1.3e-5 at
+20, none at 24 and 32; base64url 4.0e-2, 9.7e-4, 1.2e-4, 1.7e-5 at 24, and 1e-6 at
+32; letters only 5.9e-2, 3.8e-3, 5.6e-4, 6.6e-5 at 24, and none at 32. Hex and
+lower-case-plus-digit tokens of 8 bytes or more fail. The documented vendors above put the credential in
 `_authToken` or `_auth`, not in the path. A host the table does not know loses its
 path, so a private registry on a custom layout reports the host only. Userinfo
 and query, the positions npm documents for credentials, are always removed.
