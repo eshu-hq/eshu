@@ -133,11 +133,7 @@ WHERE t.collector_kind = $1
   AND NOT EXISTS (
       SELECT 1
       FROM workflow_work_items AS s
-      WHERE s.collector_kind = t.collector_kind
-        AND s.collector_instance_id = t.collector_instance_id
-        AND s.scope_id = t.scope_id
-        AND s.status = 'completed'
-        AND s.updated_at > t.updated_at
+      WHERE ` + workflowTerminalFailureResolvedBy + `
   )
 ORDER BY t.updated_at DESC, t.work_item_id ASC
 LIMIT 1

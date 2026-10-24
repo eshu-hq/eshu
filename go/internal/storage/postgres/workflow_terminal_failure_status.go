@@ -87,11 +87,7 @@ CROSS JOIN LATERAL (
           AND NOT EXISTS (
               SELECT 1
               FROM workflow_work_items AS s
-              WHERE s.collector_kind = t.collector_kind
-                AND s.collector_instance_id = t.collector_instance_id
-                AND s.scope_id = t.scope_id
-                AND s.status = 'completed'
-                AND s.updated_at > t.updated_at
+              WHERE ` + workflowTerminalFailureResolvedBy + `
           )
         ORDER BY t.updated_at DESC, t.work_item_id ASC
         LIMIT 1
@@ -126,11 +122,7 @@ CROSS JOIN LATERAL (
           AND NOT EXISTS (
               SELECT 1
               FROM workflow_work_items AS s
-              WHERE s.collector_kind = t.collector_kind
-                AND s.collector_instance_id = t.collector_instance_id
-                AND s.scope_id = t.scope_id
-                AND s.status = 'completed'
-                AND s.updated_at > t.updated_at
+              WHERE ` + workflowTerminalFailureResolvedBy + `
           )
         ORDER BY t.updated_at DESC, t.work_item_id ASC
         LIMIT 1
@@ -138,6 +130,19 @@ CROSS JOIN LATERAL (
 ) AS f
 ORDER BY i.collector_kind ASC, i.instance_id ASC, f.acknowledged ASC
 `
+
+// workflowTerminalFailureResolvedBy is the one definition of "a later completed
+// work item of the same target resolved failed_terminal row t": a row s of the
+// same collector kind, instance, and scope that is completed and newer than t.
+// Only a completed row proves recovery. The status read, the acknowledgement
+// target read, and the failure list share it, so what the list shows is what
+// status counts. Callers wrap it as NOT EXISTS (SELECT 1 FROM workflow_work_items
+// AS s WHERE ...) over t; the list adds a cutoff bound of its own.
+const workflowTerminalFailureResolvedBy = `s.collector_kind = t.collector_kind
+                AND s.collector_instance_id = t.collector_instance_id
+                AND s.scope_id = t.scope_id
+                AND s.status = 'completed'
+                AND s.updated_at > t.updated_at`
 
 // workflowTerminalFailureAckScopes is the scope ids that carry an
 // acknowledgement for the instance bound to i. It is a cheap pre-filter in front
