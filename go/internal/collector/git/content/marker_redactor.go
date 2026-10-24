@@ -41,7 +41,7 @@ var (
 	existingMarker = regexp.MustCompile(`^` + markerPrefix + `(` + strings.Join(detect.Kinds(), "|") + `)$`)
 	pemBegin       = regexp.MustCompile(`-----BEGIN [A-Z0-9 ]+-----`)
 	pemEnd         = regexp.MustCompile(`-----END [A-Z0-9 ]+-----`)
-	blockScalar    = regexp.MustCompile(`^[|>][+-]?[0-9]?$`)
+	blockScalar    = regexp.MustCompile(`^[|>]([1-9][+-]?|[+-][1-9]?)?$`)
 
 	keyPatternCache sync.Map // joined key list -> *regexp.Regexp
 )
@@ -107,14 +107,19 @@ func credentialKeyPattern(keys []string) (*regexp.Regexp, error) {
 	return pattern, nil
 }
 
-// markerState carries what crosses line boundaries: whether a PEM block is open
-// and the indentation a listed key's block scalar must exceed.
+// markerState carries what crosses line boundaries: an open PEM block, an open
+// quoted scalar, and the continuation lines of a listed key's value.
 type markerState struct {
 	keyPattern *regexp.Regexp
 	inPEM      bool
-	// continuationOpen is true after a listed key whose value spills onto the
-	// following lines; those lines must be indented deeper than
-	// continuationIndent, the indent of the listed key line.
+	// openQuote is the quote character of a listed key's quoted value that has
+	// not closed yet; every line up to and including the closing one is
+	// redacted. Zero when none is open.
+	openQuote byte
+	// continuationOpen is true after a listed key line: YAML lets the value
+	// spill onto more-indented lines (block and multi-line plain scalars) or a
+	// same-indent "- " sequence. Those lines are redacted until a line that
+	// does neither. continuationIndent is the listed key line's indent.
 	continuationOpen   bool
 	continuationIndent int
 	replaced           int
@@ -131,8 +136,9 @@ func (s *markerState) redactLine(line string) string {
 
 func (s *markerState) redactText(line string) string {
 	indent := leadingWhitespace(line)
+	trimmed := strings.TrimSpace(line)
 	if s.inPEM {
-		if strings.TrimSpace(line) == "" {
+		if trimmed == "" {
 			return line
 		}
 		if pemEnd.MatchString(line) {
@@ -141,11 +147,20 @@ func (s *markerState) redactText(line string) string {
 		s.replaced++
 		return indent + markerPrefix + pemBlockKind
 	}
+	if s.openQuote != 0 {
+		// Inside a listed key's multi-line quoted scalar: the whole line is
+		// value, including the line that closes the quote.
+		if closesQuote(line, s.openQuote) {
+			s.openQuote = 0
+		}
+		s.replaced++
+		return indent + markerPrefix + defaultMarkerKind
+	}
 	if s.continuationOpen {
-		if strings.TrimSpace(line) == "" {
+		if trimmed == "" {
 			return line
 		}
-		if len(indent) > s.continuationIndent {
+		if len(indent) > s.continuationIndent || (len(indent) == s.continuationIndent && isSequenceItem(trimmed)) {
 			s.replaced++
 			return indent + markerPrefix + defaultMarkerKind
 		}
@@ -153,7 +168,7 @@ func (s *markerState) redactText(line string) string {
 	}
 
 	kind := detect.Classify(line)
-	out, _ := s.redactListedKey(line, kind)
+	out := s.redactListedKey(line, kind)
 	out = s.redactDetectorSpans(out, kind)
 	if pemBegin.MatchString(line) && !pemEnd.MatchString(line) {
 		s.inPEM = true
@@ -161,16 +176,21 @@ func (s *markerState) redactText(line string) string {
 	return out
 }
 
-// redactListedKey replaces the value of the first listed key on the line. It
-// reports whether a listed key matched.
-func (s *markerState) redactListedKey(line, rawKind string) (string, bool) {
+func isSequenceItem(trimmed string) bool {
+	return trimmed == "-" || strings.HasPrefix(trimmed, "- ")
+}
+
+// redactListedKey replaces the value of the first listed key on the line and
+// opens the continuation state its value needs. A value that is empty, only a
+// comment, tag, or anchor, or a block scalar indicator carries its text on the
+// following lines; a quote that does not close on the line carries it too.
+func (s *markerState) redactListedKey(line, rawKind string) string {
 	loc := s.keyPattern.FindStringSubmatchIndex(line)
 	if loc == nil {
-		return line, false
+		return line
 	}
 	keyText := line[loc[2]:loc[3]]
 	valueStart := loc[1]
-	value := line[valueStart:]
 	kind := rawKind
 	if kind == "" {
 		kind = detect.Classify(keyText + "=")
@@ -180,46 +200,102 @@ func (s *markerState) redactListedKey(line, rawKind string) (string, bool) {
 	}
 	marker := markerPrefix + kind
 
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" || blockScalar.MatchString(trimmed) {
-		// The value is empty or a block scalar: it continues on the following
-		// more-indented lines, so those are redacted too.
-		s.continuationOpen = true
-		s.continuationIndent = len(leadingWhitespace(line))
-		if trimmed == "" {
-			return line, true
-		}
+	// Whatever the value looks like, more-indented lines after a listed key
+	// belong to it (a multi-line plain scalar, a block scalar, a sequence).
+	s.continuationOpen = true
+	s.continuationIndent = len(leadingWhitespace(line))
+
+	value := strings.TrimSpace(line[valueStart:])
+	head := stripCommentTagAnchor(value)
+	if head == "" {
+		// Nothing but whitespace, a comment, a tag, or an anchor: the value is
+		// on the following lines, which the continuation redacts.
+		return line
+	}
+	if blockScalar.MatchString(head) {
 		s.replaced++
-		return line[:valueStart] + marker, true
+		return line[:valueStart] + marker
 	}
 
-	quote, inner, rest := splitQuotedValue(trimmed)
-	if envReference.MatchString(inner) && (rest == "" || strings.HasPrefix(strings.TrimSpace(rest), "#")) {
-		return line, true
+	quote, inner, rest, closed := splitQuotedValue(head)
+	if !closed {
+		// An unterminated quote spills onto the following lines until it closes.
+		s.openQuote = quote
 	}
-	if existingMarker.MatchString(inner) && rest == "" {
-		return line, true
+	if closed && envReference.MatchString(inner) && (rest == "" || strings.HasPrefix(strings.TrimSpace(rest), "#")) {
+		return line
+	}
+	if closed && existingMarker.MatchString(inner) && rest == "" {
+		return line
 	}
 	s.replaced++
-	return line[:valueStart] + quote + marker + quote, true
+	quoteText := ""
+	if quote != 0 {
+		quoteText = string(quote)
+	}
+	return line[:valueStart] + quoteText + marker + quoteText
 }
 
-// splitQuotedValue splits a value into its quote character, the unquoted text,
-// and any text after the closing quote. An unquoted value has no quote and no
-// rest; a value with an unterminated quote keeps the quote and treats the whole
-// remainder as the value, which fails closed.
-func splitQuotedValue(value string) (quote, inner, rest string) {
-	if value == "" || (value[0] != '"' && value[0] != '\'') {
-		if cut := strings.Index(value, " #"); cut >= 0 {
-			return "", strings.TrimSpace(value[:cut]), value[cut:]
+// stripCommentTagAnchor removes a trailing " #" comment and leading !tag and
+// &anchor tokens from a YAML value, returning what is left of the node itself.
+func stripCommentTagAnchor(value string) string {
+	if strings.HasPrefix(value, "#") {
+		return ""
+	}
+	if cut := strings.Index(value, " #"); cut >= 0 && !startsQuoted(value) {
+		value = strings.TrimSpace(value[:cut])
+	}
+	for value != "" && (value[0] == '!' || value[0] == '&') {
+		space := strings.IndexAny(value, " \t")
+		if space < 0 {
+			return ""
 		}
-		return "", value, ""
+		value = strings.TrimSpace(value[space:])
+		if strings.HasPrefix(value, "#") {
+			return ""
+		}
 	}
-	closing := strings.IndexByte(value[1:], value[0])
-	if closing < 0 {
-		return string(value[0]), value[1:], ""
+	return value
+}
+
+func startsQuoted(value string) bool {
+	return value != "" && (value[0] == '"' || value[0] == '\'')
+}
+
+// splitQuotedValue splits a value into its quote character (zero when
+// unquoted), the unquoted text, any text after the closing quote, and whether
+// the quote closed on this line. An unquoted value is one token; an unterminated
+// quote takes the rest of the line as the value, which fails closed.
+func splitQuotedValue(value string) (quote byte, inner, rest string, closed bool) {
+	if !startsQuoted(value) {
+		return 0, value, "", true
 	}
-	return string(value[0]), value[1 : 1+closing], value[2+closing:]
+	quote = value[0]
+	end := quoteEnd(value[1:], quote)
+	if end < 0 {
+		return quote, value[1:], "", false
+	}
+	return quote, value[1 : 1+end], value[2+end:], true
+}
+
+// quoteEnd returns the index of the first unescaped closing quote in text, or
+// -1. Double quotes escape with a backslash; single quotes escape by doubling.
+func quoteEnd(text string, quote byte) int {
+	for i := 0; i < len(text); i++ {
+		switch {
+		case quote == '"' && text[i] == '\\':
+			i++
+		case text[i] == quote && quote == '\'' && i+1 < len(text) && text[i+1] == '\'':
+			i++
+		case text[i] == quote:
+			return i
+		}
+	}
+	return -1
+}
+
+func closesQuote(line string, quote byte) bool {
+	return quoteEnd(line, quote) >= 0
 }
 
 // redactDetectorSpans replaces every span the migration 138 detector matches.

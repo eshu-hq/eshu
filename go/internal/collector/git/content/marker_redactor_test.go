@@ -278,3 +278,53 @@ func TestRedactMarkerRejectsInvalidUTF8(t *testing.T) {
 		t.Fatal("invalid UTF-8 must be an error, never a silent pass-through")
 	}
 }
+
+// TestRedactMarkerFailsClosedOnYAMLValueShapes pins the shapes where a listed
+// key's value is not on the key line: block scalars with a comment, tag, or
+// anchor, an empty value, a same-indent sequence, a multi-line plain scalar,
+// and a quoted scalar that closes on a later line. Every continuation line is
+// redacted; the next sibling key survives.
+func TestRedactMarkerFailsClosedOnYAMLValueShapes(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct{ name, in string }{
+		{"block scalar with comment", "npmAuthToken: | # token\n  leak1\n  leak2\nnext: ok\n"},
+		{"block scalar with chomping and indent", "npmAuthToken: |2-\n    leak1\n    leak2\nnext: ok\n"},
+		{"folded scalar", "npmAuthToken: >\n  leak1\n  leak2\nnext: ok\n"},
+		{"tagged block scalar", "npmAuthToken: !!str |\n  leak1\n  leak2\nnext: ok\n"},
+		{"anchored empty value", "npmAuthToken: &tok\n  leak1\n  leak2\nnext: ok\n"},
+		{"empty value then nested lines", "npmAuthToken:\n  leak1\n  leak2\nnext: ok\n"},
+		{"comment value then nested lines", "npmAuthToken: # see below\n  leak1\n  leak2\nnext: ok\n"},
+		{"same indent sequence", "npmAuthToken:\n- leak1\n- leak2\nnext: ok\n"},
+		{"multi-line plain scalar", "npmAuthToken: leak1\n  leak2\nnext: ok\n"},
+		{"multi-line double quoted", "npmAuthToken: \"leak1\n  leak2\"\nnext: ok\n"},
+		{"multi-line single quoted", "npmAuthToken: 'leak1\n  leak2'\nnext: ok\n"},
+		{"escaped quote does not close", "npmAuthToken: \"leak1 \\\" still leak\n  leak2\"\nnext: ok\n"},
+		{"doubled single quote does not close", "npmAuthToken: 'leak1 '' still leak\n  leak2'\nnext: ok\n"},
+	}
+	for _, tc := range cases {
+		got := redactForTest(t, tc.in)
+		if strings.Contains(got, "leak") {
+			t.Errorf("%s: a value line survived:\n%s", tc.name, got)
+		}
+		if !strings.HasSuffix(got, "next: ok\n") {
+			t.Errorf("%s: the next sibling key must survive:\n%s", tc.name, got)
+		}
+		if strings.Count(got, "\n") != strings.Count(tc.in, "\n") {
+			t.Errorf("%s: line count changed", tc.name)
+		}
+		if again := redactForTest(t, got); again != got {
+			t.Errorf("%s: not a fixed point:\n%s\n--\n%s", tc.name, got, again)
+		}
+	}
+}
+
+func TestRedactMarkerKeepsLinesOutsideTheValue(t *testing.T) {
+	t.Parallel()
+
+	in := "# header\nnpmAuthToken: abc\nnpmRegistryServer: \"https://registry.example.com/\"\nenableTelemetry: false\n"
+	want := "# header\nnpmAuthToken: REDACTED_api_token\nnpmRegistryServer: \"https://registry.example.com/\"\nenableTelemetry: false\n"
+	if got := redactForTest(t, in); got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
