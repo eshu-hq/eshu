@@ -33,48 +33,59 @@ type RuntimeStatusJSON struct {
 	LastFailureOperation string `json:"last_failure_operation,omitempty"`
 	LastFailureTerminal  bool   `json:"last_failure_terminal,omitempty"`
 	LastFailureAt        string `json:"last_failure_at,omitempty"`
-	// LastFailureScopeID is the failed work item's scope, omitted when no
-	// failure exists.
-	LastFailureScopeID string `json:"last_failure_scope_id,omitempty"`
-	// LastFailureAcknowledged, LastFailureAcknowledgedAt, and
-	// LastFailureAcknowledgedReason describe an operator acknowledgement of
-	// that failure (#8830). They are omitted for an unacknowledged failure.
-	LastFailureAcknowledged       bool   `json:"last_failure_acknowledged,omitempty"`
-	LastFailureAcknowledgedAt     string `json:"last_failure_acknowledged_at,omitempty"`
-	LastFailureAcknowledgedReason string `json:"last_failure_acknowledged_reason,omitempty"`
+	// AcknowledgedFailure describes an operator-acknowledged terminal failure
+	// (#8830); omitted when there is none. The operator's reason is never in it.
+	AcknowledgedFailure *AcknowledgedFailureJSON `json:"acknowledged_failure,omitempty"`
 }
 
 func RuntimeStatusesJSON(rows []RuntimeStatus) []RuntimeStatusJSON {
 	projected := make([]RuntimeStatusJSON, 0, len(rows))
 	for _, row := range rows {
 		projected = append(projected, RuntimeStatusJSON{
-			InstanceID:                    row.InstanceID,
-			CollectorKind:                 row.CollectorKind,
-			Mode:                          row.Mode,
-			RuntimeMode:                   row.RuntimeMode,
-			StatusCategory:                row.StatusCategory,
-			CoordinatorRegistered:         row.CoordinatorRegistered,
-			Enabled:                       row.Enabled,
-			Bootstrap:                     row.Bootstrap,
-			ClaimsEnabled:                 row.ClaimsEnabled,
-			DisplayName:                   row.DisplayName,
-			Health:                        row.Health,
-			EvidenceSources:               row.EvidenceSources,
-			SourceSystems:                 row.SourceSystems,
-			ObservationCount:              row.ObservationCount,
-			LastObservedAt:                shared.NullableRFC3339Value(row.LastObservedAt),
-			UpdatedAt:                     shared.NullableRFC3339Value(row.UpdatedAt),
-			DeactivatedAt:                 shared.NullableRFC3339Value(row.DeactivatedAt),
-			Detail:                        row.Detail,
-			LastFailureClass:              row.LastFailureClass,
-			LastFailureOperation:          row.LastFailureOperation,
-			LastFailureTerminal:           row.LastFailureTerminal,
-			LastFailureAt:                 shared.NullableRFC3339Value(row.LastFailureAt),
-			LastFailureScopeID:            row.LastFailureScopeID,
-			LastFailureAcknowledged:       row.LastFailureAcknowledged,
-			LastFailureAcknowledgedAt:     shared.NullableRFC3339Value(row.LastFailureAcknowledgedAt),
-			LastFailureAcknowledgedReason: row.LastFailureAcknowledgedReason,
+			InstanceID:            row.InstanceID,
+			CollectorKind:         row.CollectorKind,
+			Mode:                  row.Mode,
+			RuntimeMode:           row.RuntimeMode,
+			StatusCategory:        row.StatusCategory,
+			CoordinatorRegistered: row.CoordinatorRegistered,
+			Enabled:               row.Enabled,
+			Bootstrap:             row.Bootstrap,
+			ClaimsEnabled:         row.ClaimsEnabled,
+			DisplayName:           row.DisplayName,
+			Health:                row.Health,
+			EvidenceSources:       row.EvidenceSources,
+			SourceSystems:         row.SourceSystems,
+			ObservationCount:      row.ObservationCount,
+			LastObservedAt:        shared.NullableRFC3339Value(row.LastObservedAt),
+			UpdatedAt:             shared.NullableRFC3339Value(row.UpdatedAt),
+			DeactivatedAt:         shared.NullableRFC3339Value(row.DeactivatedAt),
+			Detail:                row.Detail,
+			LastFailureClass:      row.LastFailureClass,
+			LastFailureOperation:  row.LastFailureOperation,
+			LastFailureTerminal:   row.LastFailureTerminal,
+			LastFailureAt:         shared.NullableRFC3339Value(row.LastFailureAt),
+			AcknowledgedFailure:   acknowledgedFailureJSON(row.AcknowledgedFailure),
 		})
 	}
 	return projected
+}
+
+// AcknowledgedFailureJSON is the wire shape of an AcknowledgedFailure.
+type AcknowledgedFailureJSON struct {
+	FailureClass     string `json:"failure_class"`
+	FailureOperation string `json:"failure_operation"`
+	FailedAt         string `json:"failed_at,omitempty"`
+	AcknowledgedAt   string `json:"acknowledged_at,omitempty"`
+}
+
+func acknowledgedFailureJSON(failure *AcknowledgedFailure) *AcknowledgedFailureJSON {
+	if failure == nil {
+		return nil
+	}
+	return &AcknowledgedFailureJSON{
+		FailureClass:     failure.FailureClass,
+		FailureOperation: failure.FailureOperation,
+		FailedAt:         shared.NullableRFC3339Value(failure.FailedAt),
+		AcknowledgedAt:   shared.NullableRFC3339Value(failure.AcknowledgedAt),
+	}
 }

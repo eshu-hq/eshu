@@ -105,16 +105,11 @@ type PromotionProof struct {
 	LastFailureClass     string
 	LastFailureOperation string
 	LastFailureAt        time.Time
-	// LastFailureScopeID is the failed work item's scope; it is withheld from
-	// callers that may not see instance identity.
-	LastFailureScopeID string
-	// LastFailureAcknowledged, LastFailureAcknowledgedAt, and
-	// LastFailureAcknowledgedReason mark that failure as one an operator
-	// acknowledged (#8830). An acknowledged failure is not a blocker; the proof
-	// carries it so it is not mistaken for an instance that never failed.
-	LastFailureAcknowledged       bool
-	LastFailureAcknowledgedAt     time.Time
-	LastFailureAcknowledgedReason string
+	// AcknowledgedFailure is the operator-acknowledged terminal failure of the
+	// instance (#8830), or nil. It is a partial-state blocker, not a failure:
+	// the failure is real and still happening, so the proof never reads
+	// implemented.
+	AcknowledgedFailure *AcknowledgedFailure
 	// ReducerReadback reports whether reducer-projected evidence is available.
 	ReducerReadback string
 	// TelemetryHandles lists stable metric and span names for diagnosis.
@@ -254,29 +249,26 @@ func promotionProofForInstance(
 	fixtureOnly := opts.FixtureOnly[entry.CollectorKind]
 
 	proof := PromotionProof{
-		CollectorKind:                 entry.CollectorKind,
-		InstanceID:                    row.InstanceID,
-		DisplayName:                   displayName(entry, row),
-		RuntimeCategory:               row.StatusCategory,
-		Health:                        row.Health,
-		ClaimDriven:                   entry.ClaimDriven,
-		ClaimState:                    claimState,
-		SourceScope:                   entry.SourceScope,
-		FixtureOnly:                   fixtureOnly,
-		EvidenceSources:               slices.Clone(row.EvidenceSources),
-		SourceSystems:                 slices.Clone(row.SourceSystems),
-		ObservationCount:              row.ObservationCount,
-		ReducerReadback:               readback,
-		LastFailureClass:              row.LastFailureClass,
-		LastFailureOperation:          row.LastFailureOperation,
-		LastFailureAt:                 row.LastFailureAt,
-		LastFailureScopeID:            row.LastFailureScopeID,
-		LastFailureAcknowledged:       row.LastFailureAcknowledged,
-		LastFailureAcknowledgedAt:     row.LastFailureAcknowledgedAt,
-		LastFailureAcknowledgedReason: row.LastFailureAcknowledgedReason,
-		TelemetryHandles:              telemetryHandles(entry),
-		LastObservedAt:                row.LastObservedAt,
-		UpdatedAt:                     row.UpdatedAt,
+		CollectorKind:        entry.CollectorKind,
+		InstanceID:           row.InstanceID,
+		DisplayName:          displayName(entry, row),
+		RuntimeCategory:      row.StatusCategory,
+		Health:               row.Health,
+		ClaimDriven:          entry.ClaimDriven,
+		ClaimState:           claimState,
+		SourceScope:          entry.SourceScope,
+		FixtureOnly:          fixtureOnly,
+		EvidenceSources:      slices.Clone(row.EvidenceSources),
+		SourceSystems:        slices.Clone(row.SourceSystems),
+		ObservationCount:     row.ObservationCount,
+		ReducerReadback:      readback,
+		LastFailureClass:     row.LastFailureClass,
+		LastFailureOperation: row.LastFailureOperation,
+		LastFailureAt:        row.LastFailureAt,
+		AcknowledgedFailure:  row.AcknowledgedFailure,
+		TelemetryHandles:     telemetryHandles(entry),
+		LastObservedAt:       row.LastObservedAt,
+		UpdatedAt:            row.UpdatedAt,
 	}
 	proof.PromotionState, proof.Blockers = derivePromotionState(entry, row, readback, claimState, fixtureOnly, opts, asOf)
 	return proof
@@ -297,10 +289,14 @@ func derivePromotionState(
 	switch {
 	case row.StatusCategory == RuntimeDisabled || row.Health == "disabled":
 		return PromotionDisabled, []string{"collector disabled or deactivated"}
-	case row.LastFailureTerminal && !row.LastFailureAcknowledged && row.Health == "degraded":
+	case row.LastFailureTerminal && row.Health == "degraded":
 		return PromotionFailed, []string{terminalFailureDetail(row.LastFailureClass, row.LastFailureOperation)}
 	case row.Health == "degraded":
 		return PromotionFailed, []string{degradedBlocker(row)}
+	case row.AcknowledgedFailure != nil:
+		// An operator acknowledged the failure (#8830). It is still happening,
+		// so the proof is partial with the failure named, never implemented.
+		return PromotionPartial, []string{acknowledgedFailureDetail(row.AcknowledgedFailure.FailureClass, row.AcknowledgedFailure.FailureOperation)}
 	case row.Health == "partial":
 		return PromotionPartial, []string{"runtime health partial: some work did not complete"}
 	case isGated(entry, row, claimState):

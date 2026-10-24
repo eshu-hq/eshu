@@ -26,96 +26,95 @@ func acknowledgedFailureEvidence(now time.Time) (collector.Evidence, time.Time, 
 			UpdatedAt:      now.Add(-time.Minute),
 		}},
 		TerminalFailures: []collector.TerminalFailure{{
-			CollectorKind:      "security_alert",
-			InstanceID:         "security-alert-example",
-			ScopeID:            "org:example",
-			FailureClass:       "auth_denied",
-			FailureOperation:   "list_org_alerts",
-			ObservedAt:         failedAt,
-			Acknowledged:       true,
-			AcknowledgedAt:     acknowledgedAt,
-			AcknowledgedReason: "org left the program",
+			CollectorKind:    "security_alert",
+			InstanceID:       "security-alert-example",
+			ScopeID:          "org:example",
+			WorkItemID:       "work-1",
+			FailureClass:     "auth_denied",
+			FailureOperation: "list_org_alerts",
+			ObservedAt:       failedAt,
+			Acknowledged:     true,
+			AcknowledgedAt:   acknowledgedAt,
 		}},
 	}, failedAt, acknowledgedAt
 }
 
-// TestRuntimeStatusesAcknowledgedFailureDoesNotDegrade pins the acknowledged
-// reading (#8830): the failure stays visible with its bounded class, operation,
-// and acknowledgement, but it no longer degrades the instance, so the instance
-// is not shown as failing and is not shown as an instance with no failure.
-func TestRuntimeStatusesAcknowledgedFailureDoesNotDegrade(t *testing.T) {
+func runtimeRow(t *testing.T, evidence collector.Evidence) collector.RuntimeStatus {
+	t.Helper()
+	rows := collector.RuntimeStatuses(evidence)
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	return rows[0]
+}
+
+// TestRuntimeStatusesAcknowledgedFailureReadsPartial pins the AC3 reading
+// (#8830, arbiter ruling): an acknowledged failure is a distinct sub-record, not
+// LastFailure*; health is partial (never healthy or registered, never degraded),
+// and the unresolved-failure fields stay empty.
+func TestRuntimeStatusesAcknowledgedFailureReadsPartial(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
 	evidence, failedAt, acknowledgedAt := acknowledgedFailureEvidence(now)
 
-	var row collector.RuntimeStatus
-	for _, candidate := range collector.RuntimeStatuses(evidence) {
-		if candidate.InstanceID == "security-alert-example" {
-			row = candidate
-		}
+	row := runtimeRow(t, evidence)
+	if row.Health != "partial" {
+		t.Fatalf("health = %q, want partial", row.Health)
 	}
-	if row.Health == "degraded" {
-		t.Fatalf("health = %q, want an acknowledged failure not to degrade the instance", row.Health)
+	if row.LastFailureTerminal || row.LastFailureClass != "" || !row.LastFailureAt.IsZero() {
+		t.Fatalf("row = %+v, want LastFailure* empty for an acknowledged-only instance", row)
 	}
-	if row.LastFailureScopeID != "org:example" {
-		t.Fatalf("scope = %q, want org:example", row.LastFailureScopeID)
-	}
-	if !row.LastFailureTerminal || !row.LastFailureAcknowledged ||
-		row.LastFailureClass != "auth_denied" || row.LastFailureOperation != "list_org_alerts" ||
-		!row.LastFailureAt.Equal(failedAt) || !row.LastFailureAcknowledgedAt.Equal(acknowledgedAt) ||
-		row.LastFailureAcknowledgedReason != "org left the program" {
-		t.Fatalf("row = %+v, want the failure kept visible as acknowledged", row)
+	ack := row.AcknowledgedFailure
+	if ack == nil || ack.FailureClass != "auth_denied" || ack.FailureOperation != "list_org_alerts" ||
+		!ack.FailedAt.Equal(failedAt) || !ack.AcknowledgedAt.Equal(acknowledgedAt) {
+		t.Fatalf("AcknowledgedFailure = %+v, want the bounded failure with both times", ack)
 	}
 	if !strings.Contains(row.Detail, "acknowledged") || !strings.Contains(row.Detail, "auth_denied") {
 		t.Fatalf("detail = %q, want it to name the acknowledged failure class", row.Detail)
 	}
 
 	projected := collector.RuntimeStatusesJSON([]collector.RuntimeStatus{row})[0]
-	if projected.LastFailureScopeID != "org:example" || !projected.LastFailureAcknowledged || projected.LastFailureAcknowledgedAt == "" ||
-		projected.LastFailureAcknowledgedReason != "org left the program" {
-		t.Fatalf("projected = %+v, want the acknowledgement fields", projected)
+	if projected.AcknowledgedFailure == nil || projected.AcknowledgedFailure.FailureClass != "auth_denied" ||
+		projected.AcknowledgedFailure.AcknowledgedAt == "" || projected.LastFailureClass != "" {
+		t.Fatalf("projected = %+v, want the acknowledged sub-record and no last_failure_*", projected)
 	}
 }
 
-// TestRuntimeStatusesAcknowledgedFailureLeavesHealthAsIfNoFailure pins that an
-// acknowledgement only suppresses the terminal failure: the instance reads
-// exactly the health it has with no failure at all, and the same failure
-// unacknowledged degrades it.
-func TestRuntimeStatusesAcknowledgedFailureLeavesHealthAsIfNoFailure(t *testing.T) {
+// TestRuntimeStatusesUnacknowledgedFailureOnAnotherScopeStaysDegraded pins that
+// an acknowledged failure never lifts a real one: the reader returns both rows
+// for an instance with an acknowledged scope and an unacknowledged scope, and
+// the row stays degraded with both records.
+func TestRuntimeStatusesUnacknowledgedFailureOnAnotherScopeStaysDegraded(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
-	acknowledged, _, _ := acknowledgedFailureEvidence(now)
-
-	none := acknowledged
-	none.TerminalFailures = nil
-	unacknowledged := acknowledged
-	unacknowledged.TerminalFailures = []collector.TerminalFailure{{
+	evidence, _, _ := acknowledgedFailureEvidence(now)
+	open := collector.TerminalFailure{
 		CollectorKind: "security_alert", InstanceID: "security-alert-example",
-		FailureClass: "auth_denied", FailureOperation: "list_org_alerts", ObservedAt: now.Add(-5 * time.Minute),
-	}}
-
-	healthOf := func(evidence collector.Evidence) collector.RuntimeStatus {
-		t.Helper()
-		rows := collector.RuntimeStatuses(evidence)
-		if len(rows) != 1 {
-			t.Fatalf("rows = %d, want 1", len(rows))
+		ScopeID: "org:other", FailureClass: "not_found", FailureOperation: "list_org_alerts",
+		ObservedAt: now.Add(-9 * time.Minute),
+	}
+	for name, failures := range map[string][]collector.TerminalFailure{
+		"unacknowledged first": {open, evidence.TerminalFailures[0]},
+		"acknowledged first":   {evidence.TerminalFailures[0], open},
+	} {
+		evidence.TerminalFailures = failures
+		row := runtimeRow(t, evidence)
+		if row.Health != "degraded" || !row.LastFailureTerminal || row.LastFailureClass != "not_found" {
+			t.Fatalf("%s: row = %+v, want degraded by the unacknowledged not_found failure", name, row)
 		}
-		return rows[0]
-	}
-	if got, want := healthOf(acknowledged).Health, healthOf(none).Health; got != want {
-		t.Fatalf("acknowledged health = %q, want %q (the health with no failure)", got, want)
-	}
-	degraded := healthOf(unacknowledged)
-	if degraded.Health != "degraded" || degraded.LastFailureAcknowledged {
-		t.Fatalf("unacknowledged row = %+v, want degraded and not acknowledged", degraded)
+		if row.AcknowledgedFailure == nil || row.AcknowledgedFailure.FailureClass != "auth_denied" {
+			t.Fatalf("%s: AcknowledgedFailure = %+v, want the acknowledged auth_denied kept", name, row.AcknowledgedFailure)
+		}
+		if !strings.HasPrefix(row.Detail, "terminal fetch failure: not_found") {
+			t.Fatalf("%s: detail = %q, want the unacknowledged failure's detail", name, row.Detail)
+		}
 	}
 }
 
-// TestPromotionProofAcknowledgedFailureIsNotFailed pins the readiness reading:
-// an acknowledged failure carries no failed state and no blocker, and the proof
-// still names the failure and its acknowledgement, so it is not mistaken for an
-// instance that never failed.
-func TestPromotionProofAcknowledgedFailureIsNotFailed(t *testing.T) {
+// TestPromotionProofAcknowledgedFailureIsPartialWithBlocker pins the readiness
+// reading: an acknowledged failure is promotion_state partial with the
+// acknowledged blocker, never implemented and never failed.
+func TestPromotionProofAcknowledgedFailureIsPartialWithBlocker(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
 	evidence, failedAt, acknowledgedAt := acknowledgedFailureEvidence(now)
@@ -124,18 +123,41 @@ func TestPromotionProofAcknowledgedFailureIsNotFailed(t *testing.T) {
 		if proof.InstanceID != "security-alert-example" {
 			continue
 		}
-		if proof.PromotionState == collector.PromotionFailed {
-			t.Fatalf("PromotionState = %q, want an acknowledged failure not to fail the proof", proof.PromotionState)
+		if proof.PromotionState != collector.PromotionPartial {
+			t.Fatalf("PromotionState = %q, want partial", proof.PromotionState)
 		}
-		for _, blocker := range proof.Blockers {
-			if strings.Contains(blocker, "terminal fetch failure") {
-				t.Fatalf("blockers = %v, want no terminal fetch failure blocker once acknowledged", proof.Blockers)
-			}
+		if len(proof.Blockers) != 1 || proof.Blockers[0] != "terminal fetch failure acknowledged: auth_denied (list_org_alerts)" {
+			t.Fatalf("blockers = %v, want the acknowledged blocker", proof.Blockers)
 		}
-		if proof.LastFailureScopeID != "org:example" || !proof.LastFailureAcknowledged || proof.LastFailureClass != "auth_denied" ||
-			!proof.LastFailureAt.Equal(failedAt) || !proof.LastFailureAcknowledgedAt.Equal(acknowledgedAt) ||
-			proof.LastFailureAcknowledgedReason != "org left the program" {
-			t.Fatalf("proof = %+v, want the acknowledged failure on the proof", proof)
+		if proof.LastFailureClass != "" {
+			t.Fatalf("proof carries LastFailureClass %q for an acknowledged-only instance", proof.LastFailureClass)
+		}
+		ack := proof.AcknowledgedFailure
+		if ack == nil || ack.FailureClass != "auth_denied" || !ack.FailedAt.Equal(failedAt) || !ack.AcknowledgedAt.Equal(acknowledgedAt) {
+			t.Fatalf("proof AcknowledgedFailure = %+v, want the failure with both times", ack)
+		}
+		return
+	}
+	t.Fatal("no promotion proof for security-alert-example")
+}
+
+// TestPromotionProofUnacknowledgedFailureOutranksAcknowledged pins the
+// precedence: an unacknowledged failure still fails the proof with its blocker.
+func TestPromotionProofUnacknowledgedFailureOutranksAcknowledged(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
+	evidence, _, _ := acknowledgedFailureEvidence(now)
+	evidence.TerminalFailures = append(evidence.TerminalFailures, collector.TerminalFailure{
+		CollectorKind: "security_alert", InstanceID: "security-alert-example",
+		FailureClass: "not_found", FailureOperation: "list_org_alerts", ObservedAt: now.Add(-9 * time.Minute),
+	})
+	for _, proof := range collector.PromotionProofs(evidence, collector.PromotionOptions{AsOf: now}) {
+		if proof.InstanceID != "security-alert-example" {
+			continue
+		}
+		if proof.PromotionState != collector.PromotionFailed ||
+			len(proof.Blockers) != 1 || proof.Blockers[0] != "terminal fetch failure: not_found (list_org_alerts)" {
+			t.Fatalf("proof = %+v, want failed with the unacknowledged blocker", proof)
 		}
 		return
 	}

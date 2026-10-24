@@ -64,18 +64,10 @@ type RuntimeStatus struct {
 	LastFailureOperation string
 	LastFailureTerminal  bool
 	LastFailureAt        time.Time
-	// LastFailureScopeID is the scope of the failed work item. An operator
-	// names it to acknowledge the failure (#8830). Query surfaces show it only
-	// to callers that may see instance identity.
-	LastFailureScopeID string
-	// LastFailureAcknowledged marks a failure an operator acknowledged
-	// (#8830). The failure fields above still describe it, but it does not
-	// degrade the instance and is not a promotion blocker.
-	// LastFailureAcknowledgedAt and LastFailureAcknowledgedReason say when and
-	// why; they are zero when LastFailureAcknowledged is false.
-	LastFailureAcknowledged       bool
-	LastFailureAcknowledgedAt     time.Time
-	LastFailureAcknowledgedReason string
+	// AcknowledgedFailure is the newest unresolved terminal failure an operator
+	// acknowledged (#8830), or nil. It is separate from LastFailure*: the
+	// failure is still happening, so health reads partial, never healthy.
+	AcknowledgedFailure *AcknowledgedFailure
 }
 
 // RuntimeStatuses derives the shared collector runtime readback from
@@ -469,9 +461,10 @@ func RenderRuntimeStatusLines(rows []RuntimeStatus) []string {
 		}
 		if row.LastFailureTerminal {
 			line += fmt.Sprintf(" last_failure_class=%s last_failure_operation=%s", row.LastFailureClass, row.LastFailureOperation)
-			if row.LastFailureAcknowledged {
-				line += " last_failure_acknowledged=true"
-			}
+		}
+		if row.AcknowledgedFailure != nil {
+			line += fmt.Sprintf(" acknowledged_failure_class=%s acknowledged_failure_operation=%s",
+				row.AcknowledgedFailure.FailureClass, row.AcknowledgedFailure.FailureOperation)
 		}
 		lines = append(lines, line)
 	}
