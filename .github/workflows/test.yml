@@ -321,6 +321,7 @@ jobs:
       - name: Run selected Go core checks
         if: ${{ !cancelled() && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
         uses: ./.github/actions/ci-go-core
+        env: {CI_SMOKE_GO_BUILD_FAIL_CANARY: "${{ vars.CI_SMOKE_GO_BUILD_FAIL_CANARY }}"}
         with:
           mode: ${{ needs.pr-plan.outputs.mode }}
           gates: ${{ needs.pr-plan.outputs.gates }}

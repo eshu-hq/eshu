@@ -128,12 +128,21 @@ class SmokeGoBuildCanaryTest(unittest.TestCase):
         block = match.group(1)
         self.assertIn("contains(fromJSON(inputs.gates), 'go-build')", block)
         self.assertNotIn("continue-on-error: true", block)
-        self.assertIn(
-            "CI_SMOKE_GO_BUILD_FAIL_CANARY: ${{ vars.CI_SMOKE_GO_BUILD_FAIL_CANARY }}",
-            block,
-        )
+        self.assertNotIn("vars.CI_SMOKE_GO_BUILD_FAIL_CANARY", block)
         self.assertIn("CI_PLAN_MODE: ${{ inputs.mode }}", block)
         self.assertIn("CI_PLAN_GATES: ${{ inputs.gates }}", block)
+        caller = (ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
+        caller_step = re.search(
+            r"^      - name: Run selected Go core checks\n(.*?)(?=^      - name:|^  [a-z0-9-]+:|\Z)",
+            caller,
+            re.MULTILINE | re.DOTALL,
+        )
+        self.assertIsNotNone(caller_step)
+        self.assertIn("uses: ./.github/actions/ci-go-core", caller_step.group(1))
+        self.assertIn(
+            'env: {CI_SMOKE_GO_BUILD_FAIL_CANARY: "${{ vars.CI_SMOKE_GO_BUILD_FAIL_CANARY }}"}',
+            caller_step.group(1),
+        )
         self.assertIn("      run: |\n", block)
         script_lines = block.split("      run: |\n", 1)[1].splitlines()
         self.assertTrue(all(line.startswith("        ") for line in script_lines))

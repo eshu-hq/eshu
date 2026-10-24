@@ -23,7 +23,8 @@ group; scheduled and manual runs retain noncancelling behavior.
 | Smoke | Selected fast gate commands and the required build run; other full-backed verdicts transfer. |
 
 The disabled-by-default `CI_SMOKE_GO_BUILD_FAIL_CANARY` repository variable is
-reserved for a reviewed live negative canary. Its JSON must name the exact
+passed through the `Build Test` caller step for a reviewed live negative canary.
+Its JSON must name the exact
 repository, PR number, 40-hex head SHA, run attempt, `mode: smoke`,
 `gate: go-build`, and absolute UTC `expires_at` timestamp. The selected Go build
 runs first; only a successful build can reach the fixed deliberate failure.
