@@ -29,6 +29,22 @@ projected truth, so it needs the cassettes and the B-12 snapshot updated in the
 same change. Load `eshu-golden-corpus-rigor` and `eshu-contract-rigor` before
 touching emission.
 
+## Content-store policy (#8812)
+
+`ApplyContentStore` is the only place a policy decision turns into a stored
+body. Rules that keep it safe:
+
+- Never return the source body on any failure path. A redactor error, a panic,
+  non-UTF-8 input, and an unknown policy all return an empty body.
+- Keep the marker `REDACTED_<finding_kind>`. `[redacted]`, `***`, and
+  `REDACTED_value` are rejected (the detector cannot see them; `REDACTED_value`
+  is reserved for #8833's skeleton mode).
+- The redactor binds to `go/internal/secret/detect`; do not copy its pattern.
+  `TestRedactMarkerPerKindResultUnderMigration138` pins the measured result per
+  finding kind and must be updated, not loosened, when #8833's marker arm lands.
+- Keep `redactMarker` fail-closed for YAML value shapes. A new key shape needs a
+  seeded-violation test in `marker_redactor_test.go`.
+
 ## Verification
 
 ```bash

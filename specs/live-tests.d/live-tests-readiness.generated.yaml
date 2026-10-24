@@ -559,6 +559,11 @@ tests:
     class: postgres_ci
     reason: "#7728 disposable PostgreSQL 18 proof that the guarded language-index swap converges (fresh and upgrade) and that tracked plus untracked replays leave the index untouched, enrolled in the live-postgres-readiness runner; bridges the family ESHU_CONTENT_FILES_LANGUAGE_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN. local run passed fresh+upgrade in 4.16s wall on postgres:18.6 on 2026-10-12"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_store_policy_upgrade_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8812 disposable PostgreSQL proof that a database already holding a verbatim content_files row, a content_file_references row, a content_file_secret_lines row, and a content_entities row with a non-empty source_cache holds an empty or marker-redacted body for that path after the next projected generation under a metadata or redact content-store policy, on both a full-snapshot and a delta generation, through the production projector runtime and content writer and migration 138 triggers; isolated bootstrapped database per test"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/corpus_fence_observer_live_test.go
     tag: ~
     class: postgres_ci

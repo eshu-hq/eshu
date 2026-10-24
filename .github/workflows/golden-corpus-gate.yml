@@ -81,6 +81,10 @@ on:
       - 'go/internal/scope/**'
       - 'go/internal/factenvelope/**'
       - 'go/internal/ghactionsref/**'
+      # The hardcoded-secret detector (internal/secret/detect) is compiled into
+      # the query layer the gate binaries run, so a pattern change alters what
+      # they classify.
+      - 'go/internal/secret/**'
       # "workflowimage" was excluded as "adjacent to the container_image_identity
       # lane" -- also wrong, see the lib file for the direct-import evidence.
       - 'go/internal/workflowimage/**'

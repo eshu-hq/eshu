@@ -57,6 +57,9 @@ TABLE = {
         "go/internal/storage/postgres/content_files_language_covering_index_replay_live_test.go": (
             "TestContentFilesLanguageCoveringIndexReplayConvergesLive",
         ),
+        "go/internal/storage/postgres/content_store_policy_upgrade_live_test.go": (
+            "TestContentStorePolicyHealsStoredRowsOnTheNextGeneration",
+        ),
         "go/internal/storage/postgres/corpus_fence_observer_live_test.go": (
             "TestQueueObserverStoreCorpusFenceCountsRunOnPostgres",
         ),
@@ -483,9 +486,6 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_interleave_live_test.go": (
             "TestReducerContentionGateServiceCatalogRuntimeFenceProducerCompletesMidCheck",
             "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers",
-        ),
-        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_readiness_live_test.go": (
-            "TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget",
         ),
     },
 }
