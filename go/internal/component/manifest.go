@@ -367,12 +367,21 @@ func validatePayloadSchemaRef(ref string) error {
 	return nil
 }
 
+// validateIdentifier requires value to be a canonical identifier: non-empty
+// and matching identifierPattern with no surrounding whitespace. It rejects
+// padding instead of trimming it, because every later comparison (revoke and
+// allow lists, registry keys, producer grants, signed provenance annotations)
+// uses the stored bytes as-is. Trimming here would let a padded manifest load
+// while an exact entry such as a revoke ID could never match it.
 func validateIdentifier(field, value string) error {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return fmt.Errorf("%s is required", field)
 	}
-	if !identifierPattern.MatchString(trimmed) {
+	if value != trimmed {
+		return fmt.Errorf("%s %q must be canonical without surrounding whitespace", field, value)
+	}
+	if !identifierPattern.MatchString(value) {
 		return fmt.Errorf("%s %q must use lowercase letters, numbers, dots, underscores, or hyphens", field, value)
 	}
 	return nil
