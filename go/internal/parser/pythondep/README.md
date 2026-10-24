@@ -180,10 +180,12 @@ The payload adds `uv_lock_state` with `state` (`complete` or `partial`),
 No-Regression Evidence: the reader is one forward pass per line with an
 integer bracket counter, no recursion, and copies only validated name,
 version, and URL fields. `BenchmarkParseUVLock` on 2,000 packages with
-dependency and wheel arrays measured 3.19 ms, 2.94 MB, and 36,017 allocations
-per parse, against 4.74 ms, 7.30 MB, and 60,012 allocations for
+dependency and wheel arrays measured about 2.94 MB and 36,017 allocations
+per parse, against about 7.30 MB and 60,012 allocations for
 `BenchmarkParsePoetryLockBaseline` on the same 2,000 packages (arm64, 16 CPUs,
-`-benchtime 200x`, three runs within 0.1% of each other). Tests assert, without
+`-benchtime 200x`; byte and allocation counts repeat across runs, and the uv.lock
+reader was faster than the baseline in every run, with wall time varying with
+host load). Tests assert, without
 timing, that a 10 MB single line allocates under 1 MiB, that 100,000 entries
 allocate as much as the 10,000-row cap, and that bytes examined stay within
 three times the input.
