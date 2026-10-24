@@ -5,8 +5,9 @@
 // SATISFIED_BY redrive sweep: when a scope generation carrying an active
 // CrossplaneXRD activates, the sweep discovers OTHER scopes' active,
 // unresolved K8sResource Claims matching that XRD's (group, claim_kind) and
-// re-enqueues each target scope's SATISFIED_BY materialization intent,
-// closing the XRD-lag false-negative window (issue #5476).
+// durably requests each target scope's SATISFIED_BY materialization on its
+// stable reducer work item. This closes the XRD-lag false-negative window
+// (issue #5476).
 //
 // CrossplaneSatisfiedByRedriveSweeper runs the durable, bounded, paged sweep.
 // Sweep is the live post-Ack trigger path; SweepBatch is the startup/periodic
