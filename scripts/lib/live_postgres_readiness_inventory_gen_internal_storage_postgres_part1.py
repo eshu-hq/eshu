@@ -203,6 +203,9 @@ TABLE = {
             "TestGenerationRetentionChunkStatementsRollBackLive",
             "TestGenerationRetentionChunkLockMissDropsSilentlyLive",
         ),
+        "go/internal/storage/postgres/generation_retention_credential_payloads_live_test.go": (
+            "TestGenerationRetentionPrunesCredentialCopiesByDefaultLive",
+        ),
         "go/internal/storage/postgres/generation_retention_delta_base_live_test.go": (
             "TestGenerationRetentionDeltaBaseLive",
             "TestGenerationRetentionDeltaBaseSkipsUnactivatedNewerFullLive",
