@@ -43,6 +43,8 @@ type itemDecl struct {
 	condition string
 	groupCond string
 	reasons   itemReason
+	// lowerName is name lowercased, the item tracker's match key.
+	lowerName string
 }
 
 // propsScan streams one props file's tokens. Allocation is bounded by the
@@ -404,7 +406,7 @@ func (s *propsScan) admitItem(decl itemDecl, specs itemSpecs, conflict, oversize
 		s.tracker.modify(decl.kind, specs.remove, true, len(s.items))
 	}
 	if include != "" {
-		s.tracker.include(decl.kind, include)
+		decl.lowerName = s.tracker.include(decl.kind, include)
 	}
 	if oversize || len(include) > MaxPropsNameBytes || len(decl.version) > MaxPropsVersionBytes ||
 		len(decl.override) > MaxPropsVersionBytes || len(decl.condition) > MaxPropsConditionBytes ||

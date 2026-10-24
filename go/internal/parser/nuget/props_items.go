@@ -65,7 +65,7 @@ type itemNameState struct {
 // its Include. Memory is bounded by maxTrackedItemNames map entries and a few
 // counters per item type, whatever the input.
 type itemTracker struct {
-	names       map[string]*itemNameState
+	names       map[itemNameKey]itemNameState
 	overflow    [len(itemKinds)]bool
 	wildUpdated [len(itemKinds)]int
 	wildRemoved [len(itemKinds)]int
@@ -74,7 +74,7 @@ type itemTracker struct {
 }
 
 func newItemTracker() itemTracker {
-	return itemTracker{names: make(map[string]*itemNameState)}
+	return itemTracker{names: make(map[itemNameKey]itemNameState)}
 }
 
 func itemKindIndex(kind string) int {
@@ -86,30 +86,42 @@ func itemKindIndex(kind string) int {
 	return -1
 }
 
-func itemNameKey(kind, name string) string {
-	return kind + "\x00" + strings.ToLower(name)
+// itemNameKey identifies one package name within one item type. name is
+// lowercased, because MSBuild matches item specs case-insensitively.
+type itemNameKey struct {
+	kind int
+	name string
+}
+
+func newItemNameKey(kind int, name string) itemNameKey {
+	return itemNameKey{kind: kind, name: strings.ToLower(name)}
 }
 
 // include records an item that names a package in Include. A literal name is
 // counted toward duplicates even when the item itself is skipped, because
 // MSBuild still creates it. A list, wildcard, expression, or oversized name
 // could match any package, so it demotes every row of the item type.
-func (t *itemTracker) include(kind, name string) {
+//
+// It returns the lowercased name so the row can be matched again without
+// another allocation.
+func (t *itemTracker) include(kind, name string) string {
 	k := itemKindIndex(kind)
 	if !literalPackageName(name) || len(name) > MaxPropsNameBytes {
 		t.unresolved[k] = true
-		return
+		return ""
 	}
-	key := itemNameKey(kind, name)
-	if state := t.names[key]; state != nil {
+	key := newItemNameKey(k, name)
+	if state, ok := t.names[key]; ok {
 		state.count++
-		return
+		t.names[key] = state
+		return key.name
 	}
 	if len(t.names) >= maxTrackedItemNames {
 		t.overflow[k] = true
-		return
+		return key.name
 	}
-	t.names[key] = &itemNameState{count: 1}
+	t.names[key] = itemNameState{count: 1}
+	return key.name
 }
 
 // modify records an Update or Remove spec. It applies only to items of the
@@ -131,8 +143,9 @@ func (t *itemTracker) modify(kind, spec string, removed bool, watermark int) {
 			}
 			continue
 		}
-		state := t.names[itemNameKey(kind, part)]
-		if state == nil {
+		key := newItemNameKey(k, part)
+		state, ok := t.names[key]
+		if !ok {
 			continue
 		}
 		if removed {
@@ -140,6 +153,7 @@ func (t *itemTracker) modify(kind, spec string, removed bool, watermark int) {
 		} else {
 			state.updatedBefore = watermark
 		}
+		t.names[key] = state
 	}
 }
 
@@ -147,7 +161,7 @@ func (t *itemTracker) modify(kind, spec string, removed bool, watermark int) {
 func (t *itemTracker) reasons(index int, item itemDecl, centralUnproven bool) itemReason {
 	reasons := item.reasons
 	k := itemKindIndex(item.kind)
-	if state := t.names[itemNameKey(item.kind, item.name)]; state != nil {
+	if state, ok := t.names[itemNameKey{kind: k, name: item.lowerName}]; ok {
 		if state.count > 1 {
 			reasons |= reasonDuplicateInclude
 		}

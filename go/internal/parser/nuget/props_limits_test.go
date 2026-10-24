@@ -251,8 +251,8 @@ func TestParseCentralPropsNameTrackingOverflowDemotes(t *testing.T) {
 // TestParseCentralPropsItemOperationsStayBounded feeds just under the input cap
 // of the operations the duplicate and Update/Remove tracker records: distinct
 // Includes past its name cap, named and wildcard Updates, and Removes.
-// Allocation must stay a small multiple of the input. Measured at 15.6x
-// (14.1x before the tracker) in a normal build and 27.8x (25.6x before)
+// Allocation must stay a small multiple of the input. Measured at 16.0x
+// (14.1x before the tracker) in a normal build and 27.6x (25.6x before)
 // under -race, which inflates every allocation; the 32x ceiling holds both.
 func TestParseCentralPropsItemOperationsStayBounded(t *testing.T) {
 	var body strings.Builder
