@@ -71,6 +71,98 @@ Paths are matched case-insensitively:
 - `*.tfvars.json` bind to `hcl`.
 <!-- parser-admission-table:end -->
 
+## Content store policy
+
+Each registry definition also names a content-store policy, shown in the
+**Content store** column above. The policy decides what the collector writes to
+the content store for the files that definition binds. It is applied at the
+collector write boundary, before any `content` fact or `content_files` row
+exists, so search, `get_file_content`, and exports never see a body the policy
+withheld. Filtering in the query layer was rejected because search and any
+export would bypass it.
+
+| Policy | What is stored | Use it for |
+| --- | --- | --- |
+| `store` | The body, verbatim. This is the default for every definition today. | Source and configuration files that hold no credentials. |
+| `metadata` | A `content_files` row with an empty body. The path stays in the repository tree, file counts, language inventory, and coverage. The row is never a tombstone. | Files that can hold credentials where the registry URLs or version pins matter more than the text. |
+| `redact` | The body with credential values replaced in place. The `marker` mode writes `REDACTED_<finding_kind>`, for example `npmAuthToken: REDACTED_api_token`. | Closed-schema files where every credential key is known. |
+
+A `redact` definition lists its credential keys. `marker` mode replaces the
+value of each listed key at any length, keeps an exact `${NAME}` environment
+reference, and also redacts a line the hardcoded-secret detector from
+migration 138 matches: a key match (such as `Authorization: Bearer ...`) is
+treated like a listed key and the value to the end of the line is replaced, and
+a value-shape match (an AWS key, a Slack token) is replaced from the shape to the
+end of the line. Every line inside a PEM `BEGIN` to `END` block is
+replaced, and so are the continuation lines of a listed key's block scalar or
+multi-line quoted value. The marker keeps the finding kind so
+`investigate_hardcoded_secrets` can keep reporting the line. `[redacted]` and
+`***` are not used: the detector cannot see them.
+
+### What a governed row holds
+
+For a `metadata` path, or a `redact` path whose redactor failed:
+
+- `content` and `content_lower` are empty and `line_count` is `0`.
+- `content_hash` is the digest of the **source file**, not of the stored body.
+  Eshu computes it before the policy applies, so an unchanged file keeps the
+  same freshness hint under every policy, and a policy change is detected by
+  the registry fingerprint, not by the digest.
+- No `content_file_secret_lines` or `content_file_references` row exists for the
+  path, because both are derived from the stored body.
+- `content_entities.source_cache` is empty. Under `redact` it is sliced from the
+  redacted body, never from the source.
+- The `content` fact carries an empty or redacted `content_body` and the source
+  `content_digest`.
+- Every emitter that reads the body gets the stored body, not the source: the
+  service-catalog, workflow-image, documentation, CODEOWNERS, and `.gitmodules`
+  facts. A definition that names `CODEOWNERS` or `.gitmodules` governs those
+  files too, although they are read before the parser runs.
+
+The parser still reads the original file. Its structured facts (the file fact
+and the entities it extracts) are intended output and are not redacted, apart
+from the whole-file `parsed_file_data.source` copy and the entity source
+snippets, which carry the stored body. A parser can echo extracted values: the
+`hcl` parser puts `.tf` resource attributes, variable defaults, and locals into
+`parsed_file_data` and the entity metadata even under `metadata` (a test pins
+it). A definition may bind `metadata` or `redact` only after that is proven: a
+seeded full-stream scan over every path shape the definition covers
+(`assertNoSeedInAnyFact`) must find no credential in any fact kind.
+
+### Failure behavior
+
+If the redactor returns an error, the file is not valid UTF-8, the body holds a
+NUL byte (a BOM-less UTF-16 file does), or a `redact` body is over 4 MiB, Eshu
+stores the `metadata` row for that path and counts it as
+`eshu_dp_collector_content_store_files_total{outcome="redactor_failed"}`. It
+never falls back to the raw body. The WARN log names the repo-relative path and
+a bounded reason class, never the error text.
+
+### Changing a policy
+
+`Registry.Fingerprint` includes each definition's policy. A policy change moves
+the fingerprint, so every repository re-collects once. The collector still emits
+the content record for the path, with the new body and the source digest, so the
+next generation overwrites the old row on a full snapshot and on a delta alike.
+Rows in repositories that are not collected again keep their old bodies until
+they are. A registry that binds no non-store policy keeps today's fingerprint.
+
+### Which files use each policy
+
+Every definition uses `store` today. The policy mechanism ships first; the
+bindings follow once the detector gains the key shapes that file formats need
+(#8833). The planned bindings, recorded in the
+[credential-file design record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8813-credential-file-exposure.md):
+
+| File | Policy | Mode |
+| --- | --- | --- |
+| `.yarnrc.yml` | `redact` | `marker` |
+| `*.tfvars`, `*.tfvars.json` | `redact` | allowlist skeleton, added in #8833 |
+| `.npmrc`, `gradle.properties`, `nuget.config` | `metadata`, if a later record admits them | none |
+
+`.eshuignore` stays the per-repository override and drops the file's parser
+facts as well.
+
 ## Build and tool configuration files
 
 The `raw_text` row also admits small build and tool configuration files by exact
