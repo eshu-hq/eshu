@@ -5,7 +5,7 @@ package postgres
 
 //eshu:readiness live-postgres-readiness
 //eshu:readiness:reason #8812 disposable PostgreSQL proof that a database already holding a verbatim content_files row, a content_file_references row, a content_file_secret_lines row, and a content_entities row with a non-empty source_cache holds an empty or marker-redacted body for that path after the next projected generation under a metadata or redact content-store policy, on both a full-snapshot and a delta generation, through the production projector runtime and content writer and migration 138 triggers; isolated bootstrapped database per test
-//eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
+//eshu:readiness:env ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN
 
 import (
 	"context"
@@ -49,7 +49,9 @@ type policyUpgradeProof struct {
 
 func newPolicyUpgradeProof(t *testing.T) *policyUpgradeProof {
 	t.Helper()
-	ctx, db := openSecretLinesDatabase(t)
+	// The isolated, bootstrapped proof schema the readiness runner provides
+	// (ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN, a disposable database).
+	ctx, db := context.Background(), openReprojectProof(t).db
 	repo, err := repositoryidentity.MetadataFor("proof-8812", "/repos/proof-8812", "https://github.com/eshu-proof/proof-8812.git")
 	if err != nil {
 		t.Fatalf("repository identity: %v", err)

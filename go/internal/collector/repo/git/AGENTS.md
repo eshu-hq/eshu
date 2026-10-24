@@ -192,6 +192,30 @@ dotfile is still pruned silently by the copy, as before. When a PR adds dotfile
 names to the registry without adding them to `preservedHiddenFilesystemFileNames`,
 `TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails.
 
+## Content-store policy (#8812)
+
+`Definition.ContentStore` (parser registry) decides what the content store may
+hold for a path. The policy is applied twice, by the same pure function
+(`gitcontent.ApplyContentStore`), because the body exists at two stages:
+
+1. `applyContentStoreToShapeFiles` (`content_store_policy.go`) runs after parse
+   and before `shape.Materialize`, so `content_entities.source_cache` is sliced
+   from the stored body. It also blanks entity source snippets and replaces the
+   parser's whole-file `parsed_file_data.source` copy with the stored body.
+2. `streamFacts` re-reads each body from disk and applies the policy again with
+   `contentStoreTally`; every emitter after it (content fact, service catalog,
+   workflow image, documentation) sees the stored body, never the source.
+
+Rules: the digest stays computed on the SOURCE bytes (`shapeFileFromParsed`), so
+the freshness hint is policy-independent and the registry fingerprint carries a
+policy change; the content record is always emitted (empty body for `metadata`)
+so the projector upsert overwrites an old row on full and delta generations; no
+tombstone and no `RetainedPaths` edit. `RepositorySnapshot.ContentStores` is
+sparse and nil for a registry with no non-store policy. Structured values a
+parser extracts (for example a Terraform variable `default` in
+`entity_metadata`) are parser output and are not governed; check them before
+binding a definition.
+
 ## Directory size
 
 This directory is grandfathered over the 40-file cap. The ledger row is a

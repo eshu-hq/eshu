@@ -30,6 +30,14 @@ Anything both sides need lives in
   caller passes the precomputed default branch and ref payload; ref selection
   stays in `gitrepo` with the `GitRef` type.
 - `FileFactEnvelope` — durable file fact for one parsed file.
+- `ApplyContentStore` — applies a definition's content-store policy (`store`,
+  `metadata`, `redact`) to a source body at the write boundary (#8812) and
+  returns the body the content store may hold plus a `StoreOutcome`. The
+  `marker` redactor replaces credential values with `REDACTED_<finding_kind>`,
+  binds to the migration 138 detector in `go/internal/secret/detect`, and fails
+  closed: a redactor error or non-UTF-8 body returns an empty body with
+  `StoreOutcomeRedactorFailed`, never the source. The caller keeps the content
+  digest on the SOURCE bytes.
 
 ## Notes
 
