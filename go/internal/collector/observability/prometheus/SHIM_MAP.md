@@ -13,7 +13,7 @@ to one configured target by `scope_id` (`source.go:104-107`), stamps
 `item.CurrentFencingToken`, and reuses `item.GenerationID` so retries are
 idempotent.
 
-| In-tree outcome | SDK `ResultState` (`sdk/go/collector/types.go:31-41`) | Host action |
+| In-tree outcome | SDK `ResultState` (`sdk/go/collector/types.go:31-40`) | Host action |
 | --- | --- | --- |
 | envelopes committed | `complete` | validate facts, complete claim |
 | target 403/401 → permission_hidden warning + rules committed | `partial` + `Status{warning}` + `observability.coverage_warning` facts | commit reachable evidence |
@@ -28,7 +28,7 @@ Duplicate delivery stays safe: stable keys are deterministic
 (`stableFactKey`, `envelope.go:332`), and generation-scoped commit is
 idempotent at the core boundary.
 
-| In-tree field | SDK `Claim` (`sdk/go/collector/types.go:87-101`) |
+| In-tree field | SDK `Claim` (`sdk/go/collector/types.go:88-101`) |
 | --- | --- |
 | `item.CollectorKind` (`scope.CollectorPrometheusMimir`) | `collector_kind` |
 | `item.CollectorInstanceID` vs `SourceConfig.CollectorInstanceID` | `instance_id` (mismatch rejects, `source.go:90-95`) |
@@ -83,13 +83,13 @@ construction (`source.go:53`).
 | --- | --- | --- |
 | span | `prometheus_mimir.observe` (`contract/observability/prometheus_mimir.go:10`) | `source.go:272` |
 | span | `prometheus_mimir.fetch` (`contract/observability/prometheus_mimir.go:13`) | `source.go:281` |
-| histogram | `eshu_dp_prometheus_mimir_fetch_duration_seconds` (`instruments.go:5695`) | `metrics.go:26` |
-| counter | `eshu_dp_prometheus_mimir_provider_requests_total` (`instruments.go:3981`) | `metrics.go:24` |
-| counter | `eshu_dp_prometheus_mimir_facts_emitted_total` (`instruments.go:3989`) | `metrics.go:54` |
-| counter | `eshu_dp_prometheus_mimir_rate_limited_total` (`instruments.go:4002`) | `metrics.go:37` |
-| counter | `eshu_dp_prometheus_mimir_retries_total` (`instruments.go:4010`) | `metrics.go:71` |
-| counter | `eshu_dp_prometheus_mimir_redactions_total` (`instruments.go:4018`) | `metrics.go:61` |
-| counter | `eshu_dp_prometheus_mimir_stale_total` (`instruments.go:4026`) | `metrics.go:80` |
+| histogram | `eshu_dp_prometheus_mimir_fetch_duration_seconds` (`instruments.go:5694`) | `metrics.go:26` |
+| counter | `eshu_dp_prometheus_mimir_provider_requests_total` (`instruments.go:3982`) | `metrics.go:24` |
+| counter | `eshu_dp_prometheus_mimir_facts_emitted_total` (`instruments.go:3990`) | `metrics.go:54` |
+| counter | `eshu_dp_prometheus_mimir_rate_limited_total` (`instruments.go:3998`) | `metrics.go:37` |
+| counter | `eshu_dp_prometheus_mimir_retries_total` (`instruments.go:4006`) | `metrics.go:71` |
+| counter | `eshu_dp_prometheus_mimir_redactions_total` (`instruments.go:4014`) | `metrics.go:61` |
+| counter | `eshu_dp_prometheus_mimir_stale_total` (`instruments.go:4022`) | `metrics.go:80` |
 
 Attributes stay `provider`, `status_class`, `fact_kind`, `reason`. Instance
 IDs, target URLs, label values, raw PromQL, tenant IDs, tenant headers, and

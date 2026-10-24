@@ -407,6 +407,9 @@ func TestPrometheusMimir8864ParityLiveAgreesWithCassette(t *testing.T) {
 		if expected.scopeID != ps.scopeID {
 			t.Fatalf("cassette scope[%d] = %q, want %q", i, expected.scopeID, ps.scopeID)
 		}
+		if !want[i].envelopes[0].ObservedAt.Equal(parityObservedAt) {
+			t.Fatalf("cassette scope %q observed_at = %v, want fixed cut time %v", expected.scopeID, want[i].envelopes[0].ObservedAt, parityObservedAt)
+		}
 		collected, seen := parityLiveClaim(t, ps)
 		if collected.Scope.ScopeID != expected.scopeID {
 			t.Fatalf("live ScopeID = %q, want %q", collected.Scope.ScopeID, expected.scopeID)

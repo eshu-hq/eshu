@@ -65,7 +65,7 @@ This collector emits 4 of them, each at schema `1.0.0`:
 | `observability.coverage_warning` | `1.0.0` | `envelope.go:188` |
 
 Producer record is already cutover-shaped
-(`observability.go:171`):
+(`observability.go:166`, kinds declared `observability.go:143-161`):
 `collector-prometheus-mimir`, authority `core_issued_grant`, exactly these
 4 kinds, planned repo `eshu-hq/eshu-collector-prometheus-mimir`, in-tree
 path `go/internal/collector/observability/prometheus`.
@@ -85,7 +85,8 @@ authority; see [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md).
   `go/internal/projector/observability/coverage/factschema_decode_aws.go`
   and `materialization/`.
 - Reducer domain: `observability_coverage_correlation`
-  (`observability.go:137-138`, truth profile `provider_gated`).
+  (`observability.go:137-138`, truth profile `provider_gated` at
+  `observability.go:141`).
 - Query/read: `GET /api/v0/observability/coverage/correlations`
   (`observability.go:139`).
 - Coordinator: `go/internal/coordinator/prometheus_mimir_service.go` plans
