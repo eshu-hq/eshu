@@ -157,37 +157,18 @@ func (s *markerState) redactLine(line string) string {
 }
 
 func (s *markerState) redactText(line string) string {
-	indent := leadingWhitespace(line)
-	trimmed := strings.TrimSpace(line)
-	if s.inPEM {
-		if trimmed == "" {
-			return line
+	// A footer-less PEM header opens the block wherever the line is handled, so
+	// it is read first: the in-block, open-quote, and continuation branches below
+	// return the whole line replaced, and without this a flat key body after
+	// their header would survive.
+	headerOpen := strings.Contains(line, "-----") && pemLeftOpen(line)
+	if out, handled := s.redactInState(line); handled {
+		if headerOpen {
+			s.inPEM = true
 		}
-		if pemEnd.MatchString(line) {
-			s.inPEM = false
-		}
-		s.replaced++
-		return indent + markerPrefix + pemBlockKind
+		return out
 	}
-	if s.openQuote != 0 {
-		// Inside a listed key's multi-line quoted scalar: the whole line is
-		// value, including the line that closes the quote.
-		if closesQuote(line, s.openQuote) {
-			s.openQuote = 0
-		}
-		s.replaced++
-		return indent + markerPrefix + defaultMarkerKind
-	}
-	if s.continuationOpen {
-		if trimmed == "" {
-			return line
-		}
-		if len(indent) > s.continuationIndent || (len(indent) == s.continuationIndent && isSequenceItem(trimmed)) {
-			s.replaced++
-			return indent + markerPrefix + defaultMarkerKind
-		}
-		s.continuationOpen = false
-	}
+	rawLine := line
 
 	// A PEM header on this line is replaced through its footer, or to the end of
 	// the line when the footer is on a later line, which then opens the block.
@@ -207,7 +188,9 @@ func (s *markerState) redactText(line string) string {
 	if keyLoc == nil && len(spans) == 0 {
 		return line
 	}
-	kind := detect.Classify(line)
+	// The kind comes from the raw line, as the ruling says, so a header the PEM
+	// pass already replaced still decides it.
+	kind := detect.Classify(rawLine)
 	out := line
 	if keyLoc != nil {
 		out = s.redactListedKey(line, line[keyLoc[2]:keyLoc[3]], keyLoc[3], keyLoc[1], kind, false)
@@ -265,6 +248,55 @@ func (s *markerState) redactInlinePEM(line string) (string, bool) {
 		}
 		rest = rest[begin[1]+end[1]:]
 	}
+}
+
+// redactInState handles a line that belongs to an open PEM block, an open
+// quoted scalar, or the continuation of a listed key. It reports false when the
+// line is outside all three and needs the ordinary pass.
+func (s *markerState) redactInState(line string) (string, bool) {
+	indent := leadingWhitespace(line)
+	trimmed := strings.TrimSpace(line)
+	if s.inPEM {
+		if trimmed == "" {
+			return line, true
+		}
+		if pemEnd.MatchString(line) {
+			s.inPEM = false
+		}
+		s.replaced++
+		return indent + markerPrefix + pemBlockKind, true
+	}
+	if s.openQuote != 0 {
+		// Inside a listed key's multi-line quoted scalar: the whole line is
+		// value, including the line that closes the quote.
+		if closesQuote(line, s.openQuote) {
+			s.openQuote = 0
+		}
+		s.replaced++
+		return indent + markerPrefix + defaultMarkerKind, true
+	}
+	if s.continuationOpen {
+		if trimmed == "" {
+			return line, true
+		}
+		if len(indent) > s.continuationIndent || (len(indent) == s.continuationIndent && isSequenceItem(trimmed)) {
+			s.replaced++
+			return indent + markerPrefix + defaultMarkerKind, true
+		}
+		s.continuationOpen = false
+	}
+	return line, false
+}
+
+// pemLeftOpen reports whether the last PEM BEGIN header on the line has no END
+// footer after it on the same line, so the block continues on the next line.
+func pemLeftOpen(line string) bool {
+	begins := pemBegin.FindAllStringIndex(line, -1)
+	if len(begins) == 0 {
+		return false
+	}
+	last := begins[len(begins)-1]
+	return pemEnd.FindStringIndex(line[last[1]:]) == nil
 }
 
 func isSequenceItem(trimmed string) bool {

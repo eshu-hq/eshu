@@ -24,21 +24,25 @@ measurements. Every figure below was produced on this branch.
 
 Performance Evidence: the marker redactor and the policy lookup, measured below.
 Host: 16 vCPU arm64, Go 1.26.6, PostgreSQL 18.6 for the live proof.
-Same benchmark, same inputs, before and after the prefilter commit
-(`BenchmarkRedactMarker`, `go test -bench`, 3 runs, the spread was under 1%):
+Same benchmark, same inputs, before the prefilter commit (3 runs, spread under
+1%) and at the head that carries the review fixes (`BenchmarkRedactMarker`,
+`go test -p 1 -bench -benchtime 30x -count 7`, median and range of 7). The shared
+host was loaded (load average 17 on 16 vCPUs), and an independent rerun by the
+reviewer read typical 17.9 to 18.1 MB/s, so read the "After" column as a band,
+not a point:
 
-| Body | Before (MB/s) | After (MB/s) | After (ns/op) |
+| Body | Before (MB/s) | After, median (MB/s) | After, range (MB/s) |
 | --- | --- | --- | --- |
-| typical `.yarnrc.yml`, 4 lines | 3.75 | 15.4 | 8,371 |
-| 1 MiB, no credential | 3.23 | 95.0 | 10,815,775 |
-| 1 MiB, a credential on every fifth line | 12.06 | 8.55 | 104,227,586 |
+| typical `.yarnrc.yml`, 4 lines | 3.75 | 16.05 | 15.8 to 16.9 (reviewer: 17.9 to 18.1) |
+| 1 MiB, no credential | 3.23 | 92.5 | 90.0 to 93.2 (reviewer: about 94.9) |
+| 1 MiB, a credential on every fifth line | 12.06 | 8.24 | 8.03 to 8.34 (reviewer: 8.33 to 8.46) |
 
 The prefilter is two lowercase substring checks per line (the detector words,
 the listed keys) that keep the regular expressions off a line that cannot match.
-The dense body got slower (12.06 to 8.57 MB/s) because every line there matches,
+The dense body got slower (12.06 to about 8.2 to 8.5 MB/s) because every line there matches,
 so it pays the prefilter and then the regular expressions, and the YAML
-fail-closed state added in the same change. The "After" column was re-measured after the review fixes (2 runs, under 1% spread). It is the worst case: a 1 MiB
-governed file costs about 0.12 s per pass, twice per collection (snapshot and
+fail-closed state added in the same change. It is the worst case: a 1 MiB
+governed file costs about 0.12 to 0.13 s per pass, twice per collection (snapshot and
 emit). Governed files are small configuration files.
 `TestSpansPrefilterNeverHidesAMatch` pins that the prefilter never hides a match.
 
@@ -162,6 +166,20 @@ and the two kind changes to "same kind".
   detector key match is never read as a YAML comment (`password: #<secret>` is
   redacted), and a key match whose value is already a marker is kept only when
   nothing follows the marker (`api_key=REDACTED_api_token <tail>` loses the tail).
+- Delta review DR1 (P2): the in-block, open-quote, and continuation branches of
+  `redactText` returned before the PEM pass, so a footer-less header swallowed
+  there never opened the block and a flat key body after it survived (`npmAuthToken: x`
+  then an indented header; `password: abcdefgh` then a header; a quote closing on
+  the header line). The footer-less header is now read first (`pemLeftOpen`) and
+  opens the block whichever branch handles the line. `TestRedactMarkerHonorsAPEMHeaderInEveryBranch`
+  enumerates 13 layouts (continuation, detector-key continuation, closing quote,
+  block scalar, sequence item, header after a footer inside a block, comment,
+  listed key and header on one line, detector key and header on one line, kept
+  `${NAME}`, kept marker, non-private header, blank continuation line); each was
+  RED first. The fuzz seeds gained the three reviewer repros.
+- Delta review P3: the marker kind is now computed from the raw line before the
+  PEM pass, as the ruling says; the benchmark table states a median and range
+  measured on a loaded host instead of a point value.
 - Fuzz: `FuzzRedactMarker` (seed corpus under `go test`; planted listed-key,
   Bearer, comma-tail, AWS-key, and one-line PEM seeds never survive, a second pass
   is a no-op, line count is kept) ran 60 s with `-fuzz`: 1,411,919 execs, no

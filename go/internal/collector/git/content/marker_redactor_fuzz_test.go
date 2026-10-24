@@ -51,6 +51,8 @@ func FuzzRedactMarker(f *testing.F) {
 			in + "\ndb_password=abcdef,QqZzSeed9988\n",
 			in + "\n# rotate AKIAABCDEFGHIJKLMNOP QqZzSeed9988\n",
 			in + "\nk: \"-----BEGIN PRIVATE KEY-----\\nQqZzSeed9988\\n-----END PRIVATE KEY-----\"\n",
+			in + "\n  -----BEGIN PRIVATE KEY-----\nQqZzSeed9988\n-----END PRIVATE KEY-----\n",
+			"npmAuthToken: x\n  -----BEGIN PRIVATE KEY-----\nQqZzSeed9988\n-----END PRIVATE KEY-----\n" + in,
 		} {
 			po, _, perr := redactMarker(planted, keys)
 			if perr == nil && strings.Contains(po, "QqZzSeed9988") {

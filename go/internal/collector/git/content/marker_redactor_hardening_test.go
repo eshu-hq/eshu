@@ -169,3 +169,45 @@ func TestRedactMarkerKnownLimits(t *testing.T) {
 		}
 	}
 }
+
+// TestRedactMarkerHonorsAPEMHeaderInEveryBranch pins the delta-review finding
+// DR1: redactText returned from the in-block, open-quote, and continuation
+// branches before the PEM pass, so a footer-less header swallowed there never
+// opened the PEM state and a flat key body after it survived. Every layout
+// below puts a footer-less BEGIN header on a line handled by a different branch,
+// then a flat body, a footer, and a sibling key that must survive.
+func TestRedactMarkerHonorsAPEMHeaderInEveryBranch(t *testing.T) {
+	t.Parallel()
+
+	const tail = "BODYSEED\n-----END PRIVATE KEY-----\nafter: 1\n"
+	cases := []struct{ name, in string }{
+		{"continuation after a plain scalar", "npmAuthToken: x\n  -----BEGIN PRIVATE KEY-----\n" + tail},
+		{"continuation after a detector key", "password: abcdefgh\n -----BEGIN PRIVATE KEY-----\n" + tail},
+		{"open quote closing on the header line", "npmAuthToken: \"a\nb\" -----BEGIN PRIVATE KEY-----\n" + tail},
+		{"block scalar line", "npmAuthToken: |\n  -----BEGIN PRIVATE KEY-----\n" + tail},
+		{"sequence item", "npmAuthToken:\n- -----BEGIN PRIVATE KEY-----\n" + tail},
+		{"inside a block, a new header after a footer", "-----BEGIN PRIVATE KEY-----\nZZ\n-----END PRIVATE KEY----- -----BEGIN PRIVATE KEY-----\n" + tail},
+		{"comment line", "# -----BEGIN PRIVATE KEY-----\n" + tail},
+		{"listed key and header on one line", "npmAuthToken: -----BEGIN PRIVATE KEY-----\n" + tail},
+		{"detector key and header on one line", "password: -----BEGIN PRIVATE KEY-----\n" + tail},
+		{"marker kept, then a header", "npmAuthToken: ${NPM_TOKEN}\n  -----BEGIN PRIVATE KEY-----\n" + tail},
+		{"already-redacted key line, then a header", "npmAuthToken: REDACTED_api_token\n  -----BEGIN PRIVATE KEY-----\n" + tail},
+		{"non-private header after a continuation", "npmAuthToken: x\n  -----BEGIN CERTIFICATE-----\n" + tail},
+		{"header after a blank continuation line", "npmAuthToken:\n\n  -----BEGIN PRIVATE KEY-----\n" + tail},
+	}
+	for _, tc := range cases {
+		got := redactForTest(t, tc.in)
+		if strings.Contains(got, "BODYSEED") {
+			t.Errorf("%s: the key body survived:\n%q\n->\n%q", tc.name, tc.in, got)
+		}
+		if !strings.HasSuffix(got, "after: 1\n") {
+			t.Errorf("%s: the sibling key after the footer must survive: %q", tc.name, got)
+		}
+		if again := redactForTest(t, got); again != got {
+			t.Errorf("%s: not a fixed point:\n%q\n%q", tc.name, got, again)
+		}
+		if strings.Count(got, "\n") != strings.Count(tc.in, "\n") {
+			t.Errorf("%s: line count changed", tc.name)
+		}
+	}
+}
