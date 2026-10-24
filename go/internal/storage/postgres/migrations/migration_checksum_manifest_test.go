@@ -279,7 +279,7 @@ var migrationShippedChecksums = map[string]string{
 	"230_security_alert_target_read_states.sql":                              "6d848dedd4024f28d4848de632e263383a2358826d085b60eb3d8971dd690a77",
 	"231_collector_terminal_failure_acknowledgements.sql":                    "f39329efc298dbec76794bd5e1ae1fb169b838f5ad50bb1a2102f53da4b5fbcf",
 	"232_security_alert_fanout_cursor.sql":                                   "49bd87adaf704be56a33494cc2c342e7b957c81b109e8a496b61107e79a44ff7",
-	"233_workflow_work_items_security_alert_scope_updated_idx.sql":           "bcd6c18a947c2c9a75b8069c7714b0668eecd894954eb366efc3ef3dd9b948e8",
+	"233_workflow_work_items_security_alert_scope_updated_idx.sql":           "82731d1e46a7a065903e3a9d704bbedb75e65b88215f9a453147e51b35b81e00",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

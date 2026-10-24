@@ -134,8 +134,9 @@ import (
 // on that read-state row; DDL only, no backfill).
 // #8840 adds 233_workflow_work_items_security_alert_scope_updated_idx.sql (the
 // partial latest-work-item-per-scope index for the security-alert collection
-// read; the full-index 230 draft was renumbered off main's 230-232).
-const goldenBootstrapDefinitionsDigest = "ac7f014cbd210bb30235d31709b94019234b3d780d7d6ab8d4c8caf59356fd97"
+// read; the full-index 230 draft was renumbered off main's 230-232,
+// and the comment figures re-aligned with the measurements).
+const goldenBootstrapDefinitionsDigest = "0ebefa3f7bcaec10fdd34bbe49d6e0e56f80e187cbc0399a41077286b797634c"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

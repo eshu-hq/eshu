@@ -154,7 +154,7 @@ recent shipped work grouped by feature area.
 ### Storage: security-alert empty-answer read no longer scans target history
 
 - **Latest-work-item index for the collection-state read**
-  ([#8840](https://github.com/eshu-hq/eshu/issues/8840)). Migration 231 adds
+  ([#8840](https://github.com/eshu-hq/eshu/issues/8840)). Migration 233 adds
   `workflow_work_items_security_alert_scope_updated_idx` on `(scope_id,
   updated_at DESC, work_item_id ASC) WHERE collector_kind =
   'security_alert'`, built `CONCURRENTLY`. The security-alert empty-answer

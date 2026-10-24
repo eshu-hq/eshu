@@ -108,6 +108,11 @@ FROM (VALUES ('security_alert', 20, 2880), ('git', 50, 1000)) AS shape(k, scopes
 	}
 }
 
+// The planted full index stays under the buffer budget on the seed (about
+// 1.13x of the 1.2x allowed), so only the walked-entries half of the guard
+// has a seeded RED here; the buffer half is a regression bound, not a proven
+// trip.
+//
 // withinBudget returns a failure message when plan exceeds the budget
 // relative to baseline on shared buffers or on newer-probe entries walked, or
 // "" when it is within both. Both are counts, so the gate does not depend on

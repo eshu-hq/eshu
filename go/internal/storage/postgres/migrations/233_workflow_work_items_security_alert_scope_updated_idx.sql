@@ -15,7 +15,7 @@
 -- collector_kind against the outer row, so the planner cannot prove this
 -- predicate there and keeps the prune on its existing plan. A full
 -- (collector_kind, scope_id, updated_at DESC) key made the prune walk every
--- newer row whose status differed: 274 ms to 2,077 ms per 2,000-row batch on
+-- newer row whose status differed: 241 ms to 3,074 ms per 2,000-row batch on
 -- a seed where each target failed for its older half and then recovered.
 -- Only security_alert rows pay the extra B-tree entry on insert and update.
 --
