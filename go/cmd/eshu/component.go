@@ -53,8 +53,9 @@ const (
 
 // The environment variables below configure the same component trust policy
 // the API, MCP server, and coordinator read at startup. They are the CLI's
-// fallback when the matching flag is not passed, so a shell that already
-// carries the service policy judges components the way the services do.
+// fallback when the matching flag is not passed (the revoke lists are unioned
+// with their flags), so a shell that already carries the service policy judges
+// components the way the services do.
 const (
 	envComponentTrustMode        = "ESHU_COMPONENT_TRUST_MODE"
 	envComponentAllowIDs         = "ESHU_COMPONENT_ALLOW_IDS"
@@ -423,9 +424,10 @@ func componentPolicyFromFlags(cmd *cobra.Command) component.Policy {
 }
 
 // componentPolicyFromFlagsAndEnv builds the trust policy for a command. For
-// the trust mode and the allow and revoke lists, a passed flag wins, then the
-// matching ESHU_COMPONENT_* variable, then the flag default. The provenance
-// and cosign settings stay flag-only.
+// the trust mode and the allow lists, a passed flag wins, then the matching
+// ESHU_COMPONENT_* variable, then the flag default. The revoke lists are the
+// union of the flags and the variables, so no flag can empty a deny list. The
+// provenance and cosign settings stay flag-only.
 func componentPolicyFromFlagsAndEnv(cmd *cobra.Command, getenv func(string) string) component.Policy {
 	str := func(flagName, envName string) string {
 		value, _ := cmd.Flags().GetString(flagName)
@@ -434,6 +436,10 @@ func componentPolicyFromFlagsAndEnv(cmd *cobra.Command, getenv func(string) stri
 	list := func(flagName, envName string) []string {
 		value, _ := cmd.Flags().GetStringSlice(flagName)
 		return clicomponent.FallbackList(value, flagPassed(cmd, flagName), getenv(envName))
+	}
+	revoke := func(flagName, envName string) []string {
+		value, _ := cmd.Flags().GetStringSlice(flagName)
+		return clicomponent.UnionList(value, getenv(envName))
 	}
 	mode := str(componentTrustModeFlag, envComponentTrustMode)
 	cosignBinary, _ := cmd.Flags().GetString(componentCosignBinaryFlag)
@@ -451,8 +457,8 @@ func componentPolicyFromFlagsAndEnv(cmd *cobra.Command, getenv func(string) stri
 		Mode:              mode,
 		AllowedIDs:        list(componentAllowIDFlag, envComponentAllowIDs),
 		AllowedPublishers: list(componentAllowPublisherFlag, envComponentAllowPublishers),
-		RevokedIDs:        list(componentRevokeIDFlag, envComponentRevokeIDs),
-		RevokedPublishers: list(componentRevokePublisherFlag, envComponentRevokePublishers),
+		RevokedIDs:        revoke(componentRevokeIDFlag, envComponentRevokeIDs),
+		RevokedPublishers: revoke(componentRevokePublisherFlag, envComponentRevokePublishers),
 		Provenance: component.ProvenancePolicy{
 			CertificateIdentity: provenanceIdentity,
 			OIDCIssuer:          provenanceIssuer,

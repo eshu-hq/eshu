@@ -74,6 +74,38 @@ func TestComponentPolicyFlagsFallBackToEnvironment(t *testing.T) {
 		}
 	})
 
+	// A deny list must never be emptied by a flag: a revoke flag adds to the
+	// environment revoke list instead of replacing it.
+	t.Run("passed revoke flags add to the environment revoke lists", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := newListCommand()
+		args := []string{"--revoke-id", "flag.bad", "--revoke-publisher", "flag-mallory"}
+		if err := cmd.Flags().Parse(args); err != nil {
+			t.Fatalf("Parse() error = %v, want nil", err)
+		}
+		policy := componentPolicyFromFlagsAndEnv(cmd, getenv)
+		if got, want := strings.Join(policy.RevokedIDs, "|"), "flag.bad|dev.example.bad"; got != want {
+			t.Fatalf("RevokedIDs = %q, want %q: the environment id must stay revoked", got, want)
+		}
+		if got, want := strings.Join(policy.RevokedPublishers, "|"), "flag-mallory|mallory"; got != want {
+			t.Fatalf("RevokedPublishers = %q, want %q: the environment publisher must stay revoked", got, want)
+		}
+	})
+
+	t.Run("a revoke flag naming an environment entry does not duplicate it", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := newListCommand()
+		if err := cmd.Flags().Parse([]string{"--revoke-id", "dev.example.bad"}); err != nil {
+			t.Fatalf("Parse() error = %v, want nil", err)
+		}
+		policy := componentPolicyFromFlagsAndEnv(cmd, getenv)
+		if got, want := strings.Join(policy.RevokedIDs, "|"), "dev.example.bad"; got != want {
+			t.Fatalf("RevokedIDs = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("empty environment keeps the flag defaults", func(t *testing.T) {
 		t.Parallel()
 
@@ -123,5 +155,50 @@ func TestComponentListWithoutPolicyDoesNotReverifyInstalledComponents(t *testing
 	}
 	if readback[0].Verification != nil {
 		t.Fatalf("Verification = %+v, want nil without a configured policy", readback[0].Verification)
+	}
+}
+
+// TestComponentEnvironmentRevocationSurvivesRevokeFlags is the verdict-level
+// regression for the deny-list rule: a component that ESHU_COMPONENT_REVOKE_IDS
+// or ESHU_COMPONENT_REVOKE_PUBLISHERS blocks stays blocked when the allow flags
+// would admit it, and when a revoke flag names something else.
+func TestComponentEnvironmentRevocationSurvivesRevokeFlags(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := component.LoadManifest(writeComponentCommandManifest(t))
+	if err != nil {
+		t.Fatalf("LoadManifest() error = %v, want nil", err)
+	}
+	allowFlags := []string{
+		"--trust-mode", component.TrustModeAllowlist,
+		"--allow-id", manifest.Metadata.ID,
+		"--allow-publisher", manifest.Metadata.Publisher,
+	}
+
+	tests := []struct {
+		name  string
+		env   map[string]string
+		extra []string
+	}{
+		{name: "environment id revoke with allow flags", env: map[string]string{envComponentRevokeIDs: manifest.Metadata.ID}},
+		{name: "environment id revoke with an unrelated revoke flag", env: map[string]string{envComponentRevokeIDs: manifest.Metadata.ID}, extra: []string{"--revoke-id", "dev.example.other"}},
+		{name: "environment publisher revoke with allow flags", env: map[string]string{envComponentRevokePublishers: manifest.Metadata.Publisher}},
+		{name: "environment publisher revoke with an unrelated revoke flag", env: map[string]string{envComponentRevokePublishers: manifest.Metadata.Publisher}, extra: []string{"--revoke-publisher", "other-publisher"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := &cobra.Command{}
+			addOptionalTrustFlags(cmd)
+			if err := cmd.Flags().Parse(append(append([]string{}, allowFlags...), tt.extra...)); err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
+			policy := componentPolicyFromFlagsAndEnv(cmd, func(key string) string { return tt.env[key] })
+			result := policy.Verify(manifest)
+			if result.Allowed || result.Code != component.ErrorCodeRevokedPackage {
+				t.Fatalf("Verify() = allowed %t code %q, want revoked", result.Allowed, result.Code)
+			}
+		})
 	}
 }

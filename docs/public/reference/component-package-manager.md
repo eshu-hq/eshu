@@ -239,7 +239,7 @@ The stable readback states are:
 local manifest readback only. When trust or revocation flags are supplied, list
 also re-verifies installed manifests and can add `revoked`, `incompatible`, or
 `failed` states without mutating the registry. A flag left off falls back to
-its `ESHU_COMPONENT_*` variable ([Plugin Trust Model](plugin-trust-model.md)).
+its `ESHU_COMPONENT_*` variable; revoke lists are unioned ([Plugin Trust Model](plugin-trust-model.md)).
 
 `component inventory` and `component diagnostics <component-id>` are API-backed
 readers. They do not inspect the caller's local component home; they read the

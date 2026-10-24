@@ -126,14 +126,31 @@ configuration. Initial implementations may use a local configuration file before
 adding central policy distribution.
 
 The `eshu component` commands that apply a trust policy (`verify`, `install`,
-and `list`) read it from flags first. For each of `--trust-mode`, `--allow-id`,
-`--allow-publisher`, `--revoke-id`, and `--revoke-publisher` that is not passed,
-they fall back to `ESHU_COMPONENT_TRUST_MODE`, `ESHU_COMPONENT_ALLOW_IDS`,
-`ESHU_COMPONENT_ALLOW_PUBLISHERS`, `ESHU_COMPONENT_REVOKE_IDS`, and
-`ESHU_COMPONENT_REVOKE_PUBLISHERS`, the same variables the API, MCP server, and
-coordinator read. A passed flag wins. Provenance and Cosign settings stay
-flag-only on the CLI. With neither a flag nor a variable set, `list` skips
-policy re-verification and `verify` and `install` default to `disabled`.
+and `list`) read it from flags and from the same variables the API, MCP server,
+and coordinator read. The trust mode and the allow lists (`--trust-mode`,
+`--allow-id`, `--allow-publisher`) follow flag over variable: a passed flag
+wins, and a flag that is not passed falls back to `ESHU_COMPONENT_TRUST_MODE`,
+`ESHU_COMPONENT_ALLOW_IDS`, or `ESHU_COMPONENT_ALLOW_PUBLISHERS`. The revoke
+lists (`--revoke-id`, `--revoke-publisher`) are the union of the flag and
+`ESHU_COMPONENT_REVOKE_IDS` or `ESHU_COMPONENT_REVOKE_PUBLISHERS`, so no flag
+can shorten a deny list the shell already carries. Provenance and Cosign
+settings stay flag-only on the CLI. With neither a flag nor a variable set,
+`list` skips policy re-verification and `verify` and `install` default to
+`disabled`.
+
+Operator notes for the CLI policy:
+
+- An explicitly configured environment can turn a `verify` that failed under
+  the `disabled` default into a pass. It takes three variables:
+  `ESHU_COMPONENT_TRUST_MODE=allowlist` plus matching `ESHU_COMPONENT_ALLOW_IDS`
+  and `ESHU_COMPONENT_ALLOW_PUBLISHERS`. An environment cannot widen a policy a
+  flag narrowed: a passed `--allow-id` or `--allow-publisher` replaces the
+  matching variable, and a passed `--trust-mode disabled` beats the variable.
+- `component list` with no trust flag and no trust variable no longer
+  re-verifies installed components. It reports stored lifecycle state only, so
+  its `--json` output carries no verification block and no failed state for
+  that call. Pass any trust flag or set a trust variable to get the
+  re-verification back.
 
 Publisher identity rotation must support an explicit trust-transfer procedure,
 not silent key replacement.

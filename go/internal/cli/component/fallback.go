@@ -28,14 +28,43 @@ func FallbackList(flagValue []string, flagPassed bool, envValue string) []string
 	if flagPassed {
 		return flagValue
 	}
-	var fromEnv []string
-	for _, field := range strings.Split(envValue, ",") {
-		if trimmed := strings.TrimSpace(field); trimmed != "" {
-			fromEnv = append(fromEnv, trimmed)
-		}
-	}
-	if len(fromEnv) > 0 {
+	if fromEnv := splitEnvList(envValue); len(fromEnv) > 0 {
 		return fromEnv
 	}
 	return flagValue
+}
+
+// UnionList combines a repeatable flag with its comma separated environment
+// variable for a deny list. Unlike FallbackList, a passed flag never replaces
+// the environment: a revoke list that a flag could empty would let a shell
+// that carries the service revocations judge a component the services block.
+// Flag entries come first, then environment entries the flag did not already
+// name. The result never shares storage with flagValue.
+func UnionList(flagValue []string, envValue string) []string {
+	var merged []string
+	seen := make(map[string]struct{}, len(flagValue))
+	for _, entry := range flagValue {
+		seen[entry] = struct{}{}
+		merged = append(merged, entry)
+	}
+	for _, entry := range splitEnvList(envValue) {
+		if _, ok := seen[entry]; ok {
+			continue
+		}
+		seen[entry] = struct{}{}
+		merged = append(merged, entry)
+	}
+	return merged
+}
+
+// splitEnvList splits a comma separated variable, trims each entry, and drops
+// blanks.
+func splitEnvList(envValue string) []string {
+	var entries []string
+	for _, field := range strings.Split(envValue, ",") {
+		if trimmed := strings.TrimSpace(field); trimmed != "" {
+			entries = append(entries, trimmed)
+		}
+	}
+	return entries
 }

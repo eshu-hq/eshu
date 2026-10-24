@@ -96,6 +96,15 @@ package itself:
   instead of emitting under a dead authorization. A registry read failure
   denies core-owned kinds rather than emitting under unknown authorization.
 
+Operator notes: `inspect`, `verify`, and `conform` are only as strong as the
+component home they read. The home resolves from `--component-home`, then
+`ESHU_COMPONENT_HOME`, then `ESHU_HOME/components`, then `~/.eshu/components`, so a
+result can depend on an ambient registry the shell points at. Grants are local
+state: Eshu does not authenticate the registry file and does not check the home
+for symlinks or group and world write bits. Keep the home owned and writable
+only by the operator, and pass `--component-home` when a result must not depend
+on the environment.
+
 Like install, enable, disable, and uninstall, grant and revoke-grant write
 the registry file atomically.
 

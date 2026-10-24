@@ -40,8 +40,9 @@ canonical response shape; `CLIOutput` and its members are the
 `InitIDFlag`, `InitPublisherFlag`, and `InitFactKindFlag` are the flag names
 this package renders in its required-input errors, consumed by `go/cmd/eshu`
 at registration. `FallbackString` and `FallbackList` (`fallback.go`) order a
-passed flag, an environment value, and the flag default; the wrapper reads the
-flag state and the environment and passes plain values in. See `doc.go` for the
+passed flag, an environment value, and the flag default; `UnionList` merges a
+revoke flag with its environment list so a flag never empties a deny list. The
+wrapper reads the flag state and the environment and passes plain values in. See `doc.go` for the
 godoc contract.
 
 ## Dependencies

@@ -59,3 +59,41 @@ func TestFallbackListSplitsEnvironmentAndDropsBlanks(t *testing.T) {
 		})
 	}
 }
+
+func TestUnionListKeepsEveryEnvironmentEntry(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		flagValue []string
+		envValue  string
+		want      []string
+	}{
+		{name: "flag entries come first, then the environment", flagValue: []string{"flag.id"}, envValue: "env.id", want: []string{"flag.id", "env.id"}},
+		{name: "an empty flag list keeps the environment", envValue: "env.one, env.two,,", want: []string{"env.one", "env.two"}},
+		{name: "an unset environment keeps the flag list", flagValue: []string{"flag.id"}, want: []string{"flag.id"}},
+		{name: "a shared entry is not repeated", flagValue: []string{"shared", "flag.id"}, envValue: "shared,env.id", want: []string{"shared", "flag.id", "env.id"}},
+		{name: "a blank environment adds nothing", flagValue: []string{"flag.id"}, envValue: " , ", want: []string{"flag.id"}},
+		{name: "nothing configured stays empty", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := UnionList(tt.flagValue, tt.envValue); !slices.Equal(got, tt.want) {
+				t.Fatalf("UnionList() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestUnionListDoesNotAliasTheFlagSlice(t *testing.T) {
+	t.Parallel()
+
+	flagValue := make([]string, 1, 4)
+	flagValue[0] = "flag.id"
+	_ = UnionList(flagValue, "env.id")
+	if flagValue[:2][1] != "" {
+		t.Fatalf("UnionList() wrote into the caller's backing array: %v", flagValue[:2])
+	}
+}
