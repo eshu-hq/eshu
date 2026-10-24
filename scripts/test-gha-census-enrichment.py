@@ -16,6 +16,42 @@ from gha_census_enrichment import (  # noqa: E402
 
 
 class TestRequiredGreen(unittest.TestCase):
+    def test_v3_publisher_descriptions_require_complete_canonical_tuple(self):
+        pr = {"number": 1, "merged_at": "2026-10-23T12:10:00Z"}
+        runs = [{"created_at": "2026-10-23T12:00:00Z"}]
+        checks = [{"name": name, "conclusion": "success",
+                   "started_at": "2026-10-23T12:01:00Z",
+                   "completed_at": "2026-10-23T12:04:00Z"}
+                  for name in ("go-core-complete", "go-race-complete")]
+        full = "v3 full m=" + "a" * 40 + " r=1 a=1"
+        reuse = ("v3 reuse m=" + "a" * 40 + " r=6189 a=1 s=" + "b" * 40)
+        smoke = ("v3 smoke m=" + "a" * 40 + " r=1000000000000000 "
+                 "a=1000 s=" + "b" * 40)
+        cases = [
+            (full, "ordinary"), (reuse, "reuse"), (smoke, "smoke"),
+            ("All path-selected blocking gates passed", "ordinary"),
+            ("Tree-identical reuse: verdict copied", "reuse"),
+            ("Smoke subset: selected gates passed", "smoke"),
+            (full + " s=" + "b" * 40, "unknown"),
+            (reuse[:-40], "unknown"),
+            (full.replace("r=1", "r=0"), "unknown"),
+            (full.replace("r=1", "r=01"), "unknown"),
+            (full.replace("r=1", "r=1000000000000001"), "unknown"),
+            (full.replace("a=1", "a=1001"), "unknown"),
+            (full.replace("m=" + "a" * 40, "m=" + "A" * 40), "unknown"),
+            (full + "\n", "unknown"),
+            ("v3 full a=1 m=" + "a" * 40 + " r=1", "unknown"),
+            ("v3 reuse Tree-identical reuse", "unknown"),
+        ]
+        for description, kind in cases:
+            with self.subTest(description=description):
+                statuses = [{"context": "required-gates-complete",
+                             "state": "success", "description": description,
+                             "created_at": "2026-10-23T12:05:00Z"}]
+                result = measure_head(pr, runs, checks, statuses)
+                self.assertEqual(result["outcome"], "success")
+                self.assertEqual(result["kind"], kind)
+
     def test_merge_is_censored_until_all_three_contexts_succeed(self):
         pr = {"number": 1, "merged_at": "2026-10-23T12:10:00Z"}
         runs = [{"created_at": "2026-10-23T12:00:00Z"}]
