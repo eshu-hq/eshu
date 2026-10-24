@@ -49,7 +49,38 @@
   dependency.
 - Resolving a version through a nested or reassigned val.
 
-No-Observability-Change: this package emits no metrics, spans, or logs, like
-the Gradle, Maven, and go.mod parsers. Parse timing stays with the ingester
-and collector runtime paths that call the parent Engine, and the bounded
-counts ride in the `sbt_state` payload for an operator to read.
+## Evidence notes
+
+### build.sbt scanner cost (issue #8938)
+
+Performance Evidence: baseline is the sibling Gradle manifest parser, measured
+with `go test -run '^$' -bench 'BenchmarkParseConfig/(sbt|gradle)$' -benchmem
+-count=3 ./internal/parser` on the same host and the same engine path
+(`Engine.ParsePath`, linux/arm64, Go 1.26). Input shape: a synthetic manifest
+of about 10,000 lines (10,001 for Gradle, 10,000 for sbt), one literal
+dependency per line. After: sbt takes 13.3 to 13.7 ms/op (55 to 57 MB/s),
+16.4 MB/op, 139,756 allocs/op; Gradle takes 56.9 to 58.3 ms/op (10.8 to
+11.1 MB/s), 12.8 MB/op, 119,750 allocs/op. The sbt parser is about 4.3 times
+faster on this shape and allocates about 29 percent more bytes, because it
+builds one row map per dependency and keeps each token's source slice. This is
+a new parser on a path no existing file reaches (`build.sbt` was unadmitted),
+so existing files see no change.
+
+No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
+single-pass scanner with no recursion. 200,000 nested parentheses finish in
+0.02 s, and 100,000 dependency lines finish in 0.06 s while emitting exactly
+`MaxDependencyRows` (10,000) rows with the remaining 90,000 counted in
+`sbt_state.dependency_overflow_count`. Backend: none (file bytes only, no
+Postgres or graph access). Terminal counts: a 100,000-line file yields 10,000
+rows, 90,000 overflow, 0 unresolved. The git collector content version moves
+to `git-collector.v10` and re-pins at 297 facts (293 before the `build.sbt`
+fixture joined the pinned corpus); every repository re-collects once because
+the registry binding changed.
+
+No-Observability-Change: the package emits no metrics, spans, or logs, like the
+Gradle, Maven, and go.mod parsers. Parse timing stays with the ingester and
+collector runtime paths that call the parent Engine
+(`eshu_dp_file_parse_duration_seconds`), and the bounded counts an operator
+needs ride in the `sbt_state` payload (`unresolved_declaration_count`,
+`dependency_overflow_count`, `scala_version_count`). An operator finds a file
+that lost declarations by reading `sbt_state` on the content entity payload.
