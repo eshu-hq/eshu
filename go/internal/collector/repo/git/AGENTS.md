@@ -206,6 +206,13 @@ hold for a path. The policy is applied twice, by the same pure function
    `contentStoreTally`; every emitter after it (content fact, service catalog,
    workflow image, documentation) sees the stored body, never the source.
 
+`addContentStoresForMetas` adds the policy for every path the stream re-reads
+(content, documentation, and workflow-image metas, including CODEOWNERS and
+`.gitmodules`, which are diverted before the parser), so a definition that binds
+such a name is enforced. `TestEveryBodyReadingEmitterSeesTheStoredBody` and
+`TestDeltaOnlyBodyReadersApplyThePolicy` scan every emitted fact payload for a
+seeded credential.
+
 Rules: the digest stays computed on the SOURCE bytes (`shapeFileFromParsed`), so
 the freshness hint is policy-independent and the registry fingerprint carries a
 policy change; the content record is always emitted (empty body for `metadata`)

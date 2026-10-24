@@ -84,6 +84,9 @@ Each test was run against the old behavior or a deliberate mutation first.
 | `TestContentStorePolicyHealsStoredRowsOnTheNextGeneration` (live, 4 subtests) | the next generation stores the verbatim body (no policy) | FAIL: seed in `content`, `content_lower`, `source_cache`, `content_file_secret_lines.line_text`; metadata row kept 1 secret line and 1 reference |
 | `TestFreshnessHintIsStableAcrossCyclesAndPolicies`, `TestMetadataPolicyEmits...`, `TestRedactPolicyEmits...` | recompute the digest from the stored body | FAIL: `content_digest` and the freshness hint moved |
 | `TestRedactMarkerFailsClosedOnYAMLValueShapes` | never open the continuation state | FAIL on 9 of 13 shapes (block, folded, tagged, anchored, empty, same-indent sequence, multi-line plain) |
+| `TestEveryBodyReadingEmitterSeesTheStoredBody` (every fact payload, six emitters) | policy keyed only by parsed files | FAIL: seed reached `content`, `codeowners.ownership`, `submodule.pin`, `documentation_section` for the diverted and documentation files; fixed by `addContentStoresForMetas` |
+| `TestDeltaOnlyBodyReadersApplyThePolicy` | the two delta-only loops read the raw body | FAIL: seed reached `ci.workflow_image_evidence` and `documentation_section` |
+| `TestAllStoreRegistryFingerprintEqualsThePreChangeValue` | policy token rendered for `store` | FAIL: the default registry fingerprint moved |
 | `TestApplyContentStoreFailsClosed` | n/a (written first; the function did not exist) | build failure, then GREEN |
 
 The live proof seeds first: it asserts the verbatim row set (content,

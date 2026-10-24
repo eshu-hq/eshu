@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	gitcontent "github.com/eshu-hq/eshu/go/internal/collector/git/content"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -83,6 +84,31 @@ func applyContentStoreToShapeFiles(
 		}
 	}
 	return stores
+}
+
+// addContentStoresForMetas adds the policy for every path a body-reading
+// emitter in streamFacts will re-read, so a definition that binds a name the
+// parser never sees (CODEOWNERS and .gitmodules are diverted before parsing, and
+// documentation and workflow-image files are re-read separately) is still
+// enforced. It is a no-op for a registry that binds no non-store policy.
+func addContentStoresForMetas(registry parser.Registry, snapshot *RepositorySnapshot) {
+	if !registry.HasContentStorePolicy() {
+		return
+	}
+	for _, metas := range [][]model.ContentFileMeta{
+		snapshot.ContentFileMetas, snapshot.DocumentationFileMetas, snapshot.WorkflowImageFileMetas,
+	} {
+		for _, meta := range metas {
+			store := registry.ContentStoreForPath(meta.RelativePath)
+			if store.Policy == parser.ContentStoreStore || store.Policy == "" {
+				continue
+			}
+			if snapshot.ContentStores == nil {
+				snapshot.ContentStores = map[string]parser.ContentStore{}
+			}
+			snapshot.ContentStores[meta.RelativePath] = store
+		}
+	}
 }
 
 // contentStoreTally counts the policy outcomes of one fact stream so the

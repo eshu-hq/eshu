@@ -193,6 +193,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	snapshot.ContentFileMetas = append(
 		submodule.GitmodulesFileMetasForPaths(repoPath, gitmodulesCandidateRelativePaths, commitSHA), codeownersMetas...)
 	if len(fileSet.Files) == 0 {
+		addContentStoresForMetas(registry, &snapshot)
 		snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 			repoPath,
 			s.now(),
@@ -363,6 +364,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	snapshot.DocumentationFileMetas, docsReadFailures = docs.DocumentationFileMetasWithReadFailures(repoPath, discovery.FilePaths(documentationFiles), commitSHA)
 	markSnapshotDegradedOn(ctx, docsReadFailures, telemetry.PreparseDropDocsReadFailed)
 	snapshot.ContentEntities = materializationEntitiesToSnapshots(materialization.Entities, s.now())
+	addContentStoresForMetas(registry, &snapshot)
 	snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 		repoPath,
 		s.now(),

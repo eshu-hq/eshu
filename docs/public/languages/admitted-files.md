@@ -111,6 +111,10 @@ For a `metadata` path, or a `redact` path whose redactor failed:
   redacted body, never from the source.
 - The `content` fact carries an empty or redacted `content_body` and the source
   `content_digest`.
+- Every emitter that reads the body gets the stored body, not the source: the
+  service-catalog, workflow-image, documentation, CODEOWNERS, and `.gitmodules`
+  facts. A definition that names `CODEOWNERS` or `.gitmodules` governs those
+  files too, although they are read before the parser runs.
 
 The parser still reads the original file. Its structured facts (the file fact
 and the entities it extracts) are intended output and are not redacted, apart

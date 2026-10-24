@@ -347,7 +347,6 @@ func streamFacts(
 		}
 		snapshot.ContentFiles = nil
 	}
-	recordContentStoreTally(ctx, &tally, repo.ID, scopeID, generationID)
 	for i, meta := range snapshot.WorkflowImageFileMetas {
 		body, err := streamContentBodyReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads an admitted workflow path from repository discovery
 		if err != nil {
@@ -368,7 +367,7 @@ func streamFacts(
 			observedAt,
 			meta.RelativePath,
 			meta.CommitSHA,
-			string(body),
+			string(tally.storedBytes(snapshot.ContentStores, meta.RelativePath, body)),
 		)
 		snapshot.WorkflowImageFileMetas[i] = model.ContentFileMeta{}
 	}
@@ -404,7 +403,7 @@ func streamFacts(
 			meta.RelativePath,
 			meta.Digest,
 			meta.CommitSHA,
-			body,
+			tally.storedBytes(snapshot.ContentStores, meta.RelativePath, body),
 			!gitDocumentationSourceEmitted,
 		) {
 			gitDocumentationSourceEmitted = true
@@ -412,6 +411,7 @@ func streamFacts(
 		snapshot.DocumentationFileMetas[i] = model.ContentFileMeta{}
 	}
 	snapshot.DocumentationFileMetas = nil
+	recordContentStoreTally(ctx, &tally, repo.ID, scopeID, generationID)
 	for _, relativePath := range snapshot.DeletedRelativePaths {
 		w.Send(contentTombstoneEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, relativePath))
 	}
