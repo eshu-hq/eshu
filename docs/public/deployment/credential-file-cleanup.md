@@ -42,14 +42,22 @@ reach the repository. The SQL below covers what the re-collection does not:
    for every reason, run the statements again. The second run catches rows
    that an old binary wrote during the rollout, and repositories no sweep
    visits.
-5. Restore `ESHU_REPO_RECONCILE_MAX_PER_CYCLE`.
+5. After each run, restart the API and MCP server replicas (a rolling restart
+   is enough). Both keep an in-process semantic and hybrid search index. The
+   cache key is the scope's active generation and projection revision, and
+   the purge changes neither. A replica that indexed a scope before the purge
+   keeps returning the purged `context_text` until it restarts or the scope's
+   rebuilt generation becomes active.
+6. Restore `ESHU_REPO_RECONCILE_MAX_PER_CYCLE`.
 
 The drain takes `ceil(repositories / cap)` selection cycles.
 
 ## Exit criterion
 
-The cleanup is done when both of these hold on two consecutive scrapes:
+The cleanup is done when all of these hold, the two readings on two
+consecutive scrapes:
 
+- The API and MCP server replicas restarted after the last run.
 - `eshu_dp_content_policy_raw_rows` reads zero. It counts unsuppressed
   hardcoded-secret lines on a governed path that carry no
   `REDACTED_<finding_kind>` marker.
@@ -322,5 +330,14 @@ DELETE FROM fact_records f USING batch b WHERE f.fact_id = b.fact_id;
   recycled or archived. Run `VACUUM` on `content_files`, `content_entities`,
   `content_file_references`, `fact_records`, and the two search index tables
   after the second run if you need the space reclaimed sooner.
+- **Embedding vectors.** Statement A deletes the active generation's index
+  documents but not their rows in `eshu_search_vector_values` and
+  `eshu_search_vector_metadata`. These hold vector numbers and a content
+  hash, not text. The default `local-hash-v1` embedder sums signed term hashes
+  into 256 buckets, so a vector cannot be read back as the file, but it could
+  help confirm a guess. A configured external embedding provider produces its
+  own model's vectors instead. No read uses these rows once the document is
+  gone: vectors load only for the documents a scope still holds. They leave
+  with their generation, under the retention policy above.
 - **Backups.** Base backups and archived WAL taken before the cleanup keep the
   verbatim files until they expire under your backup retention.

@@ -70,6 +70,30 @@ not forced here without editing the page's SQL. The #8813 purge page's measured
 `TestCredentialCleanupSearchFactKindOwnsNoKeySidecar` pins the premise of
 statement B: `reducer_eshu_search_document` owns no key sidecar rows.
 
+## In-process search cache
+
+The SQL purge does not reach one copy: the API and the MCP server both wire
+`NewCachedPersistedLocalSemanticSearchHybrid`, in
+`cmd/api/semantic_search_vector_wiring.go` and
+`cmd/mcp-server/semantic_search_vector_wiring.go`. That cache holds the scope's
+documents, `ContextText` included, in an LRU with no TTL. Its key comes from
+`loadSemanticSearchSnapshotQuery`:
+
+- the active generation;
+- the document and vector projection revisions;
+- the document count;
+- the vector build fence.
+
+The purge changes none of these. `TestPersistedSemanticSearchCachesStableReadySnapshotAcrossQueries`
+already proves that an unchanged snapshot reloads no documents. The runbook
+therefore restarts the API and MCP server replicas after each run, and the
+exit criterion includes that restart.
+
+The purge also leaves the deleted documents' rows in `eshu_search_vector_values`
+and `eshu_search_vector_metadata`. `readyVectors` loads vectors only for the
+document IDs that remain, so semantic search stays ready and no read returns
+them. The runbook lists them under what the cleanup does not reach.
+
 ## Performance Evidence
 
 Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` of the five statements, one
