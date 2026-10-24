@@ -16,7 +16,11 @@ import (
 	"time"
 )
 
-func discoverProbeSelectors(client *http.Client, apiBaseURL, userToken string) (map[string]string, error) {
+// discoverProbeSelectors fills the selector classes the probe registry needs.
+// Every discovery reads with userToken except the collector instance pair,
+// which uses adminToken because the probes that consume the pair run under
+// admin auth.
+func discoverProbeSelectors(client *http.Client, apiBaseURL, userToken, adminToken string) (map[string]string, error) {
 	selectors := map[string]string{
 		"search_term": "main",
 		"language":    "go",
@@ -66,7 +70,7 @@ func discoverProbeSelectors(client *http.Client, apiBaseURL, userToken string) (
 	collectRepositorySelector(payload, selectors)
 	discoverRepositoryScopedSelectors(client, apiBaseURL, userToken, selectors)
 	discoverAdditionalSelectors(client, apiBaseURL, userToken, selectors)
-	discoverCollectorInstanceSelectors(client, apiBaseURL, userToken, selectors)
+	discoverCollectorInstanceSelectors(client, apiBaseURL, adminToken, selectors)
 	return selectors, nil
 }
 

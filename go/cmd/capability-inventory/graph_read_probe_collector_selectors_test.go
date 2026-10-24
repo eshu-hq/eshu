@@ -53,3 +53,30 @@ func TestDiscoverCollectorInstanceSelectorsLeavesClassesUndiscoveredWithoutAnIns
 		t.Fatalf("selectors = %#v, want instance_id left undiscovered", selectors)
 	}
 }
+
+// TestDiscoverProbeSelectorsReadsCollectorInstancesWithTheAdminToken pins that
+// the collector pair is discovered with the admin token. A scoped caller gets
+// instance_id redacted from /api/v0/status/collectors, and the probes that use
+// the pair run under admin auth, so the user token must not decide discovery.
+func TestDiscoverProbeSelectorsReadsCollectorInstancesWithTheAdminToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if request.URL.Path != "/api/v0/status/collectors" {
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		if request.Header.Get("Authorization") == "Bearer admin-token" {
+			_, _ = w.Write([]byte(`{"collectors":[{"collector_kind":"git","instance_id":"git-main"}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"collectors":[{"collector_kind":"git"}]}`))
+	}))
+	defer server.Close()
+	selectors, err := discoverProbeSelectors(server.Client(), server.URL, "user-token", "admin-token")
+	if err != nil {
+		t.Fatalf("discoverProbeSelectors() error = %v", err)
+	}
+	if selectors["collector_kind"] != "git" || selectors["instance_id"] != "git-main" {
+		t.Fatalf("selectors = %#v, want collector_kind git and instance_id git-main from the admin read", selectors)
+	}
+}

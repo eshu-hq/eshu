@@ -38,7 +38,7 @@ func TestGraphReadProbeSanitizesHostileTransportErrors(t *testing.T) {
 	} else {
 		assertSanitizedProbeError(t, err, privateCause)
 	}
-	if _, err := discoverProbeSelectors(client, "https://private.example.invalid", "secret-marker"); err == nil {
+	if _, err := discoverProbeSelectors(client, "https://private.example.invalid", "secret-marker", "secret-marker"); err == nil {
 		t.Fatal("discoverProbeSelectors() error = nil, want sanitized transport failure")
 	} else {
 		assertSanitizedProbeError(t, err, privateCause)
@@ -85,7 +85,7 @@ func TestDiscoverProbeSelectorsUsesRepositoryScopedAuthoritativeSources(t *testi
 	}))
 	defer server.Close()
 
-	selectors, err := discoverProbeSelectors(server.Client(), server.URL, "user-token")
+	selectors, err := discoverProbeSelectors(server.Client(), server.URL, "user-token", "admin-token")
 	if err != nil {
 		t.Fatalf("discoverProbeSelectors() error = %v", err)
 	}
@@ -256,7 +256,8 @@ func TestRunGraphReadProbeUsesDeclaredArgumentsAuthAndExplicitSelectorFailure(t 
 			request.URL.Path == "/api/v0/auth/setup-state" || strings.HasPrefix(request.URL.Path, "/api/v0/auth/github/") {
 			wantToken = ""
 		}
-		if strings.HasPrefix(request.URL.Path, "/api/v0/admin/") {
+		// Collector selector discovery reads with the admin token.
+		if strings.HasPrefix(request.URL.Path, "/api/v0/admin/") || request.URL.Path == "/api/v0/status/collectors" {
 			wantToken = adminToken
 		}
 		if request.URL.Path == "/api/v0/code/cypher" || request.URL.Path == "/api/v0/code/visualize" {

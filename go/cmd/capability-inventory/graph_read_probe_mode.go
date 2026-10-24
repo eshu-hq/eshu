@@ -145,7 +145,7 @@ func runGraphReadProbe(
 	if err != nil {
 		return err
 	}
-	selectors, err := discoverProbeSelectors(client, apiBaseURL, userToken)
+	selectors, err := discoverProbeSelectors(client, apiBaseURL, userToken, adminToken)
 	if err != nil {
 		return err
 	}

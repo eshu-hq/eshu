@@ -13,10 +13,12 @@ import (
 // names one real instance. Reading them as two independent first-matches could
 // pair an unregistered kind (no instance) with a later row's instance, and the
 // failed-scope list answers a kind-mismatched instance with nothing. The source
-// is optional: a scoped caller sees no instance_id, so both classes stay
-// undiscovered and the probe reports the missing selector class.
-func discoverCollectorInstanceSelectors(client *http.Client, apiBaseURL, userToken string, selectors map[string]string) {
-	payload, err := fetchOptionalSelectorSource(client, apiBaseURL, userToken, "/api/v0/status/collectors")
+// is optional: a caller that sees no instance_id leaves both classes
+// undiscovered and the probe reports the missing selector class. Discovery
+// uses the admin token because the probes that consume the pair run under
+// admin auth, and a scoped caller gets instance_id redacted.
+func discoverCollectorInstanceSelectors(client *http.Client, apiBaseURL, adminToken string, selectors map[string]string) {
+	payload, err := fetchOptionalSelectorSource(client, apiBaseURL, adminToken, "/api/v0/status/collectors")
 	if err != nil {
 		return
 	}
