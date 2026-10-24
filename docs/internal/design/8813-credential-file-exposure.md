@@ -344,7 +344,8 @@ files); this one needs its own number.
 
 No rewrite loop, no tombstone. The policy-aware `Registry.Fingerprint` (#8812;
 the fleet-wide re-collect is the accepted effect) makes each repository mint a
-new generation. The collector re-emits the content record under the new policy,
+new generation when the sweep or a reindex request next forces it; the flip
+alone forces no visit. The collector re-emits the content record under the new policy,
 and the upsert overwrites the stored body: marker-redacted for `.yarnrc.yml`,
 skeleton for tfvars. The heal depends on that generation re-emitting content
 records for every admitted path; the #8812 upgrade test proves it, and the delta
@@ -355,18 +356,21 @@ Gaps the follow-up closes:
 1. **Repositories not scheduled for collection** keep their bodies. #8833 ships
    a one-shot operator SQL that applies the `metadata` floor: set `content = ''`
    on matched rows, delete their `content_file_references`, and blank
-   `content_entities.source_cache`. It also removes or blanks the active
-   generation's search documents for the matched paths, or invalidates the
-   scope's projection state so the sweeper re-projects; prove first which one
-   works, because the active generation keeps serving raw `context_text` after
-   `content = ''`. It is repo-scoped, 500 rows per statement, and idempotent. An
-   operator runs it; no loop does.
+   `content_entities.source_cache`. It also deletes the active generation's search
+   index documents and terms for the matched paths, and the matching active
+   `reducer_eshu_search_document` fact rows by `fact_id`, because the active
+   generation keeps serving raw `context_text` after `content = ''`; the reindex
+   rebuilds them from redacted rows. It is repo-scoped, 500 rows per statement,
+   and idempotent. An operator runs it; no loop does. Run order, statements, and
+   exit criterion are in
+   [the cleanup runbook](8813-credential-file-exposure-cleanup.md).
 2. **Residue.** Dead tuples, WAL, and backups keep the old bytes until vacuum
    and backup expiry. The operator note says so.
 3. **Fact payloads and search documents.** Superseded `content` facts keep
    `content_body`, content-entity facts keep their `source_cache` bytes, and
-   `reducer_eshu_search_document` facts plus the `eshu_search_index_documents`
-   and `eshu_search_index_terms` rows keep the bounded `context_text`, until
+   superseded `reducer_eshu_search_document` facts plus superseded
+   `eshu_search_index_documents` and `eshu_search_index_terms` rows keep the
+   bounded `context_text`, until
    generation retention prunes them. Defaults are in `generation_retention.go`
    (`defaultGenerationRetentionMinSuperseded = 24`, `MaxAge = 7 days`,
    `HardMaxAge = 90 days`). Superseded search documents are not served, because
@@ -439,7 +443,9 @@ is `metadata`: an empty-content row with the source digest, never a tombstone.
 `CASE`, in the line gate, and in the Go constant; no production definition binds
 to marker mode before it lands (arbiter, 2026-10-24). (8) Search documents are
 owned by #8833 with the same retention window and no scrub, and the operator SQL
-covers the active generation's documents (arbiter, 2026-10-24).
+covers the active generation's documents and terms and deletes the matching
+active `reducer_eshu_search_document` fact rows by `fact_id` (arbiter,
+2026-10-24).
 
 ## Evidence
 

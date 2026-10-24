@@ -68,9 +68,12 @@ the retention check, and the census.
 - [ ] After one collection cycle on a database holding verbatim rows, the
   exposure gauge reads zero (the test seeds the old rows first).
 - [ ] The operator SQL sets `content = ''`, deletes the reference rows, blanks
-  `source_cache`, and clears the active generation's search documents; 500 rows
-  per statement; idempotent; run order documented. After it runs, semantic
-  search `context_text` for a matched path holds no seeded credential, by test.
+  `source_cache`, clears the active generation's search documents and terms, and
+  deletes the matching active `reducer_eshu_search_document` fact rows by
+  `fact_id`; 500 rows per statement; idempotent; run order documented. After it
+  runs, semantic search `context_text` for a matched path holds no seeded
+  credential, by test, and the cleanup runbook's census and exit criterion read
+  zero.
 - [ ] A retention check runs the pruning path against a `content` fact, a
   content-entity fact, a `reducer_eshu_search_document` fact, and the
   `eshu_search_index_documents` and `eshu_search_index_terms` rows; if any is
