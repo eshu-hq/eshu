@@ -98,7 +98,10 @@ Gradle takes 54.9 to 56.0 ms/op (11.3 to 11.5 MB/s), 12.7 to 12.9 MB/op,
 13.5 to 13.6 ms/op and 16.4 MB/op in the same session, so the statement checks
 cost about 13 percent of parse time and no bytes; sbt stays about 3.6 times
 faster than Gradle and allocates about 29 percent more bytes, because it builds
-one row map per dependency. A 120-byte `dependency` struct measured 18.1 MB/op
+one row map per dependency. The column-0 rule for Scala 3 braceless blocks
+(one flag per token, set once per line) re-measured at 15.3 to 15.5 ms/op,
+16.4 MB/op and 139,757 allocs/op on the same benchmark at load average 1.7:
+no byte or allocation change. A 120-byte `dependency` struct measured 18.1 MB/op
 (slice growth into larger size classes), which is why `ctx` and `line` are
 int32. This is a new parser on a path no existing file reaches (`build.sbt`
 was unadmitted), so existing files see no change.
