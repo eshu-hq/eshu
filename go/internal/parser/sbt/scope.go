@@ -42,13 +42,19 @@ func isThisBuildAxis(prev2, prev token) bool {
 // configPartScope maps one configuration name to the dependency scope
 // vocabulary shared with the Gradle and Maven parsers, or reports it unknown.
 // A mapping such as `test->default(compile)` is judged by its left side.
+//
+// The compiler-tool configurations (`plugin`, `scala-tool`, `scala-doc-tool`)
+// and the artifact-type configurations (`docs`, `sources`, `pom`) are not
+// classpath scopes a consumer can reason about, so they are unknown rather than
+// a resolved compile; Gradle likewise gives annotationProcessor and kapt their
+// own scope instead of folding them into compile.
 func configPartScope(part string) (string, bool) {
 	name := strings.ToLower(strings.TrimSpace(part))
 	if arrow := strings.Index(name, "->"); arrow >= 0 {
 		name = strings.TrimSpace(name[:arrow])
 	}
 	switch name {
-	case "compile", "optional", "compile-internal", "docs", "sources", "plugin", "scala-tool", "scala-doc-tool", "pom":
+	case "compile", "optional", "compile-internal":
 		return "compile", true
 	case "runtime", "runtime-internal":
 		return "runtime", true
@@ -60,69 +66,110 @@ func configPartScope(part string) (string, bool) {
 	return "", false
 }
 
-// configParts splits an sbt configuration list on ',' and ';' and drops empty
-// parts, so `"test,it"` and `"compile->compile;test->test"` read as lists.
-func configParts(config string) []string {
-	return strings.FieldsFunc(config, func(r rune) bool { return r == ',' || r == ';' })
+// partName returns the lower-cased configuration name of one list part, ignoring
+// any `->` mapping.
+func partName(part string) string {
+	name := strings.TrimSpace(part)
+	if arrow := strings.Index(name, "->"); arrow >= 0 {
+		name = strings.TrimSpace(name[:arrow])
+	}
+	return name
 }
 
-// resolveConfigScope maps an sbt configuration spelling to a dependency scope.
-// "" is the default compile configuration. A list resolves to the shared scope
-// when every part agrees; otherwise any compile or runtime part means compile,
-// and provided with test-like parts means provided. known is false when any
-// part is not a recognised configuration (a custom Config value, a variable,
-// an empty list); the scope is then compile only as a placeholder and the
-// caller must report the row as partial, never as a resolved compile scope.
-func resolveConfigScope(config string) (scope string, known bool) {
+// configSpec is a resolved configuration: the canonical text carried on the
+// row, the scope it maps to, and whether the scanner could map it. It is built
+// once per `% config` or `.map(_ % config)` and then copied by value, so the
+// operand string is never split or stored per dependency.
+type configSpec struct {
+	// text is the configuration spelling kept on the row. It is the operand
+	// when that is at most MaxConfigBytes, else configOverlong.
+	text     string
+	scope    string
+	known    bool
+	optional bool
+}
+
+// resolveConfig maps an sbt configuration spelling to a configSpec. "" is the
+// default compile configuration. A spelling over MaxConfigBytes is treated like
+// an overlong identifier chain: it is not scanned, not stored, and unknown.
+//
+// A list of parts resolves by this table, where "any" means at least one part
+// maps to that scope and every part must be a recognised configuration:
+//
+//	all parts one scope            -> that scope
+//	any compile                    -> compile
+//	runtime without compile        -> runtime (runtime is also on the test classpath)
+//	provided with test             -> provided
+//	runtime with provided          -> unknown (compile-time and run-time only)
+//
+// known is false when any part is not recognised (a custom Config value, a
+// variable, an empty list); the scope is then compile only as a placeholder and
+// the caller must report the row as partial, never as a resolved compile scope.
+func resolveConfig(config string) configSpec {
 	if config == "" {
-		return "compile", true
+		return configSpec{scope: "compile", known: true}
 	}
-	parts := configParts(config)
-	if len(parts) == 0 {
-		return "compile", false
+	if len(config) > MaxConfigBytes {
+		return configSpec{text: configOverlong, scope: "compile"}
 	}
-	seen := map[string]bool{}
-	for _, part := range parts {
+	spec := configSpec{text: config, scope: "compile"}
+	var compile, runtime, provided, test, parts int
+	for rest := config; rest != ""; {
+		part := rest
+		if cut := strings.IndexAny(rest, ",;"); cut >= 0 {
+			part, rest = rest[:cut], rest[cut+1:]
+		} else {
+			rest = ""
+		}
+		if strings.TrimSpace(part) == "" {
+			continue
+		}
+		parts++
 		partScope, ok := configPartScope(part)
 		if !ok {
-			return "compile", false
+			return spec
 		}
-		seen[partScope] = true
+		switch partScope {
+		case "compile":
+			compile++
+		case "runtime":
+			runtime++
+		case "provided":
+			provided++
+		default:
+			test++
+		}
+		if strings.EqualFold(partName(part), "optional") {
+			spec.optional = true
+		}
+	}
+	if parts == 0 {
+		return spec
 	}
 	switch {
-	case len(seen) == 1:
-		for only := range seen {
-			return only, true
-		}
-	case seen["compile"] || seen["runtime"]:
-		return "compile", true
+	case compile > 0:
+		spec.scope = "compile"
+	case runtime > 0 && provided > 0:
+		return spec
+	case runtime > 0:
+		spec.scope = "runtime"
+	case provided > 0:
+		spec.scope = "provided"
+	default:
+		spec.scope = "test"
 	}
-	return "provided", true
-}
-
-// hasConfigPart reports whether the configuration list names part, ignoring
-// case and any `->` mapping.
-func hasConfigPart(config, part string) bool {
-	for _, candidate := range configParts(config) {
-		name := strings.TrimSpace(candidate)
-		if arrow := strings.Index(name, "->"); arrow >= 0 {
-			name = strings.TrimSpace(name[:arrow])
-		}
-		if strings.EqualFold(name, part) {
-			return true
-		}
-	}
-	return false
+	spec.known = true
+	return spec
 }
 
 // setAxis sets the scope a `Config /` or `in Config` axis declares, leaving
 // the explicit configuration empty.
 func (d *dependency) setAxis(axis string) {
-	d.scope, d.scopeKnown = resolveConfigScope(axis)
+	spec := resolveConfig(axis)
+	d.scope, d.scopeKnown = spec.scope, spec.known
 }
 
 // setConfig records an explicit `% config` and the scope it implies.
-func (d *dependency) setConfig(config string) {
-	d.config = config
-	d.scope, d.scopeKnown = resolveConfigScope(config)
+func (d *dependency) setConfig(spec configSpec) {
+	d.config, d.scope, d.scopeKnown, d.optional = spec.text, spec.scope, spec.known, spec.optional
 }

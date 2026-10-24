@@ -24,6 +24,13 @@ const (
 	// literal read as a coordinate field. A longer literal is not a coordinate.
 	MaxFieldBytes = 512
 
+	// MaxConfigBytes is the longest configuration spelling read as one
+	// dependency configuration. Real configurations are a few bytes
+	// (`test`, `provided`) and the longest mapping in common use,
+	// `compile->compile;test->test;runtime->runtime`, is under 50, so 256 leaves
+	// wide margin. A longer string is not split or stored: the row is partial.
+	MaxConfigBytes = 256
+
 	// maxStringVals caps the top-level `val name = "literal"` table used to
 	// resolve version references.
 	maxStringVals = 1024
@@ -84,6 +91,10 @@ type scan struct {
 	unresolved int
 	// overflow counts valid declarations dropped past MaxDependencyRows.
 	overflow int
+	// mapWrites counts the dependency configuration writes made for collection
+	// `.map(...)` calls. Each collection is written once however many calls
+	// follow it; the work-bound tests read it.
+	mapWrites int
 }
 
 func newScan(text string) *scan {

@@ -37,10 +37,12 @@ type dependency struct {
 	// configuration or axis; the row is then partial and counted. It sits
 	// beside kind so the struct gains no padding.
 	scopeKnown bool
-	cross      string
-	config     string
-	scope      string
-	line       int
+	// optional is true when the configuration names `optional`.
+	optional bool
+	cross    string
+	config   string
+	scope    string
+	line     int
 }
 
 // parseLibraryDependencies reads the operator after a libraryDependencies key.

@@ -95,7 +95,7 @@ func (d dependency) row(vals map[string]string, binary string) map[string]any {
 		"dependency_resolution_state": state,
 		"direct_dependency":           true,
 		"dependency_path_kind":        "manifest",
-		"dependency_optional":         hasConfigPart(d.config, "optional"),
+		"dependency_optional":         d.optional,
 		"sbt_cross_version":           d.cross,
 	}
 	if d.config != "" {

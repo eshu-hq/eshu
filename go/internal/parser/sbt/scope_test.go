@@ -3,7 +3,10 @@
 
 package sbt
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestParseTestScopeSurvivesRealisticSbtForms pins the dependency_scope for
 // the forms sbt builds use to declare test-only dependencies. Each case must
@@ -74,8 +77,12 @@ func TestParseConfigurationListsSplitOnCommaAndSemicolon(t *testing.T) {
 		`"test,compile"`:                "compile",
 		`"compile->compile;test->test"`: "compile",
 		`"test->default(compile)"`:      "test",
-		`"runtime,test"`:                "compile",
+		`"runtime,test"`:                "runtime",
+		`"runtime->runtime;test->test"`: "runtime",
+		`"test,runtime"`:                "runtime",
+		`"compile,runtime"`:             "compile",
 		`"provided,test"`:               "provided",
+		`"provided,compile"`:            "compile",
 		`"runtime"`:                     "runtime",
 	}
 	for config, want := range cases {
@@ -102,6 +109,12 @@ func TestParseUndeterminedScopeIsPartialAndCounted(t *testing.T) {
 		"map with block":         `libraryDependencies ++= Seq("a" % "b" % "1").map { _ % scopes.value }`,
 		"trailing unknown ident": `libraryDependencies += ("a" % "b" % "1") % Custom`,
 		"in group axis":          `libraryDependencies in (core, Test) += "a" % "b" % "1"`,
+		"compiler plugin":        `libraryDependencies += "a" % "b" % "1" % "plugin->default(compile)"`,
+		"scala tool":             `libraryDependencies += "a" % "b" % "1" % "scala-tool"`,
+		"scala doc tool":         `libraryDependencies += "a" % "b" % "1" % "scala-doc-tool"`,
+		"runtime with provided":  `libraryDependencies += "a" % "b" % "1" % "runtime,provided"`,
+		"overlong string":        `libraryDependencies += "a" % "b" % "1" % "` + strings.Repeat("test;", 100) + `"`,
+		"overlong in map":        `libraryDependencies ++= Seq("a" % "b" % "1").map(_ % "` + strings.Repeat("test;", 100) + `")`,
 	}
 	for name, source := range cases {
 		payload := parseSource(t, source+"\n")
@@ -140,4 +153,61 @@ libraryDependencies in IntegrationTest := Seq("e" % "f" % "3")
 	requireField(t, requireRow(t, payload, "c:d"), "dependency_scope", "test")
 	requireField(t, requireRow(t, payload, "e:f"), "dependency_scope", "test")
 	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
+}
+
+// TestParseLastTrailingConfigurationWins pins sbt's `%` semantics: each
+// `moduleID % config` replaces the configuration, so the last one decides.
+func TestParseLastTrailingConfigurationWins(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		`libraryDependencies += "a" % "b" % "1" % "test" % "compile"`:                "compile",
+		`libraryDependencies += "a" % "b" % "1" % Test % Provided`:                   "provided",
+		`libraryDependencies += ("a" % "b" % "1" % Test) % Runtime`:                  "runtime",
+		`libraryDependencies += "a" % "b" % "1" % Provided exclude("x", "y") % Test`: "test",
+	}
+	for source, want := range cases {
+		payload := parseSource(t, source+"\n")
+		row := requireRow(t, payload, "a:b")
+		if row["dependency_scope"] != want || row["dependency_resolution_state"] != "resolved" {
+			t.Errorf("%s: scope/state = %v/%v, want %s/resolved", source, row["dependency_scope"], row["dependency_resolution_state"], want)
+		}
+	}
+}
+
+// TestParseMapConfigurationSequenceMatchesReplay checks that chained maps
+// resolve to the effect of replaying each call in order.
+func TestParseMapConfigurationSequenceMatchesReplay(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name, tail, scope, state string
+	}{
+		{"last config wins", `.map(_ % Test).map(_ % Provided)`, "provided", "resolved"},
+		{"unknown then config recovers", `.map(d => d % X).map(_ % Test)`, "test", "resolved"},
+		{"config then unknown stays partial", `.map(_ % Test).map(d => d % X)`, "test", "partial"},
+		{"scope neutral call between", `.map(_ % Test).map(_.withSources()).toSeq`, "test", "resolved"},
+	}
+	for _, tc := range cases {
+		payload := parseSource(t, `libraryDependencies ++= Seq("a" % "b" % "1")`+tc.tail+"\n")
+		row := requireRow(t, payload, "a:b")
+		if row["dependency_scope"] != tc.scope || row["dependency_resolution_state"] != tc.state {
+			t.Errorf("%s: scope/state = %v/%v, want %s/%s", tc.name, row["dependency_scope"], row["dependency_resolution_state"], tc.scope, tc.state)
+		}
+	}
+}
+
+// TestParseOptionalConfigurationSetsOptionalFlag pins dependency_optional,
+// which now comes from the configuration resolved once per `% config`.
+func TestParseOptionalConfigurationSetsOptionalFlag(t *testing.T) {
+	t.Parallel()
+
+	payload := parseSource(t, `libraryDependencies += "a" % "b" % "1" % "optional"
+libraryDependencies += "c" % "d" % "1" % "compile->default;Optional"
+libraryDependencies ++= Seq("e" % "f" % "1").map(_ % "optional")
+libraryDependencies += "g" % "h" % "1" % Test
+`)
+	for name, want := range map[string]bool{"a:b": true, "c:d": true, "e:f": true, "g:h": false} {
+		requireField(t, requireRow(t, payload, name), "dependency_optional", want)
+	}
 }

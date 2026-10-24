@@ -10,8 +10,11 @@
 // configuration operand (`% Test`, `% "provided"`), and a `Config /` scope
 // axis before the key, a trailing configuration after a parenthesised
 // coordinate, and a `.map(_ % Test)` over a collection. Configuration lists
-// split on ',' and ';', and a scope the scanner cannot map yields a "partial"
-// row that is counted. Each row mirrors the Gradle row contract: the
+// split on ',' and ';' and resolve once per configuration: any compile part
+// gives compile, runtime without compile gives runtime, and the last of
+// several `% config` operands wins. A scope the scanner cannot map, including
+// a configuration string over MaxConfigBytes, yields a "partial" row that is
+// counted. Each row mirrors the Gradle row contract: the
 // organization:name identity in name, the revision in value, an explicit
 // dependency_resolution_state of "resolved", "partial" (no revision or an Ivy
 // dynamic revision) or "unresolved" (a non-literal revision), and
@@ -25,5 +28,6 @@
 //
 // sbt build files are Scala. The parser never evaluates Scala or runs sbt,
 // reads no sibling file, and uses a single-pass bounded scanner, so work is
-// linear in the input for any line length or nesting depth.
+// linear in work and allocation for any line length, nesting depth, or
+// configuration length.
 package sbt

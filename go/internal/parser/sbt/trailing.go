@@ -19,14 +19,14 @@ func (s *scan) skipElement(rel int) bool {
 // zero (a leading '.' continues the expression). The terminator is not
 // consumed. It reports whether a `cross` modifier was seen.
 //
-// When dep is non-nil and carries no explicit configuration yet, the first
-// `% config` at depth zero is applied to it: that is the scope of
-// `("a" %% "b" % "1").cross(...) % Test`, where the configuration follows the
-// closing parenthesis. An operand that is not a string or identifier leaves
-// the scope undetermined.
+// When dep is non-nil, every `% config` at depth zero is applied to it and the
+// last one wins, as in sbt where each `moduleID % config` replaces the
+// configuration: that is the scope of `("a" %% "b" % "1").cross(...) % Test`,
+// where the configuration follows the closing parenthesis. An operand that is
+// not a string or identifier leaves the scope undetermined. Each operand is
+// resolved in work bounded by MaxConfigBytes, however long the string is.
 func (s *scan) skipTail(rel int, dep *dependency) bool {
 	sawCross := false
-	configSeen := dep == nil || dep.config != ""
 	for {
 		tok := s.peek()
 		if tok.kind == kindEOF {
@@ -40,11 +40,10 @@ func (s *scan) skipTail(rel int, dep *dependency) bool {
 			if tok.newline && !isPunct(tok, ".") {
 				return sawCross
 			}
-			if !configSeen && tok.kind == kindSymbol && tok.text == "%" {
+			if dep != nil && tok.kind == kindSymbol && tok.text == "%" {
 				s.next()
-				configSeen = true
 				if config, ok := s.readConfigOperand(); ok {
-					dep.setConfig(config)
+					dep.setConfig(resolveConfig(config))
 				} else {
 					dep.scopeKnown = false
 				}
@@ -103,7 +102,31 @@ func (s *scan) readConfig(dep *dependency) {
 		dep.scopeKnown = false
 		return
 	}
-	dep.setConfig(config)
+	dep.setConfig(resolveConfig(config))
+}
+
+// mapEffect accumulates what the `.map(...)` calls after one collection do to
+// the scope of its dependencies. It replays the calls in order without touching
+// a dependency: a later configuration replaces an earlier one and clears an
+// earlier unknown, while an unknown after a configuration keeps that
+// configuration but marks the scope undetermined.
+type mapEffect struct {
+	spec    configSpec
+	hasSpec bool
+	unknown bool
+}
+
+// apply writes the accumulated effect to the dependencies from start on, once,
+// so the work is one pass over the collection however many calls were chained.
+func (e mapEffect) apply(deps []dependency) {
+	for index := range deps {
+		if e.hasSpec {
+			deps[index].setConfig(e.spec)
+		}
+		if e.unknown {
+			deps[index].scopeKnown = false
+		}
+	}
 }
 
 // applyCollectionTail reads the method calls that follow a collection literal
@@ -111,6 +134,11 @@ func (s *scan) readConfig(dep *dependency) {
 // configuration to the dependencies appended since start. Calls that do not
 // touch the configuration (`.map(_.withSources())`, `.toSeq`) are skipped.
 func (s *scan) applyCollectionTail(start int) {
+	var effect mapEffect
+	defer func() {
+		s.mapWrites += len(s.deps) - start
+		effect.apply(s.deps[start:])
+	}()
 	for {
 		tok := s.peek()
 		switch {
@@ -121,10 +149,10 @@ func (s *scan) applyCollectionTail(start int) {
 				return
 			}
 			s.next()
-			s.collectionCall(name.text, start)
+			s.collectionCall(name.text, &effect)
 		case tok.kind == kindIdent && tok.text == "map" && !tok.newline:
 			s.next()
-			s.collectionCall(tok.text, start)
+			s.collectionCall(tok.text, &effect)
 		default:
 			return
 		}
@@ -132,7 +160,7 @@ func (s *scan) applyCollectionTail(start int) {
 }
 
 // collectionCall consumes the argument list of one collection method call.
-func (s *scan) collectionCall(name string, start int) {
+func (s *scan) collectionCall(name string, effect *mapEffect) {
 	open := s.peek()
 	if open.kind == kindOpen && open.text == "[" && !open.newline {
 		s.next()
@@ -147,14 +175,15 @@ func (s *scan) collectionCall(name string, start int) {
 		s.skipGroup()
 		return
 	}
-	s.applyMap(start)
+	s.readMap(effect)
 }
 
-// applyMap reads the body of `.map(...)` up to its closer. The plain shape
-// `_ % config` applies config to every dependency added since start. Any other
-// body that uses `%` (a lambda, a computed configuration) leaves their scope
-// undetermined. A body without `%` (`_.withSources()`) changes no scope.
-func (s *scan) applyMap(start int) {
+// readMap reads the body of `.map(...)` up to its closer and records its effect.
+// The plain shape `_ % config` sets config on every dependency of the
+// collection; the configuration is resolved here once. Any other body that uses
+// `%` (a lambda, a computed configuration) leaves their scope undetermined. A
+// body without `%` (`_.withSources()`) changes no scope.
+func (s *scan) readMap(effect *mapEffect) {
 	var shape [maxMapShapeTokens]token
 	total, depth, sawPercent := 0, 1, false
 	for depth > 0 {
@@ -182,15 +211,11 @@ func (s *scan) applyMap(start int) {
 		total++
 	}
 	if config, ok := mapShapeConfig(shape[:min(total, maxMapShapeTokens)], total); ok {
-		for index := start; index < len(s.deps); index++ {
-			s.deps[index].setConfig(config)
-		}
+		effect.spec, effect.hasSpec, effect.unknown = resolveConfig(config), true, false
 		return
 	}
 	if sawPercent {
-		for index := start; index < len(s.deps); index++ {
-			s.deps[index].scopeKnown = false
-		}
+		effect.unknown = true
 	}
 }
 
