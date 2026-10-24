@@ -83,8 +83,8 @@ recent shipped work grouped by feature area.
 
 - **An empty security-alert answer for a repository the collector did not read
   in full now reports `target_incomplete` with the reason**
-  ([#8943](https://github.com/eshu-hq/eshu/issues/8943)). Every org-scope claim
-  records, in the same transaction as its generation, whether the org stream
+  ([#8943](https://github.com/eshu-hq/eshu/issues/8943)). Every org-scope
+  generation records, in the same transaction, whether the org stream
   stopped at `max_pages` and which allowlisted repositories the fan-out left
   unread (past the 100-repository cap, rate limited, stopped, failed, or alerts
   disabled). The read path reports such a repository with the stored

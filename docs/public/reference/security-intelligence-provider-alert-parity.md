@@ -95,11 +95,12 @@ it.
 
 ### Org read state
 
-Every claim of an `org` target also writes one small record in the same
-transaction as its generation (#8943): whether the org stream stopped at
-`max_pages`, how many allowlisted repositories of the organization the target
-covers, and each repository the fan-out did not read in full with a reason. A
-repository read in full is not listed. The record lives in
+Every generation an `org` target commits also carries one small record, written
+in the same transaction (#8943): whether the org stream stopped at `max_pages`,
+how many allowlisted repositories of the organization the target covers, and
+each repository the fan-out did not read in full with a reason. A repository
+read in full is not listed. A claim whose read is unchanged commits no
+generation and writes none; the active generation's record still applies. The record lives in
 `security_alert_target_read_states` (one row per generation) and
 `security_alert_unread_repositories` (one row per unread repository). Both
 tables cascade from `scope_generations`, so generation retention removes them

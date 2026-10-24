@@ -75,9 +75,11 @@ whose fan-out outcome is not `complete` with the reason its facts carry
 (`fanoutOutcomeReason`, or `provider_open_alert_page_limit_reached` for a
 repository read that stopped at `max_pages`). `NextClaimed` hands it to
 `SourceConfig.ReadStateWriter` and sets `CollectedGeneration.StateWriter`, so
-the ingestion store writes it in the generation's commit transaction. An org
-claim writes the state whether or not the stream truncated, so the read path can
-tell a complete read from a missing record; a repository target writes none.
+the ingestion store writes it in the generation's commit transaction. Every org
+generation commit writes the state whether or not the stream truncated, so the
+read path can tell a complete read from a missing record; a claim skipped as
+unchanged commits no generation and writes none (the active generation's record
+still applies), and a repository target writes none.
 `cmd/collector-security-alerts` wires the Postgres writer
 (`storage/postgres/security/alerts/unread`). The read path reports an empty
 answer for an unread repository as `target_incomplete` with the stored reason
