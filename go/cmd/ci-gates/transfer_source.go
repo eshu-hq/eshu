@@ -123,7 +123,11 @@ func fullGoRaceSucceeded(jobs map[string]attemptJob) bool {
 // attempt ran its full-mode sentinel, Go heavy lanes, planner, and every
 // selected blocking job. Direct legacy leaf runs cannot be credited to the
 // Build Test invocation simply because their check names are green.
-func proveFullCoverage(ctx context.Context, runner ghRunner, repo string, input testedInput, selected []resolvedRequiredGate) (bool, error) {
+func proveFullCoverage(ctx context.Context, runner ghRunner, repo string, input testedInput, selected []resolvedRequiredGate, root string, paths []string, truncated bool) (bool, error) {
+	codeApplicable, err := fullCodeApplicable(root, paths, truncated)
+	if err != nil {
+		return false, err
+	}
 	jobs, err := readAttemptJobs(ctx, runner, repo, input)
 	if err != nil {
 		return false, err
@@ -131,12 +135,7 @@ func proveFullCoverage(ctx context.Context, runner ghRunner, repo string, input 
 	if !planModeProvenByJobs(jobs, "full") {
 		return false, nil
 	}
-	coreSelected, raceSelected := false, false
 	for _, gate := range selected {
-		if gate.WorkflowFile == "test.yml" {
-			coreSelected = coreSelected || gate.Job == "go-core"
-			raceSelected = raceSelected || gate.Job == "go-race-complete"
-		}
 		name := gate.Job
 		if gate.WorkflowFile != "test.yml" {
 			if _, ok := cigates.PRWorkflowStem(gate.WorkflowFile); !ok {
@@ -148,7 +147,7 @@ func proveFullCoverage(ctx context.Context, runner ghRunner, repo string, input 
 			return false, nil
 		}
 	}
-	if coreSelected && !fullGoCoreSucceeded(jobs) || raceSelected && !fullGoRaceSucceeded(jobs) {
+	if codeApplicable && (!fullGoCoreSucceeded(jobs) || !fullGoRaceSucceeded(jobs)) {
 		return false, nil
 	}
 	return true, nil

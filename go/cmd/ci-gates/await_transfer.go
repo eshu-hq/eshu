@@ -47,12 +47,12 @@ func tryProvenReuse(ctx context.Context, runner ghRunner, reg *cigates.Registry,
 	return true, transferErr
 }
 
-func writeFullProofIfCovered(ctx context.Context, runner ghRunner, repo string, selected []resolvedRequiredGate, proofFile string) error {
+func writeFullProofIfCovered(ctx context.Context, runner ghRunner, repo, root string, paths []string, truncated bool, selected []resolvedRequiredGate, proofFile string) error {
 	input, bound := currentTestedInput(ctx)
 	if !bound || input.RunStatus != "completed" || input.RunConclusion != "success" {
 		return nil
 	}
-	covered, err := proveFullCoverage(ctx, runner, repo, input, selected)
+	covered, err := proveFullCoverage(ctx, runner, repo, input, selected, root, paths, truncated)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stdout, "required-gates: full input coverage unbound (%v); ordinary success remains unmarked\n", err)
 		return nil

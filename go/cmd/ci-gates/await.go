@@ -121,7 +121,7 @@ func runAwait(args []string) error {
 		}
 		return errSmokeProven
 	}
-	return writeFullProofIfCovered(ctx, runner, *repo, resolved, *proofFile)
+	return writeFullProofIfCovered(ctx, runner, *repo, root, paths, truncated, resolved, *proofFile)
 }
 
 // selectRequiredGates resolves the blocking gates for a changed-path set to

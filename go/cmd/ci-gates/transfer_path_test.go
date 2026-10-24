@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -93,30 +95,120 @@ func TestProbeReuseBoundTestedTreeAndFullSource(t *testing.T) {
 
 func TestFullCoverageRejectsGreenTransferAggregatesAndLegacyLeaf(t *testing.T) {
 	t.Parallel()
+	root := repoRoot(t)
 	input := testedInput{RunID: 101, Attempt: 1, MergeSHA: sourceMergeSHA, MergeTree: testedTreeSHA}
 	selected := []resolvedRequiredGate{{WorkflowFile: "test.yml", Job: "go-core"}, {WorkflowFile: "test.yml", Job: "go-race-complete"}}
 	for _, tc := range []struct {
 		name         string
 		jobs         string
 		selected     []resolvedRequiredGate
+		path         string
 		wantCoverage bool
 	}{
-		{name: "full", jobs: sourceFullJobs(true, false), selected: selected, wantCoverage: true},
-		{name: "core applicable without race", jobs: sourceFullJobs(true, true), selected: selected[:1], wantCoverage: true},
-		{name: "green aggregate missing heavy shard", jobs: sourceFullJobs(true, true), selected: selected},
-		{name: "green smoke job skipped full sentinel", jobs: sourceFullJobs(false, false), selected: selected},
-		{name: "independent legacy leaf", jobs: sourceFullJobs(true, false), selected: []resolvedRequiredGate{{WorkflowFile: "build.yml", Job: "build"}}},
-		{name: "docs-only selected caller", jobs: docsFullJobs(), selected: []resolvedRequiredGate{{WorkflowFile: "docs.yml", Job: "docs"}}, wantCoverage: true},
-		{name: "selected docs caller failed", jobs: strings.Replace(docsFullJobs(), `"name":"call-docs / docs","status":"completed","conclusion":"success"`, `"name":"call-docs / docs","status":"completed","conclusion":"failure"`, 1), selected: []resolvedRequiredGate{{WorkflowFile: "docs.yml", Job: "docs"}}},
+		{name: "full", jobs: sourceFullJobs(true, false), selected: selected, path: "go/cmd/ci-gates/await.go", wantCoverage: true},
+		{name: "core applicable without race row", jobs: sourceFullJobs(true, true), selected: selected[:1], path: "go/cmd/ci-gates/await.go"},
+		{name: "green aggregate missing heavy shard", jobs: sourceFullJobs(true, true), selected: selected, path: "go/cmd/ci-gates/await.go"},
+		{name: "green smoke job skipped full sentinel", jobs: sourceFullJobs(false, false), selected: selected, path: "go/cmd/ci-gates/await.go"},
+		{name: "independent legacy leaf", jobs: sourceFullJobs(true, false), selected: []resolvedRequiredGate{{WorkflowFile: "build.yml", Job: "build"}}, path: ".github/workflows/build.yml"},
+		{name: "docs-only selected caller", jobs: docsFullJobs(), selected: []resolvedRequiredGate{{WorkflowFile: "docs.yml", Job: "docs"}}, path: "docs/public/guide.md", wantCoverage: true},
+		{name: "selected docs caller failed", jobs: strings.Replace(docsFullJobs(), `"name":"call-docs / docs","status":"completed","conclusion":"success"`, `"name":"call-docs / docs","status":"completed","conclusion":"failure"`, 1), selected: []resolvedRequiredGate{{WorkflowFile: "docs.yml", Job: "docs"}}, path: "docs/public/guide.md"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runner := &mappedGHRunner{routes: []mappedGHRoute{{match: "actions/runs/101/attempts/1/jobs", output: tc.jobs}}}
-			covered, err := proveFullCoverage(context.Background(), runner, "eshu-hq/eshu", input, tc.selected)
+			covered, err := proveFullCoverage(context.Background(), runner, "eshu-hq/eshu", input, tc.selected, root, []string{tc.path}, false)
 			if err != nil || covered != tc.wantCoverage {
 				t.Fatalf("coverage=%v err=%v, want %v", covered, err, tc.wantCoverage)
 			}
 		})
 	}
+}
+
+func TestFullCoverageRequiresRaceForActualCodeSelection(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+	reg, err := cigates.Load(filepath.Join(root, "specs/ci-gates.v1.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := testedInput{RunID: 101, Attempt: 1, MergeSHA: sourceMergeSHA, MergeTree: testedTreeSHA}
+	for _, path := range []string{"go/cmd/ci-gates/await.go", "apps/console/src/App.tsx"} {
+		t.Run(path, func(t *testing.T) {
+			selected, err := selectRequiredGates(reg, root, []string{path}, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, gate := range selected {
+				if gate.Job == "go-race-complete" {
+					t.Fatal("fixture path unexpectedly selects the narrow race registry row")
+				}
+			}
+			jobs := successfulSelectedJobs(t, sourceFullJobs(true, true), selected)
+			runner := &mappedGHRunner{routes: []mappedGHRoute{{match: "actions/runs/101/attempts/1/jobs", output: jobs}}}
+			covered, err := proveFullCoverage(context.Background(), runner, "eshu-hq/eshu", input, selected, root, []string{path}, false)
+			if err != nil || covered {
+				t.Fatalf("code path %s minted full proof without race shard: covered=%v err=%v", path, covered, err)
+			}
+		})
+	}
+}
+
+func TestFullCodeApplicabilityUsesTrustedFilter(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+	for _, tc := range []struct {
+		path string
+		want bool
+	}{
+		{path: "README.md"},
+		{path: "docs/public/guide.md"},
+		{path: "go/cmd/ci-gates/README.md", want: true},
+		{path: "apps/console/src/App.tsx", want: true},
+	} {
+		got, err := fullCodeApplicable(root, []string{tc.path}, false)
+		if err != nil || got != tc.want {
+			t.Fatalf("code applicability for %s = %v, %v; want %v", tc.path, got, err, tc.want)
+		}
+	}
+	changedRoot := t.TempDir()
+	workflow := filepath.Join(changedRoot, ".github/workflows/test.yml")
+	if err := os.MkdirAll(filepath.Dir(workflow), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(workflow, []byte("jobs:\n  changes:\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          predicate-quantifier: every\n          filters: |\n            code: ['**']\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fullCodeApplicable(changedRoot, []string{"README.md"}, true); err == nil {
+		t.Fatal("changed code policy minted full proof even for truncated paths")
+	}
+}
+
+func successfulSelectedJobs(t *testing.T, raw string, selected []resolvedRequiredGate) string {
+	t.Helper()
+	var pages []struct {
+		Jobs []attemptJob `json:"jobs"`
+	}
+	if err := json.Unmarshal([]byte(raw), &pages); err != nil {
+		t.Fatal(err)
+	}
+	seen := make(map[string]bool)
+	for _, job := range pages[0].Jobs {
+		seen[job.Name] = true
+	}
+	for _, gate := range selected {
+		name := gate.Job
+		if gate.WorkflowFile != "test.yml" {
+			name = calledCheckName(gate.WorkflowFile, gate.Job)
+		}
+		if !seen[name] {
+			pages[0].Jobs = append(pages[0].Jobs, attemptJob{Name: name, Status: "completed", Conclusion: "success", Attempt: 1})
+			seen[name] = true
+		}
+	}
+	encoded, err := json.Marshal(pages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(encoded)
 }
 
 func TestTryProvenReuseRejectsFailedTargetCaller(t *testing.T) {
