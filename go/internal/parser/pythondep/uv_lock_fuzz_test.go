@@ -189,3 +189,27 @@ func TestParseUVLockUnintendedConstructsNeverResolve(t *testing.T) {
 		}
 	}
 }
+
+// TestParseUVLockSeededCredentialsNeverReachARow generates userinfo with
+// delimiter bytes inside the password and asserts the secret text never
+// appears in any persisted row field, whatever the source kind.
+func TestParseUVLockSeededCredentialsNeverReachARow(t *testing.T) {
+	t.Parallel()
+
+	rng := rand.New(rand.NewSource(88210))
+	delimiters := []string{"#", "?", "@", ":", "%40", "!", "$", "&", "=", ";"}
+	keys := []string{"git", "url", "registry"}
+	for c := 0; c < 1500; c++ {
+		secret := "SECRET" + delimiters[rng.Intn(len(delimiters))] + "TOKEN" + delimiters[rng.Intn(len(delimiters))] + "ZZ"
+		tail := []string{"", "/x.git", "/simple", "/a/b.tar.gz?sig=SECRETQ#SECRETF"}[rng.Intn(4)]
+		src := fmt.Sprintf("version = 1\n\n[[package]]\nname = \"x\"\nversion = \"1.0\"\nsource = { %s = \"https://user:%s@host.example%s\" }\n",
+			keys[rng.Intn(len(keys))], secret, tail)
+		for _, row := range parseUVLockBytes([]byte(src)).Rows {
+			for field, value := range row {
+				if text, ok := value.(string); ok && strings.Contains(text, "SECRET") {
+					t.Fatalf("case %d: secret reached row field %q = %q for source:\n%s", c, field, text, src)
+				}
+			}
+		}
+	}
+}

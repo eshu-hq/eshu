@@ -85,7 +85,7 @@ func parseUVSource(value []byte) (uvSource, bool) {
 func classifyUVSource(key, value string) (uvSource, bool) {
 	switch key {
 	case "registry", "url":
-		if strings.ContainsAny(value, " \t") {
+		if strings.ContainsAny(value, " \t") || !schemeOrPlainPath(key, value) {
 			return uvSource{}, false
 		}
 		url, redacted := stripURLUserinfo(value)
@@ -99,11 +99,15 @@ func classifyUVSource(key, value string) (uvSource, bool) {
 		url, dropped := dropURLQueryFragment(url)
 		return uvSource{ConfigKind: kind, SourceKind: sourceKind, URL: url, Redacted: redacted || dropped}, true
 	case "git":
-		if strings.ContainsAny(value, " \t") {
+		if strings.ContainsAny(value, " \t") || !strings.Contains(value, "://") {
+			// scp-style "user:secret@host:path" has no scheme, so userinfo
+			// cannot be told from a host; fail closed.
 			return uvSource{}, false
 		}
-		base, ref, dropped := splitGitSource(value)
-		url, redacted := stripURLUserinfo(base)
+		// Strip userinfo before splitting off the query and fragment so a raw
+		// "#" or "?" inside a password cannot leave a credential prefix behind.
+		clean, redacted := stripURLUserinfo(value)
+		url, ref, dropped := splitGitSource(clean)
 		return uvSource{ConfigKind: configKindVCS, SourceKind: "vcs", URL: url, Ref: ref, Redacted: redacted || dropped}, true
 	default: // path, directory, editable, virtual
 		if strings.Contains(value, "://") {
@@ -117,6 +121,16 @@ func classifyUVSource(key, value string) (uvSource, bool) {
 		}
 		return uvSource{ConfigKind: kind, SourceKind: "path", URL: value}, true
 	}
+}
+
+// schemeOrPlainPath accepts a URL with a scheme, or for a registry a plain
+// relative or absolute path. A scheme-less value that holds "@" or ":" could
+// carry userinfo this reader cannot separate from a host, so it is refused.
+func schemeOrPlainPath(key, value string) bool {
+	if strings.Contains(value, "://") {
+		return true
+	}
+	return key == "registry" && !strings.ContainsAny(value, "@:")
 }
 
 // dropURLQueryFragment removes a `?query` and `#fragment` from value and
@@ -144,7 +158,11 @@ func stripURLUserinfo(value string) (string, bool) {
 	}
 	authorityStart := schemeEnd + 3
 	authorityEnd := len(value)
-	if index := strings.IndexAny(value[authorityStart:], "/?#"); index >= 0 {
+	// The authority is cut at the first slash only. Cutting at "?" or "#" as
+	// well would follow the URL standard, but a client that does not would
+	// read a raw "#" or "?" inside a password as part of the userinfo; taking
+	// the wider span can only remove more, never leak a credential prefix.
+	if index := strings.IndexByte(value[authorityStart:], '/'); index >= 0 {
 		authorityEnd = authorityStart + index
 	}
 	at := strings.LastIndexByte(value[authorityStart:authorityEnd], '@')
