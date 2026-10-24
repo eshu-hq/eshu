@@ -1,5 +1,5 @@
 go 1.21
 
-use ./deps/gomod
+use ./manifests/gomod
 
-replace github.com/acme/shared => ./deps/shared
+replace github.com/acme/shared => ./manifests/shared

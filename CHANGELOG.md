@@ -19,6 +19,20 @@ recent shipped work grouped by feature area.
   the registry does not admit a listed manifest at L2 or pin file at L1. Six
   names the registry lacks today are allow-listed with an issue each.
 
+### Content-version fixtures now reach discovery
+
+- **The six dependency-manifest fixtures of the content-version pin test are
+  now indexed by the pin digest** ([#8905](https://github.com/eshu-hq/eshu/issues/8905)).
+  They sat under a directory named `deps`, which discovery prunes, so the gomod,
+  NuGet, Node and Python dependency parsers had no fixture the digest could see
+  and a change to their output moved no digest. The fixtures moved to
+  `manifests/`, a new guard resolves the fixture with the collector's own
+  discovery and fails on any parsed file it skips, and the pinned stream grew
+  from 293 to 311 facts. `gitGenerationContentVersion` moves from
+  `git-collector.v9` to `git-collector.v10`, so each repository re-collects once
+  when its reconciliation sweep next comes due. Collector output for real
+  repositories does not change.
+
 ### Service story defaults to a bounded handles view over MCP
 
 - **`get_service_story` defaults to a bounded `handles` view**
