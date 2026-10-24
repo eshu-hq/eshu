@@ -4,16 +4,21 @@
 package factschema
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
+	"strconv"
 )
 
-// jsonNumberToInt64 coerces a JSONB-native number (float64 from encoding/json,
-// or an in-memory int/int32/int64) into an int64, matching how the previous
-// json.Unmarshal path filled int64 / *int64 size fields. It fails closed on a
-// non-integral or out-of-range value, mirroring encoding/json.
+// jsonNumberToInt64 coerces a number-preserving json.Number, a JSONB-native
+// float64, or an in-memory int/int32/int64 into an int64. json.Number uses
+// exact decimal value semantics; the historical input types retain their
+// previous behavior.
 func jsonNumberToInt64(raw any) (int64, error) {
 	switch n := raw.(type) {
+	case json.Number:
+		return parseJSONInteger(string(n), 64)
 	case float64:
 		if math.Trunc(n) != n {
 			return 0, fmt.Errorf("want integer, got non-integral number %v", n)
@@ -38,15 +43,21 @@ func jsonNumberToInt64(raw any) (int64, error) {
 	}
 }
 
-// jsonNumberToFloat64 coerces a JSONB-native number (float64 from
-// encoding/json, or an in-memory int/int32/int64) into a float64, matching how
-// the previous json.Unmarshal path filled float64 / *float64 score fields (for
-// example vulnerability.cve's CVSSScore). Unlike jsonNumberToInt64/Int32 this
-// never rejects a non-integral value — a float field's whole point is
-// fractional precision — but it still fails closed on a non-numeric type
-// rather than silently zeroing the field.
+// jsonNumberToFloat64 coerces a number-preserving json.Number, a JSONB-native
+// float64, or an in-memory float32/int/int32/int64 into a float64. json.Number
+// must have valid JSON number grammar and a finite float64 value. Historical
+// input types retain their previous behavior.
 func jsonNumberToFloat64(raw any) (float64, error) {
 	switch n := raw.(type) {
+	case json.Number:
+		if _, ok := scanJSONNumber(string(n)); !ok {
+			return 0, fmt.Errorf("invalid JSON number")
+		}
+		value, err := n.Float64()
+		if err != nil || math.IsInf(value, 0) || math.IsNaN(value) {
+			return 0, fmt.Errorf("JSON number out of float64 range")
+		}
+		return value, nil
 	case float64:
 		return n, nil
 	case float32:
@@ -62,9 +73,8 @@ func jsonNumberToFloat64(raw any) (float64, error) {
 	}
 }
 
-// jsonNumberToInt32 coerces a JSONB-native number (float64 from encoding/json,
-// or an in-memory int/int32/int64) into an int32, matching how the previous
-// json.Unmarshal path filled *int32 port/hop-limit fields.
+// jsonNumberToInt32 coerces a number-preserving json.Number, a JSONB-native
+// float64, or an in-memory int/int32/int64 into an int32.
 //
 // It fails closed: a non-integral float (for example a port of 8080.5) or a
 // value outside the int32 range is rejected with an error rather than silently
@@ -74,6 +84,9 @@ func jsonNumberToFloat64(raw any) (float64, error) {
 // number does not fit the target int32.
 func jsonNumberToInt32(raw any) (int32, error) {
 	switch n := raw.(type) {
+	case json.Number:
+		value, err := parseJSONInteger(string(n), 32)
+		return int32(value), err
 	case float64:
 		if math.Trunc(n) != n {
 			return 0, fmt.Errorf("want integer, got non-integral number %v", n)
@@ -99,23 +112,204 @@ func jsonNumberToInt32(raw any) (int32, error) {
 	}
 }
 
-// jsonNumberToInt coerces a JSONB-native number (float64 from encoding/json,
-// or an in-memory int/int32/int64) into a platform int, matching how the
-// previous json.Unmarshal path filled *int fields (for example secretsiam/v1's
-// VaultACLPolicyRule.PathDepth and VaultKVMetadata.PathDepth: a Vault path's
-// segment depth, always a small non-negative count).
+// jsonNumberToInt coerces a number-preserving json.Number, a JSONB-native
+// float64, or an in-memory int/int32/int64 into a platform int (for example
+// secretsiam/v1's VaultACLPolicyRule.PathDepth).
 //
-// It fails closed on BOTH a non-integral float (a depth of 3.5) and an
-// out-of-range one by delegating to jsonNumberToInt64, matching
-// jsonNumberToInt32/Int64 and encoding/json's UnmarshalTypeError behavior. A
+// The json.Number path checks the platform width; historical inputs delegate
+// to jsonNumberToInt64 and retain their prior behavior. A
 // float64 can be integral yet still exceed int64 range (for example 1e300):
 // int(n) on such a value is implementation-defined and would silently project
 // a wrong depth, so it must dead-letter as input_invalid instead. int is
 // 64-bit on every Eshu build target, so the int64->int cast is lossless.
 func jsonNumberToInt(raw any) (int, error) {
+	if number, ok := raw.(json.Number); ok {
+		value, err := parseJSONInteger(string(number), strconv.IntSize)
+		return int(value), err
+	}
 	n, err := jsonNumberToInt64(raw)
 	if err != nil {
 		return 0, err
 	}
 	return int(n), nil
+}
+
+// numberShape records only bounded indices and an exponent clamped to token
+// length. Clamping cannot change an int64 result: beyond that limit a nonzero
+// mantissa is necessarily out of range or fractional.
+type numberShape struct {
+	mantissaEnd int
+	fracDigits  int
+	exponent    int
+}
+
+// scanJSONNumber validates the complete JSON number grammar. It keeps scanning
+// after exponent saturation, so malformed suffixes cannot hide behind overflow.
+func scanJSONNumber(s string) (numberShape, bool) {
+	var shape numberShape
+	i := 0
+	if i < len(s) && s[i] == '-' {
+		i++
+	}
+	if i == len(s) {
+		return shape, false
+	}
+	if s[i] == '0' {
+		i++
+	} else if s[i] >= '1' && s[i] <= '9' {
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			i++
+		}
+	} else {
+		return shape, false
+	}
+	if i < len(s) && s[i] == '.' {
+		i++
+		start := i
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			i++
+		}
+		if i == start {
+			return shape, false
+		}
+		shape.fracDigits = i - start
+	}
+	shape.mantissaEnd = i
+	if i < len(s) && (s[i] == 'e' || s[i] == 'E') {
+		i++
+		negative := false
+		if i < len(s) && (s[i] == '+' || s[i] == '-') {
+			negative = s[i] == '-'
+			i++
+		}
+		start := i
+		// A token this long cannot be represented in memory; the guard keeps
+		// the cap arithmetic safe even at the maximum theoretical string size.
+		cap := len(s)
+		if cap <= math.MaxInt-20 {
+			cap += 20
+		}
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			digit := int(s[i] - '0')
+			if shape.exponent < cap {
+				if shape.exponent > (cap-digit)/10 {
+					shape.exponent = cap
+				} else {
+					shape.exponent = shape.exponent*10 + digit
+				}
+			}
+			i++
+		}
+		if i == start {
+			return shape, false
+		}
+		if negative {
+			shape.exponent = -shape.exponent
+		}
+	}
+	return shape, i == len(s)
+}
+
+// parseJSONInteger converts a mathematically integral JSON decimal without
+// float rounding, exponent expansion, or storage proportional to token length.
+// A second linear scan identifies significant digits; only up to 19 digits
+// plus a sign are copied before ParseInt checks the target width.
+func parseJSONInteger(s string, bits int) (int64, error) {
+	shape, ok := scanJSONNumber(s)
+	if !ok {
+		return 0, fmt.Errorf("invalid JSON number")
+	}
+	first, last, digits := -1, -1, 0
+	for i := 0; i < shape.mantissaEnd; i++ {
+		if s[i] < '0' || s[i] > '9' {
+			continue
+		}
+		if s[i] != '0' {
+			if first < 0 {
+				first = digits
+			}
+			last = digits
+		}
+		digits++
+	}
+	if first < 0 {
+		return 0, nil
+	}
+	shift := -math.MaxInt
+	if shape.exponent >= -math.MaxInt+shape.fracDigits {
+		shift = shape.exponent - shape.fracDigits
+	}
+	trailing := digits - 1 - last
+	if shift < -trailing {
+		return 0, fmt.Errorf("non-integral JSON number")
+	}
+	significant := last - first + 1
+	if significant > 19 || shift > 19-significant-trailing {
+		return 0, fmt.Errorf("JSON number out of int%d range", bits)
+	}
+	zeros := trailing + shift
+	var buf [21]byte
+	pos := 0
+	if s[0] == '-' {
+		buf[pos] = '-'
+		pos++
+	}
+	for i, digit := 0, 0; i < shape.mantissaEnd; i++ {
+		if s[i] < '0' || s[i] > '9' {
+			continue
+		}
+		if digit >= first && digit <= last {
+			buf[pos] = s[i]
+			pos++
+		}
+		digit++
+	}
+	for i := 0; i < zeros; i++ {
+		buf[pos] = '0'
+		pos++
+	}
+	value, err := strconv.ParseInt(string(buf[:pos]), 10, bits)
+	if err != nil {
+		return 0, fmt.Errorf("JSON number out of int%d range", bits)
+	}
+	return value, nil
+}
+
+// assignNumberSlice handles the integer collections that contain preserved
+// JSON numbers. Other collection shapes retain the legacy whole-value decoder.
+// Legacy members use their original JSON conversion, including null-to-zero.
+// The destination is updated only after every fresh element succeeds.
+func assignNumberSlice(field reflect.Value, raw any) (error, bool) {
+	kind := field.Type().Elem().Kind()
+	if kind != reflect.Int && kind != reflect.Int32 {
+		return nil, false
+	}
+	values, ok := raw.([]any)
+	if !ok {
+		return nil, false
+	}
+	containsNumber := false
+	for _, value := range values {
+		if _, ok := value.(json.Number); ok {
+			containsNumber = true
+			break
+		}
+	}
+	if !containsNumber {
+		return nil, false
+	}
+	result := reflect.MakeSlice(field.Type(), len(values), len(values))
+	for i, value := range values {
+		var err error
+		if _, ok := value.(json.Number); ok {
+			err = assignField(result.Index(i), value)
+		} else {
+			err = jsonRoundTripValue(result.Index(i), value)
+		}
+		if err != nil {
+			return fmt.Errorf("element %d: %w", i, err), true
+		}
+	}
+	field.Set(result)
+	return nil, true
 }

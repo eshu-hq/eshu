@@ -227,32 +227,27 @@ func (s CrossplaneSatisfiedByRedriveSweeper) Sweep(
 	return s.runClaimedFanOut(ctx, xrdScopeID, xrdGenerationID, fencingToken, keys)
 }
 
-// sweepJoinKey pages through every target scope matching one XRD (group,
-// claim_kind) join key, enqueuing/reopening each newly-seen target's
-// SATISFIED_BY intent exactly once (seenTargets dedupes across every join
-// key in the same generation, since one Claim scope can match the same or a
-// different XRD in the same generation only once per re-drive). superseded
-// reports the fence (a) check firing mid-sweep, so the caller stops
-// processing further join keys.
+// sweepJoinKey pages through target scopes matching one XRD (group,
+// claim_kind) join key and durably schedules each newly seen target once.
+// seenTargets deduplicates scopes across join keys in this generation.
+// superseded reports the active-generation fence firing mid-sweep, so the
+// caller stops processing further join keys.
 //
-// This function does NOT write crossplane_satisfied_by_redrive_target_ledger
-// -- it only enqueues/reopens the target's materialization intent.
-// ReplayCrossplaneSatisfiedByMaterialization is enqueue-only: it returns as
-// soon as the work item is durably queued, strictly BEFORE the reducer
-// handler runs, so writing the ledger here would record "satisfied" the
-// instant the intent is enqueued, not when the SATISFIED_BY edge is actually
-// materialized. Because reducer auto-retry-on-dead-letter is disabled by
-// default (cmd/reducer/poison_liveness_wiring.go), an intent that enqueues
-// successfully but later dead-letters (handler bug, infra outage beyond
-// retry budget) would leave the ledger PERMANENTLY marking that (target
-// scope, XRD identity) satisfied -- reopening the exact false-negative
-// window #5476 exists to close, silently and irrecoverably. The ledger is
-// instead written by
-// crossplane.CrossplaneSatisfiedByMaterializationHandler.recordRedriveLedger,
-// strictly after the handler commits an edge. The window between enqueue
-// and handler completion where a second sweep might re-enqueue the same
-// target is safe: ReplayCrossplaneSatisfiedByMaterialization's
-// reopen-or-enqueue is idempotent on the target's own per-scope EntityKey.
+// ReplayCrossplaneSatisfiedByMaterialization uses the stable queue item's
+// atomic replay UPDATE: succeeded work reopens, while claimed or running
+// work keeps its lease and carries replay debt. A missing item is enqueued;
+// a concurrent insert winner receives a fresh replay UPDATE. If a terminal
+// or missing item remains unscheduled, replay reports false. False is an
+// error here, leaving the sweep claimed for catch-up or operator repair
+// instead of completing with a silently lost replay.
+//
+// Scheduling returns before the reducer handler runs and does not establish
+// that a SATISFIED_BY edge exists. This function must never write the target
+// ledger: an enqueued intent can later fail or dead-letter without committing
+// an edge. CrossplaneSatisfiedByMaterializationHandler.recordRedriveLedger
+// owns that write, strictly after confirmed edge materialization. Repeated
+// scheduling uses the same per-scope EntityKey and cannot create a second
+// stable work item.
 func (s CrossplaneSatisfiedByRedriveSweeper) sweepJoinKey(
 	ctx context.Context,
 	xrdScopeID string,
@@ -295,8 +290,12 @@ func (s CrossplaneSatisfiedByRedriveSweeper) sweepJoinKey(
 			if _, seen := seenTargets[target.scopeID]; seen {
 				continue
 			}
-			if _, err := s.Replayer.ReplayCrossplaneSatisfiedByMaterialization(ctx, target.scopeID, target.generationID); err != nil {
+			scheduled, err := s.Replayer.ReplayCrossplaneSatisfiedByMaterialization(ctx, target.scopeID, target.generationID)
+			if err != nil {
 				return false, fmt.Errorf("replay crossplane satisfied-by materialization for %q: %w", target.scopeID, err)
+			}
+			if !scheduled {
+				return false, fmt.Errorf("replay crossplane satisfied-by materialization for %q: stable work item is not schedulable", target.scopeID)
 			}
 			seenTargets[target.scopeID] = struct{}{}
 		}

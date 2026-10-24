@@ -116,8 +116,12 @@ All three fences are required by the design and enforced in
    between enqueue and handler completion where a second sweep might
    re-enqueue the same target is safe (not a regression): the reopen-or-enqueue
    in `ReplayCrossplaneSatisfiedByMaterialization` is idempotent on the
-   target's own per-scope `EntityKey`, so redundant re-enqueuing costs a
-   no-op, never a duplicate materialization. Once a target scope has an
+   target's own per-scope `EntityKey`, so redundant scheduling cannot create
+   a second work item. A running target keeps its lease and receives durable
+   replay debt; its ACK returns the same item to pending for one fresh pass.
+   If the stable item is dead-lettered or otherwise terminal, scheduling
+   returns false and the sweep remains claimed for catch-up or operator repair.
+   Once a target scope has an
    actual edge committed for a (group, claim_kind) identity, re-running its
    materialization again for the SAME identity is a deterministic no-op (a
    pure function of that target's own unchanged facts plus the same
@@ -172,6 +176,13 @@ returns promptly on context cancellation, all against a fake
   scopeID`) the projector's own trigger uses. A divergent per-XRD-generation
   identity would break the queue's natural dedupe and could double-process a
   target scope.
+- A replay of a claimed or running target must set
+  `cross_scope_replay_required` without changing its lease. A successful ACK
+  then returns that same work item to pending. A dead-lettered target is not
+  reopened by the sweep; false scheduling is an error and cannot complete the
+  XRD sweep. The catch-up loop retries after lease expiry, while the
+  live-hook `sweep_error` counter and structured error log expose the stalled
+  target; periodic catch-up logs its error.
 - `CrossplaneRedriveStateStore.MarkCompleted` is fenced by the bumped
   `claim_fencing_token`, NOT by `claimed_by`. `Owner` is a static
   per-process-class string shared by every replica and the catch-up scanner,
@@ -187,21 +198,22 @@ Low-cardinality only, no per-scope/per-XRD label:
 `sweep_error`), `eshu_dp_crossplane_redrive_targets_enqueued_total`,
 `eshu_dp_crossplane_redrive_pages_processed_total`.
 
-No-Observability-Change: this move changes no statement, predicate, label,
-or emission path; every counter above is produced by the same code at the
-same call sites.
+Observability Evidence: an unschedulable target makes Sweep or SweepBatch
+return an error. The projector's live hook logs the error and increments its
+existing `sweep_error` counter; periodic catch-up logs the error. Successful
+replay uses the existing completed/targets/pages counters.
 
 ## Performance evidence
 
-No-Regression Evidence: every statement moves byte-identically and every
-method keeps its receiver, so the committed theory-proof
-(`query_plan_live_test.go`, 4,000 target scopes x 50 `K8sResource` facts,
-OLD `Parallel Seq Scan` 104.482 ms vs NEW partial-index scan 6.932 ms with
-row-set equivalence 0/0) and the concurrency proof (two independent
-connections racing `ClaimExact` converge to exactly one winner via
-`FOR UPDATE SKIP LOCKED`) and the crash-recovery proof (fencing-token
-completion, reclaim-after-expiry) hold unchanged. The live tests that prove
-them move with the code.
+Performance Evidence: #8948's active-Claim replay changes two statements
+(a failed succeeded-only UPDATE and a conflicting INSERT) into one indexed
+stable-ID UPDATE that records replay debt. In 50 paired single-row PostgreSQL
+16 samples, the old incorrect path measured p50 287.226 µs and the fixed
+path p50 1.290555 ms. A concurrent insert winner takes a bounded third
+statement to update the winning row. The target-discovery query, claim fan-out,
+indexes, and worker count are unchanged. No repo-scale throughput claim follows.
+See [the #8948 evidence](../../../../../docs/internal/evidence/8948-crossplane-redrive-replay.md)
+for direct live interleavings and the 501-target paged sweep measurement.
 
 ## Related docs
 
