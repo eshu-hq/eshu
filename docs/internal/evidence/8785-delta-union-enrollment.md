@@ -59,7 +59,7 @@ earlier runtime-base change. Hosted PR and scheduled delivery, plus deployed
 QA, are NOT_CHECKED. Keep #8785 open for that evidence.
 
 
-## Latest-base local replay
+## Local replay before the runtime merge wave
 
 At `a4698cd87ed66d0e7e174ae041f21832f05d0bfe`, based on main
 `34922d077381bbef2b44cb70f518c12bd3f8b24a`, the same two roots passed
@@ -76,3 +76,23 @@ workflow uses twelve minutes. The compact receipt is
 are in `/tmp/eshu-7533-drive/8785-latest-local/`. This replay establishes
 local acceptance on the latest base. Hosted delivery and deployed QA remain
 NOT_CHECKED, so #8785 stays open.
+
+
+## Post-merge local acceptance
+
+Main's supply-index, publishes-projection, and parser-admission changes were
+integrated before a fresh replay at
+`59258b81216035ce4badf50df553c1fdd9a4e0ea`, based on
+`4d78b8327311c56baa2fe54c9b59b56ba6d6935f`. Both exact roots ran and passed
+once with race detection, with zero skips, failures, or unexpected roots.
+The existing strict event verifier exited 0. The same pinned PostgreSQL 18.6
+Bookworm and Neo4j 2026.08.1 images were used, and both owned containers
+were removed with exit 0. The source and event hashes were independently
+rechecked after the run.
+
+The observed Go-process wall was 24.32 seconds, and the complete fixture run
+was 37.97 seconds. These are functional observations, not a speed comparison
+with earlier bases. `8785-latest-local-proof-summary.json` records this
+checkpoint; its complete raw receipt and events are retained under
+`/tmp/eshu-7533-drive/8785-postmerge-local/`. The earlier runs remain
+historical evidence. Hosted delivery and deployed QA remain NOT_CHECKED.
