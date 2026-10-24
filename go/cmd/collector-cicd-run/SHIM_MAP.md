@@ -25,6 +25,7 @@ fails closed (`"has no registered provider source"`).
 | truncation cap cut (`max_runs` ceiling, artifact caps) | `partial` + `Status{warning}` + truncated `ci.warning` | commit capped evidence |
 | transient transport / retryable provider status | `retryable` | release claim, bounded retry |
 | terminal (auth-denied at claim scope, contract violation) | `terminal` | terminal-fail claim |
+| empty generation (`ok=false`), nothing to write | `unchanged` | complete claim, no fact writes |
 | cancellation | (no result) | stop, no commit |
 
 Duplicate delivery stays safe: stable keys are deterministic

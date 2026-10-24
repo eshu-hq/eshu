@@ -266,6 +266,9 @@ func TestExtractionPrepParityFixtureAgreement(t *testing.T) {
 	if string(config.Instance.CollectorKind) != fixture.Expected.CollectorKind {
 		t.Errorf("CollectorKind = %q, want %q", config.Instance.CollectorKind, fixture.Expected.CollectorKind)
 	}
+	if got := newClaimID(); !strings.HasPrefix(got, fixture.Expected.ClaimPrefix) {
+		t.Errorf("newClaimID() = %q, want prefix %q from parity fixture", got, fixture.Expected.ClaimPrefix)
+	}
 	githubScopes := map[string]bool{}
 	for _, target := range config.GitHubSource.Targets {
 		githubScopes[target.ScopeID] = true

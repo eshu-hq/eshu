@@ -57,7 +57,7 @@ branches, PR #8936, all other collectors, org repos, deployment.
 | File(s) | Role |
 |---|---|
 | `ghactionsruntime/source.go` (`ClaimedSource.NextClaimed`) | Claim-scoped GitHub Actions fetch: claim-to-target bind by `scope_id`, generation reuse on retry, `ci_cd_run` kind validation |
-| `ghactionsruntime/source_target.go` | Target validation; `max_runs` default 10, hard cap 100 (`source.go:26-36`) |
+| `ghactionsruntime/source_target.go` | Target validation; `max_runs` default 10, hard cap 100 (`ghactionsruntime/source.go:26-38`, enforced in `source_target.go:44-45`) |
 | `ghactionsruntime/source_telemetry.go` | Spans `telemetry.SpanCICDRunObserve` / `SpanCICDRunFetch`; shared `eshu_dp_ci_cd_run_*` instruments with `provider=github_actions` |
 | `ghactionsruntime/source_deployments.go` | Deployment/status envelope path (`ci.deployment_event`) |
 | `ghactionsruntime/pending_watermark.go`, `run_watermark.go` | #5429 cross-cycle run-collection gap guard (GitHub only) |
