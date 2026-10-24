@@ -41,6 +41,22 @@ const (
 	// persisted the org read state (#8943). It is a flag, never a repository
 	// name.
 	AttrSecurityAlertOrgReadTruncated = "eshu.security_alert.org_read_truncated"
+	// AttrSecurityAlertFanoutStartOffset is the span attribute key recording
+	// the position, among the target organization's allowlisted repositories
+	// in allowlist order, where this claim's fan-out started reading (#8946).
+	// It is an index, never a repository name.
+	AttrSecurityAlertFanoutStartOffset = "eshu.security_alert.org_fanout.start_offset"
+	// AttrSecurityAlertFanoutNextOffset is the span attribute key recording the
+	// position where the next claim's fan-out starts (#8946). It equals the
+	// start offset in the normal steady state: a claim that read every
+	// repository (0), a rate limit, or a start settled behind a repository whose
+	// read stops the fan-out on every claim.
+	AttrSecurityAlertFanoutNextOffset = "eshu.security_alert.org_fanout.next_offset"
+	// AttrSecurityAlertFanoutLapped is the span attribute key recording whether
+	// the org target is in a lap after this claim (#8946): a failed read at the
+	// last allowlist position returned the start to the top, where it stays until
+	// a claim reads every repository or that repository leaves the allowlist.
+	AttrSecurityAlertFanoutLapped = "eshu.security_alert.org_fanout.lapped"
 )
 
 // Org-scope security-alert fan-out outcomes (#8805), recorded on the existing

@@ -317,4 +317,8 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 230 (#8943) creates the collector-owned security-alert org read
 	// state and its unread-repository child rows; DDL only, no backfill.
 	"security_alert_target_read_states",
+	// Migration 232 (#8946) adds the org fan-out start columns to that read-state
+	// row (fanout_start_repository, fanout_next_repository,
+	// fanout_lap_repository); an ALTER only, no backfill. 231 belongs to #8830.
+	"security_alert_fanout_cursor",
 }

@@ -29,7 +29,36 @@ answer for an unread repository, and
 Each affected fact names why in `collection_incomplete_reasons`. A non-zero
 `outcome` other than `complete` means some allowlisted repositories of an org
 target are still incomplete; the `security_alert.observe` span carries the
-`eshu.security_alert.org_fanout.*` counts for the claim.
+`eshu.security_alert.org_fanout.*` counts for the claim, plus
+`eshu.security_alert.org_fanout.start_offset`, `.next_offset`, and `.lapped`: the
+position, in allowlist order among the organization's allowlisted repositories,
+where this claim started and where the next claim starts, and whether a lap is
+in progress after this claim (#8946). The offsets are indexes, never repository
+names. The walk stops at the first failing repository and labels the repositories
+behind it `org_repository_fanout_stopped`. The start moves forward to the
+repository after a failed read (`.next_offset` greater than `.start_offset`).
+A failed read at the last position closes the lap: `.lapped` turns true and the
+start returns to the top (0 and 0) and stays there until a claim reads every
+repository or that last repository leaves the allowlist. Equal offsets are the
+normal steady state: 0 and 0 with `.lapped` false is a claim that read every
+repository or a target over the cap; a non-zero equal pair is a start settled
+past a failing repository (`.stopped` true, `.rate_limited` false); 0 and 0 with
+`.lapped` true is a target settled at the top. A start settles after at most one
+stored generation per failing repository plus one, and the committer then
+skips. With `.rate_limited` true the start stays where it was, so a standing
+rate limit repeats the same window: raise the instance's `scan_interval` (the
+parity reference gives the formula). The positions are stored as repository
+names on the generation's read state row (`fanout_start_repository`,
+`fanout_next_repository`, `fanout_lap_repository`; NULL means the top and no
+lap), which is where an operator reads them: a lap in progress is
+`fanout_next_repository IS NULL AND fanout_lap_repository IS NOT NULL` on the
+newest generation's row. `skipped_cap` on the fan-out counter that is non-zero
+on every claim of one target means the target has more than 100 same-org
+allowlisted repositories and always reads the same first 100; the collector
+also logs one `security_alert.org_fanout_over_cap` warning at startup with the
+repository count, the cap, and the `scope_id`. Split such a target into org
+targets of at most 100 same-org repositories (see the parity reference; #9019
+tracks doing it automatically).
 
 `eshu_dp_security_alert_fetch_duration_seconds` records the org read as one
 `success` sample taken when that read finishes, before the fan-out. Each

@@ -374,6 +374,11 @@ tests:
     class: postgres_ci
     reason: "#8244 disposable PostgreSQL 18 proof that a package.json under a test, tests, fixtures, testdata, or examples directory is not a package producer (a real manifest of the same name still anchors, substring look-alikes still anchor), and that the one fixture pattern evaluates identically in PostgreSQL ~ and Go regexp on a path corpus including the long s; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/alert_fanout_cursor_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8946 disposable PostgreSQL 18 proofs that the security-alert org fan-out cursor commits with its generation, is read from the newest pending-or-active generation, stays put on a rollback or an unchanged-generation skip, is replaced on a replay, and survives two generations of one scope committing in parallel from the same start; each proof creates and drops its own database from the bootstrap schema; about 1.5 to 6 s per subtest on PostgreSQL 18.6 locally (database bootstrap dominates); wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/alert_read_state_commit_live_test.go
     tag: ~
     class: postgres_ci

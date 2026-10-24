@@ -74,12 +74,73 @@ repository of that organization through
   banned, and the next read would use the same credential.
 - At most 100 repositories are read per claim, and a repository that answers
   `alerts_disabled` counts toward that cap. Later allowlisted repositories
-  keep their org-window facts with `org_repository_fanout_cap_reached`. Each
-  claim starts again at the top of the allowlist; #8946 tracks
-  rotating the start.
+  keep their org-window facts with `org_repository_fanout_cap_reached`.
+- **Where the next claim starts (#8946).** The walk stops at the first
+  failing repository and labels the repositories behind it
+  `org_repository_fanout_stopped`; the failing one is `org_repository_read_failed`.
+  For an allowlist of at most 100 same-org repositories each claim starts at a
+  cursor, a repository name kept per org target, and the start moves forward
+  through the allowlist, to the repository after a failed read. The next claim
+  therefore reads the repositories behind the failing one, wraps around, and
+  retries the failing one last. A failed read at the last position closes the
+  lap: the start returns to the top, which is where it stayed before #8946, and
+  stays there until a claim reads every repository or that last repository
+  leaves the allowlist. A claim that reads every repository resets the start to
+  the top and ends the lap. A rate limit leaves the start where the claim
+  began, because the limit is provider-wide and the repository is not at fault.
+  With several persistent failures the start settles after at most one stored
+  generation per failing repository plus one, and the committer then skips every
+  unchanged generation. The settled read set is never smaller than the one
+  start-at-top reads. A repository behind the settled start stays unread until
+  the failing repository is fixed or removed; fix or remove every repository
+  labeled `org_repository_read_failed`, in order. A cursor or lap naming a
+  repository that left the allowlist is ignored, so removing a failing last
+  entry resumes the forward walk.
+- **A target over 100 same-org repositories always reads the same first 100.**
+  Repositories past position 100 never get a per-repository read from that
+  target and keep `org_repository_fanout_cap_reached`. A rotating window was
+  tried and withdrawn: a generation is a snapshot, so a window that changes on
+  every claim stores a generation per claim (120 an hour at the default 30
+  second cadence), each retained for the superseded-generation window, and
+  re-projects the whole org scope each time. The collector logs one
+  `security_alert.org_fanout_over_cap` warning per such target at startup, with
+  the repository count, the cap, and the `scope_id`.
+- **To read every repository, split the target.** Configure org targets of at
+  most 100 same-org repositories each, with distinct `scope_id` values and
+  disjoint allowlists (the configuration validation rejects only a duplicate
+  `scope_id`), or use repository targets. Each target reads its allowlist in
+  full on every claim, commits only when its data changes, and stays complete.
+  A read for one repository takes the best covering target, so a repository
+  that one target reads in full reads `complete` even when another target
+  covering it has not. Splitting an allowlist automatically is tracked in #9019.
+- **Request budget.** One claim costs `max_pages` x (1 + same-org allowlist
+  size, at most 100) requests. At the default 30 second bucket a 100-repository
+  target with `max_pages` 1 spends about 12,100 requests an hour, above GitHub's
+  documented 5,000 an hour for a personal access token and most App
+  installations, and below the 15,000 an hour of GitHub Enterprise Cloud; on a
+  5,000 budget most of each hour is spent rate limited. Set the instance's
+  `scan_interval` to at least `max_pages` x (1 + min(N, 100)) x 3600 / budget
+  seconds: 73 seconds for N = 100, `max_pages` 1, and 5,000 an hour.
+- **Where the cursor lives.** `fanout_start_repository`,
+  `fanout_next_repository`, and `fanout_lap_repository` on the org read state
+  row (see [Org read state](#org-read-state)) name the repository this
+  generation's fan-out started at, the repository the next claim starts at, and
+  the last-position repository that closed a lap; NULL means the top and no lap.
+  A lap in progress is `fanout_next_repository IS NULL AND fanout_lap_repository
+  IS NOT NULL` on the newest generation's row. They commit in the generation's
+  own transaction, so they survive a restart and move only when a generation
+  commits. A claim whose generation is rolled back, or skipped because nothing
+  changed, leaves them where they were. The next claim reads the position of the
+  newest pending or active generation of the target. A target with no
+  generation, or whose newest generation was committed before the cursor
+  existed, starts at the top. A failed read of the cursor does not start at the
+  top: it fails the claim as a retryable storage failure that the claim record
+  shows as `security alert fan-out cursor read from postgres failed` (operation
+  `read_fanout_cursor`), so the operator looks at Postgres, not at GitHub.
 
 One claim sends at most `max_pages` x (1 + min(allowlisted repositories in the
-organization, 100)) alert-page requests. Under `github_app` auth each listing
+organization, 100)) alert-page requests, whichever repositories the cursor
+selects. Under `github_app` auth each listing
 call also mints one installation token. Allowlisted repositories owned by
 another account are never read through an org target. If every allowlisted
 repository belongs to another account, a truncated org read fans out nothing and
