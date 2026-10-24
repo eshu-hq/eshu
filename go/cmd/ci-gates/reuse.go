@@ -164,6 +164,13 @@ func probeReuse(ctx context.Context, runner ghRunner, repo string, pr int, headS
 			if !fullBacked || source.MergeTree != target.MergeTree {
 				continue
 			}
+			messagesEqual, err := sameReuseMessages(ctx, runner, repo, source, target)
+			if err != nil {
+				return reuseVerdict{}, err
+			}
+			if !messagesEqual {
+				continue
+			}
 			return reuseVerdict{
 				Reuse:       true,
 				SourceSHA:   candidate,
