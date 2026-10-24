@@ -339,8 +339,17 @@ func ExtractPackageManifestDependencies(envelopes []facts.Envelope) []PackageMan
 // in go/internal/content/dependency_identity.go is section-keyed), so every
 // consumption reader goes through this one exclusion: no consumption decision,
 // no DEPENDS_ON intent, and no security-alert or supply-chain evidence.
+//
+// The flag is read the way the Postgres sidecar (IsCentralVersionDeclaration)
+// and the readiness SQL (NotCentralVersionDeclarationSQL) read it, so all three
+// readers agree on every payload shape; see centralFlagText.
 func isCentralVersionDeclaration(payload map[string]any) bool {
-	return packageManifestMetadataBoolValue(payload, "central_version_declaration")
+	text := centralFlagText(payload, "central_version_declaration")
+	if text == "" {
+		metadata, _ := payload["entity_metadata"].(map[string]any)
+		text = centralFlagText(metadata, "central_version_declaration")
+	}
+	return strings.EqualFold(text, "true")
 }
 
 func packageSourceRepositoriesByID(repositories []packageSourceRepository) map[string]packageSourceRepository {

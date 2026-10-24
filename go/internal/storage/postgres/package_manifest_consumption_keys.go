@@ -82,6 +82,8 @@ func isPackageManifestConsumptionFact(envelope facts.Envelope) bool {
 // entity_metadata, ASCII-trimmed, and matches "true" case-insensitively.
 // NotCentralVersionDeclarationSQL is the SQL form; the two classify every
 // payload alike, which a table test and a live test pin on the same shapes.
+// The reducer's isCentralVersionDeclaration (go/internal/reducer/packages/
+// correlation) mirrors this rule without importing it and mirrors the table.
 func IsCentralVersionDeclaration(payload map[string]any) bool {
 	text := centralFlagText(payload, "central_version_declaration")
 	if text == "" {
