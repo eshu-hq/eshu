@@ -207,7 +207,10 @@ answer never reads `complete`; only the reason is broader than its name.
 
 Every non-complete row classified from a successful collector-state read sets
 `truth.freshness.cause=missing_collector_completion`, whose next check is
-`list_collectors`. `<class>` is the class the claim runner stored on the
+`list_collectors`, except the unread-repository row (see [Org read state](#org-read-state)):
+the collector ran healthy and the facts are current, so that row is `derived` and
+`fresh` with no cause. Key on `coverage.state` and `truth.level`, not on freshness
+alone. `<class>` is the class the claim runner stored on the
 terminal work item: `auth_denied`, `not_found`, `rate_limited`, or `terminal`
 from the provider; `retryable` when the retry budget ran out on a transient
 provider failure; `attempt_budget_exhausted` when the budget ran out on a cause
