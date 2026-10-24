@@ -17,7 +17,7 @@ const (
 )
 
 func testedRunJSON(head, refs string, attempt int) string {
-	return `{"id":101,"name":"Build Test","path":".github/workflows/test.yml","event":"pull_request","status":"completed","conclusion":"success","head_sha":"` + head + `","run_attempt":` + strconv.Itoa(attempt) + `,"pull_requests":[{"number":42}],"referenced_workflows":` + refs + `}`
+	return `{"id":101,"name":"Build Test","path":".github/workflows/test.yml","repository":{"full_name":"eshu-hq/eshu"},"event":"pull_request","status":"completed","conclusion":"success","head_sha":"` + head + `","run_attempt":` + strconv.Itoa(attempt) + `,"pull_requests":[{"number":42}],"referenced_workflows":` + refs + `}`
 }
 
 func testedRefsJSON(merge string) string {
@@ -55,6 +55,7 @@ func TestReadTestedInputRejectsUnboundEvidence(t *testing.T) {
 	}{
 		{name: "stale attempt", run: testedRunJSON(reuseHeadSHA, testedRefsJSON(testedMergeSHA), 2), commit: testedCommitJSON(testedMergeSHA, reuseHeadSHA), attempt: 1},
 		{name: "wrong head", run: testedRunJSON(reuseOldSHA, testedRefsJSON(testedMergeSHA), 1), commit: testedCommitJSON(testedMergeSHA, reuseHeadSHA), attempt: 1},
+		{name: "wrong repo", run: strings.Replace(testedRunJSON(reuseHeadSHA, testedRefsJSON(testedMergeSHA), 1), `"full_name":"eshu-hq/eshu"`, `"full_name":"other/repo"`, 1), commit: testedCommitJSON(testedMergeSHA, reuseHeadSHA), attempt: 1},
 		{name: "missing refs", run: testedRunJSON(reuseHeadSHA, `[]`, 1), commit: testedCommitJSON(testedMergeSHA, reuseHeadSHA), attempt: 1},
 		{name: "wrong parent", run: testedRunJSON(reuseHeadSHA, testedRefsJSON(testedMergeSHA), 1), commit: testedCommitJSON(testedMergeSHA, reuseOldSHA), attempt: 1},
 		{name: "wrong returned sha", run: testedRunJSON(reuseHeadSHA, testedRefsJSON(testedMergeSHA), 1), commit: testedCommitJSON(testedBaseSHA, reuseHeadSHA), attempt: 1},

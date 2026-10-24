@@ -68,12 +68,8 @@ func runAwait(args []string) error {
 	if err != nil {
 		return err
 	}
-	// Tree-identical reuse (#8617 step 4b): a reword-only force-push lands
-	// here with a new head SHA over a byte-identical tree. If a previous
-	// head of this same PR already proved that tree green on every
-	// required context, the verdict transfers and no gate needs to run
-	// again for THIS status. The probe is an optimization only: its own
-	// failure falls through to the normal await, never to a verdict.
+	// Reuse requires a bound caller input and a current full-backed verdict.
+	// Probe failure falls through to the ordinary await.
 	if transferPRPathsSafe(paths, truncated) {
 		if terminal, err := tryProvenReuse(ctx, runner, reg, root, *repo, *pr, *headSHA, *pollInterval, *proofFile); terminal {
 			return err
@@ -100,7 +96,10 @@ func runAwait(args []string) error {
 		if smokeErr != nil {
 			_, _ = fmt.Fprintf(os.Stdout, "required-gates: smoke probe failed (%v); awaiting full selection\n", smokeErr)
 		} else if evidence.Applied {
-			if subset := smokeSubset(reg, resolved); !smokeHasFastWork(subset) {
+			mode, modeErr := smokeModeProven(ctx, runner, *repo)
+			if modeErr != nil || !mode {
+				_, _ = fmt.Fprintf(os.Stdout, "required-gates: caller planner did not record smoke mode (%v); awaiting full selection\n", modeErr)
+			} else if subset := smokeSubset(reg, resolved); !smokeHasFastWork(subset) {
 				_, _ = fmt.Fprintln(os.Stdout, "required-gates: smoke subset empty (all-heavy selection); awaiting full selection")
 			} else {
 				smoke = true

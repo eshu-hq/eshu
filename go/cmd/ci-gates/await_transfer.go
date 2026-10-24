@@ -25,6 +25,10 @@ func bindAwaitTarget(ctx context.Context, runner ghRunner, repo string, pr int, 
 }
 
 func tryProvenReuse(ctx context.Context, runner ghRunner, reg *cigates.Registry, root, repo string, pr int, headSHA string, pollInterval time.Duration, proofFile string) (bool, error) {
+	input, bound := currentTestedInput(ctx)
+	if !bound || input.RunStatus != "completed" || input.RunConclusion != "success" {
+		return false, nil
+	}
 	verdict, err := probeReuseForAwait(ctx, runner, reg, repo, pr, headSHA)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stdout, "required-gates: reuse probe failed (%v); awaiting gates normally\n", err)
@@ -37,7 +41,6 @@ func tryProvenReuse(ctx context.Context, runner ghRunner, reg *cigates.Registry,
 	if !transferred {
 		return transferErr != nil, transferErr
 	}
-	input, _ := currentTestedInput(ctx)
 	if err := writeTransferProof(proofFile, transferProof{Mode: "reuse", Input: input, FullRootSHA: verdict.FullRootSHA}); err != nil {
 		return true, err
 	}
@@ -46,7 +49,7 @@ func tryProvenReuse(ctx context.Context, runner ghRunner, reg *cigates.Registry,
 
 func writeFullProofIfCovered(ctx context.Context, runner ghRunner, repo string, selected []resolvedRequiredGate, proofFile string) error {
 	input, bound := currentTestedInput(ctx)
-	if !bound {
+	if !bound || input.RunStatus != "completed" || input.RunConclusion != "success" {
 		return nil
 	}
 	covered, err := proveFullCoverage(ctx, runner, repo, input, selected)
@@ -63,4 +66,12 @@ func writeFullProofIfCovered(ctx context.Context, runner ghRunner, repo string, 
 func writeSmokeProof(ctx context.Context, proofFile string, smoke smokeEvidence) error {
 	input, _ := currentTestedInput(ctx)
 	return writeTransferProof(proofFile, transferProof{Mode: "smoke", Input: input, FullRootSHA: smoke.FullRootSHA})
+}
+
+func smokeModeProven(ctx context.Context, runner ghRunner, repo string) (bool, error) {
+	input, bound := currentTestedInput(ctx)
+	if !bound || input.RunStatus != "completed" || input.RunConclusion != "success" {
+		return false, nil
+	}
+	return planModeProven(ctx, runner, repo, input, "smoke")
 }

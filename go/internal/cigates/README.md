@@ -168,11 +168,11 @@ observable value.
 Two consequences worth knowing. The description is now REQUIRED rather than
 merely bound to a variable: a cancelled gate and a broken aggregation both
 publish `error`, so with the descriptions gone nothing separates them and
-deleting the cancelled arm would be invisible. Descriptions are distinct without pinning ordinary prose. The one exception
-is reuse code 14: its v2 full-backed sentence is exact because smoke accepts
-that sentence as provenance. Rewording it without changing the consumer would
-silently disable smoke, and publishing the old generic sentence would make an
-unproven reused result appear eligible.
+deleting the cancelled arm would be invisible. Descriptions are distinct
+without pinning ordinary prose. Transfer codes 14 and 15 publish the exact
+v3 proof file from the Go awaiter; the observed publisher test asserts those
+values. Missing transfer proof posts `error`. Ordinary unbound full results
+can still pass without a v3 marker.
 
 What the harness does not cover is written down on `EvaluatePublisher` itself:
 the shell flags it runs under, the environment it does not model, the `gh`

@@ -65,7 +65,7 @@ func readTestedInput(ctx context.Context, runner ghRunner, repo string, pr int, 
 	if err := json.Unmarshal(raw, &run); err != nil {
 		return testedInput{}, fmt.Errorf("decode Build Test run %d: %w", runID, err)
 	}
-	if run.ID != runID || run.RunAttempt != attempt || run.Name != "Build Test" ||
+	if run.ID != runID || run.RunAttempt != attempt || run.Repository.FullName != repo || run.Name != "Build Test" ||
 		run.Path != ".github/workflows/test.yml" || run.Event != eventPullRequest || run.HeadSHA != headSHA {
 		return testedInput{}, fmt.Errorf("build test run %d does not match target invocation", runID)
 	}

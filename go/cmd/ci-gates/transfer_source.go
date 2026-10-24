@@ -74,12 +74,43 @@ func successfulFullModeStep(jobs map[string]attemptJob, jobName string) bool {
 	return modeSteps == 1
 }
 
-func fullGoJobsSucceeded(jobs map[string]attemptJob) bool {
-	// The Go job is also green in smoke mode, where its composite runs only
-	// a selected subset. Its own full-mode step distinguishes execution.
-	if !successfulFullModeStep(jobs, "go-core") {
+func planModeProvenByJobs(jobs map[string]attemptJob, mode string) bool {
+	if !successfulAttemptJob(jobs, "pr-plan") {
 		return false
 	}
+	name := "Record " + mode + " plan mode"
+	matched := 0
+	for _, step := range jobs["pr-plan"].Steps {
+		if step.Name == name {
+			matched++
+			if step.Status != "completed" || step.Conclusion != "success" {
+				return false
+			}
+		}
+		for _, other := range []string{"full", "reuse", "smoke"} {
+			if other != mode && step.Name == "Record "+other+" plan mode" && step.Conclusion == "success" {
+				return false
+			}
+		}
+	}
+	return matched == 1
+}
+
+func planModeProven(ctx context.Context, runner ghRunner, repo string, input testedInput, mode string) (bool, error) {
+	jobs, err := readAttemptJobs(ctx, runner, repo, input)
+	if err != nil {
+		return false, err
+	}
+	return planModeProvenByJobs(jobs, mode), nil
+}
+
+func fullGoCoreSucceeded(jobs map[string]attemptJob) bool {
+	// The Go job is also green in smoke mode, where its composite runs only
+	// a selected subset. Its own full-mode step distinguishes execution.
+	return successfulFullModeStep(jobs, "go-core")
+}
+
+func fullGoRaceSucceeded(jobs map[string]attemptJob) bool {
 	for _, name := range []string{"go-race (1)", "go-race (2)", "go-race (3)", "go-race (4)"} {
 		if !successfulAttemptJob(jobs, name) {
 			return false
@@ -97,13 +128,14 @@ func proveFullCoverage(ctx context.Context, runner ghRunner, repo string, input 
 	if err != nil {
 		return false, err
 	}
-	if !successfulFullModeStep(jobs, "pr-plan") {
+	if !planModeProvenByJobs(jobs, "full") {
 		return false, nil
 	}
-	goSelected := false
+	coreSelected, raceSelected := false, false
 	for _, gate := range selected {
-		if gate.WorkflowFile == "test.yml" && (gate.Job == "go-core" || gate.Job == "go-race-complete") {
-			goSelected = true
+		if gate.WorkflowFile == "test.yml" {
+			coreSelected = coreSelected || gate.Job == "go-core"
+			raceSelected = raceSelected || gate.Job == "go-race-complete"
 		}
 		name := gate.Job
 		if gate.WorkflowFile != "test.yml" {
@@ -116,7 +148,7 @@ func proveFullCoverage(ctx context.Context, runner ghRunner, repo string, input 
 			return false, nil
 		}
 	}
-	if goSelected && !fullGoJobsSucceeded(jobs) {
+	if coreSelected && !fullGoCoreSucceeded(jobs) || raceSelected && !fullGoRaceSucceeded(jobs) {
 		return false, nil
 	}
 	return true, nil
@@ -176,6 +208,9 @@ func fullBackedSource(ctx context.Context, runner ghRunner, repo string, pr int,
 	rootSHA := candidate
 	if proof.Mode == "reuse" {
 		rootSHA = proof.FullRootSHA
+		if rootSHA == candidate {
+			return transferProof{}, testedInput{}, false, nil
+		}
 		// A reuse attempt must not masquerade as a full execution. Source
 		// aggregates can pass, but the heavy jobs must have skipped.
 		for _, job := range []string{"go-core", "go-race"} {
@@ -183,40 +218,44 @@ func fullBackedSource(ctx context.Context, runner ghRunner, repo string, pr int,
 				return transferProof{}, testedInput{}, false, nil
 			}
 		}
-		if successfulFullModeStep(jobs, "pr-plan") {
+		if !planModeProvenByJobs(jobs, "reuse") {
 			return transferProof{}, testedInput{}, false, nil
 		}
-	} else if !successfulFullModeStep(jobs, "pr-plan") {
+	} else if !planModeProvenByJobs(jobs, "full") {
 		return transferProof{}, testedInput{}, false, nil
 	}
-	rootStatus, found, err := latestPublisherStatus(ctx, runner, repo, rootSHA)
-	if err != nil || !found || rootStatus.State != "success" {
-		return transferProof{}, testedInput{}, false, err
-	}
-	rootProof, ok := parseTransferProof(rootStatus.Description)
-	if !ok || rootProof.Mode != "full" {
-		return transferProof{}, testedInput{}, false, nil
-	}
-	rootInput, err := readTestedInput(ctx, runner, repo, pr, rootSHA, rootProof.Input.RunID, rootProof.Input.Attempt)
-	if err != nil || rootInput.MergeSHA != rootProof.Input.MergeSHA || rootInput.MergeTree != input.MergeTree || rootInput.RunStatus != "completed" || rootInput.RunConclusion != "success" {
-		return transferProof{}, testedInput{}, false, err
-	}
-	rootHead, err := gitCommit(ctx, runner, repo, rootSHA)
-	if err != nil {
-		return transferProof{}, testedInput{}, false, err
-	}
-	candidateHead, err := gitCommit(ctx, runner, repo, candidate)
-	if err != nil {
-		return transferProof{}, testedInput{}, false, err
-	}
-	if rootHead.Tree.SHA != candidateHead.Tree.SHA {
-		return transferProof{}, testedInput{}, false, nil
-	}
+	rootInput, rootJobs := input, jobs
 	if proof.Mode == "reuse" {
-		rootJobs, err := readAttemptJobs(ctx, runner, repo, rootInput)
-		if err != nil || !successfulFullModeStep(rootJobs, "pr-plan") {
+		rootStatus, found, err := latestPublisherStatus(ctx, runner, repo, rootSHA)
+		if err != nil || !found || rootStatus.State != "success" {
 			return transferProof{}, testedInput{}, false, err
 		}
+		rootProof, ok := parseTransferProof(rootStatus.Description)
+		if !ok || rootProof.Mode != "full" {
+			return transferProof{}, testedInput{}, false, nil
+		}
+		rootInput, err = readTestedInput(ctx, runner, repo, pr, rootSHA, rootProof.Input.RunID, rootProof.Input.Attempt)
+		if err != nil || rootInput.MergeSHA != rootProof.Input.MergeSHA || rootInput.MergeTree != input.MergeTree || rootInput.RunStatus != "completed" || rootInput.RunConclusion != "success" {
+			return transferProof{}, testedInput{}, false, err
+		}
+		rootHead, err := gitCommit(ctx, runner, repo, rootSHA)
+		if err != nil {
+			return transferProof{}, testedInput{}, false, err
+		}
+		candidateHead, err := gitCommit(ctx, runner, repo, candidate)
+		if err != nil {
+			return transferProof{}, testedInput{}, false, err
+		}
+		if rootHead.Tree.SHA != candidateHead.Tree.SHA {
+			return transferProof{}, testedInput{}, false, nil
+		}
+		rootJobs, err = readAttemptJobs(ctx, runner, repo, rootInput)
+		if err != nil {
+			return transferProof{}, testedInput{}, false, err
+		}
+	}
+	if !planModeProvenByJobs(rootJobs, "full") {
+		return transferProof{}, testedInput{}, false, nil
 	}
 	proof.FullRootSHA = rootSHA
 	proof.Input = input

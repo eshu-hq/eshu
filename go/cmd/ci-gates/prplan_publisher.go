@@ -95,6 +95,15 @@ func transferProvenReuse(ctx context.Context, runner ghRunner, root, repo string
 			return false, err
 		}
 	}
+	input, bound := currentTestedInput(ctx)
+	if !bound {
+		return false, nil
+	}
+	mode, err := planModeProven(ctx, runner, repo, input, "reuse")
+	if err != nil || !mode {
+		_, _ = fmt.Fprintln(os.Stdout, "required-gates: caller planner did not record reuse mode; transfer refused")
+		return false, err
+	}
 	_, _ = fmt.Fprintf(os.Stdout, "required-gates: reuse source=%s tree=%s (%s)\n", verdict.SourceSHA, verdict.Tree, verdict.Reason)
 	if err := verifyPRHead(ctx, runner, repo, pr, headSHA); err != nil {
 		return false, err

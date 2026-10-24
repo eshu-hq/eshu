@@ -161,16 +161,14 @@ ci-gates reuse \
   --head-sha <exact pr head sha>
 ```
 
-Prints `reuse`, `source_sha`, `tree`, and `reason` lines. `reuse=true` means a
-previous head of the same PR (the force-pushed-away head, or the first parent)
-has a byte-identical git tree, a success verdict on every required status
-context, and a full run or validated v2 reuse provenance, so a workflow may
-transfer that verdict instead of re-running gates
-(#8617). Anything short of that — different tree, a missing or non-success
-context, an old generic reuse or smoke provenance, no candidate — prints
-`reuse=false` and exits 0; a probe error exits
-non-zero and callers must treat it as no reuse. The probe is bounded to two
-minutes.
+Prints `reuse`, `source_sha`, `source_full_sha`, HEAD `tree`, target run and
+attempt, tested merge SHA and tree, and `reason`. Native `GITHUB_RUN_ID` and
+`GITHUB_RUN_ATTEMPT` bind the probe to its exact Build Test caller. Reuse
+requires equal HEAD and tested merge trees plus still-current green v3 source
+and direct full-root proof. Generic/v2 and independently scheduled legacy
+leaves cannot transfer; they bootstrap through an ordinary full run. Probe
+uncertainty returns `reuse=false` or an error; both run full. The bound is two
+minutes. The publisher retains human run links in the status `target_url`.
 
 A transfer needs a consumer that understands it: the required-gates
 publisher runs from the default branch, so the pull request that introduces
@@ -178,20 +176,17 @@ a transfer outcome cannot itself ride one. Its landing head must run the
 gates in full, and transfers activate for later heads once the consumer
 has merged.
 
-The clean-rebase smoke probe compares the previous and current head trees
-directly, including path, mode, type, and object SHA. It refuses an
-overlapping PR path, a gate-definition change, or an incomplete recursive
-tree. A full run or validated v2 reuse may supply the prior verdict; a
-smoke result and historical generic reuse cannot start another smoke
-transfer. The recursive trees are fetched only after that prior verdict
-has been verified.
+Smoke compares the union of HEAD and immutable tested-merge endpoint deltas,
+including path, mode, type, and object SHA. PR-path overlap, protected
+definitions, incomplete recursive trees, and unbound source inputs run full.
+Only a v3 full or directly rooted v3 reuse may seed smoke; smoke never does.
 
 ### pr-plan
 
-`ci-gates pr-plan --registry specs/ci-gates.v1.yaml --repo-root . --repo eshu-hq/eshu --pr 42 --head-sha <sha>` emits JSON schema v1 (`mode`, `head_sha`, `source_sha`, `tree`, `workflows`, `jobs`, `gates`, `reason`).
+`ci-gates pr-plan --registry specs/ci-gates.v1.yaml --repo-root . --repo eshu-hq/eshu --pr 42 --head-sha <sha>` emits JSON schema v2. It retains HEAD `tree` and adds `target_run_id`, `target_run_attempt`, `merge_sha`, `merge_tree`, and direct `source_full_sha` alongside mode, selection, and reason.
 Use one trusted default-branch checkout for the registry, workflows, and optional `specs/ci-pr-workflows.d/*.{yml,yaml}` callable-leaf fragments; each fragment uses schema v1 and must match its callable file. Distinct workflow files cannot share a `call-<stem>` identity.
 `full` selects every applicable synchronize workflow and local job ID, including non-gate jobs; opened-only and labeled-only workflows stay outside it.
-`reuse` selects zero leaf jobs only after full-backed v2 proof. `smoke` emits the proved `source_sha` and current `tree`, fast gate IDs, dependency-closed fast jobs, and the two transfer-aware Go complete jobs; uncertain ownership, changed definitions, and truncated paths fall back to `full`.
+`reuse` selects zero leaf jobs only after bound v3 proof. `smoke` emits the bound source, fast gate IDs, dependency-closed fast jobs, and transfer-aware Go complete jobs; uncertain ownership, changed definitions, and truncated paths fall back to `full`.
 Missing or malformed output fails; the command reports a plan but does not dispatch it.
 The awaiter accepts direct checks and the fixed `Build Test / call-<workflow filename stem> / <check>` alias for `.yml` or `.yaml` leaves. Both identities must be green if both ran. Caller results bind to the current attempt of `.github/workflows/test.yml` for the requested PR and head; missing run ownership stays pending. Once fragments deploy, the awaiter requires `Build Test / pr-plan`, including before a reuse transfer, and rejects a trusted `test.yml` that cannot produce that check.
 For fork runs whose GitHub REST `pull_requests` field is explicitly empty, caller ownership requires every referenced workflow to be local and bound to the requested PR merge ref and one immutable merge commit whose second parent is the requested head. Missing or inconsistent evidence cannot satisfy a called check.
@@ -204,8 +199,14 @@ ci-gates await \
   --repo-root /trusted/default-branch/checkout \
   --repo eshu-hq/eshu \
   --pr 42 \
-  --head-sha <exact-pr-head>
+  --head-sha <exact-pr-head> \
+  --target-run-id <Build-Test-run-id> \
+  --target-run-attempt <attempt> \
+  --proof-file <trusted-output-path>
 ```
+
+The publisher issues v3 status only after verifying that exact caller attempt
+and its selected work; legacy full success can remain unbound.
 
 Used by the trusted `required-gates-complete` publisher. It verifies the pull
 request head, fetches every changed file, selects all matching blocking gates,
