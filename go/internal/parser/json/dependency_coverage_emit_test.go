@@ -168,7 +168,7 @@ func parseGradleFixture(t *testing.T, filename, body string) (map[string]any, er
 func parseSbtFixture(t *testing.T, filename, body string) (map[string]any, error) {
 	t.Helper()
 	path := writeJSONTestFile(t, filename, body)
-	return sbt.Parse(path, false, shared.Options{})
+	return sbt.Parse("", path, false, shared.Options{})
 }
 
 func parseRubyFixture(t *testing.T, filename, body string) (map[string]any, error) {

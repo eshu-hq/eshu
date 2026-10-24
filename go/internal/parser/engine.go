@@ -444,7 +444,7 @@ func (e *Engine) parseDefinition(
 	case "gradle":
 		return e.parseGradle(resolvedPath, isDependency, options)
 	case "sbt":
-		return e.parseSbt(resolvedPath, isDependency, options)
+		return e.parseSbt(repoRoot, resolvedPath, isDependency, options)
 	case "groovy":
 		return e.parseGroovy(resolvedPath, isDependency, options)
 	case "maven":

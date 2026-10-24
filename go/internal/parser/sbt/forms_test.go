@@ -115,7 +115,7 @@ func TestParseIdentifierChainAllocationCeiling(t *testing.T) {
 	var before, after runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&before)
-	payload, err := Parse(path, false, shared.Options{})
+	payload, err := Parse(filepath.Dir(path), path, false, shared.Options{})
 	runtime.ReadMemStats(&after)
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)

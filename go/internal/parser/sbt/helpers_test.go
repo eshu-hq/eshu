@@ -18,7 +18,7 @@ func parseSource(t *testing.T, body string) map[string]any {
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}
-	payload, err := Parse(path, false, shared.Options{})
+	payload, err := Parse(filepath.Dir(path), path, false, shared.Options{})
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}

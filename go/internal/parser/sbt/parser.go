@@ -4,7 +4,7 @@
 package sbt
 
 import (
-	"path/filepath"
+	"path"
 	"sort"
 	"strings"
 
@@ -49,7 +49,9 @@ const (
 // Parse never evaluates sbt or Scala. It reads only file bytes. A row is
 // resolved only when its whole statement matches the closed grammar in
 // README.md; any other statement yields partial rows that are counted.
-func Parse(path string, isDependency bool, options shared.Options) (map[string]any, error) {
+// repoRoot is the repository root path is read under; the meta-build flag is
+// judged from path relative to it.
+func Parse(repoRoot, path string, isDependency bool, options shared.Options) (map[string]any, error) {
 	source, err := shared.ReadSource(path)
 	if err != nil {
 		return nil, err
@@ -58,7 +60,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 
 	payload := shared.BasePayload(path, LanguageName, isDependency)
 	scan := newScan(text)
-	scan.metaBuild = isMetaBuildPath(path)
+	scan.metaBuild = isMetaBuildPath(repoRoot, path)
 	scan.run()
 	rows, state := scan.finish()
 	payload["variables"] = rows
@@ -418,12 +420,22 @@ func (s *scan) applyResets() {
 	}
 }
 
-// isMetaBuildPath reports whether path is a build.sbt directly inside a
-// directory named `project`. sbt reads `<root>/project/*.sbt` as the
-// meta-build that configures the build itself, and never reads a
-// `project/build.sbt` below a subproject as part of the build.
-func isMetaBuildPath(path string) bool {
-	return filepath.Base(filepath.Dir(path)) == "project"
+// isMetaBuildPath reports whether file is a build.sbt directly inside a
+// directory named `project`, judged on its path relative to repoRoot so the
+// directory a repository is cloned into never counts (#8997). sbt reads
+// `<root>/project/*.sbt` as the meta-build that configures the build itself;
+// a nested `project/build.sbt` is flagged too, fail-closed. Both paths are
+// read with '/' and '\' as separators. A file outside repoRoot, or an empty
+// repoRoot, is judged on its full path, which can only flag more.
+func isMetaBuildPath(repoRoot, file string) bool {
+	rel := strings.ReplaceAll(file, `\`, "/")
+	if root := strings.TrimRight(strings.ReplaceAll(repoRoot, `\`, "/"), "/"); root != "" {
+		if inside, ok := strings.CutPrefix(rel, root+"/"); ok {
+			rel = inside
+		}
+	}
+	dir := path.Dir(rel)
+	return dir != "." && dir != "/" && path.Base(dir) == "project"
 }
 
 // validField reports whether text can be a coordinate field.

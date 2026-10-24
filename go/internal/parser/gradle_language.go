@@ -22,7 +22,8 @@ func (e *Engine) parseGradle(path string, isDependency bool, options Options) (m
 // emit the same dependency row contract. sbt is a Scala DSL, so the parser
 // reads literal string forms only and reports non-literal declarations as
 // bounded counts instead of evaluating Scala or resolving settings across
-// files.
-func (e *Engine) parseSbt(path string, isDependency bool, options Options) (map[string]any, error) {
-	return sbtparser.Parse(path, isDependency, sharedOptions(options))
+// files. repoRoot decides the meta-build flag from the path relative to the
+// repository.
+func (e *Engine) parseSbt(repoRoot, path string, isDependency bool, options Options) (map[string]any, error) {
+	return sbtparser.Parse(repoRoot, path, isDependency, sharedOptions(options))
 }

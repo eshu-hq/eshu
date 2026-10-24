@@ -26,7 +26,7 @@ func measureParse(t *testing.T, body string) (payload map[string]any, bytes, mal
 	runtime.GC()
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	payload, err := Parse(path, false, shared.Options{})
+	payload, err := Parse(filepath.Dir(path), path, false, shared.Options{})
 	runtime.ReadMemStats(&after)
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
