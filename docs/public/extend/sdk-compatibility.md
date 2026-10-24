@@ -64,8 +64,8 @@ use `@latest` as migration evidence.
 The expanded first candidate preparation includes current collector tooling,
 `TrustedDeletion`, and the optional trusted `conformance.Request.CoreFacts`
 API merged in [SDK PR #8](https://github.com/eshu-hq/eshu-sdk/pull/8).
-Its exact source still needs reviewed versioned preparation, green CI and
-separate tag approval. This supersedes the earlier limited source preparation;
+Candidate publication requires reviewed and merged versioned source, green
+CI and separate tag approval. This supersedes the earlier limited source preparation;
 it does not retarget a published tag or qualify a consumer.
 
 `CoreFacts` validates a caller-supplied authorization snapshot; it does not
