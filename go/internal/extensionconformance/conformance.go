@@ -154,7 +154,7 @@ func reservedFactKinds(manifest component.Manifest) []string {
 		granted[strings.TrimSpace(fact.Kind)] = struct{}{}
 	}
 	reserved := facts.CoreFactKinds()
-	kept := reserved[:0]
+	kept := make([]string, 0, len(reserved))
 	for _, kind := range reserved {
 		if _, isGranted := granted[kind]; !isGranted {
 			kept = append(kept, kind)
