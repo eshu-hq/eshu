@@ -235,6 +235,8 @@ comparison; it was not the tool used for that original comparison.
 set -eu
 base=5e4089e538f8accc3e1d704945ddbeb4ead2060e
 head=96ad250ff2ceff6d8244f42f5e49433fb6ed6f59
+git fetch origin refs/pull/9012/head
+test "$(git rev-parse FETCH_HEAD)" = "$head"
 tmp_dir=$(mktemp -d)
 trap 'unlink "$tmp_dir/base.go"; unlink "$tmp_dir/head.go"; rmdir "$tmp_dir"' EXIT
 for path in \
