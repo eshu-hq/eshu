@@ -22,6 +22,13 @@ version — pinning this module pins the fixture pack too.
 
 ### Added
 
+- New `runtimedeclaration/v1` package with `DecodeRuntimeDeclarationVersion` and
+  `EncodeRuntimeDeclarationVersion` seams, a schema, and fixture-pack entries
+  for `runtime_declaration.version` (issue #8815): one runtime version a
+  repository declares in one file, with nine required fields, nullable version
+  parts and range bounds, and a closed `spec_kind` set (`exact`, `partial`,
+  `range`, `alias`, `unresolved`) that readers decode tolerantly. A new kind is
+  an additive minor change; `factschema-diff` reports the schema as new.
 - New `ref_overlay/v1` package with `Decode`/`Encode` seams, schemas, and
   fixture-pack entries for epic #5393 Phase 1 (contract only — no collector,
   reducer, or query consumer yet): `ref_overlay.branch_observation` (one
