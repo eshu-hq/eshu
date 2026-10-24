@@ -313,6 +313,27 @@ returns the same rows, only slower; a missing 229 costs the most. Steps and
 progress signals: `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md`
 (Deployment).
 
+## Migration 231: security-alert latest work item index (#8840)
+
+This file adds `workflow_work_items_security_alert_scope_updated_idx` on
+`(scope_id, updated_at DESC, work_item_id ASC) WHERE collector_kind =
+'security_alert'` as the only statement, built `CONCURRENTLY`, so claims and
+completions keep writing during the upgrade. The security-alert
+collection-state read uses it to find each target's newest work item with a
+one-entry probe. It replaces a scan and sort of the target's whole history.
+
+The index is partial on purpose. A full `(collector_kind, scope_id,
+updated_at DESC)` key also took over the work-item retention prune's
+newer-row probe, which then walked every newer row whose status differed
+(8x to 13x slower on a recovered-target seed). The prune matches
+`collector_kind` against the outer row, so the planner cannot use the partial
+index there, and the prune keeps its plan. Only `security_alert` work items
+pay the extra B-tree entry. If the index is missing or invalid, the read
+returns the same rows, only slower, and past its 1 s deadline it fails
+closed. Open PR #9015 also uses number 230; whichever PR merges second
+renumbers. Evidence:
+`docs/internal/evidence/8840-security-alert-latest-work-item-index.md`.
+
 ## Verification
 
 ```bash

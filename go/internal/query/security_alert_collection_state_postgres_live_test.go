@@ -4,7 +4,7 @@
 package query
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped schema: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read on workflow_work_items_collector_scope_generation_updated_idx; isolated bootstrapped schema per test; wall time and plan timing are logged, not gated
+//eshu:readiness:reason #8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped schema: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read as an index-only probe of workflow_work_items_security_alert_scope_updated_idx (#8840) with no sort over a 20,000-item history, and it returns the same rows as the pre-#8840 plan forced by dropping the index in a rolled-back transaction, including updated_at ties; isolated bootstrapped schema per test; wall time and plan timing are logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -187,9 +187,12 @@ func TestSecurityAlertCollectionStateBoundsLive(t *testing.T) {
 }
 
 // TestSecurityAlertCollectionStatePlanLive seeds 50 targets with 2,000
-// security_alert work items each plus unrelated git history, then asserts the
-// lateral latest-item read uses the collector/scope index and logs the plan's
-// execution time and shared buffers.
+// security_alert work items each, one long-history target with 20,000, ties on
+// updated_at, and unrelated git history. It asserts the lateral latest-item
+// read is an index probe on workflow_work_items_security_alert_scope_updated_idx
+// (#8840) with no sort over the target's history, and that it returns the same
+// rows as the pre-#8840 plan, which is forced inside a rolled-back transaction
+// that drops the index. Plan timing and buffers are logged, not gated.
 func TestSecurityAlertCollectionStatePlanLive(t *testing.T) {
 	f := newCollectionStateLiveFixture(t, "sa_collection_plan")
 	f.exec(`INSERT INTO workflow_work_items (work_item_id, run_id, collector_kind, collector_instance_id, scope_id,
@@ -198,20 +201,104 @@ SELECT 'wi-' || k || '-' || t || '-' || g, 'run-8803', k, 'sa-live', 'target-' |
        CASE WHEN g % 10 = 0 THEN 'failed_retryable' ELSE 'completed' END,
        $1::timestamptz - (g || ' minutes')::interval, $1::timestamptz - (g || ' minutes')::interval
 FROM unnest(ARRAY['security_alert', 'git']) AS k, generate_series(1, 50) AS t, generate_series(1, 2000) AS g`, f.asOf)
+	f.exec(`INSERT INTO workflow_work_items (work_item_id, run_id, collector_kind, collector_instance_id, scope_id,
+    generation_id, last_failure_class, last_failure_terminal, status, created_at, updated_at)
+SELECT 'wi-long-' || g, 'run-8803', 'security_alert', 'sa-live', 'target-long', md5('long' || g),
+       CASE WHEN g = 1 THEN 'not_found' END, g = 1,
+       CASE WHEN g = 1 THEN 'failed_terminal' ELSE 'completed' END,
+       $1::timestamptz - (g || ' seconds')::interval, $1::timestamptz - (g || ' seconds')::interval
+FROM generate_series(1, 20000) AS g`, f.asOf)
+	// Every odd target gets a failed_terminal row that ties its newest item on
+	// updated_at and sorts first by work_item_id, so the tiebreak decides it.
+	f.exec(`INSERT INTO workflow_work_items (work_item_id, run_id, collector_kind, collector_instance_id, scope_id,
+    generation_id, last_failure_class, last_failure_terminal, status, created_at, updated_at)
+SELECT 'wi-security_alert-' || t || '-0', 'run-8803', 'security_alert', 'sa-live', 'target-' || t, md5('tie' || t),
+       'auth_denied', TRUE, 'failed_terminal', $1::timestamptz - interval '1 minute', $1::timestamptz - interval '1 minute'
+FROM generate_series(1, 50, 2) AS t`, f.asOf)
 	f.exec(`ANALYZE workflow_work_items`)
-	scopeIDs := make([]string, 50)
-	for i := range scopeIDs {
-		scopeIDs[i] = fmt.Sprintf("target-%d", i+1)
+	scopeIDs := []string{"target-long", "target-missing"}
+	for i := 1; i <= 50; i++ {
+		scopeIDs = append(scopeIDs, fmt.Sprintf("target-%d", i))
 	}
 	// Freshly inserted rows have no visibility-map bits, so the first plan
-	// reads every history row from the heap; after VACUUM the same read is
-	// index-only. Both must use the collector/scope index.
+	// fetches the one newest row per target from the heap; after VACUUM it is
+	// index-only. Both must probe the #8840 index without a history sort.
 	cold := explainSecurityAlertTargetStates(f, scopeIDs)
-	t.Logf("EXPLAIN (ANALYZE, BUFFERS) before VACUUM, 50 targets x 2,000 security_alert items plus 100,000 git items:\n%s", cold)
+	t.Logf("EXPLAIN (ANALYZE, BUFFERS) before VACUUM, 50 targets x 2,000 plus one 20,000-item target and 100,000 git items:\n%s", cold)
 	f.exec(`VACUUM (ANALYZE) workflow_work_items`)
 	warm := explainSecurityAlertTargetStates(f, scopeIDs)
 	t.Logf("EXPLAIN (ANALYZE, BUFFERS) after VACUUM (ANALYZE):\n%s", warm)
+
+	withIndex, err := f.store().SecurityAlertTargetStates(f.ctx, scopeIDs, nil)
+	if err != nil {
+		t.Fatalf("SecurityAlertTargetStates() error = %v", err)
+	}
+	withoutIndex := securityAlertTargetStatesWithoutIndex(f, scopeIDs)
+	if len(withIndex) != len(scopeIDs) || len(withoutIndex) != len(withIndex) {
+		t.Fatalf("rows with index = %d, without = %d, want %d each", len(withIndex), len(withoutIndex), len(scopeIDs))
+	}
+	for i := range withIndex {
+		if !reflect.DeepEqual(withIndex[i], withoutIndex[i]) {
+			t.Fatalf("row %d with index = %+v, pre-#8840 plan = %+v", i, withIndex[i], withoutIndex[i])
+		}
+	}
+	byScope := map[string]supplychain.SecurityAlertTargetState{}
+	for _, state := range withIndex {
+		byScope[state.ScopeID] = state
+	}
+	for scope, want := range map[string]supplychain.SecurityAlertTargetState{
+		"target-long":    {ScopeID: "target-long", LatestWorkItemStatus: "failed_terminal", LatestFailureClass: "not_found", LatestFailureTerminal: true},
+		"target-missing": {ScopeID: "target-missing"},
+		"target-1":       {ScopeID: "target-1", LatestWorkItemStatus: "failed_terminal", LatestFailureClass: "auth_denied", LatestFailureTerminal: true},
+		"target-2":       {ScopeID: "target-2", LatestWorkItemStatus: "completed"},
+	} {
+		if got := byScope[scope]; got.ScopeID != want.ScopeID || got.LatestWorkItemStatus != want.LatestWorkItemStatus ||
+			got.LatestFailureClass != want.LatestFailureClass || got.LatestFailureTerminal != want.LatestFailureTerminal ||
+			got.CommittedGeneration != want.CommittedGeneration || got.UnreadTotal != want.UnreadTotal {
+			t.Fatalf("state %s = %+v, want %+v", scope, byScope[scope], want)
+		}
+	}
 }
+
+// securityAlertTargetStatesWithoutIndex runs the production read with the
+// #8840 index dropped inside a transaction that is rolled back, so the planner
+// takes the pre-#8840 plan over the same rows.
+func securityAlertTargetStatesWithoutIndex(f *collectionStateLiveFixture, scopeIDs []string) []supplychain.SecurityAlertTargetState {
+	f.t.Helper()
+	tx, err := f.database.BeginTx(f.ctx, nil)
+	if err != nil {
+		f.t.Fatalf("begin differential transaction: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(f.ctx, "DROP INDEX "+securityAlertLatestWorkItemIndex); err != nil {
+		f.t.Fatalf("drop index inside differential transaction: %v", err)
+	}
+	var plan strings.Builder
+	planRows, err := tx.QueryContext(f.ctx, "EXPLAIN "+securityAlertTargetStatesQuery, array.Of(scopeIDs), array.Of([]string(nil)))
+	if err != nil {
+		f.t.Fatalf("EXPLAIN pre-#8840 plan: %v", err)
+	}
+	for planRows.Next() {
+		var line string
+		if err := planRows.Scan(&line); err != nil {
+			f.t.Fatalf("scan pre-#8840 plan: %v", err)
+		}
+		plan.WriteString(line + "\n")
+	}
+	_ = planRows.Close()
+	if strings.Contains(plan.String(), securityAlertLatestWorkItemIndex) {
+		f.t.Fatalf("differential plan still uses the dropped index:\n%s", plan.String())
+	}
+	states, err := NewPostgresSecurityAlertCollectionStateStoreWithReadStore(storagepostgres.SQLTx{Tx: tx}).SecurityAlertTargetStates(f.ctx, scopeIDs, nil)
+	if err != nil {
+		f.t.Fatalf("SecurityAlertTargetStates() on the pre-#8840 plan: %v", err)
+	}
+	return states
+}
+
+// securityAlertLatestWorkItemIndex is the migration 231 partial index the lateral
+// latest-item read must probe.
+const securityAlertLatestWorkItemIndex = "workflow_work_items_security_alert_scope_updated_idx"
 
 func explainSecurityAlertTargetStates(f *collectionStateLiveFixture, scopeIDs []string) string {
 	f.t.Helper()
@@ -232,8 +319,11 @@ func explainSecurityAlertTargetStates(f *collectionStateLiveFixture, scopeIDs []
 		f.t.Fatalf("read plan: %v", err)
 	}
 	text := plan.String()
-	if !strings.Contains(text, "workflow_work_items_collector_scope_generation_updated_idx") {
-		f.t.Fatalf("latest-item read does not use workflow_work_items_collector_scope_generation_updated_idx:\n%s", text)
+	if !strings.Contains(text, "Index Only Scan using "+securityAlertLatestWorkItemIndex) {
+		f.t.Fatalf("latest-item read is not an index-only probe of %s:\n%s", securityAlertLatestWorkItemIndex, text)
+	}
+	if strings.Contains(text, "Sort Key: l.updated_at") {
+		f.t.Fatalf("latest-item read still sorts the target's history:\n%s", text)
 	}
 	return text
 }

@@ -317,4 +317,8 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 230 (#8943) creates the collector-owned security-alert org read
 	// state and its unread-repository child rows; DDL only, no backfill.
 	"security_alert_target_read_states",
+	// Migration 231 (#8840) adds the partial latest-work-item-per-scope index the
+	// security-alert collection-state read probes per target. Migration-only
+	// and built CONCURRENTLY, like migrations 156 and 211.
+	"workflow_work_items_security_alert_scope_updated_idx",
 }
