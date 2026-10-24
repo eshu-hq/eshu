@@ -434,6 +434,17 @@ pgstatementreport:
   - 'docs/public/reference/postgres-diagnostics.md'
   - 'scripts/pg-statement-report.sh'
   - 'scripts/test-pg-statement-report.sh'
+collectorcutoverrollback:
+  - '.github/workflows/static-contract-gates.yml'
+  - 'specs/ci-gates.v1.yaml'
+  - 'specs/ci-gates.d/**'
+  - '.github/static-contract-filters.yml'
+  - 'docs/public/operate/collector-cutover-rollback.md'
+  - 'docs/public/operate/collector-cutover-truth-checks.md'
+  - 'scripts/collector-cutover-rollback.sh'
+  - 'scripts/test-collector-cutover-rollback*.sh'
+  - 'scripts/lib/collector-cutover-rollback-*'
+  - 'scripts/lib/test-collector-cutover-rollback-*'
 dockerpublish:
   - 'docs/internal/ci-service-image-mirrors.md'
   - '.github/workflows/static-contract-gates.yml'

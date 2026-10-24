@@ -107,7 +107,7 @@ results are derived from the inputs rather than written by hand. See
 - `code-coverage-report` (advisory): Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only.
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
-### Contract: Do declared or generated artifacts match the code? (59 gates)
+### Contract: Do declared or generated artifacts match the code? (60 gates)
 
 - `slim-collector-entrypoints` (blocking): Fails the queue entry when the generated collector entrypoints file drifts from the collector fact contract spec.
 - `openapi-surface` (blocking): Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa.
@@ -166,6 +166,7 @@ results are derived from the inputs rather than written by hand. See
 - `runtime-image-tools` (blocking): Fails when the built runtime image is missing git, ssh, or curl, the external tools the collector and HEALTHCHECK exec.
 - `apk-floors` (blocking): Fails when an apk add version floor in the Dockerfile's final stage is below the version the Alpine repository serves.
 - `pg-statement-report` (blocking): Checks the pg-statement-report script keeps its read-only, no-DDL-without-install, privacy-filter, and not-preloaded contract against a stub psql.
+- `collector-cutover-rollback` (blocking): Checks the collector cutover rollback script keeps its step order, refusal gates, and idempotence against stubbed eshu, kubectl, helm, and psql.
 - `product-claim-ledger` (blocking): Runs the capability-inventory tool to verify the product-claims ledger still matches the capability catalog and code.
 - `ci-gate-registry` (blocking): Verifies the CI gate registry itself has no drift against the workflows, scripts, and docs it describes.
 
@@ -366,6 +367,7 @@ results are derived from the inputs rather than written by hand. See
 | `macos-build` | macOS build verification (nightly) | build | ci-heavy | false | — (CI-only: requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~2,800 macOS-min/day)) | macos.yml / macos | 2 path(s): go/**, scripts/ci/go-mod-download-retry.sh |
 | `root-cause-evidence` | Root-cause claims carry observed evidence | exactness | pre-pr | false | `bash scripts/verify-root-cause-evidence.sh`<br>then self-test: `bash scripts/test-verify-root-cause-evidence.sh` | static-contract-gates.yml / Verify root-cause-evidence gate | 6 path(s): docs/internal/evidence/**, scripts/verify-root-cause-evidence.sh, scripts/test-verify-root-cause-evidence.sh, … |
 | `pg-statement-report` | Postgres statement report script contract | exactness | pre-pr | true | `bash scripts/test-pg-statement-report.sh` | static-contract-gates.yml / Verify pg-statement-report gate | 6 path(s): docs/public/reference/postgres-diagnostics.md, scripts/pg-statement-report.sh, scripts/test-pg-statement-report.sh, … |
+| `collector-cutover-rollback` | Collector cutover rollback script contract | exactness | pre-pr | true | `bash scripts/test-collector-cutover-rollback.sh` | static-contract-gates.yml / Verify collector-cutover-rollback gate | 9 path(s): docs/public/operate/collector-cutover-rollback.md, docs/public/operate/collector-cutover-truth-checks.md, scripts/collector-cutover-rollback.sh, … |
 | `tagged-builds` | Build-tag compile sweep | exactness | pre-pr | true | `bash scripts/verify-tagged-builds.sh --all`<br>then self-test: `bash scripts/test-verify-tagged-builds.sh && python3 scripts/ci/test-tagged-build-budget.py` | static-contract-gates.yml / Verify tagged-builds gate | 10 path(s): go/**, scripts/verify-tagged-builds.sh, scripts/test-verify-tagged-builds.sh, … |
 | `perf-evidence` | Hot-path performance evidence | telemetry | pre-push | true | `bash scripts/dev/precommit-go.sh perf-evidence`<br>then self-test: `bash scripts/test-verify-performance-evidence.sh` | test.yml / verify-contracts | 18 path(s): go/cmd/reducer/**, go/internal/storage/**, go/internal/reducer/**, … |
 | `product-claim-ledger` | Product Claim Ledger (deterministic verify) | exactness | pre-pr | true | `cd go && go run ./cmd/capability-inventory -mode product-claims` | product-claim-ledger.yml / Verify product claim ledger | 5 path(s): specs/product-claims.v1.yaml, specs/capability-catalog.v1.yaml, specs/capability-matrix.v1.yaml, … |
