@@ -152,6 +152,9 @@ TABLE = {
         "go/internal/storage/postgres/workflow_control_quota_plan_live_test.go": (
             "TestClaimQuotaGatedPlanStaysIndexServed",
         ),
+        "go/internal/storage/postgres/workflow_terminal_failure_ack_live_test.go": (
+            "TestCollectorTerminalFailureAcknowledgementSemanticsLive",
+        ),
         "go/internal/storage/postgres/workflow_terminal_failure_index_live_test.go": (
             "TestCollectorTerminalFailureReadUsesPartialIndexLive",
             "TestCollectorTerminalFailureIndexMigrationReappliesLive",

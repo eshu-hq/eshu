@@ -38,6 +38,12 @@ TABLE = {
         "go/internal/storage/postgres/aws_cloud_runtime_drift_state_arn_plan_live_test.go": (
             "TestAWSCloudRuntimeDriftStateARNJoinProbesARNIndexLive",
         ),
+        "go/internal/storage/postgres/collector_terminal_failure_ack_live_test.go": (
+            "TestTerminalFailureAckStoreRefusalsLive",
+            "TestTerminalFailureAckStoreRecordsAndSuppressesLive",
+            "TestTerminalFailureAckStoreConcurrentLive",
+            "TestTerminalFailureAckStoreNeverSuppressesUnseenClassLive",
+        ),
         "go/internal/storage/postgres/container_image_identity_epoch_barrier_live_test.go": (
             "TestContainerImageIdentityEpochBarrierDefersPendingLive",
             "TestContainerImageIdentityActivationEpochMissIsSentinelLive",
