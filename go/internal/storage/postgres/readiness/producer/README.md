@@ -120,6 +120,25 @@ Observability Evidence: the handler records each decision on
 `eshu_dp_service_catalog_runtime_readiness_total{domain,outcome}` and logs
 each deferral and each bound overrun; this store adds no signal of its own.
 
+## The impact producer probe (#8827)
+
+`ImpactStore` answers `securityalert.ImpactProducerReadiness` for the security
+alert reconciliation fence. `ImpactProducerStateQuery` is one aggregate with no
+`GROUP BY` over the intent's own `(scope_id, generation_id)`, filtered to
+`stage = 'reducer'` and `domain = 'supply_chain_impact'`. It returns the
+status counts and the newest in-flight last-workable time (the same four-term
+`GREATEST` as above, never `updated_at`). It reaches `fact_work_items` through
+`fact_work_items_scope_generation_idx` only; `TestReducerContentionGateSecurityAlertImpactProducerStatePlanUsesScopeGenerationIndex`
+is the guard on a 350,000-row backlog (execution 0.04 ms, planning 0.14 ms,
+one run on a shared host; see `docs/internal/evidence/8827-reconciliation-impact-fence.md`).
+Unlike the repository fence it does not join `ingestion_scopes`: the
+reconciliation waits for the producer of its own generation, whether or not
+that generation is the scope's active one.
+
+Observability Evidence: the handler records each decision on
+`eshu_dp_security_alert_reconciliation_impact_wait_total{domain,outcome}`; this
+store adds no signal of its own.
+
 ## Tests
 
 - `store_test.go`: repo-to-scope mapping, dedupe, empty input issues no

@@ -64,6 +64,12 @@ same registry volume into both workloads with
 `componentExtensionCollector.extraVolumes` /
 `componentExtensionCollector.extraVolumeMounts`.
 
+To run extracted collectors from their own release images, fill
+`componentExtensionCollector.activations` instead. The chart then renders one
+worker per activation, seeds each from a digest-pinned image, and wires the
+coordinator's registry itself, so the volume values above stay empty. See
+[Run An Extracted Collector](run-an-extracted-collector.md).
+
 ## Collector Values
 
 | Collector | Required when enabled | Notes |

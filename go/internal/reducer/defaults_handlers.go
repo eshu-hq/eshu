@@ -233,6 +233,12 @@ type SupplyChainSecurityHandlers struct {
 	// state without promoting provider alerts into impact truth.
 	SecurityAlertReconciliationWriter securityalert.SecurityAlertReconciliationWriter
 
+	// SecurityAlertImpactProducerReadiness reports whether the
+	// supply_chain_impact work of a reconciliation's own scope generation is
+	// still in flight (#8827), so the reconciliation waits without spending an
+	// attempt. Nil disables the fence and keeps only the counting wait.
+	SecurityAlertImpactProducerReadiness securityalert.ImpactProducerReadiness
+
 	// SecretsIAMTrustChainEvidenceLoader loads the bounded AWS IAM,
 	// Kubernetes, and Vault source-fact packet used by the secrets/IAM reducer
 	// read-model domain.

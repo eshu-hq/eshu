@@ -185,9 +185,7 @@ func findAWSFreshnessInstance(
 }
 
 func shouldScheduleAWSFreshness(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorAWS &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorAWS)
 }
 
 func (s Service) handoffAWSFreshnessAssignment(

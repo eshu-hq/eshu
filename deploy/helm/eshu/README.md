@@ -101,7 +101,10 @@ guidance belong in the public Kubernetes docs.
   trust allowlist, and extension egress policy env to the workflow coordinator
   and worker. Mount the same component registry volume into both workloads;
   strict trust mode is not charted until provenance verifier values are
-  first-class chart inputs.
+  first-class chart inputs. `componentExtensionCollector.activations` runs
+  extracted collectors instead: one worker Deployment per entry, seeded by init
+  containers from a digest-pinned collector image, with the registry volume
+  managed by the chart. See `docs/public/deploy/kubernetes/run-an-extracted-collector.md`.
 - `gcpCloudCollector` is off by default. When enabled, it starts only explicit
   claimed-live mode, requires active workflow claims, mounts the redaction key
   from a read-only Secret file, and expects read-only GCP credentials from pod
@@ -254,6 +257,23 @@ capture driver is
 `scripts/run-remote-e2e-pagerduty-component-extension.sh --artifacts <run-dir>`
 once a Compose stack has the trusted PagerDuty reference component installed
 and enabled.
+
+No-Regression Evidence (#8894): `componentExtensionCollector.activations` defaults
+to an empty list. A `helm template` of the default values and of the legacy
+single-worker values is byte-identical before and after the change (checked with
+`cmp`). With activations, the chart adds one worker Deployment, metrics Service
+and PodDisruptionBudget per entry, one ConfigMap, and init containers on the
+workers and the coordinator that run once at pod start; no steady-state query,
+queue, lease or graph path changes. Verified by `go test ./internal/runtime -run
+'TestHelmComponentActivation|TestComponentActivationExample|TestGrantKind' -count=1`.
+
+No-Observability-Change (#8894): `componentExtensionCollector.activations` adds no
+metric, span, log key or status field. Each activation worker exposes the same
+`/metrics`, `/healthz` and `/readyz` surface as the single worker, and its
+metrics Service carries an `eshu.dev/component-instance` label so an operator
+can tell workers apart in Prometheus. The init containers print the grant,
+install and enable results to the pod log (`kubectl logs <pod> -c
+reconcile-<instanceId>`).
 
 No-Observability-Change: the chart adds no new metric names, labels, spans,
 queue domains, graph writes, or reducer paths. Operators use the existing

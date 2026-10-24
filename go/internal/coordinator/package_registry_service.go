@@ -82,9 +82,7 @@ func (s Service) packageRegistryOwnedTargets(
 }
 
 func shouldSchedulePackageRegistry(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorPackageRegistry &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorPackageRegistry)
 }
 
 func (s Service) packageRegistryPlanKey(instance workflow.CollectorInstance, observedAt time.Time, interval time.Duration) string {

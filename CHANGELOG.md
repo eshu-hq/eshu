@@ -9,6 +9,20 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Parser: hostile Cargo TOML no longer crashes the ingester
+
+- **Nesting guard before every Cargo TOML decode**
+  ([#8985](https://github.com/eshu-hq/eshu/issues/8985)). A `Cargo.toml` or
+  `Cargo.lock` of about 0.9 MB with nested `[`, inline tables, or a long
+  dotted key used to overflow the goroutine stack inside go-toml v2.3.1, a
+  fatal error that killed the whole ingester. The new shared guard
+  `go/internal/parser/shared/toml/nesting` measures nesting in one
+  allocation-free pass that skips strings and comments, and the Rust parser
+  rejects a file deeper than 64 levels as unparseable. The collector skips
+  that file and keeps indexing the repository; a too-deep ancestor workspace
+  manifest is skipped and the member still parses. A collector-wide read cap
+  is tracked separately in #8986.
+
 ### CI: readiness shard weights refreshed from the first weighted wave
 
 - **Live PostgreSQL readiness shard weights refreshed**
@@ -71,6 +85,27 @@ recent shipped work grouped by feature area.
   (#8818) are separate changes. Existing repositories pick the facts up at their
   next reconciliation sweep, because adding a fact kind moves the fact-schema
   digest in `GenerationContentVersion`.
+### Collector readiness names each kind's own terminal failure class
+
+- **Collector readiness reports a bounded failure class for every collector
+  kind** ([#8896](https://github.com/eshu-hq/eshu/issues/8896)). A terminal
+  failure on Jira, AWS, the OCI and package registries, SBOM attestation,
+  vulnerability intelligence, the scanner worker, or the Terraform state
+  collector used to read `last_failure_class: unknown` when the class was one
+  only that kind writes. Each kind now reports the nine classes every kind
+  shares, the four the extension host writes (a component extension can carry a
+  first-party kind such as `jira`), and its own (for example `permission_hidden`,
+  `permission_denied`, `stale_fence`, `registry_auth_denied`, `timeout`). A
+  class an extension defines for a kind that is not first-party reads the
+  single token `extension_defined`. Anything else still reads `unknown`,
+  including an extension-defined class on a first-party kind and, on a
+  first-party kind, the one-time `legacy_missing_generation_identity` upgrade
+  backfill (on any other kind it reads `extension_defined`), so no persisted text reaches the field or the
+  `failure_class` label of `eshu_runtime_coordinator_collector_terminal_failure_instances`,
+  which takes at most 41 values. The two OpenAPI `last_failure_class` enums and
+  the class table in the terminal-failure reference grow together. Existing
+  values keep their meaning; a client that treats the enum as closed must
+  accept the new members.
 ### MCP `initialize` negotiates the protocol version
 
 - **`initialize` echoes a supported requested protocol version**
@@ -86,6 +121,22 @@ recent shipped work grouped by feature area.
 - **The opt-in `structured` result shape is documented as shipped.** Earlier
   notes said the second MCP copy stays "until #8800". The `structured` shape
   from #8800 sends the result once, and it is opt-in: the default stays `dual`.
+
+### Security alert reconciliation waits for its own impact producer without spending attempts
+
+- **A reconciliation no longer burns attempts while `supply_chain_impact` is in
+  flight, and its give-up is visible**
+  ([#8827](https://github.com/eshu-hq/eshu/issues/8827)). The projector enqueues
+  both domains from one scope generation, but the shared conflict key only
+  fences a producer that is claimed or running. While the producer was pending
+  or retrying, the reconciliation ran, spent a counting attempt, and wrote
+  `unmatched` decisions at attempt 3. It now defers with the non-counting class
+  `security_alert_reconciliation_impact_not_ready` while the producer is in
+  flight, bounded by 30 minutes of producer inactivity. The give-up at the
+  handler's cap now records
+  `eshu_dp_security_alert_reconciliation_impact_wait_total{outcome}` and a WARN
+  log. See the [3 AM runbook](docs/public/operate/3am-operator-runbook.md) and
+  [Security Alert Reconciliation Impact Wait](docs/public/reference/telemetry/security-alert-reconciliation-impact-wait.md).
 
 ### Service story defaults to a bounded handles view over MCP
 

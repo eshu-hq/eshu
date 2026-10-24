@@ -169,8 +169,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `PagerDutyPlanner` — implemented by `pagerduty.WorkPlanner`; child owns
   validated target membership and private planning. Root retains authorization,
   scheduling, admission, trigger transitions, retries, and telemetry.
-- `JiraPlanner` — implemented by `jira.WorkPlanner`; child owns planning and
-  membership; root schedules, admits, and skips component-configured instances.
+- `JiraPlanner` — implemented by `jira.WorkPlanner`; child owns planning and membership; root schedules and admits.
 - `PrometheusMimirPlanner` — the root interface implemented by
   `prometheus.WorkPlanner`. The child plans Prometheus/Grafana Mimir
   metric-metadata work from `configuration.targets[]`; each enabled target is
@@ -196,7 +195,8 @@ one enabled bounded scope; invalid configurations fail validation.
   key `loki:<instance_id>:<scope_id>`.
 - `GCPPlanner` — implemented by `gcp.WorkPlanner`, which also exposes
   `EnabledScopes`/`ValidateClaimSchedulerConfiguration` for root reuse.
-- `ComponentExtensionPlanner` — `extension.WorkPlanner`, from `activation.Config`.
+- `ComponentExtensionPlanner` — `extension.WorkPlanner`, from `activation.Config`; it alone plans an
+  instance whose configuration is an `eshu.component.instance.v1` document, and every in-tree selector calls `inTreeSchedulable` to skip it (#8919).
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.

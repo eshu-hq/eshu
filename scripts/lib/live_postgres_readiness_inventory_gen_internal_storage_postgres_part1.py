@@ -466,6 +466,13 @@ TABLE = {
             "TestOwnGateProducerDeadLetteredConsumerDeadLettersLive",
             "TestOwnGateProducerRetryingConsumerKeepsDeferringLive",
         ),
+        "go/internal/storage/postgres/reducer_queue_security_alert_impact_wait_concurrent_live_test.go": (
+            "TestReducerContentionGateSecurityAlertReconciliationImpactFenceUnderContention",
+        ),
+        "go/internal/storage/postgres/reducer_queue_security_alert_impact_wait_live_test.go": (
+            "TestReducerContentionGateSecurityAlertReconciliationImpactFenceKeepsItsAttemptBudget",
+            "TestReducerContentionGateSecurityAlertReconciliationGivesUpVisiblyWithoutAFence",
+        ),
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_bound_live_test.go": (
             "TestReducerContentionGateServiceCatalogRuntimeFenceBoundsOnProducerNotCatalogAge",
             "TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerIsWorked",
@@ -479,13 +486,6 @@ TABLE = {
         ),
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_readiness_live_test.go": (
             "TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget",
-        ),
-        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_batch_live_test.go": (
-            "TestReducerContentionGateServiceCatalogRetriggerBatchAckAndTelemetry",
-        ),
-        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_fence_live_test.go": (
-            "TestReducerContentionGateServiceCatalogFenceWaitsOnRunsOnIntent",
-            "TestReducerContentionGateServiceCatalogConcurrentAcksReopenOnce",
         ),
     },
 }

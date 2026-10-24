@@ -52,6 +52,12 @@ Primary proof:
 - Generated route tables, dynamic paths, closure handlers, cfg-gated route
   declarations, macro-expanded routes, variable-held routers, and Cargo feature
   selection do not emit exact route entries.
+- A `Cargo.toml` or `Cargo.lock` that nests deeper than 64 levels (arrays,
+  inline tables, and dotted-key segments, counted outside strings and
+  comments) is reported as unparseable and emits no dependency rows. The TOML
+  decoder has no depth bound and would otherwise overflow its stack
+  ([#8985](https://github.com/eshu-hq/eshu/issues/8985)). Real Cargo files
+  nest about four levels.
 
 ## Parser Performance
 

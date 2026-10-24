@@ -61,7 +61,5 @@ func (s Service) scheduleLokiWork(
 }
 
 func shouldScheduleLoki(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorLoki &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorLoki)
 }

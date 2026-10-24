@@ -1,0 +1,104 @@
+{{- if include "eshu.componentActivationsMode" . }}
+{{- $extension := .Values.componentExtensionCollector }}
+{{- range $activation := $extension.activations }}
+{{- $ctx := dict "root" $ "activation" $activation }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eshu.componentActivationFullname" $ctx }}
+  labels:
+    {{- include "eshu.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: component-extension-collector
+    eshu.dev/component-instance: {{ $activation.instanceId | quote }}
+spec:
+  replicas: {{ if hasKey $activation "replicas" }}{{ int $activation.replicas }}{{ else }}{{ int $extension.replicas }}{{ end }}
+  revisionHistoryLimit: {{ $extension.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      {{- include "eshu.componentActivationSelectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "eshu.componentActivationSelectorLabels" $ctx | nindent 8 }}
+        {{- with $.Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/component-activations: {{ include "eshu.componentActivationsChecksum" $ | quote }}
+        {{- with $.Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "eshu.serviceAccountName" $ }}
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- include "eshu.componentActivationInitContainers" (dict "root" $ "activations" (list $activation)) | nindent 8 }}
+      containers:
+        - name: component-extension-collector
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          command: ["/usr/local/bin/eshu-collector-component-extension"]
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: ESHU_HOME
+              value: /tmp/.eshu
+            - name: HOME
+              value: /tmp
+            {{- include "eshu.renderContentStoreEnv" $ | nindent 12 }}
+            {{- include "eshu.renderConnectionTuningEnv" $extension.connectionTuning | nindent 12 }}
+            {{- include "eshu.renderComponentActivationEnv" $ctx | nindent 12 }}
+            {{- include "eshu.renderOtelEnv" (dict "Values" $.Values "component" "component-extension-collector") | nindent 12 }}
+            {{- include "eshu.renderPrometheusEnv" $ | nindent 12 }}
+            {{- include "eshu.renderEnvMap" $.Values.env | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+            {{- if $.Values.observability.prometheus.enabled }}
+            - name: metrics
+              containerPort: {{ $.Values.observability.prometheus.port }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            {{- toYaml (default $extension.resources $activation.resources) | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- include "eshu.componentActivationVolumeMounts" (dict "root" $) | nindent 12 }}
+            {{- with $activation.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- include "eshu.componentActivationVolumes" $ | nindent 8 }}
+        {{- with $activation.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}

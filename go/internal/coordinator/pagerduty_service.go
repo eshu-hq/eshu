@@ -57,8 +57,5 @@ func (s Service) schedulePagerDutyWork(
 }
 
 func shouldSchedulePagerDuty(instance workflow.CollectorInstance) bool {
-	if instance.CollectorKind != scope.CollectorPagerDuty || !instance.Enabled || !instance.ClaimsEnabled {
-		return false
-	}
-	return !hasComponentActivationConfiguration(instance)
+	return inTreeSchedulable(instance, scope.CollectorPagerDuty)
 }

@@ -60,6 +60,84 @@
       "type": "array",
       "items": { "type": "object" }
     },
+    "componentActivationGrant": {
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string", "pattern": "^[a-z0-9_.]+$" },
+        "schemaVersions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" }
+        },
+        "scope": { "type": "string", "pattern": "^[A-Za-z0-9._:-]+$" },
+        "expiresIn": { "type": "string", "pattern": "^[1-9][0-9]*(h|m|s)([0-9]+(h|m|s))*$", "description": "Positive Go duration written with h, m and s; the first number must not be zero." }
+      },
+      "required": ["kind", "schemaVersions", "scope"],
+      "additionalProperties": false
+    },
+    "componentActivation": {
+      "type": "object",
+      "properties": {
+        "instanceId": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 30 },
+        "componentId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+        "componentVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?$" },
+        "mode": { "type": "string", "pattern": "^[a-z0-9_-]+$" },
+        "seed": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "type": "string",
+              "description": "Collector release image pinned by digest alone: repository@sha256:<64 hex>. A tag, even next to a digest, is rejected because --image-ref would carry it.",
+              "pattern": "^[a-z0-9][A-Za-z0-9._-]*(:[0-9]+(/[A-Za-z0-9._-]+)+|(/[A-Za-z0-9._-]+)*)@sha256:[a-f0-9]{64}$"
+            },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+            "command": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["image"],
+          "additionalProperties": false
+        },
+        "host": {
+          "type": "object",
+          "properties": {
+            "sourceSystem": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+            "scope": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "pattern": "^[A-Za-z0-9._:/@-]+$" },
+                "kind": { "type": "string", "pattern": "^[a-z0-9_.-]+$" }
+              },
+              "required": ["id", "kind"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["sourceSystem", "scope"],
+          "additionalProperties": false
+        },
+        "process": {
+          "type": "object",
+          "properties": {
+            "args": { "type": "array", "items": { "type": "string" } },
+            "env": { "type": "array", "items": { "type": "string" } },
+            "stdoutLimitBytes": { "type": "integer", "minimum": 1 },
+            "stderrLimitBytes": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
+        "config": { "type": "object" },
+        "grants": { "type": "array", "items": { "$ref": "#/definitions/componentActivationGrant" } },
+        "pollInterval": { "type": "string", "pattern": "^([0-9]+(ms|s|m|h))+$" },
+        "claimLeaseTTL": { "type": "string", "pattern": "^([0-9]+(h|m|s))+$" },
+        "heartbeatInterval": { "type": "string", "pattern": "^([0-9]+(h|m|s))+$" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "resources": { "type": "object" },
+        "env": { "type": "object", "additionalProperties": { "type": "string" } },
+        "extraEnv": { "$ref": "#/definitions/secretEnv" },
+        "extraVolumes": { "type": "array", "items": { "type": "object" } },
+        "extraVolumeMounts": { "type": "array", "items": { "type": "object" } }
+      },
+      "required": ["instanceId", "componentId", "componentVersion", "seed", "host"],
+      "additionalProperties": false
+    },
     "networkPolicyPeer": {
       "type": "object",
       "properties": {
@@ -1042,6 +1120,7 @@
         "extraEnv": { "$ref": "#/definitions/secretEnv" },
         "extraVolumes": { "type": "array", "items": { "type": "object" } },
         "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+        "activations": { "type": "array", "items": { "$ref": "#/definitions/componentActivation" } },
         "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
         "resources": { "type": "object" }
       },

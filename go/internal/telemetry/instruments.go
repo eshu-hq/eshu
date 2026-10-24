@@ -734,6 +734,11 @@ type Instruments struct {
 	// decisions of the service catalog correlation handler by reducer domain and
 	// closed outcome: ready, no_producer, deferred, bound_exceeded.
 	ServiceCatalogRuntimeReadiness metric.Int64Counter
+	// SecurityAlertReconciliationImpactWait counts the #8827 impact-wait
+	// decisions of the security alert reconciliation handler by reducer domain
+	// and closed outcome: deferred_in_flight, gave_up_unmatched,
+	// gave_up_bound_exceeded.
+	SecurityAlertReconciliationImpactWait metric.Int64Counter
 	// ServiceCatalogRuntimeRetrigger counts the #8169 re-trigger of service
 	// catalog correlation by a succeeded workload_materialization ACK, by the
 	// producer domain (domain) and closed outcome: reopened and replay_flagged
@@ -6067,6 +6072,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerServiceCatalogRuntimeReadiness(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSecurityAlertReconciliationImpactWait(meter, inst); err != nil {
 		return nil, err
 	}
 
