@@ -95,8 +95,8 @@ func TestRedactMarkerRedactsDetectorMatchesOnOtherLines(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct{ in, want string }{
-		{"# the api_key=abcdef123456 was pasted\n", "# the api_key=REDACTED_api_token was pasted\n"},
-		{"# rotate AKIAABCDEFGHIJKLMNOP soon\n", "# rotate REDACTED_aws_access_key soon\n"},
+		{"# the api_key=abcdef123456 was pasted\n", "# the api_key=REDACTED_api_token\n"},
+		{"# rotate AKIAABCDEFGHIJKLMNOP soon\n", "# rotate REDACTED_aws_access_key\n"},
 		// sk_live_ has a shape branch in the line gate but no CASE arm, so the
 		// span takes the default kind.
 		{"stripe: sk_live_abcdefgh12345678\n", "stripe: REDACTED_secret_literal\n"},
@@ -206,7 +206,10 @@ func TestRedactMarkerRejectsBlindingMarkers(t *testing.T) {
 // six finding kinds (a key line and a free-text line each). It pins the
 // MEASURED result of migration 138 on the marked line: survives (same kind),
 // lost (not detected), or kind changed. #8833's marker arm updates every row to
-// "same kind". The probe lines and results are the evidence page's marker probe.
+// "same kind". Re-measured after arbiter ruling B1 (a detector match redacts to
+// the end of the line) against the real migration 138 CASE and line gate on
+// PostgreSQL 18.6; the probe lines are the evidence page's marker probe. A
+// shape match now takes the closing quote with the rest of the line.
 func TestRedactMarkerPerKindResultUnderMigration138(t *testing.T) {
 	t.Parallel()
 
@@ -218,18 +221,18 @@ func TestRedactMarkerPerKindResultUnderMigration138(t *testing.T) {
 		kind, shape, in, wantMarked string
 		after                       string // detected kind on the marked line under migration 138
 	}{
-		{"aws_access_key", "key", `access_key_id = "AKIAABCDEFGHIJKLMNOP"`, `access_key_id = "REDACTED_aws_access_key"`, lost},
-		{"aws_access_key", "free", `# rotate AKIAABCDEFGHIJKLMNOP soon`, `# rotate REDACTED_aws_access_key soon`, lost},
-		{"slack_token", "key", `slack_webhook = "xoxb-0123456789ab"`, `slack_webhook = "REDACTED_slack_token"`, lost},
-		{"slack_token", "free", `# post with xoxb-0123456789ab here`, `# post with REDACTED_slack_token here`, lost},
+		{"aws_access_key", "key", `access_key_id = "AKIAABCDEFGHIJKLMNOP"`, `access_key_id = "REDACTED_aws_access_key`, lost},
+		{"aws_access_key", "free", `# rotate AKIAABCDEFGHIJKLMNOP soon`, `# rotate REDACTED_aws_access_key`, lost},
+		{"slack_token", "key", `slack_webhook = "xoxb-0123456789ab"`, `slack_webhook = "REDACTED_slack_token`, lost},
+		{"slack_token", "free", `# post with xoxb-0123456789ab here`, `# post with REDACTED_slack_token`, lost},
 		{"private_key", "key", `key = "-----BEGIN RSA PRIVATE KEY-----"`, `key = "REDACTED_private_key"`, lost},
 		{"private_key", "free", `# -----BEGIN RSA PRIVATE KEY-----`, `# REDACTED_private_key`, lost},
 		{"api_token", "key", `npmAuthToken: abcdef123456`, `npmAuthToken: REDACTED_api_token`, "api_token"},
-		{"api_token", "free", `# the api_key=abcdef123456 was pasted`, `# the api_key=REDACTED_api_token was pasted`, "api_token"},
+		{"api_token", "free", `# the api_key=abcdef123456 was pasted`, `# the api_key=REDACTED_api_token`, "api_token"},
 		{"password_literal", "key", `db_password = "abcdef123456"`, `db_password = "REDACTED_password_literal"`, "password_literal"},
-		{"password_literal", "free", `# password: abcdef123456 per ops`, `# password: REDACTED_password_literal per ops`, "password_literal"},
+		{"password_literal", "free", `# password: abcdef123456 per ops`, `# password: REDACTED_password_literal`, "password_literal"},
 		{"secret_literal", "key", `client_secret = "abcdef123456"`, `client_secret = "REDACTED_secret_literal"`, "secret_literal"},
-		{"secret_literal", "free", `# the client_secret = abcdef123456 shared`, `# the client_secret = REDACTED_secret_literal shared`, "secret_literal"},
+		{"secret_literal", "free", `# the client_secret = abcdef123456 shared`, `# the client_secret = REDACTED_secret_literal`, "secret_literal"},
 	}
 	seen := map[string]int{}
 	for _, tc := range cases {

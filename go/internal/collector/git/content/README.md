@@ -63,8 +63,15 @@ updated in the same change.
   line, or to the end of the line when the footer is on a later line, and every
   following line is replaced until the footer. All header types are replaced, so
   a second pass changes nothing.
+- **Detector matches redact to the end of the line.** A detector key match on a
+  line without a listed key (`Authorization: Bearer ...`, `db_password=a,b`, a
+  value followed by a comment) is treated like a listed key: everything from the
+  separator to the end of the line becomes `REDACTED_<kind>`, with the opening
+  quote restored around the marker. A value-shape match (an AWS key, a Slack
+  token, a Stripe key) is replaced from the shape to the end of the line. One
+  marker per line (arbiter ruling B1, 2026-10-24).
 - **Known limits (denylist).** Marker mode redacts the values of the listed
-  keys and the spans the detector matches. It does not see a listed key spelled
+  keys and the lines the detector matches. It does not see a listed key spelled
   as a YAML complex key (`? npmAuthToken` then `: value`), with an escaped
   spelling (`"npmAuth\x54oken"`), or with a homoglyph, and it does not redact a
   value under an unlisted key that the detector does not flag (an anchor
