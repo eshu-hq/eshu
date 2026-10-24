@@ -62,7 +62,11 @@ type token struct {
 	// starts at column 0. Scala 3 (sbt 2.x) opens a braceless block with an
 	// indented line at bracket depth zero, so only a column-0 line can hold a
 	// top-level statement. A token after a multi-line string or comment keeps
-	// the flag of the line that token started on.
+	// the flag of the line that token started on. Every token after a closer
+	// on its line takes the flag its opener saw when it was scanned:
+	// Scala 3 pops only the bracket region at a closer and outdents only at a
+	// line break, so a closer that ends a bracket opened in an indented block
+	// keeps the rest of its line in that block.
 	lineAtCol0 bool
 }
 
@@ -73,6 +77,9 @@ const (
 	openBrace   byte = 3
 	// openCond flags a '(' that follows if, while, or for.
 	openCond byte = 8
+	// openLineCol0 flags an opener whose line was a column-0 line when the
+	// opener was scanned (the lexer's lineAtCol0 at that point).
+	openLineCol0 byte = 16
 )
 
 // lexer scans build.sbt source one token at a time in a single forward pass.
@@ -151,7 +158,10 @@ func (l *lexer) scanToken(tok *token, start int) {
 		if l.depth > 0 {
 			l.depth--
 		}
-		tok.closesCond = l.pop()&openCond != 0
+		// An unmatched closer pops 0, so the rest of its line is never top level.
+		top := l.pop()
+		l.lineAtCol0 = top&openLineCol0 != 0
+		tok.closesCond = top&openCond != 0
 		tok.kind, tok.text, tok.depth, tok.inParen = kindClose, l.src[start:l.pos], l.depth, l.inParen()
 	case c == '.' || c == ',' || c == ';':
 		l.pos++
@@ -168,8 +178,8 @@ func (l *lexer) scanToken(tok *token, start int) {
 	}
 }
 
-// push records an opener. A '(' right after if, while, or for is flagged as a
-// condition.
+// push records an opener with the column-0 flag of its line. A '(' right
+// after if, while, or for is flagged as a condition.
 func (l *lexer) push(c byte) {
 	kind := openBrace
 	switch c {
@@ -181,6 +191,9 @@ func (l *lexer) push(c byte) {
 		}
 	case '[':
 		kind = openBracket
+	}
+	if l.lineAtCol0 {
+		kind |= openLineCol0
 	}
 	l.stack = append(l.stack, kind)
 }
@@ -201,7 +214,7 @@ func (l *lexer) inParen() bool {
 	if len(l.stack) == 0 {
 		return false
 	}
-	kind := l.stack[len(l.stack)-1] &^ openCond
+	kind := l.stack[len(l.stack)-1] &^ (openCond | openLineCol0)
 	return kind == openParen || kind == openBracket
 }
 

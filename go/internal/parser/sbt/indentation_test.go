@@ -114,3 +114,61 @@ func TestColumnZeroFormsStillResolve(t *testing.T) {
 		}
 	}
 }
+
+// TestCloserOfIndentedBracketKeepsLineIndented pins that a closer ending a
+// bracket opened on an indented line leaves the rest of its line in that
+// indented region. Scala 3 pops only the bracket region at the closer and
+// inserts an outdent only at a line break, so `; stmt` after it stays in the
+// block even when the closer sits at column 0.
+func TestCloserOfIndentedBracketKeepsLineIndented(t *testing.T) {
+	t.Parallel()
+
+	stmt := `libraryDependencies += ` + grammarDep
+	cases := map[string]string{
+		"brace closer":            "def f =\n  locally {\n  1\n}; " + stmt,
+		"paren closer":            "def f =\n  foo(\n  1\n); " + stmt,
+		"bracket closer":          "def f =\n  foo[\n  Int\n]; " + stmt,
+		"project after closer":    "def f =\n  locally {\n  1\n}; lazy val core = project.settings(" + stmt + ")",
+		"mid-line closer":         "def f =\n  locally {\n  1\nx }; " + stmt,
+		"closer then new bracket": "def f =\n  locally {\n  1\n}; foo {\n  2\n}; " + stmt,
+		"unmatched closer":        "}; " + stmt,
+	}
+	for name, source := range cases {
+		requireGrammarPartial(t, name, source)
+	}
+
+	shadows := map[string]string{
+		"brace closer": "def f =\n  locally {\n  1\n}; val v = \"0.9\"\n",
+		"paren closer": "def f =\n  foo(\n  1\n); val v = \"0.9\"\n",
+	}
+	for name, decl := range shadows {
+		row := requireRow(t, parseSource(t, decl+"val v = \"1.0\"\nlibraryDependencies += \"a\" % \"b\" % v\n"), "a:b")
+		if row["value"] != "1.0" || row["dependency_resolution_state"] != "resolved" {
+			t.Errorf("%s shadow: value/state = %v/%v, want 1.0/resolved", name, row["value"], row["dependency_resolution_state"])
+		}
+	}
+}
+
+// TestCloserOfTopLevelBracketKeepsLineTopLevel pins the forms a closer leaves
+// at top level: a key on the line after an indented block's closer, a bracket
+// opened on a column-0 line, and a bracket nested inside one.
+func TestCloserOfTopLevelBracketKeepsLineTopLevel(t *testing.T) {
+	t.Parallel()
+
+	stmt := `libraryDependencies += ` + grammarDep
+	cases := map[string]string{
+		"key on next line":       "def f =\n  locally {\n  1\n}\n" + stmt,
+		"project settings":       "lazy val core = project.settings(\n  " + stmt + "\n)",
+		"indented collection":    "libraryDependencies ++=\n  Seq(\n    " + grammarDep + "\n  )",
+		"column-0 brace closer":  "locally {\n  1\n}; " + stmt,
+		"nested brace in parens": "val x = foo(\n  bar {\n  1\n}); " + stmt,
+	}
+	for name, source := range cases {
+		requireGrammarResolved(t, name, source, "compile")
+	}
+
+	row := requireRow(t, parseSource(t, "val x = foo(\n  bar {\n  1\n}); val v = \"1\"\nlibraryDependencies += \"a\" % \"b\" % v\n"), "a:b")
+	if row["value"] != "1" || row["dependency_resolution_state"] != "resolved" {
+		t.Errorf("nested val: value/state = %v/%v, want 1/resolved", row["value"], row["dependency_resolution_state"])
+	}
+}

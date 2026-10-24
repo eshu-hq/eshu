@@ -17,10 +17,14 @@ import (
 )
 
 // fzIndentBlock is one Scala 3 braceless block shape: the lines before the
-// wrapped statement, its indentation, and the lines after it.
+// wrapped statement, its indentation, and the lines after it. A sameLine block
+// ends its head with a closer and ';' at column 0, so the statement starts on
+// the closer's line, still inside the block, and only its continuation lines
+// are indented.
 type fzIndentBlock struct {
 	name, head, tail string
 	indent           int
+	sameLine         bool
 }
 
 var fzIndentBlocks = []fzIndentBlock{
@@ -32,6 +36,9 @@ var fzIndentBlocks = []fzIndentBlock{
 	{name: "for", head: "for i <- 1 to 2 do\n  println(i)\n", indent: 2},
 	{name: "while", head: "while isCI do\n  println(1)\n", indent: 2},
 	{name: "bare", head: "println(0)\n", indent: 2},
+	{name: "brace-closer", head: "def deps =\n  locally {\n  1\n}; ", indent: 2, sameLine: true},
+	{name: "paren-closer", head: "def deps =\n  foo(\n  1\n); ", indent: 2, sameLine: true},
+	{name: "bracket-closer", head: "def deps =\n  foo[\n  Int\n]; ", indent: 2, sameLine: true},
 }
 
 // fzShadowForms declare a block-local val; %[1]s is its name, %[2]s its value.
@@ -40,6 +47,8 @@ var fzShadowForms = []string{
 	"def shadow =\n  val %[1]s = \"%[2]s\"\n  %[1]s\n",
 	"if isCI then\n  val %[1]s = \"%[2]s\"\n  println(%[1]s)\n",
 	"isCI match\n  case true =>\n    val %[1]s = \"%[2]s\"\n    println(%[1]s)\n  case _ =>\n    println(0)\n",
+	"def shadow =\n  locally {\n  1\n}; val %[1]s = \"%[2]s\"\n",
+	"def shadow =\n  foo(\n  1\n); val %[1]s = \"%[2]s\"\n",
 }
 
 // fzShadowValue is the block-local version; no generated coordinate uses it.
@@ -49,6 +58,18 @@ const fzShadowValue = "0.0.0-shadow"
 func indentLines(text string, width int) string {
 	pad := strings.Repeat(" ", width)
 	return pad + strings.ReplaceAll(text, "\n", "\n"+pad) + "\n"
+}
+
+// wrap places a generated statement inside the block.
+func (b fzIndentBlock) wrap(text string) string {
+	if !b.sameLine {
+		return indentLines(text, b.indent)
+	}
+	first, rest, multi := strings.Cut(text, "\n")
+	if !multi {
+		return first + "\n"
+	}
+	return first + "\n" + indentLines(rest, b.indent)
 }
 
 // fzIndentBuild generates one build file whose statements sit either at
@@ -68,7 +89,7 @@ func fzIndentBuild(seed int64) fzCase {
 			continue
 		}
 		block := fzIndentBlocks[kind]
-		body.WriteString(block.head + indentLines(text, block.indent) + block.tail)
+		body.WriteString(block.head + block.wrap(text) + block.tail)
 		for i := range deps {
 			deps[i].unknown = true
 			deps[i].tags["IND-"+block.name] = true
