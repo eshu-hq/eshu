@@ -430,6 +430,12 @@ workflows:
   - go/cmd/ifa/mutate_cassette.go
   - go/cmd/ifa/dead_letters.go
   - scripts/lib/ifa_determinism_common*.sh
+  - go/internal/ifa/familyodu/publishes_family_odu.go
+  - go/internal/ifa/testdata/publishes/**
+  - scripts/lib/ifa_direct_family_live_publishes.sh
+  - scripts/lib/ifa_fault_injection_publishes_cells.sh
+  - scripts/lib/test-ifa-fault-injection-publishes-cases.sh
+  - testdata/cassettes/publishes/**
   - go/internal/ifa/familyodu/grants_secret_read_family_odu.go
   - go/internal/ifa/testdata/grantssecretread/**
   - scripts/lib/ifa_fault_injection_grants_secret_read_cells.sh
