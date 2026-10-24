@@ -13,8 +13,9 @@ and retraction; this grant authorizes emission only.
   published SDK pin — `go/go.mod` holds `sdk/go/*` at `v0.0.0` with
   local replaces, so no published version is claimed here)
 - Scope: the `ci_cd_run` collector-instance scope
-- Kinds (`1.0.0` each, `go/internal/facts/ci_cd_run.go:45-69`): the
-  nine `ci.*` kinds in [SHIM_MAP](SHIM_MAP.md) §2
+- Kinds (`1.0.0` each, the `cicdRunFactKinds` list in
+  `go/internal/facts/ci_cd_run.go`): the nine `ci.*` kinds in
+  [SHIM_MAP](SHIM_MAP.md) §2
 - Lifetime: bounded `--expires-in` (rotation expected; no non-expiring
   grants)
 

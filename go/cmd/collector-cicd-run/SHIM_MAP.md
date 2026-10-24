@@ -49,7 +49,7 @@ a claim it did not `.Claim()` as foreign and never write for it.
 ## 2. The `ci.*` kinds at `1.0.0` → SDK `FactDeclaration`
 
 One declaration per kind, each `schema_versions: ["1.0.0"]`
-(`go/internal/facts/ci_cd_run.go:45-69`):
+(the `cicdRunFactKinds` list in `go/internal/facts/ci_cd_run.go`):
 
 ```json
 [
