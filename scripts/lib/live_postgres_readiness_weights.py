@@ -44,7 +44,7 @@ PACKAGE_RE = re.compile(r"^\./[A-Za-z0-9_./-]+$")
 KEYS = {"schema_version", "source_runs", "fixed_job_seconds", "cold_cache_seconds",
         "default_test_seconds", "default_package_seconds", "package_seconds",
         "test_seconds"}
-_BOUNDS_CACHE: dict[tuple[str, tuple[str, ...]], list[int]] = {}
+_BOUNDS_CACHE: dict[tuple[str, tuple[str, ...], int], list[int]] = {}
 
 
 @dataclass(frozen=True)
@@ -193,7 +193,7 @@ def weighted_bounds(runs: list[str], weights: Weights,
     count = len(runs)
     if count < shard_count:
         raise ValueError(f"plan has {count} runs, fewer than {shard_count} shards")
-    key = (weights.fingerprint(), tuple(runs))
+    key = (weights.fingerprint(), tuple(runs), shard_count)
     cached = _BOUNDS_CACHE.get(key)
     if cached is not None:
         return list(cached)

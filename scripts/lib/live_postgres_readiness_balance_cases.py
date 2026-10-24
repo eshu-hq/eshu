@@ -133,6 +133,13 @@ class BalanceContractTest(unittest.TestCase):
         self.assertLessEqual(max(jobs), wt.BUDGET_SECONDS, jobs)
         self.assertEqual(wt.budget_errors(plan, weights), [])
 
+    def test_bounds_cache_is_keyed_on_the_shard_count(self) -> None:
+        four = wt.weighted_bounds(self.plan, self.weights, 4)
+        two = wt.weighted_bounds(self.plan, self.weights, 2)
+        self.assertEqual((len(four), len(two)), (5, 3))
+        self.assertEqual((two[0], two[-1]), (0, len(self.plan)))
+        self.assertEqual(wt.weighted_bounds(self.plan, self.weights, 4), four)
+
     def test_seeded_count_split_already_fails_the_gate_on_the_unchanged_plan(self) -> None:
         naive = self.job_seconds(self.plan, self.weights, naive_count_bounds(len(self.plan)))
         self.assertGreater(max(naive), wt.BUDGET_SECONDS, naive)
