@@ -64,6 +64,33 @@ boundary. Because of the repository field, org-scope digests differ from those
 computed before #8805: each org target takes one extra generation after an
 upgrade.
 
+## Org read state (#8943)
+
+A fact exists only for a repository that has an alert, so a repository the
+fan-out could not read, with no alert in the org window, leaves no trace in the
+facts. Every org claim therefore also builds a `securityalerts.TargetReadState`
+(`read_state.go`, `orgReadState`): the org stream's own truncation flag, the
+number of allowlisted repositories of the organization, and each repository
+whose fan-out outcome is not `complete` with the reason its facts carry
+(`fanoutOutcomeReason`, or `provider_open_alert_page_limit_reached` for a
+repository read that stopped at `max_pages`). `NextClaimed` hands it to
+`SourceConfig.ReadStateWriter` and sets `CollectedGeneration.StateWriter`, so
+the ingestion store writes it in the generation's commit transaction. Every org
+generation commit writes the state whether or not the stream truncated, so the
+read path can tell a complete read from a missing record; a claim skipped as
+unchanged commits no generation and writes none (the active generation's record
+still applies), and a repository target writes none.
+`cmd/collector-security-alerts` wires the Postgres writer
+(`storage/postgres/security/alerts/unread`). The read path reports an empty
+answer for an unread repository as `target_incomplete` with the stored reason
+(see [Provider Alert Parity](../../../../../docs/public/reference/security-intelligence-provider-alert-parity.md#org-read-state)).
+The `security_alert.observe` span carries `eshu.security_alert.org_read_truncated`.
+The org freshness digest includes a read-state marker (`orgReadState`), so each
+org target commits one extra generation after the upgrade; without it a target
+whose provider truth is unchanged would keep a generation with no record,
+because an unchanged digest skips the commit. Repository-scope digests are
+unchanged.
+
 Performance Evidence: one org claim sends at most
 `max_pages` x (1 + min(allowlisted org repositories, 100)) alert-page requests
 (plus one App token mint per listing call under `github_app`). A claim whose

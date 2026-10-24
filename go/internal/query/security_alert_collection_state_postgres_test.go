@@ -6,10 +6,12 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -38,6 +40,10 @@ func (r *collectionStateRows) Scan(dest ...any) error {
 			*d = value.(string)
 		case *bool:
 			*d = value.(bool)
+		case *int:
+			*d = value.(int)
+		case *array.StringArray:
+			*d = array.StringArray(value.([]string))
 		default:
 			return errors.New("unsupported scan target")
 		}
@@ -114,23 +120,32 @@ func TestPostgresSecurityAlertCollectionStateTargetStates(t *testing.T) {
 	t.Parallel()
 
 	queryer := &recordingCollectionStateQueryer{rows: [][]any{
-		{"sa-target-a", "failed_terminal", "auth_denied", true, false},
-		{"sa-target-b", "completed", "", false, true},
+		{"sa-target-a", "failed_terminal", "auth_denied", true, false, 0, []string{}, []string{}, []string{}},
+		{
+			"sa-target-b", "completed", "", false, true, 3,
+			[]string{"org_repository_fanout_cap_reached", "org_repository_read_failed"},
+			[]string{"acme/a"},
+			[]string{"org_repository_read_failed"},
+		},
 	}}
 	store := NewPostgresSecurityAlertCollectionStateStoreWithReadStore(queryer)
-	states, err := store.SecurityAlertTargetStates(context.Background(), []string{"sa-target-a", "sa-target-b"})
+	states, err := store.SecurityAlertTargetStates(context.Background(), []string{"sa-target-a", "sa-target-b"}, []string{"acme/a"})
 	if err != nil {
 		t.Fatalf("SecurityAlertTargetStates() error = %v", err)
 	}
 	want := []supplychain.SecurityAlertTargetState{
 		{ScopeID: "sa-target-a", LatestWorkItemStatus: "failed_terminal", LatestFailureClass: "auth_denied", LatestFailureTerminal: true},
-		{ScopeID: "sa-target-b", LatestWorkItemStatus: "completed", CommittedGeneration: true},
+		{
+			ScopeID: "sa-target-b", LatestWorkItemStatus: "completed", CommittedGeneration: true, UnreadTotal: 3,
+			UnreadReasons:   []string{"org_repository_fanout_cap_reached", "org_repository_read_failed"},
+			UnreadRequested: map[string]string{"acme/a": "org_repository_read_failed"},
+		},
 	}
 	if len(states) != len(want) {
 		t.Fatalf("states = %+v, want %+v", states, want)
 	}
 	for i := range want {
-		if states[i] != want[i] {
+		if !reflect.DeepEqual(states[i], want[i]) {
 			t.Fatalf("states[%d] = %+v, want %+v", i, states[i], want[i])
 		}
 	}
@@ -141,6 +156,10 @@ func TestPostgresSecurityAlertCollectionStateTargetStates(t *testing.T) {
 		"ORDER BY l.updated_at DESC, l.work_item_id ASC",
 		"g.status IN ('active', 'superseded', 'completed')",
 		"unnest($1::text[])",
+		"LEFT JOIN ingestion_scopes sc ON sc.scope_id = t.scope_id",
+		"rs.generation_id = sc.active_generation_id",
+		"u.generation_id = rs.generation_id",
+		"u.repository = ANY($2::text[])",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("target state query missing %q:\n%s", want, query)
@@ -158,18 +177,18 @@ func TestPostgresSecurityAlertCollectionStateTargetStatesBounds(t *testing.T) {
 
 	queryer := &recordingCollectionStateQueryer{}
 	store := NewPostgresSecurityAlertCollectionStateStoreWithReadStore(queryer)
-	if states, err := store.SecurityAlertTargetStates(context.Background(), nil); err != nil || states != nil || len(queryer.queries) != 0 {
+	if states, err := store.SecurityAlertTargetStates(context.Background(), nil, nil); err != nil || states != nil || len(queryer.queries) != 0 {
 		t.Fatalf("empty input: states=%v err=%v queries=%d, want no read", states, err, len(queryer.queries))
 	}
 	tooMany := make([]string, securityAlertCollectionStateMaxTargets+1)
-	if _, err := store.SecurityAlertTargetStates(context.Background(), tooMany); !errors.Is(err, supplychain.ErrSecurityAlertCollectionStateBound) {
+	if _, err := store.SecurityAlertTargetStates(context.Background(), tooMany, nil); !errors.Is(err, supplychain.ErrSecurityAlertCollectionStateBound) {
 		t.Fatalf("SecurityAlertTargetStates() error = %v past the target bound, want ErrSecurityAlertCollectionStateBound", err)
 	}
 	if _, err := (PostgresSecurityAlertCollectionStateStore{}).SecurityAlertCollectorConfigurations(context.Background()); err == nil {
 		t.Fatal("nil reader: error = nil")
 	}
 	failing := NewPostgresSecurityAlertCollectionStateStoreWithReadStore(&recordingCollectionStateQueryer{err: errors.New("boom")})
-	if _, err := failing.SecurityAlertTargetStates(context.Background(), []string{"sa-target-a"}); err == nil || errors.Is(err, supplychain.ErrSecurityAlertCollectionStateBound) {
+	if _, err := failing.SecurityAlertTargetStates(context.Background(), []string{"sa-target-a"}, nil); err == nil || errors.Is(err, supplychain.ErrSecurityAlertCollectionStateBound) {
 		t.Fatalf("query error = %v, want a non-bound error", err)
 	}
 }

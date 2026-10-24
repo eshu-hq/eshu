@@ -40,6 +40,7 @@ type fakeSecurityAlertCollectionState struct {
 	configCalls  int
 	stateCalls   int
 	lastScopeIDs []string
+	lastSlugs    []string
 }
 
 func (f *fakeSecurityAlertCollectionState) SecurityAlertCollectorConfigurations(ctx context.Context) ([]string, error) {
@@ -62,11 +63,13 @@ func (f *fakeSecurityAlertCollectionState) SecurityAlertCollectorConfigurations(
 func (f *fakeSecurityAlertCollectionState) SecurityAlertTargetStates(
 	_ context.Context,
 	scopeIDs []string,
+	requestedSlugs []string,
 ) ([]SecurityAlertTargetState, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stateCalls++
 	f.lastScopeIDs = append([]string(nil), scopeIDs...)
+	f.lastSlugs = append([]string(nil), requestedSlugs...)
 	if f.stateErr != nil {
 		return nil, f.stateErr
 	}
@@ -84,6 +87,12 @@ func (f *fakeSecurityAlertCollectionState) calls() (int, int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.configCalls, f.stateCalls
+}
+
+func (f *fakeSecurityAlertCollectionState) lastRequestedSlugs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.lastSlugs...)
 }
 
 func (f *fakeSecurityAlertCollectionState) scopeIDs() string {

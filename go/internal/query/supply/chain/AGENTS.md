@@ -80,7 +80,13 @@ Read `doc.go` and `README.md` first.
   Do not import `collector/securityalerts/alertruntime` here; the
   membership decoder is deliberately query-side, and the terminal
   failure-class literals are pinned with their collector source lines
-  (`TestSecurityAlertCoverageReasonsPinned`). A scoped token with no grants
+  (`TestSecurityAlertCoverageReasonsPinned`). The unread-repository reasons
+  (`security_alert_unread_reason.go`, #8943) are the collector's own tokens
+  pinned by value; a stored reason outside the set maps to
+  `org_repository_read_incomplete`, and a payload never carries a repository
+  name. An anchored read looks only at the requested repositories; an unread
+  repository of the same target must not make another repository's answer
+  incomplete. A scoped token with no grants
   MUST NOT reach the collector read: the empty-grant writers answer
   `not_configured` with `no_authorized_repositories` and no readiness
   envelope. A failed probe names a closed `error_class`; a caller cancel is

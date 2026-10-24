@@ -43,17 +43,6 @@ const (
 	securityAlertReasonNoAuthorizedRepositories = "no_authorized_repositories"
 )
 
-// Seam for a truncated generation (#8803 PR C, tracked by #8943). A target whose committed
-// generation stopped at the provider open-alert page cap, with zero allowlisted
-// alerts in the fetched window, still reads healthy here: the collector does
-// not yet persist per-target truncation when no fact carries it, so this file
-// has no input that could prove it. When that carrier lands it adds a field to
-// SecurityAlertTargetState, classifySecurityAlertTarget maps it to the reason
-// provider_open_alert_page_limit_reached (the collector's own
-// collection_incomplete_reasons token) with derived truth and fresh freshness,
-// and securityAlertCoverageReasons plus the OpenAPI enum gain the value in the
-// same change.
-
 // securityAlertTerminalFailureClasses is every failure class the security-alert
 // claim runner can persist on a terminal work item. Any other stored value
 // maps to "unclassified" so free text never reaches a payload, label, or log.
@@ -89,6 +78,7 @@ func securityAlertCoverageReasons() []string {
 		securityAlertReasonCollectorStateUnavailable,
 		securityAlertReasonNoAuthorizedRepositories,
 	}
+	out = append(out, securityAlertUnreadReasons...)
 	for _, class := range securityAlertTerminalFailureClasses {
 		out = append(out, securityAlertReasonTerminalFetchFailurePrefix+class)
 	}
@@ -105,6 +95,7 @@ const (
 	securityAlertCollectorStateFailedTerminal   = "failed_terminal"
 	securityAlertCollectorStateStaleAfterFailed = "stale_after_terminal_failure"
 	securityAlertCollectorStateHealthy          = "healthy"
+	securityAlertCollectorStatePartialRead      = "partial_read"
 	securityAlertCollectorStateUnavailable      = "state_unavailable"
 )
 
@@ -323,9 +314,10 @@ func securityAlertHealthyVerdict() securityAlertCoverageVerdict {
 }
 
 // classifySecurityAlertTarget ranks one target's state. Higher ranks are
-// closer to a complete answer: 4 healthy, 3 stale after a terminal failure,
-// 2 still collecting, 1 terminal failure with nothing ever committed.
-func classifySecurityAlertTarget(state SecurityAlertTargetState) (int, securityAlertCoverageVerdict) {
+// closer to a complete answer: 5 healthy, 4 committed but the requested
+// repositories were not all read in full (#8943), 3 stale after a terminal
+// failure, 2 still collecting, 1 terminal failure with nothing ever committed.
+func classifySecurityAlertTarget(state SecurityAlertTargetState, anchored bool) (int, securityAlertCoverageVerdict) {
 	terminal := state.LatestFailureTerminal || state.LatestWorkItemStatus == "failed_terminal"
 	incomplete := securityAlertCoverageVerdict{
 		coverageState: securityAlertCoverageTargetIncomplete,
@@ -333,7 +325,10 @@ func classifySecurityAlertTarget(state SecurityAlertTargetState) (int, securityA
 	}
 	switch {
 	case state.CommittedGeneration && !terminal:
-		return 4, securityAlertHealthyVerdict()
+		if reasons := securityAlertUnreadReasonsFor(state, anchored); len(reasons) > 0 {
+			return 4, securityAlertUnreadVerdict(reasons)
+		}
+		return 5, securityAlertHealthyVerdict()
 	case state.CommittedGeneration:
 		incomplete.reasons = []string{securityAlertTerminalReason(state.LatestFailureClass)}
 		incomplete.level = querycontract.TruthLevelDerived
@@ -376,11 +371,11 @@ func classifySecurityAlertCollection(
 	for _, state := range states {
 		byScope[state.ScopeID] = state
 	}
-	bestRank, worstRank := 0, 5
+	bestRank, worstRank := 0, 6
 	var best, worst securityAlertCoverageVerdict
 	var reasons []string
 	for _, scopeID := range scopeIDs {
-		rank, verdict := classifySecurityAlertTarget(byScope[scopeID])
+		rank, verdict := classifySecurityAlertTarget(byScope[scopeID], anchored)
 		if rank > bestRank {
 			bestRank, best = rank, verdict
 		}
