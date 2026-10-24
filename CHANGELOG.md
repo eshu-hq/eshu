@@ -38,6 +38,21 @@ recent shipped work grouped by feature area.
   instance, so they agree with collector status. A record whose instance is
   gone reads the kind-only form.
 
+### Security alerts: a reconciliation give-up reads apart from a genuine no-match
+
+- **An `unmatched` reconciliation row now says when the reducer gave up
+  waiting for impact evidence**
+  ([#8956](https://github.com/eshu-hq/eshu/issues/8956)). A row written after
+  the handler stopped waiting carries `impact_wait_outcome`
+  (`gave_up_unmatched` or `gave_up_bound_exceeded`) on the reducer payload, the
+  `/api/v0/supply-chain/security-alerts/reconciliations` row, and the
+  `list_security_alert_reconciliations` MCP row. A genuine no-match, where the
+  same generation's `supply_chain_impact` work all succeeded and matched
+  nothing, omits it and keeps its payload byte for byte.
+  `eshu_dp_security_alert_reconciliation_impact_wait_total` gains the
+  `producer_settled` outcome for that case, and `gave_up_unmatched` no longer
+  counts it. No migration; rows written before the change carry no field.
+
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
 
 - **A 403 saying Dependabot alerts are disabled classifies as `not_found`**

@@ -184,7 +184,10 @@ not `failed`.
   line carries `sub_signal_impact_wait_gave_up=1`. `gave_up_unmatched` means no impact work
   was in flight (check whether `supply_chain_impact` dead-lettered for that
   scope); `gave_up_bound_exceeded` means it was in flight but stuck for over 30
-  minutes.
+  minutes. The written rows carry the same `impact_wait_outcome` on the
+  reconciliation API and MCP rows. `{outcome="producer_settled"}` is not a
+  give-up: the impact work succeeded and matched nothing, so its rows carry no
+  `impact_wait_outcome`.
 - A `failed` execution with the `waiting_for_impact` class is not a normal end
   of the wait. It means `ESHU_REDUCER_MAX_ATTEMPTS` is 1 or 2, so the queue
   dead-letters before the handler's cap of 3, or the error is a real one. Replay

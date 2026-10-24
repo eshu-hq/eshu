@@ -1431,7 +1431,7 @@ Each row also carries `reason_code` and may carry structured
 unsupported, or ambiguous rows did not become matched impact rows. Missing
 evidence entries name a bounded `kind`, stable `reason`, and optional
 `evidence_id`; they do not embed raw provider payloads, private repository
-names, account names, hosts, or environment names.
+names, account names, hosts, or environment names. An `unmatched` row the reducer wrote after it stopped waiting for impact evidence also carries the closed `impact_wait_outcome` (`gave_up_unmatched` or `gave_up_bound_exceeded`); a genuine no-match, where the same generation's `supply_chain_impact` work all succeeded and matched nothing, omits it ([persisted rows](../telemetry/security-alert-reconciliation-impact-wait.md#persisted-rows), #8956).
 
 A representative proof run can render the row-level reconciliation table
 without exposing private source details:
