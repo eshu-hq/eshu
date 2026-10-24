@@ -39,7 +39,10 @@ canonical response shape; `CLIOutput` and its members are the
 `eshu.component.cli.v1` JSON payload. `InstanceFlag`, `VersionFlag`,
 `InitIDFlag`, `InitPublisherFlag`, and `InitFactKindFlag` are the flag names
 this package renders in its required-input errors, consumed by `go/cmd/eshu`
-at registration. See `doc.go` for the godoc contract.
+at registration. `FallbackString` and `FallbackList` (`fallback.go`) order a
+passed flag, an environment value, and the flag default; the wrapper reads the
+flag state and the environment and passes plain values in. See `doc.go` for the
+godoc contract.
 
 ## Dependencies
 
