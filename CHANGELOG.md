@@ -54,6 +54,20 @@ recent shipped work grouped by feature area.
   path slot would still be emitted if it is a short word, digits only, or a
   PascalCase word of up to four parts and 24 bytes.
 
+### Docs: a dropped hand-written section now fails the docs gates
+
+- **Required hand-written sections are checked**
+  ([#9028](https://github.com/eshu-hq/eshu/issues/9028)). The parser
+  admission check covers only the generated table in
+  `docs/public/languages/admitted-files.md`, so a squash dropped the
+  hand-written `## Content store policy` section and nothing failed. The new
+  `required-doc-sections` gate (`scripts/verify-required-doc-sections.sh`)
+  reads the heading list in `scripts/required-doc-sections.txt` and fails,
+  naming the heading and the page, when one is missing. It runs in the
+  `docs-helm-hygiene` CI job and in the path-selected docs gates for any
+  change under `docs/public/`. To protect another section, add a line to the
+  list.
+
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
 - **Nesting guard before every Cargo TOML decode**
