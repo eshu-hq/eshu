@@ -80,7 +80,15 @@ func (r *crossplaneRedriveFakeEdgeExistenceReader) Run(
 // edge, WITHOUT the Claim scope ever being re-ingested: no new
 // scope_generations row, no new fact_records row, is written for the Claim
 // scope anywhere in this test after its initial seed.
+// TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive keeps every redrive scenario in the scheduled proof.
 func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
+	t.Run("xrd_lag_window", testCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive)
+	t.Run("running_claim_ack", testCrossplaneRedriveDuringRunningClaimReturnsAckToPendingLive)
+	t.Run("concurrent_insert", testCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive)
+	t.Run("claimed_row_cost", testCrossplaneReplayClaimedRowCostLive)
+}
+
+func testCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 	dsn, schema := crossplaneRedriveProofSchema(t)
 	db := crossplaneRedriveProofConn(t, dsn, schema)
 	ctx := context.Background()
@@ -212,7 +220,7 @@ func assertCrossplaneRedriveWorkItemPending(ctx context.Context, t *testing.T, d
 // activation/ACK ordering seen by the fault-injection gate. The first Claim
 // pass observes no XRD, activation schedules redrive while that same reducer
 // row is still running, and its ACK must preserve one replay pass.
-func TestCrossplaneRedriveDuringRunningClaimReturnsAckToPendingLive(t *testing.T) {
+func testCrossplaneRedriveDuringRunningClaimReturnsAckToPendingLive(t *testing.T) {
 	dsn, schema := crossplaneRedriveProofSchema(t)
 	db := crossplaneRedriveProofConn(t, dsn, schema)
 	ctx := context.Background()
@@ -314,7 +322,7 @@ func (d *crossplaneReplayInsertWinner) ExecContext(ctx context.Context, query st
 	return result, nil
 }
 
-func TestCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive(t *testing.T) {
+func testCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive(t *testing.T) {
 	dsn, schema := crossplaneRedriveProofSchema(t)
 	db := crossplaneRedriveProofConn(t, dsn, schema)
 	ctx := context.Background()
@@ -366,7 +374,7 @@ func TestCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive(t *testing.T
 // TestCrossplaneReplayClaimedRowCostLive measures the old public-method
 // sequence and the fixed scheduler on the same claimed row and connection.
 // It asserts state after each pair; timing is recorded for review, not gated.
-func TestCrossplaneReplayClaimedRowCostLive(t *testing.T) {
+func testCrossplaneReplayClaimedRowCostLive(t *testing.T) {
 	dsn, schema := crossplaneRedriveProofSchema(t)
 	db := crossplaneRedriveProofConn(t, dsn, schema)
 	ctx := context.Background()

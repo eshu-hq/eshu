@@ -19,7 +19,7 @@ import (
 
 // TestCrossplaneRedrivePagedClaimedReplayCostLive qualifies the real sweep
 // across its default 500-target page boundary with stable claim ownership.
-func TestCrossplaneRedrivePagedClaimedReplayCostLive(t *testing.T) {
+func testCrossplaneRedrivePagedClaimedReplayCostLive(t *testing.T) {
 	dsn, schema := crossplaneRedriveProofSchema(t)
 	db := crossplaneRedriveProofConn(t, dsn, schema)
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
@@ -98,7 +98,13 @@ func TestCrossplaneRedrivePagedClaimedReplayCostLive(t *testing.T) {
 // without an index present on a schema other tests may share, rather than
 // dropping and recreating the real index. See the PR body for the full
 // EXPLAIN (ANALYZE, BUFFERS) text this test's t.Logf output reproduces.
+// TestCrossplaneRedriveTargetDiscoveryQueryPlanLive keeps every redrive scenario in the scheduled proof.
 func TestCrossplaneRedriveTargetDiscoveryQueryPlanLive(t *testing.T) {
+	t.Run("target_discovery_plan", testCrossplaneRedriveTargetDiscoveryQueryPlanLive)
+	t.Run("paged_claimed_replay", testCrossplaneRedrivePagedClaimedReplayCostLive)
+}
+
+func testCrossplaneRedriveTargetDiscoveryQueryPlanLive(t *testing.T) {
 	dsn, schema := crossplaneRedriveProofSchema(t)
 	db := crossplaneRedriveProofConn(t, dsn, schema)
 

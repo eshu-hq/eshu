@@ -18,3 +18,16 @@ The bounded page qualification used 501 Claim scopes, one fact and one stable cl
 Observability Evidence: an unschedulable target now returns an error from Sweep/SweepBatch. The projector live hook logs the error and increments the existing `sweep_error` counter; periodic catch-up logs its error. The work item remains dead-lettered and the sweep claim remains reclaimable after lease expiry. Successful redrives retain the existing completed/targets/pages counters.
 
 Remaining acceptance: hosted fault-injection and the full required-gates set must pass on the pushed head. The isolated test uses a spy edge writer and fake existence confirmation; actual Neo4j graph truth remains a separate hosted gate.
+
+## Scheduled execution
+
+The new cases run unconditionally as subtests of the two already-enrolled roots. The workflow selector, runner checksum, and top-level inventory remain unchanged; the hosted manifest binds the full source files. The existing event verifier rejects failed events and skipped enrolled subtests.
+
+| Original standalone proof | Current enrolled case |
+| --- | --- |
+| `TestCrossplaneRedriveDuringRunningClaimReturnsAckToPendingLive` | `TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive/running_claim_ack` |
+| `TestCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive` | `TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive/concurrent_insert` |
+| `TestCrossplaneReplayClaimedRowCostLive` | `TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive/claimed_row_cost` |
+| `TestCrossplaneRedrivePagedClaimedReplayCostLive` | `TestCrossplaneRedriveTargetDiscoveryQueryPlanLive/paged_claimed_replay` |
+
+The original scenarios remain explicit `xrd_lag_window` and `target_discovery_plan` cases. The historical RED/GREEN and timing artifacts above predate this naming change; production code and each case's fixture and assertions are unchanged. Current coverage is verified by running the exact hosted nine-root selector with PostgreSQL and `-json -race`, checking all six child run/pass pairs, and validating the stream with `scripts/lib/postgres_scheduled_runner.py`. The current command and output are recorded in `core-crossplane-enrolled-json-race.jsonl` and `core-crossplane-enrollment-harness-results.json` in the goal artifact directory.
