@@ -1,0 +1,16 @@
+go/internal/collector/observability/prometheus/EXTRACTION_PREP.md
+  h_78a442cba0b3e6 94-97
+go/internal/collector/observability/prometheus/SHIM_MAP.md
+  h_78a442cba0b3e6 86-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "23ff565c57bb1c1793dc47c91e682f404a6d1534",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
