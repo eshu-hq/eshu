@@ -73,6 +73,37 @@ func TestParseStringNotationPastTheClassifierIsNotADependency(t *testing.T) {
 	requireDependencyRow(t, payload, "org.g:kept")
 }
 
+// A ':' inside a ${...} interpolation is part of the version expression, not a
+// notation separator, so it neither splits the version nor makes the literal
+// over-long.
+func TestParseStringNotationKeepsAColonInsideAnInterpolation(t *testing.T) {
+	t.Parallel()
+	path := writeFixture(t, "build.gradle", `dependencies {
+    implementation "org.g:ternary:${c?1:2}:tests"
+    implementation "org.g:bare:${c?1:2}"
+    implementation "org.g:plain:${v}:tests"
+    implementation "org.g:classterny:1.0:${c?1:2}"
+}
+`)
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	for _, tc := range []struct{ name, value string }{
+		{"org.g:ternary", "${c?1:2}"},
+		{"org.g:bare", "${c?1:2}"},
+		{"org.g:plain", "${v}"},
+	} {
+		row := requireDependencyRow(t, payload, tc.name)
+		if row["dependency_resolution_state"] != "unresolved" || row["value"] != tc.value {
+			t.Errorf("%s = state %v value %q, want unresolved %q",
+				tc.name, row["dependency_resolution_state"], row["value"], tc.value)
+		}
+	}
+	// A ternary in the classifier position is a classifier, not extra notation.
+	requireDependencyRow(t, payload, "org.g:classterny")
+}
+
 // Kotlin string notation follows the same grammar.
 func TestParseKotlinStringNotationKeepsClassifierOutOfTheVersion(t *testing.T) {
 	t.Parallel()

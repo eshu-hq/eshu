@@ -68,7 +68,8 @@ classifier never joins `value`: `g:a:1.0:jdk8` is `resolved` at `1.0`. An
 (`g:a@jar` is `partial` with name `g:a`). Text past the classifier is not a
 Gradle notation, so the literal emits no row (`g:a:1.0:jdk8:extra`): a row
 would carry the colon-bearing text as a value that a reader could take as an
-observed version.
+observed version. A `:` inside a `${...}` interpolation (`${c?1:2}`) belongs
+to the version expression and is not a separator.
 
 ## Dependencies
 
