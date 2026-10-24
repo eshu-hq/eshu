@@ -182,6 +182,7 @@ func TestCurrentProbeRegistryIsRedactedAndClassifiesMappedDelta(t *testing.T) {
 		"generation_id": {}, "terraform_state_scope": {}, "package_id": {}, "fact_kind": {}, "collector_family": {},
 		"component_id": {}, "finding_id": {}, "fingerprint": {}, "packet_id": {}, "incident_id": {}, "relationship_id": {},
 		"workflow_id": {}, "playbook_id": {}, "tag": {}, "oci_repository_id": {},
+		"collector_kind": {}, "instance_id": {},
 	}
 	unknownSelectors := map[string]struct{}{}
 	for _, match := range regexp.MustCompile(`\{\{selector:([^}]+)}}`).FindAllStringSubmatch(text, -1) {
@@ -333,7 +334,7 @@ func TestCurrentProbeRegistryResolvesEveryExecutableFixture(t *testing.T) {
 		"fact_kind": "repository", "collector_family": "repository", "component_id": "component-fixture",
 		"finding_id": "finding-fixture", "fingerprint": "fingerprint-fixture", "packet_id": "packet-fixture", "relationship_id": "relationship-fixture",
 		"workflow_id": "workflow-fixture", "playbook_id": "playbook-fixture", "tag": "tag-fixture",
-		"oci_repository_id": "oci-registry://ghcr.io/eshu-hq/demo",
+		"oci_repository_id": "oci-registry://ghcr.io/eshu-hq/demo", "collector_kind": "git", "instance_id": "git-main",
 	}
 	for _, probe := range registry {
 		if !probe.execute {

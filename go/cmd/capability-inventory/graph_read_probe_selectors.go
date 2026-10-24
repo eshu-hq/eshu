@@ -66,6 +66,7 @@ func discoverProbeSelectors(client *http.Client, apiBaseURL, userToken string) (
 	collectRepositorySelector(payload, selectors)
 	discoverRepositoryScopedSelectors(client, apiBaseURL, userToken, selectors)
 	discoverAdditionalSelectors(client, apiBaseURL, userToken, selectors)
+	discoverCollectorInstanceSelectors(client, apiBaseURL, userToken, selectors)
 	return selectors, nil
 }
 
