@@ -77,6 +77,16 @@ func TestCollectorTerminalFailureAcknowledgementSemanticsLive(t *testing.T) {
 	f.item("recovered-c", sa, "recovered", "scope-a", "completed", "", false, 15*time.Minute)
 	f.item("recovered-f2", sa, "recovered", "scope-a", "failed_terminal", "auth_denied", true, 5*time.Minute)
 	f.ack(sa, "recovered", "scope-a", "auth_denied", "recovered-f1", 25*time.Minute)
+	// resolved: the scope recovered after the acknowledgement and has not failed
+	// again. Both failed rows are resolved by the completed row, so neither the
+	// unacknowledged nor the acknowledged lateral may report anything (a
+	// reviewer's live probe found the acknowledged lateral reporting the older
+	// row as acknowledged until the window passed).
+	f.instance(sa, "resolved", true, false, fifteen)
+	f.item("resolved-f0", sa, "resolved", "scope-a", "failed_terminal", "auth_denied", true, 35*time.Minute)
+	f.item("resolved-f1", sa, "resolved", "scope-a", "failed_terminal", "auth_denied", true, 20*time.Minute)
+	f.item("resolved-c", sa, "resolved", "scope-a", "completed", "", false, 5*time.Minute)
+	f.ack(sa, "resolved", "scope-a", "auth_denied", "resolved-f1", 20*time.Minute)
 	// otherscope / twin / rekind: acknowledgements keyed elsewhere cover nothing.
 	f.instance(sa, "otherscope", true, false, fifteen)
 	f.item("otherscope-f", sa, "otherscope", "scope-a", "failed_terminal", "auth_denied", true, 5*time.Minute)
@@ -134,6 +144,7 @@ func TestCollectorTerminalFailureAcknowledgementSemanticsLive(t *testing.T) {
 	check("episode", "", "episode-f2")
 	check("reclass", "reclass-f2", "reclass-f1")
 	check("recovered", "recovered-f2", "")
+	check("resolved", "", "")
 	check("otherscope", "otherscope-f", "")
 	check("twin-a", "twin-a-f", "")
 	check("twin-b", "", "")

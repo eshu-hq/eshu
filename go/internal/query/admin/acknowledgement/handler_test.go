@@ -152,6 +152,17 @@ func post(handler http.HandlerFunc, path, body string, authCtx auth.AuthContext)
 	return rec
 }
 
+// lastAuditEvent returns the newest recorded audit event.
+func lastAuditEvent(t *testing.T, appender *recordingAppender) governanceaudit.Event {
+	t.Helper()
+	appender.mu.Lock()
+	defer appender.mu.Unlock()
+	if len(appender.events) == 0 {
+		t.Fatal("no audit event recorded, want one per decision")
+	}
+	return appender.events[len(appender.events)-1]
+}
+
 func lastAudit(t *testing.T, appender *recordingAppender) (governanceaudit.Decision, string) {
 	t.Helper()
 	appender.mu.Lock()
@@ -203,6 +214,15 @@ func TestAcknowledgeRecordsAuditsAndNeverEchoesTheReason(t *testing.T) {
 	}
 	if decision, reason := lastAudit(t, p.appender); decision != governanceaudit.DecisionAllowed || reason != "ack_recorded" {
 		t.Fatalf("audit = %s/%s, want allowed/ack_recorded", decision, reason)
+	}
+	// The audit event ties to the acknowledged target by hash and never carries
+	// the target or the reason.
+	event := lastAuditEvent(t, p.appender)
+	if event.ScopeIDHash != ackScopeHash("security_alert", "alerts", "org:example") || !strings.HasPrefix(event.ScopeIDHash, "sha256:") {
+		t.Fatalf("audit ScopeIDHash = %q, want the sha256 hash of the acknowledged target", event.ScopeIDHash)
+	}
+	if encoded, _ := json.Marshal(event); strings.Contains(string(encoded), "org:example") || strings.Contains(string(encoded), "org left the program") {
+		t.Fatalf("audit event carries the scope or the reason: %s", encoded)
 	}
 }
 
@@ -291,7 +311,6 @@ func TestAcknowledgeRefusals(t *testing.T) {
 		{"scoped token", goodBody, auth.AuthContext{Mode: "scoped", AllScopes: false}, nil, 403, "ack_refused_unauthorized", 0},
 		{"unknown instance", goodBody, adminAuth(), pgstorage.ErrTerminalFailureAckInstanceNotFound, 404, "ack_refused_instance_not_found", 1},
 		{"nothing to acknowledge", goodBody, adminAuth(), pgstorage.ErrTerminalFailureAckNoFailure, 422, "ack_refused_no_terminal_failure", 1},
-		{"class changed", goodBody, adminAuth(), pgstorage.ErrTerminalFailureAckClassChanged, 409, "ack_refused_class_changed", 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

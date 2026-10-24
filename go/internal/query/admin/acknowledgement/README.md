@@ -29,11 +29,10 @@ ledger methods.
 ## Behavior
 
 The caller names `collector_kind`, `instance_id`, `scope_id`, a `reason` of at
-most 512 characters, and an `idempotency_key`; `failure_class` is an optional
-guard. Every expected refusal happens before the ledger claim, so it leaves the
+most 512 characters, and an `idempotency_key`. Every expected refusal happens before the ledger claim, so it leaves the
 key unconsumed: an unknown, mismatched, or inactive instance (404), a scope with no
 unresolved failure inside the instance's window (422
-`ack_refused_no_terminal_failure`), a changed class (409). The same key and
+`ack_refused_no_terminal_failure`). The same key and
 target replays the stored outcome (`status` duplicate); the same key with another
 target answers 409. A scoped token gets 403; unauthenticated dev mode stays open.
 
