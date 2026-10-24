@@ -25,6 +25,12 @@ func TestGitHubDependabotClientMarksAlertsDisabled403(t *testing.T) {
 
 	cut := `{"message":"Dependabot alerts are disabled for this repository.","pad":"` +
 		strings.Repeat("x", maxGitHubErrorBodyBytes) + `"}`
+	// phrase is complete JSON; padding it with trailing spaces pins the body
+	// cap edge: exactly maxGitHubErrorBodyBytes is read in full, one byte more
+	// is cut off and never interpreted.
+	const phrase = `{"message":"Dependabot alerts are disabled for this repository."}`
+	atCap := phrase + strings.Repeat(" ", maxGitHubErrorBodyBytes-len(phrase))
+	overCap := atCap + " "
 	tests := []struct {
 		name      string
 		status    int
@@ -44,6 +50,9 @@ func TestGitHubDependabotClientMarksAlertsDisabled403(t *testing.T) {
 		{name: "non-string message", status: 403, body: `{"message":["Dependabot alerts are disabled"]}`, wantClass: GitHubDependabotFailureAuthDenied},
 		{name: "cut off past the cap", status: 403, body: cut, wantClass: GitHubDependabotFailureAuthDenied},
 		{name: "different wording", status: 403, body: `{"message":"Alerts are turned off"}`, wantClass: GitHubDependabotFailureAuthDenied},
+		{name: "complete body of exactly the cap", status: 403, body: atCap, wantMark: true, wantClass: GitHubDependabotFailureAuthDenied},
+		{name: "body one byte over the cap", status: 403, body: overCap, wantClass: GitHubDependabotFailureAuthDenied},
+		{name: "401 with the text", status: 401, body: alertsDisabledBody, wantClass: GitHubDependabotFailureAuthDenied},
 		{name: "404 with the text", status: 404, body: alertsDisabledBody, wantClass: GitHubDependabotFailureNotFound},
 		{name: "422 with the text", status: 422, body: alertsDisabledBody, wantClass: GitHubDependabotFailureTerminal},
 		{name: "500 with the text", status: 500, body: alertsDisabledBody, wantClass: GitHubDependabotFailureRetryable},
