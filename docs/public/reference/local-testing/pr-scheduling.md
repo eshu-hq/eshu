@@ -7,6 +7,8 @@ names the applicable workflows, their local jobs, and selected registry gate
 IDs. Schema 2 binds the current run and attempt to an immutable tested merge;
 transfer modes also carry their direct full-backed source. The plan job fails
 if the CLI, schema, or head binding cannot be validated.
+Its successful mode step records the exact full, reuse, or smoke selection for
+the trusted publisher to compare with the required verdict.
 
 The remaining synchronize workflows are called from `Build Test`. Their
 original base-branch and changed-path filters are in the inventory. A callable
