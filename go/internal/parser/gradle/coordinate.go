@@ -81,8 +81,8 @@ func firstStringLiteral(value string) (string, bool) {
 // the classifier never joins the version. An "@ext" suffix stays on a declared
 // version ("1.0@jar") so the selector rule keeps that row unresolved; it is
 // dropped when no version is declared. Text past the classifier is not a
-// notation Gradle accepts; it is kept as the version, where the ':' it holds
-// keeps the row unresolved.
+// notation Gradle accepts, so the literal is no dependency: it emits no row,
+// and no reader can take its colon-bearing text as an observed version.
 func parseCoordinateLiteral(literal string) (coordinate, bool) {
 	literal = strings.TrimSpace(literal)
 	body, ext := literal, ""
@@ -109,7 +109,7 @@ func parseCoordinateLiteral(literal string) (coordinate, bool) {
 	case 3, 4:
 		version = strings.TrimSpace(parts[2])
 		if len(parts) == 4 && strings.Contains(parts[3], ":") {
-			version = strings.TrimSpace(strings.Join(parts[2:], ":"))
+			return coordinate{}, false
 		}
 	}
 	if version != "" {

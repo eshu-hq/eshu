@@ -66,8 +66,9 @@ classifier never joins `value`: `g:a:1.0:jdk8` is `resolved` at `1.0`. An
 `@ext` suffix stays on a declared version (`g:a:1.0:jdk8@jar` keeps
 `1.0@jar`, `unresolved`) and is dropped when there is no version
 (`g:a@jar` is `partial` with name `g:a`). Text past the classifier is not a
-Gradle notation; it is kept as the version, where its `:` keeps the row
-`unresolved`.
+Gradle notation, so the literal emits no row (`g:a:1.0:jdk8:extra`): a row
+would carry the colon-bearing text as a value that a reader could take as an
+observed version.
 
 ## Dependencies
 
