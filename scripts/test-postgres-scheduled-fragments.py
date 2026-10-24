@@ -218,40 +218,52 @@ class InventoryFragmentTest(unittest.TestCase):
         inventory = runner.load_inventory()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            copy_contract(root)
             for target in inventory:
                 copy = root / target
                 copy.parent.mkdir(parents=True, exist_ok=True)
                 copy.write_text((ROOT / target).read_text())
             workflow = root / runner.WORKFLOW
             workflow.parent.mkdir(parents=True)
-            original = (ROOT / runner.WORKFLOW).read_text()
+            workflow.write_text((ROOT / runner.WORKFLOW).read_text())
+            action = root / runner.BULK_ACTION
+            original = action.read_text()
             removed = (
-                "          ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: "
+                "        ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: "
                 "postgres://eshu:change-me@localhost:15432/"
                 "postgres?sslmode=disable\n"
             )
             self.assertEqual(original.count(removed), 3)
-            workflow.write_text(original.replace(removed, "", 1))
-            with self.assertRaisesRegex(ValueError, "missing admin DSN"):
-                runner.verify_inventory(root, inventory)
+            action.write_text(original.replace(removed, "", 1))
+            with mock.patch.object(
+                    runner, "BULK_ACTION_SHA256",
+                    hashlib.sha256(action.read_bytes()).hexdigest()):
+                with self.assertRaisesRegex(ValueError, "missing admin DSN"):
+                    runner.verify_inventory(root, inventory)
 
     def test_admin_replay_fence_opt_in_is_required(self) -> None:
         """The admin replay proof must run with its live fixture flag."""
         inventory = runner.load_inventory()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            copy_contract(root)
             for target in inventory:
                 copy = root / target
                 copy.parent.mkdir(parents=True, exist_ok=True)
                 copy.write_text((ROOT / target).read_text())
             workflow = root / runner.WORKFLOW
             workflow.parent.mkdir(parents=True)
-            original = (ROOT / runner.WORKFLOW).read_text()
-            flag = '          ESHU_ADMIN_REPLAY_FENCE_LIVE: "1"\n'
+            workflow.write_text((ROOT / runner.WORKFLOW).read_text())
+            action = root / runner.BULK_ACTION
+            original = action.read_text()
+            flag = '        ESHU_ADMIN_REPLAY_FENCE_LIVE: "1"\n'
             self.assertEqual(original.count(flag), 1)
-            workflow.write_text(original.replace(flag, "", 1))
-            with self.assertRaisesRegex(ValueError, "admin replay fence opt-in missing"):
-                runner.verify_inventory(root, inventory)
+            action.write_text(original.replace(flag, "", 1))
+            with mock.patch.object(
+                    runner, "BULK_ACTION_SHA256",
+                    hashlib.sha256(action.read_bytes()).hexdigest()):
+                with self.assertRaisesRegex(ValueError, "admin replay fence opt-in missing"):
+                    runner.verify_inventory(root, inventory)
 
     @mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "false"})
     def test_missing_new_stream_and_local_as_hosted_fail(self) -> None:
