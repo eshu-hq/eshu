@@ -20,10 +20,13 @@ import (
 // supplies the matching and the bounded class, so a persisted class outside
 // the allowlist reads as "unknown" and an unregistered instance never appears.
 //
-// An instance whose failure an operator acknowledged (#8830) leaves that gauge
-// and is counted in eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances
-// instead, with the same bounded labels, so an alert on the first gauge pages
-// only for failures nobody has said are expected.
+// A failure an operator acknowledged (#8830) is not in that gauge: it is the
+// AcknowledgedFailure sub-record, and an instance whose only failures are
+// acknowledged is not degraded. eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances
+// counts instances with an acknowledged failure by the same bounded labels, so
+// an alert on the first gauge pages only for failures nobody has said are
+// expected, and the second keeps them countable. An instance with both an
+// acknowledged and an unacknowledged failure counts in both.
 func writeCollectorTerminalFailureMetrics(
 	writeGauge func(name string, labels map[string]string, value string),
 	serviceName string,
@@ -39,12 +42,11 @@ func writeCollectorTerminalFailureMetrics(
 		Instances:        snapshot.CollectorInstances,
 		TerminalFailures: snapshot.CollectorTerminalFailures,
 	}) {
-		switch {
-		case !row.LastFailureTerminal:
-		case row.LastFailureAcknowledged:
-			acknowledged[key{row.CollectorKind, row.LastFailureClass}]++
-		case row.Health == "degraded":
+		if row.LastFailureTerminal && row.Health == "degraded" {
 			counts[key{row.CollectorKind, row.LastFailureClass}]++
+		}
+		if row.AcknowledgedFailure != nil {
+			acknowledged[key{row.CollectorKind, row.AcknowledgedFailure.FailureClass}]++
 		}
 	}
 	writeTerminalFailureSeries(writeGauge, serviceName,

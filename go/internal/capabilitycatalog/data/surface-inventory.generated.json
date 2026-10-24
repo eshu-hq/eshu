@@ -753,7 +753,12 @@
     },
     {
       "category": "api_route",
-      "name": "POST /api/v0/admin/collector-terminal-failure-acknowledgements",
+      "name": "POST /api/v0/admin/collector-failures/acknowledge",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/admin/collector-failures/acknowledgements/query",
       "readiness": "implemented"
     },
     {

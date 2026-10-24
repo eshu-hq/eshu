@@ -10,24 +10,86 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// scriptedAcknowledger records calls and replays a canned result.
+// scriptedAcknowledger records calls and replays canned results.
 type scriptedAcknowledger struct {
-	calls  []pgstorage.TerminalFailureAckRequest
-	result pgstorage.TerminalFailureAckResult
-	err    error
+	mu          sync.Mutex
+	resolves    int
+	acknowledge int
+	resolveErr  error
+	ackErr      error
+	result      pgstorage.TerminalFailureAckResult
+	records     []pgstorage.TerminalFailureAckRecord
+	lastRequest pgstorage.TerminalFailureAckRequest
+	listErr     error
+	lastFilter  pgstorage.TerminalFailureAckListFilter
+}
+
+func (s *scriptedAcknowledger) ResolveTarget(_ context.Context, req pgstorage.TerminalFailureAckRequest) (pgstorage.TerminalFailureAckTarget, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.resolves++
+	return s.result.TerminalFailureAckTarget, s.resolveErr
 }
 
 func (s *scriptedAcknowledger) Acknowledge(_ context.Context, req pgstorage.TerminalFailureAckRequest) (pgstorage.TerminalFailureAckResult, error) {
-	s.calls = append(s.calls, req)
-	return s.result, s.err
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.acknowledge++
+	s.lastRequest = req
+	return s.result, s.ackErr
+}
+
+func (s *scriptedAcknowledger) ListTerminalFailureAcks(_ context.Context, filter pgstorage.TerminalFailureAckListFilter) ([]pgstorage.TerminalFailureAckRecord, error) {
+	s.lastFilter = filter
+	return s.records, s.listErr
+}
+
+// memoryLedger is an in-memory replay idempotency ledger with the real claim
+// semantics: the first claim of a key wins, a later claim sees the stored
+// fingerprint and status, and Complete records the outcome.
+type memoryLedger struct {
+	mu          sync.Mutex
+	rows        map[string]*ledgerRow
+	completeErr error
+}
+
+type ledgerRow struct {
+	fingerprint string
+	status      string
+	ids         []string
+}
+
+func newLedger() *memoryLedger { return &memoryLedger{rows: map[string]*ledgerRow{}} }
+
+func (l *memoryLedger) ClaimReplayIdempotency(_ context.Context, key, fingerprint string, _ time.Time) (admin.ReplayIdempotencyClaim, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if row, ok := l.rows[key]; ok {
+		return admin.ReplayIdempotencyClaim{Status: row.status, Fingerprint: row.fingerprint, ReplayedCount: len(row.ids), WorkItemIDs: row.ids}, nil
+	}
+	l.rows[key] = &ledgerRow{fingerprint: fingerprint, status: admin.ReplayRequestStatusInProgress}
+	return admin.ReplayIdempotencyClaim{Claimed: true}, nil
+}
+
+func (l *memoryLedger) CompleteReplayIdempotency(_ context.Context, key string, _ int, ids []string, _ time.Time) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.completeErr != nil {
+		return l.completeErr
+	}
+	l.rows[key].status = admin.ReplayRequestStatusCompleted
+	l.rows[key].ids = ids
+	return nil
 }
 
 // recordingAppender keeps the events the handler appends, after running each
@@ -35,10 +97,13 @@ func (s *scriptedAcknowledger) Acknowledge(_ context.Context, req pgstorage.Term
 // appender cannot hide a rejected event.
 type recordingAppender struct {
 	t      *testing.T
+	mu     sync.Mutex
 	events []governanceaudit.Event
 }
 
 func (a *recordingAppender) Append(_ context.Context, events []governanceaudit.Event) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	for _, event := range events {
 		if _, err := governanceaudit.NormalizeEvent(event); err != nil {
 			a.t.Errorf("NormalizeEvent rejected the audit event %+v: %v", event, err)
@@ -50,30 +115,47 @@ func (a *recordingAppender) Append(_ context.Context, events []governanceaudit.E
 
 func adminAuth() auth.AuthContext { return auth.AuthContext{Mode: "shared", AllScopes: true} }
 
-func fixture(t *testing.T) (*Handler, *scriptedAcknowledger, *recordingAppender) {
-	t.Helper()
-	failureAt := time.Date(2026, 10, 24, 10, 0, 0, 0, time.UTC)
-	ack := &scriptedAcknowledger{result: pgstorage.TerminalFailureAckResult{
-		CollectorKind: "security_alert", InstanceID: "alerts", ScopeID: "org:example",
-		FailureClass: "auth_denied", FailureAt: failureAt, AcknowledgedAt: failureAt.Add(time.Minute),
-		Reason: "org left the program",
-	}}
-	appender := &recordingAppender{t: t}
-	return &Handler{Acknowledger: ack, Audit: appender, Clock: func() time.Time { return failureAt }}, ack, appender
+type fixtureParts struct {
+	handler  *Handler
+	store    *scriptedAcknowledger
+	ledger   *memoryLedger
+	appender *recordingAppender
 }
 
-const goodBody = `{"instance_id":"alerts","scope_id":"org:example","failure_class":"auth_denied","reason":"org left the program"}`
+func fixture(t *testing.T) fixtureParts {
+	t.Helper()
+	failureAt := time.Date(2026, 10, 24, 10, 0, 0, 0, time.UTC)
+	store := &scriptedAcknowledger{result: pgstorage.TerminalFailureAckResult{
+		TerminalFailureAckTarget: pgstorage.TerminalFailureAckTarget{
+			CollectorKind: "security_alert", InstanceID: "alerts", ScopeID: "org:example", WorkItemID: "work-1",
+			FailureClass: "auth_denied", FailureOperation: "list_org_alerts", FailureAt: failureAt,
+		},
+		AcknowledgedAt: failureAt.Add(time.Minute),
+	}}
+	ledger := newLedger()
+	appender := &recordingAppender{t: t}
+	return fixtureParts{
+		handler:  &Handler{Acknowledger: store, Ledger: ledger, Audit: appender, Clock: func() time.Time { return failureAt }},
+		store:    store,
+		ledger:   ledger,
+		appender: appender,
+	}
+}
 
-func post(handler *Handler, body string, authCtx auth.AuthContext) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodPost, route, strings.NewReader(body))
+const goodBody = `{"collector_kind":"security_alert","instance_id":"alerts","scope_id":"org:example","reason":"org left the program","idempotency_key":"key-1"}`
+
+func post(handler http.HandlerFunc, path, body string, authCtx auth.AuthContext) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 	rec := httptest.NewRecorder()
-	handler.acknowledge(rec, req)
+	handler(rec, req)
 	return rec
 }
 
-func lastReason(t *testing.T, appender *recordingAppender) (governanceaudit.Decision, string) {
+func lastAudit(t *testing.T, appender *recordingAppender) (governanceaudit.Decision, string) {
 	t.Helper()
+	appender.mu.Lock()
+	defer appender.mu.Unlock()
 	if len(appender.events) == 0 {
 		t.Fatal("no audit event recorded, want one per decision")
 	}
@@ -84,94 +166,151 @@ func lastReason(t *testing.T, appender *recordingAppender) (governanceaudit.Deci
 	return event.Decision, event.ReasonCode
 }
 
-func TestAcknowledgeRecordsAndAudits(t *testing.T) {
-	handler, ack, appender := fixture(t)
-	rec := post(handler, goodBody, adminAuth())
+func TestAcknowledgeRecordsAuditsAndNeverEchoesTheReason(t *testing.T) {
+	p := fixture(t)
+	rec := post(p.handler.acknowledge, acknowledgeRoute, goodBody, adminAuth())
 	if rec.Code != http.StatusOK {
 		t.Fatalf("code = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
-	if len(ack.calls) != 1 || ack.calls[0].InstanceID != "alerts" || ack.calls[0].ScopeID != "org:example" ||
-		ack.calls[0].FailureClass != "auth_denied" || ack.calls[0].Reason != "org left the program" {
-		t.Fatalf("calls = %+v, want one call carrying the request", ack.calls)
-	}
-	if ack.calls[0].ActorClass == "" {
-		t.Fatalf("actor class is empty, want the audit actor class passed to the store: %+v", ack.calls[0])
+	if p.store.acknowledge != 1 || p.store.lastRequest.Reason != "org left the program" ||
+		p.store.lastRequest.CollectorKind != "security_alert" || p.store.lastRequest.ActorClass == "" {
+		t.Fatalf("store request = %+v after %d writes, want one write carrying the request and the audit actor class", p.store.lastRequest, p.store.acknowledge)
 	}
 	var body struct {
 		Status          string `json:"status"`
-		Duplicate       bool   `json:"duplicate"`
+		IdempotencyKey  string `json:"idempotency_key"`
 		Acknowledgement struct {
-			CollectorKind  string `json:"collector_kind"`
-			InstanceID     string `json:"instance_id"`
-			ScopeID        string `json:"scope_id"`
-			FailureClass   string `json:"failure_class"`
-			FailureAt      string `json:"failure_at"`
-			AcknowledgedAt string `json:"acknowledged_at"`
-			Reason         string `json:"reason"`
+			CollectorKind    string `json:"collector_kind"`
+			InstanceID       string `json:"instance_id"`
+			ScopeID          string `json:"scope_id"`
+			WorkItemID       string `json:"work_item_id"`
+			FailureClass     string `json:"failure_class"`
+			FailureOperation string `json:"failure_operation"`
+			FailedAt         string `json:"failed_at"`
+			AcknowledgedAt   string `json:"acknowledged_at"`
 		} `json:"acknowledgement"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if body.Status != "acknowledged" || body.Duplicate || body.Acknowledgement.CollectorKind != "security_alert" ||
-		body.Acknowledgement.FailureClass != "auth_denied" || body.Acknowledgement.FailureAt == "" ||
-		body.Acknowledgement.AcknowledgedAt == "" || body.Acknowledgement.Reason != "org left the program" {
-		t.Fatalf("body = %s, want an acknowledged record", rec.Body.String())
+	if body.Status != "acknowledged" || body.IdempotencyKey != "key-1" || body.Acknowledgement.WorkItemID != "work-1" ||
+		body.Acknowledgement.FailureClass != "auth_denied" || body.Acknowledgement.FailureOperation != "list_org_alerts" ||
+		body.Acknowledgement.FailedAt == "" || body.Acknowledgement.AcknowledgedAt == "" {
+		t.Fatalf("body = %s, want an acknowledged record with the bounded failure", rec.Body.String())
 	}
-	if decision, reason := lastReason(t, appender); decision != governanceaudit.DecisionAllowed || reason != "collector_failure_ack_recorded" {
-		t.Fatalf("audit = %s/%s, want allowed/collector_failure_ack_recorded", decision, reason)
+	if strings.Contains(rec.Body.String(), "org left the program") || strings.Contains(rec.Body.String(), "reason") {
+		t.Fatalf("response echoes the operator's reason: %s", rec.Body.String())
+	}
+	if decision, reason := lastAudit(t, p.appender); decision != governanceaudit.DecisionAllowed || reason != "ack_recorded" {
+		t.Fatalf("audit = %s/%s, want allowed/ack_recorded", decision, reason)
 	}
 }
 
-func TestAcknowledgeRepeatIsUnchanged(t *testing.T) {
-	handler, ack, appender := fixture(t)
-	ack.result.Unchanged = true
-	rec := post(handler, goodBody, adminAuth())
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"duplicate":true`) ||
-		!strings.Contains(rec.Body.String(), `"status":"unchanged"`) {
-		t.Fatalf("response = %d %s, want 200 unchanged duplicate", rec.Code, rec.Body.String())
+func TestAcknowledgeDuplicateKeyReplaysTheStoredOutcome(t *testing.T) {
+	p := fixture(t)
+	first := post(p.handler.acknowledge, acknowledgeRoute, goodBody, adminAuth())
+	again := post(p.handler.acknowledge, acknowledgeRoute, goodBody, adminAuth())
+	if first.Code != http.StatusOK || again.Code != http.StatusOK {
+		t.Fatalf("codes = %d, %d, want 200 and 200", first.Code, again.Code)
 	}
-	if decision, reason := lastReason(t, appender); decision != governanceaudit.DecisionAllowed || reason != "collector_failure_ack_unchanged" {
-		t.Fatalf("audit = %s/%s, want allowed/collector_failure_ack_unchanged", decision, reason)
+	if p.store.acknowledge != 1 {
+		t.Fatalf("store writes = %d, want 1 (the ledger answers the repeat)", p.store.acknowledge)
+	}
+	var replay struct {
+		Status          string `json:"status"`
+		Acknowledgement struct {
+			WorkItemID string `json:"work_item_id"`
+		} `json:"acknowledgement"`
+	}
+	if err := json.Unmarshal(again.Body.Bytes(), &replay); err != nil || replay.Status != "duplicate" || replay.Acknowledgement.WorkItemID != "work-1" {
+		t.Fatalf("replay = %s (%v), want status duplicate with the stored work item", again.Body.String(), err)
+	}
+	if decision, reason := lastAudit(t, p.appender); decision != governanceaudit.DecisionAllowed || reason != "ack_idempotent_replay" {
+		t.Fatalf("audit = %s/%s, want allowed/ack_idempotent_replay", decision, reason)
+	}
+}
+
+func TestAcknowledgeSameKeyDifferentTargetConflicts(t *testing.T) {
+	p := fixture(t)
+	post(p.handler.acknowledge, acknowledgeRoute, goodBody, adminAuth())
+	other := strings.Replace(goodBody, `"scope_id":"org:example"`, `"scope_id":"org:other"`, 1)
+	rec := post(p.handler.acknowledge, acknowledgeRoute, other, adminAuth())
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("code = %d, want 409: %s", rec.Code, rec.Body.String())
+	}
+	if p.store.acknowledge != 1 {
+		t.Fatalf("store writes = %d, want the conflicting call to write nothing", p.store.acknowledge)
+	}
+	if decision, reason := lastAudit(t, p.appender); decision != governanceaudit.DecisionDenied || reason != "ack_idempotency_key_reused" {
+		t.Fatalf("audit = %s/%s, want denied/ack_idempotency_key_reused", decision, reason)
+	}
+}
+
+// TestAcknowledgeConcurrentSameKeyWritesOnce proves the ledger claim serializes
+// two requests with one key: exactly one reaches the store.
+func TestAcknowledgeConcurrentSameKeyWritesOnce(t *testing.T) {
+	p := fixture(t)
+	var wg sync.WaitGroup
+	codes := make(chan int, 8)
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			codes <- post(p.handler.acknowledge, acknowledgeRoute, goodBody, adminAuth()).Code
+		}()
+	}
+	wg.Wait()
+	close(codes)
+	if p.store.acknowledge != 1 {
+		t.Fatalf("store writes = %d across 8 concurrent calls with one key, want 1", p.store.acknowledge)
+	}
+	for code := range codes {
+		if code != http.StatusOK && code != http.StatusConflict {
+			t.Fatalf("concurrent call answered %d, want 200 (done) or 409 (in progress)", code)
+		}
 	}
 }
 
 func TestAcknowledgeRefusals(t *testing.T) {
 	cases := []struct {
-		name       string
-		body       string
-		auth       auth.AuthContext
-		storeErr   error
-		wantCode   int
-		wantReason string
-		wantCalls  int
+		name         string
+		body         string
+		auth         auth.AuthContext
+		resolveErr   error
+		wantCode     int
+		wantReason   string
+		wantResolves int
 	}{
-		{"missing reason", `{"instance_id":"a","scope_id":"s","failure_class":"auth_denied","reason":"  "}`, adminAuth(), nil, 400, "collector_failure_ack_refused_missing_reason", 0},
-		{"missing instance", `{"scope_id":"s","failure_class":"auth_denied","reason":"r"}`, adminAuth(), nil, 400, "collector_failure_ack_refused_invalid_request", 0},
-		{"missing scope", `{"instance_id":"a","failure_class":"auth_denied","reason":"r"}`, adminAuth(), nil, 400, "collector_failure_ack_refused_invalid_request", 0},
-		{"missing class", `{"instance_id":"a","scope_id":"s","reason":"r"}`, adminAuth(), nil, 400, "collector_failure_ack_refused_invalid_request", 0},
-		{"reason too long", `{"instance_id":"a","scope_id":"s","failure_class":"auth_denied","reason":"` + strings.Repeat("x", 513) + `"}`, adminAuth(), nil, 400, "collector_failure_ack_refused_invalid_request", 0},
+		{"missing reason", `{"collector_kind":"k","instance_id":"a","scope_id":"s","reason":"  ","idempotency_key":"k1"}`, adminAuth(), nil, 400, "ack_refused_missing_reason", 0},
+		{"missing key", `{"collector_kind":"k","instance_id":"a","scope_id":"s","reason":"r"}`, adminAuth(), nil, 400, "ack_refused_missing_idempotency_key", 0},
+		{"missing kind", `{"instance_id":"a","scope_id":"s","reason":"r","idempotency_key":"k1"}`, adminAuth(), nil, 400, "ack_refused_invalid_request", 0},
+		{"missing instance", `{"collector_kind":"k","scope_id":"s","reason":"r","idempotency_key":"k1"}`, adminAuth(), nil, 400, "ack_refused_invalid_request", 0},
+		{"missing scope", `{"collector_kind":"k","instance_id":"a","reason":"r","idempotency_key":"k1"}`, adminAuth(), nil, 400, "ack_refused_invalid_request", 0},
+		{"reason too long", `{"collector_kind":"k","instance_id":"a","scope_id":"s","reason":"` + strings.Repeat("x", 513) + `","idempotency_key":"k1"}`, adminAuth(), nil, 400, "ack_refused_invalid_request", 0},
 		{"malformed body", `{`, adminAuth(), nil, 400, "", 0},
-		{"scoped token", goodBody, auth.AuthContext{Mode: "scoped", AllScopes: false}, nil, 403, "collector_failure_ack_refused_unauthorized", 0},
-		{"unknown instance", goodBody, adminAuth(), pgstorage.ErrTerminalFailureAckInstanceNotFound, 404, "collector_failure_ack_refused_instance_not_found", 1},
-		{"no failure", goodBody, adminAuth(), pgstorage.ErrTerminalFailureAckNoFailure, 404, "collector_failure_ack_refused_no_failure", 1},
-		{"class changed", goodBody, adminAuth(), pgstorage.ErrTerminalFailureAckClassChanged, 409, "collector_failure_ack_refused_class_changed", 1},
+		{"scoped token", goodBody, auth.AuthContext{Mode: "scoped", AllScopes: false}, nil, 403, "ack_refused_unauthorized", 0},
+		{"unknown instance", goodBody, adminAuth(), pgstorage.ErrTerminalFailureAckInstanceNotFound, 404, "ack_refused_instance_not_found", 1},
+		{"nothing to acknowledge", goodBody, adminAuth(), pgstorage.ErrTerminalFailureAckNoFailure, 422, "ack_refused_no_terminal_failure", 1},
+		{"class changed", goodBody, adminAuth(), pgstorage.ErrTerminalFailureAckClassChanged, 409, "ack_refused_class_changed", 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler, ack, appender := fixture(t)
-			ack.err = tc.storeErr
-			rec := post(handler, tc.body, tc.auth)
+			p := fixture(t)
+			p.store.resolveErr = tc.resolveErr
+			rec := post(p.handler.acknowledge, acknowledgeRoute, tc.body, tc.auth)
 			if rec.Code != tc.wantCode {
 				t.Fatalf("code = %d, want %d: %s", rec.Code, tc.wantCode, rec.Body.String())
 			}
-			if len(ack.calls) != tc.wantCalls {
-				t.Fatalf("store calls = %d, want %d", len(ack.calls), tc.wantCalls)
+			if p.store.resolves != tc.wantResolves || p.store.acknowledge != 0 {
+				t.Fatalf("store calls = %d resolves and %d writes, want %d and 0", p.store.resolves, p.store.acknowledge, tc.wantResolves)
+			}
+			if len(p.ledger.rows) != 0 {
+				t.Fatalf("ledger rows = %d, want a refusal to leave the idempotency key unconsumed", len(p.ledger.rows))
 			}
 			if tc.wantReason == "" {
 				return
 			}
-			if decision, reason := lastReason(t, appender); decision != governanceaudit.DecisionDenied || reason != tc.wantReason {
+			if decision, reason := lastAudit(t, p.appender); decision != governanceaudit.DecisionDenied || reason != tc.wantReason {
 				t.Fatalf("audit = %s/%s, want denied/%s", decision, reason, tc.wantReason)
 			}
 		})
@@ -181,9 +320,9 @@ func TestAcknowledgeRefusals(t *testing.T) {
 // TestAcknowledgeStoreFaultLeaksNothing pins the #7674 rule: a store fault
 // answers the fixed message, never the backend text, and audits the failure.
 func TestAcknowledgeStoreFaultLeaksNothing(t *testing.T) {
-	handler, ack, appender := fixture(t)
-	ack.err = errors.New("pq: password authentication failed for user eshu at 10.0.0.7")
-	rec := post(handler, goodBody, adminAuth())
+	p := fixture(t)
+	p.store.ackErr = errors.New("pq: password authentication failed for user eshu at 10.0.0.7")
+	rec := post(p.handler.acknowledge, acknowledgeRoute, goodBody, adminAuth())
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("code = %d, want 500", rec.Code)
 	}
@@ -191,27 +330,81 @@ func TestAcknowledgeStoreFaultLeaksNothing(t *testing.T) {
 		!strings.Contains(rec.Body.String(), acknowledgeFailedMessage) {
 		t.Fatalf("body = %s, want only the fixed message", rec.Body.String())
 	}
-	if decision, reason := lastReason(t, appender); decision != governanceaudit.DecisionDenied || reason != "collector_failure_ack_failed" {
-		t.Fatalf("audit = %s/%s, want denied/collector_failure_ack_failed", decision, reason)
+	if decision, reason := lastAudit(t, p.appender); decision != governanceaudit.DecisionDenied || reason != "ack_failed" {
+		t.Fatalf("audit = %s/%s, want denied/ack_failed", decision, reason)
+	}
+}
+
+func TestAcknowledgeLedgerFinalizeFaultLeaksNothing(t *testing.T) {
+	p := fixture(t)
+	p.ledger.completeErr = errors.New("pq: connection refused at 10.0.0.7")
+	rec := post(p.handler.acknowledge, acknowledgeRoute, goodBody, adminAuth())
+	if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "10.0.0.7") ||
+		!strings.Contains(rec.Body.String(), recordFailedMessage) {
+		t.Fatalf("response = %d %s, want 500 with only the fixed finalize message", rec.Code, rec.Body.String())
 	}
 }
 
 func TestAcknowledgeNotConfigured(t *testing.T) {
-	rec := post(&Handler{}, goodBody, adminAuth())
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("code = %d, want 503 when no acknowledger is wired", rec.Code)
+	for name, handler := range map[string]*Handler{"empty": {}, "no ledger": {Acknowledger: &scriptedAcknowledger{}}} {
+		rec := post(handler.acknowledge, acknowledgeRoute, goodBody, adminAuth())
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("%s: code = %d, want 503", name, rec.Code)
+		}
 	}
 }
 
-func TestMountRegistersTheRoute(t *testing.T) {
-	handler, ack, _ := fixture(t)
+// TestQueryReturnsTheReasonOnlyToAdmins pins the admin-only read: the reason
+// appears here and nowhere else, and a scoped token is refused.
+func TestQueryReturnsTheReasonOnlyToAdmins(t *testing.T) {
+	p := fixture(t)
+	at := time.Date(2026, 10, 24, 10, 0, 0, 0, time.UTC)
+	p.store.records = []pgstorage.TerminalFailureAckRecord{{
+		CollectorKind: "security_alert", InstanceID: "alerts", ScopeID: "org:example", FailureClass: "auth_denied",
+		FailureAt: at, WorkItemID: "work-1", Reason: "org left the program", ActorClass: "shared_token", CorrelationID: "corr-1", AcknowledgedAt: at,
+	}}
+	rec := post(p.handler.queryAcknowledgements, queryRoute, `{"instance_id":"alerts","limit":5}`, adminAuth())
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"reason":"org left the program"`) {
+		t.Fatalf("admin query = %d %s, want 200 with the reason", rec.Code, rec.Body.String())
+	}
+	if p.store.lastFilter.InstanceID != "alerts" || p.store.lastFilter.Limit != 5 {
+		t.Fatalf("filter = %+v, want the request filter passed through", p.store.lastFilter)
+	}
+	scoped := post(p.handler.queryAcknowledgements, queryRoute, `{}`, auth.AuthContext{Mode: "scoped"})
+	if scoped.Code != http.StatusForbidden || strings.Contains(scoped.Body.String(), "org left the program") {
+		t.Fatalf("scoped query = %d %s, want 403 with no reason", scoped.Code, scoped.Body.String())
+	}
+	p.store.listErr = errors.New("pq: boom at 10.0.0.7")
+	failed := post(p.handler.queryAcknowledgements, queryRoute, `{}`, adminAuth())
+	if failed.Code != http.StatusInternalServerError || strings.Contains(failed.Body.String(), "10.0.0.7") {
+		t.Fatalf("failed query = %d %s, want 500 with the fixed message", failed.Code, failed.Body.String())
+	}
+}
+
+func TestMountRegistersBothRoutes(t *testing.T) {
+	p := fixture(t)
 	mux := http.NewServeMux()
-	handler.Mount(mux)
-	req := httptest.NewRequest(http.MethodPost, route, strings.NewReader(goodBody))
-	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), adminAuth()))
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK || len(ack.calls) != 1 {
-		t.Fatalf("mounted route = %d with %d calls, want 200 with one call", rec.Code, len(ack.calls))
+	p.handler.Mount(mux)
+	for _, path := range []string{acknowledgeRoute, queryRoute} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(goodBody))
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), adminAuth()))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code == http.StatusNotFound || rec.Code == http.StatusMethodNotAllowed {
+			t.Fatalf("%s is not mounted (%d)", path, rec.Code)
+		}
+	}
+}
+
+func TestOutcomeRoundTripsThroughTheLedgerEncoding(t *testing.T) {
+	p := fixture(t)
+	encoded := encodeOutcome(p.store.result)
+	decoded, ok := decodeOutcome(encoded)
+	if !ok || decoded.WorkItemID != "work-1" || decoded.FailureClass != "auth_denied" ||
+		!decoded.FailureAt.Equal(p.store.result.FailureAt) || !decoded.AcknowledgedAt.Equal(p.store.result.AcknowledgedAt) {
+		t.Fatalf("decode(encode(result)) = %+v, %v; want the same outcome", decoded, ok)
+	}
+	if _, ok := decodeOutcome([]string{"only", "two"}); ok {
+		t.Fatal("decodeOutcome accepted a foreign ledger row")
 	}
 }

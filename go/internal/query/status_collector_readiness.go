@@ -79,15 +79,12 @@ type collectorReadinessEntry struct {
 	LastFailureClass     string `json:"last_failure_class,omitempty"`
 	LastFailureOperation string `json:"last_failure_operation,omitempty"`
 	LastFailureAt        any    `json:"last_failure_at,omitempty"`
-	// LastFailureScopeID is the scope an operator names to acknowledge the
-	// failure; LastFailureAcknowledged, LastFailureAcknowledgedAt, and
-	// LastFailureAcknowledgedReason report an operator acknowledgement of it
-	// (#8830). An acknowledged failure does not fail the instance. Scoped
-	// callers do not receive the scope id or the reason.
-	LastFailureScopeID            string `json:"last_failure_scope_id,omitempty"`
-	LastFailureAcknowledged       bool   `json:"last_failure_acknowledged,omitempty"`
-	LastFailureAcknowledgedAt     any    `json:"last_failure_acknowledged_at,omitempty"`
-	LastFailureAcknowledgedReason string `json:"last_failure_acknowledged_reason,omitempty"`
+	// AcknowledgedFailure reports an operator-acknowledged terminal failure
+	// (#8830): the instance reads promotion_state partial with the blocker
+	// "terminal fetch failure acknowledged: <class> (<operation>)", never
+	// implemented. It carries bounded tokens and times only; the operator's
+	// reason is admin-only. Scoped callers keep it, like last_failure_*.
+	AcknowledgedFailure *collectorAcknowledgedFailure `json:"acknowledged_failure,omitempty"`
 }
 
 // collectorReadinessStatusReadFailedMessage is the fixed body of a failed
@@ -229,15 +226,16 @@ func collectorReadinessEntries(proofs []collector.PromotionProof, redactInstance
 		if !proof.LastFailureAt.IsZero() {
 			entry.LastFailureAt = nullableRFC3339(proof.LastFailureAt)
 		}
-		if proof.LastFailureAcknowledged {
-			entry.LastFailureAcknowledged = true
-			entry.LastFailureAcknowledgedAt = nullableRFC3339(proof.LastFailureAcknowledgedAt)
+		if proof.AcknowledgedFailure != nil {
+			entry.AcknowledgedFailure = &collectorAcknowledgedFailure{
+				FailureClass:     proof.AcknowledgedFailure.FailureClass,
+				FailureOperation: proof.AcknowledgedFailure.FailureOperation,
+				FailedAt:         nullableRFC3339(proof.AcknowledgedFailure.FailedAt),
+				AcknowledgedAt:   nullableRFC3339(proof.AcknowledgedFailure.AcknowledgedAt),
+			}
 		}
 		if redactInstance {
 			entry.InstanceID = ""
-		} else {
-			entry.LastFailureScopeID = proof.LastFailureScopeID
-			entry.LastFailureAcknowledgedReason = proof.LastFailureAcknowledgedReason
 		}
 		entries = append(entries, entry)
 	}
@@ -250,11 +248,11 @@ func collectorReadinessEntries(proofs []collector.PromotionProof, redactInstance
 func recommendedNextAction(proof collector.PromotionProof) string {
 	switch proof.PromotionState {
 	case collector.PromotionImplemented:
-		if proof.LastFailureAcknowledged {
-			return "No action required; a terminal failure is acknowledged and no longer reported. Fix the cause or remove the target to retire it."
-		}
 		return "No action required; lane meets the promotion contract."
 	case collector.PromotionPartial:
+		if proof.AcknowledgedFailure != nil {
+			return "A terminal failure is acknowledged and no longer fails this instance, but it is still happening. It is reported again when its class changes or it fails after a completed work item; fix the cause and let a completed work item land to clear it."
+		}
 		if proof.ReducerReadback == collector.ReadbackPending {
 			return "Confirm reducer readback; source facts exist but have not been admitted."
 		}
@@ -281,4 +279,13 @@ func withBlocker(prefix string, blockers []string) string {
 		return prefix + ": " + blockers[0]
 	}
 	return prefix + "."
+}
+
+// collectorAcknowledgedFailure is the wire shape of an acknowledged terminal
+// failure on collector readiness.
+type collectorAcknowledgedFailure struct {
+	FailureClass     string `json:"failure_class"`
+	FailureOperation string `json:"failure_operation"`
+	FailedAt         any    `json:"failed_at,omitempty"`
+	AcknowledgedAt   any    `json:"acknowledged_at,omitempty"`
 }
