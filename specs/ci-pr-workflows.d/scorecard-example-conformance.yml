@@ -10,6 +10,7 @@ workflows:
   - sdk/go/factschema/**
   - scripts/ci/go-mod-download-retry.sh
   - .github/workflows/scorecard-example-conformance.yml
+  - specs/ci-pr-workflows.d/scorecard-example-conformance.yml
   jobs:
   - queue-selection
   - test

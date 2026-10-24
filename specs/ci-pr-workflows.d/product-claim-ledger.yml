@@ -16,6 +16,7 @@ workflows:
   - scripts/ci/install-apt-packages.sh
   - scripts/ci/go-mod-download-retry.sh
   - .github/workflows/product-claim-ledger.yml
+  - specs/ci-pr-workflows.d/product-claim-ledger.yml
   jobs:
   - queue-selection
   - verify-product-claims

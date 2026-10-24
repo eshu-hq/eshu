@@ -16,6 +16,7 @@ workflows:
   - go/internal/relationships/**
   - scripts/ci/go-mod-download-retry.sh
   - .github/workflows/race-graph-writes.yml
+  - specs/ci-pr-workflows.d/race-graph-writes.yml
   jobs:
   - queue-selection
   - race

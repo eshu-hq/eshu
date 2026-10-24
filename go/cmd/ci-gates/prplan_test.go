@@ -43,6 +43,35 @@ func TestTrustedPRWorkflowDefinitionsKeepNonGateEventSemantics(t *testing.T) {
 	}
 }
 
+func TestCallableFragmentOnlyChangeSelectsOwnFullJobs(t *testing.T) {
+	defs, err := trustedPRWorkflowDefinitions("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fragmentCount := 0
+	for _, def := range defs {
+		path := filepath.ToSlash(filepath.Join("specs", "ci-pr-workflows.d", def.File))
+		if _, err := os.Stat(filepath.Join("../../..", path)); os.IsNotExist(err) {
+			continue
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		fragmentCount++
+		t.Run(def.File, func(t *testing.T) {
+			jobs, err := cigates.PlanPRWorkflows(defs, []string{path}, false, "main", "full", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(jobs[def.File], def.Jobs) {
+				t.Fatalf("fragment-only plan selected %v for %s; want all %v", jobs[def.File], def.File, def.Jobs)
+			}
+		})
+	}
+	if fragmentCount != 28 {
+		t.Fatalf("checked %d callable fragments; want 28", fragmentCount)
+	}
+}
+
 func TestBuildPRPlanWorkflowDefinitionChangeForcesFull(t *testing.T) {
 	t.Parallel()
 	runner := &endpointRunner{routes: map[string]string{

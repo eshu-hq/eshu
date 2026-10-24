@@ -19,6 +19,7 @@ workflows:
   - specs/live-tests.d/**
   - specs/ci-gates.d/gates-05.yaml
   - .github/workflows/reducer-contention-gate.yml
+  - specs/ci-pr-workflows.d/reducer-contention-gate.yml
   jobs:
   - contention-gate
   - queue-selection

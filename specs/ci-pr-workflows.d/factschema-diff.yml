@@ -13,6 +13,7 @@ workflows:
   - scripts/ci/install-apt-packages.sh
   - scripts/ci/go-mod-download-retry.sh
   - .github/workflows/factschema-diff.yml
+  - specs/ci-pr-workflows.d/factschema-diff.yml
   jobs:
   - gate
   - queue-selection

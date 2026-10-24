@@ -76,6 +76,7 @@ workflows:
   - go/internal/githublogin/**
   - go/internal/query/**
   - go/internal/mcp/**
+  - specs/ci-pr-workflows.d/frontend.yml
   jobs:
   - audit
   - auth-mcp-e2e

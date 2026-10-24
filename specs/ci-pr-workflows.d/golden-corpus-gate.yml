@@ -121,6 +121,7 @@ workflows:
   - go/internal/backendconformance/**
   - go/internal/queryplan/**
   - .github/workflows/golden-corpus-gate.yml
+  - specs/ci-pr-workflows.d/golden-corpus-gate.yml
   jobs:
   - corpus-gate
   - differential

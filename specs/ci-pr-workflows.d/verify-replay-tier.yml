@@ -34,6 +34,7 @@ workflows:
   - .github/workflows/live-backend-tests.yml
   - specs/ci-gates.d/gates-09.yaml
   - .github/workflows/verify-replay-tier.yml
+  - specs/ci-pr-workflows.d/verify-replay-tier.yml
   jobs:
   - queue-selection
   - replay-tier
