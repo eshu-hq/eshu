@@ -47,6 +47,15 @@ func collectorRuntimeStatusToMap(row collector.RuntimeStatus) map[string]any {
 		result["last_failure_operation"] = row.LastFailureOperation
 		result["last_failure_terminal"] = true
 		result["last_failure_at"] = nullableRFC3339(row.LastFailureAt)
+		// The scope an operator names to acknowledge this failure (#8830).
+		if row.LastFailureScopeID != "" {
+			result["last_failure_scope_id"] = row.LastFailureScopeID
+		}
+		if row.LastFailureAcknowledged {
+			result["last_failure_acknowledged"] = true
+			result["last_failure_acknowledged_at"] = nullableRFC3339(row.LastFailureAcknowledgedAt)
+			result["last_failure_acknowledged_reason"] = row.LastFailureAcknowledgedReason
+		}
 	}
 	return result
 }

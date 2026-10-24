@@ -29,8 +29,8 @@ func TestReadWorkflowCollectorTerminalFailuresScansBoundedColumns(t *testing.T) 
 	failedAt := asOf.Add(-10 * time.Minute)
 	ackedAt := failedAt.Add(2 * time.Minute)
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{
-		{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt, false, nil, ""},
-		{"git", "git-example", "", "", failedAt.Add(-time.Minute), true, ackedAt, "target removed"},
+		{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt, false, nil, "", "scope-1"},
+		{"git", "git-example", "", "", failedAt.Add(-time.Minute), true, ackedAt, "target removed", "scope-2"},
 	}}}}
 
 	got, err := readWorkflowCollectorTerminalFailures(context.Background(), queryer, []collector.InstanceSummary{
@@ -49,11 +49,14 @@ func TestReadWorkflowCollectorTerminalFailuresScansBoundedColumns(t *testing.T) 
 		!first.ObservedAt.Equal(failedAt) {
 		t.Fatalf("first = %#v, want security_alert/auth_denied/list_org_alerts/terminal", first)
 	}
+	if first.ScopeID != "scope-1" {
+		t.Fatalf("first ScopeID = %q, want scope-1", first.ScopeID)
+	}
 	if first.Acknowledged || !first.AcknowledgedAt.IsZero() || first.AcknowledgedReason != "" {
 		t.Fatalf("first = %#v, want no acknowledgement fields", first)
 	}
 	second := got[1]
-	if !second.Acknowledged || !second.AcknowledgedAt.Equal(ackedAt) || second.AcknowledgedReason != "target removed" {
+	if second.ScopeID != "scope-2" || !second.Acknowledged || !second.AcknowledgedAt.Equal(ackedAt) || second.AcknowledgedReason != "target removed" {
 		t.Fatalf("second = %#v, want the acknowledgement time and reason", second)
 	}
 }
@@ -221,7 +224,7 @@ func TestReadCoordinatorSnapshotIncludesTerminalFailures(t *testing.T) {
 			{rows: [][]any{{int64(0), int64(0), int64(0)}}},
 			{rows: [][]any{}},
 			{rows: [][]any{}},
-			{rows: [][]any{{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt, false, nil, ""}}},
+			{rows: [][]any{{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt, false, nil, "", "scope-1"}}},
 		},
 	}
 

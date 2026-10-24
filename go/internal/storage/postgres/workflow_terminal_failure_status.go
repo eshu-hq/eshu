@@ -59,13 +59,15 @@ SELECT
     COALESCE(u.updated_at, a.updated_at),
     a.updated_at IS NOT NULL,
     a.acknowledged_at,
-    COALESCE(a.reason, '')
+    COALESCE(a.reason, ''),
+    COALESCE(u.scope_id, a.scope_id)
 FROM unnest($1::text[], $2::text[], $3::timestamptz[]) AS i(collector_kind, instance_id, cutoff)
 LEFT JOIN LATERAL (
     SELECT
         t.last_failure_class,
         t.last_failure_operation,
-        t.updated_at
+        t.updated_at,
+        t.scope_id
     FROM workflow_work_items AS t
     WHERE t.collector_kind = i.collector_kind
       AND t.collector_instance_id = i.instance_id
@@ -93,6 +95,7 @@ LEFT JOIN LATERAL (
         t.last_failure_class,
         t.last_failure_operation,
         t.updated_at,
+        t.scope_id,
         k.acknowledged_at,
         k.reason
     FROM workflow_work_items AS t
@@ -207,6 +210,7 @@ func readWorkflowCollectorTerminalFailures(
 			&failure.Acknowledged,
 			&acknowledgedAt,
 			&failure.AcknowledgedReason,
+			&failure.ScopeID,
 		); err != nil {
 			return nil, fmt.Errorf("read workflow collector terminal failures: %w", err)
 		}

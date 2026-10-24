@@ -95,7 +95,8 @@ func TestCollectorTerminalFailureAcknowledgementSemanticsLive(t *testing.T) {
 	}
 	assertAck("episode", true, true, "auth_denied")
 	if failure := got["episode"]; !failure.ObservedAt.Equal(f.asOf.Add(-5*time.Minute)) ||
-		failure.AcknowledgedAt.IsZero() || failure.AcknowledgedReason != "target removed upstream" {
+		failure.AcknowledgedAt.IsZero() || failure.AcknowledgedReason != "target removed upstream" ||
+		failure.ScopeID != "scope-a" {
 		t.Fatalf("episode = %+v, want the newer row with acknowledgement time and reason", failure)
 	}
 	assertAck("reclass", true, false, "not_found")
@@ -105,6 +106,9 @@ func TestCollectorTerminalFailureAcknowledgementSemanticsLive(t *testing.T) {
 	assertAck("twin-b", false, false, "")
 	assertAck("rekind", true, false, "auth_denied")
 	assertAck("siblings", true, false, "rate_limited")
+	if failure := got["siblings"]; failure.ScopeID != "scope-b" {
+		t.Fatalf("siblings ScopeID = %q, want the unacknowledged scope-b", failure.ScopeID)
+	}
 	assertAck("history", true, true, "auth_denied")
 	t.Logf("acknowledgement semantics proof: %s", time.Since(started))
 }
