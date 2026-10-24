@@ -57,7 +57,5 @@ func (s Service) scheduleGrafanaWork(
 }
 
 func shouldScheduleGrafana(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorGrafana &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorGrafana)
 }

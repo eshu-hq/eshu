@@ -289,7 +289,15 @@ func (c Config) Validate() error {
 	return nil
 }
 
+// validateCollectorClaimSchedulingSupported runs the kind-specific startup
+// claim check for an in-tree instance. An instance configured as a component
+// activation document belongs to the generic component scheduler for every
+// collector kind, so no kind validator may read the document as its own
+// configuration; the generic planner reports a malformed one at reconcile.
 func validateCollectorClaimSchedulingSupported(instance workflow.DesiredCollectorInstance) error {
+	if isComponentActivationConfiguration(instance.Configuration) {
+		return nil
+	}
 	switch instance.CollectorKind {
 	case scope.CollectorGCP:
 		return gcp.ValidateClaimSchedulerConfiguration(instance)

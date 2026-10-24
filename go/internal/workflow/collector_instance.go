@@ -123,6 +123,11 @@ func (i CollectorInstance) Validate() error {
 
 func validateDesiredCollectorConfiguration(kind scope.CollectorKind, enabled bool, raw string) error {
 	if kind == scope.CollectorTerraformState {
+		// A component activation document is owned by the generic component
+		// scheduler, so it must not reach the Terraform state validator.
+		if ok, err := validateComponentActivationConfiguration(raw); ok || err != nil {
+			return err
+		}
 		return ValidateTerraformStateCollectorConfiguration(raw)
 	}
 	return validateDurableCollectorConfiguration(kind, enabled, raw)

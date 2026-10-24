@@ -326,9 +326,7 @@ func resolveGCPFreshnessScopeIDs(
 }
 
 func shouldScheduleGCPFreshness(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorGCP &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorGCP)
 }
 
 // matchingGCPFreshnessScopeIDs returns every configured scope id whose

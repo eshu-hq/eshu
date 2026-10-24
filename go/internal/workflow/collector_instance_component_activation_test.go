@@ -228,3 +228,34 @@ func TestDesiredCollectorInstanceValidateRejectsMalformedComponentActivation(t *
 		t.Fatal("Validate() error = nil, want component runtime error")
 	}
 }
+
+// TestDesiredCollectorInstanceValidateAcceptsComponentActivationForEveryKind
+// proves the desired-instance validator hands a valid component activation
+// document to no kind-specific validator: the generic component scheduler owns
+// the instance whatever collector_kind it names, including terraform_state,
+// whose validator would otherwise read the document as Terraform state
+// configuration (#8919).
+func TestDesiredCollectorInstanceValidateAcceptsComponentActivationForEveryKind(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range scope.AllCollectorKinds() {
+		for _, enabled := range []bool{true, false} {
+			t.Run(string(kind), func(t *testing.T) {
+				t.Parallel()
+
+				instance := DesiredCollectorInstance{
+					InstanceID:    "component-" + string(kind),
+					CollectorKind: kind,
+					Mode:          CollectorModeScheduled,
+					Enabled:       enabled,
+					ClaimsEnabled: enabled,
+					Configuration: alpha2ActivationConfiguration("collector-sdk/v1alpha2", "process"),
+				}
+
+				if err := instance.Validate(); err != nil {
+					t.Fatalf("Validate() error = %v, want nil", err)
+				}
+			})
+		}
+	}
+}

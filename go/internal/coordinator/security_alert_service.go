@@ -57,7 +57,5 @@ func (s Service) scheduleSecurityAlertWork(
 }
 
 func shouldScheduleSecurityAlert(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorSecurityAlert &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorSecurityAlert)
 }
