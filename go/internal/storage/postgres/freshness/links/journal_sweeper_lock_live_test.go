@@ -109,7 +109,8 @@ func TestJournalSweeperLockWaitIsBounded(t *testing.T) {
 			t.Fatalf("Journal after %s = %v, want generation_lock_timeout", elapsed, err)
 		}
 		if elapsed < lockTimeoutAtLeast || elapsed >= lockMissUnder {
-			t.Fatalf("generation_lock_timeout after %s, want at least %s and under %s", elapsed, lockTimeoutAtLeast, lockMissUnder)
+			t.Fatalf("generation_lock_timeout after %s, want at least %s and under %s",
+				elapsed, lockTimeoutAtLeast, lockMissUnder)
 		}
 		if rows := l.journalRows(t); len(rows) != 0 {
 			t.Fatalf("a timed-out pass left rows %v", rows)
@@ -131,23 +132,25 @@ func TestJournalSweeperLockWaitIsBounded(t *testing.T) {
 		}
 		defer func() { _ = tx.Rollback() }()
 		start := time.Now()
-		_, err = tx.ExecContext(ctx, linksfreshnessstore.JournalActiveGenerationsQueryForTest, fixtureEpoch)
+		_, err = tx.ExecContext(ctx,
+			linksfreshnessstore.JournalActiveGenerationsQueryForTest, fixtureEpoch)
 		elapsed := time.Since(start)
 		if err == nil || elapsed < time.Second {
-			t.Fatalf("unbounded sweeper statement returned after %s with %v; want it to wait for the holder", elapsed, err)
+			t.Fatalf("unbounded sweeper statement returned after %s with %v; want it to wait for the holder",
+				elapsed, err)
 		}
 		t.Logf("unbounded sweeper statement waited %s: %v", elapsed, err)
 	})
 }
 
 // requireCursorInsertWaits pins the reset that ends the sweeper's generation
-// lock bound (#8932). It runs as a subtest of TestJournalSweeperLockWaitIsBounded. The cursor statement that
-// follows the sweeper creates a cursor row for every journaled scope and, on a
-// scope whose cursor insert another transaction has not committed (a link
-// transaction's), waits for that transaction. It must wait, as it did before
-// the sweeper took a bounded lock: with the 250 ms bound still set it would
-// fail the whole pass with 55P03 and journal nothing. A holder that commits
-// after 400 ms must not fail the pass.
+// lock bound (#8932). It runs as a subtest of TestJournalSweeperLockWaitIsBounded.
+// The cursor statement that follows the sweeper creates a cursor row for every
+// journaled scope and, on a scope whose cursor insert another transaction has
+// not committed (a link transaction's), waits for that transaction. It must
+// wait, as it did before the sweeper took a bounded lock: with the 250 ms bound
+// still set it would fail the whole pass with 55P03 and journal nothing. A
+// holder that commits after 400 ms must not fail the pass.
 func requireCursorInsertWaits(t *testing.T) {
 	t.Helper()
 	const hold = 400 * time.Millisecond
@@ -156,7 +159,8 @@ func requireCursorInsertWaits(t *testing.T) {
 	holder := l.begin(t)
 	defer func() { _ = holder.Rollback() }()
 	l.execTx(t, holder, `
-INSERT INTO changed_since_scope_cursor (scope_id, state_generation_id, state_activation_seq, digest_version, updated_at)
+INSERT INTO changed_since_scope_cursor
+    (scope_id, state_generation_id, state_activation_seq, digest_version, updated_at)
 VALUES ('free', NULL, 0, 1, now())`)
 
 	type outcome struct {
@@ -178,10 +182,12 @@ VALUES ('free', NULL, 0, 1, now())`)
 	}
 	got := <-done
 	if got.err != nil {
-		t.Fatalf("Journal with a cursor insert held for %s = %v after %s, want success", hold, got.err, got.elapsed)
+		t.Fatalf("Journal with a cursor insert held for %s = %v after %s, want success",
+			hold, got.err, got.elapsed)
 	}
 	if got.elapsed < hold {
-		t.Fatalf("Journal answered after %s, before the %s holder committed: the cursor insert did not wait", got.elapsed, hold)
+		t.Fatalf("Journal answered after %s, before the %s holder committed: "+
+			"the cursor insert did not wait", got.elapsed, hold)
 	}
 	if rows := strings.Join(l.journalRows(t), ","); !strings.Contains(rows, "free|b1|<null>|sweeper") {
 		t.Fatalf("journal %q lacks the swept generation", rows)
