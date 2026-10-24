@@ -190,7 +190,12 @@ recent shipped work grouped by feature area.
   `scalaVersion`, and emits them as the same dependency rows Gradle and Maven
   use, with `package_manager` `sbt`. Non-literal forms are reported as
   `unresolved` or counted in `sbt_state.unresolved_declaration_count`; sbt is
-  never evaluated. Package-registry correlation for sbt rows is a follow-up.
+  never evaluated. Test-only dependencies keep their scope through
+  `% Test` after a parenthesised coordinate, `% "it,test"` lists, and
+  `Seq(...).map(_ % Test)`; a scope the scanner cannot map is `partial` and
+  counted, never a resolved `compile`. Package-registry correlation for sbt rows
+  ([#8961](https://github.com/eshu-hq/eshu/issues/8961)) and the line-keyed
+  entity id ([#8962](https://github.com/eshu-hq/eshu/issues/8962)) stay open.
   The registry fingerprint moves with the new exact name, so every repository
   re-collects once; the `git-collector` content version constant is unchanged.
 

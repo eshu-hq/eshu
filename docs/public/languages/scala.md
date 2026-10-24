@@ -41,6 +41,13 @@ in the same shape the Gradle and Maven parsers use, with `package_manager`
 `org.typelevel:cats-core_2.13`) when the file holds exactly one literal
 `scalaVersion`.
 
+The scope comes from `% Test`, `% "it,test"` (a list split on `,` and `;`), a
+trailing `% Test` after a parenthesised coordinate, `Seq(...).map(_ % Test)`,
+or a `Test /` or `in Test` axis. A scope the parser cannot map (a custom
+`Config`, a variable, a lambda over the collection) leaves the row `partial`
+and is counted in `sbt_state.unresolved_declaration_count`; it is never a
+resolved `compile`.
+
 sbt build files are Scala, so the parser never evaluates them. Versions held in
 top-level string vals resolve in the same file. Variables, `.value` settings,
 interpolated strings, helper objects, and conditional or block-bodied
@@ -48,7 +55,18 @@ collections are reported as `unresolved` or counted in
 `sbt_state.unresolved_declaration_count`. `project/*.sbt`, `plugins.sbt`, and
 `Build.scala` are not read. Package-registry correlation for sbt rows is not
 wired yet: `sbt` is not a recognised package-manager alias, so these rows do not
-join registry identities until that follow-up lands.
+join registry identities until [#8961](https://github.com/eshu-hq/eshu/issues/8961)
+lands, and they keep the line-keyed entity id
+([#8962](https://github.com/eshu-hq/eshu/issues/8962)).
+
+Known limits of the sbt reading:
+
+- `sbt_binary_artifact` is a file-wide hint, not sbt's resolved value. A single
+  literal `scalaVersion` inside one project's settings also drives the `%%`
+  rows of every other project in the file, `crossScalaVersions` is ignored, and
+  a suffixed version such as `2.13.0-M5` gets no hint.
+- A `val` declared inside a block that shares a name with a top-level `val`
+  resolves to the top-level value.
 
 ## Known Limitations
 - Implicit conversions and given/using clauses (Scala 3) are not separately tracked

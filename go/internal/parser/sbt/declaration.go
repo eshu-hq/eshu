@@ -33,12 +33,13 @@ type dependency struct {
 	name    string
 	version string
 	kind    versionKind
-	cross   string
-	config  string
-	scope   string
 	// scopeKnown is false when the scope could not be read from the
-	// configuration or axis; the row is then partial and counted.
+	// configuration or axis; the row is then partial and counted. It sits
+	// beside kind so the struct gains no padding.
 	scopeKnown bool
+	cross      string
+	config     string
+	scope      string
 	line       int
 }
 

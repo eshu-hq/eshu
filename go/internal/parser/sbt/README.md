@@ -30,8 +30,9 @@ The payload follows `shared.BasePayload(path, "sbt", isDependency)`. The
 - `section`: `libraryDependencies`, with `:<Config>` appended when the
   declaration names a configuration.
 - `config_kind`: always `dependency`; `package_manager` and `lang`: `sbt`.
-- `dependency_scope`: `compile`, `test`, `provided`, or `runtime`. Custom
-  configurations map to `compile`; the raw spelling stays in `sbt_configuration`.
+- `dependency_scope`: `compile`, `test`, `provided`, or `runtime`, mapped as
+  described under "Scope mapping". The raw spelling stays in
+  `sbt_configuration`.
 - `dependency_resolution_state`: `resolved`, `partial`, or `unresolved`, with
   `dependency_unresolved_keys` when unresolved.
 - `direct_dependency`: `true`; `dependency_path_kind`: `manifest`;
@@ -47,13 +48,42 @@ literal, else the first literal, else empty), `scala_version_count`,
 `dependency_count`, `dependency_overflow_count`, and
 `unresolved_declaration_count`.
 
+## Scope mapping
+
+The scope comes from an explicit `% config` operand, which may sit after the
+coordinate (`"a" % "b" % "1" % Test`), after a parenthesised coordinate
+(`("a" %% "b" % "1").cross(...) % Test`), or on a collection
+(`Seq(...).map(_ % Test)`, `Seq(...) map (_ % "test")`). Without one it comes
+from the `Test /` axis or the legacy `libraryDependencies in Test` form, else
+`compile`. A `.map(...)` whose body has no `%` (`_.withSources()`) changes no
+scope.
+
+A configuration is a list split on `,` and `;`, and each part is judged by the
+left side of a `->` mapping. `test`, `it`, `integrationtest`, and
+`test-internal` mean `test`; `runtime` means `runtime`; `provided` means
+`provided`; `compile`, `optional`, `docs`, `sources`, `plugin`, `pom` and the
+internal compile configurations mean `compile`. When parts disagree, any
+compile or runtime part gives `compile`, and provided with test parts gives
+`provided`; all-test lists such as `"it,test"` give `test`.
+
+A scope the scanner cannot read is never a resolved `compile`. A custom
+`Config` value, a variable such as `% testConfig`, an unrecognised string, a
+`.map(dep => dep % Test)` lambda, or `libraryDependencies in (a, Test)` keeps
+`dependency_scope` `compile` as a placeholder, sets the row's
+`dependency_resolution_state` to `partial`, and adds the row to
+`sbt_state.unresolved_declaration_count`.
+
 ## Bounds
 
 One forward pass, no recursion, one token of pushback: work is linear in the
 input for a 100 KB single line, 200k nested parentheses, or 100k dependency
 lines. Rows cap at `MaxDependencyRows` (10,000); the excess is counted, not
-stored. A coordinate field over `MaxFieldBytes` (512) is not a coordinate. At
-most 1,024 top-level string vals and 64 distinct Scala versions are tracked.
+stored. A coordinate field over `MaxFieldBytes` (512) is not a coordinate, and
+an identifier chain over that length (a version reference or a configuration)
+is consumed without being buffered: a version chain is counted as unresolved
+and a configuration chain is recorded as `(overlong)` with an undetermined
+scope. At most 1,024 top-level string vals and 64 distinct Scala versions are
+tracked. A leading UTF-8 byte order mark is ignored.
 
 ## What this parser never does
 
@@ -65,4 +95,22 @@ most 1,024 top-level string vals and 64 distinct Scala versions are tracked.
 - Resolve a version through a `val` declared inside a block or after the
   reference's own statement is parsed; only top-level literal vals resolve, at
   the end of the file, so declaration order does not matter.
+- Read a second `Seq(...)` joined by `++` as anything but another literal
+  collection: a non-literal operand is counted in
+  `unresolved_declaration_count`.
 - Emit a row for `addSbtPlugin`, `dependsOn`, resolvers, or `crossScalaVersions`.
+
+## Known limits
+
+- `sbt_binary_artifact` is a hint derived from the file's single literal
+  `scalaVersion`, not sbt's resolved value. It is a file-wide guess: a literal
+  inside one project's settings also applies to the `%%` rows of every other
+  project in the file; `crossScalaVersions` is ignored, so a cross-built
+  project gets one suffix; and a suffixed version (`2.13.0-M5`, `3.0.0-RC1`,
+  `2.13.12-bin-typelevel-4`) gets no hint, because sbt does not always shorten
+  it to the x.y form.
+- A `val` declared inside a block is not tracked. When it shares a name with a
+  top-level `val`, a reference inside that block resolves to the top-level
+  value, not the block-local one.
+- Sbt rows do not yet join a registry package identity (#8961) and keep the
+  line-keyed entity id (#8962).

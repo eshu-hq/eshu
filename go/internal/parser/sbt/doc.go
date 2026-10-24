@@ -8,7 +8,10 @@
 // row per literal libraryDependencies coordinate. It accepts the `+=`, `++=`
 // and `:=` operators, the `%`, `%%` and `%%%` coordinate forms, an optional
 // configuration operand (`% Test`, `% "provided"`), and a `Config /` scope
-// axis before the key. Each row mirrors the Gradle row contract: the
+// axis before the key, a trailing configuration after a parenthesised
+// coordinate, and a `.map(_ % Test)` over a collection. Configuration lists
+// split on ',' and ';', and a scope the scanner cannot map yields a "partial"
+// row that is counted. Each row mirrors the Gradle row contract: the
 // organization:name identity in name, the revision in value, an explicit
 // dependency_resolution_state of "resolved", "partial" (no revision or an Ivy
 // dynamic revision) or "unresolved" (a non-literal revision), and

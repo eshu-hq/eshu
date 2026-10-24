@@ -87,3 +87,27 @@ func itoa(value int) string {
 	}
 	return string(digits)
 }
+
+// TestParseBoundsLongCollectionCallChains drives the trailing-call loops with
+// inputs that would be quadratic or unbounded if a loop re-read tokens.
+func TestParseBoundsLongCollectionCallChains(t *testing.T) {
+	t.Parallel()
+
+	const calls = 50_000
+	maps := parseSource(t, `libraryDependencies ++= Seq("a" % "b" % "1")`+strings.Repeat(".map(_.withSources())", calls)+".map(_ % Test)\n")
+	requireField(t, requireRow(t, maps, "a:b"), "dependency_scope", "test")
+
+	concat := parseSource(t, `libraryDependencies ++= Seq("a" % "b" % "1")`+strings.Repeat(" ++ Seq()", calls)+"\n")
+	if rows := dependencyRows(t, concat); len(rows) != 1 {
+		t.Fatalf("concat rows = %d, want 1", len(rows))
+	}
+
+	dots := parseSource(t, `libraryDependencies ++= Seq("a" % "b" % "1")`+strings.Repeat(".", calls)+"\n")
+	if rows := dependencyRows(t, dots); len(rows) != 1 {
+		t.Fatalf("dots rows = %d, want 1", len(rows))
+	}
+
+	// A 10,000-token lambda body is read once and never kept.
+	body := parseSource(t, `libraryDependencies ++= Seq("a" % "b" % "1").map(`+strings.Repeat("x % ", 10_000)+"y)\n")
+	requireField(t, requireRow(t, body, "a:b"), "dependency_resolution_state", "partial")
+}
