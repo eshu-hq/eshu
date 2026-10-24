@@ -22,6 +22,7 @@ measurements. Every figure below was produced on this branch.
 
 ## Performance Evidence
 
+Performance Evidence: the marker redactor and the policy lookup, measured below.
 Host: 16 vCPU arm64, Go 1.26.6, PostgreSQL 18.6 for the live proof.
 Same benchmark, same inputs, before and after the prefilter commit
 (`BenchmarkRedactMarker`, `go test -bench`, 3 runs, the spread was under 1%):
@@ -59,6 +60,7 @@ re-collects from this change alone. The first fleet-wide re-collect happens when
 
 ## Observability Evidence
 
+Observability Evidence: one new counter and two structured log lines.
 New counter `eshu_dp_collector_content_store_files_total{policy,outcome}`
 (`policy` is `metadata` or `redact`; `outcome` is `metadata`, `redacted`,
 `clean`, or `redactor_failed`), one add per (policy, outcome) per fact stream.
