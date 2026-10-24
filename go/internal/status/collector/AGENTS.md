@@ -34,17 +34,42 @@ after on a fixture snapshot.
 `Evidence.TerminalFailures` degrades a coordinator-registered instance and
 fails its promotion proof with the blocker
 `terminal fetch failure: <class> (<operation>)`. Keep it bounded: the class
-must pass `BoundedFailureClass` (a local allowlist, deliberately not an import
-of any collector runtime package) and the operation must pass
-`BoundedFailureOperation`; anything else reads as `unknown`. The allowlist
-holds the classes the security-alert provider and the claim runner itself
-persist: the five provider classes plus `attempt_budget_exhausted`,
-`identity_mismatch`, `collect_failure`, and `commit_failure`. Other collector
-kinds' own classes read as `unknown` (known limit, #8896); do not widen the
-set without the OpenAPI enum change. A class added there must also land in
-both OpenAPI `last_failure_class` enums
-(`TestOpenAPITerminalFailureFieldsMatchStatusContract` in `query` fails
-otherwise) and stay aligned with the security-alert read's class set. Never add the
+must pass `BoundedFailureClassForKind` (a local per-kind allowlist in
+`terminal_failure_classes.go`, deliberately not an import of any collector
+runtime package) and the operation must pass `BoundedFailureOperation`;
+anything else reads as `unknown`. Every kind reports the nine common classes
+(the five provider classes plus `attempt_budget_exhausted`, `identity_mismatch`,
+`collect_failure`, and `commit_failure`) and the four extension host classes
+(`extensionHostFailureClasses`), because the component-extension runtime takes
+its kind from the manifest and a component-configured instance can carry a
+first-party kind such as `jira`. A first-party kind adds its own classes from
+`kindFailureClasses`; a class only another kind owns reads `unknown` for it.
+A kind that is not first-party is hosted by the extension host, and every other
+class matching the host's pattern collapses to `extension_defined`, so the set
+never grows with third-party text. First-party kinds do not collapse: the leaf
+has no signal that an instance is extension-hosted, so an extension-defined
+class on a first-party kind reads `unknown`, and an in-tree class a writer
+forgot to register is not relabeled. The one-time
+`legacy_missing_generation_identity` backfill class (schema bootstrap) also
+reads `unknown` on a first-party kind (`extension_defined` on any other kind);
+both limits are in the reference doc. A class added to any set must also land, in the same change, in both
+OpenAPI `last_failure_class` enums
+(`TestOpenAPITerminalFailureFieldsMatchStatusContract` in `query`), the class
+table in `docs/public/reference/http-api/collector-terminal-failure.md`
+(`TestTerminalFailureDocTableMatchesTheCode`), and the cardinality pin
+(`failureClassCardinality`), and stay aligned with the security-alert read's
+class set, which pins the nine common classes for that one kind.
+`TestBoundedFailureClassesMatchTheCollectorWriters` reads each writer's class
+constants from its source with `go/parser` and compares them with the kind's set
+in both directions, so an added, removed, or renamed class constant in a tied
+writer package fails without editing the test. It reads `const` declarations
+only: a class written as a `var`, an untyped constant outside the typed group,
+or a string literal returned from a `FailureClass()` method, and a writer
+package it does not list (for example the pagerduty and security-alert
+collectors), are not seen. Pinned by value because they are not constants: the claim
+runner's `collect_failure` and `commit_failure`, and `terraform_state`'s single
+`FailureClass()` method (a second implementer fails the test). It is the only
+place this package names collector runtime packages, and only in a test. Never add the
 failure message or provider status code to `TerminalFailure`, `RuntimeStatus`,
 `PromotionProof`, or their JSON. The reader (`storage/postgres`) supplies only
 failures of enabled, non-deactivated instances inside the instance's window
