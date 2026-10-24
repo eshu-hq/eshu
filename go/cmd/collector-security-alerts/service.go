@@ -61,10 +61,25 @@ func buildClaimedService(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (collector.ClaimedService, error) {
+	return buildClaimedServiceWithClients(database, getenv, tracer, instruments, logger, nil)
+}
+
+// buildClaimedServiceWithClients is buildClaimedService with an optional
+// provider client factory, so a test can drive the built service's source
+// without a network. A nil factory selects the production GitHub client.
+func buildClaimedServiceWithClients(
+	database db.ExecQueryer,
+	getenv func(string) string,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+	clients alertruntime.ClientFactory,
+) (collector.ClaimedService, error) {
 	config, err := loadClaimedRuntimeConfig(getenv)
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
+	config.Source.ClientFactory = clients
 	config.Source.Tracer = tracer
 	config.Source.Instruments = instruments
 	attachReadState(&config.Source)
