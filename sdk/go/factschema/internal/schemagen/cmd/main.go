@@ -321,6 +321,10 @@ func run() error {
 		// collector, reducer, or query consumer exists yet for either kind.
 		{name: "ref_overlay.branch_observation.v1.schema.json", generate: schemagen.RefOverlayBranchObservationSchema},
 		{name: "config_key_divergence.v1.schema.json", generate: schemagen.ConfigKeyDivergenceSchema},
+		// The runtime_declaration family (issue #8815, epic #8807): one runtime
+		// version a repository declares in one file. The git collector emits it
+		// from the version-pin files; no reducer or query consumer exists yet.
+		{name: "runtime_declaration.version.v1.schema.json", generate: schemagen.RuntimeDeclarationVersionSchema},
 	}
 
 	for _, target := range targets {
