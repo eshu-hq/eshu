@@ -15,7 +15,8 @@ import "strings"
 //     "~", "~>", "~=", "^") is joined to the version token after it. ">= 18"
 //     is one declaration, raw_spec as written, with the same spec as ">=18".
 //  2. If an operator-only token is still left (a hyphen range's "-", a "||",
-//     a comparator with no version after it), the value is not a list of
+//     a comparator with no version after it), or a token holds a "||" or
+//     starts or ends with a hyphen ("18||20", "18 -20"), the value is not a list of
 //     versions. This package does not read hyphen-range or disjunction
 //     syntax in a pin file and fails closed: the whole value is one
 //     declaration at order 0, classified alias (or unresolved when it holds
@@ -53,6 +54,15 @@ func isOperatorOnly(token string) bool {
 	return true
 }
 
+// joinsExpression reports whether token carries range or disjunction syntax
+// inside it: a "||" (as in "18||20" or "18|| 20"), or a leading or trailing
+// hyphen (as in "-20" or "18-" from "18 -20" and "18- 20"). A version never
+// starts or ends with a hyphen, so such a token means a hyphen range or
+// disjunction written without the spaces the operator-only rule needs.
+func joinsExpression(token string) bool {
+	return strings.Contains(token, "||") || token[0] == '-' || token[len(token)-1] == '-'
+}
+
 // startsVersion reports whether token starts like a numeric version: a digit,
 // or a "v" before a digit.
 func startsVersion(token string) bool {
@@ -82,6 +92,8 @@ func valueShape(value string) (first int, whole bool) {
 		}
 		token := value[start:end]
 		switch {
+		case joinsExpression(token):
+			return first, true
 		case pending:
 			if !startsVersion(token) {
 				return first, true

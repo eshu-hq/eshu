@@ -166,6 +166,34 @@ func TestEmitWhitespaceFilesKeepSpacedOperatorsAndRangesWhole(t *testing.T) {
 			[]wantSpec{{"= 17", "partial", 1, 0, 17, -1, -1, -1, -1}},
 		},
 		{
+			"unspaced operator inside a token keeps ^14||>=16 whole", ".nvmrc", "^14||>=16\n",
+			[]wantSpec{{"^14||>=16", "alias", 1, 0, -1, -1, -1, -1, -1}},
+		},
+		{
+			"unspaced operator inside a token keeps 18||20 whole", ".nvmrc", "18||20\n",
+			[]wantSpec{{"18||20", "alias", 1, 0, -1, -1, -1, -1, -1}},
+		},
+		{
+			"unspaced operator inside a token keeps 18|| 20 whole", ".nvmrc", "18|| 20\n",
+			[]wantSpec{{"18|| 20", "alias", 1, 0, -1, -1, -1, -1, -1}},
+		},
+		{
+			"unspaced operator inside a token keeps 18 ||20 whole", ".nvmrc", "18 ||20\n",
+			[]wantSpec{{"18 ||20", "alias", 1, 0, -1, -1, -1, -1, -1}},
+		},
+		{
+			"unspaced operator inside a token keeps 18 -20 whole", ".nvmrc", "18 -20\n",
+			[]wantSpec{{"18 -20", "alias", 1, 0, -1, -1, -1, -1, -1}},
+		},
+		{
+			"unspaced operator inside a token keeps 18- 20 whole", ".nvmrc", "18- 20\n",
+			[]wantSpec{{"18- 20", "alias", 1, 0, -1, -1, -1, -1, -1}},
+		},
+		{
+			"unspaced operator inside a token keeps java=17||21 whole", ".sdkmanrc", "java=17||21\n",
+			[]wantSpec{{"17||21", "alias", 1, 0, -1, -1, -1, -1, -1}},
+		},
+		{
 			"rust legacy hyphen range is one alias", "rust-toolchain", "1.70 - 1.80\n",
 			[]wantSpec{{"1.70 - 1.80", "alias", 1, 0, -1, -1, -1, -1, -1}},
 		},
