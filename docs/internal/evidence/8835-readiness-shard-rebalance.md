@@ -13,3 +13,25 @@ The candidate places the **whole admin package** on shard 4, including future en
 Removing the observed 282.350407-second interval from shard 1 models 1530.649593 seconds, below the 1800-second job cap. To stress the destination, the model adds 433.931368 seconds of **extra** cold package uncertainty, taken from the largest observed package interval minus selected test elapsed in the cancelled shard. With that allowance the modeled maximum is still 1530.649593 seconds; an additional 138 seconds per job yields 1668.649593 seconds, 131.350407 seconds below the cap. These are scenario calculations, **not a compiler measurement, statistical bound, guaranteed job wall time, or observed new-layout result**. Hosted acceptance must measure a green run at the reviewed new head, with all four shard reports and the aggregate green under the unchanged cap.
 
 The planner's synthetic placement test was RED on the old layout and GREEN after the change. The live inventory test checks the exact union and unchanged non-admin assignments. The aggregate test rejects a report retaining the old admin assignment. These tests establish planner/accounting behavior; they do not establish hosted wall time.
+
+## Combined inventory verification
+
+Main `7d798c8b4e` adds four collector terminal-failure roots outside this
+enrollment. The combined canonical plan therefore contains 571 roots,
+assigned 130/143/143/155 after the same package placement. These counts are
+observations of that revision, not production limits. The planner's 19 tests
+passed against the combined inventory, including exact union and rejection
+of a report retaining the old assignment. The complete existing hermetic
+runner check passed at `26107b08fd2c9498c01b07262e3b35876f53b14b` in
+317.922 seconds.
+
+The 13 admin roots also ran alone as the first package on a fresh pinned
+PostgreSQL 18.6 Bookworm fixture at the earlier `cd480a5b` source: each ran
+and passed once with race detection, no selected skips/failures, no surviving
+fixture objects, and the container removed. This supports setup independence;
+it is not a new-layout hosted timing measurement.
+
+The retained timing model remains bound to its 567-root failed-run snapshot.
+It does not guarantee the updated plan's wall time. All four hosted shards
+and the aggregate must succeed on the reviewed updated revision, with their
+actual deadline margin inspected before acceptance.

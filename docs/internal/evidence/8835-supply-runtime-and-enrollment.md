@@ -100,3 +100,29 @@ NOT_CHECKED: final enrollment promotion gates, independent final review and
 hosted acceptance. Helper mappings and generated metadata receive their own
 focused seeded proof before publication.
 The scratch theory and output differential do not substitute for these checks.
+
+## Combined main replay
+
+At `26107b08fd2c9498c01b07262e3b35876f53b14b`, based on main
+`7d798c8b4e`, all four roots passed again with the race detector on a fresh
+pinned PostgreSQL 18.6 Bookworm database. The 16 plans stayed below the
+unchanged 500 ms bound; the maximum was 382.925 ms. Canonical combined
+legacy/winners/aggregate execution was 1.544/1.338/1.409 ms. Padded hit/miss
+returned one/zero rows in 382.925/337.891 ms. The 300,000-row write took
+21.032749169 seconds, below its unchanged 120-second bound. Process wall was
+40.195748568 seconds; load1 start/max/end was 3.61/3.87/3.66. The database
+was removed. These are fixture observations, not a speed comparison.
+
+The rebuilt concurrent-index lifecycle root also passed at that checkpoint.
+Five populated builds took 318.045990 ms while 44 ordinary write cycles ran;
+the maximum cycle was 15.599754 ms. Restart, invalid-build recovery and
+rollback/reapplication assertions passed. Process wall was 6.477862358
+seconds; load1 start/max/end was 4.72/6.58/6.58. The before/after database
+sets matched, with no new proof database left behind.
+
+[Current compact receipt](8835-current-integration-proof-summary.json) binds
+source, binary, service image, migration reconciliation, exact commands,
+plans and cleanup. The earlier 17-case complete-output differential remains
+historical: its entire relevant impact leaf is byte-identical to this
+checkpoint (tree `34ee86deabf4caeeef4fbd4cc45256bea4a233f4`). It is not
+claimed as a newly executed differential.
