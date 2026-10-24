@@ -315,16 +315,22 @@ progress signals: `docs/internal/evidence/8880-supply-chain-impact-id-resolution
 
 ## Migration 233: security-alert latest work item index (#8840)
 
-This file adds `workflow_work_items_collector_scope_updated_idx` on
-`(collector_kind, scope_id, updated_at DESC, work_item_id ASC)` as the only
-statement, built `CONCURRENTLY`, so claims and completions keep writing during
-the upgrade. The security-alert collection-state read uses it to find each
-target's newest work item with a one-entry probe. It replaces a scan and sort
-of the target's whole history. On the 561,120-row fixture the build took
-0.5 s and the index is 36 MB. Each work-item insert and update adds one more
-B-tree entry, measured at about 10% more WAL per insert, claim, and complete
-cycle. If the index is missing or invalid, the read returns the same rows,
-only slower, and past its 1 s deadline it fails closed. Evidence:
+This file adds `workflow_work_items_security_alert_scope_updated_idx` on
+`(scope_id, updated_at DESC, work_item_id ASC) WHERE collector_kind =
+'security_alert'` as the only statement, built `CONCURRENTLY`, so claims and
+completions keep writing during the upgrade. The security-alert
+collection-state read uses it to find each target's newest work item with a
+one-entry probe. It replaces a scan and sort of the target's whole history.
+
+The index is partial on purpose. A full `(collector_kind, scope_id,
+updated_at DESC)` key also took over the work-item retention prune's
+newer-row probe, which then walked every newer row whose status differed
+(8x to 13x slower on a recovered-target seed). The prune matches
+`collector_kind` against the outer row, so the planner cannot use the partial
+index there, and the prune keeps its plan. Only `security_alert` work items
+pay the extra B-tree entry. If the index is missing or invalid, the read
+returns the same rows, only slower, and past its 1 s deadline it fails
+closed. Main has since taken 230-232, so this branch takes 233. Evidence:
 `docs/internal/evidence/8840-security-alert-latest-work-item-index.md`.
 
 ## Verification

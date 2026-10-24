@@ -132,9 +132,10 @@ import (
 // are written by the admin acknowledge route, so no backfill half exists).
 // #8946 adds 232_security_alert_fanout_cursor.sql (three nullable text columns
 // on that read-state row; DDL only, no backfill).
-// #8840 adds 233_workflow_work_items_collector_scope_updated_idx.sql (the
-// latest-work-item-per-scope index for the security-alert collection read).
-const goldenBootstrapDefinitionsDigest = "72e103cff36e09cf4ea581510e206f2debc5f663ccf5a715396e5c23c0ad1418"
+// #8840 adds 233_workflow_work_items_security_alert_scope_updated_idx.sql (the
+// partial latest-work-item-per-scope index for the security-alert collection
+// read; the full-index 230 draft was renumbered off main's 230-232).
+const goldenBootstrapDefinitionsDigest = "ac7f014cbd210bb30235d31709b94019234b3d780d7d6ab8d4c8caf59356fd97"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

@@ -325,8 +325,11 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// row (fanout_start_repository, fanout_next_repository,
 	// fanout_lap_repository); an ALTER only, no backfill. 231 belongs to #8830.
 	"security_alert_fanout_cursor",
-	// Migration 233 (#8840) adds the latest-work-item-per-scope index the
+	// Migration 233 (#8840) adds the partial latest-work-item-per-scope index the
 	// security-alert collection-state read probes per target. Migration-only
 	// and built CONCURRENTLY, like migrations 156 and 211.
-	"workflow_work_items_collector_scope_updated_idx",
+	"workflow_work_items_security_alert_scope_updated_idx",
+	// security-alert collection-state read probes per target. Migration-only
+	// and built CONCURRENTLY, like migrations 156 and 211.
+	"workflow_work_items_security_alert_scope_updated_idx",
 }

@@ -41,10 +41,12 @@ LIMIT $1`
 // unread repositories of the target's active generation (#8943).
 //
 // The latest work item is found by an index-only probe of
-// workflow_work_items_collector_scope_updated_idx (migration 233:
-// collector_kind, scope_id, updated_at DESC, work_item_id ASC), whose key
-// matches the lateral's ORDER BY, so it reads one entry per target however
-// long the target's history is. A primary-key fetch then reads that one row.
+// workflow_work_items_security_alert_scope_updated_idx (migration 233:
+// scope_id, updated_at DESC, work_item_id ASC, partial on collector_kind =
+// 'security_alert'), whose key matches the lateral's ORDER BY, so it reads one
+// entry per target however long the target's history is. A primary-key fetch
+// then reads that one row. Keep the collector_kind literal: the partial index
+// is only usable because the planner can prove it from this predicate.
 // Before migration 233 the lateral scanned and top-1 sorted the target's whole
 // history on workflow_work_items_collector_scope_generation_updated_idx, where
 // generation_id (a hash) sits before updated_at. The committed generation
