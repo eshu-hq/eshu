@@ -128,7 +128,7 @@ import (
 // #8840 adds 231_workflow_work_items_security_alert_scope_updated_idx.sql (the
 // partial latest-work-item-per-scope index for the security-alert collection
 // read; 230 is left to #9015, and whichever PR merges second renumbers).
-const goldenBootstrapDefinitionsDigest = "e8c8f0c8282b4075b3a93e5cb4b21e1edfd503fd0afbf5172aea0a6012da90d5"
+const goldenBootstrapDefinitionsDigest = "a97b6904d689ffb8dcdc4f5567ac496ff8a90cbde7d7a9fb16a537cccef1d419"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
