@@ -5,10 +5,13 @@
 1. `README.md` - purpose, row contract, bounds, and exclusions.
 2. `doc.go` - godoc contract.
 3. `lexer.go` - the single-pass tokenizer (comments, strings, interpolators).
-4. `parser.go` - `Parse`, the main dispatch loop, `sbt_state`, val resolution.
+4. `parser.go` - `Parse`, the main dispatch loop, `sbt_state`, val resolution,
+   the meta-build flag; `scala_version.go` - the scalaVersion context gate and
+   the version envelope.
 5. `statement.go` - the statement entry (`parseLibraryDependencies`), the two
-   grammar contexts (`keyContext`), the statement end, the fail-closed
-   fallback entry (`failStatement`), and superseding (`markReset`).
+   grammar contexts (`keyContext`), the member rule (`settingMemberOf`,
+   `applyMember`), the statement end, the fail-closed fallback entry
+   (`failStatement`, `fallback`), and superseding (`markReset`).
 6. `element.go` - the element and collection grammar, the configuration
    operand, and the infix call allowlist (`classifyCall`).
 7. `salvage.go` - the fallback scanner that emits every literal coordinate of
@@ -46,9 +49,17 @@
   the whole statement to `failStatement`: rows already read become partial and
   the rest of the statement is salvaged as partial rows. Do not add a path that
   skips a token and keeps matching.
+- A member called on the key supersedes only when sbt's SettingKey API says
+  it returns a Setting that rewrites the key, or returns the key itself
+  (`settingMemberOf`). Never make an unknown member supersede (it would demote
+  unrelated rows) and never make a rewriting member a read (it would leave
+  superseded rows resolved). Quote the sbt definition for any new name.
+- `scalaVersion` is recorded only in a grammar context. Do not record it from
+  a nested position; a wrong literal moves every `%%` hint in the file.
 - `TestGrammarSeededFuzzInvariants` (`fuzz_test.go`) is the regression net:
-  both arms, grammar and indentation (`fuzz_indent_test.go`), must report zero
-  I1, I2, I3, missing and fabricated cases. Run it with
+  the grammar and indentation (`fuzz_indent_test.go`) arms must report zero
+  I1, I2, I3, missing and fabricated cases, and the member arm
+  (`fuzz_member_test.go`) zero state, extra, count, scala and hint cases. Run it with
   `SBT_GRAMMAR_FUZZ_CASES=30000` after a grammar change. Keep the grammar
   arm's draws unchanged so a seed reproduces the earlier review runs.
 - The bare file is the column-0 lines only (`token.lineAtCol0`). sbt 2.x reads
@@ -71,8 +82,10 @@
   partial.
 - A new infix call on an element belongs in `classifyCall`, with a positive
   test, an unlisted-name negative test, and its ModuleID definition quoted.
-- Plugin coordinates (`addSbtPlugin`) and `project/*.sbt` files are a separate
-  admission and fact decision, not a change here.
+- Plugin coordinates (`addSbtPlugin`) and `project/*.sbt` files other than
+  `project/build.sbt` are a separate admission and fact decision, not a change
+  here. `project/build.sbt` reaches this parser through the base-name
+  registry binding and is flagged `meta_build`.
 - Telemetry, registry dispatch, and engine wrappers belong in the parent
   parser package.
 
@@ -138,6 +151,21 @@ I1=107, I2=7, I3=149 over 30,000, and with the opener's flag carried on the
 bracket stack, zero at both (same row counts). The closer flag re-measured at
 15.3 to 15.4 ms/op, 16.4 MB/op and 139,757 to 139,758 allocs/op at load
 average 0.6 to 0.9.
+
+No-Regression Evidence (member rule, operators, scalaVersion context): the
+member arm interleaves resolved column-0 statements with member calls on the
+key, `<<=`, `<+=`, `<++=` and unknown assignment operators, and top-level and
+nested scalaVersion literals, and checks exact row states, the exact
+`unresolved_declaration_count`, `scala_version`, `scala_version_count` and the
+`%%` hint. On the scanner before the rule it reported state=5,378,
+count=2,752, scala=1,494 and hint=773 over 4,000 cases; with the rule, zero at
+4,000 (9,202 rows) and at 30,000 (70,083 rows), and the grammar and
+indentation arms stay zero at both. 18 single-change mutants of the rule, the
+operators, the scalaVersion gate and the meta-build flag were all killed. The
+same benchmark measured 15.7 to 19.4 ms/op (median 16.4) against 15.7 to 20.0
+ms/op (median 16.1) for the code before, run alternately at load average 14 to
+17, with 16.45 MB/op and 139,757 to 139,758 allocs/op on both: no byte or
+allocation change.
 
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
 single-pass scanner with no recursion. 200,000 nested parentheses finish in

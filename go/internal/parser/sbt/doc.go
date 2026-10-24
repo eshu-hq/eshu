@@ -25,10 +25,14 @@
 // Scala 3, where that is a braceless val, def, if, match, for or while body),
 // a parenthesised or dotted call, a repeated or empty `% config`, a
 // collection call (`.map`, `++`), a string holding a backslash, and a
-// statement that runs on past its end. A `:=`, `~=`, `-=` or `--=`, or a
-// setting method such as `libraryDependencies.transform(...)`, supersedes the
-// earlier rows it can reach, which become partial too. Only a val that heads
-// a column-0 line resolves a version reference.
+// statement that runs on past its end, `<+=`, `<++=`, and any other Scala
+// assignment operator. A `:=`, `~=`, `-=`, `--=` or sbt 0.13 `<<=`, or a member
+// that sbt's SettingKey API defines to rewrite the key (`set`, `set0`,
+// `transform`, `remove1`, `removeN`, and `withRank` before an assignment),
+// supersedes the earlier rows it can reach, which become partial too. A member
+// that returns no Setting (`map`, `filter`, ...) is counted once and
+// supersedes nothing. Only a val that heads a column-0 line resolves a version
+// reference.
 //
 // Configuration lists split on ',' and ';' and resolve once, matching names
 // exactly as Ivy does (`"Test"` is not `test`): any compile part gives
@@ -42,8 +46,12 @@
 // The payload also carries an sbt_state envelope with the literal
 // scalaVersion, the number of distinct scalaVersion literals, the emitted
 // dependency count, the count of valid declarations dropped past
-// MaxDependencyRows, and the count of declarations that were recognised but
-// could not be read as resolved literals.
+// MaxDependencyRows, the count of declarations that were recognised but could
+// not be read as resolved literals, and meta_build. A scalaVersion literal is
+// read only in a grammar context (or behind a `ThisBuild /` axis that starts a
+// statement in one); a nested one is counted, never recorded. meta_build is
+// true for a build.sbt directly inside a `project` directory, sbt's
+// meta-build, and every row of that file is partial.
 //
 // sbt build files are Scala. The parser never evaluates Scala or runs sbt,
 // reads no sibling file, and uses a single-pass bounded scanner, so work and

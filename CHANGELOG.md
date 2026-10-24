@@ -206,8 +206,16 @@ recent shipped work grouped by feature area.
   after a closer that ends a bracket opened on an indented line, and only a
   column-0 `val` resolves a version. Configuration strings match case exactly (`"Test"` is
   not `test`), and a string holding a backslash is opaque. `:=`, `~=`, `-=`,
-  `--=`, `.transform(...)` and `.set(...)` make the rows they supersede
-  partial. A runtime-plus-test list is `runtime`,
+  `--=`, sbt 0.13's `<<=`, and the members sbt's SettingKey API defines to
+  rewrite the key (`.transform`, `.set`, `.remove1`, `.removeN`, and
+  `.withRank` before an assignment) make the rows they supersede partial; a
+  member that returns no Setting (`.map`, `.filter`) is counted once and
+  supersedes nothing. `<+=`, `<++=`, `.append1`, `.appendN` and any other
+  assignment operator fall back with partial rows. `scalaVersion` is read only
+  where `libraryDependencies` would resolve, so a nested literal never moves
+  the `%%` hint, and `project/build.sbt` (sbt's meta-build, admitted by its
+  base name) is parsed with `sbt_state.meta_build` true and every row partial.
+  A runtime-plus-test list is `runtime`,
   compiler-tool configurations are undetermined, Ivy ranges are partial, and a
   configuration string over 256 bytes is never split or stored. Package-registry correlation for sbt rows
   ([#8961](https://github.com/eshu-hq/eshu/issues/8961)) and the line-keyed

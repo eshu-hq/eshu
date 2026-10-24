@@ -47,8 +47,23 @@ The payload follows `shared.BasePayload(path, "sbt", isDependency)`. The
 
 `sbt_state` carries `state`, `scala_version` (the first `ThisBuild`-scoped
 literal, else the first literal, else empty), `scala_version_count`,
-`dependency_count`, `dependency_overflow_count`, and
-`unresolved_declaration_count`.
+`dependency_count`, `dependency_overflow_count`,
+`unresolved_declaration_count`, and `meta_build`.
+
+A `scalaVersion` literal is read only in the places a `libraryDependencies`
+statement resolves (the two grammar contexts below), from a legacy
+`scalaVersion in ThisBuild` there, or from `ThisBuild / scalaVersion` whose
+`ThisBuild` token starts a statement in one. Anywhere else (`inThisBuild(...)`,
+`inConfig(...)`, a call argument, a member assignment, a block, a settings
+`val`, an indented line, another axis) the assignment is counted once in
+`unresolved_declaration_count` and never recorded, so it cannot add a phantom
+version or set the `%%` hint.
+
+`meta_build` is `true` when the file sits directly in a directory named
+`project`. The registry admits `build.sbt` by base name, so
+`project/build.sbt` reaches this parser; sbt reads it as the meta-build, whose
+dependencies are the build definition's classpath, not the project's, so every
+row from it is `partial`.
 
 ## Grammar
 
@@ -112,7 +127,10 @@ Anything that does not match is never resolved. Every literal coordinate
 `dependency_resolution_state` `partial`, `dependency_scope` `compile` as a
 placeholder, and its literal fields as read, and it is counted in
 `sbt_state.unresolved_declaration_count`. A statement with no coordinate is
-counted once. The fallback reads to the end of the statement (a `,`, `;` or
+counted once. That includes sbt 0.13's `<+=` and `<++=` and any other Scala
+assignment operator after the key (a symbol ending in `=` that is not `=`,
+`==`, `<=`, `>=`, `!=` or `=`-led); a comparison is not a setting and is left
+alone. The fallback reads to the end of the statement (a `,`, `;` or
 closer outside its own groups, or a line break that ends the expression) and
 then hands back to the main loop, so a following statement is read normally.
 
@@ -141,12 +159,21 @@ call or a `.` on the next line (`v("x")`, `v\n  .trim`) does not match.
 
 ### Assignments that supersede rows
 
-`:=` replaces the key and `~=`, `-=` and `--=` transform or remove what came
-before, so they supersede earlier rows of the same context: those rows are
-`partial` and counted. A setting method applied to the key
-(`libraryDependencies.transform(...)`, `.set(...)`, any member but the reads
-`.value`, `.key`, `.scopedKey` and `.taskValue`) at the start of an expression
-supersedes the same way. A reset in the bare file applies to the root project,
+`:=` and sbt 0.13's `<<=` replace the key and `~=`, `-=` and `--=` transform or
+remove what came before, so they supersede earlier rows of the same context:
+those rows are `partial` and counted. A member called on the key at the start
+of an expression is judged by what sbt's SettingKey API (main-settings
+`Structure.scala`) says it returns:
+
+| Member | Effect |
+|---|---|
+| `set`, `set0` (sbt 2), `transform`, `remove1`, `removeN` | a Setting that rewrites the key: supersedes, statement counted |
+| `withRank` | returns the key, so an assignment the scanner does not read may follow: supersedes and falls back |
+| `append1`, `appendN` | a Setting that adds: fallback, no superseding |
+| `value`, `key`, `scopedKey`, `taskValue` | a read: not a declaration, not counted |
+| anything else (`map`, `flatMap`, `get`, `or`, `filter`, an unknown name) | no Setting, so it cannot change the key: counted once, no superseding |
+
+A reset in the bare file applies to the root project,
 which may be any project the file declares, so it supersedes every project row
 wherever it appears. A reset outside a grammar context (in a settings `val`, a
 wrapper, a block, or under an axis) may be applied anywhere, so it supersedes
@@ -204,8 +231,10 @@ tracked. A leading UTF-8 byte order mark is ignored.
 
 ## What this parser never does
 
-- Evaluate Scala, run sbt, or read `project/*.sbt`, `plugins.sbt`,
-  `Build.scala`, `Dependencies.scala`, or any sibling file.
+- Evaluate Scala, run sbt, or read `plugins.sbt`, the other `project/*.sbt`
+  files, `Build.scala`, `Dependencies.scala`, or any sibling file. Only a file
+  the registry hands it is read; `project/build.sbt` is one, flagged
+  `meta_build`.
 - Resolve `.value` settings, interpolated strings, helper objects, or
   conditional (`if`) and block-bodied collections. Their literal coordinates
   are partial and counted in `unresolved_declaration_count`.
@@ -239,7 +268,15 @@ tracked. A leading UTF-8 byte order mark is ignored.
   comment is still read as part of the comment.
 - A settings value defined outside the file (`.settings(Common.settings)` from
   `project/*.scala`) and applied after a row can supersede it; the scanner
-  cannot see it. A reset defined in the file, anywhere, is seen.
+  cannot see it. A reset defined in the file, anywhere, is seen. An extension
+  method defined outside the file that returns a Setting is likewise unseen:
+  only the members sbt's SettingKey API defines are judged, and any other
+  member is a read.
+- `scalaVersion` set only inside `inThisBuild(...)` is not read, so that build
+  gets no `scala_version` and no `sbt_binary_artifact` hint.
+- `meta_build` is a path rule on the parent directory name. A `build.sbt` in a
+  subproject directory literally named `project` is flagged too; sbt itself
+  treats `<root>/project` as the meta-build.
 - A bare-file reset makes every project row partial, even a project that is
   not the root, because the scanner does not decide which project is the root.
 - `ThisBuild /` and `Global /` keys and a declared-project axis (`core /`) are

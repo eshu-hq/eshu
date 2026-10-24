@@ -39,7 +39,14 @@ as `% Test`) and the literal `scalaVersion`, and emits them as dependency rows
 in the same shape the Gradle and Maven parsers use, with `package_manager`
 `sbt`. A `%%` row also carries `sbt_binary_artifact` (for example
 `org.typelevel:cats-core_2.13`) when the file holds exactly one literal
-`scalaVersion`.
+`scalaVersion`. A `scalaVersion` literal is read only where a
+`libraryDependencies` statement would resolve (a column-0 statement or a
+project's `.settings(...)` argument), from `ThisBuild / scalaVersion` whose
+axis starts such a statement, or from `scalaVersion in ThisBuild` there. A
+literal anywhere else (`inThisBuild(...)`, a wrapper, a call argument, a block,
+a settings `val`, another axis) is counted in
+`sbt_state.unresolved_declaration_count` and never sets `scala_version` or the
+hint.
 
 A row is `resolved` only when its whole statement matches a closed grammar
 (the full EBNF is in `go/internal/parser/sbt/README.md`): a bare
@@ -67,7 +74,9 @@ ModuleID methods that change neither coordinates nor configurations.
 | an indented line at depth zero: a Scala 3 `if`/`then`/`else`, `def` or `val` body, `match` case, or `for`/`while` `do` body | partial |
 | `% "Test"`, `% "Compile"` (configuration strings are case sensitive) | partial; `% "test"` and `% Test` are `test` |
 | a string holding a backslash, triple-quoted too | opaque: no literal coordinate |
-| `libraryDependencies.transform(...)`, `.set(...)` | supersedes earlier rows, like `~=` |
+| `.transform(...)`, `.set(...)`, `.remove1(...)`, `.removeN(...)`, `.withRank(...)`, sbt 0.13's `<<=` | supersedes earlier rows, like `~=` |
+| `.append1(...)`, `.appendN(...)`, `<+=`, `<++=`, any other assignment operator | partial; earlier rows unchanged |
+| `.map(...)`, `.filter(...)` or any other member that returns no Setting | counted once; earlier rows unchanged |
 
 A partial row keeps the coordinates read literally, carries a placeholder
 `compile` scope, and is counted in `sbt_state.unresolved_declaration_count`; it
@@ -87,8 +96,12 @@ on the next line (`.concat(...)`, `+ "x"`) does not. Ivy dynamic revisions and
 ranges (`1.+`, `latest.release`, `[1.0,2.0)`, `]1.0,2.0]`) are partial.
 Variables, `.value` settings, interpolated strings, helper objects, and
 conditional or block-bodied collections are reported as `unresolved` or as
-partial rows counted in `sbt_state.unresolved_declaration_count`. `project/*.sbt`, `plugins.sbt`, and
-`Build.scala` are not read. Package-registry correlation for sbt rows is not
+partial rows counted in `sbt_state.unresolved_declaration_count`.
+`plugins.sbt`, the other `project/*.sbt` files, and `Build.scala` are not read.
+The registry binds `build.sbt` by its base name, so `project/build.sbt`, sbt's
+meta-build, is parsed: its `sbt_state.meta_build` is `true` and every row from
+it is partial, because those dependencies are on the build definition's
+classpath, not the project's. Package-registry correlation for sbt rows is not
 wired yet: `sbt` is not a recognised package-manager alias, so these rows do not
 join registry identities until [#8961](https://github.com/eshu-hq/eshu/issues/8961)
 lands, and they keep the line-keyed entity id
@@ -111,7 +124,11 @@ Known limits of the sbt reading:
 - A `val` declared inside a block is not tracked; a reference that shares its
   name with a top-level `val` resolves to the top-level value.
 - A settings value from outside the file (`.settings(Common.settings)`) applied
-  after a row can supersede it unseen.
+  after a row can supersede it unseen, and so can an extension method defined
+  outside the file that returns a Setting: only the members sbt's SettingKey
+  API defines are judged.
+- `scalaVersion` inside `inThisBuild(...)` is not read, so a build that sets it
+  only there gets no `scala_version` and no `sbt_binary_artifact` hint.
 - `ThisBuild /` and `Global /` keys are partial even where sbt delegation
   would read them, because the grammar keeps only the forms it can prove.
 
