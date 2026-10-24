@@ -158,6 +158,18 @@ v1 list, which I have not edited (issue bodies are the coordinator's to change).
 | **mise `[tools]`** | **later, after #8812** | **`metadata`** |
 | Dockerfile `FROM`, CI setup inputs | later (#8818) | `store` |
 
+## Arbiter ruling of 2026-10-24
+
+The epic #8807 policy ruling keeps this record in line with #8922: `mise.toml`
+stays unadmitted, and `phpunit.xml` and `.mvn/maven.config` are routed to #8812.
+It also fixes the order: #8922 merges, then #8812, then #8833. #8812 waits for
+#8922 because both edit `go/internal/parser/registry.go` and
+`registry_definitions.go`. Any later PR that admits a mise name changes the
+bindings, so it rebases onto the then-current content version, takes the next
+free one, reruns `go test ./go/internal/collector/repo/git -run TestGenerationContentVersionPinsCollectorOutput -update-content-version-pin`
+and `scripts/generate-parser-admission-doc.sh`, and commits the regenerated
+files in its own commit. The ruling does not settle the three open points below.
+
 ## Consistency with the open #8922 (#8814)
 
 PR #8922 was read at head `c80484cfe9`, state open and mergeable. This record
