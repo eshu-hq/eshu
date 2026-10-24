@@ -134,6 +134,15 @@ item o4-tree jira tree-1 scope-o4 completed
 claim o4-tree-c o4-tree 1 completed '2026-02-06 00:00:00+00' '2026-02-06 01:00:00+00' "'2026-02-06 00:30:00+00'"
 check "claims released before the other began do not overlap" "2|1|2" "$(sql dual -v kind=jira -v in_tree=tree-1)"
 
+# The mirror of o2: the IN-TREE claim was reaped late (lease ended 00:10, finished
+# 02:00), and the external claim began at 00:30, after the lease end. The in-tree claim ended at its lease expiry, so there is no overlap.
+item o5-tree jira tree-1 scope-o5 completed
+claim o5-tree-c o5-tree 1 completed '2026-02-07 00:00:00+00' '2026-02-07 00:10:00+00' "'2026-02-07 02:00:00+00'"
+item o5-ext jira ext-1 scope-o5 completed
+claim o5-ext-c o5-ext 1 completed '2026-02-07 00:30:00+00' '2026-02-07 01:00:00+00' "'2026-02-07 01:00:00+00'"
+check "a late-reaped in-tree claim ended at its lease expiry and does not overlap" "2|1|2" \
+	"$(sql dual -v kind=jira -v in_tree=tree-1)"
+
 # --- replay and clock ------------------------------------------------------------------------
 
 item r-pending jira tree-1 scope-r pending
@@ -141,7 +150,7 @@ item r-failed jira tree-1 scope-r2 failed_retryable
 item r-expired jira tree-1 scope-r3 expired
 item r-terminal jira tree-1 scope-r4 failed_terminal
 q "UPDATE workflow_work_items SET updated_at = '2020-01-01' WHERE work_item_id IN ('r-failed')" >/dev/null
-check "replay counts only in-tree work updated since the window start, retryable folded together" "1|1|4|1|1" \
+check "replay counts only in-tree work updated since the window start, retryable folded together" "1|1|5|1|1" \
 	"$(sql replay -v kind=jira -v instances=tree-1 -v since='2025-01-01 00:00:00+00')"
 skew_secs="$(q "SELECT round(extract(epoch FROM clock_timestamp() - ($(sql now -v skew=30 | sed "s/^/'/; s/\$/'::timestamptz/"))))")"
 check "now returns the database clock minus the skew margin" "30" "${skew_secs}"
