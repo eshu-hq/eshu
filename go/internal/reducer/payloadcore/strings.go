@@ -298,16 +298,17 @@ func NonVersionDependencyPrefix(lower string) bool {
 }
 
 // ExactManifestDependencyVersion returns version when it names one exact
-// version rather than a range, tag, URL, or property expression. The "exact"
-// test is syntactic: anything containing a range operator, wildcard, or
-// variable reference is rejected, as is the "latest" tag.
+// version rather than a range, tag, URL, property expression, or Gradle
+// selector. The "exact" test is syntactic: anything containing a range
+// operator, wildcard, or variable reference is rejected, as is the "latest"
+// tag and every form GradleVersionSelector reports.
 func ExactManifestDependencyVersion(raw string) (string, bool) {
 	version := strings.TrimSpace(raw)
 	if version == "" {
 		return "", false
 	}
 	lower := strings.ToLower(version)
-	if lower == "latest" || NonVersionDependencyPrefix(lower) {
+	if lower == "latest" || NonVersionDependencyPrefix(lower) || GradleVersionSelector(version) {
 		return "", false
 	}
 	if strings.ContainsAny(version, "<>^~*=|, []") ||
@@ -318,6 +319,24 @@ func ExactManifestDependencyVersion(raw string) (string, bool) {
 		return "", false
 	}
 	return version, true
+}
+
+// GradleVersionSelector reports whether version is Gradle selector text that
+// no other ecosystem uses for an exact version: the prefix form ("1.+", "+",
+// a trailing '+'), a "latest." status selector in any letter case, the '!!'
+// strict short-hand ("1.0!!"), or the '@ext' artifact-only suffix
+// ("1.0@jar"). Ranges are already caught by the range operators. An interior
+// '+' is not reported, because semver build metadata ("1.0.0+build.1") is an
+// exact version in npm and Cargo.
+func GradleVersionSelector(version string) bool {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return false
+	}
+	return strings.HasSuffix(version, "+") ||
+		strings.HasPrefix(strings.ToLower(version), "latest.") ||
+		strings.Contains(version, "!!") ||
+		strings.Contains(version, "@")
 }
 
 // PackageNameFromPURL extracts the package name from a package-URL string by

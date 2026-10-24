@@ -6,6 +6,8 @@ package gradle
 import (
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/gradle/selector"
 )
 
 var configurationKeywords = map[string]struct{}{
@@ -295,6 +297,14 @@ func buildRow(
 		} else {
 			value = resolved
 		}
+	}
+	// A selector ("1.+", "latest.release", "[1.0,2.0)", "1.0!!", "1.0@jar")
+	// names no single version, whether written literally or reached through a
+	// same-file property, so the row stays unresolved and keeps the text as
+	// written. It names no interpolation key, so none is recorded.
+	if resolutionState == "resolved" && !selector.Exact(value) {
+		resolutionState = "unresolved"
+		value = rawVersion
 	}
 
 	row := map[string]any{

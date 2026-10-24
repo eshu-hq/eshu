@@ -27,6 +27,16 @@
   cannot become package consumption decisions.
 - Map-form declarations require both `group` and `name`; rows with only one
   of the two are skipped.
+- A row is `resolved` only when `selector.Exact` accepts its version after
+  interpolation. A Gradle selector (`1.+`, `latest.release`, `[1.0,2.0)`,
+  `1.0!!`, `1.0@jar`) is `unresolved` with the literal kept and no
+  unresolved keys. `dynamic_version_test.go` runs the shared table in
+  `selector/testdata/versions.txt` through every notation;
+  `dynamic_version_fuzz_test.go` is the seeded oracle
+  (`ESHU_GRADLE_SELECTOR_FUZZ_ROUNDS` raises the 3,000-script default).
+  Never fork a local copy of the rule.
+- String notation never leaks a classifier or `@ext` into the coordinate
+  name, nor a classifier into the version (`classifier_test.go`).
 
 ## Common changes and how to scope them
 

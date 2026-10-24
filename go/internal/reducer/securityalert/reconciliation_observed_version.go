@@ -98,7 +98,8 @@ func securityAlertVersionTextLooksLikeRange(raw string) bool {
 		strings.Contains(lower, " - ") ||
 		strings.Contains(lower, ".x") ||
 		strings.Contains(lower, "x.") ||
-		nonVersionDependencyPrefix(lower)
+		nonVersionDependencyPrefix(lower) ||
+		payloadcore.GradleVersionSelector(value)
 }
 
 // securityAlertConsumptionEvidenceKind declares locally rather than importing
@@ -114,14 +115,14 @@ func securityAlertConsumptionEvidenceKind(consumption SecurityAlertConsumption) 
 	return factschema.FactKindReducerPackageConsumptionCorrelation
 }
 
-// exactConsumptionDependencyVersion, exactManifestDependencyVersion, and
-// nonVersionDependencyPrefix declare locally rather than importing the
-// reducer root's versions (all three in ranges.go): pure
-// version-string classification
+// exactConsumptionDependencyVersion and nonVersionDependencyPrefix declare
+// locally rather than importing the reducer root's versions (both in
+// ranges.go): pure version-string classification
 // with no reducer-root state, shared with supply_chain's own observed-version
 // resolution, which has not moved out of root yet (issue #6061).
-// exactManifestDependencyVersion and nonVersionDependencyPrefix are
-// byte-identical to the root originals. exactConsumptionDependencyVersion is
+// exactManifestDependencyVersion forwards to payloadcore, which owns the
+// shared rule. nonVersionDependencyPrefix is
+// byte-identical to the root original. exactConsumptionDependencyVersion is
 // not: it takes only the three SecurityAlertConsumption fields the logic
 // actually reads (lockfile, installedVersion, dependencyRange) instead of the
 // full supplychainmodel.PackageConsumption value type, and inlines the root's
@@ -144,23 +145,11 @@ func exactConsumptionDependencyVersion(ecosystem string, lockfile bool, installe
 	return exactManifestDependencyVersion(dependencyRange)
 }
 
+// exactManifestDependencyVersion forwards to
+// [payloadcore.ExactManifestDependencyVersion] so the security-alert path and
+// package correlation share one exact-version rule (issue #8988).
 func exactManifestDependencyVersion(raw string) (string, bool) {
-	version := strings.TrimSpace(raw)
-	if version == "" {
-		return "", false
-	}
-	lower := strings.ToLower(version)
-	if lower == "latest" || nonVersionDependencyPrefix(lower) {
-		return "", false
-	}
-	if strings.ContainsAny(version, "<>^~*=|, []") ||
-		strings.Contains(lower, " - ") ||
-		strings.Contains(version, "$") ||
-		strings.Contains(lower, ".x") ||
-		strings.Contains(lower, "x.") {
-		return "", false
-	}
-	return version, true
+	return payloadcore.ExactManifestDependencyVersion(raw)
 }
 
 func nonVersionDependencyPrefix(lower string) bool {
