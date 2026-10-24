@@ -1,0 +1,22 @@
+go/internal/collector/extensionhost/process_number_test.go
+  s_ff8a600f1fc93e::t_826a93b3a493d8 1-16,18-45,47-93
+  s_ff8a600f1fc93e::t_4f35940d3a5824 17,46
+go/internal/collector/extensionhost/process.go
+  s_ff8a600f1fc93e::t_8768fcc696c60d 75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a961f18ac8f03b5a79484e60cbb44f67ce9fa4aa",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
