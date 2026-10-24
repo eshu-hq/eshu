@@ -1,0 +1,45 @@
+go/internal/storage/postgres/reducer_queue_crossplane_replay_test.go
+  s_ff8a600f1fc93e::t_c87aed611ed4e0 1-49
+go/internal/storage/postgres/crossplane/satisfied_by_redrive_behavior_live_test.go
+  s_ff8a600f1fc93e::t_c07787328d6a25 298,306-309,322,346-347
+  s_ff8a600f1fc93e::t_95b30170180b1c 221,223-226,256-257,259,281-286
+  s_ff8a600f1fc93e::t_259bf355aa5a98 9,13,364-432
+  s_ff8a600f1fc93e::t_2650a9e5e73c40 289-297,299-305,310-321,323-345,348-363,433
+  s_ff8a600f1fc93e::t_e73993b227304b 210-220,222,227-255,258,260-280,287-288
+go/internal/storage/postgres/crossplane/ledger_live_test.go
+  s_ff8a600f1fc93e::t_d1d4db3b3d6b6d 35-36,83-84,87,89-90,92-93,96-113
+docs/internal/evidence/8948-crossplane-redrive-replay.md
+  s_ff8a600f1fc93e::t_5aaa8827e0b6c4 16-18
+  s_ff8a600f1fc93e::t_7ff9520d54ac1c 1-13,15,19-20
+  s_ff8a600f1fc93e::t_e66b61454d46c2 14
+go/internal/storage/postgres/crossplane/query_plan_live_test.go
+  s_ff8a600f1fc93e::t_99c547c629645f 14-16,20,22-75,78-79,82,84-85
+  s_ff8a600f1fc93e::t_e72f9055dd60ac 21,76-77,80-81,83
+  s_ff8a600f1fc93e::t_d9c811cc00434b 86
+go/internal/storage/postgres/crossplane/README.md
+  s_ff8a600f1fc93e::t_d8ebd96b160f2e 184-185,202-204,216
+  s_ff8a600f1fc93e::t_1d44a7fe66b15e 215
+  s_ff8a600f1fc93e::t_8a8f83af6ee5dc 119-124,179-183,201
+  s_ff8a600f1fc93e::t_94f76d98ce9369 208-214
+go/internal/storage/postgres/reducer_queue_replay.go
+  s_ff8a600f1fc93e::t_9d6b781647a24a 70,74,267,331-336,362,366,369-370,373-375,377-396
+go/internal/storage/postgres/crossplane/sweep.go
+  s_ff8a600f1fc93e::t_6797e5ba855209 304
+  s_ff8a600f1fc93e::t_dc9cba150f6185 298-299,302-303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2d85d6b1b0c11ae74b8983fb04e96a2326b84972",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
