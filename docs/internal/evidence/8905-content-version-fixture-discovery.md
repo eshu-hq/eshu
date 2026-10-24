@@ -26,7 +26,7 @@ the pin test stayed green.
   the version string. The baseline is the pinned fixture stream at v9: 293
   facts, digest `4dafb339...`. After: 311 facts, digest `e24b8860...`. The 18
   added facts are the six manifests, parsed for the first time by the digest.
-  The input is the checked-in fixture tree (58 files); no queue or row counts
+  The input is the checked-in fixture tree (59 tracked files); no queue or row counts
   apply because the change touches no database path.
 - No-Regression Evidence: the fixture digest test runs in the package's race
   suite (`go test -race -count=1 ./internal/collector/repo/...`), which exits 0.
