@@ -299,3 +299,40 @@ func TestSnapshotIndexesAParserFileExactlyAtTheCap(t *testing.T) {
 		t.Fatalf("at the cap: OversizeSkippedFiles = %v, FileData = %d; want none skipped and 1 parsed", snapshot.OversizeSkippedFiles, len(snapshot.FileData))
 	}
 }
+
+// TestDeltaDoesNotDegradeOnAnOversizeWorkflow (#8986 review P2-2): a workflow
+// file over the cap is absent from a full snapshot, so a delta that does not
+// target it must not carry it either. Before the fix the delta built a
+// workflow meta for it from the full discovery set, the capped stream re-read
+// refused it, and every delta counted workflow_read_failed, dropped the
+// pre-parse identity, and logged a WARN. Not parallel: it lowers the
+// process-wide read cap.
+func TestDeltaDoesNotDegradeOnAnOversizeWorkflow(t *testing.T) {
+	defer shared.SetSourceReadCapForTest(oversizeTestCap)()
+
+	repoRoot := t.TempDir()
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "app.py"), "def main():\n    return 1\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"),
+		"name: ci\non: push\njobs:\n  b:\n    runs-on: ubuntu-latest\n    container: alpine:3\n    steps:\n      - run: echo hi\n"+strings.Repeat("# pad\n", 20))
+	full, err := NativeRepositorySnapshotter{Engine: defaultCollectorTestEngine(t)}.SnapshotRepository(context.Background(), SelectedRepository{RepoPath: repoRoot})
+	if err != nil {
+		t.Fatalf("full SnapshotRepository() error = %v", err)
+	}
+	if len(full.WorkflowImageFileMetas) != 0 {
+		t.Fatalf("full WorkflowImageFileMetas = %d, want 0 for an oversize workflow", len(full.WorkflowImageFileMetas))
+	}
+
+	source, logs, reader := dropRecordingSource(t)
+	source.Snapshotter = NativeRepositorySnapshotter{Engine: defaultCollectorTestEngine(t), Logger: source.Logger, Instruments: source.Instruments}
+	collected, err := source.snapshotOneRepository(context.Background(),
+		SelectedRepository{RepoPath: repoRoot, Delta: true, FileTargets: []string{filepath.Join(repoRoot, "app.py")}, PreparseIdentity: "preparse:v1:workflow"},
+		"run", time.Now().UTC(), 0)
+	if err != nil {
+		t.Fatalf("delta snapshotOneRepository() error = %v", err)
+	}
+	drainFactChannel(collected.Facts)
+	if collected.Generation.PreparseIdentityDropped.Load() {
+		t.Fatalf("PreparseIdentityDropped = true, want false: an oversize workflow is a deterministic skip")
+	}
+	assertIdentityDropRecorded(t, logs.String(), dropCounts(t, reader), "", repoRoot)
+}

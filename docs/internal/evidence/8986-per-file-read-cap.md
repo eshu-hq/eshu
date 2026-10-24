@@ -27,7 +27,14 @@ touched it.
   C++ header scans, `go.mod`, the JavaScript sibling parser, tsconfig and
   package.json, composer.json and composer.lock, the Python package `__init__`
   and Lambda config scans. `TestParserTreeReadsRepositoryFilesThroughTheCap`
-  fails on a new raw whole-file read in the parser tree.
+  fails on a new raw whole-file read in the parser tree, under any import name
+  (default, alias, or dot import).
+- A delta's workflow image metadata, built from the full discovery set for
+  workflows the delta does not target, leaves out a workflow over the cap
+  without a read failure, as a full snapshot does, and its digest read is
+  capped. Before, the delta hashed the whole file, the capped stream re-read
+  refused it, and every delta counted `workflow_read_failed` and dropped the
+  pre-parse identity.
 
 A first cut that capped only `ReadSource` failed the whole snapshot: the import
 pre-scan reads every parser file and returns an error on the first failure
@@ -98,9 +105,6 @@ These read whole files but are not parser input:
 - `parser/scip/parser.go`: the SCIP index the indexer wrote, not repository
   content.
 - `parser/goldenaudit/golden_audit.go`: checked-in golden fixtures.
-- `collector/repo/git/workflow/image/facts.go`: workflow files read for image
-  evidence; a capped read there would count a read failure and degrade every
-  sync of a repository holding a workflow over 64 MiB.
 - `collector/repo/git/snapshot_native_helpers.go` (`PreparseConfigFor`): the
   digest of an operator-installed SCIP binary.
 - `collector/repo/git/snapshot_native_vendor_roots.go`, `selection_ignore.go`,

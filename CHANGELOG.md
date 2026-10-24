@@ -27,7 +27,8 @@ recent shipped work grouped by feature area.
   side reads of headers, sibling modules, tsconfig and package.json, composer
   files, Python package and Lambda files, and `go.mod`. A delta whose target
   grew past the cap retracts the file instead of leaving its earlier facts
-  served as current. The largest lock file
+  served as current, and a workflow over the cap no longer marks every delta
+  sync `workflow_read_failed`. The largest lock file
   measured in the repository and golden corpus is 274,035 bytes, so no lock
   file below the cap is affected. `gitGenerationContentVersion` moves from
   `git-collector.v10` to `git-collector.v11`, so each repository re-collects
