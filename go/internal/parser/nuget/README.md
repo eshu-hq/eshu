@@ -294,21 +294,25 @@ depth is capped by this scanner before the decoder stack grows.
 
 No-Regression Evidence: the props path is new and runs only for the two exact
 file names, so `.csproj` parsing is unchanged. `BenchmarkParseConfig` at the
-10,002-line floor (`-benchtime=30x`, a shared 16-thread host) measured
-`nuget_project` (.csproj) 28.8 ms/op, 24.8 MB B/op, 289,767 allocs/op,
-`nuget_directory_packages_props` 25.3 ms/op, 20.7 MB B/op, 222,406 allocs/op,
-and `nuget_directory_build_props` 28.3 ms/op, 22.5 MB B/op, 244,885 allocs/op.
-The item-operation tracker added about 14% time, 14% bytes, and 5% allocations
-to the props cases (same host, alternating runs against the scanner before it:
-22.2 ms, 18.0 MB, 212,340 allocs and 24.3 ms, 19.9 MB, 234,820 allocs). The
-props files stay at or under the `.csproj` parser. Allocation ceilings in
-`props_limits_test.go` bound a 10 MiB single line, 90,000 entries, 500,000
-nested tags, and unterminated tags, comments and CDATA by input size, and a
-doubling test requires allocation to grow at most 2.3x for 2x entries.
-The item-operation tracker adds a map of at most 10,000 names: on a 4 MiB
-file of Includes, named and wildcard Updates, and Removes, allocation went from
-59.2 MB (14.1x input) to 67.0 MB (16.0x), and a 4 MiB element of repeated
-`Version` attributes stayed at 78.0 MB (18.6x) before and after.
+10,002-line floor (`-benchtime=30x`, a shared 16-thread host, mean of three
+rounds alternating with the scanner before the escape and scope rules) measured
+`nuget_project` (.csproj) 28.0 ms/op, 25.0 MB B/op, 289,787 allocs/op,
+`nuget_directory_packages_props` 26.2 ms/op, 20.7 MB B/op, 222,406 allocs/op
+(25.6 ms, 20.7 MB, 222,407 allocs before), and `nuget_directory_build_props`
+28.9 ms/op, 22.6 MB B/op, 244,887 allocs/op (28.3 ms, 22.6 MB, 244,885 allocs
+before). The escape check and scope rule add about 2% time and no allocations.
+The item-operation tracker before them added about 14% time, 14% bytes, and 5%
+allocations (22.2 ms, 18.0 MB, 212,340 allocs and 24.3 ms, 19.9 MB, 234,820
+allocs without it). The props files stay at or under the `.csproj` parser.
+Allocation ceilings in `props_limits_test.go` bound a 10 MiB single line,
+90,000 entries, 500,000 nested tags, and unterminated tags, comments and CDATA
+by input size, and a doubling test requires allocation to grow at most 2.3x for
+2x entries. The item-operation tracker adds a map of at most 10,000 names: a
+4 MiB file of Includes, named and wildcard Updates, and Removes allocates
+67.2 MB (16.0x input; 27.9x under `-race`). One element with 349,505 repeated
+`Version` attributes on 4.19 MB allocates 94.3 MB (22.5x), and one with 300,000
+distinct attributes on 3.49 MB allocates 93.2 MB (26.7x; 27.4x under `-race`),
+mostly the XML decoder's attribute slice. All stay under the 32x ceiling.
 
 No-Observability-Change: the parser emits no spans, metrics, or logs, like the
 rest of this package. An operator sees skipped and capped constructs in the
