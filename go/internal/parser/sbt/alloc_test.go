@@ -148,7 +148,10 @@ func TestParseRepeatedAndChainedConfigurationsStayLinear(t *testing.T) {
 // TestParseTailAllowlistStaysLinear drives the allowlist scanner with long tails:
 // 100,000 allowlisted calls, 100,000 unknown calls, a 100,000-call `.map` body,
 // and 100,000 leading-infix `%` lines on one coordinate. Each is one pass over
-// the tokens, so the allocation stays a small multiple of the input.
+// the tokens, so the allocation stays a small multiple of the input. The ceiling
+// is 8x: a short `% Test` line costs a few small allocations per operand, and
+// one full-package run measured 5.6x where isolated runs measure 3.8x; a
+// quadratic pass would be thousands of times the input.
 func TestParseTailAllowlistStaysLinear(t *testing.T) {
 	const calls = 100_000
 	cases := map[string]struct {
@@ -162,7 +165,7 @@ func TestParseTailAllowlistStaysLinear(t *testing.T) {
 	}
 	for name, tc := range cases {
 		payload, gotBytes, _ := measureParse(t, tc.body)
-		requireAllocCeiling(t, name, len(tc.body), gotBytes, 4, 1<<20)
+		requireAllocCeiling(t, name, len(tc.body), gotBytes, 8, 1<<20)
 		requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", tc.state)
 	}
 }

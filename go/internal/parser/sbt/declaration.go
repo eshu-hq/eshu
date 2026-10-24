@@ -241,6 +241,10 @@ func (s *scan) readVersion(dep *dependency, tok token) bool {
 // A chain longer than MaxFieldBytes is consumed without being buffered and
 // reported as not ok, so a million-segment chain cannot inflate a row.
 func (s *scan) readIdentChain(head string) (string, bool) {
+	if next := s.peek(); len(head) <= MaxFieldBytes && !isChainContinuation(next) {
+		// A lone identifier needs no builder: return the token's own text.
+		return head, true
+	}
 	var chain strings.Builder
 	over := len(head) > MaxFieldBytes
 	if !over {
@@ -270,6 +274,15 @@ func (s *scan) readIdentChain(head string) (string, bool) {
 			return chainResult(&chain, over)
 		}
 	}
+}
+
+// isChainContinuation reports a token readIdentChain would consume: a `.member`
+// selection or a call argument group on the same line.
+func isChainContinuation(tok token) bool {
+	if tok.newline {
+		return false
+	}
+	return isPunct(tok, ".") || tok.kind == kindOpen
 }
 
 func chainResult(chain *strings.Builder, over bool) (string, bool) {
