@@ -11,8 +11,9 @@ give-up.
 ## Counter
 
 `eshu_dp_security_alert_reconciliation_impact_wait_total` counts one decision
-per reconciliation pass that had a decision waiting on impact evidence. Every
-label is a closed set:
+per reconciliation pass that deferred without spending an attempt or gave up
+at the handler cap; passes on the counting wait below the cap record nothing
+here. Every label is a closed set:
 
 | Label | Values |
 | --- | --- |
