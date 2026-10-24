@@ -210,8 +210,8 @@ func TestClaimedSourceFanoutFreshnessHintSeparatesAlertsDisabledFromFailed(t *te
 }
 
 // TestClaimedSourceIgnoresAlertsDisabledMarkerOnOtherClasses proves the marker
-// only changes an auth_denied failure: a rate-limited or retryable failure that
-// somehow carries it still stops the fan-out.
+// only matters for a not_found failure: a rate-limited or retryable failure
+// that somehow carries it still stops the fan-out.
 func TestClaimedSourceIgnoresAlertsDisabledMarkerOnOtherClasses(t *testing.T) {
 	t.Parallel()
 
@@ -238,10 +238,11 @@ func TestClaimedSourceIgnoresAlertsDisabledMarkerOnOtherClasses(t *testing.T) {
 	}
 }
 
-// TestClaimedSourceRepositoryTargetKeepsTerminalAuthDeniedOnAlertsDisabled
-// proves a repository-scope target that gets the disabled 403 still fails with
-// terminal auth_denied: only the org fan-out reads the marker.
-func TestClaimedSourceRepositoryTargetKeepsTerminalAuthDeniedOnAlertsDisabled(t *testing.T) {
+// TestClaimedSourceRepositoryTargetClassifiesAlertsDisabledAsNotFound proves a
+// repository-scope target that gets the disabled 403 fails with terminal
+// not_found, not auth_denied, so readiness does not blame a working
+// credential (#8947).
+func TestClaimedSourceRepositoryTargetClassifiesAlertsDisabledAsNotFound(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.October, 23, 12, 0, 0, 0, time.UTC)
@@ -273,7 +274,7 @@ func TestClaimedSourceRepositoryTargetKeepsTerminalAuthDeniedOnAlertsDisabled(t 
 	if !errors.As(err, &classified) {
 		t.Fatalf("NextClaimed() error = %T, want classified provider failure", err)
 	}
-	if classified.FailureClass() != FailureAuthDenied || !classified.TerminalFailure() {
-		t.Fatalf("class = %q terminal = %t, want terminal auth_denied", classified.FailureClass(), classified.TerminalFailure())
+	if classified.FailureClass() != FailureNotFound || !classified.TerminalFailure() {
+		t.Fatalf("class = %q terminal = %t, want terminal not_found", classified.FailureClass(), classified.TerminalFailure())
 	}
 }

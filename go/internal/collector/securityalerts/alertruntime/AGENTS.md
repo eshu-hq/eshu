@@ -18,11 +18,11 @@ to `collector.ClaimedService`.
 - Add or update `ClaimedSource.NextClaimed` tests for new provider behavior.
 - Keep the org fan-out (`org_fanout.go`) bounded: sequential reads, each capped
   by `max_pages`, at most `maxOrganizationFanoutRepositories` per claim, and a
-  stop at the first read failure other than `not_found` or an auth_denied 403
-  the client marked `AlertsDisabled`. Report unread repositories through
-  `collection_incomplete_reasons` and the fan-out counter; never retry inside a
-  claim. Update `testdata/org_fanout_cassette.json` when the request sequence
-  changes.
+  stop at the first read failure other than `not_found` (which includes the 403
+  the client marked `AlertsDisabled`, classified `not_found` since #8947).
+  Report unread repositories through `collection_incomplete_reasons` and the
+  fan-out counter; never retry inside a claim. Update
+  `testdata/org_fanout_cassette.json` when the request sequence changes.
 - Build the org read state (`read_state.go`) from the same fan-out outcomes the
   facts use; a repository the fan-out did not read in full MUST appear in it
   with the same reason token, and a repository read in full MUST NOT. The

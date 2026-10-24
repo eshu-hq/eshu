@@ -62,7 +62,7 @@ Known limits, both reading `unknown` rather than leaking text:
 | Class | Kinds | Meaning |
 | --- | --- | --- |
 | `auth_denied` | every kind | The credential was refused or lacks the grant. |
-| `not_found` | every kind | The target is missing or the credential cannot see it. |
+| `not_found` | every kind | The target is missing or the credential cannot see it. For `security_alert` it also covers a repository whose Dependabot alerts are disabled (a 403, #8947). |
 | `rate_limited` | every kind | The provider throttled the run. |
 | `terminal` | every kind | The provider returned another non-retryable error. |
 | `retryable` | every kind | A transient provider failure used up the attempt budget. |
