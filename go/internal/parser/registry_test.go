@@ -105,8 +105,8 @@ func TestDefaultRegistryLookupByExtensionAndPath(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected terraform.tfvars to resolve")
 		}
-		if definition.ParserKey != "hcl" {
-			t.Fatalf("ParserKey = %q, want %q", definition.ParserKey, "hcl")
+		if definition.ParserKey != "tfvars" {
+			t.Fatalf("ParserKey = %q, want %q", definition.ParserKey, "tfvars")
 		}
 		if definition.Language != "hcl" {
 			t.Fatalf("Language = %q, want %q", definition.Language, "hcl")
@@ -120,8 +120,8 @@ func TestDefaultRegistryLookupByExtensionAndPath(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected terraform.tfvars.json to resolve")
 		}
-		if definition.ParserKey != "hcl" {
-			t.Fatalf("ParserKey = %q, want %q", definition.ParserKey, "hcl")
+		if definition.ParserKey != "tfvars" {
+			t.Fatalf("ParserKey = %q, want %q", definition.ParserKey, "tfvars")
 		}
 		if definition.Language != "hcl" {
 			t.Fatalf("Language = %q, want %q", definition.Language, "hcl")

@@ -45,7 +45,7 @@ a line there.
 | `gradle_wrapper` | java | L2 structured fact | metadata |  | `gradle-wrapper.properties` |  |
 | `groovy` | groovy | L2 structured fact | store | `.groovy` |  |  |
 | `haskell` | haskell | L2 structured fact | store | `.hs` |  |  |
-| `hcl` | terraform | L2 structured fact | store | `.hcl`, `.tf`, `.tfvars` |  |  |
+| `hcl` | terraform | L2 structured fact | store | `.hcl`, `.tf` |  |  |
 | `java` | java | L2 structured fact | store | `.java` |  |  |
 | `java_metadata` | java | L2 structured fact | store |  |  |  |
 | `javascript` | javascript | L2 structured fact | store | `.cjs`, `.js`, `.jsx`, `.mjs` |  |  |
@@ -67,9 +67,11 @@ a line there.
 | `scala` | scala | L2 structured fact | store | `.routes`, `.sc`, `.scala` |  |  |
 | `sql` | sql | L2 structured fact | store | `.sql` |  |  |
 | `swift` | swift | L2 structured fact | store | `.swift` |  |  |
+| `tfvars` | terraform | L2 structured fact | store | `.tfvars` |  |  |
 | `tsx` | typescriptjsx | L2 structured fact | store | `.tsx` |  |  |
 | `typescript` | typescript | L2 structured fact | store | `.cts`, `.mts`, `.ts` |  |  |
 | `yaml` | yaml | L2 structured fact | store | `.yaml`, `.yml` | `pubspec.lock` |  |
+| `yarnrc` | javascript | L2 structured fact | store |  | `.yarnrc.yml` |  |
 
 Path-dispatched bindings admit these paths through `Registry.LookupByPath` rules
 that the columns above do not list. A row can look empty and still admit files.
@@ -78,7 +80,7 @@ Paths are matched case-insensitively:
 - `META-INF/services/<service>`, `META-INF/spring.factories`, `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` bind to `java_metadata`.
 - `conf/routes`, `*.routes` bind to `scala`.
 - `.mvn/extensions.xml` bind to `raw_text`.
-- `*.tfvars.json` bind to `hcl`.
+- `*.tfvars.json` bind to `tfvars`.
 - `constraints.txt`, `constraints-*.txt`, `constraints_*.txt` bind to `python_requirements`.
 <!-- parser-admission-table:end -->
 

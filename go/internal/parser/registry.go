@@ -175,7 +175,7 @@ func (r Registry) LookupByPath(path string) (Definition, bool) {
 		return cloneDefinition(definition), ok
 	}
 	if strings.HasSuffix(base, ".tfvars.json") {
-		if definition, ok := r.byKey["hcl"]; ok {
+		if definition, ok := r.byKey["tfvars"]; ok {
 			return cloneDefinition(definition), true
 		}
 	}

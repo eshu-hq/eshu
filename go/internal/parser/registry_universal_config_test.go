@@ -209,7 +209,7 @@ func TestUniversalConfigNamesLeaveExistingBindingsUnchanged(t *testing.T) {
 		"requirements.txt": "python_requirements",
 		"Puppetfile":       "raw_text",
 		"conf/routes":      "scala",
-		"prod.tfvars.json": "hcl",
+		"prod.tfvars.json": "tfvars",
 	}
 	for candidate, want := range cases {
 		definition, ok := registry.LookupByPath(candidate)

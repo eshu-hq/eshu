@@ -173,7 +173,7 @@ func TestMetadataPolicyEmitsAnEmptyBodyWithTheSourceDigest(t *testing.T) {
 func TestRedactPolicyEmitsTheMarkedBodyWithTheSourceDigest(t *testing.T) {
 	t.Parallel()
 
-	registry := policyRegistry(t, "yaml", policyMarker("npmAuthToken", "npmAuthIdent"), ".yarnrc.yml")
+	registry := policyRegistry(t, "yarnrc", policyMarker("npmAuthToken", "npmAuthIdent"))
 	_, envelopes := snapshotWithPolicy(t, registry, ".yarnrc.yml", policyYarnBody)
 
 	fact := contentFact(t, envelopes, ".yarnrc.yml")
@@ -212,7 +212,7 @@ func TestFreshnessHintIsStableAcrossCyclesAndPolicies(t *testing.T) {
 	}
 	hints := map[string]string{}
 	for name, store := range policies {
-		registry := policyRegistry(t, "yaml", store, ".yarnrc.yml")
+		registry := policyRegistry(t, "yarnrc", store)
 		first, _ := snapshotWithPolicy(t, registry, ".yarnrc.yml", policyYarnBody)
 		second, _ := snapshotWithPolicy(t, registry, ".yarnrc.yml", policyYarnBody)
 		a := snapshotFreshnessHintForVersion(first, version)
@@ -230,8 +230,8 @@ func TestFreshnessHintIsStableAcrossCyclesAndPolicies(t *testing.T) {
 func TestPolicyFingerprintMovesWhenDefinitionPolicyChanges(t *testing.T) {
 	t.Parallel()
 
-	store := policyRegistry(t, "yaml", parser.ContentStore{}, ".yarnrc.yml").Fingerprint()
-	redact := policyRegistry(t, "yaml", policyMarker("npmAuthToken"), ".yarnrc.yml").Fingerprint()
+	store := policyRegistry(t, "yarnrc", parser.ContentStore{}).Fingerprint()
+	redact := policyRegistry(t, "yarnrc", policyMarker("npmAuthToken")).Fingerprint()
 	if store == redact {
 		t.Fatal("a policy change must move the registry fingerprint so every repository re-collects once")
 	}

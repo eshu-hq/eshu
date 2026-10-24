@@ -262,7 +262,7 @@ parser path.
   `DefaultRegistry()` if the built-in definitions are invalid
 - `DefaultRegistry()` — built-in catalog for this wave of supported languages
 - `Registry.LookupByPath(path)` — extension / exact name / prefix name lookup;
-  `.tfvars.json` routes to the `hcl` definition, and Java metadata files under
+  `.tfvars.json` routes to the `tfvars` definition, and Java metadata files under
   META-INF/services, META-INF/spring, and META-INF/spring.factories
   route to `java_metadata`
 - `Registry.LookupByExtension(extension)` / `LookupByParserKey(parserKey)` — direct lookups
@@ -304,7 +304,7 @@ parser path.
 | Go modules | `gomod` | `go.mod`, `go.sum`, `go.work` (exact filenames) | — |
 | Groovy/Jenkinsfile | `groovy`, `__jenkinsfile__` | `.groovy`, `Jenkinsfile` | yes (metadata scanners remain bounded) |
 | Haskell | `haskell` | `.hs` (`.lhs` stays unclaimed: the grammar has no literate mode) | yes |
-| HCL/Terraform | `hcl` | `.hcl`, `.tf`, `.tfvars`, `.tfvars.json` | — |
+| HCL/Terraform | `hcl`; `tfvars` | `hcl`: `.hcl`, `.tf`. `tfvars`: `.tfvars`, `.tfvars.json`, parsed by the hcl engine with language `hcl`, its own definition so a content-store policy governs only these files (#8833) | — |
 | Java | `java` | `.java` | yes |
 | Java metadata | `java_metadata` | META-INF/services/*, AutoConfiguration.imports, spring.factories | — |
 | JavaScript | `javascript` | `.cjs`, `.js`, `.jsx`, `.mjs` | yes |
@@ -322,7 +322,7 @@ parser path.
 | Swift | `swift` | `.swift` | yes (tree-sitter AST walk) |
 | TSX | `tsx` | `.tsx` | yes (TypeScript grammar) |
 | TypeScript | `typescript` | `.cts`, `.mts`, `.ts` | yes |
-| YAML | `yaml` | `.yaml`, `.yml` | — |
+| YAML | `yaml`; `yarnrc` | `yaml`: `.yaml`, `.yml`. `yarnrc`: `.yarnrc.yml` (exact name), parsed by the yaml engine with language `yaml`, its own definition so a content-store policy governs only this file (#8833) | — |
 
 `—` is not a permanent-exception marker. Treat a parser or helper as a
 permanent no-tree-sitter exception only when it appears in the "Permanent
