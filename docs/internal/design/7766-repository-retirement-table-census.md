@@ -116,6 +116,8 @@ table is `fact_backfill_requests`.
 | `service_evidence_snapshots` (`026:2`) | `service_materialization_generations ON DELETE CASCADE` | With its parent at `2e` |
 | `projection_decision_evidence` (`007:18-25`) | `projection_decisions` by `decision_id`, no FK and no matching column, so the census test cannot see it | `2e`, by `decision_id`, before its parent |
 | `admission_decision_evidence` (`007a_admission_decisions.sql:39-46`) | `admission_decisions ON DELETE CASCADE`; no matching column, so the census test cannot see it | `2d`, with its parent |
+| `security_alert_target_read_states` (`217`) | `scope_generations ON DELETE CASCADE`; carries a `scope_id` column with no FK (#8943) | `2d` |
+| `security_alert_unread_repositories` (`217`) | `security_alert_target_read_states ON DELETE CASCADE`; keyed by `generation_id` and a provider repository slug, so the census scan sees it only through its `repository` column and it is not flagged scan-invisible | `2d`, with its parent |
 
 ## Scope- And Repo-Keyed Tables With No FK
 
