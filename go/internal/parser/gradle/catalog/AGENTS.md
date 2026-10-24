@@ -42,7 +42,7 @@
 - A new bound: add the constant to `types.go`, count the excess, and add an
   allocation-ceiling test in `bounds_test.go`.
 - A change to row fields: update the README, the parent engine test
-  `../../gradle_catalog_engine_test.go`, and the re-pinned collector fixture
+  `engine_test.go`, and the re-pinned collector fixture
   digest (`go test ./internal/collector/repo/git/ -run
   TestGenerationContentVersionPinsCollectorOutput -update-content-version-pin`).
   A row field change for unchanged input also needs a

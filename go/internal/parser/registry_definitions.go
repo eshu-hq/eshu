@@ -123,7 +123,7 @@ func defaultDefinitions() []Definition {
 			Language:   "gradle",
 			Ecosystem:  "java",
 			Admission:  AdmissionStructuredFact,
-			ExactNames: []string{"build.gradle", "build.gradle.kts"},
+			ExactNames: []string{"build.gradle", "build.gradle.kts", "libs.versions.toml"},
 		},
 		{
 			ParserKey:  "javascript",
