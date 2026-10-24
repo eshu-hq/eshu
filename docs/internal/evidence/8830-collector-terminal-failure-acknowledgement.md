@@ -137,7 +137,8 @@ change reverted. Every one turned a live test red:
 | Drop the first branch (`t.updated_at <= k.failure_at`) | `RecordsAndSuppresses`, `RacesFailureWrites`, `AcknowledgementSemantics` |
 | Collapse to one lateral (the acknowledged lateral returns nothing) | `RecordsAndSuppresses`, `Concurrent`, `RacesFailureWrites`, `AcknowledgementSemantics`, `ReadUsesPartialIndex` |
 | Drop the `u` lateral's cover (suppress nothing) | `RecordsAndSuppresses`, `RacesFailureWrites`, `AcknowledgementSemantics`, `ReadUsesPartialIndex` |
-| Skip the store's class guard | `Refusals` |
+| Drop the acknowledged lateral's unresolved anti-join (a recovered scope kept reading acknowledged) | `AcknowledgementSemantics` (the `resolved` case) |
+| Ignore the window in the acknowledgement target read | `Refusals` |
 
 ## Observability Evidence
 
