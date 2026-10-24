@@ -140,28 +140,34 @@ tests:
     runner: live-postgres-migrations
   - file: go/internal/storage/postgres/scope/completion/quiescence_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/secret/lines/bulk_load_lock_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/secret/lines/contention_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/secret/lines/finalize_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/secret/lines/gate_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/secret/lines/keymove_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/service_catalog_corpus_fence_live_test.go
     tag: ~
     class: dedicated_ci

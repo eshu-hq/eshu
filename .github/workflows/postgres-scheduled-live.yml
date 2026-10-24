@@ -32,6 +32,12 @@ on:
       - 'go/go.mod'
       - 'go/go.sum'
       - 'go/internal/query/*fixture*test.go'
+      - 'go/internal/query/admin/changedsincepoisonedlinks_live_test.go'
+      - 'go/internal/query/admin/operator_note_live_test.go'
+      - 'go/internal/query/admin/prior_failure_listing_live_test.go'
+      - 'go/internal/query/admin/replay_failure_class_live_test.go'
+      - 'go/internal/query/admin/replay_fence_live_test.go'
+      - 'go/internal/query/admin/replay_superseded_live_test.go'
       - 'go/internal/query/code_topic_path_first_live_test.go'
       - 'go/internal/query/content_reader_entity_search_plan_live_test.go'
       - 'go/internal/query/content_reader_fingerprint_metadata_live_test.go'
@@ -53,6 +59,7 @@ on:
       - 'go/internal/reducer/containerimage/container_image_identity_writer_postgres_live_test.go'
       - 'go/internal/storage/postgres/*fixture*test.go'
       - 'go/internal/storage/postgres/ack_supersession_assertions_test.go'
+      - 'go/internal/storage/postgres/code/reachability/store_route_liveness_live_test.go'
       - 'go/internal/storage/postgres/container_image_identity_ack_attempt_fencing_live_test.go'
       - 'go/internal/storage/postgres/container_image_identity_ack_batch_exactness_live_test.go'
       - 'go/internal/storage/postgres/container_image_identity_ack_capability_live_test.go'
@@ -163,6 +170,12 @@ on:
       - 'go/internal/storage/postgres/reducer_queue_shared_edge_target_readiness_live_test.go'
       - 'go/internal/storage/postgres/reducer_queue_supersede_readiness_test.go'
       - 'go/internal/storage/postgres/schema*.go'
+      - 'go/internal/storage/postgres/scope/completion/quiescence_live_test.go'
+      - 'go/internal/storage/postgres/secret/lines/bulk_load_lock_live_test.go'
+      - 'go/internal/storage/postgres/secret/lines/contention_live_test.go'
+      - 'go/internal/storage/postgres/secret/lines/finalize_live_test.go'
+      - 'go/internal/storage/postgres/secret/lines/gate_live_test.go'
+      - 'go/internal/storage/postgres/secret/lines/keymove_live_test.go'
       - 'go/internal/storage/postgres/supersede_prior_failure_fidelity_live_test.go'
       - 'go/internal/storage/postgres/supersede_prior_failure_live_test.go'
       - 'go/internal/storage/postgres/supply_chain_runtime_filter_index_restart_live_test.go'
@@ -788,12 +801,96 @@ jobs:
           test -z "$effective_config"
           proof_status="$(git -C .. status --porcelain --untracked-files=all)"
           test -z "$proof_status"
+      - name: Create fresh admin database
+        run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_admin_scheduled'
+      - name: Run admin proofs
+        working-directory: go
+        env:
+          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_admin_scheduled?sslmode=disable
+          ESHU_ADMIN_REPLAY_FENCE_LIVE: "1"
+        run: |
+          set -euo pipefail
+          test -z "${GOFLAGS:-}"
+          test -z "${GOWORK:-}"
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+          go test -json -race -p=1 -count=1 -timeout=6m ./internal/query/admin -run '^(TestAdminHandler_ChangedSincePoisonedLinksQueryLiveFiltersAndPagination|TestAdminHandler_ChangedSincePoisonedLinksQueryLiveRepositoryScopedGrant|TestAdminStoreIdentityFenceMutationsLive|TestAdminStoreMutationsRecheckStatusLive|TestAdminStoreReplayRecordsPriorFailureClassLive|TestAdminStoreSupersededGenerationReplayFenceLive|TestAdminWorkItemListingExposesPriorFailureAndNote|TestOperatorNoteKeepsTheFailureItReplaces)$' | tee "${RUNNER_TEMP}/admin.jsonl"
+          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/admin.jsonl" --group admin
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+      - name: Create fresh completion database
+        run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_completion_scheduled'
+      - name: Run completion proofs
+        working-directory: go
+        env:
+          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_completion_scheduled?sslmode=disable
+        run: |
+          set -euo pipefail
+          test -z "${GOFLAGS:-}"
+          test -z "${GOWORK:-}"
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+          go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres/scope/completion -run '^(TestProducerScopeQuiescenceLive)$' | tee "${RUNNER_TEMP}/completion.jsonl"
+          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/completion.jsonl" --group completion
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+      - name: Create fresh reachability database
+        run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_reachability_scheduled'
+      - name: Run reachability proofs
+        working-directory: go
+        env:
+          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_reachability_scheduled?sslmode=disable
+        run: |
+          set -euo pipefail
+          test -z "${GOFLAGS:-}"
+          test -z "${GOWORK:-}"
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+          go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres/code/reachability -run '^(TestCodeReachabilityLoaderGateEachPredicateIsLoadBearing|TestCodeReachabilityLoaderGateMatchesLegacyOnCompleteRuns|TestCodeReachabilityLoaderGateSkipsIncompleteRuns|TestCodeReachabilityPendingInputsPlanAtEpochBump|TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController|TestCodeReachabilityRailsRouteFactsLoaderRoundTrip)$' | tee "${RUNNER_TEMP}/reachability.jsonl"
+          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/reachability.jsonl" --group reachability
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+      - name: Run secret_lines proofs
+        working-directory: go
+        env:
+          ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE: "1"
+        run: |
+          set -euo pipefail
+          test -z "${GOFLAGS:-}"
+          test -z "${GOWORK:-}"
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+          go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres/secret/lines -run '^(TestBeginDeferralTakesReadinessAndBumpsEpochLive|TestBulkLoadLockDiesWithItsSessionLive|TestBulkLoadLockKeepsReadyHonestLive|TestBulkLoadLockRefusesASecondLoadLive|TestDeferredSessionWritesDeriveNothingLive|TestFinalizeIsRestartSafeLive|TestFinalizeIsSupersededByNewBulkLoadLive|TestFinalizeRebuildsSideTableToParityLive|TestFinalizeSurvivesAConcurrentKeyMoveLive|TestFinalizeWithSteadyStateWritersLive|TestFinalizeYieldsToAHeldWriterLive)$' | tee "${RUNNER_TEMP}/secret_lines.jsonl"
+          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/secret_lines.jsonl" --group secret_lines
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
       - name: Upload bulk proof streams
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: scheduled-proof-streams-bulk-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            ${{ runner.temp }}/admin.jsonl
+            ${{ runner.temp }}/completion.jsonl
+            ${{ runner.temp }}/reachability.jsonl
+            ${{ runner.temp }}/secret_lines.jsonl
             ${{ runner.temp }}/crossplane.jsonl
             ${{ runner.temp }}/infra_inventory.jsonl
             ${{ runner.temp }}/disposable_gate.jsonl
@@ -835,6 +932,10 @@ jobs:
           name: postgres-scheduled-proof-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/proof-bundle/manifest.json
+            ${{ runner.temp }}/proof-bundle/admin.jsonl
+            ${{ runner.temp }}/proof-bundle/completion.jsonl
+            ${{ runner.temp }}/proof-bundle/reachability.jsonl
+            ${{ runner.temp }}/proof-bundle/secret_lines.jsonl
             ${{ runner.temp }}/proof-bundle/crossplane.jsonl
             ${{ runner.temp }}/proof-bundle/infra_inventory.jsonl
             ${{ runner.temp }}/proof-bundle/disposable_gate.jsonl

@@ -1,0 +1,46 @@
+{
+  "go/internal/query/admin/changedsincepoisonedlinks_live_test.go": {
+    "group": "admin",
+    "package": "github.com/eshu-hq/eshu/go/internal/query/admin",
+    "tests": [
+      "TestAdminHandler_ChangedSincePoisonedLinksQueryLiveFiltersAndPagination",
+      "TestAdminHandler_ChangedSincePoisonedLinksQueryLiveRepositoryScopedGrant"
+    ]
+  },
+  "go/internal/query/admin/operator_note_live_test.go": {
+    "group": "admin",
+    "package": "github.com/eshu-hq/eshu/go/internal/query/admin",
+    "tests": [
+      "TestOperatorNoteKeepsTheFailureItReplaces"
+    ]
+  },
+  "go/internal/query/admin/prior_failure_listing_live_test.go": {
+    "group": "admin",
+    "package": "github.com/eshu-hq/eshu/go/internal/query/admin",
+    "tests": [
+      "TestAdminWorkItemListingExposesPriorFailureAndNote"
+    ]
+  },
+  "go/internal/query/admin/replay_failure_class_live_test.go": {
+    "group": "admin",
+    "package": "github.com/eshu-hq/eshu/go/internal/query/admin",
+    "tests": [
+      "TestAdminStoreReplayRecordsPriorFailureClassLive"
+    ]
+  },
+  "go/internal/query/admin/replay_fence_live_test.go": {
+    "group": "admin",
+    "package": "github.com/eshu-hq/eshu/go/internal/query/admin",
+    "tests": [
+      "TestAdminStoreIdentityFenceMutationsLive",
+      "TestAdminStoreMutationsRecheckStatusLive"
+    ]
+  },
+  "go/internal/query/admin/replay_superseded_live_test.go": {
+    "group": "admin",
+    "package": "github.com/eshu-hq/eshu/go/internal/query/admin",
+    "tests": [
+      "TestAdminStoreSupersededGenerationReplayFenceLive"
+    ]
+  }
+}

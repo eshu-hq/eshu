@@ -96,6 +96,13 @@ JOB_STEPS = {
         "Run disposable golden corpus residual proof",
         "Run disposable query proofs",
         "Run disposable storage proofs",
+        "Create fresh admin database",
+        "Run admin proofs",
+        "Create fresh completion database",
+        "Run completion proofs",
+        "Create fresh reachability database",
+        "Run reachability proofs",
+        "Run secret_lines proofs",
         "Upload bulk proof streams",
     ),
     "scheduled-aggregate": (
