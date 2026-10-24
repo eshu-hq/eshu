@@ -22,7 +22,7 @@ this grant authorizes emission only.
 ## Open item: mirror-kind authority
 
 Today the 3 mirror kinds' producer record names `secrets-iam-posture`
-(`go/internal/facts/identity/iam.go:216`) and their envelopes stamp
+(`go/internal/facts/identity/iam.go`, producer `secrets-iam-posture`) and their envelopes stamp
 `collector_kind = "secrets_iam_posture"`, while this collector emits them.
 Either the grant binds all 10 kinds to `dev.eshu.collector.gcp-cloud`
 (re-stamp at extraction), or the extracted component carries a second

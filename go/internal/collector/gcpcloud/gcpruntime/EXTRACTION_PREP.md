@@ -76,7 +76,7 @@ path here).
 
 **Open authority item (not fixed by this PREP):** the 3 mirror kinds are
 emitted by this collector's `Generation`, but their producer record names
-`secrets-iam-posture` (`go/internal/facts/identity/iam.go:216`), not
+`secrets-iam-posture` (`go/internal/facts/identity/iam.go`, producer `secrets-iam-posture`), not
 `collector-gcp-cloud`. The mirror envelopes also stamp
 `collector_kind = "secrets_iam_posture"` (`posture/types.go:10`), not
 `"gcp"` — pinned by `source_parity_8856_test.go`. The cutover grant must
@@ -142,7 +142,7 @@ workflow handles.
   never in config, logs, labels, or facts. Redaction key from a file path,
   never logged.
 - Public target contract: `collector-sdk/v1alpha1`
-  (`sdk/go/collector/types.go:10`).
+  (`sdk/go/collector/types.go`, `ProtocolVersionV1Alpha1`).
 - Scope wire shape: `gcp:<parent_kind>:<parent_id>:<asset_family>:<content_family>:<location_bucket>`
   (`DeriveScopeID`, `config.go:149`).
 
