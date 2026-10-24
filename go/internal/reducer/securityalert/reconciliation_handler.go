@@ -176,7 +176,7 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 		EvidenceSummary: securityAlertReconciliationSummary(decisions, writeResult.CanonicalWrites) +
 			impactWait.summarySuffix(),
 		CanonicalWrites: writeResult.CanonicalWrites,
-		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      impactWait.subSignals(factdecode.InputInvalidSubSignals(inputInvalidCount)),
 	}, nil
 }
 

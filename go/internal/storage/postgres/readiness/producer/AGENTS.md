@@ -38,3 +38,11 @@ Scoped instructions for this package. The root `AGENTS.md` still applies.
 - Imports: `reducer/contract`, `reducer/servicecatalog`, `internal/scope`,
   and `postgres/db`. Never import the parent `postgres` package; its live
   proofs import this package instead.
+- `ImpactProducerStateQuery` (#8827) is one aggregate keyed on the intent's own
+  `scope_id` and `generation_id`; it must keep reaching `fact_work_items`
+  through `fact_work_items_scope_generation_idx` (the live plan test is the
+  guard) and keep the four-term last-workable anchor with no `updated_at`.
+  An unanswerable question is an error, never an empty state: an empty state
+  reads as "no impact work in flight" and lets the reconciliation spend
+  attempts or give up while the producer runs. The domain constant comes from
+  `reducercontract.DomainSupplyChainImpact`.

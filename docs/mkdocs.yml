@@ -373,6 +373,7 @@ nav:
       - Relevance Walk Signals: reference/telemetry/rank-cursor.md
       - Security Alert Org Fan-Out: reference/telemetry/security-alert-org-fanout.md
       - Service Catalog Runtime Re-trigger: reference/telemetry/service-catalog-runtime-retrigger.md
+      - Security Alert Reconciliation Impact Wait: reference/telemetry/security-alert-reconciliation-impact-wait.md
     - Observability:
       - Telemetry Coverage Contract: observability/telemetry-coverage.md
       - Telemetry Coverage Notes: observability/telemetry-coverage-notes.md

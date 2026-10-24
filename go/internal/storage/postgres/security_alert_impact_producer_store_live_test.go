@@ -169,7 +169,9 @@ FROM generate_series(1, 2000) AS s CROSS JOIN generate_series(1, 5) AS g CROSS J
 	if !strings.Contains(planJSON, "fact_work_items_scope_generation_idx") {
 		t.Fatalf("impact producer probe does not use fact_work_items_scope_generation_idx:\n%s", planJSON)
 	}
-	t.Logf("plan (350,000 rows): planning=%v ms execution=%v ms", plan[0]["Planning Time"], plan[0]["Execution Time"])
+	top, _ := plan[0]["Plan"].(map[string]any)
+	t.Logf("plan (350,000 rows): planning=%v ms execution=%v ms shared_hit_blocks=%v shared_read_blocks=%v",
+		plan[0]["Planning Time"], plan[0]["Execution Time"], top["Shared Hit Blocks"], top["Shared Read Blocks"])
 
 	state, err := producerreadiness.ImpactStore{DB: SQLDB{DB: sqlDB}}.ImpactProducerState(ctx, "plan8827-10", "plan8827-10-g5")
 	if err != nil || state.Pending != 1 || state.Total != 1 {

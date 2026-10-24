@@ -214,6 +214,9 @@ func TestSecurityAlertReconciliationGiveUpIsVisible(t *testing.T) {
 	if !strings.Contains(result.EvidenceSummary, "impact_wait=gave_up_unmatched") {
 		t.Fatalf("summary %q must name the gave_up_unmatched reason", result.EvidenceSummary)
 	}
+	if got := result.SubSignals["impact_wait_gave_up"]; got != 1 {
+		t.Fatalf("sub signal impact_wait_gave_up = %v, want 1: the reducer logs it as sub_signal_impact_wait_gave_up on the success line", got)
+	}
 	for _, want := range []string{
 		`"level":"WARN"`,
 		"security alert reconciliation gave up waiting for impact evidence",

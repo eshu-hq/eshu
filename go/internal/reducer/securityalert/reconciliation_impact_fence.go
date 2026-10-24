@@ -134,6 +134,22 @@ func (d impactWaitDecision) summarySuffix() string {
 	return " impact_wait=" + d.giveUp
 }
 
+// subSignals adds the give-up flag to the result's sub signals, which the
+// reducer logs as sub_signal_impact_wait_gave_up on the success line, so a
+// give-up is findable from the execution log and not only from the WARN line.
+// It returns base unchanged when the handler did not give up.
+func (d impactWaitDecision) subSignals(base map[string]float64) map[string]float64 {
+	if d.giveUp == "" {
+		return base
+	}
+	out := make(map[string]float64, len(base)+1)
+	for key, value := range base {
+		out[key] = value
+	}
+	out["impact_wait_gave_up"] = 1
+	return out
+}
+
 // resolveImpactWait decides what a reconciliation with decisions waiting on
 // impact evidence does: defer without spending an attempt while the impact
 // work of its scope generation is in flight inside the bound, defer on the
