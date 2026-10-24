@@ -83,8 +83,8 @@ No-Regression Evidence (configuration bound): on the previous commit,
 3,934,180,448 bytes allocated (32,804 times the 119,930-byte input), a 10 MB
 `"a,a,..."` configuration at 1,035,783,832 bytes (103.6 times), and 20,000
 chained `.map(_ % Test)` over 5,000 dependencies at 200,070,096 mallocs. After
-the bound and the resolve-once rewrite the same tests allocate 1,473,128 bytes
-(12.3 times), 20,007,944 bytes (2.0 times) and 85,079 mallocs, with
+the bound and the resolve-once rewrite the same tests allocate about 1.47 million bytes
+(12.3 times), about 20.0 million bytes (2.0 times) and about 85,000 mallocs, with
 one configuration write per dependency. Counts of bytes and objects, not time.
 
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
