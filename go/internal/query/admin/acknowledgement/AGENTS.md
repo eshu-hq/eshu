@@ -26,6 +26,10 @@
 - **Failure answers follow #7674.** Fixed message constants and
   `tracing.WriteServerFailure` for 5xx. The comment beside each mutation call
   says what may already have committed when it fails.
+- **The list is the status read, unrolled per scope.** `ListTerminalFailures` uses the
+  same window, `workflowTerminalFailureResolvedBy`, and `workflowTerminalFailureAckCovers`
+  as the status read; the live set-equality test pins it. Never give status a scope id
+  (it reaches callers outside the admin gate) and never put the reason in the list.
 - **The covering rule has one definition,** `workflowTerminalFailureAckCovers`,
   in `storage/postgres`. Do not copy it here.
 - **OpenAPI stays in lockstep.** The fragment is

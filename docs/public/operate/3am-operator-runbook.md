@@ -237,8 +237,10 @@ A source is not refreshing, or a collector family reports unhealthy.
   and wait one window. Pending or retrying items do not clear it. If the
   failure is expected and nobody will fix it (a repository deleted upstream, a
   credential revoked on purpose, a removed target you will not wait a window
-  for), acknowledge it with `eshu admin collector-failure acknowledge`
-  (collector kind, instance, scope, reason; admin token). The instance then reads
+  for), find its scope with `eshu admin collector-failure list` (collector
+  kind, instance; admin token) and acknowledge it with
+  `eshu admin collector-failure acknowledge` (collector kind, instance, scope,
+  reason; admin token). The instance then reads
   `partial` with the blocker `terminal fetch failure acknowledged: <class>
   (<operation>)` instead of `failed`, never healthy, and the failure is reported
   again if it changes class or fails after a completed work item on that scope.

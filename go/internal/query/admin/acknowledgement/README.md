@@ -4,7 +4,8 @@ The operator acknowledgement of a collector terminal failure (issue #8830):
 `POST /api/v0/admin/collector-failures/acknowledge` marks one failure on one
 collector instance and scope as known and expected, and
 `POST /api/v0/admin/collector-failures/acknowledgements/query` is the admin-only
-read that returns the operator's reason.
+read that returns the operator's reason, and `POST /api/v0/admin/collector-failures/query`
+is the admin-only discovery read that lists the failed scopes of one instance.
 
 ## Ownership
 
@@ -35,6 +36,16 @@ unresolved failure inside the instance's window (422
 `ack_refused_no_terminal_failure`). The same key and
 target replays the stored outcome (`status` duplicate); the same key with another
 target answers 409. A scoped token gets 403; unauthenticated dev mode stays open.
+
+`collector-failures/query` takes `collector_kind` and `instance_id` (both required),
+`limit` (scopes per page, default 100, at most 500), and `cursor`. It lists the
+newest unresolved failure per scope and acknowledged state inside the instance's
+window, built by the store from the same predicates the status read uses, so what
+it lists is what status counts and every listed unacknowledged scope is
+acknowledgeable. No status surface carries a scope id; it names an org,
+repository, or account, and the status payloads reach callers outside the admin
+gate. It returns bounded tokens only (never a failure message or the reason) and
+writes no audit event.
 
 An acknowledged instance reads `partial`, never healthy or failed, with the
 failure kept as a separate `acknowledged_failure` object. A completed work item

@@ -100,6 +100,47 @@ and the acknowledged state keep the
 `workflow_work_items_failed_terminal_instance_updated_idx` seek, with no Sort
 beyond the outer instance sort.
 
+## Failed-scope discovery (arb-8830b ruling-2)
+
+The first ruling named `POST /api/v0/admin/work-items/query` as the way to find a
+failed scope's id. That premise was wrong, and the ruling's VERIFIED item 17 is
+withdrawn: that route reads `fact_work_items` (the projector and reducer queue),
+not `workflow_work_items`, and has no instance filter. No route listed collector
+work items by instance, and no status surface carries a scope id, so an operator
+could not learn the scope id the acknowledge route needs.
+
+`POST /api/v0/admin/collector-failures/query` (admin gate, one instance, keyset
+paged by scope) and `eshu admin collector-failure list` close it. The status
+surfaces keep no scope id: a scope id embeds an org, repository, or account
+(`security-alert:github:eshu-hq/eshu`), and the "unscoped" status payload reaches
+browser sessions and shared-key callers who are not behind the admin gate. The list
+is built from the status read's window, the new shared
+`workflowTerminalFailureResolvedBy`, and `workflowTerminalFailureAckCovers`, so what
+it lists is what status counts. Its completed probe adds a window bound of its own:
+without it the planner hashes every completed row of the instance.
+
+Plan proof, same 542,880-row fixture, warm, fifth consecutive run, limit 100:
+
+| Statement | State | Execution time | Index rows read |
+| --- | --- | --- | --- |
+| list, `sa-hot` | none acknowledged | 0.65 ms | 160 (in-window) |
+| list, `sa-hot` | `scope-hot-0` acknowledged | 0.61 ms | 160 |
+| list, `sa-hot` | all 40 scopes acknowledged | 0.77 ms | 160 |
+| list, `sa-recovered` (115,200 completed rows) | none | 0.34 ms | 120 |
+| list, `sa-recovered`, probe unbounded (rejected) | none | 35.8 ms | 120, plus a hash of every completed row |
+| status read (unchanged) | none / hot scope / all 40 acknowledged | 1.84 / 2.95 / 2.14 ms | |
+
+The list seeks `workflow_work_items_failed_terminal_instance_updated_idx` with the
+window cutoff in the index condition, reads only in-window rows (about 40 scopes x 4
+rows), sorts only those rows keyed on scope (never the failed history), and uses no
+temp blocks. The status read gained no predicate; only the text of its completed
+probe moved into the shared constant.
+
+Mutations of the list, each turning a live test red: drop the window cutoff
+(`SemanticsLive`, `UsesTheWindowIndexLive`); drop the completed anti-join
+(`SemanticsLive`); drop the cover predicate (`SemanticsLive`, the discovery loop);
+drop `DISTINCT ON` (`SemanticsLive`, `UsesTheWindowIndexLive`).
+
 ## Concurrency and idempotency proof
 
 All under `ESHU_POSTGRES_DSN`, `-race`:

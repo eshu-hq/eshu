@@ -91,6 +91,7 @@ body as `any`:
 | `Backfill` | `BackfillInput` | `POST /api/v0/admin/backfill` |
 | `ListReplayEvents` | `limit int` | `POST /api/v0/admin/replay-events/query` |
 | `Retire` | `RetireInput` | `POST /api/v0/admin/repository-retirements` |
+| `ListCollectorFailures` | `ListCollectorFailuresInput` | `POST /api/v0/admin/collector-failures/query` |
 | `AcknowledgeCollectorFailure` | `AcknowledgeCollectorFailureInput` | `POST /api/v0/admin/collector-failures/acknowledge` |
 
 Credential side:

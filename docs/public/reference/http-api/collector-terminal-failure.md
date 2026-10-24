@@ -185,11 +185,42 @@ The CLI generates an idempotency key and prints it to stderr before the call whe
 do not pass one. The acknowledgement names the newest unresolved failure of the scope
 at the time of the call and stores its observed raw class.
 
-Find the instance and kind on `GET /api/v0/status/collector-readiness` or with the
-`get_collector_readiness` MCP tool. Find the scope with
-`POST /api/v0/admin/work-items/query` using `statuses: ["failed_terminal"]` and the
-instance's scopes; the status surfaces do not carry scope ids. The call needs an
-admin (all-scopes) token; a scoped token receives `403`.
+Find the instance and its kind on `GET /api/v0/status/collector-readiness` or with
+the `get_collector_readiness` MCP tool, then [find the failed scopes](#find-the-failed-scopes).
+The acknowledge call needs an admin (all-scopes) token; a scoped token receives `403`.
+
+### Find the failed scopes
+
+No status surface carries a scope id: a scope id names an org, repository, or
+account, and the status payloads reach callers outside the admin gate (browser
+sessions, shared keys, and the MCP tools). The scope ids come from an admin-only
+read of one instance:
+
+```text
+POST /api/v0/admin/collector-failures/query
+{"collector_kind": "security_alert", "instance_id": "...", "limit": 100, "cursor": "..."}
+```
+
+```bash
+eshu admin collector-failure list --collector-kind security_alert --instance ID
+```
+
+Each item is a scope with its newest unresolved failure inside the instance's
+window: `scope_id`, `failure_class`, `failure_operation`, `failed_at`,
+`work_item_id`, `acknowledged`, and `acknowledged_at` when acknowledged. The list
+is exactly what collector status counts: the same window, the same rule that a later
+completed work item resolves a failure, and the same acknowledgement cover. A scope
+that recovered or aged out is not listed, and a scope with an acknowledged older
+failure and a newer failure of another class lists both. Every unacknowledged
+scope it lists is one the acknowledge call accepts.
+
+`limit` counts scopes (default 100, at most 500) and `cursor` is the `next_cursor`
+of the previous page, returned when `truncated` is true. Items are ordered by
+`scope_id`, unacknowledged before acknowledged. The response never carries a
+failure message, a provider status code, or an acknowledgement reason; it needs an
+admin (all-scopes) token, so a scoped token or a browser session without all scopes
+receives `403`. An unknown, mismatched, disabled, or deactivated instance lists
+nothing. Reading it writes no audit event.
 
 ### What an acknowledgement does
 
