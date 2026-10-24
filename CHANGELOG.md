@@ -177,7 +177,9 @@ recent shipped work grouped by feature area.
   rejects a trailing `+`, a `latest.` prefix, `!!` and `@`. Security-alert
   reconciliation now uses that same function and reports a selector as a
   missing version, not a malformed one. Semver build metadata such as
-  `1.0.0+build.1` stays exact in the reducer for npm and Cargo. The git
+  `1.0.0+build.1` stays exact in the reducer for npm and Cargo. A string
+  notation classifier no longer leaks into the version: `g:a:1.0:jdk8` now
+  resolves to `1.0`, not `1.0:jdk8`. The git
   collector content version moves from `git-collector.v10` to
   `git-collector.v11`, so each repository re-collects once and stale
   `resolved` selector rows are replaced.

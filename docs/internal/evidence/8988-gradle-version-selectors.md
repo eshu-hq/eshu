@@ -13,6 +13,13 @@ reconciliation forwards to that function. The git collector content version
 moves from `git-collector.v10` to `git-collector.v11`, so each stored
 repository re-collects once and its stale `resolved` rows are replaced.
 
+The same string-notation reader stored a classifier as part of the version:
+`g:a:1.0:jdk8` had `value` `1.0:jdk8`, and `g:a@jar` had name `g:a@jar`.
+`parseCoordinateLiteral` now reads `group:name[:version[:classifier]][@ext]`.
+The classifier never joins the version, and `selector.Exact` rejects `:`.
+The reducer backstop does not reject `:`, because other ecosystems' exact
+versions can hold one (a Debian epoch such as `1:2.3-1`).
+
 ## Accuracy proof
 
 - The shared table `go/internal/parser/gradle/selector/testdata/versions.txt`
@@ -25,10 +32,17 @@ repository re-collects once and its stale `resolved` rows are replaced.
   notation), and the family label of each version is the oracle. The default
   run is 3,000 scripts. One run of 30,000
   (`ESHU_GRADLE_SELECTOR_FUZZ_ROUNDS=30000`) passed in 33.8 s.
-- 11 overlay mutants were all killed by assertion failures, not by build
-  errors. They removed each reject class in `exact.go`, the case fold, the
-  character floor, the `buildRow` guard, the assignment that keeps the
-  literal, and the reducer's trailing-`+` and `@` rejects.
+- The generator also writes string notation with a classifier, with and
+  without `@ext`. The 30,000-script run passed again after that change, in
+  31.7 s.
+- 16 overlay mutants were all killed by assertion failures, not by build
+  errors. They removed each reject class in `exact.go` (`:` included), the
+  case fold, the character floor, the `buildRow` guard, the assignment that
+  keeps the literal, the reducer's trailing-`+` and `@` rejects, and each part
+  of the classifier and `@ext` split.
+- Content-version pin: on the same fixture, base `statement.go` and
+  `coordinate.go` give digest `5afd66e7...`, and head gives the pinned
+  `638dab42...`. The parser change alone moves the collector output.
 
 ## No-Regression Evidence:
 
@@ -58,7 +72,5 @@ evidence string. Parse timing stays with the parent parser engine.
 
 ## Known limits
 
-- `g:a:1.0:jdk8` (a classifier) still stores `1.0:jdk8` as the version. That
-  is a separate notation bug, reported for a follow-up.
 - Rich-version closures (`version { strictly(...) }`) are not read and stay
   `partial`.
