@@ -157,9 +157,10 @@ func TestFilesystemCopyKeepsMvnDirectoryAndDiscoveryAppliesRegistryRules(t *test
 // known mode-parity difference (#8814). Clone mode admits an admitted dotfile
 // at any depth because the registry matches by basename. The managed-workspace
 // copy keeps one only when every directory above it is a non-hidden directory
-// or an allowlisted one (.github/workflows, .mvn): it prunes any other
-// dot-directory whole with filepath.SkipDir, so tools/.config/.eslintrc never
-// reaches discovery in filesystem mode. The pruning of unknown dot-directories
+// or an allowlisted one (.github, .github/workflows, .mvn, or a dot-directory
+// whose name is an allowlisted file name): it prunes any other dot-directory
+// whole with filepath.SkipDir, so tools/.config/.eslintrc never reaches
+// discovery in filesystem mode. The pruning of unknown dot-directories
 // is intentional and long-standing; if it changes, update this test and the
 // wording in the copy allowlist comment, git/AGENTS.md, the changelog and
 // docs/public/languages/admitted-files.md.
@@ -170,7 +171,16 @@ func TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories(t *testi
 	reposDir := t.TempDir()
 	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
 	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
-	kept := []string{".eslintrc", filepath.Join("web", ".eslintrc"), filepath.Join("a", "b", ".eslintrc")}
+	kept := []string{
+		".eslintrc", filepath.Join("web", ".eslintrc"), filepath.Join("a", "b", ".eslintrc"),
+		// Allowlisted dot-directories keep what is inside them.
+		filepath.Join(".github", ".editorconfig"),
+		filepath.Join(".github", "workflows", ".eslintrc"),
+		filepath.Join(".mvn", ".editorconfig"),
+		filepath.Join(".mvn", "wrapper", ".flake8"),
+		// A dot-directory named like an allowlisted file is itself kept.
+		filepath.Join(".babelrc", "inner", ".prettierrc"),
+	}
 	pruned := []string{
 		filepath.Join("tools", ".config", ".eslintrc"),
 		filepath.Join(".config", ".eslintrc"),

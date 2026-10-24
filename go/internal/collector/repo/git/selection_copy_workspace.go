@@ -43,10 +43,12 @@ func cleanManagedWorkspace(reposDir string) error {
 // pruned as dotfiles. Unlike .github/workflows (a directory prefix), these are
 // individual hidden config FILES that can live at the repo root or, for GitLab
 // CI, in a subdirectory referenced via include:. They are matched by basename so
-// the copy preserves them wherever they appear under non-hidden directories. A
-// name under any other dot-directory, such as tools/.config/.eslintrc, is not
-// copied: the walk prunes an unknown dot-directory whole, so clone mode admits
-// it and filesystem mode does not
+// the copy preserves them wherever they appear under non-hidden or allowlisted
+// directories (.github, .github/workflows, .mvn, and a dot-directory whose name
+// is itself an allowlisted file name). A name under any other, unallowlisted
+// dot-directory, such as tools/.config/.eslintrc, is not copied: the walk
+// prunes that dot-directory whole, so clone mode admits it and filesystem mode
+// does not
 // (TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories). Keys
 // are lower case; the lookup lowercases the entry name.
 //

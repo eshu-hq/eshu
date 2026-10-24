@@ -131,9 +131,11 @@ there, or filesystem mode never sees it. Never add a credential-bearing dotfile
 (`.env`, `.npmrc`, `.pypirc`, `.netrc`), and keep `.gitignore` out: the copy
 applies the source ignore rules itself, and copying the file would make
 discovery filter a second time. Names match case-insensitively, like the
-registry, and are kept under non-hidden directories at any depth. A name under
-any other dot-directory (`tools/.config/.eslintrc`) is pruned with its parent,
-because the copy drops unknown dot-directories whole; clone mode admits it, and
+registry, and are kept under non-hidden or allowlisted directories (`.github`,
+`.github/workflows`, `.mvn`, and a dot-directory whose name is an allowlisted
+file name) at any depth. A name under any other, unallowlisted dot-directory
+(`tools/.config/.eslintrc`) is pruned with its parent, because the copy drops
+such dot-directories whole; clone mode admits it, and
 `TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories` pins the
 difference. The copy keeps the whole `.mvn` directory and discovery applies the
 registry rules to it, as in clone mode: `.mvn/extensions.xml` is admitted as

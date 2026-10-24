@@ -125,8 +125,10 @@ recent shipped work grouped by feature area.
   `phpunit.xml`, `.mvn/jvm.config`, `.mvn/maven.config`) stay unadmitted.
   Filesystem source mode now keeps these dot-prefixed names, matched
   case-insensitively, and the whole `.mvn` directory in its managed copy, so it
-  treats them like clone mode, except that a name under any other dot-directory
-  (`tools/.config/.eslintrc`) is still pruned there with its parent. The copy's existing `.gitlab-ci.yml`,
+  treats them like clone mode, except that a name under a dot-directory the
+  copy does not keep (anything other than `.github`, `.github/workflows` and
+  `.mvn`, such as `tools/.config/.eslintrc`) is still pruned there with its
+  parent. The copy's existing `.gitlab-ci.yml`,
   `.gitlab-ci.yaml` and `.gitmodules` entries now match case-insensitively there
   as well; `.gitignore` is still not copied there. Because
   the copy keeps `.mvn` whole, filesystem mode also now indexes other files the
