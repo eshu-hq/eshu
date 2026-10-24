@@ -90,10 +90,12 @@ rewrite it cannot read:
   operator after the key and any chain of legacy axes, a prefix axis such as
   `Compile /`, or a member sbt's SettingKey API defines as a Setting), and
   reads (`.value`, `.key`, `.scopedKey`, `.taskValue`, `.in(Test).value`,
-  `(k in Test).value`). Any other occurrence supersedes every row of the file
-  and is counted.
+  `(k in Test).value`), and plain elements of a key-list setting (see
+  "Key-list references"). Any other occurrence supersedes every row of the
+  file and is counted.
 - `scalaVersion`: the in-context literal statement above, any assignment the
-  sections above already poison, and the same reads. Any other occurrence
+  sections above already poison, the same reads, and the same key-list
+  references. Any other occurrence
   poisons the envelope for good and is counted once.
 
 Denied shapes include a parenthesized key at any depth (`(k) := v`,
@@ -114,6 +116,34 @@ inside another key's axis group denies the outer key. An inner occurrence
 whose verdict its statement already applied (a reset that supersedes every
 row, or a poison) is not counted again, so one statement counts once. The
 watch allocates nothing and needs no lookahead.
+
+### Key-list references
+
+A key named as a plain element of a key-list setting is a reference, not a
+rewrite (`key_list.go`). The allow-list holds the settings whose value is a
+list of keys: `buildInfoKeys` (sbt-buildinfo, `Seq[BuildInfoKey.Entry[_]]`)
+and `excludeLintKeys` and `includeLintKeys` (sbt 1.4+,
+`Set[Def.KeyedInitialize[_]]`). Read:
+
+- `<head> := Seq|Set|List|Vector[T](...)` and `<head> ++= ...` of the same
+  form, and `<head> += k`, where `<head>` starts a statement in a grammar
+  context, alone or behind `Global /` or `ThisBuild /`;
+- an element that is an identifier chain ending in the key, such as
+  `scalaVersion` or `Compile / scalaVersion`, followed by `,` or `)`;
+- only when the list (or the single key) ends the statement: end of input,
+  `;`, a new line, or the `,` or `)` of an enclosing settings list.
+
+`buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)`,
+`Global / excludeLintKeys += libraryDependencies` and
+`Global / excludeLintKeys ++= Set(scalaVersion, libraryDependencies)` keep
+the version, the hint and every row. Denied: any other head (`fooKeys`,
+`core / buildInfoKeys`, a `val` body, `inThisBuild(...)`), any other operator
+(`-=`, `~=`), a value that is no collection literal (`foo(k)`, `k` after
+`:=`), anything after the list (`.map(_ := Nil)`, `.foreach(...)`, `++`,
+`:+`, an assignment, a `.map` on the next line), and a key with anything
+after it in its element (`k := v`, `k.?`, `k / aggregate`, `k in Test`,
+`(k)`). Those keys go to their handler and are denied as anywhere else; a
+handler that reads to the list's end fails the whole list closed.
 
 `meta_build` is `true` when the file sits directly in a directory named
 `project`. The registry admits `build.sbt` by base name, so
@@ -351,13 +381,9 @@ tracked. A leading UTF-8 byte order mark is ignored.
   statement the scanner cannot read, or one assignment outside a grammar
   context leave it empty for the whole file, even where sbt's
   last-assignment order would name one version.
-- A key named as a plain value in an argument list is not a rewrite but is
-  denied, because the scanner has no reference-position rule:
-  `buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)`
-  clears `scala_version` and the `%%` hint for the file, and
-  `Global / excludeLintKeys += libraryDependencies` makes every row of the
-  file partial. Both are counted in `unresolved_declaration_count`; no row
-  resolves wrongly ([#9007](https://github.com/eshu-hq/eshu/issues/9007)).
+- A key named as a value is a read only inside an allow-listed key-list
+  setting (see "Key-list references"). Anywhere else, such as
+  `fooKeys := Seq(scalaVersion)` or `Seq(scalaVersion).map(f)`, it is denied.
 - A bare-file reset makes every project row partial, even a project that is
   not the root, because the scanner does not decide which project is the root.
 - `ThisBuild /` and `Global /` keys and a declared-project axis (`core /`) are

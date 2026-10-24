@@ -13,7 +13,8 @@
    `applyMember`), the statement end, the fail-closed fallback entry
    (`failStatement`, `fallback`), and superseding (`markReset`);
    `key_watch.go` - the default-deny watch on key tokens a handler consumes
-   itself, the legacy axis chain, and the closer read-through.
+   itself, the legacy axis chain, and the closer read-through;
+   `key_list.go` - the key-list settings whose plain key elements are reads.
 6. `element.go` - the element and collection grammar, the configuration
    operand, and the infix call allowlist (`classifyCall`).
 7. `salvage.go` - the fallback scanner that emits every literal coordinate of
@@ -65,6 +66,13 @@
   `keyReadExprs` in `read_test.go`, which runs every read through both. Only
   a global reset or a poison sets `scan.cover`; a context reset must not, or
   an inner global rewrite goes uncounted.
+- A key named as a value is a read only in `key_list.go`'s shape: an
+  allow-listed key-list head (`isKeyListSetting`) in a grammar context, a
+  collection literal or a single `+=` key, plain elements, and a list that
+  ends the statement. Add a head only with the sbt definition of its type (a
+  list of keys). Never accept a key whose element continues, or a list
+  followed by anything; and a handler that reads to the list's end must fail
+  the list closed (`listBroken`), since its last ')' may not be the list's.
 - A member called on the key rewrites when sbt's SettingKey API says it
   returns a Setting that rewrites the key, or returns the key itself
   (`settingMemberOf`); quote the sbt definition for any new name. A member that
@@ -260,6 +268,22 @@ benchmark, run alternately at load average 17 to 21, measured 16.15 to
 16.29 ms/op (median 16.21) before and 16.02 to 16.46 ms/op (median 16.10)
 after, with 16.45 MB/op and 139,757 to 139,758 allocs/op on both: no byte or
 allocation change.
+
+No-Regression Evidence (key-list references): the reference arm
+(`fuzz_ref_test.go`) interleaves resolved rows and a literal scalaVersion
+with allow-listed key lists of plain key elements, which must change
+nothing, and with every hostile shape of `reference_test.go`, which must
+deny each key it names. On the code before the rule it reported state=3,423,
+count=2,064, scala=2,082 and hint=579 over 3,000 cases and state=34,133,
+count=20,379, scala=20,863 and hint=6,151 over 30,000; with the rule, zero at
+3,000 (5,409 rows) and at 30,000 (55,243 rows), and the grammar, indentation
+and member arms stay zero with their row counts unchanged. 10 overlay
+mutants (any head allowed, trailing `.map` not denied, no grammar-context
+check, any axis head, a handler past the list accepted, any call as a
+collection, `-=` as a single key, pending scalaVersion or libraryDependencies
+kept, single key not judged) were all killed; a non-')' closer at list depth
+read as inside survived as an equivalent mutant (only a mismatched bracket
+reaches it, and the watch denies the key after it either way).
 
 No-Regression Evidence: the bounded-input tests in `adversarial_test.go` run a
 single-pass scanner with no recursion. 200,000 nested parentheses finish in

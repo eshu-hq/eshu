@@ -41,7 +41,9 @@
 // itself is judged by a watch in the scanner that follows the same read
 // grammar (axes, `in` chains, `.in(...)` and closers before a read member),
 // one token at a time; an inner occurrence whose verdict its statement
-// already applied is not counted again. Only a val that heads
+// already applied is not counted again. A key named as a plain element of an
+// allow-listed key-list setting (buildInfoKeys, excludeLintKeys,
+// includeLintKeys) whose list ends the statement is a read. Only a val that heads
 // a column-0 line resolves a version reference.
 //
 // Configuration lists split on ',' and ';' and resolve once, matching names

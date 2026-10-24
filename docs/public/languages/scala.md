@@ -148,15 +148,14 @@ Known limits of the sbt reading:
   `libraryDependencies` row, so a build that only reads a key through
   another member (`libraryDependencies.map(f)`) or shadows it loses rows it
   could have kept.
-- A key named as a plain value in an argument list is not a rewrite but is
-  denied: `buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)`
-  clears `scala_version` and the `%%` hint for the file, and
-  `Global / excludeLintKeys += libraryDependencies` makes every row of the
-  file partial. Both are counted in `unresolved_declaration_count`; no row
-  resolves wrongly. A reference-position rule is
-  [#9007](https://github.com/eshu-hq/eshu/issues/9007). A read with axes or
-  closers inside a dependency, such as `% (ThisBuild / scalaVersion).value`,
-  is a read.
+- A key named as a plain element of a key-list setting (`buildInfoKeys`,
+  `excludeLintKeys`, `includeLintKeys`) is a read when the list ends the
+  statement: `buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)`
+  and `Global / excludeLintKeys += libraryDependencies` keep the version, the
+  hint and every row. A key named as a value anywhere else, or in a key list
+  followed by `.map(...)`, `++`, `:+` or an assignment, is denied. A read
+  with axes or closers inside a dependency, such as
+  `% (ThisBuild / scalaVersion).value`, is a read.
 - `scala_version` fails closed: a `ThisBuild` literal plus a different
   project override, or two literals in one scope, report no version, even
   where sbt's last assignment would name one.

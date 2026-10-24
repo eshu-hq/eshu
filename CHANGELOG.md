@@ -217,9 +217,14 @@ recent shipped work grouped by feature area.
   `scalaVersion` occurrence poisons the envelope; only reads (`.value`,
   `.in(Test).value`, `(k in Test).value`, and the same reads with axes or
   closers inside a dependency, such as `% (ThisBuild / scalaVersion).value`)
-  are left alone, and one statement is counted once. A bare key passed as a
-  value (sbt-buildinfo's `buildInfoKeys`) is still denied
-  ([#9007](https://github.com/eshu-hq/eshu/issues/9007)). `<+=`, `<++=`,
+  are left alone, and one statement is counted once. A key named as a plain
+  element of `buildInfoKeys`, `excludeLintKeys` or `includeLintKeys` is a
+  read when the list ends the statement
+  (`buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)`,
+  `Global / excludeLintKeys += libraryDependencies`); a key named as a value
+  anywhere else, or in a key list followed by `.map(...)` or an assignment,
+  is denied. This also covers
+  [#9007](https://github.com/eshu-hq/eshu/issues/9007). `<+=`, `<++=`,
   `.append1`, `.appendN`, `.withRank(...) +=` and any other assignment
   operator fall back with partial rows. `scalaVersion` is read only where
   `libraryDependencies` would resolve; an unreadable `scalaVersion` statement
