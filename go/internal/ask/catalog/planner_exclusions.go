@@ -43,6 +43,7 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"PATCH /api/v0/auth/admin/sign-in-policy":                                       {}, // updates the tenant's sign-in policy (admin mutation)
 		"PATCH /api/v0/auth/browser-session/context":                                    {}, // switches the caller's tenant/workspace context
 		"POST /api/v0/admin/backfill":                                                   {}, // RequestBackfill enqueues backfill work
+		"POST /api/v0/admin/collector-terminal-failure-acknowledgements":                {}, // acknowledges a collector terminal failure as known and expected (admin mutation)
 		"POST /api/v0/admin/dead-letter":                                                {}, // DeadLetterWorkItems dead-letters queued work
 		"POST /api/v0/admin/recover-generations":                                        {}, // re-drives wedged generation scopes through recovery
 		"POST /api/v0/admin/refinalize":                                                 {}, // re-enqueues projector work for the given scope
