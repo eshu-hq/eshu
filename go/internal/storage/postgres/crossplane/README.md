@@ -96,8 +96,9 @@ All three fences are required by the design and enforced in
    The ledger table that replaced it went through TWO iterations of its own.
    **Iteration 1 (also rejected in review) had the SWEEP write the ledger
    entry immediately after `ReplayCrossplaneSatisfiedByMaterialization`
-   returned.** That call is enqueue-only — it returns as soon as the work
-   item is durably queued, strictly BEFORE the reducer handler runs. Because
+   returned.** A successful call confirms durable scheduling on the stable
+   work item; it neither waits for nor establishes successful handler or edge
+   completion. Because
    reducer auto-retry-on-dead-letter is disabled by default
    (`cmd/reducer/poison_liveness_wiring.go`), an intent that enqueued
    successfully but later dead-lettered (a handler bug, or an infra outage
@@ -112,9 +113,9 @@ All three fences are required by the design and enforced in
    entry itself, strictly after `WriteCrossplaneSatisfiedByEdges` succeeds**
    (`recordRedriveLedger`, one entry per distinct `(claim_group, claim_kind)`
    among the rows it actually wrote an edge for). The sweep's `sweepJoinKey`
-   no longer touches the ledger at all — it only enqueues/reopens. The window
-   between enqueue and handler completion where a second sweep might
-   re-enqueue the same target is safe (not a regression): the reopen-or-enqueue
+   no longer touches the ledger at all — it only requests durable replay.
+   If another sweep runs before the ledger is written, it can safely request
+   the same target again: the stable-item replay
    in `ReplayCrossplaneSatisfiedByMaterialization` is idempotent on the
    target's own per-scope `EntityKey`, so redundant scheduling cannot create
    a second work item. A running target keeps its lease and receives durable
@@ -214,6 +215,18 @@ statement to update the winning row. The target-discovery query, claim fan-out,
 indexes, and worker count are unchanged. No repo-scale throughput claim follows.
 See [the #8948 evidence](../../../../../docs/internal/evidence/8948-crossplane-redrive-replay.md)
 for direct live interleavings and the 501-target paged sweep measurement.
+
+No-Regression Evidence (comment correction): relative to merged source
+`5e4089e538`, the after-tree has identical comment-stripped Go syntax in
+all four touched Go files. Input cases remain the stable work item's pending,
+claimed, running, retrying, succeeded, and terminal states. The PostgreSQL 16
+measurements and terminal queue assertions above belong to #8948; this
+comment-only follow-up did not rerun a backend or count queue rows. Identical
+executable syntax and SQL make its runtime behavior unchanged for those inputs.
+
+No-Observability-Change (comment correction): the sweep counters, structured
+error logs, and queue status reporting described above have identical Go
+syntax. This change adds no metric, log, span, or status behavior.
 
 ## Related docs
 
