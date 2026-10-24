@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/pelletier/go-toml/v2/unstable"
 )
 
 // rowByAlias returns the single row whose catalog_alias is alias.
@@ -239,10 +241,10 @@ func TestScanAliasNormalizationStaysCappedByMaxRows(t *testing.T) {
 	}
 }
 
-// The semantic TOML check decodes into an empty struct. A valid value full of
-// escapes is unescaped by both passes, so allocation grows with the input and
-// with nothing else: doubling the value at most doubles the allocation. The
-// absolute ceiling is loose because -race builds allocate several times more.
+// A valid value full of escapes is unescaped by the streaming parse, so
+// allocation grows with the input and with nothing else: doubling the value
+// at most doubles the allocation. The absolute ceiling is loose because -race
+// builds allocate several times more.
 func TestScanSemanticCheckStaysLinearOnEscapedValues(t *testing.T) {
 	escaped := func(n int) []byte {
 		return []byte("[libraries]\na = \"" + strings.Repeat("\\n", n) + "\"\n")
@@ -265,8 +267,10 @@ func TestScanSemanticCheckStaysLinearOnEscapedValues(t *testing.T) {
 func TestScanExactRepeatPastTheCapIsMalformed(t *testing.T) {
 	t.Parallel()
 	source := append(hyphenCatalog(MaxRows), []byte("a-3 = \"g:again:2\"\n")...)
-	if result := Scan(source); result.State != StateMalformed || len(result.Rows) != 0 {
-		t.Fatalf("State=%q rows=%d, want malformed with none", result.State, len(result.Rows))
+	if result := Scan(source); result.State != StateMalformed || len(result.Rows) != 0 ||
+		result.ParseError != "alias repeated in one table" {
+		t.Fatalf("State=%q rows=%d err=%q, want malformed with none (alias repeated)",
+			result.State, len(result.Rows), result.ParseError)
 	}
 }
 
@@ -318,12 +322,11 @@ func TestScanExactRepeatOfALaterSpellingIsMalformed(t *testing.T) {
 	}
 }
 
-// go-toml's decoder recurses once per dotted-key segment when it fills a
-// matching field, with no depth bound. Scan refuses such a key before the
-// semantic check (keysExceed), and the check itself decodes into an empty
-// struct, which matches no key, so a 900,000-segment key must not grow the
-// stack on either path. Decoding into a map here overflows it.
-func TestScanSemanticCheckDoesNotRecurseOnDottedKeys(t *testing.T) {
+// A 900,000-segment key is refused before the key tree sees it
+// (keyBudget). The key tree walks a key's segments in a loop, never by
+// recursion, so even fed such a key directly it does not grow the stack; a
+// go-toml decode into a map overflows it on this input.
+func TestScanKeyTreeDoesNotRecurseOnDottedKeys(t *testing.T) {
 	key := "a" + strings.Repeat(".a", 900_000)
 	for name, text := range map[string]string{
 		"root":   key + " = 1\n",
@@ -333,8 +336,16 @@ func TestScanSemanticCheckDoesNotRecurseOnDottedKeys(t *testing.T) {
 		if result := Scan([]byte(text)); result.State != StateTooDeep || len(result.Rows) != 0 {
 			t.Errorf("%s: State=%q rows=%d, want too_deep with none", name, result.State, len(result.Rows))
 		}
-		if err := validTOML([]byte(text)); err != nil {
-			t.Errorf("%s: validTOML = %v, want nil", name, err)
+		keys := newKeyTree(0)
+		var parser unstable.Parser
+		parser.Reset([]byte(text))
+		for parser.NextExpression() {
+			if reason := keys.check(parser.Expression()); reason != "" {
+				t.Errorf("%s: key tree = %q, want no reason", name, reason)
+			}
+		}
+		if err := parser.Error(); err != nil {
+			t.Errorf("%s: parse error %v", name, err)
 		}
 	}
 }

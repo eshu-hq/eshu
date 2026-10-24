@@ -6,7 +6,6 @@ package catalog
 import (
 	"bytes"
 
-	"github.com/pelletier/go-toml/v2"
 	"github.com/pelletier/go-toml/v2/unstable"
 )
 
@@ -54,7 +53,10 @@ type scanner struct {
 
 // Scan applies the catalog grammar to source and returns the rows and counts.
 // It is linear in len(source), allocates in proportion to the input, and
-// never panics on any byte sequence.
+// never panics on any byte sequence. The size and nesting guards run before
+// the streaming parse; each expression then passes the key-segment budget,
+// the grammar and the key tree, which rejects any key or table TOML forbids
+// defining twice.
 func Scan(source []byte) Result {
 	if len(source) > MaxSourceBytes {
 		return Result{State: StateOversize, ParseError: "file exceeds the catalog size bound"}
@@ -63,45 +65,26 @@ func Scan(source []byte) Result {
 		return Result{State: StateTooDeep, ParseError: "arrays or inline tables nest deeper than the catalog bound"}
 	}
 	s := &scanner{source: source, versions: map[int]versionDef{}, line: 1}
+	keys := newKeyTree(keyHint(source))
+	budget := keyBudget{left: MaxFileKeySegments}
 	var parser unstable.Parser
 	parser.Reset(source)
 	for parser.NextExpression() {
 		node := parser.Expression()
-		if keysExceed(node, MaxKeySegments) {
-			return Result{State: StateTooDeep, ParseError: "a dotted key has more segments than the catalog bound"}
+		if reason := budget.exceeded(node); reason != "" {
+			return Result{State: StateTooDeep, ParseError: reason}
 		}
 		if reason := s.expression(node); reason != "" {
+			return Result{State: StateMalformed, ParseError: reason}
+		}
+		if reason := keys.check(node); reason != "" {
 			return Result{State: StateMalformed, ParseError: reason}
 		}
 	}
 	if err := parser.Error(); err != nil {
 		return Result{State: StateMalformed, ParseError: boundedMessage(err.Error())}
 	}
-	if err := validTOML(source); err != nil {
-		return Result{State: StateMalformed, ParseError: boundedMessage(err.Error())}
-	}
 	return s.finish()
-}
-
-// validTOML runs the TOML decoder's semantic checks, which the streaming
-// parser below does not perform: a table defined twice, by a header and by
-// dotted keys, or a key repeated outside the catalog tables. Decoding into an
-// empty struct keeps no values, but the decoder still builds its own parse
-// tree and key paths, so its allocation grows with the input and with the
-// dotted segments of each key (about 290 bytes per input byte on one long
-// dotted key). It runs only after the size, nesting and key-segment guards,
-// which bound its work and its recursion, and after the streaming parser
-// accepted the syntax, so a syntax error never reaches the decoder (which
-// copies an unterminated string before it reports one).
-//
-// The target must stay an empty struct. go-toml's decoder recurses once per
-// dotted-key segment while it fills a matching field or map, with no bound,
-// and nestingExceeds does not count dotted keys: decoding into a map
-// overflows the stack on a 900,000-segment key. An empty struct matches no
-// key, so the decoder never descends.
-func validTOML(source []byte) error {
-	var discard struct{}
-	return toml.Unmarshal(source, &discard)
 }
 
 // boundedMessage keeps a parser message within MaxFieldBytes.

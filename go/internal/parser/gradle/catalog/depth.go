@@ -102,42 +102,61 @@ func skipMultiline(source []byte, from int, quote byte, escapes bool) int {
 	return len(source)
 }
 
-// keysExceed reports whether a top-level expression, a header or a key-value
-// pair, has a key with more than limit dotted segments, including the keys
-// of inline tables anywhere in its value. Each dotted segment is one more
-// level of table, and go-toml's semantic decode (validTOML) allocates in
-// proportion to them, so this check runs before it. The recursion follows
-// array and inline-table nesting, which nestingExceeds already bounded.
-func keysExceed(node *unstable.Node, limit int) bool {
+// keyBudget bounds the dotted segments of the keys in one file: at most
+// MaxKeySegments in one key, including the keys of inline tables anywhere in
+// a value, and at most left in the whole file. Each segment is one node in
+// the streaming parse and one entry in keyTree, so the file total bounds the
+// key tree's memory as well as each key's.
+type keyBudget struct {
+	left int
+}
+
+// Reasons keyBudget reports.
+const (
+	reasonKeySegments  = "a dotted key has more segments than the catalog bound"
+	reasonFileSegments = "the file has more key segments than the catalog bound"
+)
+
+// exceeded counts the key segments of one top-level expression, a header or
+// a key-value pair, and returns a reason when a bound is crossed. The
+// recursion follows array and inline-table nesting, which nestingExceeds
+// already bounded.
+func (b *keyBudget) exceeded(node *unstable.Node) string {
 	segments := 0
 	for it := node.Key(); it.Next(); {
 		segments++
-		if segments > limit {
-			return true
+		if segments > MaxKeySegments {
+			return reasonKeySegments
 		}
 	}
-	if node.Kind != unstable.KeyValue {
-		return false
+	b.left -= segments
+	if b.left < 0 {
+		return reasonFileSegments
 	}
-	return valueKeysExceed(node.Value(), limit)
+	if node.Kind != unstable.KeyValue {
+		return ""
+	}
+	return b.valueExceeded(node.Value())
 }
 
-// valueKeysExceed applies keysExceed to every key-value pair inside value.
-func valueKeysExceed(value *unstable.Node, limit int) bool {
+// valueExceeded applies exceeded to every key-value pair inside value.
+func (b *keyBudget) valueExceeded(value *unstable.Node) string {
 	switch value.Kind {
 	case unstable.Array, unstable.InlineTable:
 		for it := value.Children(); it.Next(); {
 			child := it.Node()
+			reason := ""
 			if child.Kind == unstable.KeyValue {
-				if keysExceed(child, limit) {
-					return true
-				}
-			} else if valueKeysExceed(child, limit) {
-				return true
+				reason = b.exceeded(child)
+			} else {
+				reason = b.valueExceeded(child)
+			}
+			if reason != "" {
+				return reason
 			}
 		}
 	default:
 		// A scalar value holds no key.
 	}
-	return false
+	return ""
 }

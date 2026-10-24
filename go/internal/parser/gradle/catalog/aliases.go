@@ -98,8 +98,8 @@ func (t *aliasTable) open(alias string, key []byte) int {
 // [libraries.alias] sub-table, or an alias longer than MaxFieldBytes. It
 // collides with other spellings like any alias. Repeating the same exact
 // spelling is one alias (alias.module and alias.version), so it is a no-op;
-// a real repeat with a one-segment key is invalid TOML that validTOML
-// rejects. Past the row cap it only marks a collision with a kept alias, as
+// a real repeat (alias.module twice, or alias = ... with alias.module) is
+// invalid TOML that keyTree rejects. Past the row cap it only marks a collision with a kept alias, as
 // addDropped does. alias is copied only when it takes a new slot or spelling;
 // the conversions in the comparisons and lookups below do not allocate.
 func (t *aliasTable) shadow(alias []byte, buf *[]byte) {

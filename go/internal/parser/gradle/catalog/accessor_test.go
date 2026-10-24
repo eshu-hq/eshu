@@ -72,8 +72,8 @@ func TestScanReferenceMatchesTheNormalizedAliasNotTheAccessorName(t *testing.T) 
 }
 
 // A catalog key never needs more than a few dotted segments. A key with more
-// than MaxKeySegments is refused before the semantic TOML decode, whose cost
-// grows with the segment count.
+// than MaxKeySegments is refused before the grammar and the key tree, whose
+// cost grows with the segment count.
 func TestScanKeySegmentBoundIsExactlyMaxKeySegments(t *testing.T) {
 	t.Parallel()
 	at := "a" + strings.Repeat(".a", MaxKeySegments-1)

@@ -26,22 +26,29 @@ const (
 	MaxNesting = 16
 	// MaxKeySegments bounds the dotted segments of one key. A Gradle catalog
 	// key needs at most three (alias.version.ref); a longer key is reported
-	// as StateTooDeep before the semantic TOML decode, whose allocation grows
-	// with the segment count.
+	// as StateTooDeep, because the streaming parse and the key tree allocate
+	// per segment.
 	MaxKeySegments = 64
+	// MaxFileKeySegments bounds the dotted segments of every key and header
+	// in one file, inline-table keys included. A catalog of MaxRows entries
+	// in each table uses about 40,000 and a 2 MiB catalog of the same shape
+	// about 101,000; a file over the bound is reported as StateTooDeep.
+	MaxFileKeySegments = 1 << 18
 )
 
 // File states reported in Result.State and the payload's gradle_catalog_state.
 const (
 	// StateParsed means the file was read as TOML and the grammar was applied.
 	StateParsed = "parsed"
-	// StateMalformed means the file is not valid TOML or repeats a table or an
-	// alias. No rows are emitted.
+	// StateMalformed means the file is not valid TOML: a syntax error, or a
+	// key or table defined twice in any form (see keyTree). No rows are
+	// emitted.
 	StateMalformed = "malformed"
 	// StateOversize means the file exceeds MaxSourceBytes. No rows are emitted.
 	StateOversize = "oversize"
-	// StateTooDeep means the file nests deeper than MaxNesting. No rows are
-	// emitted.
+	// StateTooDeep means the file nests deeper than MaxNesting, or has a key
+	// over MaxKeySegments or more than MaxFileKeySegments key segments. No
+	// rows are emitted.
 	StateTooDeep = "too_deep"
 )
 

@@ -66,15 +66,15 @@ func TestScanRowCapCountsTheExcess(t *testing.T) {
 	if want := 80_000 - MaxRows; result.Counts.Dropped != want {
 		t.Fatalf("Dropped = %d, want %d", result.Counts.Dropped, want)
 	}
-	// Past the cap an entry costs only its parse, so the total tracks MaxRows
-	// and not the entry count.
+	// Past the cap an entry costs its parse and one key-tree entry (about 70
+	// bytes, measured), never a row (about 3 KB), so the total tracks MaxRows
+	// plus a small per-entry term.
 	requireCeiling(t, "bytes allocated for 80k entries", bytesAllocated, MaxRows*3072+uint64(len(source))/4)
 
 	half := catalogWithEntries(40_000)
 	halfBytes, _ := allocOf(func() { Scan(half) })
-	if ratio := float64(bytesAllocated) / float64(halfBytes); ratio > 1.25 {
-		t.Fatalf("doubling entries past the cap grew allocation %.2fx, want <= 1.25x", ratio)
-	}
+	perEntry := (int64(bytesAllocated) - int64(halfBytes)) / 40_000
+	requireCeiling(t, "bytes allocated per entry past the cap", uint64(max(perEntry, 0)), 128)
 }
 
 func TestScanDeepNestingIsRefusedBeforeTheTOMLParserRuns(t *testing.T) {
@@ -270,9 +270,9 @@ func TestScanFourQuoteClosingCannotHideNesting(t *testing.T) {
 }
 
 // A 900,000-segment dotted key must stay bounded: the streaming parse builds
-// one node per segment, and the scanner refuses the key before the semantic
-// TOML decode, which allocated about 400 bytes per input byte on this shape. The streaming
-// parse alone measured 139 bytes per input byte.
+// one node per segment, and the scanner refuses the key before the key tree.
+// The semantic TOML decode this package used earlier allocated about 400
+// bytes per input byte on this shape; the streaming parse alone measured 139.
 func TestScanLongDottedKeyAllocationStaysBounded(t *testing.T) {
 	key := "a" + strings.Repeat(".a", 900_000)
 	for name, text := range map[string]string{
@@ -287,5 +287,35 @@ func TestScanLongDottedKeyAllocationStaysBounded(t *testing.T) {
 			t.Errorf("%s: State=%q, want %q", name, result.State, StateTooDeep)
 		}
 		requireCeiling(t, name+" bytes allocated", bytesAllocated, uint64(len(source))*160)
+	}
+}
+
+// budgetFile writes a root key whose inline table holds one key of
+// inlineSegments segments, then headers of MaxKeySegments segments each, so
+// the file totals 1 + inlineSegments + headers*MaxKeySegments key segments.
+func budgetFile(inlineSegments, headers int) []byte {
+	var b strings.Builder
+	fmt.Fprintf(&b, "z = { a%s = 1 }\n", strings.Repeat(".a", inlineSegments-1))
+	for i := 0; i < headers; i++ {
+		fmt.Fprintf(&b, "[k%d%s]\n", i, strings.Repeat(".a", MaxKeySegments-1))
+	}
+	return []byte(b.String())
+}
+
+// The key segments of a whole file, inline-table keys included, are bounded:
+// the streaming parse and the key tree allocate per segment. The worst file
+// inside the bound, unique 64-segment headers up to it, is measured here.
+func TestScanFileKeySegmentBoundIsExactlyMaxFileKeySegments(t *testing.T) {
+	headers := MaxFileKeySegments/MaxKeySegments - 1
+	at := budgetFile(MaxKeySegments-1, headers)
+	over := budgetFile(MaxKeySegments, headers)
+	var result Result
+	bytesAllocated, _ := allocOf(func() { result = Scan(at) })
+	if result.State != StateParsed {
+		t.Fatalf("at the bound: State=%q (%s), want parsed", result.State, result.ParseError)
+	}
+	requireCeiling(t, "bytes allocated at the file key-segment bound", bytesAllocated, 64<<20)
+	if result := Scan(over); result.State != StateTooDeep || result.ParseError != reasonFileSegments {
+		t.Fatalf("one over the bound: State=%q (%s), want too_deep (%s)", result.State, result.ParseError, reasonFileSegments)
 	}
 }
