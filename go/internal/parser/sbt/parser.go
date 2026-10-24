@@ -135,6 +135,10 @@ type scan struct {
 	// restores it. claiming is set while the main loop consumes a token.
 	watch, watchBefore keyWatch
 	claiming           bool
+	// cover is the key whose verdict the statement being consumed has
+	// already applied: watchLib after a reset that supersedes every row,
+	// watchScala after a poison. The main loop clears it per token.
+	cover uint8
 }
 
 func newScan(text string) *scan {
@@ -153,7 +157,7 @@ func (s *scan) next() token {
 	}
 	s.hist[2], s.hist[1], s.hist[0] = s.hist[1], s.hist[0], tok
 	s.watchBefore = s.watch
-	s.watch.observe(tok, s.claiming)
+	s.watch.observe(tok, s.claiming, s.cover)
 	return tok
 }
 
@@ -181,6 +185,7 @@ func (s *scan) unread(tok token) {
 // keyWatch unclaimed only when a statement handler consumed it.
 func (s *scan) run() {
 	for {
+		s.cover = watchNone
 		s.claiming = true
 		tok := s.next()
 		s.claiming = false

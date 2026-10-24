@@ -340,6 +340,7 @@ func (s *scan) markReset(ctx int32, inContext bool) {
 	switch {
 	case !inContext:
 		s.globalReset = true
+		s.cover = watchLib
 	case ctx == 0:
 		s.resetMark[ctx] = len(s.deps)
 		s.rootReset = true

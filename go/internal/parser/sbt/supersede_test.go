@@ -175,10 +175,11 @@ func TestRewriteMemberAnywhereSupersedes(t *testing.T) {
 	project := parseSource(t, "lazy val core = project.settings(libraryDependencies += \"a\" % \"b\" % \"1\")\nlazy val s = libraryDependencies.transform(identity, pos)\n")
 	requireField(t, requireRow(t, project, "a:b"), "dependency_resolution_state", "partial")
 
-	// Each occurrence is counted, so both branches of an if count.
+	// The statement is counted once: the second branch's key is consumed by
+	// the fallback of a statement that already superseded every row.
 	branches := parseSource(t, earlierRow+"if (ci) libraryDependencies.set(Def.setting(Nil), pos) else libraryDependencies.set(Def.setting(Seq()), pos)\n")
 	requireField(t, requireRow(t, branches, "a:b"), "dependency_resolution_state", "partial")
-	requireStateField(t, stateOf(t, branches), "unresolved_declaration_count", 3)
+	requireStateField(t, stateOf(t, branches), "unresolved_declaration_count", 2)
 
 	// A coordinate later in the same statement is still emitted partial.
 	tail := parseSource(t, earlierRow+"if (ci) libraryDependencies.set(Def.setting(Nil), pos) else libraryDependencies += \"c\" % \"d\" % \"2\"\n")

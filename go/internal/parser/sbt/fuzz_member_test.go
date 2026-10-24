@@ -257,9 +257,8 @@ func fzMemberBuild(seed int64) fzMemberCase {
 				text, _ := coord(true)
 				fmt.Fprintf(&out, "if (ci) libraryDependencies.%s else libraryDependencies += %s\n", call, text)
 				global = true
-				// The fallback consumes the second key itself, so the watch
-				// counts it as an unrecognised occurrence.
-				c.unresolved++
+				// The fallback consumes the second key itself; the statement
+				// already superseded every row, so it is not counted again.
 				break
 			}
 			position := r.Intn(len(fzRewritePositions))
@@ -318,6 +317,9 @@ func fzMemberBuild(seed int64) fzMemberCase {
 			// row; the watched forms add the outer fallback statement's count.
 			if r.Intn(4) == 0 {
 				form := fzWatchedLib[r.Intn(len(fzWatchedLib))]
+				if r.Intn(2) == 0 {
+					form.text, form.lib, form.scala = fzConsumedKey(r.Intn)
+				}
 				out.WriteString(form.text + "\n")
 				c.unresolved += 1 + form.lib
 				if form.lib > 0 {

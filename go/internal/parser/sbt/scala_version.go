@@ -55,6 +55,9 @@ func (s *scan) parseScalaVersion(inContext bool) {
 	case value.kind == kindIdent && s.resolveIdentVersion(value):
 		s.recordScalaVersion(s.vals[value.text])
 	case value.kind == kindEOF:
+		// `scalaVersion :=` cut off by end of input: counted and poisoned,
+		// with nothing left to skip.
+		s.unresolved++
 		s.scalaPoisoned = true
 	default:
 		s.unknownScalaVersion(initialDepth(value))
@@ -70,6 +73,7 @@ func (s *scan) parseScalaVersion(inContext bool) {
 func (s *scan) unknownScalaVersion(rel int) {
 	s.unresolved++
 	s.scalaPoisoned = true
+	s.cover = watchScala
 	s.salvage(rel, false)
 }
 
