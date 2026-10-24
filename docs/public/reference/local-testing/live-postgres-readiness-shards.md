@@ -53,11 +53,12 @@ job and fails when:
   1700 s, still under the cap. Runner speed adds noise on top. On one layout
   and plan, shard 1 took 1129 s in run 40057201268 and 1568 s in run
   40057373740 (+39%), and its summed test seconds rose from 598 to 841 (+41%),
-  which fits a slower runner. A 1299 s prediction reaches about 1800 s at
-  +39%. The 80% rule keeps 1.25x for model error and runner noise combined, so
-  read the first CI wave on the new cut before relaxing it. Predicted figures
-  are model output until a CI run on the new cut records the measured job
-  seconds;
+  which fits a slower runner. At +39% a shard predicted above about 1296 s
+  crosses the 1800 s cap, so the 80% rule (1.25x) does not cover that spread by
+  itself. The cut's worst predicted shard can sit above that line, so read the
+  first CI wave on the new cut, and refresh the weights from it, before
+  relaxing anything. Predicted figures are model output until a CI run on the
+  new cut records the measured job seconds;
 - the live plan's shard spread passes 15% of the mean (the acceptance bound of
   #8930), or the cut on a fixed synthetic plan passes 1%. The fixed plan guards
   the cut itself and does not change when tests are enrolled, so an unrelated
