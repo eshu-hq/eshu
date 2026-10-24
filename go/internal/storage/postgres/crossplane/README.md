@@ -224,6 +224,33 @@ measurements and terminal queue assertions above belong to #8948; this
 comment-only follow-up did not rerun a backend or count queue rows. Identical
 executable syntax and SQL make its runtime behavior unchanged for those inputs.
 
+To reproduce a public token-level cross-check from the repository root, compare
+the same four files at the immutable before and after commits. `token-diff`
+ignores ordinary line comments but retains directives, block comments, string
+contents, and statement boundaries; each command must report identical token
+streams and exit 0. This corroborates the earlier comment-stripped AST
+comparison; it was not the tool used for that original comparison.
+
+```bash
+set -eu
+base=5e4089e538f8accc3e1d704945ddbeb4ead2060e
+head=96ad250ff2ceff6d8244f42f5e49433fb6ed6f59
+tmp_dir=$(mktemp -d)
+trap 'unlink "$tmp_dir/base.go"; unlink "$tmp_dir/head.go"; rmdir "$tmp_dir"' EXIT
+for path in \
+  go/internal/storage/postgres/crossplane/doc.go \
+  go/internal/storage/postgres/crossplane/ledger_live_test.go \
+  go/internal/storage/postgres/crossplane/sweep.go \
+  go/internal/storage/postgres/reducer_queue_replay.go
+do
+  git show "$base:$path" > "$tmp_dir/base.go"
+  git show "$head:$path" > "$tmp_dir/head.go"
+  printf '%s: ' "$path"
+  (cd go && env -u GOROOT go run ./cmd/token-diff \
+    -base "$tmp_dir/base.go" -head "$tmp_dir/head.go")
+done
+```
+
 No-Observability-Change (comment correction): the sweep counters, structured
 error logs, and queue status reporting described above have identical Go
 syntax. This change adds no metric, log, span, or status behavior.
