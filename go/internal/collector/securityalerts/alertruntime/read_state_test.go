@@ -246,3 +246,35 @@ func TestClaimedSourceWritesNoReadStateForRepositoryTargetsOrWithoutAWriter(t *t
 		t.Error("StateWriter set without a ReadStateWriter configured")
 	}
 }
+
+// TestOrgFreshnessHintMovesOnceForTheReadState proves an org target whose
+// provider truth did not change still refreshes once when it starts recording
+// its read state (#8943): without the marker the unchanged-generation skip would
+// keep a generation committed before the record existed, with no record, for as
+// long as the provider truth stays put. A repository target keeps its digest.
+func TestOrgFreshnessHintMovesOnceForTheReadState(t *testing.T) {
+	t.Parallel()
+
+	input := securityAlertFreshnessInput{
+		alerts:       []securityalerts.GitHubDependabotAlert{orgAlert(1, "example-org/alpha-repo")},
+		pagesFetched: 1,
+	}
+	plain := securityAlertFreshnessHint(input)
+	input.orgReadState = true
+	recorded := securityAlertFreshnessHint(input)
+	if plain == recorded {
+		t.Fatal("org freshness hint did not move for the read state marker")
+	}
+	if again := securityAlertFreshnessHint(input); again != recorded {
+		t.Fatalf("org freshness hint is not stable across calls: %q vs %q", again, recorded)
+	}
+
+	client := &fanoutClient{org: securityalerts.GitHubDependabotAlertResult{
+		Alerts: []securityalerts.GitHubDependabotAlert{orgAlert(1, "example-org/alpha-repo")}, PagesFetched: 1,
+	}}
+	source, item := newStateSource(t, client, orgStateTarget("example-org/alpha-repo"), nil)
+	collected := collectState(t, source, item)
+	if collected.Generation.FreshnessHint != recorded {
+		t.Errorf("org claim hint = %q, want the marked digest %q", collected.Generation.FreshnessHint, recorded)
+	}
+}

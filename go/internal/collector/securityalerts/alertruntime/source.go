@@ -311,7 +311,7 @@ func (s *ClaimedSource) NextClaimed(
 			IngestedAt:    observedAt,
 			Status:        scope.GenerationStatusPending,
 			TriggerKind:   scope.TriggerKindSnapshot,
-			FreshnessHint: securityAlertFreshnessHint(collection.freshnessInput()),
+			FreshnessHint: securityAlertFreshnessHint(collection.freshnessInput(target.config)),
 		},
 		envs,
 	)

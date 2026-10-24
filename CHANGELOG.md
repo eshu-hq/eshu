@@ -93,6 +93,8 @@ recent shipped work grouped by feature area.
   (migration 217) that generation retention removes with the generation. No
   repository name appears in a metric label or span attribute; the observe span
   gains `eshu.security_alert.org_read_truncated`.
+  Each org target commits one extra generation after the upgrade so that its
+  first record is written; repository-scope targets are unchanged.
 
 ### Gate: supported languages declare manifest and pin files
 

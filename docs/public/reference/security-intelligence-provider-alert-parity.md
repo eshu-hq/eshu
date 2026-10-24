@@ -141,7 +141,8 @@ it in full wins. A terminal fetch failure on the covering target outranks the
 unread reason. A read with no repository anchor reports `target_incomplete` when
 any target left repositories unread, with each distinct reason. A generation
 committed before this record existed has none, and its answer reads as it did
-before.
+before; each org target commits one extra generation after the upgrade, which
+writes its first record.
 
 The read costs one more lookup per covering target on the same empty-answer
 read: the target's active generation, its read-state row, and the requested
