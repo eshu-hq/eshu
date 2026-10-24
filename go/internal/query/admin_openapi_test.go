@@ -46,6 +46,7 @@ func TestOpenAPISpecAdminPathsMatchMountedContract(t *testing.T) {
 		"/api/v0/admin/backfill",
 		"/api/v0/admin/replay-events/query",
 		"/api/v0/admin/repository-retirements",
+		"/api/v0/admin/collector-terminal-failure-acknowledgements",
 	}
 
 	for _, path := range expectedPaths {
