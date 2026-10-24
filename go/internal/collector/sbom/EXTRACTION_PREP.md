@@ -107,7 +107,7 @@ kinds; the owner must reconcile the record before issuance.
   (`container_image_identity_slsa.go`, `container_image_identity.go`).
 - Projection: `go/internal/projector/sbom/attestation/`.
 - Query/read: `GET /api/v0/supply-chain/sbom-attestations/attachments{,/count,/inventory}`
-  (`go/internal/query/auth_scoped_routes_completeness.go:212-214`).
+  (`go/internal/query/auth_scoped_routes_completeness.go`, `scopedTokenAdvertisedRoutes`).
 - MCP: supply-chain tools (`go/internal/mcp/tools_supply_chain.go` and route
   registry entries).
 - Golden fixtures: `testdata/cassettes/sbomattestation/supply-chain-demo.json`,
