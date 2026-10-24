@@ -119,7 +119,7 @@ input, three runs each, `-benchtime=100x`, same host:
 | --- | --- | --- | --- |
 | `gradle` (build.gradle, closest existing parser) | 55,163,320 to 55,457,359 | 12.8 MB | 119,750 |
 | `gomod` | 14,554,327 to 14,682,101 | 13.7 MB | 179,804 |
-| `gradle_catalog` (this package) | 9,623,034 to 9,675,085 | 10.6 MB | 133,551 |
+| `gradle_catalog` (this package) | 9,397,458 to 9,675,085 | 10.6 MB | 133,551 |
 
 ## Verification
 
