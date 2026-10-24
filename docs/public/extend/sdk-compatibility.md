@@ -39,15 +39,17 @@ to find its row. Candidate availability by itself is not qualification.
 
 ## New repository path mapping
 
-The following source is prepared in the separate `eshu-hq/eshu-sdk`
-repository. This mapping must merge here before either new-path candidate tag
-is approved. It records new Go module identities, not a compatible core
-release, and does not imply the tags have been published.
+The separate `eshu-hq/eshu-sdk` repository publishes independent Go module
+identities. Both first `v0.1.0-rc.1` candidates are available from the source
+in [SDK PR #9](https://github.com/eshu-hq/eshu-sdk/pull/9); fresh public-proxy
+resolution and the immutable tag origins agree. The next rows describe source
+preparation and must merge here before either next tag is approved. They name
+no qualified core release or deployed pair.
 
-| Original published module | New module identity | Prepared candidate tag in new repository |
-| --- | --- | --- |
-| `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` |
-| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` |
+| Original published module | New module identity | Available first candidate | Prepared next candidate |
+| --- | --- | --- | --- |
+| `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` |
+| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` |
 
 The new `v0.1.0` lines start independently of the original `v0.2.0` lines.
 Go named types from the old and new import paths have different identities;
@@ -55,9 +57,9 @@ the new paths are not drop-in replacements. Keep exact pins to the original
 published versions until the target consumer and core pair qualifies. Never
 use `@latest` as migration evidence.
 
-| State | Required evidence | Status for the new paths at source preparation |
+| State | Required evidence | Current recorded status for the new paths |
 | --- | --- | --- |
-| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | Source prepared; publication is not claimed |
+| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s available; next candidates prepared, not published |
 | Qualified consumer/core pair | Exact new module pins, contract and runtime proof against a named core version, including grant-aware conformance for reserved fact kinds | No pair qualified or core range assigned |
 | Deployed accepted pair | Matching deployment, reducer, graph, API/MCP, retry, operator, and rollback proof | No deployment accepted |
 
@@ -67,6 +69,15 @@ API merged in [SDK PR #8](https://github.com/eshu-hq/eshu-sdk/pull/8).
 Candidate publication requires reviewed and merged versioned source, green
 CI and separate tag approval. This supersedes the earlier limited source preparation;
 it does not retarget a published tag or qualify a consumer.
+
+The next collector candidate adds the neutral marker API merged in
+[SDK PR #10](https://github.com/eshu-hq/eshu-sdk/pull/10); the additive API
+uses the separate `v0.2.0-rc.1` line. The next factschema candidate repairs
+number-preserving typed decoding, including nested integer lists, merged in
+[SDK PR #11](https://github.com/eshu-hq/eshu-sdk/pull/11); that repair uses
+`v0.1.0-rc.2`. Schemas, fixture bytes and wire protocols are unchanged by these
+changes. Preserve both first RC1 tags; next-candidate source preparation is
+neither tag approval nor a supported consumer/core combination.
 
 `CoreFacts` validates a caller-supplied authorization snapshot; it does not
 load grants or determine authority. The caller must validate live grants,
@@ -96,6 +107,11 @@ tag approval to its exact reviewed and merged source SHA with green CI. Check
 Git tags and the public Go proxy for current candidate availability.
 
 ## Version support policy
+
+The supported-minor rules below apply to the original module identities.
+A new-path prerelease does not qualify a consumer/core pair or retire original
+`v0.2.0` support. That transition still requires the consumer and deployed
+acceptance recorded above.
 
 - Both modules are `v0.x`: per Go module semantics there is no
   backward-compatibility guarantee across minor versions. Pin exact versions
