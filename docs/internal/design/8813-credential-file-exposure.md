@@ -1,12 +1,12 @@
 # Redact `.yarnrc.yml` and `*.tfvars`, never store them verbatim (#8813)
 
 Status: Accepted (arbiter rulings relayed by the coordinator, 2026-10-23, two
-rounds). This record approves no code, schema change, or deployment action.
-Part of #8807. The work splits across #8812 (policy enum, marker-mode
-redactor, digest rule, fingerprint) and #8833 (skeleton mode, the tfvars
-binding, the detector migration, the differential). Citations were taken at
-`238b4015a9`, re-checked at `816a039136` (`origin/main`, 2026-10-24), and name
-the function, so they survive small line drift.
+rounds). This record approves no code, schema change, or deployment action. Part
+of #8807. The work splits across #8812 (policy enum, marker-mode redactor,
+digest rule, fingerprint) and #8833 (skeleton mode, the tfvars binding, the
+detector migration, the differential). Citations were taken at `238b4015a9`,
+re-checked at `4d78b83273` (`origin/main` after #8922, 2026-10-24), and name the
+function, so they survive small line drift.
 
 **Decision.** Both files use the `redact` policy from #8812, in two modes.
 `.yarnrc.yml` is closed-schema and uses **marker mode**: credential values are
@@ -29,11 +29,11 @@ Discovery applies no name-based sensitivity filter. Its path filters are the
 registry, `.gitignore`, `.eshuignore`, default ignored directories and
 extensions, operator globs, and the #8809 symlink check. A search of the
 discovery package and `snapshot_discovery.go` for credential, secret, `.env`,
-`npmrc`, or `netrc` finds one symlink comment.
+`npmrc`, or `netrc` finds one symlink comment outside tests.
 
 | Step | Where | What happens |
 | --- | --- | --- |
-| Copy (filesystem-source mode only) | `shouldSkipFilesystemEntry` in `go/internal/collector/repo/git/selection_filesystem.go` | Prunes dot-prefixed names except `.gitlab-ci.y*ml`, `.gitmodules`, and `.github/workflows`, so that mode does not store `.yarnrc.yml` today but does store `*.tfvars`. The git-sourced mode keeps hidden names (`IgnoreHidden` is never set), so it stores `.yarnrc.yml`. |
+| Copy (filesystem-source mode only) | `shouldSkipFilesystemEntry` in `go/internal/collector/repo/git/selection_filesystem.go`, then `preserveFilesystemHiddenPath` in `selection_copy_workspace.go` | Prunes a dot-prefixed entry unless an allowlist keeps it: `preservedHiddenFilesystemFileNames` (GitLab CI names, `.gitmodules`, eight #8814 tool-config dotfiles, nine #8809 version pins; never `.gitignore`), matched case-insensitively, plus `.github`, `.github/workflows`, and `.mvn`. Any other dot-directory is pruned whole. `.yarnrc.yml` is not on the list, so that mode does not store it, but it stores `*.tfvars`. The git-sourced mode keeps hidden names (`IgnoreHidden` is never set outside tests), so it stores `.yarnrc.yml`. #8904 tracks deriving the list from the registry. |
 | Admit | `resolveNativeSnapshotFileSet` in `go/internal/collector/repo/git/snapshot_discovery.go` (the closure passed to `ResolveRepositoryFileSetsWithStats`) | A path is kept when `symlinkAdmission.category` names it: a registry definition via `registry.LookupByPath(path)`, or terraform state, documentation, `.gitmodules`, or CODEOWNERS. A symlink also needs a regular-file target in the same category (#8809, #8882). |
 | Match `.yarnrc.yml` | `Registry.LookupByPath` in `go/internal/parser/registry.go` | No exact name or prefix matches. `filepath.Ext(".yarnrc.yml")` is `.yml`, so the `yaml` definition (`registry_definitions.go`, `Extensions: .yaml, .yml`, admission L2) wins; `TestDefaultRegistryKeepsCredentialBearingDotfilesOut` leaves it out of the exclusion list on purpose. |
 | Match `*.tfvars` | same | Extension `.tfvars` belongs to the `hcl` definition (`Extensions: .hcl, .tf, .tfvars`, admission L2). `LookupByPath` also hard-codes `*.tfvars.json` to `hcl` (listed in `PathDispatches`). |
@@ -43,6 +43,11 @@ discovery package and `snapshot_discovery.go` for credential, secret, `.env`,
 | Store | `ContentWriter.Write` (`content_writer.go`, `body: record.Body`) and `upsertContentFileBatch` (`content_writer_upserts.go`, `row.body`) | The body is upserted into `content_files.content` (`schema_content_store.go`). |
 
 No step transforms the body; #8812 adds the per-definition store policy.
+The registry still withholds the credential-bearing names (`phpunit.xml(.dist)`,
+`.mvn/jvm.config`, `.mvn/maven.config`, `.npmrc`, `.pypirc`, `.netrc`, `.env*`,
+`mise.toml`) while the store has no write-time redaction
+(`TestDefaultRegistryKeepsCredentialBearing*`). Admitting one needs a new
+record.
 
 ### Where the body is then readable
 
@@ -53,11 +58,11 @@ No step transforms the body; #8812 adds the per-definition store policy.
 - `search_file_content`: hit rows come back with an empty `content` column, but
   the match runs against the body (`content_lower`, a stored lowercase copy,
   migration 176) in `go/internal/query/search/unscoped/files.go` (every
-  `content_lower LIKE` statement). The
-  tool is a substring oracle over the credential, even though it does not print it.
+  `content_lower LIKE` statement). The tool is a substring oracle over the
+  credential, even though it does not print it.
 - Derived copies of the same bytes:
   - `content_files.content_lower` (generated, `lower(content)`).
-  - `content_file_secret_lines.line_text` (migration 138, the full text of every
+  - `content_file_secret_lines.line_text` (migration 138, full text of each
     flagged line).
   - `content_entities.source_cache` for any entity the parser cuts from the file.
   - Curated search documents, read from `content_files.content` by
@@ -89,10 +94,10 @@ declarations).
 | Local checkouts (21 repositories) | 0 | 0 | 0 (and 0 `*.tfvars.json`) | 0 | `<details>` below |
 | Deployment census (this research's acceptance item) | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | NOT_CHECKED | No deployment access |
 
-No exposure was observed where it was measured, and the local sample is empty,
-so it neither supports nor weakens the recommendation. The risk rests on the
-registry admitting a credential-capable file with no policy. A counts-only
-census query for an operator is in the `<details>` block.
+No exposure was observed where it was measured; the empty local sample neither
+supports nor weakens the recommendation. The risk rests on the registry
+admitting a credential-capable file with no policy. A counts-only census query
+for an operator is in the `<details>` block.
 
 ### Why existing rows do not heal themselves
 
@@ -109,11 +114,12 @@ Three findings. Each defeats a "just stop storing it" fix.
    overwrites the body (see "Rows already stored").
 2. **The parser fingerprint does not see a policy.** `Registry.Fingerprint`
    hashes key, language, extensions, exact names, and prefix names only
-   (`registry.go`); the #8849 `Ecosystem` and `Admission` labels are not
-   hashed. The freshness hint in `snapshot_freshness.go` folds that
-   fingerprint into the generation identity. A policy field leaves the hint
-   unchanged, so unchanged repositories are not re-collected and keep their
-   stored bodies until the file next changes.
+   (`registry.go`); the #8849 `Ecosystem` and `Admission` labels are not hashed.
+   The freshness hint in `snapshot_freshness.go` folds that fingerprint into the
+   generation identity. A policy field leaves the hint unchanged, so unchanged
+   repositories are not re-collected and keep their stored bodies until the file
+   next changes. A registry name addition (#8814, #8809) does move it;
+   `gitGenerationContentVersion` (`git-collector.v9`) is no policy hash.
 3. **Delta generations never reap.** `contentFullSnapshot` in
    `go/internal/projector/runtime/repository_refs.go` sets `FullSnapshot` only
    when the generation carries the repository fact and no `delta_generation`
@@ -164,8 +170,7 @@ These decide what each policy costs for `*.tfvars`.
 | `.yarnrc.yml` | `redact` | marker | #8812 redactor, detector extras from #8833 |
 | `*.tfvars`, `*.tfvars.json` | `redact` | allowlist skeleton | #8833 |
 
-`.eshuignore` stays the override. A future change to a looser tfvars rule needs
-a new record.
+`.eshuignore` stays the override. A looser tfvars rule needs a new record.
 
 ### Policy enum and row shape (#8812)
 
@@ -207,13 +212,12 @@ body. No `RetainedPaths` edit and no entity-ordering dependency is needed.
    constant as the SQL detector (`hardcodedSecretSQLPattern` in
    `go/internal/query/content_reader_security_secrets.go`), not to a copy.
 3. **Fail closed.** If the redactor errors, or the file is not valid UTF-8 text,
-   store the `metadata` row for that path and count it. Never fall back to the
-   raw body.
+   store the `metadata` row and count it. Never fall back to the raw body.
 4. **Scope.** `content_entities.source_cache` is the second copy: the entity
    builder slices `file.Body`. Under `redact` the slice is taken from the
-   redacted body, never the source. `content_lower` and `content_file_secret_lines` derive from the stored
-   body by generated column and trigger, so they follow with no code; the
-   follow-up adds a negative test only.
+   redacted body, never the source. `content_lower` and
+   `content_file_secret_lines` derive from the stored body by generated column
+   and trigger, so they follow with no code; the follow-up adds a negative test.
 
 ### Allowlist-skeleton mode, `*.tfvars` and `*.tfvars.json` (#8833)
 
@@ -256,7 +260,6 @@ the credential test above) or accepted in writing on #8833.
 Migration 138 never gets edited. One new migration replaces
 `eshu_secret_line_findings` with an extended `CASE`, re-derives
 `content_file_secret_lines`, and carries these extras, all ASCII keys:
-
 `npmAuthIdent`, `user:pass@` URL userinfo, JSON-quoted keys, and secret-named
 block openers. The gap table in the `<details>` block shows each is undetected
 today.
@@ -312,8 +315,7 @@ allowlisted; `.yarnrc.yml` keeps its registry URLs readable;
 `investigate_hardcoded_secrets` keeps reporting `key = value` findings on both
 files; the substring oracle closes because `content_lower` derives from what is
 stored; tree, counts, language inventory, and coverage are unchanged because no
-row is deleted; no new background job. The work also surfaces defects in
-#8812's plan (RetainedPaths, fingerprint, derived copies).
+row is deleted; no new background job.
 
 Bad: one fleet-wide re-collect when the fingerprint changes; a stored tfvars
 body is not parseable and reads poorly in `get_file_content`; old bytes persist
@@ -327,13 +329,12 @@ Paths (verify before editing): `go/internal/parser/registry*.go` (enum,
 fingerprint; #8812), `go/internal/collector/git/content/` (redactors, emit),
 `go/internal/collector/repo/git/fact_builder.go` (call site),
 `go/internal/storage/postgres/migrations/` (detector migration),
-`go/internal/query/content_reader_security_secrets.go` and
-`hardcoded_secret_migration_binding_test.go` (constant and binding). Prove first:
-the differential, the migration's finding-count delta and lock window, the
-retention check, and `get_file_lines` at `line_count = 0`. Avoid query-layer
-redaction (search and exports bypass it), `[redacted]` or `***` markers, any
-raw-body fallback, tombstones for these paths, editing `RetainedPaths`, and a key
-denylist for tfvars.
+`go/internal/query/content_reader_security_secrets.go` (constant and binding).
+Prove first: the differential, the migration's finding-count delta and lock
+window, the retention check, and `get_file_lines` at `line_count = 0`. Avoid
+query-layer redaction (search and exports bypass it), `[redacted]` or `***`
+markers, any raw-body fallback, tombstones, editing `RetainedPaths`, and a
+tfvars key denylist.
 
 ## Acceptance criteria
 
@@ -404,11 +405,11 @@ All decided; none open. (1) `.yarnrc.yml` is marker-mode `redact`; tfvars and
 tfvars.json are skeleton-mode `redact`, not `metadata`. (2) Superseded content
 and content-entity fact payloads are not scrubbed; the retention window is
 accepted, conditional on #8833's retention check. (3) The `content_entities`
-census is not a gate; `source_cache` handling is mandatory in #8812. (4) Detector
-extras ship in one migration with an engine-parity test; short values stay out.
-(5) `store nothing` is `metadata`: an empty-content row with the source digest,
-never a tombstone. (6) The skeleton differential decides which evidence shapes
-join the allowlist.
+census is not a gate; `source_cache` handling is mandatory in #8812. (4)
+Detector extras ship in one migration with an engine-parity test; short values
+stay out. (5) `store nothing` is `metadata`: an empty-content row with the
+source digest, never a tombstone. (6) The skeleton differential decides the
+evidence shapes.
 
 <details>
 <summary>Evidence and measurements</summary>
@@ -424,8 +425,7 @@ join the allowlist.
 
 Cross-check: `git ls-files | rg -c -i '(\.tfvars(\.json)?|\.yarnrc\.yml)$'` and
 `rg --files --hidden --no-ignore` for the three globs both returned 0 across the
-same roots. This is a developer machine, not a deployment; the deployment count
-is NOT_CHECKED.
+same roots. Developer machine, not a deployment: deployment count NOT_CHECKED.
 
 **Detector probe (the gap corpus).** Pure `SELECT` against Postgres 18
 (`psql -d postgres`, no DDL), using the migration 138 `CASE` and the
@@ -476,18 +476,18 @@ WHERE relative_path ~* '\.tfvars(\.json)?$' OR relative_path ~* '(^|/)\.yarnrc\.
 
 **Claim status.**
 
-- Proven (code read at `238b4015a9`, re-read at `816a039136`): admission path,
-  the filesystem-mode dotfile prune, and no name-based sensitivity filter;
-  verbatim body flow to `content_files.content`; `get_file_content` returns it; `search_file_content` matches `content_lower`
-  and returns empty content on hits; `RetainedPaths` keeps a body when the
-  content fact is skipped; `Registry.Fingerprint` omits any policy field;
-  `FullSnapshot` is non-delta only; tree, counts, language inventory, and
-  coverage read `content_files`; relationship evidence reads `content_body` from
-  the fact and accepts tfvars; references derive from the stored body;
-  `fileContentHash` returns the collector's source digest when set; the upsert
-  overwrites `content`, `content_hash`, and `line_count`.
-- Proven (run): detector gap table, marker behavior, syntax of the first census
-  query, local count of 0.
+- Proven (code read at `238b4015a9`, re-read at `4d78b83273`): admission path,
+  the filesystem-mode dotfile allowlist, and no name-based sensitivity filter;
+  verbatim body flow to `content_files.content`; `get_file_content` returns it;
+  `search_file_content` matches `content_lower` and returns empty content on
+  hits; `RetainedPaths` keeps a body when the content fact is skipped;
+  `Registry.Fingerprint` omits any policy field; `FullSnapshot` is non-delta
+  only; tree, counts, language inventory, and coverage read `content_files`;
+  relationship evidence reads `content_body` from the fact and accepts tfvars;
+  references derive from the stored body; `fileContentHash` returns the
+  collector's source digest when set; the upsert overwrites `content`,
+  `content_hash`, and `line_count`.
+- Proven (run): gap table, marker behavior, first census query syntax, local 0.
 - Inferred: `content` facts persist `content_body` in `fact_records` for every
   retained generation; real tfvars files yield evidence the skeleton would lose.
 - NOT_CHECKED: deployment file, credential, tfvars evidence, and finding counts;
