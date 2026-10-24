@@ -6,7 +6,6 @@ package dockerfile
 import (
 	"strings"
 	"testing"
-	"time"
 )
 
 // hostileNestedFrom builds a FROM line of about size bytes made of balanced,
@@ -17,16 +16,15 @@ func hostileNestedFrom(size int) string {
 	return "FROM x:" + strings.Repeat("${A:-", levels) + "v" + strings.Repeat("}", levels)
 }
 
-func TestBaseRefOversizedNestedReferenceIsUnresolvedAndFast(t *testing.T) {
-	t.Parallel()
-
+func TestBaseRefOversizedNestedReferenceIsUnresolvedAndCheap(t *testing.T) {
+	// Not parallel: allocatedBytes reads process-wide MemStats.
 	source := hostileNestedFrom(60_000) + "\n"
-	start := time.Now()
-	got := RuntimeMetadata(source)
-	elapsed := time.Since(start)
-
-	if elapsed > 250*time.Millisecond {
-		t.Fatalf("one 60 KB nested reference took %v, want well under 250ms", elapsed)
+	var got Metadata
+	allocated := allocatedBytes(func() { got = RuntimeMetadata(source) })
+	// Measured 544,040 bytes; the unbounded expansion of the same line
+	// allocated about 836 MB.
+	if allocated > 4<<20 {
+		t.Fatalf("one 60 KB nested reference allocated %d bytes, want under 4 MiB", allocated)
 	}
 	stage := stageAtLine(t, got, 1)
 	if len(stage.UnresolvedArgs) == 0 {
@@ -38,19 +36,18 @@ func TestBaseRefOversizedNestedReferenceIsUnresolvedAndFast(t *testing.T) {
 }
 
 func TestBaseRefManyNestedReferencesStayBounded(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel: allocatedBytes reads process-wide MemStats.
 	var source strings.Builder
 	for i := 0; i < 200; i++ {
 		source.WriteString(hostileNestedFrom(60_000))
 		source.WriteString("\n")
 	}
-	start := time.Now()
-	got := RuntimeMetadata(source.String())
-	elapsed := time.Since(start)
-
-	if elapsed > 2*time.Second {
-		t.Fatalf("200 hostile FROM lines took %v, want a linear-time bound under 2s", elapsed)
+	var got Metadata
+	allocated := allocatedBytes(func() { got = RuntimeMetadata(source.String()) })
+	// Measured 83,665,144 bytes; with the reference bound disabled the same
+	// source allocated about 167 GB.
+	if allocated > 256<<20 {
+		t.Fatalf("200 hostile FROM lines allocated %d bytes, want a linear-cost bound under 256 MiB", allocated)
 	}
 	if len(got.Stages) != 200 {
 		t.Fatalf("stages = %d, want 200", len(got.Stages))

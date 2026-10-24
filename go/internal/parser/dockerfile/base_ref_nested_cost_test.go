@@ -29,6 +29,19 @@ func nestedPaddedSource(lines, depth int) string {
 	return source.String()
 }
 
+// allocatedBytes returns the heap bytes fn allocates. The callers are not
+// parallel: runtime.MemStats is process-wide, so a concurrent test would
+// pollute the delta. Allocation is the bound these tests pin because wall time
+// depends on the host, the race detector and the other jobs on the runner.
+func allocatedBytes(fn func()) uint64 {
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	fn()
+	runtime.ReadMemStats(&after)
+	return after.TotalAlloc - before.TotalAlloc
+}
+
 // TestBaseRefNestedPaddedReferenceAllocationIsBounded pins the allocation cost
 // of a hostile but in-bounds reference. Each level of the recursion used to own
 // a builder and copy its whole result outward, so the bytes allocated grew with

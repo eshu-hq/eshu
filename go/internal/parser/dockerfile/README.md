@@ -185,7 +185,7 @@ remaining payload is the input carried through: every ARG row holds its
 default once, and each stage row holds its own
 `FROM` text and name list. The evidence a stage adds is at most 16 values of
 256 bytes plus their names, about 8 KB (4251 B measured with short names).
-`TestBaseRefOversizedNestedReferenceIsUnresolvedAndFast`,
+`TestBaseRefOversizedNestedReferenceIsUnresolvedAndCheap`,
 `TestBaseRefManyNestedReferencesStayBounded`,
 `TestBaseRefPaddedArgChainIsUnresolved`, and
 `TestBaseRefPaddedArgChainDoesNotAmplifyAcrossStages` pin the expansion cases.

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 )
 
 // paddedArgChain declares n global ARGs. Each default is padLen literal bytes
@@ -27,15 +26,13 @@ func paddedArgChain(n, padLen int) string {
 }
 
 func TestBaseRefPaddedArgChainIsUnresolved(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel: allocatedBytes reads process-wide MemStats.
 	source := paddedArgChain(50, 4000) + "FROM i:${A50}\n"
-	start := time.Now()
-	got := RuntimeMetadata(source)
-	elapsed := time.Since(start)
-
-	if elapsed > 2*time.Second {
-		t.Fatalf("padded ARG chain took %v, want well under 2s", elapsed)
+	var got Metadata
+	allocated := allocatedBytes(func() { got = RuntimeMetadata(source) })
+	// Measured 1,701,408 bytes.
+	if allocated > 8<<20 {
+		t.Fatalf("padded ARG chain allocated %d bytes, want under 8 MiB", allocated)
 	}
 	stage := stageAtLine(t, got, 51)
 	if len(stage.UnresolvedArgs) == 0 {
@@ -47,20 +44,19 @@ func TestBaseRefPaddedArgChainIsUnresolved(t *testing.T) {
 }
 
 func TestBaseRefPaddedArgChainDoesNotAmplifyAcrossStages(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel: allocatedBytes reads process-wide MemStats.
 	var source strings.Builder
 	source.WriteString(paddedArgChain(100, 4000))
 	const stages = 1000
 	for i := 0; i < stages; i++ {
 		source.WriteString("FROM i:${A100}\n")
 	}
-	start := time.Now()
-	got := RuntimeMetadata(source.String())
-	elapsed := time.Since(start)
-
-	if elapsed > 2*time.Second {
-		t.Fatalf("%d FROM lines took %v, want under 2s", stages, elapsed)
+	var got Metadata
+	allocated := allocatedBytes(func() { got = RuntimeMetadata(source.String()) })
+	// Measured 5,145,312 bytes; before the output cap the base tags alone were
+	// 400,001,000 bytes.
+	if allocated > 32<<20 {
+		t.Fatalf("%d FROM lines allocated %d bytes, want under 32 MiB", stages, allocated)
 	}
 	if len(got.Stages) != stages {
 		t.Fatalf("stages = %d, want %d", len(got.Stages), stages)
