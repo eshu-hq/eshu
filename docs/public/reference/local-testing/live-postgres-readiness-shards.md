@@ -58,6 +58,10 @@ job and fails when:
   read the first CI wave on the new cut before relaxing it. Predicted figures
   are model output until a CI run on the new cut records the measured job
   seconds;
+- the live plan's shard spread passes 15% of the mean (the acceptance bound of
+  #8930), or the cut on a fixed synthetic plan passes 1%. The fixed plan guards
+  the cut itself and does not change when tests are enrolled, so an unrelated
+  enrollment cannot trip it. If the live-plan bound trips, refresh the weights;
 - more than 40 planned tests, or more than 2 planned packages, have no measured
   weight;
 - the shard job's `timeout-minutes` stops matching the 1800 s cap the gate

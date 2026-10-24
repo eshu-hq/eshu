@@ -77,6 +77,9 @@ class BalanceContractTest(unittest.TestCase):
         return wt.shard_job_seconds(runs, weights, bounds)
 
     def test_committed_weights_fit_the_budget_on_the_live_plan(self) -> None:
+        # The live plan changes with every enrollment, so this test holds the
+        # issue's acceptance bound (15% of the mean) and the budget, not the
+        # exact figures. The tight balance guard runs on a fixed fixture below.
         self.assertEqual(wt.budget_errors(self.plan, self.weights), [])
         bounds = wt.weighted_bounds(self.plan, self.weights)
         jobs = self.job_seconds(self.plan, self.weights, bounds)
@@ -84,6 +87,40 @@ class BalanceContractTest(unittest.TestCase):
         mean = sum(jobs) / len(jobs)
         self.assertLessEqual(max(jobs) / mean - 1, 0.15, jobs)
         self.assertGreaterEqual(min(jobs) / mean - 1, -0.15, jobs)
+
+    @staticmethod
+    def fixture() -> tuple[list[str], wt.Weights]:
+        """Build a deterministic uneven plan whose near-even cut needs mid-package splits."""
+        sizes = (310, 90, 250, 140, 60, 170, 180)
+        plan = [f"./internal/pkg{index}|Test{index}x{test}Live"
+                for index, size in enumerate(sizes) for test in range(size)]
+        document = {
+            "schema_version": 1, "source_runs": ["1"], "fixed_job_seconds": 80.0,
+            "cold_cache_seconds": 100.0, "default_test_seconds": 2.0,
+            "default_package_seconds": 50.0,
+            "package_seconds": {f"./internal/pkg{index}": 50.0 for index in range(len(sizes))},
+            "test_seconds": {run: 2.0 for run in plan}}
+        return plan, wt.weights_from_json(document)
+
+    @staticmethod
+    def spread(jobs: list[float]) -> float:
+        """Largest absolute deviation of a shard from the mean, as a fraction."""
+        mean = sum(jobs) / len(jobs)
+        return max(abs(job / mean - 1) for job in jobs)
+
+    def test_fixture_cut_stays_within_one_percent_of_the_mean(self) -> None:
+        plan, weights = self.fixture()
+        jobs = self.job_seconds(plan, weights, wt.weighted_bounds(plan, weights))
+        self.assertLessEqual(self.spread(jobs), 0.01, jobs)
+
+    def test_balance_guard_rejects_a_fourteen_percent_misplaced_boundary(self) -> None:
+        plan, weights = self.fixture()
+        bounds = wt.weighted_bounds(plan, weights)
+        planted = [bounds[0], bounds[1] - 40, *bounds[2:]]
+        jobs = self.job_seconds(plan, weights, planted)
+        self.assertGreater(self.spread(jobs), 0.14, jobs)
+        self.assertLessEqual(self.spread(jobs), 0.15, jobs)  # the live bound would accept it
+        self.assertGreater(self.spread(jobs), 0.01, jobs)  # the fixture guard rejects it
 
     def test_partition_runs_and_plan_cli_follow_the_weighted_cut(self) -> None:
         bounds = wt.weighted_bounds(self.plan, self.weights)
