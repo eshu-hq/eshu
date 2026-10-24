@@ -187,3 +187,43 @@ func TestNextClaimedTerminalCarriesNoRetryAfter(t *testing.T) {
 		t.Fatalf("terminal RetryAfterDelay() = %s, want 0", delayed.RetryAfterDelay())
 	}
 }
+
+// TestRetryAfterFromStatusesIgnoresZeroAndNegative proves a zero or negative
+// retry_after_seconds never yields a delay or wins the maximum, so pacing
+// falls back to the poll interval. The SDK validator already rejects a
+// negative value; this guards the helper on its own.
+func TestRetryAfterFromStatusesIgnoresZeroAndNegative(t *testing.T) {
+	t.Parallel()
+
+	item := testWorkItem()
+	tests := []struct {
+		name   string
+		delays []int
+		want   time.Duration
+	}{
+		{name: "no statuses", want: 0},
+		{name: "zero", delays: []int{0}, want: 0},
+		{name: "negative", delays: []int{-5}, want: 0},
+		{name: "negative and positive", delays: []int{-5, 7, 0}, want: 7 * time.Second},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := retryAfterFromStatuses(retryableResultWithDelays(item, tc.delays...)); got != tc.want {
+				t.Fatalf("retryAfterFromStatuses(%v) = %s, want %s", tc.delays, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestNextClaimedNegativeRetryAfterIsInvalidResult proves a negative
+// retry_after_seconds fails the result closed as a terminal invalid result
+// instead of scheduling a retry.
+func TestNextClaimedNegativeRetryAfterIsInvalidResult(t *testing.T) {
+	t.Parallel()
+
+	item := testWorkItem()
+	source := mustNewSource(t, &recordingRunner{result: retryableResultWithDelays(item, -1)}, nil)
+	_, _, err := source.NextClaimed(context.Background(), item)
+	assertFailure(t, err, FailureClassInvalidResult, true)
+}

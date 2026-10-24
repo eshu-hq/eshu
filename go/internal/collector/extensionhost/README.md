@@ -122,16 +122,22 @@ A `retryable` result's classified failure carries the largest
 The delay is clamped to `MaxRetryAfterDelay` (one hour, the GitHub App
 token-mint precedent): the SDK only requires `retry_after_seconds >= 0`, so an
 unclamped value could hide a work item for years or overflow `time.Duration`.
-Terminal results never carry a delay.
+Terminal results never carry a delay. A zero value falls back to the poll
+interval, and a negative value fails the result as a terminal
+`invalid_result`. The result log line shows the clamp: `retry_after_seconds`
+is the honored delay and `retry_after_requested_seconds` is the raw request.
 
 Performance Evidence: `go test ./internal/collector/extensionhost -run '^$'
 -bench 'NextClaimed' -benchmem -count=5` on darwin/arm64 (shared host, load
-about 20) measured the retryable claim path at 1487-1584 ns/op and 9 allocs/op
-with no recorder (unchanged from before #8908), and at 3687-4174 ns/op and 15
-allocs/op with `StatusTelemetry`. The unchanged path measured 1354-1468 ns/op
-and 10 allocs/op with no recorder, 3781-4099 ns/op and 15 allocs/op with the
-recorder and its INFO line, and 2065-2294 ns/op and 14 allocs/op with INFO
-filtered. The recorder alone (`go test ./internal/telemetry -bench
+about 20). Before the result hook (commit `42f9f530da`, no recorder), the
+retryable claim path measured 1264-1620 ns/op and 9 allocs/op and the unchanged
+path 1309-1595 ns/op and 10 allocs/op. In one run after the change, the
+retryable path measured 1487-1584 ns/op and 9 allocs/op with no recorder and
+3687-4174 ns/op and 15 allocs/op with `StatusTelemetry`. The unchanged path
+measured 1354-1468 ns/op and 10 allocs/op with no recorder, 3781-4099 ns/op
+and 15 allocs/op with the recorder and its INFO line, and 2065-2294 ns/op and
+14 allocs/op with INFO filtered. The nil-recorder path keeps its allocation
+count. The recorder alone (`go test ./internal/telemetry -bench
 ComponentExtensionStatusRecorder`) is 697-840 ns/op, 96 B/op, and 6 allocs/op
 for six instrument calls. A real claim launches a process or container
 (milliseconds), so the added microseconds are not a measurable share.
