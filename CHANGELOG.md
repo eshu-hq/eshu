@@ -139,6 +139,7 @@ recent shipped work grouped by feature area.
 - **The opt-in `structured` result shape is documented as shipped.** Earlier
   notes said the second MCP copy stays "until #8800". The `structured` shape
   from #8800 sends the result once, and it is opt-in: the default stays `dual`.
+
 ### Content store skips unchanged file rewrites
 
 - **The `content_files` upsert skips a row that did not change**
