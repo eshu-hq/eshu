@@ -48,11 +48,13 @@ The preferred collector `v0.1.0-rc.2` and factschema `v0.1.0-rc.2`
 candidates are now published and verified together through the public Go
 proxy. Fresh proxy proof for the historical collector `v0.2.0-rc.1` remains
 pending. No new-path pair has a qualified core release or deployed acceptance.
+The next prepared versions, `collector/v0.1.0-rc.3` and
+`factschema/v0.1.0-rc.3`, are unpublished source candidates.
 
-| Original published module | New module identity | Available first candidate | Other published candidate | Preferred candidate |
-| --- | --- | --- | --- | --- |
-| `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` | `collector/v0.1.0-rc.2` (published; proxy verified) |
-| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) |
+| Original published module | New module identity | Available first candidate | Other published candidate | Preferred candidate | Prepared next candidate (unpublished) |
+| --- | --- | --- | --- | --- | --- |
+| `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` | `collector/v0.1.0-rc.2` (published; proxy verified) | `collector/v0.1.0-rc.3` |
+| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) | `factschema/v0.1.0-rc.3` |
 
 The new module version histories are independent of the original paths'
 `v0.2.0` lines. The migration starts on the initial `v0.1.0` prerelease line,
@@ -91,7 +93,7 @@ round-trip (#8941), reducer/graph behavior, or API/MCP results.
 
 | State | Required evidence | Current recorded status for the new paths |
 | --- | --- | --- |
-| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s and both preferred `v0.1.0-rc.2` modules tagged and proxy verified; historical collector `v0.2.0-rc.1` tagged, with fresh proxy proof pending |
+| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s and both preferred `v0.1.0-rc.2` modules tagged and proxy verified; historical collector `v0.2.0-rc.1` tagged, with fresh proxy proof pending; both RC3 versions prepared but unpublished |
 | Qualified consumer/core pair | Exact new module pins, contract and runtime proof against a named core version, including grant-aware conformance for reserved fact kinds | No pair qualified or core range assigned |
 | Deployed accepted pair | Matching deployment, reducer, graph, API/MCP, retry, operator, and rollback proof | No deployment accepted |
 
@@ -109,6 +111,31 @@ is already in the published historical `v0.2.0-rc.1` candidate. Factschema
 integer lists, merged in [SDK PR #11](https://github.com/eshu-hq/eshu-sdk/pull/11). Schemas, fixture bytes and wire protocols are unchanged by these
 changes. Preserve both first RC1 tags and the later published tags. Published
 collector `v0.1.0-rc.2` is not a supported consumer/core combination.
+
+### Prepared RC3 source mapping
+
+The proposed collector RC3 source checks Azure tag observation fingerprints as
+complete HMAC-SHA256 markers while retaining source tag names only in the
+schema `1.0.0` root fingerprint map. It admits the exact Kubernetes posture
+count, automount, and projected-token fields in their owning schema `1.0.0`
+facts. A strict native JSON fallback rejects duplicate decoded member names
+before an overwritten raw value could pass validation; that guard merged in
+[SDK PR #19](https://github.com/eshu-hq/eshu-sdk/pull/19) (merge `51d630e`
+on SDK `origin/main`).
+
+The proposed factschema RC3 source replaces placeholder values in the valid
+and invalid `azure_tag_observation` fixture-pack examples with a deterministic
+synthetic HMAC-SHA256 marker. Its payload schema and typed decoder are
+unchanged. These source corrections do not add a collector wire-protocol
+version or authorize a core consumer. The shared core SDK mirror remains under
+review; the Azure producer and graph proof are separate work under #8853.
+
+Both RC3 tags still require reviewed and merged SDK source and release
+metadata, green CI on the exact release commit, this merged core mapping,
+separate tag approval, and fresh public-proxy resolution. Consumer contract
+and runtime proof, producer authority, rollback, and deployed graph/API/MCP
+evidence remain separate acceptance steps. Until they pass, keep existing
+pins and the preferred RC2 candidate status above.
 
 `CoreFacts` validates a caller-supplied authorization snapshot; it does not
 load grants or determine authority. The caller must validate live grants,
@@ -137,6 +164,8 @@ from a worktree or a stale checkout — only from a clean, fast-forwarded
 before that tag was published. Both RC2 tag approvals were bound to exact
 reviewed source SHAs with green CI. Check Git tags and the public Go proxy for current candidate
 availability.
+The prepared RC3 mapping supplies a prerequisite for future tag review; it is
+not tag approval or a qualification decision.
 
 ## Version support policy
 
