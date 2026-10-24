@@ -55,14 +55,24 @@ repository of that organization through
   facts with `org_repository_read_rate_limited`. The claim still commits, and
   the next scheduled claim reads again. Nothing retries inside the claim.
 - A `not_found` read marks that repository `org_repository_read_failed` and the
-  fan-out continues. Any other failure (`auth_denied`, including a 403 without
-  rate-limit headers, a 5xx or transport error, or a terminal 4xx) marks that
+  fan-out continues. A 403 with no rate-limit headers whose JSON body says
+  `Dependabot alerts are disabled for this repository.` marks that repository
+  `org_repository_alerts_disabled` and the fan-out continues too: the answer is
+  specific to one repository. The match is on GitHub's message text, which the
+  REST reference does not document, so a body that is not JSON, is cut off,
+  or is worded differently falls back to the stop below (#FOLLOWUP-403-CLASS
+  tracks capturing the real response). Any other failure (`auth_denied`
+  without that message, including a plain 403, a 5xx or transport error, or a
+  terminal 4xx) marks that
   repository `org_repository_read_failed` and stops the fan-out: later
   repositories keep their org-window facts with `org_repository_fanout_stopped`.
   GitHub warns that continuing to call while limited can get an integration
   banned, and the next read would use the same credential.
-- At most 100 repositories are read per claim. Later allowlisted repositories
-  keep their org-window facts with `org_repository_fanout_cap_reached`.
+- At most 100 repositories are read per claim, and a repository that answers
+  `alerts_disabled` counts toward that cap. Later allowlisted repositories
+  keep their org-window facts with `org_repository_fanout_cap_reached`. Each
+  claim starts again at the top of the allowlist; #FOLLOWUP-ROTATION tracks
+  rotating the start.
 
 One claim sends at most `max_pages` x (1 + min(allowlisted repositories in the
 organization, 100)) alert-page requests. Under `github_app` auth each listing
@@ -203,7 +213,7 @@ truncates, the collector reads each allowlisted repository on its own (see
 so a repository whose own read completes is covered whatever the window held.
 The gap holds only for a repository the fan-out could not read: one past the
 100-repository per-claim cap, one whose read failed (`not_found` or another
-failure), or one after a rate-limited or failed read that stopped the fan-out.
+failure), one whose Dependabot alerts are disabled, or one after a rate-limited or failed read that stopped the fan-out.
 If the org window also holds no alert for such a repository, no fact records the
 truncation or the reason, so the empty answer still reads `complete`. The
 `eshu_dp_security_alert_org_fanout_repositories_total` counter and the

@@ -44,12 +44,15 @@ alerts, and duplicates collapse on (repository, alert number). Fan-out alerts
 are stamped with the requested repository, so their `repository_id` and stable
 fact key match the org path. Per-repository coverage (`coverage.go`) stamps each
 fact: a still-truncated read keeps `provider_open_alert_page_limit_reached`;
-a failed, rate-limited, stopped, or capped repository adds
+a failed, rate-limited, stopped, alerts-disabled, or capped repository adds
 `org_repository_read_failed`, `org_repository_read_rate_limited`,
-`org_repository_fanout_stopped`, or `org_repository_fanout_cap_reached`. Only a
-`not_found` read lets the fan-out continue; the first read that fails any other
-way (rate limit, auth denied, 5xx, transport, terminal) stops it
-(`fanoutFailureOutcome`). The claim still commits what it read and never loops.
+`org_repository_fanout_stopped`, `org_repository_alerts_disabled`, or
+`org_repository_fanout_cap_reached`. Only a `not_found` read and an
+auth_denied 403 the client marked `AlertsDisabled` (a JSON body saying
+Dependabot alerts are disabled, no rate-limit signal) let the fan-out continue;
+the first read that fails any other way (rate limit, other auth denied, 5xx,
+transport, terminal) stops it (`fanoutFailureOutcome`). A repository-scope
+target that gets the same 403 keeps the terminal auth_denied failure. The claim still commits what it read and never loops.
 Only a cancelled claim context fails the claim, with no partial generation.
 Fan-out facts carry a lowercase `repository_name`, because the per-repository
 endpoint returns no repository object. The freshness digest includes each alert's
@@ -67,11 +70,16 @@ org read is not truncated sends exactly the requests it sent before.
 and pins the request count: 5 requests for a truncated two-page org read with
 one complete and one two-page-truncated repository, and 3 requests when the
 second repository read is rate limited (the third allowlisted repository is
-never requested), and 2 requests when the first repository read is a 403
-without rate-limit headers. The cassette is synthetic and GitHub-shaped, written
-from GitHub's documented REST shape, not captured from GitHub.
+never requested), 2 requests when the first repository read is a 403
+without rate-limit headers, and 4 requests when the second of three repository
+reads is the disabled-alerts 403 (the fan-out reads the third). The cassette is synthetic and GitHub-shaped, written
+from GitHub's documented REST shape, not captured from GitHub. The
+disabled-alerts 403 body is not in GitHub's REST reference; it rests on four
+third-party implementations (see the cassette description).
 `TestClaimedSourceStopsFanoutOnNonNotFoundFailure` pins the stop for
-auth_denied, 5xx, terminal, and transport failures, and
+auth_denied, 5xx, terminal, and transport failures,
+`TestClaimedSourceContinuesFanoutPastAlertsDisabledRepository` pins the
+continue for the disabled 403, and
 `TestClaimedSourceFailsClaimWhenContextCancelledDuringFanout` pins the
 cancelled-claim path. `TestClaimedSourceBoundsFanoutRepositories` pins the
 100-repository cap.

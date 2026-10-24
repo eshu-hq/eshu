@@ -75,6 +75,12 @@ the provider alert.
   forwarded outside the configured provider host. Both endpoints share one
   bounded pagination loop, so truncation, per-page clamping, and rate-limit
   handling stay identical.
+- A failed read reads at most 4096 bytes of the response body. A 403 with no
+  rate-limit signal whose complete JSON `message` says Dependabot alerts are
+  disabled sets `GitHubDependabotError.AlertsDisabled` (#8805). The failure
+  class stays `auth_denied`; the message is only compared, never stored or
+  returned by `Error()`. A body that is unreadable, cut off, not JSON, or worded
+  differently leaves the marker false.
 - Organization alerts (`/orgs/{org}/dependabot/alerts`) preserve each alert's
   source `repository`. The hosted runtime derives a per-repository scope from
   it so org-window facts carry the same `repository_id` shape as the

@@ -3801,7 +3801,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SecurityAlertOrgFanoutRepositories, err = meter.Int64Counter(
 		"eshu_dp_security_alert_org_fanout_repositories_total",
-		metric.WithDescription("Allowlisted repositories handled by the per-repository fan-out after a truncated org-scope security-alert read, by provider and outcome (complete, truncated, failed, rate_limited, skipped_cap, stopped) (#8805)"),
+		metric.WithDescription("Allowlisted repositories handled by the per-repository fan-out after a truncated org-scope security-alert read, by provider and outcome (complete, truncated, failed, alerts_disabled, rate_limited, skipped_cap, stopped) (#8805)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecurityAlertOrgFanoutRepositories counter: %w", err)
