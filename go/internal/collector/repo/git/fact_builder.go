@@ -238,6 +238,7 @@ func streamFacts(
 	// both content branches; there is exactly one recognized location (see
 	// submodule.IsGitmodulesPath), so emission happens once after both
 	// branches close (see noteSubmoduleCandidate).
+	var tally contentStoreTally // content-store policy outcomes (#8812)
 	gitmodulesCandidates := map[string]string{}
 	// codeownersCandidates accumulates recognized CODEOWNERS bodies across both
 	// content branches; GitHub honors one file per repo, so emission happens
@@ -258,6 +259,7 @@ func streamFacts(
 				snapshot.ContentFileMetas[i] = model.ContentFileMeta{}
 				continue
 			}
+			body = tally.storedBytes(snapshot.ContentStores, meta.RelativePath, body) // every emitter below sees the stored body
 			bodyStr := string(body)
 			submodule.NoteSubmoduleCandidate(gitmodulesCandidates, meta.RelativePath, bodyStr)
 			codeowners.NoteCodeownersCandidate(codeownersCandidates, meta.RelativePath, bodyStr)
@@ -304,6 +306,7 @@ func streamFacts(
 		snapshot.ContentFileMetas = nil
 	} else {
 		for i, fileSnapshot := range snapshot.ContentFiles {
+			fileSnapshot.Body = tally.storedBody(snapshot.ContentStores, fileSnapshot.RelativePath, fileSnapshot.Body)
 			submodule.NoteSubmoduleCandidate(gitmodulesCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
 			codeowners.NoteCodeownersCandidate(codeownersCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
 			w.Send(gitcontent.ContentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileSnapshot))
@@ -344,6 +347,7 @@ func streamFacts(
 		}
 		snapshot.ContentFiles = nil
 	}
+	recordContentStoreTally(ctx, &tally, repo.ID, scopeID, generationID)
 	for i, meta := range snapshot.WorkflowImageFileMetas {
 		body, err := streamContentBodyReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads an admitted workflow path from repository discovery
 		if err != nil {
@@ -419,38 +423,7 @@ func streamFacts(
 	}
 	snapshot.ContentEntities = nil
 
-	// Value-flow taint evidence facts (opt-in via ESHU_EMIT_DATAFLOW; the slice is
-	// empty otherwise so this loop is a no-op when the gate is off).
-	for _, evidence := range snapshot.TaintEvidence {
-		w.Send(taintEvidenceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, evidence))
-	}
-	snapshot.TaintEvidence = nil
-	for _, evidence := range snapshot.InterprocTaintEvidence {
-		w.Send(interprocEvidenceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, evidence))
-	}
-	snapshot.InterprocTaintEvidence = nil
-
-	// Value-flow function summary facts (opt-in via ESHU_EMIT_DATAFLOW; the slice
-	// is empty otherwise so this loop is a no-op when the gate is off). Emitted on
-	// both delta and full generations: each summary upserts by its durable
-	// FunctionID, so a delta that only re-summarizes changed files refreshes those
-	// functions without disturbing the rest.
-	for _, summary := range snapshot.FunctionSummaries {
-		w.Send(functionSummaryFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, summary))
-	}
-	snapshot.FunctionSummaries = nil
-
-	// Value-flow param-level source facts (opt-in via ESHU_EMIT_DATAFLOW; empty
-	// otherwise). Emitted on both delta and full generations: each upserts by its
-	// (FunctionID, param index) so a delta refreshes only changed files.
-	for _, fnSource := range snapshot.FunctionSources {
-		w.Send(functionSourceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fnSource))
-	}
-	snapshot.FunctionSources = nil
-	for _, function := range snapshot.DataflowFunctions {
-		w.Send(dataflowFunctionFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, function))
-	}
-	snapshot.DataflowFunctions = nil
+	emitValueFlowFacts(&w, repoPath, repo.ID, scopeID, generationID, observedAt, snapshot)
 
 	// Reducer follow-up facts — trigger downstream materialization domains.
 	// codeowners_ownership and submodule_pin re-resolve the whole-repo candidate

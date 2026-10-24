@@ -299,6 +299,10 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	}
 	snapshot.ImportsMap = importsMap
 
+	// Apply each definition's content-store policy before the entities are cut
+	// from the body (#8812): source_cache is then sliced from the stored body.
+	snapshot.ContentStores = applyContentStoreToShapeFiles(registry, repoPath, shapeFiles, parsedFiles)
+
 	materializeStartedAt := time.Now()
 	materialization, err := shape.Materialize(shape.Input{
 		RepoID:       repoMetadata.ID,
