@@ -52,7 +52,10 @@ the legacy scheduled pin shrinks from 373 to 360 paths with SHA256
 The combined runner has 133 files and 269 roots, including the merged
 supply-chain index restart proof. The compact workflow receipt remains a
 historical replay at `153feea755`; it does not prove this rebased head ran
-against PostgreSQL.
+against PostgreSQL. The rebased #8934 follow-up adds only a provenance
+comment before migration 212 in `schema_order_late_test.go`; its ordered
+entries and assertions stay unchanged. PR #8924 merged before that comment
+was published.
 
 Hosted execution on the reviewed revision and actual cron delivery remain
 NOT_CHECKED until CI and scheduled delivery evidence is retained. The bulk

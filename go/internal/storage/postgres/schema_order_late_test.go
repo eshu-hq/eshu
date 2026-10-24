@@ -292,6 +292,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// collector terminal-failure status read seeks per instance, newest
 	// first. Migration-only and built CONCURRENTLY, like migration 156.
 	"workflow_work_items_failed_terminal_instance_idx",
+	// Migrations 212-216 (#8835) add the supply-chain runtime fallback indexes.
 	"supply_chain_identity_workload_trim_index",
 	"supply_chain_identity_entity_trim_index",
 	"supply_chain_catalog_workload_trim_index",
