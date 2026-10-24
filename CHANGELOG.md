@@ -98,6 +98,25 @@ recent shipped work grouped by feature area.
   can carry `user:password@` userinfo, so the admission waits on the
   content-store policy of #8812.
 
+### Content store: per-definition policy
+
+- **Parser definitions can now withhold or redact a file body in the content
+  store** ([#8812](https://github.com/eshu-hq/eshu/issues/8812)). A definition
+  names one of three policies. `store` keeps the body (every definition today).
+  `metadata` keeps an empty-body row, so the path stays in the tree, counts,
+  language inventory, and coverage. `redact` (marker mode) replaces credential
+  values with `REDACTED_<finding_kind>`. The policy applies at the collector
+  write boundary: the `content` fact, `content_files`, the derived secret-line
+  and reference rows, and `content_entities.source_cache` all follow it. A
+  redactor error or non-UTF-8 input stores a metadata row and counts
+  `eshu_dp_collector_content_store_files_total{outcome="redactor_failed"}`; it
+  never stores the raw body. `content_hash` stays the digest of the source file.
+  `Registry.Fingerprint` includes a non-store policy, so binding one makes every
+  repository re-collect once; this change binds none, so the fingerprint and
+  freshness hints do not move. The marker redactor shares the migration 138
+  detector through the new `go/internal/secret/detect` package. See
+  [Admitted File Names](docs/public/languages/admitted-files.md#content-store-policy).
+
 ### Gate: supported languages declare manifest and pin files
 
 - **Ledger-driven manifest and pin gate**

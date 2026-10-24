@@ -271,7 +271,11 @@ body. No `RetainedPaths` edit and no entity-ordering dependency is needed.
    plus userinfo in `npmRegistryServer`, `npmPublishRegistry`, `httpProxy`, and
    `httpsProxy`. Those values are redacted at any length and charset. Only an
    exact `${NAME}` reference survives; a `${NAME:-literal}` default is redacted.
-   A detector match on any other line redacts the matched span. Inside a PEM `BEGIN`..`END`
+   A detector match on any other line redacts the value to the end of the line
+   (arbiter, 2026-10-24, B1): a key match applies the listed-key rule at the
+   detector's key, and a value-shape match is replaced from the shape to the end
+   of the line, so a credential tail after a space, a comma, or a comment cannot
+   survive. Inside a PEM `BEGIN`..`END`
    block every line is redacted. The detector's `{6,}` floor is unchanged: it
    limits detection, not redaction of a listed key, so a short value under a
    listed key gains a finding through the marker (accepted). The file is a
@@ -451,7 +455,14 @@ to marker mode before it lands (arbiter, 2026-10-24). (8) Search documents are
 owned by #8833 with the same retention window and no scrub, and the operator SQL
 covers the active generation's documents and terms and deletes the matching
 active `reducer_eshu_search_document` fact rows by `fact_id` (arbiter,
-2026-10-24).
+2026-10-24). (9) A detector
+match without a listed key redacts from the separator (a key match) or from the
+shape (a value-shape match) to the end of the line, with one marker per line; this
+supersedes "redacts the matched span" in the trigger item above (arbiter,
+2026-10-24, after the #8812 review found `Authorization: Bearer <token>` and
+`db_password=a,<tail>` left a tail). Parser-extracted values stay outside the
+policy and a definition may bind `metadata` or `redact` only after a seeded
+full-stream scan proves its parser output clean (arbiter A1, 2026-10-24).
 
 ## Evidence
 

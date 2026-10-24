@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/secret/detect"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	secretlines "github.com/eshu-hq/eshu/go/internal/storage/postgres/secret/lines"
@@ -18,7 +19,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const hardcodedSecretSQLPattern = `(password|passwd|pwd|api[_-]?key|apikey|token|secret|client[_-]?secret|private[_-]?key|authorization)[[:space:]]*[:=][[:space:]]*['"]?[A-Za-z0-9_./+=:@!#$%^-]{6,}|AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----`
+// hardcodedSecretSQLPattern is the detector pattern migration 138 applies. It is
+// the shared go/internal/secret/detect constant, so the collector's marker
+// redactor (#8812) and this query layer cannot disagree about what a secret
+// line is.
+const hardcodedSecretSQLPattern = detect.SQLPattern
 
 type hardcodedSecretReadinessHookContextKey struct{}
 

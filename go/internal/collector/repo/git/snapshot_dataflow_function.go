@@ -248,3 +248,47 @@ func dataflowInt(value any) (int, bool) {
 		return 0, false
 	}
 }
+
+// emitValueFlowFacts streams the opt-in value-flow facts (ESHU_EMIT_DATAFLOW):
+// taint and interprocedural evidence, function summaries, param-level sources,
+// and dataflow functions. Every slice is empty when the gate is off, so each
+// loop is then a no-op. Each slice is released as it is sent.
+func emitValueFlowFacts(
+	w *model.FactStreamWriter,
+	repoPath, repoID, scopeID, generationID string,
+	observedAt time.Time,
+	snapshot *RepositorySnapshot,
+) {
+	// Value-flow taint evidence facts (opt-in via ESHU_EMIT_DATAFLOW; the slice is
+	// empty otherwise so this loop is a no-op when the gate is off).
+	for _, evidence := range snapshot.TaintEvidence {
+		w.Send(taintEvidenceFactEnvelope(repoPath, repoID, scopeID, generationID, observedAt, evidence))
+	}
+	snapshot.TaintEvidence = nil
+	for _, evidence := range snapshot.InterprocTaintEvidence {
+		w.Send(interprocEvidenceFactEnvelope(repoPath, repoID, scopeID, generationID, observedAt, evidence))
+	}
+	snapshot.InterprocTaintEvidence = nil
+
+	// Value-flow function summary facts (opt-in via ESHU_EMIT_DATAFLOW; the slice
+	// is empty otherwise so this loop is a no-op when the gate is off). Emitted on
+	// both delta and full generations: each summary upserts by its durable
+	// FunctionID, so a delta that only re-summarizes changed files refreshes those
+	// functions without disturbing the rest.
+	for _, summary := range snapshot.FunctionSummaries {
+		w.Send(functionSummaryFactEnvelope(repoPath, repoID, scopeID, generationID, observedAt, summary))
+	}
+	snapshot.FunctionSummaries = nil
+
+	// Value-flow param-level source facts (opt-in via ESHU_EMIT_DATAFLOW; empty
+	// otherwise). Emitted on both delta and full generations: each upserts by its
+	// (FunctionID, param index) so a delta refreshes only changed files.
+	for _, fnSource := range snapshot.FunctionSources {
+		w.Send(functionSourceFactEnvelope(repoPath, repoID, scopeID, generationID, observedAt, fnSource))
+	}
+	snapshot.FunctionSources = nil
+	for _, function := range snapshot.DataflowFunctions {
+		w.Send(dataflowFunctionFactEnvelope(repoPath, repoID, scopeID, generationID, observedAt, function))
+	}
+	snapshot.DataflowFunctions = nil
+}

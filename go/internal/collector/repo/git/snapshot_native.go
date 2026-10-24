@@ -193,6 +193,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	snapshot.ContentFileMetas = append(
 		submodule.GitmodulesFileMetasForPaths(repoPath, gitmodulesCandidateRelativePaths, commitSHA), codeownersMetas...)
 	if len(fileSet.Files) == 0 {
+		addContentStoresForMetas(registry, &snapshot)
 		snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 			repoPath,
 			s.now(),
@@ -299,6 +300,10 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	}
 	snapshot.ImportsMap = importsMap
 
+	// Apply each definition's content-store policy before the entities are cut
+	// from the body (#8812): source_cache is then sliced from the stored body.
+	snapshot.ContentStores = applyContentStoreToShapeFiles(registry, repoPath, shapeFiles, parsedFiles)
+
 	materializeStartedAt := time.Now()
 	materialization, err := shape.Materialize(shape.Input{
 		RepoID:       repoMetadata.ID,
@@ -359,6 +364,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	snapshot.DocumentationFileMetas, docsReadFailures = docs.DocumentationFileMetasWithReadFailures(repoPath, discovery.FilePaths(documentationFiles), commitSHA)
 	markSnapshotDegradedOn(ctx, docsReadFailures, telemetry.PreparseDropDocsReadFailed)
 	snapshot.ContentEntities = materializationEntitiesToSnapshots(materialization.Entities, s.now())
+	addContentStoresForMetas(registry, &snapshot)
 	snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 		repoPath,
 		s.now(),

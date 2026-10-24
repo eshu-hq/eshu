@@ -600,6 +600,12 @@ type Instruments struct {
 	// PreparseIdentityDropped counts snapshots and fact streams that kept the
 	// pre-parse identity off a generation, by closed reason (review F-2, F-7).
 	PreparseIdentityDropped metric.Int64Counter
+
+	// ContentStorePolicyFiles counts files the git collector applied a
+	// non-store content-store policy to (#8812), labeled policy and outcome.
+	// outcome=redactor_failed means the file became a metadata row because the
+	// redactor failed; the raw body is never stored.
+	ContentStorePolicyFiles metric.Int64Counter
 	// ReconcileParseSkipPersistentDrops counts forced reconciles that skipped
 	// the parse while carrying the active generation's recorded stream drops
 	// (#8185): every recorded path still failed to open, so the skip replays
@@ -6008,6 +6014,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerReconcileParseSkipDecisions(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerContentStorePolicyInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerProjectorDeltaBaselineFence(meter, inst); err != nil {
