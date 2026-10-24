@@ -335,6 +335,16 @@ class RefreshTest(unittest.TestCase):
         sample = refresh.parse_sample([self.SHARD_ONE, self.SHARD_TWO])
         return refresh.build_weights([sample], self.PLAN, ["1"], 82.0)
 
+    def test_large_weights_render_within_file_cap_without_data_loss(self) -> None:
+        """Keep a realistic large plan under the file cap with exact JSON data."""
+        document = self.build()
+        document["test_seconds"] = {
+            f"./internal/p1|TestProof{index}Live": 0.1 for index in range(600)
+        }
+        rendered = refresh.render(document)
+        self.assertLessEqual(len(rendered.splitlines()), 500)
+        self.assertEqual(json.loads(rendered), document)
+
     def test_per_test_seconds_package_cost_and_cold_constant(self) -> None:
         built = self.build()
         self.assertEqual(built["test_seconds"], {

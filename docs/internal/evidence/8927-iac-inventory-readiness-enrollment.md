@@ -10,7 +10,7 @@ Each named root had one run and one pass, with zero skips or failures; the packa
 
 The fresh database had no IaC proof schemas before or after the run, and the owned container was removed. A compact proof receipt is committed as `docs/internal/evidence/8927-iac-inventory-proof-summary.json`; raw local JSON events and the bounded runner receipt are retained under `/tmp/eshu-7533-drive/8927-baseline/`. Source SHA256 values at the baseline are `f41f00d03b4529a58fd7dba8eef30cccff002f314708a7529830aa39d553a226` and `c853e4255d23a8d00ef0e129dd39f6765f6709f8bb4b0f7f306a3ff34dbaec78`. Removing only the new marker lines from each current test file yields those baseline bytes exactly, including fixture, SQL, assertions, and blank lines; the check is retained in `/tmp/eshu-7533-drive/8927-bodyhash-carryforward.json`.
 
-On the combined branch the ledger has 906 classified live files. The two IaC files move from legacy `scheduled` to `postgres_ci`; the delta-union file also leaves the legacy set through its separate runner. The resulting candidate exemption policy is 357 paths, SHA256 `3f234e78b86bc80a586408ae56d05b74f49f271414cf0c30182492838c4b1e3b`, derived from merged main’s 360. Regenerate the count and digest after further inventory changes.
+On the combined branch the ledger has 908 classified live files. The two IaC files move from legacy `scheduled` to `postgres_ci`; the delta-union file also leaves the legacy set through its separate runner. The resulting candidate exemption policy is 357 paths, SHA256 `3f234e78b86bc80a586408ae56d05b74f49f271414cf0c30182492838c4b1e3b`, derived from merged main’s 360. Regenerate the count and digest after further inventory changes.
 
 ## Remaining acceptance
 
@@ -20,3 +20,14 @@ Exact integrated-head hosted readiness execution, CI review, and main-push deliv
 ## Combined delivery
 
 PR #8937 now carries both this enrollment and #8785’s delta-union workflow. The two workflows and event contracts remain separate. The existing physical receipts are historical source-bound evidence; both workflows still need hosted acceptance on the combined reviewed head. #8785’s deployed QA criterion remains open.
+
+
+## Integration with the measured shard plan
+
+Rebasing onto #8971 preserved the IaC and delta selectors, but the new shard drift check rejected three packages without measured costs. Its existing limit is two. The weights refresher was run on all four successful readiness shard logs from each of runs [40047410741](https://github.com/eshu-hq/eshu/actions/runs/40047410741), [40049588589](https://github.com/eshu-hq/eshu/actions/runs/40049588589), [40071537963](https://github.com/eshu-hq/eshu/actions/runs/40071537963), and [40074710798](https://github.com/eshu-hq/eshu/actions/runs/40074710798). This retains the weighted-cut observation accepted in #8930 as well as the last run, which includes this IaC package.
+
+The regenerated model has a measured IaC package overhead of 1.5 seconds and no unmeasured packages. Its four predicted job costs are 1170.2, 1193.4, 1302.3 and 1293.7 seconds, all below the unchanged 1440-second limit; the largest predicted deviation from the mean is 5.62%, below 15%. These are model predictions from the retained logs, not observed durations on the new cut. Hosted acceptance of that cut remains pending.
+
+The existing refresher now renders two table entries per line. Its six-hundred-test round-trip regression failed at 614 lines before the formatting change, then passed without changing JSON data. The adopted weights have 315 lines and exactly the same values as the independently measured candidate.
+
+After integration, all 40 shard-contract tests and all 22 existing focused mirror/generator checks passed. The complete existing fake-Go readiness self-test passed in 370.625 seconds on the preceding three-sample model, with unchanged inputs during that run. The four-sample model retains the same cut boundaries; fresh model and promotion checks validate the reconciliation. This is hermetic proof, not another backend run. Registry fragments remain below 500 lines after moving a complete gate record across their boundary; parsed records and their order are identical, and both content-bucket review warnings remain intact. The derived exemption set is still 357 of 908 ledger rows.
