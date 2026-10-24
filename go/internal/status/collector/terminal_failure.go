@@ -35,12 +35,22 @@ const maxFailureOperationLength = 48
 // status surface. The failure message and provider status code are deliberately
 // absent: they can carry provider response text and must not reach a status
 // payload.
+//
+// Acknowledged is true when an operator acknowledged this failure episode
+// (#8830). The reader returns an acknowledged failure only for an instance
+// that has no unacknowledged one, so a row with Acknowledged set is the newest
+// failure the operator told Eshu to stop reporting. AcknowledgedAt and
+// AcknowledgedReason carry when and why; they are zero for an unacknowledged
+// failure.
 type TerminalFailure struct {
-	CollectorKind    string
-	InstanceID       string
-	FailureClass     string
-	FailureOperation string
-	ObservedAt       time.Time
+	CollectorKind      string
+	InstanceID         string
+	FailureClass       string
+	FailureOperation   string
+	ObservedAt         time.Time
+	Acknowledged       bool
+	AcknowledgedAt     time.Time
+	AcknowledgedReason string
 }
 
 // BoundedFailureOperation returns operation when it is a short lowercase
