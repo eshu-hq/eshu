@@ -1,8 +1,5 @@
   verify-public-ci-service-mirrors:
-    if: >-
-      github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-verify-public' &&
-      github.repository == 'eshu-hq/eshu' &&
-      github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-verify-public' && github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

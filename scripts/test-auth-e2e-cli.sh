@@ -3,6 +3,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 frontend_workflow="$repo_root/.github/workflows/frontend.yml"
+frontend_fragment="$repo_root/specs/ci-pr-workflows.d/frontend.yml"
+caller="$repo_root/.github/workflows/test.yml"
 tmp_root="$(mktemp -d)"
 trap 'rm -rf -- "$tmp_root"' EXIT
 
@@ -86,11 +88,18 @@ for runner in scripts/run-auth-e2e.sh scripts/run-auth-mcp-e2e.sh; do
 done
 
 for gate_path in scripts/lib/auth_e2e_cli.sh scripts/test-auth-e2e-cli.sh; do
-  rg -Fq -- "- \"$gate_path\"" "$frontend_workflow" || {
-    printf 'test-auth-e2e-cli: frontend workflow does not watch %s\n' "$gate_path" >&2
+  rg -Fq -- "- $gate_path" "$frontend_fragment" || {
+    printf 'test-auth-e2e-cli: frontend PR fragment does not watch %s\n' "$gate_path" >&2
     exit 1
   }
 done
+
+rg -q '^  synchronize: true$' "$frontend_fragment" &&
+rg -q 'call-frontend:.*uses: ./\.github/workflows/frontend.yml' "$caller" &&
+rg -q "if: .*contains\(fromJSON\(inputs.plan_jobs || '\[\]'\), 'auth-sso-e2e'\)" "$frontend_workflow" || {
+  echo 'test-auth-e2e-cli: planned PR route does not reach auth-sso-e2e' >&2
+  exit 1
+}
 
 rg -Fq 'run: bash scripts/test-auth-e2e-cli.sh' "$frontend_workflow" || {
   echo "test-auth-e2e-cli: frontend workflow does not run this contract test" >&2
