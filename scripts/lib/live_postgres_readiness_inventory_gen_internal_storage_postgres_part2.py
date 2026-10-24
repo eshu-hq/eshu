@@ -46,6 +46,10 @@ TABLE = {
         "go/internal/storage/postgres/successor_guard_recheck_plan_live_test.go": (
             "TestGuardRecheckReadPlansLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_evidence_live_test.go": (
+            "TestSupplyChainImpactActiveEvidenceMatchesRetiredStatementLive",
+            "TestSupplyChainImpactActiveEvidenceBufferBudgetLive",
+        ),
         "go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go": (
             "TestTermsForeignKeyDropFailsCleanlyWhenItsLockStaysBusyLive",
         ),

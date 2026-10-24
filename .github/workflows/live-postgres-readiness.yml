@@ -363,6 +363,8 @@ jobs:
           ESHU_STATUS_SUMMARY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DISPOSABLE: '1'
           ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_SUPPLY_CHAIN_IMPACT_EVIDENCE_PROOF_DISPOSABLE: '1'
+          ESHU_SUPPLY_CHAIN_IMPACT_EVIDENCE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_SUPPRESSION_PATHS_PROOF_DISPOSABLE: '1'
           ESHU_SUPPRESSION_PATHS_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE: '1'
