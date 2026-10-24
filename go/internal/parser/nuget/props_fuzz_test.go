@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -16,7 +17,11 @@ import (
 )
 
 // The generator builds a model first and renders XML from it, so the oracle
-// never reads the XML back and never shares the parser's code.
+// (props_fuzz_oracle_test.go) never reads the XML back and never shares the
+// parser's code. Item classes cover the reviewer's MSBuild constructs:
+// conditioned metadata children, later Update and Remove, duplicate Includes,
+// an empty child over a set attribute, Exclude, case-variant attributes and
+// item types, Import, and ManagePackageVersionsCentrally.
 
 type fuzzPart struct {
 	kind int // 0 literal, 1 reference, 2 property function, 3 item list, 4 metadata
@@ -33,18 +38,34 @@ type fuzzDecl struct {
 type fuzzItem struct {
 	kind      string
 	name      string
-	valid     bool
+	valid     bool // a row is emitted
+	literal   bool // Include names one literal package (counts as a duplicate)
 	version   []fuzzPart
 	override  []fuzzPart
 	child     bool
 	condition bool
 	group     bool
+	condChild bool
+	exclude   bool
+	// unresolvedSpec: an Include list or expression, or a case-variant item
+	// type, that could name any package of this type.
+	unresolvedSpec bool
+	op             string // "update" or "remove" for an Update/Remove item
+	opTarget       string
+	opWild         bool
+}
+
+type fuzzModel struct {
+	decls       []fuzzDecl
+	items       []fuzzItem
+	unevaluated bool
 }
 
 var (
 	fuzzPropNames = []string{"Alpha", "Beta", "Gamma", "Delta"}
 	fuzzLiterals  = []string{"1.0.0", "2.3.4-beta", "[1.0,2.0)", "*", "10"}
 	fuzzKinds     = []string{"PackageVersion", "GlobalPackageReference", "PackageReference"}
+	fuzzCentral   = "ManagePackageVersionsCentrally"
 )
 
 func fuzzRefCase(r *rand.Rand, name string) string {
@@ -88,103 +109,24 @@ func renderParts(parts []fuzzPart) string {
 	return b.String()
 }
 
-// fuzzOracle is the independent expectation for property names.
-type fuzzOracle struct {
-	values  map[string]string
-	differ  map[string]bool
-	anyCond map[string]bool
-	seen    map[string]bool
-}
-
-func newFuzzOracle(decls []fuzzDecl) fuzzOracle {
-	o := fuzzOracle{map[string]string{}, map[string]bool{}, map[string]bool{}, map[string]bool{}}
-	for _, d := range decls {
-		key := strings.ToLower(d.name)
-		if o.seen[key] && o.values[key] != d.value {
-			o.differ[key] = true
-		}
-		if !o.seen[key] {
-			o.values[key], o.seen[key] = d.value, true
-		}
-		if d.condition || d.group {
-			o.anyCond[key] = true
-		}
-	}
-	return o
-}
-
-// state returns "resolved", "ambiguous", or "unresolved" for a reference.
-func (o fuzzOracle) state(name string) string {
-	key := strings.ToLower(name)
-	switch {
-	case !o.seen[key]:
-		return "unresolved"
-	case o.differ[key] || o.anyCond[key]:
-		return "ambiguous"
-	case o.values[key] == "" || strings.Contains(o.values[key], "$("):
-		return "unresolved"
-	}
-	return "resolved"
-}
-
-func (o fuzzOracle) expect(parts []fuzzPart) (value string, evidence string) {
-	if len(parts) == 0 {
-		return "", "missing_version"
-	}
-	var b strings.Builder
-	ambiguous, unresolved, list := false, false, false
-	hasRef := false
-	for _, part := range parts {
-		switch part.kind {
-		case 0:
-			b.WriteString(part.text)
-		case 1:
-			hasRef = true
-			switch o.state(part.text) {
-			case "ambiguous":
-				ambiguous = true
-			case "unresolved":
-				unresolved = true
-			default:
-				b.WriteString(o.values[strings.ToLower(part.text)])
-			}
-		case 2:
-			unresolved = true
-		default:
-			list = true
-		}
-	}
-	raw := renderParts(parts)
-	switch {
-	case list:
-		return raw, "unresolved_msbuild_property"
-	case ambiguous:
-		return raw, "ambiguous_msbuild_property"
-	case unresolved:
-		return raw, "unresolved_msbuild_property"
-	case hasRef:
-		return b.String(), "project_property"
-	}
-	return raw, "package_reference"
-}
-
-func fuzzDocument(r *rand.Rand) (string, []fuzzDecl, []fuzzItem) {
+func fuzzDecls(r *rand.Rand, b *strings.Builder) []fuzzDecl {
 	var decls []fuzzDecl
-	var items []fuzzItem
-	var b strings.Builder
-	b.WriteString("<Project>\n")
 	pad := func() string { return strings.Repeat(" ", r.Intn(3)) }
-	for i, n := 0, r.Intn(5); i < n; i++ {
-		d := fuzzDecl{name: fuzzRefCase(r, fuzzPropNames[r.Intn(len(fuzzPropNames))])}
-		switch r.Intn(4) {
-		case 0:
-			d.value = "1.2"
-		case 1:
-			d.value = "9"
-		case 2:
-			d.value = "$(Other)"
+	n := r.Intn(5)
+	central := r.Intn(5) == 0
+	for i := 0; i < n || central; i++ {
+		var d fuzzDecl
+		if i >= n {
+			// ManagePackageVersionsCentrally in some case and value.
+			central = false
+			d.name = fuzzRefCase(r, fuzzCentral)
+			d.value = []string{"true", "false", "TRUE", "$(Other)"}[r.Intn(4)]
+			d.condition = r.Intn(4) == 0
+		} else {
+			d.name = fuzzRefCase(r, fuzzPropNames[r.Intn(len(fuzzPropNames))])
+			d.value = []string{"1.2", "9", "$(Other)", ""}[r.Intn(4)]
+			d.condition, d.group = r.Intn(6) == 0, r.Intn(6) == 0
 		}
-		d.condition, d.group = r.Intn(6) == 0, r.Intn(6) == 0
 		decls = append(decls, d)
 		group, elem := "", ""
 		if d.group {
@@ -193,66 +135,172 @@ func fuzzDocument(r *rand.Rand) (string, []fuzzDecl, []fuzzItem) {
 		if d.condition {
 			elem = ` Condition="'$(Z)' == 'z'"`
 		}
-		fmt.Fprintf(&b, "<PropertyGroup%s><%s%s>%s%s%s</%s></PropertyGroup>\n", group, d.name, elem, pad(), d.value, pad(), d.name)
+		fmt.Fprintf(b, "<PropertyGroup%s><%s%s>%s%s%s</%s></PropertyGroup>\n", group, d.name, elem, pad(), d.value, pad(), d.name)
 	}
-	for i, n := 0, r.Intn(7); i < n; i++ {
-		it := fuzzItem{kind: fuzzKinds[r.Intn(3)], valid: true, name: fmt.Sprintf("Pkg.%c%d", 'A'+rune(r.Intn(4)), i)}
-		attrs := ""
-		switch r.Intn(10) {
-		case 0:
-			it.valid, attrs = false, ` Include="A;B"`
-		case 1:
-			it.valid, attrs = false, ` Include="$(Dyn)"`
-		case 2:
-			it.valid, attrs = false, ` Update="Pkg.U"`
-		case 3:
-			it.valid = false
-		default:
-			attrs = fmt.Sprintf(` Include="%s"`, it.name)
-		}
-		switch r.Intn(10) {
-		case 0, 1:
-		case 2:
-			it.override = fuzzParts(r)
-		case 3:
-			it.version, it.override = fuzzParts(r), fuzzParts(r)
-			it.valid = false
-		default:
-			it.version = fuzzParts(r)
-		}
-		it.child = r.Intn(4) == 0
-		it.condition, it.group = r.Intn(5) == 0, r.Intn(5) == 0
-		items = append(items, it)
-		group := ""
-		if it.group {
-			group = ` Condition="'$(TargetFramework)' == 'net8.0'"`
-		}
-		if it.condition {
-			attrs += ` Condition="'$(Use)' == 'true'"`
-		}
-		inner := ""
-		if len(it.version) > 0 {
-			if it.child {
-				inner += "<Version>" + pad() + renderParts(it.version) + pad() + "</Version>"
-			} else {
-				attrs += fmt.Sprintf(` Version="%s%s%s"`, pad(), renderParts(it.version), pad())
+	return decls
+}
+
+// fuzzOp renders an Update or Remove item aimed at an earlier item name, a
+// name nobody declared, or a wildcard.
+func fuzzOp(r *rand.Rand, items []fuzzItem, op string) (fuzzItem, string) {
+	it := fuzzItem{kind: fuzzKinds[r.Intn(3)], op: op, opTarget: "Pkg.U"}
+	switch n := r.Intn(5); {
+	case n == 0:
+		it.opTarget, it.opWild = "Pkg.*", true
+	case n < 4 && len(items) > 0:
+		earlier := items[r.Intn(len(items))]
+		if earlier.name != "" {
+			it.opTarget = fuzzRefCase(r, earlier.name)
+			if r.Intn(2) == 0 {
+				it.kind = earlier.kind
 			}
 		}
-		if len(it.override) > 0 {
-			attrs += fmt.Sprintf(` VersionOverride="%s"`, renderParts(it.override))
+	}
+	attr := map[string]string{"update": "Update", "remove": "Remove"}[op]
+	extra := ""
+	if op == "update" {
+		extra = ` Version="5.0.0"`
+	}
+	return it, fmt.Sprintf("<ItemGroup><%s %s=\"%s\"%s /></ItemGroup>\n", it.kind, attr, it.opTarget, extra)
+}
+
+// fuzzName returns a fresh name, or the name of an earlier literal Include of
+// the same type in another case (a duplicate).
+func fuzzName(r *rand.Rand, items []fuzzItem, kind string, i int) string {
+	if r.Intn(6) == 0 {
+		for _, earlier := range items {
+			if earlier.literal && earlier.kind == kind {
+				return fuzzRefCase(r, earlier.name)
+			}
 		}
-		fmt.Fprintf(&b, "<ItemGroup%s><%s%s>%s</%s></ItemGroup>\n", group, it.kind, attrs, inner, it.kind)
+	}
+	return fmt.Sprintf("Pkg.%c%d", 'A'+rune(r.Intn(4)), i)
+}
+
+func fuzzPlainItem(r *rand.Rand, items []fuzzItem, i int) (fuzzItem, string) {
+	pad := func() string { return strings.Repeat(" ", r.Intn(3)) }
+	it := fuzzItem{kind: fuzzKinds[r.Intn(3)], valid: true}
+	it.name = fuzzName(r, items, it.kind, i)
+	attrs := ""
+	switch r.Intn(10) {
+	case 0:
+		it.valid, it.unresolvedSpec, it.name, attrs = false, true, "", ` Include="A;B"`
+	case 1:
+		it.valid, it.unresolvedSpec, it.name, attrs = false, true, "", ` Include="$(Dyn)"`
+	case 2:
+		it.valid, it.literal = false, true
+		attrs = fmt.Sprintf(` Include="%s" version="9.9.9"`, it.name)
+	case 3:
+		it.valid, it.name = false, ""
+	default:
+		it.literal = true
+		attrs = fmt.Sprintf(` Include="%s"`, it.name)
+	}
+	switch r.Intn(10) {
+	case 0, 1:
+	case 2:
+		it.override = fuzzParts(r)
+	case 3:
+		it.version, it.override = fuzzParts(r), fuzzParts(r)
+		it.valid = false
+	default:
+		it.version = fuzzParts(r)
+	}
+	it.child = r.Intn(4) == 0
+	it.condition, it.group = r.Intn(5) == 0, r.Intn(5) == 0
+	group := ""
+	if it.group {
+		group = ` Condition="'$(TargetFramework)' == 'net8.0'"`
+	}
+	if it.condition {
+		attrs += ` Condition="'$(Use)' == 'true'"`
+	}
+	if r.Intn(8) == 0 {
+		it.exclude = true
+		attrs += fmt.Sprintf(` Exclude="%s"`, it.name)
+	}
+	inner := ""
+	if len(it.version) > 0 {
+		switch {
+		case it.child:
+			cond := ""
+			if r.Intn(3) == 0 {
+				it.condChild, cond = true, ` Condition="'$(C)' == 'c'"`
+			}
+			inner += "<Version" + cond + ">" + pad() + renderParts(it.version) + pad() + "</Version>"
+		default:
+			attrs += fmt.Sprintf(` Version="%s%s%s"`, pad(), renderParts(it.version), pad())
+			if r.Intn(8) == 0 {
+				// An empty child applied after a set attribute.
+				it.valid, inner = false, "<Version></Version>"
+			}
+		}
+	}
+	if len(it.override) > 0 {
+		attrs += fmt.Sprintf(` VersionOverride="%s"`, renderParts(it.override))
+	}
+	return it, fmt.Sprintf("<ItemGroup%s><%s%s>%s</%s></ItemGroup>\n", group, it.kind, attrs, inner, it.kind)
+}
+
+func fuzzDocument(r *rand.Rand) (string, fuzzModel) {
+	var model fuzzModel
+	var b strings.Builder
+	b.WriteString("<Project>\n")
+	importAt := -1
+	if r.Intn(8) == 0 {
+		model.unevaluated, importAt = true, r.Intn(2)
+	}
+	if importAt == 0 {
+		b.WriteString("<Import Project=\"other.props\" />\n")
+	}
+	model.decls = fuzzDecls(r, &b)
+	for i, n := 0, r.Intn(9); i < n; i++ {
+		var it fuzzItem
+		var text string
+		switch r.Intn(14) {
+		case 0:
+			it, text = fuzzOp(r, model.items, "update")
+		case 1:
+			it, text = fuzzOp(r, model.items, "remove")
+		case 2:
+			kind := fuzzKinds[r.Intn(3)]
+			it = fuzzItem{kind: kind, unresolvedSpec: true}
+			text = fmt.Sprintf("<ItemGroup><%s Include=\"Pkg.Z%d\" Version=\"1.0.0\" /></ItemGroup>\n", strings.ToLower(kind), i)
+		default:
+			it, text = fuzzPlainItem(r, model.items, i)
+		}
+		model.items = append(model.items, it)
+		b.WriteString(text)
+	}
+	if importAt == 1 {
+		b.WriteString("<Import Project=\"other.props\" />\n")
 	}
 	b.WriteString("</Project>")
-	return b.String(), decls, items
+	return b.String(), model
+}
+
+// fuzzCases is the oracle fuzz size. ESHU_PROPS_FUZZ_CASES raises it for a
+// one-off deep run (for example 30000); the default keeps the test fast.
+func fuzzCases(t *testing.T) int {
+	t.Helper()
+	if raw := os.Getenv("ESHU_PROPS_FUZZ_CASES"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 {
+			t.Fatalf("ESHU_PROPS_FUZZ_CASES = %q, want a positive integer", raw)
+		}
+		return n
+	}
+	return 3000
 }
 
 func TestParseCentralPropsMatchesIndependentOracle(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "Directory.Build.props")
 	r := rand.New(rand.NewSource(8824))
-	for caseNumber := 0; caseNumber < 3000; caseNumber++ {
-		doc, decls, items := fuzzDocument(r)
+	tally := map[string]int{}
+	cases := fuzzCases(t)
+	for caseNumber := 0; caseNumber < cases; caseNumber++ {
+		doc, model := fuzzDocument(r)
 		if err := os.WriteFile(path, []byte(doc), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -260,22 +308,33 @@ func TestParseCentralPropsMatchesIndependentOracle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("case %d: Parse error %v\n%s", caseNumber, err, doc)
 		}
-		checkFuzzCase(t, caseNumber, doc, payload, decls, items)
+		checkFuzzCase(t, caseNumber, doc, payload, model, tally)
 	}
+	// Every demotion class must actually occur, or the oracle proves nothing.
+	for _, reason := range []string{
+		"central_management_unproven", "conditional_metadata", "duplicate_include", "exclude",
+		"removed", "unevaluated_element", "unresolved_item_spec", "updated", "skipped",
+	} {
+		if tally[reason] < cases/100 {
+			t.Fatalf("class %s occurred %d times in %d cases, want >= %d", reason, tally[reason], cases, cases/100)
+		}
+	}
+	t.Logf("%d cases, class tally %v", cases, tally)
 }
 
-func checkFuzzCase(t *testing.T, caseNumber int, doc string, payload map[string]any, decls []fuzzDecl, items []fuzzItem) {
+func checkFuzzCase(t *testing.T, caseNumber int, doc string, payload map[string]any, model fuzzModel, tally map[string]int) {
 	t.Helper()
 	fail := func(format string, args ...any) {
 		t.Helper()
 		t.Fatalf("case %d: %s\n%s", caseNumber, fmt.Sprintf(format, args...), doc)
 	}
-	oracle := newFuzzOracle(decls)
+	oracle := newFuzzOracle(model.decls)
 	rows := variableRows(t, payload)
 	next, skipped := 0, 0
-	for _, it := range items {
+	for p, it := range model.items {
 		if !it.valid {
 			skipped++
+			tally["skipped"]++
 			continue
 		}
 		if next >= len(rows) {
@@ -297,8 +356,15 @@ func checkFuzzCase(t *testing.T, caseNumber int, doc string, payload map[string]
 		if wantEvidence == "package_reference" && row["value"] != row["requested_version"] {
 			fail("%s: a resolved literal must equal the text as written: %v vs %v", it.name, row["value"], row["requested_version"])
 		}
+		reasons := fuzzReasons(model, oracle, p)
+		for _, reason := range strings.Split(reasons, ",") {
+			tally[reason]++
+		}
+		if got, _ := row["item_ambiguity"].(string); got != reasons || hasKey(row, "item_ambiguity") != (reasons != "") {
+			fail("%s: item_ambiguity = %q, want %q", it.name, got, reasons)
+		}
 		conditional := it.condition || it.group
-		wantPartial := conditional || (wantEvidence != "package_reference" && wantEvidence != "project_property")
+		wantPartial := conditional || reasons != "" || (wantEvidence != "package_reference" && wantEvidence != "project_property")
 		if got, _ := row["partial_evidence"].(bool); got != wantPartial {
 			fail("%s: partial_evidence = %v, want %v", it.name, got, wantPartial)
 		}
@@ -309,7 +375,7 @@ func checkFuzzCase(t *testing.T, caseNumber int, doc string, payload map[string]
 			fail("%s: direct_dependency presence wrong for %s", it.name, it.kind)
 		}
 	}
-	for _, d := range decls {
+	for _, d := range model.decls {
 		if next >= len(rows) {
 			fail("missing property row for %s", d.name)
 		}
@@ -348,7 +414,7 @@ func TestParseCentralPropsSurvivesMutatedDocuments(t *testing.T) {
 	path := filepath.Join(dir, "Directory.Packages.props")
 	r := rand.New(rand.NewSource(88240))
 	for caseNumber := 0; caseNumber < 2000; caseNumber++ {
-		doc, _, _ := fuzzDocument(r)
+		doc, _ := fuzzDocument(r)
 		data := []byte(doc)
 		for edits := 1 + r.Intn(3); edits > 0 && len(data) > 0; edits-- {
 			switch at := r.Intn(len(data)); r.Intn(4) {

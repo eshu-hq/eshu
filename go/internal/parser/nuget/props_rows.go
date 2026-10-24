@@ -36,8 +36,14 @@ func (p *propState) status() propStatus {
 // order, then property declarations. line_number is the emission sequence.
 func buildPropsRows(scan *propsScan, limits *propsLimits) []map[string]any {
 	rows := make([]map[string]any, 0, len(scan.items)+len(scan.props))
-	for _, item := range scan.items {
-		rows = append(rows, propsItemRow(item, scan.states, len(rows)+1, limits))
+	centralUnproven := centralManagementUnproven(scan.states)
+	for index, item := range scan.items {
+		row := propsItemRow(item, scan.states, len(rows)+1, limits)
+		if reasons := scan.tracker.reasons(index, item, centralUnproven); reasons != 0 {
+			row["item_ambiguity"] = reasons.String()
+			row["partial_evidence"] = true
+		}
+		rows = append(rows, row)
 	}
 	for _, decl := range scan.props {
 		rows = append(rows, propsPropertyRow(decl, scan.states[decl.stateKey], len(rows)+1))

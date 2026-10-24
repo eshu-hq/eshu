@@ -209,3 +209,74 @@ func TestParseCentralPropsAllocationGrowsLinearlyWithEntries(t *testing.T) {
 		t.Fatalf("alloc ratio for 2x entries = %.2f (small=%d large=%d), want <= 2.3", ratio, small, large)
 	}
 }
+
+// TestParseCentralPropsNameTrackingOverflowDemotes holds the duplicate
+// tracker's cap: once more distinct names than it remembers appear, a hidden
+// duplicate is possible, so every row of the type is demoted, and memory
+// stays bounded by the cap rather than the input.
+func TestParseCentralPropsNameTrackingOverflowDemotes(t *testing.T) {
+	build := func(n int) string {
+		var b strings.Builder
+		b.WriteString("<Project><ItemGroup>")
+		for i := 0; i < n; i++ {
+			fmt.Fprintf(&b, `<PackageVersion Include="P%d" Version="1.0.0" />`, i)
+		}
+		b.WriteString(`<GlobalPackageReference Include="G" Version="1.0.0" /></ItemGroup></Project>`)
+		return b.String()
+	}
+	const tracked = 2 * nuget.MaxPropsItemRows
+
+	atCap := parseDirect(t, "Directory.Packages.props", build(tracked-1))
+	if atCap.err != nil {
+		t.Fatal(atCap.err)
+	}
+	first := variableRows(t, atCap.payload)[0]
+	if hasKey(first, "item_ambiguity") {
+		t.Fatalf("names within the cap must stay resolved: %#v", first)
+	}
+
+	over := parseDirect(t, "Directory.Packages.props", build(tracked+1))
+	if over.err != nil {
+		t.Fatal(over.err)
+	}
+	rows := variableRows(t, over.payload)
+	if got, _ := rows[0]["item_ambiguity"].(string); got != "duplicate_include" {
+		t.Fatalf("first PackageVersion item_ambiguity = %q, want duplicate_include past the cap", got)
+	}
+	if got := limitCount(t, over.payload, "dropped_item_rows"); got != tracked+2-nuget.MaxPropsItemRows {
+		t.Fatalf("dropped_item_rows = %d, want %d", got, tracked+2-nuget.MaxPropsItemRows)
+	}
+}
+
+// TestParseCentralPropsItemOperationsStayBounded feeds just under the input cap
+// of the operations the duplicate and Update/Remove tracker records: distinct
+// Includes past its name cap, named and wildcard Updates, and Removes.
+// Allocation must stay a small multiple of the input. Measured at 15.6x
+// (14.1x before the tracker) in a normal build and 27.8x (25.6x before)
+// under -race, which inflates every allocation; the 32x ceiling holds both.
+func TestParseCentralPropsItemOperationsStayBounded(t *testing.T) {
+	var body strings.Builder
+	body.WriteString("<Project><ItemGroup>")
+	for i := 0; body.Len() < nuget.MaxPropsInputBytes-200; i++ {
+		switch i % 4 {
+		case 0:
+			fmt.Fprintf(&body, `<PackageVersion Include="P%d" Version="1.0.0" />`, i)
+		case 1:
+			fmt.Fprintf(&body, `<PackageVersion Update="P%d" Version="2.0.0" />`, i-1)
+		case 2:
+			body.WriteString(`<PackageVersion Update="P*;Q" Version="2.0.0" />`)
+		default:
+			fmt.Fprintf(&body, `<PackageVersion Remove="P%d" />`, i-3)
+		}
+	}
+	body.WriteString("</ItemGroup></Project>")
+	res := parseDirect(t, "Directory.Packages.props", body.String())
+	if res.err != nil {
+		t.Fatal(res.err)
+	}
+	if got := len(variableRows(t, res.payload)); got != nuget.MaxPropsItemRows {
+		t.Fatalf("rows = %d, want the %d cap", got, nuget.MaxPropsItemRows)
+	}
+	t.Logf("%d input bytes, %d allocated (%.1fx), %d mallocs", body.Len(), res.bytes, float64(res.bytes)/float64(body.Len()), res.mallocs)
+	requireAllocCeiling(t, "item operations", body.Len(), res.bytes, 32)
+}

@@ -42,6 +42,7 @@ type itemDecl struct {
 	exclude   string
 	condition string
 	groupCond string
+	reasons   itemReason
 }
 
 // propsScan streams one props file's tokens. Allocation is bounded by the
@@ -53,12 +54,18 @@ type propsScan struct {
 	props  []propDecl
 	states map[string]*propState
 	items  []itemDecl
+	// tracker sees Update, Remove, duplicate, and unevaluated constructs
+	// that demote an otherwise resolved item row.
+	tracker itemTracker
 }
 
 func newPropsScan(source []byte, limits *propsLimits) *propsScan {
 	dec := xml.NewDecoder(bytes.NewReader(source))
 	dec.Strict = true
-	return &propsScan{dec: dec, limits: limits, states: make(map[string]*propState)}
+	return &propsScan{
+		dec: dec, limits: limits, states: make(map[string]*propState),
+		tracker: newItemTracker(),
+	}
 }
 
 // token returns the next token and tracks element depth, failing with
@@ -104,6 +111,12 @@ func (s *propsScan) run() error {
 			return errors.New("root element is not Project")
 		}
 		rootSeen = true
+		for _, attr := range start.Attr {
+			if attr.Name.Space == "" && strings.EqualFold(attr.Name.Local, "Sdk") {
+				// An SDK project imports props and targets this scanner never reads.
+				s.tracker.unevaluated = true
+			}
+		}
 		if err := s.project(); err != nil {
 			return err
 		}
@@ -127,7 +140,10 @@ func (s *propsScan) project() error {
 			case "ItemGroup":
 				herr = s.itemGroup(t)
 			default:
+				// Import, Choose, ItemDefinitionGroup, and the rest can add,
+				// change, or default items, so every item row is demoted.
 				s.limits.skippedElements++
+				s.tracker.unevaluated = true
 				herr = s.skipElement()
 			}
 			if herr != nil {
@@ -286,7 +302,7 @@ func (s *propsScan) itemGroup(start xml.StartElement) error {
 }
 
 // itemKinds are the item types the grammar turns into dependency rows.
-var itemKinds = []string{"PackageVersion", "GlobalPackageReference", "PackageReference"}
+var itemKinds = [...]string{"PackageVersion", "GlobalPackageReference", "PackageReference"}
 
 func (s *propsScan) item(start xml.StartElement, groupCond string) error {
 	local := start.Name.Local
@@ -297,24 +313,32 @@ func (s *propsScan) item(start xml.StartElement, groupCond string) error {
 		}
 	}
 	if !known {
-		for _, kind := range itemKinds {
+		for i, kind := range itemKinds {
 			if strings.EqualFold(local, kind) {
+				// MSBuild item types are case-insensitive, so this item is
+				// real but unread: every row of its type is demoted.
 				s.limits.skippedItems++
+				s.tracker.unresolved[i] = true
 			}
 		}
 		return s.skipElement()
 	}
 
-	var conflict bool
+	conflict := hasCaseVariantAttribute(start.Attr)
 	decl := itemDecl{kind: local, groupCond: groupCond}
 	take := func(dst *string, name string) {
 		value, dup := attrOnce(start.Attr, name)
 		*dst = strings.TrimSpace(value)
 		conflict = conflict || dup
 	}
-	var include, update string
+	var include, update, remove, exclude string
 	take(&include, "Include")
 	take(&update, "Update")
+	take(&remove, "Remove")
+	take(&exclude, "Exclude")
+	if exclude != "" {
+		decl.reasons |= reasonExclude
+	}
 	take(&decl.version, "Version")
 	take(&decl.override, "VersionOverride")
 	take(&decl.private, "PrivateAssets")
@@ -342,23 +366,46 @@ func (s *propsScan) item(start xml.StartElement, groupCond string) error {
 				}
 				continue
 			}
+			for _, attr := range t.Attr {
+				if attr.Name.Space == "" && strings.EqualFold(attr.Name.Local, "Condition") {
+					decl.reasons |= reasonConditionalMetadata
+				}
+			}
 			text, over, nested, err := s.readText(MaxPropsValueBytes)
 			if err != nil {
 				return err
 			}
 			oversize = oversize || over
-			conflict = conflict || nested || (*dst != "" && text != "" && *dst != text)
+			// MSBuild applies child metadata after the attribute, so a child
+			// that differs, including an empty one, makes the value unproven.
+			conflict = conflict || nested || (*dst != "" && *dst != text)
 			if text != "" {
 				*dst = text
 			}
 		case xml.EndElement:
-			return s.admitItem(decl, include, update, conflict, oversize)
+			return s.admitItem(decl, itemSpecs{include, update, remove}, conflict, oversize)
 		}
 	}
 }
 
-// admitItem applies the name, conflict, and size rules, then the row cap.
-func (s *propsScan) admitItem(decl itemDecl, include, update string, conflict, oversize bool) error {
+// itemSpecs holds an item's Include, Update, and Remove attribute values.
+type itemSpecs struct {
+	include, update, remove string
+}
+
+// admitItem records the item's operations for the tracker, then applies the
+// name, conflict, and size rules and the row cap.
+func (s *propsScan) admitItem(decl itemDecl, specs itemSpecs, conflict, oversize bool) error {
+	include := specs.include
+	if specs.update != "" {
+		s.tracker.modify(decl.kind, specs.update, false, len(s.items))
+	}
+	if specs.remove != "" {
+		s.tracker.modify(decl.kind, specs.remove, true, len(s.items))
+	}
+	if include != "" {
+		s.tracker.include(decl.kind, include)
+	}
 	if oversize || len(include) > MaxPropsNameBytes || len(decl.version) > MaxPropsVersionBytes ||
 		len(decl.override) > MaxPropsVersionBytes || len(decl.condition) > MaxPropsConditionBytes ||
 		len(decl.groupCond) > MaxPropsConditionBytes || len(decl.private) > MaxPropsValueBytes ||
@@ -366,7 +413,7 @@ func (s *propsScan) admitItem(decl itemDecl, include, update string, conflict, o
 		s.limits.oversizedFields++
 		return nil
 	}
-	if conflict || include == "" || update != "" || !literalPackageName(include) ||
+	if conflict || include == "" || specs.update != "" || specs.remove != "" || !literalPackageName(include) ||
 		(decl.version != "" && decl.override != "") {
 		s.limits.skippedItems++
 		return nil
