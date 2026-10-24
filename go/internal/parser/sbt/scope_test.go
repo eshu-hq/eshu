@@ -140,6 +140,8 @@ libraryDependencies ++= Seq("c" % "d" % "2" % Provided).map(_.exclude("x", "y"))
 	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
 }
 
+// TestParseLegacyInConfigAxis covers `libraryDependencies in <scope>`: a
+// ThisBuild scope is the project-level key, a configuration scope is undetermined.
 func TestParseLegacyInConfigAxis(t *testing.T) {
 	t.Parallel()
 
@@ -148,11 +150,13 @@ libraryDependencies in ThisBuild += "a" % "b" % "1"
 libraryDependencies in Test ++= Seq("c" % "d" % "2")
 libraryDependencies in IntegrationTest := Seq("e" % "f" % "3")
 `)
-	requireField(t, requireRow(t, payload, "org.scalatest:scalatest"), "dependency_scope", "test")
-	requireField(t, requireRow(t, payload, "a:b"), "dependency_scope", "compile")
-	requireField(t, requireRow(t, payload, "c:d"), "dependency_scope", "test")
-	requireField(t, requireRow(t, payload, "e:f"), "dependency_scope", "test")
-	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
+	for _, name := range []string{"org.scalatest:scalatest", "c:d", "e:f"} {
+		row := requireRow(t, payload, name)
+		requireField(t, row, "dependency_resolution_state", "partial")
+		requireField(t, row, "dependency_scope", "compile")
+	}
+	requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "resolved")
+	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 3)
 }
 
 // TestParseLastTrailingConfigurationWins pins sbt's `%` semantics: each

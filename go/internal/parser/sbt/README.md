@@ -51,12 +51,54 @@ literal, else the first literal, else empty), `scala_version_count`,
 ## Scope mapping
 
 The scope comes from an explicit `% config` operand, which may sit after the
-coordinate (`"a" % "b" % "1" % Test`), after a parenthesised coordinate
-(`("a" %% "b" % "1").cross(...) % Test`), or on a collection
-(`Seq(...).map(_ % Test)`, `Seq(...) map (_ % "test")`). Without one it comes
-from the `Test /` axis or the legacy `libraryDependencies in Test` form, else
-`compile`. A `.map(...)` whose body has no `%` (`_.withSources()`) changes no
-scope.
+coordinate (`"a" % "b" % "1" % Test`), on the next line as a leading infix
+(`"a" % "b" % "1"` then `  % Test`, valid in sbt 2 and Scala 3), after a
+parenthesised coordinate (`("a" %% "b" % "1").cross(...) % Test`), or on a
+collection (`Seq(...).map(_ % Test)`, `Seq(...) map (_ % "test")`). Without one
+the scope is `compile`.
+
+### Default is undetermined
+
+After a coordinate the scanner reads the tail with an allowlist, not a denylist.
+Only these keep the scope readable:
+
+| Tail | Why it is safe |
+|---|---|
+| `% config` | the configuration operand; the last one wins |
+| `exclude`, `excludeAll` | add exclusion rules |
+| `classifier`, `artifacts`, `from` | add or locate artifacts |
+| `intransitive`, `notTransitive` | set the transitive flag |
+| `withSources`, `withJavadoc` | add sources and javadoc artifacts |
+| `cross`, `withCrossVersion` | set the cross-version rule (`sbt_cross_version` is `custom`) |
+| `force`, `changing` | set the force and changing flags |
+
+These are the ModuleID methods that change something other than the module's
+configurations. Any other identifier, call, operator, literal, or bare group in
+the tail leaves the scope undetermined: `withConfigurations`, `configure`, an
+unknown `%?` operator, a user-defined extension method, a line that starts with
+an infix operator other than `%`, a `(a, b)` tuple. The row is `partial` and
+counted, never a resolved `compile`. The same rule applies to a `.map(...)`
+body: it must be `_` followed by the shapes above (`_ % Test`,
+`_.withSources()`). A lambda (`d => d.withSources()`), a block, or an unknown
+call in the body is undetermined. After a collection only `toSeq`, `toList`,
+`toVector`, `toSet`, `toArray`, `distinct`, `filter`, `filterNot`, and `map` keep
+the scope; a `flatMap`, `collect`, `zip`, or fold does not.
+
+### Where the key is declared
+
+A plain `libraryDependencies`, `ThisBuild /`, `Global /`, `ThisProject /`,
+`libraryDependencies in ThisBuild`, `inThisBuild(...)`, and `core /` for a
+`core` the file declares as a project (`lazy val core = project`,
+`(project in file(...))`, `crossProject(...)`) are the project-level key and
+read as `compile` unless an operand says otherwise. Every other form is
+undetermined, and an explicit `% Test` does not rescue it: `Test /`, `Compile /`,
+`IntegrationTest /`, a custom configuration, a task axis, `libraryDependencies in
+Test`, `libraryDependencies.in(Test)`, and anything inside `inConfig(...)`,
+`inTask(...)`, `inScope(...)` or another `in<Name>(...)(...)` wrapper. sbt
+resolves `update` from the project-level key, so a configuration-scoped key is
+not evidence of a test dependency, and the scanner no longer reports one. A
+project referenced before its `lazy val` is also undetermined: the scan is one
+pass.
 
 A configuration is a list split on `,` and `;`, and each part is judged by the
 left side of a `->` mapping. `test`, `it`, `integrationtest`, and
@@ -82,10 +124,15 @@ When a coordinate carries more than one `% config`, the last one wins, as in
 sbt, where each `moduleID % config` replaces the configuration. Chained
 `.map(_ % A).map(_ % B)` calls resolve the same way, as one replayed effect.
 
+An empty configuration (`% ""`) or one made only of separators (`% ","`) names
+no configuration and is undetermined, because sbt gives it no documented
+meaning and the default `compile` would be a guess. The empty `.map(_ % "")` is
+the same.
+
 A scope the scanner cannot read is never a resolved `compile`. A custom
 `Config` value, a variable such as `% testConfig`, an unrecognised string, a
 configuration string over `MaxConfigBytes` (256), a
-`.map(dep => dep % Test)` lambda, or `libraryDependencies in (a, Test)` keeps
+`.map(dep => dep % Test)` lambda, an unknown tail, or a scoped key keeps
 `dependency_scope` `compile` as a placeholder, sets the row's
 `dependency_resolution_state` to `partial`, and adds the row to
 `sbt_state.unresolved_declaration_count`.

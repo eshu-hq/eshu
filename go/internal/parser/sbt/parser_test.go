@@ -252,14 +252,21 @@ libraryDependencies += "org.typelevel" %% "cats-core" % "2.10.0"
 	}
 }
 
+// TestParseScopedLibraryDependencies pins the axis rule: a ThisBuild key is a
+// project-level key and reads as compile, while a `Test /` key is scoped to a
+// configuration the scanner cannot prove sbt resolves, so it is undetermined.
 func TestParseScopedLibraryDependencies(t *testing.T) {
 	t.Parallel()
 
 	payload := parseSource(t, `Test / libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.17"
 ThisBuild / libraryDependencies += "a" % "b" % "1"
 `)
-	requireField(t, requireRow(t, payload, "org.scalatest:scalatest"), "dependency_scope", "test")
+	scoped := requireRow(t, payload, "org.scalatest:scalatest")
+	requireField(t, scoped, "dependency_resolution_state", "partial")
+	requireField(t, scoped, "dependency_scope", "compile")
 	requireField(t, requireRow(t, payload, "a:b"), "dependency_scope", "compile")
+	requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "resolved")
+	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 1)
 }
 
 func TestParseIgnoresNonDeclarations(t *testing.T) {

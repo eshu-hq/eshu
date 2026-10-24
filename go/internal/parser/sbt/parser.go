@@ -95,10 +95,21 @@ type scan struct {
 	// `.map(...)` calls. Each collection is written once however many calls
 	// follow it; the work-bound tests read it.
 	mapWrites int
+
+	// projects holds the names declared as sbt projects (`lazy val core =
+	// project`); an axis naming one is a project-level key, any other name
+	// before `/` is read as a configuration or task.
+	projects map[string]struct{}
+	// chainScoped, wrapDepth, wrapClosed and wrapPending follow the axis chain
+	// and the `in<Name>(...)(...)` wrapper regions; see trackAxis.
+	chainScoped bool
+	wrapDepth   int
+	wrapClosed  bool
+	wrapPending int
 }
 
 func newScan(text string) *scan {
-	return &scan{lx: newLexer(text), vals: map[string]string{}}
+	return &scan{lx: newLexer(text), vals: map[string]string{}, projects: map[string]struct{}{}}
 }
 
 // next returns the next token, honouring a single pushed-back token.
@@ -138,10 +149,11 @@ func (s *scan) run() {
 			return
 		}
 		consumed := false
+		scoped := s.trackAxis(prev, tok)
 		if tok.kind == kindIdent {
 			switch tok.text {
 			case "libraryDependencies":
-				s.parseLibraryDependencies(axisScope(prev2, prev))
+				s.parseLibraryDependencies(scoped)
 				consumed = true
 			case "scalaVersion":
 				s.parseScalaVersion(isThisBuildAxis(prev2, prev))
@@ -155,6 +167,7 @@ func (s *scan) run() {
 		}
 		if consumed {
 			prev, prev2 = token{}, token{}
+			s.chainScoped = false
 			continue
 		}
 		prev2, prev = prev, tok
@@ -209,7 +222,9 @@ func (s *scan) recordScalaVersion(value string, thisBuild bool) {
 
 // parseVal records a depth-zero `val name[: String] = "literal"` so later
 // version references can resolve. A val whose initializer is more than the
-// literal (for example `"1" + suffix`) is ignored.
+// literal (for example `"1" + suffix`) is ignored. A val initialised with
+// `project`, `crossProject`, `Project` or `(project in ...)` is remembered as a
+// project name for the axis check.
 func (s *scan) parseVal() {
 	name := s.next()
 	if name.kind != kindIdent {
@@ -230,7 +245,16 @@ func (s *scan) parseVal() {
 		return
 	}
 	value := s.next()
-	if value.kind != kindString || !validField(value.text) {
+	switch {
+	case isProjectHead(value):
+		s.recordProject(name.text)
+		return
+	case value.kind == kindOpen && value.text == "(":
+		if isProjectHead(s.peek()) {
+			s.recordProject(name.text)
+		}
+		return
+	case value.kind != kindString || !validField(value.text):
 		s.unread(value)
 		return
 	}
@@ -278,7 +302,7 @@ func (s *scan) finish() ([]map[string]any, map[string]any) {
 func scopeUnknownCount(deps []dependency) int {
 	count := 0
 	for _, dep := range deps {
-		if !dep.scopeKnown {
+		if dep.scopeUndetermined() {
 			count++
 		}
 	}

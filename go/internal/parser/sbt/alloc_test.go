@@ -144,3 +144,25 @@ func TestParseRepeatedAndChainedConfigurationsStayLinear(t *testing.T) {
 	requireAllocCeiling(t, "1M-segment config chain", len(chain), gotBytes, 3, 1<<20)
 	requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "partial")
 }
+
+// TestParseTailAllowlistStaysLinear drives the allowlist scanner with long tails:
+// 100,000 allowlisted calls, 100,000 unknown calls, a 100,000-call `.map` body,
+// and 100,000 leading-infix `%` lines on one coordinate. Each is one pass over
+// the tokens, so the allocation stays a small multiple of the input.
+func TestParseTailAllowlistStaysLinear(t *testing.T) {
+	const calls = 100_000
+	cases := map[string]struct {
+		body  string
+		state string
+	}{
+		"allowlisted calls": {`libraryDependencies += "a" % "b" % "1"` + strings.Repeat(` exclude("x", "y")`, calls) + "\n", "resolved"},
+		"unknown calls":     {`libraryDependencies += "a" % "b" % "1"` + strings.Repeat(` configure(x)`, calls) + "\n", "partial"},
+		"long map body":     {`libraryDependencies ++= Seq("a" % "b" % "1").map(_` + strings.Repeat(`.withSources()`, calls) + ")\n", "resolved"},
+		"leading infix":     {`libraryDependencies += "a" % "b" % "1"` + strings.Repeat("\n  % Test", calls) + "\n", "resolved"},
+	}
+	for name, tc := range cases {
+		payload, gotBytes, _ := measureParse(t, tc.body)
+		requireAllocCeiling(t, name, len(tc.body), gotBytes, 4, 1<<20)
+		requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", tc.state)
+	}
+}

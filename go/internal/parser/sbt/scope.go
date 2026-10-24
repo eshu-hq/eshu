@@ -5,34 +5,9 @@ package sbt
 
 import "strings"
 
-// axisUnknown is the axis value for a `libraryDependencies in (...)` scope the
-// scanner cannot read as one configuration. It is not a configuration name, so
-// resolveConfigScope reports it unknown.
-const axisUnknown = "(unknown axis)"
-
 // configOverlong is the configuration spelling recorded for an identifier
 // chain longer than MaxFieldBytes. It is never a configuration name.
 const configOverlong = "(overlong)"
-
-// axisConfig maps a `Config /` or `in Config` scope axis to its configuration
-// name. Any other axis (ThisBuild, a project reference) yields "".
-func axisConfig(name string) string {
-	switch name {
-	case "Test", "IntegrationTest", "Provided", "Runtime", "Compile":
-		return name
-	}
-	return ""
-}
-
-// axisScope maps a `Config /` scope axis before libraryDependencies to a
-// configuration name: `Test / libraryDependencies` declares test-scope
-// dependencies.
-func axisScope(prev2, prev token) string {
-	if prev.kind != kindSymbol || prev.text != "/" || prev2.kind != kindIdent {
-		return ""
-	}
-	return axisConfig(prev2.text)
-}
 
 // isThisBuildAxis reports a `ThisBuild /` axis before a key.
 func isThisBuildAxis(prev2, prev token) bool {
@@ -89,9 +64,13 @@ type configSpec struct {
 	optional bool
 }
 
-// resolveConfig maps an sbt configuration spelling to a configSpec. "" is the
-// default compile configuration. A spelling over MaxConfigBytes is treated like
-// an overlong identifier chain: it is not scanned, not stored, and unknown.
+// resolveConfig maps an sbt configuration spelling to a configSpec. An empty or
+// separator-only spelling (`% ""`, `% ","`) names no configuration, so it is
+// unknown like any other spelling the table cannot map: sbt gives an empty
+// configuration no documented meaning, and guessing the default compile scope
+// for it would report a resolved compile row for a declaration nobody can read.
+// A spelling over MaxConfigBytes is treated like an overlong identifier chain:
+// it is not scanned, not stored, and unknown.
 //
 // A list of parts resolves by this table, where "any" means at least one part
 // maps to that scope and every part must be a recognised configuration:
@@ -106,9 +85,6 @@ type configSpec struct {
 // variable, an empty list); the scope is then compile only as a placeholder and
 // the caller must report the row as partial, never as a resolved compile scope.
 func resolveConfig(config string) configSpec {
-	if config == "" {
-		return configSpec{scope: "compile", known: true}
-	}
 	if len(config) > MaxConfigBytes {
 		return configSpec{text: configOverlong, scope: "compile"}
 	}
@@ -162,11 +138,19 @@ func resolveConfig(config string) configSpec {
 	return spec
 }
 
-// setAxis sets the scope a `Config /` or `in Config` axis declares, leaving
-// the explicit configuration empty.
-func (d *dependency) setAxis(axis string) {
-	spec := resolveConfig(axis)
-	d.scope, d.scopeKnown = spec.scope, spec.known
+// setAxis records where the key was declared. A key under a configuration
+// axis, an `inConfig(...)` wrapper, or an axis the scanner cannot read as a
+// project-level one (scoped) leaves the scope undetermined for good: an
+// explicit `% config` later in the expression does not make the declaration
+// readable. Otherwise the scope starts as the default compile configuration.
+func (d *dependency) setAxis(scoped bool) {
+	d.scope, d.scopeKnown, d.axisScoped = "compile", !scoped, scoped
+}
+
+// scopeUndetermined reports whether the row's scope could not be read from the
+// axis, the configuration operands, or the tail, so the row is partial.
+func (d dependency) scopeUndetermined() bool {
+	return !d.scopeKnown || d.axisScoped
 }
 
 // setConfig records an explicit `% config` and the scope it implies.

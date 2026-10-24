@@ -34,9 +34,12 @@ type dependency struct {
 	version string
 	kind    versionKind
 	// scopeKnown is false when the scope could not be read from the
-	// configuration or axis; the row is then partial and counted. It sits
+	// configuration or tail; the row is then partial and counted. It sits
 	// beside kind so the struct gains no padding.
 	scopeKnown bool
+	// axisScoped is true when the key was declared under a configuration axis
+	// or wrapper; the row is then partial whatever the operands say.
+	axisScoped bool
 	// optional is true when the configuration names `optional`.
 	optional bool
 	cross    string
@@ -45,62 +48,14 @@ type dependency struct {
 	line     int
 }
 
-// parseLibraryDependencies reads the operator after a libraryDependencies key.
-// `+=` takes one element; `++=` and `:=` take a Seq/List/Vector literal. Any
-// other shape (for example `libraryDependencies.value`) is not a declaration
-// and is left to the main loop; a recognised assignment whose right-hand side
-// is not a literal collection is counted as unresolved.
-func (s *scan) parseLibraryDependencies(axis string) {
-	op := s.next()
-	if op.kind == kindIdent && op.text == "in" {
-		axis = s.readInAxis(axis)
-		op = s.next()
-	}
-	if op.kind != kindSymbol {
-		s.unread(op)
-		return
-	}
-	switch op.text {
-	case "+=":
-		s.parseElement(axis)
-	case "++=", ":=":
-		s.parseCollections(axis)
-	case "~=", "-=", "--=", "<+=", "<++=":
-		s.unresolved++
-	default:
-		s.unread(op)
-	}
-}
-
-// readInAxis reads the scope after a legacy `libraryDependencies in <scope>`.
-// A configuration name becomes the axis; a project or ThisBuild reference keeps
-// the axis it had; a parenthesised scope list cannot be read as one
-// configuration and yields axisUnknown.
-func (s *scan) readInAxis(axis string) string {
-	scope := s.next()
-	switch scope.kind {
-	case kindIdent:
-		if config := axisConfig(scope.text); config != "" {
-			return config
-		}
-	case kindOpen:
-		s.skipGroup()
-		return axisUnknown
-	case kindEOF:
-	default:
-		s.unread(scope)
-	}
-	return axis
-}
-
 // parseCollections reads a collection literal and any `++ Seq(...)` operands
 // that follow it, applying `.map(_ % config)` calls to the collection they
 // follow. An operand that is not a literal collection is counted by
 // parseCollection and ends the chain.
-func (s *scan) parseCollections(axis string) {
+func (s *scan) parseCollections(scoped bool) {
 	for {
 		start := len(s.deps)
-		if !s.parseCollection(axis) {
+		if !s.parseCollection(scoped) {
 			return
 		}
 		s.applyCollectionTail(start)
@@ -114,7 +69,7 @@ func (s *scan) parseCollections(axis string) {
 
 // parseCollection reads `Seq(...)`, `List(...)`, `Vector(...)`, `Set(...)` or
 // `Array(...)` (with an optional type argument list) and parses each element.
-func (s *scan) parseCollection(axis string) bool {
+func (s *scan) parseCollection(scoped bool) bool {
 	head := s.next()
 	if head.kind != kindIdent || !isCollectionName(head.text) {
 		s.unread(head)
@@ -143,7 +98,7 @@ func (s *scan) parseCollection(axis string) bool {
 			return true
 		}
 		before := s.consumed
-		s.parseElement(axis)
+		s.parseElement(scoped)
 		tok = s.peek()
 		switch {
 		case tok.kind == kindPunct && tok.text == ",":
@@ -170,7 +125,7 @@ func isCollectionName(name string) bool {
 // parseElement reads one `org (%|%%|%%%) name % revision [% config] ...`
 // expression. Tokens after the recognised prefix (exclude(...), cross, and
 // method chains) are skipped without evaluation.
-func (s *scan) parseElement(axis string) {
+func (s *scan) parseElement(scoped bool) {
 	first := s.next()
 	rel := 0
 	if first.kind == kindOpen && first.text == "(" {
@@ -182,7 +137,7 @@ func (s *scan) parseElement(axis string) {
 		return
 	}
 	dep := dependency{org: first.text, line: first.line}
-	dep.setAxis(axis)
+	dep.setAxis(scoped)
 
 	op, ok := s.take(rel)
 	if !ok {
@@ -234,8 +189,9 @@ func (s *scan) parseElement(axis string) {
 		s.failElement(version, rel)
 		return
 	}
-	s.readConfig(&dep)
-	if s.skipTail(rel, &dep) {
+	effect, sawCross := s.scanTail(rel)
+	effect.applyTo(&dep)
+	if sawCross {
 		dep.cross = crossCustom
 	}
 
@@ -247,11 +203,11 @@ func (s *scan) parseElement(axis string) {
 }
 
 // take returns the next token of an element already in progress. A token that
-// starts a new line at group depth zero ends the statement (a leading '.'
-// continues it), so it is left unconsumed and ok is false.
+// starts a new line at group depth zero ends the statement (a leading '.' or a
+// leading '%' operator continues it), so it is left unconsumed and ok is false.
 func (s *scan) take(rel int) (token, bool) {
 	tok := s.peek()
-	if rel == 0 && tok.newline && !isPunct(tok, ".") {
+	if rel == 0 && tok.newline && !isPunct(tok, ".") && !isPercentOperator(tok) {
 		return tok, false
 	}
 	return s.next(), true

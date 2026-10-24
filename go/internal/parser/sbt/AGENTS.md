@@ -9,8 +9,9 @@
 5. `declaration.go` - `libraryDependencies` operator, collection, and element
    parsing, and the resynchronisation helpers.
 6. `scope.go` - configuration resolution (`resolveConfig`) and the scope table.
-7. `trailing.go` - a trailing `% config`, collection `.map(_ % config)`, and
-   the shared element skipper.
+7. `tail.go` - the scope-neutral tail allowlist and `scanTail`; `trailing.go` -
+   collection calls, `.map` bodies, and the resync skipper; `axis.go` - the
+   `libraryDependencies` operator, axis chains, and `in<Name>(...)` wrappers.
 8. `rows.go` - Scala binary version and row construction.
 9. `../gradle/AGENTS.md` - the sibling manifest parser whose row contract this
    package mirrors.
@@ -35,6 +36,14 @@
 - A scope the scanner cannot map is `partial` and counted in
   `unresolved_declaration_count`; it is never a resolved `compile`. Add a new
   configuration name to `configPartScope` with a test, or leave it unknown.
+- The tail scanner defaults to undetermined. `classifyTail` in `tail.go` is an
+  allowlist of ModuleID methods that cannot change the configuration; an
+  unlisted name, operator, literal, or `.map` body is unknown. Never turn it
+  into a denylist, and never skip a tail or body unread. A name joins the list
+  only with a test and a ModuleID API citation.
+- A key under a configuration axis or an `in<Name>(...)` wrapper is partial
+  whatever `% config` follows. Only plain, `ThisBuild`, `Global`, `ThisProject`,
+  and declared-project axes are project-level.
 - `dependency_resolution_state` stays in the `resolved`/`partial`/`unresolved`
   vocabulary the reducer and docs depend on.
 - `name` is `organization:name` as written. Do not append the Scala suffix to
@@ -46,8 +55,9 @@
 
 - Add a failing case to `parser_test.go` before changing the scanner, with a
   positive and a negative fixture.
-- A new modifier on a coordinate belongs in `skipElement` (it is skipped, not
-  evaluated) unless it changes identity or scope.
+- A new modifier on a coordinate that cannot change the configuration belongs
+  in `classifyTail`, with a positive test and an unlisted-name negative test.
+  `skipElement` only resynchronises after an unreadable element.
 - Plugin coordinates (`addSbtPlugin`) and `project/*.sbt` files are a separate
   admission and fact decision, not a change here.
 - Telemetry, registry dispatch, and engine wrappers belong in the parent

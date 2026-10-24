@@ -71,7 +71,7 @@ func (d dependency) row(vals map[string]string, binary string) map[string]any {
 		unresolvedKeys = []string{d.version}
 	}
 
-	if !d.scopeKnown && state == "resolved" {
+	if d.scopeUndetermined() && state == "resolved" {
 		// The configuration or axis could not be mapped, so the scope is a
 		// placeholder; the row is partial rather than a resolved compile scope.
 		state = "partial"
