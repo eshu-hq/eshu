@@ -62,7 +62,7 @@ ORDER BY s.unread_total DESC;
 cursor on Postgres: commit and read, a newer generation without a read state,
 rollback, the unchanged-generation skip, replay, two generations racing from the
 same start, and the cursor read's plan (an index range on the scope plus a
-primary-key lookup, 0.042 ms on 20,000 generations).
+primary-key lookup, 0.044 ms on 20,000 generations).
 
 `alert_read_state_commit_live_test.go` and
 `alert_read_state_concurrency_live_test.go` (in the parent `postgres`
