@@ -252,6 +252,11 @@ tests:
     class: verified_scheduled
     reason: "linuxdynasty: journal ledger (#7127 PR-3a); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
     runner: postgres-scheduled
+  - file: go/internal/storage/postgres/freshness/links/journal_sweeper_lock_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "#8932: sweeper generation lock: held generation skipped and journaled next pass, bounded 55P03 chain wait with unbounded RED; postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/8932-sweeper-generation-lock.md"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/link_live_test.go
     tag: ~
     class: verified_scheduled
