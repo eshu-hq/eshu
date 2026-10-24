@@ -98,14 +98,42 @@ func (b *runtimeStatusBuilder) applyTerminalFailures(failures []TerminalFailure)
 		if row.Health == "disabled" {
 			continue
 		}
-		if row.LastFailureTerminal && !failure.ObservedAt.After(row.LastFailureAt) {
+		// The reader returns at most one failure per instance, and an
+		// unacknowledged one always wins over an acknowledged one. Keep that
+		// order even if a caller supplies several rows for one instance.
+		if row.LastFailureTerminal && !supersedesFailure(*row, failure) {
 			continue
 		}
 		row.LastFailureClass = BoundedFailureClassForKind(failure.CollectorKind, failure.FailureClass)
 		row.LastFailureOperation = BoundedFailureOperation(failure.FailureOperation)
 		row.LastFailureTerminal = true
 		row.LastFailureAt = failure.ObservedAt
+		row.LastFailureAcknowledged = failure.Acknowledged
+		row.LastFailureAcknowledgedAt = time.Time{}
+		row.LastFailureAcknowledgedReason = ""
+		if failure.Acknowledged {
+			// An acknowledged failure stays visible but never degrades the
+			// instance (#8830). It does not overwrite the detail of an
+			// instance another source already degraded.
+			row.LastFailureAcknowledgedAt = failure.AcknowledgedAt
+			row.LastFailureAcknowledgedReason = failure.AcknowledgedReason
+			if row.Health != "degraded" {
+				row.Detail = "acknowledged " + terminalFailureDetail(row.LastFailureClass, row.LastFailureOperation)
+			}
+			continue
+		}
 		row.Health = combineRuntimeHealth(row.Health, "degraded")
 		row.Detail = terminalFailureDetail(row.LastFailureClass, row.LastFailureOperation)
 	}
+}
+
+// supersedesFailure reports whether failure should replace the failure already
+// stamped on row: an unacknowledged failure replaces an acknowledged one, an
+// acknowledged one never replaces an unacknowledged one, and between failures of
+// the same kind the newer observation wins.
+func supersedesFailure(row RuntimeStatus, failure TerminalFailure) bool {
+	if row.LastFailureAcknowledged != failure.Acknowledged {
+		return row.LastFailureAcknowledged
+	}
+	return failure.ObservedAt.After(row.LastFailureAt)
 }
