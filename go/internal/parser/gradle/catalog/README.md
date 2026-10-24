@@ -93,9 +93,9 @@ stack overflow, and a 256 KiB input of 262144 `[` allocates about 77 MB.
 
 ## What this parser never does
 
-- Execute Gradle or read `settings.gradle`, so a catalog registered under a
-  name other than `libs.versions.toml` (`dependencyResolutionManagement`
-  `versionCatalogs`) is not found.
+- Execute Gradle or read `settings.gradle`. A catalog that `settings.gradle`
+  registers under another file name (`versionCatalogs`) is not found, because
+  only the exact name `libs.versions.toml` is admitted.
 - Interpret version ranges, pick a version from a rich version, or follow a
   `files(...)` or `from(...)` catalog import.
 - Match a plugin id to a package registry: `gradle_plugin` rows are ignored by

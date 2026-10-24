@@ -60,6 +60,28 @@ recent shipped work grouped by feature area.
   verbatim in the content store until the
   [#8812](https://github.com/eshu-hq/eshu/issues/8812) policy gates land.
 
+### Gradle version catalog becomes dependency facts
+
+- **`gradle/libs.versions.toml` is parsed**
+  ([#8822](https://github.com/eshu-hq/eshu/issues/8822)). The registry admits
+  the exact name `libs.versions.toml` on the existing `gradle` definition, and
+  a new `go/internal/parser/gradle/catalog` package reads `[libraries]` and
+  `[plugins]` entries into the existing Gradle dependency row shape. A version
+  is `resolved` only when the file writes it out or points at a plain
+  `[versions]` string with `version.ref`; a rich version, a missing reference,
+  or an interpolation stays `unresolved` with no value, and a construct outside
+  the documented grammar yields no row and is counted in
+  `gradle_catalog_state`. Plugin rows use `config_kind=gradle_plugin`, so the
+  package reducer ignores them. The parser refuses a file over 2 MiB, nesting
+  over 16 levels, and rows past 5000 per table, and counts each. The TOML
+  library overflows the stack on a one-million-level array, so the nesting
+  check runs before it. No fact kind, schema, or content version changes: the
+  exact name moves the registry fingerprint. A reader for
+  `gradle/wrapper/gradle-wrapper.properties` is built and tested but not
+  registered: admitting the name stores the raw file, and a `distributionUrl`
+  can carry `user:password@` userinfo, so the admission waits on the
+  content-store policy of #8812.
+
 ### Gate: supported languages declare manifest and pin files
 
 - **Ledger-driven manifest and pin gate**
