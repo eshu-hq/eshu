@@ -73,7 +73,5 @@ func (s Service) scheduleAWSScheduledWork(
 }
 
 func shouldScheduleAWS(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorAWS &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorAWS)
 }

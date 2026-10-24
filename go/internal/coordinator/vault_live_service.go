@@ -57,7 +57,5 @@ func (s Service) scheduleVaultLiveWork(
 }
 
 func shouldScheduleVaultLive(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorVaultLive &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorVaultLive)
 }

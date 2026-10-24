@@ -60,7 +60,5 @@ func (s Service) scheduleCICDRunWork(
 }
 
 func shouldScheduleCICDRun(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorCICDRun &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorCICDRun)
 }

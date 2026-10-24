@@ -56,9 +56,7 @@ func (s Service) scheduleTerraformStateWork(
 }
 
 func shouldScheduleTerraformState(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorTerraformState &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorTerraformState)
 }
 
 func (s Service) logTerraformStateWait(instance workflow.CollectorInstance, err error) {

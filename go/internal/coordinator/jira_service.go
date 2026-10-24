@@ -60,8 +60,5 @@ func (s Service) scheduleJiraWork(
 // planned by the generic component scheduler only (#8907), the same exclusion
 // the in-tree PagerDuty scheduler applies.
 func shouldScheduleJira(instance workflow.CollectorInstance) bool {
-	if instance.CollectorKind != scope.CollectorJira || !instance.Enabled || !instance.ClaimsEnabled {
-		return false
-	}
-	return !hasComponentActivationConfiguration(instance)
+	return inTreeSchedulable(instance, scope.CollectorJira)
 }

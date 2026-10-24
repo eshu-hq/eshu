@@ -51,7 +51,5 @@ func (s Service) scheduleOCIRegistryWork(
 }
 
 func shouldScheduleOCIRegistry(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorOCIRegistry &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	return inTreeSchedulable(instance, scope.CollectorOCIRegistry)
 }
