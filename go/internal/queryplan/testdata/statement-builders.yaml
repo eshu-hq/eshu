@@ -794,3 +794,6 @@ read_exemptions:
   - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceRepositoryConsumers.func1
     anchor: "<-[:DEPENDS_ON*4..4]-"
     reason: per-depth consumers read (#7677); the differential capture corpus anchors expose depth-1 DEPENDS_ON paths only, so the depth-4 statement returns empty on both backends by corpus construction; non-empty depth-4 execution is proven by the ordered-equality shim on the live QA anchor (docs/internal/evidence/7677-per-depth-read.md)
+  - callsite: internal/graph/legacy/workload/detect.go:Detect
+    anchor: "MATCH (w:Workload) WHERE 'workload:' + w.name = w.id AND w.generation_id IS NULL AND w.id > $after"
+    reason: "#8795 operator probe for pre-#5385 name-only Workload nodes (the hosted readiness leftover count, offered on Neo4j only); the B-7 corpus writes every Workload with a workload:<repo_id>:<name> id and a generation_id, so the candidate page is empty on every execution; adding a legacy-shaped node to the corpus would move the node-count snapshot for a state the platform no longer produces"

@@ -158,3 +158,4 @@ dry-run route. Dry runs record no counter and no audit event.
 | `legacy_id` on the ambiguity candidates (unit and HTTP `409` through the story route) | none | local, `-race` |
 | scenario A2: story `409` marks the leftover, the retirement statement removes it, the same selectors then resolve to the scoped workload | Neo4j | local container; registered for the live-backend CI job |
 | golden-corpus gate (B-7, B-12) | Neo4j | not run locally by this change; see the report |
+| statement coverage on the differential recordings: the candidate-page read is empty on every execution because the corpus holds no name-only Workload; excused by a `read_exemptions` entry in `statement-builders.yaml`, pinned by `TestDetectEmptyCandidatePageIsExemptedInStatementCoverage` (fails without the entry, fails if the anchor drifts) | Neo4j recordings, replayed as fixtures | local, no Docker; the live capture runs in CI |
