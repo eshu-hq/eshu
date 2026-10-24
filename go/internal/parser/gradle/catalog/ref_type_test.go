@@ -19,6 +19,8 @@ func TestScanMistypedVersionRefIsUnsupportedLikeAMistypedVersion(t *testing.T) {
 		"table ref array":       `x = { module = "g:x", version = { ref = [1] } }`,
 		"group name dotted ref": `x = { group = "g", name = "x", version.ref = 123 }`,
 		"mistyped version":      `x = { module = "g:x", version = 123 }`,
+		"dotted ref empty":      `x = { module = "g:x", version.ref = "" }`,
+		"table ref empty":       `x = { module = "g:x", version = { ref = "" } }`,
 	}
 	for name, entry := range entries {
 		result := Scan([]byte("[libraries]\n" + entry + "\n"))

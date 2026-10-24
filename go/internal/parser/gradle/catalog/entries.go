@@ -199,9 +199,13 @@ func readVersionTable(table *unstable.Node) (versionSpec, bool) {
 		if pair.Value().Kind != unstable.String {
 			return versionSpec{}, false
 		}
-		if text, ok := boundedString(pair.Value().Data); ok {
-			only = versionSpec{kind: versionRef, text: text}
+		text, ok := boundedString(pair.Value().Data)
+		if !ok {
+			// An empty or oversize reference is outside the grammar, the same
+			// as the dotted version.ref form.
+			return versionSpec{}, false
 		}
+		only = versionSpec{kind: versionRef, text: text}
 	}
 	if pairs == 1 && only.kind == versionRef {
 		return only, true
