@@ -113,7 +113,9 @@ func TestInitializeProtocolVersionSSESession(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s := testServer()
 			sess := &sseSession{ch: make(chan []byte, 4)}
+			s.sessMu.Lock()
 			s.sessions["sess-1"] = sess
+			s.sessMu.Unlock()
 			req := httptest.NewRequest(http.MethodPost, "/mcp/message?sessionId=sess-1", strings.NewReader(initializeBody(tc.params)))
 			rec := httptest.NewRecorder()
 			s.handleHTTPMessage(rec, req)
@@ -148,6 +150,7 @@ func TestInitializeProtocolVersionStdio(t *testing.T) {
 			origIn, origOut := os.Stdin, os.Stdout
 			os.Stdin, os.Stdout = inR, outW
 			defer func() { os.Stdin, os.Stdout = origIn, origOut }()
+			defer func() { _ = inR.Close(); _ = outR.Close() }()
 
 			if _, err := inW.WriteString(initializeBody(tc.params) + "\n"); err != nil {
 				t.Fatalf("write request: %v", err)
@@ -167,5 +170,16 @@ func TestInitializeProtocolVersionStdio(t *testing.T) {
 				t.Fatalf("protocolVersion = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestNegotiateProtocolVersionEmptySupportedListDoesNotPanic pins the guard:
+// an emptied supported list answers with no version instead of panicking on
+// initialize.
+func TestNegotiateProtocolVersionEmptySupportedListDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	if got := negotiateProtocolVersion("2024-11-05", nil); got != "" {
+		t.Fatalf("empty supported list answered %q, want empty", got)
 	}
 }

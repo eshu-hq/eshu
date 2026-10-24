@@ -26,8 +26,12 @@ var supportedProtocolVersions = []string{"2024-11-05"}
 // negotiateProtocolVersion answers the initialize version negotiation (MCP
 // lifecycle, "Version Negotiation"): a supported requested version is echoed
 // back unchanged, and any other request, including an empty one, gets the
-// latest version in supported. The match is exact.
+// latest version in supported. An empty supported list answers with the empty
+// string instead of panicking. The match is exact.
 func negotiateProtocolVersion(requested string, supported []string) string {
+	if len(supported) == 0 {
+		return ""
+	}
 	if slices.Contains(supported, requested) {
 		return requested
 	}
