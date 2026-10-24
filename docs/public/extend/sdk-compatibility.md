@@ -44,7 +44,8 @@ identities. Both first `v0.1.0-rc.1` candidates are available from the source
 in [SDK PR #9](https://github.com/eshu-hq/eshu-sdk/pull/9); fresh public-proxy
 resolution and the immutable tag origins agree. The later
 `collector/v0.2.0-rc.1` and `factschema/v0.1.0-rc.2` tags are published.
-Their fresh proxy proof remains pending. The preferred next collector
+Fresh public-proxy proof now exists for factschema `v0.1.0-rc.2`;
+collector `v0.2.0-rc.1` proxy proof remains pending. The preferred next collector
 candidate is `collector/v0.1.0-rc.2`; its mapping must merge here before
 separate tag approval. No new-path pair has a qualified core release or
 deployed acceptance.
@@ -52,12 +53,14 @@ deployed acceptance.
 | Original published module | New module identity | Available first candidate | Other published candidate | Preferred next candidate |
 | --- | --- | --- | --- | --- |
 | `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` | `collector/v0.1.0-rc.2` (prepared) |
-| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; fresh proxy proof pending) |
+| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) |
 
 The new module version histories are independent of the original paths'
 `v0.2.0` lines. The preferred next collector candidate is `collector/v0.1.0-rc.2`;
 `collector/v0.2.0-rc.1` remains a published historical candidate.
-`factschema/v0.1.0-rc.2` is published. Use exact candidate pins; the
+`factschema/v0.1.0-rc.2` is published and
+[public-proxy verified](https://github.com/eshu-hq/eshu-sdk/blob/main/docs/evidence/factschema-v0.1.0-rc.2.md).
+Use exact candidate pins; the
 higher historical collector version makes `@latest` especially unsuitable.
 Go named types from the old and new import paths have different identities;
 the new paths are not drop-in replacements. Keep exact pins to the original
@@ -66,7 +69,7 @@ use `@latest` as migration evidence.
 
 | State | Required evidence | Current recorded status for the new paths |
 | --- | --- | --- |
-| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s, collector `v0.2.0-rc.1`, and factschema `v0.1.0-rc.2` tagged; fresh proxy proof for the later tags pending. Collector `v0.1.0-rc.2` prepared, not published |
+| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s, collector `v0.2.0-rc.1`, and factschema `v0.1.0-rc.2` tagged; fresh proxy proof for collector `v0.2.0-rc.1` pending; factschema `v0.1.0-rc.2` proxy verified. Collector `v0.1.0-rc.2` prepared, not published |
 | Qualified consumer/core pair | Exact new module pins, contract and runtime proof against a named core version, including grant-aware conformance for reserved fact kinds | No pair qualified or core range assigned |
 | Deployed accepted pair | Matching deployment, reducer, graph, API/MCP, retry, operator, and rollback proof | No deployment accepted |
 
