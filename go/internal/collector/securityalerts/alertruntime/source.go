@@ -276,6 +276,10 @@ func (s *ClaimedSource) NextClaimed(
 		return collector.CollectedGeneration{}, false, failure
 	}
 	fetchSpan.End()
+	// Record the target read's own duration now: a truncated org read fans out
+	// into per-repository reads that each record their own sample, so a sample
+	// taken after collectTarget would span the whole fan-out (#8805).
+	s.recordFetch(observeCtx, target.config, "success", startedAt)
 
 	collection, err := s.collectTarget(observeCtx, observeSpan, target, result)
 	if err != nil {
@@ -292,7 +296,6 @@ func (s *ClaimedSource) NextClaimed(
 		return collector.CollectedGeneration{}, false, err
 	}
 	s.recordFacts(observeCtx, target.config, envs)
-	s.recordFetch(observeCtx, target.config, "success", startedAt)
 	return collector.FactsFromSlice(
 		ingestionScope(target.config),
 		scope.ScopeGeneration{

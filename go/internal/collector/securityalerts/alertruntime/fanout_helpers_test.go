@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -33,6 +34,9 @@ type fanoutClient struct {
 	repoCalls []string
 	repoPages []int
 	orgCalls  int
+	// onRepoCall, when set, runs at the start of every per-repository call
+	// with the client lock released, so a test can observe state mid-fan-out.
+	onRepoCall func()
 }
 
 func (c *fanoutClient) ListRepositoryAlertsPages(
@@ -40,6 +44,9 @@ func (c *fanoutClient) ListRepositoryAlertsPages(
 	repository string,
 	maxPages int,
 ) (securityalerts.GitHubDependabotAlertResult, error) {
+	if c.onRepoCall != nil {
+		c.onRepoCall()
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.repoCalls = append(c.repoCalls, repository)
@@ -77,6 +84,20 @@ func newFanoutSource(
 	instruments *telemetry.Instruments,
 ) *ClaimedSource {
 	t.Helper()
+	return newTracedFanoutSource(t, client, allowed, maxPages, instruments, nil)
+}
+
+// newTracedFanoutSource is newFanoutSource with an optional tracer so a test
+// can read the spans a fan-out claim emits.
+func newTracedFanoutSource(
+	t *testing.T,
+	client RepositoryAlertClient,
+	allowed []string,
+	maxPages int,
+	instruments *telemetry.Instruments,
+	tracer trace.Tracer,
+) *ClaimedSource {
+	t.Helper()
 	now := time.Date(2026, time.October, 23, 12, 0, 0, 0, time.UTC)
 	source, err := NewClaimedSource(SourceConfig{
 		CollectorInstanceID: "security-alert-primary",
@@ -92,6 +113,7 @@ func newFanoutSource(
 		ClientFactory: func(TargetConfig) (RepositoryAlertClient, error) { return client, nil },
 		Now:           func() time.Time { return now },
 		Instruments:   instruments,
+		Tracer:        tracer,
 	})
 	if err != nil {
 		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
