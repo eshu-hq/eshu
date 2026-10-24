@@ -409,20 +409,15 @@ gates:
       # mirror's own file did not change. A gate must trigger on the files it
       # reads (#6174 review).
       - "scripts/lib/test-ci-install-apt-packages-fixtures.sh"
-      # The workflow is a trigger because the mirror asserts its own CI
-      # wiring. Seven gates share test.yml's go-core job, and the registry
-      # drift check skips per-gate CI attribution for a shared bucket, so
-      # deleting the step that runs this mirror would otherwise leave every
-      # check green while CI stopped enforcing the installer's guards. Without
-      # this trigger a workflow-only edit does not select the gate, and the
-      # assertion never runs in exactly the case it exists for.
+      # The mirror verifies test.yml's go-core job invokes its composite and
+      # that the composite runs this mirror. Both owner files must trigger
+      # the gate because shared-job registry attribution cannot prove the
+      # individual mirror step still runs.
       - ".github/workflows/test.yml"
+      - ".github/actions/ci-go-core/action.yml"
       # This registry file is this gate's other CI-wiring assertion input:
-      # test_mirror_is_wired_into_ci reads BOTH .github/workflows/test.yml and
-      # this file (it checks the registry references the mirror, the same way
-      # it checks the workflow runs it). A registry-only edit that drops or
-      # breaks that reference must select this gate for the same reason the
-      # workflow does.
+      # test_mirror_is_wired_into_ci checks this registry reference too; a
+      # registry-only edit that drops it must select the gate.
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
     local:
@@ -499,6 +494,7 @@ gates:
       # in any of them, so a workflow-only edit that adds one must still
       # select this gate.
       - ".github/workflows/**"
+      - ".github/actions/ci-go-core/action.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
     local:

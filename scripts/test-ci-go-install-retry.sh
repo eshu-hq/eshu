@@ -181,17 +181,19 @@ else
 	check "failing second package message names it" 1
 fi
 
-# check_workflow_wiring <workflows-dir> is the CI-wiring guard: no
+# check_workflow_wiring <fixture-root> is the CI-wiring guard: no
 # non-comment workflow line may run a bare `go install` (each install goes
-# through the wrapper), and <workflows-dir>/test.yml must run this mirror
-# from a non-comment line. Prints findings; returns 0 clean, 1 on a
+# through the wrapper), and test.yml's go-core job must invoke the composite
+# action that runs this mirror. Prints findings; returns 0 clean, 1 on a
 # violation, 2 when the scan itself fails, so an unreadable tree fails
 # closed instead of reading as "no bare installs".
 check_workflow_wiring() {
-	local wf_dir="$1"
+	local fixture_root="$1"
+	local wf_dir="${fixture_root}/.github/workflows"
+	local action="${fixture_root}/.github/actions/ci-go-core/action.yml"
 	local found=""
 	local scan_rc=0
-	found="$(rg -n '^[^#]*\bgo[[:space:]]+install\b' "${wf_dir}" 2>&1)" || scan_rc=$?
+	found="$(rg -n '^[^#]*\bgo[[:space:]]+install\b' "${wf_dir}" "${action}" 2>&1)" || scan_rc=$?
 	case "${scan_rc}" in
 	0)
 		printf 'bare go install:\n%s\n' "${found}"
@@ -203,14 +205,19 @@ check_workflow_wiring() {
 		return 2
 		;;
 	esac
-	if ! rg -q '^[^#]*run: bash scripts/test-ci-go-install-retry\.sh' "${wf_dir}/test.yml" 2>/dev/null; then
-		printf '%s/test.yml does not run scripts/test-ci-go-install-retry.sh\n' "${wf_dir}"
+	if ! awk '/^  go-core:/{inside=1; next} inside && /^  [[:alnum:]_-]+:/{exit} inside {print}' "${wf_dir}/test.yml" 2>/dev/null | rg -q '^[[:space:]]+uses: \./\.github/actions/ci-go-core$'; then
+		printf '%s/test.yml go-core does not invoke the ci-go-core composite\n' "${wf_dir}"
+		return 1
+	fi
+	if ! rg -q '^  using: composite$' "${action}" 2>/dev/null ||
+		! rg -q '^      run: bash scripts/test-ci-go-install-retry\.sh$' "${action}" 2>/dev/null; then
+		printf '%s does not run scripts/test-ci-go-install-retry.sh\n' "${action}"
 		return 1
 	fi
 	return 0
 }
 
-# wiring_case <name> <file> [filter-command...]: copies the real workflows
+# wiring_case <name> <file> [filter-command...]: copies the real CI owner
 # into a fresh dir, pipes <file> there through the filter (stdin to stdout;
 # never touching the real tree), and stores the guard's exit code in
 # $wiring_rc. No filter means an unedited copy.
@@ -219,51 +226,57 @@ wiring_case() {
 	dir="$(new_case "wiring-$1")"
 	local file="$2"
 	shift 2
-	cp -R "${repo_root}/.github/workflows" "${dir}/workflows"
+	mkdir -p "${dir}/.github/actions/ci-go-core"
+	cp -R "${repo_root}/.github/workflows" "${dir}/.github/workflows"
+	cp "${repo_root}/.github/actions/ci-go-core/action.yml" "${dir}/.github/actions/ci-go-core/action.yml"
 	if [ "$#" -gt 0 ]; then
-		"$@" <"${dir}/workflows/${file}" >"${dir}/edited"
-		if cmp -s "${dir}/edited" "${dir}/workflows/${file}"; then
+		"$@" <"${dir}/.github/${file}" >"${dir}/edited"
+		if cmp -s "${dir}/edited" "${dir}/.github/${file}"; then
 			# The seed did not apply (the real step text moved): report a
 			# value no case expects rather than testing an unplanted defect.
 			printf 'seed %s left %s unchanged\n' "${dir##*/}" "${file}"
 			wiring_rc=99
 			return 0
 		fi
-		mv "${dir}/edited" "${dir}/workflows/${file}"
+		mv "${dir}/edited" "${dir}/.github/${file}"
 	fi
 	wiring_rc=0
-	check_workflow_wiring "${dir}/workflows" >"${dir}/out.log" 2>&1 || wiring_rc=$?
+	check_workflow_wiring "${dir}" >"${dir}/out.log" 2>&1 || wiring_rc=$?
 }
 
 benchstat_step='run: scripts/ci/go-install-retry.sh golang.org/x/perf/cmd/benchstat@latest'
 
 # --- (h) CI wiring on the real tree. ---
 wiring_rc=0
-check_workflow_wiring "${repo_root}/.github/workflows" || wiring_rc=$?
-check "real workflows: no bare 'go install', test.yml runs this mirror" "${wiring_rc}"
+check_workflow_wiring "${repo_root}" || wiring_rc=$?
+check "real workflows: no bare 'go install', go-core composite runs this mirror" "${wiring_rc}"
 
 # --- (i) seeded violations: the guard must fail on each planted defect in a
 #     copy of the real workflows, and pass on the unedited copy. ---
-wiring_case clean test.yml
+wiring_case clean workflows/test.yml
 check "seeded GREEN: unedited workflow copy passes the guard" "$([ "${wiring_rc}" -eq 0 ] && echo 0 || echo 1)"
-wiring_case bare-run bench.yml sed -e "s|${benchstat_step}|run: go install foo@v1|"
+wiring_case bare-run workflows/bench.yml sed -e "s|${benchstat_step}|run: go install foo@v1|"
 check "seeded RED: planted 'run: go install foo@v1' fails the guard" "$([ "${wiring_rc}" -eq 1 ] && echo 0 || echo 1)"
-wiring_case bare-spaces bench.yml sed -e "s|${benchstat_step}|run: go   install foo@v1|"
+wiring_case bare-spaces workflows/bench.yml sed -e "s|${benchstat_step}|run: go   install foo@v1|"
 check "seeded RED: planted 'go   install' (extra spaces) fails the guard" "$([ "${wiring_rc}" -eq 1 ] && echo 0 || echo 1)"
+wiring_case bare-composite actions/ci-go-core/action.yml sed -e 's|run: scripts/ci/go-mod-download-retry.sh tools/golangci-lint-filelength|run: go install foo@v1|'
+check "seeded RED: bare go install in the invoked composite fails the guard" "$([ "${wiring_rc}" -eq 1 ] && echo 0 || echo 1)"
 # shellcheck disable=SC2016 # The awk program must stay literal.
-wiring_case bare-block bench.yml awk -v step="${benchstat_step}" '
+wiring_case bare-block workflows/bench.yml awk -v step="${benchstat_step}" '
 	index($0, step) { sub(/run: .*/, "run: |"); print; sub(/run: \|/, "  go install foo@v1"); print; next }
 	{ print }'
 check "seeded RED: bare 'go install' inside a run: | block fails the guard" "$([ "${wiring_rc}" -eq 1 ] && echo 0 || echo 1)"
 # shellcheck disable=SC2016 # The awk program must stay literal.
-wiring_case comment-only bench.yml awk -v step="${benchstat_step}" '
+wiring_case comment-only workflows/bench.yml awk -v step="${benchstat_step}" '
 	{ print }
 	index($0, step) { sub(/run: .*/, "# go install foo@v1 was the old step"); print }'
 check "seeded GREEN: a commented-out 'go install' does not trip the guard" "$([ "${wiring_rc}" -eq 0 ] && echo 0 || echo 1)"
-wiring_case no-mirror test.yml sed -e '/run: bash scripts\/test-ci-go-install-retry\.sh/d'
-check "seeded RED: removing the mirror step from test.yml fails the guard" "$([ "${wiring_rc}" -eq 1 ] && echo 0 || echo 1)"
-wiring_case commented-mirror test.yml sed -e 's|run: bash scripts/test-ci-go-install-retry\.sh|# &|'
+wiring_case no-mirror actions/ci-go-core/action.yml sed -e '/run: bash scripts\/test-ci-go-install-retry\.sh/d'
+check "seeded RED: removing the mirror step from the composite fails the guard" "$([ "${wiring_rc}" -eq 1 ] && echo 0 || echo 1)"
+wiring_case commented-mirror actions/ci-go-core/action.yml sed -e 's|run: bash scripts/test-ci-go-install-retry\.sh|# &|'
 check "seeded RED: commenting out the mirror step fails the guard" "$([ "${wiring_rc}" -eq 1 ] && echo 0 || echo 1)"
+wiring_case disconnected-owner workflows/test.yml sed -e 's|uses: \./\.github/actions/ci-go-core|uses: ./\.github/actions/other|'
+check "seeded RED: disconnecting go-core from the composite fails the guard" "$([ "${wiring_rc}" -eq 1 ] && echo 0 || echo 1)"
 wiring_rc=0
 check_workflow_wiring "${tmp_root}/does-not-exist" >/dev/null 2>&1 || wiring_rc=$?
 check "seeded RED: an unreadable workflows dir fails closed (exit 2), not clean" "$([ "${wiring_rc}" -eq 2 ] && echo 0 || echo 1)"

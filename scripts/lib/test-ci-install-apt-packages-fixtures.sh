@@ -43,6 +43,79 @@ record_fail() {
 	printf 'not ok - %s\n' "$1" >&2
 }
 
+# The apt mirror runs inside the go-core composite, which test.yml must call.
+# Check the owner job as well as the live composite step; a stray script name
+# elsewhere in the workflow does not establish CI coverage.
+ci_go_core_apt_mirror_wired() {
+	local root="$1" workflow="${1}/.github/workflows/test.yml"
+	local action="${1}/.github/actions/ci-go-core/action.yml"
+	[ -f "${workflow}" ] && [ -f "${action}" ] || return 1
+	awk '/^  go-core:/{inside=1; next} inside && /^  [[:alnum:]_-]+:/{exit} inside {print}' "${workflow}" |
+		rg -q '^[[:space:]]+uses: \./\.github/actions/ci-go-core$' || return 1
+	rg -q '^  using: composite$' "${action}" &&
+		rg -q '^      run: bash scripts/test-ci-install-apt-packages\.sh$' "${action}"
+}
+
+# Keep the mirror's two ownership links sensitive to actual source removal.
+test_mirror_is_wired_into_ci() {
+	if ci_go_core_apt_mirror_wired "${repo_root}"; then
+		record_pass "ci-wiring: test.yml go-core invokes the composite apt mirror"
+	else
+		record_fail "ci-wiring: go-core does not invoke the composite apt mirror"
+	fi
+	assert_output_has "${repo_root}/specs/ci-gates.d" "scripts/test-ci-install-apt-packages.sh" \
+		"ci-wiring: ci-gates registry references this mirror" \
+		"ci-wiring: ci-gates registry does not reference the apt mirror"
+
+	local fixture="${tmp_root}/apt-mirror-wiring" action workflow
+	action="${fixture}/.github/actions/ci-go-core/action.yml"
+	workflow="${fixture}/.github/workflows/test.yml"
+	mkdir -p "$(dirname "${action}")" "$(dirname "${workflow}")"
+	cp "${repo_root}/.github/actions/ci-go-core/action.yml" "${action}"
+	cp "${repo_root}/.github/workflows/test.yml" "${workflow}"
+	if ! ci_go_core_apt_mirror_wired "${fixture}"; then
+		record_fail "ci-wiring: unedited fixture loses composite ownership"
+		return
+	fi
+	record_pass "ci-wiring: unedited composite fixture passes"
+
+	sed '/run: bash scripts\/test-ci-install-apt-packages\.sh/d' "${action}" >"${action}.mutant"
+	if ! cmp -s "${action}" "${action}.mutant"; then
+		mv "${action}.mutant" "${action}"
+		if ci_go_core_apt_mirror_wired "${fixture}"; then
+			record_fail "ci-wiring: removing the composite apt mirror passed"
+		else
+			record_pass "ci-wiring: removing the composite apt mirror fails"
+		fi
+	else
+		record_fail "ci-wiring: apt mirror removal seed did not apply"
+	fi
+	cp "${repo_root}/.github/actions/ci-go-core/action.yml" "${action}"
+	sed 's|run: bash scripts/test-ci-install-apt-packages\.sh|# &|' "${action}" >"${action}.mutant"
+	if cmp -s "${action}" "${action}.mutant"; then
+		record_fail "ci-wiring: commented apt mirror seed did not apply"
+	else
+		mv "${action}.mutant" "${action}"
+		if ci_go_core_apt_mirror_wired "${fixture}"; then
+			record_fail "ci-wiring: commented composite apt mirror passed"
+		else
+			record_pass "ci-wiring: commented composite apt mirror fails"
+		fi
+	fi
+	cp "${repo_root}/.github/actions/ci-go-core/action.yml" "${action}"
+	sed 's|uses: \./\.github/actions/ci-go-core|uses: ./\.github/actions/other|' "${workflow}" >"${workflow}.mutant"
+	if cmp -s "${workflow}" "${workflow}.mutant"; then
+		record_fail "ci-wiring: disconnected owner seed did not apply"
+	else
+		mv "${workflow}.mutant" "${workflow}"
+		if ci_go_core_apt_mirror_wired "${fixture}"; then
+			record_fail "ci-wiring: disconnected go-core owner passed"
+		else
+			record_pass "ci-wiring: disconnected go-core owner fails"
+		fi
+	fi
+}
+
 # sha256_of prints the sha256 of $1 as a bare lowercase hex digest, using
 # whichever of sha256sum/shasum is on PATH -- the same detection order as
 # scripts/run-two-team-governance-proof.sh.
