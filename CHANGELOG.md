@@ -9,6 +9,18 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Status: blockage rows name the domain that holds the fence
+
+- **`queue_blockages[]` carries `holder_domain`**
+  ([#8954](https://github.com/eshu-hq/eshu/issues/8954)). A blocked reducer
+  row used to show its conflict key but not which domain held the fence, so an
+  operator could not see that a blocked `security_alert_reconciliation` was
+  waiting for `supply_chain_impact`. Each row now reports the domain of the one
+  live claimed or running row that holds the fence, read in the same statement.
+  The field is an empty string for a readiness-gated row. The status JSON,
+  text report, and `docs/openapi/runtime-admin-v1.yaml` move together. A stored
+  status summary written before this change still decodes, with an empty holder.
+
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
 
 - **A 403 saying Dependabot alerts are disabled classifies as `not_found`**
