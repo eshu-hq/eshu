@@ -183,7 +183,7 @@ Only a v3 full or directly rooted v3 reuse may seed smoke; smoke never does.
 
 ### pr-plan
 
-`ci-gates pr-plan --registry specs/ci-gates.v1.yaml --repo-root . --repo eshu-hq/eshu --pr 42 --head-sha <sha>` emits JSON schema v2. It retains HEAD `tree` and adds `target_run_id`, `target_run_attempt`, `merge_sha`, `merge_tree`, and direct `source_full_sha` alongside mode, selection, and reason.
+With native `GITHUB_RUN_ID` and `GITHUB_RUN_ATTEMPT` set to the exact Build Test caller (CI supplies them; local diagnosis must export real caller values), `ci-gates pr-plan --registry specs/ci-gates.v1.yaml --repo-root . --repo eshu-hq/eshu --pr 42 --head-sha <sha>` emits JSON schema v2. It retains HEAD `tree` and adds `target_run_id`, `target_run_attempt`, `merge_sha`, `merge_tree`, and direct `source_full_sha` alongside mode, selection, and reason.
 Use one trusted default-branch checkout for the registry, workflows, and optional `specs/ci-pr-workflows.d/*.{yml,yaml}` callable-leaf fragments; each fragment uses schema v1 and must match its callable file. Distinct workflow files cannot share a `call-<stem>` identity.
 `full` selects every applicable synchronize workflow and local job ID, including non-gate jobs; opened-only and labeled-only workflows stay outside it.
 `reuse` selects zero leaf jobs only after bound v3 proof. `smoke` emits the bound source, fast gate IDs, dependency-closed fast jobs, and transfer-aware Go complete jobs; uncertain ownership, changed definitions, and truncated paths fall back to `full`.

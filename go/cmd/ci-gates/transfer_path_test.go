@@ -260,23 +260,30 @@ func TestProbeReuseDirectFullRootMustRemainCurrent(t *testing.T) {
 	reuseDescription, _ := formatTransferProof(transferProof{Mode: "reuse", Input: testedInput{RunID: 101, Attempt: 1, MergeSHA: sourceMergeSHA}, FullRootSHA: reuseParentSHA})
 	rootDescription, _ := formatTransferProof(transferProof{Mode: "full", Input: testedInput{RunID: 103, Attempt: 1, MergeSHA: rootMergeSHA}})
 	for _, tc := range []struct {
-		name       string
-		rootState  string
-		attempt    int
-		conclusion string
-		wantReuse  bool
-		wantError  bool
+		name               string
+		rootState          string
+		attempt            int
+		conclusion         string
+		raceShardSucceeded bool
+		wantReuse          bool
+		wantError          bool
+		wantSource         string
 	}{
 		{name: "current full root", rootState: "success", attempt: 1, wantReuse: true},
 		{name: "root status pending", rootState: "pending", attempt: 1},
 		{name: "root rerun attempt advanced", rootState: "success", attempt: 2, wantError: true},
 		{name: "root run red despite green status", rootState: "success", attempt: 1, conclusion: "failure"},
+		{name: "reuse candidate ran a race shard", rootState: "success", attempt: 1, raceShardSucceeded: true, wantReuse: true, wantSource: reuseParentSHA},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			routes := boundFullSourceRoutes(`[{"context":"required-gates-complete","state":"success","description":"` + reuseDescription + `"}]`)
 			for i := range routes {
 				if routes[i].match == "actions/runs/101/attempts/1/jobs" {
-					routes[i].output = reuseAttemptJobs()
+					candidateJobs := reuseAttemptJobs()
+					if tc.raceShardSucceeded {
+						candidateJobs = strings.Replace(candidateJobs, `]}]`, `,{"name":"go-race (1)","status":"completed","conclusion":"success","run_attempt":1}]}]`, 1)
+					}
+					routes[i].output = candidateJobs
 				}
 			}
 			rootRun := strings.Replace(testedRunJSON(reuseParentSHA, testedRefsJSON(rootMergeSHA), tc.attempt), `"id":101`, `"id":103`, 1)
@@ -291,10 +298,20 @@ func TestProbeReuseDirectFullRootMustRemainCurrent(t *testing.T) {
 				{match: "git/commits/" + reuseParentSHA, output: commitJSON(reuseTreeSHA, "")},
 			}, routes...)
 			ctx := withTestedInput(context.Background(), testedInput{RunID: 102, Attempt: 1, MergeSHA: testedBaseSHA, MergeTree: testedTreeSHA})
+			if tc.raceShardSucceeded {
+				_, _, bound, sourceErr := fullBackedSource(ctx, &mappedGHRunner{routes: routes}, "eshu-hq/eshu", 42, reuseOldSHA,
+					[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
+				if sourceErr != nil || bound {
+					t.Fatalf("reuse attempt with a completed race shard remained eligible: bound=%v err=%v", bound, sourceErr)
+				}
+			}
 			got, err := probeReuse(ctx, &mappedGHRunner{routes: routes}, "eshu-hq/eshu", 42, reuseHeadSHA,
 				[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 			if (err != nil) != tc.wantError || got.Reuse != tc.wantReuse {
 				t.Fatalf("reuse=%#v err=%v, want reuse=%v error=%v", got, err, tc.wantReuse, tc.wantError)
+			}
+			if tc.wantSource != "" && got.SourceSHA != tc.wantSource {
+				t.Fatalf("reuse source=%s, want direct full root %s", got.SourceSHA, tc.wantSource)
 			}
 		})
 	}

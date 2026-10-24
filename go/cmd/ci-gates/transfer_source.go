@@ -110,8 +110,10 @@ func fullGoCoreSucceeded(jobs map[string]attemptJob) bool {
 	return successfulFullModeStep(jobs, "go-core")
 }
 
+var goRaceShardNames = [...]string{"go-race (1)", "go-race (2)", "go-race (3)", "go-race (4)"}
+
 func fullGoRaceSucceeded(jobs map[string]attemptJob) bool {
-	for _, name := range []string{"go-race (1)", "go-race (2)", "go-race (3)", "go-race (4)"} {
+	for _, name := range goRaceShardNames {
 		if !successfulAttemptJob(jobs, name) {
 			return false
 		}
@@ -212,7 +214,10 @@ func fullBackedSource(ctx context.Context, runner ghRunner, repo string, pr int,
 		}
 		// A reuse attempt must not masquerade as a full execution. Source
 		// aggregates can pass, but the heavy jobs must have skipped.
-		for _, job := range []string{"go-core", "go-race"} {
+		if successfulAttemptJob(jobs, "go-core") {
+			return transferProof{}, testedInput{}, false, nil
+		}
+		for _, job := range goRaceShardNames {
 			if successfulAttemptJob(jobs, job) {
 				return transferProof{}, testedInput{}, false, nil
 			}
