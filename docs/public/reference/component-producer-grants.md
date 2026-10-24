@@ -74,15 +74,36 @@ package itself:
   the fail-closed core-owned rejection. Install reads the target home's
   grants before its own pre-validation, which is what makes
   grant-first-then-install work through the operator CLI.
-- `component verify` stays policy-alone on purpose: it answers whether the
-  manifest passes trust policy without registry context, so a granted
-  core-kind manifest still fails verification there. Verify-then-install
-  is not the grant flow; grant-then-install is.
+- `component inspect`, `component verify`, and `component conform` read the
+  grants in `--component-home` (resolved like the other component commands),
+  but only when the manifest declares a core-owned fact kind. A live grant
+  for the producer, version, kind, schema version, and a declared collector
+  kind lets the manifest load; an absent, expired, revoked, or mismatched
+  grant fails closed with the same core-owned error as before. A manifest
+  that declares only namespaced kinds never reads the registry, so an
+  unreadable registry cannot change its result. With grants, `verify`
+  applies the same trust policy `install` does, so verify, install, and
+  conform agree on one manifest. `conform` also stops reserving the granted
+  kinds in the harness, while every other core-owned kind stays reserved.
+- Known limit: the public SDK harness still requires every emitted fact
+  kind to carry a `.` namespace prefix, so `conform` fails for a granted
+  core kind without one (for example the Confluence `documentation_*`
+  kinds) until the harness accepts host-granted kinds (#8851). `inspect`
+  and `verify` are unaffected.
 - Collector startup loads the grant snapshot for activation and re-reads
   the registry on every emission: a grant revoked or expired during
   execution fails the next result terminal with an `InvalidResult` failure
   instead of emitting under a dead authorization. A registry read failure
   denies core-owned kinds rather than emitting under unknown authorization.
+
+Operator notes: `inspect`, `verify`, and `conform` are only as strong as the
+component home they read. The home resolves from `--component-home`, then
+`ESHU_COMPONENT_HOME`, then `ESHU_HOME/components`, then `~/.eshu/components`, so a
+result can depend on an ambient registry the shell points at. Grants are local
+state: Eshu does not authenticate the registry file and does not check the home
+for symlinks or group and world write bits. Keep the home owned and writable
+only by the operator, and pass `--component-home` when a result must not depend
+on the environment.
 
 Like install, enable, disable, and uninstall, grant and revoke-grant write
 the registry file atomically.

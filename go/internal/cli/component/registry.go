@@ -19,11 +19,13 @@ import (
 // them testable outside the binary.
 
 // RunInspect prints a manifest's identity line, or the full manifest
-// component payload under --json. Inspect reads the manifest only: it
-// consults neither the trust policy nor the registry, so a manifest that
-// would fail verification still inspects cleanly.
-func RunInspect(w io.Writer, jsonOutput bool, manifestPath string) error {
-	manifest, err := componentcore.LoadManifest(manifestPath)
+// component payload under --json. Inspect never consults the trust policy, so
+// a manifest that would fail verification still inspects cleanly. It reads
+// the producer grants in the registry at home only when the manifest declares
+// a core-owned fact kind; with a live grant that declaration loads, and
+// without one it fails closed with the core-owned error.
+func RunInspect(w io.Writer, jsonOutput bool, home string, manifestPath string) error {
+	manifest, _, err := componentcore.NewRegistry(home).LoadGrantedManifest(manifestPath)
 	if err != nil {
 		return renderError(w, jsonOutput, "inspect", err)
 	}
@@ -45,13 +47,16 @@ func RunInspect(w io.Writer, jsonOutput bool, manifestPath string) error {
 
 // RunVerify checks a manifest against the trust policy and reports the
 // verification verdict. A policy rejection renders the failed payload and
-// returns the verification error the command exits with.
-func RunVerify(w io.Writer, jsonOutput bool, policy componentcore.Policy, manifestPath string) error {
-	manifest, err := componentcore.LoadManifest(manifestPath)
+// returns the verification error the command exits with. Like install, it
+// honors the producer grants in the registry at home for core-owned fact
+// kinds, so verify and install agree on the same manifest; the registry is
+// read only when the manifest declares such a kind.
+func RunVerify(w io.Writer, jsonOutput bool, home string, policy componentcore.Policy, manifestPath string) error {
+	manifest, grants, err := componentcore.NewRegistry(home).LoadGrantedManifest(manifestPath)
 	if err != nil {
 		return renderError(w, jsonOutput, "verify", err)
 	}
-	result := policy.Verify(manifest)
+	result := policy.VerifyWithGrants(context.Background(), manifest, grants)
 	if !result.Allowed {
 		return renderVerificationError(w, jsonOutput, "verify", result, componentVerificationFailure(result))
 	}
@@ -82,8 +87,9 @@ func RunInstall(
 ) error {
 	// Install is home-aware: the registry's durable producer grants admit
 	// granted core-kind manifests here, exactly as Registry.Install
-	// enforces below. Policy-alone verification (verify command,
-	// LoadManifest) keeps rejecting them.
+	// enforces below. Inspect and verify resolve the same grants through
+	// Registry.LoadGrantedManifest; a bare LoadManifest stays grant-free
+	// and rejects core-kind manifests.
 	registry := componentcore.NewRegistry(home)
 	grants, err := registry.ProducerGrants()
 	if err != nil {

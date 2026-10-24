@@ -295,8 +295,14 @@ func (r Registry) Uninstall(componentID, version string) error {
 	return nil
 }
 
+// hasHome reports whether the registry is rooted at a real directory. A blank
+// home cleans to ".", which load treats as unset.
+func (r Registry) hasHome() bool {
+	return r.home != "" && r.home != "."
+}
+
 func (r Registry) load() (registryState, error) {
-	if r.home == "" || r.home == "." {
+	if !r.hasHome() {
 		return registryState{}, NewError(ErrorCodeInvalidInput, "component home is required")
 	}
 	raw, err := os.ReadFile(r.registryPath())

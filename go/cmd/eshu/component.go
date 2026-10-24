@@ -51,6 +51,19 @@ const (
 	componentExtractionReadinessVerboseFlag = "verbose"
 )
 
+// The environment variables below configure the same component trust policy
+// the API, MCP server, and coordinator read at startup. They are the CLI's
+// fallback when the matching flag is not passed (the revoke lists are unioned
+// with their flags), so a shell that already carries the service policy judges
+// components the way the services do.
+const (
+	envComponentTrustMode        = "ESHU_COMPONENT_TRUST_MODE"
+	envComponentAllowIDs         = "ESHU_COMPONENT_ALLOW_IDS"
+	envComponentAllowPublishers  = "ESHU_COMPONENT_ALLOW_PUBLISHERS"
+	envComponentRevokeIDs        = "ESHU_COMPONENT_REVOKE_IDS"
+	envComponentRevokePublishers = "ESHU_COMPONENT_REVOKE_PUBLISHERS"
+)
+
 var componentCmd = &cobra.Command{
 	Use:   "component",
 	Short: "Manage optional Eshu components",
@@ -118,6 +131,8 @@ func init() {
 		RunE:  runComponentInitCollector,
 	}
 
+	addComponentHomeFlag(inspectCmd)
+	addComponentHomeFlag(verifyCmd)
 	addComponentHomeFlag(installCmd)
 	addComponentHomeFlag(listCmd)
 	addComponentHomeFlag(enableCmd)
@@ -200,11 +215,17 @@ func init() {
 }
 
 func runComponentInspect(cmd *cobra.Command, args []string) error {
-	return clicomponent.RunInspect(cmd.OutOrStdout(), componentJSONEnabled(cmd), args[0])
+	return clicomponent.RunInspect(cmd.OutOrStdout(), componentJSONEnabled(cmd), componentHomeFromFlags(cmd), args[0])
 }
 
 func runComponentVerify(cmd *cobra.Command, args []string) error {
-	return clicomponent.RunVerify(cmd.OutOrStdout(), componentJSONEnabled(cmd), componentPolicyFromFlags(cmd), args[0])
+	return clicomponent.RunVerify(
+		cmd.OutOrStdout(),
+		componentJSONEnabled(cmd),
+		componentHomeFromFlags(cmd),
+		componentPolicyFromFlags(cmd),
+		args[0],
+	)
 }
 
 func runComponentInstall(cmd *cobra.Command, args []string) error {
@@ -396,22 +417,48 @@ func componentDryRunEnabled(cmd *cobra.Command) bool {
 	return enabled
 }
 
+// componentPolicyFromFlags builds the trust policy for a command from its
+// flags and the process environment.
 func componentPolicyFromFlags(cmd *cobra.Command) component.Policy {
-	mode, _ := cmd.Flags().GetString(componentTrustModeFlag)
-	allowedIDs, _ := cmd.Flags().GetStringSlice(componentAllowIDFlag)
-	allowedPublishers, _ := cmd.Flags().GetStringSlice(componentAllowPublisherFlag)
-	revokedIDs, _ := cmd.Flags().GetStringSlice(componentRevokeIDFlag)
-	revokedPublishers, _ := cmd.Flags().GetStringSlice(componentRevokePublisherFlag)
+	return componentPolicyFromFlagsAndEnv(cmd, os.Getenv)
+}
+
+// componentPolicyFromFlagsAndEnv builds the trust policy for a command. For
+// the trust mode and the allow lists, a passed flag wins, then the matching
+// ESHU_COMPONENT_* variable, then the flag default. The revoke lists are the
+// union of the flags and the variables, so no flag can empty a deny list. The
+// provenance and cosign settings stay flag-only.
+func componentPolicyFromFlagsAndEnv(cmd *cobra.Command, getenv func(string) string) component.Policy {
+	str := func(flagName, envName string) string {
+		value, _ := cmd.Flags().GetString(flagName)
+		return clicomponent.FallbackString(value, flagPassed(cmd, flagName), getenv(envName))
+	}
+	list := func(flagName, envName string) []string {
+		value, _ := cmd.Flags().GetStringSlice(flagName)
+		return clicomponent.FallbackList(value, flagPassed(cmd, flagName), getenv(envName))
+	}
+	revoke := func(flagName, envName string) []string {
+		value, _ := cmd.Flags().GetStringSlice(flagName)
+		return clicomponent.UnionList(value, getenv(envName))
+	}
+	mode := str(componentTrustModeFlag, envComponentTrustMode)
 	cosignBinary, _ := cmd.Flags().GetString(componentCosignBinaryFlag)
 	provenanceIdentity, _ := cmd.Flags().GetString(componentProvenanceIdentityFlag)
 	provenanceIssuer, _ := cmd.Flags().GetString(componentProvenanceIssuerFlag)
 	provenancePredicateType, _ := cmd.Flags().GetString(componentProvenancePredicateTypeFlag)
+	if !flagPassed(cmd, componentProvenancePredicateTypeFlag) && provenanceIdentity == "" && provenanceIssuer == "" {
+		// The predicate-type flag has a non-empty default. Carrying it alone
+		// would make an unconfigured policy non-zero, and a non-zero policy
+		// re-verifies every installed component in list. A blank value is
+		// equivalent for strict mode, which defaults the predicate itself.
+		provenancePredicateType = ""
+	}
 	policy := component.Policy{
 		Mode:              mode,
-		AllowedIDs:        allowedIDs,
-		AllowedPublishers: allowedPublishers,
-		RevokedIDs:        revokedIDs,
-		RevokedPublishers: revokedPublishers,
+		AllowedIDs:        list(componentAllowIDFlag, envComponentAllowIDs),
+		AllowedPublishers: list(componentAllowPublisherFlag, envComponentAllowPublishers),
+		RevokedIDs:        revoke(componentRevokeIDFlag, envComponentRevokeIDs),
+		RevokedPublishers: revoke(componentRevokePublisherFlag, envComponentRevokePublishers),
 		Provenance: component.ProvenancePolicy{
 			CertificateIdentity: provenanceIdentity,
 			OIDCIssuer:          provenanceIssuer,
@@ -422,6 +469,12 @@ func componentPolicyFromFlags(cmd *cobra.Command) component.Policy {
 		policy.ProvenanceVerifier = component.CosignProvenanceVerifier{Command: cosignBinary}
 	}
 	return policy
+}
+
+// flagPassed reports whether the operator set the flag on the command line.
+func flagPassed(cmd *cobra.Command, name string) bool {
+	flag := cmd.Flags().Lookup(name)
+	return flag != nil && flag.Changed
 }
 
 func componentHomeFromFlags(cmd *cobra.Command) string {

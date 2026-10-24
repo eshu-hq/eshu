@@ -112,7 +112,9 @@ is not remote Docker Compose proof.
 Uninstall fails while a component has active instances.
 
 Producer-grant issuance (`grant`, `grants`, `revoke-grant`) authorizes
-first-party producers to emit core-owned fact kinds. See
+first-party producers to emit core-owned fact kinds. `inspect`, `verify`, and
+`conform` read those grants from `--component-home` when a manifest declares
+one; without a live grant they fail closed. See
 [Component Producer Grants](component-producer-grants.md).
 
 Every component subcommand accepts `--json`. JSON output uses
@@ -236,7 +238,8 @@ The stable readback states are:
 `verify`. When those flags are omitted, list reports stored lifecycle state and
 local manifest readback only. When trust or revocation flags are supplied, list
 also re-verifies installed manifests and can add `revoked`, `incompatible`, or
-`failed` states without mutating the registry.
+`failed` states without mutating the registry. A flag left off falls back to
+its `ESHU_COMPONENT_*` variable; revoke lists are unioned ([Plugin Trust Model](plugin-trust-model.md)).
 
 `component inventory` and `component diagnostics <component-id>` are API-backed
 readers. They do not inspect the caller's local component home; they read the
