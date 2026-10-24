@@ -14,7 +14,7 @@
 ## Invariants this leaf enforces
 
 - **Refuse before the claim.** Every expected refusal (validation, auth,
-  unknown instance, nothing to acknowledge, class changed) happens before
+  unknown instance, nothing to acknowledge) happens before
   `ClaimReplayIdempotency`, so the key stays unconsumed. After the claim only a
   store fault or a resolve race can fail.
 - **The ledger answers retries.** A completed key replays its stored outcome

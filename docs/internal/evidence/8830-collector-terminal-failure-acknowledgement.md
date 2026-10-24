@@ -42,12 +42,11 @@ status surface, MCP tool, metric, or audit event; it is returned only by
 `POST /api/v0/admin/collector-failures/acknowledgements/query`.
 
 Deviations from the ruling's wording, both from the repo's own rules: the route
-lives in the leaf `go/internal/query/admin/acknowledgement` (the admin tree
-forbids new route families in package `admin`; it uses the admin Store's ledger),
-and its OpenAPI fragment is its own file because `paths/status/admin.go` is at the
-500-line cap. `failure_class` is an optional request guard the ruling did not
-name; without it an operator who read class X could acknowledge a class Y that
-landed first.
+lives in the leaf `go/internal/query/admin/acknowledgement` (the admin tree forbids
+new route families in package `admin`; it uses the admin Store's ledger), and its
+OpenAPI fragment is its own file because `paths/status/admin.go` is at the 500-line
+cap. The acknowledgement names the newest unresolved failure at the time of the
+write and stores its observed raw class; there is no request-side class guard.
 
 ## Plan proof (before the code)
 

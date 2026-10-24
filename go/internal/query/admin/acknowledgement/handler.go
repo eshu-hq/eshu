@@ -113,14 +113,12 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 }
 
 // acknowledgeRequest is the operator's body: the failed target, the reason, and
-// the idempotency key. failure_class is optional: when set, the acknowledgement
-// is refused (409) if the failure on the scope has a different bounded class,
-// so an operator who read class X never acknowledges a class they have not seen.
+// the idempotency key. The acknowledgement names the newest unresolved failure
+// on the scope at the time of the write and stores its observed raw class.
 type acknowledgeRequest struct {
 	CollectorKind  string `json:"collector_kind"`
 	InstanceID     string `json:"instance_id"`
 	ScopeID        string `json:"scope_id"`
-	FailureClass   string `json:"failure_class"`
 	Reason         string `json:"reason"`
 	IdempotencyKey string `json:"idempotency_key"`
 }
@@ -129,7 +127,6 @@ func (r *acknowledgeRequest) normalize() {
 	r.CollectorKind = strings.TrimSpace(r.CollectorKind)
 	r.InstanceID = strings.TrimSpace(r.InstanceID)
 	r.ScopeID = strings.TrimSpace(r.ScopeID)
-	r.FailureClass = strings.TrimSpace(r.FailureClass)
 	r.Reason = strings.TrimSpace(r.Reason)
 	r.IdempotencyKey = strings.TrimSpace(r.IdempotencyKey)
 }
@@ -151,21 +148,22 @@ func (h *Handler) acknowledge(w http.ResponseWriter, r *http.Request) {
 	req.normalize()
 	authCtx, _ := auth.AuthContextFromContext(r.Context())
 	correlationID := audit.SafeCorrelationID(audit.CorrelationID(r))
+	scopeHash := ackScopeHash(req.CollectorKind, req.InstanceID, req.ScopeID)
 
 	if req.CollectorKind == "" || req.InstanceID == "" || req.ScopeID == "" ||
 		utf8.RuneCountInString(req.Reason) > pgstorage.MaxTerminalFailureAckReasonLength {
-		h.refuse(r.Context(), "ack_refused_invalid_request", authCtx, correlationID)
+		h.refuse(r.Context(), "ack_refused_invalid_request", authCtx, correlationID, scopeHash)
 		querycontract.WriteError(w, http.StatusBadRequest,
 			"collector_kind, instance_id, and scope_id are required, and reason is at most 512 characters")
 		return
 	}
 	if req.Reason == "" {
-		h.refuse(r.Context(), "ack_refused_missing_reason", authCtx, correlationID)
+		h.refuse(r.Context(), "ack_refused_missing_reason", authCtx, correlationID, scopeHash)
 		querycontract.WriteError(w, http.StatusBadRequest, "reason is required and must say why the failure is expected")
 		return
 	}
 	if req.IdempotencyKey == "" {
-		h.refuse(r.Context(), "ack_refused_missing_idempotency_key", authCtx, correlationID)
+		h.refuse(r.Context(), "ack_refused_missing_idempotency_key", authCtx, correlationID, scopeHash)
 		querycontract.WriteError(w, http.StatusBadRequest, "idempotency_key is required to make acknowledgement safe under retries")
 		return
 	}
@@ -173,7 +171,7 @@ func (h *Handler) acknowledge(w http.ResponseWriter, r *http.Request) {
 	// (all-scopes) principal may acknowledge, unauthenticated dev mode
 	// (auth.Mode == "") is intentionally open, and a scoped token is denied.
 	if authCtx.Mode != "" && !authCtx.AllScopes {
-		h.refuse(r.Context(), "ack_refused_unauthorized", authCtx, correlationID)
+		h.refuse(r.Context(), "ack_refused_unauthorized", authCtx, correlationID, scopeHash)
 		querycontract.WriteError(w, http.StatusForbidden, "acknowledging a collector terminal failure requires an admin (all-scopes) token")
 		return
 	}
@@ -181,16 +179,16 @@ func (h *Handler) acknowledge(w http.ResponseWriter, r *http.Request) {
 	actorClass, actorIDHash := audit.RecoveryActor(authCtx)
 	storeReq := pgstorage.TerminalFailureAckRequest{
 		CollectorKind: req.CollectorKind, InstanceID: req.InstanceID, ScopeID: req.ScopeID,
-		FailureClass: req.FailureClass, Reason: req.Reason,
+		Reason:     req.Reason,
 		ActorClass: string(actorClass), ActorIDHash: actorIDHash, CorrelationID: correlationID,
 	}
 
-	// Resolve before the claim: an unknown instance, a scope with nothing to
-	// acknowledge, or a changed class is an expected, side-effect-free refusal,
+	// Resolve before the claim: an unknown instance or a scope with nothing to
+	// acknowledge is an expected, side-effect-free refusal,
 	// and refusing it here leaves the idempotency key unconsumed. The store
 	// re-resolves authoritatively inside the acknowledgement transaction.
 	if _, err := h.Acknowledger.ResolveTarget(r.Context(), storeReq); err != nil {
-		h.answerStoreError(w, r, err, authCtx, correlationID)
+		h.answerStoreError(w, r, err, authCtx, correlationID, scopeHash)
 		return
 	}
 
@@ -204,7 +202,7 @@ func (h *Handler) acknowledge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !claim.Claimed {
-		h.respondDuplicate(w, r, req, claim, fingerprint, authCtx, correlationID)
+		h.respondDuplicate(w, r, req, claim, fingerprint, authCtx, correlationID, scopeHash)
 		return
 	}
 
@@ -216,7 +214,7 @@ func (h *Handler) acknowledge(w http.ResponseWriter, r *http.Request) {
 		// durable. The ledger row stays in_progress either way, so a retry
 		// answers 409 instead of losing the outcome. A refusal here is a race
 		// with the pre-claim resolve; the key is then consumed.
-		h.answerStoreError(w, r, err, authCtx, correlationID)
+		h.answerStoreError(w, r, err, authCtx, correlationID, scopeHash)
 		return
 	}
 
@@ -231,7 +229,7 @@ func (h *Handler) acknowledge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.count(finalizeCtx, outcomeAcknowledged)
-	h.record(finalizeCtx, governanceaudit.DecisionAllowed, "ack_recorded", authCtx, correlationID)
+	h.record(finalizeCtx, governanceaudit.DecisionAllowed, "ack_recorded", authCtx, correlationID, scopeHash)
 	h.logger().InfoContext(finalizeCtx, "collector terminal failure acknowledged",
 		slog.String("outcome", outcomeAcknowledged),
 		slog.String("collector_kind", result.CollectorKind),
@@ -252,9 +250,10 @@ func (h *Handler) respondDuplicate(
 	fingerprint string,
 	authCtx auth.AuthContext,
 	correlationID string,
+	scopeHash string,
 ) {
 	if claim.Fingerprint != "" && claim.Fingerprint != fingerprint {
-		h.refuse(r.Context(), "ack_idempotency_key_reused", authCtx, correlationID)
+		h.refuse(r.Context(), "ack_idempotency_key_reused", authCtx, correlationID, scopeHash)
 		querycontract.WriteError(w, http.StatusConflict, "idempotency_key was already used with a different collector_kind, instance_id, or scope_id")
 		return
 	}
@@ -263,7 +262,7 @@ func (h *Handler) respondDuplicate(
 		return
 	}
 	h.count(r.Context(), outcomeDuplicate)
-	h.record(r.Context(), governanceaudit.DecisionAllowed, "ack_idempotent_replay", authCtx, correlationID)
+	h.record(r.Context(), governanceaudit.DecisionAllowed, "ack_idempotent_replay", authCtx, correlationID, scopeHash)
 	body := map[string]any{"status": "duplicate", "idempotency_key": req.IdempotencyKey}
 	if stored, ok := decodeOutcome(claim.WorkItemIDs); ok {
 		body = responseBody("duplicate", req.IdempotencyKey, stored)
@@ -271,26 +270,23 @@ func (h *Handler) respondDuplicate(
 	querycontract.WriteJSON(w, http.StatusOK, body)
 }
 
-// answerStoreError maps a store error to its answer: the three refusals are
+// answerStoreError maps a store error to its answer: the two refusals are
 // client errors with their own audit reasons, and anything else is a server
 // fault with the fixed body (#7674).
-func (h *Handler) answerStoreError(w http.ResponseWriter, r *http.Request, err error, authCtx auth.AuthContext, correlationID string) {
+func (h *Handler) answerStoreError(w http.ResponseWriter, r *http.Request, err error, authCtx auth.AuthContext, correlationID, scopeHash string) {
 	switch {
 	case errors.Is(err, pgstorage.ErrTerminalFailureAckInstanceNotFound):
-		h.refuse(r.Context(), "ack_refused_instance_not_found", authCtx, correlationID)
+		h.refuse(r.Context(), "ack_refused_instance_not_found", authCtx, correlationID, scopeHash)
 		querycontract.WriteError(w, http.StatusNotFound, "collector instance is not registered or not active for that collector_kind")
 	case errors.Is(err, pgstorage.ErrTerminalFailureAckNoFailure):
-		h.refuse(r.Context(), "ack_refused_no_terminal_failure", authCtx, correlationID)
+		h.refuse(r.Context(), "ack_refused_no_terminal_failure", authCtx, correlationID, scopeHash)
 		querycontract.WriteJSON(w, http.StatusUnprocessableEntity, map[string]any{
 			"status": "refused",
 			"reason": "no unresolved terminal failure inside the window on that instance and scope",
 			"detail": "nothing was acknowledged and the idempotency key was not consumed",
 		})
-	case errors.Is(err, pgstorage.ErrTerminalFailureAckClassChanged):
-		h.refuse(r.Context(), "ack_refused_class_changed", authCtx, correlationID)
-		querycontract.WriteError(w, http.StatusConflict, "the unresolved terminal failure has a different class than failure_class; read collector readiness again")
 	default:
-		h.record(r.Context(), governanceaudit.DecisionDenied, "ack_failed", authCtx, correlationID)
+		h.record(r.Context(), governanceaudit.DecisionDenied, "ack_failed", authCtx, correlationID, scopeHash)
 		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, acknowledgeFailedMessage)
 	}
 }
@@ -364,15 +360,16 @@ func (h *Handler) count(ctx context.Context, outcome string) {
 }
 
 // refuse counts a refused request and records the denial.
-func (h *Handler) refuse(ctx context.Context, reasonCode string, authCtx auth.AuthContext, correlationID string) {
+func (h *Handler) refuse(ctx context.Context, reasonCode string, authCtx auth.AuthContext, correlationID, scopeHash string) {
 	h.count(ctx, outcomeRefused)
-	h.record(ctx, governanceaudit.DecisionDenied, reasonCode, authCtx, correlationID)
+	h.record(ctx, governanceaudit.DecisionDenied, reasonCode, authCtx, correlationID, scopeHash)
 }
 
 // record appends one governance audit event for a decision. It never blocks the
-// action and carries only the bounded reason code, the actor class, and hashes:
-// never the operator's reason, the instance, or the scope.
-func (h *Handler) record(ctx context.Context, decision governanceaudit.Decision, reasonCode string, authCtx auth.AuthContext, correlationID string) {
+// action and carries only the bounded reason code, the actor class, and hashes
+// (the actor and the acknowledged target): never the operator's reason, the
+// instance, or the scope.
+func (h *Handler) record(ctx context.Context, decision governanceaudit.Decision, reasonCode string, authCtx auth.AuthContext, correlationID, scopeHash string) {
 	if h.Audit == nil {
 		return
 	}
@@ -385,6 +382,7 @@ func (h *Handler) record(ctx context.Context, decision governanceaudit.Decision,
 		Decision:           decision,
 		ReasonCode:         reasonCode,
 		CorrelationID:      correlationID,
+		ScopeIDHash:        scopeHash,
 		PolicyRevisionHash: authCtx.PolicyRevisionHash,
 		OccurredAt:         h.now(),
 	}
@@ -399,4 +397,14 @@ func (h *Handler) record(ctx context.Context, decision governanceaudit.Decision,
 func ackFingerprint(kind, instance, scope string) string {
 	sum := sha256.Sum256([]byte("collector_failure_ack\x00" + kind + "\x00" + instance + "\x00" + scope))
 	return hex.EncodeToString(sum[:])
+}
+
+// ackScopeHash is the audit hash of an acknowledgement target (kind, instance,
+// scope), so an audit row ties to the acknowledged scope without carrying it. A
+// request with no scope has no target to hash.
+func ackScopeHash(kind, instance, scope string) string {
+	if scope == "" {
+		return ""
+	}
+	return audit.IdentityHash(kind + "\x00" + instance + "\x00" + scope)
 }

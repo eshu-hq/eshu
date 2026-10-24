@@ -80,7 +80,6 @@ func TestTerminalFailureAckStoreRefusalsLive(t *testing.T) {
 		{"scope that never failed", func(r *TerminalFailureAckRequest) { r.ScopeID = "scope-x" }, ErrTerminalFailureAckNoFailure},
 		{"scope a completed item resolved", func(r *TerminalFailureAckRequest) { r.ScopeID = "scope-r" }, ErrTerminalFailureAckNoFailure},
 		{"failure outside the window", func(r *TerminalFailureAckRequest) { r.ScopeID = "scope-aged" }, ErrTerminalFailureAckNoFailure},
-		{"class changed since read", func(r *TerminalFailureAckRequest) { r.FailureClass = "not_found" }, ErrTerminalFailureAckClassChanged},
 	}
 	for _, tc := range cases {
 		req := ackRequest("live", "scope-a")
@@ -120,7 +119,6 @@ func TestTerminalFailureAckStoreRecordsAndSuppressesLive(t *testing.T) {
 	if _, acked := split(t, f.readAll()["live"]); acked != nil {
 		t.Fatalf("before acknowledging, acknowledged row = %+v, want none", acked)
 	}
-	req.FailureClass = "auth_denied"
 	got, err := store.Acknowledge(f.ctx, req)
 	if err != nil {
 		t.Fatalf("Acknowledge() error = %v", err)

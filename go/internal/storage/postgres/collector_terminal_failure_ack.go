@@ -37,23 +37,16 @@ var (
 	// failure aged out. An acknowledgement names one existing failure; a blind
 	// pre-acknowledgement would silence a future, different one.
 	ErrTerminalFailureAckNoFailure = errors.New("no unresolved terminal failure inside the window on the instance and scope")
-	// ErrTerminalFailureAckClassChanged reports that the newest unresolved
-	// failure on the scope has a different bounded class than the one the
-	// caller named, so the operator would be acknowledging a failure they have
-	// not seen.
-	ErrTerminalFailureAckClassChanged = errors.New("the unresolved terminal failure has a different class than the one named")
 )
 
-// TerminalFailureAckRequest is one operator acknowledgement. FailureClass is
-// optional: when set it must equal the bounded class of the failure being
-// acknowledged, so a failure that changed class since the operator read it is
-// refused. ActorClass, ActorIDHash, and CorrelationID are the audit actor and
-// request, never a raw identity.
+// TerminalFailureAckRequest is one operator acknowledgement. The acknowledgement
+// names the newest unresolved failure on the scope at the time of the write and
+// stores its observed raw class. ActorClass, ActorIDHash, and CorrelationID are
+// the audit actor and request, never a raw identity.
 type TerminalFailureAckRequest struct {
 	CollectorKind string
 	InstanceID    string
 	ScopeID       string
-	FailureClass  string
 	Reason        string
 	ActorClass    string
 	ActorIDHash   string
@@ -187,7 +180,6 @@ func (r TerminalFailureAckRequest) normalized() TerminalFailureAckRequest {
 	r.CollectorKind = strings.TrimSpace(r.CollectorKind)
 	r.InstanceID = strings.TrimSpace(r.InstanceID)
 	r.ScopeID = strings.TrimSpace(r.ScopeID)
-	r.FailureClass = strings.TrimSpace(r.FailureClass)
 	r.Reason = strings.TrimSpace(r.Reason)
 	return r
 }
@@ -206,8 +198,7 @@ func (r TerminalFailureAckRequest) validate() error {
 // name, without writing. The handler calls it before it claims the idempotency
 // key, so an expected refusal leaves the key unconsumed for a corrected retry.
 // It refuses an unknown, mismatched, disabled, or deactivated instance, a scope
-// with no unresolved failure inside the instance's window, and a failure whose
-// bounded class differs from a non-empty req.FailureClass.
+// with no unresolved failure inside the instance's window.
 func (s *TerminalFailureAckStore) ResolveTarget(ctx context.Context, req TerminalFailureAckRequest) (TerminalFailureAckTarget, error) {
 	if s == nil || s.db == nil {
 		return TerminalFailureAckTarget{}, errors.New("terminal failure acknowledgement store is not configured")
@@ -309,9 +300,6 @@ func (s *TerminalFailureAckStore) resolveTarget(ctx context.Context, queryer db.
 	target.FailureAt = target.FailureAt.UTC()
 	target.FailureClass = collector.BoundedFailureClassForKind(req.CollectorKind, target.rawClass)
 	target.FailureOperation = collector.BoundedFailureOperation(operation)
-	if req.FailureClass != "" && req.FailureClass != target.FailureClass {
-		return TerminalFailureAckTarget{}, ErrTerminalFailureAckClassChanged
-	}
 	return target, nil
 }
 

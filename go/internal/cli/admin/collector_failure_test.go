@@ -27,7 +27,7 @@ func (c *scriptedAckClient) Post(path string, body, _ any) error {
 func fullAckInput() AcknowledgeCollectorFailureInput {
 	return AcknowledgeCollectorFailureInput{
 		CollectorKind: "security_alert", InstanceID: "alerts", ScopeID: "org:example",
-		FailureClass: "auth_denied", Reason: "org left the program", IdempotencyKey: "key-1",
+		Reason: "org left the program", IdempotencyKey: "key-1",
 	}
 }
 
@@ -43,22 +43,8 @@ func TestAcknowledgeCollectorFailurePostsTheFailureReasonAndKey(t *testing.T) {
 	}
 	body, ok := client.body.(map[string]any)
 	if !ok || body["collector_kind"] != "security_alert" || body["instance_id"] != "alerts" || body["scope_id"] != "org:example" ||
-		body["failure_class"] != "auth_denied" || body["reason"] != "org left the program" || body["idempotency_key"] != "key-1" {
+		body["reason"] != "org left the program" || body["idempotency_key"] != "key-1" {
 		t.Fatalf("body = %#v, want kind, instance, scope, class, reason, and key", client.body)
-	}
-}
-
-// TestAcknowledgeCollectorFailureOmitsAnUnsetClass keeps the optional guard out
-// of the body unless the operator set it.
-func TestAcknowledgeCollectorFailureOmitsAnUnsetClass(t *testing.T) {
-	client := &scriptedAckClient{}
-	in := fullAckInput()
-	in.FailureClass = " "
-	if _, err := AcknowledgeCollectorFailure(client, in); err != nil {
-		t.Fatalf("AcknowledgeCollectorFailure = %v, want nil", err)
-	}
-	if _, present := client.body.(map[string]any)["failure_class"]; present {
-		t.Fatalf("body = %#v, want no failure_class when unset", client.body)
 	}
 }
 

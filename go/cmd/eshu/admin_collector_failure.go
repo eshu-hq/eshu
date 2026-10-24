@@ -39,7 +39,6 @@ func newAdminCollectorFailureAcknowledgeCmd() *cobra.Command {
 	ackCmd.Flags().String("collector-kind", "", "Required: the collector kind of the instance")
 	ackCmd.Flags().String("instance", "", "Required: the collector instance id")
 	ackCmd.Flags().String("scope", "", "Required: the failed scope id")
-	ackCmd.Flags().String("failure-class", "", "Optional: the last_failure_class you read; refused if the failure changed class")
 	ackCmd.Flags().String("reason", "", "Required: why the failure is known and expected")
 	ackCmd.Flags().String("idempotency-key", "", "Idempotency key; one is generated and printed when empty")
 	addRemoteFlags(ackCmd)
@@ -50,7 +49,6 @@ func runAdminCollectorFailureAcknowledge(cmd *cobra.Command, args []string) erro
 	kind, _ := cmd.Flags().GetString("collector-kind")
 	instance, _ := cmd.Flags().GetString("instance")
 	scope, _ := cmd.Flags().GetString("scope")
-	failureClass, _ := cmd.Flags().GetString("failure-class")
 	reason, _ := cmd.Flags().GetString("reason")
 	key, _ := cmd.Flags().GetString("idempotency-key")
 	if key == "" {
@@ -64,7 +62,7 @@ func runAdminCollectorFailureAcknowledge(cmd *cobra.Command, args []string) erro
 	// the call fails after the acknowledgement committed.
 	fmt.Fprintf(os.Stderr, "idempotency key: %s\n", key)
 	result, err := admin.AcknowledgeCollectorFailure(apiClientFromCmd(cmd), admin.AcknowledgeCollectorFailureInput{
-		CollectorKind: kind, InstanceID: instance, ScopeID: scope, FailureClass: failureClass,
+		CollectorKind: kind, InstanceID: instance, ScopeID: scope,
 		Reason: reason, IdempotencyKey: key,
 	})
 	if err != nil {

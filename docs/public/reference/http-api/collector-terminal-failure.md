@@ -173,7 +173,7 @@ completed work item clear it.
 ```text
 POST /api/v0/admin/collector-failures/acknowledge
 {"collector_kind": "...", "instance_id": "...", "scope_id": "...",
- "reason": "...", "idempotency_key": "...", "failure_class": "auth_denied"}
+ "reason": "...", "idempotency_key": "..."}
 ```
 
 ```bash
@@ -181,10 +181,9 @@ eshu admin collector-failure acknowledge --collector-kind security_alert \
   --instance ID --scope SCOPE --reason "repository deleted upstream"
 ```
 
-`failure_class` is optional and `--failure-class` sets it. When set, the call is
-refused with `409` if the failure on the scope has another bounded class, so you
-never acknowledge a class you did not read. The CLI generates an idempotency key
-and prints it to stderr before the call when you do not pass one.
+The CLI generates an idempotency key and prints it to stderr before the call when you
+do not pass one. The acknowledgement names the newest unresolved failure of the scope
+at the time of the call and stores its observed raw class.
 
 Find the instance and kind on `GET /api/v0/status/collector-readiness` or with the
 `get_collector_readiness` MCP tool. Find the scope with
