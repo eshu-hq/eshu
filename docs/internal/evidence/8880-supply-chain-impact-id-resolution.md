@@ -190,7 +190,10 @@ Before the rollout:
    pre-#8880 `ListActiveSupplyChainImpactFacts` call holds one read-only
    repeatable-read snapshot for the whole call: 30.9 s mean, 445.5 s max in
    the issue's 24-hour sample. A pass runs those calls back to back for up
-   to 75 min. Each of the 13 builds can wait out a running call.
+   to 75 min. Each of the 13 builds can wait out a running call. To pause
+   the domain, run the reducer with an `ESHU_REDUCER_CLAIM_DOMAINS`
+   allowlist that leaves out `supply_chain_impact` (`go/cmd/reducer/README.md`),
+   and wait for the items already claimed in that domain to finish.
 
 Progress signals:
 
@@ -267,8 +270,9 @@ stream through a stub function. All fifteen pass.
 
 Each single-arm row has teeth. The table below pairs a mutation that breaks
 only that arm in the loader with the result on this matrix and on the
-pre-review nine-shape matrix (`scratchpad` driver `mut8880/f2.py`, run
-against the live disposable database):
+pre-review nine-shape matrix. Each mutation edited one arm of the catalog,
+ran `TestSupplyChainImpactActiveEvidenceMatchesRetiredStatementLive` against
+a disposable database, and was reverted before the next:
 
 | Mutated arm | Fifteen-shape matrix | Pre-review matrix |
 | --- | --- | --- |
@@ -283,7 +287,9 @@ against the live disposable database):
 | file `scope.repository_id` | FAIL (3) | PASS (gap) |
 | file payload `scope_id` | FAIL (3) | PASS (gap) |
 | scope resolution `scope_id` (the file column arm) | FAIL (3) | PASS (gap) |
-| scope resolution `payload repo_id` | FAIL (1) | PASS (gap) | `TestSupplyChainImpactFileKindGateLive` and
+| scope resolution `payload repo_id` | FAIL (1) | PASS (gap) |
+
+`TestSupplyChainImpactFileKindGateLive` and
 `TestSupplyChainImpactAdvisoryFilterPlanLive` were re-derived on the loader
 and pass.
 
