@@ -5,6 +5,7 @@ package git
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -148,6 +149,61 @@ func TestFilesystemCopyKeepsMvnDirectoryAndDiscoveryAppliesRegistryRules(t *test
 	for rel, want := range mvnFiles {
 		if got := admitted[rel]; got != want {
 			t.Errorf("%s: admitted from the managed copy = %t, want %t", rel, got, want)
+		}
+	}
+}
+
+// TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories pins a
+// known mode-parity difference (#8814). Clone mode admits an admitted dotfile
+// at any depth because the registry matches by basename. The managed-workspace
+// copy keeps one only when every directory above it is a non-hidden directory
+// or an allowlisted one (.github/workflows, .mvn): it prunes any other
+// dot-directory whole with filepath.SkipDir, so tools/.config/.eslintrc never
+// reaches discovery in filesystem mode. The pruning of unknown dot-directories
+// is intentional and long-standing; if it changes, update this test and the
+// wording in the copy allowlist comment, git/AGENTS.md, the changelog and
+// docs/public/languages/admitted-files.md.
+func TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+	kept := []string{".eslintrc", filepath.Join("web", ".eslintrc"), filepath.Join("a", "b", ".eslintrc")}
+	pruned := []string{
+		filepath.Join("tools", ".config", ".eslintrc"),
+		filepath.Join(".config", ".eslintrc"),
+		filepath.Join("web", ".cache", "x", ".editorconfig"),
+	}
+	for _, rel := range append(append([]string{}, kept...), pruned...) {
+		writeSelectionTestFile(t, filepath.Join(sourceRepo, rel), "x = 1\n")
+	}
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			Component:      "collector-git",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+	}
+	if _, err := selector.SelectRepositories(context.Background()); err != nil {
+		t.Fatalf("SelectRepositories() error = %v, want nil", err)
+	}
+
+	copied := filepath.Join(reposDir, "eshu-hq", "service-a")
+	for _, rel := range kept {
+		if _, err := os.Stat(filepath.Join(copied, rel)); err != nil {
+			t.Errorf("managed copy missing %q under non-hidden directories: %v", rel, err)
+		}
+	}
+	for _, rel := range pruned {
+		if _, err := os.Stat(filepath.Join(copied, rel)); err == nil {
+			t.Errorf("managed copy kept %q under an unknown dot-directory; update the documented parity difference", rel)
 		}
 	}
 }

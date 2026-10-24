@@ -43,8 +43,12 @@ func cleanManagedWorkspace(reposDir string) error {
 // pruned as dotfiles. Unlike .github/workflows (a directory prefix), these are
 // individual hidden config FILES that can live at the repo root or, for GitLab
 // CI, in a subdirectory referenced via include:. They are matched by basename so
-// the copy preserves them wherever they appear in the tree. Keys are lower
-// case; the lookup lowercases the entry name.
+// the copy preserves them wherever they appear under non-hidden directories. A
+// name under any other dot-directory, such as tools/.config/.eslintrc, is not
+// copied: the walk prunes an unknown dot-directory whole, so clone mode admits
+// it and filesystem mode does not
+// (TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories). Keys
+// are lower case; the lookup lowercases the entry name.
 //
 // The tool configuration names (#8814) are the dot-prefixed names the parser
 // registry admits as plain text. .gitignore is deliberately absent: the copy
@@ -71,7 +75,9 @@ var preservedHiddenFilesystemFileNames = map[string]struct{}{
 // parser registry that decides what discovery admits, so .EditorConfig and
 // .MVN reach discovery in filesystem mode exactly as they do in clone mode.
 // The .mvn directory is kept whole: discovery then applies the registry rules
-// to what is inside it, as it does in clone mode.
+// to what is inside it, as it does in clone mode. The walk calls this only for
+// entries whose parent directories were kept, so none of this reaches inside
+// an unknown dot-directory.
 // TestPreserveFilesystemHiddenPathCoversRegistryDotfiles fails when a
 // dot-prefixed registry exact name is missing from the allowlist above.
 func preserveFilesystemHiddenPath(rel string) bool {
