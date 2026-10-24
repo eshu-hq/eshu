@@ -4,12 +4,17 @@
 package declaration
 
 import (
+	"flag"
 	"fmt"
 	"math/rand"
-	"os"
 	"strconv"
 	"testing"
 )
+
+// oracleCases sets how many generated pin files TestEmitMatchesTheValueOracle
+// checks. Raise it for a deeper run:
+// go test -run TestEmitMatchesTheValueOracle -oracle-cases 200000
+var oracleCases = flag.Int("oracle-cases", 4000, "generated pin files checked by TestEmitMatchesTheValueOracle")
 
 // oracleFact is what the generator expects one emitted fact to be. The
 // generator builds each line from atoms it chose, so it knows the answer
@@ -202,17 +207,13 @@ func (g oracleGen) oracleCase() (string, string, []oracleFact) {
 
 // TestEmitMatchesTheValueOracle drives Emit over generated pin files and
 // compares every fact with the generator's model. The seed is fixed so a
-// failure reproduces; ESHU_RUNTIME_DECLARATION_ORACLE_CASES raises the count.
+// failure reproduces; -oracle-cases raises the count.
 func TestEmitMatchesTheValueOracle(t *testing.T) {
 	t.Parallel()
 
-	cases := 4000
-	if raw := os.Getenv("ESHU_RUNTIME_DECLARATION_ORACLE_CASES"); raw != "" {
-		n, err := strconv.Atoi(raw)
-		if err != nil || n <= 0 {
-			t.Fatalf("ESHU_RUNTIME_DECLARATION_ORACLE_CASES = %q, want a positive integer", raw)
-		}
-		cases = n
+	cases := *oracleCases
+	if cases <= 0 {
+		t.Fatalf("-oracle-cases = %d, want a positive count", cases)
 	}
 	g := oracleGen{r: rand.New(rand.NewSource(8969))}
 	violations := 0
