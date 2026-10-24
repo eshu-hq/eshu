@@ -2,6 +2,8 @@ version: 1
 language_features:
   - language: argocd
     docs_claim: docs/public/languages/argocd.md
+    ecosystem: none
+    ecosystem_reason: "Argo CD manifests are Kubernetes YAML with no package manager or version-pin file."
     parser_backing: structured-parser-backed-exception
     no_provider_required: true
     supported_features: [argocd-applications-application, application-source-repo-url, application-source-path, application-multi-source-repos-paths, destination-namespace, destination-server, argocd-applicationsets-applicationset, applicationset-generator-source-repos-paths, applicationset-generator-template-source-split, sync-policy, argocd-entity-context-summary, argocd-query-fallback-relationships, argocd-trace-deployment-chain]
@@ -13,6 +15,8 @@ language_features:
     read_surfaces: [entity_context, trace_deployment_chain]
   - language: atlantis
     docs_claim: docs/public/languages/atlantis.md
+    ecosystem: none
+    ecosystem_reason: "atlantis.yaml is a workflow config, not a package ecosystem."
     parser_backing: structured-parser-backed-exception
     no_provider_required: true
     supported_features: [atlantis-projects, atlantis-project-dir, atlantis-project-workspace, atlantis-terraform-version, atlantis-autoplan, atlantis-apply-requirements, atlantis-depends-on, atlantis-workflow, atlantis-repo-locks, atlantis-workflows, atlantis-uses-workflow-edge, atlantis-manages-edge, atlantis-depends-on-edge]
@@ -24,6 +28,8 @@ language_features:
     read_surfaces: [entity_context, list_relationship_edges]
   - language: c
     docs_claim: docs/public/languages/c.md
+    ecosystem: none
+    ecosystem_reason: "C has no single package manager or manifest convention."
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [functions, pointer-returning-functions, structs, unions, enums, typedefs, includes, function-calls, dead-code-roots, variables-initialized-declarations, macros-define]
@@ -36,6 +42,8 @@ language_features:
     tracking_issues: [4038, 4116]
   - language: cloudformation
     docs_claim: docs/public/languages/cloudformation.md
+    ecosystem: none
+    ecosystem_reason: "CloudFormation templates have no package manifest or version-pin file."
     parser_backing: structured-parser-backed-exception
     no_provider_required: true
     supported_features: [resources, parameters, outputs, dependson, conditions, condition-definitions, export-names, cross-stack-imports-exports, allowedvalues, json-templates, nested-stack-template-url]
@@ -48,6 +56,8 @@ language_features:
     tracking_issues: [4048]
   - language: cpp
     docs_claim: docs/public/languages/cpp.md
+    ecosystem: none
+    ecosystem_reason: "C++ has no single package manager or manifest convention."
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [functions, classes, structs, enums, unions, includes, function-calls, method-calls, variables-initialized, field-declarations, macros-define, lambda-assignments, cpp-literal-http-framework-route-truth]
@@ -60,6 +70,8 @@ language_features:
     tracking_issues: [4038, 4116]
   - language: crossplane
     docs_claim: docs/public/languages/crossplane.md
+    ecosystem: none
+    ecosystem_reason: "Crossplane resources are Kubernetes YAML with no package manifest or version-pin file."
     parser_backing: structured-parser-backed-exception
     no_provider_required: true
     supported_features: [composite-resource-definitions-xrds, xrd-group-kind-version, compositions, composition-composite-type-ref, composition-resources-list, claims, claim-api-version]
@@ -71,6 +83,9 @@ language_features:
     read_surfaces: [content_relationships]
   - language: csharp
     docs_claim: docs/public/languages/csharp.md
+    ecosystem: nuget
+    manifest_files: [Example.csproj, Directory.Packages.props, packages.lock.json]
+    pin_files: [global.json]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [methods, constructors, local-functions, classes, interfaces, structs, records, enums, properties, using-directives, method-invocations, object-creation, inheritance-base-list, aspnet-attribute-route-truth, aspnet-minimal-api-route-truth]
@@ -83,6 +98,9 @@ language_features:
     tracking_issues: [4038, 4115]
   - language: dart
     docs_claim: docs/public/languages/dart.md
+    ecosystem: pub
+    manifest_files: [pubspec.yaml, pubspec.lock]
+    pin_files: []
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [functions, constructors, classes, mixins, extensions, enums, library-imports, library-exports, function-calls, local-variable-declarations, top-level-variable-declarations]
@@ -94,6 +112,9 @@ language_features:
     read_surfaces: [execute_language_query]
   - language: elixir
     docs_claim: docs/public/languages/elixir.md
+    ecosystem: hex
+    manifest_files: [mix.exs, mix.lock]
+    pin_files: [.tool-versions]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [functions-def-defp, macros-defmacro-defmacrop, guards-defguard-defguardp, delegated-functions-defdelegate, modules-defmodule, protocols-defprotocol, protocol-implementations-defimpl, use-import-alias-require, dot-notation-calls, simple-function-calls, module-attributes-attr]
@@ -105,6 +126,8 @@ language_features:
     read_surfaces: [execute_language_query]
   - language: flux
     docs_claim: docs/public/languages/flux.md
+    ecosystem: none
+    ecosystem_reason: "Flux resources are Kubernetes YAML with no package manifest or version-pin file."
     parser_backing: structured-parser-backed-exception
     no_provider_required: true
     supported_features: [flux-kustomizations, flux-kustomization-source-ref, flux-kustomization-source-path, flux-kustomization-target-namespace, flux-git-repositories, flux-git-repository-url, flux-git-repository-ref, flux-oci-repositories, flux-oci-repository-url, flux-oci-repository-ref, flux-buckets, flux-bucket-coordinates, flux-generate-name, flux-reconciles-from-edge, flux-helm-releases, flux-helm-release-chart, flux-helm-release-source-ref, flux-helm-release-chart-ref, flux-helm-repositories, flux-helm-repository-url, flux-helm-repository-type, flux-helmrelease-reconciles-from-edge, flux-git-repository-cross-repo-deploys-from]
@@ -117,6 +140,8 @@ language_features:
     tracking_issues: [5360, 5483]
   - language: gitlab-ci
     docs_claim: docs/public/languages/gitlab-ci.md
+    ecosystem: none
+    ecosystem_reason: ".gitlab-ci.yml is a pipeline config, not a package ecosystem."
     parser_backing: structured-parser-backed-exception
     no_provider_required: true
     supported_features: [gitlab-pipeline, gitlab-stages, gitlab-variables, gitlab-jobs, gitlab-job-attrs, gitlab-job-script, gitlab-job-needs, gitlab-defines-job-edge, gitlab-needs-edge]
@@ -128,6 +153,9 @@ language_features:
     read_surfaces: [entity_context]
   - language: go
     docs_claim: docs/public/languages/go.md
+    ecosystem: go-modules
+    manifest_files: [go.mod, go.sum, go.work]
+    pin_files: [.go-version, .tool-versions]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [functions, structs, interfaces, imports, function-calls, variables, methods-receivers, generics, embedded-sql-queries, net-http-route-truth, third-party-router-route-truth]
@@ -140,6 +168,9 @@ language_features:
     tracking_issues: [4041]
   - language: groovy
     docs_claim: docs/public/languages/groovy.md
+    ecosystem: gradle
+    manifest_files: [build.gradle]
+    pin_files: [.sdkmanrc]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [jenkins-shared-libraries, jenkins-pipeline-calls, jenkins-entry-points, jenkins-deploy-hints, jenkins-shell-commands, jenkins-ansible-hints]
@@ -151,6 +182,8 @@ language_features:
     read_surfaces: [content_relationships]
   - language: haskell
     docs_claim: docs/public/languages/haskell.md
+    ecosystem: none
+    ecosystem_reason: "Haskell package manifests (cabal, stack) are not claimed as admitted files yet."
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [function-declarations, initializer-declarations, type-classes, data-types-struct-like, enumerations, protocols-typeclasses, import-declarations, function-call-expressions, property-binding-declarations, declaration-spans]
@@ -162,6 +195,9 @@ language_features:
     read_surfaces: [execute_language_query]
   - language: helm
     docs_claim: docs/public/languages/helm.md
+    ecosystem: helm-charts
+    manifest_files: [Chart.yaml]
+    pin_files: []
     parser_backing: structured-parser-backed-exception
     no_provider_required: true
     supported_features: [helm-charts-chart-yaml, chart-name-version-app-version, chart-dependencies, values-files-values-yaml, values-top-level-keys]
@@ -173,6 +209,9 @@ language_features:
     read_surfaces: [content_relationships]
   - language: java
     docs_claim: docs/public/languages/java.md
+    ecosystem: maven-gradle
+    manifest_files: [pom.xml, build.gradle, build.gradle.kts, libs.versions.toml, gradle-wrapper.properties]
+    pin_files: [.java-version, .sdkmanrc]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [source-entities, call-metadata, annotation-metadata, dead-code-roots, spring-mvc-route-truth, jax-rs-route-truth, micronaut-route-truth]
@@ -185,6 +224,9 @@ language_features:
     tracking_issues: [4040, 4097]
   - language: javascript
     docs_claim: docs/public/languages/javascript.md
+    ecosystem: npm
+    manifest_files: [package.json, package-lock.json, yarn.lock, pnpm-lock.yaml]
+    pin_files: [.nvmrc, .node-version]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [source-entities, framework-package-roots, graph-backed-queries, semantic-metadata, express-hapi-route-truth, nextjs-route-handler-truth, koa-fastify-nestjs-route-truth]
@@ -197,6 +239,8 @@ language_features:
     tracking_issues: [4039, 4094, 4095, 7601, 8280]
   - language: json
     docs_claim: docs/public/languages/json.md
+    ecosystem: none
+    ecosystem_reason: "JSON is a data format, not a language with a package ecosystem."
     parser_backing: content-metadata-exception
     no_provider_required: true
     supported_features: [package-json-dependencies, package-json-scripts, composer-json-dependencies, tsconfig-targeted-metadata, cloudformation-json-delegation, dbt-manifest-lineage]
@@ -208,6 +252,9 @@ language_features:
     read_surfaces: [execute_language_query, content_relationships]
   - language: kotlin
     docs_claim: docs/public/languages/kotlin.md
+    ecosystem: maven-gradle
+    manifest_files: [build.gradle.kts, pom.xml]
+    pin_files: [.java-version, .sdkmanrc]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [core-declarations, declaration-spans, extension-receiver-tracking, suspend-function-semantics, receiver-inference, smart-casts-and-safe-calls, scope-function-preservation, delegated-lazy-properties, same-file-function-return-aliasing, cross-file-function-return-chaining, constructor-root-receiver-chains, class-context-on-functions, secondary-constructors, dead-code-derived-roots, spring-mvc-route-truth, jax-rs-route-truth, micronaut-route-truth, ktor-literal-handler-route-truth]
@@ -220,6 +267,8 @@ language_features:
     tracking_issues: [4040, 4097]
   - language: kubernetes
     docs_claim: docs/public/languages/kubernetes.md
+    ecosystem: none
+    ecosystem_reason: "Kubernetes manifests have no package manifest or version-pin file."
     parser_backing: structured-parser-backed-exception
     no_provider_required: true
     supported_features: [kubernetes-resources-any-apiversion-kind, api-version, kind, name-metadata-name, namespace-metadata-namespace, labels, qualified-name, service-selects-deployment, multi-document-yaml-support]
@@ -231,6 +280,8 @@ language_features:
     read_surfaces: [content_relationships, trace_deployment_chain]
   - language: kustomize
     docs_claim: docs/public/languages/kustomize.md
+    ecosystem: none
+    ecosystem_reason: "kustomization.yaml composes manifests and is not a package manifest."
     parser_backing: structured-parser-backed-exception
     no_provider_required: true
     supported_features: [kustomization-overlays-kustomization-yaml, namespace, resources-list, patches-list, patch-targets, patch-link-heuristic, base-references, typed-deploy-source-refs, typed-deploy-source-query-fallback]
@@ -242,6 +293,8 @@ language_features:
     read_surfaces: [content_relationships]
   - language: perl
     docs_claim: docs/public/languages/perl.md
+    ecosystem: none
+    ecosystem_reason: "Perl dependency manifests (cpanfile) are not claimed as admitted files yet."
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [source-entities, graph-surface, perl-literal-mojolicious-dancer-route-truth]
@@ -254,6 +307,9 @@ language_features:
     tracking_issues: [4038, 4116]
   - language: php
     docs_claim: docs/public/languages/php.md
+    ecosystem: composer
+    manifest_files: [composer.json, composer.lock]
+    pin_files: []
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [core-declarations, declaration-spans, trait-adaptation-aliases, static-receiver-families, typed-property-and-alias-receivers, function-return-receiver-chains, method-return-receiver-chains, cross-file-object-call-families, nullsafe-and-anonymous-class-receivers, symfony-attribute-route-truth, slim-web-route-detection, laravel-route-facade-truth]
@@ -266,6 +322,9 @@ language_features:
     tracking_issues: [4038, 4162, 7601, 8280]
   - language: python
     docs_claim: docs/public/languages/python.md
+    ecosystem: pypi
+    manifest_files: [pyproject.toml, requirements.txt, Pipfile, Pipfile.lock, poetry.lock, uv.lock]
+    pin_files: [.python-version]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [source-entities, semantic-metadata, relationships, fastapi-flask-route-roots, django-drf-routes, aiohttp-tornado-routes]
@@ -278,6 +337,9 @@ language_features:
     tracking_issues: [4042, 4092, 4093]
   - language: ruby
     docs_claim: docs/public/languages/ruby.md
+    ecosystem: rubygems
+    manifest_files: [Gemfile, Gemfile.lock]
+    pin_files: [.ruby-version]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [methods-def, classes, modules, require-load-imports, method-calls, instance-variable-assignments, local-variable-assignments, module-inclusions-include-extend, parent-context-class-module, rails-sinatra-literal-route-truth]
@@ -290,6 +352,9 @@ language_features:
     tracking_issues: [4038, 4161]
   - language: rust
     docs_claim: docs/public/languages/rust.md
+    ecosystem: cargo
+    manifest_files: [Cargo.toml, Cargo.lock]
+    pin_files: [rust-toolchain.toml, rust-toolchain]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [source-entities, impl-blocks, query-metadata, cargo-roots, axum-actix-rocket-route-truth]
@@ -302,6 +367,9 @@ language_features:
     tracking_issues: [4038, 4163]
   - language: scala
     docs_claim: docs/public/languages/scala.md
+    ecosystem: sbt-maven
+    manifest_files: [build.sbt, pom.xml]
+    pin_files: [.sdkmanrc, .java-version]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [functions-def, classes, objects-object, traits, imports, function-calls, generic-function-calls, val-definitions, var-definitions, parent-context-class-context, dead-code-roots, play-http4s-literal-route-truth]
@@ -314,6 +382,8 @@ language_features:
     tracking_issues: [4038, 4164]
   - language: sql
     docs_claim: docs/public/languages/sql.md
+    ecosystem: none
+    ecosystem_reason: "SQL has no package manager or version-pin convention."
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [schema-objects, relationships, routine-metadata, dbt-lineage, query-fallback]
@@ -325,6 +395,9 @@ language_features:
     read_surfaces: [execute_language_query, entity_context]
   - language: swift
     docs_claim: docs/public/languages/swift.md
+    ecosystem: swiftpm
+    manifest_files: [Package.swift, Package.resolved]
+    pin_files: [.swift-version]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [functions, initializers-init, classes, structs, enums, protocols, actors, imports, function-calls, property-declarations, declaration-spans, vapor-literal-route-entries]
@@ -337,6 +410,9 @@ language_features:
     tracking_issues: [4038, 4165]
   - language: terraform
     docs_claim: docs/public/languages/terraform.md
+    ecosystem: terraform-registry
+    manifest_files: [versions.tf, .terraform.lock.hcl]
+    pin_files: [.terraform-version]
     parser_backing: official-format-ast-exception
     no_provider_required: true
     supported_features: [resource-blocks, variable-blocks, output-blocks, module-blocks, data-source-blocks, terraform-block-metadata, provider-blocks, locals-blocks]
@@ -349,6 +425,9 @@ language_features:
     tracking_issues: [4048]
   - language: terragrunt
     docs_claim: docs/public/languages/terragrunt.md
+    ecosystem: terraform-registry
+    manifest_files: [terragrunt.hcl, .terraform.lock.hcl]
+    pin_files: [.terraform-version]
     parser_backing: official-format-ast-exception
     no_provider_required: true
     supported_features: [terragrunt-config-blocks-include-locals-inputs, include-block-labels, dependency-blocks, locals-block, inputs-block, source-attribute-in-terraform-block]
@@ -361,6 +440,9 @@ language_features:
     tracking_issues: [4048]
   - language: typescript
     docs_claim: docs/public/languages/typescript.md
+    ecosystem: npm
+    manifest_files: [package.json, package-lock.json, tsconfig.json]
+    pin_files: [.nvmrc, .node-version]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [source-entities, type-metadata, javascript-family-roots, query-surfacing, express-hapi-route-truth, nextjs-route-handler-truth, koa-fastify-nestjs-route-truth]
@@ -373,6 +455,9 @@ language_features:
     tracking_issues: [4039, 4094, 4095, 7601, 8280]
   - language: typescriptjsx
     docs_claim: docs/public/languages/typescriptjsx.md
+    ecosystem: npm
+    manifest_files: [package.json, package-lock.json]
+    pin_files: [.nvmrc, .node-version]
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [source-entities, react-evidence, graph-backed-query, compatibility]

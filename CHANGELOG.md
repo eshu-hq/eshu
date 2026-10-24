@@ -9,6 +9,16 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Gate: supported languages declare manifest and pin files
+
+- **Ledger-driven manifest and pin gate**
+  ([#8825](https://github.com/eshu-hq/eshu/issues/8825)). Each row in
+  `specs/language-feature-parity-ledger.v1.yaml` now declares `ecosystem`
+  (`none` plus a reason when the language has no package ecosystem),
+  `manifest_files`, and `pin_files`. A test in `go/internal/parser` fails when
+  the registry does not admit a listed manifest at L2 or pin file at L1. Six
+  names the registry lacks today are allow-listed with an issue each.
+
 ### Service story defaults to a bounded handles view over MCP
 
 - **`get_service_story` defaults to a bounded `handles` view**

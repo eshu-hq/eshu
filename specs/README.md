@@ -18,7 +18,11 @@ documentation.
 - `language-feature-parity-ledger.v1.yaml` maps public language/config parser
   feature claims to implementation files, test files, docs, parser-backing
   class, deterministic no-provider posture, read surfaces, and gap-tracking
-  issues. It is enforced by `scripts/verify-parser-relationship-kit.sh`.
+  issues. Each row also declares `ecosystem` (a package ecosystem, or `none`
+  with `ecosystem_reason`), `manifest_files`, and `pin_files`. It is enforced by
+  `scripts/verify-parser-relationship-kit.sh`; the manifest and pin files are
+  checked against the parser registry by `TestEcosystemManifestAndPinGate*` in
+  `go/internal/parser`.
 - `fact-kind-registry.v1.yaml` maps every first-party fact kind to its schema
   version, lifecycle owner, reducer domain, projection hook, admission hook,
   read surface, truth profile, and no-provider posture. It is generated from
