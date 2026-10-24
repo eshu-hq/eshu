@@ -124,9 +124,10 @@ rates below, measured on 2,000,000 uniform draws per cell with one seed:
 | hex | 2.4e-2 | 3.6e-3 | 5.7e-4 | 0 | 0 | 0 |
 | base36 (lower case and digits) | 7.4e-2 | 2.0e-2 | 5.5e-3 | 0 | 0 | 0 |
 
-Hex and base36 tokens pass up to 16 bytes and fail from 17 bytes on, because a
-letter-and-digit mix of 8 bytes or more is rejected and shorter pieces are rare
-at that length. The documented vendors above put the credential in
+Hex and base36 tokens pass up to 16 bytes and fail from 17 bytes on, because they
+have no separator, so the token is one word, and a word over 16 bytes
+(`maxSlotWordBytes`) is rejected. Up to 16 bytes it passes only when it is all
+letters or all digits. The documented vendors above put the credential in
 `_authToken` or `_auth`, not in the path. A host the table does not know loses its
 path, so a private registry on a custom layout reports the host only. Userinfo
 and query, the positions npm documents for credentials, are always removed.
