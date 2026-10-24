@@ -107,6 +107,14 @@ authenticates_vault_role_edge_operation_match="MERGE (s)-[rel:SECRETS_IAM_AUTHEN
 # the static token into the template (no %s), so the anchor carries the
 # literal. None of the port-suffix labels appears in code.
 uses_vault_policy_edge_operation_match="MERGE (v)-[rel:SECRETS_IAM_USES_VAULT_POLICY]->(p)"
+# The SECRETS_IAM_GRANTS_SECRET_READ MERGE anchor
+# cell_failgraphwrite_grants_secret_read and cell_kill_grants_secret_read
+# (#6228 remainder + #8539 seam) target -- both cells match on this same
+# substring, the once-fault failing it and the hold engaging on it:
+# go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go:119 bakes
+# the static token into the template (no %s), so the anchor carries the
+# literal. None of the port-suffix labels appears in code.
+grants_secret_read_edge_operation_match="MERGE (p)-[rel:SECRETS_IAM_GRANTS_SECRET_READ]->(s)"
 # The BUILT_FROM MERGE anchor cell_failgraphwrite_built_from (#6228 slice C
 # live leaf) targets: go/internal/storage/cypher/edge/writer/provenance.go:172
 # emits MERGE (img)-[rel:BUILT_FROM { with the scope_id/evidence_source

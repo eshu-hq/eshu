@@ -191,21 +191,24 @@ than there are entries here.
 82. baseline-publishes (#6228 publishes live leaf) -- family-scoped fault-free baseline; eighteenth direct-materialization family in this gate.
 83. kill-worker-after-claim-publishes (#6228 publishes live leaf) -- lease reclaim proof.
 84. fail-graph-write-once-then-succeed-publishes (#6228 publishes live leaf) -- PUBLISHES retry proof.
-85. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
-86. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
-87. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
-88. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
-89. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
-90. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
-91. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
-92. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
-93. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
-94. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
+85. baseline-grants-secret-read (#6228 remainder + #8539 seam) -- family-scoped fault-free baseline; nineteenth direct-materialization family in this gate. No handler-stage kill cell: the shared secrets_iam_graph_projection handler wait is owned first-landed by authenticates_vault_role (entry 53, arbiter verdict Option B on #6228); per-statement kill/reclaim for grants_secret_read is claimed by entry 86 through the hold seam (statement_hold, wait_stage=statement), not by a borrowed handler wait.
+86. kill-statement-hold-grants-secret-read (#8539 seam) -- per-statement hold kill/reclaim proof: the hold decorator parks the worker inside the family's own GRANTS_SECRET_READ MERGE (post-retract, post-prior-edge-write), the cell rendezvouses on the claimed work item plus the hold marker, kill -9 lands while held, the replacement reducer restarts unfaulted, and the full three-edge set converges with zero dead letters against the entry 85 baseline digest.
+87. fail-graph-write-once-then-succeed-grants-secret-read (#6228 remainder) -- SECRETS_IAM_GRANTS_SECRET_READ retry proof.
+88. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
+89. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
+90. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
+91. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
+92. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
+93. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
+94. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
+95. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
+96. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
+97. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
    handles_route/runs_in/invokes_cloud_action; no kill-worker cell (ifa_fault_injection_symbol_runtime_cells.sh's header explains why).
-95. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
-96. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
-97. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
+98. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
+99. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
+100. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
 
-98. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
-99. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
-100. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.
+101. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
+102. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
+103. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.

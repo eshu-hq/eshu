@@ -52,8 +52,8 @@ code.
 
 - Execute Gradle, evaluate Groovy or Kotlin, or call out to the Gradle
   daemon.
-- Run source-set, plugin, or version-catalog resolution. Version catalogs
-  (`libs.versions.toml`) require a separate parser entry.
+- Run source-set or plugin resolution, or resolve `libs.*` catalog aliases.
+  Catalog files are parsed by `go/internal/parser/gradle/catalog`.
 - Read sibling modules, `settings.gradle`, or `settings.gradle.kts`. Each
   build script is parsed in isolation.
 - Invent coordinates for `project(":x")`, `files(...)`, `fileTree(...)`, or

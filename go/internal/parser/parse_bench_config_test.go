@@ -43,10 +43,12 @@ var configBenchCases = []configBenchCase{
 	{language: "jenkinsfile", parserKey: "__jenkinsfile__", fileName: "Jenkinsfile", build: buildJenkinsfile},
 	{language: "gomod", parserKey: "gomod", fileName: "go.mod", build: buildGoMod},
 	{language: "gradle", parserKey: "gradle", fileName: "build.gradle", build: buildGradle},
+	{language: "gradle_catalog", parserKey: "gradle", fileName: "libs.versions.toml", build: buildGradleCatalog},
 	{language: "hcl", parserKey: "hcl", fileName: "main.tf", build: buildHCL},
 	{language: "json", parserKey: "json", fileName: "config.json", build: buildJSON},
 	{language: "maven", parserKey: "maven", fileName: "pom.xml", build: buildMavenPOM},
 	{language: "node_lockfile", parserKey: "node_lockfile", fileName: "yarn.lock", build: buildYarnLock},
+	{language: "npmrc", parserKey: "npmrc", fileName: ".npmrc", build: buildNpmrc},
 	{language: "nuget_project", parserKey: "nuget_project", fileName: "project.csproj", build: buildCsproj},
 	{language: "nuget_directory_packages_props", parserKey: "nuget_project", fileName: "Directory.Packages.props", build: buildDirectoryPackagesProps},
 	{language: "nuget_directory_build_props", parserKey: "nuget_project", fileName: "Directory.Build.props", build: buildDirectoryBuildProps},
@@ -175,6 +177,27 @@ func buildGradle(minLOC int) []byte {
 		i++
 	}
 	b.WriteString("}\n")
+	return b.Bytes()
+}
+
+// buildGradleCatalog returns a libs.versions.toml of >= minLOC lines. The three
+// tables stay under the catalog's per-table cap so the benchmark measures the
+// normal path, not the row-cap path.
+func buildGradleCatalog(minLOC int) []byte {
+	var b bytes.Buffer
+	perTable := minLOC/3 + 1
+	b.WriteString("[versions]\n")
+	for i := 0; i < perTable; i++ {
+		fmt.Fprintf(&b, "v%04d = \"1.%d.0\"\n", i, i%10)
+	}
+	b.WriteString("[libraries]\n")
+	for i := 0; i < perTable; i++ {
+		fmt.Fprintf(&b, "lib%04d = { module = \"com.example.group%04d:artifact-%04d\", version.ref = \"v%04d\" }\n", i, i, i, i)
+	}
+	b.WriteString("[plugins]\n")
+	for i := 0; i < perTable; i++ {
+		fmt.Fprintf(&b, "plug%04d = { id = \"com.example.plugin%04d\", version = \"2.%d.0\" }\n", i, i, i%10)
+	}
 	return b.Bytes()
 }
 

@@ -419,6 +419,8 @@ func (e *Engine) parseDefinition(
 		return javaparser.ParseMetadata(resolvedPath, isDependency)
 	case "kotlin":
 		return e.parseKotlin(repoRoot, resolvedPath, isDependency, options)
+	case "npmrc":
+		return parseNpmrc(resolvedPath, isDependency, options)
 	case "nuget_project":
 		return parseNuGetProject(resolvedPath, isDependency, options)
 	case "perl":

@@ -132,7 +132,8 @@ The managed-workspace copy prunes dot-prefixed entries unless
 `preserveFilesystemHiddenPath` (`selection_copy_workspace.go`) allows them. When
 the parser registry admits a new dot-prefixed name (#8814, and the #8809
 version pins), add its basename there, or filesystem mode never sees it. Never
-add a credential-bearing dotfile (`.env`, `.npmrc`, `.pypirc`, `.netrc`), and
+add a credential-bearing dotfile (`.env`, `.pypirc`, `.netrc`) unless a record admits
+it under a content-store policy (`.npmrc` is the one exception, #8978), and
 keep `.gitignore` out: the copy applies the source ignore rules itself, and
 copying the file would make discovery filter a second time. Names match case-insensitively, like the
 registry, and are kept under non-hidden or allowlisted directories (`.github`,

@@ -1,0 +1,59 @@
+{
+  "_comment": "Parity census fixture for #8854 (extraction PREP, in-tree side). The single dual-provider ci_cd_run instance below is the configuration the in-tree command path must accept; expected records the census the #4047 cutover gate must reproduce exactly: provider scope IDs, the nine emitted ci.* kinds at schema 1.0.0, and the git-collector-owned kind this producer must never emit. Credential values live only in the test's token map, never in this file.",
+  "instances": [
+    {
+      "instance_id": "cicd-run-primary",
+      "collector_kind": "ci_cd_run",
+      "mode": "continuous",
+      "enabled": true,
+      "claims_enabled": true,
+      "configuration": {
+        "targets": [
+          {
+            "provider": "github_actions",
+            "scope_id": "ci-cd:github-actions:example-org/example-repo",
+            "repository": "example-org/example-repo",
+            "token_env": "GITHUB_TOKEN",
+            "allowed_repositories": ["example-org/example-repo"],
+            "api_base_url": "https://api.github.com",
+            "max_runs": 1,
+            "max_jobs": 25,
+            "max_artifacts": 25
+          },
+          {
+            "provider": "gitlab_ci",
+            "scope_id": "gitlab-ci://gitlab.com/eshu-hq/demo",
+            "repository": "eshu-hq/demo",
+            "token_env": "GITLAB_TOKEN",
+            "allowed_repositories": ["eshu-hq/demo"],
+            "max_runs": 1,
+            "max_jobs": 25
+          }
+        ]
+      }
+    }
+  ],
+  "expected": {
+    "collector_kind": "ci_cd_run",
+    "claim_id_prefix": "ci-cd-run-claim-",
+    "github_scopes": ["ci-cd:github-actions:example-org/example-repo"],
+    "gitlab_scopes": ["gitlab-ci://gitlab.com/eshu-hq/demo"],
+    "emitted_kinds": [
+      "ci.pipeline_definition",
+      "ci.run",
+      "ci.job",
+      "ci.step",
+      "ci.artifact",
+      "ci.trigger_edge",
+      "ci.environment_observation",
+      "ci.deployment_event",
+      "ci.warning"
+    ],
+    "excluded_kinds": ["ci.workflow_image_evidence"],
+    "schema_version": "1.0.0"
+  },
+  "tokens": {
+    "GITHUB_TOKEN": "github-token-value",
+    "GITLAB_TOKEN": "gitlab-token-value"
+  }
+}

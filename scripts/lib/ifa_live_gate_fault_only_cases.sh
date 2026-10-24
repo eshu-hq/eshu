@@ -49,6 +49,7 @@ ifa_live_gate_fault_only_seams=(
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-iam-escalation-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-authenticates-vault-role-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-uses-vault-policy-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-grants-secret-read-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-built-from-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-cloud-resource-container-image-cases.sh'
 	# handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):

@@ -69,9 +69,12 @@ func TestSnapshotRepositoryEmitsVersionPinContentFacts(t *testing.T) {
 	if _, ok := gotBodies["rust-toolchain.toml"]; !ok {
 		t.Fatalf("rust-toolchain.toml missing from content facts; all=%v", gotBodies)
 	}
-	for _, denied := range []string{".npmrc", ".env"} {
-		if _, ok := gotBodies[denied]; ok {
-			t.Fatalf("%s produced a content fact; credential-bearing dotfiles must stay out", denied)
-		}
+	// .npmrc is admitted under the metadata policy (#8978): a content fact
+	// with an empty body, never the credential line.
+	if body, ok := gotBodies[".npmrc"]; !ok || body != "" {
+		t.Fatalf(".npmrc content_body = %q (present=%v), want a present empty-body row", body, ok)
+	}
+	if _, ok := gotBodies[".env"]; ok {
+		t.Fatal(".env produced a content fact; credential-bearing dotfiles must stay out")
 	}
 }

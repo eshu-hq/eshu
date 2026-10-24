@@ -60,8 +60,9 @@ func (f ProviderFailure) FailureOperation() string {
 }
 
 // AlertsDisabled reports whether the provider answered that Dependabot alerts
-// are disabled for the repository read. The failure class is still the
-// provider's (auth_denied); only the org fan-out uses the marker to continue.
+// are disabled for the repository read. The failure class is not_found
+// (#8947); the org fan-out also uses the marker to continue past the
+// repository.
 func (f ProviderFailure) AlertsDisabled() bool {
 	return f.alertsDisabled
 }

@@ -57,7 +57,9 @@ func cleanManagedWorkspace(reposDir string) error {
 // .gitignore is deliberately absent: the copy applies the source repository's
 // ignore rules itself, and copying the file would let discovery filter a second
 // time, dropping files the copy kept because git tracks them (#5591).
-// Credential-bearing dotfiles (.env, .npmrc, .pypirc, .netrc) stay pruned.
+// .npmrc (#8978) is kept: it is admitted under the metadata content-store
+// policy, so no body is stored. The other credential-bearing dotfiles (.env,
+// .pypirc, .netrc) stay pruned.
 var preservedHiddenFilesystemFileNames = map[string]struct{}{
 	".gitlab-ci.yml":  {},
 	".gitlab-ci.yaml": {},
@@ -70,6 +72,7 @@ var preservedHiddenFilesystemFileNames = map[string]struct{}{
 	".babelrc":        {},
 	".npmignore":      {},
 	".flake8":         {},
+	".npmrc":          {},
 
 	// Runtime-version pin files (#8809). Each holds only a version string.
 	".nvmrc":             {},

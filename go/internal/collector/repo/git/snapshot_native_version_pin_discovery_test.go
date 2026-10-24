@@ -13,8 +13,8 @@ import (
 
 // TestResolveNativeSnapshotFileSetAdmitsVersionPinsAndDropsCredentialDotfiles
 // proves the #8809 discovery contract: a runtime-version pin file enters the
-// file set, while credential-bearing dotfiles next to it stay out because the
-// content store has no write-time redaction.
+// file set, while .env and mise.toml next to it stay out because the content store has
+// no write-time redaction. .npmrc is admitted under the metadata policy (#8978).
 func TestResolveNativeSnapshotFileSetAdmitsVersionPinsAndDropsCredentialDotfiles(t *testing.T) {
 	t.Parallel()
 
@@ -46,7 +46,8 @@ func TestResolveNativeSnapshotFileSetAdmitsVersionPinsAndDropsCredentialDotfiles
 		got = append(got, filepath.ToSlash(rel))
 	}
 	sort.Strings(got)
-	want := []string{".nvmrc", ".tool-versions", "services/api/.python-version"}
+	// .npmrc is admitted by its own definition (#8978); .env and mise.toml stay out.
+	want := []string{".npmrc", ".nvmrc", ".tool-versions", "services/api/.python-version"}
 	if len(got) != len(want) {
 		t.Fatalf("discovered files = %v, want exactly %v; stats=%+v", got, want, stats)
 	}

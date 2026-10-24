@@ -1,0 +1,46 @@
+{
+  "odu": "odu:ifa-uses-vault-policy-family",
+  "note": "The shared-cell live variant of the uses_vault_policy expected set. The per-Odù file (ifa-uses-vault-policy-family-expected-edges.json) names the three edges the uses fixture scope produces; a shared determinism cell graph ALSO holds the grants fixture scope, whose four exact chains (lanes A, B, 7, 8) each carry token policies on their Vault roles and therefore materialize five more SECRETS_IAM_USES_VAULT_POLICY edges unconditionally per policy join key (grants-vault-role-1 to grants-vault-policy-1 and grants-vault-policy-2, grants-vault-role-2 to grants-vault-policy-3, grants-vault-role-3 to grants-vault-policy-4, and grants-vault-role-4 to grants-vault-policy-5). Lanes 7 and 8 contribute USE_S edges but no GRANTS edges on purpose: lane 7's policy grants only list on an existing path and lane 8's read rule names a path with no KV metadata, so neither resolves a secret access path. The projection handler writes every edge set its read models resolve in one run, so the type's exact live set is eight edges, not three. Fresh-stack fault cells drive one vault cassette and keep asserting the three-edge file; only the shared-cell determinism assert uses this file.",
+  "edges": [
+    {
+      "relationship_type": "SECRETS_IAM_USES_VAULT_POLICY",
+      "source_entity_id": "sha256:uses-vault-role-1",
+      "target_entity_id": "sha256:uses-vault-policy-1"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_USES_VAULT_POLICY",
+      "source_entity_id": "sha256:uses-vault-role-1",
+      "target_entity_id": "sha256:uses-vault-policy-2"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_USES_VAULT_POLICY",
+      "source_entity_id": "sha256:uses-vault-role-2",
+      "target_entity_id": "sha256:uses-vault-policy-3"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_USES_VAULT_POLICY",
+      "source_entity_id": "sha256:grants-vault-role-1",
+      "target_entity_id": "sha256:grants-vault-policy-1"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_USES_VAULT_POLICY",
+      "source_entity_id": "sha256:grants-vault-role-1",
+      "target_entity_id": "sha256:grants-vault-policy-2"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_USES_VAULT_POLICY",
+      "source_entity_id": "sha256:grants-vault-role-2",
+      "target_entity_id": "sha256:grants-vault-policy-3"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_USES_VAULT_POLICY",
+      "source_entity_id": "sha256:grants-vault-role-3",
+      "target_entity_id": "sha256:grants-vault-policy-4"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_USES_VAULT_POLICY",
+      "source_entity_id": "sha256:grants-vault-role-4",
+      "target_entity_id": "sha256:grants-vault-policy-5"
+    }
+  ]
+}

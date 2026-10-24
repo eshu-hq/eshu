@@ -352,31 +352,28 @@ equivalent `cell_failgraphwrite_*` cell proving recovery through that path;
 their graph-write cells prove family-scoped Cypher-layer recovery, nothing
 architecturally unique.
 
-## Vault pair — shared projection handler, one kill claim
+## Vault trio — shared projection handler, one kill claim
 
-`authenticates_vault_role` and `uses_vault_policy` (#6228 slice A, plus the
-#8539 seam) share one graph writer (`SecretsIAMGraphProjectionHandler`,
-`go/internal/reducer/secretsiam/secrets_iam_graph_projection.go`) behind the
-`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` live-cell flag, with one
-cassette/Odù and expected-edge-set fixture each (2 and 3 edges) driven through
-the shared helpers in `scripts/lib/ifa_vault_family_live.sh`. Both live gates
-drive each family's own cassette and exact-assert its edge set; the fault gate
+`authenticates_vault_role` and `uses_vault_policy` (#6228 slice A), plus
+`grants_secret_read` (#6228 remainder), share one graph writer
+(`SecretsIAMGraphProjectionHandler`) behind the live-cell flag, each with
+one cassette/Odù and expected-edge-set fixture (2, 3, and 3 edges) driven
+through `scripts/lib/ifa_vault_family_live.sh`. Both live gates drive each
+family's own cassette and exact-assert its edge set; the fault gate
 additionally recovers each family through its own MERGE-anchored
-graph-write-failure cell (`cell_failgraphwrite_*`, `blocker_kind=none` for
-`authenticates_vault_role`), marker-asserted and drained with zero dead
-letters before the exact-set edges are re-asserted against the family baseline
-digest. Mid-handler kill/reclaim for `uses_vault_policy` is claimed through
-the per-statement hold seam (#8539, `blocker_kind=statement_hold`,
-`wait_stage=statement`): a handler-stage kill-worker cell for it would reuse
-`authenticates_vault_role`'s own wait_key (`secrets_iam_graph_projection`,
-owned first-landed by `authenticates_vault_role`;
+graph-write-failure cell, marker-asserted and drained with zero dead letters
+before the exact-set edges are re-asserted against the baseline digest.
+Mid-handler kill/reclaim for `uses_vault_policy` and `grants_secret_read`
+is claimed through the per-statement hold seam (#8539): a handler-stage
+kill-worker cell for either would reuse `authenticates_vault_role`'s own
+wait_key (owned first-landed;
 `TestIfaFamilyRegistryHandlerWaitKeysAreExclusive`) and prove nothing new, so
-the hold parks the worker inside the family's own `USES_VAULT_POLICY` MERGE
-(post-retract, post-prior-edge-write) and the kill cell rendezvouses on the
-claimed work item plus the hold marker before kill -9; see
-`scripts/lib/ifa_family_registry/rows/22_uses_vault_policy.sh` and
-`scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh`
-(`cell_kill_uses_vault_policy`).
+each hold parks the worker inside the family's own MERGE and the kill cell
+rendezvouses on the claimed work item plus the hold marker before kill -9;
+see rows 22/23 and their cells files (`cell_kill_uses_vault_policy`,
+`cell_kill_grants_secret_read`). The grants fixture's two read-rule lanes
+prove the policy-to-path fan-out; its list-only and missing-KV lanes prove
+restraint by absence.
 
 ## No-Regression Evidence (#6228): built_from edge-source descriptor uid
 

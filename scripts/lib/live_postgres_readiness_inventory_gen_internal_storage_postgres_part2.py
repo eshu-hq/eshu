@@ -7,6 +7,17 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/reducer_claim_sweep_lock_order_live_test.go": (
+            "TestReducerClaimSweepAndReplayBlockOneWayLive",
+            "TestReducerClaimSweepHeldRowRaceLive",
+            "TestReducerClaimSweepConcurrentWithReplaysNeverDeadlockLive",
+            "TestReducerClaimSweepKeepsActiveGenerationRowsLive",
+            "TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive",
+        ),
+        "go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go": (
+            "TestReducerQueueAckBatchFencesSupersededClaimLive",
+            "TestReducerQueueExpiryInterleaveLive",
+        ),
         "go/internal/storage/postgres/reducer_queue_producer_refinalize_live_test.go": (
             "TestOwnGateWaitsThroughRefinalizeReResolutionLive",
         ),

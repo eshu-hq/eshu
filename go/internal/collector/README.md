@@ -83,7 +83,17 @@ and the generation bookkeeping each run depends on — lives in `LIFECYCLE.md`.
   that persists facts; hosted claim mutations also carry the work item's tenant
   boundary so storage can re-check the active grant before fact writes
 - `CollectedGeneration` — `Scope`, `Generation`, `Facts` channel, `FactCount`,
-  optional `DiscoveryAdvisory`
+  optional `DiscoveryAdvisory`, and optional `StateWriter`
+- `GenerationStateWriter`, `CommitExecutor`, and `StateClaimedCommitter` —
+  collector-owned state that must commit with its generation (#8943). A source
+  sets `CollectedGeneration.StateWriter`; `ClaimedService` hands it to a
+  committer implementing `StateClaimedCommitter`
+  (`CommitClaimedScopeGenerationWithState`), which runs it on the commit
+  transaction (`CommitExecutor`) after the generation row exists. A committer
+  that cannot persist it fails the claim as `commit_failure` rather than
+  committing the facts alone, and the unclaimed `Service` refuses such a
+  generation. Every other collector leaves `StateWriter` nil and commits as
+  before. The security-alert org read state is the first user.
 - `GitSource` — implements `Source`; fields include `Selector`,
   `Snapshotter`, `SnapshotWorkers`, `LargeRepoThreshold`,
   `LargeRepoMaxConcurrent`, `StreamBuffer`

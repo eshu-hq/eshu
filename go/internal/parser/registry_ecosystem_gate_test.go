@@ -42,7 +42,6 @@ type ecosystemGap struct {
 // gate fails on an entry that stops being a gap, so the list shrinks as the
 // registry grows and cannot rot. Do not add an entry without an issue.
 var knownEcosystemGaps = []ecosystemGap{
-	{Language: "java", File: "libs.versions.toml", Issue: "#8822"},
 	{Language: "java", File: "gradle-wrapper.properties", Issue: "#8822"},
 	{Language: "scala", File: "build.sbt", Issue: "#8938"},
 }

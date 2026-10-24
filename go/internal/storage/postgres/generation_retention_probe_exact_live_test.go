@@ -48,9 +48,10 @@ func TestGenerationRetentionProbeMatchesGroupedPassLive(t *testing.T) {
 			// The frozen oracle covers the 13 #6809 tables; the probe
 			// covers those plus the #7396/#7751 cascade children, the #7700
 			// evidence grandchild, the five #7784 grandchildren, and the
-			// #8300 fingerprint grandchild. Equality holds on the oracle's
-			// tables; the pair count pins the probe's full 36-table
-			// coverage (13 + 16 + 1 + 5 + 1).
+			// #8300 fingerprint grandchild, and the two #8943 security-alert
+			// read-state tables. Equality holds on the oracle's tables; the
+			// pair count pins the probe's full 38-table coverage
+			// (13 + 16 + 1 + 5 + 1 + 2).
 			legacyTables := map[string]bool{}
 			for key := range groupedCounts {
 				if i := strings.LastIndexByte(key, '|'); i >= 0 {
@@ -71,8 +72,8 @@ func TestGenerationRetentionProbeMatchesGroupedPassLive(t *testing.T) {
 			if len(groupedCounts) != len(tc.candidates)*13 {
 				t.Errorf("oracle covers %d (generation, table) pairs, want %d", len(groupedCounts), len(tc.candidates)*13)
 			}
-			if len(probeCounts) != len(tc.candidates)*36 {
-				t.Errorf("row counts cover %d (generation, table) pairs, want %d", len(probeCounts), len(tc.candidates)*36)
+			if len(probeCounts) != len(tc.candidates)*38 {
+				t.Errorf("row counts cover %d (generation, table) pairs, want %d", len(probeCounts), len(tc.candidates)*38)
 			}
 			probeKept := retentionPruneSurvivors(t, ctx, database, tc.candidates, [3]string{
 				pruneContentFileReferencesForGenerationsQuery,
