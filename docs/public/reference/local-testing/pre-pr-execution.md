@@ -44,6 +44,10 @@ CI continues to run its independent checks. A local reuse record does not
 replace hosted validation or the independent semantic review required by the
 repository's promotion process.
 
+When a PR workflow runs policy from a trusted default-branch checkout, merge
+new policy files before changing the workflow to call them. Rebase the activation
+PR after that prerequisite merges, then verify the file in the trusted checkout.
+
 ## Reading evidence
 
 The gate JSON report records executed and reused commands, command hashes,
