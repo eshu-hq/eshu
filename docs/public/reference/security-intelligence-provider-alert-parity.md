@@ -60,8 +60,9 @@ repository of that organization through
   `org_repository_alerts_disabled` and the fan-out continues too: the answer is
   specific to one repository. The match is on GitHub's message text, which the
   REST reference does not document, so a body that is not JSON, is cut off,
-  or is worded differently falls back to the stop below (#FOLLOWUP-403-CLASS
-  tracks capturing the real response). Any other failure (`auth_denied`
+  or is worded differently falls back to the stop below. A repository-scope
+  target that gets this 403 still fails as terminal `auth_denied` (#8947
+  tracks that classification). Any other failure (`auth_denied`
   without that message, including a plain 403, a 5xx or transport error, or a
   terminal 4xx) marks that
   repository `org_repository_read_failed` and stops the fan-out: later
@@ -71,7 +72,7 @@ repository of that organization through
 - At most 100 repositories are read per claim, and a repository that answers
   `alerts_disabled` counts toward that cap. Later allowlisted repositories
   keep their org-window facts with `org_repository_fanout_cap_reached`. Each
-  claim starts again at the top of the allowlist; #FOLLOWUP-ROTATION tracks
+  claim starts again at the top of the allowlist; #8946 tracks
   rotating the start.
 
 One claim sends at most `max_pages` x (1 + min(allowlisted repositories in the
