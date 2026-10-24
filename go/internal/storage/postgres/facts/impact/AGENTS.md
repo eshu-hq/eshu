@@ -15,7 +15,8 @@
 - Every statement reads `fact_records` only inside the MATERIALIZED
   `candidate` CTE, through its anchor. Do not inline the active-generation
   join into it: the planner misestimates that two-column join at one row and
-  walks every active scope (#8880 measured 55,109 buffers for 80 rows).
+  walks every active scope (ledger 8880-fixture-inlined-join-scope-walk-buffers:
+  55,127 buffers for 80 rows).
 - A key probe's literal kind list must equal or be a subset of its anchor's
   predicate list (`TestBranchKindsAreProvableByAnchors`).
 - The guard statement and the JS/TS file branches repeat their index

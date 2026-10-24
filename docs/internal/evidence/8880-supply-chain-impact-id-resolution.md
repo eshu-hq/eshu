@@ -143,9 +143,79 @@ On the plan fixture each rebuild plus `ANALYZE fact_records` took about 2 s,
 and the indexes measured 16 KB (guard) to 2.6 MB (package_id). 2,000 TOASTed
 file inserts took 407 to 507 ms with or without all 13 indexes across two
 runs, within run-to-run noise. `TestSupplyChainImpactNewIndexInsertCostLive`
-logs those figures. Deployment: a concurrent build waits for in-flight old
-loader transactions, so run the migration when no long impact pass is active
-or accept the wait. The builds take no write lock.
+logs those figures. Rolling the indexes out is covered in Deployment below.
+
+## Deployment
+
+Migrations 212 to 224 are 13 `CREATE INDEX CONCURRENTLY` builds on
+`fact_records`, applied one after another by the schema Job. Each build
+takes no write lock but scans the table twice. The predicates of 223 (JS/TS
+language) and 224 (the guard's `payload ?|`) read every `file` row's
+payload, so those two builds detoast every file payload on each scan. The
+issue sizes the hosted table at 4.64 million heap and 2.34 million TOAST
+blocks (70 GB with indexes).
+
+| Migration | Index | Fixture rebuild with `ANALYZE` | Fixture size |
+| --- | --- | ---: | ---: |
+| 212 | affected_product criteria | 2.02 s | 672 KB |
+| 213 | package_id | 2.10 s | 2.5 MB |
+| 214 | package_version purl | 2.10 s | 672 KB |
+| 215 | security_alert cve_id | 2.01 s | 672 KB |
+| 216 | vulnerability_hint advisory_id | 2.00 s | 728 KB |
+| 217 | OCI digest | 2.30 s | 1.2 MB |
+| 218 | OCI tag resolved_digest | 2.20 s | 728 KB |
+| 219 | OCI referrer_digest | 2.02 s | 672 KB |
+| 220 | payload scope_id | 2.08 s | 1.4 MB |
+| 221 | suppression active scan | 2.08 s | 432 KB |
+| 222 | platform active scan | 2.05 s | 472 KB |
+| 223 | JS/TS file repo_id | 2.07 s | 360 KB |
+| 224 | foreign-key guard | 2.08 s | 16 KB |
+
+The fixture is the plan proof's database: about 95,000 rows, 12,000 of them
+TOASTed files. Most of each rebuild time is the `ANALYZE`. Hosted build time
+and size are NOT_CHECKED. Plan for 223 and 224 to be the longest, because
+they detoast every file payload.
+
+Before the rollout:
+
+1. Raise the schema Job deadline. The chart default
+   `schemaBootstrap.activeDeadlineSeconds` is 600 s, which these builds will
+   likely exceed. The deadline kills only the client pod. The build keeps
+   running on the server and holds the schema advisory lock, and the next
+   run waits on that lock (`docs/public/deployment/service-runtimes-bootstrap.md`).
+   A Job you run by hand can set its own deadline.
+2. Drain or pause `supply_chain_impact` work. After its second scan, each
+   build waits for every transaction holding an older snapshot to finish
+   (`docs/internal/evidence/7004-cic-lock-timeout.md`, shape A). One
+   pre-#8880 `ListActiveSupplyChainImpactFacts` call holds one read-only
+   repeatable-read snapshot for the whole call: 30.9 s mean, 445.5 s max in
+   the issue's 24-hour sample. A pass runs those calls back to back for up
+   to 75 min. Each of the 13 builds can wait out a running call.
+
+Progress signals:
+
+- `bootstrap.postgres.migration.concurrent_index_build.starting` and
+  `.finished` (with `duration_ms`) for each build;
+  `bootstrap.postgres.migration.applying` and `.recorded` with the
+  migration `path`.
+- One `eshu_schema_migrations` row per migration once it is recorded.
+- `pg_stat_progress_create_index` for the running build's phase and blocks.
+- `pg_stat_activity` for long repeatable-read holders.
+- An interrupted build leaves an invalid index
+  (`SELECT indexrelid::regclass FROM pg_index WHERE NOT indisvalid`). The
+  next schema run drops it with `DROP INDEX CONCURRENTLY IF EXISTS` and
+  rebuilds it, and logs a new `concurrent_index_build.starting` line.
+
+If new reducer code runs before all 13 indexes are valid, the loader still
+returns the same rows. No statement depends on an index existing, and the
+planner ignores an invalid index. It is only slower: a branch whose anchor
+is missing plans on another index or scans the kind (the RED column of the
+plan table in Proof). Missing 224 costs the most. The guard statement then
+reads `fact_records` with a sequential scan once per call (fixture 47,251
+buffers against 14) until the build is valid. That is one full-table pass per call, where the
+pre-#8880 statement paid one per page. Roll the reducer image after the
+schema Job completes to avoid that window. The old code is unaffected by
+the new indexes apart from their write cost.
 
 ## Proof
 
@@ -177,15 +247,43 @@ compares the loader with the frozen pre-#8880 statement
 (`testdata/list_active_supply_chain_impact_facts_eb62fa3.sql`, rendered from
 blob `ddcca90366bd96d1d941f188ccff497c3e3a9ce7`, sha256 pinned) walked to
 exhaustion with the retired cursor and sentinel cap. It compares rows,
-order, payloads, and the truncation bool, across nine filter shapes: npm
-first round, npm with every identity, KEV, Maven, repository only, digest
-only, cap crossed mid-stream, cap reached exactly, and empty. The matrix
-covers every arm and kind, tombstones, superseded and pending generations,
-normalized suppression anchors with Unicode White_Space, deployment-only
-suppressions, a fact matching two keys, foreign keys on growth kinds and on
-files under both FileRepositoryIDs states, 650 core rows across the page
-boundary, and a 620-row identity stream through a stub function. All nine
-pass. `TestSupplyChainImpactFileKindGateLive` and
+order, payloads, and the truncation bool, across fifteen filter shapes:
+npm first round, npm with every identity, KEV, Maven, repository only,
+digest only, six single-arm shapes (repository `repo_id` and
+`repository_id`, file `repo_id` and `repository_id`, file
+`scope.repository_id`, file payload `scope_id`, file `fact.scope_id`, scope
+`payload repo_id`), cap crossed mid-stream, cap reached exactly, and empty.
+Every retired arm has at least one matrix row that only that arm selects.
+The repository arms have one for the growth-kind key probes, the bounded
+full-filter statements, and the guard. The ungated arms reach the guard
+only through package_id, image_ref, and cve_id rows; the guard's other
+ungated copies come from the same arm table, which the catalog tests pin.
+The matrix also covers every scanned kind, tombstones, superseded and
+pending generations, normalized suppression anchors with Unicode
+White_Space, deployment-only suppressions, a fact matching two keys,
+foreign keys on growth kinds and on files under both FileRepositoryIDs
+states, 650 core rows across the page boundary, and a 620-row identity
+stream through a stub function. All fifteen pass.
+
+Each single-arm row has teeth. The table below pairs a mutation that breaks
+only that arm in the loader with the result on this matrix and on the
+pre-review nine-shape matrix (`scratchpad` driver `mut8880/f2.py`, run
+against the live disposable database):
+
+| Mutated arm | Fifteen-shape matrix | Pre-review matrix |
+| --- | --- | --- |
+| repository `repo_id` (bound to ImageRefs) | FAIL (3 shapes) | PASS (gap) |
+| ci_cd `repository_id` probe | FAIL (3) | PASS (gap) |
+| repository `repository_id`, bounded and guard copies | FAIL (3) | PASS (gap) |
+| repository payload `scope_id`, bounded and guard copies | FAIL (3) | PASS (gap) |
+| `repository_payload_scope_id` probe | FAIL (3) | PASS (gap) |
+| ci_cd `artifact_digest` probe | FAIL (2) | FAIL (already covered by `digest only`) |
+| file `repo_id` probe | FAIL (3) | PASS (gap) |
+| file `repository_id` | FAIL (3) | PASS (gap) |
+| file `scope.repository_id` | FAIL (3) | PASS (gap) |
+| file payload `scope_id` | FAIL (3) | PASS (gap) |
+| scope resolution `scope_id` (the file column arm) | FAIL (3) | PASS (gap) |
+| scope resolution `payload repo_id` | FAIL (1) | PASS (gap) | `TestSupplyChainImpactFileKindGateLive` and
 `TestSupplyChainImpactAdvisoryFilterPlanLive` were re-derived on the loader
 and pass.
 
@@ -230,7 +328,7 @@ Isolation is unchanged: READ ONLY REPEATABLE READ, ACCESS SHARE only, no row
 locks, one snapshot per call. Scope resolution, every branch, every payload
 page, and the identity stream read that one snapshot. A call issues more
 statements (20 for the npm fixture call), each milliseconds, and holds its
-snapshot for far less time than the retired 30 s to 75 min transactions, so
+snapshot for far less time than a pre-#8880 call (30.9 s mean, 445.5 s max), so
 it holds back the xmin horizon less. No worker count, page size, or round
 count changed.
 

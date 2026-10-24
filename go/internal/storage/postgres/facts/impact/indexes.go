@@ -175,8 +175,8 @@ func repositoryGrowthKinds() []string {
 // its kind compares but no key probe serves for that kind. It is one
 // jsonb ?| over a CASE on the kind, not an OR of per-kind arms: the planner
 // splits a top-level OR into a BitmapOr of per-kind index scans and costed
-// some arms onto other kind indexes (the fixture read 583 buffers that way
-// for 3 guard rows), while one opaque expression leaves the guard index the
+// some arms onto other kind indexes (1,124 buffers for 3 guard rows, ledger
+// 8880-fixture-guard-bitmapor-buffers), while one opaque expression leaves the guard index the
 // only anchor. A kind the CASE does not list yields NULL, which admits
 // nothing.
 func GuardPredicate() string {

@@ -51,16 +51,17 @@ type Branch struct {
 	ReturnsSuppressions bool
 }
 
-// anchored renders one branch statement in three steps, each MATERIALIZED
-// so the plan cannot depend on the planner's join estimates:
+// anchored renders one branch statement in three steps; the first two are
+// MATERIALIZED CTEs so the plan cannot depend on the planner's join
+// estimates:
 //
 //  1. candidate reads fact_records only, through the anchor (kind list,
 //     tombstone, the key or scope arm) and every arm filter. No arm reads the
 //     joined scope row (see arm.resolvedScope), so no filter needs the join.
 //     Inlined into the active-generation join, the planner misestimates that
 //     two-column join at one row and loops fact_records_scope_generation_idx
-//     over every active scope instead (the #8880 fixture measured 55,109
-//     buffers for 80 rows that way).
+//     over every active scope instead (55,127 buffers for 80 rows on the
+//     #8880 fixture, ledger 8880-fixture-inlined-join-scope-walk-buffers).
 //  2. active applies the retired active-generation join, verbatim, once per
 //     distinct (scope_id, generation_id) pair among the candidates rather
 //     than once per candidate row.
