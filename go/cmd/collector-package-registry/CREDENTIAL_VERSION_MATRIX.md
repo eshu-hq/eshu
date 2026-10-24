@@ -7,9 +7,9 @@
   with `getenv` into `runtime.TargetConfig{Username, Password, BearerToken}`.
   Raw values never enter desired collector config, workflow rows, facts,
   logs, metric labels, or docs.
-- Transport: bearer token becomes an `Authorization: Bearer` header, else
-  username/password becomes Basic auth (`http_provider.go`). Credential-free
-  cassette mode needs no secrets at all.
+- Transport: the configured bearer token is sent as an `Authorization: Bearer`
+  header, else username/password becomes Basic auth (`http_provider.go`).
+  Credential-free cassette mode needs no secrets at all.
 - Missing-credential path: a private-visibility target with a metadata URL
   but no resolved credential completes as `credentials_missing` warning
   evidence with package, source URI, and registry detail suppressed
