@@ -79,6 +79,7 @@ func seedSupplyChainImpactMatrix(t *testing.T, ctx context.Context, database *sq
 	scope("repository:m:r3", "src:m:r3", `{}`, "gen:r3", nil)
 	scope("git:m:r4", "repository:m:r4", `{}`, "gen:r4", nil)
 	scope("git:m:r5", "repository:m:r5", `{"repo_id": "repository:m:r5"}`, "gen:r5", nil)
+	scope("git:m:r6", "src:m:r6", `{"repo_id": "repository:m:r6"}`, "gen:r6", nil)
 
 	// Vulnerability catalog (growth class, key probes).
 	fact("m:ap:two-keys", "osv:m", "gen:osv:m", "vulnerability.affected_package", j("package_id", q(scimPackage), "purl", q(scimPURL)))
@@ -128,14 +129,15 @@ func seedSupplyChainImpactMatrix(t *testing.T, ctx context.Context, database *sq
 
 	// Suppressions (bounded class): normalization, deployment-only, cap set.
 	for id, payload := range map[string]string{
-		"m:supp:cve-lower":   j("scope", j("cve_id", q("cve-2026-1000"))),
-		"m:supp:purl-pad":    j("scope", j("purl", q("  pkg:npm/AXIOS\t"))),
-		"m:supp:pkg-unicode": j("scope", j("package_id", q("　npm://registry.npmjs.org/Axios "))),
-		"m:supp:adv":         j("scope", j("advisory_id", q(" ghsa-AAAA-bbbb-cccc "))),
-		"m:supp:repo":        j("scope", j("repository_id", q(" REPOSITORY:M:R1 "))),
-		"m:supp:subject":     j("scope", j("subject_digest", q(strings.ToUpper(scimDigest)))),
-		"m:supp:top-cve":     j("cve_id", q(scimCVE)),
-		"m:supp:deploy-only": j("scope", j("environment", q("prod"), "workload_id", q("workload:api"), "service_id", q("service:api"))),
+		"m:supp:cve-lower":      j("scope", j("cve_id", q("cve-2026-1000"))),
+		"m:supp:purl-pad":       j("scope", j("purl", q("  pkg:npm/AXIOS\t"))),
+		"m:supp:pkg-unicode":    j("scope", j("package_id", q("　npm://registry.npmjs.org/Axios "))),
+		"m:supp:adv":            j("scope", j("advisory_id", q(" ghsa-AAAA-bbbb-cccc "))),
+		"m:supp:repo":           j("scope", j("repository_id", q(" REPOSITORY:M:R1 "))),
+		"m:supp:subject":        j("scope", j("subject_digest", q(strings.ToUpper(scimDigest)))),
+		"m:supp:top-cve":        j("cve_id", q(scimCVE)),
+		"m:supp:top-repository": j("repository_id", q("repository:m:r1")),
+		"m:supp:deploy-only":    j("scope", j("environment", q("prod"), "workload_id", q("workload:api"), "service_id", q("service:api"))),
 	} {
 		fact(id, "vex:m", "gen:vex:m", "vulnerability.suppression", payload)
 	}
@@ -164,6 +166,23 @@ func seedSupplyChainImpactMatrix(t *testing.T, ctx context.Context, database *sq
 		{"m:ci:r5", "git:m:r5", "reducer_ci_cd_run_correlation", j("repository_id", q("repository:m:r5"))},
 		{"m:file:r5:ts", "git:m:r5", "file", jsts("repository:m:r5", "typescript")},
 		{"m:file:r5:foreign-cve", "git:m:r5", "file", j("repo_id", q("repository:m:r5"), "cve_id", q(scimCVE))},
+		// One row per arm that no other row selects alone (review F2). Each
+		// lives in a scope no filter names, or carries a foreign value on
+		// every other key, so only the named arm can select it.
+		{"m:ci:r5:repo-id-only", "git:m:r5", "reducer_ci_cd_run_correlation", j("repo_id", q("repository:m:r1"))},
+		{"m:ci:r5:repository-id-only", "git:m:r5", "reducer_ci_cd_run_correlation", j("repository_id", q("repository:m:r1"))},
+		{"m:ci:r5:artifact-digest-only", "git:m:r5", "reducer_ci_cd_run_correlation", j("artifact_digest", q(scimDigest))},
+		{"m:cons:r5:payload-scope-only", "git:m:r5", "reducer_package_consumption_correlation", j("scope_id", q("repository:m:r1"))},
+		{"m:plat:r5:repo-id-only", "git:m:r5", "reducer_platform_materialization", j("repo_id", q("repository:m:r1"))},
+		{"m:wl:r5:repository-id-only", "git:m:r5", "reducer_workload_identity", j("repository_id", q("repository:m:r1"))},
+		{"m:svc:r5:payload-scope-only", "git:m:r5", "reducer_service_catalog_correlation", j("scope_id", q("repository:m:r1"))},
+		{"m:file:r5:repo-id-only", "git:m:r5", "file", jsts("repository:m:r1", "typescript")},
+		{"m:file:r5:repository-id-only", "git:m:r5", "file", j("repo_id", q("repository:m:r5"), "repository_id", q("repository:m:r1"), "parsed_file_data", j("language", q("typescript")))},
+		{"m:file:r5:scope-repository-id", "git:m:r5", "file", j("repo_id", q("repository:m:r5"), "scope", j("repository_id", q("repository:m:r2")), "parsed_file_data", j("language", q("typescript")))},
+		{"m:file:r5:payload-scope-id", "git:m:r5", "file", j("repo_id", q("repository:m:r5"), "scope_id", q("repository:m:r4"), "parsed_file_data", j("language", q("typescript")))},
+		{"m:file:r3:scope-id-column", "repository:m:r3", "file", jsts("repository:other", "typescript")},
+		{"m:wl:r6:scope-payload-repo-id", "git:m:r6", "reducer_workload_identity", j("scope_id", q("git:m:r6"))},
+		{"m:file:r6:scope-payload-repo-id", "git:m:r6", "file", jsts("repository:other", "typescript")},
 	} {
 		fact(row[0], row[1], "gen:"+strings.TrimPrefix(strings.TrimPrefix(row[1], "git:m:"), "repository:m:"), row[2], row[3])
 	}

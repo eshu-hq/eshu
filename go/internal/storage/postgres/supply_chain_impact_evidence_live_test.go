@@ -58,10 +58,46 @@ func TestSupplyChainImpactActiveEvidenceMatchesRetiredStatementLive(t *testing.T
 			wantPresent: []string{"m:ci:r4:source-key", "m:svc:r3:scope-id", "m:wl:r2:payload-id", "m:plat:r4:image-ref", "m:cons:r3:payload-scope", "m:oci:manifest:foreign-image", "m:supp:repo", "m:supp:subject"},
 			wantAbsent:  []string{"m:ci:r5", "m:supp:deploy-only"},
 		},
-		{name: "kev cve only", filter: supplychaincore.SupplyChainImpactFactFilter{CVEIDs: []string{scimCVE}}, wantAbsent: []string{"m:file:r5:foreign-cve"}},
+		{name: "kev cve only", filter: supplychaincore.SupplyChainImpactFactFilter{CVEIDs: []string{scimCVE}}, wantAbsent: []string{"m:file:r5:foreign-cve", "m:file:r5:repository-id-only", "m:ci:r5:repo-id-only"}},
 		{name: "maven purl and cve without files", filter: supplychaincore.SupplyChainImpactFactFilter{PURLs: []string{"pkg:maven/org.example/lib@1.0.0"}, CVEIDs: []string{scimCVE}}},
 		{name: "repository follow-up only", filter: supplychaincore.SupplyChainImpactFactFilter{RepositoryIDs: scimRepositories}},
-		{name: "digest only", filter: supplychaincore.SupplyChainImpactFactFilter{SubjectDigests: []string{scimDigest}}},
+		{name: "digest only", filter: supplychaincore.SupplyChainImpactFactFilter{SubjectDigests: []string{scimDigest}}, wantPresent: []string{"m:ci:r5:artifact-digest-only"}},
+		// One shape per arm that only a dedicated row exercises (review F2).
+		{
+			name:   "repository repo_id and repository_id arms alone",
+			filter: supplychaincore.SupplyChainImpactFactFilter{RepositoryIDs: []string{"repository:m:r1"}},
+			wantPresent: []string{
+				"m:ci:r5:repo-id-only", "m:ci:r5:repository-id-only", "m:cons:r5:payload-scope-only",
+				"m:plat:r5:repo-id-only", "m:wl:r5:repository-id-only", "m:svc:r5:payload-scope-only", "m:supp:top-repository",
+			},
+		},
+		{
+			name:        "file repo_id and repository_id arms alone",
+			filter:      supplychaincore.SupplyChainImpactFactFilter{FileRepositoryIDs: []string{"repository:m:r1"}},
+			wantPresent: []string{"m:file:r5:repo-id-only", "m:file:r5:repository-id-only"},
+		},
+		{
+			name:        "file scope repository_id arm alone",
+			filter:      supplychaincore.SupplyChainImpactFactFilter{FileRepositoryIDs: []string{"repository:m:r2"}},
+			wantPresent: []string{"m:file:r5:scope-repository-id"},
+		},
+		{
+			name:        "file payload scope_id arm alone",
+			filter:      supplychaincore.SupplyChainImpactFactFilter{FileRepositoryIDs: []string{"repository:m:r4"}},
+			wantPresent: []string{"m:file:r5:payload-scope-id"},
+		},
+		{
+			name:        "file scope_id column arm alone",
+			filter:      supplychaincore.SupplyChainImpactFactFilter{FileRepositoryIDs: []string{"repository:m:r3"}},
+			wantPresent: []string{"m:file:r3:scope-id-column"},
+		},
+		{
+			name: "scope payload repo_id arms alone",
+			filter: supplychaincore.SupplyChainImpactFactFilter{
+				RepositoryIDs: []string{"repository:m:r6"}, FileRepositoryIDs: []string{"repository:m:r6"},
+			},
+			wantPresent: []string{"m:wl:r6:scope-payload-repo-id", "m:file:r6:scope-payload-repo-id"},
+		},
 		{name: "suppression cap crosses mid-stream", filter: supplychaincore.SupplyChainImpactFactFilter{CVEIDs: []string{scimCVE}}, suppressCap: 50, wantTruncated: true},
 		{name: "suppression cap exactly reached", filter: supplychaincore.SupplyChainImpactFactFilter{CVEIDs: []string{scimCVE}}, suppressCap: scimCVESuppressions},
 		{name: "empty filter"},
