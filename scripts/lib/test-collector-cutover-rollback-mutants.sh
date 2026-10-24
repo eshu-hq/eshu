@@ -91,6 +91,22 @@
 #   M74 truth  a claim beside the restored direct producer is not dual authority
 #   M75 steps  the direct signal is read for the wrong collector kind
 #   M76 dcsql  the direct signal drops the observed-after-window predicate
+#   M77 truth  an unreadable direct Deployment counts as not running
+#   M78 gates  the direct Deployment read defaults to not running on failure
+#   M79 gates  status.replicas is ignored (a stopping pod does not count)
+#   M80 gates  spec.replicas is ignored (a scaled-up Deployment with no pod yet)
+#   M81 main   verify in direct mode never needs the Deployment name
+#   M82 main   --capture in direct mode needs the Deployment name
+#   M83 truth  an unreadable direct Deployment is not named in the message
+#   M84 gates  a malformed replica answer is accepted
+#   M85 main   verify in the default mode needs the Deployment name
+#   M86 truth  the direct Deployment is not read at all
+#   M87 truth  the default mode reads the direct Deployment too
+#   M88 main   the direct Deployment read drops -n <namespace>
+#   M89 main   the direct Deployment read drops the request timeout
+#   M90 truth  the passing evidence line drops the unreadable-Deployment note
+#   M91 gates  the unreadable-Deployment note drops the kubectl exit code
+#   M92 plan   plan omits the Deployment read in direct mode
 
 # The single-quoted anchors are literal source text to find, not expansions.
 # shellcheck disable=SC2016
@@ -119,6 +135,7 @@ declare_file() { # alias -> path relative to scripts/
 	gates) printf 'lib/collector-cutover-rollback-gates.sh' ;;
 	truth) printf 'lib/collector-cutover-rollback-truth.sh' ;;
 	dcsql) printf 'lib/collector-cutover-rollback-direct-commit.sql' ;;
+	plan) printf 'lib/collector-cutover-rollback-plan.sh' ;;
 	esac
 }
 
@@ -184,13 +201,13 @@ define_mutants() {
 	add M33 main "$(pairs '	IFS=, read -r -a parts <<<"$value"' '	local IFS=,
 	# shellcheck disable=SC2206
 	parts=($value)')"
-	add M34 main "$(pairs "${T}check_disjoint${NL}${T}check_number" "${T}check_number")"
+	add M34 main "$(pairs "${T}${T}check_disjoint${NL}" "")"
 	add M35 steps "$(pairs "${T}${T}if problem=\"\$(baseline_format_problem)\"; then${NL}${T}${T}${T}die" "${T}${T}if false; then${NL}${T}${T}${T}die")"
 	add M36 truth "$(pairs "${T}check_baseline_format \"\$1\"${NL}${T}read_truth" "${T}read_truth")"
 	add M37 truth "$(pairs 'exit "$EX_TRUTH_MISMATCH"' 'exit 0')"
 	add M38 truth "$(pairs '[[ "$report_drift" != "true" ]] || report_drift "$1"' 'report_drift "$1"')"
 	add M39 truth "$(pairs 'if (shown[class SUBSEP kind]++ < max)' 'if (1)')"
-	add M40 steps "$(pairs 'psql_run now -v "skew=${ROLLBACK_CLOCK_SKEW_SECONDS}"' 'psql_run now -v "skew=0"')"
+	add M40 steps "$(pairs 'local skew="$ROLLBACK_CLOCK_SKEW_SECONDS"' 'local skew=0')"
 	add M41 main "$(pairs 'ROLLBACK_KUBECTL_REQUEST_TIMEOUT:-30s' 'ROLLBACK_KUBECTL_REQUEST_TIMEOUT:-5s')"
 	add M42 main "$(pairs 'PGCONNECT_TIMEOUT:-10' 'PGCONNECT_TIMEOUT:-')"
 	add M43 steps "$(pairs 'if ((from_step == 5)) && [[ -z "$since" ]]; then' 'if false; then')"
@@ -223,9 +240,25 @@ define_mutants() {
 	add M71 steps "$(pairs '((DIRECT_COMMITS >= 1))' '((DIRECT_COMMITS >= 0))')"
 	add M72 steps "$(pairs 'step_failed 5 "could not read the observed-generation signal (exit ${XRC})"' 'return 1')"
 	add M73 steps "$(pairs "check the collector logs.\\n' >&2${NL}${T}${T}exit \"\$EX_TIMEOUT\"" "check the collector logs.\\n' >&2${NL}${T}${T}exit 0")"
-	add M74 truth "$(pairs '((${1} < 5)) || tree=1' 'true')"
+	add M74 truth "$(pairs '[[ "$DIRECT_LIVE" == "no" ]] || tree=1' 'true')"
 	add M75 steps "$(pairs 'psql_run direct-commit -v "kind=${collector_kind}"' 'psql_run direct-commit -v "kind=other"')"
 	add M76 dcsql "$(pairs "  AND generation.ingested_at >= :'since'::timestamptz${NL}" "")"
+	add M77 truth "$(pairs '[[ "$DIRECT_LIVE" == "no" ]] || tree=1' 'if [[ "$DIRECT_LIVE" == "yes" ]]; then tree=1; fi')"
+	add M78 gates "$(pairs "${T}${T}DIRECT_LIVE=\"unknown\"${NL}${T}${T}DIRECT_NOTE=\"deployment/" "${T}${T}DIRECT_LIVE=\"no\"${NL}${T}${T}DIRECT_NOTE=\"deployment/")"
+	add M79 gates "$(pairs '10#${desired} > 0 || 10#${observed:-0} > 0' '10#${desired} > 0')"
+	add M80 gates "$(pairs '10#${desired} > 0 || 10#${observed:-0} > 0' '10#${observed:-0} > 0')"
+	add M81 main "$(pairs 'if [[ "$in_tree_direct" == "true" && -z "$capture_file" ]]; then' 'if false; then')"
+	add M82 main "$(pairs 'if [[ "$in_tree_direct" == "true" && -z "$capture_file" ]]; then' 'if [[ "$in_tree_direct" == "true" ]]; then')"
+	add M83 truth "$(pairs '[[ "$DIRECT_LIVE" != "unknown" ]] || direct_note=" The direct Deployment ${DIRECT_NOTE}; it is treated as running."' ':')"
+	add M84 gates "$(pairs 'if [[ "$XRC" -ne 0 || ! "$XOUT" =~ ^[0-9]+\|[0-9]*$ ]]; then' 'if [[ "$XRC" -ne 0 ]]; then')"
+	add M85 main "$(pairs 'if [[ "$in_tree_direct" == "true" && -z "$capture_file" ]]; then' 'if [[ -z "$capture_file" ]]; then')"
+	add M86 truth "$(pairs "${T}${T}read_direct_running${NL}" "${T}${T}DIRECT_LIVE=no${NL}")"
+	add M87 truth "$(pairs "${T}local direct_note=\"\"${NL}" "${T}local direct_note=\"\"${NL}${T}read_direct_running${NL}")"
+	add M88 main "$(pairs '-n "$namespace" get "deployment/${in_tree_deployment}"' 'get "deployment/${in_tree_deployment}"')"
+	add M89 main "$(pairs "{.status.replicas}'${NL}${T}${T}\"--request-timeout=\${ROLLBACK_KUBECTL_REQUEST_TIMEOUT}\")" "{.status.replicas}')")"
+	add M90 truth "$(pairs 'overlapping_claim_pairs=0${direct_note}"' 'overlapping_claim_pairs=0"')"
+	add M91 gates "$(pairs 'could not be read (exit ${XRC}): ' 'could not be read: ')"
+	add M92 plan "$(pairs "${T}[[ \"\$in_tree_direct\" == \"true\" ]] || return 0${NL}${T}build_in_tree_replicas" "${T}return 0${NL}${T}build_in_tree_replicas")"
 	add M64 main "$(pairs '"${TMPDIR:-/tmp}/eshu-rollback.XXXXXX"' '"/tmp/eshu-rollback.XXXXXX"')"
 }
 

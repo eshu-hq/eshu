@@ -299,6 +299,15 @@ validate() {
 		for optional in namespace worker_deployment component_id component_version; do
 			[[ -z "${!optional}" ]] || check_token "--${optional//_/-}" "${!optional}"
 		done
+		# The authority check of a direct collector reads its Deployment, because no
+		# claim row shows it. A capture runs no authority check and needs neither.
+		if [[ "$in_tree_direct" == "true" && -z "$capture_file" ]]; then
+			[[ -n "$in_tree_deployment" ]] ||
+				die "$EX_USAGE" "verify --in-tree-direct needs --in-tree-deployment: it reads that Deployment's replica counts to tell whether the direct producer is running"
+			[[ -n "$namespace" ]] ||
+				die "$EX_USAGE" "verify --in-tree-direct needs --namespace: the Deployment is read in that namespace"
+			check_token "--in-tree-deployment" "$in_tree_deployment"
+		fi
 		return 0
 	fi
 	check_token "--component-id" "$component_id"
@@ -379,6 +388,13 @@ build_scale_in_tree() {
 }
 build_in_tree_status() {
 	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" rollout status "deployment/${in_tree_deployment}" "--timeout=${step_timeout}s")
+}
+# build_in_tree_replicas reads spec.replicas|status.replicas of the direct
+# collector Deployment. `rollout status` cannot stand in for it: it reports
+# success for a Deployment at zero replicas, which is not a running producer.
+build_in_tree_replicas() {
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" get "deployment/${in_tree_deployment}" -o 'jsonpath={.spec.replicas}{"|"}{.status.replicas}'
+		"--request-timeout=${ROLLBACK_KUBECTL_REQUEST_TIMEOUT}")
 }
 
 # show_cmd prints CMD in copy-pasteable form.

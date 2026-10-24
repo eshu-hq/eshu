@@ -153,6 +153,30 @@ in_tree_rolled_out() {
 	[[ "$XRC" -eq 0 ]]
 }
 
+# read_direct_running sets DIRECT_LIVE to yes, no, or unknown for the direct
+# collector Deployment. It is running when spec.replicas or status.replicas is
+# above zero, so a pod still stopping after a scale-down counts. An unreadable,
+# missing, or malformed answer is unknown, and callers treat unknown as running:
+# a mistyped Deployment name must never read as "no producer is live".
+DIRECT_LIVE="unknown"
+DIRECT_NOTE=""
+read_direct_running() {
+	build_in_tree_replicas
+	quiet_cmd
+	DIRECT_NOTE=""
+	if [[ "$XRC" -ne 0 || ! "$XOUT" =~ ^[0-9]+\|[0-9]*$ ]]; then
+		DIRECT_LIVE="unknown"
+		DIRECT_NOTE="deployment/${in_tree_deployment} could not be read (exit ${XRC}): $(printf '%s' "$XOUT" | head -c 200 | tr '\n' ' ')"
+		return 0
+	fi
+	local desired="${XOUT%%|*}" observed="${XOUT##*|}"
+	if ((10#${desired} > 0 || 10#${observed:-0} > 0)); then
+		DIRECT_LIVE="yes"
+	else
+		DIRECT_LIVE="no"
+	fi
+}
+
 # --- gates (refuse when a precondition does not hold) --------------------------
 
 # confirm_step1 returns 0 when new claims are provably stopped: the component has

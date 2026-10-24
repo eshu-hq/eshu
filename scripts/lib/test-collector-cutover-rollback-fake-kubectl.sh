@@ -9,6 +9,10 @@
 #   intree_rollout_fail    `rollout status` fails for every Deployment but the coordinator
 #   kubectl_fail_get       `get pods` fails with a server error
 #   kubectl_fail_get_deploy  `get deployment/...` fails with a server error
+#   intree_get_missing     `get` of the in-tree Deployment fails NotFound
+#   intree_get_garbage     `get` of the in-tree Deployment prints no replica counts
+#   intree_status_pods     (count) status.replicas of the in-tree Deployment, apart
+#                          from its desired replicas (a scale-down still in flight)
 #   kubectl_cmd_missing    `get deployment/...` fails as a missing binary would
 set -euo pipefail
 
@@ -80,7 +84,11 @@ get)
 		;;
 	deployment/*)
 		target="${2#deployment/}"
-		[[ ! -e "${state}/worker_absent" ]] || not_found "${target}"
+		if [[ "${target}" == *worker* ]]; then
+			[[ ! -e "${state}/worker_absent" ]] || not_found "${target}"
+		else
+			[[ ! -e "${state}/intree_get_missing" ]] || not_found "${target}"
+		fi
 		if [[ -e "${state}/kubectl_cmd_missing" ]]; then
 			printf 'kubectl: command not found\n' >&2
 			exit 127
@@ -89,7 +97,18 @@ get)
 			printf 'Error from server (InternalError): etcdserver: request timed out\n' >&2
 			exit 1
 		fi
-		cat "${state}/worker_replicas"
+		if [[ "${target}" == *worker* ]]; then
+			cat "${state}/worker_replicas"
+		elif [[ -e "${state}/intree_get_garbage" ]]; then
+			printf 'not-a-replica-count\n'
+		else
+			# The in-tree read prints spec.replicas|status.replicas. A Deployment at
+			# zero replicas has no status.replicas field, so the second value is empty.
+			count="$(cat "${state}/intree_replicas")"
+			live="${count}"
+			[[ ! -e "${state}/intree_status_pods" ]] || live="$(cat "${state}/intree_status_pods")"
+			if ((live > 0)); then printf '%s|%s\n' "${count}" "${live}"; else printf '%s|\n' "${count}"; fi
+		fi
 		;;
 	*)
 		printf 'fake kubectl: unsupported get %s\n' "$*" >&2

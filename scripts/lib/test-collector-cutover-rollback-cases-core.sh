@@ -34,6 +34,7 @@ expect_order "run executes the six steps in order" \
 	"kubectl -n eso scale deployment/jira-collector --replicas=1" \
 	"psql replay" \
 	"psql truth"
+expect_no_call "a default-mode run never reads the direct Deployment replica counts" 'jsonpath={.spec.replicas}{"|"}{.status.replicas}'
 revoke_line="$(first_line 'eshu component revoke-grant')"
 helm_line="$(first_line 'helm upgrade')"
 drain_between="$(calls | awk -v a="${revoke_line}" -v b="${helm_line}" 'NR > a && NR < b && index($0, "psql drain") { n++ } END { print n + 0 }')"
