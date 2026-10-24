@@ -28,6 +28,10 @@ func (f *fakeTerminalFailureAcknowledger) Acknowledge(context.Context, pgstorage
 	}}, nil
 }
 
+func (f *fakeTerminalFailureAcknowledger) ListTerminalFailures(context.Context, pgstorage.TerminalFailureListFilter) (pgstorage.TerminalFailureListPage, error) {
+	return pgstorage.TerminalFailureListPage{}, nil
+}
+
 func (f *fakeTerminalFailureAcknowledger) ListTerminalFailureAcks(context.Context, pgstorage.TerminalFailureAckListFilter) ([]pgstorage.TerminalFailureAckRecord, error) {
 	return nil, nil
 }
@@ -49,6 +53,7 @@ func TestAPIRouterMountsTheTerminalFailureAcknowledgement(t *testing.T) {
 	t.Parallel()
 	const writePath = "/api/v0/admin/collector-failures/acknowledge"
 	const readPath = "/api/v0/admin/collector-failures/acknowledgements/query"
+	const listPath = "/api/v0/admin/collector-failures/query"
 	body := `{"collector_kind":"security_alert","instance_id":"alerts","scope_id":"org:example","reason":"expected","idempotency_key":"k1"}`
 
 	fake := &fakeTerminalFailureAcknowledger{}
@@ -65,9 +70,15 @@ func TestAPIRouterMountsTheTerminalFailureAcknowledgement(t *testing.T) {
 		t.Fatalf("mounted query route = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
 
+	rec = httptest.NewRecorder()
+	mounted.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, listPath, strings.NewReader(`{"collector_kind":"security_alert","instance_id":"alerts"}`)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("mounted list route = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+
 	bare := http.NewServeMux()
 	(&APIRouter{}).Mount(bare)
-	for _, path := range []string{writePath, readPath} {
+	for _, path := range []string{writePath, readPath, listPath} {
 		rec = httptest.NewRecorder()
 		bare.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, strings.NewReader(body)))
 		if rec.Code != http.StatusNotFound {

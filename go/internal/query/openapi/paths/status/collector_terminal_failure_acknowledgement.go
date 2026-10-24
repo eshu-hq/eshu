@@ -5,7 +5,8 @@ package status
 
 // CollectorTerminalFailureAcknowledgement is the OpenAPI path fragment
 // documenting POST /api/v0/admin/collector-failures/acknowledge and POST
-// /api/v0/admin/collector-failures/acknowledgements/query (#8830). It lives
+// /api/v0/admin/collector-failures/acknowledgements/query, and POST
+// /api/v0/admin/collector-failures/query (#8830). It lives
 // apart from Admin because admin.go is at the 500-line cap (the
 // repository_retirement.go precedent). openapi.Spec concatenates it into the
 // published document; keep it in lockstep with the handler in
@@ -27,7 +28,7 @@ const CollectorTerminalFailureAcknowledgement = `
                 "properties": {
                   "collector_kind": {"type": "string", "minLength": 1, "description": "The collector kind of the instance, for example security_alert."},
                   "instance_id": {"type": "string", "minLength": 1, "description": "The collector instance, as collector readiness reports it."},
-                  "scope_id": {"type": "string", "minLength": 1, "description": "The failed scope. Find it with POST /api/v0/admin/work-items/query (statuses failed_terminal, scope_id)."},
+                  "scope_id": {"type": "string", "minLength": 1, "description": "The failed scope. Find it with POST /api/v0/admin/collector-failures/query, which lists the failed scopes of one instance."},
                   "reason": {"type": "string", "minLength": 1, "maxLength": 512, "description": "Why the failure is known and expected. Stored as typed; do not put secrets in it."},
                   "idempotency_key": {"type": "string", "minLength": 1, "description": "Idempotency key; a retry with the same key and target replays the stored outcome."}
                 }
@@ -118,6 +119,66 @@ const CollectorTerminalFailureAcknowledgement = `
                           "actor_class": {"type": "string"},
                           "correlation_id": {"type": "string"},
                           "acknowledged_at": {"type": "string", "format": "date-time"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/admin/collector-failures/query": {
+      "post": {
+        "tags": ["admin"],
+        "summary": "List the failed scopes of one collector instance",
+        "description": "Admin-only discovery read for acknowledgement (#8830): the unresolved terminal failures of ONE collector instance, per scope, with the scope ids the acknowledge route accepts. No status surface carries a scope id, because it names an org, repository, or account and the status payloads reach callers outside the admin gate. It lists exactly what collector status counts: the same instance window (3 x scan_interval, 30 minute floor), the same rule that a later completed work item resolves a failure, and the same acknowledgement cover. A scope appears once per state: the newest unacknowledged failure and the newest acknowledged one, so a scope whose older failure is acknowledged and whose newer failure has another class lists both. A scope that recovered or aged out is not listed. limit counts scopes (default 100, at most 500) and cursor is the next_cursor of the previous page; items are ordered by scope_id, unacknowledged before acknowledged. Only bounded tokens are returned: never a failure message, a provider status code, or an acknowledgement reason (read the reason with the acknowledgements query route). An unknown, kind-mismatched, disabled, or deactivated instance lists nothing. Requires an admin (all-scopes) token; a scoped token or a browser session without all scopes receives 403. It is a read: no audit event and no idempotency key. No 5xx body carries backend error text.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["collector_kind", "instance_id"],
+                "properties": {
+                  "collector_kind": {"type": "string", "minLength": 1},
+                  "instance_id": {"type": "string", "minLength": 1},
+                  "limit": {"type": "integer", "minimum": 1, "maximum": 500, "description": "Scopes per page; default 100."},
+                  "cursor": {"type": "string", "description": "The next_cursor of the previous page."}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "One page of failed scopes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "next_cursor": {"type": "string", "description": "Present only when truncated."},
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "scope_id": {"type": "string"},
+                          "failure_class": {"type": "string"},
+                          "failure_operation": {"type": "string"},
+                          "failed_at": {"type": "string", "format": "date-time"},
+                          "work_item_id": {"type": "string"},
+                          "acknowledged": {"type": "boolean"},
+                          "acknowledged_at": {"type": "string", "format": "date-time", "description": "Present only when acknowledged."}
                         }
                       }
                     }

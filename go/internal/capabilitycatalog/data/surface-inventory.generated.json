@@ -763,6 +763,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/admin/collector-failures/query",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/admin/dead-letter",
       "readiness": "implemented"
     },

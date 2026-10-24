@@ -32,6 +32,7 @@ import (
 const (
 	acknowledgeRoute = "/api/v0/admin/collector-failures/acknowledge"
 	queryRoute       = "/api/v0/admin/collector-failures/acknowledgements/query"
+	listRoute        = "/api/v0/admin/collector-failures/query"
 )
 
 // Fixed client-facing messages (#7674). The response body is exactly this
@@ -43,6 +44,7 @@ const (
 	claimFailedMessage       = "collector terminal failure acknowledgement idempotency claim failed"
 	recordFailedMessage      = "collector terminal failure acknowledged but recording its idempotency outcome failed"
 	queryFailedMessage       = "collector terminal failure acknowledgement query failed"
+	listFailedMessage        = "collector terminal failure query failed"
 )
 
 // Outcomes of the acknowledgement counter, a closed set (#8830).
@@ -62,6 +64,7 @@ type Acknowledger interface {
 	ResolveTarget(ctx context.Context, req pgstorage.TerminalFailureAckRequest) (pgstorage.TerminalFailureAckTarget, error)
 	Acknowledge(ctx context.Context, req pgstorage.TerminalFailureAckRequest) (pgstorage.TerminalFailureAckResult, error)
 	ListTerminalFailureAcks(ctx context.Context, filter pgstorage.TerminalFailureAckListFilter) ([]pgstorage.TerminalFailureAckRecord, error)
+	ListTerminalFailures(ctx context.Context, filter pgstorage.TerminalFailureListFilter) (pgstorage.TerminalFailureListPage, error)
 }
 
 // Ledger is the replay idempotency ledger (admin_replay_requests) the replay,
@@ -110,6 +113,7 @@ func (h *Handler) logger() *slog.Logger {
 func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/admin/collector-failures/acknowledge", h.acknowledge)
 	mux.HandleFunc("POST /api/v0/admin/collector-failures/acknowledgements/query", h.queryAcknowledgements)
+	mux.HandleFunc("POST /api/v0/admin/collector-failures/query", h.queryCollectorFailures)
 }
 
 // acknowledgeRequest is the operator's body: the failed target, the reason, and
@@ -407,4 +411,72 @@ func ackScopeHash(kind, instance, scope string) string {
 		return ""
 	}
 	return audit.IdentityHash(kind + "\x00" + instance + "\x00" + scope)
+}
+
+// collectorFailuresRequest names the one instance whose failed scopes the admin
+// read lists. collector_kind and instance_id are required.
+type collectorFailuresRequest struct {
+	CollectorKind string `json:"collector_kind"`
+	InstanceID    string `json:"instance_id"`
+	Limit         int    `json:"limit"`
+	Cursor        string `json:"cursor"`
+}
+
+// queryCollectorFailures is the admin-only discovery read: the unresolved
+// terminal failures of one collector instance, per scope, with the scope ids the
+// acknowledge route accepts. No status surface carries a scope id (it names an
+// org, repository, or account, and the status payloads reach callers outside the
+// admin gate), so this is how an operator learns which scope to acknowledge. It
+// is admin inspection, not a recovery action: no audit event and no ledger. Its
+// answer is exactly what the status read counts, because the store builds it
+// from the same window, resolved, and cover predicates. limit counts scopes
+// (default 100, at most 500) and cursor is the last scope id of the previous page.
+func (h *Handler) queryCollectorFailures(w http.ResponseWriter, r *http.Request) {
+	if h.Acknowledger == nil {
+		querycontract.WriteError(w, http.StatusServiceUnavailable, "collector terminal failure acknowledgement is not configured")
+		return
+	}
+	var req collectorFailuresRequest
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.CollectorKind = strings.TrimSpace(req.CollectorKind)
+	req.InstanceID = strings.TrimSpace(req.InstanceID)
+	authCtx, _ := auth.AuthContextFromContext(r.Context())
+	if authCtx.Mode != "" && !authCtx.AllScopes {
+		querycontract.WriteError(w, http.StatusForbidden, "listing collector terminal failures requires an admin (all-scopes) token")
+		return
+	}
+	if req.CollectorKind == "" || req.InstanceID == "" {
+		querycontract.WriteError(w, http.StatusBadRequest, "collector_kind and instance_id are required")
+		return
+	}
+	page, err := h.Acknowledger.ListTerminalFailures(r.Context(), pgstorage.TerminalFailureListFilter{
+		CollectorKind: req.CollectorKind, InstanceID: req.InstanceID, Limit: req.Limit, Cursor: req.Cursor,
+	})
+	if err != nil {
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, listFailedMessage)
+		return
+	}
+	items := make([]map[string]any, 0, len(page.Items))
+	for _, item := range page.Items {
+		entry := map[string]any{
+			"scope_id":          item.ScopeID,
+			"failure_class":     item.FailureClass,
+			"failure_operation": item.FailureOperation,
+			"failed_at":         item.FailedAt.UTC().Format(time.RFC3339),
+			"work_item_id":      item.WorkItemID,
+			"acknowledged":      item.Acknowledged,
+		}
+		if item.Acknowledged {
+			entry["acknowledged_at"] = item.AcknowledgedAt.UTC().Format(time.RFC3339)
+		}
+		items = append(items, entry)
+	}
+	body := map[string]any{"count": len(items), "truncated": page.Truncated, "items": items}
+	if page.Truncated {
+		body["next_cursor"] = page.NextCursor
+	}
+	querycontract.WriteJSON(w, http.StatusOK, body)
 }

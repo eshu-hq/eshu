@@ -45,6 +45,7 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"POST /api/v0/admin/backfill":                                                   {}, // RequestBackfill enqueues backfill work
 		"POST /api/v0/admin/collector-failures/acknowledge":                             {}, // acknowledges a collector terminal failure as known and expected (admin mutation)
 		"POST /api/v0/admin/collector-failures/acknowledgements/query":                  {}, // reads stored terminal failure acknowledgements including the operator reason (admin)
+		"POST /api/v0/admin/collector-failures/query":                                   {}, // lists the failed scopes of one collector instance for acknowledgement (admin)
 		"POST /api/v0/admin/dead-letter":                                                {}, // DeadLetterWorkItems dead-letters queued work
 		"POST /api/v0/admin/recover-generations":                                        {}, // re-drives wedged generation scopes through recovery
 		"POST /api/v0/admin/refinalize":                                                 {}, // re-enqueues projector work for the given scope

@@ -19,7 +19,7 @@ type AcknowledgeCollectorFailureInput struct {
 	CollectorKind string
 	// InstanceID is the collector instance, as collector readiness reports it.
 	InstanceID string
-	// ScopeID is the failed scope (find it with the work-items query).
+	// ScopeID is the failed scope (find it with `eshu admin collector-failure list`).
 	ScopeID string
 	// Reason says why the failure is known and expected.
 	Reason string
@@ -76,4 +76,60 @@ func NewAcknowledgeFailureIdempotencyKey() (string, error) {
 		return "", fmt.Errorf("generate idempotency key: %w", err)
 	}
 	return "cli-ack-failure-" + hex.EncodeToString(buf), nil
+}
+
+// ListCollectorFailuresInput names the one collector instance whose failed scopes
+// ListCollectorFailures reads. CollectorKind and InstanceID are mandatory; Limit
+// counts scopes (the API defaults to 100 and caps at 500); Cursor is the
+// next_cursor of the previous page.
+type ListCollectorFailuresInput struct {
+	CollectorKind string
+	InstanceID    string
+	Limit         int
+	Cursor        string
+}
+
+// CollectorFailureItem is one failed scope as the list prints it.
+type CollectorFailureItem struct {
+	ScopeID          string `json:"scope_id"`
+	FailureClass     string `json:"failure_class"`
+	FailureOperation string `json:"failure_operation"`
+	FailedAt         string `json:"failed_at"`
+	WorkItemID       string `json:"work_item_id"`
+	Acknowledged     bool   `json:"acknowledged"`
+	AcknowledgedAt   string `json:"acknowledged_at"`
+}
+
+// CollectorFailuresPage is one decoded page of the failed-scope list.
+type CollectorFailuresPage struct {
+	Count      int                    `json:"count"`
+	Truncated  bool                   `json:"truncated"`
+	NextCursor string                 `json:"next_cursor"`
+	Items      []CollectorFailureItem `json:"items"`
+}
+
+// ListCollectorFailures reads one page of the failed scopes of one collector
+// instance (#8830), the discovery step before an acknowledgement. It refuses a
+// blank kind or instance before any HTTP call, naming the flag. The messages name
+// the CLI flag rather than the struct field, because they reach an operator
+// running `eshu admin collector-failure list`.
+func ListCollectorFailures(client Client, in ListCollectorFailuresInput) (CollectorFailuresPage, error) {
+	if strings.TrimSpace(in.CollectorKind) == "" {
+		return CollectorFailuresPage{}, fmt.Errorf("--collector-kind is required")
+	}
+	if strings.TrimSpace(in.InstanceID) == "" {
+		return CollectorFailuresPage{}, fmt.Errorf("--instance is required")
+	}
+	body := map[string]any{"collector_kind": in.CollectorKind, "instance_id": in.InstanceID}
+	if in.Limit > 0 {
+		body["limit"] = in.Limit
+	}
+	if strings.TrimSpace(in.Cursor) != "" {
+		body["cursor"] = in.Cursor
+	}
+	var page CollectorFailuresPage
+	if err := client.Post("/api/v0/admin/collector-failures/query", body, &page); err != nil {
+		return CollectorFailuresPage{}, err //nolint:wrapcheck // Client's error is already the operator's message; cmd/eshu prints it verbatim and wrapping would prepend a second prefix.
+	}
+	return page, nil
 }
