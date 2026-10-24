@@ -48,6 +48,28 @@ DDL, or import Eshu internals.
 - payload keys that look like credentials and were not redacted before emission;
 - conflicting duplicates for the same fact kind and stable key.
 
+For `azure_tag_observation` schema `1.0.0` only, the top-level
+`tag_value_fingerprints` object may use sensitive-looking tag keys as taxonomy.
+Every value must be a full lowercase `redacted:hmac-sha256:` marker. Null maps,
+raw values, and the same key under another fact kind or path are rejected. The
+generic `ValidateShareSafeKeys` check keeps its context-free key rule.
+
+Kubernetes posture facts have a separate exact root-field exception at schema
+`1.0.0`:
+
+| Fact kind | Root fields | Admitted JSON values |
+| --- | --- | --- |
+| `k8s_service_account`, `k8s_service_account_token_posture` | `secret_ref_count`, `image_pull_secret_ref_count` | number or null |
+| Same two kinds | `automount_token` | `"true"`, `"false"`, `"unknown"`, or null |
+| `k8s_workload_identity_use` | `projected_service_account_token` | boolean only |
+
+The key check admits numeric scalars without rounding or imposing a range;
+configured payload-schema validation still decides whether a count is an
+integer. Omitted fields remain valid at this key boundary. Other kinds,
+versions, and nested appearances receive no exception. Native and serialized
+facts use the same policy, while `IsSensitiveKeyName` and
+`ValidateShareSafeKeys` remain strict for these names.
+
 When a component manifest declares `payloadSchemaRef`, the in-tree host and
 `eshu component conform` additionally validate that fact's payload against the
 referenced `sdk/go/factschema/fixturepack` schema before publication or hosted

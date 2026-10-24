@@ -206,7 +206,7 @@ func (v Validator) validateFact(result Result, fact Fact) error {
 	if len(fact.Payload) == 0 {
 		return fmt.Errorf("fact %q payload is required", fact.Kind)
 	}
-	if err := validatePayload(fact.Payload); err != nil {
+	if err := validateFactPayload(fact); err != nil {
 		return fmt.Errorf("fact %q payload: %w", fact.Kind, err)
 	}
 	for _, redaction := range fact.Redactions {
