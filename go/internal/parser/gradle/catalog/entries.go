@@ -64,6 +64,21 @@ func keyParts(node *unstable.Node, max int) (parts [][]byte, ok bool) {
 	return parts, len(parts) > 0
 }
 
+// keyHead returns the first two components of a key and how many components
+// it has, counting no further than three, so a long dotted key costs no more
+// than a short one here.
+func keyHead(node *unstable.Node) (first, second []byte, segments int) {
+	for it := node.Key(); segments < 3 && it.Next(); segments++ {
+		switch segments {
+		case 0:
+			first = it.Node().Data
+		case 1:
+			second = it.Node().Data
+		}
+	}
+	return first, second, segments
+}
+
 // boundedString copies data when it fits MaxFieldBytes.
 func boundedString(data []byte) (string, bool) {
 	if len(data) == 0 || len(data) > MaxFieldBytes {

@@ -50,8 +50,8 @@ func (s *scanner) finish() Result {
 	return Result{State: StateParsed, Rows: rows, Counts: s.counts}
 }
 
-// entryCollides reports whether e's alias shares a normalized spelling with
-// another alias in its table.
+// entryCollides reports whether e's alias shares an accessor key (and so
+// possibly a normalized spelling) with another alias in its table.
 func (s *scanner) entryCollides(e entry) bool {
 	which := sectionLibraries
 	if e.plugin {
@@ -94,7 +94,7 @@ func (s *scanner) versionFor(ref string) (versionDef, bool) {
 	if table == nil {
 		return versionDef{}, false
 	}
-	slot, found, shared := table.lookup(ref, &s.normBuf)
+	slot, found, shared := table.lookup(ref, &s.keyBuf)
 	if !found || shared {
 		return versionDef{}, false
 	}

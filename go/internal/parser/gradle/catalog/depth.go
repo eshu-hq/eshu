@@ -3,7 +3,11 @@
 
 package catalog
 
-import "bytes"
+import (
+	"bytes"
+
+	"github.com/pelletier/go-toml/v2/unstable"
+)
 
 // nestingExceeds reports whether the document nests arrays or inline tables
 // deeper than limit. The TOML parser recurses once per level and has no depth
@@ -96,4 +100,44 @@ func skipMultiline(source []byte, from int, quote byte, escapes bool) int {
 		}
 	}
 	return len(source)
+}
+
+// keysExceed reports whether a top-level expression, a header or a key-value
+// pair, has a key with more than limit dotted segments, including the keys
+// of inline tables anywhere in its value. Each dotted segment is one more
+// level of table, and go-toml's semantic decode (validTOML) allocates in
+// proportion to them, so this check runs before it. The recursion follows
+// array and inline-table nesting, which nestingExceeds already bounded.
+func keysExceed(node *unstable.Node, limit int) bool {
+	segments := 0
+	for it := node.Key(); it.Next(); {
+		segments++
+		if segments > limit {
+			return true
+		}
+	}
+	if node.Kind != unstable.KeyValue {
+		return false
+	}
+	return valueKeysExceed(node.Value(), limit)
+}
+
+// valueKeysExceed applies keysExceed to every key-value pair inside value.
+func valueKeysExceed(value *unstable.Node, limit int) bool {
+	switch value.Kind {
+	case unstable.Array, unstable.InlineTable:
+		for it := value.Children(); it.Next(); {
+			child := it.Node()
+			if child.Kind == unstable.KeyValue {
+				if keysExceed(child, limit) {
+					return true
+				}
+			} else if valueKeysExceed(child, limit) {
+				return true
+			}
+		}
+	default:
+		// A scalar value holds no key.
+	}
+	return false
 }

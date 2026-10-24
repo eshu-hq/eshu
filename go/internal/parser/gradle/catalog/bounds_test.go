@@ -268,3 +268,24 @@ func TestScanFourQuoteClosingCannotHideNesting(t *testing.T) {
 	}
 	requireCeiling(t, "bytes allocated", bytesAllocated, 16<<10)
 }
+
+// A 900,000-segment dotted key must stay bounded: the streaming parse builds
+// one node per segment, and the scanner refuses the key before the semantic
+// TOML decode, which allocated about 400 bytes per input byte on this shape. The streaming
+// parse alone measured 139 bytes per input byte.
+func TestScanLongDottedKeyAllocationStaysBounded(t *testing.T) {
+	key := "a" + strings.Repeat(".a", 900_000)
+	for name, text := range map[string]string{
+		"root":   key + " = 1\n",
+		"header": "[" + key + "]\nb = 1\n",
+		"inline": "[libraries]\nx = { " + key + " = 1 }\n",
+	} {
+		source := []byte(text)
+		var result Result
+		bytesAllocated, _ := allocOf(func() { result = Scan(source) })
+		if result.State != StateTooDeep {
+			t.Errorf("%s: State=%q, want %q", name, result.State, StateTooDeep)
+		}
+		requireCeiling(t, name+" bytes allocated", bytesAllocated, uint64(len(source))*160)
+	}
+}

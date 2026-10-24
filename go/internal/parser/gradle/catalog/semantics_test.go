@@ -319,9 +319,10 @@ func TestScanExactRepeatOfALaterSpellingIsMalformed(t *testing.T) {
 }
 
 // go-toml's decoder recurses once per dotted-key segment when it fills a
-// matching field, with no depth bound. The semantic check decodes into an
-// empty struct, which matches no key, so a 900,000-segment key must parse
-// without growing the stack. Decoding into a map here overflows it.
+// matching field, with no depth bound. Scan refuses such a key before the
+// semantic check (keysExceed), and the check itself decodes into an empty
+// struct, which matches no key, so a 900,000-segment key must not grow the
+// stack on either path. Decoding into a map here overflows it.
 func TestScanSemanticCheckDoesNotRecurseOnDottedKeys(t *testing.T) {
 	key := "a" + strings.Repeat(".a", 900_000)
 	for name, text := range map[string]string{
@@ -329,8 +330,11 @@ func TestScanSemanticCheckDoesNotRecurseOnDottedKeys(t *testing.T) {
 		"header": "[" + key + "]\nb = 1\n",
 		"inline": "[libraries]\nx = { " + key + " = 1 }\n",
 	} {
-		if result := Scan([]byte(text)); result.State != StateParsed || len(result.Rows) != 0 {
-			t.Errorf("%s: State=%q rows=%d, want parsed with none", name, result.State, len(result.Rows))
+		if result := Scan([]byte(text)); result.State != StateTooDeep || len(result.Rows) != 0 {
+			t.Errorf("%s: State=%q rows=%d, want too_deep with none", name, result.State, len(result.Rows))
+		}
+		if err := validTOML([]byte(text)); err != nil {
+			t.Errorf("%s: validTOML = %v, want nil", name, err)
 		}
 	}
 }

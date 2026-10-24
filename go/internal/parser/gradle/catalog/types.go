@@ -24,6 +24,11 @@ const (
 	MaxFieldBytes = 256
 	// MaxNesting bounds array and inline-table depth. See nestingExceeds.
 	MaxNesting = 16
+	// MaxKeySegments bounds the dotted segments of one key. A Gradle catalog
+	// key needs at most three (alias.version.ref); a longer key is reported
+	// as StateTooDeep before the semantic TOML decode, whose allocation grows
+	// with the segment count.
+	MaxKeySegments = 64
 )
 
 // File states reported in Result.State and the payload's gradle_catalog_state.
@@ -65,8 +70,11 @@ type Counts struct {
 	// Dropped counts entries skipped because MaxRows was reached.
 	Dropped int
 	// Collided counts aliases, in any table, that share a normalized spelling
-	// with another alias in the same table. Gradle treats '-', '_' and '.' in
-	// an alias as one separator, so "a-b" and "a_b" are one alias to it.
+	// or an accessor name with another alias in the same table. Gradle treats
+	// '-', '_' and '.' in an alias as one separator, so "a-b" and "a_b" are
+	// one alias to it, and it fails the build when two aliases map to one
+	// accessor name, such as "fooBar" and "foo-bar". An alias written as a
+	// dotted key or a sub-table counts too, though it emits no row.
 	// Colliding library and plugin rows are also counted in Unresolved; this
 	// count is a diagnostic that overlaps the others.
 	Collided int

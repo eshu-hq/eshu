@@ -33,7 +33,7 @@ type versionDef struct {
 type entry struct {
 	decl   declaration
 	alias  string
-	slot   int // normalized-alias slot in the section's aliasTable
+	slot   int // accessor-key slot in the section's aliasTable
 	line   int
 	plugin bool
 }
@@ -49,7 +49,7 @@ type scanner struct {
 	counts   Counts
 	offset   int    // end of the span already counted for line numbers
 	line     int    // line number at offset
-	normBuf  []byte // scratch space for normalizeAlias
+	keyBuf   []byte // scratch space for accessorKey
 }
 
 // Scan applies the catalog grammar to source and returns the rows and counts.
@@ -66,7 +66,11 @@ func Scan(source []byte) Result {
 	var parser unstable.Parser
 	parser.Reset(source)
 	for parser.NextExpression() {
-		if reason := s.expression(parser.Expression()); reason != "" {
+		node := parser.Expression()
+		if keysExceed(node, MaxKeySegments) {
+			return Result{State: StateTooDeep, ParseError: "a dotted key has more segments than the catalog bound"}
+		}
+		if reason := s.expression(node); reason != "" {
 			return Result{State: StateMalformed, ParseError: reason}
 		}
 	}
@@ -82,8 +86,10 @@ func Scan(source []byte) Result {
 // validTOML runs the TOML decoder's semantic checks, which the streaming
 // parser below does not perform: a table defined twice, by a header and by
 // dotted keys, or a key repeated outside the catalog tables. Decoding into an
-// empty struct keeps no values, so on syntactically valid input the check
-// allocates almost nothing. It runs only after the size and nesting guards,
+// empty struct keeps no values, but the decoder still builds its own parse
+// tree and key paths, so its allocation grows with the input and with the
+// dotted segments of each key (about 290 bytes per input byte on one long
+// dotted key). It runs only after the size, nesting and key-segment guards,
 // which bound its work and its recursion, and after the streaming parser
 // accepted the syntax, so a syntax error never reaches the decoder (which
 // copies an unterminated string before it reports one).
@@ -121,10 +127,9 @@ func (s *scanner) lineAt(offset int) int {
 func (s *scanner) expression(node *unstable.Node) string {
 	switch node.Kind {
 	case unstable.Table:
-		return s.header(node)
+		return s.header(node, false)
 	case unstable.ArrayTable:
-		s.current = sectionUnsupported
-		s.counts.Unsupported++
+		return s.header(node, true)
 	case unstable.KeyValue:
 		return s.keyValue(node)
 	default:
@@ -134,27 +139,39 @@ func (s *scanner) expression(node *unstable.Node) string {
 	return ""
 }
 
-// header switches section on a [name] header made of exactly one component.
-func (s *scanner) header(node *unstable.Node) string {
-	parts, ok := keyParts(node, 2)
-	which := sectionUnsupported
-	if ok && len(parts) == 1 {
-		switch string(parts[0]) {
-		case "versions":
-			which = sectionVersions
-		case "libraries":
-			which = sectionLibraries
-		case "bundles":
-			which = sectionBundles
-		case "plugins":
-			which = sectionPlugins
-		}
+// sectionNamed returns the catalog table a header component names, or
+// sectionUnsupported.
+func sectionNamed(name []byte) section {
+	switch string(name) {
+	case "versions":
+		return sectionVersions
+	case "libraries":
+		return sectionLibraries
+	case "bundles":
+		return sectionBundles
+	case "plugins":
+		return sectionPlugins
+	default:
+		return sectionUnsupported
 	}
-	s.current = which
-	if which == sectionUnsupported {
+}
+
+// header switches section on a [name] header made of exactly one component.
+// Any other header is unsupported. A [libraries.alias] sub-table, deeper
+// [libraries.alias.version] tables and an [[libraries.alias]] array still
+// register alias with Gradle, so alias is shadowed in its table.
+func (s *scanner) header(node *unstable.Node, array bool) string {
+	first, second, segments := keyHead(node)
+	which := sectionNamed(first)
+	if segments != 1 || array || which == sectionUnsupported {
+		s.current = sectionUnsupported
 		s.counts.Unsupported++
+		if segments > 1 && which != sectionUnsupported {
+			s.shadow(which, second)
+		}
 		return ""
 	}
+	s.current = which
 	if s.headers[which] {
 		return "table header repeated"
 	}
@@ -173,29 +190,24 @@ func (s *scanner) keyValue(node *unstable.Node) string {
 	default:
 		// A recognized table: fall through to the alias checks.
 	}
-	parts, ok := keyParts(node, 2)
-	if !ok || len(parts) != 1 {
+	first, _, segments := keyHead(node)
+	alias, ok := boundedString(first)
+	if segments != 1 || !ok || !validAlias(alias) {
+		// A dotted entry (alias.module = ...) or an alias over the field
+		// bound emits no row, but Gradle registers its alias.
 		s.counts.Unsupported++
+		s.shadow(s.current, first)
 		return ""
 	}
-	alias, ok := boundedString(parts[0])
-	if !ok || !validAlias(alias) {
-		s.counts.Unsupported++
-		return ""
-	}
-	table := s.aliases[s.current]
-	if table == nil {
-		table = newAliasTable()
-		s.aliases[s.current] = table
-	}
+	table := s.table(s.current)
 	if table.full() {
-		if table.addDropped(alias, &s.normBuf) {
+		if table.addDropped(alias, &s.keyBuf) {
 			return "alias repeated in one table"
 		}
 		s.counts.Dropped++
 		return ""
 	}
-	slot, repeated := table.add(alias, &s.normBuf)
+	slot, repeated := table.add(alias, &s.keyBuf)
 	if repeated {
 		return "alias repeated in one table"
 	}
@@ -219,6 +231,25 @@ func (s *scanner) keyValue(node *unstable.Node) string {
 		// sectionNone and sectionUnsupported returned above.
 	}
 	return ""
+}
+
+// table returns the alias table of which, creating it on first use.
+func (s *scanner) table(which section) *aliasTable {
+	table := s.aliases[which]
+	if table == nil {
+		table = newAliasTable()
+		s.aliases[which] = table
+	}
+	return table
+}
+
+// shadow registers an alias that emits no row, so it still collides with
+// the other spellings of it in its table (see aliasTable.shadow).
+func (s *scanner) shadow(which section, alias []byte) {
+	if len(alias) == 0 {
+		return
+	}
+	s.table(which).shadow(alias, &s.keyBuf)
 }
 
 // version records a [versions] alias: a string is a plain version, an inline
