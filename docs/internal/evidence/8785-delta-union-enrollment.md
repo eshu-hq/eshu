@@ -53,7 +53,26 @@ The receipt and event stream are at
 the proof host. This run proves the two Go roots against the runtime at the
 tested commit and pinned local services. A later rebase onto
 `34922d077381bbef2b44cb70f518c12bd3f8b24a` added upstream changes;
-a local backend run on that combined tree is NOT_CHECKED. The older
+the fresh combined-tree replay below supersedes that local-proof gap. The older
 `/tmp/eshu-7533-drive/8785-local/manifest.txt` run is historical after an
 earlier runtime-base change. Hosted PR and scheduled delivery, plus deployed
 QA, are NOT_CHECKED. Keep #8785 open for that evidence.
+
+
+## Latest-base local replay
+
+At `a4698cd87ed66d0e7e174ae041f21832f05d0bfe`, based on main
+`34922d077381bbef2b44cb70f518c12bd3f8b24a`, the same two roots passed
+with Go 1.26.10 and race detection on fresh instances of the pinned backends
+above. Each root ran and passed once, with zero skips or failures; the strict
+event verifier exited 0. Both owned containers were removed. The test source
+and current workflow hashes match the receipt.
+
+The Go process took 30.588538 seconds and the complete local run took
+44.251013 seconds. These are observed boundaries on this host, not a speed
+comparison. The local command retained its eight-minute test bound; the
+workflow uses twelve minutes. The compact receipt is
+`8785-latest-local-proof-summary.json`; raw events and the complete receipt
+are in `/tmp/eshu-7533-drive/8785-latest-local/`. This replay establishes
+local acceptance on the latest base. Hosted delivery and deployed QA remain
+NOT_CHECKED, so #8785 stays open.
