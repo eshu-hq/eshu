@@ -242,3 +242,27 @@ func TestPropsIncludeWithRemoveOrUpdateIsSkipped(t *testing.T) {
 	// A and B still exist as literal names, so C is untouched.
 	requireNoAmbiguity(t, rows[0])
 }
+
+// TestPropsCaseVariantUpdateOrRemoveDemotesEarlierRows pins that a wrongly
+// cased Update or Remove attribute still retargets earlier rows in MSBuild
+// (attribute names are case-insensitive), so the scanner demotes every
+// earlier row of the item type instead of skipping only that element.
+func TestPropsCaseVariantUpdateOrRemoveDemotesEarlierRows(t *testing.T) {
+	t.Parallel()
+
+	payload := parseProps(t, "Directory.Packages.props", `<Project><ItemGroup>
+<PackageVersion Include="A" Version="1.0.0" />
+<PackageVersion Include="B" Version="1.0.0" />
+<GlobalPackageReference Include="E" Version="1.0.0" />
+<PackageVersion update="A" Version="2.0.0" />
+<PackageVersion REMOVE="B" />
+<PackageVersion Include="C" Version="1.0.0" />
+</ItemGroup></Project>`)
+	// Each wildcard operation covers every earlier row of the type.
+	requireAmbiguity(t, onlyRow(t, payload, "PackageVersion", "A"), "removed,updated")
+	requireAmbiguity(t, onlyRow(t, payload, "PackageVersion", "B"), "removed,updated")
+	// A later row of the type is defined after the Update, and another item
+	// type is untouched.
+	requireNoAmbiguity(t, onlyRow(t, payload, "PackageVersion", "C"))
+	requireNoAmbiguity(t, onlyRow(t, payload, "GlobalPackageReference", "E"))
+}

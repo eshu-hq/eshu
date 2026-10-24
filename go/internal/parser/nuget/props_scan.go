@@ -331,6 +331,7 @@ func (s *propsScan) item(start xml.StartElement, groupCond string) error {
 	}
 
 	conflict := hasCaseVariantAttribute(start.Attr)
+	s.demoteCaseVariantOperations(local, start.Attr)
 	decl := itemDecl{kind: local, groupCond: groupCond}
 	take := func(dst *string, name string) {
 		value, dup := attrOnce(start.Attr, name)
@@ -392,6 +393,25 @@ func (s *propsScan) item(start xml.StartElement, groupCond string) error {
 			}
 		case xml.EndElement:
 			return s.admitItem(decl, itemSpecs{include, update, remove}, conflict, oversize)
+		}
+	}
+}
+
+// demoteCaseVariantOperations demotes every earlier row of the item type when
+// an Update or Remove attribute is spelled in another case. MSBuild reads
+// attribute names case-insensitively, so such an item still retargets earlier
+// items; the spec cannot be trusted as written, so it counts as a wildcard.
+// The element itself is skipped through the case-variant conflict.
+func (s *propsScan) demoteCaseVariantOperations(kind string, attrs []xml.Attr) {
+	for _, attr := range attrs {
+		if attr.Name.Space != "" {
+			continue
+		}
+		switch {
+		case attr.Name.Local != "Update" && strings.EqualFold(attr.Name.Local, "Update"):
+			s.tracker.modify(kind, "*", false, len(s.items))
+		case attr.Name.Local != "Remove" && strings.EqualFold(attr.Name.Local, "Remove"):
+			s.tracker.modify(kind, "*", true, len(s.items))
 		}
 	}
 }
