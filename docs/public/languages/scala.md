@@ -159,9 +159,10 @@ Known limits of the sbt reading:
 - `scala_version` fails closed: a `ThisBuild` literal plus a different
   project override, or two literals in one scope, report no version, even
   where sbt's last assignment would name one.
-- `meta_build` is decided from the absolute path, so a repository checked out
-  in a directory named `project` has its root `build.sbt` flagged and every row
-  partial ([#8997](https://github.com/eshu-hq/eshu/issues/8997)).
+- `meta_build` flags any `build.sbt` whose parent directory, relative to the
+  repository root, is named `project`, so a subproject directory with that
+  name is flagged too. The directory a repository is cloned into never
+  counts.
 - `ThisBuild /` and `Global /` keys are partial even where sbt delegation
   would read them, because the grammar keeps only the forms it can prove.
 

@@ -70,8 +70,8 @@
 // wrapper, a lambda, another axis), or any other occurrence (a parenthesized
 // key, chained axes, an infix member, a bare key) poisons the envelope for the
 // whole file. meta_build is
-// true for a build.sbt directly inside a `project` directory, sbt's
-// meta-build, and every row of that file is partial.
+// true for a build.sbt directly inside a `project` directory relative to the
+// repository root, sbt's meta-build, and every row of that file is partial.
 //
 // sbt build files are Scala. The parser never evaluates Scala or runs sbt,
 // reads no sibling file, and uses a single-pass bounded scanner, so work and

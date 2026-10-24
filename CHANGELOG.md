@@ -234,8 +234,9 @@ recent shipped work grouped by feature area.
   the hint. `project/build.sbt` (sbt's
   meta-build, admitted by its base name) is parsed with
   `sbt_state.meta_build` true and every row partial; the check runs on the
-  absolute path, so a clone inside a directory named `project` is flagged too
-  ([#8997](https://github.com/eshu-hq/eshu/issues/8997)).
+  path relative to the repository root, so a clone inside a directory named
+  `project` is not flagged (this also covers
+  [#8997](https://github.com/eshu-hq/eshu/issues/8997)).
   A runtime-plus-test list is `runtime`,
   compiler-tool configurations are undetermined, Ivy ranges are partial, and a
   configuration string over 256 bytes is never split or stored. Package-registry correlation for sbt rows

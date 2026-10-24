@@ -146,7 +146,9 @@ after it in its element (`k := v`, `k.?`, `k / aggregate`, `k in Test`,
 handler that reads to the list's end fails the whole list closed.
 
 `meta_build` is `true` when the file sits directly in a directory named
-`project`. The registry admits `build.sbt` by base name, so
+`project`, judged on its path relative to the repository root (`Parse` takes
+the root the engine passes), so the directory a repository is cloned into
+never counts. The registry admits `build.sbt` by base name, so
 `project/build.sbt` reaches this parser; sbt reads it as the meta-build, whose
 dependencies are the build definition's classpath, not the project's, so every
 row from it is `partial`.
@@ -371,12 +373,10 @@ tracked. A leading UTF-8 byte order mark is ignored.
   any other nested position is not read and poisons the envelope, so that
   build gets no `scala_version` and no `sbt_binary_artifact` hint, even with a
   top-level literal beside it.
-- `meta_build` is a path rule on the parent directory name. A `build.sbt` in a
-  subproject directory literally named `project` is flagged too; sbt itself
-  treats `<root>/project` as the meta-build. The rule runs on the absolute path
-  the engine passes, so a repository checked out in a directory named
-  `project` has its root `build.sbt` flagged and every row partial: fail-closed,
-  but the flag is wrong (#8997).
+- `meta_build` is a path rule on the parent directory name, read on the path
+  relative to the repository root. A `build.sbt` in a subproject directory
+  literally named `project` is flagged too; sbt itself treats
+  `<root>/project` as the meta-build.
 - `scala_version` fails closed: two distinct literals, one `scalaVersion`
   statement the scanner cannot read, or one assignment outside a grammar
   context leave it empty for the whole file, even where sbt's
