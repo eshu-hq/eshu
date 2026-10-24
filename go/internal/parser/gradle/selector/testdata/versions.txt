@@ -1,0 +1,48 @@
+# Shared Gradle version table (issue #8988). Every Gradle reader that marks a
+# version resolved (build.gradle, build.gradle.kts, libs.versions.toml) must
+# agree with this table. Format: "<want><TAB><text>", want is "exact" or
+# "not-exact". Text holds no whitespace or quote so a test can embed it in any
+# Gradle notation. Source: Gradle "Declaring Versions and Ranges" and
+# "Declaring Rich Versions" docs (prefix '+', latest.<status>, Maven-style
+# ranges, the '!!' strict short-hand) and the artifact-only '@ext' notation.
+exact	1.0
+exact	1.2.3
+exact	1.2.3-rc1
+exact	1.2.3-SNAPSHOT
+exact	1.0.0.Final
+exact	2.3.4-RC1
+exact	5.0.0-M1
+exact	1.2.3_beta
+exact	33.0.0-jre
+exact	31.1-jre
+exact	1.0-latest
+exact	latestRelease
+exact	v1.2
+not-exact	+
+not-exact	1.+
+not-exact	1.0.+
+not-exact	1.3.+
+not-exact	1.0+
+not-exact	1.0.0+build.1
+not-exact	latest.release
+not-exact	latest.integration
+not-exact	latest.milestone
+not-exact	LATEST.release
+not-exact	Latest.Integration
+not-exact	[1.0,2.0)
+not-exact	[1.0,2.0]
+not-exact	(1.0,2.0)
+not-exact	]1.0,2.0[
+not-exact	]1.0,2.0]
+not-exact	[1.0,)
+not-exact	[1.0,[
+not-exact	(,2.0]
+not-exact	],2.0]
+not-exact	[1.0]
+not-exact	1.0,2.0
+not-exact	1.0,
+not-exact	1.0!!
+not-exact	[1.0,2.0)!!1.5
+not-exact	1.0!
+not-exact	1.0@jar
+not-exact	1.0@aar
