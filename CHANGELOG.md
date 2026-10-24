@@ -9,6 +9,24 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Parser: Gradle version selectors are no longer exact versions
+
+- **One fail-closed exact-version rule for Gradle readers**
+  ([#8988](https://github.com/eshu-hq/eshu/issues/8988)). A `build.gradle` or
+  `build.gradle.kts` dependency declared as `1.+`, `latest.release`,
+  `[1.0,2.0)`, `1.0!!` or `1.0@jar` used to be marked `resolved`, and the
+  reducer took the selector text as the observed version. The new
+  `go/internal/parser/gradle/selector` package holds the rule and a shared
+  table. A selector row is now `unresolved` and keeps the text as written.
+  The reducer backstop `payloadcore.ExactManifestDependencyVersion` also
+  rejects a trailing `+`, a `latest.` prefix, `!!` and `@`. Security-alert
+  reconciliation now uses that same function and reports a selector as a
+  missing version, not a malformed one. Semver build metadata such as
+  `1.0.0+build.1` stays exact in the reducer for npm and Cargo. The git
+  collector content version moves from `git-collector.v10` to
+  `git-collector.v11`, so each repository re-collects once and stale
+  `resolved` selector rows are replaced.
+
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
 - **Nesting guard before every Cargo TOML decode**

@@ -87,6 +87,9 @@ Supported today:
 - Maven/Gradle vulnerability reachability can use Kotlin imports, calls, and
   SCIP evidence only when resolver evidence proves the dependency's package API
   prefix; the result is reachable prioritization, not safe/not-called truth.
+- A `build.gradle.kts` dependency declared with a Gradle selector (`1.+`,
+  `latest.release`, `[1.0,2.0)`, `1.0!!`, `1.0@jar`) is `unresolved`, not an
+  observed version.
 
 Not claimed today:
 
