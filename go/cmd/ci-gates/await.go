@@ -28,6 +28,9 @@ func runAwait(args []string) error {
 	event := fs.String("event", eventPullRequest, "triggering event of the checks to aggregate: pull_request or merge_group")
 	baseRef := fs.String("base-ref", "main", "merge_group only: base branch the merge queue targets; it must match the queue branch")
 	mergeGroupBranch := fs.String("merge-group-branch", "", "merge_group only: merge queue branch of the source run (gh-readonly-queue/<base>/pr-<n>-<base sha>); its base SHA is the fixed ref the changed paths are diffed against (three-dot)")
+	targetRunID := fs.Int64("target-run-id", 0, "exact triggering Build Test run ID for pull_request transfer proof")
+	targetAttempt := fs.Int("target-run-attempt", 0, "exact triggering Build Test run attempt for pull_request transfer proof")
+	proofFile := fs.String("proof-file", "", "write a validated v3 terminal status description when transfer or full coverage is proved")
 	pollInterval := fs.Duration("poll-interval", 30*time.Second, "interval between GitHub check-rollup reads")
 	timeout := fs.Duration("timeout", 55*time.Minute, "maximum time to wait for selected blocking checks")
 	if err := fs.Parse(args); err != nil {
@@ -60,24 +63,21 @@ func runAwait(args []string) error {
 	if err := verifyPRHead(ctx, runner, *repo, *pr, *headSHA); err != nil {
 		return err
 	}
+	ctx = bindAwaitTarget(ctx, runner, *repo, *pr, *headSHA, *targetRunID, *targetAttempt)
+	paths, truncated, err := changedPathsForPR(ctx, runner, *repo, *pr)
+	if err != nil {
+		return err
+	}
 	// Tree-identical reuse (#8617 step 4b): a reword-only force-push lands
 	// here with a new head SHA over a byte-identical tree. If a previous
 	// head of this same PR already proved that tree green on every
 	// required context, the verdict transfers and no gate needs to run
 	// again for THIS status. The probe is an optimization only: its own
 	// failure falls through to the normal await, never to a verdict.
-	if verdict, probeErr := probeReuseForAwait(ctx, runner, reg, *repo, *pr, *headSHA); probeErr != nil {
-		_, _ = fmt.Fprintf(os.Stdout, "required-gates: reuse probe failed (%v); awaiting gates normally\n", probeErr)
-	} else if verdict.Reuse {
-		transferred, err := transferProvenReuse(ctx, runner, root, *repo, *pr, *headSHA, *pollInterval, verdict)
-		if transferred || err != nil {
+	if transferPRPathsSafe(paths, truncated) {
+		if terminal, err := tryProvenReuse(ctx, runner, reg, root, *repo, *pr, *headSHA, *pollInterval, *proofFile); terminal {
 			return err
 		}
-	}
-
-	paths, truncated, err := changedPathsForPR(ctx, runner, *repo, *pr)
-	if err != nil {
-		return err
 	}
 	resolved, err := selectRequiredGates(reg, root, paths, truncated)
 	if err != nil {
@@ -90,19 +90,21 @@ func runAwait(args []string) error {
 	// smoke never applies to it. Like reuse, a probe failure means the
 	// full await, never a verdict.
 	smoke := false
-	if !truncated && len(resolved) > 0 {
+	var smokeProof smokeEvidence
+	if transferPRPathsSafe(paths, truncated) && len(resolved) > 0 {
 		contexts := make([]string, 0, len(reg.RequiredStatusChecks))
 		for _, check := range reg.RequiredStatusChecks {
 			contexts = append(contexts, check.Context)
 		}
-		applied, smokeErr := probeSmoke(ctx, runner, *repo, *pr, *headSHA, paths, contexts)
+		evidence, smokeErr := probeSmokeEvidence(ctx, runner, *repo, *pr, *headSHA, paths, contexts)
 		if smokeErr != nil {
 			_, _ = fmt.Fprintf(os.Stdout, "required-gates: smoke probe failed (%v); awaiting full selection\n", smokeErr)
-		} else if applied {
+		} else if evidence.Applied {
 			if subset := smokeSubset(reg, resolved); !smokeHasFastWork(subset) {
 				_, _ = fmt.Fprintln(os.Stdout, "required-gates: smoke subset empty (all-heavy selection); awaiting full selection")
 			} else {
 				smoke = true
+				smokeProof = evidence
 				resolved = subset
 				_, _ = fmt.Fprintf(os.Stdout, "required-gates: smoke tier applies (clean rebase, disjoint base delta); awaiting %d fast job(s), heavy verdicts transfer\n", len(resolved))
 			}
@@ -115,9 +117,12 @@ func runAwait(args []string) error {
 		return err
 	}
 	if smoke {
+		if err := writeSmokeProof(ctx, *proofFile, smokeProof); err != nil {
+			return err
+		}
 		return errSmokeProven
 	}
-	return nil
+	return writeFullProofIfCovered(ctx, runner, *repo, resolved, *proofFile)
 }
 
 // selectRequiredGates resolves the blocking gates for a changed-path set to

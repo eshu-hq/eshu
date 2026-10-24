@@ -32,8 +32,8 @@ const fixtureCaseBlock = `          case "${AGGREGATE_CODE}" in
             10) state=failure; description='A required gate failed' ;;
             11) exit 0 ;;
             13) state=error; description='A required gate was cancelled' ;;
-            14) state=success; description='Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)' ;;
-            15) state=success; description='Smoke subset passed on a clean rebase' ;;
+            14) state=success; description='Transfer requires bound proof' ;;
+            15) state=success; description='Smoke requires bound proof' ;;
             *) state=error; description='Aggregation broke' ;;
           esac
 `
@@ -78,13 +78,13 @@ const cancelledArm = "              13) state=error; description='A required gat
 // reusedArm is the #8617 arm the real workflow ships alongside the
 // cancelled arm. realShapedPublisher always carries it, so the publisher
 // contract's reuse row is exercised against every attack shape below.
-const reusedArm = "              14) state=success; description='Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)' ;;\n"
+const reusedArm = "              14) state=success; description='Transfer requires bound proof' ;;\n"
 
 // smokedArm is the #8617 arm the real workflow ships alongside the
 // cancelled arm: the smoke subset passed on a clean rebase.
 // realShapedPublisher always carries it, so the publisher contract's
 // smoke row is exercised against every attack shape below.
-const smokedArm = "              15) state=success; description='Smoke subset passed on a clean rebase' ;;\n"
+const smokedArm = "              15) state=success; description='Smoke requires bound proof' ;;\n"
 
 // injectBeforePublish puts lines between the publisher's branch and its `gh`
 // call -- the gap round 3 closed with a textual anchor and round 4 walked
@@ -283,12 +283,7 @@ func TestCheckRequiredStatusWorkflows_RejectsReuseMappedToFreshPass(t *testing.T
 	t.Parallel()
 
 	body := realShapedPublisher(t, "", cancelledArm)
-	attacked := strings.Replace(body,
-		"description='Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)'",
-		"description='All gates passed'", 1)
-	if attacked == body {
-		t.Fatal("the reuse arm moved; this attack would be replacing nothing")
-	}
+	attacked := injectBeforePublish(t, body, "          if [[ \"${AGGREGATE_CODE}\" == 14 ]]; then description='All gates passed'; fi\n")
 	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, attacked), requiredWorkflowRegistry())
 	if len(errs) == 0 {
 		t.Fatal("describing a transferred verdict exactly as a fresh pass must be rejected")
@@ -304,11 +299,7 @@ func TestCheckRequiredStatusWorkflows_RejectsSmokeMappedToFreshPass(t *testing.T
 	t.Parallel()
 
 	body := realShapedPublisher(t, "", cancelledArm)
-	attacked := strings.Replace(body,
-		"description='Smoke subset passed on a clean rebase'", "description='All gates passed'", 1)
-	if attacked == body {
-		t.Fatal("the smoke arm moved; this attack would be replacing nothing")
-	}
+	attacked := injectBeforePublish(t, body, "          if [[ \"${AGGREGATE_CODE}\" == 15 ]]; then description='All gates passed'; fi\n")
 	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, attacked), requiredWorkflowRegistry())
 	if len(errs) == 0 {
 		t.Fatal("describing a smoke subset exactly as a fresh pass must be rejected")

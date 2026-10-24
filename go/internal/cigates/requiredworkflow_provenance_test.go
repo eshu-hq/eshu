@@ -5,7 +5,7 @@ package cigates
 
 import "testing"
 
-func TestPublisherReuseDescriptionRequiresFullBackedVersion(t *testing.T) {
+func TestPublisherReuseDescriptionRequiresBoundV3Proof(t *testing.T) {
 	check := RequiredStatusCheck{Context: "required-gates-complete"}
 	descriptions := map[int]string{
 		awaitExitPassedCode:            "full",
@@ -18,7 +18,8 @@ func TestPublisherReuseDescriptionRequiresFullBackedVersion(t *testing.T) {
 	if errs := publishedDescriptionErrors(check, descriptions); len(errs) == 0 {
 		t.Fatal("generic historical reuse description must fail publisher validation")
 	}
-	descriptions[awaitExitReusedCode] = "Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)"
+	descriptions[awaitExitReusedCode] = publisherProbeReuseProof
+	descriptions[awaitExitSmokePassedCode] = publisherProbeSmokeProof
 	if errs := publishedDescriptionErrors(check, descriptions); len(errs) != 0 {
 		t.Fatalf("versioned full-backed description rejected: %v", errs)
 	}

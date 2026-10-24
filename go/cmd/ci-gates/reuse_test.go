@@ -63,7 +63,7 @@ func successRoutes(oldSHA string) []mappedGHRoute {
 	}
 }
 
-func TestProbeReuse_IdenticalTreeAfterForcePushReuses(t *testing.T) {
+func TestProbeReuse_LegacyUnboundFullRefuses(t *testing.T) {
 	t.Parallel()
 
 	runner := &mappedGHRunner{routes: append([]mappedGHRoute{
@@ -76,8 +76,31 @@ func TestProbeReuse_IdenticalTreeAfterForcePushReuses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("probeReuse returned error: %v", err)
 	}
-	if !got.Reuse || got.SourceSHA != reuseOldSHA || got.Tree != reuseTreeSHA {
-		t.Fatalf("verdict = %#v; want reuse from %s at tree %s", got, reuseOldSHA, reuseTreeSHA)
+	if got.Reuse {
+		t.Fatalf("legacy unbound source reused: %#v", got)
+	}
+}
+
+// Equal PR head trees can still have different tested inputs when the base
+// moves. A green source verdict cannot be transferred across those merges.
+func TestProbeReuse_EqualHeadsDifferentTestedMergeRefuses(t *testing.T) {
+	t.Parallel()
+	runner := &mappedGHRunner{routes: append([]mappedGHRoute{
+		{match: "graphql", output: forcePushJSON(reuseOldSHA, reuseHeadSHA)},
+		{match: "git/commits/" + reuseHeadSHA, output: commitJSON(reuseTreeSHA, reuseParentSHA)},
+		{match: "git/commits/" + reuseOldSHA, output: commitJSON(reuseTreeSHA, "")},
+		{match: "actions/runs/101", output: `{"id":101,"name":"Build Test","path":".github/workflows/test.yml","event":"pull_request","head_sha":"` + reuseHeadSHA + `","run_attempt":1,"pull_requests":[{"number":42}],"referenced_workflows":[{"path":"eshu-hq/eshu/.github/workflows/queue-selection.yml@4444444444444444444444444444444444444444","sha":"4444444444444444444444444444444444444444","ref":"refs/pull/42/merge"}]}`},
+		{match: "actions/runs/100", output: `{"id":100,"name":"Build Test","path":".github/workflows/test.yml","event":"pull_request","head_sha":"` + reuseOldSHA + `","run_attempt":1,"pull_requests":[{"number":42}],"referenced_workflows":[{"path":"eshu-hq/eshu/.github/workflows/queue-selection.yml@5555555555555555555555555555555555555555","sha":"5555555555555555555555555555555555555555","ref":"refs/pull/42/merge"}]}`},
+		{match: "git/commits/4444444444444444444444444444444444444444", output: `{"sha":"4444444444444444444444444444444444444444","tree":{"sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"parents":[{"sha":"6666666666666666666666666666666666666666"},{"sha":"` + reuseHeadSHA + `"}]}`},
+		{match: "git/commits/5555555555555555555555555555555555555555", output: `{"sha":"5555555555555555555555555555555555555555","tree":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"parents":[{"sha":"7777777777777777777777777777777777777777"},{"sha":"` + reuseOldSHA + `"}]}`},
+	}, successRoutes(reuseOldSHA)...)}
+	got, err := probeReuse(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
+		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
+	if err != nil {
+		t.Fatalf("probeReuse error: %v", err)
+	}
+	if got.Reuse {
+		t.Fatalf("equal HEAD trees with distinct tested merges reused: %#v", got)
 	}
 }
 
@@ -145,7 +168,7 @@ func TestProbeReuse_PlainPushDifferentTreeDoesNotReuse(t *testing.T) {
 	}
 }
 
-func TestProbeReuse_EmptyCommitParentReuses(t *testing.T) {
+func TestProbeReuse_UnboundEmptyCommitParentRefuses(t *testing.T) {
 	t.Parallel()
 
 	runner := &mappedGHRunner{routes: append([]mappedGHRoute{
@@ -158,8 +181,8 @@ func TestProbeReuse_EmptyCommitParentReuses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("probeReuse returned error: %v", err)
 	}
-	if !got.Reuse || got.SourceSHA != reuseParentSHA {
-		t.Fatalf("verdict = %#v; want reuse from first parent %s", got, reuseParentSHA)
+	if got.Reuse {
+		t.Fatalf("unbound parent source reused: %#v", got)
 	}
 }
 

@@ -115,6 +115,9 @@ func TestRequiredWorkflowTerminalActivePR(t *testing.T) {
 		t.Fatalf("active PR terminal step failed: %v\n%s", got.err, got.output)
 	}
 	assertRequiredStatusCall(t, got.calls, "success")
+	if !strings.Contains(got.calls, "description=All path-selected blocking gates passed") {
+		t.Fatalf("unbound ordinary full result must remain successful without a v3 marker; calls:\n%s", got.calls)
+	}
 }
 
 func TestRequiredWorkflowTerminalRejectsChangedPROwner(t *testing.T) {
@@ -273,6 +276,7 @@ exit 79
 		"GITHUB_REPOSITORY=eshu-hq/required-gates-probe",
 		"HEAD_SHA=probe-head",
 		"TARGET_URL=https://example.invalid/actions/runs/7206",
+		"RUNNER_TEMP=" + dir,
 		"RUN_EVENT=" + event,
 		"GITHUB_OUTPUT=" + outputs,
 		"ESHU_GH_CALLS=" + ghCalls,

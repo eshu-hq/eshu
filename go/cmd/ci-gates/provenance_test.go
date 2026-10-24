@@ -29,7 +29,7 @@ func TestProbeReuseRefusesUnprovenSource(t *testing.T) {
 	}
 }
 
-func TestProbeReuseAcceptsValidatedV2Source(t *testing.T) {
+func TestProbeReuseRefusesUnboundV2Source(t *testing.T) {
 	routes := append([]mappedGHRoute{
 		{match: "graphql", output: forcePushJSON(reuseOldSHA, reuseHeadSHA)},
 		{match: "git/commits/" + reuseHeadSHA, output: commitJSON(reuseTreeSHA, reuseParentSHA)},
@@ -37,8 +37,8 @@ func TestProbeReuseAcceptsValidatedV2Source(t *testing.T) {
 		{match: "commits/" + reuseOldSHA + "/statuses", output: `[{"context":"required-gates-complete","state":"success","description":"` + reuseV2Description + `"}]`},
 	}, successRoutes(reuseOldSHA)...)
 	got, err := probeReuse(context.Background(), &mappedGHRunner{routes: routes}, "eshu-hq/eshu", 42, reuseHeadSHA, []string{"go-core-complete", "go-race-complete", "required-gates-complete"})
-	if err != nil || !got.Reuse {
-		t.Fatalf("validated v2 source: verdict=%+v, error=%v", got, err)
+	if err != nil || got.Reuse {
+		t.Fatalf("unbound v2 source transferred: verdict=%+v, error=%v", got, err)
 	}
 }
 
@@ -96,8 +96,8 @@ func TestProbeSmokeUnchangedEndpointWorkflowIgnoresThreeDotNoise(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got {
-		t.Fatal("direct endpoint delta is disjoint despite three-dot compare noise")
+	if got {
+		t.Fatal("unbound historical source transferred despite missing v3 proof")
 	}
 }
 

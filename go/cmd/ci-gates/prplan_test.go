@@ -56,11 +56,12 @@ func TestBuildPRPlanWorkflowDefinitionChangeForcesFull(t *testing.T) {
 		{File: "opened.yml", Name: "Opened", Synchronize: false, Jobs: []string{"invite"}},
 	}
 	reg := &cigates.Registry{Gates: []cigates.Gate{{ID: "go-core", Tier: cigates.TierPrePR, Triggers: []string{".github/**"}, CI: cigates.CI{Workflow: "test.yml", Job: "go-core"}}}}
-	got, err := buildPRPlan(context.Background(), runner, reg, defs, "eshu-hq/eshu", 42, headSHAFixture)
+	ctx := withTestedInput(context.Background(), testedInput{RunID: 101, Attempt: 1, MergeSHA: testedMergeSHA, MergeTree: testedTreeSHA})
+	got, err := buildPRPlan(ctx, runner, reg, defs, "eshu-hq/eshu", 42, headSHAFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.SchemaVersion != 1 || got.Mode != "full" || got.HeadSHA != headSHAFixture || !reflect.DeepEqual(got.Workflows, []string{"test.yml"}) || !reflect.DeepEqual(got.Jobs["test.yml"], []string{"go-core", "go-race-complete"}) || !reflect.DeepEqual(got.Gates, []string{"go-core"}) {
+	if got.SchemaVersion != 2 || got.Mode != "full" || got.HeadSHA != headSHAFixture || got.TargetRunID != 101 || got.TargetAttempt != 1 || got.MergeSHA != testedMergeSHA || got.MergeTree != testedTreeSHA || !reflect.DeepEqual(got.Workflows, []string{"test.yml"}) || !reflect.DeepEqual(got.Jobs["test.yml"], []string{"go-core", "go-race-complete"}) || !reflect.DeepEqual(got.Gates, []string{"go-core"}) {
 		t.Fatalf("plan = %#v", got)
 	}
 	for _, call := range runner.calls {
@@ -72,7 +73,7 @@ func TestBuildPRPlanWorkflowDefinitionChangeForcesFull(t *testing.T) {
 
 func TestValidatePRPlanRejectsMissingAndUnsupportedOutputs(t *testing.T) {
 	t.Parallel()
-	good := prPlan{SchemaVersion: 1, Mode: "full", HeadSHA: headSHAFixture, Workflows: []string{"test.yml"}, Jobs: map[string][]string{"test.yml": {"go-core"}}, Gates: []string{"go-core"}, Reason: "full"}
+	good := prPlan{SchemaVersion: 2, Mode: "full", HeadSHA: headSHAFixture, TargetRunID: 101, TargetAttempt: 1, MergeSHA: testedMergeSHA, MergeTree: testedTreeSHA, Workflows: []string{"test.yml"}, Jobs: map[string][]string{"test.yml": {"go-core"}}, Gates: []string{"go-core"}, Reason: "full"}
 	if err := validatePRPlan(good); err != nil {
 		t.Fatalf("valid plan: %v", err)
 	}

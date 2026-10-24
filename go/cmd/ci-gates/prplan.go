@@ -25,7 +25,12 @@ type prPlan struct {
 	Mode          string              `json:"mode"`
 	HeadSHA       string              `json:"head_sha"`
 	SourceSHA     string              `json:"source_sha,omitempty"`
+	SourceFullSHA string              `json:"source_full_sha,omitempty"`
 	Tree          string              `json:"tree,omitempty"`
+	TargetRunID   int64               `json:"target_run_id"`
+	TargetAttempt int                 `json:"target_run_attempt"`
+	MergeSHA      string              `json:"merge_sha"`
+	MergeTree     string              `json:"merge_tree"`
 	Workflows     []string            `json:"workflows"`
 	Jobs          map[string][]string `json:"jobs"`
 	Gates         []string            `json:"gates"`
@@ -76,6 +81,15 @@ func runPRPlan(args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
+	runID, attempt, err := nativeRunAttempt()
+	if err != nil {
+		return err
+	}
+	input, err := readTestedInput(ctx, execGHRunner{}, *repo, *pr, *headSHA, runID, attempt)
+	if err != nil {
+		return fmt.Errorf("bind PR plan to caller: %w", err)
+	}
+	ctx = withTestedInput(ctx, input)
 	plan, err := buildPRPlan(ctx, execGHRunner{}, reg, defs, *repo, *pr, *headSHA)
 	if err != nil {
 		return err
@@ -192,6 +206,10 @@ func trustedCallablePRWorkflowDefinitions(root string, seen map[string]bool) ([]
 }
 
 func buildPRPlan(ctx context.Context, runner ghRunner, reg *cigates.Registry, defs []cigates.PRWorkflowDefinition, repo string, pr int, headSHA string) (prPlan, error) {
+	target, bound := currentTestedInput(ctx)
+	if !bound {
+		return prPlan{}, fmt.Errorf("PR plan has no exact tested caller input")
+	}
 	if err := verifyPRHead(ctx, runner, repo, pr, headSHA); err != nil {
 		return prPlan{}, err
 	}
@@ -221,21 +239,15 @@ func buildPRPlan(ctx context.Context, runner ghRunner, reg *cigates.Registry, de
 			return prPlan{}, fmt.Errorf("selected blocking workflow %s lacks a trusted direct trigger or callable fragment", gate.Workflow)
 		}
 	}
-	plan := prPlan{SchemaVersion: 1, Mode: "full", HeadSHA: headSHA, Reason: "full applicable synchronize selection"}
+	plan := prPlan{SchemaVersion: 2, Mode: "full", HeadSHA: headSHA, TargetRunID: target.RunID, TargetAttempt: target.Attempt, MergeSHA: target.MergeSHA, MergeTree: target.MergeTree, Reason: "full applicable synchronize selection"}
 	// A PR that edits gate definitions cannot transfer a prior verdict. The
 	// default-branch publisher keeps judging with trusted definitions until
 	// the changed definitions land, so this path must be a full execution.
-	definitionsChanged := truncated || cigates.HasUnknownPRWorkflowDefinitions(reg, defs)
-	for _, path := range paths {
-		if strings.HasPrefix(path, ".github/") || strings.HasPrefix(path, "specs/ci-gates") || strings.HasPrefix(path, "specs/ci-pr-workflows.d/") || strings.HasPrefix(path, "scripts/") {
-			definitionsChanged = true
-			break
-		}
-	}
+	definitionsChanged := !transferPRPathsSafe(paths, truncated) || cigates.HasUnknownPRWorkflowDefinitions(reg, defs)
 	if !definitionsChanged {
 		reuse, probeErr := probeReuseForAwait(ctx, runner, reg, repo, pr, headSHA)
 		if probeErr == nil && reuse.Reuse {
-			plan.Mode, plan.SourceSHA, plan.Tree, plan.Reason = "reuse", reuse.SourceSHA, reuse.Tree, reuse.Reason
+			plan.Mode, plan.SourceSHA, plan.SourceFullSHA, plan.Tree, plan.Reason = "reuse", reuse.SourceSHA, reuse.FullRootSHA, reuse.Tree, reuse.Reason
 		} else {
 			contexts := make([]string, 0, len(reg.RequiredStatusChecks))
 			for _, check := range reg.RequiredStatusChecks {
@@ -243,7 +255,7 @@ func buildPRPlan(ctx context.Context, runner ghRunner, reg *cigates.Registry, de
 			}
 			smoke, smokeErr := probeSmokeEvidence(ctx, runner, repo, pr, headSHA, paths, contexts)
 			if smokeErr == nil && smoke.Applied {
-				plan.Mode, plan.SourceSHA, plan.Tree, plan.Reason = "smoke", smoke.SourceSHA, smoke.Tree, "full-backed clean rebase; explicit fast jobs only"
+				plan.Mode, plan.SourceSHA, plan.SourceFullSHA, plan.Tree, plan.Reason = "smoke", smoke.SourceSHA, smoke.FullRootSHA, smoke.Tree, "full-backed clean rebase; explicit fast jobs only"
 			}
 		}
 	} else {
@@ -253,12 +265,12 @@ func buildPRPlan(ctx context.Context, runner ghRunner, reg *cigates.Registry, de
 	if plan.Mode == "smoke" {
 		fast, err = smokeJobIDs(reg, defs, paths)
 		if err != nil {
-			plan.Mode, plan.SourceSHA, plan.Tree, plan.Reason = "full", "", "", "smoke job ownership unresolved; full selection required: "+err.Error()
+			plan.Mode, plan.SourceSHA, plan.SourceFullSHA, plan.Tree, plan.Reason = "full", "", "", "", "smoke job ownership unresolved; full selection required: "+err.Error()
 		}
 	}
 	plan.Jobs, err = cigates.PlanPRWorkflows(defs, paths, truncated, baseRef, plan.Mode, fast)
 	if err != nil && plan.Mode == "smoke" {
-		plan.Mode, plan.SourceSHA, plan.Tree, plan.Reason = "full", "", "", "smoke selection incomplete; full selection required: "+err.Error()
+		plan.Mode, plan.SourceSHA, plan.SourceFullSHA, plan.Tree, plan.Reason = "full", "", "", "", "smoke selection incomplete; full selection required: "+err.Error()
 		plan.Jobs, err = cigates.PlanPRWorkflows(defs, paths, truncated, baseRef, "full", nil)
 	}
 	if err != nil {
@@ -266,7 +278,7 @@ func buildPRPlan(ctx context.Context, runner ghRunner, reg *cigates.Registry, de
 	}
 	plan.Gates, err = cigates.SelectPRGateIDs(reg, defs, paths, truncated, plan.Mode, plan.Jobs)
 	if err != nil && plan.Mode == "smoke" {
-		plan.Mode, plan.SourceSHA, plan.Tree, plan.Reason = "full", "", "", "smoke gate-cell ownership unresolved; full selection required: "+err.Error()
+		plan.Mode, plan.SourceSHA, plan.SourceFullSHA, plan.Tree, plan.Reason = "full", "", "", "", "smoke gate-cell ownership unresolved; full selection required: "+err.Error()
 		plan.Jobs, err = cigates.PlanPRWorkflows(defs, paths, truncated, baseRef, "full", nil)
 		if err != nil {
 			return prPlan{}, err
