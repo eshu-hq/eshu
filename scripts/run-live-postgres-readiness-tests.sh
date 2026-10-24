@@ -9,8 +9,9 @@
 # configured; without one the graph proofs are excused and named in the
 # summary), one go test per package.
 #
-# With --shard N/4 (one CI matrix leg) the runner executes only that pinned
-# quarter of the enrolled proofs through the shards planner and leaves a
+# With --shard N/4 (one CI matrix leg) the runner executes only that
+# time-weighted contiguous slice of the enrolled proofs through the shards
+# planner (cuts from specs/live-postgres-readiness-weights.v1.json) and leaves a
 # fail-closed per-shard JSON report instead of the suite summary; the
 # aggregator job verifies the four reports cover the full plan.
 set -euo pipefail

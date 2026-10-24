@@ -237,7 +237,7 @@ gates its changed paths select:
   telemetry coverage, operator dashboard, and contract source-of-truth — are
   consolidated into one matrix workflow, `static-contract-gates.yml`, whose
   `changes` job runs each only when its registry paths change. The golden-corpus,
-  replay, race, and reducer-contention gates remain path-filtered and blocking.
+  replay, race, and reducer-contention gates remain path-filtered and blocking. The sharded live-PostgreSQL readiness lane cuts its four shards by predicted seconds ([readiness shards](local-testing/live-postgres-readiness-shards.md)).
 - **Path-selected (heavy):** the whole-module Go build/lint/vet/test and the
   sharded `go-race` lanes (`test.yml`), the two-OS binary build (`build.yml`),
   the Go-source security scanners (`govulncheck`/`gosec`/`nancy` in
