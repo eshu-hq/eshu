@@ -41,7 +41,9 @@
   field from the raw operand. `alloc_test.go` pins this with allocation and
   malloc ceilings; add a case there for any new loop over dependencies.
 - A scope the scanner cannot map is `partial` and counted in
-  `unresolved_declaration_count`; it is never a resolved `compile`. Add a new
+  `unresolved_declaration_count`; it is never a resolved `compile`. A row counts
+  once, whether partial, unresolved, or both; a statement that emits no row is
+  counted once on its own. Add a new
   configuration name to `configPartScope` with a test, or leave it unknown.
 - A row is resolved only when its whole statement matches the closed grammar
   in README.md. Never widen it to recover a form: add a production only with

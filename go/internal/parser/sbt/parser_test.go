@@ -146,6 +146,10 @@ libraryDependencies ++= Seq(
 	assertKeys(t, doobie, []string{"Versions.doobie.value"})
 
 	requireField(t, requireRow(t, payload, "co.fs2:fs2-core"), "dependency_resolution_state", "unresolved")
+
+	// An envelope-only consumer must see the three rows whose revision could
+	// not be resolved, the same way a non-literal scalaVersion is counted.
+	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 3)
 }
 
 func TestParseNestedValIsNotResolved(t *testing.T) {

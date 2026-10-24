@@ -289,7 +289,8 @@ recent shipped work grouped by feature area.
   `:=`; `%`, `%%`, `%%%`; optional configuration such as `Test`) and the literal
   `scalaVersion`, and emits them as the same dependency rows Gradle and Maven
   use, with `package_manager` `sbt`. Non-literal forms are reported as
-  `unresolved` or counted in `sbt_state.unresolved_declaration_count`; sbt is
+  `unresolved` or counted in `sbt_state.unresolved_declaration_count`, and that
+  count includes a row whose revision stays unresolved; sbt is
   never evaluated. A row is `resolved` only when its whole statement matches a
   closed grammar: a bare key at the file top level or in a project's
   `.settings(...)`, `+=` with one element or `++=`/`:=` with a `Seq`, `List` or

@@ -17,7 +17,7 @@ to package-registry identities.
 
 ## Exported surface
 
-- `Parse(path string, isDependency bool, options shared.Options) (map[string]any, error)`
+- `Parse(repoRoot, path string, isDependency bool, options shared.Options) (map[string]any, error)`
 - `MaxDependencyRows`, `MaxFieldBytes`, `LanguageName`
 
 The payload follows `shared.BasePayload(path, "sbt", isDependency)`. The
@@ -47,7 +47,9 @@ The payload follows `shared.BasePayload(path, "sbt", isDependency)`. The
 
 `sbt_state` carries `state`, `scala_version`, `scala_version_count` (the
 number of distinct literals recorded), `dependency_count`,
-`dependency_overflow_count`, `unresolved_declaration_count`, and `meta_build`.
+`dependency_overflow_count`, `unresolved_declaration_count` (partial rows, rows whose
+revision stayed unresolved, and statements counted without a row), and
+`meta_build`.
 `scala_version` is the one distinct literal when exactly one was recorded and
 no `scalaVersion` statement poisoned the envelope; otherwise it is empty and no
 row gets a `%%` hint. Two distinct literals leave it empty even when one is

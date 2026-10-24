@@ -377,10 +377,16 @@ func (s *scan) finish() ([]map[string]any, map[string]any) {
 	}
 	partial := 0
 	for _, dep := range s.deps {
-		if dep.scopeUndetermined() {
+		row := dep.row(s.vals, binary)
+		// A row is counted once: a placeholder scope counts it as partial, and
+		// a grammar-matched row whose revision stays unresolved (an unknown
+		// val, a chained or opaque expression) counts as unresolved, so an
+		// envelope-only consumer sees it the way a non-literal scalaVersion is
+		// seen.
+		if dep.scopeUndetermined() || row["dependency_resolution_state"] == "unresolved" {
 			partial++
 		}
-		rows = append(rows, dep.row(s.vals, binary))
+		rows = append(rows, row)
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		left, _ := rows[i]["name"].(string)

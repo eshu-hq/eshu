@@ -92,7 +92,9 @@ ModuleID methods that change neither coordinates nor configurations.
 
 A partial row keeps the coordinates read literally, carries a placeholder
 `compile` scope, and is counted in `sbt_state.unresolved_declaration_count`; it
-is never a resolved `compile`. sbt accepts one configuration per module: `%`
+is never a resolved `compile`. A row whose revision stays unresolved (an unknown
+`val`, a chained or opaque expression) is counted there too. sbt accepts one
+configuration per module: `%`
 requires a module with no configuration yet, and `% ""` fails sbt's non-empty
 check, so a repeated or empty configuration is a load error, not a replacement.
 A list resolves to `compile` when any part is `compile`, to `runtime` when it
@@ -107,8 +109,8 @@ top-level string vals resolve in the same file; a val whose literal continues
 on the next line (`.concat(...)`, `+ "x"`) does not. Ivy dynamic revisions and
 ranges (`1.+`, `latest.release`, `[1.0,2.0)`, `]1.0,2.0]`) are partial.
 Variables, `.value` settings, interpolated strings, helper objects, and
-conditional or block-bodied collections are reported as `unresolved` or as
-partial rows counted in `sbt_state.unresolved_declaration_count`.
+conditional or block-bodied collections are reported as `unresolved` rows or
+partial rows, both counted in `sbt_state.unresolved_declaration_count`.
 `plugins.sbt`, the other `project/*.sbt` files, and `Build.scala` are not read.
 The registry binds `build.sbt` by its base name, so `project/build.sbt`, sbt's
 meta-build, is parsed: its `sbt_state.meta_build` is `true` and every row from
