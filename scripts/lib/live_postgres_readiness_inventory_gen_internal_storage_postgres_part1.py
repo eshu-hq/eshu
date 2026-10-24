@@ -316,6 +316,9 @@ TABLE = {
         "go/internal/storage/postgres/migration_169_reader_bound_live_test.go": (
             "TestMigration169PhasedBackfillReaderBoundLive",
         ),
+        "go/internal/storage/postgres/package_manifest_central_pin_live_test.go": (
+            "TestNotCentralVersionDeclarationSQLAgreesWithGoLive",
+        ),
         "go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go": (
             "TestPackageManifestConsumptionBackfillRepairsOldWriterAfterReadyLive",
             "TestPackageManifestConsumptionBackfillPagesHeavyScopeLive",
@@ -477,13 +480,6 @@ TABLE = {
         ),
         "go/internal/storage/postgres/recovery_replay_lock_order_live_test.go": (
             "TestRecoveryReplayConcurrentReplaysNeverDeadlockLive",
-        ),
-        "go/internal/storage/postgres/reducer_claim_sweep_lock_order_live_test.go": (
-            "TestReducerClaimSweepAndReplayBlockOneWayLive",
-            "TestReducerClaimSweepHeldRowRaceLive",
-            "TestReducerClaimSweepConcurrentWithReplaysNeverDeadlockLive",
-            "TestReducerClaimSweepKeepsActiveGenerationRowsLive",
-            "TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive",
         ),
     },
 }

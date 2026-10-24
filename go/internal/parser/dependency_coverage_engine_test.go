@@ -139,6 +139,16 @@ BUNDLED WITH
 			expectedPackageMgr:   "nuget",
 			filenameOverride:     "Worker.csproj",
 		},
+		"directory.build.props": {
+			body:                 `<Project><ItemGroup><PackageReference Include="Newtonsoft.Json" Version="13.0.3" /></ItemGroup></Project>`,
+			expectedDependencies: map[string]string{"Newtonsoft.Json": "13.0.3"},
+			expectedPackageMgr:   "nuget", filenameOverride: "Directory.Build.props",
+		},
+		"directory.packages.props": {
+			body:                 `<Project><ItemGroup><PackageVersion Include="Newtonsoft.Json" Version="13.0.3" /></ItemGroup></Project>`,
+			expectedDependencies: map[string]string{"Newtonsoft.Json": "13.0.3"},
+			expectedPackageMgr:   "nuget", filenameOverride: "Directory.Packages.props",
+		},
 		"packages.lock.json": {
 			body: `{
   "version": 1,

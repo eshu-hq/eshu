@@ -462,6 +462,9 @@ func defaultRawPayloadExemptions() []RawPayloadExemption {
 		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestPayloadString", Key: "entity_name"},
 		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestMetadataString", Key: "lockfile_unsupported_feature"},
 		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestMetadataBool", Key: "source_ambiguous"},
+		// #8824: a central version pin (NuGet PackageVersion) is never package
+		// consumption, so the sidecar predicate drops it by this flag.
+		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "centralFlagText", Key: "central_version_declaration"},
 		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestMetadataString", Key: "namespace"},
 		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: rawPayloadIndexAccessor, Key: "entity_metadata"},
 		{Path: "go/internal/storage/postgres/package_registry_identity_keys.go", Accessor: "packageManifestPayloadString", Key: "package_id"},

@@ -146,6 +146,9 @@ func defaultDefinitions() []Definition {
 			Ecosystem:  "csharp",
 			Admission:  AdmissionStructuredFact,
 			Extensions: []string{".csproj"},
+			// Exact names only (#8824): .props is no registered extension, so a
+			// stray Common.props or Build.props stays unadmitted.
+			ExactNames: []string{"Directory.Packages.props", "Directory.Build.props"},
 		},
 		{
 			ParserKey:  "kotlin",

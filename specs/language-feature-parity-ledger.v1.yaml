@@ -84,7 +84,7 @@ language_features:
   - language: csharp
     docs_claim: docs/public/languages/csharp.md
     ecosystem: nuget
-    manifest_files: [Example.csproj, Directory.Packages.props, packages.lock.json]
+    manifest_files: [Example.csproj, Directory.Packages.props, Directory.Build.props, packages.lock.json]
     pin_files: [global.json]
     parser_backing: tree-sitter-backed
     no_provider_required: true

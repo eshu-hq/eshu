@@ -70,8 +70,56 @@ func isPackageManifestConsumptionFact(envelope facts.Envelope) bool {
 		return false
 	}
 	return packageManifestMetadataString(payload, "lockfile_unsupported_feature") == "" &&
-		!packageManifestMetadataBool(payload, "source_ambiguous")
+		!packageManifestMetadataBool(payload, "source_ambiguous") &&
+		!IsCentralVersionDeclaration(payload)
 }
+
+// IsCentralVersionDeclaration reports whether a dependency fact payload is a
+// central version pin, such as a NuGet PackageVersion item in
+// Directory.Packages.props (#8824). A pin sets the version a project gets if
+// it references the package; it does not prove any project does, so it is
+// never package consumption. The flag is read top-level first, then from
+// entity_metadata, ASCII-trimmed, and matches "true" case-insensitively.
+// NotCentralVersionDeclarationSQL is the SQL form; the two classify every
+// payload alike, which a table test and a live test pin on the same shapes.
+// The reducer's isCentralVersionDeclaration (go/internal/reducer/packages/
+// correlation) mirrors this rule without importing it and mirrors the table.
+func IsCentralVersionDeclaration(payload map[string]any) bool {
+	text := centralFlagText(payload, "central_version_declaration")
+	if text == "" {
+		metadata, _ := payload["entity_metadata"].(map[string]any)
+		text = centralFlagText(metadata, "central_version_declaration")
+	}
+	return strings.EqualFold(text, "true")
+}
+
+// centralFlagText returns the flag as the SQL form reads it: null and a
+// missing key are empty, and only ASCII blanks are trimmed (the set BTRIM
+// takes in NotCentralVersionDeclarationSQL), with no special text for a
+// literal "<nil>" and no Unicode-space trim. Matching the SQL rule exactly
+// is what keeps the sidecar and the readiness count in agreement.
+func centralFlagText(payload map[string]any, key string) string {
+	if payload == nil {
+		return ""
+	}
+	value, ok := payload[key]
+	if !ok || value == nil {
+		return ""
+	}
+	return strings.Trim(fmt.Sprint(value), " \t\n\r\f\v")
+}
+
+// NotCentralVersionDeclarationSQL is the SQL form of !IsCentralVersionDeclaration
+// over a jsonb column named payload: true unless the fact is a central version
+// pin. A missing flag, null, empty string, or any value other than "true"
+// (trimmed, any case) keeps the row, so the COALESCE never lets a NULL drop a
+// real dependency. Readiness splices it into the repository-anchored
+// package.consumption count; the package-anchored count reads
+// package_manifest_consumption_keys, which never holds a pin because
+// packageManifestConsumptionKeyRows skips it.
+const NotCentralVersionDeclarationSQL = `COALESCE(LOWER(COALESCE(
+        NULLIF(BTRIM(payload->>'central_version_declaration', E' \t\n\r\f\v'), ''),
+        BTRIM(payload->'entity_metadata'->>'central_version_declaration', E' \t\n\r\f\v'))), '') <> 'true'`
 
 func packageManifestDependencyNames(payload map[string]any) []string {
 	name := packageManifestPayloadString(payload, "entity_name")
