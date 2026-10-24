@@ -1,0 +1,23 @@
+docs/internal/evidence/8948-crossplane-redrive-replay.md
+  s_ff8a600f1fc93e::t_cfcbe080161121 21-33
+go/internal/storage/postgres/crossplane/query_plan_live_test.go
+  s_ff8a600f1fc93e::t_300d046b6c8b4a 22,101,103-107
+go/internal/storage/postgres/crossplane/satisfied_by_redrive_behavior_live_test.go
+  s_ff8a600f1fc93e::t_c0616a080eb14e 83,85-91,223,325,377
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cdf8c91f8516f447f639eb2e044bd76ed03c7d45",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
