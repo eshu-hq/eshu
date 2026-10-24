@@ -4,6 +4,6 @@
 #
 # One entry per line: <repo-relative page path><TAB><exact heading line>.
 # Blank lines and lines starting with # are ignored. A heading inside a fenced
-# code block does not count. To protect another section, add a line here and
-# keep the tab separator.
+# code block or an HTML comment does not count. To protect another section,
+# add a line here and keep the tab separator.
 docs/public/languages/admitted-files.md	## Content store policy

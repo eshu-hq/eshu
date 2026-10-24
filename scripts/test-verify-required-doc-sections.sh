@@ -81,6 +81,46 @@ printf '%s\n' '# Page' '## Needed more' >"${fenced}/docs/p.md"
 run_verifier "${fenced}" "${tmp_root}/ok.txt"
 expect_fail "prefix-only heading" "## Needed" "docs/p.md"
 
+# page_case <name> <want> <heading> <page lines...>: writes the page, lists the
+# heading, and expects pass (want=ok) or failure (want=fail).
+page_case() {
+  local name="$1" want="$2" heading="$3"
+  shift 3
+  printf '%s\n' "$@" >"${fenced}/docs/p.md"
+  write_list "${tmp_root}/case.txt" "docs/p.md${tab}${heading}"
+  run_verifier "${fenced}" "${tmp_root}/case.txt"
+  if [[ "${want}" == ok ]]; then
+    [[ "${rc}" -eq 0 ]] || fail "${name}: expected exit 0, got ${rc}: ${out}"
+  else
+    expect_fail "${name}" "${heading}" "docs/p.md"
+  fi
+}
+
+# Backslashes in a heading match literally.
+page_case "backslash heading" ok '## a\b' '# P' '## a\b'
+page_case "backslash heading absent" fail '## a\b' '# P' '## ab'
+
+# Fence rules follow CommonMark: the closer needs the same character and at
+# least the opener's length; up to three spaces of indent still opens a fence.
+page_case "tilde block holding backticks" fail '## H' '~~~' '```' '## H' '~~~'
+page_case "four-backtick block holding three" fail '## H' '````' '```' '## H' '```' '````'
+page_case "indented fence" fail '## H' '   ```' '## H' '   ```'
+page_case "closer indented four spaces does not close" fail '## H' '```' '    ```' '## H'
+page_case "heading after a closed longer fence" ok '## H' '````' '```' '````' '## H'
+page_case "heading after a closed tilde fence" ok '## H' '~~~' 'x' '~~~' '## H'
+
+# A heading inside an HTML comment does not count.
+page_case "heading in one-line comment" fail '## H' '<!-- ## H -->'
+page_case "heading in multi-line comment" fail '## H' '<!--' '## H' '-->'
+page_case "heading after a closed comment" ok '## H' '<!-- note -->' '## H'
+
+# Trailing spaces and CRLF on the page, and trailing spaces on the list entry,
+# are ignored.
+printf '# P\r\n## H  \r\n' >"${fenced}/docs/p.md"
+write_list "${tmp_root}/case.txt" "docs/p.md${tab}## H   "
+run_verifier "${fenced}" "${tmp_root}/case.txt"
+[[ "${rc}" -eq 0 ]] || fail "CRLF and trailing spaces: expected exit 0, got ${rc}: ${out}"
+
 # Every missing heading is reported, not only the first.
 printf '%s\n' '# Page' >"${fenced}/docs/p.md"
 printf '%s\n' "docs/p.md${tab}## One" "docs/p.md${tab}## Two" >"${tmp_root}/two.txt"
@@ -90,7 +130,7 @@ expect_fail "two missing" "## One" "## Two"
 # A listed page that does not exist fails.
 write_list "${tmp_root}/nopage.txt" "docs/nope.md${tab}## X"
 run_verifier "${fenced}" "${tmp_root}/nopage.txt"
-expect_fail "missing page" "docs/nope.md"
+expect_fail "missing page" "docs/nope.md" "page not found"
 
 # A malformed line (no tab) fails closed.
 write_list "${tmp_root}/bad.txt" "docs/p.md ## X"

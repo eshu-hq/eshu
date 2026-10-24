@@ -11,7 +11,8 @@
 # passed every gate (#9016 dropped "Content store policy"; #9025 restored it).
 # This check reads scripts/required-doc-sections.txt, the single list of
 # <page><TAB><exact heading line> entries, and fails naming each missing
-# heading and its page. A heading inside a fenced code block does not count.
+# heading and its page. A heading inside a fenced code block or an HTML
+# comment does not count.
 #
 # Environment (used by scripts/test-verify-required-doc-sections.sh):
 #   ESHU_REQUIRED_DOC_SECTIONS_ROOT  repository root the page paths resolve
@@ -33,13 +34,51 @@ if [[ ! -f "${list}" ]]; then
 	exit 1
 fi
 
-# has_heading <file> <heading>: succeeds when a line equals <heading> (trailing
-# whitespace ignored) outside a fenced code block.
+# has_heading <file> <heading>: succeeds when a line equals <heading> (leading
+# text exact, trailing whitespace and CR ignored) outside a fenced code block
+# and outside an HTML comment. Fences follow CommonMark: up to three spaces of
+# indent, an opener of three or more backticks or tildes, and a closer of the
+# same character at least as long as the opener with nothing after it.
+# The heading goes in through ENVIRON, not awk -v, which would process
+# backslash escapes.
 has_heading() {
-	awk -v want="$2" '
-		{ line = $0; sub(/[ \t\r]+$/, "", line) }
-		line ~ /^(```|~~~)/ { fenced = !fenced; next }
-		!fenced && line == want { found = 1; exit }
+	WANT_HEADING="$2" awk '
+		BEGIN { want = ENVIRON["WANT_HEADING"] }
+		{
+			line = $0
+			sub(/[ \t\r]+$/, "", line)
+			if (incomment) {
+				i = index(line, "-->")
+				if (i == 0) next
+				incomment = 0
+				next
+			}
+			if (fence != "") {
+				if (match(line, /^ *(```+|~~~+)$/)) {
+					t = line; sub(/^ */, "", t)
+					if (substr(t, 1, 1) == substr(fence, 1, 1) && length(t) >= length(fence) && length(line) - length(t) <= 3) fence = ""
+				}
+				next
+			}
+			if (match(line, /^ *(```+|~~~+)/)) {
+				t = line; sub(/^ */, "", t)
+				if (length(line) - length(t) <= 3) {
+					m = substr(t, 1, 1)
+					n = 0
+					while (substr(t, n + 1, 1) == m) n++
+					fence = substr(t, 1, n)
+					next
+				}
+			}
+			while ((i = index(line, "<!--")) > 0) {
+				rest = substr(line, i + 4)
+				j = index(rest, "-->")
+				if (j == 0) { line = substr(line, 1, i - 1); incomment = 1; break }
+				line = substr(line, 1, i - 1) substr(rest, j + 3)
+			}
+			sub(/[ \t\r]+$/, "", line)
+			if (line == want) { found = 1; exit }
+		}
 		END { exit(found ? 0 : 1) }
 	' "$1"
 }
@@ -59,6 +98,8 @@ while IFS= read -r line || [[ -n "${line}" ]]; do
 	fi
 	page="${line%%"${tab}"*}"
 	heading="${line#*"${tab}"}"
+	# Trailing whitespace on the entry is not part of the heading.
+	while [[ "${heading}" == *[[:space:]] ]]; do heading="${heading%?}"; done
 	if [[ -z "${page}" || -z "${heading}" ]]; then
 		echo "verify-required-doc-sections: malformed entry (empty page or heading): ${line}" >&2
 		failures=$((failures + 1))
