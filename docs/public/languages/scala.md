@@ -42,17 +42,28 @@ in the same shape the Gradle and Maven parsers use, with `package_manager`
 `scalaVersion`.
 
 The scope comes from `% Test`, `% "it,test"` (a list split on `,` and `;`), a
-trailing `% Test` after a parenthesised coordinate, `Seq(...).map(_ % Test)`,
-or a `Test /` or `in Test` axis. When a coordinate has several `% config`
-operands the last wins, as in sbt. A list resolves to `compile` when any part is
+trailing `% Test` after a parenthesised coordinate or leading the next line,
+or `Seq(...).map(_ % Test)`. Without one the scope is `compile`. When a
+coordinate has several `% config` operands the last wins, as in sbt. A list resolves to `compile` when any part is
 `compile`, to `runtime` when it has `runtime` and no `compile` (a runtime
 dependency is also on the test classpath), to `provided` for `provided` with
 `test`, and otherwise to the one scope its parts share. A scope the parser
-cannot map (a custom `Config`, a variable, a lambda over the collection, the
-compiler-tool configurations `plugin`, `scala-tool` and `scala-doc-tool`,
-`runtime` with `provided`, or a configuration string over 256 bytes) leaves the
-row `partial` and is counted in `sbt_state.unresolved_declaration_count`; it is
-never a resolved `compile`.
+cannot map leaves the row `partial` and is counted in
+`sbt_state.unresolved_declaration_count`; it is never a resolved `compile`. That
+covers a custom `Config`, a variable, a lambda or other body over the
+collection, the compiler-tool configurations `plugin`, `scala-tool` and
+`scala-doc-tool`, `runtime` with `provided`, an empty configuration (`% ""`), a
+configuration string over 256 bytes, and any tail the parser does not know. After
+a coordinate only `% config` and the ModuleID methods that cannot change the
+configuration (`exclude`, `excludeAll`, `classifier`, `artifacts`, `from`,
+`intransitive`, `notTransitive`, `withSources`, `withJavadoc`, `cross`,
+`withCrossVersion`, `force`, `changing`) keep the scope readable;
+`withConfigurations`, `configure`, a user extension method, or an unknown
+operator make it undetermined. A key under a `Test /` or `Compile /` axis, a
+`libraryDependencies in Test` form, or an `inConfig(...)` wrapper is also
+undetermined, because sbt resolves from the project-level key: only plain,
+`ThisBuild /`, `Global /` and declared-project (`core /`) keys are read as
+`compile`.
 
 sbt build files are Scala, so the parser never evaluates them. Versions held in
 top-level string vals resolve in the same file. Variables, `.value` settings,

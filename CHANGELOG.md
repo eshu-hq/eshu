@@ -191,8 +191,14 @@ recent shipped work grouped by feature area.
   use, with `package_manager` `sbt`. Non-literal forms are reported as
   `unresolved` or counted in `sbt_state.unresolved_declaration_count`; sbt is
   never evaluated. Test-only dependencies keep their scope through
-  `% Test` after a parenthesised coordinate, `% "it,test"` lists, and
-  `Seq(...).map(_ % Test)`; a scope the scanner cannot map is `partial` and
+  `% Test` after a parenthesised coordinate or leading the next line,
+  `% "it,test"` lists, and `Seq(...).map(_ % Test)`. The default after a
+  coordinate is undetermined: only `% config` and a small allowlist of
+  ModuleID methods that cannot change the configuration (`exclude`,
+  `classifier`, `intransitive`, `withSources`, `cross`, and the like) keep the
+  scope, so `withConfigurations`, `configure`, an unknown operator or
+  extension, a `.map` body that is not `_ % config`, an empty configuration,
+  and a key under a `Test /` axis or `inConfig(...)` are `partial` and
   counted, never a resolved `compile`. A runtime-plus-test list is `runtime`, the last
   of several `% config` operands wins, compiler-tool configurations are
   undetermined, and a configuration string over 256 bytes is never split or
