@@ -14,7 +14,13 @@ plan_psql_line() { # sql-name description
 print_plan() {
 	local instance kind
 	printf 'Rollback plan for collector kind %s\n' "$collector_kind"
-	printf 'External instance(s): %s   In-tree instance(s): %s\n' "$external_instances" "$in_tree_instances"
+	if [[ "$in_tree_direct" == "true" ]]; then
+		printf 'External instance(s): %s   In-tree producer: direct collector (deployment/%s), no collector instance\n' \
+			"$external_instances" "$in_tree_deployment"
+		printf 'Every claim of the kind counts as external; step 5 waits for a generation observed and activated after the window start.\n'
+	else
+		printf 'External instance(s): %s   In-tree instance(s): %s\n' "$external_instances" "$in_tree_instances"
+	fi
 	printf 'Nothing below has been executed. "run --yes" performs it in this order.\n\n'
 
 	printf 'STEP 1 stop new claims for the external producer\n'
@@ -43,7 +49,7 @@ print_plan() {
 	printf '  Record: disable result per instance, worker pod count 0, coordinator rollout line.\n\n'
 
 	printf 'STEP 2 wait for in-flight leases to drain (refuses to start before step 1 is confirmed)\n'
-	plan_psql_line drain "claimed work items and active claims held by any instance of the kind that is not in-tree"
+	plan_psql_line drain "claimed work items and active claims held by any instance of the kind that is not in-tree (every instance in direct mode)"
 	printf '  Gate: 0 claimed work items and 0 active claims. The coordinator reaper expires stale\n'
 	printf '  leases on its own interval; this step only waits. It never rewrites claim rows.\n'
 	printf '  Record: final counts and the seconds waited.\n\n'
@@ -71,18 +77,30 @@ print_plan() {
 	show_cmd
 	build_in_tree_status
 	show_cmd
-	build_restart_coordinator
-	show_cmd
-	build_coordinator_status
-	show_cmd
+	if [[ "$in_tree_direct" == "true" ]]; then
+		printf '  (a direct collector is restored by scaling its Deployment; the coordinator does not plan it, so it is not restarted again)\n'
+		printf '  (the replay window starts at the exact database clock, with no skew margin)\n'
+	else
+		build_restart_coordinator
+		show_cmd
+		build_coordinator_status
+		show_cmd
+	fi
 	printf '  Record: restore start time (database clock), helm revision or GitOps commit, rollout lines.\n\n'
 
 	printf 'STEP 5 replay from the last committed generation\n'
-	plan_psql_line replay "work items for the in-tree instance(s) updated since the restore start"
-	printf '  The restart in step 4 triggers the first planning pass; later passes follow the\n'
-	printf '  coordinator reconcile interval. Gate: no pending, claimed, or retryable item remains,\n'
-	printf '  at least one completed, none failed terminal.\n'
-	printf '  Record: pending/claimed/completed/retryable/terminal counts.\n\n'
+	if [[ "$in_tree_direct" == "true" ]]; then
+		plan_psql_line direct-commit "scope generations of the kind observed and activated since the restore start"
+		printf '  Gate: at least one generation was observed and activated after the window start. A source that did not\n'
+		printf '  change mints none, so the step times out (exit 5) until the source changes.\n'
+		printf '  Record: the generation count and the latest activation time.\n\n'
+	else
+		plan_psql_line replay "work items for the in-tree instance(s) updated since the restore start"
+		printf '  The restart in step 4 triggers the first planning pass; later passes follow the\n'
+		printf '  coordinator reconcile interval. Gate: no pending, claimed, or retryable item remains,\n'
+		printf '  at least one completed, none failed terminal.\n'
+		printf '  Record: pending/claimed/completed/retryable/terminal counts.\n\n'
+	fi
 
 	printf 'STEP 6 verify exact truth against the baseline captured just before step 1\n'
 	plan_psql_line dual "dual-authority check: external claims, in-tree claims, overlapping claim intervals"

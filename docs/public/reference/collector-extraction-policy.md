@@ -165,7 +165,9 @@ projection, graph, and read truth.
 The [collector cutover rollback runbook](../operate/collector-cutover-rollback.md)
 turns those steps into a script with a gate between each step. It lists the
 read-truth queries to compare per fact family and how to confirm that no two
-producers hold authority.
+producers hold authority. A direct in-tree collector, such as the documentation
+collector, has no instance or work items and uses `--in-tree-direct`
+([details](../operate/collector-cutover-rollback-direct.md)).
 
 ## Extraction Readiness Diagnostics
 

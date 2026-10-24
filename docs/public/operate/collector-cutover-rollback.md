@@ -42,8 +42,9 @@ rehearsed is a guess.
   the in-tree collector Deployments. Name every instance on both sides.
   `--external-instance` must list each activation the component runs (see
   `eshu component list`). `--in-tree-instance` must list every in-tree instance
-  of the collector kind. The script treats any other instance of the kind as an
-  external producer when it checks claims.
+  of the collector kind; the script treats any other instance as external. The
+  documentation collector has no instance: use `--in-tree-direct`, change a source
+  page first, and read [the direct producer page](collector-cutover-rollback-direct.md).
 - Prepare the restore values: a Helm values overlay that re-enables the
   in-tree collector and its collector instance claims, and keeps
   `componentExtensionCollector.enabled` off. With that setting off the chart
@@ -57,8 +58,7 @@ rehearsed is a guess.
 - Check that `kubectl`, `helm` (for the Helm restore), `psql`, and `eshu` are on
   `PATH`. To run `eshu` inside a pod that mounts the component home, point
   `ROLLBACK_ESHU_BIN` at a wrapper script that runs `kubectl exec`. The same
-  pattern works for `ROLLBACK_KUBECTL_BIN`, `ROLLBACK_PSQL_BIN`, and
-  `ROLLBACK_HELM_BIN`.
+  works for `ROLLBACK_KUBECTL_BIN`, `ROLLBACK_PSQL_BIN`, and `ROLLBACK_HELM_BIN`.
 - Know the timeout knobs: `ROLLBACK_KUBECTL_REQUEST_TIMEOUT` (default `30s`,
   `0` disables) bounds each `kubectl` request, `PGCONNECT_TIMEOUT` (default
   `10` seconds) bounds each `psql` connection, and `ROLLBACK_CLOCK_SKEW_SECONDS`
