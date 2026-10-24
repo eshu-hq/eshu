@@ -96,6 +96,10 @@ type SourceConfig struct {
 	Now                 func() time.Time
 	Tracer              trace.Tracer
 	Instruments         *telemetry.Instruments
+	// ReadStateWriter, when set, builds the writer that persists an
+	// organization target's read state with its generation (#8943). It is
+	// called once per organization claim; repository targets never call it.
+	ReadStateWriter func(securityalerts.TargetReadState) collector.GenerationStateWriter
 }
 
 // TargetConfig describes one provider security-alert target. A repository
@@ -149,6 +153,7 @@ type ClaimedSource struct {
 	now                 func() time.Time
 	tracer              trace.Tracer
 	instruments         *telemetry.Instruments
+	readStateFactory    func(securityalerts.TargetReadState) collector.GenerationStateWriter
 }
 
 // NewClaimedSource validates configuration and builds a claim-driven source.
@@ -189,6 +194,7 @@ func NewClaimedSource(config SourceConfig) (*ClaimedSource, error) {
 		now:                 now,
 		tracer:              config.Tracer,
 		instruments:         config.Instruments,
+		readStateFactory:    config.ReadStateWriter,
 	}, nil
 }
 
@@ -296,7 +302,7 @@ func (s *ClaimedSource) NextClaimed(
 		return collector.CollectedGeneration{}, false, err
 	}
 	s.recordFacts(observeCtx, target.config, envs)
-	return collector.FactsFromSlice(
+	collected := collector.FactsFromSlice(
 		ingestionScope(target.config),
 		scope.ScopeGeneration{
 			GenerationID:  item.GenerationID,
@@ -308,7 +314,9 @@ func (s *ClaimedSource) NextClaimed(
 			FreshnessHint: securityAlertFreshnessHint(collection.freshnessInput()),
 		},
 		envs,
-	), true, nil
+	)
+	collected.StateWriter = s.readStateWriter(observeSpan, target.config, item.GenerationID, observedAt, result.Truncated, collection)
+	return collected, true, nil
 }
 
 // fetchAlerts requests provider alerts for one target using the endpoint that

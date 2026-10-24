@@ -20,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/security/alerts/unread"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -66,6 +67,7 @@ func buildClaimedService(
 	}
 	config.Source.Tracer = tracer
 	config.Source.Instruments = instruments
+	attachReadState(&config.Source)
 	source, err := alertruntime.NewClaimedSource(config.Source)
 	if err != nil {
 		return collector.ClaimedService{}, err
@@ -90,6 +92,13 @@ func buildClaimedService(
 		Tracer:              tracer,
 		Instruments:         instruments,
 	}, nil
+}
+
+// attachReadState has the source hand each organization claim's read state to
+// the Postgres writer, which the ingestion store runs in the generation's
+// commit transaction (#8943).
+func attachReadState(source *alertruntime.SourceConfig) {
+	source.ReadStateWriter = unread.Writer
 }
 
 func newClaimID() string {
