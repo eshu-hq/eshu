@@ -33,7 +33,9 @@ type fuzzReport struct {
 //	I3: a dependency with an unknown tail is never resolved.
 //
 // Every generated coordinate must also be emitted (partial at worst), and no
-// resolved row may appear that the generator did not write.
+// resolved row may appear that the generator did not write. The indentation
+// arm (fuzz_indent_test.go) runs the same checks over Scala 3 braceless
+// blocks, whose coordinates are all unknown.
 func TestGrammarSeededFuzzInvariants(t *testing.T) {
 	t.Parallel()
 
@@ -46,21 +48,34 @@ func TestGrammarSeededFuzzInvariants(t *testing.T) {
 		cases = parsed
 	}
 	report := fuzzReport{classes: map[string]int{}}
+	indent := fuzzReport{classes: map[string]int{}}
 	for seed := int64(1); seed <= int64(cases); seed++ {
 		report.check(t, seed, fzBuild(seed))
+		indent.check(t, seed, fzIndentBuild(seed))
 	}
-	report.cases = cases
-	var classes []string
-	for class, count := range report.classes {
+	report.cases, indent.cases = cases, cases
+	for _, arm := range []struct {
+		name   string
+		report *fuzzReport
+	}{{"grammar", &report}, {"indentation", &indent}} {
+		r := arm.report
+		t.Logf("%s: cases=%d rows=%d I1=%d I2=%d I3=%d missing=%d fabricated=%d classes=[%s]",
+			arm.name, r.cases, r.rows, r.i1, r.i2, r.i3, r.missing, r.fabricate, r.classList())
+		if r.i1+r.i2+r.i3+r.missing+r.fabricate > 0 {
+			t.Errorf("%s fuzz found violations: I1=%d I2=%d I3=%d missing=%d fabricated=%d",
+				arm.name, r.i1, r.i2, r.i3, r.missing, r.fabricate)
+		}
+	}
+}
+
+// classList renders the violation classes in a stable order.
+func (r *fuzzReport) classList() string {
+	classes := make([]string, 0, len(r.classes))
+	for class, count := range r.classes {
 		classes = append(classes, class+"="+strconv.Itoa(count))
 	}
 	sort.Strings(classes)
-	t.Logf("cases=%d rows=%d I1=%d I2=%d I3=%d missing=%d fabricated=%d classes=[%s]",
-		report.cases, report.rows, report.i1, report.i2, report.i3, report.missing, report.fabricate, strings.Join(classes, " "))
-	if report.i1+report.i2+report.i3+report.missing+report.fabricate > 0 {
-		t.Errorf("grammar fuzz found violations: I1=%d I2=%d I3=%d missing=%d fabricated=%d",
-			report.i1, report.i2, report.i3, report.missing, report.fabricate)
-	}
+	return strings.Join(classes, " ")
 }
 
 // check parses one generated case and records its violations.

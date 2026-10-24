@@ -208,174 +208,186 @@ func fzBuild(seed int64) fzCase {
 	stmts := 1 + g.r.Intn(3)
 	var body strings.Builder
 	for s := 0; s < stmts; s++ {
-		// axis
-		axisScoped := false
-		prefix, suffix := "", ""
-		key := "libraryDependencies"
-		switch g.r.Intn(12) {
-		case 0:
-			key = "ThisBuild / libraryDependencies"
-		case 1:
-			key = "Global / libraryDependencies"
-		case 2:
-			key = "Test / libraryDependencies"
-			axisScoped = true
-		case 3:
-			key = "Compile / libraryDependencies"
-			axisScoped = true
-		case 4:
-			key = "libraryDependencies in Test"
-			axisScoped = true
-		case 5:
-			key = "libraryDependencies.in(Test)"
-			axisScoped = true
-		case 6:
-			prefix, suffix = "inConfig(Test)(", ")"
-			axisScoped = true
-		case 7:
-			prefix, suffix = "inConfig(Test) { ", " }"
-			axisScoped = true
-		case 8:
-			prefix, suffix = "lazy val core = project.settings(", ")"
-		case 9:
-			prefix, suffix = "inThisBuild(Seq(", "))"
-		}
-		inSettingsParens := strings.HasSuffix(prefix, "(")
-		kind := g.r.Intn(3)
-		var stmtDeps []fzDep
-		var stmt strings.Builder
-		stmt.WriteString(prefix + key)
-		if kind == 0 {
-			g.inParens = inSettingsParens
-			d := g.dep(true)
-			stmt.WriteString(" += " + d.text)
-			stmtDeps = append(stmtDeps, d)
-		} else {
-			if kind == 1 {
-				stmt.WriteString(" ++= ")
-			} else {
-				stmt.WriteString(" := ")
-			}
-			// collection-level config applies via map only if no element has cfg
-			mapCfg := g.r.Intn(3) == 0
-			nColl := 1 + g.r.Intn(2)
-			infixMapAll := mapCfg && nColl > 1 && g.r.Intn(2) == 0
-			var chainDeps []fzDep
-			for c := 0; c < nColl; c++ {
-				if c > 0 {
-					stmt.WriteString(" ++ ")
-				}
-				colls := []string{"Seq", "List", "Vector"}
-				stmt.WriteString(colls[g.r.Intn(3)] + "(\n  ")
-				ne := 1 + g.r.Intn(3)
-				var cdeps []fzDep
-				for e := 0; e < ne; e++ {
-					if e > 0 {
-						stmt.WriteString(",\n  ")
-					}
-					g.inParens = true
-					d := g.dep(!mapCfg)
-					stmt.WriteString(d.text)
-					cdeps = append(cdeps, d)
-				}
-				stmt.WriteString("\n)")
-				// per-collection tail (dot form binds to this collection only)
-				if !infixMapAll && g.r.Intn(3) == 0 {
-					switch g.r.Intn(6) {
-					case 0:
-						stmt.WriteString(".distinct")
-						if mapCfg && c == nColl-1 {
-							for i := range cdeps {
-								cdeps[i].tags["H5-noarg-call-swallows-infix"] = true
-							}
-						}
-					case 1:
-						stmt.WriteString(".toSeq")
-						if mapCfg && c == nColl-1 {
-							for i := range cdeps {
-								cdeps[i].tags["H5-noarg-call-swallows-infix"] = true
-							}
-						}
-					case 2:
-						stmt.WriteString(".flatMap(x => Seq(x))")
-						for i := range cdeps {
-							cdeps[i].unknown = true
-						}
-					case 3:
-						stmt.WriteString(".map(_.withSources())")
-					case 4:
-						stmt.WriteString(".map(x => x % Test)")
-						for i := range cdeps {
-							cdeps[i].unknown = true
-						}
-					case 5:
-						stmt.WriteString(".map(_.foo())")
-						for i := range cdeps {
-							cdeps[i].unknown = true
-						}
-					}
-				}
-				lastWithMap := mapCfg && !infixMapAll && c == nColl-1
-				if !lastWithMap && mapCfg && !infixMapAll {
-					// Draw as the reference generator did, so a seed yields
-					// the same build file as the 30,000-case review run.
-					_ = g.r.Intn(2)
-				}
-				if lastWithMap {
-					c2 := fzCfgs[g.r.Intn(len(fzCfgs))]
-					forms := []string{".map(_ % " + c2.text + ")", " map (_ % " + c2.text + ")", "\n  .map(_ % " + c2.text + ")", ".map(_ %\n " + c2.text + " withSources())"}
-					stmt.WriteString(forms[g.r.Intn(len(forms))])
-					for i := range cdeps {
-						if cdeps[i].unknown {
-							cdeps[i].tags["H3b-unknown-then-collection-cfg"] = true
-						}
-						cdeps[i].hasCfg = true
-						if c2.nonCompile {
-							cdeps[i].nonCompile = true
-						}
-					}
-				}
-				chainDeps = append(chainDeps, cdeps...)
-			}
-			if infixMapAll {
-				c2 := fzCfgs[g.r.Intn(len(fzCfgs))]
-				stmt.WriteString(" map (_ % " + c2.text + ")")
-				for i := range chainDeps {
-					if chainDeps[i].unknown {
-						chainDeps[i].tags["H3b-unknown-then-collection-cfg"] = true
-					}
-					chainDeps[i].hasCfg = true
-					if c2.nonCompile {
-						chainDeps[i].nonCompile = true
-					}
-				}
-			}
-			if infixMapAll {
-				for i := range chainDeps {
-					chainDeps[i].tags["H4-infix-map-over-chain"] = true
-				}
-			}
-			stmtDeps = append(stmtDeps, chainDeps...)
-		}
-		stmt.WriteString(suffix)
-		if axisScoped {
-			for i := range stmtDeps {
-				stmtDeps[i].nonCompile = true
-				if strings.Contains(prefix, "{") {
-					stmtDeps[i].tags["H1-inConfig-brace"] = true
-				}
-			}
-		}
-		body.WriteString(stmt.String() + "\n")
+		text, stmtDeps := g.statement()
+		body.WriteString(text + "\n")
 		all = append(all, stmtDeps...)
 	}
+	g.writeVals(&out)
+	out.WriteString("lazy val core = project\n")
+	out.WriteString(body.String())
+	return fzCase{text: out.String(), deps: all}
+}
+
+// writeVals writes the top-level version vals the generated coordinates use.
+func (g *fzGen) writeVals(out *strings.Builder) {
 	for i := 1; i <= g.n; i++ {
 		vn := fmt.Sprintf("v%d", i)
 		if v, ok := g.vals[vn]; ok {
 			out.WriteString("val " + vn + " = \"" + v + "\"\n")
 		}
 	}
-	out.WriteString("lazy val core = project\n")
-	out.WriteString(body.String())
-	return fzCase{text: out.String(), deps: all}
+}
+
+// statement generates one libraryDependencies statement, with an optional
+// axis or wrapper, and the coordinates it declares.
+func (g *fzGen) statement() (string, []fzDep) {
+	// axis
+	axisScoped := false
+	prefix, suffix := "", ""
+	key := "libraryDependencies"
+	switch g.r.Intn(12) {
+	case 0:
+		key = "ThisBuild / libraryDependencies"
+	case 1:
+		key = "Global / libraryDependencies"
+	case 2:
+		key = "Test / libraryDependencies"
+		axisScoped = true
+	case 3:
+		key = "Compile / libraryDependencies"
+		axisScoped = true
+	case 4:
+		key = "libraryDependencies in Test"
+		axisScoped = true
+	case 5:
+		key = "libraryDependencies.in(Test)"
+		axisScoped = true
+	case 6:
+		prefix, suffix = "inConfig(Test)(", ")"
+		axisScoped = true
+	case 7:
+		prefix, suffix = "inConfig(Test) { ", " }"
+		axisScoped = true
+	case 8:
+		prefix, suffix = "lazy val core = project.settings(", ")"
+	case 9:
+		prefix, suffix = "inThisBuild(Seq(", "))"
+	}
+	inSettingsParens := strings.HasSuffix(prefix, "(")
+	kind := g.r.Intn(3)
+	var stmtDeps []fzDep
+	var stmt strings.Builder
+	stmt.WriteString(prefix + key)
+	if kind == 0 {
+		g.inParens = inSettingsParens
+		d := g.dep(true)
+		stmt.WriteString(" += " + d.text)
+		stmtDeps = append(stmtDeps, d)
+	} else {
+		if kind == 1 {
+			stmt.WriteString(" ++= ")
+		} else {
+			stmt.WriteString(" := ")
+		}
+		// collection-level config applies via map only if no element has cfg
+		mapCfg := g.r.Intn(3) == 0
+		nColl := 1 + g.r.Intn(2)
+		infixMapAll := mapCfg && nColl > 1 && g.r.Intn(2) == 0
+		var chainDeps []fzDep
+		for c := 0; c < nColl; c++ {
+			if c > 0 {
+				stmt.WriteString(" ++ ")
+			}
+			colls := []string{"Seq", "List", "Vector"}
+			stmt.WriteString(colls[g.r.Intn(3)] + "(\n  ")
+			ne := 1 + g.r.Intn(3)
+			var cdeps []fzDep
+			for e := 0; e < ne; e++ {
+				if e > 0 {
+					stmt.WriteString(",\n  ")
+				}
+				g.inParens = true
+				d := g.dep(!mapCfg)
+				stmt.WriteString(d.text)
+				cdeps = append(cdeps, d)
+			}
+			stmt.WriteString("\n)")
+			// per-collection tail (dot form binds to this collection only)
+			if !infixMapAll && g.r.Intn(3) == 0 {
+				switch g.r.Intn(6) {
+				case 0:
+					stmt.WriteString(".distinct")
+					if mapCfg && c == nColl-1 {
+						for i := range cdeps {
+							cdeps[i].tags["H5-noarg-call-swallows-infix"] = true
+						}
+					}
+				case 1:
+					stmt.WriteString(".toSeq")
+					if mapCfg && c == nColl-1 {
+						for i := range cdeps {
+							cdeps[i].tags["H5-noarg-call-swallows-infix"] = true
+						}
+					}
+				case 2:
+					stmt.WriteString(".flatMap(x => Seq(x))")
+					for i := range cdeps {
+						cdeps[i].unknown = true
+					}
+				case 3:
+					stmt.WriteString(".map(_.withSources())")
+				case 4:
+					stmt.WriteString(".map(x => x % Test)")
+					for i := range cdeps {
+						cdeps[i].unknown = true
+					}
+				case 5:
+					stmt.WriteString(".map(_.foo())")
+					for i := range cdeps {
+						cdeps[i].unknown = true
+					}
+				}
+			}
+			lastWithMap := mapCfg && !infixMapAll && c == nColl-1
+			if !lastWithMap && mapCfg && !infixMapAll {
+				// Draw as the reference generator did, so a seed yields
+				// the same build file as the 30,000-case review run.
+				_ = g.r.Intn(2)
+			}
+			if lastWithMap {
+				c2 := fzCfgs[g.r.Intn(len(fzCfgs))]
+				forms := []string{".map(_ % " + c2.text + ")", " map (_ % " + c2.text + ")", "\n  .map(_ % " + c2.text + ")", ".map(_ %\n " + c2.text + " withSources())"}
+				stmt.WriteString(forms[g.r.Intn(len(forms))])
+				for i := range cdeps {
+					if cdeps[i].unknown {
+						cdeps[i].tags["H3b-unknown-then-collection-cfg"] = true
+					}
+					cdeps[i].hasCfg = true
+					if c2.nonCompile {
+						cdeps[i].nonCompile = true
+					}
+				}
+			}
+			chainDeps = append(chainDeps, cdeps...)
+		}
+		if infixMapAll {
+			c2 := fzCfgs[g.r.Intn(len(fzCfgs))]
+			stmt.WriteString(" map (_ % " + c2.text + ")")
+			for i := range chainDeps {
+				if chainDeps[i].unknown {
+					chainDeps[i].tags["H3b-unknown-then-collection-cfg"] = true
+				}
+				chainDeps[i].hasCfg = true
+				if c2.nonCompile {
+					chainDeps[i].nonCompile = true
+				}
+			}
+		}
+		if infixMapAll {
+			for i := range chainDeps {
+				chainDeps[i].tags["H4-infix-map-over-chain"] = true
+			}
+		}
+		stmtDeps = append(stmtDeps, chainDeps...)
+	}
+	stmt.WriteString(suffix)
+	if axisScoped {
+		for i := range stmtDeps {
+			stmtDeps[i].nonCompile = true
+			if strings.Contains(prefix, "{") {
+				stmtDeps[i].tags["H1-inConfig-brace"] = true
+			}
+		}
+	}
+	return stmt.String(), stmtDeps
 }

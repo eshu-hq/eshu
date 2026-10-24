@@ -14,13 +14,22 @@ const noContext int32 = -1
 // "Grammar"). Every other assignment falls back to salvage: each literal
 // coordinate in the statement is emitted partial and counted. A key that is
 // not followed by an assignment (`libraryDependencies.value`) is not a
-// declaration and is left to the main loop.
+// declaration and is left to the main loop. A setting method applied to the
+// key (`libraryDependencies.transform(...)`, `.set(...)`) rewrites what came
+// before like `~=`, so it supersedes earlier rows and adds none.
 func (s *scan) parseLibraryDependencies(key token) {
-	ctx, inContext := s.keyContext(key, s.hist[1])
+	prev := s.hist[1]
+	ctx, inContext := s.keyContext(key, prev)
 	if s.skipLegacyAxis() {
 		inContext = false
 	}
 	op := s.peek()
+	if op.kind == kindIdent && isPunct(s.hist[0], ".") && !isKeyRead(op.text) && startsExpression(key, prev, inContext) {
+		s.unresolved++
+		s.markReset(ctx, inContext)
+		s.salvage(0, false)
+		return
+	}
 	if op.kind != kindSymbol {
 		return
 	}
@@ -69,13 +78,15 @@ func (s *scan) parseLibraryDependencies(key token) {
 
 // keyContext reports whether a key starts a statement in one of the two
 // grammar contexts and which one: the bare file (context 0), where the key
-// starts a top-level statement, or directly inside the `.settings(` argument
+// starts a top-level statement on a line that starts at column 0, or directly
+// inside the `.settings(` argument
 // list of a project val (the project's context), where the key is the first
 // token of an argument. Anything else, such as a key after an axis (`Test /`),
 // inside a wrapper (`inConfig(Test)(...)`), a brace block, a val or def body,
-// or an if body, is not a grammar context.
+// an if body, or an indented line at depth zero (a Scala 3 braceless block),
+// is not a grammar context.
 func (s *scan) keyContext(key, prev token) (int32, bool) {
-	if key.depth == 0 && s.startsStatement(key, prev) {
+	if key.depth == 0 && key.lineAtCol0 && s.startsStatement(key, prev) {
 		return 0, true
 	}
 	if s.settingsCtx != 0 && key.depth == s.settingsDepth && key.inParen {
@@ -112,6 +123,29 @@ func (s *scan) startsStatement(key, prev token) bool {
 	default:
 		return false
 	}
+}
+
+// isKeyRead names the members of a setting key that read it rather than
+// change it: `libraryDependencies.value` inside a task or setting body, and the
+// key objects themselves.
+func isKeyRead(member string) bool {
+	switch member {
+	case "value", "key", "scopedKey", "taskValue":
+		return true
+	}
+	return false
+}
+
+// startsExpression reports whether key sits where a setting can be applied: in
+// a grammar context, at the start of a line, or right after an opener, ',' or
+// ';'. A key in the middle of an expression (`x := libraryDependencies.foo`)
+// is read, not applied.
+func startsExpression(key, prev token, inContext bool) bool {
+	switch {
+	case inContext, key.newline, prev.kind == kindEOF, prev.kind == kindOpen:
+		return true
+	}
+	return isPunct(prev, ",") || isPunct(prev, ";")
 }
 
 // isContinuationKeyword names the Scala keywords after which a new line

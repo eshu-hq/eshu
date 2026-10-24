@@ -14,12 +14,12 @@ const (
 	kindEOF tokenKind = iota
 	// kindIdent is a Scala identifier or a backtick-quoted identifier.
 	kindIdent
-	// kindString is a plain "..." or """...""" literal with no escapes and no
-	// interpolation prefix; text holds the interior verbatim.
+	// kindString is a plain "..." or """...""" literal with no backslash and
+	// no interpolation prefix; text holds the interior verbatim.
 	kindString
 	// kindOpaque is a string the scanner refuses to read as a literal:
-	// interpolated (s"..."), escaped, or unterminated. text holds a bounded
-	// prefix of the raw spelling.
+	// interpolated (s"..."), holding a backslash, or unterminated. text holds
+	// a bounded prefix of the raw spelling.
 	kindOpaque
 	// kindSymbol is a run of operator characters such as %, %%, %%%, :=, +=.
 	kindSymbol
@@ -58,6 +58,12 @@ type token struct {
 	// closesCond marks the ')' that closes the condition of an if, while, or
 	// for, so the statement after it on the next line is read as its body.
 	closesCond bool
+	// lineAtCol0 reports that the first token of the line this token sits on
+	// starts at column 0. Scala 3 (sbt 2.x) opens a braceless block with an
+	// indented line at bracket depth zero, so only a column-0 line can hold a
+	// top-level statement. A token after a multi-line string or comment keeps
+	// the flag of the line that token started on.
+	lineAtCol0 bool
 }
 
 // Opener kinds kept on the lexer's bracket stack.
@@ -83,6 +89,12 @@ type lexer struct {
 	// lastIdent is the text of the previous token when it was an identifier,
 	// else empty; it marks the '(' after if, while, and for.
 	lastIdent string
+	// lineStart is the offset just past the last line terminator consumed.
+	lineStart int
+	// lineAtCol0 is the column-0 flag of the current line; started is set
+	// once the first token was scanned.
+	lineAtCol0 bool
+	started    bool
 }
 
 func newLexer(src string) *lexer {
@@ -94,7 +106,10 @@ func newLexer(src string) *lexer {
 func (l *lexer) next() token {
 	newline := l.skipTrivia()
 	start := l.pos
-	tok := token{line: l.line, newline: newline, depth: l.depth, inParen: l.inParen()}
+	if newline || !l.started {
+		l.lineAtCol0, l.started = start == l.lineStart, true
+	}
+	tok := token{line: l.line, newline: newline, depth: l.depth, inParen: l.inParen(), lineAtCol0: l.lineAtCol0}
 	if start >= len(l.src) {
 		tok.kind = kindEOF
 		return tok
@@ -251,6 +266,7 @@ func (l *lexer) consumeTerminator() {
 	}
 	l.pos++
 	l.line++
+	l.lineStart = l.pos
 }
 
 // skipBlockComment consumes a (possibly nested) block comment and reports
@@ -320,13 +336,17 @@ func (l *lexer) scanBacktick() (tokenKind, string) {
 }
 
 // scanString scans a string starting at the opening quote. interpolated forces
-// an opaque result. Plain strings without a backslash are literals; anything
-// escaped, unterminated or interpolated is opaque.
+// an opaque result. Strings without a backslash are literals; anything with a
+// backslash, unterminated or interpolated is opaque. A triple-quoted string
+// keeps a backslash verbatim in Scala 2.13.2 and later, but Scala 2.12 (sbt 1)
+// processes unicode escapes before lexing, even there, so its value depends on
+// the compiler and it is opaque too.
 func (l *lexer) scanString(interpolated bool) (tokenKind, string) {
 	start := l.pos
 	if l.hasPrefix(`"""`) {
 		l.pos += 3
 		bodyStart := l.pos
+		backslash := false
 		for l.pos < len(l.src) {
 			if l.hasPrefix(`"""`) {
 				bodyEnd := l.pos
@@ -335,14 +355,17 @@ func (l *lexer) scanString(interpolated bool) (tokenKind, string) {
 					bodyEnd++
 					l.pos++
 				}
-				if interpolated {
-					return kindOpaque, l.src[start:l.pos]
+				if interpolated || backslash {
+					return kindOpaque, boundOpaque(l.src[start:l.pos])
 				}
 				return kindString, l.src[bodyStart:bodyEnd]
 			}
-			if c := l.src[l.pos]; c == '\n' || c == '\r' {
+			switch c := l.src[l.pos]; c {
+			case '\n', '\r':
 				l.consumeTerminator()
 				continue
+			case '\\':
+				backslash = true
 			}
 			l.pos++
 		}

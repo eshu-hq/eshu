@@ -17,6 +17,10 @@ func isThisBuildAxis(prev2, prev token) bool {
 // configPartScope maps one configuration name to the dependency scope
 // vocabulary shared with the Gradle and Maven parsers, or reports it unknown.
 // A mapping such as `test->default(compile)` is judged by its left side.
+// Ivy configuration names are case sensitive and sbt names its standard ones
+// in lower case (`Test` is `config("test")`, `IntegrationTest` is
+// `config("it")`), so `"Test"` is not the test configuration and stays
+// unknown.
 //
 // The compiler-tool configurations (`plugin`, `scala-tool`, `scala-doc-tool`)
 // and the artifact-type configurations (`docs`, `sources`, `pom`) are not
@@ -24,25 +28,42 @@ func isThisBuildAxis(prev2, prev token) bool {
 // a resolved compile; Gradle likewise gives annotationProcessor and kapt their
 // own scope instead of folding them into compile.
 func configPartScope(part string) (string, bool) {
-	name := strings.ToLower(strings.TrimSpace(part))
-	if arrow := strings.Index(name, "->"); arrow >= 0 {
-		name = strings.TrimSpace(name[:arrow])
-	}
-	switch name {
+	switch partName(part) {
 	case "compile", "optional", "compile-internal":
 		return "compile", true
 	case "runtime", "runtime-internal":
 		return "runtime", true
 	case "provided":
 		return "provided", true
-	case "test", "it", "integrationtest", "test-internal":
+	case "test", "it", "test-internal":
 		return "test", true
 	}
 	return "", false
 }
 
-// partName returns the lower-cased configuration name of one list part, ignoring
-// any `->` mapping.
+// configIdentName maps a Configuration identifier the grammar accepts
+// (isConfigIdent) to the Ivy name sbt gives it in
+// sbt.librarymanagement.Configurations.
+func configIdentName(ident string) string {
+	switch ident {
+	case "IntegrationTest":
+		return "it"
+	case "Compile":
+		return "compile"
+	case "Test":
+		return "test"
+	case "Runtime":
+		return "runtime"
+	case "Provided":
+		return "provided"
+	case "Optional":
+		return "optional"
+	}
+	return ident
+}
+
+// partName returns the configuration name of one list part, as written,
+// ignoring any `->` mapping.
 func partName(part string) string {
 	name := strings.TrimSpace(part)
 	if arrow := strings.Index(name, "->"); arrow >= 0 {
@@ -115,7 +136,7 @@ func resolveConfig(config string) configSpec {
 		default:
 			test++
 		}
-		if strings.EqualFold(partName(part), "optional") {
+		if partName(part) == "optional" {
 			spec.optional = true
 		}
 	}

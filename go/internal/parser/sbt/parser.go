@@ -118,6 +118,9 @@ type scan struct {
 	// globalReset is set by a reset outside a grammar context; it supersedes
 	// every row of the file.
 	globalReset bool
+	// modifierAt is the consumed count of the last modifier (`lazy`,
+	// `private`, ...) that heads a top-level statement, or 0.
+	modifierAt int
 }
 
 func newScan(text string) *scan {
@@ -168,17 +171,47 @@ func (s *scan) run() {
 		if tok.kind != kindIdent {
 			continue
 		}
+		head := s.headsStatement(tok)
 		switch tok.text {
 		case "libraryDependencies":
 			s.parseLibraryDependencies(tok)
 		case "scalaVersion":
 			s.parseScalaVersion(isThisBuildAxis(s.hist[2], s.hist[1]))
 		case "val":
-			if tok.depth == 0 {
+			if head {
 				s.parseVal()
+			}
+		default:
+			if head && isModifier(tok.text) {
+				s.modifierAt = s.consumed
 			}
 		}
 	}
+}
+
+// headsStatement reports whether tok heads a top-level statement: it sits at
+// depth zero on a line that starts at column 0, and it is the first token of
+// the line or the file, follows ';', or follows a modifier that heads one. An
+// indented line at depth zero is a Scala 3 braceless block (a val or def body,
+// an if, match, for or while body), so nothing on it is top-level.
+func (s *scan) headsStatement(tok token) bool {
+	if tok.depth != 0 || !tok.lineAtCol0 {
+		return false
+	}
+	switch {
+	case tok.newline, s.consumed == 1, isPunct(s.hist[1], ";"):
+		return true
+	}
+	return s.modifierAt != 0 && s.modifierAt == s.consumed-1
+}
+
+// isModifier names the definition modifiers that may precede a top-level val.
+func isModifier(word string) bool {
+	switch word {
+	case "lazy", "private", "protected", "implicit", "final", "override", "inline":
+		return true
+	}
+	return false
 }
 
 // trackProject follows the open project statement and its `.settings(`
@@ -245,7 +278,7 @@ func (s *scan) recordScalaVersion(value string, thisBuild bool) {
 	s.scalaVersions = append(s.scalaVersions, scalaVersionDecl{value: value, thisBuild: thisBuild})
 }
 
-// parseVal records a depth-zero `val name[: Type] = "literal"` so later
+// parseVal records a top-level `val name[: Type] = "literal"` so later
 // version references can resolve. A val whose literal is followed by more of
 // the expression (`"1" + suffix`, `"1".trim`, or a next line that starts with
 // '.' or an operator) is not that literal and is ignored. A val initialised

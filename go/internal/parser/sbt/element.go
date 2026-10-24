@@ -243,7 +243,9 @@ func (s *scan) readConfig(dep *dependency) bool {
 		dep.setConfig(resolveConfig(operand.text))
 	case operand.kind == kindIdent && isConfigIdent(operand.text):
 		s.next()
-		dep.setConfig(resolveConfig(operand.text))
+		spec := resolveConfig(configIdentName(operand.text))
+		spec.text = operand.text
+		dep.setConfig(spec)
 	default:
 		return false
 	}

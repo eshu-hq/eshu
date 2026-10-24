@@ -146,7 +146,7 @@ func TestParseOptionalConfigurationSetsOptionalFlag(t *testing.T) {
 	t.Parallel()
 
 	payload := parseSource(t, `libraryDependencies += "a" % "b" % "1" % "optional"
-libraryDependencies += "c" % "d" % "1" % "compile->default;Optional"
+libraryDependencies += "c" % "d" % "1" % "compile->default;optional"
 libraryDependencies ++= Seq("e" % "f" % "1" % "optional")
 libraryDependencies += "g" % "h" % "1" % Test
 `)
