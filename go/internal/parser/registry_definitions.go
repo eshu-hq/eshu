@@ -232,6 +232,7 @@ func defaultDefinitions() []Definition {
 				".nvmrc", ".node-version", ".tool-versions", ".python-version",
 				".ruby-version", ".java-version", ".go-version", ".sdkmanrc",
 				".terraform-version", "rust-toolchain", "rust-toolchain.toml",
+				".swift-version",
 				"Makefile", "GNUmakefile", "justfile",
 				".editorconfig", ".gitattributes", ".dockerignore", ".gitignore",
 				".eslintrc", ".prettierrc", ".babelrc", ".npmignore",

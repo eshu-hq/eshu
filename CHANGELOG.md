@@ -54,6 +54,16 @@ recent shipped work grouped by feature area.
   and points there with `endpoints_shipped_at`. Pass `evidence_detail: full` for
   every row.
 
+### Swift version pin file indexed as raw text
+
+- **`.swift-version` is now admitted as `raw_text`**
+  ([#8939](https://github.com/eshu-hq/eshu/issues/8939)), so a repository's
+  declared Swift toolchain is readable. The file holds a toolchain version or a
+  snapshot name and no credentials. It follows the other runtime-version pins:
+  an explicit exact name (never a `*-version` rule), kept in the filesystem-mode
+  workspace copy, and picked up by an unchanged repository at its next
+  reconciliation sweep.
+
 ### Version pin files indexed as raw text
 
 - **Runtime-version pin files are now admitted as `raw_text`**
