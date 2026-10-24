@@ -161,6 +161,9 @@ func (k contentStoreKey) logKey() string {
 // storedBody applies the path's policy to a source body read at emit time and
 // tallies the outcome. A path with no non-store policy returns body unchanged.
 func (t *contentStoreTally) storedBody(stores map[string]parser.ContentStore, path, body string) string {
+	if len(stores) == 0 {
+		return body
+	}
 	store, governed := stores[path]
 	if !governed {
 		return body
@@ -187,6 +190,11 @@ func (t *contentStoreTally) storedBody(stores map[string]parser.ContentStore, pa
 // with no copy, for a path that stores verbatim, and copies nothing for a
 // metadata path.
 func (t *contentStoreTally) storedBytes(stores map[string]parser.ContentStore, path string, body []byte) []byte {
+	// An ungoverned registry passes a nil map; returning before the lookup
+	// skips copying the zero ContentStore on every emitted file.
+	if len(stores) == 0 {
+		return body
+	}
 	store, governed := stores[path]
 	if !governed {
 		return body
