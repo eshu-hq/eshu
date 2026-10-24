@@ -38,6 +38,11 @@ func orgReadState(
 		OrgReadTruncated:  orgTruncated,
 		RepositoriesTotal: len(repositories),
 		ObservedAt:        observedAt,
+		// The cursor commits with the generation (#8946): where this fan-out
+		// started and where the next claim starts.
+		FanoutStartRepository: collection.fanoutStartRepository,
+		FanoutNextRepository:  collection.fanoutNextRepository,
+		FanoutLapRepository:   collection.fanoutLapRepository,
 	}
 	for _, repository := range repositories {
 		outcome, fannedOut := collection.fanoutOutcomes[repository]

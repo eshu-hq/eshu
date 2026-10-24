@@ -26,6 +26,14 @@ func (c *capturedStates) factory(state securityalerts.TargetReadState) collector
 	return func(context.Context, collector.CommitExecutor) error { return nil }
 }
 
+// topCursorReader is a FanoutCursorReader whose cursor is always the top of the
+// allowlist, for tests that do not exercise the fan-out start.
+type topCursorReader struct{}
+
+func (topCursorReader) FanoutCursor(context.Context, string) (securityalerts.FanoutCursor, error) {
+	return securityalerts.FanoutCursor{}, nil
+}
+
 func newStateSource(
 	t *testing.T,
 	client RepositoryAlertClient,
@@ -40,6 +48,7 @@ func newStateSource(
 		ClientFactory:       func(TargetConfig) (RepositoryAlertClient, error) { return client, nil },
 		Now:                 func() time.Time { return now },
 		ReadStateWriter:     factory,
+		FanoutCursorReader:  topCursorReader{},
 	})
 	if err != nil {
 		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
