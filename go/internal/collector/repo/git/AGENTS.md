@@ -220,8 +220,11 @@ so the projector upsert overwrites an old row on full and delta generations; no
 tombstone and no `RetainedPaths` edit. `RepositorySnapshot.ContentStores` is
 sparse and nil for a registry with no non-store policy. Structured values a
 parser extracts (for example a Terraform variable `default` in
-`entity_metadata`) are parser output and are not governed; check them before
-binding a definition.
+`entity_metadata`) are parser output and are not governed, by design (8813
+record; `TestParserOutputIsNotGovernedKnownLeak` pins the hcl `.tf` echo). A
+definition may bind `metadata` or `redact` only after that is proven: a seeded
+full-stream scan over every path shape the definition covers
+(`assertNoSeedInAnyFact`). When parser output becomes governed, flip that test.
 
 ## Directory size
 

@@ -89,8 +89,11 @@ export would bypass it.
 
 A `redact` definition lists its credential keys. `marker` mode replaces the
 value of each listed key at any length, keeps an exact `${NAME}` environment
-reference, and also replaces any span the hardcoded-secret detector from
-migration 138 matches. Every line inside a PEM `BEGIN` to `END` block is
+reference, and also redacts a line the hardcoded-secret detector from
+migration 138 matches: a key match (such as `Authorization: Bearer ...`) is
+treated like a listed key and the value to the end of the line is replaced, and
+a value-shape match (an AWS key, a Slack token) is replaced from the shape to the
+end of the line. Every line inside a PEM `BEGIN` to `END` block is
 replaced, and so are the continuation lines of a listed key's block scalar or
 multi-line quoted value. The marker keeps the finding kind so
 `investigate_hardcoded_secrets` can keep reporting the line. `[redacted]` and
@@ -119,8 +122,12 @@ For a `metadata` path, or a `redact` path whose redactor failed:
 The parser still reads the original file. Its structured facts (the file fact
 and the entities it extracts) are intended output and are not redacted, apart
 from the whole-file `parsed_file_data.source` copy and the entity source
-snippets, which carry the stored body. A definition that binds `metadata` or
-`redact` should be one whose parser output is safe to keep.
+snippets, which carry the stored body. A parser can echo extracted values: the
+`hcl` parser puts `.tf` resource attributes, variable defaults, and locals into
+`parsed_file_data` and the entity metadata even under `metadata` (a test pins
+it). A definition may bind `metadata` or `redact` only after that is proven: a
+seeded full-stream scan over every path shape the definition covers
+(`assertNoSeedInAnyFact`) must find no credential in any fact kind.
 
 ### Failure behavior
 

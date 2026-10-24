@@ -103,18 +103,20 @@ key line and a free-text line. Probe values are fabricated.
 
 | Kind | Key line, raw to marked | Free-text line, raw to marked | Under 138 |
 | --- | --- | --- | --- |
-| `aws_access_key` | `access_key_id = "AKIA<16>"` to `access_key_id = "REDACTED_aws_access_key"` | `# rotate AKIA<16> soon` to `# rotate REDACTED_aws_access_key soon` | lost |
-| `slack_token` | `slack_webhook = "xoxb-<10+>"` to `slack_webhook = "REDACTED_slack_token"` | `# post with xoxb-<10+> here` to `# post with REDACTED_slack_token here` | lost |
+| `aws_access_key` | `access_key_id = "AKIA<16>"` to `access_key_id = "REDACTED_aws_access_key` | `# rotate AKIA<16> soon` to `# rotate REDACTED_aws_access_key` | lost |
+| `slack_token` | `slack_webhook = "xoxb-<10+>"` to `slack_webhook = "REDACTED_slack_token` | `# post with xoxb-<10+> here` to `# post with REDACTED_slack_token` | lost |
 | `private_key` | `key = "-----BEGIN RSA PRIVATE KEY-----"` to `key = "REDACTED_private_key"` | `# -----BEGIN RSA PRIVATE KEY-----` to `# REDACTED_private_key` | lost |
-| `api_token` | `npmAuthToken: <12>` to `npmAuthToken: REDACTED_api_token` | `# the api_key=<12> was pasted` to `# the api_key=REDACTED_api_token was pasted` | survives |
-| `password_literal` | `db_password = "<12>"` to `db_password = "REDACTED_password_literal"` | `# password: <12> per ops` to `# password: REDACTED_password_literal per ops` | survives |
-| `secret_literal` | `client_secret = "<12>"` to `client_secret = "REDACTED_secret_literal"` | `# the client_secret = <12> shared` to `# the client_secret = REDACTED_secret_literal shared` | survives |
+| `api_token` | `npmAuthToken: <12>` to `npmAuthToken: REDACTED_api_token` | `# the api_key=<12> was pasted` to `# the api_key=REDACTED_api_token` | survives |
+| `password_literal` | `db_password = "<12>"` to `db_password = "REDACTED_password_literal"` | `# password: <12> per ops` to `# password: REDACTED_password_literal` | survives |
+| `secret_literal` | `client_secret = "<12>"` to `client_secret = "REDACTED_secret_literal"` | `# the client_secret = <12> shared` to `# the client_secret = REDACTED_secret_literal` | survives |
 
 Kind changes (also pinned): `npmAuthToken: REDACTED_aws_access_key` (an `AKIA`
 value misplaced under a listed key) and `slack_token = "REDACTED_slack_token"`
 are detected as `api_token`. `db_password = "[redacted]"` and `db_password =
 "***"` are not detected, which is why those markers are rejected. A 1 to 5
-character value under `npmAuthToken` is redacted. These results match the
+character value under `npmAuthToken` is redacted. After ruling B1 (below) the table was re-measured against the real migration
+138 CASE and line gate on PostgreSQL 18.6 (a pure `SELECT`, 14 probe lines, exit
+0); the survive, lost, and kind-changed results are unchanged. These results match the
 evidence page's marker probe; #8833's marker arm changes the three "lost" rows
 and the two kind changes to "same kind".
 
@@ -142,6 +144,26 @@ and the two kind changes to "same kind".
   neither yields entities, so `source_cache` is proven on `vars.tf` (hcl), and
   the `.yarnrc.yml` redact body and `.npmrc` metadata body are proven on the
   `content` fact and the live row.
+
+## Arbiter rulings applied (2026-10-24)
+
+- A1, parser output: the policy governs raw-text copies only. `TestParserOutputIsNotGovernedKnownLeak`
+  binds `metadata` and `redact` to `hcl`, asserts the governed copies are clean,
+  and asserts the seed IS in `terraform_variables[].default`,
+  `terraform_resources[].attributes.password`, `terraform_locals[].value`, and
+  `content_entity.entity_metadata`. Flip it when parser output becomes governed.
+  The precondition for #8833 is posted:
+  https://github.com/eshu-hq/eshu/issues/8833#issuecomment-6382095070
+- B1, detector matches: a key match without a listed key applies the listed-key
+  rule at the detector's key and a value-shape match is replaced to the end of the
+  line (F4 closed). `Authorization: Bearer <token>` and `db_password=a,<tail>` no
+  longer leave a tail. The design record sentence and decision (9) are updated.
+- Fuzz: `FuzzRedactMarker` (seed corpus under `go test`; planted listed-key,
+  Bearer, comma-tail, AWS-key, and one-line PEM seeds never survive, a second pass
+  is a no-op, line count is kept) ran 60 s with `-fuzz`: 1,411,919 execs, no
+  finding.
+- C1, `.npmrc` registry-URL fact: the metadata-row half of AC 1 is met; the
+  registry-URL-fact half needs a `.npmrc` parser and admission and moved to #8978.
 
 ## Review findings addressed
 
@@ -174,7 +196,7 @@ reference or a marker.
 
 - The registry-URL fact for a seeded `.npmrc` (issue AC 1): no `.npmrc` parser
   exists, so the collector test asserts the file fact survives and the body is
-  empty; a registry-URL fact needs a parser that #8812 does not add.
+  empty; the registry-URL-fact half moved to #8978 (arbiter ruling C1).
 - A deployment census and a real-corpus count of marker-arm false positives
   (#8833).
 - The engine-parity test of Go RE2 against Postgres ARE over the gap-table
