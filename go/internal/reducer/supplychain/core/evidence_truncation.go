@@ -81,6 +81,18 @@ var maxSupplyChainImpactEvidenceEnvelopesPerIntent = 100_000
 type supplyChainImpactEvidenceBudget struct {
 	limit int
 	used  int
+	// activeEvidence sums the per-statement accounting of every
+	// active-evidence load the pass makes (#8880), so the pass's success log
+	// can name the statement that dominated it.
+	activeEvidence supplyChainImpactActiveEvidenceTally
+}
+
+// recordActiveEvidence folds one load's accounting into the pass tally. A nil
+// budget (stage-level tests) records nothing.
+func (b *supplyChainImpactEvidenceBudget) recordActiveEvidence(stats SupplyChainImpactActiveEvidenceLoadStats) {
+	if b != nil {
+		b.activeEvidence.add(stats)
+	}
 }
 
 // newSupplyChainImpactEvidenceBudget starts a pass's budget at limit, or at

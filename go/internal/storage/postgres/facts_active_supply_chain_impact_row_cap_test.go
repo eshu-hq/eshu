@@ -7,143 +7,100 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 )
 
-// suppressionRowCapFakePage builds one page of `count` fake
-// vulnerability.suppression rows in the combined pager's tagged 18-column
-// order, for
-// TestListActiveSupplyChainImpactFactsCapsRowsPerCall below.
-func suppressionRowCapFakePage(startIndex, count int, baseTime time.Time) [][]any {
-	page := make([][]any, count)
-	for i := range page {
-		factID := fmt.Sprintf("vuln-suppression:row-cap-%04d", startIndex+i)
-		page[i] = []any{
-			2,
-			int64(i + 1),
-			factID,
-			"vex-scope:row-cap",
-			"generation-1",
-			"vulnerability.suppression",
-			"stable-" + factID,
-			"1.0.0",
-			"vex",
-			int64(1),
-			"observed",
-			"vex",
-			factID,
-			"",
-			"",
-			baseTime.Add(time.Duration(startIndex+i) * time.Second),
-			false,
-			[]byte(`{"suppression_id":"` + factID + `","scope":{"cve_id":"CVE-2026-0700"}}`),
-		}
+// rowCapRoutingDB primes one core branch with coreCount affected_package rows
+// and the suppression branch with suppressionCount rows, in reverse byte
+// order so the loader's own sort is what orders them.
+func rowCapRoutingDB(coreCount, suppressionCount int) *supplyChainImpactRoutingDB {
+	routed := &supplyChainImpactRoutingDB{branchRows: map[string][][2]string{}, facts: map[string]string{}}
+	for i := coreCount; i >= 1; i-- {
+		id := fmt.Sprintf("vuln-affected-package:row-cap-%04d", i)
+		routed.branchRows["vulnerability_cve_id"] = append(routed.branchRows["vulnerability_cve_id"], [2]string{id, "vulnerability.affected_package"})
+		routed.facts[id] = "vulnerability.affected_package"
 	}
-	return page
+	for i := suppressionCount; i >= 1; i-- {
+		id := fmt.Sprintf("vuln-suppression:row-cap-%04d", i)
+		routed.branchRows["vulnerability_suppression"] = append(routed.branchRows["vulnerability_suppression"], [2]string{id, "vulnerability.suppression"})
+		routed.facts[id] = "vulnerability.suppression"
+	}
+	return routed
+}
+
+func withSuppressionCap(t *testing.T, limit int) {
+	t.Helper()
+	original := maxSupplyChainImpactActiveEvidenceRowsPerCall
+	maxSupplyChainImpactActiveEvidenceRowsPerCall = limit
+	t.Cleanup(func() { maxSupplyChainImpactActiveEvidenceRowsPerCall = original })
 }
 
 // TestListActiveSupplyChainImpactFactsCapsRowsPerCall is the #5466 round-7
-// review P1-B fix proof: even an unexpectedly broad identity filter cannot
-// paginate without a per-call ceiling. This hermetic test lowers
-// maxSupplyChainImpactActiveEvidenceRowsPerCall to a small number so it can
-// prove the stop-early behavior without seeding thousands of rows:
-// the fake queryer is primed with MORE pages than the lowered cap allows,
-// and the test asserts (a) the returned envelope count is capped, not the
-// full row count the fake could have produced, (b) the truncated bool is
-// true, and (c) fewer queries were issued than exhausting every primed page
-// would require -- proving genuine early termination, not a coincidental
-// row count.
+// P1-B proof on the #8880 loader: the suppression statement binds cap + 1,
+// a load that sees more than the cap keeps exactly the first cap rows in byte
+// order and reports truncation, and core evidence is never bounded.
 func TestListActiveSupplyChainImpactFactsCapsRowsPerCall(t *testing.T) {
-	originalCap := maxSupplyChainImpactActiveEvidenceRowsPerCall
-	maxSupplyChainImpactActiveEvidenceRowsPerCall = listFactsByKindPageSize + 1
-	t.Cleanup(func() { maxSupplyChainImpactActiveEvidenceRowsPerCall = originalCap })
-
-	baseTime := time.Date(2026, time.July, 28, 10, 0, 0, 0, time.UTC)
-	// Prime FOUR full pages (4x listFactsByKindPageSize rows total) so the
-	// fake queryer has far more than the lowered cap (listFactsByKindPageSize+1)
-	// available -- if the cap did not stop pagination early, the loader
-	// would exhaust all four primed pages and then fail on the fifth
-	// QueryContext call (queryResponses would be empty), which the "fewer
-	// queries than pages primed" assertion below also guards against.
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{rows: suppressionRowCapFakePage(0, listFactsByKindPageSize, baseTime)},
-			{rows: suppressionRowCapFakePage(listFactsByKindPageSize, listFactsByKindPageSize, baseTime)},
-			{rows: suppressionRowCapFakePage(2*listFactsByKindPageSize, listFactsByKindPageSize, baseTime)},
-			{rows: suppressionRowCapFakePage(3*listFactsByKindPageSize, listFactsByKindPageSize, baseTime)},
-		},
-	}
-	store := NewFactStore(db)
-
-	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(context.Background(), supplychaincore.SupplyChainImpactFactFilter{
-		CVEIDs: []string{"CVE-2026-0700"},
-	})
+	withSuppressionCap(t, 3)
+	routed := rowCapRoutingDB(700, 4)
+	loaded, truncated, err := NewFactStore(routed).ListActiveSupplyChainImpactFacts(context.Background(),
+		supplychaincore.SupplyChainImpactFactFilter{CVEIDs: []string{"CVE-2026-0700"}})
 	if err != nil {
 		t.Fatalf("ListActiveSupplyChainImpactFacts() error = %v, want nil", err)
 	}
 	if !truncated {
-		t.Fatalf("truncated = false, want true (loaded %d rows against a %d-row cap)", len(loaded), maxSupplyChainImpactActiveEvidenceRowsPerCall)
+		t.Fatal("truncated = false, want true for 4 suppressions against a 3-row cap")
 	}
-	if got, want := len(loaded), maxSupplyChainImpactActiveEvidenceRowsPerCall; got != want {
-		t.Fatalf("len(loaded) = %d, want the exact cap %d", got, want)
+	if got, want := len(loaded), 700+3; got != want {
+		t.Fatalf("len(loaded) = %d, want every core row plus the cap", got)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("query count = %d, want %d (stopping after the cap is crossed, not exhausting all four primed pages)", got, want)
+	if loaded[0].FactID != "vuln-affected-package:row-cap-0001" || loaded[699].FactID != "vuln-affected-package:row-cap-0700" {
+		t.Fatalf("core rows not in byte order: first %q last %q", loaded[0].FactID, loaded[699].FactID)
+	}
+	for i, want := range []string{"vuln-suppression:row-cap-0001", "vuln-suppression:row-cap-0002", "vuln-suppression:row-cap-0003"} {
+		if got := loaded[700+i].FactID; got != want {
+			t.Fatalf("suppression %d = %q, want %q (first cap rows in byte order)", i, got, want)
+		}
+	}
+	suppression := routed.callsFor("vulnerability_suppression")
+	if len(suppression) != 1 {
+		t.Fatalf("suppression statements = %d, want 1", len(suppression))
+	}
+	branch := supplyChainImpactBranch(t, "vulnerability_suppression")
+	for i, param := range branch.Params {
+		if param == factimpact.SuppressionLimit && suppression[0].Args[i] != 4 {
+			t.Fatalf("suppression LIMIT bound %v, want cap + 1 = 4", suppression[0].Args[i])
+		}
+	}
+	if pages := len(routed.callsFor("payload_page")); pages != 3 {
+		t.Fatalf("payload pages = %d, want 2 core pages of 500 and 200 plus 1 suppression page", pages)
 	}
 }
 
 func TestListActiveSupplyChainImpactFactsExactCapIsNotTruncated(t *testing.T) {
-	originalCap := maxSupplyChainImpactActiveEvidenceRowsPerCall
-	maxSupplyChainImpactActiveEvidenceRowsPerCall = listFactsByKindPageSize
-	t.Cleanup(func() { maxSupplyChainImpactActiveEvidenceRowsPerCall = originalCap })
-
-	baseTime := time.Date(2026, time.July, 28, 10, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{rows: suppressionRowCapFakePage(0, listFactsByKindPageSize, baseTime)},
-			{rows: nil},
-		},
-	}
-	store := NewFactStore(db)
-
-	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(context.Background(), supplychaincore.SupplyChainImpactFactFilter{
-		CVEIDs: []string{"CVE-2026-0700"},
-	})
+	withSuppressionCap(t, 3)
+	loaded, truncated, err := NewFactStore(rowCapRoutingDB(1, 3)).ListActiveSupplyChainImpactFacts(context.Background(),
+		supplychaincore.SupplyChainImpactFactFilter{CVEIDs: []string{"CVE-2026-0700"}})
 	if err != nil {
 		t.Fatalf("ListActiveSupplyChainImpactFacts() error = %v, want nil", err)
 	}
 	if truncated {
-		t.Fatalf("truncated = true, want false for exactly %d rows", maxSupplyChainImpactActiveEvidenceRowsPerCall)
+		t.Fatal("truncated = true, want false for exactly the cap")
 	}
-	if got, want := len(loaded), maxSupplyChainImpactActiveEvidenceRowsPerCall; got != want {
+	if got, want := len(loaded), 4; got != want {
 		t.Fatalf("len(loaded) = %d, want %d", got, want)
 	}
 }
 
-// TestListActiveSupplyChainImpactFactsDoesNotTruncateUnderTheCap proves the
-// cap does not fire, and truncated stays false, for a normal-sized result
-// well under the cap -- the common case for the pre-existing
-// cve_id/package_id/purl/subject_digest/repository_id/advisory_id anchors,
-// which this fix must not regress.
 func TestListActiveSupplyChainImpactFactsDoesNotTruncateUnderTheCap(t *testing.T) {
-	baseTime := time.Date(2026, time.July, 28, 10, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{rows: suppressionRowCapFakePage(0, 3, baseTime)},
-		},
-	}
-	store := NewFactStore(db)
-
-	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(context.Background(), supplychaincore.SupplyChainImpactFactFilter{
-		CVEIDs: []string{"CVE-2026-0700"},
-	})
+	loaded, truncated, err := NewFactStore(rowCapRoutingDB(2, 1)).ListActiveSupplyChainImpactFacts(context.Background(),
+		supplychaincore.SupplyChainImpactFactFilter{CVEIDs: []string{"CVE-2026-0700"}})
 	if err != nil {
 		t.Fatalf("ListActiveSupplyChainImpactFacts() error = %v, want nil", err)
 	}
 	if truncated {
-		t.Fatalf("truncated = true, want false (only 3 rows, far under the cap)")
+		t.Fatal("truncated = true, want false far under the cap")
 	}
 	if got, want := len(loaded), 3; got != want {
 		t.Fatalf("len(loaded) = %d, want %d", got, want)

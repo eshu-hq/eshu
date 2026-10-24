@@ -298,4 +298,20 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	"supply_chain_catalog_workload_trim_index",
 	"supply_chain_catalog_service_trim_index",
 	"supply_chain_cicd_environment_trim_index",
+	// Migrations 217-229 (#8880) add the supply-chain impact active-evidence
+	// anchors, one sole CREATE INDEX CONCURRENTLY per file, generated from
+	// storage/postgres/facts/impact (TestNewIndexStatementsMatchMigrations).
+	"fact_records_vulnerability_affected_product_criteria_idx",
+	"fact_records_supply_chain_impact_package_id_idx",
+	"fact_records_package_version_purl_idx",
+	"fact_records_security_alert_cve_id_idx",
+	"fact_records_vulnerability_hint_advisory_id_idx",
+	"fact_records_oci_image_digest_idx",
+	"fact_records_oci_tag_resolved_digest_idx",
+	"fact_records_oci_referrer_digest_idx",
+	"fact_records_supply_chain_impact_payload_scope_id_idx",
+	"fact_records_vulnerability_suppression_active_scan_idx",
+	"fact_records_platform_materialization_active_scan_idx",
+	"fact_records_jsts_reachability_repo_file_idx",
+	"fact_records_supply_chain_impact_foreign_key_guard_idx",
 }

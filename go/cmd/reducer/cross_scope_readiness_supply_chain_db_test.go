@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 )
 
 // supplyChainReadinessWiringDB answers the queries one supply_chain_impact pass
@@ -47,13 +48,20 @@ func (f *supplyChainReadinessWiringDB) QueryContext(
 			{"oci_registry:ghcr.io/acme", false},
 		}}, nil
 	}
-	// The shared cross-scope active-evidence read resolves nothing. Checked
-	// before the generic fact_records branch below, which its FROM clause also
-	// matches. Combined with the not-quiescent probe answer above, that is the
-	// #5709 condition: an empty producer join whose producers have not
-	// published yet.
-	if strings.Contains(query, "legacy_facts") {
+	// The shared cross-scope active-evidence read resolves nothing: every
+	// #8880 branch statement, the repository scope resolution, and the
+	// canonical identity page answer empty. Checked before the generic fact_records branch below, which the
+	// branch FROM clauses also match. Combined with the not-quiescent probe
+	// answer above, that is the #5709 condition: an empty producer join whose
+	// producers have not published yet.
+	if query == factimpact.ScopeResolutionSQL ||
+		strings.Contains(query, "FROM container_image_identity_current_support_facts_for(") {
 		return &crossScopeReadinessRows{}, nil
+	}
+	for _, branch := range factimpact.Branches() {
+		if query == branch.SQL {
+			return &crossScopeReadinessRows{}, nil
+		}
 	}
 	if strings.Contains(query, "FROM fact_records") {
 		return &crossScopeReadinessRows{rows: [][]any{

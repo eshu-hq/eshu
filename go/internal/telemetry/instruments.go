@@ -1003,6 +1003,20 @@ type Instruments struct {
 	// continuous ingest is normal churn; a scope that stays superseded means two
 	// workers keep overtaking each other, or the sequence lags the admitted watermark after a restore or manual reset. The WARN log line carries the scope.
 	SupplyChainImpactWriteSuperseded metric.Int64Counter
+	// SupplyChainImpactActiveEvidenceBranchDuration records the wall time of
+	// one active-evidence statement (#8880). Label: branch, the closed
+	// factimpact catalog name set plus scope_resolution, payload_page, and
+	// identity. A branch whose p95 climbs names the anchor that stopped
+	// serving it.
+	SupplyChainImpactActiveEvidenceBranchDuration metric.Float64Histogram
+	// SupplyChainImpactActiveEvidenceBranchRows counts rows each
+	// active-evidence statement returned (#8880). Label: branch.
+	SupplyChainImpactActiveEvidenceBranchRows metric.Int64Counter
+	// SupplyChainImpactActiveEvidenceGuardRows counts rows the foreign-key
+	// guard statement returned (#8880). The guard admits only rows carrying
+	// an identity key no branch probes for their kind, so any increment means
+	// a payload contract drifted; the WARN log line names the kinds.
+	SupplyChainImpactActiveEvidenceGuardRows metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain
 	// (supply_chain_impact) and outcome (one of active, not_affected,
@@ -4485,6 +4499,32 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactWriteSuperseded counter: %w", err)
+	}
+
+	inst.SupplyChainImpactActiveEvidenceBranchDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_active_evidence_branch_seconds",
+		metric.WithDescription("Wall time of one supply-chain impact active-evidence statement, by closed branch label (#8880)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactActiveEvidenceBranchDuration histogram: %w", err)
+	}
+
+	inst.SupplyChainImpactActiveEvidenceBranchRows, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_active_evidence_branch_rows_total",
+		metric.WithDescription("Total rows returned by supply-chain impact active-evidence statements, by closed branch label (#8880)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactActiveEvidenceBranchRows counter: %w", err)
+	}
+
+	inst.SupplyChainImpactActiveEvidenceGuardRows, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_active_evidence_foreign_key_guard_rows_total",
+		metric.WithDescription("Total rows the supply-chain impact foreign-key guard returned; nonzero means a payload contract carries an identity key its branch does not probe (#8880)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactActiveEvidenceGuardRows counter: %w", err)
 	}
 
 	inst.SupplyChainSuppressionDecisions, err = meter.Int64Counter(
@@ -8069,6 +8109,12 @@ func AttrResult(v string) attribute.KeyValue {
 // AttrReason returns a reason attribute for metric recording.
 func AttrReason(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionReason, v)
+}
+
+// AttrBranch returns a branch attribute for the supply-chain impact
+// active-evidence statement instruments (#8880).
+func AttrBranch(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionBranch, v)
 }
 
 // AttrQuotaKind returns a quota_kind attribute for claim-quota metrics.

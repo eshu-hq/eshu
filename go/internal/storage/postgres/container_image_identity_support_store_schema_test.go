@@ -182,14 +182,12 @@ func TestContainerImageIdentitySupportPaginationUsesBytewiseFactIDOrder(t *testi
 			t.Fatalf("support pagination migration retains collation-sensitive key %q:\n%s", forbidden, sql)
 		}
 	}
-	executableQuery := sqlWithoutLineComments(listActiveSupplyChainImpactFactsQuery)
-	for _, want := range []string{
-		"convert_to(fact.fact_id, 'UTF8')",
-		"convert_to($11, 'UTF8')",
-	} {
-		if !strings.Contains(executableQuery, want) {
-			t.Fatalf("supply-chain caller missing bytewise cursor key %q:\n%s", want, executableQuery)
-		}
+	// #8880: the supply-chain caller orders core evidence by bytes in Go and
+	// bounds the suppression tail with a byte-order statement; the collation
+	// must never decide either order.
+	suppression := sqlWithoutLineComments(supplyChainImpactBranch(t, "vulnerability_suppression").SQL)
+	if !strings.Contains(suppression, "ORDER BY convert_to(fact.fact_id, 'UTF8')") {
+		t.Fatalf("supply-chain suppression statement missing the bytewise order key:\n%s", suppression)
 	}
 }
 

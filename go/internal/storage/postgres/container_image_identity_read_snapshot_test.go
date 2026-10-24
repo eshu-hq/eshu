@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 )
 
 func (f *fakeExecQueryer) BeginReadOnlyRepeatableRead(
@@ -98,9 +100,9 @@ func TestActiveContainerImageIdentityLoadersUseOneReadSnapshot(t *testing.T) {
 			},
 		},
 		{
-			name:        "supply chain page pairs",
-			responses:   []queueFakeRows{{}},
-			wantQueries: 1,
+			name:        "supply chain branch statements and identity pages",
+			responses:   make([]queueFakeRows, supplyChainImpactStatementsFor(factimpact.SubjectDigests)+1),
+			wantQueries: supplyChainImpactStatementsFor(factimpact.SubjectDigests) + 1,
 			load: func(store *FactStore) error {
 				_, _, err := store.ListActiveSupplyChainImpactFacts(
 					context.Background(),
@@ -209,12 +211,16 @@ func TestActiveContainerImageIdentityLoaderRollsBackOnCommitFailure(t *testing.T
 }
 
 func TestSupplyChainIdentityLoaderReturnsNoDataOnCommitFailure(t *testing.T) {
-	row := taggedSupplyChainImpactRow(1, 1, containerImageIdentitySupportFactRow(
+	row := containerImageIdentitySupportFactRow(
 		"repository:snapshot", "sha256:snapshot", 1,
 		time.Date(2026, time.August, 1, 12, 0, 0, 0, time.UTC),
-	))
+	)
+	// Every branch statement answers empty; the identity page that follows
+	// them returns one row the failed commit must discard.
+	responses := make([]queueFakeRows, supplyChainImpactStatementsFor(factimpact.SubjectDigests), supplyChainImpactStatementsFor(factimpact.SubjectDigests)+1)
+	responses = append(responses, queueFakeRows{rows: [][]any{row}})
 	database := &fakeExecQueryer{
-		queryResponses:       []queueFakeRows{{rows: [][]any{row}}},
+		queryResponses:       responses,
 		transactionCommitErr: errors.New("commit boom"),
 	}
 
@@ -301,6 +307,18 @@ func TestActiveContainerImageIdentityEmptyFilterDoesNotBeginSnapshot(t *testing.
 			len(loaded), database.beginReadOnlyRepeatableReadCalls, len(database.queries),
 		)
 	}
+}
+
+// supplyChainImpactStatementsFor counts the catalog statements a filter with
+// only param non-empty issues.
+func supplyChainImpactStatementsFor(param factimpact.Param) int {
+	count := 0
+	for _, branch := range factimpact.Branches() {
+		if slices.Contains(branch.RunWhen, param) {
+			count++
+		}
+	}
+	return count
 }
 
 type execQueryerWithoutReadSnapshot struct {
