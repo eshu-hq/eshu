@@ -96,6 +96,34 @@ def check_pr_plan_full_mode_sentinel(source: str) -> None:
         raise ValueError("pr-plan full plan sentinel admits smoke or hides failure")
 
 
+def check_pr_plan_transfer_mode_sentinels(source: str) -> None:
+    """Require exact planner steps for reuse and smoke publication."""
+    section = re.search(
+        r"^  pr-plan:\n(.*?)(?=^  [a-z0-9-]+:\n|\Z)",
+        source,
+        re.MULTILINE | re.DOTALL,
+    )
+    if section is None:
+        raise ValueError("pr-plan job missing")
+    for mode in ("reuse", "smoke"):
+        name = f"Record {mode} plan mode"
+        if section.group(1).count(f"- name: {name}") != 1:
+            raise ValueError(f"pr-plan {mode} mode sentinel missing or duplicated")
+        step = re.search(
+            rf"^      - name: {name}\n"
+            r"        if: (.+)\n"
+            r"        run: (.+)$",
+            section.group(1),
+            re.MULTILINE,
+        )
+        expected = (
+            "${{ steps.plan.outputs.mode == '" + mode + "' }}",
+            'test "${{ steps.plan.outputs.mode }}" = ' + mode,
+        )
+        if step is None or step.groups() != expected:
+            raise ValueError(f"pr-plan {mode} sentinel admits another mode or hides failure")
+
+
 def check_pr_plan_schema(caller: str) -> None:
     """Exercise the production jq guard with valid and seeded invalid plans."""
     for token in (
@@ -171,6 +199,7 @@ def main() -> None:
         raise ValueError("Build Test has no trusted PR planner")
     check_full_mode_sentinel(central)
     check_pr_plan_full_mode_sentinel(central)
+    check_pr_plan_transfer_mode_sentinels(central)
     if concurrency_fields(central).get("group") == POSTGRES_GROUP:
         raise ValueError("Postgres leaf concurrency group collides with Build Test")
     for lane in ("go-core", "go-race"):
@@ -229,6 +258,23 @@ def main() -> None:
             pass
         else:
             raise ValueError("pr-plan sentinel accepted a non-full mode")
+    for mode in ("reuse", "smoke"):
+        condition = "${{ steps.plan.outputs.mode == '" + mode + "' }}"
+        for broken in (
+            central.replace(condition, "${{ steps.plan.outputs.mode == 'full' }}", 1),
+            central.replace(
+                f'run: test "${{{{ steps.plan.outputs.mode }}}}" = {mode}',
+                "run: true", 1,
+            ),
+        ):
+            if broken == central:
+                raise ValueError(f"pr-plan {mode} sentinel seed did not change the workflow")
+            try:
+                check_pr_plan_transfer_mode_sentinels(broken)
+            except ValueError:
+                pass
+            else:
+                raise ValueError(f"pr-plan {mode} sentinel accepted a seeded violation")
     postgres = (WORKFLOWS / "postgres-scheduled-live.yml").read_text(encoding="utf-8")
     for invalid in ("false", "true"):
         broken = postgres.replace(f"cancel-in-progress: {PR_CANCEL}", f"cancel-in-progress: {invalid}", 1)

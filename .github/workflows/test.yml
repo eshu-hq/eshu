@@ -89,9 +89,7 @@ jobs:
       - name: Set up Go
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/setup-go@v6
-        with:
-          go-version-file: go/go.mod
-          cache-dependency-path: go/go.sum
+        with: {go-version-file: go/go.mod, cache-dependency-path: go/go.sum}
       - name: Pre-warm Go modules
         if: ${{ github.event_name == 'pull_request' }}
         run: scripts/ci/go-mod-download-retry.sh
@@ -123,6 +121,12 @@ jobs:
       - name: Record full plan mode
         if: ${{ steps.plan.outputs.mode == 'full' }}
         run: test "${{ steps.plan.outputs.mode }}" = full
+      - name: Record reuse plan mode
+        if: ${{ steps.plan.outputs.mode == 'reuse' }}
+        run: test "${{ steps.plan.outputs.mode }}" = reuse
+      - name: Record smoke plan mode
+        if: ${{ steps.plan.outputs.mode == 'smoke' }}
+        run: test "${{ steps.plan.outputs.mode }}" = smoke
   markdown-file-cap:
     if: ${{ github.event_name == 'merge_group' || (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'markdown-file-cap'))) }}
     needs: [queue-selection, pr-plan]
