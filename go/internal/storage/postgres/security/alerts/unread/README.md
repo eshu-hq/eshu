@@ -48,7 +48,9 @@ ORDER BY s.unread_total DESC;
 
 ## Proof
 
-`commit_live_test.go` and `concurrency_live_test.go` run against a disposable
+`alert_read_state_commit_live_test.go` and
+`alert_read_state_concurrency_live_test.go` (in the parent `postgres`
+package, so the readiness shards price them with its other live proofs) run against a disposable
 Postgres 18 (`ESHU_POSTGRES_DSN`): commit with state, replay, rollback,
 retention cascade, retention against concurrent commits of the same target,
 concurrent claims of one target, and two claims racing on one generation id,

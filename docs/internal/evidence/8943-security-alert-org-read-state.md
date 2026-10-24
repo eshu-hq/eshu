@@ -63,15 +63,17 @@ Live proofs against a disposable PostgreSQL 18.6 database per test
 `-race`:
 
 ```text
-go test -race ./internal/storage/postgres/security/alerts/unread -run Live -count=1 -v
---- PASS: TestLiveCommitPersistsReadStateWithGeneration
---- PASS: TestLiveReplayOfPendingGenerationReplacesUnreadRepositories
---- PASS: TestLiveFailedStateWriteRollsBackTheGeneration
---- PASS: TestLiveGenerationRetentionRemovesReadStateWithItsGeneration
---- PASS: TestLiveRetentionPruneRunsAlongsideClaimFencedCommitsOfTheSameTarget
---- PASS: TestLiveSecondClaimOfTheSameTargetKeepsItsOwnState
---- PASS: TestLiveClaimsRacingOnOneGenerationIDLeaveOneConsistentState
-ok  .../unread  17.798s
+go test -race ./internal/storage/postgres -run SecurityAlertReadStateLive -count=1 -v
+--- PASS: TestSecurityAlertReadStateLiveCommit (6.34s)
+    --- PASS: .../CommitPersistsReadStateWithGeneration
+    --- PASS: .../ReplayOfPendingGenerationReplacesUnreadRepositories
+    --- PASS: .../FailedStateWriteRollsBackTheGeneration
+    --- PASS: .../GenerationRetentionRemovesReadStateWithItsGeneration
+--- PASS: TestSecurityAlertReadStateLiveConcurrency (4.82s)
+    --- PASS: .../RetentionPruneRunsAlongsideClaimFencedCommitsOfTheSameTarget
+    --- PASS: .../SecondClaimOfTheSameTargetKeepsItsOwnState
+    --- PASS: .../ClaimsRacingOnOneGenerationIDLeaveOneConsistentState
+ok  github.com/eshu-hq/eshu/go/internal/storage/postgres  12.357s
 ```
 
 - Atomicity: a state that fails validation after the generation row was written
@@ -87,7 +89,7 @@ ok  .../unread  17.798s
   `security_alert_unread_repositories`. The probe pin moved from 36 to 38 tables.
 - Writer against retention: 8 claim-fenced commits of new generations of the
   same target ran together with a looping retention pass over 12 old
-  generations (40 unread rows each): 15 passes, 258 ms, 12 generations pruned, no
+  generations (40 unread rows each): 31 passes, 232 ms, 12 generations pruned, no
   commit or pass failure, no deadlock (`40P01`), every new generation holds
   exactly its own 25 rows, and no old row is left.
 - Second claim of the same target: 4 concurrent commits of distinct generations

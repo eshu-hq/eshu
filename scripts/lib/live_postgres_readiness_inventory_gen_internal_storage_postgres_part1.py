@@ -26,6 +26,12 @@ TABLE = {
             "TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsFixturePackageManifests",
             "TestFixtureDirPatternAgreesBetweenPostgresAndGo",
         ),
+        "go/internal/storage/postgres/alert_read_state_commit_live_test.go": (
+            "TestSecurityAlertReadStateLiveCommit",
+        ),
+        "go/internal/storage/postgres/alert_read_state_concurrency_live_test.go": (
+            "TestSecurityAlertReadStateLiveConcurrency",
+        ),
         "go/internal/storage/postgres/aws_cloud_runtime_drift_state_arn_differential_live_test.go": (
             "TestAWSCloudRuntimeDriftStateARNJoinMatchesReferenceLive",
         ),
@@ -478,13 +484,6 @@ TABLE = {
             "TestReducerClaimSweepConcurrentWithReplaysNeverDeadlockLive",
             "TestReducerClaimSweepKeepsActiveGenerationRowsLive",
             "TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive",
-        ),
-        "go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go": (
-            "TestReducerQueueAckBatchFencesSupersededClaimLive",
-            "TestReducerQueueExpiryInterleaveLive",
-        ),
-        "go/internal/storage/postgres/reducer_queue_producer_refinalize_live_test.go": (
-            "TestOwnGateWaitsThroughRefinalizeReResolutionLive",
         ),
     },
 }

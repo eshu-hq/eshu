@@ -374,6 +374,16 @@ tests:
     class: postgres_ci
     reason: "#8244 disposable PostgreSQL 18 proof that a package.json under a test, tests, fixtures, testdata, or examples directory is not a package producer (a real manifest of the same name still anchors, substring look-alikes still anchor), and that the one fixture pattern evaluates identically in PostgreSQL ~ and Go regexp on a path corpus including the long s; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/alert_read_state_commit_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8943 disposable PostgreSQL 18 proofs that the security-alert org read state commits with its generation through the claim-fenced ingestion store, is replaced on a replay of a pending generation, rolls back with a failed generation, and leaves with the generation when generation retention prunes it; each proof creates and drops its own database from the bootstrap schema; under 1 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/alert_read_state_concurrency_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8943 disposable PostgreSQL 18 concurrency proofs under the race detector that generation retention pruning old security-alert generations never deadlocks with, blocks, or damages concurrent claim-fenced commits of the same target, that a second claim of the same target never mixes its read state with another claim's, and that two claims racing on one generation id leave one consistent state; each proof creates and drops its own database from the bootstrap schema; about 2 to 6 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/aws_cloud_runtime_drift_state_arn_differential_live_test.go
     tag: ~
     class: postgres_ci
@@ -1203,16 +1213,6 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8231 disposable PostgreSQL 18 proof of the superseded-generation search index sweep: only a superseded generation with a live active pointer elsewhere loses rows while the active generation's rows and its active-generation reader view stay byte-identical, and generations with running work, a NULL active pointer, a missing generation row, or the active pointer itself lose nothing; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema per test. local run passed both tests in 6.5s wall on PostgreSQL 18 (container postgres:18) on 2026-10-18; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/security/alerts/unread/commit_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#8943 disposable PostgreSQL 18 proofs that the security-alert org read state commits with its generation through the claim-fenced ingestion store, is replaced on a replay of a pending generation, rolls back with a failed generation, and leaves with the generation when generation retention prunes it; each proof creates and drops its own database from the bootstrap schema; under 1 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/security/alerts/unread/concurrency_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#8943 disposable PostgreSQL 18 concurrency proofs under the race detector that generation retention pruning old security-alert generations never deadlocks with, blocks, or damages concurrent claim-fenced commits of the same target, that a second claim of the same target never mixes its read state with another claim's, and that two claims racing on one generation id leave one consistent state; each proof creates and drops its own database from the bootstrap schema; about 2 to 6 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/security_alert_impact_producer_store_live_test.go
     tag: ~
