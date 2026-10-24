@@ -138,15 +138,15 @@ const (
 	// GrantsSecretReadFamilyOduName is this Odù's catalog name, the ref a
 	// materialized_edges:grants_secret_read coverage row names to resolve
 	// through it.
-	GrantsSecretReadFamilyOduName = "odu:ifa-grants-secret-read-family"
+	GrantsSecretReadFamilyOduName = "odu:ifa-grants-secret-read-family" // #nosec G101 -- fixture ODU catalog name constant, not a credential
 
 	// grantsSecretReadFamilyScopeID is the single scope every fact in this
 	// Odù belongs to.
-	grantsSecretReadFamilyScopeID = "vault:eshu-fixture-grants-account"
+	grantsSecretReadFamilyScopeID = "vault:eshu-fixture-grants-account" // #nosec G101 -- fixture scope ID constant, not a credential
 
 	// grantsSecretReadFamilyGenerationID is the one scope generation the
 	// Odù replays.
-	grantsSecretReadFamilyGenerationID = "gen-ifa-grants-secret-read-family-1"
+	grantsSecretReadFamilyGenerationID = "gen-ifa-grants-secret-read-family-1" // #nosec G101 -- fixture generation ID constant, not a credential
 )
 
 // The fixture join keys, fingerprints, and ARNs. Two exact lanes resolve
