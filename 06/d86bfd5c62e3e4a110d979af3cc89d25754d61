@@ -1,0 +1,25 @@
+go/internal/collector/extensionhost/process.go
+  s_ff8a600f1fc93e::t_a782c3d5121194 71
+go/internal/collector/extensionhost/oci.go
+  s_ff8a600f1fc93e::t_a782c3d5121194 165-167,172
+go/internal/collector/extensionhost/README.md
+  s_ff8a600f1fc93e::t_a677b9109eb075 103-114,130,132
+go/internal/collector/extensionhost/oci_number_test.go
+  s_ff8a600f1fc93e::t_b8da9067fd0f65 1-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "06d86bfd5c62e3e4a110d979af3cc89d25754d61",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
