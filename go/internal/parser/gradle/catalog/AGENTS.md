@@ -22,10 +22,23 @@
 - Match aliases the way Gradle does: `-`, `_` and `.` are one separator, and
   a `version.ref` is normalized before its lookup. Never pick the survivor of a
   normalized collision; Gradle's choice depends on registration order the file
-  does not carry. Keep `aliasTable` to one map per table, with the exact
-  spellings per slot and the rare-case maps used only by shared slots. Every
-  check is one map operation: an alias has 3^k separator spellings, so a scan
-  over earlier spellings is quadratic.
+  does not carry. Slots are keyed on `accessorKey` (Gradle's `toJavaName`
+  with a lower-case first letter), so two aliases with one accessor name,
+  which fail Gradle's build, collide too; a reference lookup still checks the
+  normalized spelling (`sameNormalized`). Keep `aliasTable` to one map per
+  table, with the exact spellings per slot and the rare-case maps used only by
+  shared slots. Every check is one map operation: an alias has 3^k separator
+  spellings, so a scan over earlier spellings is quadratic.
+- Gradle walks each table's `keySet`. Every key it would register must enter
+  the alias table, even when it emits no row: the first segment of a dotted
+  key, the alias of a `[table.alias]` sub-table or `[[table.alias]]` array
+  table, and an alias over `MaxFieldBytes`. Use `aliasTable.shadow`: a repeat
+  of one exact spelling is a no-op, a new spelling shares the slot, and it
+  counts toward `MaxRows`. Read keys with `keyHead`, which stops after three
+  components, never with a slice of every component.
+- Run `keysExceed` on every top-level expression before `validTOML`. It
+  refuses a key with more than `MaxKeySegments` dotted segments, including
+  keys inside inline tables, because the decode allocates per segment.
 - Run `nestingExceeds` before the TOML parser. The parser has no depth bound
   and overflows the stack on deeply nested input. Do not move the check after
   `parser.Reset`.
@@ -43,7 +56,8 @@
   rest of the file before reporting the error. Keep its target an empty
   struct. The decoder recurses once per dotted-key segment into a field or map
   it fills, and `nestingExceeds` does not count dotted keys, so a map target
-  overflows the stack on a long dotted key.
+  overflows the stack on a long dotted key. `keysExceed` now refuses such a
+  key first; keep the empty struct anyway.
 - The package imports the standard library, `go-toml/v2`, `go-toml/v2/unstable`,
   and `internal/parser/shared` only.
 
@@ -84,3 +98,12 @@ a string notation one part short, drop the semantic TOML check, miscount
 `alias_collision_count`, and allow `$`. One is equivalent: letting a later
 `[versions]` definition overwrite the first, because a shared slot never
 resolves.
+
+The nested-alias, accessor-name and key-segment set, all 18 killed: drop the
+shadow call for a dotted key, a sub-table header, an array table, an over-long
+alias, a `[versions]` alias or a `[bundles]` alias; make a repeated spelling
+collide with itself; ignore a shadow past the cap or count its repeats twice;
+stop counting a new shadow spelling toward the cap; key slots on the
+normalized form; skip the capital after a separator; skip the normalized
+check in `lookup`; make `sameNormalized` exact; move the segment bound by
+one; ignore inline tables or arrays in `keysExceed`; and drop `keysExceed`.

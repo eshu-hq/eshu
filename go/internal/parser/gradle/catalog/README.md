@@ -62,9 +62,25 @@ reference the key is the reference. An alias, coordinate part or version over
 ### Aliases
 
 Gradle's `AliasNormalizer` treats `-`, `_` and `.` in an alias as one
-separator: `a-b`, `a_b` and the quoted key `"a.b"` are one alias to Gradle.
+separator: `a-b`, `a_b` and the quoted key `"a.b"` normalize to one alias.
 A `version.ref` is normalized the same way before its lookup, so
 `version.ref = "kotlin-core"` finds `kotlin_core`.
+
+Gradle reads every key of a table (its `keySet`), so these forms register
+`alias` too, though the parser emits no row for them: a dotted entry
+(`alias.module = "g:a"`, `alias.version.ref = "v"`), a `[libraries.alias]`
+sub-table and its deeper tables, an `[[libraries.alias]]` array table, and an
+alias longer than 256 bytes. The same holds in `[versions]`, `[plugins]` and
+`[bundles]`. The parser registers each such alias in its table, so it
+collides with the other spellings of it like any alias. Writing one alias as
+several dotted keys (`alias.module` and `alias.version`) is one alias.
+
+Gradle also generates one accessor method per alias. Its `toJavaName` splits
+an alias on `-`, `_` and `.` and capitalizes each part, and it fails the build
+when two aliases in a table map to one name: `fooBar`, `foo-bar` and `foo.bar`
+are all `getFooBar()`. The parser treats such aliases as colliding too. A
+`version.ref` still finds only an alias with its normalized spelling:
+`version.ref = "foo-bar"` does not find `fooBar`.
 
 Two aliases with one normalized spelling in the same table are valid TOML.
 Gradle accepts them with a log warning: in `[versions]` it keeps the first
@@ -78,8 +94,9 @@ never guesses:
 - a `version.ref` to a colliding `[versions]` alias is `unresolved`, keyed by
   the reference;
 - every colliding alias, in any of the four tables, adds one to
-  `alias_collision_count`. An alias dropped past the row cap still marks a
-  collision with an alias the table kept.
+  `alias_collision_count`, including a dotted or sub-table alias that emits
+  no row. An alias dropped past the row cap still marks a collision with an
+  alias the table kept.
 
 The same alias spelled twice exactly (`a` and `a`, or `a` and `"a"`) is a
 repeated TOML key, which TOML forbids and Gradle rejects, so the whole file is
@@ -91,23 +108,35 @@ file does not carry.
 
 Outside the grammar, each construct adds one to `unsupported_count` and emits
 no row: a root-level key, a `[libraries.alias]` sub-table, a `[[array]]` table,
-an unknown table such as `[metadata]`, a dotted alias, an unknown key in an
-inline table, `module` together with `group`/`name`, a non-string value, a
-string notation with the wrong part count.
+an unknown table such as `[metadata]`, a dotted alias, an alias over 256 bytes,
+an unknown key in an inline table, `module` together with `group`/`name`, a
+non-string value, a string notation with the wrong part count. A sub-table,
+array table, dotted or over-long alias in a catalog table still collides with
+the other spellings of its alias (see Aliases).
 
 Not valid and returns no rows (`state: malformed`): a TOML syntax error, a
 repeated table header, a repeated alias in one table, or any other input TOML
 rejects, such as a table defined by dotted keys and again by a header. After
 the streaming parse succeeds, a decode into an empty struct applies TOML's
 semantic checks. A file over 2 MiB (`oversize`) or nested deeper than 16
-levels (`too_deep`) is not parsed.
+levels (`too_deep`) is not parsed. A key with more than 64 dotted segments,
+anywhere in the file, is also `too_deep`, found by the streaming parse before
+the semantic decode.
 
 ### Known limits
 
 These fail closed (no row or no version), but they are coverage gaps:
 
 - Gradle's dotted entry form, `alias.module = "g:a"` with
-  `alias.version.ref = "v"`, is counted as unsupported and emits no row.
+  `alias.version.ref = "v"`, and the `[libraries.alias]` sub-table form are
+  counted as unsupported and emit no row. They still collide with other
+  spellings of the alias.
+- Some catalogs fail Gradle's build, yet the parser still emits rows for the
+  entries it can read: two aliases with one accessor name (the parser marks
+  only those two `unresolved`), a bundle that names a library the catalog does
+  not define, and a quoted alias that contains `.` (`"a.b" = ...`). Gradle's
+  TOML reader looks each alias up again as a dotted path, so it finds no entry
+  for `"a.b"` and stops with a missing-group error.
 - Gradle's alias validation (allowed characters, the reserved `extensions`,
   `convention` and `class` names, and the reserved `versions`, `plugins` and
   `bundles` library prefixes) is not applied. A catalog Gradle rejects for an
@@ -148,6 +177,7 @@ All work is linear in the input. The limits are constants in `types.go`:
 | --- | --- | --- |
 | File size | 2 MiB | `oversize`, no parse |
 | Array and inline-table depth | 16 | `too_deep`, no parse |
+| Dotted segments in one key | 64 | `too_deep`, no rows |
 | Rows, version aliases and bundle aliases per file | 5000 each | counted in `dropped_count` |
 | Alias, coordinate part, plugin id, version text | 256 bytes | entry unsupported |
 
@@ -155,6 +185,15 @@ The depth bound exists because the TOML parser recurses once per nesting level:
 measured on `go-toml/v2` v2.3.1, a one-million-level input ends in a fatal
 stack overflow, and a 256 KiB input of 262144 `[` allocates about 77 MB.
 `nestingExceeds` rejects such input first with one linear pass.
+
+The key-segment bound exists because the semantic decode allocates in
+proportion to dotted segments: a 1.8 MB file of one 900,000-segment key
+allocated 715.7 MB with the decode and 250.2 MB now that the key is refused
+first (`TestScanLongDottedKeyAllocationStaysBounded`). The remaining 139 bytes
+per input byte are the streaming parse, which builds one node per segment
+before the scanner can count them. A byte-level guard that counts dotted
+segments before the parser would remove that cost; it is a follow-up to the
+shared nesting guard (#8992).
 
 ## What this parser never does
 
@@ -180,21 +219,26 @@ file fact's `gradle_catalog_state`: `state` other than `parsed`, or non-zero
 
 No-Regression Evidence: the code runs only for `libs.versions.toml` and adds
 no work to build-script parsing. `BenchmarkParseConfig` on a 10,005-line
-catalog (3,335 entries per table), three runs each, `-benchtime=100x`, one
-session on one host:
+catalog (3,335 entries per table), `-benchtime=100x`. The build-script rows
+are from an earlier session; the three catalog rows are three interleaved
+runs each in one later session on the same host:
 
 | Case | ns/op | B/op | allocs/op |
 | --- | --- | --- | --- |
 | `gradle` (build.gradle, closest existing parser) | 55,001,279 to 55,237,630 | 12.7 MB | 119,733 to 119,749 |
 | `gomod` | 14,755,776 to 14,874,295 | 13.7 MB | 179,804 |
-| `gradle_catalog` before alias normalization and the TOML check | 9,566,174 to 9,633,862 | 10.6 MB | 133,551 to 133,552 |
-| `gradle_catalog` without the TOML semantic check | 9,953,682 to 10,036,979 | 11.1 MB | 133,597 to 133,598 |
-| `gradle_catalog` (this package) | 10,962,149 to 10,971,317 | 11.1 MB | 133,605 to 133,606 |
+| `gradle_catalog` before alias normalization and the TOML check | 9,403,277 to 9,500,783 | 10.63 MB | 133,552 |
+| `gradle_catalog` with flat alias collisions only | 10,931,196 to 11,101,267 | 11.13 MB | 133,606 |
+| `gradle_catalog` (this package) | 10,925,659 to 11,089,130 | 10.89 MB | 123,601 |
 
-The two correctness checks cost about 14% on this input: the semantic TOML
-decode about 1.0 ms and the normalized alias table about 0.4 ms. A real
-catalog of a few hundred lines costs tens of microseconds. The decode
-allocates almost nothing, because it decodes into an empty struct.
+The correctness checks cost about 15% on this input (medians 9.48 ms and
+10.93 ms): mostly the semantic TOML decode, then the alias table. Registering
+dotted and sub-table aliases, keying slots on accessor names, and the key
+segment walk cost nothing measurable; reading only the first key segments
+instead of building a slice per key saves 10,005 allocations. A real catalog
+of a few hundred lines costs tens of microseconds. The decode keeps no
+values, but it builds its own parse tree, so it allocates in proportion to
+the input.
 
 Every alias-table check is one map operation. `BenchmarkScanManySpellingsOfOneAlias`
 writes 15,000 spellings of one normalized alias (5,000 kept, 10,000 dropped):
@@ -209,8 +253,10 @@ wall time), and three seeded generators:
 
 - a grammar oracle across 3000 catalogs;
 - a Gradle model across 3000 catalogs (set `ESHU_CATALOG_MODEL_CASES` for a
-  longer run). It draws colliding alias spellings, dynamic and exact versions,
-  and wrong part counts, and checks every row against Gradle's normalization
-  rule: a collision never resolves and a selector never resolves;
+  longer run). It draws colliding alias spellings (separators and camel
+  case), dotted-entry and sub-table aliases that emit no row, dynamic and
+  exact versions, and wrong part counts. It models Gradle's keySet walk, its
+  normalization and its accessor names, and checks every row: a collision
+  never resolves and a selector never resolves;
 - 4000 byte-level mutations of the positive fixture. No row may name text
   absent from the source, and no resolved value may be a selector.

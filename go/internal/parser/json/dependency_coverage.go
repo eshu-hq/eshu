@@ -297,7 +297,7 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			CapturesPackageIdentity: true,
 			CapturesVersionRange:    true,
 			SourceReference:         "go/internal/parser/gradle/catalog/scan.go",
-			Notes:                   "[libraries] entries emit dependency rows with groupId:artifactId identity; a version is resolved only when it is one exact version written as a plain string or as a version.ref to a plain [versions] string, and a rich version, an unknown reference, an interpolation, a dynamic version, a range, a strict !! marker, or an @type suffix stays unresolved with no value. Aliases that collide after Gradle's -/_/. normalization stay unresolved. [plugins] emit gradle_plugin rows the package reducer ignores. A catalog entry declares a dependency without proving a build script uses it, so rows set no direct_dependency and no scope.",
+			Notes:                   "[libraries] entries emit dependency rows with groupId:artifactId identity; a version is resolved only when it is one exact version written as a plain string or as a version.ref to a plain [versions] string, and a rich version, an unknown reference, an interpolation, a dynamic version, a range, a strict !! marker, or an @type suffix stays unresolved with no value. Aliases that collide after Gradle's -/_/. normalization or share a Gradle accessor name stay unresolved, including a collision with a dotted-entry or sub-table alias, which emits no row. [plugins] emit gradle_plugin rows the package reducer ignores. A catalog entry declares a dependency without proving a build script uses it, so rows set no direct_dependency and no scope.",
 		},
 		{
 			Ecosystem:               "nuget",

@@ -76,6 +76,10 @@ recent shipped work grouped by feature area.
   `_` and `.` are one separator); Gradle keeps only one of two colliding
   aliases, chosen by registration order the file does not show, so every
   colliding row stays `unresolved` and is counted in `alias_collision_count`.
+  An alias written as a dotted entry or a `[libraries.alias]` sub-table emits
+  no row but still collides, and two aliases with one Gradle accessor name
+  (`fooBar`, `foo-bar`) collide too. A key with more than 64 dotted segments
+  makes the file `too_deep`.
   A library string needs exactly three parts and a plugin string two, and a
   file TOML rejects, such as a table defined twice, yields no rows. Plugin rows use `config_kind=gradle_plugin`, so the
   package reducer ignores them. The parser refuses a file over 2 MiB, nesting
