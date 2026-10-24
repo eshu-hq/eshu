@@ -70,8 +70,33 @@ func isPackageManifestConsumptionFact(envelope facts.Envelope) bool {
 		return false
 	}
 	return packageManifestMetadataString(payload, "lockfile_unsupported_feature") == "" &&
-		!packageManifestMetadataBool(payload, "source_ambiguous")
+		!packageManifestMetadataBool(payload, "source_ambiguous") &&
+		!IsCentralVersionDeclaration(payload)
 }
+
+// IsCentralVersionDeclaration reports whether a dependency fact payload is a
+// central version pin, such as a NuGet PackageVersion item in
+// Directory.Packages.props (#8824). A pin sets the version a project gets if
+// it references the package; it does not prove any project does, so it is
+// never package consumption. The flag is read top-level first, then from
+// entity_metadata, and matches "true" case-insensitively, the same rule the
+// reducer applies. NotCentralVersionDeclarationSQL is the SQL form; the two
+// must classify every payload alike.
+func IsCentralVersionDeclaration(payload map[string]any) bool {
+	return packageManifestMetadataBool(payload, "central_version_declaration")
+}
+
+// NotCentralVersionDeclarationSQL is the SQL form of !IsCentralVersionDeclaration
+// over a jsonb column named payload: true unless the fact is a central version
+// pin. A missing flag, null, empty string, or any value other than "true"
+// (trimmed, any case) keeps the row, so the COALESCE never lets a NULL drop a
+// real dependency. Readiness splices it into the repository-anchored
+// package.consumption count; the package-anchored count reads
+// package_manifest_consumption_keys, which never holds a pin because
+// packageManifestConsumptionKeyRows skips it.
+const NotCentralVersionDeclarationSQL = `COALESCE(LOWER(COALESCE(
+        NULLIF(BTRIM(payload->>'central_version_declaration', E' \t\n\r\f\v'), ''),
+        BTRIM(payload->'entity_metadata'->>'central_version_declaration', E' \t\n\r\f\v'))), '') <> 'true'`
 
 func packageManifestDependencyNames(payload map[string]any) []string {
 	name := packageManifestPayloadString(payload, "entity_name")
