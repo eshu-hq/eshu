@@ -19,9 +19,11 @@ type expectation struct {
 }
 
 var (
-	goodVersions = []string{"1.0", "2.3.4-RC1", "[1.0,2.0)", "1.+", "latest.release", "33.0.0-jre", "1.0.0.Final"}
-	badVersions  = []string{"${x}", "1 0", "a'b", "1;2", "$v", "a\\\\b", "x|y"}
-	badParts     = []string{"g g", "g/g", "g:g", "", "g'", "g\\\\", "g$"}
+	goodVersions = []string{"1.0", "2.3.4-RC1", "5.0.0-M1", "1.2.3_beta", "33.0.0-jre", "1.0.0.Final"}
+	// dynamicVersions are Gradle selectors and modifiers, never one version.
+	dynamicVersions = []string{"[1.0,2.0)", "1.+", "+", "latest.release", "LATEST.integration", "1.0!!", "1.0@jar", "(,2.0]", "1.0,2.0"}
+	badVersions     = []string{"${x}", "1 0", "a'b", "1;2", "$v", "a\\\\b", "x|y"}
+	badParts        = []string{"g g", "g/g", "g:g", "", "g'", "g\\\\", "g$"}
 )
 
 // generateEntry builds one library line and the outcome the grammar owes it.
@@ -34,12 +36,24 @@ func generateEntry(rng *rand.Rand, i int, refs map[string]string) (string, expec
 	bad := badVersions[rng.Intn(len(badVersions))]
 	badPart := badParts[rng.Intn(len(badParts))]
 	refKey := fmt.Sprintf("k%d", rng.Intn(len(goodVersions)))
+	dynamic := dynamicVersions[rng.Intn(len(dynamicVersions))]
 	none := expectation{}
-	switch rng.Intn(16) {
+	switch rng.Intn(20) {
+	case 16:
+		return fmt.Sprintf("%s = { module = \"%s\", version = \"%s\" }", alias, coord, dynamic),
+			expectation{true, "unresolved", coord, ""}
+	case 17:
+		return fmt.Sprintf("%s = \"%s:%s\"", alias, coord, dynamic), expectation{true, "unresolved", coord, ""}
+	case 18:
+		return fmt.Sprintf("%s = { module = \"%s\", version.ref = \"d%d\" }", alias, coord, rng.Intn(len(dynamicVersions))),
+			expectation{true, "unresolved", coord, ""}
+	case 19:
+		return fmt.Sprintf("%s = { module = \"%s\" }", alias, coord), expectation{true, "partial", coord, ""}
 	case 0:
 		return fmt.Sprintf("%s = \"%s:%s\"", alias, coord, good), expectation{true, "resolved", coord, good}
 	case 1:
-		return fmt.Sprintf("%s = \"%s\"", alias, coord), expectation{true, "partial", coord, ""}
+		// Gradle requires three parts in the string notation.
+		return fmt.Sprintf("%s = \"%s\"", alias, coord), none
 	case 2:
 		return fmt.Sprintf("%s = { module = \"%s\", version = \"%s\" }", alias, coord, good),
 			expectation{true, "resolved", coord, good}
@@ -92,6 +106,9 @@ func TestScanGeneratedCatalogsMatchTheGrammarOracle(t *testing.T) {
 			key := fmt.Sprintf("k%d", k)
 			refs[key] = goodVersions[k]
 			fmt.Fprintf(&text, "%s = \"%s\"\n", key, goodVersions[k])
+		}
+		for k := range dynamicVersions {
+			fmt.Fprintf(&text, "d%d = \"%s\"\n", k, dynamicVersions[k])
 		}
 		text.WriteString("rich = { strictly = \"1.0\", prefer = \"1.1\" }\n[libraries]\n")
 		want := map[string]expectation{}
@@ -162,8 +179,12 @@ func TestScanMutatedCatalogsNeverResolveATextThatIsNotInTheSource(t *testing.T) 
 				}
 			}
 			if row["dependency_resolution_state"] == "resolved" {
-				if value, _ := row["value"].(string); !strings.Contains(source, value) {
+				value, _ := row["value"].(string)
+				if !strings.Contains(source, value) {
 					t.Fatalf("round %d: resolved value %q is not in the source\n%s", round, value, source)
+				}
+				if strings.ContainsAny(value, "+!@[](),") || strings.HasPrefix(strings.ToLower(value), "latest.") {
+					t.Fatalf("round %d: resolved value %q is a selector, not one version\n%s", round, value, source)
 				}
 			} else if row["value"] != "" {
 				t.Fatalf("round %d: %v row carries value %v", round, row["dependency_resolution_state"], row["value"])

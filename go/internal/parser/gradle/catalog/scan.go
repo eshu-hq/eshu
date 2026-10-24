@@ -6,6 +6,7 @@ package catalog
 import (
 	"bytes"
 
+	"github.com/pelletier/go-toml/v2"
 	"github.com/pelletier/go-toml/v2/unstable"
 )
 
@@ -32,6 +33,7 @@ type versionDef struct {
 type entry struct {
 	decl   declaration
 	alias  string
+	slot   int // normalized-alias slot in the section's aliasTable
 	line   int
 	plugin bool
 }
@@ -41,12 +43,13 @@ type scanner struct {
 	source   []byte
 	current  section
 	headers  [sectionCount]bool
-	aliases  [sectionCount]map[string]struct{}
-	versions map[string]versionDef
+	aliases  [sectionCount]*aliasTable
+	versions map[int]versionDef // [versions] slot -> first definition
 	entries  []entry
 	counts   Counts
-	offset   int // end of the span already counted for line numbers
-	line     int // line number at offset
+	offset   int    // end of the span already counted for line numbers
+	line     int    // line number at offset
+	normBuf  []byte // scratch space for normalizeAlias
 }
 
 // Scan applies the catalog grammar to source and returns the rows and counts.
@@ -59,7 +62,7 @@ func Scan(source []byte) Result {
 	if nestingExceeds(source, MaxNesting) {
 		return Result{State: StateTooDeep, ParseError: "arrays or inline tables nest deeper than the catalog bound"}
 	}
-	s := &scanner{source: source, versions: map[string]versionDef{}, line: 1}
+	s := &scanner{source: source, versions: map[int]versionDef{}, line: 1}
 	var parser unstable.Parser
 	parser.Reset(source)
 	for parser.NextExpression() {
@@ -70,7 +73,23 @@ func Scan(source []byte) Result {
 	if err := parser.Error(); err != nil {
 		return Result{State: StateMalformed, ParseError: boundedMessage(err.Error())}
 	}
+	if err := validTOML(source); err != nil {
+		return Result{State: StateMalformed, ParseError: boundedMessage(err.Error())}
+	}
 	return s.finish()
+}
+
+// validTOML runs the TOML decoder's semantic checks, which the streaming
+// parser below does not perform: a table defined twice, by a header and by
+// dotted keys, or a key repeated outside the catalog tables. Decoding into an
+// empty struct keeps no values, so on syntactically valid input the check
+// allocates almost nothing. It runs only after the size and nesting guards,
+// which bound its work and its recursion, and after the streaming parser
+// accepted the syntax, so a syntax error never reaches the decoder (which
+// copies an unterminated string before it reports one).
+func validTOML(source []byte) error {
+	var discard struct{}
+	return toml.Unmarshal(source, &discard)
 }
 
 // boundedMessage keeps a parser message within MaxFieldBytes.
@@ -158,29 +177,30 @@ func (s *scanner) keyValue(node *unstable.Node) string {
 		s.counts.Unsupported++
 		return ""
 	}
-	seen := s.aliases[s.current]
-	if seen == nil {
-		seen = map[string]struct{}{}
-		s.aliases[s.current] = seen
+	table := s.aliases[s.current]
+	if table == nil {
+		table = newAliasTable()
+		s.aliases[s.current] = table
 	}
-	if _, repeated := seen[alias]; repeated {
+	if table.repeated(alias) {
 		return "alias repeated in one table"
 	}
-	if len(seen) >= MaxRows {
+	if table.full() {
 		s.counts.Dropped++
+		table.addDropped(alias, &s.normBuf)
 		return ""
 	}
-	seen[alias] = struct{}{}
+	slot := table.add(alias, &s.normBuf)
 
 	line := s.lineAt(int(node.Raw.Offset))
 	value := node.Value()
 	switch s.current {
 	case sectionVersions:
-		s.version(alias, value)
+		s.version(slot, value)
 	case sectionLibraries:
-		s.declare(alias, line, value, false)
+		s.declare(alias, slot, line, value, false)
 	case sectionPlugins:
-		s.declare(alias, line, value, true)
+		s.declare(alias, slot, line, value, true)
 	case sectionBundles:
 		if value.Kind == unstable.Array {
 			s.counts.Bundles++
@@ -194,27 +214,33 @@ func (s *scanner) keyValue(node *unstable.Node) string {
 }
 
 // version records a [versions] alias: a string is a plain version, an inline
-// table is a rich one, anything else is unsupported and stays undefined.
-func (s *scanner) version(alias string, value *unstable.Node) {
+// table is a rich one, anything else is unsupported and stays undefined. A
+// slot keeps its first definition; a shared slot never resolves (see
+// aliasTable), so which definition it keeps does not reach a row.
+func (s *scanner) version(slot int, value *unstable.Node) {
+	var def versionDef
 	switch value.Kind {
 	case unstable.String:
-		if text, ok := boundedString(value.Data); ok {
-			s.versions[alias] = versionDef{text: text}
-			s.counts.Versions++
+		text, ok := boundedString(value.Data)
+		if !ok {
+			s.counts.Unsupported++
 			return
 		}
+		def = versionDef{text: text}
 	case unstable.InlineTable:
-		s.versions[alias] = versionDef{rich: true}
-		s.counts.Versions++
-		return
+		def = versionDef{rich: true}
 	default:
-		// Not a string or an inline table: counted below.
+		s.counts.Unsupported++
+		return
 	}
-	s.counts.Unsupported++
+	if _, defined := s.versions[slot]; !defined {
+		s.versions[slot] = def
+	}
+	s.counts.Versions++
 }
 
 // declare records a library or plugin entry.
-func (s *scanner) declare(alias string, line int, value *unstable.Node, plugin bool) {
+func (s *scanner) declare(alias string, slot, line int, value *unstable.Node, plugin bool) {
 	read := readLibrary
 	if plugin {
 		read = readPlugin
@@ -229,5 +255,5 @@ func (s *scanner) declare(alias string, line int, value *unstable.Node, plugin b
 	} else {
 		s.counts.Libraries++
 	}
-	s.entries = append(s.entries, entry{decl: decl, alias: alias, line: line, plugin: plugin})
+	s.entries = append(s.entries, entry{decl: decl, alias: alias, slot: slot, line: line, plugin: plugin})
 }

@@ -18,7 +18,7 @@ strict = { strictly = "1.2.3", prefer = "1.2.5" }
 groovy-core = { module = "org.codehaus.groovy:groovy", version.ref = "groovy" }
 spring-core = { group = "org.springframework", name = "spring-core", version = { ref = "spring" } }
 guava = "com.google.guava:guava:33.0.0-jre"
-junit-bom = "org.junit:junit-bom"
+junit-bom = { module = "org.junit:junit-bom" }
 commons = { module = "commons-io:commons-io", version = "2.15.1" }
 unversioned = { module = "org.slf4j:slf4j-api" }
 ranged = { module = "com.google.guava:failureaccess", version.ref = "guava-range" }
@@ -62,7 +62,8 @@ func TestScanPositiveCatalogEmitsDocumentedRows(t *testing.T) {
 		{"org.junit:junit-bom", "", "partial", "libraries", "dependency", 12},
 		{"commons-io:commons-io", "2.15.1", "resolved", "libraries", "dependency", 13},
 		{"org.slf4j:slf4j-api", "", "partial", "libraries", "dependency", 14},
-		{"com.google.guava:failureaccess", "[31.0,32.0)", "resolved", "libraries", "dependency", 15},
+		// A range is a selector, not one version: the reference stays unresolved.
+		{"com.google.guava:failureaccess", "", "unresolved", "libraries", "dependency", 15},
 		{"com.diffplug.spotless", "6.1.4", "resolved", "plugins", "gradle_plugin", 21},
 		{"org.jetbrains.kotlin.jvm", "1.9.22", "resolved", "plugins", "gradle_plugin", 22},
 		{"application", "", "partial", "plugins", "gradle_plugin", 23},
@@ -91,7 +92,7 @@ func TestScanPositiveCatalogEmitsDocumentedRows(t *testing.T) {
 		t.Errorf("version_ref = %v, want groovy", got)
 	}
 
-	wantCounts := Counts{Versions: 4, Libraries: 7, Plugins: 3, Bundles: 1, Resolved: 7, Partial: 3}
+	wantCounts := Counts{Versions: 4, Libraries: 7, Plugins: 3, Bundles: 1, Resolved: 6, Partial: 3, Unresolved: 1}
 	if result.Counts != wantCounts {
 		t.Errorf("Counts = %+v, want %+v", result.Counts, wantCounts)
 	}

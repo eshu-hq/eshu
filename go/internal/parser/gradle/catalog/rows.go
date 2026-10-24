@@ -18,12 +18,25 @@ const (
 	stateUnresolved = "unresolved"
 )
 
+// collisionKey is the unresolved key on a row whose alias collides with
+// another alias in its table: Gradle keeps only one of them, and the file does
+// not say which.
+const collisionKey = "catalog_alias"
+
 // finish resolves every entry's version against [versions] and builds rows in
 // document order.
 func (s *scanner) finish() Result {
+	for _, table := range s.aliases {
+		if table != nil {
+			s.counts.Collided += table.collided()
+		}
+	}
 	rows := make([]map[string]any, 0, len(s.entries))
 	for _, e := range s.entries {
 		value, state, unresolved := s.resolve(e.decl.ver)
+		if s.entryCollides(e) {
+			value, state, unresolved = "", stateUnresolved, []string{collisionKey}
+		}
 		switch state {
 		case stateResolved:
 			s.counts.Resolved++
@@ -37,22 +50,32 @@ func (s *scanner) finish() Result {
 	return Result{State: StateParsed, Rows: rows, Counts: s.counts}
 }
 
+// entryCollides reports whether e's alias shares a normalized spelling with
+// another alias in its table.
+func (s *scanner) entryCollides(e entry) bool {
+	which := sectionLibraries
+	if e.plugin {
+		which = sectionPlugins
+	}
+	return s.aliases[which].shared(e.slot)
+}
+
 // resolve returns the version text to record, its resolution state, and the
-// keys that blocked resolution. It returns a value only when the text is known
-// verbatim: a literal that passes validVersionText, or a reference to a plain
-// [versions] alias whose text passes it. Every other case returns no value.
+// keys that blocked resolution. It returns a value only when the text is one
+// exact version: a literal that passes exactVersionText, or a reference whose
+// normalized alias names exactly one plain [versions] alias whose text passes
+// it. Every other case returns no value.
 func (s *scanner) resolve(v versionSpec) (value, state string, unresolved []string) {
 	switch v.kind {
 	case versionNone:
 		return "", statePartial, nil
 	case versionLiteral:
-		if validVersionText(v.text) {
+		if exactVersionText(v.text) {
 			return v.text, stateResolved, nil
 		}
 		return "", stateUnresolved, []string{"version"}
 	case versionRef:
-		def, found := s.versions[v.text]
-		if found && !def.rich && validVersionText(def.text) {
+		if def, ok := s.versionFor(v.text); ok && !def.rich && exactVersionText(def.text) {
 			return def.text, stateResolved, nil
 		}
 		return "", stateUnresolved, []string{v.text}
@@ -60,6 +83,23 @@ func (s *scanner) resolve(v versionSpec) (value, state string, unresolved []stri
 		// versionRich: a constraint, not one version.
 		return "", stateUnresolved, []string{"version"}
 	}
+}
+
+// versionFor returns the [versions] definition a reference names. Gradle
+// normalizes the reference like an alias before the lookup. A reference to a
+// shared slot is not found: Gradle keeps one of the colliding definitions and
+// the file does not say which.
+func (s *scanner) versionFor(ref string) (versionDef, bool) {
+	table := s.aliases[sectionVersions]
+	if table == nil {
+		return versionDef{}, false
+	}
+	slot, found, shared := table.lookup(ref, &s.normBuf)
+	if !found || shared {
+		return versionDef{}, false
+	}
+	def, defined := s.versions[slot]
+	return def, defined
 }
 
 // buildRow shapes one entry like the build-script parser's dependency rows.

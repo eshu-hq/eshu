@@ -68,3 +68,15 @@ func TestParseMissingFileReturnsError(t *testing.T) {
 		t.Fatal("Parse() error = nil for a missing file")
 	}
 }
+
+func TestParseEnvelopeReportsAliasCollisions(t *testing.T) {
+	t.Parallel()
+	payload, err := Parse(writeCatalog(t, "[libraries]\na-b = \"g:a:1\"\na_b = \"g:b:2\"\n"), false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	state, _ := payload[StateKey].(map[string]any)
+	if state["alias_collision_count"] != 2 || state["unresolved_count"] != 2 || state["resolved_count"] != 0 {
+		t.Fatalf("%s = %#v, want alias_collision_count=2 unresolved_count=2 resolved_count=0", StateKey, state)
+	}
+}

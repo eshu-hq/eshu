@@ -64,6 +64,12 @@ type Counts struct {
 	Unsupported int
 	// Dropped counts entries skipped because MaxRows was reached.
 	Dropped int
+	// Collided counts aliases, in any table, that share a normalized spelling
+	// with another alias in the same table. Gradle treats '-', '_' and '.' in
+	// an alias as one separator, so "a-b" and "a_b" are one alias to it.
+	// Colliding library and plugin rows are also counted in Unresolved; this
+	// count is a diagnostic that overlaps the others.
+	Collided int
 }
 
 // Result is the outcome of scanning one catalog.

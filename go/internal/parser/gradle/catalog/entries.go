@@ -5,6 +5,7 @@ package catalog
 
 import (
 	"bytes"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2/unstable"
 )
@@ -238,45 +239,32 @@ func readPlugin(value *unstable.Node) (declaration, bool) {
 	}
 }
 
-// readNotation splits the string notation. With maxParts 3 it reads
-// "group:artifact[:version]"; with 2 it reads "plugin.id[:version]" and the
-// name is the first part only.
-func readNotation(data []byte, maxParts int) (declaration, bool) {
+// readNotation splits the string notation. Gradle's TOML reader requires
+// exactly "group:artifact:version" for a library (parts 3) and exactly
+// "plugin.id:version" for a plugin (parts 2), and fails the build on any other
+// part count or an empty part, so neither form is read with a part missing.
+// The name is every part but the last.
+func readNotation(data []byte, parts int) (declaration, bool) {
 	if len(data) == 0 || len(data) > 3*MaxFieldBytes {
 		return declaration{}, false
 	}
-	parts := bytes.Split(data, []byte{':'})
-	if len(parts) > maxParts {
+	split := bytes.Split(data, []byte{':'})
+	if len(split) != parts {
 		return declaration{}, false
 	}
-	if maxParts == 2 {
-		return readPluginNotation(parts)
-	}
-	if len(parts) < 2 || !validCoordinatePart(parts[0]) || !validCoordinatePart(parts[1]) {
-		return declaration{}, false
-	}
-	d := declaration{name: string(parts[0]) + ":" + string(parts[1])}
-	if len(parts) == 3 {
-		if len(parts[2]) == 0 {
+	names, version := split[:parts-1], split[parts-1]
+	for _, part := range names {
+		if !validCoordinatePart(part) {
 			return declaration{}, false
 		}
-		d.ver = versionSpec{kind: versionLiteral, text: string(parts[2])}
 	}
-	return d, true
-}
-
-func readPluginNotation(parts [][]byte) (declaration, bool) {
-	if !validCoordinatePart(parts[0]) {
+	if len(version) == 0 {
 		return declaration{}, false
 	}
-	d := declaration{name: string(parts[0])}
-	if len(parts) == 2 {
-		if len(parts[1]) == 0 {
-			return declaration{}, false
-		}
-		d.ver = versionSpec{kind: versionLiteral, text: string(parts[1])}
-	}
-	return d, true
+	return declaration{
+		name: string(bytes.Join(names, []byte{':'})),
+		ver:  versionSpec{kind: versionLiteral, text: string(version)},
+	}, true
 }
 
 // validCoordinatePart accepts the characters Maven allows in a group id,
@@ -295,10 +283,24 @@ func validCoordinatePart(part []byte) bool {
 	return true
 }
 
+// exactVersionText reports whether text names one exact version, the only
+// text a resolved row may carry. Beyond validVersionText it rejects what
+// Gradle reads as a selector or a modifier rather than a version: a dynamic
+// version ("1.+", "+"), a "latest." status selector, a range ("[1.0,2.0)",
+// "]1.0,2.0[", "1.0,2.0"), a strict marker ("1.0!!", "[1.0,2.0)!!1.5", any
+// '!'), and an artifact-type suffix ("1.0@jar"). Gradle's StrictVersionParser
+// reads "1.0!!" as strictly 1.0, so even that text is not the version.
+func exactVersionText(text string) bool {
+	if !validVersionText(text) || strings.ContainsAny(text, "+!@[](),") {
+		return false
+	}
+	return len(text) < len("latest.") || !strings.EqualFold(text[:len("latest.")], "latest.")
+}
+
 // validVersionText accepts printable ASCII except whitespace, quotes,
 // backslash, and the characters that start an interpolation or a shell
-// construct. A version range such as [1.0,2.0) and a dynamic version such as
-// 1.+ pass; the parser records them as written and does not interpret them.
+// construct. It is the character floor; exactVersionText adds the Gradle
+// selector rules.
 func validVersionText(text string) bool {
 	if text == "" || len(text) > MaxFieldBytes {
 		return false

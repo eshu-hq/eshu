@@ -36,16 +36,17 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 // stateEnvelope renders a Result's state and counts for the payload.
 func stateEnvelope(result Result) map[string]any {
 	envelope := map[string]any{
-		"state":             result.State,
-		"version_count":     result.Counts.Versions,
-		"library_count":     result.Counts.Libraries,
-		"plugin_count":      result.Counts.Plugins,
-		"bundle_count":      result.Counts.Bundles,
-		"resolved_count":    result.Counts.Resolved,
-		"partial_count":     result.Counts.Partial,
-		"unresolved_count":  result.Counts.Unresolved,
-		"unsupported_count": result.Counts.Unsupported,
-		"dropped_count":     result.Counts.Dropped,
+		"state":                 result.State,
+		"version_count":         result.Counts.Versions,
+		"library_count":         result.Counts.Libraries,
+		"plugin_count":          result.Counts.Plugins,
+		"bundle_count":          result.Counts.Bundles,
+		"resolved_count":        result.Counts.Resolved,
+		"partial_count":         result.Counts.Partial,
+		"unresolved_count":      result.Counts.Unresolved,
+		"unsupported_count":     result.Counts.Unsupported,
+		"dropped_count":         result.Counts.Dropped,
+		"alias_collision_count": result.Counts.Collided,
 	}
 	if result.ParseError != "" {
 		envelope["parse_error"] = result.ParseError
