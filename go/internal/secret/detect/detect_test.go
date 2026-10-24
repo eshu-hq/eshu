@@ -5,6 +5,7 @@ package detect_test
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/secret/detect"
@@ -102,6 +103,44 @@ func TestSpansPrefilterNeverHidesAMatch(t *testing.T) {
 	for _, line := range []string{"", "nodeLinker: node-modules", "compressionLevel: mixed", "a: 1", "# comment only"} {
 		if spans := detect.Spans(line); len(spans) != 0 {
 			t.Errorf("Spans(%q) = %v, want none", line, spans)
+		}
+	}
+}
+
+// TestSpansAndClassifyAcceptUnicodeSpaces pins F3. Postgres ARE [[:space:]]
+// matches U+2003 and U+3000 (measured on 18.6) and Go RE2's does not, so the
+// Go-only regular expressions use a superset class. SQLPattern keeps the
+// Postgres spelling, which the binding test compares with the migration.
+func TestSpansAndClassifyAcceptUnicodeSpaces(t *testing.T) {
+	t.Parallel()
+
+	for _, space := range []string{"\u2003", "\u3000", "\u00a0", "\u2028", "\u2029", "\u0085", " ", "\t"} {
+		line := "password" + space + ": abcdefghij"
+		if len(detect.Spans(line)) == 0 {
+			t.Errorf("Spans(%q) found nothing for space %U", line, []rune(space)[0])
+		}
+		if got := detect.Classify(line); got != "password_literal" {
+			t.Errorf("Classify(%q) = %q, want password_literal for space %U", line, got, []rune(space)[0])
+		}
+		after := "api_key:" + space + "abcdefghij"
+		if len(detect.Spans(after)) == 0 {
+			t.Errorf("Spans(%q) found nothing for space %U after the separator", after, []rune(space)[0])
+		}
+	}
+	if !strings.Contains(detect.SQLPattern, "[[:space:]]") {
+		t.Fatal("SQLPattern must keep the Postgres spelling [[:space:]]")
+	}
+}
+
+// TestSpansPrefilterKeepsNonASCIILines pins the fold fix: a line with any
+// non-ASCII byte skips no regular expression, because Go (?i) folds U+017F to s
+// and U+212A to k and strings.ToLower does not.
+func TestSpansPrefilterKeepsNonASCIILines(t *testing.T) {
+	t.Parallel()
+
+	for _, line := range []string{"\u017fecret: abcdefgh12345", "api_\u212aey=abcdefgh12345", "to\u212aen: abcdefgh12345"} {
+		if len(detect.Spans(line)) == 0 {
+			t.Errorf("Spans(%q) skipped a line the pattern matches", line)
 		}
 	}
 }

@@ -28,6 +28,23 @@ const (
 // query package's hardcodedSecretSQLPattern is this constant.
 const SQLPattern = keyPrefixPattern + valuePattern + `|` + shapePattern
 
+// SpaceClass is the whitespace class the Go-only regular expressions use where
+// SQLPattern says [[:space:]]. Postgres ARE [[:space:]] on a UTF8 database
+// matches U+2003 and U+3000 (measured on 18.6), which RE2's ASCII-only
+// [[:space:]] does not. The class below is a superset: ASCII white space, every
+// Unicode Zs space (U+00A0 included, which Postgres does not match), NEL, and the
+// line and paragraph separators. A superset is safe here because it can only
+// redact more than the migration flags.
+const SpaceClass = `[\s\p{Zs}\x{85}\x{2028}\x{2029}]`
+
+const postgresSpaceClass = `[[:space:]]`
+
+// goPattern rewrites a Postgres pattern part for RE2: the case-insensitive flag
+// and the superset space class.
+func goPattern(postgres string) string {
+	return "(?i)" + strings.ReplaceAll(postgres, postgresSpaceClass, SpaceClass)
+}
+
 // kindArm is one WHEN arm of the migration 138 CASE.
 type kindArm struct {
 	regex *regexp.Regexp
@@ -50,13 +67,13 @@ var (
 	kindArms = func() []kindArm {
 		arms := make([]kindArm, 0, len(kindArmSources))
 		for _, source := range kindArmSources {
-			arms = append(arms, kindArm{regex: regexp.MustCompile("(?i)" + source.Regex), kind: source.Kind})
+			arms = append(arms, kindArm{regex: regexp.MustCompile(goPattern(source.Regex)), kind: source.Kind})
 		}
 		return arms
 	}()
 	// spanPattern captures the value of a key match in group 2 so the redactor
 	// can replace the value alone; a shape match has no group.
-	spanPattern = regexp.MustCompile("(?i)" + keyPrefixPattern + "(" + valuePattern + ")|" + shapePattern)
+	spanPattern = regexp.MustCompile(goPattern(keyPrefixPattern + "(" + valuePattern + ")|" + shapePattern))
 )
 
 // ArmSources returns the migration 138 CASE arms as (regex, kind) pairs in
@@ -94,9 +111,11 @@ type Span struct {
 
 // Spans returns the credential spans SQLPattern matches in one line: only the
 // value for a key match, the whole shape for a value-shape match.
-// Go's case folding is wider than Postgres ARE's for a few non-ASCII runes, so
-// Spans can only find more than the migration, never fewer; the engine-parity
-// corpus test in #8833 measures that gap.
+// The Go and Postgres engines differ in both directions: Go (?i) folds U+017F
+// and U+212A where Postgres in a C collation does not, and Postgres
+// [[:space:]] matches U+2003 and U+3000 where RE2's does not. SpaceClass makes
+// the second direction a superset; the first already is one. The engine-parity
+// corpus test in #8833 must include Unicode spaces and the fold-sensitive runes.
 func Spans(line string) []Span {
 	if !mayMatch(line) {
 		return nil
@@ -123,6 +142,14 @@ var matchWords = []string{
 }
 
 func mayMatch(line string) bool {
+	// A non-ASCII byte skips nothing: Go (?i) folds U+017F to s and U+212A to k,
+	// which strings.ToLower does not, so the lowercase test below is only a
+	// superset for ASCII lines.
+	for i := 0; i < len(line); i++ {
+		if line[i] >= 0x80 {
+			return true
+		}
+	}
 	lower := strings.ToLower(line)
 	for _, word := range matchWords {
 		if strings.Contains(lower, word) {
