@@ -60,7 +60,17 @@ follow when editing this package.
   `resolved + unresolved + dropped_over_cap + root_packages + workspace_members == entries`.
 - A package form the reader does not read (quoted header key, `[package]`
   table, root `package` key) must make the state partial, never `complete`
-  with zero entries.
+  with zero entries. The same holds for a value left open outside an entry:
+  count the swallowed lines as one unresolved unit (`countUnreadUnit`) at the
+  resync and at end of file. Resync on any line `startsPackageHeader`
+  accepts, not only the exact `[[package]]` text.
+- Trust a `[manifest] members` list only when it follows the array grammar
+  (single commas, one trailing comma) and lists at most `uvLockMaxMembers`
+  names, counting duplicates. Never allocate per listed name: normalise into
+  `uvWorkspace.scratch` and write the map only for a new distinct name.
+  Omit a member only when its path is relative with no `..` segment.
+- Any entry or unit the reader could not read exactly, whose source may be
+  `"."`, makes a later `"."` entry stay a row.
 - Do not set `dev_dependency`, `extras`, or `marker` on a uv row without
   proving the value from the lockfile; the entry itself does not carry it.
 - A grammar change needs a failing case in `uv_lock_test.go`, a seeded-fuzz

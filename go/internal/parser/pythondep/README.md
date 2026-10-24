@@ -144,17 +144,30 @@ reader never guesses a name, version, or source.
   is `editable = "."` or `virtual = "."` is the project itself. It is counted
   in `root_packages` and emits no row. A well-formed entry with an `editable`
   or `virtual` source whose PEP 503 normalized name is listed in
-  `[manifest] members` is counted in `workspace_members` and emits no row.
-  These are the repository's own code; as rows they would read as unsupported
-  local dependencies in supply-chain readiness. The members list is trusted
-  only when it is one `members` key of basic-string names in a single
-  `[manifest]` table that comes before every `[[package]]`, and its array
-  closes. Otherwise no member is omitted. A second `.` entry, a member with a
-  `path`, `directory`, or index source, and a local path outside the members
-  list all stay ordinary rows.
-- **Unterminated value.** If an array or table is never closed, the next exact
-  `[[package]]` line ends it, the entry is marked unresolved, and scanning
-  resumes there. A value still open at end of file marks its entry unresolved.
+  `[manifest] members`, and whose path is relative with no `..` segment, is
+  counted in `workspace_members` and emits no row. These are the repository's
+  own code; as rows they would read as unsupported local dependencies in
+  supply-chain readiness. The members list is trusted only when it is one
+  `members` key in a single `[manifest]` table that comes before every
+  `[[package]]`, its array closes, and it follows the array grammar:
+  basic-string names separated by single commas, with one optional trailing
+  comma.
+  A missing or doubled comma, any non-string value, or more than 4,096 listed
+  names (duplicates included) makes the list untrusted. Then no member is
+  omitted and each stays an ordinary row. A `.` entry stays a row when an
+  earlier `.` entry, an entry whose source is unreadable, or an unread unit
+  came first. A member with a `path`, `directory`, or index source, a member
+  path that is absolute or leaves the workspace (`../outside/lib`), and a
+  local path outside the members list all stay ordinary rows.
+- **Unterminated value.** If an array or table is never closed, any line that
+  starts with `[` and the word `package` ends it (`[[package]]` with or
+  without a comment, `[package]`, `[package.x]`), because such a line is never
+  part of a valid value; scanning resumes at that header. Inside an entry,
+  the entry is marked unresolved. Outside an entry (a root array, the
+  `members` array, or a sub-table array), the swallowed lines count as one
+  unresolved entry, so the state is `partial`. A value still open at end of
+  file does the same: it marks its entry unresolved, or counts one unresolved
+  entry when it opened outside an entry.
 - **Row cap.** At most 10,000 rows. Entries past the cap are counted in
   `dropped_over_cap` and read no further.
 
@@ -196,9 +209,10 @@ The payload adds `uv_lock_state` with `state` (`complete` or `partial`),
 - Resolution forks that lock one package at several versions emit one row per
   entry; the reader does not choose between them.
 - The project itself and the `[manifest]` members are counted, not emitted
-  (see the grammar). A local path dependency outside the workspace stays a
-  `path_dependency` or `editable_dependency` row and reads as an unsupported
-  dependency source in readiness.
+  (see the grammar). A local path dependency that is not a listed member, or
+  whose path is absolute or leaves the workspace, stays a `path_dependency` or
+  `editable_dependency` row and reads as an unsupported dependency source in
+  readiness.
 - Hand-written `uv.lock` files that use TOML features `uv` never writes
   (multi-line inline tables, dotted keys, quoted keys, a `[package]` table, a
   root `package` array) come back partial.
@@ -217,15 +231,16 @@ The payload adds `uv_lock_state` with `state` (`complete` or `partial`),
 No-Regression Evidence: the reader is one forward pass per line with an
 integer bracket counter, no recursion, and copies only validated name,
 version, and URL fields. `BenchmarkParseUVLock` on 2,000 packages with
-dependency and wheel arrays measured about 2.94 MB and 36,017 allocations
+dependency and wheel arrays measured about 2.94 MB and 36,019 allocations
 per parse, against about 7.30 MB and 60,012 allocations for
 `BenchmarkParsePoetryLockBaseline` on the same 2,000 packages (arm64, 16 CPUs,
 `-benchtime 200x`; byte and allocation counts repeat across runs, and the uv.lock
 reader was faster than the baseline in every run, with wall time varying with
-host load). Tests assert, without
-timing, that a 10 MB single line allocates under 1 MiB, that 100,000 entries
-allocate as much as the 10,000-row cap, and that bytes examined stay within
-three times the input.
+host load). Tests assert, without timing, that a 10 MB single line allocates
+under 1 MiB (a `members` line included), that a one-million-line `members`
+array stays under 1 MiB and 40,000 allocations, that 100,000 entries allocate
+as much as the 10,000-row cap, and that bytes examined stay within three times
+the input.
 
 No-Observability-Change: the reader adds no metric, span, or log key. The
 `uv_lock_state` payload field and the existing collector parse timing and parse
