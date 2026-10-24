@@ -52,9 +52,19 @@
   never mutated. `LookupByPath`, `LookupByExtension`, and `LookupByParserKey`
   return cloned `Definition` values. Do not add mutable state to `Registry`.
 
+- **Content-store policy binds only through a definition** — `Definition.ContentStore`
+  (`store`, `metadata`, `redact`) is applied by the git collector at the write
+  boundary (`go/internal/collector/git/content`). No production definition may
+  bind `metadata` or `redact` until #8833 lands the detector's marker arm; a
+  `redact` definition needs a redactor mode and a credential-key list, which
+  `NewRegistry` validates. See `registry_content_store.go`.
+
 - **Admission labels are metadata** — every `defaultDefinitions` entry carries
   `Ecosystem` and `Admission`. Neither feeds lookup or `Registry.Fingerprint`
-  (a fingerprint move invalidates every freshness hint). After editing
+  (a fingerprint move invalidates every freshness hint). `ContentStore` is the
+  exception: a non-store policy is part of `Registry.Fingerprint` so a policy
+  change re-collects every repository once, while an all-`store` registry keeps
+  its hash. After editing
   `registry_definitions.go`, run `scripts/generate-parser-admission-doc.sh`;
   `TestAdmissionTableDocIsCurrent` fails on a stale table. A new hardcoded
   path rule in `LookupByPath` must also join `PathDispatches` in

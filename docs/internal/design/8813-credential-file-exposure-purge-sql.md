@@ -150,9 +150,17 @@ because `searchdocs.Document` has no JSON tags. `ProjectContentFile` and
 predicate covers both document kinds.
 
 The marker names in test (b) are the six detector kinds of migration 138
-(`eshu_secret_line_findings`). The marker writer is #8812, which is not in the
-tree this page was written against, so the names are checked against the
-detector and the #8833 issue body only. NOT_CHECKED against the redactor code.
+(`eshu_secret_line_findings`). The marker writer is the marker redactor in
+`go/internal/collector/git/content` (`marker_redactor.go`, #8812). Its kinds come
+from `go/internal/secret/detect`, which
+`TestHardcodedSecretDetectPackageIsBoundToMigration` binds to migration 138, and
+`TestRedactMarkerPerKindResultUnderMigration138` pins the marked line per kind.
+A review differential, not committed (figures in
+[the #8812 evidence note](../evidence/8812-content-store-policy.md)), ran
+generated lines through the redactor and through migration 138's gate and CASE in
+Postgres: after redaction no flagged line lacked a marker. NOT_CHECKED: the
+production marker arm and the #8833 binding. The migration does not yet
+recognise `REDACTED_<kind>` as a finding, and no definition binds marker mode.
 
 ## Operator SQL scope
 

@@ -51,6 +51,19 @@ activation, and every per-emission recheck record
 `producer_grant.*` log keys. Producer id stays off metric labels. See
 [Component Producer Grants](../../../docs/public/reference/component-producer-grants.md#grant-decision-telemetry).
 
+The worker sets `extensionhost.StatusTelemetry` as the status recorder (#8908),
+so each SDK status row and claim result records the
+`eshu_dp_component_extension_*` instruments (labels `collector_kind`, `state`,
+`status_class`, `failure_class`) and one `component extension result` log line
+with `extension_status.*` keys. A retryable result's largest
+`retry_after_seconds` (capped at one hour) paces the claim retry, as the larger
+of the poll interval and that request, until the attempt budget is spent; the
+counter `eshu_dp_workflow_claim_provider_throttle_total{outcome="retry_after_honored"}`
+fires when the applied delay exceeds the poll interval. The status gauge and
+log line record the request, not the applied delay.
+`TestBuildClaimedServiceRecordsExtensionStatusAndHonorsRetryAfter` proves the
+wiring end to end through the real process runner.
+
 ## Gotchas / invariants
 
 - `ESHU_COMPONENT_HOME` is required and must point at the same registry the
@@ -77,8 +90,8 @@ activation, and every per-emission recheck record
 
 No-Regression Evidence: `go test ./cmd/collector-component-extension -run 'TestLoadRuntimeConfig|TestRunnerForAdapter|TestOCIArtifactImage|TestBuildClaimedService' -count=1` proves the worker selects one trusted claim-capable activation, builds a `ProcessRunner` for the process adapter and a digest-pinned `OCIRunner` (image from the verified manifest artifact) for the oci adapter, rejects unsupported adapters, applies activation host scope metadata, wires `extensionhost.Source`, and preserves `collector.ClaimedService` max-attempt behavior for the component claim conflict domain.
 
-No-Observability-Change: the worker adds no new metric labels, queue domains,
-graph writes, or API/MCP routes. Operators diagnose progress and failure
+No-Observability-Change: beyond the extension status signals above, the worker
+adds no new metric labels, queue domains, graph writes, or API/MCP routes. Operators diagnose progress and failure
 through existing collector `/admin/status`, workflow claim rows, failure
 classes, commit counters, and the service metrics endpoint.
 
