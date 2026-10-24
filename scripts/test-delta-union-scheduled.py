@@ -94,7 +94,8 @@ class DeltaUnionScheduledTest(unittest.TestCase):
             clean = subprocess.run([str(script)], env=env, capture_output=True, text=True)
             self.assertEqual(clean.returncode, 0, clean.stderr)
             variants = {
-                "stale_digest": source.replace("  count: 386", "  count: 387", 1),
+                "stale_digest": re.sub(r"(?m)^  sha256: [0-9a-f]{64}$",
+                                       "  sha256: " + "0" * 64, source, count=1),
                 "false_overlay_row": source.replace(
                     f"  - file: {overlay}\n    tag: ~\n    class: scheduled\n",
                     f"  - file: {overlay}\n    tag: ~\n    class: verified_scheduled\n"
