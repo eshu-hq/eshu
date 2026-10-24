@@ -2099,12 +2099,11 @@ type Instruments struct {
 
 	// CollectorTerminalFailureAcknowledgements counts the operator
 	// acknowledgement requests for a collector terminal failure (#8830) by
-	// closed outcome: recorded (a new acknowledgement committed), unchanged
-	// (an earlier acknowledgement already covered the failure), refused (the
-	// request was invalid or the caller not allowed), not_found (unknown
-	// instance, or no unresolved failure on the scope), class_changed (the
-	// failure changed class since the operator read it), and failed (a store
-	// fault). One event per request.
+	// closed outcome: acknowledged (a new acknowledgement committed),
+	// duplicate (a completed idempotency key replayed its stored outcome), and
+	// refused (the request was invalid, the caller not allowed, or an expected
+	// refusal such as an unknown instance or no unresolved failure on the
+	// scope). One event per request.
 	CollectorTerminalFailureAcknowledgements metric.Int64Counter
 
 	// RepositorySelectionEvaluations counts git collector repository
