@@ -68,8 +68,11 @@ semantic proof or a copied SQL golden standard.
 
 ## Migration and execution proof
 
-The five unshipped index migrations were renumbered to 211–215 during
-integration, preserving shipped migration 210 byte for byte. Each new index
+The five unshipped index migrations are 212–216 after integrating main
+`7d798c8b4e`, which shipped migration 211. Shipped migrations 210 and 211
+are preserved byte for byte, as are all five supply-index SQL payloads.
+The earlier checkpoint below used 211–215; those observations remain
+historical until the affected combined-code replay is recorded. Each new index
 has its own immutable concurrent-build migration. The bootstrap
 mirror, definition order, DDL parity and migration-manifest contracts passed
 focused verification. The index contract first failed for all five missing

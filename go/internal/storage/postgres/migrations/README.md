@@ -272,7 +272,7 @@ rollout:
 
 Evidence: `docs/internal/evidence/7427-drop-terms-generation-fk.md`.
 
-## Migrations 211 to 215: supply-chain runtime fallback indexes (#8835)
+## Migrations 212 to 216: supply-chain runtime fallback indexes (#8835)
 
 These five immutable files add separate partial indexes for padded workload,
 service, and environment values. The first four index the exact `BTRIM` scalar

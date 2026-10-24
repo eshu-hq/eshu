@@ -53,11 +53,11 @@ func TestSupplyChainRuntimeFilterNormalizedFallbackIndexesStayInBootstrapAndMigr
 		key       string
 		kind      string
 	}{
-		{"211_supply_chain_identity_workload_trim_index.sql", "fact_records_workload_identity_workload_trim_idx", "BTRIM(payload->>'workload_id')", "reducer_workload_identity"},
-		{"212_supply_chain_identity_entity_trim_index.sql", "fact_records_workload_identity_entity_trim_idx", "ON fact_records (fact_id)", "reducer_workload_identity"},
-		{"213_supply_chain_catalog_workload_trim_index.sql", "fact_records_service_catalog_workload_trim_idx", "BTRIM(payload->>'workload_id')", "reducer_service_catalog_correlation"},
-		{"214_supply_chain_catalog_service_trim_index.sql", "fact_records_service_catalog_service_trim_idx", "BTRIM(payload->>'service_id')", "reducer_service_catalog_correlation"},
-		{"215_supply_chain_cicd_environment_trim_index.sql", "fact_records_ci_cd_environment_trim_idx", "BTRIM(payload->>'environment')", "reducer_ci_cd_run_correlation"},
+		{"212_supply_chain_identity_workload_trim_index.sql", "fact_records_workload_identity_workload_trim_idx", "BTRIM(payload->>'workload_id')", "reducer_workload_identity"},
+		{"213_supply_chain_identity_entity_trim_index.sql", "fact_records_workload_identity_entity_trim_idx", "ON fact_records (fact_id)", "reducer_workload_identity"},
+		{"214_supply_chain_catalog_workload_trim_index.sql", "fact_records_service_catalog_workload_trim_idx", "BTRIM(payload->>'workload_id')", "reducer_service_catalog_correlation"},
+		{"215_supply_chain_catalog_service_trim_index.sql", "fact_records_service_catalog_service_trim_idx", "BTRIM(payload->>'service_id')", "reducer_service_catalog_correlation"},
+		{"216_supply_chain_cicd_environment_trim_index.sql", "fact_records_ci_cd_environment_trim_idx", "BTRIM(payload->>'environment')", "reducer_ci_cd_run_correlation"},
 	} {
 		t.Run(tc.index, func(t *testing.T) {
 			contents, err := os.ReadFile("migrations/" + tc.migration)
