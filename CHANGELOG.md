@@ -112,6 +112,35 @@ recent shipped work grouped by feature area.
   what was left out, so a Dockerfile with many long `ARG` defaults and many
   `FROM` lines cannot multiply into a huge payload.
 
+### Build and tool configuration files indexed as text
+
+- **Discovery now admits small build and tool configuration files as plain
+  text** ([#8814](https://github.com/eshu-hq/eshu/issues/8814)): `Makefile`,
+  `GNUmakefile`, `justfile`, `.editorconfig`, `.gitattributes`, `.dockerignore`,
+  `.gitignore`, `.eslintrc`, `.prettierrc`, `.babelrc`, `.npmignore`, `tox.ini`,
+  `mypy.ini`, `pytest.ini`, `.flake8`, `rustfmt.toml`, `clippy.toml`,
+  `renovate.json5` and `.mvn/extensions.xml`. They reach the content store as
+  searchable text: each file emits a file fact and a content fact, and no
+  entities. Credential-bearing names (`.env`, `.npmrc`, `settings.xml`,
+  `phpunit.xml`, `.mvn/jvm.config`, `.mvn/maven.config`) stay unadmitted.
+  Filesystem source mode now keeps these dot-prefixed names, matched
+  case-insensitively, and the whole `.mvn` directory in its managed copy, so it
+  treats them like clone mode, except that a name under an unallowlisted
+  dot-directory, such as `tools/.config/.eslintrc` (unlike `.github`,
+  `.github/workflows`, `.mvn` and a dot-directory whose name is itself an
+  allowlisted file name), is still pruned there with its parent. The copy's
+  existing `.gitlab-ci.yml`, `.gitlab-ci.yaml`, `.gitmodules`, `.github` and
+  `.github/workflows` entries now match case-insensitively there as well, so
+  `.GITHUB/workflows/*.yml` is indexed; `.gitignore` is still not copied there.
+  The runtime-version pin names added by #8809 (`.nvmrc`, `.node-version`,
+  `.tool-versions`, `.python-version`, `.ruby-version`, `.java-version`,
+  `.go-version`, `.sdkmanrc`, `.terraform-version`) are kept the same way. Because
+  the copy keeps `.mvn` whole, filesystem mode also now indexes other files the
+  registry admits under it, such as `.mvn/wrapper/MavenWrapperDownloader.java`,
+  as clone mode already did. The registry fingerprint and `git-collector`
+  content version move, so each repository re-collects once when its
+  reconciliation sweep next comes due (see the #8809 entry above).
+
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 
 - **Code-topic shared-snapshot reads now refuse an unqualified PostgreSQL

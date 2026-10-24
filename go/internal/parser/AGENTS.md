@@ -57,13 +57,29 @@
   (a fingerprint move invalidates every freshness hint). After editing
   `registry_definitions.go`, run `scripts/generate-parser-admission-doc.sh`;
   `TestAdmissionTableDocIsCurrent` fails on a stale table. A new hardcoded
-  path rule in `LookupByPath` must also join `PathDispatches` in `registry.go`.
+  path rule in `LookupByPath` must also join `PathDispatches` in
+  `registry_definitions.go`, where the path predicates live.
   `TestPathDispatchesKeysMatchLookupByPath` fails only when `LookupByPath`
   binds a key through a literal `r.byKey["<key>"]` lookup that the list omits.
   It does not check other ways of selecting a definition (for example
   `LookupByParserKey`, an aliased map, `byExtension`, or a helper outside
   `LookupByPath`) or new patterns for an already-listed key. A reviewer of a
   `LookupByPath` change must update the list by hand.
+
+- **Universal build and tool configuration names are an explicit list** — the
+  `raw_text` `ExactNames` in `registry_definitions.go` (#8814) admit
+  `Makefile`, `.gitignore`, `tox.ini` and similar as L1 text, never by
+  extension (`.ini`, `.toml`, `.xml` and `.properties` stay unadmitted). Do
+  not add a name that can carry credentials or environment values: the content
+  store has no write-time redaction. `phpunit.xml`, `.mvn/jvm.config`,
+  `.mvn/maven.config`, `.env`, `.npmrc` and `settings.xml` are kept out for
+  that reason, and `TestDefaultRegistryKeepsCredentialBearingConfigNamesUnadmitted`
+  pins them. Do not register `Taskfile.yml`: an exact name beats the `.yml`
+  extension and would downgrade it from structured YAML to plain text.
+  `.mvn/extensions.xml` is a path rule (`isMavenExtensionsPath`) because
+  `extensions.xml` is too generic to bind by name. Path rules sit outside
+  `Registry.Fingerprint`, so adding one needs a bump of
+  `gitGenerationContentVersion` and a re-pin.
 
 - **No duplicate keys or extensions** — `NewRegistry` rejects duplicate
   `ParserKey`, extension, and exact filename entries with an error.

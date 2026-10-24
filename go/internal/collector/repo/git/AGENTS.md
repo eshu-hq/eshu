@@ -122,6 +122,72 @@ Both read the GitLab host from the config (`ESHU_GITLAB_HOST`, default
 `TestRepositoryIdentityStableOnDefaultGitlabHost` cover the custom host and
 the default-host identity stability (#7764).
 
+## Filesystem copy keeps only admitted dotfiles
+
+The managed-workspace copy prunes dot-prefixed entries unless
+`preserveFilesystemHiddenPath` (`selection_copy_workspace.go`) allows them. When
+the parser registry admits a new dot-prefixed name (#8814, and the #8809
+version pins), add its basename there, or filesystem mode never sees it. Never
+add a credential-bearing dotfile (`.env`, `.npmrc`, `.pypirc`, `.netrc`), and
+keep `.gitignore` out: the copy applies the source ignore rules itself, and
+copying the file would make discovery filter a second time. Names match case-insensitively, like the
+registry, and are kept under non-hidden or allowlisted directories (`.github`,
+`.github/workflows`, `.mvn`, and a dot-directory whose name is an allowlisted
+file name) at any depth. A name under any other, unallowlisted dot-directory
+(`tools/.config/.eslintrc`) is pruned with its parent, because the copy drops
+such dot-directories whole; clone mode admits it, and
+`TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories` pins the
+difference. The copy keeps the whole `.mvn` directory and discovery applies the
+registry rules to it, as in clone mode: `.mvn/extensions.xml` is admitted as
+text, a `.java` file under `.mvn/wrapper` is parsed as Java, and `.mvn/jvm.config`,
+`.mvn/maven.config` and the wrapper properties have no registry entry
+(`TestFilesystemCopyKeepsMvnDirectoryAndDiscoveryAppliesRegistryRules`).
+`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails when a
+dot-prefixed registry exact name (all except `.gitignore`) is missing from
+`preservedHiddenFilesystemFileNames`. A PR that adds dotfile names to the
+registry goes red on it until it adds them to that map in the same change; the
+version-pin names from #8882 (`.nvmrc`, `.node-version`, `.tool-versions` and
+the rest) are in the map for that reason.
+
+No-Regression Evidence (#8814): discovery path. `LookupByPath` over 29,083
+repository paths averaged 14.94 ms before and 15.29 ms after the new names and
+the `.mvn/extensions.xml` rule (six alternating single-CPU runs of a throwaway
+benchmark, +12 ns per path), and `resolveNativeSnapshotFileSet` over the staged
+35-repository golden corpus (192 files, none of the admitted names) averaged
+3.22 ms before and 3.20 ms after. Every lookup pays one base-name compare for
+the new rule. The copy path gains one base-name lowercase per dot-prefixed
+entry and now copies the `.mvn` directory whole, which is not measured here.
+
+Indexing cost, measured as proxies on synthetic corpora. The code touches no
+Postgres, graph, queue or lease path, but each newly admitted file adds a file
+fact and a content fact, a `fact_records` insert, a `content_files` upsert and a
+run of the migration-138 secret-line scan. Per newly admitted 1-5 KB file the
+steady-state total is about 1.19 ms: snapshot and fact build 0.266 ms (one CPU)
+or 0.246 ms (16 CPUs), `fact_records` insert 0.163 ms, `content_files` upsert
+about 0.76 ms (mostly the three trigram GIN indexes). The migration-138 trigger
+adds 0.011 ms on clean content, 0.21 ms at about 2 matching lines and about
+0.73 ms at 10. A 500 KB Makefile costs about 147 ms (26 ms collector, 115 ms
+upsert). A control corpus with no admitted names stayed flat (+0.6% on the
+snapshot step), 1,000 against 5,000 files scaled linearly within 1.5%, and peak
+RSS grows about 15 KB per admitted file. This repository has 9 admitted names
+among 29,088 tracked files (`git ls-tree -r --name-only 86b925b260 | wc -l`), so
++2.1 ms is predicted (8 indexed files x 0.266 ms); one same-tree base/HEAD pair
+measured 641.629 s and 641.853 s (n=1, no noise estimate). Only 8 of the 9 files
+were indexed in that pair: `tests/fixtures/sample_projects/sample_project_c/Makefile`
+is dropped by the repository's own `.eshuignore` rule `tests/` (line 157), an
+operator opt-out. Not measured: concurrent writers, graph and reducer
+cost, a tuned `shared_buffers` (runs used defaults, one connection, a loaded
+host with loadavg 5-21), and the 20-repository corpus gate, which is CI-only.
+A separate pre-existing bimodal slowdown of the migration-138 update trigger is
+tracked in #8915 and is not caused by this change. Input shape: the
+golden-corpus fixtures, synthetic corpora and the repo's own path list.
+
+No-Observability-Change: discovery reports the same skip and admit counters. A
+newly admitted file is counted as an ordinary admitted file, and an unadmitted
+dotfile is still pruned silently by the copy, as before. When a PR adds dotfile
+names to the registry without adding them to `preservedHiddenFilesystemFileNames`,
+`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails.
+
 ## Directory size
 
 This directory is grandfathered over the 40-file cap. The ledger row is a

@@ -314,7 +314,7 @@ parser path.
 | Perl | `perl` | `.pl`, `.pm` | yes |
 | PHP | `php` | `.php` | yes |
 | Python | `python` | `.ipynb`, `.py`, `.pyi`, `.pyw` | yes |
-| Raw text | `raw_text` | `.cnf`, `.cfg`, `.conf`, `.j2`, `.jinja`, `.jinja2`, `.tpl`, `.tftpl`; exact names `Puppetfile`, `Berksfile`, and the version pins `.nvmrc`, `.node-version`, `.tool-versions`, `.python-version`, `.ruby-version`, `.java-version`, `.go-version`, `.sdkmanrc`, `.terraform-version`, `rust-toolchain`, `rust-toolchain.toml` | — |
+| Raw text | `raw_text` | `.cnf`, `.cfg`, `.conf`, `.j2`, `.jinja`, `.jinja2`, `.tpl`, `.tftpl`; exact names `Puppetfile`, `Berksfile`, the version pins `.nvmrc`, `.node-version`, `.tool-versions`, `.python-version`, `.ruby-version`, `.java-version`, `.go-version`, `.sdkmanrc`, `.terraform-version`, `rust-toolchain`, `rust-toolchain.toml`, and the universal build and tool configuration names (`Makefile`, `.gitignore`, `tox.ini`, ... — full list in `docs/public/languages/admitted-files.md`); path rule `.mvn/extensions.xml` | — |
 | Ruby | `ruby` | `.rb`, `Gemfile`, `Gemfile.lock` | yes for `.rb`; Bundler manifests scanned |
 | Rust | `rust` | `.rs` | yes |
 | Scala | `scala` | `.sc`, `.scala` | yes |
