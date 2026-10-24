@@ -441,9 +441,9 @@ collectorcutoverrollback:
   - 'docs/public/operate/collector-cutover-rollback.md'
   - 'docs/public/operate/collector-cutover-truth-checks.md'
   - 'scripts/collector-cutover-rollback.sh'
-  - 'scripts/test-collector-cutover-rollback.sh'
+  - 'scripts/test-collector-cutover-rollback*.sh'
   - 'scripts/lib/collector-cutover-rollback-*'
-  - 'scripts/lib/test-collector-cutover-rollback-fake-*.sh'
+  - 'scripts/lib/test-collector-cutover-rollback-*'
 dockerpublish:
   - 'docs/internal/ci-service-image-mirrors.md'
   - '.github/workflows/static-contract-gates.yml'

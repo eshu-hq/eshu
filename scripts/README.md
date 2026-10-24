@@ -34,12 +34,23 @@ mocked harness is `test-verify-hosted-helm-rollout-proof.sh`.
 `collector-cutover-rollback.sh` rolls a collector back from an external
 component producer to the in-tree producer as a producer-authority transition
 (#8895). Its `plan`, `run`, and `verify` subcommands run the six steps in order
-from existing primitives (`eshu component disable` and `revoke-grant`, `kubectl`,
-`helm`, and read-only `psql`) and refuse to continue while the external producer
-still holds claims or a live grant. Read-only SQL lives in
-`lib/collector-cutover-rollback-*.sql`. The runbook is
-`docs/public/operate/collector-cutover-rollback.md`. The stubbed harness is
-`test-collector-cutover-rollback.sh`.
+from existing primitives (`eshu component disable`, `list`, and `revoke-grant`,
+`kubectl`, `helm`, and read-only `psql`) and refuse to continue while any
+non-in-tree instance of the collector kind holds claims, the component keeps an
+enabled activation, the worker is not provably stopped, or a grant is live.
+Read-only SQL lives in `lib/collector-cutover-rollback-*.sql`; the step, gate,
+truth, and plan code lives in the sibling `lib/collector-cutover-rollback-*.sh`
+files. The runbook is `docs/public/operate/collector-cutover-rollback.md`.
+Hung calls are bounded by `PGCONNECT_TIMEOUT` (default 10 seconds) and
+`ROLLBACK_KUBECTL_REQUEST_TIMEOUT` (default 30s). `ROLLBACK_CLOCK_SKEW_SECONDS`
+(default 30) widens the replay window. The stubbed harness is
+`test-collector-cutover-rollback.sh`, with its harness and cases in
+`lib/test-collector-cutover-rollback-*.sh`. `lib/test-collector-cutover-rollback-mutants.sh`
+applies each listed mutation to a scratch copy and fails unless the test kills it.
+`test-collector-cutover-rollback-sql.sh` runs every SQL file against a private
+throwaway Postgres built from the real migrations; run it, and update the SQL
+digest pins in the stub test, whenever a SQL file changes. Add `--bench N` to
+time the truth query on N generated facts.
 
 `verify-compose-helm-runtime-parity.sh` is the static hosted deployability
 gate for Compose-to-Kubernetes runtime parity. It renders default Compose,
