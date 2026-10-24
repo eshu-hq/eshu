@@ -20,8 +20,8 @@ import (
 // in such a gap, for example under a directory named deps, build, or vendor,
 // is invisible: a parser change that alters its facts moves no digest and the
 // pin test stays green. The walk uses the snapshotter's own file-set
-// resolution, not a copy of its prune list, so a new default-ignored directory
-// is caught without editing this helper.
+// resolution and discoveryOptions, not a copy of its prune list, so a new
+// default-ignored directory is caught without editing this helper.
 func contentVersionDiscoveryGaps(t *testing.T, root string) []string {
 	t.Helper()
 	// Discovery runs on a copy in a temp root, as the digest does, so a
@@ -34,7 +34,7 @@ func contentVersionDiscoveryGaps(t *testing.T, root string) []string {
 	copyContentVersionFixture(t, root, copyRoot)
 
 	registry := parser.DefaultRegistry()
-	fileSet, _, err := resolveNativeSnapshotFileSet(copyRoot, registry, defaultNativeDiscoveryOptions())
+	fileSet, _, err := resolveNativeSnapshotFileSet(copyRoot, registry, NativeRepositorySnapshotter{}.discoveryOptions())
 	if err != nil {
 		t.Fatalf("resolve fixture file set: %v", err)
 	}
