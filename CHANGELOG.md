@@ -129,8 +129,9 @@ recent shipped work grouped by feature area.
   dot-directory, such as `tools/.config/.eslintrc` (unlike `.github`,
   `.github/workflows`, `.mvn` and a dot-directory whose name is itself an
   allowlisted file name), is still pruned there with its parent. The copy's
-  existing `.gitlab-ci.yml`, `.gitlab-ci.yaml` and `.gitmodules` entries now
-  match case-insensitively there as well; `.gitignore` is still not copied there.
+  existing `.gitlab-ci.yml`, `.gitlab-ci.yaml`, `.gitmodules`, `.github` and
+  `.github/workflows` entries now match case-insensitively there as well, so
+  `.GITHUB/workflows/*.yml` is indexed; `.gitignore` is still not copied there.
   The runtime-version pin names added by #8809 (`.nvmrc`, `.node-version`,
   `.tool-versions`, `.python-version`, `.ruby-version`, `.java-version`,
   `.go-version`, `.sdkmanrc`, `.terraform-version`) are kept the same way. Because
