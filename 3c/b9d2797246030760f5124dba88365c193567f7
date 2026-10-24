@@ -1,0 +1,45 @@
+sdk/go/factschema/fixturepack/payloads/azure_tag_observation.invalid.json
+  s_ff8a600f1fc93e::t_31f950c72cbfeb 5
+sdk/go/collector/README.md
+  s_ff8a600f1fc93e::t_3d512be170057f 51-56
+sdk/go/collector/azure_tag_validation_test.go
+  s_ff8a600f1fc93e::t_281d755c1a8457 1-52,54-76,78-125
+  s_ff8a600f1fc93e::t_700c7c18b66383 53,77
+go/internal/collector/cloud/azure/envelope.go
+  s_ff8a600f1fc93e::t_5923a2b3313727 83
+sdk/go/collector/validation.go
+  s_ff8a600f1fc93e::t_5923a2b3313727 209
+go/internal/collector/cloud/azure/README.md
+  s_ff8a600f1fc93e::t_3d512be170057f 51-52
+sdk/go/factschema/fixturepack/payloads/azure_tag_observation.valid.json
+  s_ff8a600f1fc93e::t_41e245d66d80bc 6
+docs/public/reference/azure-cloud-collector-contract.md
+  s_ff8a600f1fc93e::t_3d512be170057f 91-94,306-307,327-329
+go/internal/collector/cloud/azure/tag_withholding_test.go
+  s_ff8a600f1fc93e::t_00977327fae0ef 48-56
+  s_ff8a600f1fc93e::t_281d755c1a8457 1-34,36-37,41-47,57
+  s_ff8a600f1fc93e::t_41e245d66d80bc 35,38-40
+sdk/go/collector/azure_tag_payload.go
+  s_ff8a600f1fc93e::t_5923a2b3313727 1-108,112,114
+  s_ff8a600f1fc93e::t_541333ce87da9e 109-111,113
+go/internal/collector/extensionhost/process_test.go
+  s_ff8a600f1fc93e::t_41e245d66d80bc 50-58,60-74,82-90,96-107
+  s_ff8a600f1fc93e::t_029a49979b3e7f 59
+  s_ff8a600f1fc93e::t_bcf94ca19d96fd 75-81,91-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3cb9d2797246030760f5124dba88365c193567f7",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

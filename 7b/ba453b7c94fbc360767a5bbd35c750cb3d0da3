@@ -1,0 +1,25 @@
+go/internal/collector/cloud/azure/README.md
+  s_ff8a600f1fc93e::t_69c03a416dd645 175-176
+  s_ff8a600f1fc93e::t_110d59c82b8380 169-170,177
+  s_ff8a600f1fc93e::t_964a55d9beb9f1 152-168,171-174
+sdk/go/collector/payload_validation.go
+  s_ff8a600f1fc93e::t_93307b1c2a01ed 15-17,24,31,33,36,40,42-43,47-48,50,56-57,62,66-99,101-122,126-132
+sdk/go/collector/redaction.go
+  s_ff8a600f1fc93e::t_efa0bcb0efb683 6-7,11-14,23-24,26-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7bba453b7c94fbc360767a5bbd35c750cb3d0da3",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
