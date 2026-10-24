@@ -42,11 +42,14 @@ type Definition struct {
 	// or a cross-cutting name (dockerfile, raw_text, yaml) with no ledger row.
 	Ecosystem string
 	// Admission is the level at which the bound files are admitted.
-	Admission   Admission
-	Extensions  []string
-	ExactNames  []string
-	PrefixNames []string
-	Provider    LanguageProvider
+	Admission Admission
+	// ContentStore is the content-store policy for the bound files. The zero
+	// value stores the body verbatim. It takes part in Registry.Fingerprint.
+	ContentStore ContentStore
+	Extensions   []string
+	ExactNames   []string
+	PrefixNames  []string
+	Provider     LanguageProvider
 }
 
 // Registry is an immutable catalog of parser definitions and lookup indexes.
@@ -212,12 +215,13 @@ func (r Registry) Fingerprint() string {
 	for _, definition := range r.definitions {
 		// A hash never returns a write error; the blank assignment keeps
 		// errcheck quiet without changing behavior.
-		_, _ = fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s\x00%s\n",
+		_, _ = fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s\x00%s%s\n",
 			definition.ParserKey,
 			definition.Language,
 			strings.Join(definition.Extensions, ","),
 			strings.Join(definition.ExactNames, ","),
-			strings.Join(definition.PrefixNames, ","))
+			strings.Join(definition.PrefixNames, ","),
+			fingerprintContentStore(definition.ContentStore))
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
@@ -254,6 +258,11 @@ func normalizeDefinition(definition Definition) (Definition, error) {
 	definition.Extensions = normalizeExtensions(definition.Extensions)
 	definition.ExactNames = normalizePreservedNames(definition.ExactNames)
 	definition.PrefixNames = normalizePreservedNames(definition.PrefixNames)
+	store, err := normalizeContentStore(definition.ParserKey, definition.ContentStore)
+	if err != nil {
+		return Definition{}, err
+	}
+	definition.ContentStore = store
 
 	return definition, nil
 }
@@ -338,6 +347,7 @@ func cloneDefinition(definition Definition) Definition {
 		Admission: definition.Admission,
 		Provider:  definition.Provider,
 	}
+	cloned.ContentStore = cloneContentStore(definition.ContentStore)
 	cloned.Extensions = slices.Clone(definition.Extensions)
 	cloned.ExactNames = slices.Clone(definition.ExactNames)
 	cloned.PrefixNames = slices.Clone(definition.PrefixNames)
@@ -370,13 +380,14 @@ const (
 // output is deterministic and ends with a newline.
 func AdmissionTableMarkdown(registry Registry) string {
 	var b strings.Builder
-	b.WriteString("| Parser key | Ecosystem | Admission | Extensions | Exact file names | File name prefixes |\n")
-	b.WriteString("| --- | --- | --- | --- | --- | --- |\n")
+	b.WriteString("| Parser key | Ecosystem | Admission | Content store | Extensions | Exact file names | File name prefixes |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, definition := range registry.Definitions() {
-		fmt.Fprintf(&b, "| `%s` | %s | %s | %s | %s | %s |\n",
+		fmt.Fprintf(&b, "| `%s` | %s | %s | %s | %s | %s | %s |\n",
 			definition.ParserKey,
 			definition.Ecosystem,
 			admissionLabel(definition.Admission),
+			contentStoreLabel(definition.ContentStore),
 			codeList(definition.Extensions),
 			codeList(definition.ExactNames),
 			codeList(definition.PrefixNames),
