@@ -44,9 +44,9 @@ const (
 // coordinate, plus an sbt_state envelope that carries the Scala version and
 // the bounded counts of what the scanner could not resolve.
 //
-// Parse never evaluates sbt or Scala. It reads only file bytes, so a
-// non-literal form (variable organization, `.value` setting, conditional
-// block, interpolated string) is counted, never guessed.
+// Parse never evaluates sbt or Scala. It reads only file bytes. A row is
+// resolved only when its whole statement matches the closed grammar in
+// README.md; any other statement yields partial rows that are counted.
 func Parse(path string, isDependency bool, options shared.Options) (map[string]any, error) {
 	source, err := shared.ReadSource(path)
 	if err != nil {
@@ -78,48 +78,64 @@ type scan struct {
 	lx      *lexer
 	peeked  token
 	hasPeek bool
-	// consumed counts tokens handed out by next; collection parsing uses it to
-	// prove every loop iteration made progress.
+	// consumed counts tokens handed out by next.
 	consumed int
+	// hist holds the last three consumed tokens, newest first. unread drops
+	// the newest, so hist[2] may be empty right after an unread.
+	hist [3]token
 
 	deps          []dependency
 	vals          map[string]string
 	scalaVersions []scalaVersionDecl
 
 	// unresolved counts declarations the scanner recognised but could not
-	// read as literals.
+	// read as literals and that produced no row.
 	unresolved int
 	// overflow counts valid declarations dropped past MaxDependencyRows.
 	overflow int
-	// mapWrites counts the dependency configuration writes made for collection
-	// `.map(...)` calls. Each collection is written once however many calls
-	// follow it; the work-bound tests read it.
-	mapWrites int
+	// stmtRows counts the coordinates the current statement produced,
+	// including any dropped past MaxDependencyRows.
+	stmtRows int
+	// window is the coordinate prefix the grammar consumed before an element
+	// stopped matching; salvage continues from it.
+	window coordinateWindow
 
-	// projects holds the names declared as sbt projects (`lazy val core =
-	// project`); an axis naming one is a project-level key, any other name
-	// before `/` is read as a configuration or task.
-	projects map[string]struct{}
-	// chainScoped, wrapDepth, wrapClosed and wrapPending follow the axis chain
-	// and the `in<Name>(...)(...)` wrapper regions; see trackAxis.
-	chainScoped bool
-	wrapDepth   int
-	wrapClosed  bool
-	wrapPending int
+	// projectCount numbers the project vals in source order; a project's
+	// settings context is its number. The bare file is context 0.
+	projectCount int
+	// openProject is the project whose `val x = project...` statement is
+	// still open, or 0.
+	openProject int
+	// settingsCtx is the project whose `.settings(` argument list is open,
+	// or 0; settingsDepth is the bracket depth inside that list.
+	settingsCtx   int
+	settingsDepth int
+	// resetMark records, per context, the dependency count when its last
+	// `:=`, `~=`, `-=` or `--=` ran; every earlier row of that context is
+	// superseded. rootReset is set when the bare file reset the key.
+	resetMark map[int]int
+	rootReset bool
+	// globalReset is set by a reset outside a grammar context; it supersedes
+	// every row of the file.
+	globalReset bool
 }
 
 func newScan(text string) *scan {
-	return &scan{lx: newLexer(text), vals: map[string]string{}, projects: map[string]struct{}{}}
+	return &scan{lx: newLexer(text), vals: map[string]string{}, resetMark: map[int]int{}}
 }
 
 // next returns the next token, honouring a single pushed-back token.
 func (s *scan) next() token {
 	s.consumed++
+	var tok token
 	if s.hasPeek {
 		s.hasPeek = false
-		return s.peeked
+		tok = s.peeked
+	} else {
+		tok = s.lx.next()
 	}
-	return s.lx.next()
+	s.hist[2], s.hist[1], s.hist[0] = s.hist[1], s.hist[0], tok
+	return tok
 }
 
 // peek returns the next token without consuming it.
@@ -137,40 +153,50 @@ func (s *scan) unread(tok token) {
 	s.consumed--
 	s.peeked = tok
 	s.hasPeek = true
+	s.hist[0], s.hist[1], s.hist[2] = s.hist[1], s.hist[2], token{}
 }
 
 // run walks the token stream once and dispatches on the three key names the
 // parser reads.
 func (s *scan) run() {
-	var prev, prev2 token
 	for {
 		tok := s.next()
 		if tok.kind == kindEOF {
 			return
 		}
-		consumed := false
-		scoped := s.trackAxis(prev, tok)
-		if tok.kind == kindIdent {
-			switch tok.text {
-			case "libraryDependencies":
-				s.parseLibraryDependencies(scoped)
-				consumed = true
-			case "scalaVersion":
-				s.parseScalaVersion(isThisBuildAxis(prev2, prev))
-				consumed = true
-			case "val":
-				if tok.depth == 0 {
-					s.parseVal()
-					consumed = true
-				}
-			}
-		}
-		if consumed {
-			prev, prev2 = token{}, token{}
-			s.chainScoped = false
+		s.trackProject(tok)
+		if tok.kind != kindIdent {
 			continue
 		}
-		prev2, prev = prev, tok
+		switch tok.text {
+		case "libraryDependencies":
+			s.parseLibraryDependencies(tok)
+		case "scalaVersion":
+			s.parseScalaVersion(isThisBuildAxis(s.hist[2], s.hist[1]))
+		case "val":
+			if tok.depth == 0 {
+				s.parseVal()
+			}
+		}
+	}
+}
+
+// trackProject follows the open project statement and its `.settings(`
+// argument list. A project statement ends at a depth-zero line break that is
+// not a leading '.', or at ';'. The settings list is the '(' after
+// `.settings` at depth zero of an open project statement, and it ends when a
+// token falls back below its depth.
+func (s *scan) trackProject(tok token) {
+	if s.settingsCtx != 0 && tok.depth < s.settingsDepth {
+		s.settingsCtx = 0
+	}
+	if s.openProject != 0 && tok.depth == 0 && tok.kind != kindClose &&
+		((tok.newline && !isPunct(tok, ".")) || isPunct(tok, ";")) {
+		s.openProject = 0
+	}
+	if s.openProject != 0 && tok.kind == kindOpen && tok.text == "(" && tok.depth == 0 &&
+		s.hist[1].kind == kindIdent && s.hist[1].text == "settings" && isPunct(s.hist[2], ".") {
+		s.settingsCtx, s.settingsDepth = s.openProject, 1
 	}
 }
 
@@ -192,14 +218,14 @@ func (s *scan) parseScalaVersion(thisBuild bool) {
 	}
 	value := s.next()
 	switch {
-	case value.kind == kindString && validField(value.text):
+	case value.kind == kindString && validField(value.text) && endsLiteral(s.peek()):
 		s.recordScalaVersion(value.text, thisBuild)
 	case value.kind == kindIdent && s.resolveIdentVersion(value):
 		s.recordScalaVersion(s.vals[value.text], thisBuild)
 	case value.kind == kindEOF:
 	default:
 		s.unresolved++
-		s.skipElement(initialDepth(value))
+		s.salvage(initialDepth(value), false)
 	}
 }
 
@@ -209,8 +235,7 @@ func (s *scan) resolveIdentVersion(value token) bool {
 	if _, ok := s.vals[value.text]; !ok {
 		return false
 	}
-	next := s.peek()
-	return next.kind != kindPunct || next.text != "."
+	return endsLiteral(s.peek())
 }
 
 func (s *scan) recordScalaVersion(value string, thisBuild bool) {
@@ -220,11 +245,12 @@ func (s *scan) recordScalaVersion(value string, thisBuild bool) {
 	s.scalaVersions = append(s.scalaVersions, scalaVersionDecl{value: value, thisBuild: thisBuild})
 }
 
-// parseVal records a depth-zero `val name[: String] = "literal"` so later
-// version references can resolve. A val whose initializer is more than the
-// literal (for example `"1" + suffix`) is ignored. A val initialised with
-// `project`, `crossProject`, `Project` or `(project in ...)` is remembered as a
-// project name for the axis check.
+// parseVal records a depth-zero `val name[: Type] = "literal"` so later
+// version references can resolve. A val whose literal is followed by more of
+// the expression (`"1" + suffix`, `"1".trim`, or a next line that starts with
+// '.' or an operator) is not that literal and is ignored. A val initialised
+// with `project`, `crossProject`, `Project`, `projectMatrix` or
+// `(project in ...)` opens a project statement for the settings context.
 func (s *scan) parseVal() {
 	name := s.next()
 	if name.kind != kindIdent {
@@ -247,19 +273,18 @@ func (s *scan) parseVal() {
 	value := s.next()
 	switch {
 	case isProjectHead(value):
-		s.recordProject(name.text)
+		s.openProjectStatement()
 		return
 	case value.kind == kindOpen && value.text == "(":
 		if isProjectHead(s.peek()) {
-			s.recordProject(name.text)
+			s.openProjectStatement()
 		}
 		return
 	case value.kind != kindString || !validField(value.text):
 		s.unread(value)
 		return
 	}
-	end := s.peek()
-	if end.kind != kindEOF && !end.newline && !isPunct(end, ";") {
+	if !endsLiteral(s.peek()) {
 		return
 	}
 	if _, exists := s.vals[name.text]; exists || len(s.vals) >= maxStringVals {
@@ -268,16 +293,52 @@ func (s *scan) parseVal() {
 	s.vals[name.text] = value.text
 }
 
-// finish resolves deferred version references, builds the rows, and returns
-// the sbt_state envelope.
+// endsLiteral reports whether next ends the expression of a literal before
+// it: end of input, ';', ',', a closer, or a line break followed by a token
+// that cannot continue the expression (not '.', an operator, or an opener).
+func endsLiteral(next token) bool {
+	switch {
+	case next.kind == kindEOF, next.kind == kindClose, isPunct(next, ";"), isPunct(next, ","):
+		return true
+	case !next.newline:
+		return false
+	}
+	return !isPunct(next, ".") && next.kind != kindSymbol && next.kind != kindOpen
+}
+
+// openProjectStatement numbers a new project val and marks its statement open.
+func (s *scan) openProjectStatement() {
+	s.projectCount++
+	s.openProject = s.projectCount
+}
+
+// isProjectHead reports the identifiers that start an sbt project definition.
+func isProjectHead(tok token) bool {
+	if tok.kind != kindIdent {
+		return false
+	}
+	switch tok.text {
+	case "project", "crossProject", "Project", "projectMatrix":
+		return true
+	}
+	return false
+}
+
+// finish resolves deferred version references, applies the superseding
+// assignments, builds the rows, and returns the sbt_state envelope.
 func (s *scan) finish() ([]map[string]any, map[string]any) {
+	s.applyResets()
 	versions := s.distinctScalaVersions()
 	rows := make([]map[string]any, 0, len(s.deps))
 	binary := ""
 	if len(versions) == 1 {
 		binary = scalaBinaryVersion(versions[0])
 	}
+	partial := 0
 	for _, dep := range s.deps {
+		if dep.scopeUndetermined() {
+			partial++
+		}
 		rows = append(rows, dep.row(s.vals, binary))
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
@@ -292,21 +353,29 @@ func (s *scan) finish() ([]map[string]any, map[string]any) {
 		"scala_version_count":          len(versions),
 		"dependency_count":             len(rows),
 		"dependency_overflow_count":    s.overflow,
-		"unresolved_declaration_count": s.unresolved + scopeUnknownCount(s.deps),
+		"unresolved_declaration_count": s.unresolved + partial,
 	}
 	return rows, state
 }
 
-// scopeUnknownCount counts the rows whose scope could not be determined. They
-// are emitted as partial and counted with the unresolved declarations.
-func scopeUnknownCount(deps []dependency) int {
-	count := 0
-	for _, dep := range deps {
-		if dep.scopeUndetermined() {
-			count++
+// applyResets marks every row a later `:=`, `~=`, `-=` or `--=` of the same
+// context superseded. A reset in the bare file applies to the root project,
+// which may be any project the file declares, so it supersedes every project
+// row too, and a reset outside a grammar context supersedes every row. One
+// pass, whatever the number of resets.
+func (s *scan) applyResets() {
+	for index := range s.deps {
+		dep := &s.deps[index]
+		if dep.ctx < 0 {
+			continue
+		}
+		if mark, ok := s.resetMark[dep.ctx]; ok && index < mark {
+			dep.partial = true
+		}
+		if (s.rootReset && dep.ctx > 0) || s.globalReset {
+			dep.partial = true
 		}
 	}
-	return count
 }
 
 func (s *scan) distinctScalaVersions() []string {

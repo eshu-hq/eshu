@@ -49,7 +49,24 @@ type token struct {
 	// depth is the bracket depth at the token: before an opener, after a
 	// closer, and the current depth for every other token.
 	depth int
+	// inParen reports that the innermost enclosing bracket is '(' or '['.
+	// Scala does not separate statements at a line break inside them, so a
+	// newline there never ends an expression. For an opener it describes the
+	// bracket around the opener; for a closer, the bracket left after it.
+	inParen bool
+	// closesCond marks the ')' that closes the condition of an if, while, or
+	// for, so the statement after it on the next line is read as its body.
+	closesCond bool
 }
+
+// Opener kinds kept on the lexer's bracket stack.
+const (
+	openParen   byte = 1
+	openBracket byte = 2
+	openBrace   byte = 3
+	// openCond flags a '(' that follows if, while, or for.
+	openCond byte = 8
+)
 
 // lexer scans build.sbt source one token at a time in a single forward pass.
 // It never recurses and never re-reads bytes, so work stays linear in the
@@ -59,6 +76,12 @@ type lexer struct {
 	pos   int
 	line  int
 	depth int
+	// stack holds one byte per open bracket. It grows with the nesting depth,
+	// so its size is bounded by the input length.
+	stack []byte
+	// lastIdent is the text of the previous token when it was an identifier,
+	// else empty; it marks the '(' after if, while, and for.
+	lastIdent string
 }
 
 func newLexer(src string) *lexer {
@@ -70,19 +93,32 @@ func newLexer(src string) *lexer {
 func (l *lexer) next() token {
 	newline := l.skipTrivia()
 	start := l.pos
-	tok := token{line: l.line, newline: newline, depth: l.depth}
+	tok := token{line: l.line, newline: newline, depth: l.depth, inParen: l.inParen()}
 	if start >= len(l.src) {
 		tok.kind = kindEOF
 		return tok
 	}
+	l.scanToken(&tok, start)
+	l.lastIdent = ""
+	if tok.kind == kindIdent {
+		l.lastIdent = tok.text
+	}
+	return tok
+}
+
+// scanToken fills tok with the token that starts at start.
+func (l *lexer) scanToken(tok *token, start int) {
 	c := l.src[start]
 	switch {
+	case c == '\'':
+		l.pos += charLiteralLen(l.src, start)
+		tok.kind, tok.text = kindOther, l.src[start:l.pos]
 	case c == '"':
 		tok.kind, tok.text = l.scanString(false)
 	case c == '`':
 		tok.kind, tok.text = l.scanBacktick()
 	case isIdentStart(c):
-		l.scanIdentInto(&tok)
+		l.scanIdentInto(tok)
 	case c >= '0' && c <= '9':
 		l.pos++
 		for l.pos < len(l.src) && isNumberPart(l.src[l.pos]) {
@@ -92,13 +128,15 @@ func (l *lexer) next() token {
 	case c == '(' || c == '[' || c == '{':
 		l.pos++
 		l.depth++
+		l.push(c)
 		tok.kind, tok.text = kindOpen, l.src[start:l.pos]
 	case c == ')' || c == ']' || c == '}':
 		l.pos++
 		if l.depth > 0 {
 			l.depth--
 		}
-		tok.kind, tok.text, tok.depth = kindClose, l.src[start:l.pos], l.depth
+		tok.closesCond = l.pop()&openCond != 0
+		tok.kind, tok.text, tok.depth, tok.inParen = kindClose, l.src[start:l.pos], l.depth, l.inParen()
 	case c == '.' || c == ',' || c == ';':
 		l.pos++
 		tok.kind, tok.text = kindPunct, l.src[start:l.pos]
@@ -112,7 +150,69 @@ func (l *lexer) next() token {
 		l.pos++
 		tok.kind, tok.text = kindOther, l.src[start:l.pos]
 	}
-	return tok
+}
+
+// push records an opener. A '(' right after if, while, or for is flagged as a
+// condition.
+func (l *lexer) push(c byte) {
+	kind := openBrace
+	switch c {
+	case '(':
+		kind = openParen
+		switch l.lastIdent {
+		case "if", "while", "for":
+			kind |= openCond
+		}
+	case '[':
+		kind = openBracket
+	}
+	l.stack = append(l.stack, kind)
+}
+
+// pop removes the innermost opener and returns it, or 0 for an unmatched
+// closer.
+func (l *lexer) pop() byte {
+	if len(l.stack) == 0 {
+		return 0
+	}
+	top := l.stack[len(l.stack)-1]
+	l.stack = l.stack[:len(l.stack)-1]
+	return top
+}
+
+// inParen reports whether the innermost open bracket is '(' or '['.
+func (l *lexer) inParen() bool {
+	if len(l.stack) == 0 {
+		return false
+	}
+	kind := l.stack[len(l.stack)-1] &^ openCond
+	return kind == openParen || kind == openBracket
+}
+
+// charLiteralLen returns the length of the Scala character literal at start
+// ('a', '"', '\n', '\u0041', or a multi-byte UTF-8 character), or 1 for a
+// lone quote such as a symbol literal. Reading '"' as a quote would desync the
+// string scanner to the end of the line.
+func charLiteralLen(src string, start int) int {
+	from, limit := start+2, start+2
+	switch {
+	case start+1 >= len(src):
+		return 1
+	case src[start+1] == '\\':
+		// The escaped character itself may be a quote ('\'').
+		from, limit = start+3, start+8
+	case src[start+1] >= 0x80:
+		limit = start + 6
+	}
+	for end := from; end < len(src) && end <= limit; end++ {
+		switch src[end] {
+		case '\'':
+			return end - start + 1
+		case '\n', '\r':
+			return 1
+		}
+	}
+	return 1
 }
 
 // skipTrivia consumes whitespace and comments and reports whether a line

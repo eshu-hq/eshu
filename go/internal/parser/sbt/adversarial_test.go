@@ -95,7 +95,7 @@ func TestParseBoundsLongCollectionCallChains(t *testing.T) {
 
 	const calls = 50_000
 	maps := parseSource(t, `libraryDependencies ++= Seq("a" % "b" % "1")`+strings.Repeat(".map(_.withSources())", calls)+".map(_ % Test)\n")
-	requireField(t, requireRow(t, maps, "a:b"), "dependency_scope", "test")
+	requireField(t, requireRow(t, maps, "a:b"), "dependency_resolution_state", "partial")
 
 	concat := parseSource(t, `libraryDependencies ++= Seq("a" % "b" % "1")`+strings.Repeat(" ++ Seq()", calls)+"\n")
 	if rows := dependencyRows(t, concat); len(rows) != 1 {

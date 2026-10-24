@@ -137,23 +137,3 @@ func resolveConfig(config string) configSpec {
 	spec.known = true
 	return spec
 }
-
-// setAxis records where the key was declared. A key under a configuration
-// axis, an `inConfig(...)` wrapper, or an axis the scanner cannot read as a
-// project-level one (scoped) leaves the scope undetermined for good: an
-// explicit `% config` later in the expression does not make the declaration
-// readable. Otherwise the scope starts as the default compile configuration.
-func (d *dependency) setAxis(scoped bool) {
-	d.scope, d.scopeKnown, d.axisScoped = "compile", !scoped, scoped
-}
-
-// scopeUndetermined reports whether the row's scope could not be read from the
-// axis, the configuration operands, or the tail, so the row is partial.
-func (d dependency) scopeUndetermined() bool {
-	return !d.scopeKnown || d.axisScoped
-}
-
-// setConfig records an explicit `% config` and the scope it implies.
-func (d *dependency) setConfig(spec configSpec) {
-	d.config, d.scope, d.scopeKnown, d.optional = spec.text, spec.scope, spec.known, spec.optional
-}

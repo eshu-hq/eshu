@@ -41,18 +41,21 @@ libraryDependencies += "g" %; libraryDependencies += "h" % "i" % "4"
 func TestParseConcatenatedCollections(t *testing.T) {
 	t.Parallel()
 
+	// `++` is outside the grammar: every literal in the chain is emitted
+	// partial, whatever the operands are.
 	payload := parseSource(t, `libraryDependencies ++= Seq("a" % "b" % "1") ++ Seq("c" % "d" % "2")
 libraryDependencies ++= Seq("e" % "f" % "3").map(_ % Test) ++ Seq("g" % "h" % "4")
 `)
-	for name, scope := range map[string]string{"a:b": "compile", "c:d": "compile", "e:f": "test", "g:h": "compile"} {
-		requireField(t, requireRow(t, payload, name), "dependency_scope", scope)
+	for _, name := range []string{"a:b", "c:d", "e:f", "g:h"} {
+		requireField(t, requireRow(t, payload, name), "dependency_resolution_state", "partial")
 	}
-	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
+	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 4)
 
-	// A non-literal operand is counted, never silently dropped.
+	// A non-literal operand is never silently dropped: the row it travels
+	// with is partial and counted.
 	opaque := parseSource(t, `libraryDependencies ++= Seq("a" % "b" % "1") ++ extraDeps
 `)
-	requireRow(t, opaque, "a:b")
+	requireField(t, requireRow(t, opaque, "a:b"), "dependency_resolution_state", "partial")
 	requireStateField(t, stateOf(t, opaque), "unresolved_declaration_count", 1)
 }
 

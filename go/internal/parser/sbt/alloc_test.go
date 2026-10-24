@@ -103,41 +103,37 @@ func TestParseHugeConfigurationListIsNeverSplit(t *testing.T) {
 	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 1)
 }
 
-// TestParseChainedMapsResolveEachConfigurationOnce applies 20,000 chained
-// `.map(_ % Test)` calls to 5,000 dependencies. Re-resolving the configuration
-// for every dependency on every call would be 100 million resolutions.
-func TestParseChainedMapsResolveEachConfigurationOnce(t *testing.T) {
+// TestParseChainedMapsStayLinear applies 20,000 chained `.map(_ % Test)` calls
+// to 5,000 dependencies. A `.map` is outside the grammar, so the fallback reads
+// the chain once and every row is partial; a per-dependency, per-call pass
+// would add millions of objects.
+func TestParseChainedMapsStayLinear(t *testing.T) {
 	const deps = 5_000
 	body := "libraryDependencies ++= " + seqOfDependencies(deps) + strings.Repeat(".map(_ % Test)", 20_000) + "\n"
 
 	payload, _, mallocs := measureParse(t, body)
-	// Rows, token slices and the sort cost a bounded number of objects per
-	// dependency. A per-dependency, per-call resolution would add millions.
 	t.Logf("chained maps: %d dependencies, %d mallocs", deps, mallocs)
 	if ceiling := uint64(deps * 40); mallocs > ceiling {
-		t.Errorf("Mallocs = %d for %d dependencies, ceiling %d: the map configuration is resolved per dependency per call", mallocs, deps, ceiling)
+		t.Errorf("Mallocs = %d for %d dependencies, ceiling %d: the chain is not read once", mallocs, deps, ceiling)
 	}
-	requireField(t, requireRow(t, payload, "o:n0"), "dependency_scope", "test")
-	requireField(t, requireRow(t, payload, "o:n4999"), "dependency_scope", "test")
-
-	// The alloc ceiling cannot see a pass that only assigns values, so count
-	// the writes: one per dependency, not one per dependency per call.
-	scan := newScan(body)
-	scan.run()
-	if scan.mapWrites != deps {
-		t.Errorf("mapWrites = %d, want %d (one write per dependency for 20,000 chained calls)", scan.mapWrites, deps)
+	for _, name := range []string{"o:n0", "o:n4999"} {
+		requireField(t, requireRow(t, payload, name), "dependency_resolution_state", "partial")
 	}
+	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", deps)
 }
 
-// TestParseRepeatedAndChainedConfigurationsStayLinear covers the two shapes
-// that re-resolve a configuration: 200,000 trailing `% "test"` operands on one
-// coordinate (the last wins), and a million-segment identifier used as the
-// configuration.
+// TestParseRepeatedAndChainedConfigurationsStayLinear covers 200,000 trailing
+// `% "test"` operands on one coordinate (a load error in sbt, so the fallback
+// reads them once and emits nothing for them) and a million-segment
+// identifier used as the configuration.
 func TestParseRepeatedAndChainedConfigurationsStayLinear(t *testing.T) {
 	repeated := `libraryDependencies += "a" % "b" % "1"` + strings.Repeat(` % "test"`, 200_000) + "\n"
 	payload, gotBytes, _ := measureParse(t, repeated)
 	requireAllocCeiling(t, "200k trailing configs", len(repeated), gotBytes, 3, 1<<20)
-	requireField(t, requireRow(t, payload, "a:b"), "dependency_scope", "test")
+	requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "partial")
+	if rows := dependencyRows(t, payload); len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1: a run of configuration operands is not a coordinate", len(rows))
+	}
 
 	chain := `libraryDependencies += "a" % "b" % "1" % ` + strings.Repeat("v.", 500_000) + "v\n"
 	payload, gotBytes, _ = measureParse(t, chain)
@@ -145,13 +141,14 @@ func TestParseRepeatedAndChainedConfigurationsStayLinear(t *testing.T) {
 	requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "partial")
 }
 
-// TestParseTailAllowlistStaysLinear drives the allowlist scanner with long tails:
-// 100,000 allowlisted calls, 100,000 unknown calls, a 100,000-call `.map` body,
-// and 100,000 leading-infix `%` lines on one coordinate. Each is one pass over
-// the tokens, so the allocation stays a small multiple of the input. The ceiling
-// is 8x: a short `% Test` line costs a few small allocations per operand, and
-// one full-package run measured 5.6x where isolated runs measure 3.8x; a
-// quadratic pass would be thousands of times the input.
+// TestParseTailAllowlistStaysLinear drives the grammar and its fallback with
+// long tails: 100,000 allowlisted infix calls (matched by the grammar),
+// 100,000 unknown calls, a 100,000-call `.map` body, and 100,000 leading-infix
+// `%` lines on one coordinate (all three read once by the fallback). Each is
+// one pass over the tokens, so the allocation stays a small multiple of the
+// input. The ceiling stays 8x: the measured ratio is about 2x (the read buffer
+// plus the string copy), and a full-package run adds noise from parallel
+// tests; a quadratic pass would be thousands of times the input.
 func TestParseTailAllowlistStaysLinear(t *testing.T) {
 	const calls = 100_000
 	cases := map[string]struct {
@@ -160,8 +157,8 @@ func TestParseTailAllowlistStaysLinear(t *testing.T) {
 	}{
 		"allowlisted calls": {`libraryDependencies += "a" % "b" % "1"` + strings.Repeat(` exclude("x", "y")`, calls) + "\n", "resolved"},
 		"unknown calls":     {`libraryDependencies += "a" % "b" % "1"` + strings.Repeat(` configure(x)`, calls) + "\n", "partial"},
-		"long map body":     {`libraryDependencies ++= Seq("a" % "b" % "1").map(_` + strings.Repeat(`.withSources()`, calls) + ")\n", "resolved"},
-		"leading infix":     {`libraryDependencies += "a" % "b" % "1"` + strings.Repeat("\n  % Test", calls) + "\n", "resolved"},
+		"long map body":     {`libraryDependencies ++= Seq("a" % "b" % "1").map(_` + strings.Repeat(`.withSources()`, calls) + ")\n", "partial"},
+		"leading infix":     {`libraryDependencies += "a" % "b" % "1"` + strings.Repeat("\n  % Test", calls) + "\n", "partial"},
 	}
 	for name, tc := range cases {
 		payload, gotBytes, _ := measureParse(t, tc.body)

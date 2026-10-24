@@ -61,8 +61,15 @@ func TestParseSeqAndAssignmentForms(t *testing.T) {
 	requireField(t, requireRow(t, payload, "org.scalatest:scalatest"), "section", "libraryDependencies:Test")
 	requireField(t, requireRow(t, payload, "javax.servlet:servlet-api"), "dependency_scope", "provided")
 	requireField(t, requireRow(t, payload, "ch.qos.logback:logback-classic"), "dependency_scope", "runtime")
-	requireField(t, requireRow(t, payload, "io.circe:circe-core"), "value", "0.14.6")
-	requireField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
+	// The later `:=` in the same settings replaces the `++=` list, so those
+	// four rows keep their parsed scope but are superseded and partial.
+	for _, name := range []string{"org.typelevel:cats-effect", "org.scalatest:scalatest", "javax.servlet:servlet-api", "ch.qos.logback:logback-classic"} {
+		requireField(t, requireRow(t, payload, name), "dependency_resolution_state", "partial")
+	}
+	circe := requireRow(t, payload, "io.circe:circe-core")
+	requireField(t, circe, "value", "0.14.6")
+	requireField(t, circe, "dependency_resolution_state", "resolved")
+	requireField(t, stateOf(t, payload), "unresolved_declaration_count", 4)
 }
 
 func TestParseScalaVersionForms(t *testing.T) {
@@ -173,6 +180,9 @@ func TestParseToleratesDependencyModifiers(t *testing.T) {
   ("org.baz" % "qux" % "2.0").intransitive()
 )
 `)
+	// The dotted and parenthesised spellings are outside the grammar, so the
+	// whole statement falls back: every coordinate keeps its literal fields
+	// and is partial.
 	spark := requireRow(t, payload, "org.apache.spark:spark-core")
 	requireField(t, spark, "value", "3.5.0")
 	requireField(t, requireRow(t, payload, "com.lihaoyi:ammonite"), "sbt_cross_version", "custom")
@@ -181,7 +191,23 @@ func TestParseToleratesDependencyModifiers(t *testing.T) {
 	if got := len(dependencyRows(t, payload)); got != 4 {
 		t.Fatalf("row count = %d, want 4: %#v", got, payload["variables"])
 	}
-	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
+	for _, row := range dependencyRows(t, payload) {
+		requireField(t, row, "dependency_resolution_state", "partial")
+	}
+	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 4)
+
+	// The infix spellings alone match the grammar and stay resolved.
+	infix := parseSource(t, `libraryDependencies ++= Seq(
+  "org.apache.spark" %% "spark-core" % "3.5.0" exclude("org.slf4j", "slf4j-log4j12"),
+  "com.lihaoyi" % "ammonite" % "3.0.0" cross CrossVersion.full,
+  "org.foo" %% "bar" % "1.0" withSources() withJavadoc()
+)
+`)
+	for _, row := range dependencyRows(t, infix) {
+		requireField(t, row, "dependency_resolution_state", "resolved")
+	}
+	requireField(t, requireRow(t, infix, "com.lihaoyi:ammonite"), "sbt_cross_version", "custom")
+	requireStateField(t, stateOf(t, infix), "unresolved_declaration_count", 0)
 }
 
 func TestParseDynamicRevisionsAreNotResolved(t *testing.T) {
@@ -211,9 +237,12 @@ libraryDependencies += "c" % "after" % "3"
 	if len(rows) != 2 {
 		t.Fatalf("rows = %#v, want typed and after", rows)
 	}
-	requireField(t, requireRow(t, payload, "b:typed"), "value", "2")
-	requireField(t, requireRow(t, payload, "c:after"), "value", "3")
-	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 1)
+	// A type argument is outside the grammar: the typed row is partial.
+	typed := requireRow(t, payload, "b:typed")
+	requireField(t, typed, "value", "2")
+	requireField(t, typed, "dependency_resolution_state", "partial")
+	requireField(t, requireRow(t, payload, "c:after"), "dependency_resolution_state", "resolved")
+	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 2)
 }
 
 func TestParseSettingsListKeepsLaterSettings(t *testing.T) {
@@ -252,9 +281,9 @@ libraryDependencies += "org.typelevel" %% "cats-core" % "2.10.0"
 	}
 }
 
-// TestParseScopedLibraryDependencies pins the axis rule: a ThisBuild key is a
-// project-level key and reads as compile, while a `Test /` key is scoped to a
-// configuration the scanner cannot prove sbt resolves, so it is undetermined.
+// TestParseScopedLibraryDependencies pins the axis rule: any axis before the
+// key, `Test /` and `ThisBuild /` alike, takes the statement out of the
+// grammar, so the rows are partial with a placeholder scope.
 func TestParseScopedLibraryDependencies(t *testing.T) {
 	t.Parallel()
 
@@ -265,8 +294,8 @@ ThisBuild / libraryDependencies += "a" % "b" % "1"
 	requireField(t, scoped, "dependency_resolution_state", "partial")
 	requireField(t, scoped, "dependency_scope", "compile")
 	requireField(t, requireRow(t, payload, "a:b"), "dependency_scope", "compile")
-	requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "resolved")
-	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 1)
+	requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "partial")
+	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 2)
 }
 
 func TestParseIgnoresNonDeclarations(t *testing.T) {

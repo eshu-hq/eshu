@@ -85,56 +85,56 @@ func TestParseUnknownTailIsUndeterminedNotCompile(t *testing.T) {
 	}
 }
 
-// TestParseScopeNeutralTailsKeepScopeResolved is the allowlist: the ModuleID
-// methods that cannot change the configuration keep the scope the `%` operands
-// and the axis gave, in every spelling the scanner accepts.
+// TestParseScopeNeutralTailsKeepScopeResolved is the allowlist: the infix
+// ModuleID calls that cannot change the configuration keep the scope the `%`
+// operand gave. A dotted call binds to the literal before it unless the
+// coordinate is parenthesised, and a parenthesised coordinate is outside the
+// grammar, so every dotted spelling is partial.
 func TestParseScopeNeutralTailsKeepScopeResolved(t *testing.T) {
 	t.Parallel()
 
 	tails := []string{
-		`exclude("x", "y")`, `.exclude("x", "y")`, `excludeAll(ExclusionRule("x"))`,
-		`classifier "tests"`, `.classifier("tests")`,
-		`intransitive`, `.intransitive()`, `notTransitive()`,
-		`withSources()`, `.withJavadoc()`, `withSources withJavadoc`,
-		`cross CrossVersion.full`, `.cross(CrossVersion.full)`, `.withCrossVersion(CrossVersion.binary)`,
-		`force()`, `.changing()`, `from("https://example.invalid/a.jar")`, `artifacts(Artifact("a"))`,
+		`exclude("x", "y")`, `excludeAll(ExclusionRule("x"))`,
+		`classifier "tests"`, `classifier("tests")`,
+		`intransitive()`, `withSources()`, `withJavadoc()`, `withSources() withJavadoc()`,
+		`cross CrossVersion.full`, `cross(CrossVersion.full)`, `force()`, `changing()`,
 	}
 	for _, tail := range tails {
-		// A dotted call binds to the operand before it, so outside parentheses
-		// it is only well formed as `(coordinate).call`.
-		if tail[0] != '.' {
-			requireResolvedScope(t, "plain "+tail, `libraryDependencies += "a" % "b" % "1" `+tail, "compile")
-			requireResolvedScope(t, "test "+tail, `libraryDependencies += "a" % "b" % "1" % Test `+tail, "test")
-			requireResolvedScope(t, "config after "+tail, `libraryDependencies += "a" % "b" % "1" `+tail+` % Provided`, "provided")
-			requireResolvedScope(t, "map "+tail, `libraryDependencies ++= Seq("a" % "b" % "1").map(_ % Test `+tail+`)`, "test")
-		}
-		requireResolvedScope(t, "paren "+tail, `libraryDependencies += ("a" % "b" % "1") `+tail+` % Runtime`, "runtime")
-		requireResolvedScope(t, "map only "+tail, `libraryDependencies ++= Seq("a" % "b" % "1").map(_ `+tail+`)`, "compile")
+		requireResolvedScope(t, "plain "+tail, `libraryDependencies += "a" % "b" % "1" `+tail, "compile")
+		requireResolvedScope(t, "test "+tail, `libraryDependencies += "a" % "b" % "1" % Test `+tail, "test")
+		requireResolvedScope(t, "seq "+tail, `libraryDependencies ++= Seq("a" % "b" % "1" % Provided `+tail+`)`, "provided")
+		requireUndetermined(t, "config after "+tail, `libraryDependencies += "a" % "b" % "1" `+tail+` % Provided`)
+		requireUndetermined(t, "paren "+tail, `libraryDependencies += ("a" % "b" % "1") `+tail+` % Runtime`)
+		requireUndetermined(t, "dotted "+tail, `libraryDependencies += ("a" % "b" % "1").`+tail)
+		requireUndetermined(t, "map "+tail, `libraryDependencies ++= Seq("a" % "b" % "1").map(_ `+tail+`)`)
 	}
-	requireResolvedScope(t, "toSeq", `libraryDependencies ++= Seq("a" % "b" % "1").toSeq.toList.distinct`, "compile")
-	requireResolvedScope(t, "filter", `libraryDependencies ++= Seq("a" % "b" % "1").filter(_ => true).map(_ % Test)`, "test")
+	for _, dropped := range []string{`notTransitive()`, `from("https://example.invalid/a.jar")`, `artifacts(Artifact("a"))`, `withCrossVersion(CrossVersion.binary)`} {
+		requireUndetermined(t, "off the list "+dropped, `libraryDependencies += "a" % "b" % "1" `+dropped)
+	}
 
 	payload := parseSource(t, `libraryDependencies += "a" % "b" % "1" cross CrossVersion.full`+"\n")
 	requireField(t, requireRow(t, payload, "a:b"), "sbt_cross_version", "custom")
 }
 
-// TestParseLeadingInfixPercentContinuesDependency covers sbt 2 / Scala 3 leading
-// infix: a line that starts with `%` continues the expression above it.
-func TestParseLeadingInfixPercentContinuesDependency(t *testing.T) {
+// TestParseLeadingInfixPercentIsReadOnlyInsideParentheses covers a line that
+// starts with `%`. Inside '(' Scala never ends a statement at a line break,
+// so it continues the element and the grammar reads it. In the bare file it
+// is sbt 2 / Scala 3 leading infix, which Scala 2 reads as a new statement;
+// the grammar does not choose, so the row is partial.
+func TestParseLeadingInfixPercentIsReadOnlyInsideParentheses(t *testing.T) {
 	t.Parallel()
 
-	requireResolvedScope(t, "leading Test", "libraryDependencies += \"a\" % \"b\" % \"1\"\n  % Test", "test")
-	requireResolvedScope(t, "leading string", "libraryDependencies += \"a\" % \"b\" % \"1\"\n  % \"provided\"", "provided")
-	requireResolvedScope(t, "leading last wins", "libraryDependencies += \"a\" % \"b\" % \"1\" % Provided\n  % Test", "test")
-	requireResolvedScope(t, "leading after exclude", "libraryDependencies += \"a\" % \"b\" % \"1\" exclude(\"x\", \"y\")\n  % Test", "test")
-	requireResolvedScope(t, "leading on coordinate", "libraryDependencies += \"a\"\n  % \"b\" % \"1\"", "compile")
+	requireUndetermined(t, "leading Test", "libraryDependencies += \"a\" % \"b\" % \"1\"\n  % Test")
+	requireUndetermined(t, "leading string", "libraryDependencies += \"a\" % \"b\" % \"1\"\n  % \"provided\"")
+	requireUndetermined(t, "leading on coordinate", "libraryDependencies += \"a\"\n  % \"b\" % \"1\"")
+	requireResolvedScope(t, "trailing operator", "libraryDependencies += \"a\" %\n  \"b\" % \"1\" %\n  Test", "test")
 
 	payload := parseSource(t, "libraryDependencies ++= Seq(\n  \"a\" % \"b\" % \"1\"\n    % Test,\n  \"c\" % \"d\" % \"2\"\n)\n")
 	requireField(t, requireRow(t, payload, "a:b"), "dependency_scope", "test")
 	requireField(t, requireRow(t, payload, "c:d"), "dependency_scope", "compile")
 	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
 
-	// The next statement is not swallowed by the continuation rule.
+	// The next statement is not swallowed by a continuation rule.
 	next := parseSource(t, "libraryDependencies += \"a\" % \"b\" % \"1\"\nlibraryDependencies += \"c\" % \"d\" % \"2\" % Test\n")
 	requireField(t, requireRow(t, next, "a:b"), "dependency_scope", "compile")
 	requireField(t, requireRow(t, next, "c:d"), "dependency_scope", "test")
@@ -199,28 +199,31 @@ lazy val core = project.settings(libraryDependencies += "e" % "f" % "3")
 	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 1)
 }
 
-// TestParseProjectLevelAxesStayResolved lists the axes that do not scope the key.
-func TestParseProjectLevelAxesStayResolved(t *testing.T) {
+// TestParseOnlyTheTwoGrammarContextsResolve lists where a key may sit: a
+// top-level statement of the bare file, or an argument of a project val's
+// `.settings(...)`. Every axis, including the build-wide ones and a declared
+// project, takes the statement out of the grammar.
+func TestParseOnlyTheTwoGrammarContextsResolve(t *testing.T) {
 	t.Parallel()
 
 	const dep = `"a" % "b" % "1"`
+	requireResolvedScope(t, "plain", `libraryDependencies += `+dep, "compile")
+	requireResolvedScope(t, "in settings", `lazy val core = project.settings(libraryDependencies += `+dep+`)`, "compile")
+	requireResolvedScope(t, "second settings argument", `lazy val core = project.settings(name := "x", libraryDependencies += `+dep+`)`, "compile")
 	cases := map[string]string{
-		"plain":                `libraryDependencies += ` + dep,
 		"ThisBuild":            `ThisBuild / libraryDependencies += ` + dep,
 		"Global":               `Global / libraryDependencies += ` + dep,
 		"ThisProject":          `ThisProject / libraryDependencies += ` + dep,
 		"declared project":     "lazy val core = (project in file(\"core\"))\ncore / libraryDependencies += " + dep,
 		"declared project dot": "lazy val core = project.in(file(\"core\"))\ncore / libraryDependencies += " + dep,
-		"typed project":        "lazy val core: Project = project\ncore / libraryDependencies += " + dep,
-		"crossProject":         "lazy val core = crossProject(JVMPlatform)\ncore / libraryDependencies += " + dep,
+		"crossProject axis":    "lazy val core = crossProject(JVMPlatform)\ncore / libraryDependencies += " + dep,
 		"legacy ThisBuild":     `libraryDependencies in ThisBuild += ` + dep,
 		"dot in ThisBuild":     `libraryDependencies.in(ThisBuild) += ` + dep,
 		"inThisBuild":          `inThisBuild(libraryDependencies += ` + dep + `)`,
-		"in settings":          `lazy val core = project.settings(libraryDependencies += ` + dep + `)`,
 		"legacy declared":      "lazy val core = project\nlibraryDependencies in core += " + dep,
 	}
 	for name, source := range cases {
-		requireResolvedScope(t, name, source, "compile")
+		requireUndetermined(t, name, source)
 	}
 }
 

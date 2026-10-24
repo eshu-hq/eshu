@@ -6,10 +6,13 @@ package sbt
 import "strings"
 
 // scalaBinaryVersion returns the artifact suffix sbt appends for `%%`:
-// "2.13" for any 2.13.x, "3" for any 3.x, and "" when the version is not a
-// recognisable Scala release. A version with a suffix (`2.13.0-M5`,
-// `3.0.0-RC1`, `2.13.12-bin-typelevel-4`) returns "" because sbt does not
-// always shorten those to the x.y form, and a wrong hint is worse than none.
+// "2.13" for any 2.13.x, "2.10" through "2.12" likewise, "3" for any 3.x, and
+// "" when the version is not a recognisable Scala release. Scala before 2.10
+// had no binary-compatible minor line (sbt cross-built 2.9.x with the full
+// version, such as `_2.9.2`), so it returns "". A version with a suffix
+// (`2.13.0-M5`, `3.0.0-RC1`, `2.13.12-bin-typelevel-4`) returns "" because sbt
+// does not always shorten those to the x.y form, and a wrong hint is worse
+// than none.
 func scalaBinaryVersion(version string) string {
 	if strings.Contains(version, "-") {
 		return ""
@@ -26,23 +29,31 @@ func scalaBinaryVersion(version string) string {
 		if minor == "" {
 			return ""
 		}
+		value := 0
 		for index := 0; index < len(minor); index++ {
-			if minor[index] < '0' || minor[index] > '9' {
+			if minor[index] < '0' || minor[index] > '9' || value > 1000 {
 				return ""
 			}
+			value = value*10 + int(minor[index]-'0')
+		}
+		if value < 10 {
+			return ""
 		}
 		return "2." + minor
 	}
 	return ""
 }
 
-// isDynamicRevision reports an Ivy dynamic revision (`1.+`, `latest.release`,
-// `[1.0,2.0)`) that names no single version.
+// isDynamicRevision reports an Ivy dynamic revision that names no single
+// version: a `1.+` prefix match, a `latest.release` status, or a range in any
+// of Ivy's spellings (`[1.0,2.0]`, `[1.0,2.0[`, `]1.0,2.0]`, `(,2.0]`,
+// `[1.0,)`). Gradle's parser reports such strings as written; sbt keeps them
+// partial because the resolved version is chosen at update time.
 func isDynamicRevision(version string) bool {
 	return strings.HasSuffix(version, "+") ||
 		strings.HasPrefix(version, "latest.") ||
-		strings.HasPrefix(version, "[") ||
-		strings.HasPrefix(version, "(")
+		(version != "" && strings.ContainsAny(version[:1], "[]()")) ||
+		strings.Contains(version, ",")
 }
 
 // row builds the content_entity-shaped dependency row, mirroring the Gradle
@@ -60,7 +71,7 @@ func (d dependency) row(vals map[string]string, binary string) map[string]any {
 			state = "partial"
 		}
 	case versionIdent:
-		if resolved, ok := vals[d.version]; ok && !strings.Contains(d.version, ".") {
+		if resolved, ok := vals[d.version]; ok && !d.chained && !strings.Contains(d.version, ".") {
 			value = resolved
 		} else {
 			state = "unresolved"
@@ -72,8 +83,9 @@ func (d dependency) row(vals map[string]string, binary string) map[string]any {
 	}
 
 	if d.scopeUndetermined() && state == "resolved" {
-		// The configuration or axis could not be mapped, so the scope is a
-		// placeholder; the row is partial rather than a resolved compile scope.
+		// The statement did not match the grammar, a later assignment
+		// superseded it, or the configuration could not be mapped: the scope
+		// is a placeholder, so the row is partial, never a resolved compile.
 		state = "partial"
 	}
 

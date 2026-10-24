@@ -8,61 +8,35 @@ import (
 	"testing"
 )
 
-// TestParseTestScopeSurvivesRealisticSbtForms pins the dependency_scope for
-// the forms sbt builds use to declare test-only dependencies. Each case must
-// come out test/resolved; compile here would put a test library on the
-// production dependency list.
-func TestParseTestScopeSurvivesRealisticSbtForms(t *testing.T) {
+// TestParseCollectionCallsArePartial covers the collection calls sbt builds use
+// to scope a list of dependencies. A call after a collection is outside the
+// grammar: the scanner cannot see what a `.map` body or a chain does to each
+// element, so every row is partial and counted, never resolved.
+func TestParseCollectionCallsArePartial(t *testing.T) {
 	t.Parallel()
 
+	const seq = `libraryDependencies ++= Seq("a" % "b" % "1", "c" % "d" % "2")`
 	cases := map[string]string{
-		"map with Test config": `libraryDependencies ++= Seq("a" % "b" % "1", "c" % "d" % "2").map(_ % Test)`,
-		"map with string":      `libraryDependencies ++= Seq("a" % "b" % "1", "c" % "d" % "2").map(_ % "test")`,
-		"infix map":            `libraryDependencies ++= Seq("a" % "b" % "1", "c" % "d" % "2") map (_ % Test)`,
-		"map on next line": `libraryDependencies ++= Seq("a" % "b" % "1", "c" % "d" % "2")
-  .map(_ % Test)`,
-		"multi-line seq map": `libraryDependencies ++= Seq(
-  "a" % "b" % "1",
-  "c" % "d" % "2"
-).map(_ % Test)`,
-		"map after chained call": `libraryDependencies ++= Seq("a" % "b" % "1", "c" % "d" % "2").map(_.withSources()).map(_ % Test)`,
+		"map with Test config":   seq + `.map(_ % Test)`,
+		"map with string":        seq + `.map(_ % "test")`,
+		"infix map":              seq + ` map (_ % Test)`,
+		"map on next line":       seq + "\n  .map(_ % Test)",
+		"multi-line seq map":     "libraryDependencies ++= Seq(\n  \"a\" % \"b\" % \"1\",\n  \"c\" % \"d\" % \"2\"\n).map(_ % Test)",
+		"map after chained call": seq + `.map(_.withSources()).map(_ % Test)`,
+		"last map wins":          seq + `.map(_ % Test).map(_ % Provided)`,
+		"lambda then map":        seq + `.map(d => d % X).map(_ % Test)`,
+		"neutral calls":          seq + `.map(_.withSources()).toSeq`,
+		"exclude in map":         seq + `.map(_.exclude("x", "y"))`,
 	}
 	for name, source := range cases {
 		payload := parseSource(t, source+"\n")
 		for _, dep := range []string{"a:b", "c:d"} {
-			row := requireRow(t, payload, dep)
-			if row["dependency_scope"] != "test" || row["dependency_resolution_state"] != "resolved" {
-				t.Errorf("%s: %s scope/state = %v/%v, want test/resolved", name, dep, row["dependency_scope"], row["dependency_resolution_state"])
+			if state := requireRow(t, payload, dep)["dependency_resolution_state"]; state != "partial" {
+				t.Errorf("%s: %s state = %v, want partial", name, dep, state)
 			}
 		}
-		requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
+		requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 2)
 	}
-}
-
-func TestParseTrailingConfigAfterParenthesisedCoordinate(t *testing.T) {
-	t.Parallel()
-
-	cases := map[string]string{
-		"cross then Test": `libraryDependencies += ("a" %% "b" % "1").cross(CrossVersion.for3Use2_13) % Test`,
-		"plain paren":     `libraryDependencies += ("a" %% "b" % "1") % Test`,
-		"in seq":          `libraryDependencies ++= Seq(("a" %% "b" % "1").cross(CrossVersion.for3Use2_13) % Test)`,
-		"string config":   `libraryDependencies += ("a" %% "b" % "1") % "test"`,
-		"after exclude":   `libraryDependencies += "a" %% "b" % "1" exclude("x", "y") % Test`,
-	}
-	for name, source := range cases {
-		payload := parseSource(t, source+"\n")
-		row := requireRow(t, payload, "a:b")
-		if row["dependency_scope"] != "test" || row["dependency_resolution_state"] != "resolved" {
-			t.Errorf("%s: scope/state = %v/%v, want test/resolved", name, row["dependency_scope"], row["dependency_resolution_state"])
-		}
-		requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
-	}
-
-	// The munit form from real builds keeps both the cross modifier and scope.
-	payload := parseSource(t, `libraryDependencies += ("org.scalameta" %% "munit" % "0.7.29").cross(CrossVersion.for3Use2_13) % Test`+"\n")
-	row := requireRow(t, payload, "org.scalameta:munit")
-	requireField(t, row, "sbt_cross_version", "custom")
-	requireField(t, row, "sbt_configuration", "Test")
 }
 
 func TestParseConfigurationListsSplitOnCommaAndSemicolon(t *testing.T) {
@@ -128,20 +102,8 @@ func TestParseUndeterminedScopeIsPartialAndCounted(t *testing.T) {
 	}
 }
 
-func TestParseScopePreservingMapKeepsScopeResolved(t *testing.T) {
-	t.Parallel()
-
-	payload := parseSource(t, `libraryDependencies ++= Seq("a" % "b" % "1").map(_.withSources()).toSeq
-libraryDependencies ++= Seq("c" % "d" % "2" % Provided).map(_.exclude("x", "y"))
-`)
-	requireField(t, requireRow(t, payload, "a:b"), "dependency_scope", "compile")
-	requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "resolved")
-	requireField(t, requireRow(t, payload, "c:d"), "dependency_scope", "provided")
-	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 0)
-}
-
-// TestParseLegacyInConfigAxis covers `libraryDependencies in <scope>`: a
-// ThisBuild scope is the project-level key, a configuration scope is undetermined.
+// TestParseLegacyInConfigAxis covers `libraryDependencies in <scope>`: every
+// axis takes the statement out of the grammar, ThisBuild included.
 func TestParseLegacyInConfigAxis(t *testing.T) {
 	t.Parallel()
 
@@ -150,65 +112,42 @@ libraryDependencies in ThisBuild += "a" % "b" % "1"
 libraryDependencies in Test ++= Seq("c" % "d" % "2")
 libraryDependencies in IntegrationTest := Seq("e" % "f" % "3")
 `)
-	for _, name := range []string{"org.scalatest:scalatest", "c:d", "e:f"} {
+	for _, name := range []string{"org.scalatest:scalatest", "a:b", "c:d", "e:f"} {
 		row := requireRow(t, payload, name)
 		requireField(t, row, "dependency_resolution_state", "partial")
 		requireField(t, row, "dependency_scope", "compile")
 	}
-	requireField(t, requireRow(t, payload, "a:b"), "dependency_resolution_state", "resolved")
-	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 3)
+	requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 4)
 }
 
-// TestParseLastTrailingConfigurationWins pins sbt's `%` semantics: each
-// `moduleID % config` replaces the configuration, so the last one decides.
-func TestParseLastTrailingConfigurationWins(t *testing.T) {
+// TestParseRepeatedConfigurationIsPartial pins sbt's `%` semantics: the
+// configuration operand requires a module with no configuration yet
+// (DependencyBuilders.moduleIDConfigurable), so a second `% config` fails to
+// load. The row is partial, never the last or the first configuration.
+func TestParseRepeatedConfigurationIsPartial(t *testing.T) {
 	t.Parallel()
 
-	cases := map[string]string{
-		`libraryDependencies += "a" % "b" % "1" % "test" % "compile"`:                "compile",
-		`libraryDependencies += "a" % "b" % "1" % Test % Provided`:                   "provided",
-		`libraryDependencies += ("a" % "b" % "1" % Test) % Runtime`:                  "runtime",
-		`libraryDependencies += "a" % "b" % "1" % Provided exclude("x", "y") % Test`: "test",
-	}
-	for source, want := range cases {
+	for _, source := range []string{
+		`libraryDependencies += "a" % "b" % "1" % "test" % "compile"`,
+		`libraryDependencies += "a" % "b" % "1" % Test % Provided`,
+		`libraryDependencies += ("a" % "b" % "1" % Test) % Runtime`,
+		`libraryDependencies += "a" % "b" % "1" % Provided exclude("x", "y") % Test`,
+	} {
 		payload := parseSource(t, source+"\n")
-		row := requireRow(t, payload, "a:b")
-		if row["dependency_scope"] != want || row["dependency_resolution_state"] != "resolved" {
-			t.Errorf("%s: scope/state = %v/%v, want %s/resolved", source, row["dependency_scope"], row["dependency_resolution_state"], want)
-		}
-	}
-}
-
-// TestParseMapConfigurationSequenceMatchesReplay checks that chained maps
-// resolve to the effect of replaying each call in order.
-func TestParseMapConfigurationSequenceMatchesReplay(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name, tail, scope, state string
-	}{
-		{"last config wins", `.map(_ % Test).map(_ % Provided)`, "provided", "resolved"},
-		{"unknown then config recovers", `.map(d => d % X).map(_ % Test)`, "test", "resolved"},
-		{"config then unknown stays partial", `.map(_ % Test).map(d => d % X)`, "test", "partial"},
-		{"scope neutral call between", `.map(_ % Test).map(_.withSources()).toSeq`, "test", "resolved"},
-	}
-	for _, tc := range cases {
-		payload := parseSource(t, `libraryDependencies ++= Seq("a" % "b" % "1")`+tc.tail+"\n")
-		row := requireRow(t, payload, "a:b")
-		if row["dependency_scope"] != tc.scope || row["dependency_resolution_state"] != tc.state {
-			t.Errorf("%s: scope/state = %v/%v, want %s/%s", tc.name, row["dependency_scope"], row["dependency_resolution_state"], tc.scope, tc.state)
+		if state := requireRow(t, payload, "a:b")["dependency_resolution_state"]; state != "partial" {
+			t.Errorf("%s: state = %v, want partial", source, state)
 		}
 	}
 }
 
 // TestParseOptionalConfigurationSetsOptionalFlag pins dependency_optional,
-// which now comes from the configuration resolved once per `% config`.
+// which comes from the configuration resolved once per `% config`.
 func TestParseOptionalConfigurationSetsOptionalFlag(t *testing.T) {
 	t.Parallel()
 
 	payload := parseSource(t, `libraryDependencies += "a" % "b" % "1" % "optional"
 libraryDependencies += "c" % "d" % "1" % "compile->default;Optional"
-libraryDependencies ++= Seq("e" % "f" % "1").map(_ % "optional")
+libraryDependencies ++= Seq("e" % "f" % "1" % "optional")
 libraryDependencies += "g" % "h" % "1" % Test
 `)
 	for name, want := range map[string]bool{"a:b": true, "c:d": true, "e:f": true, "g:h": false} {
