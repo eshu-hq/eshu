@@ -175,13 +175,15 @@ func validUVVersion(version []byte) bool {
 // brackets and spaces) and then the word `package`, as every package header
 // form does ([[package]], [package], [package.x], a trailing comment). A bare
 // word is never part of a valid TOML value, so such a line ends a value left
-// open by mistake. It examines at most a short prefix of the line.
+// open by mistake. It walks the leading run of brackets and blanks once, so
+// the cost is linear in the line however much whitespace sits inside the
+// brackets (a valid header may carry any amount).
 func startsPackageHeader(trimmed []byte) bool {
 	if len(trimmed) == 0 || trimmed[0] != '[' {
 		return false
 	}
 	i := 0
-	for i < len(trimmed) && i < 16 && (trimmed[i] == '[' || trimmed[i] == ' ' || trimmed[i] == '\t') {
+	for i < len(trimmed) && (trimmed[i] == '[' || trimmed[i] == ' ' || trimmed[i] == '\t') {
 		i++
 	}
 	return bytes.HasPrefix(trimmed[i:], []byte("package"))

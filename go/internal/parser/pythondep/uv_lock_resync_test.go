@@ -33,6 +33,9 @@ func TestParseUVLockUnterminatedOuterArrayIsNeverComplete(t *testing.T) {
 		{"swallowed spaced array header closed later", "version = 1\nresolution-markers = [\n  \"x\",\n[ [package]]\nname = \"a\"\n]\n", nil},
 		{"swallowed over-closed header", "version = 1\nresolution-markers = [\n  \"x\",\n[[package]]]\nname = \"evil\"\nversion = \"1.0\"\nsource = { path = \"../x\" }\n" + ok, []string{"ok"}},
 		{"sub-table array open at end of file", "version = 1\n" + ok + "\n[package.optional-dependencies]\nextra = [\n    { name = \"more\" },\n", []string{"ok"}},
+		{"swallow ends at a header with 15 inner spaces", "version = 1\nresolution-markers = [\n  \"x\",\n[[" + strings.Repeat(" ", 15) + "package]]\nname = \"evil\"\nversion = \"1.0\"\nsource = { path = \"../x\" }\n" + ok, []string{"evil", "ok"}},
+		{"swallow ends at a header with 300 inner spaces", "version = 1\nresolution-markers = [\n  \"x\",\n[[" + strings.Repeat(" ", 300) + "package]]\nname = \"evil\"\nversion = \"1.0\"\nsource = { path = \"../x\" }\n" + ok, []string{"evil", "ok"}},
+		{"swallow ends at a header with 15 inner tabs", "version = 1\nresolution-markers = [\n  \"x\",\n[[" + strings.Repeat("\t", 15) + "package]]\nname = \"evil\"\nversion = \"1.0\"\nsource = { path = \"../x\" }\n" + ok, []string{"evil", "ok"}},
 		{"sub-table array swallow ends at a header", "version = 1\n" + ok + "\n[package.optional-dependencies]\nextra = [\n    { name = \"more\" },\n" + evil, []string{"ok", "evil"}},
 	}
 	for _, tc := range cases {
