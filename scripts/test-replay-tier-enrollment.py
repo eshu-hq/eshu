@@ -174,8 +174,8 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                 registry_path, "", 1).replace("    requirements:\n      - go\n      - docker\n    ci_only_reason:",
                 '    requirements:\n      - go\n      - docker\n      - "specs/live-tests.d/**"\n    ci_only_reason:', 1)),
             "registry duplicate triggers": ("registry", registry_source.replace(
-                '      - ".github/workflows/verify-replay-tier.yml"\n    local:',
-                '      - ".github/workflows/verify-replay-tier.yml"\n'
+                '      - "specs/ci-pr-workflows.d/verify-replay-tier.yml"\n    local:',
+                '      - "specs/ci-pr-workflows.d/verify-replay-tier.yml"\n'
                 '    triggers:\n      - "go/internal/replay/**"\n    local:', 1)),
             "registry duplicate gate": ("registry", registry_source +
                 '\ngates:\n  - id: replay-tier\n    triggers:\n'
@@ -307,8 +307,8 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
             original[0] + "\njobs : {}\n",
         )
         registry_case = original[1].replace(
-            '      - ".github/workflows/verify-replay-tier.yml"\n    local:',
-            '      - ".github/workflows/verify-replay-tier.yml"\n'
+            '      - "specs/ci-pr-workflows.d/verify-replay-tier.yml"\n    local:',
+            '      - "specs/ci-pr-workflows.d/verify-replay-tier.yml"\n'
             '    triggers : []\n    local:', 1)
         target = r"|specs/live-tests(\.v1\.yaml|\.d/)"
         before, command, after = original[2].partition("run_or_defer replay-tier " + chr(92) + "\n")

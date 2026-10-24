@@ -51,34 +51,29 @@ require_unconditional_step() {
 
 expected_release_condition() {
   local guard="github.event_name != 'workflow_dispatch' || inputs.mode == 'release'"
+  local release
   case "$1" in
     queue-selection|changes)
-      printf '%s\n' "    if: ${guard}"
+      release="${guard}"
       ;;
     verify-apk-floors)
-      printf '%s\n' '    if: >-' "      (${guard}) &&" \
-        "      (github.event_name == 'merge_group' || (github.event_name == 'pull_request' && needs.changes.outputs.apkfloors == 'true'))"
+      release="(${guard}) && (github.event_name == 'merge_group' || (github.event_name == 'pull_request' && needs.changes.outputs.apkfloors == 'true'))"
       ;;
     build-and-push-image|verify-reproducibility)
-      printf '%s\n' '    if: >-' "      (${guard}) &&" \
-        "      (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')"
+      release="(${guard}) && (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')"
       ;;
     promote-moving-tags)
-      printf '%s\n' '    if: >-' "      (${guard}) &&" \
-        "      needs.changes.outputs.image == 'true' &&" \
-        "      needs.build-and-push-image.result == 'success' &&" \
-        "      ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')"
+      release="(${guard}) && needs.changes.outputs.image == 'true' && needs.build-and-push-image.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')"
       ;;
     attach-release-sbom)
-      printf '%s\n' '    if: >-' "      (${guard}) &&" \
-        "      needs.changes.outputs.image == 'true' && github.ref_type == 'tag'"
+      release="(${guard}) && needs.changes.outputs.image == 'true' && github.ref_type == 'tag'"
       ;;
     package-and-push-chart)
-      printf '%s\n' '    if: >-' "      (${guard}) &&" \
-        "      (github.event_name == 'merge_group' || needs.changes.outputs.chart == 'true')"
+      release="(${guard}) && (github.event_name == 'merge_group' || needs.changes.outputs.chart == 'true')"
       ;;
     *) fail "unknown release job: $1" ;;
   esac
+  printf '    if: ${{ (github.event_name != '\''pull_request'\'' || contains(fromJSON(inputs.plan_jobs || '\''[]'\''), '\''%s'\'')) && (%s) }}\n' "$1" "${release}"
 }
 
 rg -q '^  workflow_dispatch:$' "${workflow}" || fail 'manual dispatch missing'
@@ -117,10 +112,7 @@ for spec in 'publish-ci-service-mirrors:ci-mirrors-publish' \
   job="${spec%%:*}"
   mode="${spec#*:}"
   condition="$(job_condition "${job}")"
-  expected_condition="    if: >-
-      github.event_name == 'workflow_dispatch' && inputs.mode == '${mode}' &&
-      github.repository == 'eshu-hq/eshu' &&
-      github.ref == 'refs/heads/main'"
+  expected_condition="    if: github.event_name == 'workflow_dispatch' && inputs.mode == '${mode}' && github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main'"
   [[ "${condition}" == "${expected_condition}" ]] ||
     fail "${job} is not limited to its exact mode on eshu-hq/eshu main"
 done
@@ -222,7 +214,7 @@ if [[ "$#" -eq 0 ]]; then
     fail 'seeded comment-only release isolation was not detected'
   fi
   awk '
-    /^    if: github.event_name != '\''workflow_dispatch'\'' \|\| inputs.mode == '\''release'\''$/ {
+    /^    if: \$\{\{ .*inputs.mode == '\''release'\''/ {
       print $0 " || true"
       next
     }

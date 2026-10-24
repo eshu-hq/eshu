@@ -6,7 +6,13 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/scripts" "$work/bin"
 workflow="$repo_root/.github/workflows/read-api-latency-gate.yml"
-rg -q "^      - 'scripts/lib/test-methodology-scale-resource-observer-\\*\\.sh'$" "$workflow" || { printf 'scale fixture paths do not select the workflow\n' >&2; exit 1; }
+fragment="$repo_root/specs/ci-pr-workflows.d/read-api-latency-gate.yml"
+caller="$repo_root/.github/workflows/test.yml"
+rg -q '^  - scripts/lib/test-methodology-scale-resource-observer-\*\.sh$' "$fragment" &&
+rg -q '^  synchronize: true$' "$fragment" &&
+rg -q 'call-read-api-latency-gate:.*uses: ./\.github/workflows/read-api-latency-gate.yml' "$caller" &&
+rg -q "if: .*contains\(fromJSON\(inputs.plan_jobs || '\[\]'\), 'static-mirror'\)" "$workflow" &&
+rg -q "if: .*contains\(fromJSON\(inputs.plan_jobs || '\[\]'\), 'methodology-scale'\)" "$workflow" || { printf 'scale fixture paths do not select the planned workflow\n' >&2; exit 1; }
 start="$(rg -n -m1 '^      - name: Run scale and concurrent HTTP/MCP proof$' "$workflow" | cut -d: -f1)"
 end="$(rg -n -m1 '^      - name: Archive scale proof$' "$workflow" | cut -d: -f1)"
 [[ -n "$start" && -n "$end" && "$end" -gt "$start" ]] || { printf 'scale workflow step missing\n' >&2; exit 1; }
