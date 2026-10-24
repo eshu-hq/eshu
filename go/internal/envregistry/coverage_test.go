@@ -24,6 +24,7 @@ var coreScanFiles = []string{
 	"internal/runtime/pprof.go",
 	"internal/content/config_artifact_derive.go",
 	"internal/coordinator/config.go",
+	"internal/coordinator/retention.go",
 	"cmd/reducer/code_value_flow_stale_cleanup_config.go",
 	"cmd/reducer/infra_inventory_reconcile_wiring.go",
 	"cmd/reducer/generation_retention_wiring.go",

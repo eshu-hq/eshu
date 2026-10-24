@@ -1109,6 +1109,21 @@ tests:
     class: postgres_ci
     reason: "#8082 disposable PostgreSQL 18 differential proof that the repository-catalog loader's SQL key projection returns the same entries and observed_at freshness keys as the pre-#8082 whole-payload statement and Go decode over a numeric repo_id, an absent name, a JSON-null slug, a whitespace-only remote_url, two generations and a same-timestamp tie of one repository, and array, string and null payloads, and that the loader ships no row over 4 KiB although two 1 MiB payloads are seeded; reuses the ESHU_TARGETED_MAINTENANCE_PROOF_DSN disposable server; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/work/items/cancel_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8829 disposable PostgreSQL 18 proofs of the driver contract the retention canceled outcome rests on: a batch lock timeout (55P03) and a statement timeout (57014) surface as *pgconn.PgError and do not match context.Canceled, while a cancel during a waiting batch surfaces as context.Canceled and rolls the batch back; each proof creates and drops its own database from the bootstrap schema; about 1.5 to 2 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/work/items/concurrency_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8829 disposable PostgreSQL 18 concurrency proofs that workflow_work_items retention batches (FOR UPDATE SKIP LOCKED) skip held rows without waiting and never block claim, heartbeat, completion or terminal failure through WorkflowControlStore, including while an uncommitted batch holds its locks; each proof creates and drops its own database from the bootstrap schema; about 1 to 3 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/work/items/sweeper_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8829 disposable PostgreSQL 18 proofs that workflow_work_items retention keeps the newest unresolved terminal failure, the newest completed row (so the status registry last_completed_at survives), the newest row and the active-generation row per target, never touches claimed, pending, retrying, expired, open-run or young rows, respects its batch bound and deletes nothing on a second walk; each proof creates and drops its own database from the bootstrap schema; about 1 to 2 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/search/index/retention/drain_live_test.go
     tag: ~
     class: postgres_ci

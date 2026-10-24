@@ -98,6 +98,10 @@ type otelMetrics struct {
 	reconciled              atomic.Int64
 	awsFreshnessStuckClaims atomic.Int64
 	gcpFreshnessStuckClaims atomic.Int64
+
+	// workItemRetention holds the workflow_work_items retention instruments
+	// (#8829), registered in retention_metrics.go.
+	workItemRetention *workItemRetentionInstruments
 }
 
 // freshnessReapMetricInstruments holds the AWS/GCP freshness stuck-claim reap
@@ -214,6 +218,10 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 	if err != nil {
 		return nil, err
 	}
+	workItemRetention, err := newWorkItemRetentionInstruments(meter)
+	if err != nil {
+		return nil, err
+	}
 
 	recorder := &otelMetrics{
 		reconcileTotal:           reconcileTotal,
@@ -226,6 +234,7 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 		awsFreshnessReapDuration: freshnessReapInstruments.awsReapDuration,
 		gcpFreshnessReapTotal:    freshnessReapInstruments.gcpReapTotal,
 		gcpFreshnessReapDuration: freshnessReapInstruments.gcpReapDuration,
+		workItemRetention:        workItemRetention,
 	}
 
 	desiredGauge, err := meter.Int64ObservableGauge(

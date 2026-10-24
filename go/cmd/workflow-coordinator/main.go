@@ -45,6 +45,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/gcp"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/incident"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/retention/work/items"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -196,6 +197,15 @@ func run(parent context.Context) error {
 		StoreName:   "installed_advisory_targets",
 	}
 	factStore := postgres.NewFactStore(installedAdvisoryTargetsDB)
+	// The retention sweeper is always wired: retention is on by default in
+	// active mode, and Service.Run fails when it is on without a store
+	// (#8829). ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE=0 turns it off.
+	workItemRetentionDB := &postgres.InstrumentedDB{
+		Inner:       postgres.SQLDB{DB: db},
+		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
+		Instruments: instruments,
+		StoreName:   "workflow_work_item_retention",
+	}
 	serviceRunner := coordinator.Service{
 		Config: cfg,
 		Store:  store,
@@ -233,6 +243,7 @@ func run(parent context.Context) error {
 		IncidentFreshnessTriggers:         incidentFreshnessStore,
 		GovernanceAudit:                   governanceAuditStore,
 		Metrics:                           coordinatorMetrics,
+		WorkItemRetention:                 items.NewSweeper(workItemRetentionDB),
 		Logger:                            logger,
 	}
 	if semanticWorkerCfg.Enabled {

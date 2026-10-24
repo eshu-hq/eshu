@@ -134,7 +134,11 @@ type Service struct {
 	// configured it makes no real provider traffic unless its default-OFF
 	// execution flag and an enabled provider client are both supplied.
 	SemanticProviderWorker *semantic.ProviderWorker
-	Clock                  func() time.Time
+	// WorkItemRetention deletes old terminal workflow_work_items rows when
+	// Config.WorkItemRetention is enabled in active mode (#8829). Run fails
+	// when retention is enabled and this is nil.
+	WorkItemRetention WorkItemRetentionStore
+	Clock             func() time.Time
 }
 
 // Run periodically reconciles declarative collector instance state and, in
@@ -148,6 +152,9 @@ func (s Service) Run(ctx context.Context) error {
 		return err
 	}
 	s.logScanIntervalOverrides()
+	if err := s.checkWorkItemRetention(); err != nil {
+		return err
+	}
 
 	if err := s.runReconcile(ctx); err != nil {
 		return fmt.Errorf("initial collector reconciliation: %w", err)
@@ -160,6 +167,12 @@ func (s Service) Run(ctx context.Context) error {
 			return fmt.Errorf("initial workflow run reconciliation: %w", err)
 		}
 	}
+	// Retention starts after the initial run reconciliation, so runs that
+	// just finished are already closed when its first pass checks run status.
+	// It runs on its own loop so a pass never delays reap or reconciliation;
+	// stopping it cancels an in-flight pass and waits for it.
+	stopWorkItemRetention := s.startWorkItemRetention(ctx)
+	defer stopWorkItemRetention()
 	if s.Logger != nil {
 		message := "workflow coordinator running in dark mode"
 		if s.Config.DeploymentMode == deploymentModeActive {

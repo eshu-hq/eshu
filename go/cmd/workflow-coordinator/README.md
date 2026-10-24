@@ -96,6 +96,12 @@ for the full list. Key env vars:
   default `100`
 - ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_REQUEUE_DELAY — visibility delay
   after reap; default `5s`
+- ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE — in active mode, terminal
+  `workflow_work_items` rows older than this are deleted; default `720h` (on),
+  `0` turns retention off, otherwise at least `48h`
+- ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_BATCH_SIZE — rows per
+  retention batch transaction; default `1000`, at most `10000`; see
+  `docs/public/reference/telemetry/workflow-work-item-retention.md`
 - ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON — optional hosted collector egress
   policy; restricted mode requires per-kind allow rules before planning
 - ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON — optional hosted extension egress

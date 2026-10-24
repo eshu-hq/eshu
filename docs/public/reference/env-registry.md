@@ -12,7 +12,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | --- | --- | --- |
 | [API, auth, and MCP](env-registry/api-and-auth.md) | Listen addresses, authentication, browser sessions, OIDC and GitHub login, and the MCP server. | 48 |
 | [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 54 |
-| [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 88 |
+| [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 90 |
 | [Ingester and collector framework](env-registry/collectors-platform.md) | The ingester's git collector, the component package manager, and the component-extension collector. | 35 |
 | [Infrastructure and registry collectors](env-registry/collectors-infrastructure.md) | Cloud, Kubernetes, Vault, Terraform state, OCI registry, and package registry collectors. | 54 |
 | [Observability, delivery, and security collectors](env-registry/collectors-signals.md) | Grafana, Loki, Prometheus/Mimir, Tempo, PagerDuty, Jira, CI/CD run, security alert, SBOM, and vulnerability collectors. | 50 |
@@ -45,7 +45,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [`collector-vault-live`](env-registry/collectors-infrastructure.md#collector-vault-live) | 6 | Infrastructure and registry collectors |
 | [`collector-vulnerability-intelligence`](env-registry/collectors-signals.md#collector-vulnerability-intelligence) | 5 | Observability, delivery, and security collectors |
 | [`component`](env-registry/collectors-platform.md#component) | 7 | Ingester and collector framework |
-| [`coordinator`](env-registry/reducer-and-projection.md#coordinator) | 18 | Reducer and projection |
+| [`coordinator`](env-registry/reducer-and-projection.md#coordinator) | 20 | Reducer and projection |
 | [`graph`](env-registry/runtime-and-storage.md#graph) | 18 | Runtime and storage |
 | [`mcp`](env-registry/api-and-auth.md#mcp) | 6 | API, auth, and MCP |
 | [`postgres`](env-registry/runtime-and-storage.md#postgres) | 16 | Runtime and storage |
