@@ -45,11 +45,14 @@ func publishesExpectedEdgesPath(repoRoot string) string {
 // and package-publication decisions (BuildPackagePublicationDecisions),
 // and the exact/derived decisions of each project to PUBLISHES rows
 // (PackageOwnershipPublishesRows, PackagePublicationPublishesRows)
-// one-for-one with the write template's UNWIND. What the fixture proves is
-// the correlation behaviour on both paths at once: a package-level exact
-// hint owns the Package node and publishes its paired version, a
-// version-scoped exact hint owns that version without ever reaching the
-// publication path — while a tombstoned-only match (stale), a
+// one-for-one with the write template's UNWIND, deduplicated by edge
+// identity (a package-level and a version-scoped hint can pair with the
+// same version through separate decisions that project onto one MERGE
+// identity). What the fixture proves is the correlation behaviour on
+// both paths at once: a package-level exact hint owns the Package node
+// and publishes its paired version, a version-scoped exact hint owns that
+// same version on the ownership path and pairs with it on the publication
+// path — while a tombstoned-only match (stale), a
 // provenance-only homepage kind (rejected), an unmatched remote
 // (unresolved) and a two-remote match (ambiguous, never a picked
 // representative) each resolve to nothing rather than to a fabricated
