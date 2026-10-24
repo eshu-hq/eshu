@@ -51,6 +51,10 @@ type CollectedGeneration struct {
 	// DiscoveryAdvisory is optional focused-run tuning evidence for the
 	// collected repository. It is not persisted with facts.
 	DiscoveryAdvisory *DiscoveryAdvisoryReport
+	// StateWriter, when set, persists collector-owned state in the commit
+	// transaction of this generation (#8943). A claimed generation that sets
+	// it needs a committer implementing StateClaimedCommitter.
+	StateWriter GenerationStateWriter
 }
 
 // FactCount returns the best available fact count as max(atomic streamed count,
