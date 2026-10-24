@@ -434,9 +434,9 @@ func PathDispatches() []PathDispatch {
 			Examples:  []string{".mvn/extensions.xml", "module/.mvn/extensions.xml"},
 		},
 		{
-			Patterns:  []string{"*.tfvars.json"},
+			Patterns:  []string{"*.tfvars.json", "*.tfvars"},
 			ParserKey: "tfvars",
-			Examples:  []string{"prod.tfvars.json", "env/stage.auto.tfvars.json"},
+			Examples:  []string{"prod.tfvars.json", "env/stage.auto.tfvars.json", "Dockerfile.tfvars", "META-INF/services/x.tfvars"},
 		},
 		{
 			Patterns:  []string{"constraints.txt", "constraints-*.txt", "constraints_*.txt"},

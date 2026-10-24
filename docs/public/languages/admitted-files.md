@@ -80,7 +80,7 @@ Paths are matched case-insensitively:
 - `META-INF/services/<service>`, `META-INF/spring.factories`, `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` bind to `java_metadata`.
 - `conf/routes`, `*.routes` bind to `scala`.
 - `.mvn/extensions.xml` bind to `raw_text`.
-- `*.tfvars.json` bind to `tfvars`.
+- `*.tfvars.json`, `*.tfvars` bind to `tfvars`.
 - `constraints.txt`, `constraints-*.txt`, `constraints_*.txt` bind to `python_requirements`.
 <!-- parser-admission-table:end -->
 

@@ -136,3 +136,30 @@ func TestDefaultRegistryBindsCredentialFilePolicies(t *testing.T) {
 		}
 	}
 }
+
+// TestCredentialFilePoliciesWinEveryDispatch pins the #8833 security review:
+// a name another dispatch rule also claims (a Dockerfile or Jenkinsfile prefix,
+// a META-INF/services path) still gets the credential file's content-store
+// policy, so no naming choice stores the file verbatim.
+func TestCredentialFilePoliciesWinEveryDispatch(t *testing.T) {
+	t.Parallel()
+
+	registry := DefaultRegistry()
+	for path, want := range map[string]string{
+		"Dockerfile.tfvars":                   "tfvars",
+		"Jenkinsfile.tfvars":                  "tfvars",
+		"Dockerfile.tfvars.json":              "tfvars",
+		"src/main/META-INF/services/x.tfvars": "tfvars",
+		"META-INF/services/.yarnrc.yml":       "yarnrc",
+		"lib/META-INF/services/.npmrc":        "npmrc",
+		"conf/x.tfvars":                       "tfvars",
+	} {
+		definition, ok := registry.lookupPath(path)
+		if !ok || definition.ParserKey != want {
+			t.Errorf("%s dispatches to %q (ok=%v), want %s", path, definition.ParserKey, ok, want)
+		}
+		if got := registry.ContentStoreForPath(path); got.Policy == ContentStoreStore || got.Policy == "" {
+			t.Errorf("%s content store = %+v, want the %s policy", path, got, want)
+		}
+	}
+}
