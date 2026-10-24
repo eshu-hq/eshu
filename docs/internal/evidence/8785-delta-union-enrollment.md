@@ -17,7 +17,7 @@ missing routes, and missing event verification. The ledger pins this file alone
 to `delta-union-scheduled` and `backends: neo4j`. The five tests in
 `superseded_delta_overlay_live_test.go` remain scheduled.
 
-## Current-base local proof
+## Pinned local proof before the latest rebase
 
 The isolated local run at `4c1e5dc43614dbc7f6e561427785873b1a368472`
 used the pinned PostgreSQL 18.6 Bookworm image
@@ -50,9 +50,10 @@ Both owned service containers were removed with exit 0.
 
 The receipt and event stream are at
 `/tmp/eshu-7533-drive/8785-current-local/receipt.json` and `events.jsonl` on
-the proof host. This run proves the unchanged two Go roots against the current
-base's runtime and pinned local services. It does not prove a hosted workflow
-run or daily delivery. The older `/tmp/eshu-7533-drive/8785-local/manifest.txt`
-run is historical because the base now includes runtime changes. Hosted PR and
-scheduled delivery, plus deployed QA, are NOT_CHECKED. Keep #8785 open for
-that evidence.
+the proof host. This run proves the two Go roots against the runtime at the
+tested commit and pinned local services. A later rebase onto
+`34922d077381bbef2b44cb70f518c12bd3f8b24a` added upstream changes;
+a local backend run on that combined tree is NOT_CHECKED. The older
+`/tmp/eshu-7533-drive/8785-local/manifest.txt` run is historical after an
+earlier runtime-base change. Hosted PR and scheduled delivery, plus deployed
+QA, are NOT_CHECKED. Keep #8785 open for that evidence.
