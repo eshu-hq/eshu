@@ -114,13 +114,8 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --pr "${PR_NUMBER}" \
             --head-sha "${HEAD_SHA}" > "${RUNNER_TEMP}/pr-plan.json"
-          jq -e --arg sha "${HEAD_SHA}" '
-            .schema_version == 1 and .head_sha == $sha and
-            (.mode == "full" or .mode == "reuse" or .mode == "smoke") and
-            (.workflows | type == "array") and (.jobs | type == "object") and
-            (.gates | type == "array") and
-            (if .mode == "reuse" then (.workflows | length == 0) and (.jobs | length == 0) and (.gates | length == 0)
-             else (.workflows | length > 0) and (.jobs | length > 0) end)' \
+          jq -e --arg sha "${HEAD_SHA}" --argjson run_id "${GITHUB_RUN_ID}" \
+            --argjson run_attempt "${GITHUB_RUN_ATTEMPT}" -f scripts/ci/pr-plan-v2.jq \
             "${RUNNER_TEMP}/pr-plan.json" > /dev/null
           jq -r '"mode=\(.mode)", "reuse=\(.mode == "reuse")", "head_sha=\(.head_sha)", "source_sha=\(.source_sha // "")", "tree=\(.tree // "")", "workflows=\(.workflows | tojson)", "jobs=\(.jobs | tojson)", "gates=\(.gates | tojson)"' \
             "${RUNNER_TEMP}/pr-plan.json" >> "$GITHUB_OUTPUT"
