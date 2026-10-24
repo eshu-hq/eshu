@@ -369,7 +369,7 @@ func TestContentWriterBatchesLargeFileSet(t *testing.T) {
 	records := make([]content.Record, 1000)
 	for i := 0; i < 1000; i++ {
 		records[i] = content.Record{
-			Path:     "file" + strings.Repeat("x", i%10) + ".go",
+			Path:     fmt.Sprintf("file%04d", i) + strings.Repeat("x", i%10) + ".go",
 			Body:     "content" + strings.Repeat("x", i%10),
 			Metadata: map[string]string{"language": "go"},
 		}

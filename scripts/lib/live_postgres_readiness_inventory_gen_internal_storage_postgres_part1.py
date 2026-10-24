@@ -44,6 +44,27 @@ TABLE = {
             "TestContainerImageIdentityFirstGenerationServiceDispatchLive",
             "TestContainerImageIdentityFirstGenerationSupersededWhileNullLive",
         ),
+        "go/internal/storage/postgres/content_file_upsert_guard_bench_live_test.go": (
+            "TestContentFileUpsertGuardReplayBenchLive",
+            "TestContentFileUpsertGuardChangedBatchBenchLive",
+        ),
+        "go/internal/storage/postgres/content_file_upsert_guard_columns_live_test.go": (
+            "TestContentFileUpsertGuardColumnsLive",
+            "TestContentFileUpsertGuardUnchangedReplayWritesNoRowWALLive",
+        ),
+        "go/internal/storage/postgres/content_file_upsert_guard_concurrency_live_test.go": (
+            "TestContentFileUpsertGuardConcurrentWritersLive",
+            "TestContentFileUpsertGuardRechecksAgainstCommittedRowLive",
+        ),
+        "go/internal/storage/postgres/content_file_upsert_guard_contract_live_test.go": (
+            "TestContentWriterRejectsDuplicatePathInBatchLive",
+            "TestContentFileUpsertBatchAcceptsSamePathInDifferentReposLive",
+            "TestContentFileUpsertGuardSkippedStatementFiresStatementTriggersLive",
+        ),
+        "go/internal/storage/postgres/content_file_upsert_guard_live_test.go": (
+            "TestContentFileUpsertGuardUnchangedReplayLeavesRowsUntouchedLive",
+            "TestContentFileUpsertGuardChangedFileStillUpdatesLive",
+        ),
         "go/internal/storage/postgres/content_files_generation_tag_live_test.go": (
             "TestReducerContentionGateContentGenerationTagAheadWriteReadsDirty",
             "TestReducerContentionGateContentGenerationTagActivatedTagReadsClean",
@@ -464,27 +485,6 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go": (
             "TestReducerQueueAckBatchFencesSupersededClaimLive",
             "TestReducerQueueExpiryInterleaveLive",
-        ),
-        "go/internal/storage/postgres/reducer_queue_producer_refinalize_live_test.go": (
-            "TestOwnGateWaitsThroughRefinalizeReResolutionLive",
-        ),
-        "go/internal/storage/postgres/reducer_queue_producer_terminal_live_test.go": (
-            "TestOwnGateProducerDeadLetteredConsumerDeadLettersLive",
-            "TestOwnGateProducerRetryingConsumerKeepsDeferringLive",
-        ),
-        "go/internal/storage/postgres/reducer_queue_security_alert_impact_wait_concurrent_live_test.go": (
-            "TestReducerContentionGateSecurityAlertReconciliationImpactFenceUnderContention",
-        ),
-        "go/internal/storage/postgres/reducer_queue_security_alert_impact_wait_live_test.go": (
-            "TestReducerContentionGateSecurityAlertReconciliationImpactFenceKeepsItsAttemptBudget",
-            "TestReducerContentionGateSecurityAlertReconciliationGivesUpVisiblyWithoutAFence",
-        ),
-        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_bound_live_test.go": (
-            "TestReducerContentionGateServiceCatalogRuntimeFenceBoundsOnProducerNotCatalogAge",
-            "TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerIsWorked",
-            "TestReducerContentionGateServiceCatalogRuntimeFenceConvergesAtTheElapsedBound",
-            "TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerLeaseIsLive",
-            "TestReducerContentionGateServiceCatalogRuntimeFenceReopenedProducerWaits",
         ),
     },
 }

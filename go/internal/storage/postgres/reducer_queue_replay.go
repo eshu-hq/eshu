@@ -243,9 +243,9 @@ func (q ReducerQueue) ReplayWorkloadMaterializationOutcome(
 	generationID string,
 	entityKey string,
 ) (reducer.WorkloadMaterializationReplayOutcome, error) {
-	// Replay is enqueue-only: it reopens succeeded work, marks an active claim
-	// for replay after ACK, accepts already-pending work, or enqueues a missing
-	// intent. It never steals or rewrites an active lease.
+	// Replay records durable scheduling: it reopens succeeded work, marks an
+	// active claim for replay after ACK, accepts already-pending work, or
+	// enqueues a missing intent. It never steals or rewrites an active lease.
 	if err := q.validateEnqueue(); err != nil {
 		return reducer.WorkloadMaterializationReplayNotScheduled, err
 	}
