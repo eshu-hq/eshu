@@ -8,6 +8,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 type supplyChainRuntimePlan struct {
@@ -53,7 +56,7 @@ func explainSupplyChainRuntimeFilterPlan(
 		plan.Plan.SharedReadBlocks,
 	)
 	if plan.ExecutionTime > 500 {
-		t.Fatalf("%s execution = %.3fms, want <= 500ms", name, plan.ExecutionTime)
+		t.Fatalf("%s execution = %.3fms, want <= 500ms; plan:\n%s", name, plan.ExecutionTime, rawJSON)
 	}
 	return string(rawJSON)
 }
@@ -109,4 +112,22 @@ func supplyChainRuntimePlanIndexRows(
 		}
 	}
 	return 0, false
+}
+
+func supplyChainRuntimeFilterExplainArgs(filter impact.ExplanationFilter) []any {
+	return []any{
+		impact.FindingFactKind,
+		filter.FindingID,
+		filter.AdvisoryID,
+		filter.CVEID,
+		filter.PackageID,
+		filter.RepositoryID,
+		filter.SubjectDigest,
+		filter.WorkloadID,
+		filter.ServiceID,
+		filter.ImageRef,
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
+		impact.SuppressionReadAt(nil),
+	}
 }

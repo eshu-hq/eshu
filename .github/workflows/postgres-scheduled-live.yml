@@ -128,6 +128,7 @@ on:
       - 'go/internal/storage/postgres/infra/inventory/retention_live_test.go'
       - 'go/internal/storage/postgres/infra/inventory/retention_lock_probe_live_test.go'
       - 'go/internal/storage/postgres/infra/inventory/testdata/**'
+      - 'go/internal/storage/postgres/migrations/**'
       - 'go/internal/storage/postgres/migrations/001_ingestion_scopes.sql'
       - 'go/internal/storage/postgres/migrations/002_scope_generations.sql'
       - 'go/internal/storage/postgres/migrations/003_fact_records.sql'
@@ -161,8 +162,10 @@ on:
       - 'go/internal/storage/postgres/reducer_queue_pre_activation_live_test.go'
       - 'go/internal/storage/postgres/reducer_queue_shared_edge_target_readiness_live_test.go'
       - 'go/internal/storage/postgres/reducer_queue_supersede_readiness_test.go'
+      - 'go/internal/storage/postgres/schema*.go'
       - 'go/internal/storage/postgres/supersede_prior_failure_fidelity_live_test.go'
       - 'go/internal/storage/postgres/supersede_prior_failure_live_test.go'
+      - 'go/internal/storage/postgres/supply_chain_runtime_filter_index_restart_live_test.go'
       - 'go/internal/storage/postgres/testdata/**'
       - 'go/internal/storage/postgres/value_flow_refresh_ack_live_test.go'
       - 'go/internal/storage/postgres/value_flow_refresh_fanout_live_test.go'
@@ -769,6 +772,8 @@ jobs:
         env:
           ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
           ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE: "1"
+          ESHU_TEST_SUPPLY_CHAIN_RUNTIME_INDEX_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_TEST_SUPPLY_CHAIN_RUNTIME_INDEX_POSTGRES_DISPOSABLE: "1"
         run: |
           set -euo pipefail
           test -z "${GOFLAGS:-}"
@@ -777,7 +782,7 @@ jobs:
           test -z "$effective_config"
           proof_status="$(git -C .. status --porcelain --untracked-files=all)"
           test -z "$proof_status"
-          go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestContentFileSecretLinesMigrationBackfillsAndReappliesLive|TestContentFileSecretLinesRetentionPruneCascadesLive)$' | tee "${RUNNER_TEMP}/disposable_storage.jsonl"
+          go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestContentFileSecretLinesMigrationBackfillsAndReappliesLive|TestContentFileSecretLinesRetentionPruneCascadesLive|TestSupplyChainRuntimeFallbackIndexRestartSafetyLive)$' | tee "${RUNNER_TEMP}/disposable_storage.jsonl"
           python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/disposable_storage.jsonl" --group disposable_storage
           effective_config="$(go env GOFLAGS GOWORK)"
           test -z "$effective_config"

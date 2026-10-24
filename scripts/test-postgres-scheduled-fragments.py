@@ -20,13 +20,13 @@ class InventoryFragmentTest(unittest.TestCase):
     """The index and every listed fragment form one closed source contract."""
 
     def test_committed_index_and_all_six_new_groups(self) -> None:
-        """The reviewed inventory contains all 242 tests in 119 files."""
+        """The reviewed inventory contains all 243 tests in 120 files."""
         index = json.loads(runner.INVENTORY.read_text(encoding="utf-8"))
         self.assertEqual(index["version"], "postgres-scheduled-inventory/v1")
         self.assertEqual(len(index["fragments"]), 15)
         inventory = runner.load_inventory()
-        self.assertEqual(len(inventory), 119)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 242)
+        self.assertEqual(len(inventory), 120)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 243)
         for group, files, tests in (
             ("claim", 13, 36), ("liveness", 7, 18), ("fanout", 3, 3),
             ("search", 5, 8), ("readiness", 4, 6),
@@ -66,6 +66,20 @@ class InventoryFragmentTest(unittest.TestCase):
                 with mock.patch.object(Path, "read_text", read):
                     with self.assertRaises(ValueError):
                         runner.verify_inventory(ROOT, inventory)
+
+    def test_runtime_fallback_index_uses_existing_admin_group(self) -> None:
+        """Keep the new migrator proof in the existing disposable storage leg."""
+        path = ("go/internal/storage/postgres/"
+                "supply_chain_runtime_filter_index_restart_live_test.go")
+        inventory = runner.load_inventory()
+        self.assertEqual(inventory.get(path), {
+            "group": "disposable_storage",
+            "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+            "tests": ["TestSupplyChainRuntimeFallbackIndexRestartSafetyLive"],
+        })
+        self.assertIn("ESHU_TEST_SUPPLY_CHAIN_RUNTIME_INDEX_POSTGRES",
+                      runner.ADMIN_ENVS["disposable_storage"])
+        runner.verify_inventory(ROOT, inventory)
 
     def test_bad_fragment_index_rejected(self) -> None:
         """Missing, duplicate, and traversal fragments fail before enrollment."""

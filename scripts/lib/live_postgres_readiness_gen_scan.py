@@ -65,6 +65,25 @@ CONSTANT_MANAGED = frozenset({
 CHILD_ONLY_DSN = "ESHU_CHANGED_SINCE_LINK_CHILD_DSN"
 CHILD_ONLY_FILE = "go/internal/reducer/freshness/links/process_live_test.go"
 
+CHAIN = "go/internal/query/supply/chain/"
+IMPACT = CHAIN + "impact/"
+FILTER = CHAIN + "runtime_filter_live_test.go"
+PLAN = CHAIN + "runtime_filter_plan_live_test.go"
+WORKLOAD = CHAIN + "runtime_filter_workload_id_shape_live_test.go"
+AUTHORITY = CHAIN + "suppression_authority_live_test.go"
+# Reviewed source call edges for #8835. Keep this independent of generated pins:
+# deleting a marker or regenerating cannot silently shrink the required proof.
+REQUIRED_HELPER_CONSUMERS = {
+    IMPACT + "suppression_plan_proof_live_test.go": (
+        IMPACT + "suppression_paths_performance_live_test.go",),
+    CHAIN + "runtime_context_scope_live_test.go": (FILTER, PLAN, WORKLOAD),
+    CHAIN + "runtime_normalization_live_test.go": (FILTER,),
+    CHAIN + "runtime_repository_precedence_live_test.go": (FILTER,),
+    CHAIN + "suppression_authority_adversarial_live_test.go": (AUTHORITY,),
+    CHAIN + "suppression_authority_assertions_live_test.go": (AUTHORITY,),
+    CHAIN + "suppression_authority_scoped_live_test.go": (AUTHORITY,),
+}
+
 ACK_VARS = frozenset({
     "ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE",
     "ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE",
@@ -120,8 +139,10 @@ def parse_marker(rel: str, source: str) -> dict | None:
                    " (rendered into an unescaped YAML scalar)")
     if len(envs) != 1 or not envs[0].split():
         raise fail(f"{rel}: exactly one non-empty env line is required")
-    if len(optionals) > 1 or len(helpers) > 1:
-        raise fail(f"{rel}: at most one env-optional and one helper line")
+    if len(optionals) > 1:
+        raise fail(f"{rel}: at most one env-optional line")
+    if len(set(helpers)) != len(helpers):
+        raise fail(f"{rel}: duplicate helper reference")
     declared = envs[0].split() + (optionals[0].split() if optionals else [])
     for var in declared:
         if not VAR_PATTERN.fullmatch(var):
@@ -133,7 +154,7 @@ def parse_marker(rel: str, source: str) -> dict | None:
         raise fail(f"{rel}: marked file defines no Test func")
     return {"reason": reasons[0], "env": sorted(envs[0].split()),
             "optional": sorted(optionals[0].split()) if optionals else [],
-            "helper": helpers[0] if helpers else "", "tests": tests,
+            "helpers": sorted(helpers), "tests": tests,
             "source": source}
 
 
@@ -165,7 +186,7 @@ def parse_helper_marker(rel: str, source: str) -> str | None:
 
 
 def collect(root: pathlib.Path) -> tuple[dict, dict]:
-    """Scan every live file; return (enrolled, helper binding)."""
+    """Scan live files and bind the closed helper-consumer source edges."""
     enrolled: dict[str, dict] = {}
     helpers: dict[str, str] = {}
     for path in live_files(root):
@@ -186,30 +207,46 @@ def collect(root: pathlib.Path) -> tuple[dict, dict]:
             if rel in helpers:
                 raise fail(f"{rel}: duplicate helper marker")
             helpers[rel] = helper_reason
-    if len(helpers) != 1:
-        raise fail(f"exactly one helper binding is required, "
-                   f"found {len(helpers)}")
-    helper_path = next(iter(helpers))
-    consumers = [rel for rel, marker in enrolled.items()
-                 if marker["helper"] == helper_path]
-    if len(consumers) != 1:
-        raise fail(f"helper {helper_path} needs exactly one consumer")
-    consumer = consumers[0]
-    stray = [rel for rel, marker in enrolled.items()
-             if marker["helper"] and marker["helper"] != helper_path]
-    if stray:
-        raise fail(f"unknown helper reference in {stray}")
-    package = root.joinpath(helper_path).parent
-    if root.joinpath(consumer).parent != package:
-        raise fail(f"helper and consumer packages differ: {helper_path}")
-    helper_sha = hashlib.sha256(
-        root.joinpath(helper_path).read_bytes()).hexdigest()
-    consumer_sha = hashlib.sha256(
-        root.joinpath(consumer).read_bytes()).hexdigest()
-    binding = {"path": helper_path, "reason": helpers[helper_path],
-               "helper_sha256": helper_sha, "consumer": consumer,
-               "consumer_sha256": consumer_sha}
-    return enrolled, binding
+    if set(helpers) != set(REQUIRED_HELPER_CONSUMERS):
+        raise fail("helper membership differs from the reviewed set: "
+                   f"missing={sorted(set(REQUIRED_HELPER_CONSUMERS) - set(helpers))} "
+                   f"extra={sorted(set(helpers) - set(REQUIRED_HELPER_CONSUMERS))}")
+    references: dict[str, set[str]] = {helper: set() for helper in helpers}
+    for consumer, marker in enrolled.items():
+        for helper in marker["helpers"]:
+            if helper not in references:
+                raise fail(f"{consumer}: unknown helper reference: {helper}")
+            references[helper].add(consumer)
+    if any(references[path] != set(want)
+           for path, want in REQUIRED_HELPER_CONSUMERS.items()):
+        raise fail("helper consumer edges differ from the reviewed set")
+    bindings = {}
+    for helper in sorted(helpers):
+        helper_source = root.joinpath(helper).read_bytes()
+        helper_package = re.findall(r"^package (\w+)$", helper_source.decode(), re.MULTILINE)
+        if len(helper_package) != 1:
+            raise fail(f"{helper}: helper has no unique Go package")
+        consumers = []
+        for consumer in sorted(references[helper]):
+            marker = enrolled[consumer]
+            if len(marker["tests"]) != 1:
+                raise fail(f"{consumer}: helper consumer must define exactly one test")
+            if root.joinpath(consumer).parent != root.joinpath(helper).parent:
+                raise fail(f"helper and consumer packages differ: {helper}")
+            consumer_package = re.findall(r"^package (\w+)$", marker["source"], re.MULTILINE)
+            if consumer_package != helper_package:
+                raise fail(f"helper and consumer Go packages differ: {helper}")
+            consumers.append({
+                "consumer_file": consumer,
+                "consumer_test": marker["tests"][0],
+                "consumer_sha256": hashlib.sha256(root.joinpath(consumer).read_bytes()).hexdigest(),
+            })
+        bindings[helper] = {
+            "reason": helpers[helper],
+            "helper_sha256": hashlib.sha256(helper_source).hexdigest(),
+            "consumers": consumers,
+        }
+    return enrolled, bindings
 
 
 def code_literals(source: str) -> set[str]:

@@ -258,6 +258,11 @@ var migrationShippedChecksums = map[string]string{
 	"209_partition_lease_claimed_at.sql":                                     "cdab9f7fd61365dc94ae065fdf232ca342b66a1aa349c3b4c77eb4b47e2618cb",
 	"210_scope_generations_delta_union_base_commit_sha.sql":                  "a7cd14f10e5846168063b4d85ddb95b895dfc4214c63326c354963b5a3445af5",
 	"211_workflow_work_items_failed_terminal_instance_idx.sql":               "a34ba2f2d72d825fccfbf535c5e1b5174c32d6d2a75aff98827479fddb1ebe97",
+	"212_supply_chain_identity_workload_trim_index.sql":                      "79be4ac3c18c804ff74db54363653b286d041787ea5249d85ce1c58718b0f2fb",
+	"213_supply_chain_identity_entity_trim_index.sql":                        "ce9f790cce8fd1ea159fffe47a965d0d31687730ce9fa31e5c83f17ac9d1097c",
+	"214_supply_chain_catalog_workload_trim_index.sql":                       "339a0c949e63ea776c72599253f6de6c70cbb4d5f92f5d9578676424da808a19",
+	"215_supply_chain_catalog_service_trim_index.sql":                        "5e05cdffe7c16ac88bfe2f6f962143679f8ea4552a43a31f4d2453ccb081e64e",
+	"216_supply_chain_cicd_environment_trim_index.sql":                       "640d14c8941d609981c849205412f08659f1a97497f60a527eb70606ff200955",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

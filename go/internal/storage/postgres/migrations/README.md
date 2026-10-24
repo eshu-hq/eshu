@@ -272,6 +272,27 @@ rollout:
 
 Evidence: `docs/internal/evidence/7427-drop-terms-generation-fk.md`.
 
+## Migrations 212 to 216: supply-chain runtime fallback indexes (#8835)
+
+These five immutable files add separate partial indexes for padded workload,
+service, and environment values. The first four index the exact `BTRIM` scalar
+expression. Migration 212 indexes the `fact_id` of workload-identity rows whose
+entity keys contain padded strings; the reader still checks the complete
+normalized entity value. Its work grows with the number of padded identity rows.
+The 100,000-padded-row fixture returned the selective hit and miss in 215.121
+and 207.802 ms, within the existing 500 ms plan bound, while reading all
+100,002 qualifying index entries. This is fixture evidence, not a bound for a
+larger production population.
+
+Each file contains one `CREATE INDEX CONCURRENTLY` so ordinary fact writers can
+continue during an upgrade. The tracked bootstrap path checks for invalid
+concurrent indexes, drops them, and retries the build; `IF NOT EXISTS` alone
+would retain an invalid index. Preserve the raw-value indexes from migrations
+079 and 080. An application-code rollback leaves the additive indexes in place
+and the old raw predicates usable. If an operator deliberately drops one of
+these new indexes on a disposable rollback, its recorded migration must also
+be removed before the tracked migrator can recreate it.
+
 ## Verification
 
 ```bash

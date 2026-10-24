@@ -81,6 +81,36 @@ func TestSupplyChainRuntimeFilterListArgsMatchQueryPlaceholders(t *testing.T) {
 	}
 }
 
+// TestSupplyChainRuntimeFilterAggregateAndExplainArgsMatchQueryPlaceholders ties
+// the live plan fixtures to the production SQL parameter contract.
+func TestSupplyChainRuntimeFilterAggregateAndExplainArgsMatchQueryPlaceholders(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		query string
+		args  []any
+	}{
+		"aggregate": {
+			impact.AggregateCountQuery,
+			supplyChainRuntimeFilterAggregateArgs(impact.AggregateFilter{}),
+		},
+		"inventory": {
+			impact.InventoryQuery("fact.impact_status"),
+			append(supplyChainRuntimeFilterAggregateArgs(impact.AggregateFilter{}), 10, 0),
+		},
+		"explain": {
+			impact.ExplainFindingQuery,
+			supplyChainRuntimeFilterExplainArgs(impact.ExplanationFilter{}),
+		},
+	}
+	for name, test := range cases {
+		t.Run(name, func(t *testing.T) {
+			if want := highestPlaceholder(t, test.query); len(test.args) != want {
+				t.Fatalf("plan fixture binds %d arguments, but %s requires %d", len(test.args), name, want)
+			}
+		})
+	}
+}
+
 // productionQueryArgCount returns how many arguments the QueryContext call
 // inside fnName passes after ctx and the query, read from the source rather
 // than executed.

@@ -179,6 +179,56 @@ tests:
     class: postgres_ci
     reason: "#7533 helper-only source with no Test root; exercised by the enrolled TestSupplyChainSuppressionPathsPerformanceLive proof in the preimplementation main run at 271d54e5 (readiness run 38997937360, shard 1 job 117294524860: 24.070s PASS); source dependency pinned in the live-postgres-readiness helper inventory"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/runtime_context_scope_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8835 helper-only source exercised through a pinned enrolled PostgreSQL runtime or suppression root."
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/runtime_filter_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8835 PostgreSQL runtime and suppression proof; four executable roots passed the fresh PostgreSQL 18.6 replay with their original assertions and no skips."
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/runtime_filter_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8835 PostgreSQL runtime and suppression proof; four executable roots passed the fresh PostgreSQL 18.6 replay with their original assertions and no skips."
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/runtime_filter_workload_id_shape_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8835 PostgreSQL runtime and suppression proof; four executable roots passed the fresh PostgreSQL 18.6 replay with their original assertions and no skips."
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/runtime_normalization_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8835 helper-only source exercised through a pinned enrolled PostgreSQL runtime or suppression root."
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/runtime_repository_precedence_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8835 helper-only source exercised through a pinned enrolled PostgreSQL runtime or suppression root."
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/suppression_authority_adversarial_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8835 helper-only source exercised through a pinned enrolled PostgreSQL runtime or suppression root."
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/suppression_authority_assertions_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8835 helper-only source exercised through a pinned enrolled PostgreSQL runtime or suppression root."
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/suppression_authority_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8835 PostgreSQL runtime and suppression proof; four executable roots passed the fresh PostgreSQL 18.6 replay with their original assertions and no skips."
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/suppression_authority_scoped_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8835 helper-only source exercised through a pinned enrolled PostgreSQL runtime or suppression root."
+    runner: live-postgres-readiness
   - file: go/internal/reducer/freshness/links/lock_timeout_live_test.go
     tag: ~
     class: postgres_ci

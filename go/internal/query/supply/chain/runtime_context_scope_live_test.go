@@ -3,14 +3,27 @@
 
 package chain
 
+//eshu:readiness-helper live-postgres-readiness
+//eshu:readiness-helper:reason #8835 helper-only source exercised through a pinned enrolled PostgreSQL runtime or suppression root.
+
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
+
+// bootstrapRuntimeFilterSchema makes each runtime proof independent of test order.
+func bootstrapRuntimeFilterSchema(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: database}); err != nil {
+		t.Fatalf("apply runtime-filter bootstrap schema: %v", err)
+	}
+}
 
 func assertSupplyChainRuntimeContextScopesLive(
 	t *testing.T,

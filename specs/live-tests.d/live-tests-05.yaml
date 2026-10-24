@@ -450,3 +450,8 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/supply_chain_runtime_filter_index_restart_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled disposable_storage tracked migration and concurrent writer proof; explicit disposable PostgreSQL admin fixture; docs/internal/evidence/8835-supply-runtime-and-enrollment.md"
+    runner: postgres-scheduled

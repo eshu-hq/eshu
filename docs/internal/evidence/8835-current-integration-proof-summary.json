@@ -1,0 +1,239 @@
+{
+  "issue": 8835,
+  "tested_head": "26107b08fd2c9498c01b07262e3b35876f53b14b",
+  "base": "7d798c8b4e2e76518257aee0b73a6e3b73ebb8cb",
+  "go_version": "go version go1.26.10 linux/amd64",
+  "postgres_version": "postgres (PostgreSQL) 18.6 (Debian 18.6-1.pgdg12+2)",
+  "postgres_image_id": "sha256:2e182ed2ff8f5d0835353864264437a26dffc542a9a6c677ec495aa54e491627",
+  "query_source_sha256": "f0edaf4a9a92b8f657ce51cf6f871c17555e0f6dcbc5f17a950cdb238b1cca56",
+  "query_binary_sha256": "3a293663e9419cc01acfc50d3fb93be43bb19aae9696b056196fb4fa398042b4",
+  "query_command": [
+    "go",
+    "tool",
+    "test2json",
+    "-p",
+    "github.com/eshu-hq/eshu/go/internal/query/supply/chain",
+    "-t",
+    "/tmp/eshu-7533-drive/8835-production-after-7d798/query-current.test",
+    "-test.v",
+    "-test.run=^(TestSupplyChainImpactRuntimeFilterPlansLive|TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive|TestSupplyChainImpactWorkloadIDFilterRepositoryIDShapeLive|TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive)$",
+    "-test.count=1",
+    "-test.timeout=6m"
+  ],
+  "four_root_events": "one run/pass each; no selected skips/failures; strict checker exited 0",
+  "query_process_seconds": 40.19574856758118,
+  "query_load1_start_max_end": [
+    3.61,
+    3.87,
+    3.66
+  ],
+  "plans": [
+    {
+      "name": "runtime_context_200_candidates",
+      "planning_ms": 4.303,
+      "execution_ms": 210.985,
+      "rows": 599.0,
+      "shared_hit": 5066,
+      "shared_read": 10735
+    },
+    {
+      "name": "legacy_workload_scalar",
+      "planning_ms": 11.658,
+      "execution_ms": 2.256,
+      "rows": 1.0,
+      "shared_hit": 41,
+      "shared_read": 133
+    },
+    {
+      "name": "legacy_workload_entity_key",
+      "planning_ms": 13.951,
+      "execution_ms": 1.325,
+      "rows": 1.0,
+      "shared_hit": 153,
+      "shared_read": 4
+    },
+    {
+      "name": "legacy_service",
+      "planning_ms": 8.962,
+      "execution_ms": 0.434,
+      "rows": 1.0,
+      "shared_hit": 21,
+      "shared_read": 4
+    },
+    {
+      "name": "legacy_environment",
+      "planning_ms": 8.888,
+      "execution_ms": 0.342,
+      "rows": 1.0,
+      "shared_hit": 22,
+      "shared_read": 3
+    },
+    {
+      "name": "legacy_environment_high_cardinality",
+      "planning_ms": 8.823,
+      "execution_ms": 336.261,
+      "rows": 1.0,
+      "shared_hit": 223722,
+      "shared_read": 2112
+    },
+    {
+      "name": "legacy_combined",
+      "planning_ms": 13.155,
+      "execution_ms": 1.544,
+      "rows": 1.0,
+      "shared_hit": 177,
+      "shared_read": 0
+    },
+    {
+      "name": "winners_combined",
+      "planning_ms": 11.071,
+      "execution_ms": 1.338,
+      "rows": 1.0,
+      "shared_hit": 167,
+      "shared_read": 1
+    },
+    {
+      "name": "winners_environment_high_cardinality",
+      "planning_ms": 6.589,
+      "execution_ms": 335.928,
+      "rows": 1.0,
+      "shared_hit": 225825,
+      "shared_read": 0
+    },
+    {
+      "name": "aggregate_combined",
+      "planning_ms": 13.381,
+      "execution_ms": 1.409,
+      "rows": 1.0,
+      "shared_hit": 173,
+      "shared_read": 0
+    },
+    {
+      "name": "aggregate_environment_high_cardinality",
+      "planning_ms": 8.808,
+      "execution_ms": 329.453,
+      "rows": 1.0,
+      "shared_hit": 225830,
+      "shared_read": 0
+    },
+    {
+      "name": "inventory_environment_high_cardinality",
+      "planning_ms": 9.338,
+      "execution_ms": 331.289,
+      "rows": 1.0,
+      "shared_hit": 225830,
+      "shared_read": 0
+    },
+    {
+      "name": "aggregate_no_runtime_filter",
+      "planning_ms": 6.661,
+      "execution_ms": 0.282,
+      "rows": 1.0,
+      "shared_hit": 43,
+      "shared_read": 0
+    },
+    {
+      "name": "explain_workload_service",
+      "planning_ms": 10.96,
+      "execution_ms": 1.227,
+      "rows": 1.0,
+      "shared_hit": 163,
+      "shared_read": 0
+    },
+    {
+      "name": "padded_entity_hit",
+      "planning_ms": 12.607,
+      "execution_ms": 382.925,
+      "rows": 1.0,
+      "shared_hit": 6285,
+      "shared_read": 613
+    },
+    {
+      "name": "padded_entity_miss",
+      "planning_ms": 11.172,
+      "execution_ms": 337.891,
+      "rows": 0.0,
+      "shared_hit": 6871,
+      "shared_read": 0
+    }
+  ],
+  "plan_count": 16,
+  "max_execution_ms": 382.925,
+  "plan_bound_ms": 500,
+  "write_300000_seconds": 21.032749169,
+  "write_bound_seconds": 120,
+  "query_database_absent": true,
+  "ddl_binary_sha256": "07eaa4dec9dc94c023051d33c2833800270a48028405031de680ad093ea2870a",
+  "ddl_source_sha256": "d96ad59fcd76326f209da2f14d7438ea7fdc10bd4f7a5c5aca26dcc3831be825",
+  "ddl_command": [
+    "go",
+    "tool",
+    "test2json",
+    "-p",
+    "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "-t",
+    "/tmp/eshu-7533-drive/8835-ddl-after-7d798/ddl-current.test",
+    "-test.v",
+    "-test.run=^(TestSupplyChainRuntimeFallbackIndexRestartSafetyLive)$",
+    "-test.count=1",
+    "-test.timeout=4m"
+  ],
+  "ddl_root_events": "one run/pass, no skip/fail; strict checker exited 0",
+  "ddl_process_seconds": 6.477862358093262,
+  "ddl_load1_start_max_end": [
+    4.72,
+    6.58,
+    6.58
+  ],
+  "ddl_observations": {
+    "five_index_build_ms": 318.04599,
+    "writer_cycles": 44,
+    "max_writer_cycle_ms": 15.599754
+  },
+  "ddl_new_databases_surviving": 0,
+  "migration_reconciliation": {
+    "renames": {
+      "go/internal/storage/postgres/migrations/211_supply_chain_identity_workload_trim_index.sql": "go/internal/storage/postgres/migrations/212_supply_chain_identity_workload_trim_index.sql",
+      "go/internal/storage/postgres/migrations/212_supply_chain_identity_entity_trim_index.sql": "go/internal/storage/postgres/migrations/213_supply_chain_identity_entity_trim_index.sql",
+      "go/internal/storage/postgres/migrations/213_supply_chain_catalog_workload_trim_index.sql": "go/internal/storage/postgres/migrations/214_supply_chain_catalog_workload_trim_index.sql",
+      "go/internal/storage/postgres/migrations/214_supply_chain_catalog_service_trim_index.sql": "go/internal/storage/postgres/migrations/215_supply_chain_catalog_service_trim_index.sql",
+      "go/internal/storage/postgres/migrations/215_supply_chain_cicd_environment_trim_index.sql": "go/internal/storage/postgres/migrations/216_supply_chain_cicd_environment_trim_index.sql"
+    },
+    "sql_payloads_byte_identical": true,
+    "shipped_211_byte_identical": true,
+    "bootstrap_definitions_count": 234,
+    "bootstrap_definitions_digest": "8ae8ebffb7e7c2cf3dde98b61117decf6505b090fd4351cbafdefcf30c53fe22"
+  },
+  "shipped_211_sha256": "a34ba2f2d72d825fccfbf535c5e1b5174c32d6d2a75aff98827479fddb1ebe97",
+  "earlier_complete_output_differential": {
+    "tested_head": "5cdf839c0867988435915bec9316063c0bc8a315",
+    "cases": 17,
+    "impact_leaf_tree_at_old_and_current": "34ee86deabf4caeeef4fbd4cc45256bea4a233f4",
+    "rerun_claimed": false,
+    "status": "historical full-output proof carried by unchanged relevant leaf; current four-root truth replay passed"
+  },
+  "readiness_layout": {
+    "current_count": 571,
+    "current_shard_counts": [
+      130,
+      143,
+      143,
+      155
+    ],
+    "full_four_shard_matrix_retained": true,
+    "job_cap_minutes": 30,
+    "hosted_updated_layout": "NOT_CHECKED"
+  },
+  "limits": "Local fixture observations only; no end-to-end speed comparison or deployment-capacity claim; new hosted readiness success remains required.",
+  "hermetic_runner": {
+    "head": "26107b08fd2c9498c01b07262e3b35876f53b14b",
+    "head_after": "26107b08fd2c9498c01b07262e3b35876f53b14b",
+    "command": [
+      "bash",
+      "scripts/test-run-live-postgres-readiness-tests.sh"
+    ],
+    "exit_code": 0,
+    "wall_seconds": 317.9216254064813,
+    "log": "/tmp/eshu-7533-drive/8835-current-hermetic-runner.log"
+  }
+}
