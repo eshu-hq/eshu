@@ -6,6 +6,7 @@ package mcp
 import (
 	"encoding/json"
 	"slices"
+	"unicode/utf8"
 )
 
 // supportedProtocolVersions lists the MCP protocol revisions this server
@@ -51,10 +52,15 @@ func requestedProtocolVersion(params json.RawMessage) string {
 const maxLoggedVersionBytes = 64
 
 // truncateForLog bounds a client-supplied string before it reaches a log line,
-// so a hostile initialize cannot write an unbounded value.
+// so a hostile initialize cannot write an unbounded value. The cut backs up to
+// a rune boundary, so the logged value stays valid UTF-8.
 func truncateForLog(s string) string {
 	if len(s) <= maxLoggedVersionBytes {
 		return s
 	}
-	return s[:maxLoggedVersionBytes] + "..."
+	cut := maxLoggedVersionBytes
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "..."
 }
