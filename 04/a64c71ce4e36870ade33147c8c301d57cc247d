@@ -1,0 +1,29 @@
+go/cmd/collector-grafana/CUTOVER_CHECKLIST.DRAFT.md
+  s_ff8a600f1fc93e::t_e7cb0ea15cba2b 1-69
+go/cmd/collector-grafana/EXTRACTION_PREP.md
+  s_ff8a600f1fc93e::t_1859af129a3ce3 1-117
+go/cmd/collector-grafana/extraction_prep_mirror_test.go
+  s_ff8a600f1fc93e::t_bc05432034be1f 1-126
+go/cmd/collector-grafana/producer-grant.manifest.DRAFT.yaml
+  s_ff8a600f1fc93e::t_da00ee63c22d5f 1-57
+go/cmd/collector-grafana/version-matrix.sh
+  s_ff8a600f1fc93e::t_03c0156d0c9a3d 1-63
+go/internal/collector/observability/grafana/extraction_prep_mirror_test.go
+  s_ff8a600f1fc93e::t_70b4847841b9b8 1-276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "04a64c71ce4e36870ade33147c8c301d57cc247d",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
