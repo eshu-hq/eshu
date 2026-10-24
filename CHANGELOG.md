@@ -33,6 +33,24 @@ recent shipped work grouped by feature area.
   when its reconciliation sweep next comes due. Collector output for real
   repositories does not change.
 
+### Collector readiness names each kind's own terminal failure class
+
+- **Collector readiness reports a bounded failure class for every collector
+  kind** ([#8896](https://github.com/eshu-hq/eshu/issues/8896)). A terminal
+  failure on Jira, AWS, the OCI and package registries, SBOM attestation,
+  vulnerability intelligence, the scanner worker, or the Terraform state
+  collector used to read `last_failure_class: unknown` when the class was one
+  only that kind writes. Each kind now reports the nine classes every kind
+  shares plus its own (for example `permission_hidden`, `permission_denied`,
+  `stale_fence`, `registry_auth_denied`, `timeout`). A class an extension
+  collector defines reads the single token `extension_defined`. Anything else
+  still reads `unknown`, so no persisted text reaches the field or the
+  `failure_class` label of `eshu_runtime_coordinator_collector_terminal_failure_instances`,
+  which takes at most 41 values. The two OpenAPI `last_failure_class` enums and
+  the class table in the terminal-failure reference grow together. Existing
+  values keep their meaning; a client that treats the enum as closed must
+  accept the new members.
+
 ### Service story defaults to a bounded handles view over MCP
 
 - **`get_service_story` defaults to a bounded `handles` view**
