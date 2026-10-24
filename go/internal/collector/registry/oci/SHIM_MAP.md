@@ -8,7 +8,7 @@ changes runtime behavior.
 ## 1. Poll path: `collector.Service.Next` → SDK `Result`
 
 In-tree: `Source.Next` (`runtime/source.go:65`) yields one
-`collector.CollectedGeneration` (`go/internal/collector/service.go:32-54`)
+`collector.CollectedGeneration` (the `CollectedGeneration` type in `go/internal/collector/service.go`)
 per target; `Service.Run` (`service.go:198`) commits it through the
 `Committer` boundary (`service.go:99-107`).
 

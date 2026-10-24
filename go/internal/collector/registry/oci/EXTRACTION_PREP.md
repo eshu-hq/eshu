@@ -48,8 +48,9 @@ Scope: `go/cmd/collector-oci-registry/` and
 
 ## 2. Fact kinds and versions
 
-Declared in `go/internal/facts/supply/chain/oci_registry.go:12-43`. All seven
-kinds are at schema `1.0.0`:
+Declared in `go/internal/facts/supply/chain/oci_registry.go`
+(`OCIRegistryRepositoryFactKind` through `OCIRegistryWarningFactKind`).
+All seven kinds are at schema `1.0.0`:
 
 | Kind | Version | Constructor |
 | --- | --- | --- |
@@ -75,7 +76,7 @@ exist; the actual in-tree path is `go/internal/collector/registry/oci/`.
 - Projector decode: `go/internal/projector/decode/oci_registry.go`.
 - Reducer domain: `container_image_identity`
   (`oci_registry.go:89` truth profile `provider_gated`).
-- Query/read: `go/internal/query/container_image_identities_test.go:198`,
+- Query/read: `go/internal/query/container_image_identities_test.go::TestExplainContainerImageCandidateQueryUsesBoundedOCIScopeReadModel`,
   `container_image_candidate_explanation.go:81-105`, `images_test.go:53`.
 - Golden fixture: `testdata/cassettes/ociregistry/supply-chain-demo.json`,
   projected by `go/internal/projector/canonical/oci_registry_cassette_test.go`.
@@ -86,8 +87,8 @@ The collector owns **no** durable state. Durable writes stay core-owned:
 
 - Fact commit: `postgres.NewIngestionStore` (`service.go:54,80,110`).
 - Claim control: `postgres.NewWorkflowControlStore` (`service.go:114`).
-- Claim lifecycle: `collector.ClaimedService`
-  (`go/internal/collector/claimed_service.go:59`).
+- Claim lifecycle: `collector.ClaimedService` (the `ClaimedService` runner
+  in `go/internal/collector/claimed_service.go`).
 - In-tree transient state only: `Source.next` cursor and
   `transportFailures` counters (`runtime/source.go:57-61`); both reset per
   process and never persist.
@@ -109,7 +110,8 @@ workflow handles.
   (`runtime/config.go:38-67`).
 - Public target contract: `collector-sdk/v1alpha1`
   (`sdk/go/collector/types.go:10`).
-- Cassette replay: `go/internal/replay/cassette/format.go:28-113`;
+- Cassette replay: `File` load and validate (`LoadFile`, `ParseAndValidate`
+  in `go/internal/replay/cassette/format.go`);
   binary flag `-mode=cassette -cassette-file=<path>` (`main.go`).
 
 ## 6. Artifacts
@@ -117,7 +119,7 @@ workflow handles.
 - Today: single in-tree binary `collector-oci-registry`
   (`serviceName` in `main.go`). No published artifact.
 - At cutover: digest-pinned OCI artifact executed via
-  `go/internal/collector/extensionhost/oci.go:42-71` (`OCIRunner`), same SDK
+  `OCIRunner` in `go/internal/collector/extensionhost/oci.go`, same SDK
   contract as `ProcessRunner`. No artifact is built or published by this PREP.
 
 ## 7. Migration stage
