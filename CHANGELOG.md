@@ -191,8 +191,8 @@ recent shipped work grouped by feature area.
   use, with `package_manager` `sbt`. Non-literal forms are reported as
   `unresolved` or counted in `sbt_state.unresolved_declaration_count`; sbt is
   never evaluated. Package-registry correlation for sbt rows is a follow-up.
-  The git collector content version moves to `git-collector.v10`, so every
-  repository re-collects once.
+  The registry fingerprint moves with the new exact name, so every repository
+  re-collects once; the `git-collector` content version constant is unchanged.
 
 ### Service story defaults to a bounded handles view over MCP
 

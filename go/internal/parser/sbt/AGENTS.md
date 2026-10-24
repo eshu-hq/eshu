@@ -72,10 +72,11 @@ single-pass scanner with no recursion. 200,000 nested parentheses finish in
 `MaxDependencyRows` (10,000) rows with the remaining 90,000 counted in
 `sbt_state.dependency_overflow_count`. Backend: none (file bytes only, no
 Postgres or graph access). Terminal counts: a 100,000-line file yields 10,000
-rows, 90,000 overflow, 0 unresolved. The git collector content version moves
-to `git-collector.v10` and re-pins at 297 facts (293 before the `build.sbt`
-fixture joined the pinned corpus); every repository re-collects once because
-the registry binding changed.
+rows, 90,000 overflow, 0 unresolved. The `git-collector` content version
+constant stays `git-collector.v9`: the exact name moves the registry
+fingerprint inside `GenerationContentVersion` on its own, so every repository
+re-collects once. The pin re-records at 297 facts (293 before the `build.sbt`
+fixture joined the pinned corpus).
 
 No-Observability-Change: the package emits no metrics, spans, or logs, like the
 Gradle, Maven, and go.mod parsers. Parse timing stays with the ingester and
