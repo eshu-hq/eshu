@@ -80,9 +80,9 @@ the provider alert.
   disabled sets `GitHubDependabotError.AlertsDisabled` (#8805). The failure
   class is `not_found` (#8947), a terminal class for a disabled alert surface,
   not `auth_denied`; a 403 with a rate-limit signal stays `rate_limited` and
-  any other 403 stays `auth_denied`. The message is only compared, never stored or
-  returned by `Error()`. A body that is unreadable, cut off, not JSON, or worded
-  differently leaves the marker false.
+  any other 403 stays `auth_denied`. The message is only compared, never stored
+  or returned by `Error()`. A body that is unreadable, cut off, not JSON, or
+  worded differently leaves the marker false.
 - Organization alerts (`/orgs/{org}/dependabot/alerts`) preserve each alert's
   source `repository`. The hosted runtime derives a per-repository scope from
   it so org-window facts carry the same `repository_id` shape as the

@@ -210,8 +210,8 @@ func TestClaimedSourceFanoutFreshnessHintSeparatesAlertsDisabledFromFailed(t *te
 }
 
 // TestClaimedSourceIgnoresAlertsDisabledMarkerOnOtherClasses proves the marker
-// only changes an auth_denied failure: a rate-limited or retryable failure that
-// somehow carries it still stops the fan-out.
+// only matters for a not_found failure: a rate-limited or retryable failure
+// that somehow carries it still stops the fan-out.
 func TestClaimedSourceIgnoresAlertsDisabledMarkerOnOtherClasses(t *testing.T) {
 	t.Parallel()
 

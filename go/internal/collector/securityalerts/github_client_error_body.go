@@ -47,9 +47,8 @@ func githubBodySaysAlertsDisabled(data []byte) bool {
 // rate-limit signal explains and its complete JSON body says Dependabot alerts
 // are disabled (#8805). FailureClass then reports not_found (#8947): the
 // failure stays terminal for a repository-scope target, and the org fan-out
-// reads the marker to continue past the repository. A
-// body that is unreadable, cut off, not JSON, or worded differently leaves it
-// false. The bodyComplete guard is redundant with readGitHubErrorBody, which
+// reads the marker to continue past the repository. A body that is unreadable,
+// cut off, not JSON, or worded differently leaves it false. The bodyComplete guard is redundant with readGitHubErrorBody, which
 // returns no data for an incomplete body, and is kept so the contract reads
 // from this function alone.
 func (e *GitHubDependabotError) markAlertsDisabled(body []byte, bodyComplete bool) {

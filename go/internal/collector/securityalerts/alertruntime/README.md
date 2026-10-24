@@ -50,12 +50,12 @@ a failed, rate-limited, stopped, alerts-disabled, or capped repository adds
 `org_repository_fanout_cap_reached`. Only a `not_found` read (this
 includes the 403 the client marked `AlertsDisabled`: a JSON body saying
 Dependabot alerts are disabled, no rate-limit signal, classified `not_found`
-since #8947) lets the fan-out continue;
-the first read that fails any other way (rate limit, other auth denied, 5xx,
-transport, terminal) stops it (`fanoutFailureOutcome`). A repository-scope
-target that gets the same 403 fails as terminal `not_found`, not `auth_denied`
-(#8947), so readiness does not blame a working credential. The claim still commits what it read and never loops.
-Only a cancelled claim context fails the claim, with no partial generation.
+since #8947) lets the fan-out continue; the first read that fails any other
+way (rate limit, other auth denied, 5xx, transport, terminal) stops it
+(`fanoutFailureOutcome`). A repository-scope target that gets the same 403
+fails as terminal `not_found`, not `auth_denied` (#8947), so readiness does not
+blame a working credential. The claim still commits what it read and never
+loops. Only a cancelled claim context fails the claim, with no partial generation.
 An allowlist with no repository of the organization fans out nothing: the
 truncated org read is returned as a single read, with its truncated freshness
 digest and no fan-out outcomes.

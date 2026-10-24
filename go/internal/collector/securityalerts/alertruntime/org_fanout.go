@@ -266,13 +266,12 @@ func fanoutRepositoryObject(repository string) securityalerts.GitHubDependabotRe
 // provider marked "Dependabot alerts are disabled for this repository", which
 // the client classifies as not_found (#8947). The marker is checked first and
 // only for not_found, so a rate limit or a retryable failure carrying it still
-// stops. A rate limit stops
-// the fan-out as rate_limited. Any other class (auth_denied without the
-// marker, including a plain 403 with no rate-limit exhaustion signal, retryable 5xx or
-// transport, terminal) stops it as stopped, because the next read against the
-// same credential and provider would most likely fail the same way, and GitHub
-// warns that continuing to call while limited risks the integration being
-// banned.
+// stops. A rate limit stops the fan-out as rate_limited. Any other class
+// (auth_denied without the marker, including a plain 403 with no rate-limit
+// exhaustion signal, retryable 5xx or transport, terminal) stops it as stopped,
+// because the next read against the same credential and provider would most
+// likely fail the same way, and GitHub warns that continuing to call while
+// limited risks the integration being banned.
 func fanoutFailureOutcome(failure ProviderFailure) (outcome string, stop string) {
 	class := failure.FailureClass()
 	if class == FailureNotFound && failure.AlertsDisabled() {

@@ -9,7 +9,7 @@ disabled" still continues and one that did not still stops.
 
 ## Baseline and after
 
-- Baseline: `origin/main` at aa70a739b0. A 403 with no rate-limit signal and a
+- Baseline: `origin/main` at 19785f70bb. A 403 with no rate-limit signal and a
   complete JSON body saying Dependabot alerts are disabled classifies as
   `auth_denied` on a repository-scope target.
 - After: the same response classifies as terminal `not_found`.
