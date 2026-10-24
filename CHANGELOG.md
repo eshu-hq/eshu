@@ -90,7 +90,7 @@ recent shipped work grouped by feature area.
   disabled). The read path reports such a repository with the stored
   `org_repository_*` or `provider_open_alert_page_limit_reached` reason, and a
   repository read in full still reads `complete`. The record is two tables
-  (migration 217) that generation retention removes with the generation. No
+  (migration 230) that generation retention removes with the generation. No
   repository name appears in a metric label or span attribute; the observe span
   gains `eshu.security_alert.org_read_truncated`.
   Each org target commits one extra generation after the upgrade so that its

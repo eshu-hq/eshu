@@ -12,7 +12,7 @@ reason instead of `complete` (#8943).
 
 ## Ownership boundary
 
-- Owns the two tables from `migrations/217_security_alert_target_read_states.sql`:
+- Owns the two tables from `migrations/230_security_alert_target_read_states.sql`:
   `security_alert_target_read_states` (one row per generation, primary key
   `generation_id`) and `security_alert_unread_repositories` (one row per unread
   repository, primary key `(generation_id, repository)`).
@@ -29,7 +29,7 @@ reason instead of `complete` (#8943).
 
 Rows are written in the generation's own transaction, so there is no state for
 a generation that did not commit and no committed generation without its state
-(a generation committed before migration 217 has none, and the read path treats
+(a generation committed before migration 230 has none, and the read path treats
 that as nothing unread). A replay of a still-pending generation id replaces the
 child rows. Both tables cascade from `scope_generations`; the generation
 retention row-count query counts them so batching sees the cascade.

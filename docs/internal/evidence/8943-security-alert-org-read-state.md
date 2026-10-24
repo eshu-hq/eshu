@@ -11,7 +11,7 @@ behavior, the concurrency proofs, and the read path.
 
 ## What changed
 
-- Migration 217 adds `security_alert_target_read_states` (one row per org target
+- Migration 230 adds `security_alert_target_read_states` (one row per org target
   generation) and `security_alert_unread_repositories` (one row per unread
   repository, with its closed reason). Both cascade from `scope_generations`.
 - `unread.Writer` (`storage/postgres/security/alerts/unread`) writes them in the
