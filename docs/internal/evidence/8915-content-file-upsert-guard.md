@@ -56,7 +56,7 @@ through the `live-postgres-readiness` runner):
 `content_file_upsert_guard_concurrency_live_test.go`,
 `content_file_upsert_guard_contract_live_test.go`,
 `content_file_upsert_guard_bench_live_test.go`, plus the hermetic
-`content_writer_sql_guard_test.go` and, in `config/artifacts`,
+`content_writer_sql_guard_test.go`, `content_writer_duplicate_key_test.go` and, in `config/artifacts`,
 `fence_guard_shared_clause_test.go`. The two replay benchmarks run a small
 corpus by default (an unchanged replay must write at most 64 KiB of WAL; a batch
 whose rows all change must write at least 64 KiB) and switch to the full
@@ -70,7 +70,7 @@ test). Every unchanged-replay case fails (`indexed_at_only` and each
 the changed-file sibling check, both lock-recheck "skip" cases, the statement
 trigger probe, the smoke benchmark (0.44 MiB of replay WAL against a 64 KiB
 bound) and the one-row WAL bound (74,705 and 96,859 WAL bytes for one 200 KB
-replay). With the guard, all 71 lines pass (12 tests and 59 subtests, under
+replay). With the guard, all 75 lines pass (14 tests and 61 subtests, under
 `-race`). The four-session race, the duplicate-path test and the changed-batch
 benchmark pass either way, as they should: they prove the guard adds no
 deadlock, keeps the old duplicate contract, and does not skip real changes.
@@ -194,15 +194,21 @@ shared clause.
    `ContentStore.UpsertFileBatch` discard the `sql.Result` (`_`); no caller
    counts rows from these statements. The conflict-clause comment and the
    package `AGENTS.md` say not to read it as "files written".
-4. **A duplicate path inside one batch.** Before, every duplicate path in one
-   multi-row upsert failed with `ON CONFLICT DO UPDATE command cannot affect row
+4. **A duplicate (repo, path) inside one batch.** Before, every duplicate
+   `(repo_id, relative_path)` key in one multi-row upsert failed with `ON CONFLICT DO UPDATE command cannot affect row
    a second time`. With the guard alone, a duplicate over a stored row that the
    first copy leaves unchanged would be skipped and a differing second copy would
    win silently, while a duplicate of a new key still failed; `ContentWriter.Write`
    does not de-duplicate files by path. That is a data-dependent silent success
    where there was a loud failure, so `upsertContentFileBatch` now rejects a
-   duplicate path before any statement runs (`duplicate path ... in one batch`),
-   which keeps the old contract for new and stored paths alike.
+   duplicate `(repo_id, path)` pair before any statement runs (`duplicate path
+   ... for repo ... in one batch`), which keeps the old contract for new and
+   stored paths alike. The key is the pair, as the conflict target is: rows carry
+   their own `repoID`, so one path under two repositories is two rows and is
+   accepted (`TestUpsertContentFileBatchDuplicateKeyIsRepoAndPath`, hermetic, and
+   `TestContentFileUpsertBatchAcceptsSamePathInDifferentReposLive`; an outside
+   review caught that a path-only key would reject it). `ContentWriter.Write`
+   builds every row with one repository, so today only the pair check matters.
    `TestContentWriterRejectsDuplicatePathInBatchLive` fails without the check
    (the stored-path cases succeed silently; the new-path case fails with the
    Postgres message instead of the duplicate-path one) and passes with it. No producer emits

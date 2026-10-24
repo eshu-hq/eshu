@@ -47,16 +47,20 @@ func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []prepa
 		return nil
 	}
 
-	// A path may appear once per multi-row upsert: Postgres rejects a second
-	// copy of a key ("cannot affect row a second time"), and the conflict-clause
-	// guard (#8915) would otherwise accept a duplicate over a stored row and let
-	// the last copy win silently. Reject it before any statement runs.
-	seen := make(map[string]struct{}, len(batch))
+	// A (repo_id, relative_path) key may appear once per multi-row upsert: it is
+	// the conflict target, Postgres rejects a second copy ("cannot affect row a
+	// second time"), and the conflict-clause guard (#8915) would otherwise accept
+	// a duplicate over a stored row and let the last copy win silently. Reject it
+	// before any statement runs. The key is the pair, not the path: rows carry
+	// their own repoID, and the same path under two repositories is two rows.
+	type fileKey struct{ repoID, path string }
+	seen := make(map[fileKey]struct{}, len(batch))
 	for _, row := range batch {
-		if _, dup := seen[row.path]; dup {
-			return fmt.Errorf("upsert content_files batch (%d files): duplicate path %q in one batch", len(batch), row.path)
+		key := fileKey{repoID: row.repoID, path: row.path}
+		if _, dup := seen[key]; dup {
+			return fmt.Errorf("upsert content_files batch (%d files): duplicate path %q for repo %q in one batch", len(batch), row.path, row.repoID)
 		}
-		seen[row.path] = struct{}{}
+		seen[key] = struct{}{}
 	}
 
 	if err := w.deleteContentReferenceBatch(ctx, batch); err != nil {

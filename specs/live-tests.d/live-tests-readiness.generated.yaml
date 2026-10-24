@@ -567,7 +567,7 @@ tests:
   - file: go/internal/storage/postgres/content_file_upsert_guard_contract_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8915 disposable PostgreSQL 18 proof of two contracts of the content_files upsert guard: a duplicate path inside one batch is rejected the way it always was (the guard must not turn it into a silent last-write-wins), and a statement whose rows are all skipped still fires the statement-level UPDATE triggers with an empty transition table while the shipped migration-138 and migration-186 UPDATE triggers are statement-level; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    reason: "#8915 disposable PostgreSQL 18 proof of two contracts of the content_files upsert guard: a duplicate (repo, path) inside one batch is rejected the way it always was (the guard must not turn it into a silent last-write-wins) while the same path under two repositories is accepted, and a statement whose rows are all skipped still fires the statement-level UPDATE triggers with an empty transition table while the shipped migration-138 and migration-186 UPDATE triggers are statement-level; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/content_file_upsert_guard_live_test.go
     tag: ~

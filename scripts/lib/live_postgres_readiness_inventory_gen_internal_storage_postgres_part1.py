@@ -58,6 +58,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/content_file_upsert_guard_contract_live_test.go": (
             "TestContentWriterRejectsDuplicatePathInBatchLive",
+            "TestContentFileUpsertBatchAcceptsSamePathInDifferentReposLive",
             "TestContentFileUpsertGuardSkippedStatementFiresStatementTriggersLive",
         ),
         "go/internal/storage/postgres/content_file_upsert_guard_live_test.go": (

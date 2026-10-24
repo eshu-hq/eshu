@@ -45,11 +45,12 @@ const (
 // column changed. Callers must not read RowsAffected from these statements as
 // "files written".
 //
-// A path may appear once per multi-row upsert. Postgres rejects a second copy
-// of a key ("cannot affect row a second time"), but the guard alone would
-// accept a duplicate over a stored row that the first copy leaves unchanged and
-// let a differing second copy win silently, so upsertContentFileBatch rejects
-// the duplicate before any statement runs.
+// A (repo_id, relative_path) key may appear once per multi-row upsert. Postgres
+// rejects a second copy of a key ("cannot affect row a second time"), but the
+// guard alone would accept a duplicate over a stored row that the first copy
+// leaves unchanged and let a differing second copy win silently, so
+// upsertContentFileBatch rejects the duplicate pair before any statement runs.
+// The same path under two repositories is two rows and is accepted.
 const upsertContentFileConflictClause = `
 ON CONFLICT (repo_id, relative_path) DO UPDATE
 SET commit_sha = EXCLUDED.commit_sha,

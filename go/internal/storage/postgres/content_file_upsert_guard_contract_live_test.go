@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8915 disposable PostgreSQL 18 proof of two contracts of the content_files upsert guard: a duplicate path inside one batch is rejected the way it always was (the guard must not turn it into a silent last-write-wins), and a statement whose rows are all skipped still fires the statement-level UPDATE triggers with an empty transition table while the shipped migration-138 and migration-186 UPDATE triggers are statement-level; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated
+//eshu:readiness:reason #8915 disposable PostgreSQL 18 proof of two contracts of the content_files upsert guard: a duplicate (repo, path) inside one batch is rejected the way it always was (the guard must not turn it into a silent last-write-wins) while the same path under two repositories is accepted, and a statement whose rows are all skipped still fires the statement-level UPDATE triggers with an empty transition table while the shipped migration-138 and migration-186 UPDATE triggers are statement-level; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated
 //eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -61,6 +61,39 @@ func TestContentWriterRejectsDuplicatePathInBatchLive(t *testing.T) {
 				t.Fatal("new.go was written by a rejected batch")
 			}
 		})
+	}
+}
+
+// TestContentFileUpsertBatchAcceptsSamePathInDifferentReposLive pins the
+// duplicate check to the real conflict target, (repo_id, relative_path): one
+// batch carrying the same relative path under two repositories is two rows and
+// must be written, and replaying it unchanged must leave both rows untouched.
+func TestContentFileUpsertBatchAcceptsSamePathInDifferentReposLive(t *testing.T) {
+	ctx, db := openContentUpsertGuardDatabase(t)
+	writer := NewContentWriter(SQLDB{DB: db})
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	row := func(repoID string) preparedFileRow {
+		return preparedFileRow{repoID: repoID, path: "src/main.go", body: "package " + strings.ReplaceAll(repoID, "-", "_") + "\n", contentHash: "h-" + repoID, lineCount: 1}
+	}
+	batch := []preparedFileRow{row("repo-8915-a"), row("repo-8915-b")}
+	if err := writer.upsertContentFileBatch(ctx, batch, t0, "gen-1"); err != nil {
+		t.Fatalf("first upsert of one path under two repositories: %v", err)
+	}
+	before := map[string]map[string]contentFileVersionRow{}
+	for _, repoID := range []string{"repo-8915-a", "repo-8915-b"} {
+		before[repoID] = readContentFileVersions(t, ctx, db, repoID)
+		if got := before[repoID]["src/main.go"]; got.content == "" {
+			t.Fatalf("%s: src/main.go not written", repoID)
+		}
+	}
+	if err := writer.upsertContentFileBatch(ctx, batch, t0.Add(time.Hour), "gen-1"); err != nil {
+		t.Fatalf("unchanged replay: %v", err)
+	}
+	for repoID, was := range before {
+		now := readContentFileVersions(t, ctx, db, repoID)
+		if now["src/main.go"].xmin != was["src/main.go"].xmin {
+			t.Errorf("%s: unchanged replay rewrote the row (xmin %s -> %s)", repoID, was["src/main.go"].xmin, now["src/main.go"].xmin)
+		}
 	}
 }
 

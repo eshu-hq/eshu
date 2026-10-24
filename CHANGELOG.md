@@ -158,8 +158,8 @@ recent shipped work grouped by feature area.
   the `updated_at` of a `repository_file` semantic-search result report the
   last write that changed the file, not the last replay. A replay under a new
   `generation_id` or `commit_sha` still rewrites the row (#8950). One duplicate
-  path inside a single batch is rejected before any statement runs, as the
-  database already rejected it. Evidence:
+  `(repo_id, path)` key inside a single batch is rejected before any statement
+  runs, as the database already rejected it. Evidence:
   `docs/internal/evidence/8915-content-file-upsert-guard.md`.
 
 ### Security alert reconciliation waits for its own impact producer without spending attempts
