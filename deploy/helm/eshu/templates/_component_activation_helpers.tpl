@@ -248,13 +248,13 @@ image, then a reconcile container from the Eshu image, per activation.
     - name: CONFIG_PATH
       value: {{ include "eshu.componentActivationConfigPath" $ctx | quote }}
     - name: ALLOW_IDS
-      value: {{ $root.Values.componentExtensionCollector.allowIds | quote }}
+      value: {{ include "eshu.componentCSVList" $root.Values.componentExtensionCollector.allowIds | quote }}
     - name: ALLOW_PUBLISHERS
-      value: {{ $root.Values.componentExtensionCollector.allowPublishers | quote }}
+      value: {{ include "eshu.componentCSVList" $root.Values.componentExtensionCollector.allowPublishers | quote }}
     - name: REVOKE_IDS
-      value: {{ $root.Values.componentExtensionCollector.revokeIds | quote }}
+      value: {{ include "eshu.componentCSVList" $root.Values.componentExtensionCollector.revokeIds | quote }}
     - name: REVOKE_PUBLISHERS
-      value: {{ $root.Values.componentExtensionCollector.revokePublishers | quote }}
+      value: {{ include "eshu.componentCSVList" $root.Values.componentExtensionCollector.revokePublishers | quote }}
   securityContext:
     {{- toYaml $root.Values.initContainerSecurityContext | nindent 4 }}
   volumeMounts:

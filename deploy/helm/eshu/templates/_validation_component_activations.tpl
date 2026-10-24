@@ -97,8 +97,8 @@ secret. Credentials belong only in an activation's extraEnv secretKeyRef.
 {{- fail (printf "%s.componentId is required and must be a lowercase component identifier" $at) -}}
 {{- end -}}
 {{- $allowed := list -}}
-{{- range splitList "," (default "" $root.Values.componentExtensionCollector.allowIds) -}}
-{{- $allowed = append $allowed (trim .) -}}
+{{- range splitList "," (include "eshu.componentCSVList" $root.Values.componentExtensionCollector.allowIds) -}}
+{{- $allowed = append $allowed . -}}
 {{- end -}}
 {{- if not (has $componentId $allowed) -}}
 {{- fail (printf "%s.componentId %q must be listed in componentExtensionCollector.allowIds" $at $componentId) -}}

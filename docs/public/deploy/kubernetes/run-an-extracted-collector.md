@@ -203,6 +203,10 @@ refused in this mode, so one collector never inherits another's secret.
   init container fails and the pod stays in `Init:Error`. That is the expected
   rollback signal: the system fails closed and no worker runs for the revoked
   component. Remove the activation entry to clear the failed pod.
+- **Write the trust lists:** `allowIds`, `allowPublishers`, `revokeIds` and
+  `revokePublishers` are comma-separated. The chart ignores whitespace around
+  the commas and skips blank entries, so `dev.a, dev.b` and `dev.a,dev.b` mean
+  the same thing.
 
 ## Limits To Know
 
