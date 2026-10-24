@@ -139,6 +139,11 @@ tests:
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/readiness_central_pin_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8824 disposable PostgreSQL proof that central version pins (NuGet PackageVersion rows flagged central_version_declaration) add no package.consumption evidence on either readiness arm, so a pin-only repository reads evidence_incomplete and not ready_zero_findings, while a real reference next to a pin still counts; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_container_identity_live_test.go
     tag: ~
     class: postgres_ci
@@ -843,6 +848,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#7961 disposable PostgreSQL 18 proof that tracked migration 169 never blocks a content_files read past 1 s: migrations 001-168 applied through the tracked migrator (all nine content_files indexes and both secret-lines triggers asserted), 8,000 seeded rows, a 100 ms reader loop and pg_locks sampler (no AccessExclusiveLock during the backfill), receipt skip and a receipt-free replay that rewrites no tuple, a backend terminated mid-backfill that keeps the ALTER, writes no tag or receipt, and reruns to exactly one receipt, and a one-message control that must block a reader past the bound so the proof is not vacuous. Enrolled in the live-postgres-readiness runner; about 25s of test time (22.3s to 29.7s over three local PostgreSQL 18.6 runs on 2026-10-11, host load varied); wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/package_manifest_central_pin_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8824 disposable PostgreSQL proof that NotCentralVersionDeclarationSQL and IsCentralVersionDeclaration classify the same payload table alike, so the readiness count and the consumption sidecar drop exactly the same central version pins; read-only, evaluates the predicate over literal jsonb values; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go
     tag: ~
