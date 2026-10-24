@@ -51,7 +51,7 @@ checklist.
 | `python` | python | L2 structured fact | `.ipynb`, `.py`, `.pyi`, `.pyw` |  |  |
 | `python_requirements` | python | L2 structured fact |  | `requirements.txt` | `requirements-`, `requirements_` |
 | `python_toml` | python | L2 structured fact |  | `Pipfile`, `poetry.lock`, `pyproject.toml` |  |
-| `raw_text` | raw_text | L1 content text | `.cfg`, `.cnf`, `.conf`, `.j2`, `.jinja`, `.jinja2`, `.tftpl`, `.tpl` | `.babelrc`, `.dockerignore`, `.editorconfig`, `.eslintrc`, `.flake8`, `.gitattributes`, `.gitignore`, `.go-version`, `.java-version`, `.node-version`, `.npmignore`, `.nvmrc`, `.prettierrc`, `.python-version`, `.ruby-version`, `.sdkmanrc`, `.terraform-version`, `.tool-versions`, `Berksfile`, `clippy.toml`, `GNUmakefile`, `justfile`, `Makefile`, `mypy.ini`, `Puppetfile`, `pytest.ini`, `renovate.json5`, `rust-toolchain`, `rust-toolchain.toml`, `rustfmt.toml`, `tox.ini` |  |
+| `raw_text` | raw_text | L1 content text | `.cfg`, `.cnf`, `.conf`, `.j2`, `.jinja`, `.jinja2`, `.tftpl`, `.tpl` | `.babelrc`, `.dockerignore`, `.editorconfig`, `.eslintrc`, `.flake8`, `.gitattributes`, `.gitignore`, `.go-version`, `.java-version`, `.node-version`, `.npmignore`, `.nvmrc`, `.prettierrc`, `.python-version`, `.ruby-version`, `.sdkmanrc`, `.swift-version`, `.terraform-version`, `.tool-versions`, `Berksfile`, `clippy.toml`, `GNUmakefile`, `justfile`, `Makefile`, `mypy.ini`, `Puppetfile`, `pytest.ini`, `renovate.json5`, `rust-toolchain`, `rust-toolchain.toml`, `rustfmt.toml`, `tox.ini` |  |
 | `ruby` | ruby | L2 structured fact | `.rb` | `Gemfile`, `Gemfile.lock` |  |
 | `rust` | rust | L2 structured fact | `.rs` | `Cargo.lock`, `Cargo.toml` |  |
 | `scala` | scala | L2 structured fact | `.routes`, `.sc`, `.scala` |  |  |

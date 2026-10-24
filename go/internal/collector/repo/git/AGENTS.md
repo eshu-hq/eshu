@@ -380,3 +380,23 @@ an in-root link whose own name is admitted. The delta path checks only the
 target's leaf. Git refuses a path beyond a symbolic link, so a git-diff target
 never reaches a file through a directory link; an explicit operator
 `--file-targets` path can, and is then judged as the regular file it reaches.
+
+No-Regression Evidence (#8939): discovery path. `.swift-version` joins the
+`raw_text` exact names and `preservedHiddenFilesystemFileNames`; both are map
+lookups, so the added entry changes no lookup's complexity. A throwaway
+benchmark of `LookupByPath` over eight mixed paths (none of them `.swift-version`),
+run on the Go version pinned in `go/go.mod` with three alternating base/HEAD
+rounds of three runs each, gave per-eight-lookup times of 2.10-4.25 us before and
+2.03-4.87 us after. The host was loaded, so the runs are noisy; the fastest run
+of each side was 2.10 us before and 2.03 us after, and no difference is
+distinguishable. Each newly admitted `.swift-version` is one small file (a
+version string), so indexing cost per file is the 1-5 KB figure recorded for #8814
+above. Not measured: end-to-end collector wall time, because this repository has
+no `.swift-version` and the golden corpus has none.
+
+No-Observability-Change: discovery reports the same skip and admit counters, and
+a `.swift-version` is counted as an ordinary admitted file. No metric, span, log,
+status field, queue, worker, lease, batch, or runtime knob is added. When a PR adds
+a dot-prefixed registry name without adding it to
+`preservedHiddenFilesystemFileNames`,
+`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails.

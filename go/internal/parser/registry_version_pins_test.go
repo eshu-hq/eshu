@@ -23,6 +23,7 @@ var versionPinNames = []string{
 	".terraform-version",
 	"rust-toolchain",
 	"rust-toolchain.toml",
+	".swift-version",
 }
 
 func TestDefaultRegistryAdmitsVersionPinFilesAsRawText(t *testing.T) {
@@ -57,6 +58,7 @@ func TestDefaultRegistryKeepsCredentialBearingDotfilesOut(t *testing.T) {
 		".env", ".env.local", ".env.production",
 		"mise.toml", ".mise.toml",
 		".something-version", "node-version", ".nvmrc.bak",
+		"swift-version", ".swift-version.bak", ".swift-versions", ".swiftversion",
 	} {
 		if definition, ok := registry.LookupByPath(name); ok {
 			t.Fatalf("LookupByPath(%q) resolved to %q, want no match", name, definition.ParserKey)

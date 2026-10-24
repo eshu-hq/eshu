@@ -33,6 +33,10 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Property wrappers are not tracked as distinct decorators
 - `@objc` and dynamic dispatch attributes are not modeled in the graph
 - Computed property bodies are not traversed for embedded function calls
+- `.swift-version` is admitted as plain text (`raw_text`), so a repository's
+  declared Swift toolchain version is searchable content. It is not parsed into
+  a runtime declaration yet. The file holds a toolchain version or a snapshot
+  name and no credentials.
 - SwiftPM `Package.resolved` dependency evidence is handled by the JSON
   exact-name parser, not the `.swift` source parser. Only remote
   source-control pins with an exact `state.version` become dependency rows;
