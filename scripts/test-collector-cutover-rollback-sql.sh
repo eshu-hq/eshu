@@ -279,22 +279,13 @@ if [[ "${bench_facts}" -gt 0 ]]; then
 	   SELECT 'bf-' || n, 'b-' || (n % 300 + 1), 'bg-' || (n % 300 + 1),
 	          (ARRAY['work_item.issue', 'work_item.comment', 'work_item.transition'])[n % 3 + 1],
 	          'PRJ-' || (n / 3) || '#' || (n % 3), 'src', 'sk', now(), now(),
-	          jsonb_build_object('issue_key', 'PRJ-' || (n / 3), 'summary', md5(n::text) || md5((n + 1)::text),
+	          jsonb_build_object('issue_key', 'PRJ-' || (n / 3), 'summary', md5(n::text) || encode(sha256(convert_to((n + 1)::text, 'UTF8')), 'hex'),
 	                             'status', (ARRAY['open', 'done', 'review'])[n % 3 + 1], 'n', n,
-	                             'labels', jsonb_build_array('a', 'b', md5((n + 2)::text)))
+	                             'labels', jsonb_build_array('a', 'b', encode(sha256(convert_to((n + 2)::text, 'UTF8')), 'hex')))
 	   FROM generate_series(1, ${bench_facts}) AS n" >/dev/null
 	q "ANALYZE" >/dev/null
 	old_sql="${work}/old-truth.sql"
-	cat >"${old_sql}" <<'OLD'
-SELECT fact.fact_kind, count(*),
-    encode(sha256(convert_to(string_agg(fact.stable_fact_key, ',' ORDER BY fact.stable_fact_key, fact.payload::text), 'UTF8')), 'hex'),
-    encode(sha256(convert_to(string_agg(fact.stable_fact_key || '=' || encode(sha256(convert_to(fact.payload::text, 'UTF8')), 'hex'),
-                   ',' ORDER BY fact.stable_fact_key, fact.payload::text), 'UTF8')), 'hex')
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope ON scope.scope_id = fact.scope_id AND scope.active_generation_id = fact.generation_id
-WHERE scope.collector_kind = :'kind' AND NOT fact.is_tombstone
-GROUP BY fact.fact_kind ORDER BY fact.fact_kind;
-OLD
+	cp "${sql_dir}/collector-cutover-rollback-old-truth.sql" "${old_sql}"
 	timed() { # label file
 		local start end
 		start="$(date +%s.%N 2>/dev/null || python3 -c 'import time; print(time.time())')"

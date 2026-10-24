@@ -45,6 +45,9 @@ missing=0
 while IFS= read -r line; do
 	cmd="${line#  \$ }"
 	[[ "${cmd}" == *psql* ]] && continue
+	# The plan prints shell-quoted words. Newer bash versions (the CI runner's 5.2) escape
+	# braces as \{ where older ones do not, while the fake logs the plain arguments.
+	cmd="${cmd//\\/}"
 	if [[ -z "$(first_line "${cmd}")" ]]; then
 		missing=1
 		printf '    planned but never run: %s\n' "${cmd}"

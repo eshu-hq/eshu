@@ -66,7 +66,8 @@ class ToolsWorkflowTest(unittest.TestCase):
         source = WORKFLOW.read_text(encoding="utf-8")
         # 31st cell is workflowscriptcheckout (#8008), not an image check.
         # 32nd cell is the readinessderive drift gate (#7859), not an image check.
-        self.assertEqual(source.count('          append_gate "${{ steps.filter.outputs.'), 33)
+        # 34th cell is the collectorcutoverrollback test mirror (#8895), not an image check.
+        self.assertEqual(source.count('          append_gate "${{ steps.filter.outputs.'), 34)
         cell = next(
             line for line in source.splitlines()
             if line.lstrip().startswith('append_gate "${{ steps.filter.outputs.dockerhublogin }}"')

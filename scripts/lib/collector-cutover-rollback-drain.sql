@@ -7,7 +7,8 @@
 -- The gate is the collector kind minus the in-tree instances, not the external
 -- instance IDs the caller typed. A mistyped --external-instance therefore cannot
 -- hide a claim held by the real external instance. Served by
--- workflow_work_items_registry_status_updated_idx (collector_kind, status, ...).
+-- workflow_work_items_claimable_idx (collector_kind, collector_instance_id,
+-- status, ...).
 SELECT
     (SELECT count(*)
        FROM workflow_work_items AS item
