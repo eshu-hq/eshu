@@ -143,6 +143,14 @@ number, the trailing newline, and `\r` line endings.
     values after the first failure, so an unclosed `${` in a JSON string value
     costs the rest of that file. An unterminated `/*` that never closes redacts
     to the end of the file.
+- **No new finding:** a stored line is never a finding its raw line is not; a
+  key-named variable with a short value goes whole, because
+  `key = REDACTED_value` would match the detector's key arm.
+- **Evidence shapes** (`skeleton_evidence.go`): `app_repo` and `app_name` names
+  and plain URLs, normalized github.com URLs (values, list elements, and the URLs
+  a comment names), and `repo:owner/name:` OIDC subjects survive, so relationship
+  discovery keeps its Terraform evidence. Any detector match, with or without
+  a kind, still comes first.
 - **Fixed point:** an exact marker, as a value or a whole line, is kept, so a
   second pass changes nothing.
 - **Keys are kept when they are names** (8813 record): an identifier or a quoted

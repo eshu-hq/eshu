@@ -146,7 +146,26 @@ interpolations, and comments nest. A quoted string that ends at a line break, or
 nesting deeper than 32 levels, is a lexing failure: every later line is redacted
 whole. A detector
 match blocks the allowlist even without a finding kind, so a token inside a
-reference is not kept. The stored body is not parseable HCL or JSON. Keys are kept when
+reference is not kept. A stored line is never a finding its raw line is not: a key-named
+variable whose value is under the detector's six-character floor
+(`api_token = "abc"`) becomes the whole-line `REDACTED_value`, because
+`api_token = REDACTED_value` would match the detector.
+
+Three Terraform evidence shapes are kept so relationship discovery still reads
+them (the #8833 differential measured the loss without them):
+
+- an `app_repo` or `app_name` value that is a name, `owner/name`, or a plain
+  `https://host/path` URL with no userinfo, query, or fragment;
+- a github.com URL, stored as `"https://github.com/<owner>/<repo>[/path]"` with
+  its userinfo, query, and fragment dropped, as a value, a list element, or the
+  only thing a comment keeps (`# https://github.com/...`); other comment text
+  and other trailing text go;
+- a GitHub Actions OIDC subject, `"repo:<owner>/<name>:<claim>"`.
+
+A detector match on the line, with or without a finding kind, comes before
+every evidence shape.
+
+The stored body is not parseable HCL or JSON. Keys are kept when
 they are names: an identifier, or a quoted key of letters, digits, `_`, `.`,
 and `-` (`"us-east-1"`, `"app.example.com"`). A quoted key holding anything
 else (a URL, a CIDR, an ARN, a password with symbols) takes the whole line. A

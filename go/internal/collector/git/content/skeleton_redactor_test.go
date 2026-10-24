@@ -58,7 +58,8 @@ func TestRedactSkeletonLineRules(t *testing.T) {
 		{"interpolation", "name = \"${var.prefix}-db\"", "name = REDACTED_value"},
 		{"inline object", "tags = { Name = \"x\" }", "tags = REDACTED_value"},
 		{"inline list", "zones = [\"a\", \"b\"]", "zones = REDACTED_value"},
-		{"trailing comment", "count = 3 # three", "count = REDACTED_value"},
+		{"trailing comment", "count = 3 # three", "count = 3"},
+		{"string with trailing comment", "region = \"us-east-1\" # main", "region = REDACTED_value"},
 		{"url userinfo", "endpoint = \"https://admin:hunter2@db.example.com/x\"", "endpoint = REDACTED_value"},
 		{"uppercase reference is not a reference", "x = VAR.thing", "x = REDACTED_value"},
 		// A detector-flagged key is checked first and keeps its finding kind.
@@ -90,6 +91,10 @@ func TestRedactSkeletonLineRules(t *testing.T) {
 		{"no value", "orphan =", "REDACTED_value"},
 		{"unterminated string fails closed", "name = \"abc", "REDACTED_value"},
 		{"unterminated flagged string", "password = \"abcdefghijk", "REDACTED_password_literal"},
+		// A key-named variable with a value under the six-character floor is no
+		// finding, and key = REDACTED_value would be one, so the line goes whole.
+		{"short value under a key word", "api_token = \"abc\"", "REDACTED_value"},
+		{"spaced value under a key word", "db_password = \"two words\"", "REDACTED_value"},
 		// A credential in the key itself never survives.
 		{"aws key as map key", "  \"AKIAABCDEFGHIJKLMNOP\" = \"prod\"", "  REDACTED_aws_access_key"},
 		{"stripe as map key", "  \"sk_live_abcdefgh12345678\" = 1", "  REDACTED_value"},
@@ -292,26 +297,26 @@ func TestRedactSkeletonFailsClosedAcrossLines(t *testing.T) {
 		{"heredoc after a comment closing line", "/* a\n*/ x = <<EOF\nPassw0rdHunter2: 1\nEOF\nn = 2\n", "REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n"},
 		{"comment closing line stays closed", "/* a\n*/ x = 1 /* b */\nn = 2\n", "REDACTED_value\nREDACTED_value\nn = 2\n"},
 		{"block comment closed on its line", "x = 1 /* a */\nm = 2\n", "x = REDACTED_value\nm = 2\n"},
-		{"slash star in a line comment opens nothing", "n = 1 # see /* here\nm = 2\n", "n = REDACTED_value\nm = 2\n"},
+		{"slash star in a line comment opens nothing", "n = 1 # see /* here\nm = 2\n", "n = 1\nm = 2\n"},
 		{"bare token after a comment", "# rotated\ndGhpc2lzYXNlY3JldHRva2Vu==\n", "REDACTED_value\nREDACTED_value\n"},
 		// A <<ID in a line comment or an unterminated string is text, not a
 		// heredoc opener, so a block comment below it still opens (rev-8833
 		// round 3, H1).
 		{
 			"heredoc marker in a # comment", "x = 1 # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
-			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+			"x = 1\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
 		},
 		{
 			"heredoc marker in a // comment", "x = 1 // <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
-			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+			"x = 1\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
 		},
 		{
 			"dash heredoc marker in a # comment", "x = 1 # <<-EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
-			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+			"x = 1\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
 		},
 		{
 			"squiggly marker is no heredoc", "x = 1 # <<~EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
-			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+			"x = 1\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
 		},
 		{
 			"heredoc marker after a closed string and a comment", "x = \"a\" # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
@@ -323,7 +328,7 @@ func TestRedactSkeletonFailsClosedAcrossLines(t *testing.T) {
 		},
 		{
 			"block comment opener after the fake heredoc", "x = 1 # <<EOF\n/* c */ y = 2 /* d\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
-			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+			"x = 1\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
 		},
 		{
 			"heredoc marker in a line-start comment", "# a <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",

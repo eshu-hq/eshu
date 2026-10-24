@@ -28,6 +28,9 @@ var skeletonSeeds = []struct{ planted, token string }{
 	{"Zq!Seed#X$2026^pw", "Zq!Seed#X"},
 	{"https://svc:ZqSeedXpw@db.internal/x", "ZqSeedXpw"},
 	{"hunter2ZqSeedX", "hunter2ZqSeedX"},
+	{"https://svc:GhSeedXpw@github.com/org/repo?token=GhQuerySeed", "GhSeedXpw"},
+	{"https://github.com/org/repo?access_token=GhQuerySeedTwo#frag", "GhQuerySeedTwo"},
+	{"see https://svc:GhSeedThreePw@github.com/org/repo#GhFragSeed now", "GhSeedThreePw"},
 }
 
 var skeletonKeys = []string{"region", "db_password", "api_token", "client_secret", "stripe", "tags", "Name", "value", "conn"}
@@ -37,7 +40,7 @@ var skeletonKeys = []string{"region", "db_password", "api_token", "client_secret
 func skeletonLine(rng *rand.Rand, seed string) []string {
 	key := skeletonKeys[rng.IntN(len(skeletonKeys))]
 	indent := strings.Repeat(" ", rng.IntN(3)*2)
-	switch rng.IntN(31) {
+	switch rng.IntN(32) {
 	case 0:
 		return []string{indent + key + " = \"" + seed + "\""}
 	case 1:
@@ -74,6 +77,14 @@ func skeletonLine(rng *rand.Rand, seed string) []string {
 		return []string{indent + "db_password = \"" + seed + "\""}
 	case 17:
 		return []string{"k = \"-----BEGIN PRIVATE KEY-----\\n" + seed + "\\n-----END PRIVATE KEY-----\""}
+	case 30:
+		// app_repo and app_name keep a plain-name value by design (the 8813
+		// record's evidence shapes), so only URL seeds are planted under them;
+		// TestRedactSkeletonKeepsEvidenceShapes pins the name case.
+		if !strings.Contains(seed, "://") {
+			return []string{indent + key + " = \"" + seed + "\""}
+		}
+		return []string{indent + "app_repo = \"" + seed + "\"", indent + "\"" + seed + "\","}
 	case 18:
 		// Noise the allowlist keeps.
 		return []string{indent + key + " = " + []string{"true", "3", "-1.5", "var.x", "local.y", "module.m.id", "\"1.2.3\"", "\"~> 5.0\"", "null"}[rng.IntN(9)]}
@@ -164,6 +175,8 @@ func checkSkeletonProperties(t *testing.T, body string) {
 			t.Fatalf("line %d: raw finding %s lost: %q -> %q", i+1, kind, raw, stored)
 		case kind == "" && holdsKindMarker(stored):
 			t.Fatalf("line %d: no raw finding but a kind marker was added: %q -> %q", i+1, raw, stored)
+		case kind == "" && rawFindingKind(stored) != "":
+			t.Fatalf("line %d: the stored line is a %s finding the raw line is not: %q -> %q", i+1, rawFindingKind(stored), raw, stored)
 		}
 	}
 }
@@ -197,7 +210,11 @@ func skeletonGrammar(lines []string) error {
 			heredoc = ""
 			continue
 		}
-		if trimmed == "" || isGrammarMarker(trimmed) || slices.Contains([]string{"{", "}", "[", "]", "},", "],", "{}", "[]", "{},", "[],"}, trimmed) {
+		if grammarURLComment(trimmed) {
+			continue
+		}
+		if trimmed == "" || isGrammarMarker(trimmed) || grammarEvidence(strings.TrimSuffix(trimmed, ",")) ||
+			slices.Contains([]string{"{", "}", "[", "]", "},", "],", "{}", "[]", "{},", "[],"}, trimmed) {
 			continue
 		}
 		value, ok := grammarValue(trimmed)
@@ -205,11 +222,14 @@ func skeletonGrammar(lines []string) error {
 			return fmt.Errorf("line %d %q is outside the skeleton grammar", i+1, line)
 		}
 		value = strings.TrimSpace(strings.TrimSuffix(value, ","))
+		if left, right, ok := strings.Cut(value, " # "); ok && grammarURLComment("# "+right) {
+			value = left
+		}
 		switch {
 		case value == "{" || value == "[" || value == "{}" || value == "[]":
 		case strings.HasPrefix(value, "<<"):
 			heredoc = strings.TrimPrefix(strings.TrimPrefix(value, "<<"), "-")
-		case isGrammarMarker(value) || grammarAllowed(value):
+		case isGrammarMarker(value) || grammarAllowed(value) || grammarEvidence(value):
 		default:
 			return fmt.Errorf("line %d value %q is neither a marker nor an allowlist shape", i+1, value)
 		}
@@ -362,4 +382,41 @@ func FuzzRedactSkeleton(f *testing.F) {
 			}
 		}
 	})
+}
+
+// grammarEvidence restates the kept evidence shapes by hand: a normalized
+// github.com URL whose path is owner/repo of name characters, an OIDC subject,
+// or (under app_repo and app_name, which this check cannot see, so any key) a
+// plain owner/name. A planted credential in a URL's userinfo or query never
+// fits it.
+func grammarEvidence(value string) bool {
+	if len(value) < 2 || value[0] != '"' || value[len(value)-1] != '"' {
+		return false
+	}
+	inner := value[1 : len(value)-1]
+	nameChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+	if path, ok := strings.CutPrefix(inner, "https://github.com/"); ok {
+		return strings.Count(path, "/") >= 1 && strings.Trim(path, nameChars+"/") == ""
+	}
+	if rest, ok := strings.CutPrefix(inner, "repo:"); ok {
+		return strings.Trim(rest, nameChars+"/:*") == ""
+	}
+	return strings.Count(inner, "/") <= 1 && inner != "" && strings.Trim(inner, nameChars+"/") == ""
+}
+
+// grammarURLComment accepts a comment that holds only normalized github.com
+// URLs: "# https://github.com/<owner>/<repo>[/path] ...".
+func grammarURLComment(text string) bool {
+	rest, ok := strings.CutPrefix(text, "# ")
+	if !ok {
+		if rest, ok = strings.CutPrefix(text, "// "); !ok {
+			return false
+		}
+	}
+	for _, url := range strings.Fields(rest) {
+		if !grammarEvidence(`"`+url+`"`) || !strings.HasPrefix(url, "https://github.com/") {
+			return false
+		}
+	}
+	return rest != ""
 }
