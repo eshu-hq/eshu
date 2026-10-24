@@ -94,8 +94,8 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
 - Installed does not mean enabled. Enabled does not mean claim-capable.
 - Trust policy fails closed when provenance cannot be verified. Revocation wins
   over otherwise compatible or allowlisted packages.
-- Manifest identifiers (`metadata.id`, `metadata.publisher`, collector kinds)
-  are rejected when padded with whitespace, never trimmed. Policy, registry
+- Manifest identifiers (`metadata.id`, `metadata.publisher`, collector kinds,
+  fact kinds) are rejected when padded with whitespace, never trimmed. Policy, registry
   keys, grants, and signed provenance all compare the stored bytes, so a
   trimmed load would let a revoke entry miss the package it names.
 - `Enable` and `PlanEnable` hold the component ID, `instance_id`, and `mode`
