@@ -45,7 +45,7 @@ TABLE = {
             "TestTerminalFailureAckStoreRefusalsLive",
             "TestTerminalFailureAckStoreRecordsAndSuppressesLive",
             "TestTerminalFailureAckStoreConcurrentLive",
-            "TestTerminalFailureAckStoreNeverSuppressesUnseenClassLive",
+            "TestTerminalFailureAckStoreRacesFailureWritesLive",
         ),
         "go/internal/storage/postgres/container_image_identity_epoch_barrier_live_test.go": (
             "TestContainerImageIdentityEpochBarrierDefersPendingLive",
