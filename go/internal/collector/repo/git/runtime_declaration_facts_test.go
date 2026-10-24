@@ -240,3 +240,41 @@ func TestStreamFactsSkipsAPinFileOverTheByteCapAndLogsIt(t *testing.T) {
 		}
 	}
 }
+
+// TestStreamFactsSkipsManyOverCapPinFilesAndLogsEach proves the stream-level
+// byte-cap path for many hostile pin files at once: 50 pin files of 1 MiB at
+// different depths emit no fact, each yields one byte-cap WARN with its own
+// byte_size, and an in-cap pin file beside them still emits. The retained
+// candidate state is proven in the declaration package, where the map is
+// reachable.
+func TestStreamFactsSkipsManyOverCapPinFilesAndLogsEach(t *testing.T) {
+	repoRoot := t.TempDir()
+	const files, bodyBytes = 50, 1 << 20
+	body := strings.Repeat("x", bodyBytes)
+	metas := []model.ContentFileMeta{{RelativePath: ".nvmrc", Digest: "sha1:ok"}}
+	writeCollectorTestFile(t, filepath.Join(repoRoot, ".nvmrc"), "20\n")
+	for i := 0; i < files; i++ {
+		rel := strings.Repeat("d/", i+1) + ".nvmrc"
+		writeCollectorTestFile(t, filepath.Join(repoRoot, filepath.FromSlash(rel)), body)
+		metas = append(metas, model.ContentFileMeta{RelativePath: rel, Digest: "sha1:" + rel})
+	}
+	snapshot := RepositorySnapshot{FileCount: len(metas), ContentFileMetas: metas}
+	source, logs, _ := dropRecordingSource(t)
+	collected := buildStreamingGenerationWithContext(source.withStreamDropRecorder(context.Background()),
+		repoRoot, testCollectorRepositoryMetadata(repoRoot), "run-1", time.Date(2026, time.October, 24, 12, 0, 0, 0, time.UTC), snapshot, false, "")
+	envelopes := drainFactChannel(collected.Facts)
+
+	got := decodeRuntimeDeclarations(t, envelopes)
+	if _, ok := got[".nvmrc#20"]; !ok || len(got) != 1 {
+		t.Fatalf("declarations = %d, want only .nvmrc#20", len(got))
+	}
+	if n := strings.Count(logs.String(), "msg=git_runtime_declaration_file_skipped"); n != files {
+		t.Fatalf("byte-cap skip logs = %d, want %d", n, files)
+	}
+	if n := strings.Count(logs.String(), "reason=byte_cap_exceeded"); n != files {
+		t.Fatalf("byte_cap_exceeded logs = %d, want %d", n, files)
+	}
+	if n := strings.Count(logs.String(), "byte_size="+strconv.Itoa(bodyBytes)); n != files {
+		t.Fatalf("logs with byte_size=%d = %d, want %d", bodyBytes, n, files)
+	}
+}

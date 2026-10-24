@@ -20,8 +20,11 @@ and classification live in `go/internal/collector/repo/runtime/declaration`.
 
 ## Exported surface
 
-- `NoteRuntimeDeclarationCandidate` — records the body of an admitted pin file
-  during the content walk, on both the two-phase and the legacy branch.
+- `Candidate` — one admitted pin file held until emission: its size, and its
+  body only when the file is at or under `runtimedeclaration.MaxBytesPerFile`.
+- `NoteRuntimeDeclarationCandidate` — records an admitted pin file during the
+  content walk, on both the two-phase and the legacy branch. A body over the
+  byte cap is recorded by size only, so the walk never retains it.
 - `EmitRuntimeDeclarationFactsForCandidates` — sends the facts through the
   shared writer, in path order. A pin file over
   `runtimedeclaration.MaxBytesPerFile` or `runtimedeclaration.MaxTokensPerFile`

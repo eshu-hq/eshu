@@ -13,15 +13,34 @@ import (
 
 const gitRuntimeDeclarationCollectorInstanceID = "git-runtime-declaration"
 
-// NoteRuntimeDeclarationCandidate records body under relativePath in candidates
-// when relativePath is one of the admitted version-pin files at any depth (see
-// runtimedeclaration.SourceKindForPath); a no-op otherwise. The git collector
-// calls it per content file in both streamFacts content branches so emission
-// can run once after both close.
-func NoteRuntimeDeclarationCandidate(candidates map[string]string, relativePath, body string) {
-	if _, ok := runtimedeclaration.SourceKindForPath(relativePath); ok {
-		candidates[relativePath] = body
+// Candidate is one admitted pin file held between the content walk and
+// emission. Body is empty when the file is over runtimedeclaration.MaxBytesPerFile:
+// the emitter would skip it anyway, so the walk keeps only ByteSize and never
+// carries an over-cap body. That bounds the retained memory to the cap times the
+// number of pin files, however large a hostile pin file is.
+type Candidate struct {
+	// Body is the file content, retained only when ByteSize is at or under
+	// runtimedeclaration.MaxBytesPerFile.
+	Body string
+	// ByteSize is the full length of the file body in bytes.
+	ByteSize int
+}
+
+// NoteRuntimeDeclarationCandidate records relativePath in candidates when it is
+// one of the admitted version-pin files at any depth (see
+// runtimedeclaration.SourceKindForPath); a no-op otherwise. A body over
+// runtimedeclaration.MaxBytesPerFile is recorded by size only. The git
+// collector calls it per content file in both streamFacts content branches so
+// emission can run once after both close.
+func NoteRuntimeDeclarationCandidate(candidates map[string]Candidate, relativePath, body string) {
+	if _, ok := runtimedeclaration.SourceKindForPath(relativePath); !ok {
+		return
 	}
+	if len(body) > runtimedeclaration.MaxBytesPerFile {
+		candidates[relativePath] = Candidate{ByteSize: len(body)}
+		return
+	}
+	candidates[relativePath] = Candidate{Body: body, ByteSize: len(body)}
 }
 
 // EmitRuntimeDeclarationFactsForCandidates sends one
@@ -38,7 +57,7 @@ func EmitRuntimeDeclarationFactsForCandidates(
 	scopeID string,
 	generationID string,
 	observedAt time.Time,
-	candidates map[string]string,
+	candidates map[string]Candidate,
 	onSkip func(relativePath string, skip runtimedeclaration.Skip),
 ) {
 	if len(candidates) == 0 {
@@ -58,7 +77,14 @@ func EmitRuntimeDeclarationFactsForCandidates(
 			SourceURI:           relativePath,
 			CollectorInstanceID: &instanceID,
 		}
-		envelopes, skip := runtimedeclaration.EmitFile(ctx, repoID, relativePath, candidates[relativePath])
+		candidate := candidates[relativePath]
+		if candidate.ByteSize > runtimedeclaration.MaxBytesPerFile {
+			if onSkip != nil {
+				onSkip(relativePath, runtimedeclaration.Skip{Reason: runtimedeclaration.SkipReasonByteCap, ByteSize: candidate.ByteSize})
+			}
+			continue
+		}
+		envelopes, skip := runtimedeclaration.EmitFile(ctx, repoID, relativePath, candidate.Body)
 		if skip.Skipped() && onSkip != nil {
 			onSkip(relativePath, skip)
 		}

@@ -27,7 +27,7 @@ No-Regression Evidence:
   | `BenchmarkNoteRuntimeDeclarationCandidateNonPin` | 1,024 mixed non-pin paths | 17.17 to 17.28 ns/op, 0 B/op, 0 allocs/op |
   | `BenchmarkEmitToolVersions` | one `.tool-versions` file, 6 lines, 8 tokens | 866 allocs/op, 50.9 to 51.2 KB/op, 8 envelopes; 69.4 to 72.6 us/op (load average 15) |
   | `BenchmarkEmitAtTokenCap` | one `.tool-versions` file at the 1,024-token cap | 120,153 to 120,158 allocs/op, about 6.9 MB/op, 1,024 envelopes; 10.6 to 11.5 ms/op (load average 15) |
-  | `BenchmarkEmitOverTokenCapUnderByteCap` | one `.tool-versions` file of 60 KiB and about 30,000 one-byte tokens, skipped (count only) | 1,587 allocs/op, 171,200 B/op, 0 envelopes; 0.68 ms/op |
+  | `BenchmarkEmitOverTokenCapUnderByteCap` | one `.tool-versions` file of 60 KiB (`hostileToolVersions(60<<10)`, 25,205 tokens as the skip reports them), skipped (count only) | 1,587 allocs/op, 171,200 B/op, 0 envelopes; 0.68 ms/op |
   | `BenchmarkEmitOverByteCap` | one `.tool-versions` file of 10 MiB, skipped before parsing | 0 allocs/op, 0 B/op, 0 envelopes; about 27 ns/op |
 
 - **Terminal counts:** the stream tests in
@@ -42,9 +42,10 @@ No-Regression Evidence:
   commit a pin file of any size, and nothing upstream bounds it (the stream
   reads it with `os.ReadFile`), so the emitter bounds its own cost with the
   byte cap below.
-  Candidate bodies are kept in a third map beside the CODEOWNERS and
-  `.gitmodules` maps (`runtimeDeclarationCandidates` in
-  `git/fact_builder.go`).
+  Candidates are kept in a third map beside the CODEOWNERS and `.gitmodules`
+  maps (`runtimeDeclarationCandidates` in `git/fact_builder.go`). A pin file
+  over the byte cap is recorded by size only (`Candidate.ByteSize`), so the
+  walk never retains a body the emitter would skip.
   The emission order is sorted by path, so the stream stays deterministic.
   A delta generation re-emits only the pin files it changed.
 
@@ -65,7 +66,7 @@ then skipped by the token cap:
 | Case | Before | After |
 |---|---|---|
 | 10 MiB file, `TotalAlloc` for one call | 1,866,598,056 B, 0.84 s | 0 B |
-| 60 KiB file, about 30,000 tokens, `TotalAlloc` for one call | 9,787,968 B | 171,216 B |
+| 60 KiB file, 25,205 tokens (`skip.TokenCount`), `TotalAlloc` for one call | 9,787,968 B | 171,216 B |
 | 100,000-token file (800 KB) | 31,282 allocs, about 40.7 MB, one full parse | 0 allocs, 0 B, byte cap |
 
 Before, `parse` built a declaration for every token before the token cap was
@@ -94,3 +95,24 @@ searches the log for that message. The reducer projection (#8816) and the
 query tool (#8817) add the read-side signals when they land. A malformed
 payload cannot occur on emit, because every field is a plain string, integer
 or boolean.
+
+## Retained candidate memory (review finding P2-B)
+
+The content walk used to keep the full body of every pin file at any depth
+until emission, with no size check, so a repository of many large pin files
+held all of them at once. `NoteRuntimeDeclarationCandidate` now records a body
+over `MaxBytesPerFile` as a size only; a body at or under the cap is kept as
+before (at most 64 KiB per pin file). A `Candidate` value struct in the
+declaration package was the smaller diff than emitting inline, which would
+have moved the writer and the skip recorder into the content loop and lost the
+sorted emission order. Measured by summing `len(Candidate.Body)` over the
+candidate map for 50 pin files of 1 MiB each at different depths
+(`TestNoteRuntimeDeclarationCandidateRetainsNoBodyOverTheByteCap`):
+
+| Case | Before | After |
+|---|---|---|
+| Body bytes retained for 50 x 1 MiB over-cap pin files | 52,428,800 B | 0 B |
+
+The byte-cap skip log keeps `byte_size`: `TestStreamFactsSkipsManyOverCapPinFilesAndLogsEach`
+asserts 50 `byte_cap_exceeded` WARN lines, each with `byte_size` of 1 MiB, and
+no fact. Retaining the body again fails the retention test.

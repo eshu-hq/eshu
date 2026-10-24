@@ -35,7 +35,7 @@ func BenchmarkEmitAtTokenCap(b *testing.B) {
 }
 
 // BenchmarkEmitOverTokenCapUnderByteCap measures the count-only skip path: a
-// ~60 KB file of ~30000 one-byte tokens is over MaxTokensPerFile but under
+// 60 KiB file of one-byte tokens is over MaxTokensPerFile but under
 // MaxBytesPerFile, so it is tokenized and counted but no declaration past the
 // cap is stored. allocs/op and B/op stay flat in the token count.
 func BenchmarkEmitOverTokenCapUnderByteCap(b *testing.B) {

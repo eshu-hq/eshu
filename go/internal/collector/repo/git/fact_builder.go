@@ -239,7 +239,7 @@ func streamFacts(
 	// after both close: .gitmodules (one recognized location, see
 	// submodule.IsGitmodulesPath), CODEOWNERS (GitHub honors one file per
 	// repo) and the version-pin files at any depth, each independent.
-	gitmodulesCandidates, codeownersCandidates, runtimeDeclarationCandidates := map[string]string{}, map[string]string{}, map[string]string{}
+	gitmodulesCandidates, codeownersCandidates, runtimeDeclarationCandidates := map[string]string{}, map[string]string{}, map[string]runtimedeclaration.Candidate{}
 	if len(snapshot.ContentFileMetas) > 0 {
 		for i, meta := range snapshot.ContentFileMetas {
 			body, err := streamContentBodyReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads indexed repo content file at a path derived from the scan target, not user-supplied input

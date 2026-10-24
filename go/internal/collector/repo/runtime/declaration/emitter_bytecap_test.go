@@ -64,9 +64,10 @@ func TestEmitOverTheTokenCapUnderTheByteCapCountsWithoutStoring(t *testing.T) {
 	var got int
 	alloc := totalAllocDelta(func() { got = len(Emit(ctx, "repo-1", ".tool-versions", body)) })
 	if got != 0 {
-		t.Fatalf("Emit of a 60 KB / ~30000-token pin file = %d envelopes, want 0", got)
+		t.Fatalf("Emit of a 60 KiB pin file over the token cap = %d envelopes, want 0", got)
 	}
-	// Storing every token would cost 30000 declarations x 88 bytes = 2.6 MB.
+	// Storing a declaration per token (about 88 bytes each) would cost
+	// megabytes at this size; the ceiling is far below that.
 	const ceiling = 256 << 10
 	if alloc > ceiling {
 		t.Fatalf("token-cap skip allocated %d bytes, want <= %d (count-only past the cap)", alloc, ceiling)

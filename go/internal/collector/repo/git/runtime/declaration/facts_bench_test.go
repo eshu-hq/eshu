@@ -17,7 +17,7 @@ func BenchmarkNoteRuntimeDeclarationCandidateNonPin(b *testing.B) {
 	for i := range paths {
 		paths[i] = fmt.Sprintf("services/svc%d/internal/handler_%d.go", i%32, i)
 	}
-	candidates := map[string]string{}
+	candidates := map[string]Candidate{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
