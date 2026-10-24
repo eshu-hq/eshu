@@ -13,7 +13,8 @@ package sbt
 // scala_version, scala_version_count and `%%` hint. Rewriting members are
 // placed at statement start and anywhere in an expression, `withRank(...)` is
 // followed by every operator class, and scalaVersion statements that the
-// scanner cannot read as a literal poison the envelope in any order.
+// scanner cannot read as a literal, or that assign outside a grammar context,
+// poison the envelope in any order.
 
 import (
 	"fmt"
@@ -36,8 +37,8 @@ type fzMemberCase struct {
 	rows       []*fzMemberRow
 	unresolved int // counted statements that emit no row
 	versions   []string
-	poisoned   bool // an unreadable scalaVersion statement in a grammar context
-	stray      int  // nested scalaVersion statements, each counted once
+	poisoned   bool // an unreadable or out-of-context scalaVersion assignment
+	stray      int  // out-of-context scalaVersion statements, each counted once
 }
 
 // fzMemberReads are members that return no Setting.
@@ -55,8 +56,9 @@ var fzMemberRewrites = []string{
 	"removeN(Def.setting(xs), pos)",
 }
 
-// fzStrayScala are scalaVersion assignments outside a grammar context; %s is
-// the literal.
+// fzStrayScala are scalaVersion assignments outside a grammar context, plus
+// the dotted `.:=(...)` call; %s is the literal. Each is counted once and
+// poisons the envelope.
 var fzStrayScala = []string{
 	"inConfig(Test)(scalaVersion := \"%s\")", "foo(scalaVersion := \"%s\")",
 	"x.scalaVersion := \"%s\"", "lazy val common = Seq(scalaVersion := \"%s\")",
@@ -66,6 +68,19 @@ var fzStrayScala = []string{
 	"foo(scalaVersion ~= (_ => \"%s\"))", "lazy val s = scalaVersion.set(Def.setting(\"%s\"), pos)",
 	"Test / scalaVersion ~= (_ => \"%s\")", "x.scalaVersion <<= Def.setting(\"%s\")",
 	"inConfig(Test)(scalaVersion.withRank(r) := \"%s\")",
+	"scalaVersion.:=(\"%s\")", "lazy val s = scalaVersion.:=(\"%s\")",
+	"scalaVersion in (Test, compile) := \"%s\"", "foo(scalaVersion.in(Test) := \"%s\")",
+	"scalaVersion.in(Test).withRank(r) := \"%s\"", "def common = Seq(scalaVersion := \"%s\")",
+	"lazy val s = Seq(\"%s\").map(v => scalaVersion := v)",
+	"lazy val common: Seq[Setting[_]] = Seq(organization := \"x\", scalaVersion := \"%s\")",
+}
+
+// fzReadScala are reads of the scalaVersion key; %s is a literal that is no
+// version. They are no statement: not counted, and they change nothing.
+var fzReadScala = []string{
+	"crossScalaVersions := Seq(scalaVersion.value, \"%s\")",
+	"crossScalaVersions := Seq(scalaVersion.in(Test).value, \"%s\")",
+	"check := ((scalaVersion in Test).value, \"%s\")",
 }
 
 // fzPoisonScala are scalaVersion statements in a grammar context that the
@@ -87,6 +102,7 @@ var fzRewritePositions = []string{
 	"lazy val s: Setting[_] = libraryDependencies.%s", "commonSettings :+ libraryDependencies.%s",
 	"if (ci) libraryDependencies.%s else Nil", "check := { deps => libraryDependencies.%s }",
 	"lazy val common = Seq(foo(1), libraryDependencies.%s)", "lazy val all = base ++ libraryDependencies.%s",
+	"libraryDependencies.in(Test).%s",
 }
 
 // fzRankedOps are the operators after `withRank(...)`; supersede marks the
@@ -158,7 +174,7 @@ func fzMemberBuild(seed int64) fzMemberCase {
 			out.WriteString("libraryDependencies += " + text + "\n")
 		case 3:
 			read := fzMemberReads[r.Intn(len(fzMemberReads))]
-			forms := []string{"libraryDependencies.%s", "check := (libraryDependencies.%s).value", "lazy val common = Seq(libraryDependencies.%s)"}
+			forms := []string{"libraryDependencies.%s", "check := (libraryDependencies.%s).value", "lazy val common = Seq(libraryDependencies.%s)", "libraryDependencies.in(Test).%s"}
 			if r.Intn(3) == 0 {
 				// In the middle of an expression a read is not a statement.
 				mid := []string{"check := libraryDependencies.%s", "lazy val s = base ++ libraryDependencies.%s"}
@@ -210,8 +226,13 @@ func fzMemberBuild(seed int64) fzMemberCase {
 			fallback("libraryDependencies "+op+" Def.setting(Seq(%s))", r.Intn(3) != 0)
 		case 8:
 			version := fmt.Sprintf("2.11.%d", r.Intn(4))
+			if r.Intn(4) == 0 {
+				fmt.Fprintf(&out, fzReadScala[r.Intn(len(fzReadScala))]+"\n", version)
+				break
+			}
 			fmt.Fprintf(&out, fzStrayScala[r.Intn(len(fzStrayScala))]+"\n", version)
 			c.stray++
+			c.poisoned = true
 		case 9:
 			versions := []string{"2.13.12", "2.13.12", "3.3.1", "2.12.18"}
 			version := versions[r.Intn(len(versions))]

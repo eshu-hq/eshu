@@ -54,10 +54,11 @@
 // read only in a grammar context (or behind a `ThisBuild /` axis that starts a
 // statement in one); a nested one is counted, never recorded. The envelope
 // names a version, and `%%` rows get a binary-artifact hint, only when exactly
-// one distinct literal was recorded and no scalaVersion statement in a grammar
-// context was unreadable (a non-literal value, `~=`, `<<=`, `.set`,
-// `.transform`, `.withRank(...) :=`); such a statement poisons the envelope
-// for the whole file. meta_build is
+// one distinct literal was recorded and no other scalaVersion assignment was
+// seen: an unreadable one in a grammar context (a non-literal value, `~=`,
+// `<<=`, `.set`, `.transform`, `.withRank(...) :=`, `.:=(...)`) or any
+// assignment outside one (a settings val or def, `inThisBuild(...)`, a
+// wrapper, a lambda, another axis) poisons the envelope for the whole file. meta_build is
 // true for a build.sbt directly inside a `project` directory, sbt's
 // meta-build, and every row of that file is partial.
 //

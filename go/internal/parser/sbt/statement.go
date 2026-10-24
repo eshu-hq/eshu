@@ -23,7 +23,11 @@ func (s *scan) parseLibraryDependencies(key token) {
 	prev := s.hist[1]
 	ctx, inContext := s.keyContext(key, prev)
 	if s.skipLegacyAxis() {
+		// The member after an axis follows the member rule out of context.
 		inContext = false
+		if isPunct(s.peek(), ".") {
+			s.next()
+		}
 	}
 	op := s.peek()
 	if op.kind == kindIdent && isPunct(s.hist[0], ".") && !isKeyRead(op.text) &&

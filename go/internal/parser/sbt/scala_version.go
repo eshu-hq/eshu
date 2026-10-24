@@ -19,28 +19,32 @@ func (s *scan) scalaVersionContext(key token) bool {
 
 // parseScalaVersion reads one statement that starts at a scalaVersion key.
 // Only `scalaVersion [in ThisBuild] := "literal"` (or a tracked top-level val)
-// in a grammar context records a version. Any other assignment there (a value
-// that is not a plain literal, `~=`, `<<=`, `<+=`, a member that returns a
-// Setting such as `set`, `transform`, `withRank(...) :=` or `in(...) :=`)
-// changes the version to something the scanner cannot read: it is counted
-// once and poisons the envelope. Any assignment outside a grammar context, or
-// under a legacy `in` axis other than ThisBuild, is counted once and changes
-// nothing. A key that is not assigned (`scalaVersion.value`, a comparison) is
-// a read and is left to the main loop.
+// in a grammar context records a version. Every other assignment poisons the
+// envelope and is counted once: in a grammar context a value that is not a
+// plain literal, `~=`, `<<=`, `<+=`, or a member that returns a Setting such
+// as `set`, `transform`, `withRank(...) :=`, `in(...) :=` or `.:=(...)`
+// changes the version to something the scanner cannot read; outside one (a
+// settings val or def, a wrapper, a lambda, an axis other than ThisBuild) any
+// assignment may reach a project the scanner does not track. A key that is
+// not assigned (`scalaVersion.value`, `scalaVersion.in(Test).value`, a
+// comparison) is a read and is left to the main loop.
 func (s *scan) parseScalaVersion(inContext bool) {
 	tok := s.next()
 	if tok.kind == kindIdent && tok.text == "in" {
 		scope := s.next()
-		if scope.kind != kindIdent || scope.text != "ThisBuild" {
+		switch {
+		case scope.kind == kindOpen:
+			s.skipGroup()
+			inContext = false
+		case scope.kind != kindIdent || scope.text != "ThisBuild":
 			inContext = false
 		}
 		tok = s.next()
 	}
 	if isPunct(tok, ".") {
 		// The '.' stays consumed for a read; the main loop skips the member.
-		member := s.peek()
-		if member.kind == kindIdent && isScalaVersionWriter(member.text) {
-			s.unknownScalaVersion(inContext, 0)
+		if s.scalaVersionMemberWrites() {
+			s.unknownScalaVersion(0)
 		}
 		return
 	}
@@ -49,7 +53,7 @@ func (s *scan) parseScalaVersion(inContext bool) {
 		return
 	}
 	if tok.text != ":=" || !inContext {
-		s.unknownScalaVersion(inContext, 0)
+		s.unknownScalaVersion(0)
 		return
 	}
 	value := s.next()
@@ -61,8 +65,44 @@ func (s *scan) parseScalaVersion(inContext bool) {
 	case value.kind == kindEOF:
 		s.scalaPoisoned = true
 	default:
-		s.unknownScalaVersion(true, initialDepth(value))
+		s.unknownScalaVersion(initialDepth(value))
 	}
+}
+
+// scalaVersionMemberWrites reports whether the member after a consumed '.'
+// can assign the key: a dotted assignment operator (`.:=(...)`), a member
+// that returns a Setting or the key (isScalaVersionWriter), or, after a
+// `.in(...)` axis, any of those or an assignment operator. A member that
+// returns no Setting, alone or after the axis (`.in(Test).value`), is a read.
+func (s *scan) scalaVersionMemberWrites() bool {
+	member := s.peek()
+	if member.kind == kindSymbol {
+		return isAssignmentOperator(member.text)
+	}
+	if member.kind != kindIdent || !isScalaVersionWriter(member.text) {
+		return false
+	}
+	if member.text != "in" {
+		return true
+	}
+	s.next()
+	if open := s.peek(); open.kind == kindOpen && open.text == "(" {
+		s.next()
+		s.skipGroup()
+	}
+	next := s.peek()
+	if next.kind == kindSymbol {
+		return isAssignmentOperator(next.text)
+	}
+	if !isPunct(next, ".") {
+		return true
+	}
+	s.next()
+	after := s.peek()
+	if after.kind == kindSymbol {
+		return isAssignmentOperator(after.text)
+	}
+	return after.kind == kindIdent && isScalaVersionWriter(after.text)
 }
 
 // isScalaVersionWriter reports a member of the scalaVersion key that returns
@@ -74,16 +114,14 @@ func isScalaVersionWriter(member string) bool {
 }
 
 // unknownScalaVersion counts a scalaVersion statement the scanner cannot read
-// and skips the rest of it from rel open groups deep. In a grammar context it
-// poisons the envelope for good: sbt applies the last assignment of a scope,
-// and the scanner does not decide the order of mixed forms across the bare
-// file, ThisBuild and each project's settings, so a later literal does not
-// clear it.
-func (s *scan) unknownScalaVersion(inContext bool, rel int) {
+// and skips the rest of it from rel open groups deep. It poisons the envelope
+// for good: sbt applies the last assignment of a scope, and the scanner
+// neither decides the order of mixed forms across the bare file, ThisBuild
+// and each project's settings nor tracks which projects a nested assignment
+// reaches, so a later literal does not clear it.
+func (s *scan) unknownScalaVersion(rel int) {
 	s.unresolved++
-	if inContext {
-		s.scalaPoisoned = true
-	}
+	s.scalaPoisoned = true
 	s.salvage(rel, false)
 }
 

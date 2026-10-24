@@ -239,3 +239,33 @@ func TestWithRankReadsTheOperatorAfterIt(t *testing.T) {
 		})
 	}
 }
+
+// TestAxisThenMemberFollowsMemberRule pins a member called after a legacy
+// `.in(...)` axis. The axis takes the statement out of the grammar, so the
+// member is judged as it is without the axis and any reset is global: a
+// rewriting member or `withRank(...)` supersedes the earlier row, a member
+// that returns no Setting is counted once and supersedes nothing, and the
+// dotted `.:=(...)` call replaces the key like `:=`.
+func TestAxisThenMemberFollowsMemberRule(t *testing.T) {
+	t.Parallel()
+
+	for name, source := range map[string]string{
+		"transform":       "libraryDependencies.in(Test).transform(f, pos)",
+		"set":             "libraryDependencies.in(Test).set(Def.setting(Nil), pos)",
+		"withRank assign": "libraryDependencies.in(Test).withRank(r) := Nil",
+		"dot assign":      "libraryDependencies.in(Test).:=(Nil)",
+		"plain dot call":  "libraryDependencies.:=(Nil)",
+	} {
+		t.Run(name, func(t *testing.T) {
+			payload := parseSource(t, earlierRow+source+"\n")
+			if got := requireRow(t, payload, "a:b")["dependency_resolution_state"]; got == "resolved" {
+				t.Errorf("a:b state = %v, want superseded", got)
+			}
+			requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 2)
+		})
+	}
+
+	read := parseSource(t, earlierRow+"libraryDependencies.in(Test).map(_.withSources())\n")
+	requireField(t, requireRow(t, read, "a:b"), "dependency_resolution_state", "resolved")
+	requireStateField(t, stateOf(t, read), "unresolved_declaration_count", 1)
+}
