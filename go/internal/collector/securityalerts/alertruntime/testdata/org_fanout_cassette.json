@@ -1,5 +1,5 @@
 {
-  "description": "Synthetic, GitHub-shaped Dependabot request/response cassette for the #8805 org-scope fan-out. It was written by hand, not captured from GitHub: request paths, cursor Link headers, X-RateLimit headers, and the 403 responses follow GitHub's documented REST shape, and every organization, repository, and advisory value is synthetic. {{base_url}} is replaced with the replay server URL.",
+  "description": "Synthetic, GitHub-shaped Dependabot request/response cassette for the #8805 org-scope fan-out. It was written by hand, not captured from GitHub: request paths, cursor Link headers, X-RateLimit headers, and the rate-limit and auth-denied 403 responses follow GitHub's documented REST shape, and every organization, repository, and advisory value is synthetic. {{base_url}} is replaced with the replay server URL. The alerts_disabled_403_continues_fanout scenario is also synthetic: GitHub's REST reference lists 403 for the repository alerts endpoint without naming a cause, so the 403 body \"Dependabot alerts are disabled for this repository.\" rests on four third-party implementations that treat it as the disabled shape (prowler repository_service.py, gh-migration-audit repository-dependabot-alerts.ts, dependabot-policy-enforcer-action github.ts, octoscope owner_read.go); it was not captured from GitHub.",
   "scenarios": [
     {
       "name": "truncated_org_read_fans_out_per_repository",
@@ -843,6 +843,311 @@
               "outcome": "stopped"
             },
             "value": 2
+          },
+          {
+            "name": "eshu_dp_security_alert_provider_requests_total",
+            "labels": {
+              "status_class": "auth_denied"
+            },
+            "value": 1
+          },
+          {
+            "name": "eshu_dp_security_alert_rate_limited_total",
+            "labels": {},
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "alerts_disabled_403_continues_fanout",
+      "max_pages": 1,
+      "allowed_repositories": [
+        "example-org/alpha-repo",
+        "example-org/beta-repo",
+        "example-org/delta-repo"
+      ],
+      "interactions": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/orgs/example-org/dependabot/alerts",
+            "query": {
+              "per_page": "100",
+              "state": "open"
+            }
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "X-RateLimit-Limit": "5000",
+              "X-RateLimit-Remaining": "2",
+              "X-RateLimit-Reset": "1792771200",
+              "Link": "<{{base_url}}/orgs/example-org/dependabot/alerts?after=org-c1&per_page=100&state=open>; rel=\"next\""
+            },
+            "body": [
+              {
+                "number": 11,
+                "state": "open",
+                "dependency": {
+                  "package": {
+                    "ecosystem": "npm",
+                    "name": "left-pad"
+                  },
+                  "manifest_path": "package-lock.json",
+                  "scope": "runtime",
+                  "relationship": "direct"
+                },
+                "security_advisory": {
+                  "ghsa_id": "GHSA-0011-abcd-efgh",
+                  "cve_id": "CVE-2026-0011",
+                  "severity": "high",
+                  "summary": "synthetic advisory 11"
+                },
+                "security_vulnerability": {
+                  "package": {
+                    "ecosystem": "npm",
+                    "name": "left-pad"
+                  },
+                  "vulnerable_version_range": "< 1.0.1",
+                  "first_patched_version": {
+                    "identifier": "1.0.1"
+                  }
+                },
+                "html_url": "https://github.com/example-org/alpha-repo/security/dependabot/11",
+                "created_at": "2026-10-20T10:00:00Z",
+                "updated_at": "2026-10-21T10:00:00Z",
+                "repository": {
+                  "full_name": "example-org/alpha-repo",
+                  "name": "alpha-repo",
+                  "owner": {
+                    "login": "example-org"
+                  }
+                }
+              },
+              {
+                "number": 21,
+                "state": "open",
+                "dependency": {
+                  "package": {
+                    "ecosystem": "npm",
+                    "name": "left-pad"
+                  },
+                  "manifest_path": "package-lock.json",
+                  "scope": "runtime",
+                  "relationship": "direct"
+                },
+                "security_advisory": {
+                  "ghsa_id": "GHSA-0021-abcd-efgh",
+                  "cve_id": "CVE-2026-0021",
+                  "severity": "high",
+                  "summary": "synthetic advisory 21"
+                },
+                "security_vulnerability": {
+                  "package": {
+                    "ecosystem": "npm",
+                    "name": "left-pad"
+                  },
+                  "vulnerable_version_range": "< 1.0.1",
+                  "first_patched_version": {
+                    "identifier": "1.0.1"
+                  }
+                },
+                "html_url": "https://github.com/example-org/beta-repo/security/dependabot/21",
+                "created_at": "2026-10-20T10:00:00Z",
+                "updated_at": "2026-10-21T10:00:00Z",
+                "repository": {
+                  "full_name": "example-org/beta-repo",
+                  "name": "beta-repo",
+                  "owner": {
+                    "login": "example-org"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/repos/example-org/alpha-repo/dependabot/alerts",
+            "query": {
+              "per_page": "100",
+              "state": "open"
+            }
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "X-RateLimit-Limit": "5000",
+              "X-RateLimit-Remaining": "4998",
+              "X-RateLimit-Reset": "1792771200"
+            },
+            "body": [
+              {
+                "number": 11,
+                "state": "open",
+                "dependency": {
+                  "package": {
+                    "ecosystem": "npm",
+                    "name": "left-pad"
+                  },
+                  "manifest_path": "package-lock.json",
+                  "scope": "runtime",
+                  "relationship": "direct"
+                },
+                "security_advisory": {
+                  "ghsa_id": "GHSA-0011-abcd-efgh",
+                  "cve_id": "CVE-2026-0011",
+                  "severity": "high",
+                  "summary": "synthetic advisory 11"
+                },
+                "security_vulnerability": {
+                  "package": {
+                    "ecosystem": "npm",
+                    "name": "left-pad"
+                  },
+                  "vulnerable_version_range": "< 1.0.1",
+                  "first_patched_version": {
+                    "identifier": "1.0.1"
+                  }
+                },
+                "html_url": "https://github.com/example-org/alpha-repo/security/dependabot/11",
+                "created_at": "2026-10-20T10:00:00Z",
+                "updated_at": "2026-10-21T10:00:00Z"
+              }
+            ]
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/repos/example-org/beta-repo/dependabot/alerts",
+            "query": {
+              "per_page": "100",
+              "state": "open"
+            }
+          },
+          "response": {
+            "status": 403,
+            "headers": {
+              "X-RateLimit-Limit": "5000",
+              "X-RateLimit-Remaining": "4997",
+              "X-RateLimit-Reset": "1792771200"
+            },
+            "body": {
+              "message": "Dependabot alerts are disabled for this repository.",
+              "documentation_url": "https://docs.github.com/rest/dependabot/alerts#list-dependabot-alerts-for-a-repository",
+              "status": "403"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/repos/example-org/delta-repo/dependabot/alerts",
+            "query": {
+              "per_page": "100",
+              "state": "open"
+            }
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "X-RateLimit-Limit": "5000",
+              "X-RateLimit-Remaining": "4996",
+              "X-RateLimit-Reset": "1792771200"
+            },
+            "body": [
+              {
+                "number": 31,
+                "state": "open",
+                "dependency": {
+                  "package": {
+                    "ecosystem": "npm",
+                    "name": "left-pad"
+                  },
+                  "manifest_path": "package-lock.json",
+                  "scope": "runtime",
+                  "relationship": "direct"
+                },
+                "security_advisory": {
+                  "ghsa_id": "GHSA-0031-abcd-efgh",
+                  "cve_id": "CVE-2026-0031",
+                  "severity": "high",
+                  "summary": "synthetic advisory 31"
+                },
+                "security_vulnerability": {
+                  "package": {
+                    "ecosystem": "npm",
+                    "name": "left-pad"
+                  },
+                  "vulnerable_version_range": "< 1.0.1",
+                  "first_patched_version": {
+                    "identifier": "1.0.1"
+                  }
+                },
+                "html_url": "https://github.com/example-org/delta-repo/security/dependabot/31",
+                "created_at": "2026-10-20T10:00:00Z",
+                "updated_at": "2026-10-21T10:00:00Z"
+              }
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "requests": 4,
+        "facts": [
+          {
+            "repository": "example-org/alpha-repo",
+            "number": 11,
+            "coverage": "complete",
+            "reasons": []
+          },
+          {
+            "repository": "example-org/beta-repo",
+            "number": 21,
+            "coverage": "incomplete",
+            "reasons": [
+              "provider_open_alert_page_limit_reached",
+              "org_repository_alerts_disabled"
+            ]
+          },
+          {
+            "repository": "example-org/delta-repo",
+            "number": 31,
+            "coverage": "complete",
+            "reasons": []
+          }
+        ],
+        "metrics": [
+          {
+            "name": "eshu_dp_security_alert_truncated_reads_total",
+            "labels": {
+              "operation": "list_org_alerts"
+            },
+            "value": 1
+          },
+          {
+            "name": "eshu_dp_security_alert_org_fanout_repositories_total",
+            "labels": {
+              "outcome": "complete"
+            },
+            "value": 2
+          },
+          {
+            "name": "eshu_dp_security_alert_org_fanout_repositories_total",
+            "labels": {
+              "outcome": "alerts_disabled"
+            },
+            "value": 1
+          },
+          {
+            "name": "eshu_dp_security_alert_org_fanout_repositories_total",
+            "labels": {
+              "outcome": "stopped"
+            },
+            "value": 0
           },
           {
             "name": "eshu_dp_security_alert_provider_requests_total",
