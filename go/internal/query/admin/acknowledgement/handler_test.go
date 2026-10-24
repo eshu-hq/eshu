@@ -354,9 +354,9 @@ func TestAcknowledgeNotConfigured(t *testing.T) {
 	}
 }
 
-// TestQueryReturnsTheReasonOnlyToAdmins pins the admin-only read: the reason
+// TestQueryAcknowledgementsReturnsTheReasonOnlyToAdmins pins the admin-only read: the reason
 // appears here and nowhere else, and a scoped token is refused.
-func TestQueryReturnsTheReasonOnlyToAdmins(t *testing.T) {
+func TestQueryAcknowledgementsReturnsTheReasonOnlyToAdmins(t *testing.T) {
 	p := fixture(t)
 	at := time.Date(2026, 10, 24, 10, 0, 0, 0, time.UTC)
 	p.store.records = []pgstorage.TerminalFailureAckRecord{{

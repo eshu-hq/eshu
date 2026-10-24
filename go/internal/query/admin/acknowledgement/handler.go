@@ -26,7 +26,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// Routes this leaf serves.
+// Paths of the routes this leaf serves. Mount registers them as literal strings
+// because the OpenAPI and route-coverage gates scan the source for HandleFunc
+// literals.
 const (
 	acknowledgeRoute = "/api/v0/admin/collector-failures/acknowledge"
 	queryRoute       = "/api/v0/admin/collector-failures/acknowledgements/query"
@@ -106,8 +108,8 @@ func (h *Handler) logger() *slog.Logger {
 
 // Mount registers the acknowledgement routes on mux.
 func (h *Handler) Mount(mux *http.ServeMux) {
-	mux.HandleFunc("POST "+acknowledgeRoute, h.acknowledge)
-	mux.HandleFunc("POST "+queryRoute, h.queryAcknowledgements)
+	mux.HandleFunc("POST /api/v0/admin/collector-failures/acknowledge", h.acknowledge)
+	mux.HandleFunc("POST /api/v0/admin/collector-failures/acknowledgements/query", h.queryAcknowledgements)
 }
 
 // acknowledgeRequest is the operator's body: the failed target, the reason, and
