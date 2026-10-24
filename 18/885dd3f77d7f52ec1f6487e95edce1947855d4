@@ -1,0 +1,21 @@
+go/go.mod
+  s_ff8a600f1fc93e::t_3895cceeacdcf3 284,393-394
+go/internal/redact/redact.go
+  s_ff8a600f1fc93e::t_e9b8e4377f725d 11-12,16,22,30-32,34,38,61-63,70-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "18885dd3f77d7f52ec1f6487e95edce1947855d4",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
