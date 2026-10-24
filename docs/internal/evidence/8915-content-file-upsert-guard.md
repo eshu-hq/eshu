@@ -63,22 +63,22 @@ whose rows all change must write at least 64 KiB) and switch to the full
 measurement corpus with `ESHU_CONTENT_UPSERT_GUARD_BENCH=1`, where they assert
 nothing.
 
-Red and green at this head: with the guard removed from the clause, 25 test
-lines fail (9 tests and 16 subtests: eight live tests plus the hermetic lockstep
+Red and green at this head: with the guard removed from the clause, 27 test
+lines fail (9 tests and 18 subtests: eight live tests plus the hermetic lockstep
 test). Every unchanged-replay case fails (`indexed_at_only` and each
-`*_null_to_null` case, on both statement shapes), plus the writer-level replay,
+`*_null_to_null` case of the six nullable columns, on both statement shapes), plus the writer-level replay,
 the changed-file sibling check, both lock-recheck "skip" cases, the
 same-path-under-two-repositories replay (it asserts the unchanged replay leaves
 `xmin`), the statement trigger probe, the smoke benchmark (0.44 MiB of replay WAL against a 64 KiB
 bound) and the one-row WAL bound (74,705 and 96,859 WAL bytes for one 200 KB
-replay). With the guard, all 75 lines pass (14 tests and 61 subtests, under
+replay). With the guard, all 81 lines pass (14 tests and 67 subtests, under
 `-race`). The four-session race, the duplicate-path tests (live and hermetic),
 the changed-batch benchmark and the seeded drift test pass either way, as they
 should: they prove the guard adds no deadlock, keeps the duplicate contract, and
-does not skip real changes. Earlier drafts reported 18, 21, 22 and 24 failures;
-those were the same mutation over smaller test sets (before the recheck tests,
-before the smoke benchmark, before the same-path-two-repositories test), not
-different code.
+does not skip real changes. Earlier drafts reported 18, 21, 22, 24 and 25
+failures; those were the same mutation over smaller test sets (before the
+recheck tests, the smoke benchmark, the same-path-under-two-repositories test
+and the sixth nullable column), not different code.
 
 What the tests assert:
 
@@ -86,9 +86,15 @@ What the tests assert:
   `ContentStore.UpsertFileBatch` leaves `xmin`, `ctid`, `indexed_at`, the
   secret-line side table (parity with the derivation) and the content-version
   fence untouched.
-- Each guarded column, `content` alone, and each nullable column's value to
-  other, value to NULL and NULL to value transitions update the row; NULL to
-  NULL does not. Both statement shapes.
+- Each guarded column, `content` alone, and each of the six nullable columns'
+  value to other, value to NULL and NULL to value transitions update the row;
+  NULL to NULL does not. The nullable columns are `commit_sha`, `language`,
+  `artifact_type`, `template_dialect` and `generation_id` (TEXT NULL) and
+  `iac_relevant` (BOOLEAN NULL; production binds NULL for missing or blank
+  metadata). Both statement shapes. A NULL-unsafe guard on `iac_relevant`
+  alone (`COALESCE(iac_relevant, false)` on both sides) passed the earlier
+  five-column harness, which an outside review found incomplete, and now fails
+  `iac_relevant_value_to_null` on both shapes.
 - A changed body re-derives its secret lines; a commit-only change writes; an
   untouched sibling in the same batch stays untouched; the fence bumps once for
   the changed statement.

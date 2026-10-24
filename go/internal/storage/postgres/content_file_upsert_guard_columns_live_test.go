@@ -27,7 +27,7 @@ type guardFileArgs struct {
 	language        any
 	artifactType    any
 	templateDialect any
-	iacRelevant     bool
+	iacRelevant     any
 	indexedAt       time.Time
 	generationID    any
 }
@@ -87,25 +87,30 @@ func guardColumnCases() []guardColumnCase {
 		{name: "indexed_at_only", next: func(a *guardFileArgs) {}, wantUpdate: false},
 		{name: "content_hash", next: func(a *guardFileArgs) { a.contentHash = "hash-2" }, wantUpdate: true},
 		{name: "line_count", next: func(a *guardFileArgs) { a.lineCount = 2 }, wantUpdate: true},
-		{name: "iac_relevant", next: func(a *guardFileArgs) { a.iacRelevant = true }, wantUpdate: true},
 		{name: "content_only_same_hash", next: func(a *guardFileArgs) { a.content = "package q\n" }, wantUpdate: true},
 	}
+	// The six nullable guarded columns (commit_sha, language, artifact_type,
+	// template_dialect and generation_id are TEXT NULL, iac_relevant is BOOLEAN
+	// NULL): each case binds a real SQL NULL, as production does for missing or
+	// blank metadata. other is a value that differs from the base's.
 	nullable := []struct {
-		name string
-		set  func(*guardFileArgs, any)
+		name  string
+		set   func(*guardFileArgs, any)
+		other any
 	}{
-		{"commit_sha", func(a *guardFileArgs, v any) { a.commitSHA = v }},
-		{"language", func(a *guardFileArgs, v any) { a.language = v }},
-		{"artifact_type", func(a *guardFileArgs, v any) { a.artifactType = v }},
-		{"template_dialect", func(a *guardFileArgs, v any) { a.templateDialect = v }},
-		{"generation_id", func(a *guardFileArgs, v any) { a.generationID = v }},
+		{"commit_sha", func(a *guardFileArgs, v any) { a.commitSHA = v }, "other"},
+		{"language", func(a *guardFileArgs, v any) { a.language = v }, "other"},
+		{"artifact_type", func(a *guardFileArgs, v any) { a.artifactType = v }, "other"},
+		{"template_dialect", func(a *guardFileArgs, v any) { a.templateDialect = v }, "other"},
+		{"iac_relevant", func(a *guardFileArgs, v any) { a.iacRelevant = v }, true},
+		{"generation_id", func(a *guardFileArgs, v any) { a.generationID = v }, "other"},
 	}
 	for _, column := range nullable {
-		set := column.set
+		set, other := column.set, column.other
 		cases = append(cases,
-			guardColumnCase{name: column.name + "_value_to_other", next: func(a *guardFileArgs) { set(a, "other") }, wantUpdate: true},
+			guardColumnCase{name: column.name + "_value_to_other", next: func(a *guardFileArgs) { set(a, other) }, wantUpdate: true},
 			guardColumnCase{name: column.name + "_value_to_null", next: func(a *guardFileArgs) { set(a, nil) }, wantUpdate: true},
-			guardColumnCase{name: column.name + "_null_to_value", base: func(a *guardFileArgs) { set(a, nil) }, next: func(a *guardFileArgs) { set(a, "other") }, wantUpdate: true},
+			guardColumnCase{name: column.name + "_null_to_value", base: func(a *guardFileArgs) { set(a, nil) }, next: func(a *guardFileArgs) { set(a, other) }, wantUpdate: true},
 			guardColumnCase{name: column.name + "_null_to_null", base: func(a *guardFileArgs) { set(a, nil) }, next: func(a *guardFileArgs) { set(a, nil) }, wantUpdate: false},
 		)
 	}
@@ -142,7 +147,7 @@ func TestContentFileUpsertGuardColumnsLive(t *testing.T) {
 						t.Fatalf("changed column left the row stale: xmin %s->%s, indexed_at %s (want %s)", was.xmin, now.xmin, now.indexedAt, next.indexedAt)
 					}
 					if now.content != next.content || now.contentHash != next.contentHash || now.lineCount != next.lineCount ||
-						now.iacRelevant != next.iacRelevant || !sameNullable(now.commitSHA, next.commitSHA) ||
+						!sameNullableBool(now.iacRelevant, next.iacRelevant) || !sameNullable(now.commitSHA, next.commitSHA) ||
 						!sameNullable(now.language, next.language) || !sameNullable(now.artifactType, next.artifactType) ||
 						!sameNullable(now.templateDialect, next.templateDialect) || !sameNullable(now.generationID, next.generationID) {
 						t.Fatalf("row after replay = %+v, want the replayed values %+v", now, next)
@@ -162,7 +167,7 @@ type guardRow struct {
 	indexedAt                                                        time.Time
 	content, contentHash                                             string
 	lineCount                                                        int
-	iacRelevant                                                      bool
+	iacRelevant                                                      sql.NullBool
 	commitSHA, language, artifactType, templateDialect, generationID sql.NullString
 }
 
@@ -180,6 +185,15 @@ FROM content_files WHERE repo_id = 'repo-8915-columns' AND relative_path = $1`, 
 	}
 	r.indexedAt = r.indexedAt.UTC()
 	return r
+}
+
+// sameNullableBool compares a stored BOOLEAN NULL with a bound value (nil or a
+// bool).
+func sameNullableBool(got sql.NullBool, want any) bool {
+	if want == nil {
+		return !got.Valid
+	}
+	return got.Valid && got.Bool == want.(bool)
 }
 
 func sameNullable(got sql.NullString, want any) bool {
