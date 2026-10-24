@@ -677,7 +677,7 @@
       }
     },
     {
-      "name": "auth_denied_403_without_rate_limit_headers_stops_fanout",
+      "name": "auth_denied_403_without_exhaustion_signal_stops_fanout",
       "max_pages": 1,
       "allowed_repositories": [
         "example-org/alpha-repo",

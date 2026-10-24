@@ -71,7 +71,7 @@ and pins the request count: 5 requests for a truncated two-page org read with
 one complete and one two-page-truncated repository, and 3 requests when the
 second repository read is rate limited (the third allowlisted repository is
 never requested), 2 requests when the first repository read is a 403
-without rate-limit headers, and 4 requests when the second of three repository
+with no rate-limit exhaustion signal, and 4 requests when the second of three repository
 reads is the disabled-alerts 403 (the fan-out reads the third). The cassette is synthetic and GitHub-shaped, written
 from GitHub's documented REST shape, not captured from GitHub. The
 disabled-alerts 403 body is not in GitHub's REST reference; it rests on four

@@ -66,7 +66,7 @@ type providerCassetteExpect struct {
 
 // TestClaimedSourceOrgFanoutReplaysProviderCassette is the #8805 cassette
 // proof: a truncated org read fans out with the expected request count, and a
-// rate-limited or auth-denied (403 without rate-limit headers)
+// rate-limited or auth-denied (403 with no rate-limit exhaustion signal)
 // per-repository read stops the fan-out after exactly one failed request
 // instead of retrying or reading the remaining repositories.
 func TestClaimedSourceOrgFanoutReplaysProviderCassette(t *testing.T) {

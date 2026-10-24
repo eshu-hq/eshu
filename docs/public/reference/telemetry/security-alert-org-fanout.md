@@ -22,5 +22,10 @@ target are still incomplete; the `security_alert.observe` span carries the
 per-repository read records its own sample, so a claim that fans out adds one
 sample per repository read.
 
+A read that ends as `alerts_disabled` still records
+`eshu_dp_security_alert_provider_requests_total{status_class=auth_denied}`
+because the provider answered 403. Use `outcome=alerts_disabled` on the
+fan-out counter to tell it from a credential failure; the fan-out continued.
+
 Repository names, alert URLs, and provider response bodies stay out of metric
 labels.

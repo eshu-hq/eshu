@@ -68,9 +68,9 @@ func (s *ClaimedSource) collectTarget(
 // fanOutOrganization issues one bounded per-repository read, in allowlist
 // order, for each allowlisted repository of the target organization, up to
 // maxOrganizationFanoutRepositories. Reads run sequentially on purpose: they
-// share one credential and one provider rate-limit budget. A not_found read is
-// reported and the fan-out continues; the first read that fails any other way
-// stops it (see fanoutFailureOutcome) instead of spending more of the budget.
+// share one credential and one provider rate-limit budget. A not_found read, or
+// a 403 the provider marked as Dependabot alerts disabled, is reported and the
+// fan-out continues; the first read that fails any other way stops it (see fanoutFailureOutcome) instead of spending more of the budget.
 // Only a cancelled claim context fails the whole claim.
 func (s *ClaimedSource) fanOutOrganization(
 	ctx context.Context,
@@ -89,8 +89,8 @@ func (s *ClaimedSource) fanOutOrganization(
 	}
 	reads := make(map[string]securityalerts.GitHubDependabotAlertResult, len(repositories))
 	requested, incomplete := 0, 0
-	// stopOutcome is set by the first read failure that is not not_found: it
-	// is the outcome every later repository records instead of being read.
+	// stopOutcome is set by the first read failure that is neither not_found
+	// nor an alerts-disabled 403: it is the outcome every later repository records instead of being read.
 	stopOutcome := ""
 	for i, repository := range repositories {
 		var outcome string
@@ -258,7 +258,7 @@ func fanoutRepositoryObject(repository string) securityalerts.GitHubDependabotRe
 // repository", which is checked first and only for auth_denied so a rate limit
 // or a retryable failure carrying the marker still stops. A rate limit stops
 // the fan-out as rate_limited. Any other class (auth_denied without the
-// marker, including a 403 with no rate-limit headers, retryable 5xx or
+// marker, including a plain 403 with no rate-limit exhaustion signal, retryable 5xx or
 // transport, terminal) stops it as stopped, because the next read against the
 // same credential and provider would most likely fail the same way, and GitHub
 // warns that continuing to call while limited risks the integration being

@@ -14,15 +14,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry/contract"
 )
 
-// TestClaimedSourceStopsFanoutOnNonNotFoundFailure proves only not_found lets
-// the fan-out continue: an auth_denied 403 without rate-limit headers, a 5xx,
-// a terminal 4xx, or a transport failure stops it after the first read, so the
+// TestClaimedSourceStopsFanoutOnNonNotFoundFailure proves only not_found and
+// an alerts-disabled 403 let the fan-out continue: an auth_denied 403 with no
+// rate-limit exhaustion signal and no disabled-alerts marker, a 5xx, a
+// terminal 4xx, or a transport failure stops it after the first read, so the
 // fan-out never keeps calling a provider that is refusing or limiting it.
 func TestClaimedSourceStopsFanoutOnNonNotFoundFailure(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]error{
-		"auth_denied_403_without_rate_limit_headers": securityalerts.GitHubDependabotError{
+		"auth_denied_403_without_exhaustion_signal": securityalerts.GitHubDependabotError{
 			StatusCode: 403,
 			RateLimit:  securityalerts.GitHubRateLimitInfo{Remaining: 4000, RemainingKnown: true},
 		},

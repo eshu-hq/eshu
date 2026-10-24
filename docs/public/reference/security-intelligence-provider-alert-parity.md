@@ -55,7 +55,8 @@ repository of that organization through
   facts with `org_repository_read_rate_limited`. The claim still commits, and
   the next scheduled claim reads again. Nothing retries inside the claim.
 - A `not_found` read marks that repository `org_repository_read_failed` and the
-  fan-out continues. A 403 with no rate-limit headers whose JSON body says
+  fan-out continues. A 403 with no rate-limit exhaustion signal (no `Retry-After`, and
+  `X-RateLimit-Remaining` not 0) whose JSON body says
   `Dependabot alerts are disabled for this repository.` marks that repository
   `org_repository_alerts_disabled` and the fan-out continues too: the answer is
   specific to one repository. The match is on GitHub's message text, which the
