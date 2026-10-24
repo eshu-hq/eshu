@@ -26,7 +26,9 @@
   puts the credential outside the path, a positive test, and a token-in-slot
   negative test.
 - A line whose value text holds an `@` that `net/url` did not consume as the
-  userinfo delimiter MUST be dropped whole (`sanitizeRegistryURL` `atCount`).
+  userinfo delimiter MUST be dropped whole (`sanitizeRegistryURL` `atCount`). The
+  only exception is `azureFeedViewURL`: one `@` in the path of an Azure
+  Artifacts host, escaped to `%40`. Do not widen it to other hosts.
 - The payload MUST NOT carry `source`, even with `Options.IndexSource`.
 - No error or log may quote file text. `net/url` errors quote their input, so
   they are discarded.

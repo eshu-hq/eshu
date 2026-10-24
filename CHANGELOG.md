@@ -39,7 +39,7 @@ recent shipped work grouped by feature area.
   (`https://user:/pw@host/` would otherwise report the user name as the host).
   The path is kept only on a documented token-free vendor layout (Artifactory,
   Nexus, Azure Artifacts, GitLab, Gitea, Cloudsmith, Artifact Registry,
-  CodeArtifact); any other path, and every Gemfury path, is dropped and the row
+  CodeArtifact, including Azure feed views such as `my-feed@Release`); any other path, and every Gemfury path, is dropped and the row
   keeps the scheme and host with `registry_path_withheld`. No other key is read,
   so `_authToken`, `_auth`, `_password`, `//host/:username`, and `email` values
   reach no fact. Parser output is not governed by the content-store policy, so

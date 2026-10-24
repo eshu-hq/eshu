@@ -13,6 +13,7 @@ From `doc.go`, `README.md`, `parser.go`:
 - **Skipped lines**: other keys, ini sections, `${...}` expansion, non-http schemes, scheme-less or host-less values, control or non-ASCII bytes, lines over 8 KiB, paths over 512 bytes, and URLs the shared detector flags.
 - **Repeated keys**: every line is kept, in file order.
 - **Path allowlist**: the path is kept only on a documented token-free layout (Artifactory, Nexus, Azure Artifacts, GitLab, Gitea, Cloudsmith, Artifact Registry, CodeArtifact) with every variable slot shaped like a name, or when it is empty. Any other path and every `*.fury.io` path is dropped; the row keeps scheme and host and sets `registry_path_withheld`.
+- **Azure feed views**: on `pkgs.dev.azure.com` and `*.pkgs.visualstudio.com` a single `@` in the path (`_packaging/my-feed@Release`) is accepted, written as `%40`; a port, query, fragment, extra `@`, or non-name feed or view drops to a host-only row or drops the line.
 - **Split userinfo**: a line whose value text holds an `@` that `net/url` did not consume as the userinfo delimiter is dropped whole.
 - **ini escapes**: `\;`, `\#`, and `\\` in an unquoted value are literal, as in npm's reader.
 
@@ -22,6 +23,7 @@ From `doc.go`, `README.md`, `parser.go`:
 - `TestParseKeepsDocumentedTokenFreeLayouts`: 18 documented vendor URLs keep their path.
 - `TestParseWithholdsEveryTokenInAPathSlot`: seven token shapes, including the no-digit and underscore-split 20-byte tokens, in the Gemfury first segment and in every variable slot of every allowlisted layout; every one drops to a host-only row.
 - `TestParseWithholdsAPathOffTheAllowlist`: 13 paths off the allowlist, including detector and encoded shapes.
+- `TestParseKeepsAzureFeedViews`, `TestParseRejectsAnAtSignOutsideAnAzureFeedView`, `TestParseWithholdsAnAzureViewThatIsNotAName`, and `TestParseKeepsPascalCaseNamesAndTheDualstackCodeArtifactHost`: ten Azure and PascalCase URLs keep a clean path, 11 `@` placements outside the feed view drop the line, six bad feed or view shapes drop to a host-only row, and five PascalCase and CodeArtifact URLs (including `.on.aws`) keep their path.
 - `TestParseDropsALineWhoseUserinfoSplitsOutsideTheAuthority`, `TestParseKeepsAWellFormedUserinfoLine`, and `TestParseReadsIniBackslashEscapes`: 13 split-userinfo forms drop whole, five ordinary userinfo forms keep a clean row, and the ini escapes follow npm.
 - `TestParseKeepsLineNumbersAcrossSkippedLines`: line numbers count skipped lines.
 - `TestParseNeverEmitsSource`: no `source` key with `IndexSource`.

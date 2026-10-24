@@ -4,11 +4,20 @@
 package npmrc
 
 import (
+	"regexp"
 	"strings"
 )
 
 // maxSlotBytes bounds one variable path segment (an org, repo, feed, or id).
 const maxSlotBytes = 64
+
+// maxPascalWordBytes bounds a PascalCase word (FabrikamFiber, MyFeed,
+// DataweaversPublic). Each part is a capital and lower-case letters, which a
+// random token almost never forms over a whole 24 bytes.
+const maxPascalWordBytes = 24
+
+// pascalCaseName matches a word built from Capitalized parts.
+var pascalCaseName = regexp.MustCompile(`^([A-Z][a-z]+)+$`)
 
 // maxSlotWordBytes bounds one word of a slot. A random token is one long word;
 // a human-chosen repository name is built from short ones.
@@ -20,7 +29,9 @@ const maxSlotWordBytes = 16
 const minMixedWordBytes = 8
 
 // pathLayout is one documented registry URL path layout. A "*" segment is a
-// variable slot (an org, repo, feed, or id); every other segment is literal.
+// variable slot (an org, repo, or id), "feed" is an Azure Artifacts feed slot
+// that may carry an escaped view (my-feed%40Release), and every other segment
+// is literal.
 type pathLayout struct {
 	// hostOK restricts the layout to hosts that serve it. Nil means any host
 	// except a token-in-path vendor.
@@ -49,9 +60,9 @@ var pathLayouts = []pathLayout{
 	{segments: []string{"artifactory", "api", "npm", "*"}},
 	{segments: []string{"repository", "*"}},
 	{segments: []string{"nexus", "repository", "*"}},
-	{segments: []string{"*", "_packaging", "*", "npm", "registry"}},
-	{segments: []string{"*", "*", "_packaging", "*", "npm", "registry"}},
-	{hostOK: hasHostSuffix(".pkgs.visualstudio.com"), segments: []string{"_packaging", "*", "npm", "registry"}},
+	{segments: []string{"*", "_packaging", "feed", "npm", "registry"}},
+	{segments: []string{"*", "*", "_packaging", "feed", "npm", "registry"}},
+	{hostOK: hasHostSuffix(".pkgs.visualstudio.com"), segments: []string{"_packaging", "feed", "npm", "registry"}},
 	{segments: []string{"api", "v4", "projects", "*", "packages", "npm"}},
 	{segments: []string{"api", "v4", "groups", "*", "-", "packages", "npm"}},
 	{segments: []string{"api", "v4", "packages", "npm"}},
@@ -67,7 +78,13 @@ func hasHostSuffix(suffix string) func(string) bool {
 
 func isCodeArtifactHost(host string) bool {
 	return strings.Contains(host, ".d.codeartifact.") &&
-		(strings.HasSuffix(host, ".amazonaws.com") || strings.HasSuffix(host, ".amazonaws.com.cn"))
+		(strings.HasSuffix(host, ".amazonaws.com") || strings.HasSuffix(host, ".amazonaws.com.cn") ||
+			strings.HasSuffix(host, ".on.aws"))
+}
+
+// isAzureArtifactsHost reports the two hosts that serve Azure Artifacts feeds.
+func isAzureArtifactsHost(host string) bool {
+	return host == "pkgs.dev.azure.com" || strings.HasSuffix(host, ".pkgs.visualstudio.com")
 }
 
 // tokenInPathHost reports a vendor that documents the credential as a path
@@ -105,8 +122,14 @@ func registryPathAllowed(host, escapedPath string) bool {
 
 func layoutMatches(pattern, segments []string) bool {
 	for i, want := range pattern {
-		if want == "*" {
+		switch want {
+		case "*":
 			if !slotLooksLikeAName(segments[i]) {
+				return false
+			}
+			continue
+		case "feed":
+			if !feedSlotLooksLikeAName(segments[i]) {
 				return false
 			}
 			continue
@@ -148,6 +171,9 @@ func slotLooksLikeAName(slot string) bool {
 }
 
 func wordLooksLikeAName(word string) bool {
+	if pascalCaseName.MatchString(word) {
+		return len(word) <= maxPascalWordBytes
+	}
 	if len(word) > maxSlotWordBytes {
 		return false
 	}
@@ -180,4 +206,15 @@ func isNameByte(c byte) bool {
 	default:
 		return c == '-' || c == '_' || c == '.' || c == '~'
 	}
+}
+
+// feedSlotLooksLikeAName accepts an Azure Artifacts feed slot: a feed name, or
+// a feed name and a view joined by an escaped '@' (my-feed%40Release). The view
+// is checked like any slot, so a token in the view position is withheld.
+func feedSlotLooksLikeAName(slot string) bool {
+	name, view, hasView := strings.Cut(slot, "%40")
+	if !hasView {
+		return slotLooksLikeAName(slot)
+	}
+	return slotLooksLikeAName(name) && slotLooksLikeAName(view)
 }

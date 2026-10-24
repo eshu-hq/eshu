@@ -67,7 +67,14 @@ parses with the user name as the host and the password in the path. The parser
 counts the `@` in the whole value text, before comment truncation and quote
 stripping. It keeps the line only when that count is 0, or is 1 and `net/url`
 read it as the userinfo delimiter. Any other count drops the line, including an
-`@` in a path, query, fragment, or trailing comment. Parse errors never reach
+`@` in a path, query, fragment, or trailing comment.
+
+One exception keeps Azure Artifacts feed views. Every Azure feed has `@Local`,
+`@Prerelease`, and `@Release` views that serve npm, so `_packaging/my-feed@Release`
+is a real registry path. On `pkgs.dev.azure.com` and `*.pkgs.visualstudio.com`,
+with no port, query, or fragment and no `@` in the authority, a single `@` in the
+path is accepted. The parser writes it as `%40`, so no emitted field holds an
+`@`, and the feed and the view must both read as names or the path is withheld. Parse errors never reach
 the caller or a log, because `net/url` errors quote the input.
 
 An unquoted value follows the npm `ini` reader: it ends at the first unescaped
@@ -87,18 +94,19 @@ every `*` slot reading as a name:
 | --- | --- |
 | `/artifactory/api/npm/*` | any |
 | `/repository/*`, `/nexus/repository/*` | any |
-| `/*/_packaging/*/npm/registry`, `/*/*/_packaging/*/npm/registry` | any |
-| `/_packaging/*/npm/registry` | `*.pkgs.visualstudio.com` |
+| `/*/_packaging/<feed>/npm/registry`, `/*/*/_packaging/<feed>/npm/registry` | any |
+| `/_packaging/<feed>/npm/registry` | `*.pkgs.visualstudio.com` |
 | `/api/v4/projects/*/packages/npm`, `/api/v4/groups/*/-/packages/npm`, `/api/v4/packages/npm` | any |
 | `/api/packages/*/npm` | any |
 | `/*/*` | `npm.cloudsmith.io` and `*-npm.pkg.dev` |
-| `/npm/*` | AWS CodeArtifact hosts |
+| `/npm/*` | AWS CodeArtifact hosts (`.amazonaws.com`, `.amazonaws.com.cn`, and the dualstack `.on.aws`) |
 
 Any other path, and every path on a Gemfury host, is dropped: the row keeps the
-scheme and host and sets `registry_path_withheld`. A slot reads as a name when it
-is at most 64 bytes of `[A-Za-z0-9._~-]` made of words of at most 16 bytes, each
-all lower case, all upper case, or Capitalized, with no letter-and-digit mix of 8
-bytes or more. Hex, base64url, and UUID tokens fail that test.
+scheme and host and sets `registry_path_withheld`. A `<feed>` slot is a name, or a name and a view joined by `%40`. A slot reads as a
+name when it is at most 64 bytes of `[A-Za-z0-9._~-]` made of words of at most 16
+bytes, each all lower case, all upper case, or Capitalized, with no
+letter-and-digit mix of 8 bytes or more. A PascalCase word (`FabrikamFiber`,
+`MyFeed`, `DataweaversPublic`) of at most 24 bytes also reads as a name. Hex, base64url, and UUID tokens fail that test.
 
 Residual: a token that a vendor puts in a documented slot, drawn as a short word
 or as digits only, would pass. The documented vendors above put the credential in

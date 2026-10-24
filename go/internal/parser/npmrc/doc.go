@@ -26,7 +26,9 @@
 // with a valid host, holds an environment expansion (`${...}`), a control
 // character, or a non-ASCII byte, exceeds the line bound, sits under an ini
 // section, holds an '@' that net/url did not read as the userinfo delimiter
-// (so a user name or password could land in the host or path), or holds a
+// (so a user name or password could land in the host or path; the one
+// exception is an Azure Artifacts feed view such as `my-feed@Release`, written
+// as `%40`), or holds a
 // credential shape in its scheme or host according to the shared detector.
 //
 // Parse never sets `source`, never reads a credential key, and never reports

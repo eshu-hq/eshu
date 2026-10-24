@@ -27,6 +27,7 @@ var npmrcSeeds = []string{
 	"npmrcSeedSplitUser0123456789",
 	"npmrcSeedSplitPass0123456789",
 	"npmrcSeedFuryToken0123456789",
+	"npmrcSeedViewToken0123456789",
 }
 
 const npmrcSeededBody = "" +
@@ -36,6 +37,8 @@ const npmrcSeededBody = "" +
 	"registry=https://npmrcSeedSplitUser0123456789:#npmrcSeedSplitPass0123456789@registry.example.com/repository/npm/\n" +
 	"registry=https://npmrcSeedSplitUser0123456789:/npmrcSeedSplitPass0123456789@registry.example.com/repository/npm/\n" +
 	"@fury:registry=https://npm-proxy.fury.io/npmrcSeedFuryToken0123456789/acme/\n" +
+	"@view:registry=https://pkgs.dev.azure.com/org/_packaging/feed@Release/npm/registry/\n" +
+	"@vtok:registry=https://pkgs.dev.azure.com/org/_packaging/feed@npmrcSeedViewToken0123456789/npm/registry/\n" +
 	"@tok:registry=https://npm.tok.example/t/npmrcSeedPathToken0123456789/npm/\n" +
 	"//registry.example.com/:_authToken=npmrcSeedAuthToken0123456789\n" +
 	"//registry.example.com/:_auth=npmrcSeedAuthBase64Value0123456789\n" +
@@ -99,7 +102,7 @@ func TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding(t *testing.
 		}
 
 		urls := npmrcRegistryEntities(t, envelopes, path)
-		if len(urls) != 4 {
+		if len(urls) != 6 {
 			t.Fatalf("%s: registry-URL entities = %v, want the registry lines that survive (the split-userinfo lines emit nothing)", path, urls)
 		}
 		want := map[string]string{
@@ -108,6 +111,10 @@ func TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding(t *testing.
 			// The token-shaped path is withheld; the host still answers.
 			"@tok:registry":  "https://npm.tok.example",
 			"@fury:registry": "https://npm-proxy.fury.io",
+			// The Azure feed view keeps its path with the separator escaped; a token
+			// in the view position is withheld.
+			"@view:registry": "https://pkgs.dev.azure.com/org/_packaging/feed%40Release/npm/registry/",
+			"@vtok:registry": "https://pkgs.dev.azure.com",
 		}
 		for _, row := range urls {
 			name, _ := row["name"].(string)

@@ -40,7 +40,12 @@ const fuzzCredentialTail = "\n" +
 	"registry=\"https://" + fuzzSeed + ":#" + fuzzSeed + "@registry.example.com/repository/npm/\"\n" +
 	// A token as the first path segment, the Gemfury position, and in a slot.
 	"@fury:registry=https://npm-proxy.fury.io/" + fuzzSeed + "/acme/\n" +
-	"@slot:registry=https://nexus.example.com/repository/" + fuzzSeed + "/\n"
+	"@slot:registry=https://nexus.example.com/repository/" + fuzzSeed + "/\n" +
+	// Azure feed views: a clean view, a token in the view, and a split-userinfo
+	// attack that borrows the Azure host.
+	"@view:registry=https://pkgs.dev.azure.com/org/_packaging/feed@Release/npm/registry/\n" +
+	"@vtok:registry=https://pkgs.dev.azure.com/org/_packaging/feed@" + fuzzSeed + "/npm/registry/\n" +
+	"@vatk:registry=https://" + fuzzSeed + ":/x@pkgs.dev.azure.com/org/_packaging/feed/npm/registry/\n"
 
 // FuzzParseNeverEmitsACredential fuzzes the body and asserts the security
 // properties of the parser: the seeded credential values never reach the
@@ -59,6 +64,7 @@ func FuzzParseNeverEmitsACredential(f *testing.F) {
 		"registry=https://[::1]:4873/\n",
 		"registry=https://user:pass/@registry.example.com/\n",
 		"registry=https://registry.example.com/repository/a" + bs + ";b/\n",
+		"registry=https://pkgs.dev.azure.com/org/_packaging/feed@Release/npm/registry/\n",
 		"\xef\xbb\xbfregistry=https://registry.example.com/\r\n",
 		seededBody,
 		fuzzCredentialTail,

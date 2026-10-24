@@ -222,15 +222,19 @@ func sanitizeRegistryURL(raw string, atCount int) (scheme, hostname, hostPort, u
 	if err != nil || parsed.Opaque != "" {
 		return "", "", "", "", false
 	}
-	if atCount > 1 || atCount == 1 && parsed.User == nil {
-		return "", "", "", "", false
-	}
 	scheme = strings.ToLower(parsed.Scheme)
 	if scheme != "http" && scheme != "https" {
 		return "", "", "", "", false
 	}
 	hostname = strings.ToLower(parsed.Hostname())
 	if hostname == "" {
+		return "", "", "", "", false
+	}
+	// One '@' with no userinfo is the Azure Artifacts feed view
+	// (_packaging/my-feed@Release) or a split-userinfo attack. Only the first is
+	// kept, and only on an Azure host.
+	azureView := atCount == 1 && parsed.User == nil && azureFeedViewURL(parsed, hostname)
+	if atCount > 1 || atCount == 1 && parsed.User == nil && !azureView {
 		return "", "", "", "", false
 	}
 	host := hostname
@@ -248,8 +252,23 @@ func sanitizeRegistryURL(raw string, atCount int) (scheme, hostname, hostPort, u
 		hostPort += ":" + port
 	}
 	urlPath = parsed.EscapedPath()
+	if azureView {
+		// Escape the view separator so no emitted field holds an '@'.
+		urlPath = strings.Replace(urlPath, "@", "%40", 1)
+	}
 	if len(urlPath) > maxPathBytes {
 		return "", "", "", "", false
 	}
 	return scheme, hostname, hostPort, urlPath, true
+}
+
+// azureFeedViewURL reports whether parsed is an Azure Artifacts URL whose only
+// '@' sits in the path: an Azure host with no port, no query, no fragment, and
+// no '@' in the authority (parsed.User is nil), and exactly one '@' in the path.
+// The path still has to match an Azure layout with a name-shaped feed and view
+// before it is kept (registryPathAllowed); otherwise the row is host-only.
+func azureFeedViewURL(parsed *url.URL, hostname string) bool {
+	return isAzureArtifactsHost(hostname) && !strings.Contains(parsed.Host, ":") &&
+		parsed.RawQuery == "" && !parsed.ForceQuery && parsed.Fragment == "" &&
+		strings.Count(parsed.EscapedPath(), "@") == 1
 }
