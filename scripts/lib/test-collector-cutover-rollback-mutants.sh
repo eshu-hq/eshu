@@ -67,6 +67,18 @@
 #   M51 truth  verify does not check the registry
 #   M52 truth  verify does not check the grants
 #   M53 gates  any output line, not only a pod/ line, counts as a worker pod
+#   M54 gates  the registry count keeps only the last version row
+#   M55 gates  a malformed activations column counts as clear
+#   M56 truth  a recapture keeps the older key sidecar
+#   M57 main   an instance list may contain control characters
+#   M58 gates  any "not found" text, not only NotFound, reads as an absent worker
+#   M59 truth  a baseline header of any format version is accepted
+#   M60 gates  a component ID is matched by prefix in the registry listing
+#   M61 gates  an empty replicas answer counts as stopped
+#   M62 main   the script writes files with the caller's umask
+#   M63 main   temp files are not removed on exit
+#   M64 main   temp files ignore TMPDIR
+#   M65 truth  a recapture keeps the mode of the baseline file it overwrites
 
 # The single-quoted anchors are literal source text to find, not expansions.
 # shellcheck disable=SC2016
@@ -179,6 +191,18 @@ define_mutants() {
 	add M51 truth "$(pairs "${T}${T}if registry_clear; then${NL}${T}${T}${T}evidence" "${T}${T}if true; then${NL}${T}${T}${T}evidence")"
 	add M53 gates "$(pairs "awk '/^pod\\//'" "awk 'NF'")"
 	add M52 truth "$(pairs "${T}${T}if grants_revoked; then${NL}${T}${T}${T}evidence" "${T}${T}if true; then${NL}${T}${T}${T}evidence")"
+	add M54 gates "$(pairs 'total += $NF' 'total = $NF')"
+	add M55 gates "$(pairs 'else { bad = 1 }' 'else { }')"
+	add M56 truth "$(pairs "${T}rm -f \"\${capture_file}\" \"\${capture_file}.keys\"${NL}" "${T}rm -f \"\${capture_file}\"${NL}")"
+	add M57 main "$(pairs "${T}[[ \"\$value\" != *[[:cntrl:]]* ]] ||${NL}${T}${T}die \"\$EX_USAGE\" \"\$name must not contain control characters or newlines\"${NL}" "")"
+	add M58 gates "$(pairs 'is_not_found() { [[ "$1" == *"(NotFound)"* ]]; }' 'is_not_found() { [[ "$1" == *"not found"* ]]; }')"
+	add M59 truth "$(pairs '[[ "$first" != "$TRUTH_HEADER" ]] || return 1' '[[ "$first" != "# eshu-rollback-truth format="* ]] || return 1')"
+	add M60 gates "$(pairs '$1 == id {' 'index($1, id) == 1 {')"
+	add M61 gates "$(pairs 'if [[ "$XOUT" != "0" ]]; then' 'if [[ -n "$XOUT" && "$XOUT" != "0" ]]; then')"
+	add M62 main "$(pairs "${NL}umask 077${NL}" "${NL}")"
+	add M63 main "$(pairs "trap cleanup_tmp EXIT${NL}" "")"
+	add M65 truth "$(pairs "${T}rm -f \"\${capture_file}\" \"\${capture_file}.keys\"${NL}" "${T}rm -f \"\${capture_file}.keys\"${NL}")"
+	add M64 main "$(pairs '"${TMPDIR:-/tmp}/eshu-rollback.XXXXXX"' '"/tmp/eshu-rollback.XXXXXX"')"
 }
 
 # apply_mutant <scratch-scripts-dir> <file-alias> <packed-edits>; prints a reason

@@ -117,6 +117,12 @@ truth)
 	cat "${state}/truth"
 	;;
 keys)
+	# Marker psql_hang_keys models a slow key query: it announces itself, then waits
+	# so a case can kill the script mid-query.
+	if [[ -e "${state}/psql_hang_keys" ]]; then
+		printf '%s\n' "$$" >"${state}/keys_started"
+		exec sleep 30
+	fi
 	cat "${state}/keys"
 	;;
 *)

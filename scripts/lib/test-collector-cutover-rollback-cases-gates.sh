@@ -25,6 +25,43 @@ run_script run --yes --baseline "${FAKE_STATE}/baseline" "${ARGS[@]}" --external
 expect_rc "an unreadable registry fails step 1 and is not read as clear" 3
 expect_no_call "no worker scale when the registry cannot be read" "scale"
 
+# The registry lists one row per installed version. Activations are summed over
+# all of them, so a later zero row cannot hide an earlier enabled one, and the
+# reverse order cannot hide it either (the last row must not win).
+for order in zero-then-one one-then-zero; do
+	new_state "registry-two-versions-${order}"
+	if [[ "${order}" == "zero-then-one" ]]; then
+		printf '1.2.2|activations=0\n1.2.3|activations=1\n' >"${FAKE_STATE}/list_rows"
+	else
+		printf '1.2.2|activations=1\n1.2.3|activations=0\n' >"${FAKE_STATE}/list_rows"
+	fi
+	run_script run --yes --baseline "${FAKE_STATE}/baseline" "${ARGS[@]}"
+	expect_rc "an enabled activation on any installed version refuses step 1 (${order})" 4
+	expect_no_call "no worker scale while a version still has an activation (${order})" "scale"
+done
+
+new_state registry-two-versions-clear
+printf '1.2.2|activations=0\n1.2.3|activations=0\n' >"${FAKE_STATE}/list_rows"
+run_script run --yes --through-step 1 --baseline "${FAKE_STATE}/baseline" "${ARGS[@]}"
+expect_rc "two installed versions with no activation are clear" 0
+
+# A malformed activations column is unknown, never clear: step 1 fails (3), it does
+# not refuse (4), and nothing is scaled.
+for column in 'activations=x' 'activations=' 'enabled=1'; do
+	new_state "registry-garbled-${column//[^a-z]/}"
+	printf '1.2.3|%s\n' "${column}" >"${FAKE_STATE}/list_rows"
+	run_script run --yes --baseline "${FAKE_STATE}/baseline" "${ARGS[@]}"
+	expect_rc "a malformed activations column (${column}) fails step 1 as unknown" 3
+	expect_out "the failure says the listing could not be parsed (${column})" "could not be parsed"
+	expect_no_call "no worker scale on a malformed registry row (${column})" "scale"
+done
+
+# One good row plus one garbled row is still unknown: the good row must not vouch.
+new_state registry-good-and-garbled
+printf '1.2.2|activations=0\n1.2.3|activations=zz\n' >"${FAKE_STATE}/list_rows"
+run_script run --yes --baseline "${FAKE_STATE}/baseline" "${ARGS[@]}"
+expect_rc "a garbled row beside a clear row is unknown, not clear" 3
+
 # --- the worker must be provably stopped (F3, F4) -------------------------------------
 
 # The selector matches no pod (custom labels), yet the worker Deployment still
@@ -33,6 +70,16 @@ new_clear_state selector-misses
 printf '1\n' >"${FAKE_STATE}/worker_replicas"
 expect_refused "a selector that matches no pod does not prove the worker stopped" 4 2 -- "psql drain"
 expect_out "the refusal says the Deployment still wants replicas" "still wants '1' replica"
+
+# Only kubectl's NotFound status means the Deployment is gone: a read that fails
+# with other text containing "not found" (a missing binary), or answers with
+# nothing, never proves the worker stopped.
+new_clear_state replicas-cmd-missing
+touch "${FAKE_STATE}/kubectl_cmd_missing"
+expect_refused "a failing replicas read with 'command not found' is not an absent worker" 4 2 -- "psql drain"
+new_clear_state replicas-empty
+: >"${FAKE_STATE}/worker_replicas"
+expect_refused "an empty replicas answer does not prove the worker stopped" 4 2 -- "psql drain"
 
 # The restore overlay turned the extension collector off, so the chart deleted the
 # worker Deployment: NotFound is stopped, and a full rerun still completes.

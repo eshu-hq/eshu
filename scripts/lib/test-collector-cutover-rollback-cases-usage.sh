@@ -25,6 +25,15 @@ run_script plan "${ARGS[@]}" --external-instance 'ext-1,'
 expect_rc "a trailing comma is rejected" 2
 run_script plan "${ARGS[@]}" --external-instance 'ext-1,,ext-2'
 expect_rc "an empty list entry is rejected" 2
+# read -a reads one line, so a newline once hid every later entry from the checks
+# while the SQL split the whole value: ext-1 then became an in-tree instance (R3).
+run_script plan "${ARGS[@]}" --in-tree-instance $'tree-1\n,ext-1'
+expect_rc "a newline in --in-tree-instance is rejected" 2
+expect_out "the newline refusal names control characters" "control characters"
+run_script plan "${ARGS[@]}" --external-instance $'ext-1\n,ext-2'
+expect_rc "a newline in --external-instance is rejected" 2
+run_script plan "${ARGS[@]}" --external-instance $'ext-1,\text-2'
+expect_rc "a tab in an instance list is rejected" 2
 run_script plan "${ARGS[@]}" --external-instance 'ext-1,tree-1'
 expect_rc "an instance named as both external and in-tree is rejected" 2
 expect_out "the overlap names the instance" "both external and in-tree"

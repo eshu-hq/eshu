@@ -9,6 +9,7 @@
 #   intree_rollout_fail    `rollout status` fails for every Deployment but the coordinator
 #   kubectl_fail_get       `get pods` fails with a server error
 #   kubectl_fail_get_deploy  `get deployment/...` fails with a server error
+#   kubectl_cmd_missing    `get deployment/...` fails as a missing binary would
 set -euo pipefail
 
 state="${FAKE_STATE:?FAKE_STATE is required}"
@@ -80,6 +81,10 @@ get)
 	deployment/*)
 		target="${2#deployment/}"
 		[[ ! -e "${state}/worker_absent" ]] || not_found "${target}"
+		if [[ -e "${state}/kubectl_cmd_missing" ]]; then
+			printf 'kubectl: command not found\n' >&2
+			exit 127
+		fi
 		if [[ -e "${state}/kubectl_fail_get_deploy" ]]; then
 			printf 'Error from server (InternalError): etcdserver: request timed out\n' >&2
 			exit 1

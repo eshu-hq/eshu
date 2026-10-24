@@ -69,7 +69,18 @@ list)
 	fi
 	active="$(awk 'NF' "${state}/activations" | awk 'END { print NR + 0 }')"
 	printf 'dev.example.other\t0.1.0\tallowlist\tstates=installed,enabled\tactivations=2\n'
-	printf 'dev.example.jira\t1.2.3\tallowlist\tstates=installed,enabled\tactivations=%s\n' "${active}"
+	# A decoy whose ID starts with the component's ID: matching by prefix would count it.
+	printf 'dev.example.jira.extra\t0.1.0\tallowlist\tstates=installed,enabled\tactivations=5\n'
+	# Marker file list_rows replaces the component's computed row with the given
+	# "version|activations column" lines, one printed row each, so a case can model
+	# several installed versions or a malformed column.
+	if [[ -e "${state}/list_rows" ]]; then
+		while IFS='|' read -r version column; do
+			printf 'dev.example.jira\t%s\tallowlist\tstates=installed,enabled\t%s\n' "${version}" "${column}"
+		done <"${state}/list_rows"
+	else
+		printf 'dev.example.jira\t1.2.3\tallowlist\tstates=installed,enabled\tactivations=%s\n' "${active}"
+	fi
 	;;
 grants)
 	if [[ -e "${state}/fail_grants" ]]; then

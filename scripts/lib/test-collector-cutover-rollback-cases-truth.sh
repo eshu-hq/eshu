@@ -73,6 +73,14 @@ tail -n +2 "${FAKE_STATE}/baseline" >"${FAKE_STATE}/legacy"
 run_script verify "${verify_args[@]}" --baseline "${FAKE_STATE}/legacy"
 expect_rc "verify refuses a baseline without the format header" 3
 expect_out "the refusal names the expected format" "eshu-rollback-truth format=1"
+new_state other-format-baseline
+: >"${FAKE_STATE}/claims"
+{
+	printf '# eshu-rollback-truth format=2\n'
+	tail -n +2 "${FAKE_STATE}/baseline"
+} >"${FAKE_STATE}/other"
+run_script verify "${verify_args[@]}" --baseline "${FAKE_STATE}/other"
+expect_rc "verify refuses a baseline written by another format version" 3
 new_state legacy-run
 tail -n +2 "${FAKE_STATE}/baseline" >"${FAKE_STATE}/legacy"
 run_script run --yes --baseline "${FAKE_STATE}/legacy" "${ARGS[@]}"
@@ -103,6 +111,73 @@ run_script verify "${verify_args[@]}" --capture "${FAKE_STATE}/captured2" --capt
 expect_rc "a failing keys query fails the capture" 3
 run_script verify "${verify_args[@]}" --capture-keys
 expect_rc "--capture-keys without --capture is a usage error" 2
+
+# A sidecar belongs to the capture that wrote it. Recapturing the same file without
+# --capture-keys, or with a keys query that fails, must not leave the old sidecar
+# behind to be read as the new baseline's keys (R2).
+new_state capture-keys-stale
+run_script verify "${verify_args[@]}" --capture "${FAKE_STATE}/captured" --capture-keys
+expect_rc "the first capture writes a sidecar" 0
+printf 'work_item.comment\tp1\tC-1\nwork_item.issue\tp2\tI-1\nwork_item.issue\tp3\tI-2\nwork_item.issue\tp9\tI-NEW\n' >"${FAKE_STATE}/keys"
+run_script verify "${verify_args[@]}" --capture "${FAKE_STATE}/captured"
+expect_rc "a recapture without --capture-keys succeeds" 0
+if [[ ! -e "${FAKE_STATE}/captured.keys" ]]; then pass "a recapture without --capture-keys removes the stale sidecar"; else fail "stale sidecar survived the recapture"; fi
+: >"${FAKE_STATE}/claims"
+printf 'work_item.comment|10|keysA|payloadA\nwork_item.issue|4|keysCHANGED|payloadCHANGED\n' >"${FAKE_STATE}/truth"
+printf 'work_item.comment\tp1\tC-1\nwork_item.issue\tp2\tI-1\nwork_item.issue\tp3\tI-2\nwork_item.issue\tp9\tI-NEW\nwork_item.issue\tp8\tI-NEWER\n' >"${FAKE_STATE}/keys"
+run_script verify "${verify_args[@]}" --baseline "${FAKE_STATE}/captured" --report-drift
+expect_rc "the report after a recapture without a sidecar still exits 6" 6
+expect_out "the report says no sidecar exists" "does not exist"
+expect_no_out "the report names no key from a stale sidecar" "added: I-NEW"
+new_state capture-keys-stale-fail
+run_script verify "${verify_args[@]}" --capture "${FAKE_STATE}/captured" --capture-keys
+expect_rc "a first capture with keys succeeds" 0
+touch "${FAKE_STATE}/psql_fail_keys"
+run_script verify "${verify_args[@]}" --capture "${FAKE_STATE}/captured" --capture-keys
+expect_rc "a recapture whose keys query fails fails" 3
+if [[ ! -e "${FAKE_STATE}/captured.keys" ]]; then pass "a failed keys capture leaves no stale sidecar"; else fail "stale sidecar survived a failed keys capture"; fi
+
+# The baseline and its sidecar hold stable fact keys, so they are private to the
+# operator (R6): no group or world bits, whatever the caller's umask.
+# group_world_bits prints the group and world permission columns of a file. `ls -l`
+# is the one form that reads the same on BSD and GNU systems; stat flags differ.
+group_world_bits() { # shellcheck disable=SC2012
+	ls -l "$1" | cut -c5-10
+}
+new_state capture-private
+rc=0
+out="$(umask 022 && PATH="${bin_dir}:${PATH}" "${script}" verify "${verify_args[@]}" --capture "${FAKE_STATE}/private" --capture-keys 2>&1)" || rc=$?
+expect_rc "a capture under a permissive umask succeeds" 0
+if [[ "$(group_world_bits "${FAKE_STATE}/private")" == "------" ]]; then pass "the baseline has no group or world access"; else fail "the baseline is readable by group or world"; fi
+if [[ "$(group_world_bits "${FAKE_STATE}/private.keys")" == "------" ]]; then pass "the key sidecar has no group or world access"; else fail "the key sidecar is readable by group or world"; fi
+
+new_state capture-private-overwrite
+printf 'old\n' >"${FAKE_STATE}/existing"
+chmod 644 "${FAKE_STATE}/existing"
+run_script verify "${verify_args[@]}" --capture "${FAKE_STATE}/existing"
+expect_rc "a recapture over an existing baseline succeeds" 0
+if [[ "$(group_world_bits "${FAKE_STATE}/existing")" == "------" ]]; then pass "a recapture replaces a world-readable baseline with a private one"; else fail "an existing baseline kept its permissive mode"; fi
+
+# A run killed mid key query leaves nothing behind in TMPDIR: the raw key list is
+# removed on the way out.
+new_state capture-killed
+touch "${FAKE_STATE}/psql_hang_keys"
+tmp_private="${tmp_root}/private-tmp"
+mkdir -p "${tmp_private}"
+PATH="${bin_dir}:${PATH}" TMPDIR="${tmp_private}" "${script}" verify "${verify_args[@]}" \
+	--capture "${FAKE_STATE}/killed" --capture-keys >"${FAKE_STATE}/kill.out" 2>&1 &
+script_pid=$!
+for _ in $(seq 1 100); do
+	[[ -e "${FAKE_STATE}/keys_started" ]] && break
+	sleep 0.05
+done
+if [[ -n "$(ls -A "${tmp_private}")" ]]; then pass "the key query runs with a temp file in TMPDIR"; else fail "no temp file existed during the key query"; fi
+kill -TERM "${script_pid}"
+rc=0
+wait "${script_pid}" || rc=$?
+expect_rc "a killed capture exits 143" 143
+if [[ -z "$(ls -A "${tmp_private}")" ]]; then pass "a killed capture leaves no temp file behind"; else fail "temp files survived a killed capture"; fi
+kill "$(cat "${FAKE_STATE}/keys_started")" 2>/dev/null || true
 
 # --- the drift report (F6) --------------------------------------------------------
 

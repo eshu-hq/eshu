@@ -23,7 +23,7 @@ read_truth() { # step
 # disk because a large scope has one line per fact.
 psql_keys_to() { # step file
 	local raw err_rc=0
-	raw="$(mktemp)"
+	mk_tmp raw
 	"$ROLLBACK_PSQL_BIN" -X -A -t -v ON_ERROR_STOP=1 -v "kind=${collector_kind}" -f "$(sql_file keys)" >"$raw" 2>"${raw}.err" || err_rc=$?
 	if [[ "$err_rc" -ne 0 ]]; then
 		local detail
@@ -76,7 +76,7 @@ report_drift() { # step
 		printf 'counts above still show which kinds differ.\n'
 		return 0
 	fi
-	current="$(mktemp)"
+	mk_tmp current
 	psql_keys_to "$1" "$current"
 	printf 'DRIFT REPORT (baseline keys: %s, up to %s key(s) per kind and class):\n' "$keys_file" "$drift_keys"
 	# pass=N operands switch the awk phase when awk reaches them, so an empty
@@ -116,8 +116,8 @@ compare_truth() { # step
 	check_baseline_format "$1"
 	read_truth "$1"
 	local current baseline
-	current="$(mktemp)"
-	baseline="$(mktemp)"
+	mk_tmp current
+	mk_tmp baseline
 	printf '%s\n' "$XOUT" >"$current"
 	truth_view "$baseline_file" >"$baseline"
 	truth_view "$current" >"${current}.view"
@@ -185,6 +185,11 @@ do_verify() { # step
 capture_baseline() {
 	read_truth 6
 	[[ -n "$XOUT" ]] || step_failed 6 "no active facts exist for collector kind ${collector_kind}; an empty baseline would prove nothing"
+	# A key sidecar belongs to the capture that wrote it. Drop any older one first, so
+	# a recapture without --capture-keys, or one whose keys query fails, can never
+	# leave keys from a previous baseline for --report-drift to trust. The baseline
+	# goes too: a shell redirect keeps the mode of a file that already exists.
+	rm -f "${capture_file}" "${capture_file}.keys"
 	{
 		printf '%s\n' "$TRUTH_HEADER"
 		printf '%s\n' "$XOUT"

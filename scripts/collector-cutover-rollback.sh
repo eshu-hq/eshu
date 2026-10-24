@@ -45,6 +45,26 @@ ROLLBACK_CLOCK_SKEW_SECONDS="${ROLLBACK_CLOCK_SKEW_SECONDS:-30}"
 # A libpq connect that hangs would outlive every wait_until deadline.
 export PGCONNECT_TIMEOUT="${PGCONNECT_TIMEOUT:-10}"
 
+# A baseline and its key sidecar hold stable fact keys (issue, incident, and
+# document IDs), so every file this script writes stays private to the operator.
+umask 077
+
+# mk_tmp makes a temp file (and its .err/.view companions) that is removed on
+# every exit path, including a refusal and a signal, so a killed run leaves no
+# raw key list in TMPDIR.
+TMP_FILES=()
+mk_tmp() { # varname
+	local file
+	# An explicit template: BSD mktemp ignores TMPDIR without one.
+	file="$(mktemp "${TMPDIR:-/tmp}/eshu-rollback.XXXXXX")"
+	TMP_FILES+=("$file" "${file}.err" "${file}.view")
+	printf -v "$1" '%s' "$file"
+}
+cleanup_tmp() {
+	if ((${#TMP_FILES[@]} > 0)); then rm -f "${TMP_FILES[@]}"; fi
+}
+trap cleanup_tmp EXIT
+
 # Exit codes. Distinct codes let a wrapper tell a refusal from a failure.
 readonly EX_USAGE=2
 readonly EX_STEP_FAILED=3
@@ -261,6 +281,10 @@ check_list() {
 	local name="$1" value="$2" part
 	local -a parts
 	[[ -n "$value" ]] || die "$EX_USAGE" "$name is required"
+	# read -r -a reads one line, so a newline would hide every later entry from the
+	# token check while the SQL still splits the whole value on commas.
+	[[ "$value" != *[[:cntrl:]]* ]] ||
+		die "$EX_USAGE" "$name must not contain control characters or newlines"
 	[[ "$value" != ,* && "$value" != *, && "$value" != *,,* ]] ||
 		die "$EX_USAGE" "$name has an empty entry: '$value'"
 	IFS=, read -r -a parts <<<"$value"
