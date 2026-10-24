@@ -8,6 +8,12 @@ Identity (plan and run require all of these; verify needs the first three):
   --in-tree-instance ID[,ID]    EVERY in-tree collector instance of the kind; the
                                 drain and authority checks treat any other
                                 instance of the kind as external
+  --in-tree-direct              instead of --in-tree-instance, for an in-tree
+                                producer that is a direct collector with no
+                                instance and no work items (the documentation
+                                kind): every claim of the kind counts as external,
+                                step 4 only scales --in-tree-deployment, and step 5
+                                waits for a scope generation observed and activated after --since
   --component-id ID             component package ID of the external producer
   --component-version VERSION   component version whose grants are revoked
   --component-home DIR          component registry home the workloads use

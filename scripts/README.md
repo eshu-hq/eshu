@@ -41,6 +41,11 @@ enabled activation, the worker is not provably stopped, or a grant is live.
 Read-only SQL lives in `lib/collector-cutover-rollback-*.sql`; the step, gate,
 truth, and plan code lives in the sibling `lib/collector-cutover-rollback-*.sh`
 files. The runbook is `docs/public/operate/collector-cutover-rollback.md`.
+`--in-tree-direct` (#9027) covers a direct in-tree collector with no instance
+and no work items, such as the documentation collector: every claim of the kind
+is external, step 4 only scales the Deployment, and step 5 reads
+`lib/collector-cutover-rollback-direct-commit.sql` for a generation observed and
+activated after the window start (details in `docs/public/operate/collector-cutover-rollback-direct.md`).
 Hung calls are bounded by `PGCONNECT_TIMEOUT` (default 10 seconds) and
 `ROLLBACK_KUBECTL_REQUEST_TIMEOUT` (default 30s). `ROLLBACK_CLOCK_SKEW_SECONDS`
 (default 30) widens the replay window. The stubbed harness is

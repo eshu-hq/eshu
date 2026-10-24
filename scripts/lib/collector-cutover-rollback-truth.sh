@@ -52,7 +52,16 @@ check_authority() { # step
 	fi
 	local ext tree overlaps
 	IFS='|' read -r ext tree overlaps <<<"$XOUT"
-	printf '  external_claimed=%s in_tree_claimed=%s overlapping_claim_pairs=%s\n' "$ext" "$tree" "$overlaps"
+	if [[ "$in_tree_direct" == "true" ]]; then
+		# A direct producer holds no claim row, so the claim table cannot show it.
+		# Its Deployment stands in: from step 5 on it has been restored and is
+		# running, so any claim of the kind is the external producer beside it.
+		tree=0
+		((${1} < 5)) || tree=1
+		printf '  external_claimed=%s in_tree_direct_running=%s overlapping_claim_pairs=%s\n' "$ext" "$tree" "$overlaps"
+	else
+		printf '  external_claimed=%s in_tree_claimed=%s overlapping_claim_pairs=%s\n' "$ext" "$tree" "$overlaps"
+	fi
 	if ((ext > 0 && tree > 0)) || ((overlaps > 0)); then
 		printf 'DUAL AUTHORITY[step %s]: both producers hold or held authority for one scope.\n' "$1" >&2
 		exit "$EX_DUAL_AUTHORITY"

@@ -200,6 +200,7 @@ gates:
     blocking: true
     triggers:
       - "docs/public/operate/collector-cutover-rollback.md"
+      - "docs/public/operate/collector-cutover-rollback-direct.md"
       - "docs/public/operate/collector-cutover-truth-checks.md"
       - "scripts/collector-cutover-rollback.sh"
       - "scripts/test-collector-cutover-rollback*.sh"

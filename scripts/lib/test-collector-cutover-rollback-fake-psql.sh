@@ -6,6 +6,7 @@
 #   drain_polls_left   after this many drain polls the claims file is emptied
 #   overlaps           overlapping claim pairs for the dual query (default 0)
 #   replay             pending|claimed|completed|retryable|terminal
+#   direct_commits     generations_observed_and_activated_after_since|latest_activated_at
 #   truth              the current per-kind truth rows
 #   keys               the current per-fact key lines
 # The drain and dual answers are computed from the claims file, from the SQL's
@@ -56,6 +57,8 @@ tag="$(printf '%s\n' "${query}" | awk '/^-- eshu-rollback:/ { sub(/^-- eshu-roll
 kind="$(var kind)"
 extra=""
 [[ "${tag}" != "now" ]] || extra=" skew=$(var skew)"
+[[ "${tag}" != "direct-commit" ]] || extra=" since=$(var since)"
+[[ "${tag}" != "drain" ]] || extra=" in_tree=$(var in_tree)"
 printf 'psql %s kind=%s%s connect_timeout=%s\n' "${tag}" "${kind}" "${extra}" "${PGCONNECT_TIMEOUT:-unset}" >>"${state}/calls.log"
 
 referenced="$(printf '%s\n' "${query}" | awk '
@@ -112,6 +115,10 @@ now)
 	;;
 replay)
 	cat "${state}/replay"
+	;;
+direct-commit)
+	# generations observed and activated after since | latest activation time (empty when none)
+	cat "${state}/direct_commits" 2>/dev/null || printf '0|\n'
 	;;
 truth)
 	cat "${state}/truth"
