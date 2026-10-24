@@ -66,7 +66,7 @@ func TestPreserveFilesystemHiddenPathMatchesCaseInsensitively(t *testing.T) {
 	t.Parallel()
 
 	for _, rel := range []string{
-		".EditorConfig", "web/.ESLINTRC", ".Flake8", ".MVN", "module/.Mvn",
+		".EditorConfig", "web/.ESLINTRC", ".Flake8", ".NpmRC", ".MVN", "module/.Mvn",
 		".GITHUB", ".Github", ".GITHUB/workflows", ".github/WORKFLOWS",
 		".GITHUB/workflows/.eslintrc", ".Github/Workflows/ci.yml",
 	} {
@@ -75,7 +75,7 @@ func TestPreserveFilesystemHiddenPathMatchesCaseInsensitively(t *testing.T) {
 		}
 	}
 	for _, rel := range []string{
-		".ENV", ".NpmRC", ".GitIgnore", ".GITHUBX", ".GITHUB/other", ".GITHUB/workflowsx",
+		".ENV", ".PypiRC", ".GitIgnore", ".GITHUBX", ".GITHUB/other", ".GITHUB/workflowsx",
 	} {
 		if preserveFilesystemHiddenPath(rel) {
 			t.Errorf("preserveFilesystemHiddenPath(%q) = true, want false", rel)

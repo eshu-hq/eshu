@@ -104,6 +104,7 @@ IFA_FAMILY_PINS_NAMES=(
 	observability_coverage
 	incident_routing_evidence
 	publishes
+	grants_secret_read
 )
 
 ifa_family_registry_pins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ifa_family_registry_pins"

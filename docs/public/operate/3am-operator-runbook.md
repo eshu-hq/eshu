@@ -62,7 +62,24 @@ reported `truth.freshness.state = stale`.
   instances or 1,024 covering targets; reduce the configured targets),
   `query_failed` (a store error), or `canceled` (the caller left; not
   counted). `no_authorized_repositories` is a scoped token with no grants; fix
-  its grants. `terminal_fetch_failure:<class>`
+  its grants. An `org_repository_*` reason or
+  `provider_open_alert_page_limit_reached` (#8943) means the collector is
+  healthy but did not read that repository of an `org` target in full, so the
+  empty answer is `target_incomplete`, `derived`, and `fresh`: key on
+  `coverage.state`, not freshness. `org_repository_fanout_cap_reached` is a
+  repository past the 100-repository per-claim cap: use `repository`-scope
+  targets or a smaller allowlist. `org_repository_read_rate_limited` is a
+  rate limit that stopped the fan-out: wait for the limit to reset or raise the
+  credential's budget. `org_repository_alerts_disabled` means Dependabot alerts
+  are off for the repository: enable them. `org_repository_read_failed` and
+  `org_repository_fanout_stopped` come from a failed read (not found, a
+  credential or access problem, a 5xx): check the credential and the
+  repository's access. `provider_open_alert_page_limit_reached` means the
+  repository's own alerts exceed `max_pages` x 100: raise `max_pages`.
+  `org_repository_read_incomplete` is a reason a newer collector stored that
+  this build does not know. To list the cut-short targets, use the query in
+  [Provider Alert Parity](../reference/security-intelligence-provider-alert-parity.md#org-read-state).
+  `terminal_fetch_failure:<class>`
   is a terminal fetch failure (`auth_denied` means the provider refused the
   target's credential; `retryable` or `attempt_budget_exhausted` means the
   retry budget ran out; `identity_mismatch`, `collect_failure`, and
@@ -178,7 +195,9 @@ A source is not refreshing, or a collector family reports unhealthy.
   `last_failure_class` on `GET /api/v0/status/collectors`. Classes every kind
   shares: `auth_denied`
   (fix the credential or grant), `not_found` (check the target exists and the
-  credential can see it), `rate_limited` (wait or lower the schedule),
+  credential can see it; for the security-alert collector it also means the
+  repository has Dependabot alerts disabled, which GitHub answers with a 403),
+  `rate_limited` (wait or lower the schedule),
   `retryable` or `attempt_budget_exhausted` (the retry budget ran out on a
   transient failure; check provider health, then let the next cycle run),
   `identity_mismatch` (the collected generation did not match its claim; check

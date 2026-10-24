@@ -125,16 +125,17 @@ import (
 // #8835 adds the five unshipped supply runtime fallback indexes as 212–216.
 // #8880 adds 217-229, the supply-chain impact active-evidence anchors
 // (one CREATE INDEX CONCURRENTLY per file).
-// #8840 adds 231_workflow_work_items_security_alert_scope_updated_idx.sql (the
-// partial latest-work-item-per-scope index for the security-alert collection
-// read; 230 is left to #9015, and whichever PR merges second renumbers).
-const goldenBootstrapDefinitionsDigest = "a97b6904d689ffb8dcdc4f5567ac496ff8a90cbde7d7a9fb16a537cccef1d419"
+// #8943 adds 230_security_alert_target_read_states.sql (the collector-owned
+// org read state and its unread-repository child rows; DDL only). #8840 adds
+// 231_workflow_work_items_security_alert_scope_updated_idx.sql (the partial
+// latest-work-item-per-scope index for the security-alert collection read).
+const goldenBootstrapDefinitionsDigest = "ef6ccbd40daad961102c3d352132d1b970bf33387bb2d0f9d51bc8175ebe8526"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 248
+const goldenBootstrapDefinitionsCount = 249
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

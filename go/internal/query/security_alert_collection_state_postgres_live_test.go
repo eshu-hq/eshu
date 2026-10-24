@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -132,7 +133,7 @@ func TestSecurityAlertCollectionStateSemanticsLive(t *testing.T) {
 
 	states, err := f.store().SecurityAlertTargetStates(f.ctx, []string{
 		"g-active", "g-completed", "g-failed", "g-pending", "g-superseded", "t-f3", "t-latest", "t-none", "t-tie",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("SecurityAlertTargetStates() error = %v", err)
 	}
@@ -151,7 +152,7 @@ func TestSecurityAlertCollectionStateSemanticsLive(t *testing.T) {
 		t.Fatalf("states = %+v, want one row per requested scope (%d)", states, len(want))
 	}
 	for _, state := range states {
-		if state != want[state.ScopeID] {
+		if !reflect.DeepEqual(state, want[state.ScopeID]) {
 			t.Fatalf("state %s = %+v, want %+v", state.ScopeID, state, want[state.ScopeID])
 		}
 	}
@@ -176,11 +177,11 @@ func TestSecurityAlertCollectionStateBoundsLive(t *testing.T) {
 	for i := range scopeIDs {
 		scopeIDs[i] = fmt.Sprintf("bound-%04d", i)
 	}
-	states, err := f.store().SecurityAlertTargetStates(f.ctx, scopeIDs[:1024])
+	states, err := f.store().SecurityAlertTargetStates(f.ctx, scopeIDs[:1024], nil)
 	if err != nil || len(states) != 1024 {
 		t.Fatalf("1024 targets: states=%d err=%v, want 1024 rows and no error", len(states), err)
 	}
-	if _, err := f.store().SecurityAlertTargetStates(f.ctx, scopeIDs); !errors.Is(err, supplychain.ErrSecurityAlertCollectionStateBound) {
+	if _, err := f.store().SecurityAlertTargetStates(f.ctx, scopeIDs, nil); !errors.Is(err, supplychain.ErrSecurityAlertCollectionStateBound) {
 		t.Fatalf("1025 targets: error = %v, want ErrSecurityAlertCollectionStateBound", err)
 	}
 }
@@ -228,7 +229,7 @@ FROM generate_series(1, 50, 2) AS t`, f.asOf)
 	warm := explainSecurityAlertTargetStates(f, scopeIDs)
 	t.Logf("EXPLAIN (ANALYZE, BUFFERS) after VACUUM (ANALYZE):\n%s", warm)
 
-	withIndex, err := f.store().SecurityAlertTargetStates(f.ctx, scopeIDs)
+	withIndex, err := f.store().SecurityAlertTargetStates(f.ctx, scopeIDs, nil)
 	if err != nil {
 		t.Fatalf("SecurityAlertTargetStates() error = %v", err)
 	}
@@ -237,7 +238,7 @@ FROM generate_series(1, 50, 2) AS t`, f.asOf)
 		t.Fatalf("rows with index = %d, without = %d, want %d each", len(withIndex), len(withoutIndex), len(scopeIDs))
 	}
 	for i := range withIndex {
-		if withIndex[i] != withoutIndex[i] {
+		if !reflect.DeepEqual(withIndex[i], withoutIndex[i]) {
 			t.Fatalf("row %d with index = %+v, pre-#8840 plan = %+v", i, withIndex[i], withoutIndex[i])
 		}
 	}
@@ -251,7 +252,9 @@ FROM generate_series(1, 50, 2) AS t`, f.asOf)
 		"target-1":       {ScopeID: "target-1", LatestWorkItemStatus: "failed_terminal", LatestFailureClass: "auth_denied", LatestFailureTerminal: true},
 		"target-2":       {ScopeID: "target-2", LatestWorkItemStatus: "completed"},
 	} {
-		if byScope[scope] != want {
+		if got := byScope[scope]; got.ScopeID != want.ScopeID || got.LatestWorkItemStatus != want.LatestWorkItemStatus ||
+			got.LatestFailureClass != want.LatestFailureClass || got.LatestFailureTerminal != want.LatestFailureTerminal ||
+			got.CommittedGeneration != want.CommittedGeneration || got.UnreadTotal != want.UnreadTotal {
 			t.Fatalf("state %s = %+v, want %+v", scope, byScope[scope], want)
 		}
 	}
@@ -271,7 +274,7 @@ func securityAlertTargetStatesWithoutIndex(f *collectionStateLiveFixture, scopeI
 		f.t.Fatalf("drop index inside differential transaction: %v", err)
 	}
 	var plan strings.Builder
-	planRows, err := tx.QueryContext(f.ctx, "EXPLAIN "+securityAlertTargetStatesQuery, array.Of(scopeIDs))
+	planRows, err := tx.QueryContext(f.ctx, "EXPLAIN "+securityAlertTargetStatesQuery, array.Of(scopeIDs), array.Of([]string(nil)))
 	if err != nil {
 		f.t.Fatalf("EXPLAIN pre-#8840 plan: %v", err)
 	}
@@ -286,7 +289,7 @@ func securityAlertTargetStatesWithoutIndex(f *collectionStateLiveFixture, scopeI
 	if strings.Contains(plan.String(), securityAlertLatestWorkItemIndex) {
 		f.t.Fatalf("differential plan still uses the dropped index:\n%s", plan.String())
 	}
-	states, err := NewPostgresSecurityAlertCollectionStateStoreWithReadStore(storagepostgres.SQLTx{Tx: tx}).SecurityAlertTargetStates(f.ctx, scopeIDs)
+	states, err := NewPostgresSecurityAlertCollectionStateStoreWithReadStore(storagepostgres.SQLTx{Tx: tx}).SecurityAlertTargetStates(f.ctx, scopeIDs, nil)
 	if err != nil {
 		f.t.Fatalf("SecurityAlertTargetStates() on the pre-#8840 plan: %v", err)
 	}
@@ -299,7 +302,7 @@ const securityAlertLatestWorkItemIndex = "workflow_work_items_security_alert_sco
 
 func explainSecurityAlertTargetStates(f *collectionStateLiveFixture, scopeIDs []string) string {
 	f.t.Helper()
-	rows, err := f.database.QueryContext(f.ctx, "EXPLAIN (ANALYZE, BUFFERS) "+securityAlertTargetStatesQuery, array.Of(scopeIDs))
+	rows, err := f.database.QueryContext(f.ctx, "EXPLAIN (ANALYZE, BUFFERS) "+securityAlertTargetStatesQuery, array.Of(scopeIDs), array.Of([]string(nil)))
 	if err != nil {
 		f.t.Fatalf("EXPLAIN target states: %v", err)
 	}

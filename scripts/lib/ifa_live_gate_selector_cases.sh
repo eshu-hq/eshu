@@ -470,9 +470,9 @@ ifa_live_gate_common_seams=(
 	# set, and cells are new common seams beside the siblings; the Odù stays
 	# in the determinism-only table and the writer seam above already covers
 	# this family's templates (same file).
-	'testdata/cassettes/usesvaultpolicy/**|testdata/cassettes/usesvaultpolicy/ifa-uses-vault-policy-family.json'
-	'go/internal/ifa/testdata/usesvaultpolicy/**|go/internal/ifa/testdata/usesvaultpolicy/ifa-uses-vault-policy-family-expected-edges.json'
-	'scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh|scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh'
+	'testdata/cassettes/usesvaultpolicy/**|testdata/cassettes/usesvaultpolicy/ifa-uses-vault-policy-family.json' 'testdata/cassettes/grantssecretread/**|testdata/cassettes/grantssecretread/ifa-grants-secret-read-family.json'  # vault siblings, packed for the 500-line cap
+	'go/internal/ifa/testdata/usesvaultpolicy/**|go/internal/ifa/testdata/usesvaultpolicy/ifa-uses-vault-policy-family-expected-edges.json' 'go/internal/ifa/testdata/grantssecretread/**|go/internal/ifa/testdata/grantssecretread/ifa-grants-secret-read-family-expected-edges.json'  # vault siblings, packed for the 500-line cap
+	'scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh|scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh' 'scripts/lib/ifa_fault_injection_grants_secret_read_cells.sh|scripts/lib/ifa_fault_injection_grants_secret_read_cells.sh'  # vault siblings, packed for the 500-line cap
 	'go/internal/collector/repo/git/fact_builder*.go|go/internal/collector/repo/git/fact_builder.go'
 	'go/internal/collector/repo/git/fact_builder*.go|go/internal/collector/repo/git/fact_builder_delta.go'
 	'go/internal/collector/repo/git/followup_facts.go|go/internal/collector/repo/git/followup_facts.go'

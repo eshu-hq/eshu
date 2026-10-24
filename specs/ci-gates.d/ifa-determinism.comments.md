@@ -118,8 +118,8 @@
       # being correct the moment the writer splits into a second file.
       # kubernetes_namespace_environment / iam_instance_profile_role (#6228)
       # + iam_can_assume + iam_can_perform + ec2_uses_profile + s3_logs_to
-      # + iam_escalation + authenticates_vault_role + uses_vault_policy
-      # + built_from + cloud_resource_container_image (#6228 fault halves and slices A/C/D):
+      # + iam_escalation + authenticates_vault_role + uses_vault_policy + grants_secret_read
+      # + built_from + cloud_resource_container_image (#6228 fault halves, slices A/C/D, and the grants_secret_read remainder):
       # the first DIRECT-materialization families in a live gate. Each carries
       # its own Odù builder, committed cassette and expected-edge directory,
       # plus the reducer handler and cypher writer whose output the exact-set
@@ -212,8 +212,8 @@
       # shared retry helper before its first build/test step.
       # kubernetes_namespace_environment + iam_instance_profile_role (#6309)
       # + iam_can_perform + ec2_uses_profile + s3_logs_to + iam_escalation
-      # + authenticates_vault_role + uses_vault_policy + built_from
-      # + cloud_resource_container_image (#6228 fault halves and slices A/C/D):
+      # + authenticates_vault_role + uses_vault_policy + grants_secret_read + built_from
+      # + cloud_resource_container_image (#6228 fault halves, slices A/C/D, and the grants_secret_read remainder):
       # same deliberate reach into the fault surface as the inheritance/
       # shell_exec literals above.
       # #6147 PR-0 family-registry extraction: shared with ifa-fault-injection

@@ -170,6 +170,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			load:         ifa.LoadUsesVaultPolicyFamilyOdu,
 		},
 		{
+			name:         ifa.GrantsSecretReadFamilyOduName,
+			compiled:     ifa.GrantsSecretReadFamilyOdu,
+			cassettePath: ifa.GrantsSecretReadFamilyCassetteFullPath,
+			load:         ifa.LoadGrantsSecretReadFamilyOdu,
+		},
+		{
 			name:         ifa.CodeTaintEvidenceFamilyOduName,
 			compiled:     ifa.CodeTaintEvidenceFamilyOdu,
 			cassettePath: ifa.CodeTaintEvidenceFamilyCassetteFullPath,

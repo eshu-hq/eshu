@@ -180,6 +180,12 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
+		Family:     grantsSecretReadFamily,
+		OduName:    ifa.GrantsSecretReadFamilyOduName,
+		EdgeTypes:  []string{"SECRETS_IAM_GRANTS_SECRET_READ"},
+		LiveProven: true,
+	},
+	{
 		Family:     crossplaneSatisfiedByFamily,
 		OduName:    ifa.CrossplaneSatisfiedByFamilyOduName,
 		EdgeTypes:  []string{"SATISFIED_BY"},

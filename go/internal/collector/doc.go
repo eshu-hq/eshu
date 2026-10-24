@@ -5,7 +5,9 @@
 //
 // It defines Source, Committer, Service, and CollectedGeneration — the contract
 // a collector implements to hand facts to durable commit — plus the claimed-work
-// machinery (ClaimedService, ClaimedCommitter, ClaimedSource) that roughly
+// machinery (ClaimedService, ClaimedCommitter, StateClaimedCommitter and the
+// GenerationStateWriter a source sets to commit collector-owned state with its
+// generation, ClaimedSource) that roughly
 // fifteen collector kinds share, the fair claim dispatcher, generation
 // dead-letter records and replay completion, and the retryable-failure
 // classification collectors report through.
