@@ -33,8 +33,23 @@ the pin test stayed green.
   Discovery, parsing and fact emission for real repositories are unchanged.
 - No-Observability-Change: no metric, span or log key changed. The new version
   string appears in the existing freshness hint, which operators already read
-  from the generation record. Each repository re-collects once when its
-  reconciliation sweep next comes due, the same effect as every earlier bump.
-- Why it is safe: the bump only forces one extra generation per repository; it
-  cannot hide or drop a fact, and the guard keeps a future fixture from
-  falling into a pruned directory.
+  from the generation record.
+- Why the bump: issue #8905 acceptance criterion 3 requires it. The pin test
+  does not: with the constant and the pin both left at v9 and the new digest,
+  `TestGenerationContentVersionPinsCollectorOutput` passes. Real-repository
+  output does not change.
+- Cost of the bump: the version is folded into every git freshness hint, so a
+  repository stores one new full generation when its reconciliation sweep next
+  comes due. The sweep forces it through `interval_elapsed` (default 24 hours)
+  and caps it at `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` (default 10), as
+  [Reconciliation sweep](../../public/reference/reconciliation-sweep.md)
+  describes. The pace is prior evidence, not re-measured here: the #8222 note
+  ([PHP import kind](8222-php-import-kind-content-version.md)) measured 7 to 10
+  repositories per 10 minutes on a 69-repository reindex. NOT_CHECKED: whether
+  `git-collector.v9` (landed in #8922) is deployed anywhere, so the number of
+  repositories this roll adds beyond the v9 roll is unknown.
+- Why it is bounded, not free: the bump cannot hide or drop a fact, and the
+  extra generation per repository is rate-limited by the sweep cap. It still
+  costs one full re-parse per repository, which is why a fixture-only change
+  should not bump casually. The guard keeps a future fixture from falling into
+  a pruned directory.
