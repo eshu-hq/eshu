@@ -1,0 +1,679 @@
+{
+  "collector": "prometheus_mimir",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "prometheus:parity:prod",
+      "source_system": "prometheus_mimir",
+      "scope_kind": "metric_source",
+      "collector_kind": "prometheus_mimir",
+      "partition_key": "prometheus-parity",
+      "metadata": {
+        "instance_id": "prometheus-parity",
+        "provider": "prometheus"
+      },
+      "generation_id": "prometheus-mimir:8864:prod:1",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "observability.source_instance",
+          "stable_fact_key": "observability.source_instance:prometheus-mimir:8864:prod:1:31c54349f87d7d00b6be1f83b59eb0adf6b70fbf8a808e857e45efcdfd4fa880",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "freshness_state": "current",
+            "generation_id": "prometheus-mimir:8864:prod:1",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "observed",
+            "pages_fetched": 2,
+            "partial": false,
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:prod",
+              "source_instance_id": "prometheus-parity"
+            },
+            "provider": "prometheus",
+            "redaction_state": "none",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_count": 2,
+            "rule_count": 2,
+            "scope_id": "prometheus:parity:prod",
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity",
+            "source_kind": "prometheus",
+            "truncated": false,
+            "warning_count": 4
+          },
+          "source_record_id": "prometheus-parity"
+        },
+        {
+          "fact_kind": "observability.observed_target",
+          "stable_fact_key": "observability.observed_target:prometheus-mimir:8864:prod:1:df472b5ce95df9abbf121167019ddc24d6bfd1de07292156e8e1c620c8f5c397",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "declared_match_state": "not_compared",
+            "discovered_label_keys": [
+              "__address__",
+              "__metrics_path__"
+            ],
+            "drift_candidate_reason": "manual_provider_resource",
+            "freshness_state": "stale",
+            "generation_id": "prometheus-mimir:8864:prod:1",
+            "health": "up",
+            "label_keys": [
+              "instance",
+              "job"
+            ],
+            "last_scrape_at": "2026-09-30T12:00:00Z",
+            "manually_created": true,
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "stale",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:prod",
+              "source_instance_id": "prometheus-parity"
+            },
+            "provider": "prometheus",
+            "provider_object_uid": "sha256:5e71f3a2c4c316d599a8c3eccac5d66f9adfbf6dea5716137a9cc0ae592aff21",
+            "redaction_state": "applied",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "target",
+            "scope_id": "prometheus:parity:prod",
+            "scrape_pool": "nodes",
+            "scrape_url_present": false,
+            "scrape_url_redacted": true,
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity",
+            "source_kind": "prometheus"
+          },
+          "source_record_id": "sha256:5e71f3a2c4c316d599a8c3eccac5d66f9adfbf6dea5716137a9cc0ae592aff21"
+        },
+        {
+          "fact_kind": "observability.observed_target",
+          "stable_fact_key": "observability.observed_target:prometheus-mimir:8864:prod:1:972fd3380e04987e68756a582ca3fa0fe8a43b9eb34568f198a1ba89092ecabe",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "declared_match_state": "not_compared",
+            "discovered_label_keys": [
+              "__address__"
+            ],
+            "drift_candidate_reason": "manual_provider_resource",
+            "freshness_state": "stale",
+            "generation_id": "prometheus-mimir:8864:prod:1",
+            "health": "down",
+            "label_keys": [
+              "instance",
+              "job"
+            ],
+            "last_error_redacted": true,
+            "last_scrape_at": "2026-01-01T00:00:00Z",
+            "manually_created": true,
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "stale",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:prod",
+              "source_instance_id": "prometheus-parity"
+            },
+            "provider": "prometheus",
+            "provider_object_uid": "sha256:07150ba241bc1a0abe87482b785231dfd4e51f03ff40bc8ec7f91c88b3a37a87",
+            "redaction_state": "applied",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "target",
+            "scope_id": "prometheus:parity:prod",
+            "scrape_pool": "nodes",
+            "scrape_url_present": false,
+            "scrape_url_redacted": true,
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity",
+            "source_kind": "prometheus"
+          },
+          "source_record_id": "sha256:07150ba241bc1a0abe87482b785231dfd4e51f03ff40bc8ec7f91c88b3a37a87"
+        },
+        {
+          "fact_kind": "observability.observed_rule",
+          "stable_fact_key": "observability.observed_rule:prometheus-mimir:8864:prod:1:0b538f724e330750eaefd9b434f6d0983f48a0bdbf9fe60b890e05d9dd332b79",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "annotation_keys": [
+              "summary"
+            ],
+            "collector_instance_id": "collector-prometheus-parity",
+            "declared_match_state": "matched_declared",
+            "freshness_state": "stale",
+            "generation_id": "prometheus-mimir:8864:prod:1",
+            "health": "ok",
+            "label_keys": [
+              "service"
+            ],
+            "last_evaluation_at": "2026-09-30T12:00:00Z",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "stale",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:prod",
+              "source_instance_id": "prometheus-parity"
+            },
+            "provider": "prometheus",
+            "provider_object_uid": "parity.rules:ParityBurn",
+            "query_redacted": true,
+            "redaction_state": "applied",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "rule",
+            "rule_group": "parity.rules",
+            "rule_name": "ParityBurn",
+            "rule_type": "alerting",
+            "scope_id": "prometheus:parity:prod",
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity",
+            "source_kind": "prometheus"
+          },
+          "source_record_id": "parity.rules:ParityBurn"
+        },
+        {
+          "fact_kind": "observability.observed_rule",
+          "stable_fact_key": "observability.observed_rule:prometheus-mimir:8864:prod:1:a0ee5151d83e2fd06f516afa20ec15776970681677dbfd297f92c606ca0efdd4",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "annotation_keys": [
+              "summary"
+            ],
+            "collector_instance_id": "collector-prometheus-parity",
+            "declared_match_state": "not_compared",
+            "drift_candidate_reason": "manual_provider_resource",
+            "freshness_state": "stale",
+            "generation_id": "prometheus-mimir:8864:prod:1",
+            "health": "ok",
+            "label_keys": [
+              "service"
+            ],
+            "last_evaluation_at": "2026-01-01T00:00:00Z",
+            "manually_created": true,
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "stale",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:prod",
+              "source_instance_id": "prometheus-parity"
+            },
+            "provider": "prometheus",
+            "provider_object_uid": "parity.rules:ParityRecord",
+            "query_redacted": true,
+            "redaction_state": "applied",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "rule",
+            "rule_group": "parity.rules",
+            "rule_name": "ParityRecord",
+            "rule_type": "recording",
+            "scope_id": "prometheus:parity:prod",
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity",
+            "source_kind": "prometheus"
+          },
+          "source_record_id": "parity.rules:ParityRecord"
+        },
+        {
+          "fact_kind": "observability.coverage_warning",
+          "stable_fact_key": "observability.coverage_warning:prometheus-mimir:8864:prod:1:6f0ea58900dd61adb3447afaa1daa0080a67873e8ba0d4c297977797cd1ed576",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "freshness_state": "stale",
+            "generation_id": "prometheus-mimir:8864:prod:1",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "stale",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:prod",
+              "source_instance_id": "prometheus-parity"
+            },
+            "provider": "prometheus",
+            "provider_object_uid": "sha256:5e71f3a2c4c316d599a8c3eccac5d66f9adfbf6dea5716137a9cc0ae592aff21",
+            "redaction_state": "none",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "target",
+            "scope_id": "prometheus:parity:prod",
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity",
+            "source_kind": "prometheus",
+            "warning_kind": "stale"
+          },
+          "source_record_id": "sha256:5e71f3a2c4c316d599a8c3eccac5d66f9adfbf6dea5716137a9cc0ae592aff21"
+        },
+        {
+          "fact_kind": "observability.coverage_warning",
+          "stable_fact_key": "observability.coverage_warning:prometheus-mimir:8864:prod:1:727c01e276ae67cd598b9d515334f14a716ef23253b1fc6da86df3b1076a4ed7",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "freshness_state": "stale",
+            "generation_id": "prometheus-mimir:8864:prod:1",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "stale",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:prod",
+              "source_instance_id": "prometheus-parity"
+            },
+            "provider": "prometheus",
+            "provider_object_uid": "sha256:07150ba241bc1a0abe87482b785231dfd4e51f03ff40bc8ec7f91c88b3a37a87",
+            "redaction_state": "none",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "target",
+            "scope_id": "prometheus:parity:prod",
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity",
+            "source_kind": "prometheus",
+            "warning_kind": "stale"
+          },
+          "source_record_id": "sha256:07150ba241bc1a0abe87482b785231dfd4e51f03ff40bc8ec7f91c88b3a37a87"
+        },
+        {
+          "fact_kind": "observability.coverage_warning",
+          "stable_fact_key": "observability.coverage_warning:prometheus-mimir:8864:prod:1:eccf808f650a51daae2bd33cbc25f7404390af750164e02a063642ba1d54e4f7",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "freshness_state": "stale",
+            "generation_id": "prometheus-mimir:8864:prod:1",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "stale",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:prod",
+              "source_instance_id": "prometheus-parity"
+            },
+            "provider": "prometheus",
+            "provider_object_uid": "parity.rules:ParityBurn",
+            "redaction_state": "none",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "rule",
+            "scope_id": "prometheus:parity:prod",
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity",
+            "source_kind": "prometheus",
+            "warning_kind": "stale"
+          },
+          "source_record_id": "parity.rules:ParityBurn"
+        },
+        {
+          "fact_kind": "observability.coverage_warning",
+          "stable_fact_key": "observability.coverage_warning:prometheus-mimir:8864:prod:1:03439e2e5f597bcc37e1fbf8c5650cb8a018a3adec4a34a0a4957733a0113074",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "freshness_state": "stale",
+            "generation_id": "prometheus-mimir:8864:prod:1",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "stale",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:prod",
+              "source_instance_id": "prometheus-parity"
+            },
+            "provider": "prometheus",
+            "provider_object_uid": "parity.rules:ParityRecord",
+            "redaction_state": "none",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "rule",
+            "scope_id": "prometheus:parity:prod",
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity",
+            "source_kind": "prometheus",
+            "warning_kind": "stale"
+          },
+          "source_record_id": "parity.rules:ParityRecord"
+        }
+      ]
+    },
+    {
+      "scope_id": "mimir:parity:tenant",
+      "source_system": "prometheus_mimir",
+      "scope_kind": "metric_source",
+      "collector_kind": "prometheus_mimir",
+      "partition_key": "mimir-parity",
+      "metadata": {
+        "instance_id": "mimir-parity",
+        "provider": "mimir"
+      },
+      "generation_id": "prometheus-mimir:8864:mimir:1",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "observability.source_instance",
+          "stable_fact_key": "observability.source_instance:prometheus-mimir:8864:mimir:1:3bb80e7090c187fc3972e2c7b38e17721cbff089c37f3eac4c45f98861f6643f",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 9,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "freshness_state": "current",
+            "generation_id": "prometheus-mimir:8864:mimir:1",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "observed",
+            "pages_fetched": 1,
+            "partial": false,
+            "provenance": {
+              "provider": "mimir",
+              "scope_id": "mimir:parity:tenant",
+              "source_instance_id": "mimir-parity"
+            },
+            "provider": "mimir",
+            "redaction_state": "applied",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_count": 0,
+            "rule_count": 1,
+            "scope_id": "mimir:parity:tenant",
+            "source_class": "observed",
+            "source_instance_id": "mimir-parity",
+            "source_kind": "mimir",
+            "tenant_fingerprint": "sha256:9332cc3fc0ec09d0f04fa8e1e08637b515cabe989342fe283c5da00e7916bb19",
+            "tenant_redacted": true,
+            "tenant_scope_state": "configured",
+            "truncated": false,
+            "warning_count": 0
+          },
+          "source_record_id": "mimir-parity"
+        },
+        {
+          "fact_kind": "observability.observed_rule",
+          "stable_fact_key": "observability.observed_rule:prometheus-mimir:8864:mimir:1:49dea8f36f204d9b2f2c88b693b6dcae6d3b3217cea7520f8eb89894dbf0f8f5",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 9,
+          "source_confidence": "reported",
+          "payload": {
+            "annotation_keys": [
+              "summary"
+            ],
+            "collector_instance_id": "collector-prometheus-parity",
+            "declared_match_state": "not_compared",
+            "freshness_state": "current",
+            "generation_id": "prometheus-mimir:8864:mimir:1",
+            "health": "ok",
+            "label_keys": [
+              "service"
+            ],
+            "last_evaluation_at": "2026-09-30T12:00:00Z",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "observed",
+            "provenance": {
+              "provider": "mimir",
+              "scope_id": "mimir:parity:tenant",
+              "source_instance_id": "mimir-parity"
+            },
+            "provider": "mimir",
+            "provider_object_uid": "mimir.rules:MimirBurn",
+            "query_redacted": true,
+            "redaction_state": "applied",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "rule",
+            "rule_group": "mimir.rules",
+            "rule_name": "MimirBurn",
+            "rule_type": "alerting",
+            "scope_id": "mimir:parity:tenant",
+            "source_class": "observed",
+            "source_instance_id": "mimir-parity",
+            "source_kind": "mimir"
+          },
+          "source_record_id": "mimir.rules:MimirBurn"
+        }
+      ]
+    },
+    {
+      "scope_id": "prometheus:parity:truncated",
+      "source_system": "prometheus_mimir",
+      "scope_kind": "metric_source",
+      "collector_kind": "prometheus_mimir",
+      "partition_key": "prometheus-parity-trunc",
+      "metadata": {
+        "instance_id": "prometheus-parity-trunc",
+        "provider": "prometheus"
+      },
+      "generation_id": "prometheus-mimir:8864:trunc:1",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "observability.source_instance",
+          "stable_fact_key": "observability.source_instance:prometheus-mimir:8864:trunc:1:fe2382be27c9efeabecad18c5ebf56e67cea99be0de4ba1a45e8a62cebd00407",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 11,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "freshness_state": "current",
+            "generation_id": "prometheus-mimir:8864:trunc:1",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "observed",
+            "pages_fetched": 2,
+            "partial": false,
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:truncated",
+              "source_instance_id": "prometheus-parity-trunc"
+            },
+            "provider": "prometheus",
+            "redaction_state": "none",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_count": 1,
+            "rule_count": 1,
+            "scope_id": "prometheus:parity:truncated",
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity-trunc",
+            "source_kind": "prometheus",
+            "truncated": true,
+            "warning_count": 3
+          },
+          "source_record_id": "prometheus-parity-trunc"
+        },
+        {
+          "fact_kind": "observability.observed_target",
+          "stable_fact_key": "observability.observed_target:prometheus-mimir:8864:trunc:1:d0fb0ca4ba66ac21c4f0c90a9f1e8d6c788724f6c529f2a566b2399d99681bed",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 11,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "declared_match_state": "not_compared",
+            "discovered_label_keys": [
+              "__address__",
+              "__metrics_path__"
+            ],
+            "freshness_state": "stale",
+            "generation_id": "prometheus-mimir:8864:trunc:1",
+            "health": "up",
+            "label_keys": [
+              "instance",
+              "job"
+            ],
+            "last_scrape_at": "2026-09-30T12:00:00Z",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "stale",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:truncated",
+              "source_instance_id": "prometheus-parity-trunc"
+            },
+            "provider": "prometheus",
+            "provider_object_uid": "sha256:5e71f3a2c4c316d599a8c3eccac5d66f9adfbf6dea5716137a9cc0ae592aff21",
+            "redaction_state": "applied",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "target",
+            "scope_id": "prometheus:parity:truncated",
+            "scrape_pool": "nodes",
+            "scrape_url_present": false,
+            "scrape_url_redacted": true,
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity-trunc",
+            "source_kind": "prometheus"
+          },
+          "source_record_id": "sha256:5e71f3a2c4c316d599a8c3eccac5d66f9adfbf6dea5716137a9cc0ae592aff21"
+        },
+        {
+          "fact_kind": "observability.observed_rule",
+          "stable_fact_key": "observability.observed_rule:prometheus-mimir:8864:trunc:1:2d38a01dee754fedb5f126db12ca8d20ebbc9bf30ed473e4b63d602f70e80705",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 11,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "declared_match_state": "not_compared",
+            "freshness_state": "stale",
+            "generation_id": "prometheus-mimir:8864:trunc:1",
+            "health": "ok",
+            "last_evaluation_at": "2026-09-30T12:00:00Z",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "stale",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:truncated",
+              "source_instance_id": "prometheus-parity-trunc"
+            },
+            "provider": "prometheus",
+            "provider_object_uid": "trunc.rules:TruncBurn",
+            "query_redacted": true,
+            "redaction_state": "applied",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "rule",
+            "rule_group": "trunc.rules",
+            "rule_name": "TruncBurn",
+            "rule_type": "alerting",
+            "scope_id": "prometheus:parity:truncated",
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity-trunc",
+            "source_kind": "prometheus"
+          },
+          "source_record_id": "trunc.rules:TruncBurn"
+        },
+        {
+          "fact_kind": "observability.coverage_warning",
+          "stable_fact_key": "observability.coverage_warning:prometheus-mimir:8864:trunc:1:143d09d686309ec393bc820573df992288abc2c73d7cf774efe295812c4b0dc9",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 11,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "freshness_state": "stale",
+            "generation_id": "prometheus-mimir:8864:trunc:1",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "stale",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:truncated",
+              "source_instance_id": "prometheus-parity-trunc"
+            },
+            "provider": "prometheus",
+            "provider_object_uid": "sha256:5e71f3a2c4c316d599a8c3eccac5d66f9adfbf6dea5716137a9cc0ae592aff21",
+            "redaction_state": "none",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "target",
+            "scope_id": "prometheus:parity:truncated",
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity-trunc",
+            "source_kind": "prometheus",
+            "warning_kind": "stale"
+          },
+          "source_record_id": "sha256:5e71f3a2c4c316d599a8c3eccac5d66f9adfbf6dea5716137a9cc0ae592aff21"
+        },
+        {
+          "fact_kind": "observability.coverage_warning",
+          "stable_fact_key": "observability.coverage_warning:prometheus-mimir:8864:trunc:1:287a97eafc88b45a2e6aee5b7acf3a0e01a71f0e2a72725cfcec72a6a2294a01",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 11,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "freshness_state": "unknown",
+            "generation_id": "prometheus-mimir:8864:trunc:1",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "partial",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:truncated",
+              "source_instance_id": "prometheus-parity-trunc"
+            },
+            "provider": "prometheus",
+            "redaction_state": "none",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "target",
+            "scope_id": "prometheus:parity:truncated",
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity-trunc",
+            "source_kind": "prometheus",
+            "warning_kind": "truncated"
+          },
+          "source_record_id": "truncated"
+        },
+        {
+          "fact_kind": "observability.coverage_warning",
+          "stable_fact_key": "observability.coverage_warning:prometheus-mimir:8864:trunc:1:4a93d3c2bf983bcb1aad5178d35372d0585c6f9a49791c8f44de972733a1c1ea",
+          "schema_version": "1.0.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 11,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-prometheus-parity",
+            "freshness_state": "stale",
+            "generation_id": "prometheus-mimir:8864:trunc:1",
+            "observed_at": "2026-10-01T12:00:00Z",
+            "outcome": "stale",
+            "provenance": {
+              "provider": "prometheus",
+              "scope_id": "prometheus:parity:truncated",
+              "source_instance_id": "prometheus-parity-trunc"
+            },
+            "provider": "prometheus",
+            "provider_object_uid": "trunc.rules:TruncBurn",
+            "redaction_state": "none",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "resource_class": "rule",
+            "scope_id": "prometheus:parity:truncated",
+            "source_class": "observed",
+            "source_instance_id": "prometheus-parity-trunc",
+            "source_kind": "prometheus",
+            "warning_kind": "stale"
+          },
+          "source_record_id": "trunc.rules:TruncBurn"
+        }
+      ]
+    }
+  ]
+}
