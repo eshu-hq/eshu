@@ -3,6 +3,8 @@
 
 package sbt
 
+import "strings"
+
 // tokenKind classifies one lexed token. The lexer is a bounded scanner, not a
 // Scala parser: it only separates the lexical shapes the declaration parser
 // needs (identifiers, string literals, operator runs, brackets).
@@ -60,7 +62,8 @@ type lexer struct {
 }
 
 func newLexer(src string) *lexer {
-	return &lexer{src: src, line: 1}
+	// A UTF-8 byte order mark would otherwise glue onto the first identifier.
+	return &lexer{src: strings.TrimPrefix(src, "\ufeff"), line: 1}
 }
 
 // next returns the following token, or a kindEOF token at end of input.

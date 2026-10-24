@@ -36,7 +36,10 @@ type dependency struct {
 	cross   string
 	config  string
 	scope   string
-	line    int
+	// scopeKnown is false when the scope could not be read from the
+	// configuration or axis; the row is then partial and counted.
+	scopeKnown bool
+	line       int
 }
 
 // parseLibraryDependencies reads the operator after a libraryDependencies key.
@@ -46,6 +49,10 @@ type dependency struct {
 // is not a literal collection is counted as unresolved.
 func (s *scan) parseLibraryDependencies(axis string) {
 	op := s.next()
+	if op.kind == kindIdent && op.text == "in" {
+		axis = s.readInAxis(axis)
+		op = s.next()
+	}
 	if op.kind != kindSymbol {
 		s.unread(op)
 		return
@@ -54,7 +61,7 @@ func (s *scan) parseLibraryDependencies(axis string) {
 	case "+=":
 		s.parseElement(axis)
 	case "++=", ":=":
-		s.parseCollection(axis)
+		s.parseCollections(axis)
 	case "~=", "-=", "--=", "<+=", "<++=":
 		s.unresolved++
 	default:
@@ -62,14 +69,56 @@ func (s *scan) parseLibraryDependencies(axis string) {
 	}
 }
 
+// readInAxis reads the scope after a legacy `libraryDependencies in <scope>`.
+// A configuration name becomes the axis; a project or ThisBuild reference keeps
+// the axis it had; a parenthesised scope list cannot be read as one
+// configuration and yields axisUnknown.
+func (s *scan) readInAxis(axis string) string {
+	scope := s.next()
+	switch scope.kind {
+	case kindIdent:
+		if config := axisConfig(scope.text); config != "" {
+			return config
+		}
+	case kindOpen:
+		s.skipGroup()
+		return axisUnknown
+	case kindEOF:
+	default:
+		s.unread(scope)
+	}
+	return axis
+}
+
+// parseCollections reads a collection literal and any `++ Seq(...)` operands
+// that follow it, applying `.map(_ % config)` calls to the collection they
+// follow. An operand that is not a literal collection is counted by
+// parseCollection and ends the chain.
+func (s *scan) parseCollections(axis string) {
+	for {
+		start := len(s.deps)
+		if !s.parseCollection(axis) {
+			return
+		}
+		s.applyCollectionTail(start)
+		op := s.peek()
+		if op.kind != kindSymbol || op.text != "++" || op.newline {
+			return
+		}
+		s.next()
+	}
+}
+
 // parseCollection reads `Seq(...)`, `List(...)`, `Vector(...)`, `Set(...)` or
 // `Array(...)` (with an optional type argument list) and parses each element.
-func (s *scan) parseCollection(axis string) {
+func (s *scan) parseCollection(axis string) bool {
 	head := s.next()
 	if head.kind != kindIdent || !isCollectionName(head.text) {
 		s.unread(head)
-		s.unresolved++
-		return
+		if head.kind != kindEOF {
+			s.unresolved++
+		}
+		return false
 	}
 	open := s.next()
 	if open.kind == kindOpen && open.text == "[" {
@@ -79,16 +128,16 @@ func (s *scan) parseCollection(axis string) {
 	if open.kind != kindOpen || open.text != "(" {
 		s.unread(open)
 		s.unresolved++
-		return
+		return false
 	}
 	for {
 		tok := s.peek()
 		if tok.kind == kindEOF {
-			return
+			return false
 		}
 		if tok.kind == kindClose {
 			s.next()
-			return
+			return true
 		}
 		before := s.consumed
 		s.parseElement(axis)
@@ -98,9 +147,9 @@ func (s *scan) parseCollection(axis string) {
 			s.next()
 		case tok.kind == kindClose:
 			s.next()
-			return
+			return true
 		case tok.kind == kindEOF:
-			return
+			return false
 		case s.consumed == before:
 			s.next()
 		}
@@ -129,7 +178,8 @@ func (s *scan) parseElement(axis string) {
 		s.failElement(first, rel)
 		return
 	}
-	dep := dependency{org: first.text, line: first.line, scope: scopeForConfig(axis)}
+	dep := dependency{org: first.text, line: first.line}
+	dep.setAxis(axis)
 
 	op, ok := s.take(rel)
 	if !ok {
@@ -182,7 +232,7 @@ func (s *scan) parseElement(axis string) {
 		return
 	}
 	s.readConfig(&dep)
-	if s.skipElement(rel) {
+	if s.skipTail(rel, &dep) {
 		dep.cross = crossCustom
 	}
 
@@ -216,7 +266,11 @@ func (s *scan) readVersion(dep *dependency, tok token) bool {
 	case kindOpaque:
 		dep.version, dep.kind = tok.text, versionOpaque
 	case kindIdent:
-		dep.version, dep.kind = s.readIdentChain(tok.text), versionIdent
+		chain, ok := s.readIdentChain(tok.text)
+		if !ok {
+			return false
+		}
+		dep.version, dep.kind = chain, versionIdent
 	default:
 		return false
 	}
@@ -225,9 +279,14 @@ func (s *scan) readVersion(dep *dependency, tok token) bool {
 
 // readIdentChain extends an identifier with `.member` selections and skips
 // call argument groups, so `Versions.cats.value` and `ver(1)` stay one operand.
-func (s *scan) readIdentChain(head string) string {
+// A chain longer than MaxFieldBytes is consumed without being buffered and
+// reported as not ok, so a million-segment chain cannot inflate a row.
+func (s *scan) readIdentChain(head string) (string, bool) {
 	var chain strings.Builder
-	chain.WriteString(head)
+	over := len(head) > MaxFieldBytes
+	if !over {
+		chain.WriteString(head)
+	}
 	for {
 		tok := s.peek()
 		switch {
@@ -235,41 +294,30 @@ func (s *scan) readIdentChain(head string) string {
 			s.next()
 			member := s.peek()
 			if member.kind != kindIdent {
-				return chain.String()
+				return chainResult(&chain, over)
 			}
 			s.next()
-			chain.WriteByte('.')
-			chain.WriteString(member.text)
+			if !over && chain.Len()+1+len(member.text) > MaxFieldBytes {
+				over = true
+			}
+			if !over {
+				chain.WriteByte('.')
+				chain.WriteString(member.text)
+			}
 		case tok.kind == kindOpen && !tok.newline:
 			s.next()
 			s.skipGroup()
 		default:
-			return chain.String()
+			return chainResult(&chain, over)
 		}
 	}
 }
 
-// readConfig reads an optional `% config` operand on the same line.
-func (s *scan) readConfig(dep *dependency) {
-	sep := s.peek()
-	if sep.kind != kindSymbol || sep.text != "%" || sep.newline {
-		return
+func chainResult(chain *strings.Builder, over bool) (string, bool) {
+	if over {
+		return "", false
 	}
-	s.next()
-	operand := s.next()
-	switch operand.kind {
-	case kindString:
-		dep.config = operand.text
-	case kindIdent:
-		dep.config = s.readIdentChain(operand.text)
-		if dot := strings.LastIndexByte(dep.config, '.'); dot >= 0 {
-			dep.config = dep.config[dot+1:]
-		}
-	default:
-		s.unread(operand)
-		return
-	}
-	dep.scope = scopeForConfig(dep.config)
+	return chain.String(), true
 }
 
 // failElement counts an unreadable element and resynchronises at its end.
@@ -279,7 +327,7 @@ func (s *scan) failElement(tok token, rel int) {
 	case tok.kind == kindEOF:
 		return
 	case tok.kind == kindClose && rel == 0,
-		tok.kind == kindPunct && tok.text == "," && rel == 0:
+		(isPunct(tok, ",") || isPunct(tok, ";")) && rel == 0:
 		s.unresolved++
 		s.unread(tok)
 		return
@@ -294,42 +342,6 @@ func initialDepth(tok token) int {
 		return 1
 	}
 	return 0
-}
-
-// skipElement consumes tokens to the end of the current element: a comma or
-// closer at relative depth zero, or a token that starts a new line at depth
-// zero (a leading '.' continues the expression). The terminator is not
-// consumed. It reports whether a `cross` modifier was seen.
-func (s *scan) skipElement(rel int) bool {
-	sawCross := false
-	for {
-		tok := s.peek()
-		if tok.kind == kindEOF {
-			return sawCross
-		}
-		if rel <= 0 {
-			rel = 0
-			if tok.kind == kindClose || (tok.kind == kindPunct && tok.text == ",") {
-				return sawCross
-			}
-			if tok.newline && !isPunct(tok, ".") {
-				return sawCross
-			}
-		}
-		s.next()
-		switch tok.kind {
-		case kindOpen:
-			rel++
-		case kindClose:
-			rel--
-		case kindIdent:
-			if tok.text == "cross" {
-				sawCross = true
-			}
-		default:
-			// Strings, symbols, punctuation and numbers carry no structure.
-		}
-	}
 }
 
 // skipGroup consumes through the closer matching an opener already consumed.

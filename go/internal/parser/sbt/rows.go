@@ -5,49 +5,15 @@ package sbt
 
 import "strings"
 
-// axisScope maps a `Config /` scope axis before libraryDependencies to a
-// configuration name: `Test / libraryDependencies` declares test-scope
-// dependencies. Any other axis (ThisBuild, a project reference) yields "".
-func axisScope(prev2, prev token) string {
-	if prev.kind != kindSymbol || prev.text != "/" || prev2.kind != kindIdent {
-		return ""
-	}
-	switch prev2.text {
-	case "Test", "IntegrationTest", "Provided", "Runtime", "Compile":
-		return prev2.text
-	}
-	return ""
-}
-
-// isThisBuildAxis reports a `ThisBuild /` axis before a key.
-func isThisBuildAxis(prev2, prev token) bool {
-	return prev.kind == kindSymbol && prev.text == "/" && prev2.kind == kindIdent && prev2.text == "ThisBuild"
-}
-
-// scopeForConfig maps an sbt configuration to the dependency scope
-// vocabulary shared with the Gradle and Maven parsers. Unknown custom
-// configurations map to compile; the raw spelling stays in sbt_configuration.
-func scopeForConfig(config string) string {
-	name := strings.ToLower(strings.TrimSpace(config))
-	if arrow := strings.Index(name, "->"); arrow >= 0 {
-		name = strings.TrimSpace(name[:arrow])
-	}
-	switch name {
-	case "test", "it", "integrationtest", "test-internal":
-		return "test"
-	case "provided":
-		return "provided"
-	case "runtime":
-		return "runtime"
-	default:
-		return "compile"
-	}
-}
-
 // scalaBinaryVersion returns the artifact suffix sbt appends for `%%`:
 // "2.13" for any 2.13.x, "3" for any 3.x, and "" when the version is not a
-// recognisable Scala release.
+// recognisable Scala release. A version with a suffix (`2.13.0-M5`,
+// `3.0.0-RC1`, `2.13.12-bin-typelevel-4`) returns "" because sbt does not
+// always shorten those to the x.y form, and a wrong hint is worse than none.
 func scalaBinaryVersion(version string) string {
+	if strings.Contains(version, "-") {
+		return ""
+	}
 	parts := strings.Split(version, ".")
 	if len(parts) < 2 {
 		return ""
@@ -105,6 +71,12 @@ func (d dependency) row(vals map[string]string, binary string) map[string]any {
 		unresolvedKeys = []string{d.version}
 	}
 
+	if !d.scopeKnown && state == "resolved" {
+		// The configuration or axis could not be mapped, so the scope is a
+		// placeholder; the row is partial rather than a resolved compile scope.
+		state = "partial"
+	}
+
 	section := "libraryDependencies"
 	if d.config != "" {
 		// The configuration rides in the section so the dev/runtime split is
@@ -123,7 +95,7 @@ func (d dependency) row(vals map[string]string, binary string) map[string]any {
 		"dependency_resolution_state": state,
 		"direct_dependency":           true,
 		"dependency_path_kind":        "manifest",
-		"dependency_optional":         strings.EqualFold(d.config, "optional"),
+		"dependency_optional":         hasConfigPart(d.config, "optional"),
 		"sbt_cross_version":           d.cross,
 	}
 	if d.config != "" {

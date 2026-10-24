@@ -257,9 +257,21 @@ func (s *scan) finish() ([]map[string]any, map[string]any) {
 		"scala_version_count":          len(versions),
 		"dependency_count":             len(rows),
 		"dependency_overflow_count":    s.overflow,
-		"unresolved_declaration_count": s.unresolved,
+		"unresolved_declaration_count": s.unresolved + scopeUnknownCount(s.deps),
 	}
 	return rows, state
+}
+
+// scopeUnknownCount counts the rows whose scope could not be determined. They
+// are emitted as partial and counted with the unresolved declarations.
+func scopeUnknownCount(deps []dependency) int {
+	count := 0
+	for _, dep := range deps {
+		if !dep.scopeKnown {
+			count++
+		}
+	}
+	return count
 }
 
 func (s *scan) distinctScalaVersions() []string {
