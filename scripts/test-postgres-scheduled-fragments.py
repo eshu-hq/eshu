@@ -1,5 +1,6 @@
 """Fail-closed tests for the scheduled PostgreSQL inventory fragments."""
 
+import hashlib
 import json
 import os
 import re
@@ -14,6 +15,14 @@ import unittest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts/lib"))
 import postgres_scheduled_runner as runner  # noqa: E402
+
+
+def copy_contract(root: Path) -> None:
+    """Copy workflow routing sources into an inventory mutation checkout."""
+    for relative in (runner.FRAGMENT, runner.BULK_ACTION):
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / relative).read_bytes())
 
 
 class InventoryFragmentTest(unittest.TestCase):
@@ -44,28 +53,31 @@ class InventoryFragmentTest(unittest.TestCase):
                 if row["group"] == "containerimage"}
         self.assertEqual(len(rows), 8)
         self.assertEqual(sum(len(row["tests"]) for row in rows.values()), 15)
-        workflow = (ROOT / runner.WORKFLOW).read_text()
-        self.assertIn("go/internal/reducer/containerimage/*.go", workflow)
+        fragment = (ROOT / runner.FRAGMENT).read_text()
+        self.assertIn("go/internal/reducer/containerimage/*.go", fragment)
+        action = (ROOT / runner.BULK_ACTION).read_text()
         args = ("-args -containerimage-bootstrap=1 "
                 "-containerimage-database=eshu_containerimage_scheduled")
-        self.assertIn(args, workflow)
+        self.assertIn(args, action)
         runner.verify_inventory(ROOT, inventory)
         for old, new in (
             ("-containerimage-bootstrap=1", "-containerimage-bootstrap=0"),
             ("-containerimage-database=eshu_containerimage_scheduled",
              "-containerimage-database=eshu_existing"),
-            ("CREATE DATABASE eshu_containerimage_scheduled",
-             "CREATE DATABASE eshu_existing"),
+            ("CREATE DATABASE eshu_containerimage_scheduled", "CREATE DATABASE eshu_existing"),
             ("containerimage.jsonl", "missing-containerimage.jsonl"),
         ):
             with self.subTest(old=old):
-                mutated = workflow.replace(old, new)
+                mutated = action.replace(old, new)
+                self.assertNotEqual(mutated, action)
                 original_read = Path.read_text
                 def read(path: Path, *args: object, **kwargs: object) -> str:
-                    if path == ROOT / runner.WORKFLOW:
+                    if path == ROOT / runner.BULK_ACTION:
                         return mutated
                     return original_read(path, *args, **kwargs)
-                with mock.patch.object(Path, "read_text", read):
+                digest = hashlib.sha256(mutated.encode()).hexdigest()
+                with mock.patch.object(Path, "read_text", read), \
+                     mock.patch.object(runner, "BULK_ACTION_SHA256", digest):
                     with self.assertRaises(ValueError):
                         runner.verify_inventory(ROOT, inventory)
 
@@ -135,6 +147,7 @@ class InventoryFragmentTest(unittest.TestCase):
         original = (ROOT / runner.WORKFLOW).read_text(encoding="utf-8")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            copy_contract(root)
             for source in inventory:
                 target = root / source
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -158,17 +171,17 @@ class InventoryFragmentTest(unittest.TestCase):
                  'ESHU_SEARCH_INDEX_PARTITION_LIVE: "0"', "search partition"),
                 ('${{ runner.temp }}/proof-bundle/readiness.jsonl\n', "", "artifact"),
                 ("--group fanout", "--group claim", "event verifier"),
-                ("      - name: Run claim proofs\n",
-                 "      - name: Run claim proofs\n        if: false\n", "conditional"),
-                ("      - name: Run claim proofs\n",
-                 "      - name: Run claim proofs\n        continue-on-error: true\n",
+                ("    - name: Run claim proofs\n",
+                 "    - name: Run claim proofs\n      if: false\n", "non-fail-closed"),
+                ("    - name: Run claim proofs\n",
+                 "    - name: Run claim proofs\n      continue-on-error: true\n",
                  "non-fail-closed"),
                 ("          python3 scripts/test-postgres-scheduled-fragments.py\n",
                  "          # python3 scripts/test-postgres-scheduled-fragments.py\n",
                  "harness"),
-                ("      - '" + source + "'\n", "", "PR paths"),
-                ("      - 'go/internal/storage/postgres/"
-                 "reducer_queue_domain_fairness_test.go'\n", "", "PR paths"),
+                ("  - " + source + "\n", "", "PR paths"),
+                ("  - go/internal/storage/postgres/"
+                 "reducer_queue_domain_fairness_test.go\n", "", "PR paths"),
                 ('ESHU_CHANGED_SINCE_LINK_SCALE_PROOF: "p3"',
                  'ESHU_CHANGED_SINCE_LINK_SCALE_PROOF: "p8b"', "freshness"),
                 ('ESHU_7127_W11_COST: "1"',
@@ -187,49 +200,70 @@ class InventoryFragmentTest(unittest.TestCase):
                 ("< ../docs/internal/evidence/7127-link-writer-fixture.sql",
                  "< /tmp/7127-link-writer-fixture-missing.sql", "freshness"),
             ):
-                self.assertIn(old, original)
-                workflow.write_text(original.replace(old, new, 1))
-                with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                action = root / runner.BULK_ACTION
+                fragment = root / runner.FRAGMENT
+                subject = (workflow if old in original else
+                           action if old in action.read_text() else fragment)
+                source = subject.read_text()
+                self.assertIn(old, source)
+                changed_text = source.replace(old, new, 1)
+                subject.write_text(changed_text)
+                digest = hashlib.sha256(action.read_bytes()).hexdigest()
+                with self.subTest(message=message), mock.patch.object(
+                        runner, "BULK_ACTION_SHA256", digest), self.assertRaisesRegex(ValueError, message):
                     runner.verify_inventory(root, inventory)
+                subject.write_text(source)
 
     def test_each_disposable_step_has_its_own_admin_env(self) -> None:
         inventory = runner.load_inventory()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            copy_contract(root)
             for target in inventory:
                 copy = root / target
                 copy.parent.mkdir(parents=True, exist_ok=True)
                 copy.write_text((ROOT / target).read_text())
             workflow = root / runner.WORKFLOW
             workflow.parent.mkdir(parents=True)
-            original = (ROOT / runner.WORKFLOW).read_text()
+            workflow.write_text((ROOT / runner.WORKFLOW).read_text())
+            action = root / runner.BULK_ACTION
+            original = action.read_text()
             removed = (
-                "          ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: "
+                "        ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: "
                 "postgres://eshu:change-me@localhost:15432/"
                 "postgres?sslmode=disable\n"
             )
             self.assertEqual(original.count(removed), 3)
-            workflow.write_text(original.replace(removed, "", 1))
-            with self.assertRaisesRegex(ValueError, "missing admin DSN"):
-                runner.verify_inventory(root, inventory)
+            action.write_text(original.replace(removed, "", 1))
+            with mock.patch.object(
+                    runner, "BULK_ACTION_SHA256",
+                    hashlib.sha256(action.read_bytes()).hexdigest()):
+                with self.assertRaisesRegex(ValueError, "missing admin DSN"):
+                    runner.verify_inventory(root, inventory)
 
     def test_admin_replay_fence_opt_in_is_required(self) -> None:
         """The admin replay proof must run with its live fixture flag."""
         inventory = runner.load_inventory()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            copy_contract(root)
             for target in inventory:
                 copy = root / target
                 copy.parent.mkdir(parents=True, exist_ok=True)
                 copy.write_text((ROOT / target).read_text())
             workflow = root / runner.WORKFLOW
             workflow.parent.mkdir(parents=True)
-            original = (ROOT / runner.WORKFLOW).read_text()
-            flag = '          ESHU_ADMIN_REPLAY_FENCE_LIVE: "1"\n'
+            workflow.write_text((ROOT / runner.WORKFLOW).read_text())
+            action = root / runner.BULK_ACTION
+            original = action.read_text()
+            flag = '        ESHU_ADMIN_REPLAY_FENCE_LIVE: "1"\n'
             self.assertEqual(original.count(flag), 1)
-            workflow.write_text(original.replace(flag, "", 1))
-            with self.assertRaisesRegex(ValueError, "admin replay fence opt-in missing"):
-                runner.verify_inventory(root, inventory)
+            action.write_text(original.replace(flag, "", 1))
+            with mock.patch.object(
+                    runner, "BULK_ACTION_SHA256",
+                    hashlib.sha256(action.read_bytes()).hexdigest()):
+                with self.assertRaisesRegex(ValueError, "admin replay fence opt-in missing"):
+                    runner.verify_inventory(root, inventory)
 
     @mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "false"})
     def test_missing_new_stream_and_local_as_hosted_fail(self) -> None:
@@ -281,28 +315,34 @@ class InventoryFragmentTest(unittest.TestCase):
         inventory = runner.load_inventory()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            copy_contract(root)
             for relative in inventory:
                 copy = root / relative
                 copy.parent.mkdir(parents=True, exist_ok=True)
                 copy.write_bytes((ROOT / relative).read_bytes())
             target = root / runner.WORKFLOW
             target.parent.mkdir(parents=True)
+            action = root / runner.BULK_ACTION
+            action_source = action.read_text()
             for old, new in mutations:
                 with self.subTest(old=old):
-                    self.assertIn(old, workflow)
-                    target.write_text(workflow.replace(old, new, 1))
+                    subject = target if old in workflow else action
+                    source = workflow if subject == target else action_source
+                    self.assertIn(old, source)
+                    subject.write_text(source.replace(old, new, 1))
                     with self.assertRaises(ValueError):
                         runner.verify_inventory(root, inventory)
+                    subject.write_text(source)
 
 
     def test_go_proof_guard_rejects_dirty_checkout(self) -> None:
         """The actual pre-test shell rejects tracked and untracked source drift."""
-        workflow = (ROOT / runner.WORKFLOW).read_text(encoding="utf-8")
+        action = (ROOT / runner.BULK_ACTION).read_text(encoding="utf-8")
         match = re.search(
-            r"(?ms)^      - name: Run Crossplane proofs\n.*?^        run: \|\n"
-            r"(.*?)(?=^          go test)", workflow)
+            r"(?ms)^    - name: Run Crossplane proofs\n.*?^      run: \|\n"
+            r"(.*?)(?=^        go test)", action)
         self.assertIsNotNone(match)
-        script = "\n".join(line[10:] for line in match.group(1).splitlines())
+        script = "\n".join(line[8:] for line in match.group(1).splitlines())
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "checkout"
             root.mkdir()

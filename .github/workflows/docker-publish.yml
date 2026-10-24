@@ -1,5 +1,16 @@
 name: Publish Image and Helm Chart
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   merge_group:
     types: [checks_requested]
   push:
@@ -11,17 +22,6 @@ on:
       'Dockerfile', '.dockerignore', 'go/**',
       'deploy/helm/**', '.github/workflows/docker-publish.yml', 'scripts/ci/select-docker-publish-lanes.sh', 'scripts/ci/push-helm-chart.sh', 'scripts/verify-apk-floors.sh',
       'scripts/test-verify-apk-floors.sh', 'scripts/fixtures/apk-floors/**',
-      'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
-    ]
-  pull_request:
-    branches:
-      - main
-    paths: [
-      'scripts/ci/build-reproducibility-image.sh', 'specs/ci-images.v1.json',
-      'Dockerfile', '.dockerignore', 'deploy/helm/**',
-      '.github/workflows/docker-publish.yml', 'scripts/ci/select-docker-publish-lanes.sh',
-      'scripts/ci/push-helm-chart.sh', 'scripts/verify-apk-floors.sh', 'scripts/test-verify-apk-floors.sh',
-      'scripts/fixtures/apk-floors/**',
       'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
     ]
   workflow_dispatch:
@@ -43,7 +43,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ci-leaf-docker-publish-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 env:
   CI_BUILDKIT_IMAGE: ghcr.io/eshu-hq/ci-mirror-buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
@@ -57,13 +57,13 @@ env:
   IMAGE_PLATFORMS: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
 jobs:
   queue-selection:
-    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'release'
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection')) && (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') }}
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: docker-publish.yml
   changes:
     needs: queue-selection
-    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'release'
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'changes')) && (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -90,9 +90,7 @@ jobs:
         run: bash scripts/ci/select-docker-publish-lanes.sh
   verify-apk-floors:
     needs: [queue-selection, changes]
-    if: >-
-      (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
-      (github.event_name == 'merge_group' || (github.event_name == 'pull_request' && needs.changes.outputs.apkfloors == 'true'))
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify-apk-floors')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && (github.event_name == 'merge_group' || (github.event_name == 'pull_request' && needs.changes.outputs.apkfloors == 'true'))) }}
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.apkfloors }}
     timeout-minutes: 10
@@ -114,9 +112,7 @@ jobs:
         run: bash scripts/verify-apk-floors.sh
   build-and-push-image:
     needs: [queue-selection, changes]
-    if: >-
-      (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
-      (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'build-and-push-image')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')) }}
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
     timeout-minutes: 45
@@ -251,11 +247,7 @@ jobs:
             --predicate-type https://spdx.dev/Document/v2.3
   promote-moving-tags:
     needs: [queue-selection, changes, build-and-push-image]
-    if: >-
-      (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
-      needs.changes.outputs.image == 'true' &&
-      needs.build-and-push-image.result == 'success' &&
-      ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'promote-moving-tags')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true' && needs.build-and-push-image.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')) }}
     timeout-minutes: 10
     runs-on: ubuntu-latest
     permissions:
@@ -293,9 +285,7 @@ jobs:
         run: bash scripts/ci/promote-moving-tags.sh
   verify-reproducibility:
     needs: [queue-selection, changes, build-and-push-image]
-    if: >-
-      (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
-      (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify-reproducibility')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')) }}
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
     timeout-minutes: 30
@@ -358,9 +348,7 @@ jobs:
           fi
   attach-release-sbom:
     needs: [queue-selection, changes, build-and-push-image]
-    if: >-
-      (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
-      needs.changes.outputs.image == 'true' && github.ref_type == 'tag'
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'attach-release-sbom')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true' && github.ref_type == 'tag') }}
     timeout-minutes: 10
     runs-on: ubuntu-latest
     permissions:
@@ -398,9 +386,7 @@ jobs:
             --clobber
   package-and-push-chart:
     needs: [queue-selection, changes]
-    if: >-
-      (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
-      (github.event_name == 'merge_group' || needs.changes.outputs.chart == 'true')
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'package-and-push-chart')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && (github.event_name == 'merge_group' || needs.changes.outputs.chart == 'true')) }}
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.chart }}
     timeout-minutes: 10
@@ -432,10 +418,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/ci/push-helm-chart.sh
   publish-ci-service-mirrors:
-    if: >-
-      github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-publish' &&
-      github.repository == 'eshu-hq/eshu' &&
-      github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-publish' && github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -467,10 +450,7 @@ jobs:
           EXPECTED_REVIEWED_SHA: ${{ inputs.expected_sha }}
         run: bash scripts/dev/publish-ci-image-mirrors.sh publish
   verify-public-ci-service-mirrors:
-    if: >-
-      github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-verify-public' &&
-      github.repository == 'eshu-hq/eshu' &&
-      github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-verify-public' && github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

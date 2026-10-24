@@ -1,0 +1,19 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: mcp-schema-drift.yml
+  name: MCP Schema Drift
+  synchronize: true
+  jobs:
+  - capability-verify
+  - changes
+  - mcp-router-eval
+  - mcp-test-suite
+  - mcp-tool-count
+  - queue-selection
+  job_names:
+    capability-verify: Verify capability inventory
+    changes: Detect code changes
+    mcp-router-eval: MCP router eval report
+    mcp-test-suite: Full MCP test suite
+    mcp-tool-count: Verify ReadOnlyTools count

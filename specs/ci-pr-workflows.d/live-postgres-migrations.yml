@@ -1,0 +1,33 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: live-postgres-migrations.yml
+  name: Live PostgreSQL Migrations
+  synchronize: true
+  branches:
+  - main
+  paths:
+  - go/internal/storage/postgres/**
+  - go/go.mod
+  - go/go.sum
+  - specs/live-tests.v1.yaml
+  - specs/live-tests.d/**
+  - specs/ci-gates.v1.yaml
+  - specs/ci-gates.d/**
+  - scripts/lib/live_postgres_migrations.py
+  - scripts/lib/live_tests_registry.py
+  - scripts/ci/go-mod-download-retry.sh
+  - scripts/ci/install-apt-packages.sh
+  - scripts/run-live-postgres-migrations.sh
+  - scripts/test-live-postgres-migrations.py
+  - scripts/test-run-live-postgres-migrations.sh
+  - scripts/testdata/live-postgres-migrations-fake-docker.sh
+  - scripts/testdata/live-postgres-migrations-fake-go.sh
+  - .github/workflows/live-postgres-migrations.yml
+  - .github/workflows/required-gates.yml
+  - specs/ci-pr-workflows.d/live-postgres-migrations.yml
+  jobs:
+  - live-postgres-migrations
+  - queue-selection
+  job_names:
+    live-postgres-migrations: live-postgres-migrations (postgres18)

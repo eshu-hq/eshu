@@ -7,33 +7,28 @@
 name: Payload Usage Manifest
 
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   # Merge-queue entries (#7111): every job runs, publication stays off, and
   # required-gates.yml aggregates the merge_group check rows.
   # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
   merge_group:
     types: [checks_requested]
-  pull_request:
-    paths:
-      - "go/internal/reducer/**"
-      - "go/internal/query/**"
-      - "go/internal/projector/**"
-      - "go/internal/storage/postgres/**"
-      - "go/internal/relationships/**"
-      - "go/internal/replay/**"
-      - "sdk/go/factschema/**"
-      - "go/internal/payloadusage/**"
-      - "go/cmd/payload-usage-manifest/**"
-      - "scripts/*verify-payload-usage-manifest*.sh"
-      - "scripts/lib/ci-gates-resolved-fixtures.sh"
-      - "scripts/ci/install-apt-packages.sh"
-      - "scripts/ci/go-mod-download-retry.sh"
-      - ".github/workflows/payload-usage-manifest.yml"
   push:
     branches:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ci-leaf-payload-usage-manifest-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -41,11 +36,13 @@ permissions:
 
 jobs:
   queue-selection:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: payload-usage-manifest.yml
 
   test-mirror:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'test-mirror') }}
     needs: queue-selection
     name: Verify payload-usage-manifest test mirror
     timeout-minutes: 10
@@ -101,6 +98,7 @@ jobs:
           if-no-files-found: warn
 
   gate:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gate') }}
     name: Verify payload-usage-manifest gate
     needs: [queue-selection, test-mirror]
     timeout-minutes: 10

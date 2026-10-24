@@ -1,0 +1,14 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: code-coverage-report.yml
+  name: Code Coverage Report
+  synchronize: true
+  branches:
+  - main
+  jobs:
+  - coverage-report
+  - static-mirror
+  job_names:
+    coverage-report: Generate Go code coverage report
+    static-mirror: static mirror

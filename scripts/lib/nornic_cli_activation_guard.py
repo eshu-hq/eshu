@@ -6,7 +6,7 @@ import ast
 import hashlib
 from pathlib import Path
 
-NORNIC_CLI_SOURCE_SHA256 = "0c1429fbdf5299101d4743287204888b27a0bc893b166ba8896cf593ff6cb896"
+NORNIC_CLI_SOURCE_SHA256 = "bb5d5b3b8387af609c4fca85ce9a3a5f4bb0cf9a562b877997035361c08b50cd"
 NORNIC_CLI_MAIN = '''def main() -> int:
     """Check runner enrollment, then optionally a captured Go event stream."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -82,16 +82,16 @@ NORNIC_CLI_FUNCTION_SIGNATURES = {
     "_active_lines": "source: str -> list[tuple[int, str]]",
     "_block": "lines: list[tuple[int, str]], key: str, depth: int -> list[tuple[int, str]]",
     "_paths": "lines: list[tuple[int, str]], depth: int -> set[str]",
-    "_workflow_paths": "source: str, static: bool -> set[str]",
+    "_workflow_paths": "source: str, static: bool, fragment: str -> set[str]",
     "_registry_paths": "source: str -> set[str]",
     "_static_step": "source: str -> None",
-    "verify_routing_text": "e2e: str, live: str, registry: str -> None",
+    "verify_routing_text": "e2e: str, live: str, registry: str, e2e_fragment: str | None=None, live_fragment: str | None=None -> None",
     "load_inventory": "path: Path=INVENTORY -> dict[str, list[str]]",
     "verify_source": "root: Path, inventory: dict[str, list[str]] -> None",
     "read_ledger_rows": "root: Path -> dict[str, tuple[str, str, str]]",
     "verify_ledger": "inventory: dict[str, list[str]], rows: dict[str, tuple[str, str, str]] -> None",
     "verify_runner_text": "text: str, inventory: dict[str, list[str]] -> None",
-    "verify_workflow_text": "text: str -> None",
+    "verify_workflow_text": "text: str, fragment: str | None=None -> None",
     "verify_source_and_runner": "root: Path, inventory: dict[str, list[str]] -> None",
     "verify_events": "path: Path, expected: set[str], packages: frozenset[str], output: TextIO -> bool",
     "main": " -> int",
@@ -185,9 +185,12 @@ def verify_nornic_enrollment(
     verify_ledger(inventory, rows)
     verify_source(root, inventory)
     verify_runner_text((root / RUNNER).read_text(), inventory)
-    verify_workflow_text((root / WORKFLOW).read_text())
+    verify_workflow_text((root / WORKFLOW).read_text(),
+                         (root / "specs/ci-pr-workflows.d/e2e-tests.yml").read_text())
     verify_routing_text(
         (root / WORKFLOW).read_text(),
         (root / STATIC_WORKFLOW).read_text(),
         (root / REGISTRY).read_text(),
+        (root / "specs/ci-pr-workflows.d/e2e-tests.yml").read_text(),
+        (root / "specs/ci-pr-workflows.d/live-backend-tests.yml").read_text(),
     )

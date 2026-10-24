@@ -21,6 +21,16 @@ mdcap_check_workflow_job() {
 			selected = "containsfromJSONneeds.queue-selection.outputs.jobs||" quote "[]" quote "," quote "markdown-file-cap" quote
 			return value == event "||" selected || value == selected "||" event
 		}
+		function plan_if(line, value, quote, expected) {
+			value = normalize_if(line)
+			quote = sprintf("%c", 39)
+			expected = "github.event_name==" quote "merge_group" quote "||" \
+				"github.event_name!=" quote "pull_request" quote "||" \
+				"needs.pr-plan.result==" quote "success" quote "&&" \
+				"containsfromJSONneeds.pr-plan.outputs.jobs||" quote "{}" quote \
+				"[" quote "test.yml" quote "]," quote "markdown-file-cap" quote
+			return value == expected
+		}
 		function selector_failure_if(line, value, quote) {
 			value = normalize_if(line)
 			quote = sprintf("%c", 39)
@@ -40,10 +50,14 @@ mdcap_check_workflow_job() {
 			value=$0
 			sub(/^[[:space:]]+(-[[:space:]]+)?needs:[[:space:]]*/, "", value)
 			gsub(/[[:space:]]/, "", value)
-			if ($0 !~ /^    needs:/ || (value != "queue-selection" && value != "[queue-selection]")) guarded=1
+			if ($0 !~ /^    needs:/ || (value != "queue-selection" && value != "[queue-selection]" && value != "[queue-selection,pr-plan]")) guarded=1
+			if (value == "[queue-selection,pr-plan]") planned=1
 		}
 		/^[[:space:]]+(-[[:space:]]+)?if:/ {
-			if (!queue_only_if($0) && !(step_name == "Require queue selection to succeed" && selector_failure_if($0))) guarded=1
+			if ($0 ~ /^    if:/) {
+				if (plan_if($0)) plan_guard=1
+				else if (!queue_only_if($0)) guarded=1
+			} else if (!queue_only_if($0) && !(step_name == "Require queue selection to succeed" && selector_failure_if($0))) guarded=1
 		}
 		/^[[:space:]]+(run:[[:space:]]+)?(bash[[:space:]]+)?scripts\/test-verify-markdown-line-cap\.sh[[:space:]]*$/ {
 			if (step_name == "Require queue selection to succeed") guarded=1
@@ -55,6 +69,7 @@ mdcap_check_workflow_job() {
 		}
 		END {
 			if (!found) print "markdown workflow: missing markdown-file-cap job"
+			if (planned && !plan_guard) guarded=1
 			if (guarded) print "markdown workflow: markdown-file-cap has a non-queue guard"
 			if (!selftest) print "markdown workflow: missing real cap selftest command"
 			if (!scan) print "markdown workflow: missing real cap --all command"
@@ -170,9 +185,24 @@ YAML
 # During the registry migration, base-branch CI still credits verify-contracts
 # for this gate. Keep its real invocations until that base mapping has landed.
 mdcap_check_rollout_job() {
-	awk '
+	local source="$1" action="${2:-}" found_use
+	if [[ -n "${action}" ]]; then
+		found_use="$(awk '
+			/^  verify-contracts:[[:space:]]*$/ { inside=1; next }
+			inside && /^  [^[:space:]#][^:]*:/ { inside=0 }
+			inside && /^        uses: \.\/\.github\/actions\/ci-verify-contracts[[:space:]]*$/ { found++ }
+			END { print found+0 }
+		' "${source}")"
+		if [[ "${found_use}" != 1 ]]; then
+			printf 'markdown rollout: verify-contracts must call the local proof action once\n'
+			return 1
+		fi
+		source="${action}"
+	fi
+	awk -v action_mode="${action:+1}" '
+		BEGIN { if (action_mode) { inside=1; found=1 } }
 		/^  verify-contracts:[[:space:]]*$/ { inside=1; found=1; next }
-		inside && /^  [^[:space:]#][^:]*:/ { inside=0 }
+		!action_mode && inside && /^  [^[:space:]#][^:]*:/ { inside=0 }
 		!inside || /^[[:space:]]*#/ { next }
 		/^[[:space:]]+(run:[[:space:]]+)?(bash[[:space:]]+)?scripts\/test-verify-markdown-line-cap\.sh[[:space:]]*$/ { selftest=1 }
 		/^[[:space:]]+(run:[[:space:]]+)?(MARKDOWN_LINE_CAP_REQUIRE_BASE=1[[:space:]]+)?(bash[[:space:]]+)?scripts\/verify-markdown-line-cap\.sh[[:space:]]+--all[[:space:]]*$/ { scan=1 }
@@ -182,17 +212,28 @@ mdcap_check_rollout_job() {
 			if (!scan) print "markdown rollout: verify-contracts missing real cap --all command"
 			exit (!found || !selftest || !scan)
 		}
-	' "$1"
+	' "${source}"
 }
 
 run_markdown_rollout_workflow_cases() {
 	local fixture_dir fixture output status mutation
 	fixture_dir="$(mktemp -d)"
 	fixture="${fixture_dir}/valid.yml"
-	output="$(mdcap_check_rollout_job "${script_root}/../.github/workflows/test.yml" 2>&1)"
+	local live_workflow="${script_root}/../.github/workflows/test.yml"
+	local live_action="${script_root}/../.github/actions/ci-verify-contracts/action.yml"
+	output="$(mdcap_check_rollout_job "${live_workflow}" "${live_action}" 2>&1)"
 	status=$?
 	printf 'workflow rollout live CLI wiring exit=%d\n%s\n' "${status}" "${output}"
 	assert_exit "${status}" 0 "live verify-contracts retains cap selftests and --all during registry rollout"
+	local disabled="${fixture_dir}/disabled-action.yml"
+	sed 's|uses: ./.github/actions/ci-verify-contracts|run: true|' "${live_workflow}" >"${disabled}"
+	output="$(mdcap_check_rollout_job "${disabled}" "${live_action}" 2>&1)"
+	status=$?
+	assert_exit "${status}" 1 "rollout checker rejects a disconnected proof action"
+	sed '/scripts\/test-verify-markdown-line-cap\.sh/d' "${live_action}" >"${fixture_dir}/no-action-selftest.yml"
+	output="$(mdcap_check_rollout_job "${live_workflow}" "${fixture_dir}/no-action-selftest.yml" 2>&1)"
+	status=$?
+	assert_exit "${status}" 1 "rollout checker rejects missing composite-action cap selftest"
 	cat >"${fixture}" <<'YAML'
 name: fixture
 jobs:

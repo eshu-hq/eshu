@@ -14,6 +14,17 @@ name: Reducer Contention Gate
 # not run the separately-tracked flaky conflict-fence proof.
 
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   # Merge-queue entries (#7111): every job runs, publication stays off, and
   # required-gates.yml aggregates the merge_group check rows.
   # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
@@ -26,26 +37,10 @@ on:
   # unconditionally above as the backstop, so a regression that reaches main via
   # an unfiltered path is still caught (the repo has no required-status-check
   # enforcement, so a skipped PR run never blocks merge).
-  pull_request:
-    paths:
-      - "go/internal/storage/postgres/**"
-      - "go/internal/reducer/**"
-      - "go/internal/query/service_story_target_support*.go"
-      - "schema/data-plane/postgres/**"
-      - "scripts/ci/go-mod-download-retry.sh"
-      - "scripts/lib/reducer_contention_*"
-      - "scripts/test-reducer-contention-*.py"
-      - "scripts/lib/verify-live-tests-ledger.py"
-      - "scripts/verify-live-tests-ledger.sh"
-      - "scripts/test-verify-live-tests-ledger.sh"
-      - "specs/live-tests*.yaml"
-      - "specs/live-tests.d/**"
-      - "specs/ci-gates.d/gates-05.yaml"
-      - ".github/workflows/reducer-contention-gate.yml"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ci-leaf-reducer-contention-gate-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -53,11 +48,13 @@ permissions:
 
 jobs:
   queue-selection:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: reducer-contention-gate.yml
 
   contention-gate:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'contention-gate') }}
     needs: queue-selection
     name: reducer contention gate
     runs-on: ubuntu-latest

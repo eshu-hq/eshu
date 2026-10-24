@@ -1,0 +1,19 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: sdk-go.yml
+  name: SDK Go Modules
+  synchronize: true
+  paths:
+  - sdk/go/**
+  - .github/workflows/sdk-go.yml
+  - scripts/ci/install-apt-packages.sh
+  - scripts/ci/go-mod-download-retry.sh
+  - specs/ci-pr-workflows.d/sdk-go.yml
+  jobs:
+  - queue-selection
+  - sdk-go-collector
+  - sdk-go-factschema
+  job_names:
+    sdk-go-collector: 'SDK Go: collector'
+    sdk-go-factschema: 'SDK Go: factschema'

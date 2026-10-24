@@ -336,6 +336,8 @@ gates:
       - "specs/ci-gates.d/**"
       - "scripts/lib/ci-gates-resolved-fixtures.sh"
       - "scripts/verify-docs-only-ci-skip.sh"
+      - "scripts/lib/ci-gate-docs-planner-checks.sh"
+      - "specs/ci-pr-workflows.d/build.yml"
       - "scripts/test-verify-docs-only-ci-skip.sh"
       - "scripts/lib/ci-gate-merge-group-checks.sh"
       - "scripts/lib/ci-gate-predicate-quantifier.sh"

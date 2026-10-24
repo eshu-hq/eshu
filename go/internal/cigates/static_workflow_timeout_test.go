@@ -36,7 +36,7 @@ func staticContractMatrixRows(t *testing.T, raw []byte) []struct {
 	t.Helper()
 	builder := staticContractMatrixBuilder(t, raw)
 	script := staticContractFilterOutputRE.ReplaceAllString(builder, "true")
-	script = strings.ReplaceAll(script, "${{ github.event_name }}", "pull_request")
+	script = strings.ReplaceAll(script, "${{ github.event_name }}", "push")
 	if strings.Contains(script, "${{") {
 		t.Fatalf("matrix builder still carries an unsubstituted Actions expression:\n%s", script)
 	}
@@ -95,6 +95,42 @@ func TestStaticContractGateRowsAllCarryATimeout(t *testing.T) {
 		}
 	}
 	t.Logf("gate rows carrying a timeout: %d", len(rows))
+}
+
+// TestStaticContractPRPlanSelectsOnlyItsGate proves the matrix honors a
+// trusted PR gate ID even when every path filter would otherwise match.
+func TestStaticContractPRPlanSelectsOnlyItsGate(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(repositoryRoot(t), ".github", "workflows", "static-contract-gates.yml")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := staticContractFilterOutputRE.ReplaceAllString(staticContractMatrixBuilder(t, raw), "true")
+	script = strings.ReplaceAll(script, "${{ github.event_name }}", "pull_request")
+	outputPath := filepath.Join(t.TempDir(), "output")
+	cmd := exec.Command("bash", "-c", script)
+	cmd.Env = append(os.Environ(), "GITHUB_OUTPUT="+outputPath, `PLAN_GATES=["openapi-surface"]`)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("run PR gate matrix: %v\n%s", err, output)
+	}
+	output, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := strings.SplitN(string(output), "\n", 2)[0]
+	var matrix struct {
+		Include []struct {
+			Key string `json:"key"`
+		} `json:"include"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "matrix=")), &matrix); err != nil {
+		t.Fatal(err)
+	}
+	if len(matrix.Include) != 1 || matrix.Include[0].Key != "openapi" {
+		t.Fatalf("PR gate matrix = %+v, want only openapi", matrix.Include)
+	}
 }
 
 // TestStaticContractGateJobReadsTheMatrixTimeout is the other half: the wiring

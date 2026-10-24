@@ -155,7 +155,7 @@ func TestMethodologyScaleDeadlineContainsObservedWork(t *testing.T) {
 		t.Fatal(err)
 	}
 	manual, ok := workflow.Jobs["methodology-scale"]
-	if !ok || manual.Name != "methodology scale (neo4j)" || manual.If != "github.event_name == 'workflow_dispatch'" {
+	if !ok || manual.Name != "methodology scale (neo4j)" || manual.If != manualScaleCondition {
 		t.Fatalf("manual Neo4j job selection changed: %+v", manual)
 	}
 	nornic, ok := workflow.Jobs["latency-gate"]

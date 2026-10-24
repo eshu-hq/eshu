@@ -1,52 +1,23 @@
 name: Ifá Scheduled Live Proofs
 
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   schedule:
     - cron: '50 4 * * *'
   workflow_dispatch:
-  pull_request:
-    branches: [ main ]
-    paths:
-      - '.github/workflows/ifa-scheduled-proofs.yml'
-      - 'go/go.mod'
-      - 'go/go.sum'
-      - 'scripts/ci/go-mod-download-retry.sh'
-      - 'scripts/run-ifa-scheduled-proofs.sh'
-      - 'scripts/lib/ifa_scheduled_events.py'
-      - 'scripts/lib/ifa_scheduled_inventory.json'
-      - 'scripts/lib/ifa_scheduled_manifest.py'
-      - 'scripts/test-ifa-scheduled-manifest.py'
-      - 'scripts/lib/ifa_scheduled_bundle.py'
-      - 'scripts/test-ifa-scheduled-bundle.py'
-      - 'scripts/lib/reducer_contention_events.py'
-      - 'scripts/lib/verify-live-tests-ledger.py'
-      - 'scripts/test-ifa-scheduled-events.py'
-      - 'scripts/test-ifa-scheduled-ledger-policy.py'
-      - 'scripts/verify-live-tests-ledger.sh'
-      - 'scripts/test-verify-live-tests-ledger.sh'
-      - 'specs/live-tests.v1.yaml'
-      - 'specs/live-tests.d/live-tests-01.yaml'
-      - 'specs/live-tests.d/live-tests-02.yaml'
-      - 'specs/live-tests.d/live-tests-03.yaml'
-      - 'specs/live-tests.d/live-tests-04.yaml'
-      - 'specs/live-tests.d/live-tests-05.yaml'
-      - 'specs/live-tests.d/live-tests-06.yaml'
-      - 'go/cmd/reducer/ifa_group_retry_live_test.go'
-      - 'go/internal/replay/offlinetier/postgres_test.go'
-      - 'go/internal/replay/offlinetier/delta_tier_live_test.go'
-      - 'go/internal/replay/offlinetier/repo_dependency_proof_database_live_test.go'
-      - 'go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_fixture_test.go'
-      - 'go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_graph_test.go'
-      - 'go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_graph_validation_test.go'
-      - 'go/internal/replay/offlinetier/repo_dependency_ifa_cleanup_live_test.go'
-      - 'go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_live_test.go'
-      - 'go/internal/replay/offlinetier/repo_dependency_ifa_database_guard_live_test.go'
-      - 'go/internal/replay/offlinetier/repo_dependency_ifa_process_death_live_test.go'
-      - 'go/internal/replay/offlinetier/repo_dependency_ifa_quarantine_live_test.go'
-      - 'go/internal/replay/offlinetier/repo_dependency_ifa_replay_coordinates_live_test.go'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || 'scheduled' }}
+  group: ci-leaf-ifa-scheduled-proofs-${{ github.event_name == 'pull_request' && github.ref || 'scheduled' }}
   # PR runs cancel when superseded like every other PR workflow; the
   # scheduled singleton group keeps cancel-in-progress false, so a proof
   # run on the schedule is never cancelled by a later schedule tick.
@@ -57,6 +28,7 @@ permissions:
 
 jobs:
   ifa-scheduled:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'ifa-scheduled') }}
     name: Ifá scheduled proof vs NornicDB and PostgreSQL
     runs-on: ubuntu-latest
     timeout-minutes: 20

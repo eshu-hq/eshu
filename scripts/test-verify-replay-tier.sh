@@ -7,6 +7,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-replay-tier.sh"
 workflow="${repo_root}/.github/workflows/verify-replay-tier.yml"
+fragment="${repo_root}/specs/ci-pr-workflows.d/verify-replay-tier.yml"
 ci_gates="$(mktemp)"
 trap 'rm -f "${ci_gates}"' EXIT
 . "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
@@ -166,14 +167,12 @@ workflow_gate_job_block() {
 # #6205 review after the step-level pair was already closed, which is the point:
 # the disabling vector moved up a level and the guard did not follow.
 gate_job_is_active() {
-	local job key
+	local job if_lines
 	job="$(workflow_gate_job_block "$1")"
 	rg --quiet '^    name: Offline replay tier vs real NornicDB$' <<<"${job}" || return 1
-	for key in 'if:' 'continue-on-error:'; do
-		if rg --quiet "^    ${key}" <<<"${job}"; then
-			return 1
-		fi
-	done
+	if_lines="$(rg '^    if:' <<<"${job}")" || return 1
+	[[ "${if_lines}" == "    if: \${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier') }}" ]] || return 1
+	! rg --quiet '^    continue-on-error:' <<<"${job}"
 }
 
 has_workflow_wiring() {
@@ -188,11 +187,18 @@ has_workflow_wiring() {
 	rg --quiet '^    needs: queue-selection$' <<<"$(workflow_gate_job_block "$1")" || return 1
 	rg --quiet '^    uses: \./\.github/workflows/queue-selection\.yml$' "$1" || return 1
 	rg --quiet '^        run: test "\$\{\{ needs\.queue-selection\.result \}\}" = success$' "$1" || return 1
-	[[ -n "${install_line}" && -n "${test_line}" && "${install_line}" -lt "${test_line}" ]] &&
-		rg --quiet "^[[:space:]]*- 'go/internal/query/\\*\\*'$" "$1" &&
-		rg --quiet "^[[:space:]]*- 'scripts/test-verify-replay-tier\\.sh'$" "$1" &&
-		rg --quiet "^[[:space:]]*- 'scripts/dev/pre-pr\\.sh'$" "$1" &&
-		rg --quiet "^[[:space:]]*- 'scripts/ci/install-apt-packages\\.sh'$" "$1"
+	[[ -n "${install_line}" && -n "${test_line}" && "${install_line}" -lt "${test_line}" ]]
+}
+
+has_fragment_wiring() {
+	local path
+	rg --fixed-strings --line-regexp --quiet 'schema_version: 1' "$1" || return 1
+	rg --fixed-strings --line-regexp --quiet -- '- file: verify-replay-tier.yml' "$1" || return 1
+	rg --fixed-strings --line-regexp --quiet '  synchronize: true' "$1" || return 1
+	for path in 'go/internal/query/**' scripts/test-verify-replay-tier.sh \
+		scripts/dev/pre-pr.sh scripts/ci/install-apt-packages.sh; do
+		rg --fixed-strings --line-regexp --quiet -- "  - ${path}" "$1" || return 1
+	done
 }
 
 # replay_registry_block prints only the replay-tier gate's rows. Twelve other
@@ -258,7 +264,9 @@ has_nornicdb_image_pin "${script}" \
 
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 has_workflow_wiring "${workflow}" \
-	|| fail "workflow must actively run and trigger on this contract test"
+	|| fail "workflow must actively run this contract test"
+has_fragment_wiring "${fragment}" \
+	|| fail "synchronize fragment must select the replay contract"
 [[ -f "${ci_gates}" ]] || fail "missing ${ci_gates}"
 has_registry_wiring "${ci_gates}" \
 	|| fail "CI gate registry must actively trigger on and run this contract test"
@@ -425,10 +433,10 @@ sed '/^[[:space:]]*run: scripts\/ci\/install-apt-packages\.sh ripgrep$/s/^/# /' 
 if has_workflow_wiring "${tmp}/workflow-no-rg"; then
 	fail "workflow must install ripgrep before running the contract test"
 fi
-sed "/^[[:space:]]*- 'scripts\\/ci\\/install-apt-packages\\.sh'$/s/^/# /" \
-	"${workflow}" >"${tmp}/workflow-no-installer-trigger"
-if has_workflow_wiring "${tmp}/workflow-no-installer-trigger"; then
-	fail "workflow must trigger on its shared installer"
+sed '/^  - scripts\/ci\/install-apt-packages\.sh$/s/^/# /' \
+	"${fragment}" >"${tmp}/fragment-no-installer-trigger"
+if has_fragment_wiring "${tmp}/fragment-no-installer-trigger"; then
+	fail "fragment must trigger on its shared installer"
 fi
 sed -e '/^[[:space:]]*- "scripts\/test-verify-replay-tier\.sh"$/s/^/# /' \
 	-e '/^[[:space:]]*test_command: "bash scripts\/test-verify-replay-tier\.sh"$/s/^/# /' \

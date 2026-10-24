@@ -37,14 +37,14 @@ type smokeEvidence struct {
 	FullRootSHA string
 }
 
-func probeSmoke(ctx context.Context, runner ghRunner, repo string, pr int, headSHA string, changedPaths, contexts []string) (bool, error) {
-	verdict, err := probeSmokeEvidence(ctx, runner, repo, pr, headSHA, changedPaths, contexts)
+func probeSmoke(ctx context.Context, runner ghRunner, repo string, pr int, headSHA string, changedPaths []string, truncated bool, contexts []string) (bool, error) {
+	verdict, err := probeSmokeEvidence(ctx, runner, repo, pr, headSHA, changedPaths, truncated, contexts)
 	return verdict.Applied, err
 }
 
 // probeSmokeEvidence binds a smoke decision to its full-backed source and the
 // current head tree. The scheduler needs both to publish transferred aggregates.
-func probeSmokeEvidence(ctx context.Context, runner ghRunner, repo string, pr int, headSHA string, changedPaths, contexts []string) (smokeEvidence, error) {
+func probeSmokeEvidence(ctx context.Context, runner ghRunner, repo string, pr int, headSHA string, changedPaths []string, truncated bool, contexts []string) (smokeEvidence, error) {
 	if !validRepoName(repo) {
 		return smokeEvidence{}, fmt.Errorf("invalid --repo %q", repo)
 	}
@@ -54,7 +54,7 @@ func probeSmokeEvidence(ctx context.Context, runner ghRunner, repo string, pr in
 	if len(contexts) == 0 {
 		return smokeEvidence{}, fmt.Errorf("no required status contexts to transfer against")
 	}
-	if !transferPRPathsSafe(changedPaths, false) {
+	if !transferPRPathsSafe(changedPaths, truncated) {
 		return smokeEvidence{}, nil
 	}
 	target, bound := currentTestedInput(ctx)

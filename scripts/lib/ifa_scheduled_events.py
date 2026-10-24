@@ -15,7 +15,8 @@ from ifa_scheduled_manifest import NORNIC_DIGEST, POSTGRES_DIGEST
 INVENTORY = Path(__file__).with_name("ifa_scheduled_inventory.json")
 RUNNER = Path("scripts/run-ifa-scheduled-proofs.sh")
 WORKFLOW = Path(".github/workflows/ifa-scheduled-proofs.yml")
-WORKFLOW_SHA256 = "4ece5cbe35066011cecce0c095269c6e03bc3a79a49931b1518cd56a4e44120f"
+FRAGMENT = Path("specs/ci-pr-workflows.d/ifa-scheduled-proofs.yml")
+WORKFLOW_SHA256 = "a3213999c2e28a1231fd3472042cc9ff958cc4144f68d7278e93f536b8cc86aa"
 RUNNER_SHA256 = "63e6573b21b77cdab837b15080672368f53d97d47d6cb903c6037f663576a03e"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 SOURCE_PATHS = frozenset((
@@ -29,6 +30,7 @@ SOURCE_PATHS = frozenset((
 ))
 PR_EXTRA_PATHS = frozenset((
     ".github/workflows/ifa-scheduled-proofs.yml",
+    "specs/ci-pr-workflows.d/ifa-scheduled-proofs.yml",
     "go/go.mod",
     "go/go.sum",
     "scripts/ci/go-mod-download-retry.sh",
@@ -55,7 +57,7 @@ PR_EXTRA_PATHS = frozenset((
     "go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_graph_validation_test.go",
 ))
 ROOT_KEYS = frozenset({"name", "on", "concurrency", "permissions", "jobs"})
-JOB_KEYS = frozenset({"name", "runs-on", "timeout-minutes", "services", "steps"})
+JOB_KEYS = frozenset({"if", "name", "runs-on", "timeout-minutes", "services", "steps"})
 STEP_KEYS = {
     "Checkout repository": frozenset({"uses", "with"}),
     "Verify Ifá runner contract": frozenset({"run"}),
@@ -91,7 +93,7 @@ def verify_workflow_structure(workflow: str) -> str:
     root = canonical_keys(workflow, 0, ROOT_KEYS)
     if set(root) != ROOT_KEYS or root["jobs"] != "jobs:":
         raise ValueError("inactive Ifá owner job: noncanonical workflow root")
-    jobs = workflow.split("jobs:\n", 1)[1]
+    jobs = workflow.split("\njobs:\n", 1)[1]
     job_headers = [
         line for line in jobs.splitlines()
         if line.startswith("  ") and not line.startswith("   ")
@@ -103,6 +105,7 @@ def verify_workflow_structure(workflow: str) -> str:
     keys = canonical_keys(job, 4, JOB_KEYS)
     if (
         set(keys) != JOB_KEYS
+        or keys["if"] != "    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'ifa-scheduled') }}"
         or keys["runs-on"] != "    runs-on: ubuntu-latest"
         or keys["timeout-minutes"] != "    timeout-minutes: 20"
         or keys["services"] != "    services:"
@@ -139,31 +142,47 @@ def verify_workflow_structure(workflow: str) -> str:
     return job
 
 
-def verify_workflow_route(workflow: str) -> None:
+def verify_workflow_route(workflow: str, fragment: str | None = None) -> None:
     """Require an exact PR path route to the same unconditional live job."""
     job = verify_workflow_structure(workflow)
     event_match = re.search(r"(?ms)^on:\n(.*?)(?=^[^ #][^\n]*:\s*(?:\n|$))", workflow)
     if not event_match:
         raise ValueError("missing active workflow event block")
     events = event_match.group(1)
-    if not events.startswith("  schedule:\n    - cron: '50 4 * * *'\n  workflow_dispatch:\n"):
-        raise ValueError("missing active Ifá daily cadence and manual event")
+    if not events.startswith(
+        "  workflow_call:\n    inputs:\n      plan_jobs:\n"
+        "        required: true\n        type: string\n"
+        "      plan_gates:\n        required: true\n        type: string\n"
+        "      plan_mode:\n        required: true\n        type: string\n"
+        "  schedule:\n    - cron: '50 4 * * *'\n"
+        "  workflow_dispatch:\n"
+    ):
+        raise ValueError("missing active Ifá daily cadence and callable event")
     event_names = re.findall(r"(?m)^  ([a-z_]+):", events)
-    if event_names != ["schedule", "workflow_dispatch", "pull_request"]:
-        raise ValueError("workflow must have only schedule, manual, and bounded PR events")
-    pr_match = re.search(
-        r"(?m)^  pull_request:\n    branches: \[ main \]\n    paths:\n((?:      - '[^']+'\n)+)",
-        events,
-    )
-    if not pr_match:
-        raise ValueError("missing exact active pull_request path filter")
-    paths = re.findall(r"(?m)^      - '([^']+)'$", pr_match.group(1))
-    if len(paths) != len(set(paths)) or set(paths) != SOURCE_PATHS | PR_EXTRA_PATHS:
+    if event_names != ["workflow_call", "schedule", "workflow_dispatch"]:
+        raise ValueError("workflow must have only call, schedule, and manual events")
+    if fragment is None:
+        fragment = (Path(__file__).resolve().parents[2] / FRAGMENT).read_text()
+    active = [line for line in fragment.splitlines()
+              if line.strip() and not line.lstrip().startswith("#")]
+    try:
+        start = active.index("  paths:")
+        end = active.index("  jobs:")
+    except ValueError as error:
+        raise ValueError("Ifá pull_request path filter drifted") from error
+    paths = [line.removeprefix("  - ") for line in active[start + 1:end]
+             if line.startswith("  - ")]
+    prefix = ["schema_version: 1", "workflows:",
+              "- file: ifa-scheduled-proofs.yml", '  name: "If\\xE1 Scheduled Live Proofs"',
+              "  synchronize: true", "  branches:", "  - main", "  paths:"]
+    suffix = ["  jobs:", "  - ifa-scheduled", "  job_names:",
+              '    ifa-scheduled: "If\\xE1 scheduled proof vs NornicDB and PostgreSQL"']
+    if (active[:start + 1] != prefix or active[end:] != suffix
+            or end <= start or len(paths) != end - start - 1
+            or len(paths) != len(set(paths)) or set(paths) != SOURCE_PATHS | PR_EXTRA_PATHS):
         raise ValueError("Ifá pull_request path filter drifted")
-    if events[pr_match.end():].strip():
-        raise ValueError("unexpected pull_request trigger setting")
     concurrency = (
-        "concurrency:\n  group: ${{ github.workflow }}-${{ "
+        "concurrency:\n  group: ci-leaf-ifa-scheduled-proofs-${{ "
         "github.event_name == 'pull_request' && github.ref || 'scheduled' }}\n"
     )
     if concurrency not in workflow:
@@ -268,7 +287,7 @@ def verify_inventory(
         "NEO4J_PASSWORD=\"${ESHU_NEO4J_PASSWORD}\"",
     ):
         require(runner, token, "runner contract")
-    verify_workflow_route(workflow)
+    verify_workflow_route(workflow, (root / FRAGMENT).read_text(encoding="utf-8"))
     if hashlib.sha256(runner.encode("utf-8")).hexdigest() != RUNNER_SHA256:
         raise ValueError("Ifá runner executable bytes differ from reviewed contract")
     for line in (

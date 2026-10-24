@@ -1,0 +1,78 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: live-postgres-readiness.yml
+  name: Live PostgreSQL Readiness
+  synchronize: true
+  branches:
+  - main
+  paths:
+  - go/internal/query/supply/chain/**
+  - go/internal/query/supply/chain/impact/**
+  - go/internal/query/admin/**
+  - go/internal/query/content_reader_dead_code*.go
+  - go/internal/query/code_topic*.go
+  - go/internal/query/content_reader_code_topic.go
+  - go/internal/query/content_reader_search_page.go
+  - go/internal/query/codetopicparallel/**
+  - go/internal/runtime/postgres/**
+  - go/internal/query/status*.go
+  - go/internal/query/search/unscoped/**
+  - go/internal/query/content_reader_search*.go
+  - go/internal/query/contentread/content_handler*.go
+  - go/internal/status/**
+  - go/internal/relationships/**
+  - go/internal/storage/postgres/**
+  - go/cmd/reducer/**
+  - go/internal/reducer/maintenance/**
+  - go/internal/reducer/freshness/links/**
+  - go/internal/testutil/postgresproof/**
+  - go/internal/reducer/status/**
+  - go/internal/cigates/readiness_job_split_test.go
+  - go/go.mod
+  - go/go.sum
+  - specs/live-tests.v1.yaml
+  - specs/live-tests.d/**
+  - specs/ci-gates.v1.yaml
+  - specs/ci-gates.d/**
+  - scripts/run-live-postgres-readiness-tests.sh
+  - scripts/test-run-live-postgres-readiness-tests.sh
+  - scripts/lib/test-run-live-postgres-readiness-seed-cases.sh
+  - scripts/lib/test-run-live-postgres-readiness-shards.sh
+  - scripts/lib/live_postgres_readiness_results.py
+  - scripts/lib/live_postgres_readiness_inventory*.py
+  - scripts/lib/live_postgres_readiness_env.sh
+  - scripts/lib/live_postgres_readiness_records.py
+  - scripts/lib/live_postgres_readiness_shards.py
+  - scripts/lib/live_postgres_readiness_weights*.py
+  - scripts/lib/live_postgres_readiness_balance_cases.py
+  - specs/live-postgres-readiness-weights.v1.json
+  - scripts/test-live-postgres-readiness-shards.py
+  - scripts/test-live-postgres-readiness-helper.py
+  - scripts/lib/live_postgres_readiness_events.py
+  - scripts/lib/live_postgres_readiness_proof_cases.py
+  - scripts/lib/test-run-live-postgres-readiness-proofs.sh
+  - scripts/ci/live-postgres-readiness-job-summary.sh
+  - scripts/ci/test-live-postgres-readiness-job-summary.sh
+  - scripts/test-run-live-postgres-readiness-selftest-seeds.sh
+  - scripts/lib/live_tests_registry.py
+  - scripts/lib/verify-live-tests-ledger.py
+  - scripts/test-live-tests-registry.py
+  - scripts/verify-live-tests-ledger.sh
+  - scripts/test-verify-live-tests-ledger.sh
+  - scripts/ci/go-mod-download-retry.sh
+  - scripts/ci/install-apt-packages.sh
+  - scripts/ci/live-postgres-standby-fixture.sh
+  - scripts/test-live-postgres-standby-fixture.sh
+  - .github/workflows/live-postgres-readiness.yml
+  - .github/workflows/required-gates.yml
+  - specs/ci-pr-workflows.d/live-postgres-readiness.yml
+  jobs:
+  - hermetic
+  - live-postgres-readiness
+  - live-postgres-readiness-shards
+  - queue-selection
+  job_names:
+    hermetic: live-postgres-readiness hermetic
+    live-postgres-readiness: live-postgres-readiness (postgres18)
+    live-postgres-readiness-shards: live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/4)

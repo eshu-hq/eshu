@@ -12,6 +12,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-golden-corpus-gate.sh"
 fixture_lib="${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 workflow="${repo_root}/.github/workflows/golden-corpus-gate.yml"
+workflow_paths="${repo_root}/specs/ci-pr-workflows.d/golden-corpus-gate.yml"
 snapshot="${repo_root}/testdata/golden/e2e-20repo-snapshot.json"
 sql_drop_fixture="${repo_root}/tests/fixtures/ecosystems/sql_comprehensive/migrations/V2__drop_legacy_tables.sql"
 ci_gates_dir="$(mktemp -d)"
@@ -28,6 +29,7 @@ ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${ci_gates}" "${repo_r
 	|| fail "verify-golden-corpus-gate.sh must stay under 500 lines"
 [[ -f "${fixture_lib}" ]] || fail "missing ${fixture_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
+[[ -f "${workflow_paths}" ]] || fail "missing ${workflow_paths}"
 [[ -f "${snapshot}" ]] || fail "missing ${snapshot}"
 [[ -f "${sql_drop_fixture}" ]] || fail "missing ${sql_drop_fixture}"
 [[ -f "${ci_gates}" ]] || fail "missing ${ci_gates}"
@@ -60,12 +62,8 @@ bash -n "${matcher_guard_cases_lib}" || fail "golden-corpus-matcher-guard-cases.
 [[ "${matcher_guard_cases_completed:-0}" -eq 1 ]] ||
 	fail "golden-corpus-matcher-guard-cases.sh did not run to completion (gutted, or returned early)"
 
-# The workflow's on.pull_request.paths filter must trigger this gate on every
-# source dir whose changes can alter emitted facts, graph/content projection,
-# or query/MCP truth the gate asserts (#5596, widened by #5538). Assertions
-# extracted to a sourced lib chunk (golden-corpus-mirror-workflow-paths.sh) to
-# keep this mirror under the repo's 500-line file rule as the count grows; see
-# that lib's header for the full rationale per group of paths.
+# The frozen PR fragment must select every B-7 source path. The sourced
+# mirror holds the detailed path rationale (#5596, #5538).
 workflow_paths_lib="${repo_root}/scripts/lib/golden-corpus-mirror-workflow-paths.sh"
 [[ -f "${workflow_paths_lib}" ]] || fail "missing workflow paths lib: ${workflow_paths_lib}"
 bash -n "${workflow_paths_lib}" || fail "golden-corpus-mirror-workflow-paths.sh has a syntax error"

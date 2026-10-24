@@ -13,24 +13,28 @@
 name: Scorecard Example Conformance
 
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   # Merge-queue entries (#7111): every job runs, publication stays off, and
   # required-gates.yml aggregates the merge_group check rows.
   # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
   merge_group:
     types: [checks_requested]
-  pull_request:
-    paths:
-      - "examples/collector-extensions/scorecard/**"
-      - "sdk/go/collector/**"
-      - "sdk/go/factschema/**"
-      - "scripts/ci/go-mod-download-retry.sh"
-      - ".github/workflows/scorecard-example-conformance.yml"
   push:
     branches:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ci-leaf-scorecard-example-conformance-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -38,11 +42,13 @@ permissions:
 
 jobs:
   queue-selection:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: scorecard-example-conformance.yml
 
   test:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'test') }}
     needs: queue-selection
     name: Scorecard example go test
     timeout-minutes: 10

@@ -53,6 +53,8 @@ func reuseAttemptJobs() string {
 func boundFullSourceRoutes(sourceStatus string) []mappedGHRoute {
 	return append([]mappedGHRoute{
 		{match: "graphql", output: forcePushJSON(reuseOldSHA, reuseHeadSHA)},
+		{match: "compare/" + testedBaseSHA + "..." + sourceMergeSHA, output: messageCompareJSON(sourceMergeSHA, reuseOldSHA, "safe")},
+		{match: "compare/" + testedBaseSHA + "..." + targetMessageMergeSHA, output: messageCompareJSON(targetMessageMergeSHA, reuseHeadSHA, "safe")},
 		{match: "git/commits/" + reuseHeadSHA, output: commitJSON(reuseTreeSHA, reuseParentSHA)},
 		{match: "git/commits/" + reuseOldSHA, output: commitJSON(reuseTreeSHA, "")},
 		{match: "git/commits/" + reuseParentSHA, output: commitJSON(reuseOtherTree, "")},
@@ -81,7 +83,7 @@ func TestProbeReuseBoundTestedTreeAndFullSource(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runner := &mappedGHRunner{routes: boundFullSourceRoutes(boundFullStatus())}
-			ctx := withTestedInput(context.Background(), testedInput{RunID: 102, Attempt: 1, MergeSHA: testedBaseSHA, MergeTree: tc.mergeTree})
+			ctx := withTestedInput(context.Background(), testedInput{RunID: 102, Attempt: 1, MergeSHA: targetMessageMergeSHA, MergeTree: tc.mergeTree, BaseSHA: testedBaseSHA, HeadSHA: reuseHeadSHA})
 			got, err := probeReuse(ctx, runner, "eshu-hq/eshu", 42, reuseHeadSHA, contexts)
 			if err != nil || got.Reuse != tc.wantReuse {
 				t.Fatalf("reuse=%#v err=%v, want %v", got, err, tc.wantReuse)
@@ -246,7 +248,7 @@ func TestProbeReuseDocsOnlyFullSource(t *testing.T) {
 			routes[i].output = docsFullJobs()
 		}
 	}
-	ctx := withTestedInput(context.Background(), testedInput{RunID: 102, Attempt: 1, MergeSHA: testedBaseSHA, MergeTree: testedTreeSHA})
+	ctx := withTestedInput(context.Background(), testedInput{RunID: 102, Attempt: 1, MergeSHA: targetMessageMergeSHA, MergeTree: testedTreeSHA, BaseSHA: testedBaseSHA, HeadSHA: reuseHeadSHA})
 	got, err := probeReuse(ctx, &mappedGHRunner{routes: routes}, "eshu-hq/eshu", 42, reuseHeadSHA,
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 	if err != nil || !got.Reuse || got.FullRootSHA != reuseOldSHA {
@@ -295,9 +297,10 @@ func TestProbeReuseDirectFullRootMustRemainCurrent(t *testing.T) {
 				{match: "actions/runs/103/attempts/1/jobs", output: sourceFullJobs(true, false)},
 				{match: "actions/runs/103", output: rootRun},
 				{match: "git/commits/" + rootMergeSHA, output: testedCommitJSON(rootMergeSHA, reuseParentSHA)},
+				{match: "compare/" + testedBaseSHA + "..." + rootMergeSHA, output: messageCompareJSON(rootMergeSHA, reuseParentSHA, "safe")},
 				{match: "git/commits/" + reuseParentSHA, output: commitJSON(reuseTreeSHA, "")},
 			}, routes...)
-			ctx := withTestedInput(context.Background(), testedInput{RunID: 102, Attempt: 1, MergeSHA: testedBaseSHA, MergeTree: testedTreeSHA})
+			ctx := withTestedInput(context.Background(), testedInput{RunID: 102, Attempt: 1, MergeSHA: targetMessageMergeSHA, MergeTree: testedTreeSHA, BaseSHA: testedBaseSHA, HeadSHA: reuseHeadSHA})
 			if tc.raceShardSucceeded {
 				_, _, bound, sourceErr := fullBackedSource(ctx, &mappedGHRunner{routes: routes}, "eshu-hq/eshu", 42, reuseOldSHA,
 					[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
@@ -324,9 +327,11 @@ func TestProbeSmokeChecksHeadAndTestedMergeDeltas(t *testing.T) {
 		name       string
 		mergeTree  string
 		mergePaths []string
+		truncated  bool
 		wantSmoke  bool
 	}{
 		{name: "disjoint base", mergeTree: reuseOtherTree, mergePaths: []string{"go/subject.go", "docs/disjoint.md"}, wantSmoke: true},
+		{name: "truncated PR paths", mergeTree: reuseOtherTree, mergePaths: []string{"go/subject.go", "docs/disjoint.md"}, truncated: true},
 		{name: "merge-only protected workflow", mergeTree: protectedMergeTree, mergePaths: []string{"go/subject.go", "docs/disjoint.md", ".github/workflows/test.yml"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -345,7 +350,7 @@ func TestProbeSmokeChecksHeadAndTestedMergeDeltas(t *testing.T) {
 			}, routes...)
 			ctx := withTestedInput(context.Background(), testedInput{RunID: 102, Attempt: 1, MergeSHA: testedBaseSHA, MergeTree: tc.mergeTree})
 			got, err := probeSmokeEvidence(ctx, &mappedGHRunner{routes: routes}, "eshu-hq/eshu", 42, reuseHeadSHA,
-				[]string{"go/subject.go"}, []string{"go-core-complete", "go-race-complete", "required-gates-complete"})
+				[]string{"go/subject.go"}, tc.truncated, []string{"go-core-complete", "go-race-complete", "required-gates-complete"})
 			if err != nil || got.Applied != tc.wantSmoke {
 				t.Fatalf("smoke=%#v err=%v, want %v", got, err, tc.wantSmoke)
 			}
@@ -375,7 +380,7 @@ func TestBuildPRPlanUsesSameBoundTestedInput(t *testing.T) {
 				{match: "--json changedFiles", output: "1"},
 				{match: "/pulls/42/files", output: `[[{"filename":"go/subject.go"}]]`},
 			}, boundFullSourceRoutes(boundFullStatus())...)
-			ctx := withTestedInput(context.Background(), testedInput{RunID: 102, Attempt: 1, MergeSHA: testedBaseSHA, MergeTree: tc.mergeTree})
+			ctx := withTestedInput(context.Background(), testedInput{RunID: 102, Attempt: 1, MergeSHA: targetMessageMergeSHA, MergeTree: tc.mergeTree, BaseSHA: testedBaseSHA, HeadSHA: reuseHeadSHA})
 			plan, err := buildPRPlan(ctx, &mappedGHRunner{routes: routes}, reg, defs, "eshu-hq/eshu", 42, reuseHeadSHA)
 			if err != nil || plan.Mode != tc.wantMode || plan.MergeTree != tc.mergeTree || plan.TargetRunID != 102 || plan.TargetAttempt != 1 {
 				t.Fatalf("plan=%#v err=%v want mode=%s", plan, err, tc.wantMode)

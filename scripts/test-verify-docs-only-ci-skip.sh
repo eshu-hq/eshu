@@ -1,21 +1,7 @@
 #!/usr/bin/env bash
 #
-# test-verify-docs-only-ci-skip.sh — test mirror for verify-docs-only-ci-skip.sh
-# (#5818). Proves the two #5818 regression guards it added are non-vacuous:
-#   1. the three duplicated `code:` dorny/paths-filter blocks (test.yml,
-#      security-scan.yml, mcp-schema-drift.yml) must stay byte-identical;
-#   2. no registry gate whose CI job is one of these workflows' code-gated jobs
-#      may declare a trigger the filter's negations would swallow.
-#
-# Rather than hand-building synthetic fixture workflows that would also have to
-# satisfy every pre-existing check in verify-docs-only-ci-skip.sh (the
-# always-on-job checks, the umbrella guard-body checks, and so on), this test
-# copies the real, currently-green repo files into a scratch tree — the script
-# resolves repo_root from its own path, so running the copied script against
-# the copied tree is a faithful hermetic rerun — then mutates one file at a
-# time and asserts the specific guard fires. This is the same mutation the
-# guards were proven against by hand while landing #5818's fix; this script
-# pins that proof as a regression test.
+# test-verify-docs-only-ci-skip.sh — mutate a scratch copy of the live CI
+# wiring to prove that the docs-only guard rejects broken filters and gates.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -41,7 +27,11 @@ cp "${repo_root}/${script_rel}" "${tmp}/scripts/verify-docs-only-ci-skip.sh"
 # every case below fails "for the wrong reason" instead of testing anything.
 cp "${repo_root}/scripts/lib/ci-gate-merge-group-checks.sh" "${tmp}/scripts/lib/ci-gate-merge-group-checks.sh"
 cp "${repo_root}/scripts/lib/ci-gate-predicate-quantifier.sh" "${tmp}/scripts/lib/ci-gate-predicate-quantifier.sh"
+cp "${repo_root}/scripts/lib/ci-gate-docs-planner-checks.sh" "${tmp}/scripts/lib/ci-gate-docs-planner-checks.sh"
 cp "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh" "${tmp}/scripts/lib/ci-gates-resolved-fixtures.sh"
+mkdir -p "${tmp}/scripts/ci" "${tmp}/specs/ci-pr-workflows.d"
+cp "${repo_root}/scripts/ci/assert-go-complete.sh" "${tmp}/scripts/ci/assert-go-complete.sh"
+cp "${repo_root}/specs/ci-pr-workflows.d/build.yml" "${tmp}/specs/ci-pr-workflows.d/build.yml"
 for wf in build.yml security-scan.yml mcp-schema-drift.yml test.yml; do
 	cp "${repo_root}/.github/workflows/${wf}" "${tmp}/.github/workflows/${wf}"
 done
@@ -59,6 +49,33 @@ else
 	no "scratch copy of the real repo state should pass; got:"
 	printf '%s\n' "${out}" >&2
 fi
+
+sed -i '/^  call-build:/s/ && contains(/ \&\& false \&\& contains(/' "${tmp}/.github/workflows/test.yml"
+if run_scratch >/dev/null 2>&1; then no 'disabled planned build caller must fail'; else ok 'disabled planned build caller fails'; fi
+cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
+
+# The trusted build fragment and the selected-full Go assertion are live inputs.
+sed -i '/^  - docs\/\*\*$/d' "${tmp}/specs/ci-pr-workflows.d/build.yml"
+if run_scratch >/dev/null 2>&1; then no 'missing trusted docs filter must fail'
+else ok 'missing trusted docs filter fails'; fi
+cp "${repo_root}/specs/ci-pr-workflows.d/build.yml" "${tmp}/specs/ci-pr-workflows.d/build.yml"
+sed -i '/selected full ${LANE} result=/d' "${tmp}/scripts/ci/assert-go-complete.sh"
+if run_scratch >/dev/null 2>&1; then no 'missing selected-full assertion must fail'
+else ok 'missing selected-full assertion fails'; fi
+cp "${repo_root}/scripts/ci/assert-go-complete.sh" "${tmp}/scripts/ci/assert-go-complete.sh"
+
+python3 - "${tmp}/.github/workflows/test.yml" <<'PY'
+import sys
+path = sys.argv[1]
+with open(path) as source:
+    content = source.read()
+assert content.count('run: bash scripts/ci/assert-go-complete.sh') == 2
+with open(path, 'w') as target:
+    target.write(content.replace('run: bash scripts/ci/assert-go-complete.sh', 'run: true', 1))
+PY
+if run_scratch >/dev/null 2>&1; then no 'missing Go umbrella assertion call must fail'
+else ok 'missing Go umbrella assertion call fails'; fi
+cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
 
 # --- guard 1 (byte-identity), failing case: drop the .agents/** negation from
 # only ONE of the three copies (the exact #5818-shaped drift — a fix applied to

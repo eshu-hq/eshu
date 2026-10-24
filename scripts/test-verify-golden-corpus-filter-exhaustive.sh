@@ -8,7 +8,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-golden-corpus-filter-exhaustive.sh"
 exclusions="${repo_root}/scripts/lib/golden-corpus-filter-exclusions.txt"
-workflow="${repo_root}/.github/workflows/golden-corpus-gate.yml"
+workflow="${repo_root}/specs/ci-pr-workflows.d/golden-corpus-gate.yml"
 
 fail() { printf 'test-verify-golden-corpus-filter-exhaustive: %s\n' "$*" >&2; exit 1; }
 
@@ -175,7 +175,7 @@ check case_missing_exclusion_fails_naming_it
 case_missing_workflow_path_fails_naming_it() {
 	local scratch out status
 	scratch="$(mktemp -t golden-corpus-filter-workflow-test.XXXXXX)"
-	rg --invert-match --fixed-strings -- "- 'go/internal/status/**'" "${workflow}" >"${scratch}"
+	rg --invert-match --fixed-strings -- "- go/internal/status/**" "${workflow}" >"${scratch}"
 	out="$(GOLDEN_CORPUS_FILTER_WORKFLOW="${scratch}" bash "${script}" 2>&1)"
 	status=$?
 	rm -f "${scratch}"

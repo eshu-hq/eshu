@@ -40,8 +40,12 @@ forbid_pattern() {
 # 1. Every main commit gets its own lossless run; tags stay on the ref.
 require_pattern \
 	"$publish" \
-	"group: \${{ github.workflow }}-\${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}" \
+	"group: ci-leaf-docker-publish-\${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}" \
 	'docker publish workflow must key main-push concurrency on the commit sha'
+require_pattern \
+	"$publish" \
+	"cancel-in-progress: \${{ github.event_name == 'pull_request' }}" \
+	'docker publish workflow must cancel only pull-request runs'
 
 # 2. The build pushes immutable tags only: no branch tag, no latest tag, and
 # the sha format pinned long (the scan resolver and the promotion sanity check
