@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8915 opt-in (ESHU_CONTENT_UPSERT_GUARD_BENCH=1) benchmark of a findings-heavy content_files replay through the real ContentWriter under EXPLAIN ANALYZE; asserts nothing and skips in the runner unless opted in; enrolled so every live test file is registered; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do
+//eshu:readiness:reason #8915 disposable PostgreSQL 18 smoke proof that a findings-heavy content_files replay through the real ContentWriter writes under 64 KiB of WAL, with an opt-in (ESHU_CONTENT_UPSERT_GUARD_BENCH=1) full-size measurement run that asserts nothing; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do
 //eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE ESHU_GENERATION_RETENTION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -114,21 +114,31 @@ func findingsHeavyCorpus(files, sizeBytes, findings int) []content.Record {
 	return records
 }
 
+// replayBenchSmokeWALLimit bounds the row WAL one smoke-size replay may write.
+// The unguarded writer wrote megabytes for the same batch.
+const replayBenchSmokeWALLimit = 64 * 1024
+
 // TestContentFileUpsertGuardReplayBenchLive reports the before/after of the
-// #8915 guard on the findings-heavy corpus: it writes 50 files of about 469 KB
-// with 491 findings each through the real ContentWriter, then replays the
-// identical batch and reports each replay's EXPLAIN (ANALYZE, BUFFERS, WAL)
-// numbers. It asserts nothing; run it on each side of a change and compare.
+// #8915 guard on the findings-heavy corpus through the real ContentWriter,
+// replaying an identical batch and logging each replay's
+// EXPLAIN (ANALYZE, BUFFERS, WAL) numbers.
+//
+// By default it runs a small corpus (6 files of 64 KB, 60 findings each, 2
+// replays) as a smoke proof and fails if a replay writes more than
+// replayBenchSmokeWALLimit of WAL. With ESHU_CONTENT_UPSERT_GUARD_BENCH=1 it
+// runs the measurement corpus (50 files of about 469 KB, 491 findings each, 3
+// replays) and asserts nothing, so it can be run on each side of a change:
 //
 //	ESHU_CONTENT_UPSERT_GUARD_BENCH=1 ESHU_POSTGRES_TEST_DSN=... \
 //	  go test ./internal/storage/postgres -run ContentFileUpsertGuardReplayBench -count=1 -v
 //
-// ESHU_CONTENT_UPSERT_GUARD_BENCH_ROUNDS sets the replay count (default 3).
+// ESHU_CONTENT_UPSERT_GUARD_BENCH_ROUNDS sets the replay count.
 func TestContentFileUpsertGuardReplayBenchLive(t *testing.T) {
-	if os.Getenv("ESHU_CONTENT_UPSERT_GUARD_BENCH") != "1" {
-		t.Skip("set ESHU_CONTENT_UPSERT_GUARD_BENCH=1 to run the #8915 replay benchmark")
+	full := os.Getenv("ESHU_CONTENT_UPSERT_GUARD_BENCH") == "1"
+	files, sizeBytes, findings, rounds := 6, 64*1024, 60, 2
+	if full {
+		files, sizeBytes, findings, rounds = 50, 469*1024, 491, 3
 	}
-	rounds := 3
 	if raw := os.Getenv("ESHU_CONTENT_UPSERT_GUARD_BENCH_ROUNDS"); raw != "" {
 		parsed, err := strconv.Atoi(raw)
 		if err != nil || parsed < 1 {
@@ -137,7 +147,7 @@ func TestContentFileUpsertGuardReplayBenchLive(t *testing.T) {
 		rounds = parsed
 	}
 	ctx, db := openContentUpsertGuardDatabase(t)
-	records := findingsHeavyCorpus(50, 469*1024, 491)
+	records := findingsHeavyCorpus(files, sizeBytes, findings)
 	var plans []explainedFileUpsert
 	writer := NewContentWriter(explainingFileDB{SQLDB: SQLDB{DB: db}, plans: &plans})
 	clock := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -163,6 +173,9 @@ func TestContentFileUpsertGuardReplayBenchLive(t *testing.T) {
 		wallMS, execMS, walMB = append(wallMS, wall), append(execMS, p.executionMS), append(walMB, float64(p.walBytes)/(1<<20))
 		t.Logf("replay %d: write wall %.0f ms, statement %.0f ms, WAL %.2f MiB, shared read %d, dirtied %d blocks",
 			r, wall, p.executionMS, float64(p.walBytes)/(1<<20), p.sharedRead, p.sharedDirty)
+		if !full && p.walBytes > replayBenchSmokeWALLimit {
+			t.Errorf("replay %d wrote %d WAL bytes for an unchanged batch, want <= %d", r, p.walBytes, replayBenchSmokeWALLimit)
+		}
 	}
 	median := func(v []float64) float64 {
 		s := slices.Clone(v)

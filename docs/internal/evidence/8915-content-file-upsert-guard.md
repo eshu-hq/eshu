@@ -51,16 +51,20 @@ Test files: `content_file_upsert_guard_live_test.go`,
 `content_file_upsert_guard_columns_live_test.go`,
 `content_file_upsert_guard_concurrency_live_test.go`,
 `content_file_upsert_guard_bench_live_test.go`. All run against PostgreSQL 18.6
-through the `live-postgres-readiness` runner; the benchmark is opt-in
-(`ESHU_CONTENT_UPSERT_GUARD_BENCH=1`).
+through the `live-postgres-readiness` runner. The replay benchmark runs a small
+corpus by default and fails above 64 KiB of replay WAL (the unguarded writer
+wrote 0.44 MiB for it); `ESHU_CONTENT_UPSERT_GUARD_BENCH=1` switches it to the
+full measurement corpus, where it asserts nothing.
 
-Red on the unmodified writer: 18 failures. Every unchanged-replay case fails
+Red on the unguarded writer (the guard removed, at this head): 22 failing
+lines, 6 tests and 16 subtests. Every unchanged-replay case fails
 (`indexed_at_only` and each `*_null_to_null` case, on both statement shapes),
-plus the writer-level replay, the changed-file sibling check, and the WAL bound
-(a one-row, 200 KB replay wrote 74,705 and 96,859 WAL bytes). Green with the
-guard: 56 passing subtests (62 with the six top-level tests). Removing the
-guard again fails 21 tests and subtests, including both recheck "skip" cases, so the tests are
-sensitive to it.
+plus the writer-level replay, the changed-file sibling check, both
+lock-recheck "skip" cases, the smoke benchmark (0.44 MiB of replay WAL against a
+64 KiB bound) and the single-row WAL bound (74,705 and 96,859 WAL bytes for one
+200 KB replay). Green with the guard: 63 passing lines, 7 tests and 56
+subtests. Only the four-session race passes either way, as it should: it
+proves the guard adds no deadlock, not that it skips.
 
 What the tests assert:
 
@@ -123,6 +127,16 @@ the share of production writes that are same-generation replays.
    `ContentStore.UpsertFileBatch` discard the `sql.Result` (`_`); no caller
    counts rows from these statements. The conflict-clause comment now says not to
    read it as "files written".
+
+### Fence source guard
+
+`TestNoGoStatementChangesContentFilesRepoID` (config/artifacts) scans Go
+literals for a `content_files` statement that changes `repo_id`. The shared
+clause is one literal, so it now expects to see that clause once instead of two
+upserts, and `TestContentFilesUpsertsShareOneConflictClause` proves both
+statement constants reference the shared clause. The seeded pair fails on a
+statement with its own clause and on a `repo_id` assignment planted in the
+shared clause.
 
 ## Concurrency
 

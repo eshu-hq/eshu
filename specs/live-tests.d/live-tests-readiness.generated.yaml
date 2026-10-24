@@ -552,7 +552,7 @@ tests:
   - file: go/internal/storage/postgres/content_file_upsert_guard_bench_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8915 opt-in (ESHU_CONTENT_UPSERT_GUARD_BENCH=1) benchmark of a findings-heavy content_files replay through the real ContentWriter under EXPLAIN ANALYZE; asserts nothing and skips in the runner unless opted in; enrolled so every live test file is registered; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do"
+    reason: "#8915 disposable PostgreSQL 18 smoke proof that a findings-heavy content_files replay through the real ContentWriter writes under 64 KiB of WAL, with an opt-in (ESHU_CONTENT_UPSERT_GUARD_BENCH=1) full-size measurement run that asserts nothing; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/content_file_upsert_guard_columns_live_test.go
     tag: ~
