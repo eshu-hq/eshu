@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package alertruntime //nolint:filelength // 555 lines: claim-driven hosted provider security-alert runtime; per alertruntime/AGENTS.md this package owns the full claim → provider API → source-fact path. Splitting across files would scatter the per-credential resolution and classification logic.
+package alertruntime //nolint:filelength // 544 lines: claim-driven hosted provider security-alert runtime; per alertruntime/AGENTS.md this package owns the full claim → provider API → source-fact path. Splitting across files would scatter the per-credential resolution and classification logic.
 
 import (
 	"context"
@@ -134,11 +134,6 @@ func (t TargetConfig) IsOrganizationScope() bool {
 type targetRuntime struct {
 	config TargetConfig
 	client RepositoryAlertClient
-}
-
-type repositoryAlertCollectionCoverage struct {
-	pagesFetched int
-	truncated    bool
 }
 
 // PreflightResult summarizes a bounded provider-access preflight without
@@ -281,33 +276,36 @@ func (s *ClaimedSource) NextClaimed(
 		return collector.CollectedGeneration{}, false, failure
 	}
 	fetchSpan.End()
+	// Record the target read's own duration now: a truncated org read fans out
+	// into per-repository reads that each record their own sample, so a sample
+	// taken after collectTarget would span the whole fan-out (#8805).
+	s.recordFetch(observeCtx, target.config, "success", startedAt)
 
-	observedAt := result.ObservedAt.UTC()
+	collection, err := s.collectTarget(observeCtx, observeSpan, target, result)
+	if err != nil {
+		recordSpanError(observeSpan, err)
+		return collector.CollectedGeneration{}, false, err
+	}
+	observedAt := collection.observedAt.UTC()
 	if observedAt.IsZero() {
 		observedAt = s.now().UTC()
 	}
-	coverage := repositoryAlertCollectionCoverageFromResult(result)
-	envs, err := s.envelopes(item, target.config, result.Alerts, observedAt, coverage)
+	envs, err := s.envelopes(item, target.config, collection, observedAt)
 	if err != nil {
 		recordSpanError(observeSpan, err)
 		return collector.CollectedGeneration{}, false, err
 	}
 	s.recordFacts(observeCtx, target.config, envs)
-	s.recordFetch(observeCtx, target.config, "success", startedAt)
 	return collector.FactsFromSlice(
 		ingestionScope(target.config),
 		scope.ScopeGeneration{
-			GenerationID: item.GenerationID,
-			ScopeID:      target.config.ScopeID,
-			ObservedAt:   observedAt,
-			IngestedAt:   observedAt,
-			Status:       scope.GenerationStatusPending,
-			TriggerKind:  scope.TriggerKindSnapshot,
-			FreshnessHint: securityAlertFreshnessHint(securityAlertFreshnessInput{
-				alerts:       result.Alerts,
-				pagesFetched: result.PagesFetched,
-				truncated:    result.Truncated,
-			}),
+			GenerationID:  item.GenerationID,
+			ScopeID:       target.config.ScopeID,
+			ObservedAt:    observedAt,
+			IngestedAt:    observedAt,
+			Status:        scope.GenerationStatusPending,
+			TriggerKind:   scope.TriggerKindSnapshot,
+			FreshnessHint: securityAlertFreshnessHint(collection.freshnessInput()),
 		},
 		envs,
 	), true, nil
@@ -361,12 +359,11 @@ func defaultClientFactory(target TargetConfig) (RepositoryAlertClient, error) {
 func (s *ClaimedSource) envelopes(
 	item workflow.WorkItem,
 	target TargetConfig,
-	alerts []securityalerts.GitHubDependabotAlert,
+	collection alertCollection,
 	observedAt time.Time,
-	coverage repositoryAlertCollectionCoverage,
 ) ([]facts.Envelope, error) {
-	envs := make([]facts.Envelope, 0, len(alerts))
-	for _, alert := range alerts {
+	envs := make([]facts.Envelope, 0, len(collection.alerts))
+	for _, alert := range collection.alerts {
 		// ctx.ScopeID is always the target's committed generation scope so that
 		// every envelope's ScopeID matches the scope committed to Postgres.
 		// For per-repository targets that is the per-repo scope; for org
@@ -411,7 +408,7 @@ func (s *ClaimedSource) envelopes(
 				env.Payload["repository_name"] = name
 			}
 		}
-		annotateRepositoryAlertCollectionCoverage(env.Payload, coverage)
+		annotateRepositoryAlertCollectionCoverage(env.Payload, collection.coverageFor(alert))
 		envs = append(envs, env)
 	}
 	return envs, nil
@@ -462,54 +459,6 @@ func normalizeOrganizationAlertRepositoryFullName(alert securityalerts.GitHubDep
 		return ""
 	}
 	return owner + "/" + name
-}
-
-func repositoryAlertCollectionCoverageFromResult(
-	result securityalerts.GitHubDependabotAlertResult,
-) repositoryAlertCollectionCoverage {
-	pagesFetched := result.PagesFetched
-	if pagesFetched <= 0 && len(result.Alerts) > 0 {
-		pagesFetched = 1
-	}
-	return repositoryAlertCollectionCoverage{
-		pagesFetched: pagesFetched,
-		truncated:    result.Truncated,
-	}
-}
-
-func annotateRepositoryAlertCollectionCoverage(
-	payload map[string]any,
-	coverage repositoryAlertCollectionCoverage,
-) {
-	payload["source_freshness"] = coverage.sourceFreshness()
-	payload["collection_coverage_state"] = coverage.coverageState()
-	payload["collection_truncated"] = coverage.truncated
-	payload["collection_pages_fetched"] = int64(coverage.pagesFetched)
-	payload["collection_state_filter"] = collectionOpenStateFilter
-	if reasons := coverage.incompleteReasons(); len(reasons) > 0 {
-		payload["collection_incomplete_reasons"] = reasons
-	}
-}
-
-func (c repositoryAlertCollectionCoverage) sourceFreshness() string {
-	if c.truncated {
-		return securityAlertSourceFreshnessPartial
-	}
-	return securityAlertSourceFreshnessActive
-}
-
-func (c repositoryAlertCollectionCoverage) coverageState() string {
-	if c.truncated {
-		return collectionCoverageIncomplete
-	}
-	return collectionCoverageComplete
-}
-
-func (c repositoryAlertCollectionCoverage) incompleteReasons() []string {
-	if !c.truncated {
-		return nil
-	}
-	return []string{collectionOpenPageLimitReachedReason}
 }
 
 func ingestionScope(target TargetConfig) scope.IngestionScope {

@@ -28,6 +28,76 @@ flowchart LR
   D --> E["collector.ClaimedService"]
 ```
 
+## Org-scope fan-out (#8805)
+
+An org read is a window: GitHub pages the whole organization's open alerts
+newest first, so `max_pages` x 100 alerts may hold few or none of a quiet
+allowlisted repository's alerts. When the org read is truncated,
+`collectTarget` hands off to `fanOutOrganization` (`org_fanout.go`), which reads
+each allowlisted repository of the organization with
+`ListRepositoryAlertsPages`, bounded by the same `max_pages`, sequentially in
+allowlist order and capped at `maxOrganizationFanoutRepositories` (100) per
+claim. `mergeFanoutAlerts` merges the reads into the claim's generation and
+org `scope_id`: a complete repository read replaces that repository's
+org-window alerts, every other allowlisted repository keeps its org-window
+alerts, and duplicates collapse on (repository, alert number). Fan-out alerts
+are stamped with the requested repository, so their `repository_id` and stable
+fact key match the org path. Per-repository coverage (`coverage.go`) stamps each
+fact: a still-truncated read keeps `provider_open_alert_page_limit_reached`;
+a failed, rate-limited, stopped, alerts-disabled, or capped repository adds
+`org_repository_read_failed`, `org_repository_read_rate_limited`,
+`org_repository_fanout_stopped`, `org_repository_alerts_disabled`, or
+`org_repository_fanout_cap_reached`. Only a `not_found` read and an
+auth_denied 403 the client marked `AlertsDisabled` (a JSON body saying
+Dependabot alerts are disabled, no rate-limit signal) let the fan-out continue;
+the first read that fails any other way (rate limit, other auth denied, 5xx,
+transport, terminal) stops it (`fanoutFailureOutcome`). A repository-scope
+target that gets the same 403 keeps the terminal auth_denied failure. The claim still commits what it read and never loops.
+Only a cancelled claim context fails the claim, with no partial generation.
+An allowlist with no repository of the organization fans out nothing: the
+truncated org read is returned as a single read, with its truncated freshness
+digest and no fan-out outcomes.
+Fan-out facts carry a lowercase `repository_name`, because the per-repository
+endpoint returns no repository object. The freshness digest includes each alert's
+repository and the fan-out outcomes, so a changed outcome is a new refresh
+boundary. Because of the repository field, org-scope digests differ from those
+computed before #8805: each org target takes one extra generation after an
+upgrade.
+
+Performance Evidence: one org claim sends at most
+`max_pages` x (1 + min(allowlisted org repositories, 100)) alert-page requests
+(plus one App token mint per listing call under `github_app`). A claim whose
+org read is not truncated sends exactly the requests it sent before.
+`TestClaimedSourceOrgFanoutReplaysProviderCassette` replays
+`testdata/org_fanout_cassette.json` against the real `GitHubDependabotClient`
+and pins the request count: 5 requests for a truncated two-page org read with
+one complete and one two-page-truncated repository, and 3 requests when the
+second repository read is rate limited (the third allowlisted repository is
+never requested), 2 requests when the first repository read is a 403
+with no rate-limit exhaustion signal, and 4 requests when the second of three repository
+reads is the disabled-alerts 403 (the fan-out reads the third). The cassette is synthetic and GitHub-shaped, written
+from GitHub's documented REST shape, not captured from GitHub. The
+disabled-alerts 403 body is not in GitHub's REST reference; it rests on four
+third-party implementations (see the cassette description).
+`TestClaimedSourceStopsFanoutOnNonNotFoundFailure` pins the stop for
+auth_denied, 5xx, terminal, and transport failures,
+`TestClaimedSourceContinuesFanoutPastAlertsDisabledRepository` pins the
+continue for the disabled 403, and
+`TestClaimedSourceFailsClaimWhenContextCancelledDuringFanout` pins the
+cancelled-claim path. `TestClaimedSourceBoundsFanoutRepositories` pins the
+100-repository cap.
+
+Observability Evidence: `eshu_dp_security_alert_truncated_reads_total`
+(`provider`, `operation`) counts every truncated read, and
+`eshu_dp_security_alert_org_fanout_repositories_total` (`provider`, `outcome`)
+counts each fan-out repository outcome. Each fan-out read also records the
+existing provider request, fetch-duration, and rate-limit instruments under its
+own `security_alert.fetch` span, and the `security_alert.observe` span carries
+`eshu.security_alert.org_fanout.repositories`, `.requested`, `.incomplete`,
+`.rate_limited`, and `.stopped`. No label or attribute carries a repository or organization.
+`TestClaimedSourceReportsRepositoryStillTruncatedAfterFanout` and
+`TestClaimedSourceStopsFanoutOnRateLimit` assert the counters.
+
 Operationally useful signals are emitted on the caller-provided telemetry
 handle: provider request totals, emitted fact totals, rate-limit totals, fetch
 duration histograms, and security-alert observe/fetch spans. Labels are bounded

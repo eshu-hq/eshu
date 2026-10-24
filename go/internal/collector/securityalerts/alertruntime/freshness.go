@@ -15,13 +15,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 )
 
+// securityAlertFreshnessInput is the provider truth a freshness digest covers.
+// fanoutOutcomes, set only after an org fan-out (#8805), maps each fan-out
+// repository to its outcome so a changed per-repository outcome moves the
+// digest; it is omitted otherwise. The alert snapshot also carries each alert's
+// repository (#8805), so org-scope digests, fan-out or not, differ from those
+// computed before that field existed: each org target takes one extra
+// generation after an upgrade, then the digest is stable again. Repository-scope
+// digests are unchanged.
 type securityAlertFreshnessInput struct {
-	alerts       []securityalerts.GitHubDependabotAlert
-	pagesFetched int
-	truncated    bool
+	alerts         []securityalerts.GitHubDependabotAlert
+	pagesFetched   int
+	truncated      bool
+	fanoutOutcomes map[string]string
 }
 
 type securityAlertFreshnessSnapshot struct {
+	Repository             string                              `json:"repository,omitempty"`
 	Number                 int                                 `json:"number"`
 	State                  string                              `json:"state"`
 	Ecosystem              string                              `json:"ecosystem"`
@@ -56,6 +66,9 @@ func securityAlertFreshnessHint(input securityAlertFreshnessInput) string {
 		snapshots = append(snapshots, securityAlertSnapshot(alert))
 	}
 	slices.SortFunc(snapshots, func(a, b securityAlertFreshnessSnapshot) int {
+		if cmp := strings.Compare(a.Repository, b.Repository); cmp != 0 {
+			return cmp
+		}
 		if a.Number != b.Number {
 			return cmp.Compare(a.Number, b.Number)
 		}
@@ -64,11 +77,15 @@ func securityAlertFreshnessHint(input securityAlertFreshnessInput) string {
 		}
 		return strings.Compare(a.ManifestPath, b.ManifestPath)
 	})
-	raw, err := json.Marshal(map[string]any{
+	digest := map[string]any{
 		"alerts":        snapshots,
 		"pages_fetched": input.pagesFetched,
 		"truncated":     input.truncated,
-	})
+	}
+	if len(input.fanoutOutcomes) > 0 {
+		digest["org_fanout"] = input.fanoutOutcomes
+	}
+	raw, err := json.Marshal(digest)
 	if err != nil {
 		return ""
 	}
@@ -82,6 +99,7 @@ func securityAlertSnapshot(alert securityalerts.GitHubDependabotAlert) securityA
 		pkg = alert.SecurityVulnerability.Package
 	}
 	return securityAlertFreshnessSnapshot{
+		Repository:             normalizeOrganizationAlertRepositoryFullName(alert),
 		Number:                 alert.Number,
 		State:                  strings.TrimSpace(alert.State),
 		Ecosystem:              strings.TrimSpace(pkg.Ecosystem),
