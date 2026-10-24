@@ -39,6 +39,12 @@ version — pinning this module pins the fixture pack too.
   and `inferred` (json tags of the same names, `omitempty`). A parser sets one
   only when it is true. An additive optional field is a minor change.
 
+### Fixed
+
+- The `azure_tag_observation` fixture-pack examples now use complete,
+  deterministic HMAC-SHA256 redaction markers. The payload schema and typed
+  decode contract are unchanged.
+
 ## [0.2.0] - 2026-09-16
 
 Additive post-`v0.1.0` changes only — 46 new schemas, zero breaking schema

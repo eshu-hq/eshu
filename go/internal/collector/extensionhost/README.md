@@ -23,6 +23,12 @@ It does not receive or pass Postgres, graph, reducer, API, or MCP handles to an
 extension. Claim mutation, stale-fence handling, retry budgets, and final commit
 remain owned by `collector.ClaimedService` and its claim-aware committer.
 
+The in-tree SDK's [validation contract](../../../../sdk/go/collector/README.md#validation)
+admits only the documented Kubernetes posture values in their exact fact
+contexts. `ProcessRunner` preserves those values through JSON transport. That
+key check does not grant producer authority: optional payload-schema validation
+and the live producer-grant check still run before fact mapping.
+
 No-Regression Evidence: `go test ./internal/collector/extensionhost -count=1`
 proves the host passes only a bounded JSON claim/config/contract document,
 validates SDK output and declared payload schemas before fact mapping,
