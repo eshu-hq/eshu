@@ -124,6 +124,16 @@ tests:
     class: postgres_ci
     reason: "#7951 disposable PostgreSQL 18 proof on a full 5,000-file repository that the chunked blank check (500 paths) and the content read (10 paths) keep an index-scan plan under a custom and a generic plan, that batched reads of 500 and 4,950 paths equal single-file reads, that the non-blank statement at 500 and 4,950 paths equals strings.TrimSpace, and that the whole-window load issues ten blank-check chunks and returns the extractors' rows over every non-blank file; one local PostgreSQL 18 run took about 4 s"
     runner: live-postgres-readiness
+  - file: go/internal/query/iac/inventory_postgres_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8927 pinned PostgreSQL 18.6 IaC inventory store proof; all three package roots passed in 0.07 to 0.12 seconds of test time on the unchanged source"
+    runner: live-postgres-readiness
+  - file: go/internal/query/iac/inventory_postgres_read_model_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8927 pinned PostgreSQL 18.6 IaC inventory read-model and failed-generation proofs; both roots passed in 0.07 to 0.12 seconds of test time on the unchanged source"
+    runner: live-postgres-readiness
   - file: go/internal/query/search/unscoped/large_document_live_test.go
     tag: ~
     class: postgres_ci
