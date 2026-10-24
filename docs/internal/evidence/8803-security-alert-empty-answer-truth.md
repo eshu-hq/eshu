@@ -165,7 +165,8 @@ true point read needs an index on
 concurrently in the shape of migrations 156 and 210; that DDL is deferred to
 its own issue with its own proof.
 
-Update (#8840): migration 230 adds that index. The read is now a one-entry
+Update (#8840): migration 231 adds that index, partial on
+`collector_kind = 'security_alert'`. The read is now a one-entry
 probe per target, and the cost no longer depends on history length. Plans and
 write cost are in
 [8840-security-alert-latest-work-item-index.md](8840-security-alert-latest-work-item-index.md).
@@ -194,7 +195,7 @@ pass.
   `security_alert` work items each plus 100,000 `git` work items. Both plans use
   `workflow_work_items_collector_scope_generation_updated_idx` for the lateral
   read, which the test asserted. Since #8840 the test asserts an index-only
-  probe of `workflow_work_items_collector_scope_updated_idx` instead; the
+  probe of `workflow_work_items_security_alert_scope_updated_idx` instead; the
   table below is the pre-#8840 plan.
 
 | Table state | Lateral plan | Execution | Shared buffers |
