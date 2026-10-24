@@ -112,7 +112,7 @@ size cap. It detects accidental drift (a missing, extra, changed, or duplicated
 row). It is not built to resist someone forging a matching digest. `verify` is
 one pass over those facts, so run it against a reader or standby when one
 exists. On a scratch Postgres 18 with 900,000 generated facts (3 kinds, about
-250 bytes of payload each) the query took 3.5 to 4.0 seconds with no temporary
+195 bytes of payload text each) the query took 3.5 to 4.0 seconds with no temporary
 spill, where the earlier sorted form took 7.0 to 7.7 seconds and spilled about
 400 MB to disk. Your wall time depends on your hardware and payload size;
 `scripts/test-collector-cutover-rollback-sql.sh --bench N` repeats the
