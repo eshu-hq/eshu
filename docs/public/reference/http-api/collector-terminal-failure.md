@@ -36,10 +36,25 @@ scoped token.
 report the classes that apply to it in the table below. Any persisted value
 outside that kind's set reads `unknown`, including free text, an empty class,
 and a class that only another kind owns, so a provider message never reaches
-the field. A kind that is not first-party is hosted by the extension host: it
-reports the common classes and the host's own, and any other class it defines
-itself (a lowercase token of at most 96 characters) reads `extension_defined`,
-so third-party classes never grow the set.
+the field.
+
+Every kind reports the extension host's own classes (`invalid_claim`,
+`invalid_result`, `launch_failure`, `status_record`), because a component
+extension can be configured with a first-party kind such as `jira` and the host
+then writes those classes for it. A kind that is not first-party is always
+hosted by the extension host: any other class it defines itself (a lowercase
+token of at most 96 characters) reads `extension_defined`, so third-party
+classes never grow the set.
+
+Known limits, both reading `unknown` rather than leaking text:
+
+- A class an extension defines itself, on a component-configured instance of a
+  first-party kind, reads `unknown`. The status leaf has no signal that such an
+  instance is extension-hosted, so `extension_defined` stays limited to kinds
+  that are not first-party.
+- `legacy_missing_generation_identity` reads `unknown`. The schema bootstrap
+  backfill writes it once, for every kind, on pending or claimed work items that
+  predate generation identity, and it ages out with the window below.
 
 | Class | Kinds | Meaning |
 | --- | --- | --- |
@@ -78,10 +93,10 @@ so third-party classes never grow the set.
 | `source_unavailable` | `scanner_worker` | A source dependency of the scan was unavailable. |
 | `commit_failed` | `scanner_worker` | Persisting the produced facts failed. |
 | `waiting_on_git_generation` | `terraform_state` | The scan kept waiting for a Git generation until the attempt budget ran out. |
-| `invalid_claim` | extension host | The host rejected corrupt or unsupported claim input. |
-| `invalid_result` | extension host | The host rejected the extension's output before commit. |
-| `launch_failure` | extension host | The host could not launch the extension. |
-| `status_record` | extension host | The host failed to record the extension's status. |
+| `invalid_claim` | every kind, from the extension host | The host rejected corrupt or unsupported claim input. |
+| `invalid_result` | every kind, from the extension host | The host rejected the extension's output before commit. |
+| `launch_failure` | every kind, from the extension host | The host could not launch the extension. |
+| `status_record` | every kind, from the extension host | The host failed to record the extension's status. |
 | `extension_defined` | extension host | The extension reported a class of its own. |
 
 `last_failure_operation` is a short lowercase token such as `list_org_alerts`,

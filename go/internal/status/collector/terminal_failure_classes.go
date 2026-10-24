@@ -61,11 +61,12 @@ var registryFailureClasses = []string{
 }
 
 // kindFailureClasses holds, per first-party collector kind, the classes that
-// kind persists in addition to commonFailureClasses. A class outside a kind's
-// own set and the common set reads UnknownFailureToken for that kind, even
-// when another kind owns it, so one kind's vocabulary never vouches for
-// another's. A first-party kind absent from this map persists only the common
-// classes. Sources, by kind:
+// kind's own writer persists in addition to commonFailureClasses. A class
+// outside a kind's own set, the common set, and extensionHostFailureClasses
+// reads UnknownFailureToken for that kind, even when another kind owns it, so
+// one kind's vocabulary never vouches for another's. A first-party kind absent
+// from this map persists only the common and extension host classes. Sources,
+// by kind:
 //
 //   - jira: permission_hidden, deleted, archived, from jiraStatusPolicy
 //     (collector/jira/source.go) over sdk.StatusPolicy for 401 and 403, 404,
@@ -104,7 +105,12 @@ var kindFailureClasses = map[string][]string{
 
 // extensionHostFailureClasses are the classes the extension host itself writes
 // for a collector kind it hosts (collector/extensionhost/failure.go).
-// identity_mismatch is also written there and is already common.
+// identity_mismatch is also written there and is already common. Every kind
+// admits them, first-party kinds included, because the component-extension
+// runtime takes its collector kind from the manifest
+// (cmd/collector-component-extension collectorKindForManifest): a
+// component-configured instance can carry a first-party kind such as jira, and
+// the host then writes these classes for it.
 var extensionHostFailureClasses = []string{
 	"invalid_claim", "invalid_result", "launch_failure", "status_record",
 }
@@ -120,17 +126,17 @@ var firstPartyKinds = func() map[string]struct{} {
 }()
 
 // FailureClassesForKind returns the sorted failure classes a status surface
-// can report for collectorKind, excluding UnknownFailureToken. A first-party
-// kind gets the common classes plus its own. A kind that is not first-party is
-// hosted by the extension host and gets the common classes, the host's own
-// classes, and ExtensionDefinedFailureToken.
+// can report for collectorKind, excluding UnknownFailureToken. Every kind gets
+// the common classes and the extension host's own classes. A first-party kind
+// adds its own classes. A kind that is not first-party is hosted by the
+// extension host and adds ExtensionDefinedFailureToken.
 func FailureClassesForKind(collectorKind string) []string {
 	kind := strings.TrimSpace(collectorKind)
 	out := slices.Clone(commonFailureClasses)
+	out = append(out, extensionHostFailureClasses...)
 	if _, ok := firstPartyKinds[kind]; ok {
 		out = append(out, kindFailureClasses[kind]...)
 	} else {
-		out = append(out, extensionHostFailureClasses...)
 		out = append(out, ExtensionDefinedFailureToken)
 	}
 	slices.Sort(out)
@@ -153,16 +159,21 @@ func BoundedFailureClasses() []string {
 }
 
 // BoundedFailureClassForKind returns class when collectorKind may report it
-// and UnknownFailureToken otherwise. A first-party kind reports the common
-// classes and its own. A kind that is not first-party reports the common and
-// extension host classes as they are and collapses any other class matching the
-// extension host's class pattern to ExtensionDefinedFailureToken. Free text, an
-// empty class, and a class only another kind owns read UnknownFailureToken, so
-// no persisted text reaches a status payload or a metric label.
+// and UnknownFailureToken otherwise. Every kind reports the common classes and
+// the extension host classes as they are, and a first-party kind adds its own.
+// A kind that is not first-party also collapses any other class matching the
+// extension host's class pattern to ExtensionDefinedFailureToken. Collapsing is
+// not applied to a first-party kind: the status leaf has no signal that a
+// first-party kind is extension-hosted, and relabeling would hide an in-tree
+// class that the writer ties should catch. So an extension-defined class on a
+// component-configured first-party instance reads UnknownFailureToken. Free
+// text, an empty class, and a class only another kind owns read
+// UnknownFailureToken, so no persisted text reaches a status payload or a
+// metric label.
 func BoundedFailureClassForKind(collectorKind string, class string) string {
 	kind := strings.TrimSpace(collectorKind)
 	class = strings.TrimSpace(class)
-	if slices.Contains(commonFailureClasses, class) {
+	if slices.Contains(commonFailureClasses, class) || slices.Contains(extensionHostFailureClasses, class) {
 		return class
 	}
 	if _, ok := firstPartyKinds[kind]; ok {
@@ -170,9 +181,6 @@ func BoundedFailureClassForKind(collectorKind string, class string) string {
 			return class
 		}
 		return UnknownFailureToken
-	}
-	if slices.Contains(extensionHostFailureClasses, class) {
-		return class
 	}
 	if extensionFailureClassPattern.MatchString(class) {
 		return ExtensionDefinedFailureToken

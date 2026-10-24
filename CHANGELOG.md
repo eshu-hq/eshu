@@ -41,10 +41,13 @@ recent shipped work grouped by feature area.
   vulnerability intelligence, the scanner worker, or the Terraform state
   collector used to read `last_failure_class: unknown` when the class was one
   only that kind writes. Each kind now reports the nine classes every kind
-  shares plus its own (for example `permission_hidden`, `permission_denied`,
-  `stale_fence`, `registry_auth_denied`, `timeout`). A class an extension
-  collector defines reads the single token `extension_defined`. Anything else
-  still reads `unknown`, so no persisted text reaches the field or the
+  shares, the four the extension host writes (a component extension can carry a
+  first-party kind such as `jira`), and its own (for example `permission_hidden`,
+  `permission_denied`, `stale_fence`, `registry_auth_denied`, `timeout`). A
+  class an extension defines for a kind that is not first-party reads the
+  single token `extension_defined`. Anything else still reads `unknown`,
+  including an extension-defined class on a first-party kind and the one-time
+  `legacy_missing_generation_identity` upgrade backfill, so no persisted text reaches the field or the
   `failure_class` label of `eshu_runtime_coordinator_collector_terminal_failure_instances`,
   which takes at most 41 values. The two OpenAPI `last_failure_class` enums and
   the class table in the terminal-failure reference grow together. Existing
