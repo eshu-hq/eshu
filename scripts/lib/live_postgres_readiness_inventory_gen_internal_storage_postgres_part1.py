@@ -256,6 +256,9 @@ TABLE = {
         "go/internal/storage/postgres/generation_retention_uncovered_writer_live_test.go": (
             "TestGenerationRetentionKeepsUncoveredWritersLive",
         ),
+        "go/internal/storage/postgres/hardcoded_finding_parity_live_test.go": (
+            "TestSecretDetectorEngineParity",
+        ),
         "go/internal/storage/postgres/identity_epoch_active_set_live_test.go": (
             "TestIdentityEpochIgnoresSupersededGenerationRowsLive",
             "TestIdentityPageQueryServesOnlyActiveGenerationsLive",

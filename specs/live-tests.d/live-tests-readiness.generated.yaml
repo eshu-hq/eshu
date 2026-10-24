@@ -829,6 +829,11 @@ tests:
     class: postgres_ci
     reason: "#7472 disposable PostgreSQL 18 proof that retention keeps an uncovered superseded writer (reconcile-probe evidence) at any age while still pruning a covered writer, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed in 1.30s wall with the full 188-migration setup on postgres:18 on 2026-10-10"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/hardcoded_finding_parity_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 engine-parity proof that migration 234's eshu_secret_line_findings (Postgres ARE) and go/internal/secret/detect.Finding (Go RE2) report the same (line_number, finding_kind) for every line of the gap-table, six-kind marker, extras, and multi-line corpus, with the known Go-superset Unicode lines asserted explicitly; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/identity_epoch_active_set_live_test.go
     tag: ~
     class: postgres_ci
