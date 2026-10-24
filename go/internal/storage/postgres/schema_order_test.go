@@ -553,7 +553,6 @@ var orderedBootstrapDefinitionNames = []string{
 	// collector terminal-failure status read seeks per instance, newest
 	// first. Migration-only and built CONCURRENTLY, like migration 156.
 	"workflow_work_items_failed_terminal_instance_idx",
-	// Migrations 212-225 (#8880) add the supply-chain impact active-evidence
 	// Migrations 212-224 (#8880) add the supply-chain impact active-evidence
 	// anchors, one sole CREATE INDEX CONCURRENTLY per file, generated from
 	// storage/postgres/facts/impact (TestNewIndexStatementsMatchMigrations).

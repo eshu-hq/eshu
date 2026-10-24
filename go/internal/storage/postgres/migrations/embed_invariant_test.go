@@ -122,8 +122,6 @@ import (
 // union-base commit a cumulative delta was diffed from; catalog-only column).
 // #8803 adds 211_workflow_work_items_failed_terminal_instance_idx.sql (the
 // partial failed_terminal index for the collector terminal-failure read).
-// #8880 adds 212-225, the supply-chain impact active-evidence anchors
-// (one CREATE INDEX CONCURRENTLY per file).
 // #8880 adds 212-224, the supply-chain impact active-evidence anchors
 // (one CREATE INDEX CONCURRENTLY per file).
 const goldenBootstrapDefinitionsDigest = "4bdc926d68ad3e48513bcad8dfb9d9300ac708832ba7e910291e0b89529f3889"
