@@ -903,6 +903,21 @@ exemptions:
       could bound. Remove when the #5393 overlay-projection leaf lands,
       with its cost-counting test.
 
+  # eshu-hq/eshu#8815: the runtime_declaration.version kind declares the
+  # runtime_declaration_projection reducer domain, but the projection
+  # (#8816) has not landed, so no production writer exists to drive. The
+  # kind is DispositionUnconsumed with read_surface none. The leaf that
+  # lands the projection removes this exemption and authors the cost
+  # scenario.
+  - surface: projection:runtime_declaration_projection
+    reason: >-
+      Contract-only domain: runtime_declaration.version is an admitted fact
+      emitted from version-pin files with no reducer binding and no
+      materialization path yet (DispositionUnconsumed, read_surface none).
+      A cost scenario must drive the domain's real production writer; no
+      writer exists, so there is nothing whose cost a scenario could bound.
+      Remove when the #8816 projection lands, with its cost-counting test.
+
 # C-11 (#4364): language-parser coverage scoreboard. The denominator is every
 # language in specs/language-feature-parity-ledger.v1.yaml (32 languages). This
 # is a SEPARATE, visibility-only scoreboard from the blocking surface reconcile
