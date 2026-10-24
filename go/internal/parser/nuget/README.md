@@ -156,7 +156,7 @@ its type, and a wrongly cased attribute (`version=`) makes its item a conflict.
 Properties are keyed case-insensitively, as MSBuild does. A `$(Name)` in a
 version resolves only when every declaration of `Name` in the file is
 unconditional (no `Condition` on the group or the element), non-empty, free of
-`$(`, `@(` and `%(`, and identical. There is no chaining and no last-wins
+`$(`, `@(`, `%(` and `%XX` escapes, and identical. There is no chaining and no last-wins
 override:
 
 | Declarations of the name | Reference result |
@@ -167,7 +167,15 @@ override:
 | not declared in the file | `unresolved_msbuild_property`, `partial_evidence` |
 
 After substitution, a version that still contains `$(` (for example a property
-function) stays unresolved and keeps the declared text. `value` is the literal
+function) stays unresolved and keeps the declared text.
+
+MSBuild unescapes `%XX` (a percent sign and two hex digits) in item specs and
+metadata before it uses them, so `Newtonsoft%2EJson` is `Newtonsoft.Json`. The
+scanner does not unescape. A version or property value with an escape is
+unresolved (`unresolved_msbuild_property`; a property row says
+`msbuild_expression`), and an `Include`, `Update`, or `Remove` spec with an
+escape is treated like a wildcard (see the table below). A percent sign not
+followed by two hex digits is literal text, as it is to MSBuild. `value` is the literal
 text exactly as written whenever nothing was substituted.
 
 ### Item operations (`item_ambiguity`)
@@ -182,16 +190,19 @@ file declared.
 | --- | --- |
 | `conditional_metadata` | a metadata child (`<Version Condition=...>`) has a `Condition` |
 | `duplicate_include` | another `Include` of the same type names the package (case-insensitive, NU1506), including an item skipped for another reason |
-| `updated` | a later `Update` of the same type names the package, or is a list part, wildcard, or expression |
+| `updated` | a later `Update` of the same type names the package, or is a list part, wildcard, expression, or `%XX` escape |
 | `removed` | the same for a later `Remove` |
 | `exclude` | the item has an `Exclude` attribute |
-| `unresolved_item_spec` | an `Include` of the same type is a list, wildcard, expression, or over 256 bytes, or an item type is wrongly cased |
+| `unresolved_item_spec` | an `Include` of the same type is a list, wildcard, expression, `%XX` escape, or over 256 bytes, or an item type is wrongly cased |
+| `unresolved_asset_metadata` | the `PrivateAssets`/`IncludeAssets` value that would decide `dependency_scope` is conditioned, an expression, or escaped; `dependency_scope` is then absent |
 | `unevaluated_element` | the file has any `Project` child other than `PropertyGroup`/`ItemGroup`, or `Project` has `Sdk` |
 | `central_management_unproven` | the file sets `ManagePackageVersionsCentrally` to anything but one unconditional literal `true` (case-insensitive); `PackageVersion` and `GlobalPackageReference` rows only |
 
 `Update` and `Remove` follow MSBuild evaluation order: they affect only items
-of the same type defined before them, and an `Include` after a `Remove`
-re-adds the package and stays resolved. An absent
+of the same type defined before them. An `Include` after a `Remove` re-adds
+the package, but the re-added row is partial with `duplicate_include`: the
+tracker counts every literal `Include` of a name, so it stays on the safe
+side. An absent
 `ManagePackageVersionsCentrally` proves nothing either way and changes no row.
 The duplicate tracker remembers at most 10,000 distinct names; past that,
 every row of the affected type gets `duplicate_include`, because uniqueness
@@ -212,17 +223,28 @@ with these differences:
   (`go/internal/reducer/packages/correlation/consumption.go`) skips every row
   with `central_version_declaration: true`, so a pin is never package
   consumption, a `DEPENDS_ON` edge, or security-alert evidence. The row keeps
-  `config_kind: dependency` for its section-keyed content identity, so readers
-  that count manifest input facts still see it: the Postgres
-  `package_manifest_consumption_keys` sidecar (a load prefilter the reducer
-  filters after) and the supply-chain readiness `package.consumption` fact
-  count.
+  `config_kind: dependency` for its section-keyed content identity, so every
+  reader that counts dependency facts must drop it too. Two more do: the
+  Postgres `package_manifest_consumption_keys` sidecar never stores a pin
+  (`IsCentralVersionDeclaration` in `go/internal/storage/postgres`), and the
+  supply-chain readiness `package.consumption` count filters pins with the SQL
+  form, `NotCentralVersionDeclarationSQL`. A repository whose only dependency
+  rows are pins therefore reads `evidence_incomplete` with `owned_packages`
+  missing, not `ready_zero_findings`.
 - A `VersionOverride` with no `Version` is used as the version and also kept in
   `version_override`.
 - A row with a group or item `Condition` is `conditional_declaration: true` and
   `partial_evidence: true`, even when its version is literal.
-- `dependency_scope` uses the same name and `PrivateAssets`/`IncludeAssets`
-  heuristics as `.csproj`.
+- `dependency_scope`: a `GlobalPackageReference` is always `development`
+  (`test` by name). NuGet.targets builds a `PackageReference` from it with
+  `PrivateAssets="All"` and the development `IncludeAssets` set on the
+  element, and element metadata wins over the item's own, so declared asset
+  metadata cannot change it. `PackageVersion` and `PackageReference` rows use
+  the `.csproj` name and `PrivateAssets`/`IncludeAssets` heuristics, but only
+  from unconditional values that need no evaluation. When a conditioned,
+  expression, or escaped value could change the answer, `dependency_scope`,
+  `development_dependency`, and `test_dependency` are absent and the row
+  carries `unresolved_asset_metadata`.
 
 Property rows use `section: PropertyGroup`, `config_kind: msbuild_property`,
 carry no `package_manager`, and set `value_evidence` to `literal`,

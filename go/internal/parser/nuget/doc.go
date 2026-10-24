@@ -41,8 +41,13 @@
 // keeps the row but marks it partial with an item_ambiguity reason
 // (props_items.go). Input size, nesting depth, row counts, tracked item names,
 // and field lengths are bounded (Max* constants in props.go). A PackageVersion
-// row is a version pin, not consumption: the reducer excludes rows flagged
-// central_version_declaration from package consumption.
+// row is a version pin, not consumption: the reducer, the Postgres consumption
+// sidecar, and the readiness package.consumption count all exclude rows flagged
+// central_version_declaration. MSBuild %XX escapes are not unescaped, so an
+// escaped version is unresolved and an escaped item spec counts as a wildcard.
+// A GlobalPackageReference is always development scope, because NuGet forces
+// PrivateAssets="All" on it; other rows omit dependency_scope when the asset
+// metadata that decides it is conditioned or unresolved.
 //
 // NuGet lockfiles (packages.lock.json) are JSON and are parsed by
 // go/internal/parser/json instead; they share the same row contract so the

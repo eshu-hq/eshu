@@ -52,8 +52,14 @@
   occurring.
 - `PackageVersion` rows keep `central_version_declaration: true` and
   `config_kind: dependency`. The reducer's `ExtractPackageManifestDependencies`
-  drops them by that flag, so renaming or removing it turns every pin back
-  into package consumption.
+  drops them by that flag, and so do `IsCentralVersionDeclaration` (the
+  Postgres consumption sidecar) and `NotCentralVersionDeclarationSQL` (the
+  readiness `package.consumption` count) in `go/internal/storage/postgres`.
+  Renaming or removing the flag turns every pin back into package consumption.
+- Never unescape `%XX` in a props value and never resolve an escaped spec or
+  version: MSBuild unescapes before matching, so the escaped text is not the
+  identity. Keep `GlobalPackageReference` scope fixed at development unless
+  NuGet.targets stops forcing `PrivateAssets="All"` on it.
 
 ## Common changes and how to scope them
 

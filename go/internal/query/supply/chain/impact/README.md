@@ -200,6 +200,12 @@ only their package qualifier changed).
   default-registry PURL or package ID can use source manifest evidence without
   a registry owner row. Repository-only reads retain their active repository
   index path.
+- A central version pin (`central_version_declaration`, such as a NuGet
+  `PackageVersion`) is never `package.consumption` evidence (#8824). The
+  repository arm filters it with `storagepostgres.NotCentralVersionDeclarationSQL`
+  after the index probe; the package-anchored arm reads the consumption
+  sidecar, which never stores a pin. A repository with only pins therefore
+  reports `owned_packages` missing.
 - `package_manifest_active` (both payload shapes) and
   `package_dependency_gap_active` are repository-anchored only (#7088). Each
   starts from the repository's own scopes (`ingestion_scopes.source_key = $11`,

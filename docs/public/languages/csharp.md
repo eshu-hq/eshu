@@ -64,13 +64,19 @@ Supported today:
   their own; a `PackageVersion` is a version pin and is not joined to the
   project `PackageReference` rows that use it. The reducer never counts a pin
   as package consumption, so an unused pin creates no `DEPENDS_ON` edge and no
-  security-alert match. The scanner is fail-closed: conditional, expression,
+  security-alert match, and supply-chain readiness does not count it as owned
+  package evidence: a repository with only pins reads `evidence_incomplete`. The scanner is fail-closed: conditional, expression,
   ambiguous, or out-of-grammar constructs are partial or skipped and counted
   in `msbuild_props_limits`. A row that MSBuild can change after its `Include`
   (a later `Update` or `Remove`, a duplicate `Include`, a conditioned metadata
   child, `Exclude`, an `Import` or other unread element, or a
   `ManagePackageVersionsCentrally` that is not a literal `true`) stays partial
-  with an `item_ambiguity` reason. Size, depth, row, and field bounds apply.
+  with an `item_ambiguity` reason. MSBuild `%XX` escapes are not unescaped: an
+  escaped version is unresolved and an escaped item spec is treated like a
+  wildcard. A `GlobalPackageReference` is always `development` scope, because
+  NuGet sets `PrivateAssets="All"` on it; other rows leave `dependency_scope`
+  absent when the asset metadata that decides it is conditioned or unresolved.
+  Size, depth, row, and field bounds apply.
   `$(Property)` resolves from the same file only. The grammar is in
   `go/internal/parser/nuget/README.md`.
 - `.csproj` PackageReference entries are parsed into repository dependency

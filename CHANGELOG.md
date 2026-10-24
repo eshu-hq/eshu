@@ -69,15 +69,22 @@ recent shipped work grouped by feature area.
   `GlobalPackageReference`, and `PackageReference` items become dependency rows
   in their own section, and literal `PropertyGroup` values become
   `msbuild_property` rows. A `PackageVersion` is a version pin: it is not
-  joined to the project `PackageReference` rows that use it, and the reducer
-  never counts it as package consumption, a `DEPENDS_ON` edge, or
-  security-alert evidence. Conditional, expression, and ambiguous values stay
+  joined to the project `PackageReference` rows that use it. The reducer never
+  counts it as package consumption, a `DEPENDS_ON` edge, or security-alert
+  evidence, the Postgres consumption sidecar never stores it, and supply-chain
+  readiness does not count it as `package.consumption`, so a repository with
+  only pins reads `evidence_incomplete` with `owned_packages` missing. Conditional, expression, and ambiguous values stay
   partial, and constructs outside the documented grammar are skipped and
   counted in `msbuild_props_limits`. A row that MSBuild can change after its
   `Include` (a later `Update` or `Remove`, a duplicate `Include`, a conditioned
   metadata child, `Exclude`, an `Import` or other unread element, or a
   `ManagePackageVersionsCentrally` that is not a literal `true`) is partial
-  with an `item_ambiguity` reason. Input size, nesting depth, row counts,
+  with an `item_ambiguity` reason. MSBuild `%XX` escapes are not unescaped:
+  an escaped version is unresolved and an escaped item spec is treated like a
+  wildcard. A `GlobalPackageReference` is always `development` scope, because
+  NuGet sets `PrivateAssets="All"` on it; other rows leave `dependency_scope`
+  absent (`unresolved_asset_metadata`) when a conditioned or unresolved asset
+  value could change it. Input size, nesting depth, row counts,
   tracked item names, and field lengths are bounded. The change
   adds two registry names, so every repository re-collects once; the content
   version constant stays at `git-collector.v10` because the parser registry
