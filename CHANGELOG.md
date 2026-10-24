@@ -118,6 +118,7 @@ recent shipped work grouped by feature area.
   next reconciliation sweep, because adding a fact kind moves the fact-schema
   digest in `GenerationContentVersion`.
 
+
 ### Collector readiness names each kind's own terminal failure class
 
 - **Collector readiness reports a bounded failure class for every collector
@@ -139,6 +140,7 @@ recent shipped work grouped by feature area.
   the class table in the terminal-failure reference grow together. Existing
   values keep their meaning; a client that treats the enum as closed must
   accept the new members.
+
 
 ### MCP `initialize` negotiates the protocol version
 
