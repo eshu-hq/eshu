@@ -223,3 +223,48 @@ func TestScanNestingIsCountedAfterAClosedString(t *testing.T) {
 		}
 	}
 }
+
+// TestNestingGuardAgreesWithKnownDepthAcrossStringForms nests arrays to a known
+// depth, puts every string form (with brackets, quotes and the four and five
+// quote closings) at every level, and checks the guard against the depth the
+// generator built. A lexer that disagrees with the TOML parser about a string
+// boundary would hide or invent brackets here.
+func TestNestingGuardAgreesWithKnownDepthAcrossStringForms(t *testing.T) {
+	forms := []string{
+		`"[[["`, `'[[['`, `"]]]"`, `"\"[["`, `"a\\"`, `""`, `''`,
+		`"""[[[ """`, `"""x""""`, `"""x"""""`, `'''[[ '''`, `'''x''''`, `'''x'''''`,
+		"\"\"\"\n[[[\n\"\"\"", `"""\"""[["""`,
+	}
+	for depth := 1; depth <= MaxNesting+3; depth++ {
+		for _, form := range forms {
+			for _, comment := range []string{"", " # [[[[[[[[[[[[[[[[[[[[[[[["} {
+				var b strings.Builder
+				b.WriteString("x = ")
+				for i := 0; i < depth; i++ {
+					b.WriteString("[" + form + ",")
+				}
+				b.WriteString(strings.Repeat("]", depth))
+				b.WriteString(comment + "\nafter = 1\n")
+				source := []byte(b.String())
+				want := depth > MaxNesting
+				if got := nestingExceeds(source, MaxNesting); got != want {
+					t.Fatalf("depth %d form %q comment %q: nestingExceeds = %v, want %v\n%s", depth, form, comment, got, want, source)
+				}
+			}
+		}
+	}
+}
+
+// TestScanFourQuoteClosingCannotHideNesting is the regression for a guard
+// bypass: a multi-line string closed by four quotes (content ending in a quote)
+// left the lexer inside a phantom string for the rest of the line, so brackets
+// on that line were not counted and the TOML parser received deep input.
+func TestScanFourQuoteClosingCannotHideNesting(t *testing.T) {
+	source := []byte("x = " + strings.Repeat(`["""x"""",`, 1<<16) + "\n")
+	var result Result
+	bytesAllocated, _ := allocOf(func() { result = Scan(source) })
+	if result.State != StateTooDeep {
+		t.Fatalf("State=%q, want %q", result.State, StateTooDeep)
+	}
+	requireCeiling(t, "bytes allocated", bytesAllocated, 16<<10)
+}

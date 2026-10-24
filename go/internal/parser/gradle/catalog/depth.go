@@ -85,7 +85,14 @@ func skipMultiline(source []byte, from int, quote byte, escapes bool) int {
 		case escapes && source[i] == '\\':
 			i++
 		case source[i] == quote && i+2 < len(source) && source[i+1] == quote && source[i+2] == quote:
-			return i + 3
+			// TOML allows one or two quotes of content right before the closing
+			// triple, so a run of four or five quotes closes the string at the
+			// last three. Consume the whole run.
+			end := i + 3
+			for extra := 0; extra < 2 && end < len(source) && source[end] == quote; extra++ {
+				end++
+			}
+			return end
 		}
 	}
 	return len(source)
