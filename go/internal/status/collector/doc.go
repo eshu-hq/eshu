@@ -54,6 +54,12 @@
 // class set is per collector kind), and
 // the failure message and provider status code are never carried.
 //
+// A TerminalFailure may be acknowledged by an operator (#8830). RuntimeStatuses
+// then keeps the failure fields and sets LastFailureAcknowledged, its time and
+// reason, and LastFailureScopeID, but does not degrade the instance, and
+// PromotionProofs does not fail it or add a blocker. The reader returns an
+// acknowledged failure only for an instance with no unacknowledged one.
+//
 // VulnerabilitySourceState captures one durable vulnerability-intelligence
 // source checkpoint for operator status and API readiness surfaces.
 //

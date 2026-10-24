@@ -43,7 +43,8 @@ coordinator registration, vulnerability-source evidence, and fact evidence.
 - `PromotionProof`, `PromotionProofs`, `PromotionOptions` — the deterministic
   per-family/instance promotion verdict (implemented, partial, failed,
   stale, gated, disabled, permission_hidden, unsupported) and its blockers
-- `TerminalFailure`, `BoundedFailureClassForKind`, `BoundedFailureClasses`,
+- `TerminalFailure` (with the operator acknowledgement fields, #8830),
+  `BoundedFailureClassForKind`, `BoundedFailureClasses`,
   `FailureClassesForKind`, `ExtensionDefinedFailureToken`,
   `BoundedFailureOperation` — the
   newest unresolved terminal work-item failure per instance and the
