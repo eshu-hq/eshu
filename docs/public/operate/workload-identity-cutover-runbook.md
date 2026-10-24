@@ -120,3 +120,10 @@ from facts when the service-catalog runtime domain re-runs; search handles
 reindex via `eshu_search_document` (same reindex as step 8, under the old
 binary). Past step 8, additionally revert the golden regeneration. The step
 5 delete is not the point of no return; facts are.
+
+## After the cutover: leftover nodes
+
+If a deployment still holds name-only `Workload` nodes after step 9, hosted
+readiness fails `workload_identity_leftovers`. Retire them with the
+[leftover retirement runbook](legacy-workload-retirement-runbook.md); it is
+dry-run first and never runs automatically.

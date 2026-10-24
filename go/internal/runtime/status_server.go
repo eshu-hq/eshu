@@ -15,6 +15,7 @@ type StatusAdminOption func(*statusAdminOptions)
 
 type statusAdminOptions struct {
 	recoveryHandler   *RecoveryHandler
+	legacyRetirement  *LegacyWorkloadRetirementHandler
 	prometheusHandler http.Handler
 	readinessProbes   []ReadinessProbe
 }
@@ -24,6 +25,14 @@ type statusAdminOptions struct {
 func WithRecoveryHandler(rh *RecoveryHandler) StatusAdminOption {
 	return func(o *statusAdminOptions) {
 		o.recoveryHandler = rh
+	}
+}
+
+// WithLegacyWorkloadRetirement attaches the legacy workload retirement handler
+// to the admin mux, mounting POST /admin/retire-legacy-workloads (#8795).
+func WithLegacyWorkloadRetirement(h *LegacyWorkloadRetirementHandler) StatusAdminOption {
+	return func(o *statusAdminOptions) {
+		o.legacyRetirement = h
 	}
 }
 

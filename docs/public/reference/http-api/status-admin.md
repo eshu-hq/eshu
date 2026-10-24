@@ -99,9 +99,10 @@ readiness, queue drain, collector completion, shared projection backlog, and
 first-query truth. The report returns `state=not_ready` with stable
 `failure_classes[]` when the status snapshot is empty, hosted collector
 instances are missing, queue work is stalled or not drained, work is
-dead-lettered, shared projection backlog remains, graph readback fails, or the
-repository readback returns zero rows. It returns `state=ready` only when those
-checks pass. Diagnostic pointers reference `/admin/status`,
+dead-lettered, shared projection backlog remains, graph readback fails, the
+repository readback returns zero rows, or [legacy workload
+leftovers](hosted-readiness-leftovers.md) remain. It returns `state=ready` only
+when those checks pass. Diagnostic pointers reference `/admin/status`,
 `/api/v0/status/index`, `/api/v0/status/collectors`, and repository coverage;
 raw graph backend errors, resource IDs, account-local names, paths, and
 credentials are not included. The MCP equivalent is `get_hosted_readiness`.
@@ -186,12 +187,11 @@ changing deterministic health.
 
 `/api/v0/status/answer-narration` is a separate optional presentation-status
 surface. The default state is unavailable or disabled, with
-`deterministic_fallback_available=true` and `canonical_truth_affected=false`.
-It reports only low-cardinality state, reason, policy hash, retention posture,
-and validator reason-code metadata. It does not generate narration, call
-providers, retain prompt or response bodies, mutate answer packets, or expose
-source IDs, credentials, private paths, private hostnames, prompts, or provider
-responses.
+`deterministic_fallback_available=true` and `canonical_truth_affected=false`. It
+reports only low-cardinality state, reason, policy hash, retention posture, and
+validator reason-code metadata. It does not generate narration, call providers,
+retain prompt or response bodies, mutate answer packets, or expose source IDs,
+credentials, private paths, private hostnames, prompts, or provider responses.
 
 No-Observability-Change: answer narration status is a read-only runtime posture
 projection over `internal/status`. It adds no provider call, graph read, content

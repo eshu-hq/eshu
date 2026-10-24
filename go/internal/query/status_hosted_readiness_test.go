@@ -23,8 +23,10 @@ type hostedReadinessGraph struct {
 	err             error
 }
 
+// Run answers the legacy workload detection reads with no rows: the graph
+// holds no name-only Workload nodes.
 func (g hostedReadinessGraph) Run(context.Context, string, map[string]any) ([]map[string]any, error) {
-	return nil, errors.New("unexpected Run call")
+	return nil, nil
 }
 
 func (g hostedReadinessGraph) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
@@ -195,12 +197,19 @@ func hostedReadinessPayload(
 	graph GraphQuery,
 ) map[string]any {
 	t.Helper()
-	handler := &StatusHandler{
-		Neo4j: graph,
+	return hostedReadinessPayloadFor(t, &StatusHandler{
+		Neo4j:        graph,
+		GraphBackend: GraphBackendNeo4j,
 		StatusReader: fakeStatusReader{
 			snapshot: snapshot,
 		},
-	}
+	})
+}
+
+// hostedReadinessPayloadFor serves the hosted readiness route from handler and
+// decodes the 200 body.
+func hostedReadinessPayloadFor(t *testing.T, handler *StatusHandler) map[string]any {
+	t.Helper()
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

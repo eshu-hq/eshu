@@ -47,7 +47,7 @@ Service story takes these query parameters:
 - `evidence_detail`, `full` (HTTP default) or `handles` (MCP default); see [Context Evidence Budget](context-evidence-budget.md)
 
 A name that matches several workloads returns HTTP 409 with `error.code=ambiguous`, `data=null`, and
-candidates that each carry a `next_selector` (the `service_id` to pass next). It never picks the first match; `repo` separates only services in different repositories.
+candidates that each carry a `next_selector` (the `service_id` to pass next). It never picks the first match; `repo` separates only services in different repositories. A candidate marked `legacy_id: true` is a leftover name-only workload from the identity change; see [Service story ambiguity](selector-and-read-failures.md#service-story-ambiguity-8797).
 
 Service and repository story `documentation_overview` may include
 `target_documentation` when the documentation read model has admissible

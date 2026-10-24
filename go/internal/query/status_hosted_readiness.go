@@ -22,6 +22,9 @@ const (
 
 	hostedReadinessCheckPass = "pass"
 	hostedReadinessCheckFail = "fail"
+	// hostedReadinessCheckUnknown marks a check that gave no verdict on this
+	// deployment (not run, or not complete). It adds no failure class.
+	hostedReadinessCheckUnknown = "unknown"
 )
 
 type hostedReadinessReport struct {
@@ -82,7 +85,11 @@ func (h *StatusHandler) getHostedReadiness(w http.ResponseWriter, r *http.Reques
 	}
 
 	repositoryCount, graphErr := h.readHostedRepositoryCount(r.Context())
-	payload := buildHostedReadinessReport(raw, report, repositoryCount, graphErr, scopedAuthContext(r.Context()))
+	var leftovers workloadLeftovers
+	if graphErr == nil {
+		leftovers = h.readWorkloadLeftovers(r.Context())
+	}
+	payload := buildHostedReadinessReport(raw, report, repositoryCount, graphErr, leftovers, scopedAuthContext(r.Context()))
 	if QueryParam(r, "format") == "text" {
 		writeHostedReadinessText(w, payload)
 		return
@@ -109,6 +116,7 @@ func buildHostedReadinessReport(
 	report status.Report,
 	repositoryCount int,
 	graphErr error,
+	leftovers workloadLeftovers,
 	scoped bool,
 ) hostedReadinessReport {
 	builder := hostedReadinessBuilder{}
@@ -118,6 +126,7 @@ func buildHostedReadinessReport(
 	builder.addCollectorChecks(report.Coordinator)
 	builder.addSharedProjectionChecks(raw.DomainBacklogs)
 	builder.addQueryReadbackCheck(repositoryCount, graphErr)
+	builder.addWorkloadLeftoversCheck(leftovers)
 	builder.addEmptyStateCheck(raw, repositoryCount)
 
 	state := hostedReadinessReady
@@ -165,6 +174,10 @@ func (b *hostedReadinessBuilder) addPass(name, detail string) {
 		State:  hostedReadinessCheckPass,
 		Detail: detail,
 	})
+}
+
+func (b *hostedReadinessBuilder) addUnknown(name, detail string) {
+	b.checks = append(b.checks, hostedReadinessCheck{Name: name, State: hostedReadinessCheckUnknown, Detail: detail})
 }
 
 func (b *hostedReadinessBuilder) addFail(name, class, detail, next string) {

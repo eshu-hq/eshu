@@ -34,7 +34,7 @@ func ContextTools() []toolcontract.ToolDefinition {
 		},
 		{
 			Name:        "get_service_story",
-			Description: "Get the one-call service dossier for a service: identity, API surface, deployment lanes, dependencies, consumers, and evidence graph. Select the service with one of service_id, workload_id, or service_name; the first one given wins in that order. repo separates only services that live in different repositories, so two same-named services in one repository stay ambiguous. When the answer is ambiguous, call again with service_id set to a candidate's next_selector value.",
+			Description: "Get the one-call service dossier for a service: identity, API surface, deployment lanes, dependencies, consumers, and evidence graph. Select the service with one of service_id, workload_id, or service_name; the first one given wins in that order. repo separates only services that live in different repositories, so two same-named services in one repository stay ambiguous. When the answer is ambiguous, call again with service_id set to a candidate's next_selector value; a candidate with legacy_id true is a leftover, not the live workload; choose a scoped candidate.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -76,7 +76,7 @@ func ContextTools() []toolcontract.ToolDefinition {
 		},
 		{
 			Name:        "investigate_service",
-			Description: "Plan a service investigation across related repositories, deployment sources, indexed docs, and evidence drilldowns. Select the service with service_id or service_name; service_id wins. repo separates only services that live in different repositories. When the answer is ambiguous, call again with service_id set to a candidate's next_selector value.",
+			Description: "Plan a service investigation across related repositories, deployment sources, indexed docs, and evidence drilldowns. Select the service with service_id or service_name; service_id wins. repo separates only services that live in different repositories. When the answer is ambiguous, call again with service_id set to a candidate's next_selector value; a candidate with legacy_id true is a leftover, not the live workload; choose a scoped candidate.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

@@ -213,12 +213,14 @@ EOF
 # proof, neo4j-only since relationship DELETE is inert on NornicDB)
 # (#751: +1 neo4j for the historical AppSync key read-route proof, which
 # requires Neo4j's supported graph semantics)
+# (#8795: +4 neo4j ledger rows for the legacy workload detection, retirement,
+# and story-route live proofs; #8795 is tested on Neo4j only by owner direction)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "82" ]] || fail "planned runs ${#plan[@]}, want 82 (34 nornicdb + 48 neo4j)"
+[[ "${#plan[@]}" == "86" ]] || fail "planned runs ${#plan[@]}, want 86 (34 nornicdb + 52 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
 [[ "${#plan_nornicdb[@]}" == "34" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 34"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "48" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 48"
+[[ "${#plan_neo4j[@]}" == "52" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 52"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*repository_context_workload_count_neo4j_live_test' ||
 	fail "materialized workload-count regression missing from neo4j plan"
 assert_workload_count_neo4j_only() {

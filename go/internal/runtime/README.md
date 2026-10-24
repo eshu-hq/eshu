@@ -62,7 +62,15 @@ flowchart TB
 `NewAdminMux` to mount `/healthz`, `/readyz`, `/admin/status`, and `/metrics`.
 When `WithRecoveryHandler` is passed, `RecoveryHandler.Mount` adds
 `/admin/replay`, `/admin/refinalize`, and
-`/admin/replay-collector-generations` to the same mux.
+`/admin/replay-collector-generations` to the same mux. `WithLegacyWorkloadRetirement`
+adds `POST /admin/retire-legacy-workloads` (#8795); only the reducer passes it. The
+handler maps `legacyworkload.ErrInvalidRequest` to 422,
+`legacyworkload.ErrBackendUnvalidated` (any backend other than Neo4j, for dry
+runs and execute alike) to 501, `legacyworkload.ErrWriterUnavailable` (Neo4j,
+but no graph writer wired, execute only) to 503, and any other failure to a
+fixed 500 message that never carries the cause. The request, response, and
+error types come from `internal/graph/legacy/workload`, so this package never
+imports the reducer's retirement runner.
 
 ## Lifecycle / workflow
 

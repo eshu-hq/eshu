@@ -45,7 +45,8 @@ the next call:
 
 `investigate_service` and `get_service_intelligence_report` take the same
 `service_id` argument and return the same `next_selector` on an ambiguous
-answer.
+answer. A candidate marked `legacy_id: true` is a leftover from the workload
+identity change, not the live workload; choose a scoped candidate.
 
 Use the investigation tool for evidence-first onboarding or a scoped question:
 
