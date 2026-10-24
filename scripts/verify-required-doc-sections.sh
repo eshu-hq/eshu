@@ -36,8 +36,8 @@ fi
 
 # has_heading <file> <heading>: succeeds when a line equals <heading> (leading
 # text exact, trailing whitespace and CR ignored) outside a fenced code block
-# and outside an HTML comment (a comment opener inside an inline code span is
-# not one). Fences follow CommonMark: up to three spaces of
+# and outside an HTML comment (a comment opener inside a single-line inline
+# code span is not one). Fences follow CommonMark: up to three spaces of
 # indent, an opener of three or more backticks or tildes, and a closer of the
 # same character at least as long as the opener with nothing after it.
 # The heading goes in through ENVIRON, not awk -v, which would process
@@ -45,8 +45,9 @@ fi
 has_heading() {
 	WANT_HEADING="$2" awk '
 		BEGIN { want = ENVIRON["WANT_HEADING"] }
-		# mask returns s with the text inside inline code spans replaced by x,
-		# same length, so a comment opener shown as code is not found.
+		# mask returns s with the text inside single-line inline code spans
+		# replaced by x, same length, so a comment opener shown as code is not
+		# found. A span that continues onto the next line is not masked.
 		function mask(s,   out, i, n, k, j, m, t, found) {
 			out = s; n = length(s); i = 1
 			while (i <= n) {

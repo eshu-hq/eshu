@@ -122,6 +122,11 @@ page_case "four-space indented opener is not a fence" ok '## H' '    ```' '## H'
 # A comment opener inside an inline code span is not a comment.
 page_case "comment opener in code span" ok '## H' 'use `<!--` to open a comment' '## H'
 page_case "comment opener in double-backtick span" ok '## H' 'use ``<!-- x`` to open' '## H'
+# Code-span pairing: a closing run must match the opener's length, and a span
+# resumes after its closing run.
+page_case "mismatched run lengths do not mask a real comment" fail '## H' 'x `` y <!-- z ` w' '## H' '-->'
+page_case "text after a closing run is not re-read as an opener" fail '## H' '`a` <!-- c `d`' '## H' '-->'
+page_case "unterminated run does not stop masking" ok '## H' 'a `` b `<!--` c' '## H'
 # A trailing comment on the heading line leaves the heading.
 page_case "heading with trailing comment" ok '## H' '## H <!-- note -->'
 page_case "text after a closed comment is kept" ok '## H' '## <!-- c -->H'
