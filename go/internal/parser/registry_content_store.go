@@ -31,8 +31,8 @@ const (
 )
 
 // RedactorMode names the redaction algorithm a ContentStoreRedact definition
-// uses. #8833 adds an allowlist-skeleton mode for open-schema files; the field
-// exists now so that mode needs no second policy value.
+// uses: marker for closed-schema files (#8812) and skeleton for open-schema
+// files (#8833).
 type RedactorMode string
 
 const (
@@ -40,6 +40,15 @@ const (
 	// REDACTED_<finding_kind>. It is a denylist, so it is only safe for
 	// closed-schema files whose credential keys the definition lists.
 	RedactorMarker RedactorMode = "marker"
+	// RedactorSkeleton stores an allowlist skeleton of an open-schema file such
+	// as *.tfvars: structure and keys are kept, a value survives only when its
+	// shape cannot carry a credential (boolean, number, var./local./module./
+	// data. reference, version string), a detector-flagged value becomes
+	// REDACTED_<finding_kind>, and every other value becomes REDACTED_value.
+	// Whether a tfvars variable is secret is declared in variables.tf, not in
+	// its name, so a key denylist cannot make such a file safe. It takes no key
+	// list.
+	RedactorSkeleton RedactorMode = "skeleton"
 )
 
 // ContentStore is the per-definition content-store policy. The zero value is
@@ -53,6 +62,13 @@ type ContentStore struct {
 	// CredentialKeys lists the keys whose values RedactorMarker replaces at any
 	// length. It is required for RedactorMarker and must be empty otherwise.
 	CredentialKeys []string
+	// URLUserinfoKeys lists URL-valued keys (for .yarnrc.yml npmRegistryServer,
+	// npmPublishRegistry, httpProxy, httpsProxy) whose value RedactorMarker
+	// keeps except for the URL userinfo, which becomes a marker, so the host
+	// stays readable. It is optional for RedactorMarker, must be empty
+	// otherwise, and must not share a key with CredentialKeys (keys match
+	// case-insensitively, so a shared key would be ambiguous).
+	URLUserinfoKeys []string
 }
 
 // ContentStoreForPath returns the content-store policy for one file path. A
@@ -83,25 +99,21 @@ func normalizeContentStore(parserKey string, store ContentStore) (ContentStore, 
 	if store.Policy == "" {
 		store.Policy = ContentStoreStore
 	}
-	for _, key := range store.CredentialKeys {
-		if strings.TrimSpace(key) == "" {
-			return ContentStore{}, fmt.Errorf("parser key %q: content store credential keys must not be blank", parserKey)
-		}
-		// The fingerprint joins keys with "," and ends each definition with a
-		// newline, so a key holding either, or any control character, could make
-		// two different key lists hash alike.
-		if strings.ContainsFunc(key, func(r rune) bool { return r == ',' || unicode.IsControl(r) }) {
-			return ContentStore{}, fmt.Errorf("parser key %q: content store credential key %q must not hold a comma or a control character", parserKey, key)
-		}
+	if err := validateKeyList(parserKey, "credential", store.CredentialKeys); err != nil {
+		return ContentStore{}, err
+	}
+	if err := validateKeyList(parserKey, "URL userinfo", store.URLUserinfoKeys); err != nil {
+		return ContentStore{}, err
 	}
 	store.CredentialKeys = normalizeCredentialKeys(store.CredentialKeys)
+	store.URLUserinfoKeys = normalizeCredentialKeys(store.URLUserinfoKeys)
 
 	switch store.Policy {
 	case ContentStoreStore, ContentStoreMetadata:
 		if store.Redactor != "" {
 			return ContentStore{}, fmt.Errorf("parser key %q: content store policy %q takes no redactor mode, got %q", parserKey, store.Policy, store.Redactor)
 		}
-		if len(store.CredentialKeys) > 0 {
+		if len(store.CredentialKeys) > 0 || len(store.URLUserinfoKeys) > 0 {
 			return ContentStore{}, fmt.Errorf("parser key %q: content store policy %q takes no credential keys", parserKey, store.Policy)
 		}
 	case ContentStoreRedact:
@@ -110,6 +122,13 @@ func normalizeContentStore(parserKey string, store ContentStore) (ContentStore, 
 			if len(store.CredentialKeys) == 0 {
 				return ContentStore{}, fmt.Errorf("parser key %q: marker redaction needs a credential key list", parserKey)
 			}
+			if shared := sharedKeyFold(store.CredentialKeys, store.URLUserinfoKeys); shared != "" {
+				return ContentStore{}, fmt.Errorf("parser key %q: key %q is both a credential key and a URL userinfo key", parserKey, shared)
+			}
+		case RedactorSkeleton:
+			if len(store.CredentialKeys) > 0 || len(store.URLUserinfoKeys) > 0 {
+				return ContentStore{}, fmt.Errorf("parser key %q: skeleton redaction is an allowlist and takes no key list", parserKey)
+			}
 		default:
 			return ContentStore{}, fmt.Errorf("parser key %q: content store policy redact needs a known redactor mode, got %q", parserKey, store.Redactor)
 		}
@@ -117,6 +136,33 @@ func normalizeContentStore(parserKey string, store ContentStore) (ContentStore, 
 		return ContentStore{}, fmt.Errorf("parser key %q: unknown content store policy %q", parserKey, store.Policy)
 	}
 	return store, nil
+}
+
+// validateKeyList rejects a blank key and a key holding a comma or a control
+// character. The fingerprint joins keys with "," and ends each definition with
+// a newline, so such a key could make two different key lists hash alike.
+func validateKeyList(parserKey, list string, keys []string) error {
+	for _, key := range keys {
+		if strings.TrimSpace(key) == "" {
+			return fmt.Errorf("parser key %q: content store %s keys must not be blank", parserKey, list)
+		}
+		if strings.ContainsFunc(key, func(r rune) bool { return r == ',' || unicode.IsControl(r) }) {
+			return fmt.Errorf("parser key %q: content store %s key %q must not hold a comma or a control character", parserKey, list, key)
+		}
+	}
+	return nil
+}
+
+// sharedKeyFold returns a key present in both lists under case folding, or "".
+func sharedKeyFold(a, b []string) string {
+	for _, left := range a {
+		for _, right := range b {
+			if strings.EqualFold(left, right) {
+				return right
+			}
+		}
+	}
+	return ""
 }
 
 // normalizeCredentialKeys trims, de-duplicates, and sorts keys. Keys are
@@ -150,11 +196,18 @@ func fingerprintContentStore(store ContentStore) string {
 	if store.Policy == "" || store.Policy == ContentStoreStore {
 		return ""
 	}
-	return fmt.Sprintf("\x00content_store=%s:%s:%s", store.Policy, store.Redactor, strings.Join(store.CredentialKeys, ","))
+	token := fmt.Sprintf("\x00content_store=%s:%s:%s", store.Policy, store.Redactor, strings.Join(store.CredentialKeys, ","))
+	// The URL key list renders only when present, so a #8812 marker definition
+	// keeps its exact token.
+	if len(store.URLUserinfoKeys) > 0 {
+		token += ":url_userinfo=" + strings.Join(store.URLUserinfoKeys, ",")
+	}
+	return token
 }
 
 func cloneContentStore(store ContentStore) ContentStore {
 	store.CredentialKeys = slices.Clone(store.CredentialKeys)
+	store.URLUserinfoKeys = slices.Clone(store.URLUserinfoKeys)
 	return store
 }
 

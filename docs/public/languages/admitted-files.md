@@ -94,7 +94,7 @@ export would bypass it.
 | --- | --- | --- |
 | `store` | The body, verbatim. This is the default for every definition except `.npmrc`. | Source and configuration files that hold no credentials. |
 | `metadata` | A `content_files` row with an empty body. The path stays in the repository tree, file counts, language inventory, and coverage. The row is never a tombstone. | Files that can hold credentials where the registry URLs or version pins matter more than the text. |
-| `redact` | The body with credential values replaced in place. The `marker` mode writes `REDACTED_<finding_kind>`, for example `npmAuthToken: REDACTED_api_token`. | Closed-schema files where every credential key is known. |
+| `redact` | The body with credential values replaced in place. The `marker` mode writes `REDACTED_<finding_kind>`, for example `npmAuthToken: REDACTED_api_token`. The `skeleton` mode keeps structure, keys, and values whose shape cannot carry a credential, and writes `REDACTED_value` or `REDACTED_<finding_kind>` for every other value. | `marker`: closed-schema files where every credential key is known. `skeleton`: open-schema files such as `*.tfvars`, where a key name does not say whether the value is secret. |
 
 A `redact` definition lists its credential keys. `marker` mode replaces the
 value of each listed key at any length, keeps an exact `${NAME}` environment
@@ -107,6 +107,32 @@ replaced, and so are the continuation lines of a listed key's block scalar or
 multi-line quoted value. The marker keeps the finding kind so
 `investigate_hardcoded_secrets` can keep reporting the line. `[redacted]` and
 `***` are not used: the detector cannot see them.
+
+A `marker` definition can also list URL-valued keys, such as `npmRegistryServer`
+and `httpsProxy` in `.yarnrc.yml`. For those keys only the URL userinfo is
+replaced, so `"https://user:pass@npm.example.com/"` is stored as
+`"https://REDACTED_secret_literal@npm.example.com/"` and the host stays
+readable. The userinfo ends at the last `@` before the first `/`, `?`, or `#`,
+so a raw `@` in a password is covered. The rule fails closed: the whole value is
+replaced, as for a credential key, when the value is not exactly one URL (a
+trailing comment, two URLs, an environment default such as
+`${REGISTRY:-https://...}`), when the host and port cannot be read (a raw `/`
+in a password), or when the line holds any other detector match.
+
+The `skeleton` mode is line-wise and keeps every line number. It keeps empty
+lines, structural lines (`{`, `}`, `[`, `]`, `key = {`, `key = [`, and heredoc
+openers and closers), and a `key = value` or `"key": value` value that is a
+boolean, `null`, a number, a `var.`, `local.`, `module.`, or `data.` reference,
+or a quoted version or constraint (`"14.7"`, `"~> 5.31.0"`). When the raw line
+is a hardcoded-secret finding, the value becomes `REDACTED_<finding_kind>`, even
+for a reference, so `db_password = var.db_password` is stored as
+`db_password = REDACTED_password_literal`. Every other value becomes
+`REDACTED_value`, which the detector never reports. A line it cannot place as
+`key = value` (a comment, a bare list element, a heredoc body line, a PEM block
+line, an unterminated string, or a credential inside the key itself) becomes the
+whole-line `REDACTED_<finding_kind>` when it is a finding and `REDACTED_value`
+otherwise. The stored body is not parseable HCL or JSON. Keys are kept, so a
+credential used as a map key survives unless the detector flags it.
 
 ### What a governed row holds
 
@@ -143,7 +169,8 @@ seeded full-stream scan over every path shape the definition covers
 If the redactor returns an error, the file is not valid UTF-8, the body holds a
 NUL byte (a BOM-less UTF-16 file does), or a `redact` body is over 4 MiB, Eshu
 stores the `metadata` row for that path and counts it as
-`eshu_dp_collector_content_store_files_total{outcome="redactor_failed"}`. It
+`eshu_dp_collector_content_store_files_total{outcome="redactor_failed"}`, with
+`redactor` naming the mode that failed (`marker` or `skeleton`). It
 never falls back to the raw body. The WARN log names the repo-relative path and
 a bounded reason class, never the error text.
 
@@ -166,7 +193,7 @@ need (#8833). The bindings, recorded in the
 | File | Policy | Mode |
 | --- | --- | --- |
 | `.yarnrc.yml` | `redact` | `marker` |
-| `*.tfvars`, `*.tfvars.json` | `redact` | allowlist skeleton, added in #8833 |
+| `*.tfvars`, `*.tfvars.json` | `redact` | `skeleton`, bound in #8833 |
 | `.npmrc` | `metadata` | none, shipped in #8978 |
 | `gradle.properties`, `nuget.config` | `metadata`, if a later record admits them | none |
 

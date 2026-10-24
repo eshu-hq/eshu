@@ -36,14 +36,22 @@ body. Rules that keep it safe:
 
 - Never return the source body on any failure path. A redactor error, a panic,
   non-UTF-8 input, and an unknown policy all return an empty body.
-- Keep the marker `REDACTED_<finding_kind>`. `[redacted]`, `***`, and
-  `REDACTED_value` are rejected (the detector cannot see them; `REDACTED_value`
-  is reserved for #8833's skeleton mode).
+- Keep the marker `REDACTED_<finding_kind>`. `[redacted]` and `***` are
+  rejected (the detector cannot see them). `REDACTED_value` is the skeleton
+  mode's marker for a value or line that is no finding; the marker mode never
+  writes it.
 - The redactor binds to `go/internal/secret/detect`; do not copy its pattern.
   `TestRedactMarkerPerKindResultUnderMigration138` pins the measured result per
   finding kind and must be updated, not loosened, when #8833's marker arm lands.
 - Keep `redactMarker` fail-closed for YAML value shapes. A new key shape needs a
   seeded-violation test in `marker_redactor_test.go`.
+- Keep the URL userinfo rule (`marker_url_userinfo.go`) narrower than the
+  credential-key rule only when the value is exactly one readable URL; every
+  other shape must fall back to whole-value redaction.
+- `redactSkeleton` is an allowlist. Widen the allowlist only for a shape that
+  cannot carry a credential, with a seeded case in
+  `skeleton_redactor_property_test.go`, and keep the rule that a raw finding
+  line keeps its `REDACTED_<finding_kind>` (the property test checks it).
 
 ## Verification
 

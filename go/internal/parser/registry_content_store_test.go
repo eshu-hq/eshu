@@ -81,7 +81,7 @@ func TestNewRegistryRejectsInvalidContentStore(t *testing.T) {
 	cases := map[string]ContentStore{
 		"unknown policy":                 {Policy: "drop"},
 		"redact without a redactor mode": {Policy: ContentStoreRedact, CredentialKeys: []string{"k"}},
-		"redact with unknown mode":       {Policy: ContentStoreRedact, Redactor: "skeleton", CredentialKeys: []string{"k"}},
+		"redact with unknown mode":       {Policy: ContentStoreRedact, Redactor: "bogus", CredentialKeys: []string{"k"}},
 		"marker without credential keys": {Policy: ContentStoreRedact, Redactor: RedactorMarker},
 		"marker with a blank key":        {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{" "}},
 		"metadata with a redactor mode":  {Policy: ContentStoreMetadata, Redactor: RedactorMarker},
@@ -230,7 +230,7 @@ func TestFlippingOneDefinitionMovesTheFingerprint(t *testing.T) {
 
 	// The redactor mode is part of the hash. NewRegistry rejects a mode it does
 	// not know, so this checks the renderer directly.
-	if fingerprintContentStore(marker(RedactorMarker, "k")) == fingerprintContentStore(marker("skeleton", "k")) {
+	if fingerprintContentStore(marker(RedactorMarker, "k")) == fingerprintContentStore(marker("bogus", "k")) {
 		t.Error("the redactor mode is not part of the fingerprint token")
 	}
 }

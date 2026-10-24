@@ -121,6 +121,24 @@ recent shipped work grouped by feature area.
   gauge and `eshu_dp_collector_terminal_failure_acknowledgements_total` counter
   cover the rest. The 3 AM runbook says when to acknowledge and when not to.
 
+### Collector: skeleton redactor and URL userinfo rule for the content-store policy
+
+- **Allowlist-skeleton redactor and URL-userinfo keys, not yet bound**
+  ([#8833](https://github.com/eshu-hq/eshu/issues/8833)). The `redact` policy
+  gains a `skeleton` mode for open-schema files such as `*.tfvars`: it keeps
+  structure, keys, and values whose shape cannot carry a credential (booleans,
+  numbers, `var.`/`local.`/`module.`/`data.` references, quoted versions), writes
+  `REDACTED_<finding_kind>` for a value or line the hardcoded-secret detector
+  reports, and `REDACTED_value` for everything else. Line numbers are kept. The
+  `marker` mode can now list URL-valued keys (`npmRegistryServer`, `httpsProxy`)
+  whose URL loses only its userinfo, so the host stays readable; any value the
+  rule cannot read as exactly one URL is redacted whole.
+  `eshu_dp_collector_content_store_files_total` gains a `redactor` label
+  (`marker`, `skeleton`, `none`). No definition binds either mode yet, so the
+  registry fingerprint and every stored body are unchanged; the bindings for
+  `.yarnrc.yml` and `*.tfvars` land with the detector migration in a later
+  #8833 change.
+
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
 - **Nesting guard before every Cargo TOML decode**

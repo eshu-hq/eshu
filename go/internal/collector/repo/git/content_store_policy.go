@@ -114,7 +114,7 @@ func addContentStoresForMetas(registry parser.Registry, snapshot *RepositorySnap
 }
 
 // contentStoreTally counts the policy outcomes of one fact stream so the
-// operator signal is one counter add per (policy, outcome) and one log line per
+// operator signal is one counter add per (policy, redactor, outcome) and one log line per
 // collection, not one per file.
 type contentStoreTally struct {
 	counts map[contentStoreKey]int64
@@ -131,8 +131,31 @@ type contentStoreTally struct {
 const maxLoggedFailedPaths = 10
 
 type contentStoreKey struct {
-	policy  parser.ContentStorePolicy
-	outcome gitcontent.StoreOutcome
+	policy parser.ContentStorePolicy
+	// redactor is the redact policy's mode (marker or skeleton), or
+	// redactorNone for a policy without one, so an operator can tell which
+	// redactor failed.
+	redactor parser.RedactorMode
+	outcome  gitcontent.StoreOutcome
+}
+
+// redactorNone is the redactor label of a policy that names no redactor mode.
+const redactorNone parser.RedactorMode = "none"
+
+func redactorLabel(store parser.ContentStore) parser.RedactorMode {
+	if store.Redactor == "" {
+		return redactorNone
+	}
+	return store.Redactor
+}
+
+// logKey is the per-key count field of the stream log: policy_outcome for a
+// policy without a redactor, policy_redactor_outcome otherwise.
+func (k contentStoreKey) logKey() string {
+	if k.redactor == redactorNone {
+		return string(k.policy) + "_" + string(k.outcome)
+	}
+	return string(k.policy) + "_" + string(k.redactor) + "_" + string(k.outcome)
 }
 
 // storedBody applies the path's policy to a source body read at emit time and
@@ -146,7 +169,7 @@ func (t *contentStoreTally) storedBody(stores map[string]parser.ContentStore, pa
 	if t.counts == nil {
 		t.counts = map[contentStoreKey]int64{}
 	}
-	t.counts[contentStoreKey{policy: store.Policy, outcome: result.Outcome}]++
+	t.counts[contentStoreKey{policy: store.Policy, redactor: redactorLabel(store), outcome: result.Outcome}]++
 	t.replaced += int64(result.Replaced)
 	if result.Outcome == gitcontent.StoreOutcomeRedactorFailed {
 		if len(t.failedPaths) < maxLoggedFailedPaths {
@@ -193,7 +216,7 @@ func recordContentStoreTally(ctx context.Context, tally *contentStoreTally, repo
 }
 
 // recordContentStore adds eshu_dp_collector_content_store_files_total once per
-// (policy, outcome) and logs the same counts, so an operator can see which
+// (policy, redactor, outcome) and logs the same counts, so an operator can see which
 // files fell back to a metadata row (redactor_failed) without a debugger.
 func (s *GitSource) recordContentStore(ctx context.Context, tally *contentStoreTally, repositoryID, scopeID, generationID string) {
 	keys := make([]contentStoreKey, 0, len(tally.counts))
@@ -203,6 +226,9 @@ func (s *GitSource) recordContentStore(ctx context.Context, tally *contentStoreT
 	sort.Slice(keys, func(i, j int) bool {
 		if keys[i].policy != keys[j].policy {
 			return keys[i].policy < keys[j].policy
+		}
+		if keys[i].redactor != keys[j].redactor {
+			return keys[i].redactor < keys[j].redactor
 		}
 		return keys[i].outcome < keys[j].outcome
 	})
@@ -218,10 +244,11 @@ func (s *GitSource) recordContentStore(ctx context.Context, tally *contentStoreT
 		if s.Instruments != nil && s.Instruments.ContentStorePolicyFiles != nil {
 			s.Instruments.ContentStorePolicyFiles.Add(ctx, count, metric.WithAttributes(
 				attribute.String("policy", string(key.policy)),
+				attribute.String("redactor", string(key.redactor)),
 				attribute.String("outcome", string(key.outcome)),
 			))
 		}
-		attrs = append(attrs, slog.Int64(string(key.policy)+"_"+string(key.outcome), count))
+		attrs = append(attrs, slog.Int64(key.logKey(), count))
 		if key.outcome == gitcontent.StoreOutcomeRedactorFailed {
 			failed += count
 		}

@@ -79,7 +79,7 @@ func TestStoredBytesMatchesTheReferenceForEveryPolicy(t *testing.T) {
 	// fail a redactor; the short-circuit must not change that count.
 	var tally contentStoreTally
 	tally.storedBytes(stores, "meta", []byte("a\x00b\xff"))
-	want := map[contentStoreKey]int64{{policy: parser.ContentStoreMetadata, outcome: "metadata"}: 1}
+	want := map[contentStoreKey]int64{{policy: parser.ContentStoreMetadata, redactor: redactorNone, outcome: "metadata"}: 1}
 	if !reflect.DeepEqual(tally.counts, want) || len(tally.failedPaths) != 0 {
 		t.Fatalf("metadata tally = %+v failed %v, want one metadata/metadata and no failure", tally.counts, tally.failedPaths)
 	}
