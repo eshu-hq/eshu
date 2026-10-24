@@ -73,6 +73,9 @@ func FuzzParseNeverEmitsACredential(f *testing.F) {
 				(parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" {
 				t.Fatalf("row value %q is not a clean absolute registry URL", value)
 			}
+			if path, _ := row["registry_path"].(string); row["registry_path_withheld"] != true && pathMayHoldCredential(path) {
+				t.Fatalf("row path %q might hold a credential but was not withheld", path)
+			}
 			if strings.ContainsAny(value, "?#") {
 				t.Fatalf("row value %q holds a query or fragment marker", value)
 			}

@@ -39,7 +39,8 @@ these keys:
 | `value` | `scheme://host[:port]/path`, with no userinfo, query, or fragment |
 | `registry_scheme` | `http` or `https` |
 | `registry_host` | lower-case host, with `:port` when present; an IPv6 literal keeps its brackets |
-| `registry_path` | the escaped URL path, possibly empty |
+| `registry_path` | the escaped URL path, possibly empty; empty when withheld |
+| `registry_path_withheld` | `true` only when the path might carry a credential and was dropped; the scheme and host stay |
 | `registry_scope` | `@scope`, only on a scoped row |
 | `config_kind` | `registry_url` |
 | `section` | `registry` or `scope_registry` |
@@ -57,15 +58,22 @@ the line sits under an ini `[section]`; the value is empty, holds `${...}`, a
 control byte, or a non-ASCII byte, or is longer than the 8 KiB line bound; the
 value is not an absolute `http` or `https` URL with a DNS-style or IPv6 host; the
 path is longer than 512 bytes; or the shared detector
-(`internal/secret/detect`) flags the sanitized URL. Parse errors never reach the
+(`internal/secret/detect`) flags the sanitized scheme and host. Parse errors never reach the
 caller or a log, because `net/url` errors quote the input.
 
-## Residual risk
+## Path guard and residual risk
 
-A token placed in a URL path as a plain segment with no `key=` shape or known
-value shape (`https://host/t/Zk93...`) is not recognizable by the detector and is
-emitted as path. The userinfo and query string are the credential positions npm
-documents, and both are removed.
+A token can sit in a URL path as a bare segment (`https://host/t/9f86d0...`),
+where the detector sees no key. `pathMayHoldCredential` (`path_guard.go`) drops
+the path, keeps the scheme and host, and sets `registry_path_withheld`, when the
+decoded path is double-encoded, holds a detector match, has a segment with `=` or
+`:`, a UUID, a 20-byte alphanumeric run with a letter and a digit, a 32-byte
+letters-only run, or a 20-byte segment mixing upper case, lower case, and a
+digit. Ordinary registry paths (`/artifactory/api/npm/npm-virtual/`,
+`_packaging/feed/npm/registry/`, numeric project ids) pass. The guard is
+structural, so a path token shorter than 20 bytes, or made only of lower-case
+letters and under 32 bytes, is still emitted as path. Userinfo and query, the
+positions npm documents for credentials, are always removed.
 
 ## Dependencies
 

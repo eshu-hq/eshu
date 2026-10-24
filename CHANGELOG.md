@@ -34,7 +34,7 @@ recent shipped work grouped by feature area.
   one `config_kind=registry_url` row per `registry=` and `@scope:registry=` line
   with the scheme, host, port, and path. Userinfo, query, and fragment are
   removed, and a line is skipped whole if it holds an environment expansion, a
-  non-http scheme, or a shape the shared secret detector flags. No other key is
+  non-http scheme, or a shape the shared secret detector flags in the scheme or host. No other key is
   read, so `_authToken`, `_auth`, `_password`, `//host/:username`, and `email`
   values reach no fact. Parser output is not governed by the content-store
   policy, so the proof is a seeded full-stream scan of every emitted fact
@@ -44,8 +44,10 @@ recent shipped work grouped by feature area.
   governed, so every repository pays one policy lookup per file: the snapshot
   stage for 5,000 files went from 8.8 ns to 1.11 ms
   (`BenchmarkContentStoreGovernedDefault`). Filesystem source mode now copies
-  `.npmrc` into the managed workspace. A token in a URL path with no key or
-  known value shape is not recognizable and is emitted as path.
+  `.npmrc` into the managed workspace. A path that might carry a token (a UUID, a long mixed
+  alphanumeric run, a `key=value` segment, a detector match) is dropped and the
+  row keeps the scheme and host; a short or lower-case-only path token is not
+  recognizable and is emitted as path.
 
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 

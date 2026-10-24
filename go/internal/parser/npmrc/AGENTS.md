@@ -4,7 +4,8 @@
 
 1. `README.md` - purpose, row contract, the skip rules, the residual risk.
 2. `doc.go` - godoc contract for parent parser callers.
-3. `parser.go` - `Parse`, `registryRow`, `registryValue`, `sanitizeRegistryURL`.
+3. `parser.go` - `Parse`, `registryRow`, `registryValue`, `sanitizeRegistryURL`;
+   `path_guard.go` - `pathMayHoldCredential`, the structural token check.
 4. `parser_test.go` - accepted and rejected shapes, the seeded-credential scan.
 5. `parser_fuzz_test.go` - the seeded-credential fuzz target.
 6. Parent wrapper `parseNpmrc` in `../node_lockfile_language.go`, the registry definition in
@@ -19,6 +20,9 @@
   (`TestParserOutputIsNotGovernedKnownLeak`), so this package is the only guard.
 - A row's URL MUST have no userinfo, query, or fragment, and MUST be an absolute
   `http` or `https` URL. A line that fails any check is skipped whole.
+- A path the guard flags MUST be dropped (host-only row with
+  `registry_path_withheld`), never emitted. Loosening `path_guard.go` needs a
+  token-shaped negative test first.
 - The payload MUST NOT carry `source`, even with `Options.IndexSource`.
 - No error or log may quote file text. `net/url` errors quote their input, so
   they are discarded.

@@ -200,12 +200,11 @@ install from". Parser output is outside the policy, so the `npmrc` parser emits
 only the scheme, host, port, and path of `registry=` and `@scope:registry=`
 lines, with the userinfo, query, and fragment removed, and drops a line it
 cannot prove clean (an environment expansion, a non-http scheme, a detector
-match in the URL). It never reads a credential key. The seeded full-stream scan
+match in the scheme or host). It drops a path that might carry a token and keeps the host. It never reads a credential key. The seeded full-stream scan
 the A1 ruling requires is `TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding`
-in `go/internal/collector/repo/git`. A path token inside a registry URL that the
-shared detector does not recognize (a token-shaped path segment with no key)
-would still be emitted as path; the detector cannot see it and that residual is
-named in the parser README.
+in `go/internal/collector/repo/git`. A path token shorter than 20 bytes, or
+lower-case letters under 32 bytes, is not recognizable and would still be
+emitted as path; that residual is named in the parser README.
 
 Ordering (arbiter, 2026-10-24): no production definition binds to marker mode
 before #8833's marker-arm migration lands. That covers `.yarnrc.yml` and the

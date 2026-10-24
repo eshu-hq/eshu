@@ -110,6 +110,12 @@ func registryRow(line string, lineNumber int) map[string]any {
 	if !ok {
 		return nil
 	}
+	withheld := pathMayHoldCredential(urlPath)
+	if withheld {
+		// A path that might carry a token is dropped; the scheme and host still
+		// answer which registry the repository uses.
+		urlPath = ""
+	}
 	value := scheme + "://" + hostPort + urlPath
 	if len(detect.Spans(value)) > 0 {
 		// The shared detector is the same one the credential-file policy
@@ -131,6 +137,9 @@ func registryRow(line string, lineNumber int) map[string]any {
 	}
 	if scope != "" {
 		row["registry_scope"] = scope
+	}
+	if withheld {
+		row["registry_path_withheld"] = true
 	}
 	return row
 }

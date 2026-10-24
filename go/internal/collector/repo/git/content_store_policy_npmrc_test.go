@@ -23,12 +23,14 @@ var npmrcSeeds = []string{
 	"npmrcSeedUserinfoPass0123456789",
 	"npmrcSeedQueryToken0123456789",
 	"npmrcSeedFragment0123456789",
+	"npmrcSeedPathToken0123456789",
 }
 
 const npmrcSeededBody = "" +
 	"# build registry\n" +
 	"registry=https://npmrcSeedUserinfoUser0123456789:npmrcSeedUserinfoPass0123456789@registry.example.com/npm/?token=npmrcSeedQueryToken0123456789#npmrcSeedFragment0123456789\n" +
 	"@acme:registry=https://npm.acme.example/repo/\n" +
+	"@tok:registry=https://npm.tok.example/t/npmrcSeedPathToken0123456789/npm/\n" +
 	"//registry.example.com/:_authToken=npmrcSeedAuthToken0123456789\n" +
 	"//registry.example.com/:_auth=npmrcSeedAuthBase64Value0123456789\n" +
 	"//registry.example.com/:_password=npmrcSeedPassword0123456789\n" +
@@ -91,12 +93,14 @@ func TestNpmrcSeededCredentialReachesNoFactUnderTheProductionBinding(t *testing.
 		}
 
 		urls := npmrcRegistryEntities(t, envelopes, path)
-		if len(urls) != 2 {
-			t.Fatalf("%s: registry-URL entities = %v, want the two registry lines", path, urls)
+		if len(urls) != 3 {
+			t.Fatalf("%s: registry-URL entities = %v, want the three registry lines", path, urls)
 		}
 		want := map[string]string{
 			"registry":       "https://registry.example.com/npm/",
 			"@acme:registry": "https://npm.acme.example/repo/",
+			// The token-shaped path is withheld; the host still answers.
+			"@tok:registry": "https://npm.tok.example",
 		}
 		for _, row := range urls {
 			name, _ := row["name"].(string)
