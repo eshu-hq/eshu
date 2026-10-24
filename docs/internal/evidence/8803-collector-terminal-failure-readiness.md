@@ -139,9 +139,9 @@ Known limits:
   the coordinator ignores its `scan_interval`, but the status window still uses
   it, so an orphaned bootstrap failure stays reported for 3 x that
   `scan_interval`, or the 30 minute floor when that is longer.
-- To clear a failure in this version, fix the cause and let a completed item
-  land, or remove the target and wait one window. There is no explicit
-  acknowledge.
+- To clear a failure, fix the cause and let a completed item land, or remove
+  the target and wait one window. An operator can also acknowledge an expected
+  failure (#8830); see `docs/internal/evidence/8830-collector-terminal-failure-acknowledgement.md`.
 
 ## Plans
 
