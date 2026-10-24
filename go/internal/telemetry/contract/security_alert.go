@@ -65,4 +65,9 @@ const (
 	// retryable, terminal), so the fan-out stopped and this repository was not
 	// read.
 	SecurityAlertFanoutOutcomeStopped = "stopped"
+	// SecurityAlertFanoutOutcomeAlertsDisabled means the repository's own read
+	// got a 403 whose body says Dependabot alerts are disabled for it. The
+	// repository stays incomplete and the fan-out continues, because the answer
+	// is specific to that repository and not to the credential.
+	SecurityAlertFanoutOutcomeAlertsDisabled = "alerts_disabled"
 )

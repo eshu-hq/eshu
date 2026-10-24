@@ -41,6 +41,10 @@ const (
 	// the fan-out did not read because an earlier read failed with a class
 	// other than not_found or rate_limited.
 	collectionOrgFanoutStoppedReason = "org_repository_fanout_stopped"
+	// collectionOrgRepositoryAlertsDisabledReason marks org-window facts of a
+	// repository whose own read answered that Dependabot alerts are disabled
+	// for it.
+	collectionOrgRepositoryAlertsDisabledReason = "org_repository_alerts_disabled"
 )
 
 // collectTarget turns the target's first provider read into the merged
@@ -103,7 +107,7 @@ func (s *ClaimedSource) fanOutOrganization(
 			case err != nil && ctx.Err() != nil:
 				return alertCollection{}, err
 			case err != nil:
-				outcome, stopOutcome = fanoutFailureOutcome(classifiedProviderFailure(err).FailureClass())
+				outcome, stopOutcome = fanoutFailureOutcome(classifiedProviderFailure(err))
 			default:
 				reads[repository] = result
 				coverage = repositoryAlertCollectionCoverageFromResult(result)
@@ -248,15 +252,23 @@ func fanoutRepositoryObject(repository string) securityalerts.GitHubDependabotRe
 }
 
 // fanoutFailureOutcome maps a failed per-repository read to its outcome and
-// to the outcome later repositories record. Only not_found, which is specific
-// to one repository, lets the fan-out continue (stop is ""). A rate limit
-// stops it as rate_limited. Any other class (auth_denied, including a 403
-// without rate-limit headers, retryable 5xx or transport, terminal) stops it
-// as stopped, because the next read against the same credential and provider
-// would most likely fail the same way, and GitHub warns that continuing to
-// call while limited risks the integration being banned.
-func fanoutFailureOutcome(failureClass string) (outcome string, stop string) {
-	switch failureClass {
+// to the outcome later repositories record. Only failures specific to one
+// repository let the fan-out continue (stop is ""): not_found, and an
+// auth_denied 403 the provider marked "Dependabot alerts are disabled for this
+// repository", which is checked first and only for auth_denied so a rate limit
+// or a retryable failure carrying the marker still stops. A rate limit stops
+// the fan-out as rate_limited. Any other class (auth_denied without the
+// marker, including a 403 with no rate-limit headers, retryable 5xx or
+// transport, terminal) stops it as stopped, because the next read against the
+// same credential and provider would most likely fail the same way, and GitHub
+// warns that continuing to call while limited risks the integration being
+// banned.
+func fanoutFailureOutcome(failure ProviderFailure) (outcome string, stop string) {
+	class := failure.FailureClass()
+	if class == FailureAuthDenied && failure.AlertsDisabled() {
+		return contract.SecurityAlertFanoutOutcomeAlertsDisabled, ""
+	}
+	switch class {
 	case FailureNotFound:
 		return contract.SecurityAlertFanoutOutcomeFailed, ""
 	case FailureRateLimited:
@@ -272,6 +284,8 @@ func fanoutOutcomeReason(outcome string) string {
 	switch outcome {
 	case contract.SecurityAlertFanoutOutcomeFailed:
 		return collectionOrgRepositoryReadFailedReason
+	case contract.SecurityAlertFanoutOutcomeAlertsDisabled:
+		return collectionOrgRepositoryAlertsDisabledReason
 	case contract.SecurityAlertFanoutOutcomeRateLimited:
 		return collectionOrgRepositoryRateLimitedReason
 	case contract.SecurityAlertFanoutOutcomeSkippedCap:
