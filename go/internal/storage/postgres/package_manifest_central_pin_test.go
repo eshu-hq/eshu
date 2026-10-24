@@ -36,6 +36,12 @@ func centralVersionDeclarationCases() []centralVersionDeclarationCase {
 		{"metadata empty string", metadata(""), false},
 		{"metadata number 1", metadata(1), false},
 		{"metadata null", metadata(nil), false},
+		{"metadata leading no-break space", metadata("\u00a0true"), false},
+		{"metadata trailing next-line control", metadata("true\u0085"), false},
+		{"top-level literal <nil> text wins over metadata true", map[string]any{
+			"central_version_declaration": "<nil>",
+			"entity_metadata":             map[string]any{"central_version_declaration": true},
+		}, false},
 		{"flag absent", map[string]any{"entity_metadata": map[string]any{"config_kind": "dependency"}}, false},
 		{"no metadata", map[string]any{"entity_type": "Variable"}, false},
 		{"top-level true", map[string]any{"central_version_declaration": true}, true},

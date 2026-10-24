@@ -81,7 +81,7 @@ recent shipped work grouped by feature area.
   `ManagePackageVersionsCentrally` that is not a literal `true`) is partial
   with an `item_ambiguity` reason. MSBuild `%XX` escapes are not unescaped:
   an escaped version is unresolved and an escaped item spec is treated like a
-  wildcard. A `GlobalPackageReference` is always `development` scope, because
+  wildcard. A `GlobalPackageReference` is `development` scope (`test` for a test-named package), because
   NuGet sets `PrivateAssets="All"` on it; other rows leave `dependency_scope`
   absent (`unresolved_asset_metadata`) when a conditioned or unresolved asset
   value could change it. Input size, nesting depth, row counts,

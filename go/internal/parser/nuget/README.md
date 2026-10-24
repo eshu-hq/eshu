@@ -235,7 +235,7 @@ with these differences:
   `version_override`.
 - A row with a group or item `Condition` is `conditional_declaration: true` and
   `partial_evidence: true`, even when its version is literal.
-- `dependency_scope`: a `GlobalPackageReference` is always `development`
+- `dependency_scope`: a `GlobalPackageReference` is `development`
   (`test` by name). NuGet.targets builds a `PackageReference` from it with
   `PrivateAssets="All"` and the development `IncludeAssets` set on the
   element, and element metadata wins over the item's own, so declared asset

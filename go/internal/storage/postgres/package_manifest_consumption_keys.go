@@ -79,11 +79,32 @@ func isPackageManifestConsumptionFact(envelope facts.Envelope) bool {
 // Directory.Packages.props (#8824). A pin sets the version a project gets if
 // it references the package; it does not prove any project does, so it is
 // never package consumption. The flag is read top-level first, then from
-// entity_metadata, and matches "true" case-insensitively, the same rule the
-// reducer applies. NotCentralVersionDeclarationSQL is the SQL form; the two
-// must classify every payload alike.
+// entity_metadata, ASCII-trimmed, and matches "true" case-insensitively.
+// NotCentralVersionDeclarationSQL is the SQL form; the two classify every
+// payload alike, which a table test and a live test pin on the same shapes.
 func IsCentralVersionDeclaration(payload map[string]any) bool {
-	return packageManifestMetadataBool(payload, "central_version_declaration")
+	text := centralFlagText(payload, "central_version_declaration")
+	if text == "" {
+		metadata, _ := payload["entity_metadata"].(map[string]any)
+		text = centralFlagText(metadata, "central_version_declaration")
+	}
+	return strings.EqualFold(text, "true")
+}
+
+// centralFlagText returns the flag as the SQL form reads it: null and a
+// missing key are empty, and only ASCII blanks are trimmed (the set BTRIM
+// takes in NotCentralVersionDeclarationSQL), with no special text for a
+// literal "<nil>" and no Unicode-space trim. Matching the SQL rule exactly
+// is what keeps the sidecar and the readiness count in agreement.
+func centralFlagText(payload map[string]any, key string) string {
+	if payload == nil {
+		return ""
+	}
+	value, ok := payload[key]
+	if !ok || value == nil {
+		return ""
+	}
+	return strings.Trim(fmt.Sprint(value), " \t\n\r\f\v")
 }
 
 // NotCentralVersionDeclarationSQL is the SQL form of !IsCentralVersionDeclaration
