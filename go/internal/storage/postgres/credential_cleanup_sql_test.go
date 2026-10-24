@@ -8,8 +8,10 @@ import (
 	"database/sql"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // credentialCleanupPage is the operator page whose SQL fences the #8833
@@ -90,6 +92,15 @@ func splitStatements(text string) []string {
 // does, and returns the rows the data-modifying statements touched.
 func runScript(t *testing.T, ctx context.Context, database *sql.DB, script string) int64 {
 	t.Helper()
+	return runScriptHolding(t, ctx, database, script, 0)
+}
+
+// runScriptHolding is runScript with a pause after the statement that locks
+// the batch (CREATE TEMP TABLE ... FOR UPDATE), so a concurrent writer meets
+// the held row locks. The pause is the race proof's lever; the page's SQL text
+// is unchanged.
+func runScriptHolding(t *testing.T, ctx context.Context, database *sql.DB, script string, hold time.Duration) int64 {
+	t.Helper()
 	conn, err := database.Conn(ctx)
 	if err != nil {
 		t.Fatalf("open connection: %v", err)
@@ -106,6 +117,9 @@ func runScript(t *testing.T, ctx context.Context, database *sql.DB, script strin
 		if strings.HasPrefix(head, "UPDATE") || strings.HasPrefix(head, "DELETE") || strings.HasPrefix(head, "WITH") {
 			n, _ := result.RowsAffected()
 			touched += n
+		}
+		if hold > 0 && strings.HasPrefix(head, "CREATE TEMP TABLE") {
+			time.Sleep(hold)
 		}
 	}
 	return touched
@@ -146,4 +160,19 @@ func queryRowsMap(t *testing.T, ctx context.Context, database *sql.DB, statement
 		t.Fatalf("rows: %v", err)
 	}
 	return out
+}
+
+// TestCredentialCleanupSearchFactKindOwnsNoKeySidecar pins the #8813 ruling's
+// premise for statement B: a reducer_eshu_search_document fact owns no key
+// sidecar rows, so deleting it by fact_id leaves no orphan key.
+func TestCredentialCleanupSearchFactKindOwnsNoKeySidecar(t *testing.T) {
+	t.Parallel()
+
+	if slices.Contains(factKeySidecarKinds, EshuSearchDocumentFactKind) {
+		t.Fatalf("%s owns key sidecar rows; the purge's unpaired DELETE would orphan them", EshuSearchDocumentFactKind)
+	}
+	_, purge := credentialCleanupFences(t)
+	if !strings.Contains(purge, "fact_kind = '"+EshuSearchDocumentFactKind+"'") {
+		t.Fatalf("statement B no longer filters on %s", EshuSearchDocumentFactKind)
+	}
 }
