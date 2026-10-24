@@ -4,6 +4,7 @@
 package packages
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -236,6 +237,12 @@ func TestExtractionParityAllKindsAdmitAtV1(t *testing.T) {
 			if envelope.ScopeID != scopeID {
 				t.Fatalf("ScopeID = %q, want %q", envelope.ScopeID, scopeID)
 			}
+			if envelope.GenerationID != generationID {
+				t.Fatalf("GenerationID = %q, want %q", envelope.GenerationID, generationID)
+			}
+			if !envelope.ObservedAt.Equal(parityObservedAt) {
+				t.Fatalf("ObservedAt = %v, want %v", envelope.ObservedAt, parityObservedAt)
+			}
 			if envelope.StableFactKey == "" || envelope.FactID == "" {
 				t.Fatalf("StableFactKey and FactID must both be set for %s", tc.name)
 			}
@@ -257,11 +264,13 @@ func TestExtractionParityKindRequiredFieldsRejectBlank(t *testing.T) {
 	}
 
 	cases := []struct {
-		name  string
-		build func() error
+		name    string
+		wantErr string
+		build   func() error
 	}{
 		{
-			name: "package_version_blank_version",
+			name:    "package_version_blank_version",
+			wantErr: "package version must not be blank",
 			build: func() error {
 				pkg, scope, generation, collector, _ := boundary()
 				_, err := NewPackageVersionEnvelope(PackageVersionObservation{
@@ -272,7 +281,8 @@ func TestExtractionParityKindRequiredFieldsRejectBlank(t *testing.T) {
 			},
 		},
 		{
-			name: "package_dependency_blank_version",
+			name:    "package_dependency_blank_version",
+			wantErr: "package dependency version must not be blank",
 			build: func() error {
 				pkg, scope, generation, collector, _ := boundary()
 				_, err := NewPackageDependencyEnvelope(PackageDependencyObservation{
@@ -284,7 +294,8 @@ func TestExtractionParityKindRequiredFieldsRejectBlank(t *testing.T) {
 			},
 		},
 		{
-			name: "package_artifact_blank_key",
+			name:    "package_artifact_blank_key",
+			wantErr: "package artifact key must not be blank",
 			build: func() error {
 				pkg, scope, generation, collector, version := boundary()
 				_, err := NewPackageArtifactEnvelope(PackageArtifactObservation{
@@ -296,7 +307,8 @@ func TestExtractionParityKindRequiredFieldsRejectBlank(t *testing.T) {
 			},
 		},
 		{
-			name: "source_hint_blank_kind",
+			name:    "source_hint_blank_kind",
+			wantErr: "source hint kind must not be blank",
 			build: func() error {
 				pkg, scope, generation, collector, version := boundary()
 				_, err := NewSourceHintEnvelope(SourceHintObservation{
@@ -309,7 +321,8 @@ func TestExtractionParityKindRequiredFieldsRejectBlank(t *testing.T) {
 			},
 		},
 		{
-			name: "vulnerability_hint_blank_advisory",
+			name:    "vulnerability_hint_blank_advisory",
+			wantErr: "vulnerability hint advisory_id must not be blank",
 			build: func() error {
 				pkg, scope, generation, collector, version := boundary()
 				_, err := NewVulnerabilityHintEnvelope(VulnerabilityHintObservation{
@@ -321,7 +334,8 @@ func TestExtractionParityKindRequiredFieldsRejectBlank(t *testing.T) {
 			},
 		},
 		{
-			name: "registry_event_blank_type",
+			name:    "registry_event_blank_type",
+			wantErr: "registry event type must not be blank",
 			build: func() error {
 				pkg, scope, generation, collector, version := boundary()
 				_, err := NewRegistryEventEnvelope(RegistryEventObservation{
@@ -334,7 +348,8 @@ func TestExtractionParityKindRequiredFieldsRejectBlank(t *testing.T) {
 			},
 		},
 		{
-			name: "repository_hosting_blank_provider",
+			name:    "repository_hosting_blank_provider",
+			wantErr: "repository hosting provider must not be blank",
 			build: func() error {
 				_, scope, generation, collector, _ := boundary()
 				_, err := NewRepositoryHostingEnvelope(RepositoryHostingObservation{
@@ -354,6 +369,8 @@ func TestExtractionParityKindRequiredFieldsRejectBlank(t *testing.T) {
 
 			if err := tc.build(); err == nil {
 				t.Fatalf("blank required field accepted for %s, want rejection", tc.name)
+			} else if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("wrong rejection for %s: got %q, want substring %q", tc.name, err, tc.wantErr)
 			}
 		})
 	}
