@@ -82,13 +82,16 @@ setting that flag. Do not add a per-row terminal gate back. A failure for an
 unregistered or disabled instance never changes health.
 
 An acknowledged `TerminalFailure` (#8830, `Acknowledged` set by the reader)
-keeps `LastFailure*` and sets `LastFailureAcknowledged`, its time, reason, and
-`LastFailureScopeID`, but never degrades health and never becomes a promotion
-blocker: `derivePromotionState` skips the terminal-failure case for it. The
-runtime gauge in `internal/runtime` must keep acknowledged instances out of the
-open-failure series. The reason is operator text: it stays on the full-view
-payloads and is withheld from scoped callers in `internal/query`. Do not add
-the covering rule here; it is one SQL predicate in `storage/postgres`.
+never touches `LastFailure*`. It becomes the `AcknowledgedFailure` sub-record,
+raises health to `partial` (never `healthy`, `registered`, or `observed`, and
+never `degraded` by itself), and `derivePromotionState` returns
+`PromotionPartial` with the `terminal fetch failure acknowledged` blocker in an
+arm before the generic partial case. A real unacknowledged failure outranks it by
+health rank. The runtime gauge in `internal/runtime` counts it only on the
+acknowledged series. The operator's reason, the scope id, and the work item id
+are never carried on `RuntimeStatus`, `PromotionProof`, or their JSON; the
+reason is admin-only. Do not add the covering rule here; it is one SQL predicate
+in `storage/postgres`.
 
 ## Exporting the render/clone/JSON surface
 

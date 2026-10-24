@@ -54,11 +54,15 @@
 // class set is per collector kind), and
 // the failure message and provider status code are never carried.
 //
-// A TerminalFailure may be acknowledged by an operator (#8830). RuntimeStatuses
-// then keeps the failure fields and sets LastFailureAcknowledged, its time and
-// reason, and LastFailureScopeID, but does not degrade the instance, and
-// PromotionProofs does not fail it or add a blocker. The reader returns an
-// acknowledged failure only for an instance with no unacknowledged one.
+// A TerminalFailure may be acknowledged by an operator (#8830). The reader
+// returns up to two per instance: the newest unresolved failure no
+// acknowledgement covers, and the newest covered one. RuntimeStatuses fills
+// LastFailure* and degrades the instance only for the first. The second becomes
+// the distinct AcknowledgedFailure sub-record and raises health to partial
+// (never healthy; a degraded failure on another scope still wins), and
+// PromotionProofs reports promotion_state partial with the blocker "terminal
+// fetch failure acknowledged: <class> (<operation>)". The operator's reason is
+// admin-only and never carried here.
 //
 // VulnerabilitySourceState captures one durable vulnerability-intelligence
 // source checkpoint for operator status and API readiness surfaces.

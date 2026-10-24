@@ -133,7 +133,10 @@ so retry with a fresh `idempotency_key`.
 | `POST /api/v0/admin/replay` | ledger finalize | `replay applied but recording its idempotency outcome failed` |
 | `POST /api/v0/admin/repository-retirements` | repository selector lookup | `repository retirement selector lookup failed` |
 | `POST /api/v0/admin/repository-retirements` | retirement trigger | `repository retirement request failed` |
-| `POST /api/v0/admin/collector-terminal-failure-acknowledgements` | acknowledgement write | `collector terminal failure acknowledgement failed` |
+| `POST /api/v0/admin/collector-failures/acknowledge` | acknowledgement write | `collector terminal failure acknowledgement failed` |
+| `POST /api/v0/admin/collector-failures/acknowledge` | idempotency claim | `collector terminal failure acknowledgement idempotency claim failed` |
+| `POST /api/v0/admin/collector-failures/acknowledge` | ledger finalize | `collector terminal failure acknowledged but recording its idempotency outcome failed` |
+| `POST /api/v0/admin/collector-failures/acknowledgements/query` | acknowledgement read | `collector terminal failure acknowledgement query failed` |
 | `POST /api/v0/admin/reopen` | scope resolution | `reopen scope resolution failed` |
 | `POST /api/v0/admin/reopen` | idempotency claim | `reopen idempotency claim failed` |
 | `POST /api/v0/admin/reopen` | reopen transaction | `reopen failed` |

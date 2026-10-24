@@ -11,14 +11,11 @@ each enabled, coordinator-registered instance (see [When it clears](#when-it-cle
 
 - `GET /api/v0/status/collectors` (alias `/api/v0/collectors`) reports
   `health=degraded` and adds `last_failure_class`, `last_failure_operation`,
-  `last_failure_terminal`, `last_failure_at`, and `last_failure_scope_id` (the
-  failed scope, which you name to acknowledge the failure) to the instance
-  row.
+  `last_failure_terminal`, and `last_failure_at` to the instance row.
 - `GET /api/v0/status/collector-readiness` (alias
   `/api/v0/collector-readiness`) reports `promotion_state=failed`, the blocker
   `terminal fetch failure: <class> (<operation>)`, and
-  `last_failure_class`, `last_failure_operation`, `last_failure_at`, and
-  `last_failure_scope_id`.
+  `last_failure_class`, `last_failure_operation`, and `last_failure_at`.
 
 The MCP tools `list_collectors` and `get_collector_readiness` return the same
 fields. The status JSON and the plain-text status render carry them too. The
@@ -28,9 +25,9 @@ blocker. A healthy instance omits the failure fields on both routes.
 
 Scoped callers receive only the per-kind health aggregate on the collectors
 route; `last_failure_*` fields are withheld from them. On the readiness route
-they keep the class, operation, blocker, and `last_failure_acknowledged` with
-its time; `instance_id`, `last_failure_scope_id`, and
-`last_failure_acknowledged_reason` are withheld. Callers on the shared key and browser sessions get the full rows;
+they keep the class, operation, blocker, and `acknowledged_failure`, and only
+`instance_id` is withheld. The operator's acknowledgement reason is on no status
+surface. Callers on the shared key and browser sessions get the full rows;
 every scoped-token caller gets the redacted view, including an all-scope
 scoped token.
 
@@ -138,7 +135,8 @@ does not.
 
 To clear it, fix the cause and let the next cycle complete the scope, or
 remove the target and wait one window. If the failure is expected and nobody
-will fix it, [acknowledge it](#acknowledge-a-failure).
+will fix it, [acknowledge it](#acknowledge-a-failure). An acknowledgement
+replaces the failed state with `partial`; it does not make the instance healthy.
 
 If the coordinator stops planning, a real failure also ages out after the
 window. Check coordinator liveness and the work-item backlog before reading a
@@ -165,75 +163,115 @@ unregistered instance is ignored.
 
 ## Acknowledge a failure
 
-A terminal failure on a target nobody will fix, such as a repository that was
-deleted or a credential that was revoked on purpose, keeps the instance
-`degraded` and `failed` for as long as the target keeps failing. Acknowledge
-that failure to say it is known and expected:
+A terminal failure on a target nobody will fix, such as a repository deleted
+upstream, a credential revoked on purpose, or a target you removed and do not
+want to wait a window for, keeps the instance `degraded` and `failed` for as
+long as the target keeps failing. Acknowledge that failure to say it is known and
+expected. If you intend to fix it, do not acknowledge: fix the cause and let a
+completed work item clear it.
 
 ```text
-POST /api/v0/admin/collector-terminal-failure-acknowledgements
-{"instance_id": "...", "scope_id": "...", "failure_class": "auth_denied", "reason": "..."}
+POST /api/v0/admin/collector-failures/acknowledge
+{"collector_kind": "...", "instance_id": "...", "scope_id": "...",
+ "reason": "...", "idempotency_key": "...", "failure_class": "auth_denied"}
 ```
 
 ```bash
-eshu admin collector acknowledge-failure --instance ID --scope SCOPE \
-  --failure-class auth_denied --reason "repository deleted upstream"
+eshu admin collector-failure acknowledge --collector-kind security_alert \
+  --instance ID --scope SCOPE --reason "repository deleted upstream"
 ```
 
-Read `instance_id`, `last_failure_scope_id`, and `last_failure_class` from
-`GET /api/v0/status/collector-readiness` or `GET /api/v0/status/collectors`
-(or the `get_collector_readiness` and `list_collectors` MCP tools). The call
-needs an admin (all-scopes) token; a scoped token receives `403`.
+`failure_class` is optional and `--failure-class` sets it. When set, the call is
+refused with `409` if the failure on the scope has another bounded class, so you
+never acknowledge a class you did not read. The CLI generates an idempotency key
+and prints it to stderr before the call when you do not pass one.
 
-What it does:
+Find the instance and kind on `GET /api/v0/status/collector-readiness` or with the
+`get_collector_readiness` MCP tool. Find the scope with
+`POST /api/v0/admin/work-items/query` using `statuses: ["failed_terminal"]` and the
+instance's scopes; the status surfaces do not carry scope ids. The call needs an
+admin (all-scopes) token; a scoped token receives `403`.
 
-- The failure stops degrading the instance. Collector readiness reports the
-  instance without `promotion_state=failed` and without the terminal-failure
-  blocker, and `GET /api/v0/status/collectors` stops reporting
-  `health=degraded` for it.
-- The failure stays visible. The row keeps `last_failure_class`,
-  `last_failure_operation`, `last_failure_at`, and `last_failure_scope_id`, and
-  adds `last_failure_acknowledged=true`, `last_failure_acknowledged_at`, and
-  `last_failure_acknowledged_reason`. The readiness next action says the
-  failure is acknowledged. An acknowledged instance is never reported as an
-  instance that did not fail.
-- It covers the failure episode on that scope: the acknowledged failure and
-  every later failure on the same scope with the same `last_failure_class`,
-  so a target that fails again every cycle stays acknowledged.
+### What an acknowledgement does
 
-What brings the failure back, with no further write:
+- The instance stops failing. An instance whose only unresolved failures are
+  acknowledged reads `health=partial` and `promotion_state=partial`, with the
+  blocker `terminal fetch failure acknowledged: <class> (<operation>)`, never
+  `healthy` or `implemented`, and never `failed`. The failure is still happening,
+  so no surface reads it as healthy.
+- The failure stays visible as a separate `acknowledged_failure` object on
+  `GET /api/v0/status/collectors` and `GET /api/v0/status/collector-readiness`:
+  `failure_class`, `failure_operation`, `failed_at`, and `acknowledged_at`.
+  `last_failure_*` describes only unacknowledged failures. The readiness next
+  action names the conditions below.
+- A real unacknowledged failure on another scope of the same instance still
+  degrades it. The status read returns the unacknowledged failure and the
+  acknowledged one separately, so an acknowledgement never hides another scope.
 
-- A failure on that scope with a different class, such as `auth_denied`
-  followed by `not_found`.
-- A failure after a completed work item on that scope. A completed item is
-  recovery, so the next failure is a new one.
+### When it is reported again
 
-Rules:
+An acknowledgement records the newest unresolved failure of the scope: its
+`updated_at`, its raw `last_failure_class` (NULL and empty agree), and its work
+item id. A failed work item `t` on that instance and scope is covered while
 
-- `failure_class` must be the class the instance reports now. If the failure
-  changed class since you read it, the call answers `409` and nothing is
-  written, so you never acknowledge a failure you have not seen.
-- `404` means the instance is not registered or not active, or the scope has no
-  unresolved terminal failure (it never failed, or a completed item resolved
-  it).
-- Acknowledging the same failure again answers `200` with `duplicate=true` and
-  changes nothing, so the first reason and actor stay on record.
-- One call covers one instance and one scope. An instance whose every target
-  failed needs one call per scope; `last_failure_scope_id` shows the newest
-  unacknowledged one, and the next appears after you acknowledge it.
-- `reason` is required, at most 512 characters, stored as typed, and shown on
-  collector status to callers that may see instance identity. Do not put
+- `t.updated_at` is not later than the acknowledged failure, or
+- `t` has the same raw class and no completed work item of the target landed
+  between the acknowledged failure and `t`.
+
+So the failure is reported again, with no further write, when
+
+1. a completed work item lands on the scope after the acknowledged failure and a
+   later failure follows (the scope recovered, then failed again), or
+2. a later failure carries a different raw class (a different cause, to which your
+   reason may not apply).
+
+A target that keeps failing with the same class every cycle stays acknowledged.
+
+Limits:
+
+- The acknowledgement has no expiry. A scope re-added later that fails with the
+  same class and has no success in between stays acknowledged, and still reads
+  `partial`, not healthy.
+- The class compare is on the raw persisted token. A class that is free text
+  outside the bounded vocabulary (it already reads `unknown`) and varies per
+  cycle lapses the acknowledgement.
+- A removed or deactivated instance leaves an inert acknowledgement row. Rows are
+  bounded by the number of (instance, scope) pairs ever acknowledged.
+- Retention (workflow work-item retention) may delete the acknowledged work item;
+  the acknowledgement keeps the failure time and class, so later same-class
+  failures stay covered.
+- One call acknowledges one scope. An instance whose every target failed needs
+  one call per scope.
+
+### Request rules
+
+- `reason` (at most 512 characters) and `idempotency_key` are required. The
+  reason is stored as typed. It is returned only by
+  `POST /api/v0/admin/collector-failures/acknowledgements/query` (admin token);
+  no status route, MCP tool, metric, or audit event carries it. Do not put
   secrets in it.
-- Each call appends one governance audit event (`admin_recovery_action`) with a
-  bounded reason code such as `collector_failure_ack_recorded` and the hashed
-  actor. The reason text is not in the audit event.
-- An acknowledgement does not delete anything. The failed work items stay for
-  triage until retention removes them, and the acknowledgement row stays as
-  history after the failure resolves.
+- The failure must be inside the instance's window (3 x `scan_interval`, 30
+  minute floor) with no later completed work item. Otherwise the call answers
+  `422` with `ack_refused_no_terminal_failure`, writes nothing, and does not
+  consume the key. An unknown, disabled, or deactivated instance, or a kind that
+  does not match, answers `404`.
+- The same key with the same instance and scope replays the stored outcome with
+  `status=duplicate`; the same key with another target, or a key whose call is
+  still in progress, answers `409`. Two different keys on one scope both commit
+  and the later row stands; both are audited.
+- Each decision appends one `admin_recovery_action` governance audit event with a
+  bounded reason code (`ack_recorded`, `ack_idempotent_replay`,
+  `ack_refused_missing_reason`, `ack_refused_missing_idempotency_key`,
+  `ack_refused_invalid_request`, `ack_refused_unauthorized`,
+  `ack_refused_instance_not_found`, `ack_refused_no_terminal_failure`,
+  `ack_refused_class_changed`, `ack_idempotency_key_reused`, `ack_failed`) and the
+  hashed actor.
+- An acknowledgement deletes nothing. The failed work items stay for triage until
+  retention removes them.
 
-Acknowledging is not fixing. Acknowledge only a failure you have decided to
-live with, and check coordinator liveness first: a failure that disappears
-because the coordinator stopped planning is not an expected failure. The gauge
+Acknowledging is not fixing. Check coordinator liveness first: a failure that
+disappears because the coordinator stopped planning is not an expected failure.
+The gauge
 `eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances`
 keeps counting acknowledged instances by kind and class, so a failure nobody
 fixed stays visible on a dashboard without paging.
@@ -245,8 +283,7 @@ affected instances by `collector_kind` and `failure_class`. It counts only
 unacknowledged failures; `eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances`
 counts acknowledged ones with the same labels, and
 `eshu_dp_collector_terminal_failure_acknowledgements_total{outcome}` counts
-acknowledgement requests (`recorded`, `unchanged`, `refused`, `not_found`,
-`class_changed`, `failed`). Every runtime that
+acknowledgement requests (`acknowledged`, `duplicate`, `refused`). Every runtime that
 scrapes status exports the same value, so read it with
 `max by (collector_kind, failure_class)`, never summed. See
 [Metrics](../telemetry/metrics.md).
