@@ -433,7 +433,7 @@ Required manifest fields:
 | --- | --- |
 | `apiVersion` | Must be `eshu.dev/v1alpha1`. |
 | `kind` | Must be `ComponentPackage`. |
-| `metadata.id` / `metadata.publisher` | Lowercase identifier with no leading or trailing whitespace; padded values fail validation, never trimmed. Revocation and allowlists match them exactly. |
+| `metadata.id` / `metadata.publisher` | Lowercase identifier with no leading or trailing whitespace; padded values fail validation, never trimmed; collector kinds and fact kinds follow the same rule. Revocation and allowlists match them exactly. |
 | `metadata.version` | Semantic version. |
 | `spec.compatibleCore` | Core version range. Release builds enforce it; local `dev` builds parse it but skip release comparison. |
 | `spec.componentType` | Currently only `collector`. |
