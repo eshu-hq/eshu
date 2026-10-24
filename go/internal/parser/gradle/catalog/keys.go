@@ -212,7 +212,7 @@ func (t *keyTree) value(value *unstable.Node) string {
 		if reason, done := t.smallInline(value); done {
 			return reason
 		}
-		root := int32(len(t.nodes))
+		root := int32(len(t.nodes)) // #nosec G115 -- bounded: node and inline counts are capped by MaxFileKeySegments (262,144), far below int32
 		t.nodes = append(t.nodes, keyNode{kind: keyTable, dottedIn: t.section})
 		for it := value.Children(); it.Next(); {
 			if reason := t.keyValue(root, it.Node()); reason != "" {
@@ -261,7 +261,7 @@ func (t *keyTree) smallInline(table *unstable.Node) (reason string, done bool) {
 			id := t.findInline(base, parent, name)
 			switch {
 			case id < 0:
-				id = int32(len(t.inline))
+				id = int32(len(t.inline)) // #nosec G115 -- bounded: node and inline counts are capped by MaxFileKeySegments (262,144), far below int32
 				t.inline = append(t.inline, inlineKey{parent: parent, name: name})
 			case key.IsLast():
 				return reasonKeyRepeated, true
@@ -283,7 +283,7 @@ func (t *keyTree) smallInline(table *unstable.Node) (reason string, done bool) {
 func (t *keyTree) findInline(base int, parent int32, name []byte) int32 {
 	for i := base; i < len(t.inline); i++ {
 		if t.inline[i].parent == parent && bytes.Equal(t.inline[i].name, name) {
-			return int32(i)
+			return int32(i) // #nosec G115 -- bounded: node and inline counts are capped by MaxFileKeySegments (262,144), far below int32
 		}
 	}
 	return -1
@@ -291,7 +291,7 @@ func (t *keyTree) findInline(base int, parent int32, name []byte) int32 {
 
 // indexKey writes parent and name into the scratch buffer and returns it.
 func (t *keyTree) indexKey(parent int32, name []byte) []byte {
-	t.buf = binary.LittleEndian.AppendUint32(t.buf[:0], uint32(parent))
+	t.buf = binary.LittleEndian.AppendUint32(t.buf[:0], uint32(parent)) // #nosec G115 -- bounded: node and inline counts are capped by MaxFileKeySegments (262,144), far below int32
 	t.buf = append(t.buf, name...)
 	return t.buf
 }
@@ -306,7 +306,7 @@ func (t *keyTree) find(parent int32, name []byte) (int32, bool) {
 // create adds node under parent as name, replacing any earlier node of that
 // name, and returns its id.
 func (t *keyTree) create(parent int32, name []byte, node keyNode) int32 {
-	id := int32(len(t.nodes))
+	id := int32(len(t.nodes)) // #nosec G115 -- bounded: node and inline counts are capped by MaxFileKeySegments (262,144), far below int32
 	t.nodes = append(t.nodes, node)
 	t.index[string(t.indexKey(parent, name))] = id
 	return id
