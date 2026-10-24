@@ -46,3 +46,31 @@ Stable keys keep re-emission idempotent: `content:<repo>:<path>`,
 what is emitted — new fact kind, changed payload shape, different counts —
 changes projected truth, so it needs the cassettes and the B-12 snapshot
 updated in the same change.
+
+## Marker redactor: limits and bounds
+
+- **Size cap.** A `redact` body over `MaxGovernedBodyBytes` (4 MiB) is not
+  redacted: the path becomes a metadata row with reason `too_large`. The
+  redactor is linear, but a hostile 50 MB body measured 4 to 14 s and it runs
+  twice per collection (snapshot and emit); governed files are small
+  configuration files.
+- **Not text.** A body that is invalid UTF-8 or holds a NUL byte (BOM-less
+  UTF-16 or UTF-32 is NUL-interleaved) becomes a metadata row. The WARN log
+  names the repo-relative path and a bounded reason class: `invalid_utf8`,
+  `not_text`, `too_large`, `redactor_error`, `redactor_panic`,
+  `unknown_policy`, `unknown_mode`. It never carries error text.
+- **PEM blocks.** A BEGIN header is replaced through its END footer on the same
+  line, or to the end of the line when the footer is on a later line, and every
+  following line is replaced until the footer. All header types are replaced, so
+  a second pass changes nothing.
+- **Known limits (denylist).** Marker mode redacts the values of the listed
+  keys and the spans the detector matches. It does not see a listed key spelled
+  as a YAML complex key (`? npmAuthToken` then `: value`), with an escaped
+  spelling (`"npmAuth\x54oken"`), or with a homoglyph, and it does not redact a
+  value under an unlisted key that the detector does not flag (an anchor
+  definition `base: &t value`). Marker mode is for closed-schema files, where
+  these shapes do not occur; `TestRedactMarkerKnownLimits` pins them.
+- **Parity with migration 138.** The Go detector uses a superset whitespace
+  class (`detect.SpaceClass`) because Postgres `[[:space:]]` matches U+2003 and
+  U+3000 and RE2's does not, and Go `(?i)` folds U+017F and U+212A where Postgres
+  in a C collation does not. #8833's parity corpus must include both.

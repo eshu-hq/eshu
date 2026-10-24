@@ -32,6 +32,12 @@ const pemBlockKind = "private_key"
 
 var (
 	errInvalidUTF8 = errors.New("content body is not valid UTF-8")
+	// errNotText marks a body with a NUL byte. Valid UTF-8 can hold NUL, but a
+	// BOM-less UTF-16 or UTF-32 file is NUL-interleaved, so the redactor would
+	// see no key and return it unchanged. Postgres text cannot hold NUL either.
+	errNotText = errors.New("content body holds a NUL byte")
+	// errTooLarge marks a body over MaxGovernedBodyBytes.
+	errTooLarge = errors.New("content body exceeds the governed size cap")
 
 	// envReference is the only value a listed key may keep: an exact ${NAME}.
 	// A ${NAME:-literal} default carries a literal and is redacted.
@@ -39,8 +45,8 @@ var (
 	// existingMarker is a value an earlier pass already replaced, which keeps
 	// the redactor a fixed point.
 	existingMarker = regexp.MustCompile(`^` + markerPrefix + `(` + strings.Join(detect.Kinds(), "|") + `)$`)
-	pemBegin       = regexp.MustCompile(`-----BEGIN [A-Z0-9 ]+-----`)
-	pemEnd         = regexp.MustCompile(`-----END [A-Z0-9 ]+-----`)
+	pemBegin       = regexp.MustCompile(`(?i)-----BEGIN [A-Z0-9 ]+-----`)
+	pemEnd         = regexp.MustCompile(`(?i)-----END [A-Z0-9 ]+-----`)
 	blockScalar    = regexp.MustCompile(`^[|>]([1-9][+-]?|[+-][1-9]?)?$`)
 
 	keyPatternCache sync.Map // joined key list -> *regexp.Regexp
@@ -56,11 +62,18 @@ var (
 //   - every line inside a PEM BEGIN..END block, to end of file when the block
 //     never closes, and the continuation lines of a listed key's block scalar.
 //
-// It returns an error, never a partial body, for invalid UTF-8: the caller
+// It returns an error, never a partial body, for a body that is not text
+// (invalid UTF-8 or a NUL byte) or is over MaxGovernedBodyBytes: the caller
 // falls back to a metadata row, not the raw body.
 func redactMarker(body string, keys []string) (string, int, error) {
+	if len(body) > MaxGovernedBodyBytes {
+		return "", 0, errTooLarge
+	}
 	if !utf8.ValidString(body) {
 		return "", 0, errInvalidUTF8
+	}
+	if strings.IndexByte(body, 0) >= 0 {
+		return "", 0, errNotText
 	}
 	keyPattern, err := credentialKeyPattern(keys)
 	if err != nil {
@@ -107,7 +120,7 @@ func credentialKeyPattern(keys []string) (*regexp.Regexp, error) {
 		}
 		quoted = append(quoted, regexp.QuoteMeta(key))
 	}
-	pattern, err := regexp.Compile(`(?i)(` + strings.Join(quoted, "|") + `)(["']?[ \t]*[:=][ \t]*)`)
+	pattern, err := regexp.Compile(`(?i)(` + strings.Join(quoted, "|") + `)(["']?` + detect.SpaceClass + `*[:=]` + detect.SpaceClass + `*)`)
 	if err != nil {
 		return nil, fmt.Errorf("compile credential key pattern: %w", err)
 	}
@@ -176,6 +189,13 @@ func (s *markerState) redactText(line string) string {
 		s.continuationOpen = false
 	}
 
+	// A PEM header on this line is replaced through its footer, or to the end of
+	// the line when the footer is on a later line, which then opens the block.
+	if strings.Contains(line, "-----") {
+		var open bool
+		line, open = s.redactInlinePEM(line)
+		s.inPEM = open
+	}
 	// The common line holds no credential, so the finding kind (six regular
 	// expressions) is computed only for a line that matched a listed key or the
 	// detector.
@@ -185,7 +205,6 @@ func (s *markerState) redactText(line string) string {
 	}
 	spans := detect.Spans(line)
 	if keyLoc == nil && len(spans) == 0 {
-		s.openPEM(line)
 		return line
 	}
 	kind := detect.Classify(line)
@@ -194,15 +213,20 @@ func (s *markerState) redactText(line string) string {
 		out = s.redactListedKey(line, keyLoc, kind)
 		spans = detect.Spans(out)
 	}
-	out = s.redactDetectorSpans(out, spans, kind)
-	s.openPEM(line)
-	return out
+	return s.redactDetectorSpans(out, spans, kind)
 }
 
 // mayHoldKey is a cheap necessary test for a listed key: the line, lowercased,
 // holds one of the lowercased keys. It keeps the key regular expression off the
 // common line.
 func (s *markerState) mayHoldKey(line string) bool {
+	// Go (?i) folds U+017F and U+212A where ToLower does not, so a non-ASCII
+	// byte skips nothing.
+	for i := 0; i < len(line); i++ {
+		if line[i] >= 0x80 {
+			return true
+		}
+	}
 	lower := strings.ToLower(line)
 	for _, key := range s.lowerKeys {
 		if strings.Contains(lower, key) {
@@ -212,12 +236,34 @@ func (s *markerState) mayHoldKey(line string) bool {
 	return false
 }
 
-// openPEM starts a PEM block when the line holds a BEGIN header with no END on
-// the same line. The substring test keeps the regular expressions off the
-// common line.
-func (s *markerState) openPEM(line string) {
-	if strings.Contains(line, "-----BEGIN") && pemBegin.MatchString(line) && !pemEnd.MatchString(line) {
-		s.inPEM = true
+// redactInlinePEM replaces every PEM BEGIN header on the line with a marker,
+// through the matching END footer when it is on the same line and to the end of
+// the line when it is not. The second result reports a block left open: the
+// following lines are the key material. Headers of every type are replaced, so
+// the output holds no BEGIN header and a second pass changes nothing.
+func (s *markerState) redactInlinePEM(line string) (string, bool) {
+	var b strings.Builder
+	rest := line
+	for {
+		begin := pemBegin.FindStringIndex(rest)
+		if begin == nil {
+			b.WriteString(rest)
+			return b.String(), false
+		}
+		b.WriteString(rest[:begin[0]])
+		b.WriteString(markerPrefix + pemBlockKind)
+		s.replaced++
+		end := pemEnd.FindStringIndex(rest[begin[1]:])
+		if end == nil {
+			// The footer is on a later line. Text after the header on this line
+			// is key material and goes too; a closing quote alone is not, so
+			// `key = "-----BEGIN ... KEY-----"` keeps its quote.
+			if tail := rest[begin[1]:]; strings.Trim(tail, "\"' \t") == "" {
+				b.WriteString(tail)
+			}
+			return b.String(), true
+		}
+		rest = rest[begin[1]+end[1]:]
 	}
 }
 

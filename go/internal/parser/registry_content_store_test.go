@@ -76,6 +76,9 @@ func TestNewRegistryRejectsInvalidContentStore(t *testing.T) {
 		"marker with a blank key":        {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{" "}},
 		"metadata with a redactor mode":  {Policy: ContentStoreMetadata, Redactor: RedactorMarker},
 		"store with credential keys":     {Policy: ContentStoreStore, CredentialKeys: []string{"k"}},
+		"key with a comma":               {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{"a,b"}},
+		"key with a newline":             {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{"a\nb"}},
+		"key with a NUL":                 {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{"a\x00b"}},
 		"metadata with credential keys":  {Policy: ContentStoreMetadata, CredentialKeys: []string{"k"}},
 	}
 	for name, store := range cases {

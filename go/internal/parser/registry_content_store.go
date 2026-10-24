@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 // ContentStorePolicy decides what the collector write boundary stores in the
@@ -84,6 +85,12 @@ func normalizeContentStore(parserKey string, store ContentStore) (ContentStore, 
 	for _, key := range store.CredentialKeys {
 		if strings.TrimSpace(key) == "" {
 			return ContentStore{}, fmt.Errorf("parser key %q: content store credential keys must not be blank", parserKey)
+		}
+		// The fingerprint joins keys with "," and ends each definition with a
+		// newline, so a key holding either, or any control character, could make
+		// two different key lists hash alike.
+		if strings.ContainsFunc(key, func(r rune) bool { return r == ',' || unicode.IsControl(r) }) {
+			return ContentStore{}, fmt.Errorf("parser key %q: content store credential key %q must not hold a comma or a control character", parserKey, key)
 		}
 	}
 	store.CredentialKeys = normalizeCredentialKeys(store.CredentialKeys)

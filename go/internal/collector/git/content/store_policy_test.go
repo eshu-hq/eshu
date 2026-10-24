@@ -89,3 +89,37 @@ func TestApplyContentStoreFailsClosed(t *testing.T) {
 		}
 	}
 }
+
+// TestApplyContentStoreNamesTheFailureReason pins the bounded reason class an
+// operator reads in the WARN log. The class never carries error text.
+func TestApplyContentStoreNamesTheFailureReason(t *testing.T) {
+	t.Parallel()
+
+	failing := func(string, []string) (string, int, error) { return "", 0, errors.New("boom " + seededCredential) }
+	panicking := func(string, []string) (string, int, error) { panic("boom " + seededCredential) }
+	cases := map[string]struct {
+		got  StoreResult
+		want FailureReason
+	}{
+		"invalid utf-8":  {ApplyContentStore(markerStore(), "npmAuthToken: \xff\n"), FailureInvalidUTF8},
+		"nul":            {ApplyContentStore(markerStore(), "a\x00b"), FailureNotText},
+		"too large":      {ApplyContentStore(markerStore(), strings.Repeat("a", MaxGovernedBodyBytes+1)), FailureTooLarge},
+		"redactor error": {applyContentStore(markerStore(), "x", failing), FailureRedactorError},
+		"redactor panic": {applyContentStore(markerStore(), "x", panicking), FailureRedactorPanic},
+		"unknown policy": {ApplyContentStore(parser.ContentStore{Policy: "other"}, "x"), FailureUnknownPolicy},
+		"unknown mode": {ApplyContentStore(parser.ContentStore{
+			Policy: parser.ContentStoreRedact, Redactor: "skeleton", CredentialKeys: []string{"k"},
+		}, "x"), FailureUnknownMode},
+	}
+	for name, tc := range cases {
+		if tc.got.Reason != tc.want {
+			t.Errorf("%s: reason = %q, want %q", name, tc.got.Reason, tc.want)
+		}
+		if strings.Contains(string(tc.got.Reason), seededCredential) {
+			t.Errorf("%s: the reason class carries error text", name)
+		}
+	}
+	if ok := ApplyContentStore(markerStore(), "x: y\n"); ok.Reason != "" {
+		t.Errorf("a successful result carries reason %q", ok.Reason)
+	}
+}
