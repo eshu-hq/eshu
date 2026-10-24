@@ -389,6 +389,7 @@ type supplyChainImpactPlanNode struct {
 	Filter      string                      `json:"Filter"`
 	ActualRows  float64                     `json:"Actual Rows"`
 	ActualLoops float64                     `json:"Actual Loops"`
+	Rechecked   float64                     `json:"Rows Removed by Index Recheck"`
 	SharedHit   int64                       `json:"Shared Hit Blocks"`
 	SharedRead  int64                       `json:"Shared Read Blocks"`
 	Plans       []supplyChainImpactPlanNode `json:"Plans"`
@@ -420,8 +421,8 @@ func supplyChainImpactPlanSummary(t *testing.T, raw string) string {
 	t.Helper()
 	var lines []string
 	for _, node := range supplyChainImpactPlanNodes(t, raw) {
-		lines = append(lines, fmt.Sprintf("%s rel=%s idx=%s loops=%.0f rows=%.0f buffers=%d cond=%.160s filter=%.160s",
-			node.NodeType, node.Relation, node.IndexName, node.ActualLoops, node.ActualRows,
+		lines = append(lines, fmt.Sprintf("%s rel=%s idx=%s loops=%.0f rows=%.0f rechecked=%.0f buffers=%d cond=%.160s filter=%.160s",
+			node.NodeType, node.Relation, node.IndexName, node.ActualLoops, node.ActualRows, node.Rechecked,
 			node.SharedHit+node.SharedRead, node.IndexCond, node.Filter))
 	}
 	return strings.Join(lines, "\n")

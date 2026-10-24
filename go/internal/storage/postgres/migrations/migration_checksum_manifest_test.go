@@ -267,11 +267,10 @@ var migrationShippedChecksums = map[string]string{
 	"218_fact_records_oci_tag_resolved_digest_idx.sql":                       "2a24b91e2853799d8f6858f7b8a5a141f389fb7a27cceb1a8eb6bfc04786cfb8",
 	"219_fact_records_oci_referrer_digest_idx.sql":                           "6caf7e077a41dc5c0f0b5ccb866650f5304102ed17b99121f1c1ab6d975b5f66",
 	"220_fact_records_supply_chain_impact_payload_scope_id_idx.sql":          "bccb303f54b7a74f8daa25049f9b5c1f285baa637a2fa81e8c394d05a0dd0439",
-	"221_fact_records_supply_chain_impact_repository_scope_idx.sql":          "d4ffacaa2c8a37367ea87ba15dc9d67d8db9d130f37c069c043fa4c1077da530",
-	"222_fact_records_vulnerability_suppression_active_scan_idx.sql":         "b1a60126a5b217ec50bbfa0d69a8355e5156a85e7f3b9b1ed4eeb811f1f20366",
-	"223_fact_records_platform_materialization_active_scan_idx.sql":          "af41ec3dd2caf1e86994c04ab013f4c6e08feff0f7877a111a5b998e2b6307a5",
-	"224_fact_records_jsts_reachability_repo_file_idx.sql":                   "3cb2d7b391b74a10f9086f6e15b431e1b8d3e568fbf33b096063b5b5e8c4e176",
-	"225_fact_records_supply_chain_impact_foreign_key_guard_idx.sql":         "662571e1444544c61a42fe448daa51be6b7e89f2ab8727b4bfeb5cd25cba365a",
+	"221_fact_records_vulnerability_suppression_active_scan_idx.sql":         "b1a60126a5b217ec50bbfa0d69a8355e5156a85e7f3b9b1ed4eeb811f1f20366",
+	"222_fact_records_platform_materialization_active_scan_idx.sql":          "af41ec3dd2caf1e86994c04ab013f4c6e08feff0f7877a111a5b998e2b6307a5",
+	"223_fact_records_jsts_reachability_repo_file_idx.sql":                   "3cb2d7b391b74a10f9086f6e15b431e1b8d3e568fbf33b096063b5b5e8c4e176",
+	"224_fact_records_supply_chain_impact_foreign_key_guard_idx.sql":         "57beb1e0a5c459da66f8e338433d31303729a86e2ba63269fd4acef901a731dd",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

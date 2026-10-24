@@ -32,7 +32,13 @@ type Branch struct {
 	ProbeKey string
 	// Anchor is the index the statement must plan on.
 	Anchor string
-	SQL    string
+	// EquivalentAnchors lists other indexes the statement may plan on
+	// instead: for a bounded kind, every index partial on that kind alone
+	// (btree, or GIN through a full-index bitmap scan) yields the same set of
+	// the kind's rows; for a resolved-scope probe, every index leading on
+	// (scope_id, generation_id) bounds both. The planner picks the cheapest.
+	EquivalentAnchors []string
+	SQL               string
 	// Params is the bind order of SQL's placeholders.
 	Params []Param
 	// RunWhen lists the inputs that gate the statement: the loader issues it
@@ -157,16 +163,41 @@ func probeBranches() []Branch {
 		keyProbe("package_consumption_package_id", IndexConsumptionPackageID, "package_id", PackageIDs, KindPackageConsumption),
 		keyProbe("package_consumption_repository_id", IndexConsumptionRepository, "repository_id", RepositoryIDs, KindPackageConsumption),
 		keyProbe("repository_payload_scope_id", IndexRepositoryPayloadScopeID, "scope_id", RepositoryIDs, repositoryGrowthKinds()...),
-		scopeProbe("repository_scope", IndexRepositoryScope, RepositoryScopeIDs, RepositoryGenerationIDs, repositoryGrowthKinds(), ""),
+		// fact_records_scope_generation_idx leads on (scope_id, generation_id,
+		// fact_kind), so the bound arrays and the kind list are all Index Cond
+		// (ruling Addendum B: no dedicated index on measured parity). The
+		// keyset index leads on the same pair and a custom plan may pick it.
+		withEquivalentAnchors(
+			scopeProbe("repository_scope", IndexScopeGeneration, RepositoryScopeIDs, RepositoryGenerationIDs, repositoryGrowthKinds(), ""),
+			IndexScopeGenerationKeyset),
 		fullFilter("vulnerability_suppression", IndexSuppressionActiveScan, KindSuppression),
 		fullFilter("platform_materialization", IndexPlatformActiveScan, KindPlatformMaterialized),
-		fullFilter("workload_identity", IndexWorkloadIdentityScope, KindWorkloadIdentity),
-		fullFilter("service_catalog_correlation", IndexServiceCatalogEntity, KindServiceCatalog),
+		withEquivalentAnchors(fullFilter("workload_identity", IndexWorkloadIdentityScope, KindWorkloadIdentity),
+			IndexWorkloadIdentityWorkload, IndexWorkloadIdentityEntityKeys),
+		withEquivalentAnchors(fullFilter("service_catalog_correlation", IndexServiceCatalogEntity, KindServiceCatalog),
+			IndexServiceCatalogRepository, IndexServiceCatalogService, IndexServiceCatalogOwner, IndexServiceCatalogWorkload,
+			IndexServiceCatalogCandidateRepository),
 		fileRepoID(),
-		scopeProbe("file_scope", IndexScopeGeneration, FileRepositoryScopeIDs, FileRepositoryGenerationIDs, []string{KindFile}, JSTSLanguagePredicate),
+		// The JS/TS index carries (scope_id, generation_id) after repo_id and
+		// holds only JS/TS file rows, so the resolved-scope probe scans it
+		// without a heap fetch per non-JS/TS file (ruling 2.2; the fixture
+		// planned it in both plan_cache_mode values).
+		scopeProbe("file_scope", IndexJSTSReachabilityRepoFile, FileRepositoryScopeIDs, FileRepositoryGenerationIDs, []string{KindFile}, JSTSLanguagePredicate),
 	}
 }
 
+func withEquivalentAnchors(branch Branch, anchors ...string) Branch {
+	branch.EquivalentAnchors = anchors
+	return branch
+}
+
+// scopeProbe probes the resolved (scope_id, active_generation_id) pairs. The
+// two lists are bound as separate arrays, so the anchor sees their cross
+// product; that is safe only because scope_generations.generation_id is a
+// primary key owned by exactly one scope, so a fact whose generation is in
+// the list belongs to that generation's scope, and the active join still
+// re-checks the pair. Do not narrow this to generation_id alone (scope_id is
+// the leading index column) or widen it past the resolved pairs.
 func scopeProbe(name, anchor string, scopes, generations Param, kinds []string, extra string) Branch {
 	b := newBinder()
 	filters := []string{"fact.scope_id = ANY(" + b.list(scopes) + ")", "fact.generation_id = ANY(" + b.list(generations) + ")"}

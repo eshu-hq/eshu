@@ -7,7 +7,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"testing"
+
+	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
 )
 
 // supplyChainImpactFixtureScope seeds one ingestion scope whose active
@@ -203,6 +206,69 @@ CROSS JOIN (VALUES ('reducer_workload_identity'), ('reducer_platform_materializa
 		t.Fatalf("seed scaled reducer facts: %v", err)
 	}
 	supplyChainImpactFixtureAnalyze(t, ctx, database)
+}
+
+// seedSupplyChainImpactGrowthBulk seeds rowsPerKind non-matching rows of every
+// non-file scanned kind, spread over the scaled repository scopes and
+// alternating between each scope's active and superseded generation. A
+// growth kind carries exactly the keys its branches probe (its contract), so
+// the foreign-key guard stays empty as it is in production; a bounded kind
+// carries scope_id, or a scope anchor for suppressions. The plan proof needs
+// the kinds populated and spread: an anchor only beats a kind scan, or a skip
+// scan of fact_records_scope_generation_idx, when there are rows and
+// (scope, generation) prefixes to skip. Call after
+// seedSupplyChainImpactScaledCorpus with the same scope count.
+func seedSupplyChainImpactGrowthBulk(t *testing.T, ctx context.Context, database *sql.DB, rowsPerKind, repoScopes int) {
+	t.Helper()
+	for _, kind := range supplyChainImpactBulkKinds() {
+		keys := supplyChainImpactBulkKeys(kind)
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+  schema_version, collector_kind, fencing_token, source_confidence,
+  source_system, source_fact_key, observed_at, ingested_at, payload
+)
+SELECT format('bulk:%s:%s', $1::text, lpad(n::text, 6, '0')),
+  format('git:scaled:%s', lpad((n % $3::integer + 1)::text, 4, '0')),
+  format('gen:scaled:%s:%s', lpad((n % $3::integer + 1)::text, 4, '0'), CASE WHEN n % 2 = 0 THEN 'active' ELSE 'old' END),
+  $1::text, format('stable:bulk:%s:%s', $1::text, n), '1.0.0', 'synthetic', 1, 'reported', 'synthetic',
+  format('source:bulk:%s:%s', $1::text, n), '2026-10-23T12:00:00Z', '2026-10-23T12:00:00Z',
+  CASE WHEN $1::text = 'vulnerability.suppression'
+    THEN jsonb_build_object('scope', jsonb_build_object('cve_id', format('cve-1999-%s', n)))
+    ELSE (SELECT jsonb_object_agg(key, format('bulk-%s-%s', key, n)) FROM unnest($4::text[]) AS key)
+  END
+FROM generate_series(1, $2::integer) AS n`, kind, rowsPerKind, repoScopes, keys); err != nil {
+			t.Fatalf("seed bulk %s rows: %v", kind, err)
+		}
+	}
+	supplyChainImpactFixtureAnalyze(t, ctx, database)
+}
+
+// supplyChainImpactBulkKinds is every non-file scanned kind.
+func supplyChainImpactBulkKinds() []string {
+	var kinds []string
+	for _, kind := range factimpact.KindsInRetiredOrder() {
+		if kind != factimpact.KindFile {
+			kinds = append(kinds, kind)
+		}
+	}
+	return kinds
+}
+
+// supplyChainImpactBulkKeys returns the payload keys a bulk row of kind
+// carries: the keys its key-probe branches serve, or scope_id for a bounded
+// kind.
+func supplyChainImpactBulkKeys(kind string) []string {
+	var keys []string
+	for _, branch := range factimpact.Branches() {
+		if branch.ProbeKey != "" && slices.Contains(branch.Kinds, kind) && !slices.Contains(keys, branch.ProbeKey) {
+			keys = append(keys, branch.ProbeKey)
+		}
+	}
+	if len(keys) == 0 {
+		keys = []string{"scope_id"}
+	}
+	return keys
 }
 
 // supplyChainImpactScaledRepositoryID names scaled repository n.

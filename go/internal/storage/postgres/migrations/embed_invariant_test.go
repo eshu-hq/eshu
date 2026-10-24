@@ -124,13 +124,15 @@ import (
 // partial failed_terminal index for the collector terminal-failure read).
 // #8880 adds 212-225, the supply-chain impact active-evidence anchors
 // (one CREATE INDEX CONCURRENTLY per file).
-const goldenBootstrapDefinitionsDigest = "5827ae168a15ec1b934a5272cf542765fdd49993b916efab01b34912b0063cb6"
+// #8880 adds 212-224, the supply-chain impact active-evidence anchors
+// (one CREATE INDEX CONCURRENTLY per file).
+const goldenBootstrapDefinitionsDigest = "4bdc926d68ad3e48513bcad8dfb9d9300ac708832ba7e910291e0b89529f3889"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 243
+const goldenBootstrapDefinitionsCount = 242
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

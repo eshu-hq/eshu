@@ -14,7 +14,7 @@ This package generates the replacement from one table:
 | --- | --- |
 | `Kinds()` | The 21 scanned kinds, each with a class and the census row that justified it. |
 | `Branches()` | One id-resolution statement per (kind group, key) or per bounded kind, with its anchor index, bind order, and the inputs that gate it. |
-| `NewIndexes()` | The 14 anchors migrations 212 to 225 create, one `CREATE INDEX CONCURRENTLY` per file. |
+| `NewIndexes()` | The 13 anchors migrations 212 to 224 create, one `CREATE INDEX CONCURRENTLY` per file. |
 | `GuardPredicate()` | The foreign-key guard: growth and file rows that carry a key their branch does not probe. |
 | `ScopeResolutionSQL`, `PayloadPageSQL` | The repository-to-scope resolution and the primary-key payload page. |
 

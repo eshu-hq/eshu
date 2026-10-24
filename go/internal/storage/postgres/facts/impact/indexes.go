@@ -17,40 +17,47 @@ type Index struct {
 }
 
 // Index names the catalog anchors on. Existing indexes are named where a
-// branch plans on them; new ones are created by migrations 212 to 225.
+// branch plans on them; new ones are created by migrations 212 to 224.
 const (
-	IndexVulnerabilityCVEV2        = "fact_records_vulnerability_active_cve_lookup_v2_idx"
-	IndexVulnerabilityAdvisoryV2   = "fact_records_vulnerability_active_advisory_lookup_v2_idx"
-	IndexAffectedPackagePackageID  = "fact_records_vulnerability_affected_package_lookup_idx"
-	IndexAffectedPackagePURL       = "fact_records_vulnerability_package_purl_lookup_idx"
-	IndexSBOMComponentPURL         = "fact_records_sbom_component_purl_idx"
-	IndexSBOMComponentCPE          = "fact_records_sbom_component_cpe_idx"
-	IndexSBOMComponentDocumentID   = "fact_records_sbom_component_document_id_idx"
-	IndexOCIReferrerSubject        = "fact_records_oci_image_referrer_subject_idx"
-	IndexAttachmentSubject         = "fact_records_sbom_attestation_attachments_subject_idx"
-	IndexAttachmentDocument        = "fact_records_sbom_attestation_attachments_document_idx"
-	IndexCICDArtifact              = "fact_records_ci_cd_run_correlations_artifact_lookup_idx"
-	IndexCICDImageRef              = "fact_records_ci_cd_run_correlations_image_ref_idx"
-	IndexCICDRepository            = "fact_records_ci_cd_run_correlations_lookup_idx"
-	IndexConsumptionPackageID      = "fact_records_package_correlations_v2_lookup_idx"
-	IndexConsumptionRepository     = "fact_records_package_correlations_v2_repository_lookup_idx"
-	IndexWorkloadIdentityScope     = "fact_records_workload_names_scope_idx"
-	IndexServiceCatalogEntity      = "fact_records_service_catalog_correlations_entity_idx"
-	IndexScopeGeneration           = "fact_records_scope_generation_idx"
-	IndexAffectedProductCriteria   = "fact_records_vulnerability_affected_product_criteria_idx"
-	IndexPackageID                 = "fact_records_supply_chain_impact_package_id_idx"
-	IndexPackageVersionPURL        = "fact_records_package_version_purl_idx"
-	IndexSecurityAlertCVEID        = "fact_records_security_alert_cve_id_idx"
-	IndexVulnerabilityHintAdvisory = "fact_records_vulnerability_hint_advisory_id_idx"
-	IndexOCIImageDigest            = "fact_records_oci_image_digest_idx"
-	IndexOCITagResolvedDigest      = "fact_records_oci_tag_resolved_digest_idx"
-	IndexOCIReferrerDigest         = "fact_records_oci_referrer_digest_idx"
-	IndexRepositoryPayloadScopeID  = "fact_records_supply_chain_impact_payload_scope_id_idx"
-	IndexRepositoryScope           = "fact_records_supply_chain_impact_repository_scope_idx"
-	IndexSuppressionActiveScan     = "fact_records_vulnerability_suppression_active_scan_idx"
-	IndexPlatformActiveScan        = "fact_records_platform_materialization_active_scan_idx"
-	IndexJSTSReachabilityRepoFile  = "fact_records_jsts_reachability_repo_file_idx"
-	IndexSupplyChainImpactKeyGuard = "fact_records_supply_chain_impact_foreign_key_guard_idx"
+	IndexVulnerabilityCVEV2                = "fact_records_vulnerability_active_cve_lookup_v2_idx"
+	IndexVulnerabilityAdvisoryV2           = "fact_records_vulnerability_active_advisory_lookup_v2_idx"
+	IndexAffectedPackagePackageID          = "fact_records_vulnerability_affected_package_lookup_idx"
+	IndexAffectedPackagePURL               = "fact_records_vulnerability_package_purl_lookup_idx"
+	IndexSBOMComponentPURL                 = "fact_records_sbom_component_purl_idx"
+	IndexSBOMComponentCPE                  = "fact_records_sbom_component_cpe_idx"
+	IndexSBOMComponentDocumentID           = "fact_records_sbom_component_document_id_idx"
+	IndexOCIReferrerSubject                = "fact_records_oci_image_referrer_subject_idx"
+	IndexAttachmentSubject                 = "fact_records_sbom_attestation_attachments_subject_idx"
+	IndexAttachmentDocument                = "fact_records_sbom_attestation_attachments_document_idx"
+	IndexCICDArtifact                      = "fact_records_ci_cd_run_correlations_artifact_lookup_idx"
+	IndexCICDImageRef                      = "fact_records_ci_cd_run_correlations_image_ref_idx"
+	IndexCICDRepository                    = "fact_records_ci_cd_run_correlations_lookup_idx"
+	IndexConsumptionPackageID              = "fact_records_package_correlations_v2_lookup_idx"
+	IndexConsumptionRepository             = "fact_records_package_correlations_v2_repository_lookup_idx"
+	IndexWorkloadIdentityScope             = "fact_records_workload_names_scope_idx"
+	IndexServiceCatalogEntity              = "fact_records_service_catalog_correlations_entity_idx"
+	IndexServiceCatalogRepository          = "fact_records_service_catalog_correlations_repository_idx"
+	IndexServiceCatalogService             = "fact_records_service_catalog_correlations_service_idx"
+	IndexServiceCatalogOwner               = "fact_records_service_catalog_correlations_owner_idx"
+	IndexServiceCatalogWorkload            = "fact_records_service_catalog_correlations_workload_idx"
+	IndexServiceCatalogCandidateRepository = "fact_records_service_catalog_correlations_candidate_repository_idx"
+	IndexWorkloadIdentityWorkload          = "fact_records_workload_identity_workload_idx"
+	IndexWorkloadIdentityEntityKeys        = "fact_records_workload_identity_entity_keys_idx"
+	IndexAffectedProductCriteria           = "fact_records_vulnerability_affected_product_criteria_idx"
+	IndexPackageID                         = "fact_records_supply_chain_impact_package_id_idx"
+	IndexPackageVersionPURL                = "fact_records_package_version_purl_idx"
+	IndexSecurityAlertCVEID                = "fact_records_security_alert_cve_id_idx"
+	IndexVulnerabilityHintAdvisory         = "fact_records_vulnerability_hint_advisory_id_idx"
+	IndexOCIImageDigest                    = "fact_records_oci_image_digest_idx"
+	IndexOCITagResolvedDigest              = "fact_records_oci_tag_resolved_digest_idx"
+	IndexOCIReferrerDigest                 = "fact_records_oci_referrer_digest_idx"
+	IndexRepositoryPayloadScopeID          = "fact_records_supply_chain_impact_payload_scope_id_idx"
+	IndexScopeGeneration                   = "fact_records_scope_generation_idx"
+	IndexScopeGenerationKeyset             = "fact_records_scope_generation_keyset_idx"
+	IndexSuppressionActiveScan             = "fact_records_vulnerability_suppression_active_scan_idx"
+	IndexPlatformActiveScan                = "fact_records_platform_materialization_active_scan_idx"
+	IndexJSTSReachabilityRepoFile          = "fact_records_jsts_reachability_repo_file_idx"
+	IndexSupplyChainImpactKeyGuard         = "fact_records_supply_chain_impact_foreign_key_guard_idx"
 )
 
 // keyIndex renders the v2-shape key index: the payload key leads, then the
@@ -126,22 +133,17 @@ func NewIndexes() []Index {
 			"ci_cd and consumption correlations (growth) carry payload scope_id, a repository arm, with no scope_id-leading payload index",
 		},
 		{
-			IndexRepositoryScope, "221_fact_records_supply_chain_impact_repository_scope_idx.sql",
-			scanIndex(IndexRepositoryScope, repositoryGrowthKinds()),
-			"the resolved-scope repository arms of ci_cd and consumption (growth) need a scope-leading kind-partial anchor",
-		},
-		{
-			IndexSuppressionActiveScan, "222_fact_records_vulnerability_suppression_active_scan_idx.sql",
+			IndexSuppressionActiveScan, "221_fact_records_vulnerability_suppression_active_scan_idx.sql",
 			scanIndex(IndexSuppressionActiveScan, []string{KindSuppression}),
 			"suppressions (bounded) are read by one full-filter statement; no index names the kind",
 		},
 		{
-			IndexPlatformActiveScan, "223_fact_records_platform_materialization_active_scan_idx.sql",
+			IndexPlatformActiveScan, "222_fact_records_platform_materialization_active_scan_idx.sql",
 			scanIndex(IndexPlatformActiveScan, []string{KindPlatformMaterialized}),
 			"platform materializations (bounded) are read by one full-filter statement; no index names the kind",
 		},
 		{
-			IndexJSTSReachabilityRepoFile, "224_fact_records_jsts_reachability_repo_file_idx.sql",
+			IndexJSTSReachabilityRepoFile, "223_fact_records_jsts_reachability_repo_file_idx.sql",
 			"CREATE INDEX CONCURRENTLY IF NOT EXISTS " + IndexJSTSReachabilityRepoFile + "\n" +
 				"    ON fact_records ((payload->>'repo_id'), scope_id, generation_id, fact_id)\n" +
 				"    WHERE fact_kind = 'file'\n" +
@@ -150,7 +152,7 @@ func NewIndexes() []Index {
 			"the npm reachability file branch probes JS/TS files by repo_id without detoasting every file of the repository",
 		},
 		{
-			IndexSupplyChainImpactKeyGuard, "225_fact_records_supply_chain_impact_foreign_key_guard_idx.sql",
+			IndexSupplyChainImpactKeyGuard, "224_fact_records_supply_chain_impact_foreign_key_guard_idx.sql",
 			"CREATE INDEX CONCURRENTLY IF NOT EXISTS " + IndexSupplyChainImpactKeyGuard + "\n" +
 				"    ON fact_records (fact_kind, scope_id, generation_id, fact_id)\n" +
 				"    WHERE is_tombstone = FALSE\n" +
@@ -168,13 +170,17 @@ func repositoryGrowthKinds() []string {
 	return []string{KindPackageConsumption, KindCICDRunCorrelation}
 }
 
-// GuardPredicate renders the foreign-key guard predicate over fact.*: for
-// every growth or file kind, the payload keys an arm applying to the kind
-// compares that no branch probes for the kind. A row carrying such a key
-// lands in the guard index and the guard statement evaluates the full
-// retired predicate over it.
+// GuardPredicate renders the foreign-key guard predicate over fact.*: a row
+// of a growth or file kind that carries any payload key an arm applying to
+// its kind compares but no key probe serves for that kind. It is one
+// jsonb ?| over a CASE on the kind, not an OR of per-kind arms: the planner
+// splits a top-level OR into a BitmapOr of per-kind index scans and costed
+// some arms onto other kind indexes (the fixture read 583 buffers that way
+// for 3 guard rows), while one opaque expression leaves the guard index the
+// only anchor. A kind the CASE does not list yields NULL, which admits
+// nothing.
 func GuardPredicate() string {
-	var parts []string
+	var arms []string
 	for _, info := range Kinds() {
 		if info.Class == ClassBounded {
 			continue
@@ -183,13 +189,13 @@ func GuardPredicate() string {
 		if len(omitted) == 0 {
 			continue
 		}
-		presence := make([]string, 0, len(omitted))
+		quoted := make([]string, 0, len(omitted))
 		for _, key := range omitted {
-			presence = append(presence, "fact.payload ? '"+key+"'")
+			quoted = append(quoted, "'"+key+"'")
 		}
-		parts = append(parts, "(fact.fact_kind = '"+info.Kind+"' AND ("+strings.Join(presence, " OR ")+"))")
+		arms = append(arms, "WHEN '"+info.Kind+"' THEN ARRAY["+strings.Join(quoted, ", ")+"]::text[]")
 	}
-	return "(\n        " + strings.Join(parts, "\n        OR ") + "\n      )"
+	return "fact.payload ?| (CASE fact.fact_kind\n        " + strings.Join(arms, "\n        ") + "\n      END)"
 }
 
 // OmittedKeys returns, in arm order, the payload keys an applicable arm

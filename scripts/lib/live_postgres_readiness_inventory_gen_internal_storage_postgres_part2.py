@@ -50,6 +50,9 @@ TABLE = {
             "TestSupplyChainImpactActiveEvidenceMatchesRetiredStatementLive",
             "TestSupplyChainImpactActiveEvidenceBufferBudgetLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_evidence_plan_live_test.go": (
+            "TestSupplyChainImpactBranchPlansStayOnAnchorsLive",
+        ),
         "go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go": (
             "TestTermsForeignKeyDropFailsCleanlyWhenItsLockStaysBusyLive",
         ),

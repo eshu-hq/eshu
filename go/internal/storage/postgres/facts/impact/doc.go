@@ -5,7 +5,7 @@
 // catalog (#8880). One Go table generates every id-resolution statement
 // FactStore.ListActiveSupplyChainImpactFacts issues, the fact_records index
 // each statement plans on, the foreign-key guard predicate, and the text of
-// migrations 212 to 225, so the statements, the index predicates, and the
+// migrations 212 to 224, so the statements, the index predicates, and the
 // migrations cannot disagree.
 //
 // The catalog replaces one statement that walked every active generation's

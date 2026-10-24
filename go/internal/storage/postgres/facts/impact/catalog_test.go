@@ -52,9 +52,27 @@ func TestBranchKindsAreProvableByAnchors(t *testing.T) {
 	t.Parallel()
 
 	for _, branch := range Branches() {
+		for _, equivalent := range branch.EquivalentAnchors {
+			equivalentStatement := migrationIndexStatement(t, equivalent)
+			if branch.Shape == ShapeScope {
+				if !strings.Contains(equivalentStatement, "ON fact_records (scope_id, generation_id,") {
+					t.Errorf("%s: equivalent anchor %s must lead on (scope_id, generation_id)", branch.Name, equivalent)
+				}
+				continue
+			}
+			kinds := indexPredicateKinds(t, equivalentStatement)
+			if branch.Shape != ShapeFullFilter || !slices.Equal(kinds, []string{"'" + branch.Kinds[0] + "'"}) {
+				t.Errorf("%s: equivalent anchor %s must be partial on the bounded kind alone, got %v", branch.Name, equivalent, kinds)
+			}
+		}
 		statement := migrationIndexStatement(t, branch.Anchor)
 		if branch.Anchor == IndexScopeGeneration {
-			continue // unpartial (scope_id, generation_id, fact_kind, ...)
+			// Unpartial (scope_id, generation_id, fact_kind, observed_at):
+			// the resolved-scope probe binds all three leading columns.
+			if branch.Shape != ShapeScope {
+				t.Errorf("%s: only a resolved-scope probe may anchor on %s", branch.Name, branch.Anchor)
+			}
+			continue
 		}
 		if !strings.Contains(statement, "is_tombstone = FALSE") || !strings.Contains(branch.SQL, "fact.is_tombstone = FALSE") {
 			t.Errorf("%s: anchor %s or branch lacks the tombstone conjunct", branch.Name, branch.Anchor)

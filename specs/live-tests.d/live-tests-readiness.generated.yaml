@@ -1129,6 +1129,11 @@ tests:
     class: postgres_ci
     reason: "#8880 disposable PostgreSQL 18 proofs that the supply-chain impact active-evidence loader returns byte-identical rows, order, and truncation to the frozen pre-#8880 statement across the arm matrix, and spends at least 100x fewer shared buffers than it on a scaled TOASTed file corpus under both plan_cache_mode values; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_evidence_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8880 disposable PostgreSQL 18 proof that every supply-chain impact active-evidence branch plans on its catalog anchor under force_generic_plan and force_custom_plan, and that dropping each new anchor index (RED) moves the plan off it at higher buffer cost until the migration statement rebuilds it (GREEN); wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go
     tag: ~
     class: postgres_ci
