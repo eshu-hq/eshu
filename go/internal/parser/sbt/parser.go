@@ -124,6 +124,9 @@ type scan struct {
 	// thisBuildAt is the consumed count of the last `ThisBuild` token that
 	// starts a statement in a grammar context, or 0.
 	thisBuildAt int
+	// globalAt is the same for the last `Global` token, which may head a
+	// `Global / excludeLintKeys` key-list statement.
+	globalAt int
 	// metaBuild is set for a build.sbt in a `project` directory: sbt's
 	// meta-build, whose dependencies are the build definition's classpath.
 	metaBuild bool
@@ -207,12 +210,22 @@ func (s *scan) run() {
 			if _, ok := s.keyContext(tok, s.hist[1]); ok {
 				s.thisBuildAt = s.consumed
 			}
+		case "Global":
+			s.globalAt = 0
+			if _, ok := s.keyContext(tok, s.hist[1]); ok {
+				s.globalAt = s.consumed
+			}
 		case "val":
 			if head {
 				s.parseVal()
 			}
 		default:
-			if head && isModifier(tok.text) {
+			switch {
+			case isKeyListSetting(tok.text):
+				if s.keyListHead(tok) {
+					s.parseKeyList()
+				}
+			case head && isModifier(tok.text):
 				s.modifierAt = s.consumed
 			}
 		}

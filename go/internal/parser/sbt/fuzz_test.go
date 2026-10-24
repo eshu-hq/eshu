@@ -53,12 +53,14 @@ func TestGrammarSeededFuzzInvariants(t *testing.T) {
 	report := fuzzReport{classes: map[string]int{}}
 	indent := fuzzReport{classes: map[string]int{}}
 	member := memberReport{}
+	reference := refReport{}
 	for seed := int64(1); seed <= int64(cases); seed++ {
 		report.check(t, seed, fzBuild(seed))
 		indent.check(t, seed, fzIndentBuild(seed))
 		member.check(t, seed, fzMemberBuild(seed))
+		reference.check(t, seed, fzRefBuild(seed))
 	}
-	member.cases = cases
+	member.cases, reference.cases = cases, cases
 	report.cases, indent.cases = cases, cases
 	for _, arm := range []struct {
 		name   string
@@ -77,6 +79,12 @@ func TestGrammarSeededFuzzInvariants(t *testing.T) {
 	if member.failures() > 0 {
 		t.Errorf("member fuzz found violations: state=%d extra=%d count=%d scala=%d hint=%d",
 			member.state, member.extra, member.count, member.scala, member.hint)
+	}
+	t.Logf("reference: cases=%d rows=%d state=%d count=%d scala=%d hint=%d",
+		reference.cases, reference.rows, reference.state, reference.count, reference.scala, reference.hint)
+	if reference.failures() > 0 {
+		t.Errorf("reference fuzz found violations: state=%d count=%d scala=%d hint=%d",
+			reference.state, reference.count, reference.scala, reference.hint)
 	}
 }
 

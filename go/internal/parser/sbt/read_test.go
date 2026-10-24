@@ -189,21 +189,6 @@ func TestLibraryDependenciesRewriteCountsOnce(t *testing.T) {
 	requireStateField(t, stateOf(t, scoped), "unresolved_declaration_count", 3)
 }
 
-// TestBareKeyReferenceStaysDenied pins a documented known limit (#9007): a
-// bare key passed as a value, such as sbt-buildinfo's `buildInfoKeys` or a
-// lint exclusion, is denied because the scanner cannot tell it from a
-// rewrite.
-func TestBareKeyReferenceStaysDenied(t *testing.T) {
-	t.Parallel()
-
-	buildInfo := "scalaVersion := \"2.13.12\"\n" + denyCats +
-		"\nbuildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)\n"
-	requireStateField(t, stateOf(t, parseSource(t, buildInfo)), "scala_version", "")
-
-	lint := denyCats + "\nGlobal / excludeLintKeys += libraryDependencies\n"
-	requireField(t, requireRow(t, parseSource(t, lint), "org.typelevel:cats-core"), "dependency_resolution_state", "partial")
-}
-
 // sprintfOne substitutes the single %s in format without reading any other
 // verb, so a `%%` coordinate operator stays as written.
 func sprintfOne(format, value string) string {
