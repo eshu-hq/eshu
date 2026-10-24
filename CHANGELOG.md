@@ -60,6 +60,44 @@ recent shipped work grouped by feature area.
   verbatim in the content store until the
   [#8812](https://github.com/eshu-hq/eshu/issues/8812) policy gates land.
 
+### Gradle version catalog becomes dependency facts
+
+- **`gradle/libs.versions.toml` is parsed**
+  ([#8822](https://github.com/eshu-hq/eshu/issues/8822)). The registry admits
+  the exact name `libs.versions.toml` on the existing `gradle` definition, and
+  a new `go/internal/parser/gradle/catalog` package reads `[libraries]` and
+  `[plugins]` entries into the existing Gradle dependency row shape. A version
+  is `resolved` only when the file writes out one exact version or points at a
+  plain `[versions]` string with `version.ref`; a rich version, a missing
+  reference, an interpolation, or a selector (`1.+`, `latest.release`, a range,
+  `1.0!!`, `1.0@jar`) stays `unresolved` with no value, and a construct outside
+  the documented grammar yields no row and is counted in
+  `gradle_catalog_state`. Aliases match the way Gradle normalizes them (`-`,
+  `_` and `.` are one separator); Gradle keeps only one of two colliding
+  aliases, chosen by registration order the file does not show, so every
+  colliding row stays `unresolved` and is counted in `alias_collision_count`.
+  An alias written as a dotted entry or a `[libraries.alias]` sub-table emits
+  no row but still collides, and two aliases with one Gradle accessor name
+  (`fooBar`, `foo-bar`) collide too. A key with more than 64 dotted segments,
+  or a file with more than 262,144 key segments in all, makes the file
+  `too_deep`.
+  A library string needs exactly three parts and a plugin string two, and a
+  file TOML rejects yields no rows: a key tree checks every key and header
+  with go-toml's rules, so `x = ...` with `x.module = ...` or a
+  `[libraries.x]` sub-table, a `[versions]` alias that is also a rich version,
+  or a key repeated in any table or inline table is `malformed`, and so is a
+  number or date value go-toml's decoder rejects (`1979-02-30`, an int64
+  overflow, `1e400`). Plugin rows use `config_kind=gradle_plugin`, so the
+  package reducer ignores them. The parser refuses a file over 2 MiB, nesting
+  over 16 levels, and rows past 5000 per table, and counts each. The TOML
+  library overflows the stack on a one-million-level array, so the nesting
+  check runs before it. No fact kind, schema, or content version changes: the
+  exact name moves the registry fingerprint. A reader for
+  `gradle/wrapper/gradle-wrapper.properties` is built and tested but not
+  registered: admitting the name stores the raw file, and a `distributionUrl`
+  can carry `user:password@` userinfo, so the admission waits on the
+  content-store policy of #8812.
+
 ### Content store: per-definition policy
 
 - **Parser definitions can now withhold or redact a file body in the content
