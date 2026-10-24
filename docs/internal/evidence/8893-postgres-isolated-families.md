@@ -46,7 +46,7 @@ The added steps run in its bulk leg and retain their Go JSON streams in the
 aggregate proof bundle. They use one pinned service image with fresh named
 admin, reachability and completion databases, while secret lines uses the
 administrative connection. The 13 ledger rows are `verified_scheduled`, owned
-by `postgres-scheduled`. On the current main base `6b662d182c659e6ae4afb142c78d535bf1fc2231`,
+by `postgres-scheduled`. On pinned main `4d78b8327311c56baa2fe54c9b59b56ba6d6935f`,
 the legacy scheduled pin shrinks from 373 to 360 paths with SHA256
 `4d735f8eaa840fe43c7ad9030efbfa9fe9a69e4483ed4e9e97df1c6ca63ac9fc`.
 The combined runner has 133 files and 269 roots, including the merged
