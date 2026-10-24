@@ -79,7 +79,7 @@ componentExtensionCollector:
       config:
         api_token_env: PAGERDUTY_API_TOKEN
       grants:
-        - kind: incident_routing
+        - kind: incident.record
           schemaVersions: ["1.0.0"]
           scope: pagerduty
           expiresIn: 720h
@@ -90,6 +90,20 @@ componentExtensionCollector:
               name: pagerduty-credentials
               key: api-token
 ```
+
+The example grants one kind to stay short. Grant every core fact kind the
+manifest declares, with the schema versions it emits:
+
+- PagerDuty: `incident.record`, `incident.lifecycle_event`, `change.record`,
+  `incident_routing.observed_pagerduty_service`,
+  `incident_routing.observed_pagerduty_integration` and
+  `incident_routing.coverage_warning`.
+- Jira: `work_item.record`, `work_item.transition`, `work_item.external_link`,
+  `work_item.project_metadata`, `work_item.issue_type_metadata`,
+  `work_item.status_metadata`, `work_item.workflow_metadata`,
+  `work_item.field_metadata` and `work_item.metadata_warning`.
+- Confluence: `documentation_source`, `documentation_document`,
+  `documentation_section` and `documentation_link`.
 
 Add a second entry to run a second instance, for example one per Jira site.
 Every entry needs its own `instanceId`.
@@ -102,13 +116,13 @@ Every entry needs its own `instanceId`.
 | `componentId` | yes | Component ID from the manifest. It must also appear in `allowIds`. |
 | `componentVersion` | yes | Version from the manifest. The init container fails if the seeded manifest differs. |
 | `mode` | no | Activation mode, default `scheduled`. Claims are always enabled. |
-| `seed.image` | yes | Release image pinned by digest. |
+| `seed.image` | yes | Release image pinned by digest alone: `repository@sha256:<64 hex>`. A tag is rejected, even next to a digest, because the seed command's `--image-ref` would carry the tag. A registry port is fine (`registry.example:5000/org/name@sha256:...`). |
 | `seed.pullPolicy`, `seed.command` | no | Pull policy (default `IfNotPresent`) and seed entrypoint (default `["/collector", "seed"]`). |
 | `host.sourceSystem`, `host.scope.id`, `host.scope.kind` | yes | Claim identity the coordinator copies into planned work. |
 | `process.args`, `process.env`, `process.stdoutLimitBytes`, `process.stderrLimitBytes` | no | How the worker starts the binary. The chart sets the command itself. The worker reads 4 MiB of collector output by default; raise `stdoutLimitBytes` for a collector that emits more (for example 33554432 for 32 MiB, 67108864 for 64 MiB). |
 | `claimLeaseTTL`, `heartbeatInterval`, `pollInterval` | no | Per-worker claim timing. Each overrides the value of the same name under `componentExtensionCollector`. Durations use `h`, `m` and `s` (`pollInterval` also accepts `ms`). The heartbeat must be less than the lease. See "Set The Claim Lease". |
 | `config` | no | Non-secret collector settings, passed to the collector as its config block. |
-| `grants` | no | Producer grants for core-owned fact kinds: `kind`, `schemaVersions`, `scope`, and `expiresIn` (default `720h`). The scope is the collector kind (for example `jira` or `documentation`), and a grant is needed for each core fact kind and schema version the manifest declares before install succeeds. |
+| `grants` | no | Producer grants for core-owned fact kinds: `kind`, `schemaVersions`, `scope`, and `expiresIn` (default `720h`, a positive duration whose first number is not zero). Each `kind` must be an exact core fact kind such as `incident.record`; `eshu component grant` refuses anything else and the pod stays in `Init:Error`. The scope is the collector kind (for example `jira` or `documentation`), and a grant is needed for each core fact kind and schema version the manifest declares before install succeeds. |
 | `replicas`, `resources`, `env`, `extraEnv`, `extraVolumes`, `extraVolumeMounts` | no | Per-worker overrides. `extraEnv` is where credentials go. |
 
 The schema (`values.schema.json`) rejects unknown keys, so a misspelled key
@@ -167,8 +181,11 @@ environment, so it reads the variable by name.
 The chart refuses a config key that looks like a credential (names containing
 `password`, `secret`, `token`, `api_key`, and similar, unless the key ends in
 `env`, `_env_name`, or `ref`) and refuses values that start like known token
-formats. A top-level `extraEnv` is refused in this mode, so one collector never
-inherits another's secret.
+formats, in `config` and in the value of a `process.env` entry (`KEY=VALUE`).
+These refusals are best-effort heuristics. They catch a pasted token or an
+obvious name, not every secret, so do not rely on them: credentials belong only
+in an activation's own `extraEnv` as a `secretKeyRef`. A top-level `extraEnv` is
+refused in this mode, so one collector never inherits another's secret.
 
 ## Upgrade, Roll Back, Remove
 
@@ -199,6 +216,10 @@ inherits another's secret.
   copy later.
 - One NetworkPolicy covers every worker, so all activations share the same
   egress classes.
+- Each worker has a PodDisruptionBudget with `minAvailable: 1`. With the default
+  one replica, that budget blocks a voluntary node drain until you scale the
+  worker up, delete the activation, or accept the disruption. Set `replicas: 2`
+  on a worker that must survive routine node maintenance.
 - Strict trust mode is not charted. Use `trustMode: allowlist`.
 - Each manifest declares exactly one collector kind.
 

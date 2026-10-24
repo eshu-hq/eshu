@@ -156,20 +156,40 @@ fi
 eshu component grant "${COMPONENT_ID}" --component-home "${ESHU_COMPONENT_HOME}" --version "${COMPONENT_VERSION}" --kind {{ $grant.kind | squote }}{{ range $version := $grant.schemaVersions }} --schema-version {{ $version | squote }}{{ end }} --scope {{ $grant.scope | squote }} --expires-in {{ default "720h" $grant.expiresIn | squote }}
 {{- end }}
 eshu component install "${runtime}/manifest.yaml" --component-home "${ESHU_COMPONENT_HOME}" --trust-mode allowlist --allow-id "${ALLOW_IDS}" --allow-publisher "${ALLOW_PUBLISHERS}" ${REVOKE_IDS:+--revoke-id "${REVOKE_IDS}"} ${REVOKE_PUBLISHERS:+--revoke-publisher "${REVOKE_PUBLISHERS}"}
-listed="$(eshu component list --component-home "${ESHU_COMPONENT_HOME}" --json | tr -d ' \n')"
-case "${listed}" in
-  *"\"id\":\"${COMPONENT_ID}\""*"\"version\":\"${COMPONENT_VERSION}\""*) ;;
-  *)
-    echo "seeded manifest is not ${COMPONENT_ID}@${COMPONENT_VERSION}; fix componentId/componentVersion or the seed image" >&2
-    exit 1
-    ;;
-esac
+raw="$(eshu component list --component-home "${ESHU_COMPONENT_HOME}" --json)"
+listed="$(printf '%s' "${raw}" | tr -d ' \n')"
+# The CLI prints one object per component, each opening with {"id":" and holding
+# its own "version" later (name and publisher sit between the two). Walk the
+# objects one at a time, so a component at the wrong version cannot pass on the
+# version of another component in the same registry.
+marker='{"id":"'
+rest=${listed}
+found=""
+while :; do
+  case "${rest}" in
+    *"${marker}"*) ;;
+    *) break ;;
+  esac
+  rest=${rest#*"${marker}"}
+  entry=${rest%%"${marker}"*}
+  case "${entry}" in
+    "${COMPONENT_ID}\",\""*"\"version\":\"${COMPONENT_VERSION}\""*) found=1 ;;
+  esac
+done
+if [ -z "${found}" ]; then
+  echo "seeded manifest is not ${COMPONENT_ID}@${COMPONENT_VERSION}; fix componentId/componentVersion or the seed image" >&2
+  exit 1
+fi
 status=0
 out="$(eshu component enable "${COMPONENT_ID}" --component-home "${ESHU_COMPONENT_HOME}" --instance "${INSTANCE_ID}" --mode "${MODE}" --claims --config "${CONFIG_PATH}" 2>&1)" || status=$?
 printf '%s\n' "${out}"
 if [ "${status}" -ne 0 ]; then
+  # Only the CLI's duplicate-activation message is a restart. Any other failure
+  # keeps its exit code, so the pod does not start without an activation.
   case "${out}" in
-    *"already enabled"*) echo "activation ${INSTANCE_ID} already enabled; continuing" ;;
+    *"activation \"${INSTANCE_ID}\" is already enabled for component \"${COMPONENT_ID}\""*)
+      echo "activation ${INSTANCE_ID} already enabled; continuing"
+      ;;
     *) exit "${status}" ;;
   esac
 fi

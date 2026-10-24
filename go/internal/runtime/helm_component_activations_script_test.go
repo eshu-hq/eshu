@@ -22,7 +22,10 @@ printf '%s\n' "$*" >> "${STUB_LOG}"
 case "$2" in
   grant) exit "${STUB_GRANT_EXIT:-0}" ;;
   install) exit "${STUB_INSTALL_EXIT:-0}" ;;
-  list) printf '%s\n' "${STUB_LIST_JSON}" ;;
+  list)
+    printf '%s\n' "${STUB_LIST_JSON}"
+    exit "${STUB_LIST_EXIT:-0}"
+    ;;
   enable)
     printf '%s\n' "${STUB_ENABLE_OUT}"
     exit "${STUB_ENABLE_EXIT:-0}"
@@ -254,6 +257,25 @@ func TestHelmComponentActivationReconcileScript(t *testing.T) {
 			wantExit: 1,
 			wantCalls: func(r string) []string {
 				return append(grantCalls(r), installCall(r, ""), listCall, enableCall)
+			},
+		},
+		{
+			name: "already enabled message for another instance still fails",
+			extra: map[string]string{
+				"STUB_LIST_JSON": pagerDutyAt("0.1.0"), "STUB_ENABLE_EXIT": "1",
+				"STUB_ENABLE_OUT": `activation "other" is already enabled for component "` + scriptPagerDutyID + `" version "0.1.0"`,
+			},
+			wantExit: 1,
+			wantCalls: func(r string) []string {
+				return append(grantCalls(r), installCall(r, ""), listCall, enableCall)
+			},
+		},
+		{
+			name:     "listing failure stops before enable",
+			extra:    map[string]string{"STUB_LIST_JSON": pagerDutyAt("0.1.0"), "STUB_LIST_EXIT": "5"},
+			wantExit: 5,
+			wantCalls: func(r string) []string {
+				return append(grantCalls(r), installCall(r, ""), listCall)
 			},
 		},
 		{

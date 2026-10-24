@@ -125,7 +125,7 @@ func TestHelmComponentActivationsValidation(t *testing.T) {
 		},
 		{
 			name:               "grant kind with shell syntax",
-			old:                "kind: incident_routing",
+			old:                "kind: incident.record",
 			new:                `kind: "x'; touch /tmp/pwn; echo '"`,
 			wantOutput:         "does not match pattern",
 			wantTemplateOutput: "kind is required",

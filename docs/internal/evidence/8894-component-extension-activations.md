@@ -48,10 +48,16 @@ code, query, queue, lease, claim, batch or graph-write path.
   unchanged. Each worker has its own registry, so there is no shared mutable
   volume.
 
-Verified by `go test ./internal/runtime -run TestHelmComponentActivations
--count=1` (8 tests covering render, ordering, credential isolation,
-coordinator wiring, per-activation lease timing, parity, and 30 hostile-values
-validation cases).
+Verified by `go test ./internal/runtime -run
+'TestHelmComponentActivation|TestComponentActivationExample' -count=1`. The tests
+cover render shape, init-container order, credential isolation, coordinator
+wiring, per-activation lease timing and parity. They also run the rendered
+reconcile script under `sh` with a stub `eshu` (first run, restart, other enable
+failures, version mismatch among several components, missing seed files). Every
+validation case renders twice, once as installed and once with
+`--skip-schema-validation`, so the template guards are tested without the schema
+hiding them. A separate test checks that every example grant kind in the docs,
+values comments and fixtures is a core fact kind.
 
 ## Observability evidence
 

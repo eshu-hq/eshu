@@ -22,7 +22,7 @@ var (
 		"deploy/helm/eshu/values.yaml",
 		"deploy/helm/eshu/README.md",
 		"docs/public/deploy/kubernetes/run-an-extracted-collector.md",
-		"docs/public/reference/helm-collector-and-webhook-values.md",
+		"docs/public/deploy/kubernetes/helm-collector-and-webhook-values.md",
 		"docs/public/extend/reference-pagerduty-extension.md",
 		"docs/internal/evidence/8894-component-extension-activations.md",
 	}

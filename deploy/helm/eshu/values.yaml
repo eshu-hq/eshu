@@ -851,7 +851,7 @@ componentExtensionCollector:
   #   componentVersion: 0.1.0                # version in the seeded manifest
   #   mode: scheduled
   #   seed:
-  #     image: ghcr.io/example/collector-pagerduty@sha256:<64 hex>  # digest required
+  #     image: ghcr.io/example/collector-pagerduty@sha256:<64 hex>  # digest alone; a tag, even next to one, is refused
   #     pullPolicy: IfNotPresent
   #     command: ["/collector", "seed"]      # image entrypoint; --dest and --image-ref are appended
   #   host:
@@ -860,8 +860,8 @@ componentExtensionCollector:
   #   process:
   #     args: ["--sdk-stdio"]
   #   config: {}                             # non-secret collector config
-  #   grants:                                # core-owned fact kinds only
-  #     - kind: incident_routing
+  #   grants:                                # exact core fact kinds only (for example incident.record)
+  #     - kind: incident.record
   #       schemaVersions: ["1.0.0"]
   #       scope: pagerduty
   #       expiresIn: 720h

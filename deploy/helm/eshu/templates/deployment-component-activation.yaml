@@ -12,7 +12,7 @@ metadata:
     app.kubernetes.io/component: component-extension-collector
     eshu.dev/component-instance: {{ $activation.instanceId | quote }}
 spec:
-  replicas: {{ if hasKey $activation "replicas" }}{{ $activation.replicas }}{{ else }}{{ $extension.replicas }}{{ end }}
+  replicas: {{ if hasKey $activation "replicas" }}{{ int $activation.replicas }}{{ else }}{{ int $extension.replicas }}{{ end }}
   revisionHistoryLimit: {{ $extension.revisionHistoryLimit }}
   selector:
     matchLabels:

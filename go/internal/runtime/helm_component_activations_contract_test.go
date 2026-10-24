@@ -56,7 +56,7 @@ const pagerDutyActivationValues = `    - instanceId: pagerduty-a
       config:
         api_token_env: PAGERDUTY_API_TOKEN
       grants:
-        - kind: incident_routing
+        - kind: incident.record
           schemaVersions: ["1.0.0", "1.1.0"]
           scope: pagerduty
           expiresIn: 360h
@@ -182,7 +182,7 @@ func TestHelmComponentActivationsInitContainersSeedThenReconcile(t *testing.T) {
 	}
 
 	script := strings.Join(helmStringSlice(reconcile["command"]), "\n")
-	grant := `--kind 'incident_routing' --schema-version '1.0.0' --schema-version '1.1.0' --scope 'pagerduty' --expires-in '360h'`
+	grant := `--kind 'incident.record' --schema-version '1.0.0' --schema-version '1.1.0' --scope 'pagerduty' --expires-in '360h'`
 	for _, want := range []string{"eshu component grant", grant, "eshu component install", "eshu component enable", "--claims", `--config "${CONFIG_PATH}"`} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("reconcile script missing %q:\n%s", want, script)

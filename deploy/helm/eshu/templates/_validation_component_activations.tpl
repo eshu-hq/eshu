@@ -40,6 +40,15 @@ interpolates anything that could carry shell syntax.
 {{- end -}}
 {{- end -}}
 
+{{/*
+Prefixes of well-known credential formats: GitHub, Slack, AWS, an sk- API key
+and a PEM block. A best-effort heuristic: it catches a pasted token, not every
+secret. Credentials belong only in an activation's extraEnv secretKeyRef.
+*/}}
+{{- define "eshu.validate.componentActivationTokenPattern" -}}
+^(ghp_|gho_|ghs_|github_pat_|xox[abprs]-|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20}|-----BEGIN )
+{{- end -}}
+
 {{/* Recursively rejects secret-looking keys and credential-shaped values. */}}
 {{- define "eshu.validate.componentActivationNoSecrets" -}}
 {{- $path := .path -}}
@@ -56,7 +65,7 @@ interpolates anything that could carry shell syntax.
 {{- include "eshu.validate.componentActivationNoSecrets" (dict "path" (printf "%s[%d]" $path $index) "value" $child) -}}
 {{- end -}}
 {{- else if kindIs "string" $value -}}
-{{- if regexMatch "^(ghp_|gho_|ghs_|github_pat_|xox[abprs]-|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20}|-----BEGIN )" $value -}}
+{{- if regexMatch (include "eshu.validate.componentActivationTokenPattern" .) (trim $value) -}}
 {{- fail (printf "%s holds a credential-shaped value; activation config is stored in a ConfigMap, so pass secrets through extraEnv secretKeyRef" $path) -}}
 {{- end -}}
 {{- end -}}
@@ -102,8 +111,22 @@ interpolates anything that could carry shell syntax.
 {{- if eq $seedImage "" -}}
 {{- fail (printf "%s.seed.image is required" $at) -}}
 {{- end -}}
-{{- if not (regexMatch "^[a-z0-9][A-Za-z0-9._:/-]*@sha256:[a-f0-9]{64}$" $seedImage) -}}
-{{- fail (printf "%s.seed.image %q must be pinned by digest (repository@sha256:<64 hex>); tags are not accepted" $at $seedImage) -}}
+{{- if not (regexMatch "^[a-z0-9][A-Za-z0-9._-]*(:[0-9]+(/[A-Za-z0-9._-]+)+|(/[A-Za-z0-9._-]+)*)@sha256:[a-f0-9]{64}$" $seedImage) -}}
+{{- fail (printf "%s.seed.image %q must be pinned by digest (repository@sha256:<64 hex>); tags are not accepted, not even next to a digest, because --image-ref would carry the tag" $at $seedImage) -}}
+{{- end -}}
+{{- if hasKey $seed "pullPolicy" -}}
+{{- if not (has (toString $seed.pullPolicy) (list "Always" "IfNotPresent" "Never")) -}}
+{{- fail (printf "%s.seed.pullPolicy %q must be Always, IfNotPresent or Never" $at (toString $seed.pullPolicy)) -}}
+{{- end -}}
+{{- end -}}
+{{- if hasKey $activation "replicas" -}}
+{{- $replicas := $activation.replicas -}}
+{{- if not (or (kindIs "float64" $replicas) (kindIs "int64" $replicas) (kindIs "int" $replicas)) -}}
+{{- fail (printf "%s.replicas %q must be a whole number" $at (toString $replicas)) -}}
+{{- end -}}
+{{- if or (lt (float64 $replicas) (float64 0)) (ne (float64 $replicas) (float64 (int $replicas))) -}}
+{{- fail (printf "%s.replicas %v must be a whole number of at least 0" $at $replicas) -}}
+{{- end -}}
 {{- end -}}
 {{- range $arg := default (list) $seed.command -}}
 {{- if not (regexMatch "^[A-Za-z0-9._/:=@-]+$" (toString $arg)) -}}
@@ -128,8 +151,14 @@ interpolates anything that could carry shell syntax.
 {{- include "eshu.validate.componentActivationLease" (dict "root" $root "activation" $activation "at" $at) -}}
 {{- include "eshu.validate.componentActivationNoSecrets" (dict "path" (printf "%s.process" $at) "value" $process) -}}
 {{- range $entry := default (list) $process.env -}}
-{{- if regexMatch "(?i)(password|passwd|secret|token|api[-_]?key|credential|private[-_]?key|authorization|bearer)" (first (splitList "=" (toString $entry))) -}}
-{{- fail (printf "%s.process.env entry %q looks like a credential; process.env is stored in a ConfigMap, so pass secrets through extraEnv secretKeyRef" $at (first (splitList "=" (toString $entry)))) -}}
+{{- $parts := splitList "=" (toString $entry) -}}
+{{- $envName := first $parts -}}
+{{- $envValue := join "=" (rest $parts) -}}
+{{- if regexMatch "(?i)(password|passwd|secret|token|api[-_]?key|credential|private[-_]?key|authorization|bearer)" $envName -}}
+{{- fail (printf "%s.process.env entry %q looks like a credential; process.env is stored in a ConfigMap, so pass secrets through extraEnv secretKeyRef" $at $envName) -}}
+{{- end -}}
+{{- if regexMatch (include "eshu.validate.componentActivationTokenPattern" $) (trim $envValue) -}}
+{{- fail (printf "%s.process.env entry %q holds a credential-shaped value; process.env is stored in a ConfigMap, so pass secrets through extraEnv secretKeyRef" $at $envName) -}}
 {{- end -}}
 {{- end -}}
 {{- include "eshu.validate.componentActivationNoSecrets" (dict "path" (printf "%s.config" $at) "value" (default (dict) $activation.config)) -}}
@@ -150,7 +179,7 @@ interpolates anything that could carry shell syntax.
 {{- if not (regexMatch "^[A-Za-z0-9._:-]+$" (toString (default "" $grant.scope))) -}}
 {{- fail (printf "%s.scope is required (letters, digits, ._:-)" $gat) -}}
 {{- end -}}
-{{- if not (regexMatch "^([0-9]+(h|m|s))+$" (toString (default "720h" $grant.expiresIn))) -}}
+{{- if not (regexMatch "^[1-9][0-9]*(h|m|s)([0-9]+(h|m|s))*$" (toString (default "720h" $grant.expiresIn))) -}}
 {{- fail (printf "%s.expiresIn must be a positive Go duration such as 720h" $gat) -}}
 {{- end -}}
 {{- end -}}
