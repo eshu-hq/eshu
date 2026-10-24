@@ -113,6 +113,9 @@ TABLE = {
         "go/internal/storage/postgres/content_files_language_covering_index_replay_live_test.go": (
             "TestContentFilesLanguageCoveringIndexReplayConvergesLive",
         ),
+        "go/internal/storage/postgres/content_policy_findings_live_test.go": (
+            "TestContentPolicyKeepsEveryRawFindingLive",
+        ),
         "go/internal/storage/postgres/content_store_policy_upgrade_live_test.go": (
             "TestContentStorePolicyHealsStoredRowsOnTheNextGeneration",
         ),
