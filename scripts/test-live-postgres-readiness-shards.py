@@ -145,7 +145,8 @@ class ShardContractTest(unittest.TestCase):
             flat.extend(f"{package}|{test}" for test in tests)
         return flat
 
-    def test_partition_is_contiguous_quarters(self) -> None:
+    def test_equal_cost_runs_split_evenly_into_contiguous_shards(self) -> None:
+        """Eight runs priced alike cut into four adjacent pairs, the one optimum."""
         self.assertEqual(shards.partition_runs(self.plan, "all"), self.plan)
         self.assertEqual(shards.partition_runs(self.plan, "1/4"), self.plan[0:2])
         self.assertEqual(shards.partition_runs(self.plan, "2/4"), self.plan[2:4])
