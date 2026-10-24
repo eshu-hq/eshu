@@ -1,0 +1,120 @@
+{
+  "kind": "source-bound local PostgreSQL proof receipt",
+  "scope": "Mock materialization calls and durable queue state; not persisted service generations.",
+  "backend_version": "PostgreSQL 18.6",
+  "go_version": "go1.26.10",
+  "working_directory": "go",
+  "required_environment": [
+    "ESHU_REDUCER_FAIRNESS_PROOF_DSN"
+  ],
+  "source_match_verified_at_revision": "87ee3c0a374fd18faa4e79194ac9464335a7a3a9",
+  "source_sha256": {
+    "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_interleave_live_test.go": "879693428638b8e2b866df232970d0ee640e09ff2eadde887e7072f3131ae47e",
+    "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_assertions_test.go": "18dac69046a7a27a8b523991f11cc473d927be91b35819dec20c5c0c452500dd",
+    "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_readiness_live_test.go": "70d55d7772be4b325f69098c3820c9a273377eaf4d11d9ad878e7ce973f94179",
+    "specs/live-tests.d/live-tests-readiness.generated.yaml": "1357cc9dbcadec0e74034b682fe70440e0d216a307fbcd33fdc9c45f1a8ccae3"
+  },
+  "restored_green": {
+    "command": [
+      "go",
+      "test",
+      "-json",
+      "-race",
+      "-count=1",
+      "-timeout=90s",
+      "-run",
+      "^TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers$",
+      "./internal/storage/postgres"
+    ],
+    "exit_code": 0,
+    "raw_events_sha256": "e884b469ac4633215c0d02d7e0dee6a1c6b9f0c6fa74778143e1ef249469d732",
+    "event_excerpt": [
+      {
+        "Time": "2026-10-24T08:22:28.962690683Z",
+        "Action": "run",
+        "Package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+        "Test": "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers"
+      },
+      {
+        "Time": "2026-10-24T08:22:28.962800833Z",
+        "Action": "run",
+        "Package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+        "Test": "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers/unforced"
+      },
+      {
+        "Time": "2026-10-24T08:22:32.65490316Z",
+        "Action": "pass",
+        "Package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+        "Test": "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers/unforced"
+      },
+      {
+        "Time": "2026-10-24T08:22:32.65491393Z",
+        "Action": "run",
+        "Package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+        "Test": "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers/peer_drained_replay"
+      },
+      {
+        "Time": "2026-10-24T08:22:36.349139338Z",
+        "Action": "pass",
+        "Package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+        "Test": "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers/peer_drained_replay"
+      },
+      {
+        "Time": "2026-10-24T08:22:36.349240858Z",
+        "Action": "pass",
+        "Package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+        "Test": "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers"
+      },
+      {
+        "Time": "2026-10-24T08:22:37.361526562Z",
+        "Action": "pass",
+        "Package": "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+      }
+    ],
+    "selected_skips": 0,
+    "race_warnings": 0
+  },
+  "seeded_red": {
+    "mutation": "Omit stage only from the second mock materialization call.",
+    "fixture_sha256": "c390a3135cad66589cc81efcbfde132fe50381291f05cc63901d8af0bf1790c8",
+    "exit_code": 1,
+    "failure": "write 1 runtime rows = 1, want 2",
+    "raw_events_sha256": "f9fbcef415b9d412b8f2353486909cf8cb45a7028b278477d4afc857765a89d6",
+    "event_excerpt": [
+      {
+        "Time": "2026-10-24T08:20:35.868033004Z",
+        "Action": "run",
+        "Package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+        "Test": "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers"
+      },
+      {
+        "Time": "2026-10-24T08:20:35.868321935Z",
+        "Action": "run",
+        "Package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+        "Test": "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers/peer_drained_replay"
+      },
+      {
+        "Time": "2026-10-24T08:20:39.650154281Z",
+        "Action": "fail",
+        "Package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+        "Test": "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers/peer_drained_replay"
+      },
+      {
+        "Time": "2026-10-24T08:20:39.650178941Z",
+        "Action": "fail",
+        "Package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+        "Test": "TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers"
+      },
+      {
+        "Time": "2026-10-24T08:20:39.660456705Z",
+        "Action": "fail",
+        "Package": "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+      }
+    ]
+  },
+  "limits": [
+    "Event excerpts omit output records; hashes identify the complete retained streams.",
+    "Local connection values, cache paths, and container identifiers are omitted.",
+    "Hosted readiness and contention acceptance are pending."
+  ]
+}

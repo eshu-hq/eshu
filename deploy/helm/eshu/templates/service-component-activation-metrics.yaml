@@ -1,0 +1,27 @@
+{{- if and (include "eshu.componentActivationsMode" .) .Values.observability.prometheus.enabled }}
+{{- range $activation := .Values.componentExtensionCollector.activations }}
+{{- $ctx := dict "root" $ "activation" $activation }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eshu.componentActivationFullname" $ctx }}-metrics
+  labels:
+    {{- include "eshu.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: component-extension-collector
+    eshu.dev/component-instance: {{ $activation.instanceId | quote }}
+  {{- with $.Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "eshu.componentActivationSelectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ $.Values.observability.prometheus.port }}
+      targetPort: metrics
+      protocol: TCP
+{{- end }}
+{{- end }}

@@ -83,6 +83,11 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 			Writer:                      handlers.SecurityAlertReconciliationWriter,
 			Instruments:                 handlers.Instruments,
 			ExtractManifestConsumptions: correlation.ExtractSecurityAlertManifestConsumptions,
+			// #8827: without the readiness port the reconciliation spends a
+			// counting attempt on a wait for its own producer and can give up
+			// before supply_chain_impact finishes. The wiring tests fail when
+			// either side of this line is dropped.
+			ImpactProducerReadiness: handlers.SecurityAlertImpactProducerReadiness,
 		}
 		definitions = append(definitions, securityAlerts)
 	}

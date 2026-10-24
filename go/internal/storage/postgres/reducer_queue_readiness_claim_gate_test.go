@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 )
@@ -84,6 +85,11 @@ var claimGatedDomainsWithoutAClaimGate = map[string]string{
 	// in attachServiceRelationshipEvidence, before any write. The awaited
 	// condition spans every scope, not this intent's payload keyspace, so the
 	// handler defer is the only defense, as for the two domains above.
+	"security_alert_reconciliation": "waits on the supply_chain_impact fact_work_items row of " +
+		"the same scope generation (SecurityAlertReconciliationHandler.resolveImpactWait); the " +
+		"awaited producer is a queue row, not a graph phase, so no graph_projection_phase_state " +
+		"CTE row can express it, and the same-scope conflict key fences it only while claimed " +
+		"or running",
 	"service_catalog_correlation": "waits on the corpus-wide relationship generation " +
 		"fence via the fused GetResolvedRelationshipsForReposWithCorpusFence read " +
 		"before any write, which a single-keyspace payload-derived CTE row cannot express",
@@ -242,6 +248,12 @@ var readinessClassOwningDomain = map[string]string{
 	// generation), which no claim-time phase row expresses. The handler
 	// defer is bounded instead.
 	servicecatalog.RuntimeNotReadyFailureClass: string(reducer.DomainServiceCatalogCorrelation),
+	// #8827: the awaited producer is the supply_chain_impact fact_work_items
+	// row of the same scope generation, not a graph phase, so no
+	// graph_projection_phase_state claim row expresses it. The same-scope
+	// conflict key already fences a claimed or running producer at claim time;
+	// the handler probe covers pending and retrying, and is non-counting.
+	securityalert.ImpactNotReadyFailureClass: string(reducer.DomainSecurityAlertReconciliation),
 	// #6785: cross-scope waits inside handlers that already carry their own
 	// scope's cloud_resource_uid claim row. The awaited endpoint lives in
 	// another scope (sibling-service targets, repository WorkloadInstance), so

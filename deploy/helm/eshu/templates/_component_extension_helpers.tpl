@@ -11,6 +11,21 @@
 app.kubernetes.io/component: component-extension-collector
 {{- end -}}
 
+{{/*
+Normalizes a comma-separated trust list (allowIds, allowPublishers, revokeIds,
+revokePublishers): trims whitespace around each entry and drops blank ones.
+Validation already trims entries when it checks membership, and the CLI compares
+policy entries exactly, so every env var or CLI argument built from one of these
+lists must go through this helper. Spaceless input comes back unchanged.
+*/}}
+{{- define "eshu.componentCSVList" -}}
+{{- $entries := list -}}
+{{- range splitList "," (toString (default "" .)) -}}
+{{- with trim . }}{{ $entries = append $entries . }}{{ end -}}
+{{- end -}}
+{{- join "," $entries -}}
+{{- end -}}
+
 {{- define "eshu.renderComponentExtensionPolicyEnv" -}}
 - name: ESHU_COMPONENT_HOME
   value: {{ .Values.componentExtensionCollector.componentHome | quote }}
@@ -18,19 +33,19 @@ app.kubernetes.io/component: component-extension-collector
 - name: ESHU_COMPONENT_TRUST_MODE
   value: {{ . | quote }}
 {{- end }}
-{{- with .Values.componentExtensionCollector.allowIds }}
+{{- with include "eshu.componentCSVList" .Values.componentExtensionCollector.allowIds }}
 - name: ESHU_COMPONENT_ALLOW_IDS
   value: {{ . | quote }}
 {{- end }}
-{{- with .Values.componentExtensionCollector.allowPublishers }}
+{{- with include "eshu.componentCSVList" .Values.componentExtensionCollector.allowPublishers }}
 - name: ESHU_COMPONENT_ALLOW_PUBLISHERS
   value: {{ . | quote }}
 {{- end }}
-{{- with .Values.componentExtensionCollector.revokeIds }}
+{{- with include "eshu.componentCSVList" .Values.componentExtensionCollector.revokeIds }}
 - name: ESHU_COMPONENT_REVOKE_IDS
   value: {{ . | quote }}
 {{- end }}
-{{- with .Values.componentExtensionCollector.revokePublishers }}
+{{- with include "eshu.componentCSVList" .Values.componentExtensionCollector.revokePublishers }}
 - name: ESHU_COMPONENT_REVOKE_PUBLISHERS
   value: {{ . | quote }}
 {{- end }}

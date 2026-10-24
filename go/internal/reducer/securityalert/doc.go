@@ -112,8 +112,15 @@
 // security_alert.repository_alert facts (a payload missing its required
 // repository_id) through factdecode.RecordQuarantinedFacts, which feeds the
 // shared eshu_dp_reducer_input_invalid_facts_total counter, and reports
-// SubSignals["input_invalid_facts"] on its Result. The package registers no
-// domain-specific instrument of its own; its writes are covered by the same
+// SubSignals["input_invalid_facts"] on its Result. Its writes are covered by the same
 // eshu_dp_reducer_executions_total / eshu_dp_reducer_run_duration_seconds
-// pair every reducer handler execution emits.
+// pair every reducer handler execution emits; the one family-specific
+// instrument is eshu_dp_security_alert_reconciliation_impact_wait_total
+// (#8827).
+//
+// While the supply_chain_impact work of the same scope generation is in flight,
+// a reconciliation waiting on impact evidence defers with the non-counting
+// ImpactNotReadyFailureClass instead of spending an attempt, bounded by elapsed
+// time (#8827). At the handler's own attempt cap it writes unmatched decisions
+// and says so: a counter outcome, a WARN log, and a sub signal.
 package securityalert

@@ -19,9 +19,14 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
+      {{- if or .Values.podAnnotations (include "eshu.componentActivationsMode" .) }}
       annotations:
+        {{- if include "eshu.componentActivationsMode" . }}
+        checksum/component-activations: {{ include "eshu.componentActivationsChecksum" . | quote }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
     spec:
       serviceAccountName: {{ include "eshu.serviceAccountName" . }}
@@ -38,6 +43,10 @@ spec:
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if include "eshu.componentActivationsMode" . }}
+      initContainers:
+        {{- include "eshu.componentActivationInitContainers" (dict "root" . "activations" .Values.componentExtensionCollector.activations) | nindent 8 }}
       {{- end }}
       containers:
         - name: workflow-coordinator
@@ -93,12 +102,18 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if include "eshu.componentActivationsMode" . }}
+            {{- include "eshu.componentActivationVolumeMounts" (dict "root" . "readOnlyHome" true) | nindent 12 }}
+            {{- end }}
             {{- with .Values.workflowCoordinator.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if include "eshu.componentActivationsMode" . }}
+        {{- include "eshu.componentActivationVolumes" . | nindent 8 }}
+        {{- end }}
         {{- with .Values.workflowCoordinator.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
