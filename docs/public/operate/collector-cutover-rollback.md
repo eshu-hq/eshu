@@ -152,11 +152,12 @@ step 4 printed). A rerun does the following:
 - A revoked grant is revoked again without error, and `helm upgrade` or a scale
   to the same state changes nothing.
 - A worker Deployment that the restore overlay already deleted counts as
-  stopped, so a rerun does not fail on `kubectl scale`. Step 1 still checks the
-  registry and the coordinator rollout, and the pod selector check still has to
-  pass. That check catches a mistyped Deployment name when the worker pods carry
-  the chart's default label.
+  stopped, so a rerun does not fail on `kubectl scale`. kubectl reports the same
+  NotFound for a mistyped name, so only the pod selector check (it works while
+  the worker pods carry the chart's default label) catches that.
 - The coordinator restarts again, which is harmless: claims live in Postgres.
+
+Run one copy of the script at a time. It takes no lock, so two runs interleave.
 
 ### Exit codes
 

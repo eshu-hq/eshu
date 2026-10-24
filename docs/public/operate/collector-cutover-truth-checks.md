@@ -109,7 +109,9 @@ digest of the payloads over every scope's active generation, for the collector
 kind. It does not use `fact_id`. A set digest hashes every row with SHA-256 and
 adds the hashes, so it does not depend on row order, needs no sort, and has no
 size cap. It detects accidental drift (a missing, extra, changed, or duplicated
-row). It is not built to resist someone forging a matching digest. `verify` is
+row). It sees only each fact's kind, stable key, and payload: a fact moved to
+another scope or generation, or a change to any other column, leaves the digest
+equal. It is not built to resist someone forging a matching digest. `verify` is
 one pass over those facts, so run it against a reader or standby when one
 exists. On a scratch Postgres 18 with 900,000 generated facts (3 kinds, about
 195 bytes of payload text each) the query took 3.5 to 4.0 seconds with no temporary
@@ -175,8 +177,14 @@ For each fact kind it prints how many stable keys were added, removed, or
 changed since the baseline, and up to `--drift-keys` (default 20) keys of each.
 It reads the `.keys` sidecar, so it needs the baseline to have been captured
 with `--capture-keys`; without it the report says so and the per-kind rows above
-still show which kinds differ. The report holds the baseline keys in memory, so
-for millions of facts run it on a host with room for them.
+still show which kinds differ. A capture without `--capture-keys` deletes any
+older `.keys` file for that baseline, so a sidecar always belongs to its capture.
+The report holds the baseline keys in memory, so for millions of facts run it on
+a host with room for them.
+
+The baseline and its `.keys` file hold stable keys such as issue, incident, and
+document IDs. The script writes them readable only by you. Redact the report
+before you paste it into a public issue.
 
 Decide from the report, not from the exit code. For each key, check at the
 source whether it changed after the baseline capture (for example, a Jira issue
