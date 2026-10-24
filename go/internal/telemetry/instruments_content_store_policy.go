@@ -4,6 +4,8 @@
 package telemetry
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -130,6 +132,50 @@ func registerContentStorePolicyInstruments(meter metric.Meter, inst *Instruments
 		metric.WithUnit("By"),
 	); err != nil {
 		return fmt.Errorf("register ContentFileUpsertBodyBytes counter: %w", err)
+	}
+	return nil
+}
+
+// ContentPolicyRawRowsObserver reports the raw credential copies still stored
+// on paths a content-store policy governs (#8833).
+type ContentPolicyRawRowsObserver interface {
+	// ContentPolicyRawRows returns the count of unsuppressed hardcoded-secret
+	// lines on governed paths that carry no REDACTED_<finding_kind> marker.
+	ContentPolicyRawRows(ctx context.Context) (int64, error)
+}
+
+// RegisterContentPolicyRawRowsObservableGauge registers
+// eshu_dp_content_policy_raw_rows (#8833), the exit signal of the #8813
+// cleanup runbook: it reads zero once every governed file (.yarnrc.yml,
+// *.tfvars) has been stored again under its policy. A non-zero value means
+// raw credential lines are still in content_files on a governed path: a
+// repository the reindex has not reached, or an ingester still on an old
+// binary. A nil observer registers nothing.
+func RegisterContentPolicyRawRowsObservableGauge(inst *Instruments, meter metric.Meter, observer ContentPolicyRawRowsObserver) error {
+	if inst == nil {
+		return errors.New("instruments are required")
+	}
+	if meter == nil {
+		return errors.New("meter is required")
+	}
+	if observer == nil {
+		return nil
+	}
+	var err error
+	inst.ContentPolicyRawRows, err = meter.Int64ObservableGauge(
+		"eshu_dp_content_policy_raw_rows",
+		metric.WithDescription("Unsuppressed hardcoded-secret lines on content-store governed paths that carry no REDACTED_<finding_kind> marker: raw credential copies still stored (#8833)"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			count, err := observer.ContentPolicyRawRows(ctx)
+			if err != nil {
+				return fmt.Errorf("observe content policy raw rows: %w", err)
+			}
+			o.Observe(count)
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register ContentPolicyRawRows gauge: %w", err)
 	}
 	return nil
 }

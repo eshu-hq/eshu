@@ -40,6 +40,15 @@ const (
 // hardcodedSecretSQLPattern is this constant.
 const SQLPattern = keyPrefixPattern + valuePattern + `|` + shapePattern + `|` + userinfoPattern + `|` + blockOpenerPattern
 
+// BlockOpenerPattern is the HCL block-opener part of SQLPattern. A line that
+// matches it names a secret block but carries no value; the
+// eshu_dp_content_policy_raw_rows gauge leaves such lines out.
+const BlockOpenerPattern = blockOpenerPattern
+
+// MarkerPattern matches a REDACTED_<finding_kind> marker for any of the six
+// kinds; REDACTED_value does not match it.
+const MarkerPattern = MarkerPrefix + `(aws_access_key|private_key|slack_token|api_token|password_literal|secret_literal)`
+
 // MarkerPrefix opens every REDACTED_<finding_kind> marker the content-store
 // redactors write. Migration 234 gates a line on a case-sensitive substring
 // test for it, OR'd with SQLPattern, instead of a regex alternative: the

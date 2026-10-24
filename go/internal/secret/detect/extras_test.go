@@ -4,6 +4,7 @@
 package detect_test
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/secret/detect"
@@ -100,5 +101,24 @@ func TestSpansCoverTheExtrasButNotMarkers(t *testing.T) {
 	}
 	if got := detect.Spans("npmAuthIdent: abcdefghij"); len(got) != 1 || !got[0].IsKey {
 		t.Errorf("npmAuthIdent spans = %+v, want one key span", got)
+	}
+}
+
+// TestMarkerPatternNamesTheSixKinds pins MarkerPattern to Kinds, so the raw-rows
+// gauge recognises every marker the redactors write and never REDACTED_value.
+func TestMarkerPatternNamesTheSixKinds(t *testing.T) {
+	t.Parallel()
+
+	re := regexp.MustCompile(detect.MarkerPattern)
+	for _, kind := range detect.Kinds() {
+		if !re.MatchString("x = REDACTED_" + kind) {
+			t.Errorf("MarkerPattern misses REDACTED_%s", kind)
+		}
+	}
+	if re.MatchString("x = REDACTED_value") {
+		t.Error("MarkerPattern matches REDACTED_value")
+	}
+	if !regexp.MustCompile("(?i)" + detect.BlockOpenerPattern).MatchString("app_secrets = {") {
+		t.Error("BlockOpenerPattern misses app_secrets = {")
 	}
 }

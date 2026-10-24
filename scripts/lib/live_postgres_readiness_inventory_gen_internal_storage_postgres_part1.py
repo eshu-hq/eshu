@@ -116,6 +116,10 @@ TABLE = {
         "go/internal/storage/postgres/content_policy_findings_live_test.go": (
             "TestContentPolicyKeepsEveryRawFindingLive",
         ),
+        "go/internal/storage/postgres/content_policy_raw_rows_live_test.go": (
+            "TestContentPolicyRawRowsHealsAfterTheNextGeneration",
+            "TestContentPolicyRawRowsIsZeroWithoutAPolicy",
+        ),
         "go/internal/storage/postgres/content_store_policy_upgrade_live_test.go": (
             "TestContentStorePolicyHealsStoredRowsOnTheNextGeneration",
         ),

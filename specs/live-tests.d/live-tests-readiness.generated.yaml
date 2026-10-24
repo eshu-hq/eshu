@@ -664,6 +664,11 @@ tests:
     class: postgres_ci
     reason: "#8833 disposable PostgreSQL proof that a seeded .yarnrc.yml and terraform.tfvars, stored through the default registry's marker and skeleton policies and the production content writer, keep every raw hardcoded-secret finding at its original line with its raw kind in content_file_secret_lines (the side table investigate_hardcoded_secrets reads) under migration 233, and that no seeded credential reaches content, content_lower, or line_text; isolated bootstrapped schema per test"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_policy_raw_rows_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 disposable PostgreSQL proof that eshu_dp_content_policy_raw_rows (ContentPolicyRawRowsStore) counts the verbatim credential lines of .yarnrc.yml and tfvars rows written before the content-store binding, and reads zero after the next generation stores the same files through the default registry's marker and skeleton policies; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/content_store_policy_upgrade_live_test.go
     tag: ~
     class: postgres_ci
