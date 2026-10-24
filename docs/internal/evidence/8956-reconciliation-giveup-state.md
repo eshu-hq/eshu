@@ -34,6 +34,21 @@ the producer settles is a separate follow-up.
 | genuine no-match payload | `TestSecurityAlertReconciliationWriterKeepsTheGenuineNoMatchPayload` | sha256 equals the pre-change payload |
 | real queue, producer succeeded | `TestReducerContentionGateSecurityAlertReconciliationGivesUpVisiblyWithoutAFence` | unmatched at attempt 3, no give-up on the result or the write |
 | reader | `TestDecodeSecurityAlertReconciliationRowSurfacesTheImpactWaitGiveUp` | give-up row carries the field, genuine row omits it |
+| finding commits between load and probe | `TestSecurityAlertReconciliationReadsSettlementBeforeTheEvidenceLoad` | old order wrote the stale row untagged (`failure class = "" (err <nil>)`); probing before the load defers with the non-counting class and writes nothing |
+| stale decision with dependency evidence | `TestSecurityAlertReconciliationStaleDecisionDoesNotWaitOnImpact` and the writer test | not stamped, does not defer; the mutant that drops the `unmatched` guard fails both |
+
+## Settlement is read before the load
+
+The review found a window on the cap attempt: the evidence loaded first and
+the producer probe ran later, so a finding that committed and acked in between
+was missing from the decisions while the probe read settled. The cap attempt
+now probes once before any load. Impact acks only after its finding commits:
+`SupplyChainImpactHandler.Handle` calls the writer, which commits in its own
+transaction (`go/internal/reducer/supplychain/core/writer_retract.go`,
+`runSupplyChainImpactTx`, `tx.Commit`), and the reducer service acks the item
+only after `Handle` returns (`go/internal/reducer/service_batch.go`,
+`executeAndReport` then the batch ack). A settled reading before the load
+therefore means every finding is visible to the load.
 
 ## Performance Evidence
 
@@ -67,3 +82,6 @@ persisted `impact_wait_outcome` is on the API and MCP row. Reference:
   generation in a deployed run. Such a row keeps the generation unsettled, so
   it reads as a give-up.
 - A deployed run with a real settled producer.
+- Rows written by a pre-#8956 binary, including during a rolling deploy, carry
+  no field; an untagged `unmatched` row from such a generation is not proof of
+  a genuine no-match.

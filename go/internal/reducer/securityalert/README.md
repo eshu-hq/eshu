@@ -137,6 +137,12 @@ a counting attempt, and give up at attempt 3 before impact existed.
   `PersistedImpactWaitOutcomes`; with no give-up the payload bytes are the
   pre-#8956 bytes (`TestSecurityAlertReconciliationWriterKeepsTheGenuineNoMatchPayload`).
 
+On the cap attempt `probeImpactProducerBeforeLoad` reads the producer state
+before any evidence loads, and `resolveImpactWait` decides with that one
+reading. Read after the load, a finding that committed and acked in between
+would be missing from the decisions while the probe read settled
+(`TestSecurityAlertReconciliationReadsSettlementBeforeTheEvidenceLoad`).
+
 The non-counting class freezes `attempt_count`, so the in-flight wait is
 bounded by ELAPSED TIME only; never compare the attempt count to bound it. A
 probe error is returned as a counting error and is never turned into the

@@ -54,7 +54,16 @@ A give-up row carries `impact_wait_outcome` (`gave_up_unmatched` or
 `list_security_alert_reconciliations` MCP tool return it. Only an `unmatched`
 row with owned dependency evidence and no impact evidence can carry it. A
 genuine no-match and every other status omit the field, and their payload is
-unchanged. Rows written before #8956 carry no field and are not reclassified.
+unchanged. Rows written by a binary from before #8956, including rows written
+during a rolling deploy, carry no field and are not reclassified. For such a
+generation an untagged `unmatched` row is not proof of a genuine no-match.
+
+The handler reads settlement before it loads any evidence, on the attempt
+where it can write at its cap. A settled reading then means every impact
+finding committed before the load, because the impact writer commits its
+findings inside its handler and the queue acks `succeeded` only afterwards. A
+finding that lands after that reading defers the pass instead of reading as
+absent. That attempt pays the one probe even when nothing waits on impact.
 
 ## What to do
 
