@@ -4,7 +4,7 @@
 
 1. `README.md` and `doc.go` in this directory.
 2. `store.go` for the write path and `migrations/217_security_alert_target_read_states.sql`.
-3. `../../ingestion_state.go` for where the writer runs in the commit transaction.
+3. `../../../ingestion_stream_error.go` for where the writer runs in the commit transaction.
 
 ## Invariants
 
