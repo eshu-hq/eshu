@@ -42,13 +42,18 @@ The payload follows `shared.BasePayload(path, "sbt", isDependency)`. The
 - `sbt_cross_version`: `none` (`%`), `binary` (`%%`), `scalajs` (`%%%`), or
   `custom` (a `cross` modifier).
 - `sbt_binary_artifact`: `organization:name_<binary>` for a `%%` row when the
-  file holds exactly one literal `scalaVersion`, so a consumer can match the
-  published artifact. Absent otherwise.
+  envelope names a `scala_version`, so a consumer can match the published
+  artifact. Absent otherwise.
 
-`sbt_state` carries `state`, `scala_version` (the first `ThisBuild`-scoped
-literal, else the first literal, else empty), `scala_version_count`,
-`dependency_count`, `dependency_overflow_count`,
-`unresolved_declaration_count`, and `meta_build`.
+`sbt_state` carries `state`, `scala_version`, `scala_version_count` (the
+number of distinct literals recorded), `dependency_count`,
+`dependency_overflow_count`, `unresolved_declaration_count`, and `meta_build`.
+`scala_version` is the one distinct literal when exactly one was recorded and
+no `scalaVersion` statement poisoned the envelope; otherwise it is empty and no
+row gets a `%%` hint. Two distinct literals leave it empty even when one is
+`ThisBuild`-scoped: sbt applies the last assignment of a scope, and the
+scanner does not decide the order across the bare file, `ThisBuild` and each
+project's settings, so it fails closed rather than pick one.
 
 A `scalaVersion` literal is read only in the places a `libraryDependencies`
 statement resolves (the two grammar contexts below), from a legacy
@@ -58,6 +63,17 @@ statement resolves (the two grammar contexts below), from a legacy
 `val`, an indented line, another axis) the assignment is counted once in
 `unresolved_declaration_count` and never recorded, so it cannot add a phantom
 version or set the `%%` hint.
+
+In those same places, a `scalaVersion` statement that is not a plain literal
+assignment poisons the envelope: a value that is not a literal or a tracked
+`val` (`sys.env("SV")`, `"3.3.1".trim`, an unknown identifier), any other
+assignment operator (`~=`, `<<=`, `<+=`), or a member that returns a Setting
+or the key (`.set(...)`, `.transform(...)`, `.withRank(...) :=`,
+`.in(...) :=`), with or without a `ThisBuild` axis. The statement is counted
+once and the envelope keeps no `scala_version` and no hint for the rest of the
+file: a later literal does not clear it. The same forms outside a grammar
+context are counted once and change nothing. A read (`scalaVersion.value`) is
+not counted.
 
 `meta_build` is `true` when the file sits directly in a directory named
 `project`. The registry admits `build.sbt` by base name, so
@@ -161,17 +177,24 @@ call or a `.` on the next line (`v("x")`, `v\n  .trim`) does not match.
 
 `:=` and sbt 0.13's `<<=` replace the key and `~=`, `-=` and `--=` transform or
 remove what came before, so they supersede earlier rows of the same context:
-those rows are `partial` and counted. A member called on the key at the start
-of an expression is judged by what sbt's SettingKey API (main-settings
-`Structure.scala`) says it returns:
+those rows are `partial` and counted. A member called on the key is judged by
+what sbt's SettingKey API (main-settings `Structure.scala`) says it returns.
+A member that returns a Setting or the key is applied wherever it appears,
+because that Setting changes the key wherever it is used: at the start of a
+statement, in a `val` body, after an operator (`commonSettings :+ ...`), in an
+`if` branch or a lambda body. Out of a grammar context it is a global reset,
+like `:=` there. A member that returns no Setting is counted only at the start
+of an expression (a line start, an opener, `,` or `;`); in the middle of one
+it is a read:
 
 | Member | Effect |
 |---|---|
-| `set`, `set0` (sbt 2), `transform`, `remove1`, `removeN` | a Setting that rewrites the key: supersedes, statement counted |
-| `withRank` | returns the key, so an assignment the scanner does not read may follow: supersedes and falls back |
+| `set`, `set0` (sbt 2), `transform`, `remove1`, `removeN` | a Setting that rewrites the key: supersedes, statement counted, any later literal coordinate in the statement partial |
+| `withRank(...)` then `:=`, `<<=`, `~=`, `-=`, `--=`, or a continuation the scanner cannot read | returns the key, then replaces or rewrites it: supersedes and falls back |
+| `withRank(...)` then `+=`, `++=`, `<+=`, `<++=`, or any other assignment operator | returns the key, then adds: fallback, no superseding |
 | `append1`, `appendN` | a Setting that adds: fallback, no superseding |
 | `value`, `key`, `scopedKey`, `taskValue` | a read: not a declaration, not counted |
-| anything else (`map`, `flatMap`, `get`, `or`, `filter`, an unknown name) | no Setting, so it cannot change the key: counted once, no superseding |
+| anything else (`map`, `flatMap`, `get`, `or`, `filter`, an unknown name) | no Setting, so it cannot change the key: counted once at the start of an expression, a read elsewhere, no superseding |
 
 A reset in the bare file applies to the root project,
 which may be any project the file declares, so it supersedes every project row
@@ -276,7 +299,13 @@ tracked. A leading UTF-8 byte order mark is ignored.
   gets no `scala_version` and no `sbt_binary_artifact` hint.
 - `meta_build` is a path rule on the parent directory name. A `build.sbt` in a
   subproject directory literally named `project` is flagged too; sbt itself
-  treats `<root>/project` as the meta-build.
+  treats `<root>/project` as the meta-build. The rule runs on the absolute path
+  the engine passes, so a repository checked out in a directory named
+  `project` has its root `build.sbt` flagged and every row partial: fail-closed,
+  but the flag is wrong (#8997).
+- `scala_version` fails closed: two distinct literals, or one `scalaVersion`
+  statement the scanner cannot read, leave it empty for the whole file, even
+  where sbt's last-assignment order would name one version.
 - A bare-file reset makes every project row partial, even a project that is
   not the root, because the scanner does not decide which project is the root.
 - `ThisBuild /` and `Global /` keys and a declared-project axis (`core /`) are

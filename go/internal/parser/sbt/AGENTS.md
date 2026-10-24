@@ -53,9 +53,16 @@
   it returns a Setting that rewrites the key, or returns the key itself
   (`settingMemberOf`). Never make an unknown member supersede (it would demote
   unrelated rows) and never make a rewriting member a read (it would leave
-  superseded rows resolved). Quote the sbt definition for any new name.
+  superseded rows resolved). Quote the sbt definition for any new name. A
+  member that returns a Setting or the key is applied from any position; only
+  the members that return no Setting keep the statement-start gate
+  (`startsExpression`). After `withRank(...)` the operator decides
+  (`applyRankedOperator`): an appending operator never supersedes.
 - `scalaVersion` is recorded only in a grammar context. Do not record it from
-  a nested position; a wrong literal moves every `%%` hint in the file.
+  a nested position; a wrong literal moves every `%%` hint in the file. An
+  unreadable scalaVersion statement in a grammar context poisons the envelope
+  (`scalaPoisoned`) for good, and two distinct literals report no version: do
+  not add a "prefer ThisBuild" or "last wins" pick without a scope-order proof.
 - `TestGrammarSeededFuzzInvariants` (`fuzz_test.go`) is the regression net:
   the grammar and indentation (`fuzz_indent_test.go`) arms must report zero
   I1, I2, I3, missing and fabricated cases, and the member arm
@@ -161,7 +168,22 @@ nested scalaVersion literals, and checks exact row states, the exact
 count=2,752, scala=1,494 and hint=773 over 4,000 cases; with the rule, zero at
 4,000 (9,202 rows) and at 30,000 (70,083 rows), and the grammar and
 indentation arms stay zero at both. 18 single-change mutants of the rule, the
-operators, the scalaVersion gate and the meta-build flag were all killed. The
+operators, the scalaVersion gate and the meta-build flag were all killed.
+
+No-Regression Evidence (members anywhere, scalaVersion poison): the member arm
+now places rewriting members outside statement position (a `val` body, after
+`:+` or `++`, an `if` branch, a lambda body, a nested call), follows
+`withRank(...)` with every operator class, and draws scalaVersion statements
+the scanner cannot read in any order with literals. On the code before this
+fix it reported state=2,167, count=2,170, scala=212 and hint=125 over 4,000
+cases and state=16,502, count=16,096, scala=1,592 and hint=921 over 30,000;
+with the fix, zero at 4,000 (9,542 rows) and at 30,000 (73,007 rows), and the
+grammar and indentation arms stay zero with their row counts unchanged. 19
+single-change overlay mutants of the member gate, the `withRank` operator
+rule, the poison and the distinct-literal envelope were all killed. The same
+benchmark, run alternately at load average about 5, measured 15.25 to 15.37
+ms/op before and 15.38 to 15.41 ms/op after, with 16.45 MB/op and 139,757
+allocs/op on both: no byte or allocation change. The
 same benchmark measured 15.7 to 19.4 ms/op (median 16.4) against 15.7 to 20.0
 ms/op (median 16.1) for the code before, run alternately at load average 14 to
 17, with 16.45 MB/op and 139,757 to 139,758 allocs/op on both: no byte or

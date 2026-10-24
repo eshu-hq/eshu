@@ -208,13 +208,20 @@ recent shipped work grouped by feature area.
   not `test`), and a string holding a backslash is opaque. `:=`, `~=`, `-=`,
   `--=`, sbt 0.13's `<<=`, and the members sbt's SettingKey API defines to
   rewrite the key (`.transform`, `.set`, `.remove1`, `.removeN`, and
-  `.withRank` before an assignment) make the rows they supersede partial; a
-  member that returns no Setting (`.map`, `.filter`) is counted once and
-  supersedes nothing. `<+=`, `<++=`, `.append1`, `.appendN` and any other
-  assignment operator fall back with partial rows. `scalaVersion` is read only
-  where `libraryDependencies` would resolve, so a nested literal never moves
-  the `%%` hint, and `project/build.sbt` (sbt's meta-build, admitted by its
-  base name) is parsed with `sbt_state.meta_build` true and every row partial.
+  `.withRank` before `:=`, `~=`, `-=`, `--=` or `<<=`) make the rows they
+  supersede partial, wherever the member appears (a `val` body, after an
+  operator, an `if` branch); a member that returns no Setting (`.map`,
+  `.filter`) is counted once and supersedes nothing. `<+=`, `<++=`,
+  `.append1`, `.appendN`, `.withRank(...) +=` and any other assignment
+  operator fall back with partial rows. `scalaVersion` is read only where
+  `libraryDependencies` would resolve, so a nested literal never moves the `%%`
+  hint; an unreadable `scalaVersion` statement there (`sys.env(...)`, `~=`,
+  `.set`, `.withRank(...) :=`) or two distinct literals leave
+  `scala_version` empty and drop the hint. `project/build.sbt` (sbt's
+  meta-build, admitted by its base name) is parsed with
+  `sbt_state.meta_build` true and every row partial; the check runs on the
+  absolute path, so a clone inside a directory named `project` is flagged too
+  ([#8997](https://github.com/eshu-hq/eshu/issues/8997)).
   A runtime-plus-test list is `runtime`,
   compiler-tool configurations are undetermined, Ivy ranges are partial, and a
   configuration string over 256 bytes is never split or stored. Package-registry correlation for sbt rows

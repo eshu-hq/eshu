@@ -38,15 +38,22 @@ coordinates (`+=`, `++=`, `:=`; `%`, `%%`, `%%%`; an optional configuration such
 as `% Test`) and the literal `scalaVersion`, and emits them as dependency rows
 in the same shape the Gradle and Maven parsers use, with `package_manager`
 `sbt`. A `%%` row also carries `sbt_binary_artifact` (for example
-`org.typelevel:cats-core_2.13`) when the file holds exactly one literal
-`scalaVersion`. A `scalaVersion` literal is read only where a
+`org.typelevel:cats-core_2.13`) when the file holds exactly one distinct
+literal `scalaVersion` and no `scalaVersion` statement the parser cannot read.
+A `scalaVersion` literal is read only where a
 `libraryDependencies` statement would resolve (a column-0 statement or a
 project's `.settings(...)` argument), from `ThisBuild / scalaVersion` whose
 axis starts such a statement, or from `scalaVersion in ThisBuild` there. A
 literal anywhere else (`inThisBuild(...)`, a wrapper, a call argument, a block,
 a settings `val`, another axis) is counted in
 `sbt_state.unresolved_declaration_count` and never sets `scala_version` or the
-hint.
+hint. In the places a literal is read, any other `scalaVersion` statement (a
+non-literal value such as `sys.env("SV")`, `~=`, `<<=`, `.set(...)`,
+`.transform(...)`, `.withRank(...) :=`, also behind `ThisBuild /`) is counted
+and clears `scala_version` and the hint for the whole file, whatever its
+order. Two distinct literals also leave `scala_version` empty, with
+`scala_version_count` 2: sbt applies the last assignment of a scope, and the
+parser does not decide that order across scopes.
 
 A row is `resolved` only when its whole statement matches a closed grammar
 (the full EBNF is in `go/internal/parser/sbt/README.md`): a bare
@@ -74,9 +81,11 @@ ModuleID methods that change neither coordinates nor configurations.
 | an indented line at depth zero: a Scala 3 `if`/`then`/`else`, `def` or `val` body, `match` case, or `for`/`while` `do` body | partial |
 | `% "Test"`, `% "Compile"` (configuration strings are case sensitive) | partial; `% "test"` and `% Test` are `test` |
 | a string holding a backslash, triple-quoted too | opaque: no literal coordinate |
-| `.transform(...)`, `.set(...)`, `.remove1(...)`, `.removeN(...)`, `.withRank(...)`, sbt 0.13's `<<=` | supersedes earlier rows, like `~=` |
+| `.transform(...)`, `.set(...)`, `.remove1(...)`, `.removeN(...)` anywhere (a `val` body, after an operator, an `if` branch), sbt 0.13's `<<=` | supersedes earlier rows, like `~=`; outside a grammar context, every row |
+| `.withRank(...)` then `:=`, `~=`, `-=`, `--=`, `<<=` | supersedes earlier rows |
+| `.withRank(...)` then `+=`, `++=`, `<+=`, `<++=` | partial; earlier rows unchanged |
 | `.append1(...)`, `.appendN(...)`, `<+=`, `<++=`, any other assignment operator | partial; earlier rows unchanged |
-| `.map(...)`, `.filter(...)` or any other member that returns no Setting | counted once; earlier rows unchanged |
+| `.map(...)`, `.filter(...)` or any other member that returns no Setting | counted once at the start of an expression, a read elsewhere; earlier rows unchanged |
 
 A partial row keeps the coordinates read literally, carries a placeholder
 `compile` scope, and is counted in `sbt_state.unresolved_declaration_count`; it
@@ -129,6 +138,12 @@ Known limits of the sbt reading:
   API defines are judged.
 - `scalaVersion` inside `inThisBuild(...)` is not read, so a build that sets it
   only there gets no `scala_version` and no `sbt_binary_artifact` hint.
+- `scala_version` fails closed: a `ThisBuild` literal plus a different
+  project override, or two literals in one scope, report no version, even
+  where sbt's last assignment would name one.
+- `meta_build` is decided from the absolute path, so a repository checked out
+  in a directory named `project` has its root `build.sbt` flagged and every row
+  partial ([#8997](https://github.com/eshu-hq/eshu/issues/8997)).
 - `ThisBuild /` and `Global /` keys are partial even where sbt delegation
   would read them, because the grammar keeps only the forms it can prove.
 
