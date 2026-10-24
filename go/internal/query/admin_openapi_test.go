@@ -48,6 +48,7 @@ func TestOpenAPISpecAdminPathsMatchMountedContract(t *testing.T) {
 		"/api/v0/admin/repository-retirements",
 		"/api/v0/admin/collector-failures/acknowledge",
 		"/api/v0/admin/collector-failures/acknowledgements/query",
+		"/api/v0/admin/collector-failures/query",
 	}
 
 	for _, path := range expectedPaths {

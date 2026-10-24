@@ -32,6 +32,9 @@ type scriptedAcknowledger struct {
 	lastRequest pgstorage.TerminalFailureAckRequest
 	listErr     error
 	lastFilter  pgstorage.TerminalFailureAckListFilter
+	listPage    pgstorage.TerminalFailureListPage
+	listFailErr error
+	lastList    pgstorage.TerminalFailureListFilter
 }
 
 func (s *scriptedAcknowledger) ResolveTarget(_ context.Context, req pgstorage.TerminalFailureAckRequest) (pgstorage.TerminalFailureAckTarget, error) {
@@ -47,6 +50,13 @@ func (s *scriptedAcknowledger) Acknowledge(_ context.Context, req pgstorage.Term
 	s.acknowledge++
 	s.lastRequest = req
 	return s.result, s.ackErr
+}
+
+func (s *scriptedAcknowledger) ListTerminalFailures(_ context.Context, filter pgstorage.TerminalFailureListFilter) (pgstorage.TerminalFailureListPage, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lastList = filter
+	return s.listPage, s.listFailErr
 }
 
 func (s *scriptedAcknowledger) ListTerminalFailureAcks(_ context.Context, filter pgstorage.TerminalFailureAckListFilter) ([]pgstorage.TerminalFailureAckRecord, error) {
