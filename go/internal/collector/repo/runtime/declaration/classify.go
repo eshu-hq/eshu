@@ -30,17 +30,45 @@ func Classify(raw string) Spec {
 	if placeholderPattern.MatchString(s) {
 		return Spec{Kind: SpecKindUnresolved}
 	}
+	if rest, ok := equalsPin(s); ok {
+		if v, ok := parseVersion(rest); ok {
+			return versionSpec(v)
+		}
+		return Spec{Kind: SpecKindAlias}
+	}
 	if isRangeLike(s) {
 		if spec, ok := parseRange(s); ok {
 			return spec
 		}
 		return Spec{Kind: SpecKindAlias}
 	}
-	bare := strings.TrimLeft(s, "=")
-	if v, ok := parseVersion(bare); ok {
+	if v, ok := parseVersion(s); ok {
 		return versionSpec(v)
 	}
 	return Spec{Kind: SpecKindAlias}
+}
+
+// equalsPin reports whether s is a leading "=" or "==" before one version,
+// with or without spaces between them, and returns the version text. "=20",
+// "= 20" and "== 20" all pin the same version, so they classify the same.
+// When rest is not a version ("=>20", "=<20", "===20", "= latest") the
+// caller's parseVersion rejects it and the text is an alias. ok is false when
+// s does not start with "=" or holds more than one clause, such as
+// "=20 || >=22", which the range path reads.
+func equalsPin(s string) (rest string, ok bool) {
+	switch {
+	case strings.HasPrefix(s, "=="):
+		rest = s[2:]
+	case strings.HasPrefix(s, "="):
+		rest = s[1:]
+	default:
+		return "", false
+	}
+	rest = strings.TrimLeft(rest, " \t")
+	if strings.ContainsAny(rest, " \t,") {
+		return "", false
+	}
+	return rest, true
 }
 
 // version is a parsed numeric version. components counts the numeric parts
@@ -133,7 +161,8 @@ func validTail(tail string) bool {
 }
 
 // isRangeLike reports whether s uses comparator syntax rather than naming one
-// version. A leading "=" or "==" before a single version is an exact pin.
+// version. A leading "=" or "==" before a single version never reaches it:
+// equalsPin reads that as a pin.
 func isRangeLike(s string) bool {
 	if s == "" {
 		return false

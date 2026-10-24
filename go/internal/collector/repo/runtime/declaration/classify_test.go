@@ -32,6 +32,37 @@ func TestClassify(t *testing.T) {
 		{"partial wildcard", "20.x", Spec{Kind: SpecKindPartial, Major: intp(20)}},
 		{"partial wildcard star", "3.9.*", Spec{Kind: SpecKindPartial, Major: intp(3), Minor: intp(9)}},
 		{"equals operator is exact", "=20.1.0", Spec{Kind: SpecKindExact, Major: intp(20), Minor: intp(1), Patch: intp(0)}},
+		// A leading "=" or "==" pins one version whether or not a space follows
+		// it, so both spellings classify the same (#8969 review).
+		{"equals major is partial", "=20", Spec{Kind: SpecKindPartial, Major: intp(20)}},
+		{"spaced equals major is partial", "= 20", Spec{Kind: SpecKindPartial, Major: intp(20)}},
+		{"double equals major is partial", "==20", Spec{Kind: SpecKindPartial, Major: intp(20)}},
+		{"spaced double equals is partial", "==  20", Spec{Kind: SpecKindPartial, Major: intp(20)}},
+		{"equals with v prefix is exact", "=v20.1.0", Spec{Kind: SpecKindExact, Major: intp(20), Minor: intp(1), Patch: intp(0)}},
+		{"spaced equals with v prefix is exact", "= v20.1.0", Spec{Kind: SpecKindExact, Major: intp(20), Minor: intp(1), Patch: intp(0)}},
+		{"spaced equals wildcard is partial", "= 20.x", Spec{Kind: SpecKindPartial, Major: intp(20)}},
+		{"spaced equals tab is partial", "=\t3.2", Spec{Kind: SpecKindPartial, Major: intp(3), Minor: intp(2)}},
+		{"reversed greater-equals is not an operator", "=>20", Spec{Kind: SpecKindAlias}},
+		{"reversed less-equals is not an operator", "=<20", Spec{Kind: SpecKindAlias}},
+		{"triple equals is not an operator", "===20", Spec{Kind: SpecKindAlias}},
+		{"spaced equals before a name is an alias", "= latest", Spec{Kind: SpecKindAlias}},
+		{"lone equals is an alias", "=", Spec{Kind: SpecKindAlias}},
+		{
+			"equals clause in a disjunction stays a range",
+			"=20 || >=22",
+			Spec{
+				Kind:       SpecKindRange,
+				RangeLower: strp("=20 || >=22"), RangeLowerMajor: intp(20), RangeLowerInclusive: boolp(true),
+			},
+		},
+		{
+			"less-equals is an inclusive upper bound",
+			"<=20",
+			Spec{
+				Kind:       SpecKindRange,
+				RangeUpper: strp("<=20"), RangeUpperMajor: intp(20), RangeUpperInclusive: boolp(true),
+			},
+		},
 		{
 			"range two comparators",
 			">=18 <21",
