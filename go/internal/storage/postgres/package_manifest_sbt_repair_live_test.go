@@ -4,36 +4,47 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8961 disposable PostgreSQL 18 proof that the sbt repair migration marks only the scopes holding sbt dependency rows dirty, that the existing backfill repair then gives a stored keyless sbt row its registry keys while a non-sbt scope's sidecar rows are not rewritten, and that re-running or racing the statement is safe; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #8961 disposable PostgreSQL 18 proof that the reducer's sbt key repair adds a stored keyless sbt row's registry keys without a dirty row or a readiness flip, leaves a non-sbt scope's sidecar rows alone, converges in a second zero-insert walk that writes its own marker, runs only once the v2 marker exists, and is a no-op on databases with no sbt rows; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/migrations"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/consumption"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
-const sbtRepairMigrationSuffix = "_package_manifest_consumption_keys_sbt_repair.sql"
+var sbtRepairWantKeys = []string{
+	"sbt-binary|maven|org.typelevel/cats-core_2.13",
+	"sbt-binary|maven|org.typelevel:cats-core_2.13",
+}
 
-func sbtRepairMigrationSQL(t *testing.T) string {
+func openSBTRepairDatabase(t *testing.T) (context.Context, *sql.DB) {
 	t.Helper()
-	for _, def := range migrations.BootstrapDefinitions() {
-		if strings.HasSuffix(def.Path, sbtRepairMigrationSuffix) {
-			return def.SQL
-		}
+	dsn := os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN")
+	optIn := os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE")
+	ctx, database := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 3*time.Minute)
+	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
+		t.Fatalf("ApplyBootstrap(): %v", err)
 	}
-	t.Fatalf("no bootstrap definition ends with %s", sbtRepairMigrationSuffix)
-	return ""
+	return ctx, database
+}
+
+func markSBTRepairV2Ready(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	if _, err := database.ExecContext(ctx, markPackageManifestConsumptionKeyBackfillSQL,
+		PackageManifestConsumptionKeyBackfillMarker, time.Now().UTC()); err != nil {
+		t.Fatalf("mark v2 backfill ready: %v", err)
+	}
 }
 
 func seedSBTRepairScope(t *testing.T, ctx context.Context, database *sql.DB, scope string) {
@@ -52,17 +63,20 @@ VALUES ($1, $1 || '-gen', 'sync', clock_timestamp(), clock_timestamp(), 'active'
 	}
 }
 
-// seedSBTRepairFact writes one dependency fact the way the ingester does, with
-// the sidecar-writer setting on so the dirty trigger stays quiet, and writes
-// its sidecar keys with the current code. An sbt row stored by the code before
-// this change is simulated by passing keyed=false.
-func seedSBTRepairFact(t *testing.T, ctx context.Context, database *sql.DB, scope, factID, name string, metadata map[string]any, keyed bool) {
-	t.Helper()
+func sbtRepairPayload(scope, name string, metadata map[string]any) map[string]any {
 	metadata["config_kind"] = "dependency"
-	payload := map[string]any{
+	return map[string]any{
 		"repo_id": "repository:" + scope, "entity_type": "Variable",
 		"entity_name": name, "entity_metadata": metadata,
 	}
+}
+
+// seedSBTRepairFact writes one dependency fact the way the ingester does, with
+// the sidecar-writer setting on so the dirty trigger stays quiet. keyed=false
+// leaves the sidecar empty, the state the code before #8961 left an sbt row in.
+func seedSBTRepairFact(t *testing.T, ctx context.Context, database *sql.DB, scope, factID, name string, metadata map[string]any, keyed bool) {
+	t.Helper()
+	payload := sbtRepairPayload(scope, name, metadata)
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("marshal %s: %v", factID, err)
@@ -118,19 +132,20 @@ func sbtRepairStrings(t *testing.T, ctx context.Context, database *sql.DB, query
 	return out
 }
 
-// TestPackageManifestSBTRepairMigrationGivesStoredSBTRowsKeysLive proves the
-// repair end to end. Scope scala-repo holds a stored sbt %% row and a %% row
-// whose artifact is unknown, both keyless as the code before this change left
-// them; scope node-repo holds a keyed npm row. The migration statement must
-// mark only scala-repo dirty, the shipped backfill must then give the %% row
-// its Maven artifact key, and node-repo's sidecar rows must not be rewritten.
-func TestPackageManifestSBTRepairMigrationGivesStoredSBTRowsKeysLive(t *testing.T) {
-	dsn := os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN")
-	optIn := os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE")
-	ctx, database := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 3*time.Minute)
-	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
-		t.Fatalf("ApplyBootstrap(): %v", err)
-	}
+func sbtRepairKeys(t *testing.T, ctx context.Context, database *sql.DB, scope string) []string {
+	t.Helper()
+	return sbtRepairStrings(t, ctx, database,
+		`SELECT fact_id || '|' || ecosystem || '|' || package_name FROM package_manifest_consumption_keys WHERE scope_id = $1 ORDER BY 1`, scope)
+}
+
+func sbtRepairMarkerPresent(t *testing.T, ctx context.Context, database *sql.DB) bool {
+	t.Helper()
+	return len(sbtRepairStrings(t, ctx, database,
+		`SELECT marker_name FROM package_manifest_consumption_key_backfill_markers WHERE marker_name = $1`, consumption.SBTRepairMarker)) == 1
+}
+
+func seedStoredSBTAndNPMScopes(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
 	for _, scope := range []string{"scala-repo", "node-repo"} {
 		seedSBTRepairScope(t, ctx, database, scope)
 	}
@@ -141,120 +156,167 @@ func TestPackageManifestSBTRepairMigrationGivesStoredSBTRowsKeysLive(t *testing.
 		"package_manager": "sbt", "sbt_cross_version": "binary",
 	}, false)
 	seedSBTRepairFact(t, ctx, database, "node-repo", "npm-left-pad", "left-pad", map[string]any{"package_manager": "npm"}, true)
-	if _, err := database.ExecContext(ctx, markPackageManifestConsumptionKeyBackfillSQL,
-		PackageManifestConsumptionKeyBackfillMarker, time.Now().UTC()); err != nil {
-		t.Fatalf("mark backfill ready: %v", err)
-	}
-	ready, err := PackageManifestConsumptionKeysReady(ctx, SQLDB{DB: database})
-	if err != nil || !ready {
-		t.Fatalf("before the repair ready = %v, err = %v, want true", ready, err)
-	}
-	nodeKeysBefore := sbtRepairStrings(t, ctx, database,
-		`SELECT fact_id || '|' || package_name || '|' || xmin::text FROM package_manifest_consumption_keys WHERE scope_id = 'node-repo' ORDER BY 1`)
-	if len(nodeKeysBefore) == 0 {
-		t.Fatal("seed produced no node-repo keys")
-	}
-	if keys := sbtRepairStrings(t, ctx, database,
-		`SELECT fact_id FROM package_manifest_consumption_keys WHERE scope_id = 'scala-repo'`); len(keys) != 0 {
-		t.Fatalf("stored sbt rows already have keys %v, want the keyless pre-change state", keys)
-	}
+}
 
-	repair := sbtRepairMigrationSQL(t)
-	if _, err := database.ExecContext(ctx, repair); err != nil {
-		t.Fatalf("run repair statement: %v", err)
-	}
-	if dirty := sbtRepairStrings(t, ctx, database,
-		`SELECT scope_id FROM package_manifest_consumption_key_dirty_scopes ORDER BY 1`); !reflect.DeepEqual(dirty, []string{"scala-repo"}) {
-		t.Fatalf("dirty scopes = %v, want only [scala-repo]", dirty)
-	}
-	if ready, _ := PackageManifestConsumptionKeysReady(ctx, SQLDB{DB: database}); ready {
-		t.Fatal("ready = true with a dirty scope, want readers to wait for the repair")
-	}
+// TestPackageManifestSBTRepairOldLogicRunLeavesRepairStateUntouched runs only
+// the v2 backfill, which is all a binary older than the repair runs. Stored sbt
+// rows stay keyless and no repair marker or progress row appears, so nothing an
+// old reducer does can consume or hide the repair (#8961).
+func TestPackageManifestSBTRepairOldLogicRunLeavesRepairStateUntouched(t *testing.T) {
+	ctx, database := openSBTRepairDatabase(t)
+	seedStoredSBTAndNPMScopes(t, ctx, database)
+	markSBTRepairV2Ready(t, ctx, database)
 
-	if err := BackfillPackageManifestConsumptionKeys(ctx, SQLDB{DB: database}); err != nil {
-		t.Fatalf("BackfillPackageManifestConsumptionKeys(): %v", err)
+	if err := (PackageManifestConsumptionKeyBackfill{}).runKeyBackfill(ctx, SQLDB{DB: database}); err != nil {
+		t.Fatalf("runKeyBackfill(): %v", err)
 	}
-	if ready, err := PackageManifestConsumptionKeysReady(ctx, SQLDB{DB: database}); err != nil || !ready {
-		t.Fatalf("after the repair ready = %v, err = %v, want true", ready, err)
+	if keys := sbtRepairKeys(t, ctx, database, "scala-repo"); len(keys) != 0 {
+		t.Fatalf("scala-repo keys = %v, want none from the v2 flow alone", keys)
 	}
-	scalaKeys := sbtRepairStrings(t, ctx, database,
-		`SELECT fact_id || '|' || ecosystem || '|' || package_name FROM package_manifest_consumption_keys WHERE scope_id = 'scala-repo' ORDER BY 1`)
-	wantScala := []string{
-		"sbt-binary|maven|org.typelevel/cats-core_2.13",
-		"sbt-binary|maven|org.typelevel:cats-core_2.13",
+	if sbtRepairMarkerPresent(t, ctx, database) {
+		t.Fatal("sbt repair marker exists after a v2-only run")
 	}
-	if !reflect.DeepEqual(scalaKeys, wantScala) {
-		t.Fatalf("scala-repo keys = %v, want %v (artifact only, none for the row without one)", scalaKeys, wantScala)
-	}
-	if nodeKeysAfter := sbtRepairStrings(t, ctx, database,
-		`SELECT fact_id || '|' || package_name || '|' || xmin::text FROM package_manifest_consumption_keys WHERE scope_id = 'node-repo' ORDER BY 1`); !reflect.DeepEqual(nodeKeysAfter, nodeKeysBefore) {
-		t.Fatalf("node-repo sidecar rows changed: before %v, after %v", nodeKeysBefore, nodeKeysAfter)
-	}
-
-	// Re-running the statement re-marks the scope and the repair converges to the
-	// same keys: the migration is safe to apply again.
-	if _, err := database.ExecContext(ctx, repair); err != nil {
-		t.Fatalf("re-run repair statement: %v", err)
-	}
-	if err := BackfillPackageManifestConsumptionKeys(ctx, SQLDB{DB: database}); err != nil {
-		t.Fatalf("second backfill: %v", err)
-	}
-	if again := sbtRepairStrings(t, ctx, database,
-		`SELECT fact_id || '|' || ecosystem || '|' || package_name FROM package_manifest_consumption_keys WHERE scope_id = 'scala-repo' ORDER BY 1`); !reflect.DeepEqual(again, wantScala) {
-		t.Fatalf("keys after a second repair = %v, want %v", again, wantScala)
+	if progress := sbtRepairStrings(t, ctx, database,
+		`SELECT marker_name FROM package_manifest_consumption_key_backfill_progress WHERE marker_name LIKE 'package_manifest_consumption_keys_sbt_repair%'`); len(progress) != 0 {
+		t.Fatalf("repair progress rows after a v2-only run: %v", progress)
 	}
 }
 
-// TestPackageManifestSBTRepairStatementIsSafeToRaceLive runs the statement from
-// several sessions at once while a dirty row for the same scope already exists,
-// and requires no error, one row per scope, and a new row version on every
-// re-mark: a repair that is rewriting the scope compares xmin and so keeps the
-// row instead of clearing a mark made after it started.
-func TestPackageManifestSBTRepairStatementIsSafeToRaceLive(t *testing.T) {
-	dsn := os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN")
-	optIn := os.Getenv("ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE")
-	ctx, database := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 3*time.Minute)
-	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
-		t.Fatalf("ApplyBootstrap(): %v", err)
+// TestPackageManifestSBTRepairAddsKeysWithoutFlippingReadiness proves the
+// repair end to end while a second connection polls readiness. The dirty set
+// stays empty and readiness stays true throughout; the first walk inserts and
+// restarts, the second inserts nothing and writes the marker; a non-sbt
+// scope's sidecar rows are not rewritten.
+func TestPackageManifestSBTRepairAddsKeysWithoutFlippingReadiness(t *testing.T) {
+	ctx, database := openSBTRepairDatabase(t)
+	seedStoredSBTAndNPMScopes(t, ctx, database)
+	markSBTRepairV2Ready(t, ctx, database)
+	nodeBefore := sbtRepairStrings(t, ctx, database,
+		`SELECT fact_id || '|' || package_name || '|' || xmin::text FROM package_manifest_consumption_keys WHERE scope_id = 'node-repo' ORDER BY 1`)
+	if len(nodeBefore) == 0 {
+		t.Fatal("seed produced no node-repo keys")
 	}
-	scopes := []string{"scala-a", "scala-b", "scala-c"}
-	for _, scope := range scopes {
-		seedSBTRepairScope(t, ctx, database, scope)
-		seedSBTRepairFact(t, ctx, database, scope, scope+"-fact", "o:n", map[string]any{
-			"package_manager": "sbt", "sbt_cross_version": "binary", "sbt_binary_artifact": "o:n_3",
-		}, false)
-	}
-	if _, err := database.ExecContext(ctx, `INSERT INTO package_manifest_consumption_key_dirty_scopes (scope_id) VALUES ('scala-b')`); err != nil {
-		t.Fatalf("pre-existing dirty row: %v", err)
-	}
-	xminBefore := sbtRepairStrings(t, ctx, database,
-		`SELECT xmin::text FROM package_manifest_consumption_key_dirty_scopes WHERE scope_id = 'scala-b'`)
 
-	repair := sbtRepairMigrationSQL(t)
+	probeCtx, stopProbe := context.WithCancel(ctx)
+	var probes, notReady int
+	var probeErr error
 	var wg sync.WaitGroup
-	errs := make(chan error, 6)
-	for i := 0; i < cap(errs); i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_, err := database.ExecContext(ctx, repair)
-			errs <- err
-		}()
-	}
-	wg.Wait()
-	close(errs)
-	for err := range errs {
-		if err != nil {
-			t.Fatalf("concurrent repair statement: %v", err)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for probeCtx.Err() == nil {
+			ready, err := PackageManifestConsumptionKeysReady(probeCtx, SQLDB{DB: database})
+			if err != nil {
+				if probeCtx.Err() == nil {
+					probeErr = err
+				}
+				return
+			}
+			probes++
+			if !ready {
+				notReady++
+			}
 		}
+	}()
+
+	var reports []consumption.SBTRepairReport
+	for pass := 0; pass < 4 && (len(reports) == 0 || reports[len(reports)-1].Pending); pass++ {
+		report, err := (PackageManifestConsumptionKeyBackfill{}).RunWithReport(ctx, SQLDB{DB: database})
+		if err != nil {
+			t.Fatalf("RunWithReport() pass %d: %v", pass, err)
+		}
+		reports = append(reports, report)
 	}
-	if dirty := sbtRepairStrings(t, ctx, database,
-		`SELECT scope_id FROM package_manifest_consumption_key_dirty_scopes ORDER BY 1`); !reflect.DeepEqual(dirty, scopes) {
-		t.Fatalf("dirty scopes = %v, want %v once each", dirty, scopes)
+	stopProbe()
+	wg.Wait()
+
+	if probeErr != nil {
+		t.Fatalf("readiness probe: %v", probeErr)
 	}
-	xminAfter := sbtRepairStrings(t, ctx, database,
-		`SELECT xmin::text FROM package_manifest_consumption_key_dirty_scopes WHERE scope_id = 'scala-b'`)
-	if reflect.DeepEqual(xminBefore, xminAfter) {
-		t.Fatalf("scala-b dirty row kept xmin %v, want a new row version from the re-mark", xminBefore)
+	if probes == 0 || notReady != 0 {
+		t.Fatalf("readiness probes = %d, not ready = %d, want probes > 0 and none not ready", probes, notReady)
 	}
+	if len(reports) != 2 {
+		t.Fatalf("passes = %d (%+v), want two: an inserting walk, then a zero-insert walk", len(reports), reports)
+	}
+	first, second := reports[0], reports[1]
+	if !first.Pending || !first.Restarted || first.InsertedRows != 2 {
+		t.Fatalf("first walk = %+v, want pending, restarted, 2 inserted rows", first)
+	}
+	if second.Pending || !second.Completed || second.InsertedRows != 0 || second.Cursor != "scala-repo" {
+		t.Fatalf("second walk = %+v, want complete with 0 inserted rows and cursor scala-repo", second)
+	}
+	if dirty := sbtRepairStrings(t, ctx, database, `SELECT scope_id FROM package_manifest_consumption_key_dirty_scopes`); len(dirty) != 0 {
+		t.Fatalf("dirty scopes = %v, want none: the repair never writes the fence", dirty)
+	}
+	if got := sbtRepairKeys(t, ctx, database, "scala-repo"); !reflect.DeepEqual(got, sbtRepairWantKeys) {
+		t.Fatalf("scala-repo keys = %v, want %v (artifact only, none for the row without one)", got, sbtRepairWantKeys)
+	}
+	if nodeAfter := sbtRepairStrings(t, ctx, database,
+		`SELECT fact_id || '|' || package_name || '|' || xmin::text FROM package_manifest_consumption_keys WHERE scope_id = 'node-repo' ORDER BY 1`); !reflect.DeepEqual(nodeAfter, nodeBefore) {
+		t.Fatalf("node-repo sidecar rows changed: before %v, after %v", nodeBefore, nodeAfter)
+	}
+	if !sbtRepairMarkerPresent(t, ctx, database) {
+		t.Fatal("sbt repair marker missing after the zero-insert walk")
+	}
+	again, err := (PackageManifestConsumptionKeyBackfill{}).RunWithReport(ctx, SQLDB{DB: database})
+	if err != nil || again.Pending || again.Scopes != 0 || again.InsertedRows != 0 {
+		t.Fatalf("pass after the marker = %+v, err %v, want a no-op", again, err)
+	}
+}
+
+// TestPackageManifestSBTRepairIsANoOpWithoutSBTRows covers a database with no
+// sbt rows, with and without a v2 marker: the first pass writes the repair
+// marker having inserted nothing.
+func TestPackageManifestSBTRepairIsANoOpWithoutSBTRows(t *testing.T) {
+	ctx, database := openSBTRepairDatabase(t)
+	seedSBTRepairScope(t, ctx, database, "node-repo")
+	seedSBTRepairFact(t, ctx, database, "node-repo", "npm-left-pad", "left-pad", map[string]any{"package_manager": "npm"}, false)
+
+	report, err := (PackageManifestConsumptionKeyBackfill{}).RunWithReport(ctx, SQLDB{DB: database})
+	if err != nil {
+		t.Fatalf("RunWithReport(): %v", err)
+	}
+	if report.Pending || !report.Completed || report.InsertedRows != 0 || report.Scopes != 0 {
+		t.Fatalf("report = %+v, want completed on the first pass with nothing inserted", report)
+	}
+	if !sbtRepairMarkerPresent(t, ctx, database) {
+		t.Fatal("repair marker missing")
+	}
+}
+
+// TestPackageManifestSBTRepairWaitsForTheV2Marker proves the repair does not
+// start while the initial backfill is still walking scopes.
+func TestPackageManifestSBTRepairWaitsForTheV2Marker(t *testing.T) {
+	ctx, database := openSBTRepairDatabase(t)
+	for i := 0; i < packageManifestConsumptionKeyBackfillScopesPerPass+1; i++ {
+		scope := fmt.Sprintf("a-scope-%03d", i)
+		seedSBTRepairScope(t, ctx, database, scope)
+		seedSBTRepairFact(t, ctx, database, scope, scope+"-fact", "left-pad", map[string]any{"package_manager": "npm"}, false)
+	}
+	seedSBTRepairScope(t, ctx, database, "z-scala")
+	seedSBTRepairFact(t, ctx, database, "z-scala", "z-sbt", "o:n", map[string]any{
+		"package_manager": "sbt", "sbt_cross_version": "binary", "sbt_binary_artifact": "o:n_3",
+	}, false)
+
+	report, err := (PackageManifestConsumptionKeyBackfill{}).RunWithReport(ctx, SQLDB{DB: database})
+	if err != nil {
+		t.Fatalf("RunWithReport(): %v", err)
+	}
+	if report.Scopes != 0 || report.Pending || sbtRepairMarkerPresent(t, ctx, database) {
+		t.Fatalf("report = %+v before the v2 marker: the repair must not run", report)
+	}
+	if progress := sbtRepairStrings(t, ctx, database,
+		`SELECT marker_name FROM package_manifest_consumption_key_backfill_progress WHERE marker_name LIKE 'package_manifest_consumption_keys_sbt_repair%'`); len(progress) != 0 {
+		t.Fatalf("repair progress rows before the v2 marker: %v", progress)
+	}
+}
+
+func mustJSON(t *testing.T, value any) string {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return string(encoded)
 }

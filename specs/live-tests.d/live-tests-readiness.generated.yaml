@@ -957,7 +957,12 @@ tests:
   - file: go/internal/storage/postgres/package_manifest_sbt_repair_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8961 disposable PostgreSQL 18 proof that the sbt repair migration marks only the scopes holding sbt dependency rows dirty, that the existing backfill repair then gives a stored keyless sbt row its registry keys while a non-sbt scope's sidecar rows are not rewritten, and that re-running or racing the statement is safe; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
+    reason: "#8961 disposable PostgreSQL 18 proof that the reducer's sbt key repair adds a stored keyless sbt row's registry keys without a dirty row or a readiness flip, leaves a non-sbt scope's sidecar rows alone, converges in a second zero-insert walk that writes its own marker, runs only once the v2 marker exists, and is a no-op on databases with no sbt rows; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/package_manifest_sbt_repair_lock_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8961 disposable PostgreSQL 18 proof that the sbt key repair resumes at its cursor after a failed page, returns a lock timeout without advancing the cursor or inserting anything while an ingester holds the scope row, and never inserts a key from a payload an ingester is rewriting under that row; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/poison/liveness_integration_live_test.go
     tag: ~

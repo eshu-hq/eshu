@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/consumption"
 	postgresdb "github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -49,13 +50,16 @@ func startPackageManifestConsumptionKeyBackfill(
 func runPackageManifestConsumptionKeyBackfill(ctx context.Context, database *sql.DB, instruments *telemetry.Instruments, logger *slog.Logger) error {
 	for {
 		var ready bool
+		var repair consumption.SBTRepairReport
 		var dirtyScopes, cursorUpdated int64
 		var sampleErr error
 		started := time.Now()
 		ran, err := withPackageManifestBackfillLeadership(ctx, database, func(passCtx context.Context, conn *sql.Conn) error {
 			bound := packageManifestBackfillConn{conn: conn}
-			if err := (postgres.PackageManifestConsumptionKeyBackfill{Instruments: instruments}).Run(passCtx, bound); err != nil {
-				return err
+			var runErr error
+			repair, runErr = (postgres.PackageManifestConsumptionKeyBackfill{Instruments: instruments}).RunWithReport(passCtx, bound)
+			if runErr != nil {
+				return runErr
 			}
 			var readyErr error
 			ready, readyErr = postgres.PackageManifestConsumptionKeysReady(passCtx, bound)
@@ -78,7 +82,7 @@ func runPackageManifestConsumptionKeyBackfill(ctx context.Context, database *sql
 			return nil
 		})
 		if ctx.Err() == nil {
-			recordPackageManifestBackfillPass(ctx, instruments, ran, ready, err, time.Since(started))
+			recordPackageManifestBackfillPass(ctx, instruments, ran, ready, repair.Pending, err, time.Since(started))
 			if ran && err == nil && sampleErr == nil && instruments != nil {
 				instruments.PackageManifestBackfillDirtyScopes.Record(ctx, dirtyScopes)
 				instruments.PackageManifestBackfillCursorUpdated.Record(ctx, cursorUpdated)
@@ -91,11 +95,11 @@ func runPackageManifestConsumptionKeyBackfill(ctx context.Context, database *sql
 				} else if sampleErr != nil {
 					logger.Warn("package manifest consumption key backfill progress sample failed", "error", sampleErr, "ready", ready, "duration_seconds", time.Since(started).Seconds())
 				} else {
-					logger.Info("package manifest consumption key backfill pass", "ready", ready, "dirty_scopes_capped", dirtyScopes, "cursor_updated_unixtime", cursorUpdated, "duration_seconds", time.Since(started).Seconds())
+					logger.Info("package manifest consumption key backfill pass", "ready", ready, "dirty_scopes_capped", dirtyScopes, "cursor_updated_unixtime", cursorUpdated, "sbt_repair_pending", repair.Pending, "sbt_repair_inserted_rows", repair.InsertedRows, "sbt_repair_cursor", repair.Cursor, "duration_seconds", time.Since(started).Seconds())
 				}
 			}
 		}
-		timer := time.NewTimer(packageManifestBackfillPollInterval(ran, ready, err))
+		timer := time.NewTimer(packageManifestBackfillPollInterval(ran, ready, repair.Pending, err))
 		select {
 		case <-ctx.Done():
 			timer.Stop()
@@ -110,7 +114,7 @@ func runPackageManifestConsumptionKeyBackfill(ctx context.Context, database *sql
 func recordPackageManifestBackfillPass(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	ran, ready bool,
+	ran, ready, repairPending bool,
 	passErr error,
 	duration time.Duration,
 ) {
@@ -120,7 +124,7 @@ func recordPackageManifestBackfillPass(
 	outcome := "contended"
 	if passErr != nil {
 		outcome = "failed"
-	} else if ran && ready {
+	} else if ran && ready && !repairPending {
 		outcome = "ready"
 	} else if ran {
 		outcome = "incomplete"
@@ -138,10 +142,11 @@ func recordPackageManifestBackfillPass(
 	}
 }
 
-// packageManifestBackfillPollInterval advances initial backfill promptly while
-// limiting idle, contended, and failed passes to the normal repair cadence.
-func packageManifestBackfillPollInterval(ran, ready bool, err error) time.Duration {
-	if ran && !ready && err == nil {
+// packageManifestBackfillPollInterval advances the initial backfill and a
+// pending sbt key repair promptly while limiting idle, contended, and failed
+// passes to the normal repair cadence.
+func packageManifestBackfillPollInterval(ran, ready, repairPending bool, err error) time.Duration {
+	if ran && (!ready || repairPending) && err == nil {
 		return packageManifestBackfillFastPollInterval
 	}
 	return packageManifestBackfillIdlePollInterval

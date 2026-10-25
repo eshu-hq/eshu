@@ -23,17 +23,21 @@ func TestPackageManifestBackfillPassTelemetry(t *testing.T) {
 	}
 	ctx := context.Background()
 	for _, pass := range []struct {
-		ran   bool
-		ready bool
-		err   error
-		want  string
+		ran           bool
+		ready         bool
+		repairPending bool
+		err           error
+		want          string
 	}{
 		{ran: false, want: "contended"},
 		{ran: true, err: errors.New("write failed"), want: "failed"},
 		{ran: true, want: "incomplete"},
 		{ran: true, ready: true, want: "ready"},
+		// Readers are ready but the sbt repair is still walking: the pass is
+		// incomplete, and the ready gauge keeps its reader meaning (one).
+		{ran: true, ready: true, repairPending: true, want: "incomplete"},
 	} {
-		recordPackageManifestBackfillPass(ctx, inst, pass.ran, pass.ready, pass.err, time.Second)
+		recordPackageManifestBackfillPass(ctx, inst, pass.ran, pass.ready, pass.repairPending, pass.err, time.Second)
 	}
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(ctx, &rm); err != nil {
@@ -85,12 +89,12 @@ func TestPackageManifestBackfillPassTelemetry(t *testing.T) {
 			}
 		}
 	}
-	if durationCount != 4 || !lastSuccess || !readyGauge {
-		t.Errorf("duration count=%d lastSuccess=%t readyGauge=%t, want 4/true/true", durationCount, lastSuccess, readyGauge)
+	if durationCount != 5 || !lastSuccess || !readyGauge {
+		t.Errorf("duration count=%d lastSuccess=%t readyGauge=%t, want 5/true/true", durationCount, lastSuccess, readyGauge)
 	}
-	for _, outcome := range []string{"contended", "failed", "incomplete", "ready"} {
-		if got[outcome] != 1 {
-			t.Errorf("outcome %s = %d, want 1", outcome, got[outcome])
+	for outcome, want := range map[string]int64{"contended": 1, "failed": 1, "incomplete": 2, "ready": 1} {
+		if got[outcome] != want {
+			t.Errorf("outcome %s = %d, want %d", outcome, got[outcome], want)
 		}
 	}
 }

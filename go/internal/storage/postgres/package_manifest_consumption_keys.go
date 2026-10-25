@@ -5,12 +5,15 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/consumption"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -181,8 +184,16 @@ func refreshPackageManifestConsumptionKeys(ctx context.Context, database db.Exec
 }
 
 func insertPackageManifestConsumptionKeyBatch(ctx context.Context, database db.ExecQueryer, rows []packageManifestConsumptionKeyRow) error {
+	_, err := execPackageManifestConsumptionKeyBatch(ctx, database, rows, insertPackageManifestConsumptionKeySuffix)
+	return err
+}
+
+// execPackageManifestConsumptionKeyBatch inserts rows with the given conflict
+// suffix and returns the statement's result. A nil result with a nil error
+// means there was nothing to insert.
+func execPackageManifestConsumptionKeyBatch(ctx context.Context, database db.ExecQueryer, rows []packageManifestConsumptionKeyRow, suffix string) (sql.Result, error) {
 	if len(rows) == 0 {
-		return nil
+		return nil, nil
 	}
 	args := make([]any, 0, len(rows)*columnsPerPackageManifestConsumptionKeyRow)
 	var values strings.Builder
@@ -194,10 +205,33 @@ func insertPackageManifestConsumptionKeyBatch(ctx context.Context, database db.E
 		fmt.Fprintf(&values, "($%d, $%d, $%d, $%d, $%d, $%d)", offset+1, offset+2, offset+3, offset+4, offset+5, offset+6)
 		args = append(args, row.FactID, row.ScopeID, row.GenerationID, row.RepositoryID, row.Ecosystem, row.PackageName)
 	}
-	if _, err := database.ExecContext(ctx, insertPackageManifestConsumptionKeyPrefix+values.String()+insertPackageManifestConsumptionKeySuffix, args...); err != nil {
-		return fmt.Errorf("insert package manifest consumption key batch (%d rows): %w", len(rows), err)
+	result, err := database.ExecContext(ctx, insertPackageManifestConsumptionKeyPrefix+values.String()+suffix, args...)
+	if err != nil {
+		return nil, fmt.Errorf("insert package manifest consumption key batch (%d rows): %w", len(rows), err)
 	}
-	return nil
+	return result, nil
+}
+
+// insertPackageManifestConsumptionKeysIfAbsent adds the keys derived from
+// envelopes that are not already stored and returns how many it inserted. It
+// is the sbt repair's writer (#8961): it never deletes and never overwrites,
+// so a key a concurrent writer already stored is left exactly as it is.
+func insertPackageManifestConsumptionKeysIfAbsent(ctx context.Context, database db.ExecQueryer, envelopes []facts.Envelope) (int64, error) {
+	rows := packageManifestConsumptionKeyRows(envelopes)
+	var inserted int64
+	for start := 0; start < len(rows); start += packageManifestConsumptionKeyBatchSize {
+		end := min(start+packageManifestConsumptionKeyBatchSize, len(rows))
+		result, err := execPackageManifestConsumptionKeyBatch(ctx, database, rows[start:end], insertPackageManifestConsumptionKeyIfAbsentSuffix)
+		if err != nil {
+			return inserted, err
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return inserted, fmt.Errorf("count package manifest consumption key batch (%d rows): %w", end-start, err)
+		}
+		inserted += affected
+	}
+	return inserted, nil
 }
 
 const deletePackageManifestConsumptionKeysSQL = `
@@ -216,3 +250,85 @@ ON CONFLICT (fact_id, ecosystem, package_name) DO UPDATE SET
     generation_id = EXCLUDED.generation_id,
     repository_id = EXCLUDED.repository_id
 `
+
+const insertPackageManifestConsumptionKeyIfAbsentSuffix = `
+ON CONFLICT (fact_id, ecosystem, package_name) DO NOTHING
+`
+
+// listPackageManifestConsumptionKeySBTScopeFactsSQL is the sbt repair's page
+// query: the scope-facts query above plus one predicate, derived from it so the
+// two cannot drift. The predicate only narrows rows migration 181's index
+// already returns in (scope_id, fact_id) order.
+var listPackageManifestConsumptionKeySBTScopeFactsSQL = strings.Replace(
+	listPackageManifestConsumptionKeyScopeFactsSQL,
+	"ORDER BY fact_id",
+	"  AND payload->'entity_metadata'->>'package_manager' = 'sbt'\nORDER BY fact_id",
+	1,
+)
+
+// listPackageManifestSBTRepairScopesSQL lists the scopes that hold an sbt
+// dependency row, after a cursor, reading the package_manager = 'sbt' prefix of
+// fact_records_active_package_dependency_entity_idx.
+const listPackageManifestSBTRepairScopesSQL = `
+SELECT DISTINCT scope_id
+FROM fact_records
+WHERE fact_kind = 'content_entity'
+  AND source_system = 'git'
+  AND payload->>'entity_type' = 'Variable'
+  AND payload->'entity_metadata'->>'config_kind' = 'dependency'
+  AND payload->'entity_metadata'->>'package_manager' = 'sbt'
+  AND scope_id > $1
+ORDER BY scope_id
+LIMIT $2
+`
+
+// sbtRepair wires the additive sbt repair to this package's page loader and
+// key writer. The page query is the shipped scope-facts query with one more
+// predicate, so it keeps migration 181's index.
+func (b PackageManifestConsumptionKeyBackfill) sbtRepair(beginner db.Beginner) consumption.SBTRepair {
+	return consumption.SBTRepair{
+		Beginner:   beginner,
+		ListScopes: listPackageManifestSBTRepairScopes,
+		LoadPage: func(ctx context.Context, queryer db.Queryer, scopeID, afterFactID string) ([]facts.Envelope, error) {
+			return loadPackageManifestConsumptionKeyFactsWith(ctx, queryer, listPackageManifestConsumptionKeySBTScopeFactsSQL, scopeID, afterFactID)
+		},
+		Insert:        insertPackageManifestConsumptionKeysIfAbsent,
+		PageSize:      packageManifestConsumptionKeyBackfillBatchSize,
+		ScopesPerPass: consumption.DefaultSBTRepairScopesPerPass,
+		LockTimeout:   consumption.DefaultLockTimeout,
+	}
+}
+
+func listPackageManifestSBTRepairScopes(ctx context.Context, queryer db.Queryer, cursor string, limit int) ([]string, error) {
+	rows, err := queryer.QueryContext(ctx, listPackageManifestSBTRepairScopesSQL, cursor, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list package manifest sbt repair scopes: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var scopes []string
+	for rows.Next() {
+		var scopeID string
+		if err := rows.Scan(&scopeID); err != nil {
+			return nil, fmt.Errorf("scan package manifest sbt repair scope: %w", err)
+		}
+		scopes = append(scopes, scopeID)
+	}
+	return scopes, rows.Err()
+}
+
+// logPackageManifestSBTRepairPass writes one line per repair pass that did
+// work or failed, with the numbers an operator needs to see the repair move.
+func logPackageManifestSBTRepairPass(report consumption.SBTRepairReport, err error) {
+	if err == nil && !report.Pending && !report.Completed {
+		return
+	}
+	line := fmt.Sprintf(
+		"event_name=package_manifest_consumption_keys.sbt_repair.pass pending=%t completed=%t restarted=%t cursor=%q scopes=%d pages=%d facts=%d inserted_rows=%d walk_inserted_rows=%d max_transaction_ms=%d max_lock_wait_ms=%d duration_ms=%d",
+		report.Pending, report.Completed, report.Restarted, report.Cursor, report.Scopes, report.Pages, report.Facts,
+		report.InsertedRows, report.WalkInsertedRows, report.MaxTransaction.Milliseconds(), report.MaxLockWait.Milliseconds(), report.Duration.Milliseconds(),
+	)
+	if err != nil {
+		line += fmt.Sprintf(" error=%q", err.Error())
+	}
+	log.Print(line)
+}

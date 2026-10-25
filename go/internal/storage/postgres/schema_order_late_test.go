@@ -325,7 +325,4 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// row (fanout_start_repository, fanout_next_repository,
 	// fanout_lap_repository); an ALTER only, no backfill. 231 belongs to #8830.
 	"security_alert_fanout_cursor",
-	// Migration 234 (#8961) marks the scopes holding sbt dependency rows dirty
-	// for the package-manifest sidecar backfill; DML only. 233 belongs to #9051.
-	"package_manifest_consumption_keys_sbt_repair",
 }

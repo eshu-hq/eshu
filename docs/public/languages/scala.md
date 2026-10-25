@@ -132,9 +132,9 @@ evidence for package consumption and security-alert matching. It adds no JVM
 package API evidence, so an sbt-sourced finding does not claim package
 reachability. sbt rows keep the line-keyed entity id
 ([#8962](https://github.com/eshu-hq/eshu/issues/8962)). Rows already stored
-gain their registry keys through a one-time repair: migration 234 marks the
-repositories that hold sbt rows, and the reducer's sidecar backfill rebuilds
-their keys. Until it finishes, package-consumption readiness reports not ready.
+gain their registry keys through the reducer's sbt repair within minutes of the
+upgrade, without a readiness gap; rows a pre-upgrade reducer or ingester
+rewrites during the rollout are repaired at the next change of that repository.
 
 Known limits of the sbt reading:
 

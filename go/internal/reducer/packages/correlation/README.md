@@ -78,11 +78,13 @@ known artifact costs 906 to 924 ns/op, 680 B/op, 16 allocs/op. The Postgres read
 in `go/internal/storage/postgres/facts_active_package_manifest_dependency.go`
 (throwaway Postgres 18, 1.3M dependency rows, 13,000 sbt rows, EXPLAIN
 (ANALYZE, BUFFERS)).
-The one-time sidecar repair for stored sbt rows
-(`234_package_manifest_consumption_keys_sbt_repair.sql`) marked 40 scopes from
-13,000 sbt rows in 52 ms on the same table with a cold cache (one index scan on
-the `package_manager = 'sbt'` prefix, no sequential scan); re-running it
-changes nothing but the marks.
+The reducer's sbt key repair for stored rows (`consumption/sbt_repair.go`) ran
+end to end on 1,713,000 `content_entity` rows with 13,000 sbt rows in all 4,000
+scopes (throwaway Postgres 18, hot cache): walk 1 took 41 passes and 7.5 s and
+inserted 17,334 keys, walk 2 took 41 passes and 8.3 to 9.5 s and inserted none
+and wrote the marker; the slowest page transaction was 95 to 158 ms, and 805 ms
+when an ingester held the scope row for 800 ms (lock timeout 5 s). The listing
+page took 5.8 ms (28.4 ms on a cold first run) and one scope page 1.2 ms.
 
 No-Regression Evidence: `go test -race -count=1 ./internal/packageidentity
 ./internal/reducer/... ./internal/storage/postgres ./cmd/reducer` passed; the

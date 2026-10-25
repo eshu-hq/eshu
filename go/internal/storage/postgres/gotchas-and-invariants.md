@@ -100,8 +100,10 @@ operational lessons that future storage changes still need to respect.
   prefix of the same index, so its cost follows the number of sbt dependency
   rows. Both branches over-select; `packageidentity.ManifestConsumptionKeys` is
   the accuracy gate.
-  Stored sbt rows have no sidecar keys until a scope repair runs; migration 234
-  marks the scopes that hold them dirty for the existing backfill (#8961).
+  Stored sbt rows have no sidecar keys until the reducer's marker-gated sbt
+  repair adds them (#8961). It writes the sidecar outside the dirty fence on
+  purpose: it only inserts, under the scope row lock, so readiness never flips.
+  A rolling deploy can drop keys it added; see `consumption/README.md`.
 - `ListActiveJVMReachabilityFacts` serves JVM vulnerability reachability
   enrichment after Maven or Gradle dependency evidence has already proven a
   canonical repository and resolver-backed API package prefix. The query is

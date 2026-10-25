@@ -50,6 +50,12 @@ successful elected pass, not during Prometheus scrapes. Structured reducer pass 
 retain detailed context; the reader's unavailable
 reason distinguishes missing initial backfill from a fresh old-writer mutation.
 
+Once the v2 marker exists, the same loop runs the additive sbt key repair
+(#8961) in 100-scope passes, polling every second while it is pending and
+reporting `sbt_repair_pending`, `sbt_repair_inserted_rows`, and
+`sbt_repair_cursor` in the pass log. It never writes a dirty row, so readiness
+does not flip; its own marker row records completion.
+
 ## Id-anchor census
 
 `startIDAnchorCensus` (issue #7212) runs only on Neo4j, because the labeled

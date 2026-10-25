@@ -72,3 +72,48 @@ DELETE FROM package_manifest_consumption_keys WHERE scope_id = $1
 const deleteRegistryKeysSQL = `
 DELETE FROM package_registry_identity_keys WHERE scope_id = $1
 `
+
+// sbtRepairBeginSQL bounds every lock wait in an sbt repair page transaction.
+// Unlike beginRebuildTransactionSQL it does not set the sidecar-writer setting:
+// that setting exists to silence the fact_records dirty triggers, the repair
+// writes only the sidecar table, and a repair that set it would tell nothing
+// it needs to (#8961).
+const sbtRepairBeginSQL = `
+SELECT set_config('lock_timeout', $1, true)
+`
+
+const sbtRepairMarkerPresentSQL = `
+SELECT EXISTS (
+    SELECT 1 FROM package_manifest_consumption_key_backfill_markers WHERE marker_name = $1
+)
+`
+
+const markSBTRepairSQL = `
+INSERT INTO package_manifest_consumption_key_backfill_markers (marker_name, completed_at)
+VALUES ($1, $2)
+ON CONFLICT (marker_name) DO NOTHING
+`
+
+const loadProgressSQL = `
+SELECT cursor_scope_id
+FROM package_manifest_consumption_key_backfill_progress
+WHERE marker_name = $1
+`
+
+const saveProgressSQL = `
+INSERT INTO package_manifest_consumption_key_backfill_progress (marker_name, cursor_scope_id, updated_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (marker_name) DO UPDATE
+SET cursor_scope_id = EXCLUDED.cursor_scope_id, updated_at = EXCLUDED.updated_at
+`
+
+// addProgressSQL adds $2, a decimal count, to the decimal text kept in the
+// progress row's cursor column. The repair keeps its running insert total there
+// so a walk that inserted rows survives a crash or a change of leader.
+const addProgressSQL = `
+INSERT INTO package_manifest_consumption_key_backfill_progress AS progress (marker_name, cursor_scope_id, updated_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (marker_name) DO UPDATE
+SET cursor_scope_id = (COALESCE(NULLIF(progress.cursor_scope_id, ''), '0')::bigint + EXCLUDED.cursor_scope_id::bigint)::text,
+    updated_at = EXCLUDED.updated_at
+`

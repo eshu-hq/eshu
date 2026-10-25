@@ -143,11 +143,40 @@ func BackfillPackageManifestConsumptionKeys(ctx context.Context, database db.Exe
 	return PackageManifestConsumptionKeyBackfill{}.Run(ctx, database)
 }
 
-// Run performs one bounded, resumable pass. It records the v2 readiness
-// marker only after both sidecars are current and the old-writer dirty fence
-// is empty. Each scope is rebuilt in one short transaction per fact page, so
-// no transaction holds a scope row for longer than one page.
+// Run performs one bounded, resumable pass, including the sbt key repair when
+// it applies. See RunWithReport.
 func (b PackageManifestConsumptionKeyBackfill) Run(ctx context.Context, database db.ExecQueryer) error {
+	_, err := b.RunWithReport(ctx, database)
+	return err
+}
+
+// RunWithReport performs one bounded, resumable pass and reports the sbt key
+// repair's progress for the caller's pass log and poll interval. It runs the
+// v2 backfill first, then the repair, which starts only once the v2 marker
+// exists; dirty rows do not hold it back, because the repair is additive and
+// never touches the dirty set (#8961).
+func (b PackageManifestConsumptionKeyBackfill) RunWithReport(ctx context.Context, database db.ExecQueryer) (consumption.SBTRepairReport, error) {
+	if err := b.runKeyBackfill(ctx, database); err != nil {
+		return consumption.SBTRepairReport{}, err
+	}
+	beginner, ok := database.(db.Beginner)
+	if !ok {
+		return consumption.SBTRepairReport{}, fmt.Errorf("package manifest consumption key backfill requires a transaction beginner")
+	}
+	present, err := packageManifestConsumptionKeyBackfillMarkerPresent(ctx, database)
+	if err != nil || !present {
+		return consumption.SBTRepairReport{}, err
+	}
+	report, err := b.sbtRepair(beginner).Pass(ctx, database)
+	logPackageManifestSBTRepairPass(report, err)
+	return report, err
+}
+
+// runKeyBackfill performs the v2 pass. It records the v2 readiness marker only
+// after both sidecars are current and the old-writer dirty fence is empty.
+// Each scope is rebuilt in one short transaction per fact page, so no
+// transaction holds a scope row for longer than one page.
+func (b PackageManifestConsumptionKeyBackfill) runKeyBackfill(ctx context.Context, database db.ExecQueryer) error {
 	beginner, ok := database.(db.Beginner)
 	if !ok {
 		return fmt.Errorf("package manifest consumption key backfill requires a transaction beginner")
@@ -367,7 +396,11 @@ func nextPackageManifestConsumptionKeyDirtyScope(ctx context.Context, queryer db
 }
 
 func loadPackageManifestConsumptionKeyFacts(ctx context.Context, queryer db.Queryer, scopeID, afterFactID string) ([]facts.Envelope, error) {
-	rows, err := queryer.QueryContext(ctx, listPackageManifestConsumptionKeyScopeFactsSQL, scopeID, afterFactID, packageManifestConsumptionKeyBackfillBatchSize)
+	return loadPackageManifestConsumptionKeyFactsWith(ctx, queryer, listPackageManifestConsumptionKeyScopeFactsSQL, scopeID, afterFactID)
+}
+
+func loadPackageManifestConsumptionKeyFactsWith(ctx context.Context, queryer db.Queryer, query, scopeID, afterFactID string) ([]facts.Envelope, error) {
+	rows, err := queryer.QueryContext(ctx, query, scopeID, afterFactID, packageManifestConsumptionKeyBackfillBatchSize)
 	if err != nil {
 		return nil, fmt.Errorf("load package manifest consumption key facts: %w", err)
 	}

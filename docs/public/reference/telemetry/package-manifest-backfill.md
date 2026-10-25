@@ -22,3 +22,16 @@ scope failed. The pass-level gauges stay in
   text names which.
 - `left_dirty` is not a failure: another writer or a concurrent rebuild rewrote
   the dirty row, and a later rebuild repairs the scope.
+
+## sbt key repair
+
+After the v2 marker exists, the backfill loop runs the additive sbt key repair
+(#8961) until its marker `package_manifest_consumption_keys_sbt_repair_v1`
+exists, polling every second while it is pending. Each reducer pass log carries
+`sbt_repair_pending`, `sbt_repair_inserted_rows`, and `sbt_repair_cursor`. A
+pass that did work also writes one `event_name=package_manifest_consumption_
+keys.sbt_repair.pass` line with `scopes`, `pages`, `facts`, `inserted_rows`,
+`walk_inserted_rows`, `max_transaction_ms`, and `max_lock_wait_ms`. A walk that
+inserted rows reports `restarted=true` and the next walk must insert none; the
+final pass reports `completed=true`. A `lock_timeout` error line names the scope
+an ingester held. Readiness is untouched: the repair never writes a dirty row.

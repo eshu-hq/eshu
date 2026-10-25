@@ -5,12 +5,15 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func sbtSidecarEnvelope(id, cross, artifact string) facts.Envelope {
@@ -122,5 +125,74 @@ func TestListActivePackageManifestDependencyFactsKeepsNonMavenQueryUnchanged(t *
 	}
 	if strings.Contains(call.query, "sbt_binary_artifact") || strings.Contains(call.query, "UNION ALL") {
 		t.Fatalf("non-Maven query carries the sbt branch:\n%s", call.query)
+	}
+}
+
+type insertRecorder struct {
+	queries  []string
+	affected int64
+}
+
+func (r *insertRecorder) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
+	r.queries = append(r.queries, query)
+	return rowsAffectedResult{rowsAffected: r.affected}, nil
+}
+
+func (r *insertRecorder) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	return nil, errors.New("insertRecorder.QueryContext must not be called")
+}
+
+// TestInsertPackageManifestConsumptionKeysIfAbsentNeverDeletesOrOverwrites pins
+// the repair writer's contract: one insert per batch, DO NOTHING on conflict,
+// no delete, and the row count it reports is the database's count.
+func TestInsertPackageManifestConsumptionKeysIfAbsentNeverDeletesOrOverwrites(t *testing.T) {
+	t.Parallel()
+
+	recorder := &insertRecorder{affected: 2}
+	inserted, err := insertPackageManifestConsumptionKeysIfAbsent(context.Background(), recorder, []facts.Envelope{
+		sbtSidecarEnvelope("binary", "binary", "org.typelevel:cats-core_2.13"),
+	})
+	if err != nil {
+		t.Fatalf("insertPackageManifestConsumptionKeysIfAbsent() error = %v", err)
+	}
+	if inserted != 2 || len(recorder.queries) != 1 {
+		t.Fatalf("inserted = %d over %d statements, want 2 over 1", inserted, len(recorder.queries))
+	}
+	query := recorder.queries[0]
+	if !strings.Contains(query, "ON CONFLICT (fact_id, ecosystem, package_name) DO NOTHING") {
+		t.Fatalf("query lacks DO NOTHING:\n%s", query)
+	}
+	for _, forbidden := range []string{"DO UPDATE", "DELETE"} {
+		if strings.Contains(query, forbidden) {
+			t.Fatalf("query contains %q:\n%s", forbidden, query)
+		}
+	}
+	empty := &insertRecorder{}
+	if n, err := insertPackageManifestConsumptionKeysIfAbsent(context.Background(), empty, []facts.Envelope{
+		sbtSidecarEnvelope("noartifact", "binary", ""),
+	}); err != nil || n != 0 || len(empty.queries) != 0 {
+		t.Fatalf("a row with no keys inserted %d over %d statements, err %v, want none", n, len(empty.queries), err)
+	}
+}
+
+// TestSBTRepairPageQueryIsTheShippedPageQueryPlusOnePredicate keeps the repair
+// on migration 181's index: the same text, narrowed by the sbt predicate before
+// ORDER BY, with the same three parameters and limit.
+func TestSBTRepairPageQueryIsTheShippedPageQueryPlusOnePredicate(t *testing.T) {
+	t.Parallel()
+
+	shipped := listPackageManifestConsumptionKeyScopeFactsSQL
+	derived := listPackageManifestConsumptionKeySBTScopeFactsSQL
+	cut := strings.Index(shipped, "ORDER BY fact_id")
+	if cut < 0 || !strings.HasPrefix(derived, shipped[:cut]) || !strings.HasSuffix(derived, shipped[cut:]) {
+		t.Fatalf("derived query is not the shipped query with one inserted clause:\n%s", derived)
+	}
+	if inserted := derived[cut : len(derived)-len(shipped[cut:])]; !strings.Contains(inserted, "'package_manager' = 'sbt'") {
+		t.Fatalf("inserted clause = %q, want the sbt predicate", inserted)
+	}
+	for _, want := range []string{"scope_id = $1", "fact_id > $2", "LIMIT $3"} {
+		if !strings.Contains(derived, want) {
+			t.Fatalf("derived query lacks %q", want)
+		}
 	}
 }

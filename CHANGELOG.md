@@ -19,11 +19,11 @@ recent shipped work grouped by feature area.
   (`_2.13`, `_3`) when one Scala binary version is known. The unsuffixed name
   never matches, and `%%%`, a custom `cross`, a pre-release, and a row with no
   known binary version join nothing. The active-dependency read for a Maven
-  ecosystem now also reaches Gradle and sbt rows. An unchanged repository is
-  never re-collected, so migration 234 marks every scope that holds an sbt
-  dependency row for the existing sidecar repair; the reducer rebuilds those
-  scopes' keys, and package-consumption readiness reads report not ready until
-  it finishes. The git collector content version does not change.
+  ecosystem now also reaches Gradle and sbt rows. Stored sbt rows gain keys
+  through the reducer's sbt repair within minutes of the upgrade; rows a
+  pre-upgrade reducer or ingester rewrites during the rollout are repaired at
+  the next change of that repository. The repair only adds keys, so readiness
+  does not flip. The git collector content version does not change.
 
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
 

@@ -132,16 +132,13 @@ import (
 // are written by the admin acknowledge route, so no backfill half exists).
 // #8946 adds 232_security_alert_fanout_cursor.sql (three nullable text columns
 // on that read-state row; DDL only, no backfill).
-// #8961 adds 234_package_manifest_consumption_keys_sbt_repair.sql (DML only:
-// marks the scopes holding sbt dependency rows dirty so the existing backfill
-// gives stored sbt rows their registry keys; no schema change).
-const goldenBootstrapDefinitionsDigest = "1001e1103638d6c9caad986ea2337540cfbbf4801ffb79939ab6c57ce8d6b0e8"
+const goldenBootstrapDefinitionsDigest = "9923d1a34540e225639c582d2f36bb6cde6b31e1a477c0a662b9f8995b2e0fae"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 251
+const goldenBootstrapDefinitionsCount = 250
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
