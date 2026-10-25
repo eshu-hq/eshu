@@ -23,8 +23,14 @@ touched it.
 - A file that grows past the cap between discovery and the import pre-scan is
   skipped, not a failure of the snapshot. `Engine.PreScanRepositoryPathsSkippingOversizeStats`
   returns a per-file error wrapping `ErrSourceTooLarge` as a skip in both the
-  sequential and the worker-aware loop; every other per-file error still fails
-  the scan. The collector lists the file in `OversizeSkippedFiles`, counts it
+  sequential and the worker-aware loop, and only when the scanned file's own
+  size is over the cap, so a read-cap error from a file a parser read for
+  context never blames the scanned file; every other per-file error still
+  fails the scan. The Kotlin sibling collector leaves a sibling over the cap
+  out of its return-type collection, as the JavaScript sibling parser does,
+  so an oversize sibling is not an error of its neighbours. The other
+  sibling and include readers (C and C++ headers, tsconfig, package.json,
+  composer, Python `__init__`, `go.mod`) already ignore a read error. The collector lists the file in `OversizeSkippedFiles`, counts it
   under `content:oversize`, drops it from the parse set and the Go package
   pre-scan, retracts a delta target through the deleted paths, and marks the
   snapshot degraded with `file_read_failed`.

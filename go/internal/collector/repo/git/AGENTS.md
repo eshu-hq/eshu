@@ -457,6 +457,9 @@ and before the import pre-scan is skipped by
 `skipPreScanGrownFiles` then counts it under `content:oversize`, lists it in
 `OversizeSkippedFiles`, drops it from the parse set and the Go package pre-scan,
 tombstones a delta target, and marks the snapshot degraded (`file_read_failed`),
-because the tree changed under the collector. Only `ErrSourceTooLarge` is a
-per-file skip there; keep every other pre-scan error fatal.
+because the tree changed under the collector. Only `ErrSourceTooLarge` from a
+file whose own size is over the cap is a per-file skip there; keep every other
+pre-scan error fatal, and keep the Go package pre-scan on the filtered set
+(`withoutPreScanSkips`). A Kotlin sibling over the cap must stay out of its
+neighbours' pre-scan (`snapshot_prescan_sibling_test.go`).
 `snapshot_oversize_test.go` and `snapshot_prescan_growth_test.go` pin all of it.
