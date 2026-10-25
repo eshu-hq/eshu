@@ -142,6 +142,26 @@ ungoverned files:
 The improvement comes from `ContentStoreForPath` resolving through a
 non-cloning `lookupPath`.
 
+Trigger-path cost (ruling-2's A/B, stop threshold 1.35x of 138):
+`TestContentFileSecretLinesWriteCostLive`, the 7125 harness, on 12,000 real
+files through the production `ContentWriter`. Each arm has five rounds with
+the triggers on and off, and the arms were run interleaved twice, base 138
+(`7ce9439814`) then 235. Postgres backend CPU per file (triggers on minus
+off; median of 5) is the comparison, because wall time swung with the shared
+host's load (4 to 40):
+
+| Write path | 138, run 1 / 2 | 235, run 1 / 2 | Ratio |
+| --- | --- | --- | --- |
+| insert | 0.340 / 0.328 ms | 0.446 / 0.437 ms | 1.31x / 1.33x |
+| changed upsert | 1.269 / 0.720 ms | 0.878 / 0.809 ms | 0.69x / 1.12x |
+| unchanged | 0.000 / 0.000 ms | -0.003 / 0.003 ms | none |
+
+The insert path stays under the 1.35x threshold. The harness reads its corpus
+from each checkout, and part 2a's tree holds more credential-shaped fixtures:
+235 derived 2,820 side rows against 138's 2,281. That inflates 235's figure;
+a same-corpus run is NOT_CHECKED. The deferred-session (bulk-load) path costs
+within 1% of no triggers in both arms.
+
 No-Regression Evidence: the YAML structure check that marker mode runs before
 redacting a `.yarnrc.yml` (#8833 security review). It parses only a body
 that holds `*`, `?`, or a backslash. `BenchmarkRedactMarker`, interleaved
