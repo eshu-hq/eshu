@@ -13,6 +13,18 @@ contract (#8824): `config_kind=dependency` with `central_version_declaration`
 true, which the consumption extractor, the Postgres sidecar and the readiness
 SQL already drop. No fact kind, payload key or reader changes.
 
+## Credential scope
+
+The scrub covers the parsed row and the entity `source_cache`. The shaper
+slices `source_cache` from the file's line range, so a field-level scrub alone
+left the raw line in the `content_entity` fact (review finding F1). Every
+constraints row now sets `source_cache_withheld`, which `entitySourceCache`
+honors, and stores no `raw`. `TestPipConstraintsCredentialsStayOutOfEntityFacts`
+runs the production snapshotter and fact builder and requires that no
+non-`content` fact holds the secret. The `content` fact keeps the whole file,
+credentials included, until the content-store policy (#8812) covers this
+parser; the same test pins that.
+
 ## Performance Evidence
 
 Performance Evidence: `Registry.LookupByPath` gained one base-name check per

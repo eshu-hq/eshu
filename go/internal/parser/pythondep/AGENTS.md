@@ -46,9 +46,17 @@ follow when editing this package.
   not set `direct_dependency` on one, and do not unset the flag: the reducer,
   the Postgres sidecar, and the readiness SQL read it to keep a constraint out
   of consumption evidence.
-- A constraints row with a direct source or an unparsed line MUST lose its
-  value, source URL, ref, marker, and raw text. Do not add URL cleaning there:
-  a password can hold `/` or `@`, which no cleaner here handles safely.
+- A constraints row MUST NOT store `raw` and MUST carry
+  `source_cache_withheld`. The content shaper slices the entity `source_cache`
+  from the file's line range, so a field-level scrub alone leaves the raw line
+  in the fact stream. `TestPipConstraintsCredentialsStayOutOfEntityFacts` in
+  `go/internal/collector/repo/git` drives that production path.
+- A constraints row with a direct source or an unparsed line MUST also lose
+  its value, source URL, ref, and marker. A marker is kept only when
+  `safeMarker` accepts it. Do not add URL cleaning there: a password can hold
+  `/` or `@`, which no cleaner here handles safely.
+- The file body is a separate content fact and keeps the whole file until the
+  content-store policy (#8812) covers this parser.
 - `isConstraintsFile` and the registry rule `isPipConstraintsName` in
   `go/internal/parser/registry_definitions.go` must agree. The registry rule
   needs `.txt`, so a `constraints-*.yaml` policy file keeps its YAML parser.

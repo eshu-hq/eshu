@@ -15,8 +15,9 @@
 //     references, VCS, path, URL, editable, and malformed entries from
 //     registry-version evidence. It also reads pip constraints files
 //     (constraints.txt, constraints-*.txt, constraints_*.txt) as version
-//     policy: each row is flagged central_version_declaration and a row with a
-//     direct source drops its value, URL, and raw text.
+//     policy: each row is flagged central_version_declaration, never stores
+//     the raw line, and asks the content shaper to withhold its source_cache;
+//     a row with a direct source drops its value, URL, and marker.
 //   - ParsePyProject parses pyproject.toml for PEP 621 `[project]`
 //     dependencies, `[project.optional-dependencies]`, Poetry's
 //     `[tool.poetry.dependencies]` and group-style dev dependencies, and

@@ -202,3 +202,88 @@ func TestParseRequirementsConstraintsDropsCredentialBearingSourceText(t *testing
 		}
 	}
 }
+
+// TestParseRequirementsConstraintsKeepsNoRawLineOrUnsafeMarker proves that the
+// raw line is never stored for a constraints row, that an inline comment
+// therefore cannot carry text into a row, that a marker holding URL-shaped
+// text is dropped, and that every row asks the content layer to withhold the
+// entity source_cache (the line range of the file, sliced by the content
+// shaper). A plain marker survives.
+func TestParseRequirementsConstraintsKeepsNoRawLineOrUnsafeMarker(t *testing.T) {
+	t.Parallel()
+
+	secret := constraintsSecret()
+	path := writeTempFile(t, "constraints.txt", strings.Join([]string{
+		"pinned==1.0 # mirror https://ci-user:" + secret + "@mirror.example/simple",
+		"marked==2.0 ; python_version > '3' and platform_node == 'https://ci-user:" + secret + "@m.example'",
+		"plain==3.0 ; python_version >= '3.9'",
+		"direct @ https://ci-user:" + secret + "@host.example/p.whl",
+	}, "\n"))
+	payload, err := ParseRequirements(path)
+	if err != nil {
+		t.Fatalf("ParseRequirements error = %v", err)
+	}
+	if text := fmt.Sprintf("%#v", payload); strings.Contains(text, secret) {
+		t.Fatalf("payload carries credential text: %s", text)
+	}
+	rows := variableRows(t, payload)
+	if len(rows) != 4 {
+		t.Fatalf("len(rows) = %d, want 4: %#v", len(rows), rows)
+	}
+	for _, row := range rows {
+		if _, has := row["raw"]; has {
+			t.Errorf("row %v keeps raw; a constraints row must not store the line", row["name"])
+		}
+		if row["source_cache_withheld"] != true {
+			t.Errorf("row %v source_cache_withheld = %#v, want true", row["name"], row["source_cache_withheld"])
+		}
+	}
+	byName := rowsByName(rows)
+	if _, has := byName["marked"]["marker"]; has {
+		t.Errorf("marked keeps a marker with URL-shaped text: %#v", byName["marked"]["marker"])
+	}
+	if got := byName["plain"]["marker"]; got != "python_version >= '3.9'" {
+		t.Errorf("plain marker = %#v, want the PEP 508 marker kept", got)
+	}
+}
+
+// TestParseRequirementsDoesNotWithholdSourceCacheForRequirements is the
+// negative control: a requirements row still stores raw and leaves the
+// source_cache alone.
+func TestParseRequirementsDoesNotWithholdSourceCacheForRequirements(t *testing.T) {
+	t.Parallel()
+
+	path := writeTempFile(t, "requirements.txt", "requests==2.31.0\n")
+	payload, err := ParseRequirements(path)
+	if err != nil {
+		t.Fatalf("ParseRequirements error = %v", err)
+	}
+	row := variableRows(t, payload)[0]
+	if _, has := row["source_cache_withheld"]; has {
+		t.Errorf("requirements row sets source_cache_withheld: %#v", row)
+	}
+	if row["raw"] != "requests==2.31.0" {
+		t.Errorf("requirements raw = %#v, want the line kept", row["raw"])
+	}
+}
+
+// TestEggNameFromURLIgnoresFragmentInsideAuthority proves the egg name is read
+// only from a fragment after the authority: a raw "#" inside userinfo is not a
+// fragment start, so text there must not become a package name.
+func TestEggNameFromURLIgnoresFragmentInsideAuthority(t *testing.T) {
+	t.Parallel()
+
+	for content, want := range map[string]string{
+		"git+https://host.example/org/repo.git@v1#egg=real":    "real",
+		"https://host.example/p.whl#egg=real&subdirectory=x":   "real",
+		"https://u:p#egg=leaked&x@host.example/p.whl":          "",
+		"git+https://u:p#egg=leaked@host.example/org/repo.git": "",
+		"https://host.example":                                 "",
+		"https://u:p@host.example/p.whl#sha256=abc":            "",
+		"https://host.example/a?x=1#egg=real":                  "real",
+	} {
+		if got := eggNameFromURL(content); got != want {
+			t.Errorf("eggNameFromURL(%q) = %q, want %q", content, got, want)
+		}
+	}
+}

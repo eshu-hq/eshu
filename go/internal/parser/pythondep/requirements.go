@@ -327,12 +327,25 @@ func stripFragment(content string) string {
 	return content
 }
 
+// eggNameFromURL reads the `egg` key of a URL fragment. The fragment starts at
+// the first "#" after the authority: a "#" inside userinfo is not a fragment,
+// and text there must never become a package name.
 func eggNameFromURL(content string) string {
-	hash := strings.Index(content, "#")
+	rest, start := content, 0
+	if scheme := strings.Index(content, "://"); scheme >= 0 {
+		start = scheme + 3
+		if slash := strings.IndexByte(content[start:], '/'); slash >= 0 {
+			start += slash
+		} else {
+			return ""
+		}
+		rest = content[start:]
+	}
+	hash := strings.Index(rest, "#")
 	if hash < 0 {
 		return ""
 	}
-	fragment := content[hash+1:]
+	fragment := rest[hash+1:]
 	for _, part := range strings.Split(fragment, "&") {
 		key, value, ok := strings.Cut(part, "=")
 		if !ok {

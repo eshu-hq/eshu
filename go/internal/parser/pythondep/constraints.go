@@ -31,13 +31,22 @@ func isConstraintsFile(path string) bool {
 //
 // A constraints file is the one place Eshu cannot tell a harmless direct
 // reference from a credential-bearing one, because a password may contain a
-// slash or an at sign. So a row with a direct source or an unparsed line loses
-// its value, source URL, and raw text and keeps only its kind. A registry pin
-// is kept whole unless its specifier holds an at sign or a scheme separator,
-// which no version specifier contains; that row is demoted to malformed with
-// its name and text dropped.
+// slash or an at sign. So the row never stores the raw line, and carries
+// source_cache_withheld so the content shaper drops the entity's file-range
+// snippet, which is that same line. A row with a direct source or an unparsed
+// line also loses its value, source URL, and marker, and any name holding an at
+// sign or a scheme separator. A registry pin is kept unless its specifier holds
+// an at sign or a scheme separator, which no version specifier contains; that
+// row is demoted to malformed with its name dropped. A marker is kept only when
+// it uses the characters a PEP 508 marker needs, so URL-shaped text in a
+// marker never reaches a row.
+//
+// The file body is a separate content fact and keeps the whole file until the
+// content-store policy (#8812) covers this parser.
 func (b *rowBuilder) applyConstraintPolicy() {
 	b.CentralVersionDeclaration = true
+	b.SourceCacheWithheld = true
+	b.Raw = ""
 	if b.ConfigKind == configKindDependency &&
 		(strings.Contains(b.Value, "@") || strings.Contains(b.Value, "://")) {
 		b.Name = ""
@@ -45,14 +54,32 @@ func (b *rowBuilder) applyConstraintPolicy() {
 		b.Malformed = true
 	}
 	if b.ConfigKind == configKindDependency {
+		if !safeMarker(b.Marker) {
+			b.Marker = ""
+		}
 		return
 	}
 	b.Value = ""
 	b.SourceURL = ""
 	b.SourceRef = ""
-	b.Raw = ""
 	b.Marker = ""
 	if b.Malformed || strings.Contains(b.Name, "@") || strings.Contains(b.Name, "://") {
 		b.Name = ""
 	}
+}
+
+// safeMarker reports whether a PEP 508 environment marker uses only letters,
+// digits, spaces, and the punctuation of marker expressions. A marker with an
+// at sign, colon, or slash could hold URL-shaped text, so it fails.
+func safeMarker(marker string) bool {
+	for i := 0; i < len(marker); i++ {
+		ch := marker[i]
+		switch {
+		case ch >= 'a' && ch <= 'z', ch >= 'A' && ch <= 'Z', ch >= '0' && ch <= '9':
+		case strings.IndexByte(" \t._-<>=!~'\"(),*", ch) >= 0:
+		default:
+			return false
+		}
+	}
+	return true
 }

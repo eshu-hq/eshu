@@ -221,10 +221,15 @@ recent shipped work grouped by feature area.
   parser reads `constraints.txt`, `constraints-*.txt`, and `constraints_*.txt`.
   A constraint limits the version a package gets if something else installs
   it, so each row carries `central_version_declaration` (the flag a NuGet
-  central `PackageVersion` uses) and no consumption, alert, or `DEPENDS_ON`
-  evidence reads it. A line with a direct source (URL, VCS, path) keeps only
-  its kind, and its value, URL, and raw text are dropped so a credential
-  cannot reach a row. The family needs the `.txt` extension, so a
+  central `PackageVersion` uses), so no consumption, alert, or `DEPENDS_ON`
+  evidence or edge results from it. Registry target planning still picks the
+  rows as collection targets, as it does for NuGet pins, and no match or edge
+  follows. A row never stores the raw line, a line with a direct source (URL,
+  VCS, path) keeps only its kind, and a marker holding URL-shaped text is
+  dropped. The entity `source_cache` is withheld for these rows. The file body
+  keeps the whole file, credentials included, until the
+  [#8812](https://github.com/eshu-hq/eshu/issues/8812) content-store policy
+  covers this parser. The family needs the `.txt` extension, so a
   `constraints-*.yaml` policy file keeps its YAML parser. These files were
   documents before; they are no longer emitted as documents. The git
   collector content version moves to `git-collector.v11`, so each repository
