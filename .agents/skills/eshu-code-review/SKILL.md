@@ -144,8 +144,8 @@ Checks on the rebased head, each with its exit code:
 - the file-type check: `bash -n` and shellcheck for shell, `jq -e .` for
   JSON, a YAML parse, the Markdown cap script, `go vet` and `go test -count=1`
   of the touched package for `_test.go`;
-- for an append-only file, its own validator, or the duplicate-entry check in
-  the recipe;
+- for an append-only file, its own validator (`scripts/verify-changelog-unreleased.sh`
+  for `CHANGELOG.md`) or the check its recipe names;
 - `git diff --check`, and the `test_command` of any registry file touched.
 
 Then post a PR comment with the resolution diff (`git diff <new-base>..HEAD --
