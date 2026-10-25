@@ -100,9 +100,11 @@ func TestPreflightReadsEachShardedTargetOnce(t *testing.T) {
 	}
 }
 
-// TestPreflightRecordsASharedTargetFailureOnce: when the sharded target's one
-// request fails, preflight classifies and records that failure once, not once
-// per shard, and stops there.
+// TestPreflightRecordsASharedTargetFailureOnce pins that a failed preflight
+// request is classified and recorded once and that preflight stops at the first
+// failure. It does not guard the one-request-per-target skip: the failing
+// target sorts first and preflight returns on the first error, so it passes with
+// or without the skip. TestPreflightReadsEachShardedTargetOnce guards the skip.
 func TestPreflightRecordsASharedTargetFailureOnce(t *testing.T) {
 	t.Parallel()
 
