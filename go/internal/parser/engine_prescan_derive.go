@@ -4,9 +4,14 @@
 package parser
 
 import (
+	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 // derivedPreScanLanguages is the exact set of parser-registry languages whose
@@ -99,4 +104,172 @@ func ResetDerivedLanguagePreScanDispatchCountForTest() int64 {
 // derivedLanguagePreScanDispatchCount without resetting it. Test-only.
 func DerivedLanguagePreScanDispatchCountForTest() int64 {
 	return derivedLanguagePreScanDispatchCount.Load()
+}
+
+// PreScanSkip names one path a pre-scan skipped instead of failing on. Path is
+// the path exactly as the caller passed it; Err wraps shared.ErrSourceTooLarge.
+type PreScanSkip struct {
+	Path string
+	Err  error
+}
+
+// PreScanRepositoryPathsSkippingOversizeStats is
+// PreScanRepositoryPathsWithWorkersStats with one difference: a file whose
+// pre-scan read returns an error wrapping shared.ErrSourceTooLarge is skipped,
+// not a failure of the whole scan. Discovery sized the file under the read cap
+// and it grew past it before the pre-scan read it. The skipped paths come back
+// in input order, and the file adds nothing to the import map or the stats.
+// Every other per-file error still fails the scan with the first one in input
+// order, exactly as the strict variant does.
+func (e *Engine) PreScanRepositoryPathsSkippingOversizeStats(
+	repoRoot string, paths []string, workers int,
+) (map[string][]string, []PreScanFileStat, []PreScanSkip, error) {
+	return e.preScanPathsWithRoot(repoRoot, paths, workers, true)
+}
+
+// skipsPreScanPath reports whether a per-file pre-scan error is one the
+// caller opted to skip: only a file over the read cap, and only when the scan
+// was asked to tolerate it.
+func skipsPreScanPath(tolerateOversize bool, err error) bool {
+	return tolerateOversize && errors.Is(err, shared.ErrSourceTooLarge)
+}
+
+// preScanPathsSequential preserves the historical first-error behavior for
+// callers that do not opt into the worker-aware repository pre-scan path. With
+// tolerateOversize set, a file over the read cap is recorded as a skip and the
+// scan continues.
+func (e *Engine) preScanPathsSequential(
+	resolvedRepoRoot string, paths []string, tolerateOversize bool,
+) (map[string][]string, []PreScanFileStat, []PreScanSkip, error) {
+	results := make(map[string][]string)
+	stats := make([]PreScanFileStat, 0, len(paths))
+	var skips []PreScanSkip
+	for _, rawPath := range paths {
+		scanned, err := e.preScanOnePath(resolvedRepoRoot, rawPath)
+		if err != nil {
+			if skipsPreScanPath(tolerateOversize, err) {
+				skips = append(skips, PreScanSkip{Path: rawPath, Err: err})
+				continue
+			}
+			return nil, nil, nil, err
+		}
+		mergePreScanPathResult(results, scanned)
+		if stat, ok := scanned.stat(); ok {
+			stats = append(stats, stat)
+		}
+	}
+	sortPreScanResults(results)
+	return results, stats, skips, nil
+}
+
+// preScanPathResult carries one file's resolved path and discovered names so
+// concurrent workers can merge results after sorting by original input order.
+type preScanPathResult struct {
+	index           int
+	path            string
+	names           []string
+	language        string
+	durationSeconds float64
+	dispatched      bool
+	err             error
+}
+
+// stat converts a preScanPathResult into a PreScanFileStat when the file
+// actually dispatched to a language pre-scanner (dispatched is false for
+// unregistered files and languages without pre-scan support, so those never
+// appear as a spurious zero-duration language sample).
+func (r preScanPathResult) stat() (PreScanFileStat, bool) {
+	if !r.dispatched {
+		return PreScanFileStat{}, false
+	}
+	return PreScanFileStat{
+		Path:            r.path,
+		Language:        r.language,
+		DurationSeconds: r.durationSeconds,
+	}, true
+}
+
+// preScanPathsConcurrent scans files in parallel, then returns the first input
+// order error and sorted per-name path lists to keep output deterministic.
+// With tolerateOversize set, a file over the read cap is recorded as a skip in
+// input order instead of being the first error.
+func (e *Engine) preScanPathsConcurrent(
+	resolvedRepoRoot string, paths []string, workers int, tolerateOversize bool,
+) (map[string][]string, []PreScanFileStat, []PreScanSkip, error) {
+	type preScanJob struct {
+		index int
+		path  string
+	}
+
+	jobs := make(chan preScanJob, len(paths))
+	results := make(chan preScanPathResult, len(paths))
+	var wg sync.WaitGroup
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobs {
+				scanned, err := e.preScanOnePath(resolvedRepoRoot, job.path)
+				scanned.index = job.index
+				scanned.err = err
+				results <- scanned
+			}
+		}()
+	}
+
+	for i, path := range paths {
+		jobs <- preScanJob{index: i, path: path}
+	}
+	close(jobs)
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	resultSlice := make([]preScanPathResult, 0, len(paths))
+	for result := range results {
+		resultSlice = append(resultSlice, result)
+	}
+	slices.SortFunc(resultSlice, func(left, right preScanPathResult) int {
+		return left.index - right.index
+	})
+
+	merged := make(map[string][]string)
+	stats := make([]PreScanFileStat, 0, len(resultSlice))
+	var skips []PreScanSkip
+	for _, result := range resultSlice {
+		if result.err != nil {
+			if skipsPreScanPath(tolerateOversize, result.err) {
+				skips = append(skips, PreScanSkip{Path: paths[result.index], Err: result.err})
+				continue
+			}
+			return nil, nil, nil, result.err
+		}
+		mergePreScanPathResult(merged, result)
+		if stat, ok := result.stat(); ok {
+			stats = append(stats, stat)
+		}
+	}
+	sortPreScanResults(merged)
+	return merged, stats, skips, nil
+}
+
+// mergePreScanPathResult appends one file's names into the shared import map.
+func mergePreScanPathResult(results map[string][]string, result preScanPathResult) {
+	if result.path == "" {
+		return
+	}
+	for _, name := range result.names {
+		results[name] = append(results[name], result.path)
+	}
+}
+
+// sortPreScanResults keeps import-map paths stable across sequential and
+// worker-aware execution.
+func sortPreScanResults(results map[string][]string) {
+	for _, paths := range results {
+		slices.Sort(paths)
+	}
 }

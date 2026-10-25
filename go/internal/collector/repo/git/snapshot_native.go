@@ -231,7 +231,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	)
 
 	preScanStartedAt := time.Now()
-	importsMap, preScanFileStats, err := engine.PreScanRepositoryPathsWithWorkersStats(
+	importsMap, preScanFileStats, preScanSkips, err := engine.PreScanRepositoryPathsSkippingOversizeStats(
 		repoPath,
 		discovery.FilePaths(legacyPreScanFiles),
 		effectiveSnapshotParseWorkers(s.ParseWorkers),
@@ -239,6 +239,10 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan repository imports for %q: %w", repoPath, err)
 	}
+	// #8986: a file that grew past the read cap after discovery is skipped like
+	// an oversize file, not a failure of the whole snapshot.
+	parserFileSet.Files = s.skipPreScanGrownFiles(ctx, fullFileSet.RepoRoot, preScanSkips, parserFileSet.Files, &snapshot, &discoveryStats)
+	preScanFileSet.Files = withoutPreScanSkips(preScanFileSet.Files, preScanSkips)
 	// Capture the stage end time before building the per-language summary:
 	// preScanLanguageSummary records one histogram sample per pre-scanned file,
 	// and that recording cost must not be attributed to the pre_scan stage
