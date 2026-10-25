@@ -2146,15 +2146,13 @@
       },
       {
         "id": "rn-runtime-declaration-identity",
-        "description": "At least 1 RuntimeDeclaration node carries its five-part identity and its spec (issue #8816): the go_comprehensive fixture's .tool-versions projects one node per (relative_path, line_number, runtime, order_index) with the verbatim raw_spec and its spec_kind, MERGEd by the RuntimeDeclarationWriter (go/internal/storage/cypher/edge/writer/runtime_declaration.go).",
+        "description": "At least 1 RuntimeDeclaration node carries its string identity keys and its spec (issue #8816): the go_comprehensive fixture's .tool-versions projects one node per (relative_path, line_number, runtime, order_index) with the verbatim raw_spec and its spec_kind, MERGEd by the RuntimeDeclarationWriter (go/internal/storage/cypher/edge/writer/runtime_declaration.go). The integer identity keys line_number and order_index are not listed: the gate reads node properties as strings only (boltPropertyString in go/cmd/golden-corpus-gate/graph_bolt.go treats a non-string value as absent), and Neo4j rejects a MERGE whose key property is null, so every RuntimeDeclaration node counted here already carries both.",
         "label": "RuntimeDeclaration",
         "minimum_count": 1,
         "required_node_properties": [
           "repo_id",
           "relative_path",
-          "line_number",
           "runtime",
-          "order_index",
           "raw_spec",
           "spec_kind"
         ]
