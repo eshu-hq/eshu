@@ -34,7 +34,7 @@ after on a fixture snapshot.
 `Evidence.TerminalFailures` degrades a coordinator-registered instance and
 fails its promotion proof with the blocker
 `terminal fetch failure: <class> (<operation>)`. Keep it bounded: the class
-must pass `BoundedFailureClassForKind` (a local per-kind allowlist in
+must pass `BoundedFailureClassForInstance` (a local per-kind allowlist in
 `terminal_failure_classes.go`, deliberately not an import of any collector
 runtime package) and the operation must pass `BoundedFailureOperation`;
 anything else reads as `unknown`. Every kind reports the nine common classes
@@ -52,7 +52,9 @@ boolean from the stored configuration with `activation.IsConfiguration`, the
 check the coordinator uses to hand an instance to the extension host, so a
 component-activated instance carrying a first-party kind such as `jira` reads
 `extension_defined` for the classes its extension defines. Use
-`BoundedFailureClassForInstance` wherever an instance is known;
+`BoundedFailureClassForInstance` wherever an instance is known, including the
+admin failed-scope list and the acknowledgement target and records in
+`storage/postgres` (they already load the instance with its flag);
 `BoundedFailureClassForKind` is the kind-only form and never collapses a
 first-party kind. An in-tree instance of a first-party kind does not collapse,
 so an in-tree class a writer forgot to register stays `unknown` and the tie test

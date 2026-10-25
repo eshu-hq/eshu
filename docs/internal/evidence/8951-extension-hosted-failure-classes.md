@@ -35,12 +35,27 @@ in-tree `jira` instance stays `unknown`, and no class text reaches the scrape.
 
 ## Reader cost
 
-A reviewer microbenchmark of the parse the reader runs per instance, per status
-snapshot or scrape: cost is O(configuration bytes). A 1 MiB in-tree
-configuration took 4.74 ms/op with 1.0 MB/op and 6 allocs/op; a small
-configuration took 0.82 us/op with 10 KB/op. Before this change only the
-`scan_interval` value crossed the wire. The instance count is bounded by
-operator configuration. No live PostgreSQL timing was taken.
+The parse the reader runs per instance, per status snapshot or scrape, costs
+O(configuration bytes). A reviewer reported a single local sample of 4.74 ms/op
+with 1.0 MB/op and 6 allocs/op for a 1 MiB in-tree configuration, and 0.82 us/op
+with 10 KB/op for a small one. The command, hardware, and run count were not
+recorded, so read these as an illustration of the scaling, not as evidence.
+Before this change only the `scan_interval` value crossed the wire. The
+instance count is bounded by operator configuration. No live PostgreSQL timing
+was taken.
+
+## Admin surfaces
+
+The failed-scope list (`ListTerminalFailures`) and the acknowledgement target
+(`resolveTarget`, also used by `Acknowledge`) already read the instance
+registry, so passing the matched instance's `ExtensionHosted` flag adds no
+query. `ListTerminalFailureAcks` reads stored records across instances, so a
+non-empty listing now makes one more registry read (the same query the status
+snapshot runs, bounded by operator configuration), after the record rows are
+closed; an empty listing makes none. A record whose instance is gone reads the
+kind-only form. Operators see these reads in the existing Postgres query spans
+and `eshu_dp_postgres_query_duration_seconds`; there is no new metric or log
+key. No live PostgreSQL timing was taken.
 
 ## Safety
 

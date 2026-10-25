@@ -33,7 +33,10 @@ recent shipped work grouped by feature area.
   collapses pattern-valid extension classes only for such instances. An in-tree
   instance of the same kind still reads `unknown` for an unregistered class.
   The marker is a boolean read from existing state: no payload field and no new
-  `failure_class` label value.
+  `failure_class` label value. The admin failed-scope list, the acknowledge
+  response, and the stored acknowledgement records bound the class by the same
+  instance, so they agree with collector status. A record whose instance is
+  gone reads the kind-only form.
 
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
 

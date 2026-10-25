@@ -59,6 +59,13 @@ writer forgot to register stays `unknown`, so the writer tie test keeps
 catching it. The marker is a boolean the status reader derives from existing
 state; it adds no field to the payload and no label value to the gauge.
 
+Every surface that reports a `failure_class` for an instance bounds it by that
+instance, so they agree: collector status and readiness, the failed-scope list,
+the acknowledge response, and the stored acknowledgement records. A stored
+acknowledgement record whose instance is no longer registered has no
+configuration to read, so it reads the kind-only form (`unknown` for a class
+only an extension defines).
+
 Known limit, reading `unknown` rather than leaking text:
 
 - `legacy_missing_generation_identity` reads `unknown` on an in-tree instance of
