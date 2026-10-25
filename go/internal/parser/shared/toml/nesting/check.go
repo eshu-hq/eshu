@@ -6,6 +6,7 @@ package nesting
 import (
 	"errors"
 	"fmt"
+	"math"
 )
 
 // ErrTooDeep reports a document that nests deeper than the caller's limit.
@@ -31,6 +32,8 @@ var structural = [256]bool{
 type frame struct {
 	// table is true for an inline table, whose entries are key/value pairs.
 	table bool
+	// keys counts the entries of this inline table so far.
+	keys int
 	// base is the depth just inside the container. A comma or the closing
 	// bracket drops back to it, which forgets the dotted key of the entry
 	// that just ended.
@@ -58,13 +61,30 @@ type frame struct {
 // decoder has already failed on an earlier byte, so nothing past that point
 // is ever decoded.
 func Check(source []byte, limit int) error {
-	_, err := scan(source, max(limit, 0))
+	_, err := scan(source, limit)
 	return err
 }
 
-// scan walks source and returns the deepest depth it saw. It stops with
-// ErrTooDeep as soon as the depth passes limit.
+// scan walks source with no key-work bound and returns the deepest depth it
+// saw. It stops with ErrTooDeep as soon as the depth passes limit.
 func scan(source []byte, limit int) (int, error) {
+	got, err := scanBounds(source, limit, math.MaxInt)
+	return got.deepest, err
+}
+
+// measures is what one pass learned about a document.
+type measures struct {
+	// deepest is the deepest nesting seen.
+	deepest int
+	// work is the key-table work total, see keyWork.
+	work int
+}
+
+// scanBounds walks source and stops with ErrTooDeep as soon as the depth
+// passes depthLimit, or with ErrTooManyKeys as soon as the key-table work
+// passes workLimit. A negative limit behaves like zero.
+func scanBounds(source []byte, depthLimit, workLimit int) (measures, error) {
+	limit := max(depthLimit, 0)
 	var (
 		stack    = make([]frame, 0, 8)
 		depth    int
@@ -74,7 +94,29 @@ func scan(source []byte, limit int) (int, error) {
 		// tableDepth is the depth of the latest table header. Top-level
 		// lines under it start there.
 		tableDepth int
+		// work and scopeKeys bound the quadratic key lookup, see keyWork.
+		work       = keyWork{limit: max(workLimit, 0)}
+		scopeKeys  int
+		headerKeys int
+		headers    headerSet
+		hdrStart   int
+		hdrEnd     = -1
 	)
+	// result reports the document so far, with the error the caller returns.
+	result := func(err error) (measures, error) {
+		return measures{deepest: deepest, work: work.total}, err
+	}
+	// endHeader counts the header that just closed as one more entry of some
+	// table, unless an earlier header had the same text.
+	endHeader := func() error {
+		if hdrEnd >= hdrStart && headers.add(source[hdrStart:hdrEnd+1]) {
+			if work.add(&headerKeys) {
+				return work.exceeded(hdrStart)
+			}
+		}
+		hdrEnd = -1
+		return nil
+	}
 	deeper := func(at int) error {
 		depth++
 		deepest = max(deepest, depth)
@@ -97,6 +139,9 @@ func scan(source []byte, limit int) (int, error) {
 				// newline. Inside an open array the line continues.
 				if inHeader {
 					tableDepth = depth
+					if err := endHeader(); err != nil {
+						return result(err)
+					}
 				}
 				depth, inKey, inHeader = tableDepth, true, false
 			}
@@ -106,18 +151,27 @@ func scan(source []byte, limit int) (int, error) {
 		case '"', '\'':
 			end, ok := skipString(source, i)
 			if !ok {
-				return deepest, fmt.Errorf("%w: string opened at byte %d", ErrUnterminatedString, i)
+				return result(fmt.Errorf("%w: string opened at byte %d", ErrUnterminatedString, i))
 			}
 			i = end
 		case '.':
 			if inKey || inHeader {
 				if err := deeper(i); err != nil {
-					return deepest, err
+					return result(err)
 				}
 			}
 			i++
 		case '=':
 			if !inHeader {
+				if inKey {
+					keys := &scopeKeys
+					if n := len(stack); n > 0 {
+						keys = &stack[n-1].keys
+					}
+					if work.add(keys) {
+						return result(work.exceeded(i))
+					}
+				}
 				inKey = false
 			}
 			i++
@@ -128,10 +182,10 @@ func scan(source []byte, limit int) (int, error) {
 			case len(stack) == 0 && inKey:
 				// A table header. Its depth is its own dots, not the
 				// previous header's.
-				inHeader, depth = true, 0
+				inHeader, depth, scopeKeys, hdrStart = true, 0, 0, i
 			default:
 				if err := deeper(i); err != nil {
-					return deepest, err
+					return result(err)
 				}
 				stack = append(stack, frame{base: depth})
 				inKey = false
@@ -140,7 +194,7 @@ func scan(source []byte, limit int) (int, error) {
 		case '{':
 			if !inHeader {
 				if err := deeper(i); err != nil {
-					return deepest, err
+					return result(err)
 				}
 				stack = append(stack, frame{table: true, base: depth})
 				inKey = true
@@ -152,6 +206,9 @@ func scan(source []byte, limit int) (int, error) {
 			}
 			i++
 		case ']', '}':
+			if inHeader && c == ']' {
+				hdrEnd = i
+			}
 			if n := len(stack); n > 0 && !inHeader {
 				depth = stack[n-1].base - 1
 				stack = stack[:n-1]
@@ -163,5 +220,10 @@ func scan(source []byte, limit int) (int, error) {
 			i++
 		}
 	}
-	return deepest, nil
+	if inHeader {
+		if err := endHeader(); err != nil {
+			return result(err)
+		}
+	}
+	return result(nil)
 }

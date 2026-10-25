@@ -144,6 +144,19 @@ func BenchmarkCheckLegalLockfile(b *testing.B) {
 	}
 }
 
+// BenchmarkCheckBoundsLegalLockfile is the same file under CheckBounds, the
+// call Cargo parsing makes: depth plus key work.
+func BenchmarkCheckBoundsLegalLockfile(b *testing.B) {
+	doc := legalLockfile(10_000)
+	b.SetBytes(int64(len(doc)))
+	b.ReportAllocs()
+	for b.Loop() {
+		if err := CheckBounds(doc, Bounds{Depth: 64, KeyWork: 25_000_000}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 // BenchmarkDecodeLegalLockfile is the go-toml decode of the same file, the
 // baseline the guard's cost is compared against.
 func BenchmarkDecodeLegalLockfile(b *testing.B) {
