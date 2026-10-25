@@ -138,6 +138,14 @@ var domainDataSignatures = map[string]domainDataSignature{
 	// (:CodeownerTeam) graph truth (storage/cypher/canonical/node/codeowners_edges.go).
 	"codeowners_ownership": {Markers: []string{"DECLARES_CODEOWNER"}},
 
+	// runtime_declaration_projection projects
+	// (:Repository)-[:DECLARES_RUNTIME]->(:RuntimeDeclaration) graph truth
+	// (storage/cypher/edge/writer/runtime_declaration.go). The read surface
+	// POST /api/v0/runtime-declarations/query matches :RuntimeDeclaration
+	// nodes directly and expands DECLARES_RUNTIME for the get_repo_context
+	// section.
+	"runtime_declaration_projection": {Markers: []string{":RuntimeDeclaration", "DECLARES_RUNTIME"}},
+
 	// config_state_drift materializes tfstate truth onto its OWN state
 	// labels and properties (storage/cypher/canonical/terraform/writer.go):
 	// TerraformStateResource nodes, MATCHES_STATE config↔state edges, and

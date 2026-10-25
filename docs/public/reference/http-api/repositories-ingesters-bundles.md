@@ -89,7 +89,8 @@ the same way (#6810), each with its own reason so an operator can tell which
 panel failed: `entry_points_read_degraded`, `relationships_read_degraded`,
 `relationship_overview_read_degraded`,
 `deployable_unit_relationships_read_degraded`, `consumers_read_degraded`,
-`api_surface_read_degraded`, `languages_read_degraded` and
+`api_surface_read_degraded`, `languages_read_degraded`,
+`runtime_declarations_read_degraded` and
 `source_tool_breakdown_read_degraded`; `story` carries
 `relationships_read_degraded` in `limitations`. This mirrors the `partial_reasons` shape the inventory
 route already uses (below) rather than inventing a new one. None of those

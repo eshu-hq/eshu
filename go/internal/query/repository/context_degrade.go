@@ -35,6 +35,13 @@ const (
 	contextCoverageDegradedReason                 = "repository_context_content_coverage_degraded"
 	apiSurfaceReadDegradedReason                  = APISurfaceReadDegradedReason
 	deployableUnitRelationshipsReadDegradedReason = "deployable_unit_relationships_read_degraded"
+	// runtimeDeclarationsReadDegradedReason marks a failed runtime declaration
+	// section read (#8817); the section is then an empty placeholder, not an
+	// authoritative "declares nothing".
+	runtimeDeclarationsReadDegradedReason = "runtime_declarations_read_degraded"
+	// runtimeDeclarationsReadTruncatedReason marks a repository that declares
+	// more runtimes than the section lists.
+	runtimeDeclarationsReadTruncatedReason = "runtime_declarations_truncated"
 )
 
 // degradedReadLogAttrs builds the stage-log attributes a query stage timer

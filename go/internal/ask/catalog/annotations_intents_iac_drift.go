@@ -28,6 +28,7 @@ func iacDriftToolIntents() map[string]toolIntent {
 		// correlations and ownership (not in a family)
 		"list_service_catalog_correlations":        intents("service catalog ownership", "service owner from catalog", "catalog drift for service", "backstage descriptor correlation"),
 		"list_codeowners_ownership":                intents("codeowners rules", "who owns this path", "effective owner of repository", "codeowners declarations"),
+		"list_runtime_version_declarations":        intents("repositories declaring a runtime version", "which repos use node below 20", "end of life runtime declarations", "declared node python go versions", "pinned runtime versions across repositories"),
 		"list_kubernetes_correlations":             intents("kubernetes workload ownership", "workloads in namespace", "which cluster runs image", "kubernetes drift correlation"),
 		"list_observability_coverage_correlations": intents("alarm and dashboard coverage", "is this service monitored", "missing observability coverage", "log and trace coverage gaps"),
 		"list_admission_decisions":                 intents("why was candidate rejected", "correlation admission decisions", "ambiguous or stale correlations", "admission state for anchor"),

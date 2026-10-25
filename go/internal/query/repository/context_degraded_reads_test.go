@@ -34,6 +34,7 @@ var contextDegradedReadMarkers = []struct {
 	{"source_tool_breakdown", "AS source_tool", sourceToolBreakdownReadDegradedReason},
 	{"entry_points", "(fn:Function)", entryPointsReadDegradedReason},
 	{"api_surface", "endpoint.path AS path", apiSurfaceReadDegradedReason},
+	{"runtime_declarations", "AS lowest_resolved_major", runtimeDeclarationsReadDegradedReason},
 }
 
 // TestRepositoryContextReportsDegradedGraphReads is the #6810 regression: a

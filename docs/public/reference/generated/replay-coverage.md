@@ -4,16 +4,16 @@
 
 Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass. Exempt rows carry the audited reason that a proof class does not apply. The inventory check itself is credential-free and Docker-free; backend-required scenarios run in their named proof gates. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 460/460 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 462/462 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
-| Capability claims | 158 | 158 | 100.00% | 0 | 0 |
+| Capability claims | 159 | 159 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
-| Read surfaces (API/MCP) | 26 | 26 | 100.00% | 0 | 1 |
+| Read surfaces (API/MCP) | 27 | 27 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 31 | 31 | 100.00% | 0 | 1 |
@@ -21,13 +21,13 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Retractable edge types (delta) | 64 | 64 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 100 | 100 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **460** | **460** | **100.00%** | **0** | **11** |
+| **Total** | **462** | **462** | **100.00%** | **0** | **11** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 243 | 243 | 100.00% | 0 | 5 |
+| baseline | 245 | 245 | 100.00% | 0 | 5 |
 | cost | 30 | 30 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 165 | 165 | 100.00% | 0 | 1 |
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.
 
-## Covered surfaces (460)
+## Covered surfaces (462)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |
 | --- | --- | --- | --- | --- |
@@ -197,6 +197,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:replatforming.plan.readiness` | baseline | capability_claim | capability-inventory | `replatforming.plan.readiness` |
 | `capability:replatforming.rollups.readiness` | baseline | capability_claim | capability-inventory | `replatforming.rollups.readiness` |
 | `capability:replatforming.selector_inventory` | baseline | capability_claim | capability-inventory | `replatforming.selector_inventory` |
+| `capability:runtime_declaration.version.list` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `POST /api/v0/runtime-declarations/query` |
 | `capability:secrets_iam.identity_trust_chains.list` | baseline | capability_claim | capability-inventory | `secrets_iam.identity_trust_chains.list` |
 | `capability:secrets_iam.posture_gaps.list` | baseline | capability_claim | capability-inventory | `secrets_iam.posture_gaps.list` |
 | `capability:secrets_iam.posture_summary.read` | baseline | capability_claim | capability-inventory | `secrets_iam.posture_summary.read` |
@@ -263,6 +264,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `read_surface:POST /api/v0/aws/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `POST /api/v0/aws/runtime-drift/findings` |
 | `read_surface:POST /api/v0/cloud/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `POST /api/v0/cloud/runtime-drift/findings` |
 | `read_surface:POST /api/v0/code/divergence/findings` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `POST /api/v0/code/divergence/findings` |
+| `read_surface:POST /api/v0/runtime-declarations/query` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `POST /api/v0/runtime-declarations/query` |
 | `read_surface:POST /api/v0/terraform/config-state-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `POST /api/v0/terraform/config-state-drift/findings` |
 | `read_surface:list_repository_files` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `list_repository_files` |
 | `parser:cloudformation` | baseline | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json` |

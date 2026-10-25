@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/evidence"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/query/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
 	"github.com/eshu-hq/eshu/go/internal/query/visualization"
 )
@@ -365,6 +366,9 @@ var baseCapabilityMatrix = map[string]capabilitySupport{
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
 	dependency.Capability: dependency.Support(),
+	// runtime_declaration.version.list (#8817) is declared once, beside its
+	// handler, and registered here for production.
+	runtimedeclaration.Capability: runtimedeclaration.Support(),
 }
 
 func init() {

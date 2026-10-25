@@ -2,11 +2,11 @@
 family_id: runtime_declaration
 kind: runtime_declaration.version
 schema_version: 1.0.0
-read_surface: none
+read_surface: POST /api/v0/runtime-declarations/query
 payload_schema: sdk/go/factschema/schema/runtime_declaration.version.v1.schema.json
 payload_schema_registered: true
 producers:
     - git-core
 reducer_bindings:
     - declaration/declaration_handle
-declaration: go/internal/facts/runtime_declaration.go:72
+declaration: go/internal/facts/runtime_declaration.go:71

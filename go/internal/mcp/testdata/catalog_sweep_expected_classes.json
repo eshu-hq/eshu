@@ -118,6 +118,7 @@
     "list_cloud_runtime_drift_findings/default": "allowlisted",
     "list_changed_since_poisoned_links/default": "allowlisted",
     "list_codeowners_ownership/default": "allowlisted",
+    "list_runtime_version_declarations/default": "allowlisted",
     "list_collector_extraction_readiness/default": "allowlisted",
     "list_collectors/default": "allowlisted",
     "list_component_extensions/default": "allowlisted",

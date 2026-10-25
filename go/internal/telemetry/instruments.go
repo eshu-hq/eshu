@@ -2127,6 +2127,20 @@ type Instruments struct {
 	// replay still in flight are not counted; they are on the request span.
 	CollectorTerminalFailureAcknowledgements metric.Int64Counter
 
+	// RuntimeDeclarationQueryDuration measures the graph reads behind the
+	// runtime declaration read surface (#8817) by closed operation (list,
+	// excluded_count, repository_names, context_section) and closed outcome
+	// (ok, error). It is recorded by the handler in
+	// go/internal/query/runtime/declaration and tolerates a nil Instruments
+	// handle.
+	RuntimeDeclarationQueryDuration metric.Float64Histogram
+
+	// RuntimeDeclarationQueryExcluded counts the declarations a version
+	// comparison could not place (#8817), by closed reason: range, alias,
+	// unresolved, partial, or other. A rising count means more declarations
+	// are being reported in partial_reasons instead of compared.
+	RuntimeDeclarationQueryExcluded metric.Int64Counter
+
 	// RepositorySelectionEvaluations counts git collector repository
 	// selection evaluations (#7625) by collector_kind and a closed outcome
 	// (evaluated, listing_truncated, guard_tripped, store_error).
@@ -6086,6 +6100,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerCollectorTerminalFailureAcknowledgements(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerRuntimeDeclarationQuery(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerOperatorRepositoryRetirement(meter, inst); err != nil {

@@ -31,7 +31,7 @@ type routeServesDataBacking struct {
 // for any family whose reducer_domain is not in the route's ServedDomains.
 //
 // Entry discipline:
-//   - Every distinct read_surface literal the registry uses (17 today) must
+//   - Every distinct read_surface literal the registry uses (18 today) must
 //     have an entry. A missing route fails closed.
 //   - ServedDomains lists every reducer_domain whose data the route surfaces.
 //     The relationship is many-to-many, not one route per domain: when a new
@@ -92,6 +92,7 @@ var routeServesDataBackingMap = map[string]routeServesDataBacking{
 	"GET /api/v0/codeowners/ownership":                         {ServedDomains: []string{"codeowners_ownership"}},
 	"GET /api/v0/iac/resources":                                {ServedDomains: []string{"config_state_drift"}},
 	"GET /api/v0/work-items/evidence":                          {ServedDomains: []string{"incident_repository_correlation"}},
+	"POST /api/v0/runtime-declarations/query":                  {ServedDomains: []string{"runtime_declaration_projection"}},
 }
 
 // resolveRouteServesData reports whether a family's read_surface route serves

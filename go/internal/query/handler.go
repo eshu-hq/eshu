@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/capability"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/query/runtime/declaration"
 )
 
 // WriteJSON writes a JSON response with the given status code.
@@ -94,6 +95,7 @@ type APIRouter struct {
 	PackageRegistry                *PackageRegistryHandler
 	Dependencies                   *DependenciesHandler
 	CodeownersOwnership            *CodeownersOwnershipHandler
+	RuntimeDeclarations            *runtimedeclaration.Handler
 	CICD                           *CICDHandler
 	ServiceCatalog                 *ServiceCatalogHandler
 	Kubernetes                     *KubernetesHandler
@@ -296,6 +298,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Codeowners ownership
 	if a.CodeownersOwnership != nil {
 		a.CodeownersOwnership.Mount(mux)
+	}
+
+	// Declared runtime versions (#8817)
+	if a.RuntimeDeclarations != nil {
+		a.RuntimeDeclarations.Mount(mux)
 	}
 
 	// CI/CD

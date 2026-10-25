@@ -24,6 +24,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/iac"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
+	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/query/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/query/terraform/drift"
@@ -261,6 +262,14 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 			Correlations: service.NewPostgresServiceCatalogCorrelationStoreWithReadStore(reader),
 			Profile:      queryProfile,
 			Instruments:  instruments,
+		},
+		// RuntimeDeclarations backs the list_runtime_version_declarations MCP
+		// tool (#8817). It must be wired in both binaries or the advertised tool
+		// re-dispatches into a nil handler.
+		RuntimeDeclarations: &runtimedeclaration.Handler{
+			Neo4j:       neo4jReader,
+			Profile:     queryProfile,
+			Instruments: instruments,
 		},
 		CICD:                  newCICDHandler(reader, contentReader, queryProfile),
 		ServiceCatalog:        newServiceCatalogHandler(reader, contentReader, queryProfile),

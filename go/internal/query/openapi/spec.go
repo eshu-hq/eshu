@@ -124,6 +124,7 @@ func Spec() string {
 			repository.PackageRegistry+
 			repository.PackageRegistryAggregate+
 			repository.Dependencies+
+			repository.RuntimeDeclarations+
 			code.Owners+
 			cicd.Routes+
 			cicd.RunCorrelationAggregate+

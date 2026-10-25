@@ -248,6 +248,8 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.OperatorRepositoryRetirementsPurged, "OperatorRepositoryRetirementsPurged counter should be registered")
 	assert.NotNil(t, inst.OperatorRepositoryRetirements, "OperatorRepositoryRetirements counter should be registered")
 	assert.NotNil(t, inst.CollectorTerminalFailureAcknowledgements, "CollectorTerminalFailureAcknowledgements counter should be registered")
+	assert.NotNil(t, inst.RuntimeDeclarationQueryDuration, "RuntimeDeclarationQueryDuration histogram should be registered")
+	assert.NotNil(t, inst.RuntimeDeclarationQueryExcluded, "RuntimeDeclarationQueryExcluded counter should be registered")
 }
 
 func TestNewInstrumentsNilMeterError(t *testing.T) {

@@ -1318,6 +1318,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/runtime-declarations/query",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/search/semantic",
       "readiness": "implemented"
     },
@@ -3481,6 +3486,11 @@
     {
       "category": "mcp_tool",
       "name": "list_repository_files",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_runtime_version_declarations",
       "readiness": "implemented"
     },
     {

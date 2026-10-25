@@ -116,6 +116,7 @@ var scopedTokenAdvertisedRoutes = map[string]scopedRouteClass{
 	"GET /api/v0/collector-extraction-readiness":                                    scopedRouteTenantDataFree,
 	"GET /api/v0/collector-extraction-readiness/{family}":                           scopedRouteTenantDataFree,
 	"GET /api/v0/codeowners/ownership":                                              scopedRouteGrantBound,
+	"POST /api/v0/runtime-declarations/query":                                       scopedRouteGrantBound,
 	"GET /api/v0/collector-readiness":                                               scopedRouteDeploymentScoped,
 	"GET /api/v0/component-extensions":                                              scopedRouteDeploymentScoped,
 	"GET /api/v0/component-extensions/{component_id}/diagnostics":                   scopedRouteDeploymentScoped,

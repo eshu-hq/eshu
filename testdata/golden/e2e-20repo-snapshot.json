@@ -4798,6 +4798,25 @@
           "limit": 10
         }
       },
+      "list_runtime_version_declarations": {
+        "description": "MCP tool coverage shape for list_runtime_version_declarations (issue #8817); asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: this corpus pins no guaranteed version-pin file, so no minimum_results; the echo fields, the comparison exclusion report and partial_reasons carry the assertion that the read path ran against the RuntimeDeclaration graph.",
+        "required_response_fields": [
+          "declarations",
+          "count",
+          "limit",
+          "truncated",
+          "filters",
+          "excluded_from_comparison",
+          "partial_reasons"
+        ],
+        "minimum_results": 0,
+        "results_field": "declarations",
+        "arguments": {
+          "runtime": "node",
+          "major_below": 20,
+          "limit": 10
+        }
+      },
       "list_kubernetes_correlations": {
         "description": "Returns k8s workload correlations for a cluster; confirms the WorkloadInstance correlation ran. Needs a cluster selector. Also isolates the #5437 selector_match verb (cold-review finding 1): minimum_results:1 alone was already satisfied by the pre-existing owner_reference correlation, so a broken selector_match pass would pass this shape undetected without the required_json_values pin.",
         "required_response_fields": [
@@ -7279,6 +7298,25 @@
       }
     },
     "http": {
+      "POST /api/v0/runtime-declarations/query": {
+        "description": "Declared runtime versions through the deployed HTTP query surface (issue #8817). Zero floor: this corpus pins no guaranteed version-pin file; the echo fields, the comparison exclusion report and partial_reasons carry the assertion that the route is mounted and read the RuntimeDeclaration graph.",
+        "required_response_fields": [
+          "declarations",
+          "count",
+          "limit",
+          "truncated",
+          "filters",
+          "excluded_from_comparison",
+          "partial_reasons"
+        ],
+        "minimum_results": 0,
+        "results_field": "declarations",
+        "request_body": {
+          "runtime": "node",
+          "major_below": 20,
+          "limit": 10
+        }
+      },
       "POST /api/v0/impact/entity-map": {
         "description": "Positive repository-to-workload entity map for the deployable-config fixture through the deployed HTTP query surface. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [

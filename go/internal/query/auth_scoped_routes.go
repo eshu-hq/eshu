@@ -31,6 +31,14 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/codeowners/ownership" {
 		return true
 	}
+	// #8817: POST /api/v0/runtime-declarations/query binds the caller's
+	// repository grant into the page read and the exclusion count before the
+	// LIMIT (runtime/declaration/cypher.go baseConditions), answers a grantless
+	// scoped caller the empty page without reading the graph, and narrows a
+	// repo_ids filter within the grant rather than around it.
+	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/runtime-declarations/query" {
+		return true
+	}
 	// Single-repository {repo_id} routes are matched against the ESCAPED path,
 	// not r.URL.Path. The MCP dispatchers build the path with url.PathEscape
 	// (go/internal/mcp/dispatch_repositories.go), so an org/repo-style selector
