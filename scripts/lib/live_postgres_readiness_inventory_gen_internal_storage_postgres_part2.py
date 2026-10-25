@@ -7,6 +7,10 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/recovery_refinalize_lock_convoy_live_test.go": (
+            "TestRefinalizeFenceDoesNotConvoyUnrelatedQueueWrite",
+            "TestRefinalizeFenceRetryBudgetIncludesReducerDrain",
+        ),
         "go/internal/storage/postgres/recovery_replay_lock_order_interleave_live_test.go": (
             "TestRecoveryReplayTwoSessionsBlockOneWayLive",
             "TestRecoveryReplayHeldRowRaceLive",
