@@ -172,6 +172,21 @@ func TestBoltRuntimeDeclarationProjectionIsIdempotentAndRetracts(t *testing.T) {
 	if n1 != 4 || e1 != 4 || n2 != n1 || e2 != e1 {
 		t.Fatalf("idempotency: run1=(%d,%d) run2=(%d,%d), want (4,4) twice; paths=%s", n1, e1, n2, e2, paths)
 	}
+	// Ambiguous case: the lts/iron alias is a node with no version_major, so
+	// the version-threshold read counts only the real 18.19.0 pin. A zero-filled
+	// major would put the alias below every threshold.
+	below20, err := boltCount(context.Background(), runner,
+		`MATCH (d:RuntimeDeclaration) WHERE d.repo_id = $repo_id AND d.runtime = 'node' AND d.version_major < 20 RETURN count(d) AS count`,
+		map[string]any{"repo_id": repoID})
+	if err != nil || below20 != 1 {
+		t.Fatalf("node below 20 = %d (err %v), want 1 (18.19.0 only; the alias has no major)", below20, err)
+	}
+	aliasNoMajor, err := boltCount(context.Background(), runner,
+		`MATCH (d:RuntimeDeclaration {repo_id: $repo_id, relative_path: 'svc/.nvmrc'}) WHERE d.version_major IS NULL AND d.spec_kind = 'alias' AND d.raw_spec = 'lts/iron' RETURN count(d) AS count`,
+		map[string]any{"repo_id": repoID})
+	if err != nil || aliasNoMajor != 1 {
+		t.Fatalf("alias node without version_major = %d (err %v), want 1", aliasNoMajor, err)
+	}
 
 	edited := liveRuntimeFacts(t, repoID, false, nil, nil,
 		liveDecl{".tool-versions", 1, 0, "node", "22.1.0", liveMajor(22)},

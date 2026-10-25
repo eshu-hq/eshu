@@ -59,6 +59,18 @@ before and after), and the path-scoped retract kept the other file's 12 nodes
 of that repository. The read cost grows with the number of matching
 declarations, not with the label, because the seek is on the composite index.
 
+## Repository-scale check
+
+The same shapes at 50,000 declarations across 5,000 repositories (10 per
+repository) on the same image stay index-driven: no plan holds
+`NodeByLabelScan` or `AllNodesScan`. The threshold query reads 10,002 matching
+index rows (50,061 db hits, 1 + 29 ms warm); the 500-row production upsert
+plans `MergeUniqueNode` and `Expand(Into)` (19,408 db hits, then 14,416 on
+replay); the whole-repository retract seeks `Repository.id` (52 db hits for one
+repository, 2,620 for 50); the delta retract over 50 repositories with 2 paths
+each takes 2,224 db hits and keeps each repository's other files. The full
+table is in `docs/public/reference/cypher-runtime-declarations.md`.
+
 ## Proof of the change
 
 - Unit tests for the writer, the handler, the retract scope and the
