@@ -92,7 +92,8 @@ packages took 17 s. The hosted-runner cost was not measured.
 when:
 
 - a workflow that compiles Go has no workflow-level `CGO_CFLAGS` with
-  `-std=gnu17`, or any `CGO_CFLAGS` assignment drops the flag;
+  `-std=gnu17`, or any `CGO_CFLAGS` assignment drops the flag. A whole-line or
+  trailing `#` comment that names `-std=gnu17` does not count as the flag;
 - a script under `scripts/` that runs `CGO_ENABLED=1 go`, or a developer
   entrypoint, lacks a non-comment line that sources `scripts/lib/cgo-cflags.sh`
   or a non-comment call to `eshu_export_cgo_cflags`. A comment that names the

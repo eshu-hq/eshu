@@ -172,6 +172,21 @@ else
 	{ good_workflow; printf '      - run: go test ./...\n        env:\n          CGO_CFLAGS: -O2\n'; } >"${t}/.github/workflows/step.yml"
 	check_guard "guard: step-level CGO_CFLAGS clobber FAILS" 1 "$t" "step.yml"
 
+	# A trailing YAML comment that names -std=gnu17 is not a value. The line
+	# keeps its flag-less value, so the guard must still FAIL it; a compliant
+	# value that merely ends in a comment must still pass.
+	t="$(new_tree)"
+	good_workflow | sed 's/CGO_CFLAGS: "-O2 -g -std=gnu17"/CGO_CFLAGS: "-O2 -g" # -std=gnu17 kept for docs/' >"${t}/.github/workflows/comment-env.yml"
+	check_guard "guard: workflow-level CGO_CFLAGS with -std=gnu17 only in a trailing comment FAILS" 1 "$t" "comment-env.yml"
+
+	t="$(new_tree)"
+	{ good_workflow; printf '      - run: go test ./...\n        env:\n          CGO_CFLAGS: "-O2" # -std=gnu17 kept for docs\n'; } >"${t}/.github/workflows/comment-step.yml"
+	check_guard "guard: step-level CGO_CFLAGS with -std=gnu17 only in a trailing comment FAILS" 1 "$t" "comment-step.yml"
+
+	t="$(new_tree)"
+	good_workflow | sed 's/CGO_CFLAGS: "-O2 -g -std=gnu17"/CGO_CFLAGS: "-O2 -g -std=gnu17" # keep/' >"${t}/.github/workflows/comment-ok.yml"
+	check_guard "guard: compliant CGO_CFLAGS with a trailing comment passes" 0 "$t"
+
 	t="$(new_tree)"
 	cat >"${t}/.github/workflows/container.yml" <<'EOF'
 name: Fixture
@@ -274,6 +289,10 @@ EOF
 	t="$(new_tree)"
 	printf '# export CGO_CFLAGS := -O2 -g -std=gnu17\n' >"${t}/Makefile"
 	check_guard "guard: Makefile with the export only in a comment FAILS" 1 "$t" "Makefile"
+
+	t="$(new_tree)"
+	printf 'export CGO_CFLAGS := -O2 -g # -std=gnu17 kept for docs\n' >"${t}/Makefile"
+	check_guard "guard: Makefile with -std=gnu17 only in a trailing comment FAILS" 1 "$t" "Makefile"
 
 	t="$(new_tree)"
 	printf '#!/usr/bin/env bash\n# see cgo-cflags.sh\nCGO_ENABLED=1 go -C go build ./cmd/api\n' >"${t}/scripts/build-z.sh"

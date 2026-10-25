@@ -14,7 +14,9 @@
 #      CGO_CFLAGS with -std=gnu17 in its workflow-level env. GitHub passes no
 #      env between workflow files, so each file must carry its own.
 #   2. No CGO_CFLAGS assignment anywhere in a workflow drops -std=gnu17, so a
-#      later job or step cannot clobber the flag.
+#      later job or step cannot clobber the flag. Checks 1 and 2 ignore whole-
+#      line and trailing " #" comments, so comment text never counts as the flag.
+#      Check 4's Makefile test reads through the same comment strip.
 #   3. Every script under scripts/ that runs `CGO_ENABLED=1 go ...` sources
 #      scripts/lib/cgo-cflags.sh and calls eshu_export_cgo_cflags.
 #   4. The developer entrypoints (--list-entrypoints) do the same, and the
@@ -138,22 +140,26 @@ require_lib_use() {
 	fi
 }
 
+# Both workflow checks read the file through code_of, so a trailing YAML comment
+# ("CGO_CFLAGS: -O2 # -std=gnu17 kept") cannot supply the flag. YAML starts a
+# comment at whitespace plus "#", the same cut code_of makes. A quoted value that
+# itself holds " #" loses its tail, which can only turn a pass into a FAIL here.
 # workflow_env_has_flag prints "yes" when the workflow-level env block (a
 # column-zero "env:" key) sets CGO_CFLAGS to a value containing -std=gnu17.
 workflow_env_has_flag() {
-	awk '
+	code_of "$1" | awk '
 		/^env:[[:space:]]*$/ { inenv = 1; next }
 		/^[^[:space:]#]/ { inenv = 0 }
 		inenv && /^[[:space:]]+CGO_CFLAGS:/ && /-std=gnu17/ { found = 1 }
 		END { print found ? "yes" : "no" }
-	' "$1"
+	'
 }
 
 if [ -d "${root}/.github/workflows" ]; then
 	for wf in "${root}"/.github/workflows/*.yml "${root}"/.github/workflows/*.yaml; do
 		[ -f "${wf}" ] || continue
 		rel="${wf#"${root}"/}"
-		body="$(sed -e '/^[[:space:]]*#/d' "${wf}")"
+		body="$(code_of "${wf}")"
 		if printf '%s\n' "${body}" | rg -q -e "${go_user_pattern}"; then
 			if [ "$(workflow_env_has_flag "${wf}")" != "yes" ]; then
 				fail "${rel} compiles Go but has no workflow-level env CGO_CFLAGS containing -std=gnu17 (#9066)"
