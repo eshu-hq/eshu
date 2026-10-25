@@ -1,0 +1,36 @@
+docs/internal/evidence/8851-sdk-consumer-migration.md
+  h_78a442cba0b3e6 32
+docs/public/extend/sdk-compatibility.md
+  h_78a442cba0b3e6 52,55,60,99-100,141-142
+docs/public/reference/relationship-mapping-evidence.md
+  h_78a442cba0b3e6 283
+go/go.mod
+  h_78a442cba0b3e6 164
+go/go.sum
+  h_78a442cba0b3e6 480-481
+go/internal/ifa/familyodu/runtime_declaration_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/reducer/idempotency_runtime_declaration_test.go
+  h_78a442cba0b3e6 11-12
+go/internal/reducer/runtime/declaration/handler_test.go
+  h_78a442cba0b3e6 14-15
+go/internal/reducer/runtime/declaration/rows.go
+  h_78a442cba0b3e6 11
+go/internal/reducer/schemadecode/factschema_decode_runtime_declaration.go
+  h_78a442cba0b3e6 7-8
+go/internal/replay/costcounting/runtime_declaration_cost_test.go
+  h_78a442cba0b3e6 14-15
+go/internal/storage/cypher/edge/writer/runtime_declaration_live_test.go
+  h_78a442cba0b3e6 16-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4ffd9924868dc55dd0f17f67cb5b94efa4090f58",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
