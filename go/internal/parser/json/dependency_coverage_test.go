@@ -160,3 +160,22 @@ func TestDependencyCoverageGapsDoNotEmitDependencyRows(t *testing.T) {
 		}
 	}
 }
+
+// TestSBTCoverageNotesStateTheRegistryJoinRule pins the build.sbt coverage row
+// to the join rule of the shared sbt key helper (#8961): a %% row joins only
+// the suffixed artifact, and a row without a known Scala binary version joins
+// nothing. The matrix and the public coverage page are the contract operators
+// read, so the rule must stay stated in the row.
+func TestSBTCoverageNotesStateTheRegistryJoinRule(t *testing.T) {
+	t.Parallel()
+
+	entry, ok := DependencyCoverageByFile("build.sbt")
+	if !ok {
+		t.Fatalf("DependencyCoverageByFile(build.sbt) found no entry")
+	}
+	for _, want := range []string{"sbt_binary_artifact", "joins"} {
+		if !strings.Contains(entry.Notes, want) {
+			t.Errorf("build.sbt coverage notes must state the registry join rule (missing %q): %s", want, entry.Notes)
+		}
+	}
+}
