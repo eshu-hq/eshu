@@ -65,7 +65,7 @@ WITH security_alert_current AS (
       COALESCE(cardinality($8::text[]), 0) = 0
       OR fact.payload->>'repository_id' = ANY($8::text[])
       OR fact.payload->>'provider_repository_id' = ANY($8::text[])
-      OR fact.payload->>'scope_id' = ANY($8::text[])
+      OR fact.payload->>'scope_id' = ANY($8::text[])` + shardGrantMatch8 + `
     )
 )
 `

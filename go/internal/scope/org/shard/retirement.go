@@ -15,6 +15,13 @@ import "strings"
 // retiring a removed target (#9071) can reuse it.
 const RetirementMarker = "#retire"
 
+// RetirementFreshnessHint is the freshness hint of every retirement
+// generation. The collector stamps it; the ingestion store's
+// unchanged-generation check then skips a replayed retirement, and the query
+// layer reads it to tell an active retirement generation, which holds no
+// data, from a collection (#9019). It is durable: stored generations carry it.
+const RetirementFreshnessHint = "security_alert_retired:v1"
+
 // RetirementAcceptanceUnitID returns the acceptance unit id of the retirement
 // work item for scopeID.
 func RetirementAcceptanceUnitID(scopeID string) string {

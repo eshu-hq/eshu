@@ -18,6 +18,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts/alertruntime"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/security/alert"
+	"github.com/eshu-hq/eshu/go/internal/query"
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/alerts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -169,26 +172,51 @@ func (e *shardE2E) collect(source *alertruntime.ClaimedSource, item workflow.Wor
 		collected.Facts, nil, collected.StateWriter)
 }
 
-// scan plans allowed under planKey, collects every item with replicas
-// collector replicas in parallel (item i goes to replica i mod replicas),
-// projects, and writes the reconciliation facts of each newly active
-// collection generation.
-func (e *shardE2E) scan(allowed []string, planKey string, replicas int) []workflow.WorkItem {
+// scan plans allowed under planKey, then runs the plan in two phases with
+// replicas collector replicas in parallel (item i goes to replica i mod
+// replicas): first every retirement item, projected, then every collection
+// item, projected, and the reconciliation facts of each newly active
+// collection generation. Retiring first is the worst order for read truth: a
+// merged parent's old retirement stays active until its collection lands.
+// betweenPhases, when set, runs after the retirements are active.
+func (e *shardE2E) scan(allowed []string, planKey string, replicas int, betweenPhases ...func()) []workflow.WorkItem {
 	e.t.Helper()
 	items := e.plan(allowed, planKey)
-	mutations := make([]workflow.ClaimMutation, len(items))
-	for i, item := range items {
-		mutations[i] = e.claim(item)
+	var retirements, collections []workflow.WorkItem
+	for _, item := range items {
+		if shard.IsRetirement(item.ScopeID, item.AcceptanceUnitID) {
+			retirements = append(retirements, item)
+		} else {
+			collections = append(collections, item)
+		}
 	}
 	sources := make([]*alertruntime.ClaimedSource, replicas)
 	for r := range sources {
 		sources[r] = e.source(allowed)
 	}
+	e.runPhase(sources, retirements)
+	for _, hook := range betweenPhases {
+		hook()
+	}
+	e.runPhase(sources, collections)
+	for _, item := range collections {
+		e.reconcileActive(item.ScopeID, item.GenerationID)
+	}
+	return items
+}
+
+// runPhase claims and commits items across the replicas, then projects.
+func (e *shardE2E) runPhase(sources []*alertruntime.ClaimedSource, items []workflow.WorkItem) {
+	e.t.Helper()
+	mutations := make([]workflow.ClaimMutation, len(items))
+	for i, item := range items {
+		mutations[i] = e.claim(item)
+	}
 	errs := make([]error, len(items))
 	var wg sync.WaitGroup
-	for r := range replicas {
+	for r := range sources {
 		wg.Go(func() {
-			for i := r; i < len(items); i += replicas {
+			for i := r; i < len(items); i += len(sources) {
 				errs[i] = e.collect(sources[r], items[i], mutations[i])
 			}
 		})
@@ -200,12 +228,36 @@ func (e *shardE2E) scan(allowed []string, planKey string, replicas int) []workfl
 		}
 	}
 	shardLiveProject(e.t, e.ctx, e.database)
-	for _, item := range items {
-		if !shard.IsRetirement(item.ScopeID, item.AcceptanceUnitID) {
-			e.reconcileActive(item.ScopeID, item.GenerationID)
-		}
+}
+
+// grantedReads returns what list and count answer for a scoped token whose
+// grant set is granted, on the provider-anchored read.
+func (e *shardE2E) grantedReads(granted ...string) (int, int) {
+	e.t.Helper()
+	rows, err := alerts.NewPostgresStore(e.database).ListSecurityAlertReconciliations(e.ctx, supplychain.SecurityAlertReconciliationFilter{
+		Provider: shardLiveProvider, Limit: 200, AllowedSourceRepositoryIDs: granted,
+	})
+	if err != nil {
+		e.t.Fatalf("granted list: %v", err)
 	}
-	return items
+	count, err := alerts.NewPostgresAggregateStore(e.database).CountSecurityAlertReconciliations(e.ctx,
+		supplychain.SecurityAlertReconciliationAggregateFilter{Provider: shardLiveProvider, AllowedSourceRepositoryIDs: granted})
+	if err != nil {
+		e.t.Fatalf("granted count: %v", err)
+	}
+	return len(rows), count.TotalReconciliations
+}
+
+// collectionState reads one scope's empty-answer collection state through the
+// production query store, anchored on repository.
+func (e *shardE2E) collectionState(scopeID, repository string) supplychain.SecurityAlertTargetState {
+	e.t.Helper()
+	states, err := query.NewPostgresSecurityAlertCollectionStateStoreWithReadStore(postgres.SQLDB{DB: e.database}).
+		SecurityAlertTargetStates(e.ctx, []string{scopeID}, []string{repository})
+	if err != nil || len(states) != 1 {
+		e.t.Fatalf("collection state of %s: %v (%d rows)", scopeID, err, len(states))
+	}
+	return states[0]
 }
 
 // reconcileActive writes the reducer reconciliation facts of a committed

@@ -152,7 +152,7 @@ tests:
   - file: go/internal/query/security_alert_unread_state_postgres_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8943 disposable PostgreSQL proof of the security-alert unread-repository read on the bootstrapped schema: the read follows ingestion_scopes.active_generation_id to the generation's read state and returns unread rows of the requested repositories only, ignores a superseded generation's rows, reports a target with no read state as nothing unread, returns the distinct reasons without any child row on an unanchored read, and plans the child read as primary-key index probes on a seeded set of 50 targets with 4 generations and 2,000 unread repositories each; isolated bootstrapped schema per test; plan timing is logged, not gated"
+    reason: "#8943 disposable PostgreSQL proof of the security-alert unread-repository read on the bootstrapped schema: the read follows ingestion_scopes.active_generation_id to the generation's read state and returns unread rows of the requested repositories only, ignores a superseded generation's rows, reports a target with no read state as nothing unread, returns the distinct reasons without any child row on an unanchored read, reports an active retirement generation (#9019) as retired and an older one under a newer collection as not, and plans the child read as primary-key index probes on a seeded set of 50 targets with 4 generations and 2,000 unread repositories each; isolated bootstrapped schema per test; plan timing is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/query/status_terraform_selection_live_test.go
     tag: ~
@@ -412,7 +412,7 @@ tests:
   - file: go/internal/storage/postgres/alert_shard_planner_cost_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#9019 disposable PostgreSQL 18 measurement of the security-alert planner's scan cost on 50 collector instances, each with one org target of 150 repositories (2 shards) whose scopes hold active generations, beside 8,000 unrelated scopes: one-item-per-target planning (the pre-#9019 work), partition-only planning, and partition plus the Postgres retirement read, median of 15 scans; creates and drops its own database from the bootstrap schema; about 3 s on PostgreSQL 18.6 locally; timings are logged, not gated"
+    reason: "#9019 disposable PostgreSQL 18 measurement of the security-alert planner's scan cost on 50 collector instances, each with one org target of 150 repositories (2 shards) whose scopes hold active generations, beside 8,000 unrelated scopes: one-repository repository-target planning (a different input, the floor of the planner's own cost), partition-only planning, and partition plus the Postgres retirement read, median of 15 scans; creates and drops its own database from the bootstrap schema; about 3 s on PostgreSQL 18.6 locally; timings are logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/alert_shard_retirement_live_test.go
     tag: ~

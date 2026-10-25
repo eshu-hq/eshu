@@ -62,6 +62,26 @@ func shardSplitMergeProof(replicas int) func(*testing.T) {
 		}
 		e.assertReads("split to 101", hundredOne)
 		splitShards := collect
+		// Review F4: a token granted the target's base scope id keeps seeing
+		// every alert of its shards; an ungranted base, a granted id that
+		// itself carries the shard marker, and an id that merely shares the
+		// base as a prefix see none; a repository-id grant still sees that
+		// repository.
+		for _, tc := range []struct {
+			granted []string
+			want    int
+		}{
+			{[]string{shardLiveBaseScopeID}, 101},
+			{[]string{"security-alert:github-org:other"}, 0},
+			{[]string{shardLiveBaseScopeID + "#shard-"}, 0},
+			{[]string{"security-alert:github-org:ac"}, 0},
+			{[]string{"security-alert:github:" + hundredOne[0]}, 1},
+			{[]string{splitShards[0]}, len(shard.Partition(shardLiveBaseScopeID, "acme", hundredOne)[0].Repositories)},
+		} {
+			if listed, counted := e.grantedReads(tc.granted...); listed != tc.want || counted != tc.want {
+				t.Fatalf("grant %v: list %d, count %d, want %d", tc.granted, listed, counted, tc.want)
+			}
+		}
 
 		// After the retirement landed, the same reconciliation replans the same
 		// shard items and no retirement: the retired base is skipped.
@@ -75,7 +95,21 @@ func shardSplitMergeProof(replicas int) func(*testing.T) {
 
 		// Merge: drop one repository; its alerts must leave every read.
 		merged := slices.Clone(e.organization[:100])
-		collect, retire = shardItemIDs(e.scan(merged, "schedule-20261025T090000Z", replicas))
+		// Review F1: once the shards' retirements are active and before the
+		// parent's collection lands, the parent's active generation is still
+		// its own retirement from the split. It must read as retired (the
+		// classifier then reports collecting, not complete), and as a
+		// collection once the parent's collection activates.
+		parentBeforeCollection := func() {
+			state := e.collectionState(shardLiveBaseScopeID, merged[0])
+			if !state.Retired || !state.CommittedGeneration {
+				t.Fatalf("merged parent before its collection = %+v, want a retired active generation", state)
+			}
+		}
+		collect, retire = shardItemIDs(e.scan(merged, "schedule-20261025T090000Z", replicas, parentBeforeCollection))
+		if state := e.collectionState(shardLiveBaseScopeID, merged[0]); state.Retired {
+			t.Fatalf("merged parent after its collection = %+v, want not retired", state)
+		}
 		if !slices.Equal(collect, []string{shardLiveBaseScopeID}) || !slices.Equal(retire, splitShards) {
 			t.Fatalf("merge planned %v and retired %v, want the base back and %v retired", collect, retire, splitShards)
 		}

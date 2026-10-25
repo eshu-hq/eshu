@@ -350,13 +350,16 @@ func classifySecurityAlertTarget(state SecurityAlertTargetState, anchored bool) 
 		coverageState: securityAlertCoverageTargetIncomplete,
 		cause:         true,
 	}
+	// A retirement generation (#9019) holds no data: until the scope's next
+	// collection activates, it counts as nothing committed.
+	committed := state.CommittedGeneration && !state.Retired
 	switch {
-	case state.CommittedGeneration && !terminal:
+	case committed && !terminal:
 		if reasons := securityAlertUnreadReasonsFor(state, anchored); len(reasons) > 0 {
 			return 4, securityAlertUnreadVerdict(reasons)
 		}
 		return 5, securityAlertHealthyVerdict()
-	case state.CommittedGeneration:
+	case committed:
 		incomplete.reasons = []string{securityAlertTerminalReason(state.LatestFailureClass)}
 		incomplete.level = querycontract.TruthLevelDerived
 		incomplete.freshness = querycontract.FreshnessStale

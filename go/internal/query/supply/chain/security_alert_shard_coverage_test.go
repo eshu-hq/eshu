@@ -166,3 +166,48 @@ func TestSecurityAlertUnanchoredEmptyAnswerOnAShardedTargetTakesEveryShard(t *te
 	}
 	assertCoverage(t, resp, coverageWant{"target_incomplete", []string{"org_repository_read_rate_limited"}, "derived", "fresh", "", ""})
 }
+
+// TestSecurityAlertEmptyAnswerOnARetiredActiveGenerationIsNotComplete is the
+// #9019 review F1 regression. A scope whose active generation is a retirement
+// (a merged-back parent, or any shard name planned again after it was
+// retired) has no data until its next collection activates. Its empty answer
+// must read as still collecting, never complete, exact, and fresh, on anchored
+// and unanchored reads alike. A terminal failure on top reads as a terminal
+// failure with nothing committed.
+func TestSecurityAlertEmptyAnswerOnARetiredActiveGenerationIsNotComplete(t *testing.T) {
+	t.Parallel()
+
+	retired := SecurityAlertTargetState{LatestWorkItemStatus: "pending", CommittedGeneration: true, Retired: true}
+	retrying := retired
+	retrying.LatestWorkItemStatus, retrying.LatestFailureClass = "retrying", "rate_limited"
+	collecting := coverageWant{"target_incomplete", []string{"no_committed_generation"}, "derived", "building", "missing_collector_completion", ""}
+	for name, state := range map[string]SecurityAlertTargetState{"pending": retired, "retrying": retrying} {
+		for route, target := range coverageRoutes(coverageTestRepositoryID) {
+			t.Run(name+"/"+route, func(t *testing.T) {
+				t.Parallel()
+				store := &fakeSecurityAlertCollectionState{
+					configs: []string{coverageTestCoveringOrgTarget},
+					states:  map[string]SecurityAlertTargetState{"sa-target-org-covering": state},
+				}
+				_, _, resp := serveCoverage(context.Background(), t, coverageTestHandler(store, 0), target)
+				assertCoverage(t, resp, collecting)
+				assertCoverageInvariant(t, resp)
+			})
+		}
+		t.Run(name+"/unanchored", func(t *testing.T) {
+			t.Parallel()
+			store := &fakeSecurityAlertCollectionState{
+				configs: []string{coverageTestCoveringOrgTarget},
+				states:  map[string]SecurityAlertTargetState{"sa-target-org-covering": state},
+			}
+			_, _, resp := serveCoverage(context.Background(), t, coverageTestHandler(store, 0),
+				"/api/v0/supply-chain/security-alerts/reconciliations?limit=10&cve_id=CVE-2026-0001")
+			assertCoverage(t, resp, collecting)
+		})
+	}
+	terminal := retired
+	terminal.LatestWorkItemStatus, terminal.LatestFailureClass, terminal.LatestFailureTerminal = "failed_terminal", "auth_denied", true
+	if rank, verdict := classifySecurityAlertTarget(terminal, true); rank != 1 || verdict.collectorState != securityAlertCollectorStateFailedTerminal {
+		t.Fatalf("retired + terminal = rank %d %q, want 1 failed_terminal (nothing committed)", rank, verdict.collectorState)
+	}
+}

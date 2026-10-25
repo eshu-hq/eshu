@@ -17,11 +17,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// RetirementFreshnessHint is the freshness hint of every retirement
-// generation. It is constant, so a replayed retirement over a scope whose
-// active (or live pending) generation is already a retirement is skipped by
-// the ingestion store's unchanged-generation check and stores nothing.
-const RetirementFreshnessHint = "security_alert_retired:v1"
+// RetirementFreshnessHint is shard.RetirementFreshnessHint, the freshness hint
+// of every retirement generation. It is constant, so a replayed retirement
+// over a scope whose active (or live pending) generation is already a
+// retirement is skipped by the ingestion store's unchanged-generation check
+// and stores nothing; the query layer reads it to classify the scope as not
+// yet collected.
+const RetirementFreshnessHint = shard.RetirementFreshnessHint
 
 // retire answers a retirement work item (#9019): the coordinator planned it
 // for a scope of a configured org target that the current partition no longer
