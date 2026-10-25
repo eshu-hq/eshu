@@ -29,3 +29,8 @@ tests:
     class: ci
     reason: "#8816 seeded Neo4j proof of the runtime_declaration_projection handler over the production RuntimeDeclarationWriter: idempotent replay, in-place edit, full-generation and delta retracts, and 8 concurrent repositories sharing pin-file paths (run-unique repository ids, cleanup on pass and fail); Neo4j-only because Neo4j is the supported backend and the proof relies on its composite uniqueness constraint; local -race runs on neo4j:2026-community took 1.17-1.27 s package wall (3 runs)"
     backends: neo4j
+  - file: go/internal/storage/cypher/edge/writer/runtime_declaration_retract_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#8816 seeded Neo4j retract edge cases for the runtime_declaration_projection handler and RuntimeDeclarationWriter: a delta that shrinks a pin file, a renamed pin file, a full generation after the last pin file is deleted (a foreign evidence_source node survives), and one path retract over two repositories with crossed path lists (run-unique repository ids, cleanup on pass and fail); Neo4j-only for the same reason as runtime_declaration_live_test.go; local -race run of all five runtime declaration live tests took 3.06 s package wall"
+    backends: neo4j

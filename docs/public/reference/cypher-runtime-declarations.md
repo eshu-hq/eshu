@@ -12,7 +12,7 @@ behind the retract scope is in the repository evidence note
 | Statement | Backend | Purpose |
 | --- | --- | --- |
 | `runtime_declaration_identity`: unique `(repo_id, relative_path, line_number, runtime, order_index)` | Neo4j | The MERGE key. One node per token on a pin-file line. |
-| `runtime_declaration_runtime_major`: range index on `(runtime, version_major)` | both | The version-threshold read, such as Node below 20 (#8817). |
+| `runtime_declaration_runtime_major`: range index on `(runtime, version_major)` | Neo4j | The version-threshold read, such as Node below 20 (#8817). NornicDB also runs the statement but registers a composite index under its first property only, so there it backs the `runtime` equality alone; this page claims only the Neo4j plan. |
 | `nornicdb_runtime_declaration_repo_id_lookup` on `repo_id` | NornicDB | NornicDB drops composite constraints, so the MERGE needs a single-property lookup. |
 
 `RuntimeDeclaration` and `DECLARES_RUNTIME` are new names: no other writer
