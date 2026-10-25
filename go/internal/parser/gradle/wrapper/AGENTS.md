@@ -27,7 +27,12 @@
 
 - A new accepted form: add the negative and positive case to `scan_test.go`
   first, then the generator case in `bounds_test.go`.
-- A wrapper change that alters emitted facts: re-pin
-  `go/internal/collector/repo/git/testdata/content_version_pin.json` with the
-  `-update-content-version-pin` flag and keep the fixture under
+- A change to the emitted row or the grammar: update the README and the
+  scanner tests, and re-pin the collector fixture digest (`go test
+  ./internal/collector/repo/git/ -run TestGenerationContentVersionPinsCollectorOutput
+  -update-content-version-pin`). A change that alters facts for unchanged input
+  also needs a `gitGenerationContentVersion` bump first, then the re-pin: the
+  registry fingerprint hashes bindings only, so a logic change with unchanged
+  bindings does not move it. A binding change moves the fingerprint on its own.
+  Keep the fixture under
   `go/internal/collector/repo/git/testdata/content_version/jvm/gradle/wrapper/`.
