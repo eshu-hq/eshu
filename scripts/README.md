@@ -57,6 +57,15 @@ throwaway Postgres built from the real migrations; run it, and update the SQL
 digest pins in the stub test, whenever a SQL file changes. Add `--bench N` to
 time the truth query on N generated facts.
 
+`verify-changelog-unreleased.sh` (#9096) fails a `CHANGELOG.md` with a second
+`## Unreleased` heading, a conflict marker, a duplicate entry, or a duplicate
+`### ` heading. An entry is keyed on its bold title joined across wrapped lines.
+`.gitattributes` marks the file `merge=union`, so parallel PRs rebase without a
+conflict, and this gate catches what a keep-both merge can leave behind. The
+seeded tests are `test-verify-changelog-unreleased.sh` (planted violations) and
+`test-changelog-union-merge.sh` (two branches append under `## Unreleased`; the
+merge conflicts without the attribute and applies cleanly with it).
+
 `verify-compose-helm-runtime-parity.sh` is the static hosted deployability
 gate for Compose-to-Kubernetes runtime parity. It renders default Compose,
 remote E2E Compose, profile-expanded remote collectors, observability remote

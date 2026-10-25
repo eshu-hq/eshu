@@ -95,3 +95,35 @@ gates:
     requirements: []
     ci_only_reason: ""
     hook_id: ""
+
+  - id: changelog-unreleased
+    name: CHANGELOG.md Unreleased section integrity
+    category: hygiene
+    layer: hygiene
+    purpose: "Fails when CHANGELOG.md has a second Unreleased heading, a conflict marker, or a duplicate entry or ### heading that a merge=union rebase can leave (#9096)."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "CHANGELOG.md"
+      - ".gitattributes"
+      - "scripts/verify-changelog-unreleased.sh"
+      - "scripts/test-verify-changelog-unreleased.sh"
+      - "scripts/test-changelog-union-merge.sh"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+    self_test_triggers:
+      - ".gitattributes"
+      - "scripts/verify-changelog-unreleased.sh"
+      - "scripts/test-verify-changelog-unreleased.sh"
+      - "scripts/test-changelog-union-merge.sh"
+    local:
+      command: "bash scripts/verify-changelog-unreleased.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-changelog-unreleased.sh && bash scripts/test-changelog-union-merge.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify changelog-unreleased gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""

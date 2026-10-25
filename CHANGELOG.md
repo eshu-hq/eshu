@@ -44,6 +44,21 @@ recent shipped work grouped by feature area.
   repository re-collects once. Evidence:
   `docs/internal/evidence/8816-runtime-declaration-graph.md`.
 
+### CI: CHANGELOG.md rebases without conflicts
+
+- **`CHANGELOG.md` is union-merged, and a new gate checks the result**
+  ([#9096](https://github.com/eshu-hq/eshu/issues/9096)). Every PR appends under
+  `## Unreleased`, so parallel PRs conflicted on the same lines and each
+  conflict was a keep-both merge. `.gitattributes` now marks the file
+  `merge=union`, so a local rebase or merge keeps both sides. Union keeps what
+  it cannot judge, so `scripts/verify-changelog-unreleased.sh` (gate
+  `changelog-unreleased`) fails a second `## Unreleased` heading, a conflict
+  marker, a duplicate `### ` heading, and a duplicate entry. An entry is keyed
+  on its bold title joined across wrapped lines, because a first-line key
+  reports two different titles that share an opening line. Whether GitHub's
+  server-side merge honors the attribute is unverified, so rebase locally
+  before merging.
+
 ### Parser reads: one per-file read cap
 
 - **A parser file over 64 MiB is skipped instead of read whole**

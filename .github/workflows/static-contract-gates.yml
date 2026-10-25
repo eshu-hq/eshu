@@ -68,6 +68,7 @@ jobs:
       cassetteauthor: ${{ steps.filter.outputs.cassetteauthor }}
       heredoc: ${{ steps.filter.outputs.heredoc }}
       parserrelationship: ${{ steps.filter.outputs.parserrelationship }}
+      changelogunreleased: ${{ steps.filter.outputs.changelogunreleased }}
       docsrefs: ${{ steps.filter.outputs.docsrefs }}
       docsclienvrefs: ${{ steps.filter.outputs.docsclienvrefs }}
       querydoccommitrefs: ${{ steps.filter.outputs.querydoccommitrefs }}
@@ -180,6 +181,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.cassetteauthor }}" "cassetteauthor" "Verify cassette author gate" "bash scripts/test-verify-cassette-author.sh" "bash scripts/verify-cassette-author.sh" "cassette-author"
           append_gate "${{ steps.filter.outputs.heredoc }}" "heredoc" "Verify heredoc budget gate" "cd go && go test ./cmd/heredoc-budget -count=1" "cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt" "heredoc-budget"
           append_gate "${{ steps.filter.outputs.parserrelationship }}" "parserrelationship" "Verify parser relationship kit gate" "bash scripts/test-verify-parser-relationship-kit.sh" "bash scripts/verify-parser-relationship-kit.sh" "parser-relationship-kit"
+          append_gate "${{ steps.filter.outputs.changelogunreleased }}" "changelogunreleased" "Verify changelog-unreleased gate" "bash scripts/test-verify-changelog-unreleased.sh && bash scripts/test-changelog-union-merge.sh" "bash scripts/verify-changelog-unreleased.sh" "changelog-unreleased"
           append_gate "${{ steps.filter.outputs.docsrefs }}" "docsrefs" "Verify docs-refs gate" "bash scripts/test-verify-docs-refs.sh" "bash scripts/verify-docs-refs.sh" "docs-refs"
           append_gate "${{ steps.filter.outputs.docsclienvrefs }}" "docsclienvrefs" "Verify docs CLI/env refs gate" "bash scripts/test-verify-docs-cli-env-refs.sh" "bash scripts/verify-docs-cli-env-refs.sh" "docs-cli-env-refs"
           append_gate "${{ steps.filter.outputs.querydoccommitrefs }}" "querydoccommitrefs" "Verify query-doc-commit-refs gate" "bash scripts/test-verify-query-doc-commit-refs.sh" "bash scripts/verify-query-doc-commit-refs.sh" "query-doc-commit-refs"

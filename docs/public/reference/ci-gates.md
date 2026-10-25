@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (57 gates)
+### Hygiene: Is the change well-formed? (58 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -95,6 +95,7 @@ results are derived from the inputs rather than written by hand. See
 - `workflow-script-checkout` (blocking): Fails when a workflow job runs a repository shell script with no preceding actions/checkout step in that job.
 - `docker-image-promotion` (advisory): Promotes the pushed per-commit digest to the moving main/latest tags behind an ancestry guard, after publish.
 - `cgo-cflags-guard` (blocking): Fails when a Go workflow, CGO_ENABLED=1 go script, or developer entrypoint lacks CGO_CFLAGS -std=gnu17, which keeps the perl grammar building on GCC 15 (#9066).
+- `changelog-unreleased` (blocking): Fails when CHANGELOG.md has a second Unreleased heading, a conflict marker, or a duplicate entry or ### heading that a merge=union rebase can leave (#9096).
 - `helm-package` (blocking): Lints and packages the Helm chart to make sure it builds cleanly before publishing.
 - `root-cause-evidence` (advisory): Checks that any documented root-cause claim also records the observation that established it.
 - `tagged-builds` (blocking): Compiles every build-tag combination that ordinary go build/vet/test skip, so dead tagged code can't silently rot.
@@ -365,6 +366,7 @@ results are derived from the inputs rather than written by hand. See
 | `ci-service-mirror-publish` | CI service image mirror publish | release | manual | false | — (CI-only: manual main-only dispatch with packages: write and a GHCR login; no merge depends on it and it never runs on a pull_request or merge_group) | docker-publish.yml / publish-ci-service-mirrors | 6 path(s): .github/workflows/docker-publish.yml, scripts/dev/publish-ci-image-mirrors.sh, scripts/dev/test-publish-ci-image-mirrors.sh, … |
 | `ci-service-mirror-verify-public` | CI service image mirror public verify | release | manual | false | — (CI-only: manual main-only dispatch that needs live registry reads; no merge depends on it and it never runs on a pull_request or merge_group) | docker-publish.yml / verify-public-ci-service-mirrors | 6 path(s): .github/workflows/docker-publish.yml, scripts/dev/publish-ci-image-mirrors.sh, scripts/dev/test-publish-ci-image-mirrors.sh, … |
 | `cgo-cflags-guard` | Go workflows and entrypoints set the cgo C dialect flag | hygiene | pre-push | true | `bash scripts/verify-cgo-cflags-guard.sh`<br>then self-test: `bash scripts/test-verify-cgo-cflags-guard.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 21 path(s): .github/workflows/*.yml, scripts/**/*.sh, Makefile, … |
+| `changelog-unreleased` | CHANGELOG.md Unreleased section integrity | hygiene | pre-push | true | `bash scripts/verify-changelog-unreleased.sh`<br>then self-test: `bash scripts/test-verify-changelog-unreleased.sh && bash scripts/test-changelog-union-merge.sh` | static-contract-gates.yml / Verify changelog-unreleased gate | 8 path(s): CHANGELOG.md, .gitattributes, scripts/verify-changelog-unreleased.sh, … |
 | `runtime-image-tools` | Runtime image ships required tools | exactness | pre-pr | true | `bash scripts/test-verify-runtime-image-tools.sh` | docker-publish.yml / verify-reproducibility | 5 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/ci/select-docker-publish-lanes.sh, … |
 | `apk-floors` | Alpine apk floors match the repository | exactness | pre-pr | true | `bash scripts/verify-apk-floors.sh`<br>then self-test: `bash scripts/test-verify-apk-floors.sh` | docker-publish.yml / verify-apk-floors | 6 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/ci/select-docker-publish-lanes.sh, … |
 | `apk-floors-drift` | Alpine apk floors drift (daily) | exactness | ci-heavy | false | — (CI-only: daily scheduled run against the live Alpine repository; the blocking apk-floors row runs the same script) | apk-floors-drift.yml / Apk floors drift (daily) | 5 path(s): Dockerfile, .github/workflows/apk-floors-drift.yml, scripts/verify-apk-floors.sh, … |
