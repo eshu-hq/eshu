@@ -329,7 +329,4 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// security-alert collection-state read probes per target. Migration-only
 	// and built CONCURRENTLY, like migrations 156 and 211.
 	"workflow_work_items_security_alert_scope_updated_idx",
-	// security-alert collection-state read probes per target. Migration-only
-	// and built CONCURRENTLY, like migrations 156 and 211.
-	"workflow_work_items_security_alert_scope_updated_idx",
 }
