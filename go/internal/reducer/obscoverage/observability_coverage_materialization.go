@@ -148,7 +148,11 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 	// generation already committed. If the canonical-nodes phase is not yet
 	// published, the intent re-enters the durable queue (retryable) rather than
 	// writing edges against a node set that does not exist yet.
-	if !h.canonicalNodesReady(intent) {
+	nodesReady, ec2NodeHold, err := h.canonicalNodesReady(ctx, intent)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
+	if !nodesReady {
 		return reducercontract.Result{}, observabilityCoverageNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
@@ -247,6 +251,7 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 		materialized:    tally.materialized,
 		skipped:         tally.skipped,
 		skipRetract:     skipRetract,
+		ec2NodeHold:     ec2NodeHold,
 		loadDuration:    loadDuration,
 		extractDuration: extractDuration,
 		retractDuration: retractDuration,
@@ -268,48 +273,6 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 		CanonicalWrites: len(rows),
 		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
-}
-
-// canonicalNodesReady reports whether the #805 PR1 canonical-nodes-committed
-// phase is published for this intent's scope generation. The phase key is
-// derived the same way DomainAWSResourceMaterialization publishes it (see
-// [gpphase.KeyFromScope]), so the lookup matches the published row. A nil
-// lookup keeps the gate open for test wiring.
-func (h ObservabilityCoverageMaterializationHandler) canonicalNodesReady(intent reducercontract.Intent) bool {
-	if h.ReadinessLookup == nil {
-		return true
-	}
-	key, ok := gpphase.KeyFromScope(intent.ScopeID, intent.GenerationID, intent.EntityKeys, gpphase.KeyspaceCloudResourceUID)
-	if !ok {
-		return false
-	}
-	ready, found := h.ReadinessLookup(key, gpphase.PhaseCanonicalNodesCommitted)
-	if !found || !ready {
-		return false
-	}
-	// The AWS_COVERS_alarm edge resolves against the EC2 instance node, which
-	// commits under its own canonical-nodes phase from ec2_instance_posture
-	// facts (an aws_ec2_instance aws_resource fact never produces a node row,
-	// #5448 CRUX-1). The durable claim gate opens on the AWS phase alone, so
-	// this second lookup is what holds the handler until the EC2 node exists:
-	// without it the live leaf's first fault-shard run claimed on the AWS
-	// phase and wrote 4/5 edges with the alarm edge silently missing. The
-	// deferral error is budget-safe (ObservabilityCoverageNodesNotReadyFailureClass
-	// is nonCounting), so an early claim retries instead of writing a partial
-	// edge set.
-	// Invariant: every observability_coverage scope must carry an
-	// ec2_instance_posture fact, because ec2_instance_node_materialization
-	// (and therefore the phase this lookup waits on) is only created then
-	// (BuildInstanceNodeMaterializationReducerIntent returns ok=false
-	// otherwise). A future scope with no EC2 targets would enqueue an intent
-	// that defers retryably forever without dead-lettering, so a scope that
-	// drops the posture fact must condition or remove this hold first.
-	ec2Key, ok := gpphase.KeyFromScope(intent.ScopeID, intent.GenerationID, []string{"ec2_instance_node_materialization:" + intent.ScopeID}, gpphase.KeyspaceCloudResourceUID)
-	if !ok {
-		return false
-	}
-	ec2Ready, found := h.ReadinessLookup(ec2Key, gpphase.PhaseCanonicalNodesCommitted)
-	return found && ec2Ready
 }
 
 // shouldSkipRetract mirrors the AWS relationship domain: skip the prior-edge
@@ -416,6 +379,7 @@ type observabilityCoverageMaterializationTiming struct {
 	materialized    map[string]int
 	skipped         map[string]int
 	skipRetract     bool
+	ec2NodeHold     string
 	loadDuration    time.Duration
 	extractDuration time.Duration
 	retractDuration time.Duration
@@ -437,6 +401,7 @@ func logObservabilityCoverageMaterializationCompleted(
 		slog.String("materialized_by_signal", formatCoverageTally(timing.materialized)),
 		slog.String("skipped_derived_by_signal", formatCoverageTally(timing.skipped)),
 		slog.Bool("skip_retract", timing.skipRetract),
+		slog.String("ec2_node_hold", timing.ec2NodeHold),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("classify_duration_seconds", timing.extractDuration.Seconds()),
 		slog.Float64("retract_duration_seconds", timing.retractDuration.Seconds()),

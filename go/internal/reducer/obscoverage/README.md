@@ -20,6 +20,7 @@ pipeline, and nothing else in the reducer depends on its internals.
 | `PostgresObservabilityCoverageCorrelationWriter` | `observability_coverage_correlation_writer.go` | persists correlation decisions as durable reducer facts |
 | `ExtractObservabilityCoverageEdgeRows` | `observability_coverage_edge_rows.go` | re-runs the classifier and extracts only the exact-coverage decisions into a bounded COVERS edge batch |
 | `ObservabilityCoverageMaterializationHandler`, `ObservabilityCoverageEdgeWriter` | `observability_coverage_materialization.go` | projects the edge batch into canonical COVERS graph edges, gated on canonical-nodes readiness |
+| `canonicalNodesReady`, `scopeCarriesEC2InstancePosture` | `observability_coverage_materialization_readiness.go` | the readiness gate: the AWS CloudResource phase, plus the EC2 instance-node phase when the scope generation carries an `ec2_instance_posture` fact |
 | `classifyObservabilityMetadataEvidence` | `observability_coverage_metadata.go` | groups Grafana-stack declared/applied/observed facts and classifies each group into a coverage decision |
 | `decodeObservabilityMetadataView` | `observability_coverage_metadata_decode.go` | the typed-contracts decode seam dispatching on fact kind (folder, dashboard, datasource, alert rule, scrape config, and 12 more) |
 | `observabilityMetadataView` | `observability_coverage_metadata_view.go` | the flat, typed read view the metadata classifier reads instead of raw payload map lookups |
@@ -115,6 +116,23 @@ Postgres operation, runtime setting, metric instrument, metric label, span, or
 log field. The two counters and the span this family emits, and the
 executions that wrap them, are the same before and after the move.
 
+No-Regression Evidence: #9055 adds at most one kind-filtered fact read
+(`ec2_instance_posture` only) per materialization attempt, and only when the
+AWS CloudResource phase has committed and the EC2 instance-node phase has
+not. A committed EC2 phase skips the read:
+`TestObservabilityCoverageMaterializationWritesWhenPostureAndEC2PhaseReady`
+asserts exactly one fact load. For a scope with no posture fact the change
+replaces a claim and readiness miss every retry interval, indefinitely, with
+one completed run per generation. The claim query, edge writer, Cypher, and
+retract path are unchanged.
+
+Observability Evidence: #9055 adds the `ec2_node_hold` field
+(`satisfied` or `not_required`) to the existing
+"observability coverage materialization completed" log line. A deferral is
+still the `observability_coverage_nodes_not_ready` failure class on the work
+item, and a failed posture read fails the intent with the classified
+fact-load error instead of reading as a readiness wait.
+
 ## Gotchas / invariants
 
 - **Do not import the reducer root from here.** If this package needs a
@@ -138,6 +156,14 @@ executions that wrap them, are the same before and after the move.
   every write.** A generation whose canonical CloudResource nodes have not
   yet committed returns a retryable "not ready" error rather than writing
   edges against a node set that does not exist yet.
+- **The EC2 instance-node hold applies only when the scope can publish it.**
+  The alarm edge resolves against an EC2 node that commits from
+  `ec2_instance_posture` facts, so a scope generation that carries one waits
+  for the `ec2_instance_node_materialization:<scope>` phase too. A scope
+  generation with no posture fact never gets that phase, and the miss is
+  non-counting, so waiting on it would retry forever without dead-lettering
+  (#9055). Those generations proceed on the AWS phase alone and log
+  `ec2_node_hold=not_required`.
 - **`observabilityMetadataEvidenceFromEnvelope` silently skips a fact whose
   provider/signal/object-ref cannot be derived**, matching pre-move behavior
   byte-for-byte; only a genuine decode failure is quarantined or fatal.
