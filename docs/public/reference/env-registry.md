@@ -12,7 +12,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | --- | --- | --- |
 | [API, auth, and MCP](env-registry/api-and-auth.md) | Listen addresses, authentication, browser sessions, OIDC and GitHub login, and the MCP server. | 48 |
 | [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 54 |
-| [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 90 |
+| [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 92 |
 | [Ingester and collector framework](env-registry/collectors-platform.md) | The ingester's git collector, the component package manager, and the component-extension collector. | 35 |
 | [Infrastructure and registry collectors](env-registry/collectors-infrastructure.md) | Cloud, Kubernetes, Vault, Terraform state, OCI registry, and package registry collectors. | 54 |
 | [Observability, delivery, and security collectors](env-registry/collectors-signals.md) | Grafana, Loki, Prometheus/Mimir, Tempo, PagerDuty, Jira, CI/CD run, security alert, SBOM, and vulnerability collectors. | 50 |
@@ -51,6 +51,6 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [`postgres`](env-registry/runtime-and-storage.md#postgres) | 16 | Runtime and storage |
 | [`projector`](env-registry/reducer-and-projection.md#projector) | 3 | Reducer and projection |
 | [`push-hooks`](env-registry/reducer-and-projection.md#push-hooks) | 1 | Reducer and projection |
-| [`reducer`](env-registry/reducer-and-projection.md#reducer) | 60 | Reducer and projection |
+| [`reducer`](env-registry/reducer-and-projection.md#reducer) | 62 | Reducer and projection |
 | [`runtime`](env-registry/runtime-and-storage.md#runtime) | 12 | Runtime and storage |
 | [`semantic`](env-registry/reducer-and-projection.md#semantic) | 6 | Reducer and projection |

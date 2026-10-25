@@ -80,6 +80,19 @@ before touching any file in this directory.
   post-commit runtime trigger's own `Enqueue` call failed outright. Do not
   conflate the two, and do not treat the sweeper's existence as license to
   resurrect the removed ledger mechanism.
+- **The secret-lines repair stays on and stays non-waiting** — `run.go`
+  starts `lines.Repairer` (#8833 ruling-3, ruling-4). It must take `(5318,1)`
+  and `(5318,2)` with try-locks before `Finalize` claims (the claim is not
+  single-flight, and `(5318,2)` is free only while no bootstrap-index
+  connection lives), never wait on them, and never take the schema lock
+  `(5318,0)`. Its lock connection comes from the dedicated pool
+  (`openSecretLinesLockPool`, in `run.go`, one connection, none idle), never the shared
+  `db`: on `ESHU_POSTGRES_MAX_OPEN_CONNS=1` the shared pool cannot hold the lock
+  and run `Finalize`. The reducer therefore opens up to
+  `ESHU_POSTGRES_MAX_OPEN_CONNS` + 1 connections during a rebuild. Do not make it
+  default-off or call `Finalize` from a migration. Its wait function and the
+  lock pool's close must run, in that order, in the shutdown defer after `stop()`
+  and before the database closes (`TestRunWiresTheSecretLinesRepairIntoTheShutdownOrder`).
 - **Prior-config depth defaults to 10; invalid input WARNs and falls back** —
   `PriorConfigDepth` is set from `parsePriorConfigDepth` in
   `buildReducerDriftHandlers` (`wiring_handlers.go`).

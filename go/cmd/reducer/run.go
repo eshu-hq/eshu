@@ -10,7 +10,9 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
@@ -27,6 +29,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	auditstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/secret/lines"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -126,6 +129,11 @@ func run(parent context.Context) error {
 		return err
 	}
 
+	repairConfig, err := loadSecretLinesRepairConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	// Start the gauge refreshers under the shutdown context and stop them
 	// before the deferred graph-driver and database closes run, so a shutdown
@@ -140,8 +148,21 @@ func run(parent context.Context) error {
 	// The id-anchor census (#7212) reads the graph, so it stops before the
 	// deferred graph-driver close like the gauge refreshers above.
 	waitIDAnchorCensus := startIDAnchorCensus(ctx, loadIDAnchorCensusConfig(os.Getenv), graphBackend, idAnchorCensusReader(neo4jReader, graphReader), instruments, logger)
+	// The secret-lines repair (#8833) rebuilds the hardcoded-secret side table
+	// whenever its state is not ready. Its lock session comes from a dedicated
+	// pool, never the shared one, and both stop before the database closes.
+	secretLinesLockPool, err := openSecretLinesLockPool(parent, repairConfig, os.Getenv)
+	if err != nil {
+		return err
+	}
+	waitSecretLinesRepair := startSecretLinesRepair(ctx, repairConfig,
+		lines.NewRepairer(postgres.SQLDB{DB: db}, secretLinesLockPool, lines.RepairOptions{
+			PollInterval: repairConfig.PollInterval, Logger: logger, Instruments: instruments,
+		}), logger)
 	defer func() {
 		stop()
+		waitSecretLinesRepair()
+		closeSecretLinesLockPool(secretLinesLockPool)
 		waitIDAnchorCensus()
 		waitPackageManifestBackfill()
 		waitGraphRefresher()
@@ -241,4 +262,92 @@ func legacyWorkloadRetirementHandler(
 		Logger:           logger,
 	}
 	return runtimecfg.NewLegacyWorkloadRetirementHandler(runner)
+}
+
+// secretLinesRepairConfig is the reducer's hardcoded-secret side table repair
+// configuration (#8833 ruling-3).
+type secretLinesRepairConfig struct {
+	// Enabled starts the repair loop. It is on by default; off is for
+	// diagnostics only, and reads then stay on the legacy scan whenever the
+	// state is not ready.
+	Enabled bool
+	// PollInterval is the wait between polls of the state row.
+	PollInterval time.Duration
+}
+
+// loadSecretLinesRepairConfig reads ESHU_SECRET_LINES_REPAIR_ENABLED (default
+// true) and ESHU_SECRET_LINES_REPAIR_POLL_INTERVAL (default 30s, at least 1s).
+// A value that does not parse stops startup with an error naming the variable.
+func loadSecretLinesRepairConfig(getenv func(string) string) (secretLinesRepairConfig, error) {
+	config := secretLinesRepairConfig{Enabled: true, PollInterval: 30 * time.Second}
+	if raw := getenv("ESHU_SECRET_LINES_REPAIR_ENABLED"); raw != "" {
+		enabled, err := strconv.ParseBool(raw)
+		if err != nil {
+			return secretLinesRepairConfig{}, fmt.Errorf("ESHU_SECRET_LINES_REPAIR_ENABLED=%q: want true or false", raw)
+		}
+		config.Enabled = enabled
+	}
+	if raw := getenv("ESHU_SECRET_LINES_REPAIR_POLL_INTERVAL"); raw != "" {
+		interval, err := time.ParseDuration(raw)
+		if err != nil || interval < time.Second {
+			return secretLinesRepairConfig{}, fmt.Errorf("ESHU_SECRET_LINES_REPAIR_POLL_INTERVAL=%q: want a duration of at least 1s", raw)
+		}
+		config.PollInterval = interval
+	}
+	return config, nil
+}
+
+// secretLinesRepairRunner is the loop startSecretLinesRepair runs;
+// *lines.Repairer satisfies it.
+type secretLinesRepairRunner interface {
+	Run(context.Context) error
+}
+
+// startSecretLinesRepair starts the repair loop under ctx when enabled and
+// returns a wait function for shutdown. When disabled it logs once and the
+// returned function is a no-op.
+func startSecretLinesRepair(ctx context.Context, config secretLinesRepairConfig, runner secretLinesRepairRunner, logger *slog.Logger) func() {
+	if !config.Enabled {
+		logger.Warn("secret lines repair disabled; hardcoded-secret reads stay on the legacy scan whenever the side table is not ready",
+			telemetry.EventAttr("secret_lines.repair_disabled"))
+		return func() {}
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := runner.Run(ctx); err != nil && ctx.Err() == nil {
+			logger.Error("secret lines repair stopped", telemetry.EventAttr("secret_lines.repair_stopped"), "error", err.Error())
+		}
+	}()
+	return func() { <-done }
+}
+
+// openSecretLinesLockPool opens the secret-lines Repairer's lock pool (#8833
+// ruling-4): the runtime's Postgres opener with the reducer's DSN, lifetime, and
+// application name, then one connection and none kept idle. The Repairer pins a
+// connection from it for a whole rebuild while Finalize needs the shared pool's
+// capacity, so taking the lock from the shared pool would starve Finalize when
+// ESHU_POSTGRES_MAX_OPEN_CONNS is 1 (the pool-of-one deadlock). The cost is
+// that the reducer opens up to ESHU_POSTGRES_MAX_OPEN_CONNS + 1 connections
+// while a rebuild runs; the extra one exists only for that time. It returns nil
+// when the repair is disabled.
+func openSecretLinesLockPool(ctx context.Context, config secretLinesRepairConfig, getenv func(string) string) (*sql.DB, error) {
+	if !config.Enabled {
+		return nil, nil
+	}
+	pool, err := runtimecfg.OpenPostgres(ctx, getenv)
+	if err != nil {
+		return nil, err
+	}
+	pool.SetMaxOpenConns(1)
+	pool.SetMaxIdleConns(0)
+	return pool, nil
+}
+
+// closeSecretLinesLockPool closes the lock pool opened by
+// openSecretLinesLockPool; a nil pool (repair disabled) is a no-op.
+func closeSecretLinesLockPool(pool *sql.DB) {
+	if pool != nil {
+		_ = pool.Close()
+	}
 }

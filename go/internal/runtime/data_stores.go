@@ -185,6 +185,16 @@ func OpenPostgres(ctx context.Context, getenv func(string) string) (*sql.DB, err
 // marker. bootstrap-index passes the deferred secret-lines setting through it
 // (#7125); every other binary uses OpenPostgres.
 func OpenPostgresWithSession(ctx context.Context, getenv func(string) string, extraSessionSQL ...string) (*sql.DB, error) {
+	return OpenPostgresWithSessionHooks(ctx, getenv, nil, extraSessionSQL...)
+}
+
+// OpenPostgresWithSessionHooks is OpenPostgresWithSession that also runs each
+// connect hook after the extra session statements. bootstrap-index passes the
+// secret-lines deferred-writer lock and birth fence through it (#8833). A hook
+// that blocks (the deferred-writer lock waits behind a reducer rebuild) is
+// bounded by the context of the call that opens the connection, which for the
+// startup ping is ESHU_POSTGRES_PING_TIMEOUT.
+func OpenPostgresWithSessionHooks(ctx context.Context, getenv func(string) string, hooks []inventory.ConnectHook, extraSessionSQL ...string) (*sql.DB, error) {
 	cfg, err := LoadPostgresConfig(getenv)
 	if err != nil {
 		return nil, err
@@ -193,7 +203,7 @@ func OpenPostgresWithSession(ctx context.Context, getenv func(string) string, ex
 	// Every connection is marked derive-aware: this binary's content_entities
 	// writers keep the infra read model in step, so migration 109's
 	// rolling-upgrade fence must not mark their writes (#6793).
-	db, err := inventory.OpenWriterDB(cfg.DSN, extraSessionSQL...)
+	db, err := inventory.OpenWriterDBWithHooks(cfg.DSN, hooks, extraSessionSQL...)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres connection: %w", err)
 	}

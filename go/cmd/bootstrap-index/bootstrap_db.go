@@ -13,6 +13,7 @@ import (
 
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	secretlines "github.com/eshu-hq/eshu/go/internal/storage/postgres/secret/lines"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -21,8 +22,14 @@ import (
 // db.ExecQueryer (QueryContext returns db.Rows, not *sql.Rows).
 type bootstrapSQLDB struct {
 	postgres.SQLDB
-	raw *sql.DB
+	raw   *sql.DB
+	fence *secretlines.RunFence
 }
+
+// RunFence is the deferred-writer fence shared by every connection of this
+// pool; the secret-lines run lock publishes its pinned session to it so a
+// session born after that session died is refused (#8833).
+func (b *bootstrapSQLDB) RunFence() *secretlines.RunFence { return b.fence }
 
 func (b *bootstrapSQLDB) Close() error { return b.raw.Close() }
 
@@ -37,11 +44,19 @@ func openBootstrapDB(ctx context.Context, getenv func(string) string) (bootstrap
 	// Every bootstrap connection is a deferred-derivation session: content_files
 	// triggers skip its writes and the finalizer rebuilds the hardcoded-secret
 	// side table after collection (#7125).
-	db, err := runtimecfg.OpenPostgresWithSession(ctx, getenv, secretlines.DeferredSessionSQL)
+	//
+	// Each connection also takes the deferred-writer lock (5318,2) shared and,
+	// once the run lock is held, refuses to be born when the run's pinned lock
+	// session is gone (secretlines.RunFence). Opening the pool while a reducer
+	// rebuild holds that lock waits for the rebuild, bounded by the startup
+	// ping's ESHU_POSTGRES_PING_TIMEOUT.
+	fence := secretlines.NewRunFence(nil)
+	db, err := runtimecfg.OpenPostgresWithSessionHooks(ctx, getenv,
+		[]inventory.ConnectHook{fence.Hook()}, secretlines.DeferredSessionSQL)
 	if err != nil {
 		return nil, err
 	}
-	return &bootstrapSQLDB{SQLDB: postgres.SQLDB{DB: db}, raw: db}, nil
+	return &bootstrapSQLDB{SQLDB: postgres.SQLDB{DB: db}, raw: db, fence: fence}, nil
 }
 
 // applySchemaFromEnv applies the bootstrap layout with content search

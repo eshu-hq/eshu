@@ -618,6 +618,30 @@ recent shipped work grouped by feature area.
   The registry fingerprint moves with the new exact name, so every repository
   re-collects once; the `git-collector` content version constant is unchanged.
 
+### Reducer: hardcoded-secret side table repair
+
+- **The reducer rebuilds the hardcoded-secret side table whenever it is not
+  ready** ([#8833](https://github.com/eshu-hq/eshu/issues/8833)). Until now only
+  `bootstrap-index` finalized `content_file_secret_lines`, so a failed finalize,
+  or a later migration that changes the derivation, left
+  `investigate_hardcoded_secrets` on the slow legacy scan until an operator
+  reran it. The reducer now polls the state every 30 s
+  (`ESHU_SECRET_LINES_REPAIR_POLL_INTERVAL`). It tries the bulk-load lock
+  `(5318,1)` and a new deferred-writer lock `(5318,2)` without waiting, on its
+  own one-connection pool, rebuilds for the current epoch, and publishes
+  `ready`. Every `bootstrap-index` connection holds `(5318,2)` shared, so the
+  reducer never publishes over a load that is still writing, even if the
+  bootstrap's pinned lock connection died. `bootstrap-index` also refuses to
+  open a connection once its lock connection is gone, keeps that connection
+  alive against `idle_session_timeout`, and fails loudly if its own finalize
+  claims nothing for its epoch. While a rebuild runs the reducer opens up to
+  `ESHU_POSTGRES_MAX_OPEN_CONNS` + 1 connections. Finalizer batches (the reducer's
+  and `bootstrap-index`'s) are now also bounded by 4 MiB of content, so a live
+  write waits about half a second behind a batch instead of up to 11 s. It is
+  on by default (`ESHU_SECRET_LINES_REPAIR_ENABLED`). Watch
+  `eshu_dp_secret_lines_repair_runs_total{outcome}` and the
+  `secret_lines.repair_*` logs.
+
 ### Service story defaults to a bounded handles view over MCP
 
 - **`get_service_story` defaults to a bounded `handles` view**

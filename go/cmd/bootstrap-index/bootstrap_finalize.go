@@ -46,7 +46,11 @@ func productionSecretLines() secretLinesLifecycle {
 			if !ok {
 				return nil, errors.New("bootstrap database cannot pin a connection for the secret lines bulk load lock")
 			}
-			held, err := secretlines.AcquireBulkLoadLock(ctx, conner, secretlines.LockOptions{Wait: wait, Logger: logger})
+			options := secretlines.LockOptions{Wait: wait, Logger: logger}
+			if fenced, ok := database.(interface{ RunFence() *secretlines.RunFence }); ok {
+				options.Fence = fenced.RunFence()
+			}
+			held, err := secretlines.AcquireBulkLoadLock(ctx, conner, options)
 			if err != nil {
 				return nil, err
 			}
@@ -60,11 +64,17 @@ func productionSecretLines() secretLinesLifecycle {
 			if !ok {
 				return errors.New("bootstrap database does not support transactions")
 			}
-			_, err := secretlines.Finalize(ctx, secretLinesDatabase{ExecQueryer: database, Beginner: beginner}, epoch, secretlines.Options{
+			result, err := secretlines.Finalize(ctx, secretLinesDatabase{ExecQueryer: database, Beginner: beginner}, epoch, secretlines.Options{
 				Logger:      logger,
 				Instruments: instruments,
 			})
-			return err
+			if err != nil {
+				return err
+			}
+			if !result.Claimed {
+				return reconcileUnclaimedFinalize(ctx, database, epoch, logger)
+			}
+			return nil
 		},
 	}
 }
