@@ -96,31 +96,53 @@ repository of that organization through
   labeled `org_repository_read_failed`, in order. A cursor or lap naming a
   repository that left the allowlist is ignored, so removing a failing last
   entry resumes the forward walk.
-- **A target over 100 same-org repositories always reads the same first 100.**
-  Repositories past position 100 never get a per-repository read from that
-  target and keep `org_repository_fanout_cap_reached`. A rotating window was
-  tried and withdrawn: a generation is a snapshot, so a window that changes on
-  every claim stores a generation per claim (120 an hour at the default 30
-  second cadence), each retained for the superseded-generation window, and
-  re-projects the whole org scope each time. The collector logs one
-  `security_alert.org_fanout_over_cap` warning per such target at startup, with
-  the repository count, the cap, and the `scope_id`.
-- **To read every repository, split the target.** Configure org targets of at
-  most 100 same-org repositories each, with distinct `scope_id` values and
-  disjoint allowlists (the configuration validation rejects only a duplicate
-  `scope_id`), or use repository targets. Each target reads its allowlist in
-  full on every claim, commits only when its data changes, and stays complete.
-  A read for one repository takes the best covering target, so a repository
-  that one target reads in full reads `complete` even when another target
-  covering it has not. Splitting an allowlist automatically is tracked in #9019.
-- **Request budget.** One claim costs `max_pages` x (1 + same-org allowlist
-  size, at most 100) requests. At the default 30 second bucket a 100-repository
-  target with `max_pages` 1 spends about 12,100 requests an hour, above GitHub's
-  documented 5,000 an hour for a personal access token and most App
-  installations, and below the 15,000 an hour of GitHub Enterprise Cloud; on a
-  5,000 budget most of each hour is spent rate limited. Set the instance's
-  `scan_interval` to at least `max_pages` x (1 + min(N, 100)) x 3600 / budget
-  seconds: 73 seconds for N = 100, `max_pages` 1, and 5,000 an hour.
+- **A target over 100 same-org repositories is collected as shards** (#9019).
+  The coordinator plans one work item per shard of the target, computed from
+  the configuration alone: a binary trie over a hash of each normalized
+  `owner/name` splits any group of more than 100 distinct same-org
+  repositories, so every shard holds at most 100. A target of at most 100
+  keeps its `scope_id` unchanged; a larger one is collected as
+  `<scope_id>#shard-<bits>` scopes, each a full scope of its own with its own
+  generations, read state, and fan-out cursor. Every repository is then read
+  within one scan interval. Shard ids never carry a repository name, and a
+  configured `scope_id` must not contain `#shard-` (validation refuses it).
+  The split rule has no hysteresis: adding one repository splits at most one
+  shard into two, and removing one can merge two back.
+- **Shards no longer planned are retired.** After a split (the base
+  `scope_id`) or a merge (both leaves), the coordinator plans one retirement
+  work item for each scope of the target that still holds data and is no
+  longer planned. The collector answers it, without a provider call, with an
+  empty generation that it attests as a deliberate deletion (so the #7926
+  empty-successor guard lets it through) and a read state of zero
+  repositories. List, count, and inventory stop returning that scope's alerts
+  once the projector activates it, and a repository removed from the allowlist
+  leaves every read on the next scan. Up to 1,024 scopes retire per instance
+  per scan. A target removed from the configuration entirely is not retired
+  yet (#9071), and an ordinary shrink of a scope's own allowlist can still be
+  refused by the #7926 guard (#9072).
+- **Upgrade order.** Upgrade the collector and the API before the
+  coordinator; all three ship in one image set. A new coordinator with an old
+  collector plans shard scopes the old collector does not know (they fail
+  retryable until it upgrades). A new collector claimed a sharded target's base
+  scope by an old coordinator fails the claim retryable and logs
+  `security_alert.target_sharded_coordinator_skew` ("upgrade the
+  coordinator") instead of collecting a partial allowlist. An old API reads
+  only the base scope of a sharded target.
+- **A shard at the depth cap.** More than 100 repositories whose hashes share
+  their first 32 bits cannot split further. That shard reads the same first
+  100 on every claim, the rest keep `org_repository_fanout_cap_reached`, and
+  the collector logs one `security_alert.org_fanout_over_cap` warning for it at
+  startup. The cap is per claim: a rotating window over a snapshot scope
+  stored a generation per claim and was withdrawn.
+- **Request budget.** One shard claim costs `max_pages` x (1 + shard size, at
+  most 100) requests, so one scan of a target of N same-org repositories in K
+  shards costs at most `max_pages` x (K + N), measured over HTTP for N = 250,
+  K = 4 (254 requests at `max_pages` 1, 508 at 2). GitHub documents 5,000
+  requests an hour for a personal access token and most App installations and
+  15,000 for GitHub Enterprise Cloud. Set the instance's `scan_interval` to at
+  least `max_pages` x (K + N) x 3600 / budget seconds: 73 seconds for N = 100
+  (K = 1), and about 732 seconds for N = 1,000 (K is about 16), `max_pages`
+  1, 5,000 an hour.
 - **Where the cursor lives.** `fanout_start_repository`,
   `fanout_next_repository`, and `fanout_lap_repository` on the org read state
   row (see [Org read state](#org-read-state)) name the repository this
