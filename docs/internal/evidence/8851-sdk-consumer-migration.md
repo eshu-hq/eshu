@@ -36,3 +36,13 @@ worker, lease, or status shape is added, removed, or renamed. Operators keep
 the existing reducer spans, execution counters, and `eshu_dp_reducer_*`
 metrics; the migration changes where identical sources are imported from,
 not what executes.
+
+Delta-union gate fix (#9111 CI): `test_production_dependencies_trigger_pr_proof`
+asserted `go/go.mod` always carries the `../sdk/go/*` replaces — an invariant
+this migration retires by design (C4). Scoped to demand the replace only
+while a main-module file still imports the retired path (`git grep` over
+`go/`). Proof: gate file green on this tree (4 tests OK); a seeded violation
+(temporary old-path import, intent-to-add, then removed) fails as required,
+so the guard still fires. `examples/` and `templates/` are separate modules
+with their own replaces and are unaffected. The follow-up commit touches only
+`scripts/` plus this note; the `-- go/` import-only counts above are unchanged.
