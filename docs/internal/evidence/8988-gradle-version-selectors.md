@@ -21,6 +21,30 @@ The same string-notation reader stored a classifier as part of the version:
 The classifier never joins the version, and `selector.Exact` rejects `:`.
 The reducer backstop rejects `:` through `GradleVersionSelector`: a version never holds one, so a `:` means a classifier or other notation text leaked into the version. No parser in the tree emits Debian epochs, and the rejection is pinned by `TestExactManifestDependencyVersionRejectsGradleSelectors` and `TestPackageManifestObservedVersionRejectsColonBearingGradleValue`.
 
+The exact-version check in package correlation
+(`packageManifestObservedVersion`) read `resolved_version` or `value` without
+the row's `dependency_resolution_state`. A Gradle map-form `1.0:jdk8`, a `1.0!`
+or a `1.0+build.1` that the Gradle rule left `unresolved`, and an sbt version
+identifier the parser could not resolve, still passed the cross-ecosystem check
+and became `ObservedVersion`. An `unresolved` row now observes no version. The
+manifest security-alert bridge carries the state on `SecurityAlertConsumption`
+and skips the text fallback for an unresolved row. A `partial` row keeps its
+answer: an sbt row whose scope is a placeholder is `partial` with an exact
+literal. The persisted `reducer_package_consumption_correlation` fact carries
+no resolution state, so the security-alert path that reads that fact keeps the
+text fallback; closing it needs a payload field and a contract decision.
+
+State-gate proof (a throwaway generated corpus, deleted after the run, compared
+the old reader with a gate on `unresolved` and with a gate on every
+non-`resolved` state): gradle build scripts 5,829 rows, version catalogs 11,439,
+Maven poms 6,000, sbt builds 7,210, and nine ecosystems with no state
+(npm, pypi, nuget, cargo, go, rubygems, composer, maven-lock, pub; 64 rows each, lockfile
+and not). The `unresolved` gate changed only Gradle `1.0!` (237 rows),
+`1.0+build.1` (282), `1.0:jdk8` (103) and sbt identifiers (390); it changed no
+Maven, catalog or no-state row. A gate on every non-`resolved` state would also
+have dropped 1,793 sbt `partial` rows that carry a version text, which
+is why `partial` is not gated.
+
 ## Accuracy proof
 
 - The shared table `go/internal/parser/gradle/selector/testdata/versions.txt`
@@ -43,7 +67,7 @@ The reducer backstop rejects `:` through `GradleVersionSelector`: a version neve
   of the classifier and `@ext` split.
 - Content-version pin: on the same fixture, base `statement.go` and
   `coordinate.go` give digest `5afd66e7...`, and head gives the pinned
-  `638dab42...`. The parser change alone moves the collector output.
+  `638dab42...`. The parser change alone moves the collector output. The version-catalog change leaves the digest unchanged.
 
 ## No-Regression Evidence:
 

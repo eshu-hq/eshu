@@ -70,9 +70,19 @@ recent shipped work grouped by feature area.
   `1.0.0+build.1` stays exact in the reducer for npm and Cargo. A string
   notation classifier no longer leaks into the version: `g:a:1.0:jdk8` now
   resolves to `1.0`, not `1.0:jdk8`, and text past the classifier
-  (`g:a:1.0:jdk8:extra`, which Gradle rejects) emits no row. The git
-  collector content version moves to `git-collector.v12`, so each repository
+  (`g:a:1.0:jdk8:extra`, which Gradle rejects) emits no row.
+  The git collector content version moves to `git-collector.v12`, so each repository
   re-collects once and stale `resolved` selector rows are replaced.
+
+- **An unresolved manifest row never becomes an observed version**
+  ([#8988](https://github.com/eshu-hq/eshu/issues/8988)). Package correlation and the manifest security-alert path now give an
+  `unresolved` Gradle, Maven or sbt row no observed version, so a map-form
+  `1.0:jdk8`, a `1.0!`, a `1.0+build.1` or an sbt version identifier the
+  parser could not resolve no longer becomes the installed version; a
+  `partial` row and an ecosystem that emits no state keep today's answer. The persisted package-consumption correlation fact gains an optional
+  `dependency_resolution_state` field (a minor, additive contract change that
+  old readers ignore); a fact written before the field keeps today's answer
+  until its repository is re-materialized.
 
 
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
