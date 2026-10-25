@@ -23,9 +23,9 @@ The reducer backstop rejects `:` through `GradleVersionSelector`: a version neve
 
 The exact-version check in package correlation
 (`packageManifestObservedVersion`) read `resolved_version` or `value` without
-the row's `dependency_resolution_state`. A Gradle map-form `1.0:jdk8`, a `1.0!`
-or a `1.0+build.1` that the Gradle rule left `unresolved`, and an sbt version
-identifier the parser could not resolve, still passed the cross-ecosystem check
+the row's `dependency_resolution_state`. A Gradle `1.0!` or `1.0+build.1` that
+the Gradle rule left `unresolved`, and an sbt version identifier the parser
+could not resolve, still passed the cross-ecosystem check
 and became `ObservedVersion`. An `unresolved` row now observes no version. The
 manifest security-alert bridge carries the state on `SecurityAlertConsumption`
 and skips the text fallback for an unresolved row. A `partial` row keeps its
@@ -38,7 +38,7 @@ reconciliation and supply-chain impact, pass it to their
 `exactConsumptionDependencyVersion`, which refuses an `unresolved` row, so the
 observed-version rule is one rule on every path. A fact written before the
 field has no state and keeps the text fallback, so an old fact that already
-carries `1.0:jdk8` stays wrong until the repository is re-materialized. No
+carries `1.0!` stays wrong until the repository is re-materialized. No
 migration. The golden snapshot holds no `reducer_package_consumption_correlation`
 fact, so it does not change.
 
@@ -48,7 +48,9 @@ non-`resolved` state): gradle build scripts 5,829 rows, version catalogs 11,439,
 Maven poms 6,000, sbt builds 7,210, and nine ecosystems with no state
 (npm, pypi, nuget, cargo, go, rubygems, composer, maven-lock, pub; 64 rows each, lockfile
 and not). The `unresolved` gate changed only Gradle `1.0!` (237 rows),
-`1.0+build.1` (282), `1.0:jdk8` (103) and sbt identifiers (390); it changed no
+`1.0+build.1` (282) and sbt identifiers (390); the corpus also held `1.0:jdk8`
+(103 rows), which the colon backstop refuses with or without the gate. It
+changed no
 Maven, catalog or no-state row. A gate on every non-`resolved` state would also
 have dropped 1,793 sbt `partial` rows that carry a version text, which
 is why `partial` is not gated.
