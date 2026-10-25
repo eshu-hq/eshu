@@ -390,7 +390,7 @@ recent shipped work grouped by feature area.
   and, in the same transaction, moves the state to `not_built`; the reducer's
   repair then rebuilds the side table, and until it publishes, investigation
   reads use the legacy scan, which applies the same policy. Neither migration
-  locks `content_files`. On a 150k-file corpus the new function adds 7,947
+  locks `content_files`. On a 150k-file corpus the shipped function adds 7,956
   findings to 16,403 (none lost) and costs 24 to 33% more per derived file;
   see `docs/internal/evidence/8833-detector-migration.md`.
 - **`eshu_dp_content_policy_raw_rows`** counts raw credential lines still
