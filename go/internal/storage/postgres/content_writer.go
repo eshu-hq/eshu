@@ -32,6 +32,9 @@ type ContentWriter struct {
 	instruments           *telemetry.Instruments
 	configArtifactDeriver ConfigArtifactDeriver
 	configArtifactTracer  trace.Tracer
+	// outcomeSampler picks the small file batches whose upsert outcome is
+	// classified (#8950); nil classifies every batch.
+	outcomeSampler *outcomeSampler
 }
 
 // NewContentWriter constructs a Postgres-backed canonical content writer.
@@ -42,6 +45,7 @@ func NewContentWriter(database db.ExecQueryer) ContentWriter {
 	return ContentWriter{
 		database:         database,
 		batchConcurrency: contentWriterBatchConcurrencyFromEnv(),
+		outcomeSampler:   &outcomeSampler{minRows: contentFileOutcomeMinBatchRows, every: contentFileOutcomeSampleEvery},
 	}
 }
 

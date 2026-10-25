@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
@@ -71,11 +72,12 @@ type storedContentFile struct {
 // fileUpsertTally accumulates the outcome counts and body bytes of the batches
 // of one Write, plus the cost of classifying them.
 type fileUpsertTally struct {
-	rows                [fileOutcomeCount]int
-	bodyBytes           [fileOutcomeCount]int64
-	classifiedBatches   int
-	unclassifiedBatches int
-	classifySeconds     float64
+	rows              [fileOutcomeCount]int
+	bodyBytes         [fileOutcomeCount]int64
+	classifiedBatches int
+	sampledOutBatches int
+	classifyFailed    int
+	classifySeconds   float64
 }
 
 // add folds a per-batch tally into t.
@@ -85,7 +87,8 @@ func (t *fileUpsertTally) add(batch fileUpsertTally) {
 		t.bodyBytes[i] += batch.bodyBytes[i]
 	}
 	t.classifiedBatches += batch.classifiedBatches
-	t.unclassifiedBatches += batch.unclassifiedBatches
+	t.sampledOutBatches += batch.sampledOutBatches
+	t.classifyFailed += batch.classifyFailed
 	t.classifySeconds += batch.classifySeconds
 }
 
@@ -95,11 +98,14 @@ func (t *fileUpsertTally) add(batch fileUpsertTally) {
 // column matches (NULL-safe) and the content is equal.
 //
 // The body is not read, so content equality is a proxy: the caller-supplied
-// content digest and the body size must both match. A digest that does not
-// describe its body (a caller bug) can read as unchanged here while the guard,
-// which compares the text, rewrites the row. The implementation that follows
-// this measure-first counter takes its counts from the statement's own result
-// instead.
+// content digest and the body size must both match. A digest that is not a hash
+// of the stored body can read as unchanged here while the guard, which compares
+// the text, rewrites the row. That is by design for a redact content-store
+// policy, which keeps the source digest and stores the policy output
+// (collector/repo/git/fact_builder.go): a changed redactor can change the
+// stored text at the same digest and, rarely, the same size. The implementation
+// that follows this measure-first counter takes its counts from the statement's
+// own result instead.
 func classifyContentFileRow(stored *storedContentFile, row preparedFileRow, tag any) fileOutcome {
 	if stored == nil {
 		return outcomeInserted
@@ -206,34 +212,90 @@ func (w ContentWriter) classifyFileBatch(ctx context.Context, batch []preparedFi
 	return outcomes, nil
 }
 
-// preClassify runs the pre-read when obs is active and returns the outcomes, or
-// nil when the batch goes unclassified. A pre-read failure is logged and
-// counted in the stage log, never returned: the classification is observability
-// and must not fail or change the Write.
-func (w ContentWriter) preClassify(ctx context.Context, obs *fileUpsertObservation, batch []preparedFileRow, tag any) []fileOutcome {
+// Sampling policy for the pre-read. The read has a fixed per-batch cost (a
+// round trip and a plan, about 0.1 to 0.3 ms on a local database), so it is a
+// small share of a large batch and a visible one of a small batch: measured
+// shares of upsert_files were 0.01% to 1.45% from 500 rows up and several
+// percent for 1 to 50 rows (docs/internal/evidence/8950-upsert-outcome-counter.md).
+// A batch of at least contentFileOutcomeMinBatchRows rows is always classified;
+// a smaller one is classified one time in contentFileOutcomeSampleEvery, and the
+// rest are counted as unclassified rows so the counters still add up to every
+// row written.
+const (
+	contentFileOutcomeMinBatchRows = 100
+	contentFileOutcomeSampleEvery  = 8
+)
+
+// outcomeSampler decides which small batches are classified. It is shared by
+// every copy of a ContentWriter and safe for concurrent use.
+type outcomeSampler struct {
+	minRows int
+	every   uint64
+	next    atomic.Uint64
+}
+
+// classify reports whether a batch of rows rows should be classified. A large
+// batch always is and does not spend a slot; a small one takes the next slot and
+// is classified when the slot is the first of its cycle.
+func (s *outcomeSampler) classify(rows int) bool {
+	if s == nil || s.every <= 1 || rows >= s.minRows {
+		return true
+	}
+	return (s.next.Add(1)-1)%s.every == 0
+}
+
+// WithOutcomeSampling returns a copy that classifies every batch of at least
+// minRows rows and one in every `every` smaller batches. every of 1 or less
+// classifies every batch.
+func (w ContentWriter) WithOutcomeSampling(minRows, every int) ContentWriter {
+	w.outcomeSampler = &outcomeSampler{minRows: minRows, every: uint64(max(every, 1))}
+	return w
+}
+
+// preClassify runs the pre-read when obs is active and the sampler admits the
+// batch. It returns the outcomes, or nil and the reason the batch goes
+// unclassified. A pre-read failure is logged, never returned: the classification
+// is observability and must not fail or change the Write.
+func (w ContentWriter) preClassify(ctx context.Context, obs *fileUpsertObservation, batch []preparedFileRow, tag any) ([]fileOutcome, string) {
 	if obs == nil {
-		return nil
+		return nil, ""
+	}
+	if !w.outcomeSampler.classify(len(batch)) {
+		return nil, telemetry.ContentFileUnclassifiedSampledOut
 	}
 	start := time.Now()
 	outcomes, err := w.classifyFileBatch(ctx, batch, tag)
 	obs.tally.classifySeconds += time.Since(start).Seconds()
 	if err != nil {
-		obs.tally.unclassifiedBatches++
 		if w.Logger != nil {
 			w.Logger.WarnContext(ctx, "content file upsert outcome classification failed; batch not counted",
 				"event_name", "content_file_upsert_outcome.classify_failed",
 				"batch_file_count", len(batch), "error", err)
 		}
-		return nil
+		return nil, telemetry.ContentFileUnclassifiedClassifyFailed
 	}
-	return outcomes
+	return outcomes, ""
 }
 
 // recordFileUpsertOutcomes folds a successfully upserted batch into the Write's
 // tally and emits the counters. It runs only after the upsert statement
-// succeeded.
-func (w ContentWriter) recordFileUpsertOutcomes(ctx context.Context, obs *fileUpsertObservation, batch []preparedFileRow, outcomes []fileOutcome) {
-	if obs == nil || outcomes == nil {
+// succeeded. A batch with no outcomes is counted as unclassified rows under
+// reason.
+func (w ContentWriter) recordFileUpsertOutcomes(ctx context.Context, obs *fileUpsertObservation, batch []preparedFileRow, outcomes []fileOutcome, reason string) {
+	if obs == nil {
+		return
+	}
+	if outcomes == nil {
+		switch reason {
+		case telemetry.ContentFileUnclassifiedSampledOut:
+			obs.tally.sampledOutBatches++
+		case telemetry.ContentFileUnclassifiedClassifyFailed:
+			obs.tally.classifyFailed++
+		}
+		if w.instruments != nil && w.instruments.ContentFileUpsertUnclassifiedRows != nil && reason != "" {
+			w.instruments.ContentFileUpsertUnclassifiedRows.Add(ctx, int64(len(batch)), metric.WithAttributes(
+				telemetry.AttrReason(reason), telemetry.AttrSnapshot(obs.snapshot)))
+		}
 		return
 	}
 	var batchTally fileUpsertTally
@@ -263,8 +325,9 @@ func (w ContentWriter) recordFileUpsertOutcomes(ctx context.Context, obs *fileUp
 }
 
 // stageAttrs returns the upsert_files stage-log fields for the Write's tally.
-// classified_batch_count and unclassified_batch_count tell an uncounted Write
-// (no observers, or a failed pre-read) from one with zero rows of an outcome.
+// classified_batch_count, sampled_out_batch_count and
+// classify_failed_batch_count tell an uncounted Write (no observers, a sampled-out
+// batch, or a failed pre-read) from one with zero rows of an outcome.
 func (o *fileUpsertObservation) stageAttrs() []any {
 	if o == nil {
 		return nil
@@ -277,7 +340,8 @@ func (o *fileUpsertObservation) stageAttrs() []any {
 		"content_changed_count", o.tally.rows[outcomeContentChanged],
 		"metadata_only_body_bytes", o.tally.bodyBytes[outcomeMetadataOnly],
 		"classified_batch_count", o.tally.classifiedBatches,
-		"unclassified_batch_count", o.tally.unclassifiedBatches,
+		"sampled_out_batch_count", o.tally.sampledOutBatches,
+		"classify_failed_batch_count", o.tally.classifyFailed,
 		"classify_seconds", o.tally.classifySeconds,
 	}
 }

@@ -24,7 +24,7 @@ import (
 //     size changed, or another stored column changed).
 //
 // The measure-first classification compares the caller-supplied content
-// digest, not the body, so it is a proxy for body equality.
+// digest and the body size, not the text, so it is a proxy for body equality.
 const (
 	ContentFileUpsertOutcomeInserted         = "inserted"
 	ContentFileUpsertOutcomeUnchangedSkipped = "unchanged_skipped"
@@ -39,6 +39,15 @@ const (
 	ContentFileSnapshotDelta = "delta"
 )
 
+// Closed reason set of eshu_dp_content_file_upsert_unclassified_rows_total
+// (#8950): the rows of upsert batches that were written but not classified.
+// sampled_out means the writer skipped the pre-read for a small batch to keep
+// its fixed cost off the write path; classify_failed means the pre-read failed.
+const (
+	ContentFileUnclassifiedSampledOut     = "sampled_out"
+	ContentFileUnclassifiedClassifyFailed = "classify_failed"
+)
+
 // MetricDimensionSnapshot labels eshu_dp_content_file_upserts_total with the
 // snapshot shape of the Write (#8950). The value set is closed: full or delta.
 const MetricDimensionSnapshot = "snapshot"
@@ -50,13 +59,18 @@ func AttrSnapshot(v string) attribute.KeyValue {
 }
 
 // registerContentStorePolicyInstruments registers the content-store policy
-// counter (#8812) and the content_files upsert outcome counters (#8950). One add per (policy, redactor, outcome) per collected fact
+// counter (#8812). One add per (policy, redactor, outcome) per collected fact
 // stream, where policy is metadata or redact, redactor is the redact mode
 // (marker or skeleton, #8833) or none, and outcome is metadata (body withheld),
 // redacted (at least one value replaced), clean (nothing to replace), or
 // redactor_failed (the redactor errored or the body was not UTF-8, so the file
 // became a metadata row; never the raw body). A rising redactor_failed count
 // means a credential-bearing file is silently losing its body.
+//
+// It also registers the content_files upsert outcome counters
+// ContentFileUpserts and ContentFileUpsertBodyBytes (#8950), which the postgres
+// ContentWriter emits; they are unrelated to the policy counter and sit here
+// only to avoid a new file in this directory.
 func registerContentStorePolicyInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.ContentStorePolicyFiles, err = meter.Int64Counter(
@@ -72,6 +86,13 @@ func registerContentStorePolicyInstruments(meter metric.Meter, inst *Instruments
 		metric.WithUnit("{file}"),
 	); err != nil {
 		return fmt.Errorf("register ContentFileUpserts counter: %w", err)
+	}
+	if inst.ContentFileUpsertUnclassifiedRows, err = meter.Int64Counter(
+		"eshu_dp_content_file_upsert_unclassified_rows_total",
+		metric.WithDescription("content_files rows of ContentWriter upsert batches that were written but not classified, by reason (sampled_out, classify_failed) and snapshot (full, delta); eshu_dp_content_file_upserts_total plus this counter is every row written (#8950)"),
+		metric.WithUnit("{file}"),
+	); err != nil {
+		return fmt.Errorf("register ContentFileUpsertUnclassifiedRows counter: %w", err)
 	}
 	if inst.ContentFileUpsertBodyBytes, err = meter.Int64Counter(
 		"eshu_dp_content_file_upsert_body_bytes_total",

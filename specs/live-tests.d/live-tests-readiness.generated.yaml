@@ -664,6 +664,21 @@ tests:
     class: postgres_ci
     reason: "#8812 disposable PostgreSQL proof that a database already holding a verbatim content_files row, a content_file_references row, a content_file_secret_lines row, and a content_entities row with a non-empty source_cache holds an empty or marker-redacted body for that path after the next projected generation under a metadata or redact content-store policy, on both a full-snapshot and a delta generation, through the production projector runtime and content writer and migration 138 triggers; isolated bootstrapped database per test"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_writer_upsert_outcome_bench_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8950 disposable PostgreSQL 18 measurement of the content_files upsert outcome pre-read against the batch upsert it precedes, on a findings-heavy batch and on 500 small rows, for a new-commit rewrite and an identical replay; opt-in (ESHU_CONTENT_UPSERT_OUTCOME_BENCH=1), otherwise a one-round smoke that asserts only that the pre-read classifies the replay; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_writer_upsert_outcome_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8950 disposable PostgreSQL 18 proof that the content_files upsert outcome classification agrees with the row versions the real guarded upsert writes (a skipped row keeps its xmin, every other class gets a new version), that the pre-read takes no lock and sees only committed state while a writer holds row locks and uncommitted edits, that observed and unobserved writers leave identical rows, and that concurrent observed writers hit no error and count every row once; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_writer_upsert_outcome_write_bench_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8950 disposable PostgreSQL 18 measurement of what the content_files upsert outcome pre-read adds to a whole ContentWriter.Write of 1, 5, 20 and 50 small files, with and without ten entities per file, as an observed writer against an unobserved one interleaved on one database; opt-in (ESHU_CONTENT_UPSERT_OUTCOME_BENCH=1), otherwise a one-round smoke; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/corpus_fence_observer_live_test.go
     tag: ~
     class: postgres_ci

@@ -615,6 +615,10 @@ type Instruments struct {
 	// ContentFileUpsertBodyBytes counts the body bytes of those rows by
 	// outcome (#8950).
 	ContentFileUpsertBodyBytes metric.Int64Counter
+	// ContentFileUpsertUnclassifiedRows counts the rows of upsert batches that
+	// were written but not classified, by reason (sampled_out, classify_failed)
+	// and snapshot (#8950). With ContentFileUpserts it accounts for every row.
+	ContentFileUpsertUnclassifiedRows metric.Int64Counter
 	// ReconcileParseSkipPersistentDrops counts forced reconciles that skipped
 	// the parse while carrying the active generation's recorded stream drops
 	// (#8185): every recorded path still failed to open, so the skip replays

@@ -116,6 +116,19 @@ TABLE = {
         "go/internal/storage/postgres/content_store_policy_upgrade_live_test.go": (
             "TestContentStorePolicyHealsStoredRowsOnTheNextGeneration",
         ),
+        "go/internal/storage/postgres/content_writer_upsert_outcome_bench_live_test.go": (
+            "TestContentFileUpsertOutcomePreReadCostLive",
+        ),
+        "go/internal/storage/postgres/content_writer_upsert_outcome_live_test.go": (
+            "TestContentFileUpsertOutcomeMatchesRowVersionsLive",
+            "TestContentFileUpsertOutcomeProxyLimitLive",
+            "TestContentFileOutcomePreReadTakesNoLockLive",
+            "TestContentFileUpsertObserversDoNotChangeRowsLive",
+            "TestContentFileUpsertOutcomeConcurrentWritersLive",
+        ),
+        "go/internal/storage/postgres/content_writer_upsert_outcome_write_bench_live_test.go": (
+            "TestContentFileUpsertOutcomeWriteCostLive",
+        ),
         "go/internal/storage/postgres/corpus_fence_observer_live_test.go": (
             "TestQueueObserverStoreCorpusFenceCountsRunOnPostgres",
         ),

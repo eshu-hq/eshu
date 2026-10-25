@@ -10,6 +10,7 @@ import (
 	"errors"
 	"log/slog"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -167,7 +168,8 @@ func newOutcomeWriter(t *testing.T, stored [][]any) (ContentWriter, *outcomeFake
 	}
 	fake := &outcomeFakeDB{transactionalFakeDB: withTransactions(&fakeExecQueryer{}), storedRows: stored}
 	var logs bytes.Buffer
-	writer := NewContentWriter(fake).WithInstruments(instruments).WithLogger(slog.New(slog.NewJSONHandler(&logs, nil)))
+	// Classify every batch: the sampling policy has its own tests below.
+	writer := NewContentWriter(fake).WithInstruments(instruments).WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))).WithOutcomeSampling(0, 1)
 	writer.Now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
 	return writer, fake, reader, &logs
 }
@@ -250,7 +252,7 @@ func TestContentWriterCountsMixedUpsertOutcomes(t *testing.T) {
 	line := logLineForStage(t, logs.String(), "upsert_files")
 	for key, want := range map[string]float64{
 		"inserted_count": 1, "unchanged_skipped_count": 1, "metadata_only_count": 1,
-		"content_changed_count": 2, "classified_batch_count": 1, "unclassified_batch_count": 0,
+		"content_changed_count": 2, "classified_batch_count": 1, "sampled_out_batch_count": 0, "classify_failed_batch_count": 0,
 	} {
 		if got, ok := line[key].(float64); !ok || got != want {
 			t.Errorf("upsert_files log %s = %v, want %v", key, line[key], want)
@@ -307,8 +309,11 @@ func TestContentWriterPreReadFailureDoesNotFailWrite(t *testing.T) {
 		t.Fatalf("no classify_failed warning logged:\n%s", logs.String())
 	}
 	line := logLineForStage(t, logs.String(), "upsert_files")
-	if got, _ := line["unclassified_batch_count"].(float64); got != 1 {
-		t.Fatalf("unclassified_batch_count = %v, want 1", line["unclassified_batch_count"])
+	if got, _ := line["classify_failed_batch_count"].(float64); got != 1 {
+		t.Fatalf("classify_failed_batch_count = %v, want 1", line["classify_failed_batch_count"])
+	}
+	if got := sumPoints(t, rm, "eshu_dp_content_file_upsert_unclassified_rows_total", map[string]string{"reason": "classify_failed", "snapshot": "delta"}); got != 1 {
+		t.Fatalf("classify_failed unclassified rows = %d, want 1: the written row must still be accounted for", got)
 	}
 }
 
@@ -374,5 +379,72 @@ func TestContentFileOutcomePreReadSQLIsLockFreeAndContentFree(t *testing.T) {
 	stripped = strings.ReplaceAll(stripped, "content_hash", "")
 	if bare.MatchString(stripped) {
 		t.Fatalf("pre-read reads the content column outside octet_length:\n%s", contentFileOutcomePreReadSQL)
+	}
+}
+
+// TestClassifierComparesEveryGuardColumn keeps the classifier in step with the
+// upsert guard. The guarded columns are parsed from the shipped
+// upsertContentFileConflictClause; each one needs a mutation here, and every
+// mutation of a guarded column must stop the row reading as unchanged_skipped.
+// A guard column added without a classifier change fails the key check; a
+// classifier that ignores a column fails the mutation check.
+func TestClassifierComparesEveryGuardColumn(t *testing.T) {
+	t.Parallel()
+
+	guard := guardTuplesPattern.FindStringSubmatch(upsertContentFileConflictClause)
+	if guard == nil {
+		t.Fatal("guard tuples not found in upsertContentFileConflictClause")
+	}
+	var guardColumns []string
+	for _, item := range splitColumns(guard[1]) {
+		guardColumns = append(guardColumns, strings.TrimPrefix(item, "content_files."))
+	}
+	// content is compared by its own OR leg, not in the tuples.
+	guardColumns = append(guardColumns, contentFileSeparateCompare)
+
+	const body = "package a\n"
+	mutations := map[string]func(*preparedFileRow, *any){
+		"commit_sha":       func(r *preparedFileRow, _ *any) { r.commitSHA = "c-other" },
+		"content_hash":     func(r *preparedFileRow, _ *any) { r.contentHash = "h-other" },
+		"line_count":       func(r *preparedFileRow, _ *any) { r.lineCount++ },
+		"language":         func(r *preparedFileRow, _ *any) { r.language = "py" },
+		"artifact_type":    func(r *preparedFileRow, _ *any) { r.artifactType = "template" },
+		"template_dialect": func(r *preparedFileRow, _ *any) { r.templateDialect = "jinja" },
+		"iac_relevant":     func(r *preparedFileRow, _ *any) { r.iacRelevant = true },
+		"generation_id":    func(_ *preparedFileRow, tag *any) { *tag = "g-other" },
+		"content":          func(r *preparedFileRow, _ *any) { r.body = body + "x" },
+	}
+	for _, column := range guardColumns {
+		if mutations[column] == nil {
+			t.Errorf("guard column %q has no classifier mutation; teach classifyContentFileRow about it", column)
+		}
+	}
+	for column := range mutations {
+		if !slices.Contains(guardColumns, column) {
+			t.Errorf("mutation %q is not a guard column of the shipped clause", column)
+		}
+	}
+
+	stored := &storedContentFile{
+		contentHash: "h1", bodyBytes: sql.NullInt64{Int64: int64(len(body)), Valid: true},
+		commitSHA: sql.NullString{String: "c1", Valid: true}, lineCount: sql.NullInt64{Int64: 1, Valid: true},
+		language: sql.NullString{String: "go", Valid: true}, generation: sql.NullString{String: "g1", Valid: true},
+	}
+	// The baseline carries NULL artifact_type, template_dialect and iac_relevant,
+	// so setting any of them is a NULL-to-value transition.
+	for _, column := range guardColumns {
+		mutate := mutations[column]
+		if mutate == nil {
+			continue
+		}
+		row := upsertOutcomeRow("a.go", body, "h1", "c1", "go")
+		var tag any = "g1"
+		if got := classifyContentFileRow(stored, row, tag); got != outcomeUnchangedSkipped {
+			t.Fatalf("baseline classified %s, want unchanged_skipped", got)
+		}
+		mutate(&row, &tag)
+		if got := classifyContentFileRow(stored, row, tag); got == outcomeUnchangedSkipped {
+			t.Errorf("changing guard column %q still reads unchanged_skipped", column)
+		}
 	}
 }

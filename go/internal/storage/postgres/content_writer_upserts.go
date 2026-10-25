@@ -81,7 +81,7 @@ func (w ContentWriter) upsertObservedContentFileBatch(ctx context.Context, batch
 
 	// Blank writing generations bind NULL through the shared tag rule.
 	tag := contentFileTagParam(generationID)
-	outcomes := w.preClassify(ctx, obs, batch, tag)
+	outcomes, unclassifiedReason := w.preClassify(ctx, obs, batch, tag)
 
 	args := make([]any, 0, len(batch)*columnsPerContentFile)
 	var values strings.Builder
@@ -121,7 +121,7 @@ func (w ContentWriter) upsertObservedContentFileBatch(ctx context.Context, batch
 	if _, err := w.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert content_files batch (%d files): %w", len(batch), err)
 	}
-	w.recordFileUpsertOutcomes(ctx, obs, batch, outcomes)
+	w.recordFileUpsertOutcomes(ctx, obs, batch, outcomes, unclassifiedReason)
 
 	if err := w.upsertContentReferenceBatch(ctx, batch, indexedAt); err != nil {
 		return err

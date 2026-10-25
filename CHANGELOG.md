@@ -716,6 +716,21 @@ recent shipped work grouped by feature area.
   runs, as the database already rejected it. Evidence:
   `docs/internal/evidence/8915-content-file-upsert-guard.md`.
 
+### Unchanged-content rewrites are now counted
+
+- **The content writer counts each `content_files` upsert row by outcome**
+  ([#8950](https://github.com/eshu-hq/eshu/issues/8950)).
+  `eshu_dp_content_file_upserts_total{outcome,snapshot}` splits rows into
+  `inserted`, `unchanged_skipped`, `metadata_only` (same content, new commit or
+  generation) and `content_changed`, with `snapshot` `full` or `delta`;
+  `eshu_dp_content_file_upsert_body_bytes_total{outcome}` counts their body
+  bytes, and the `upsert_files` stage log carries the same counts. The outcome
+  comes from one lock-free pre-read per batch that compares the content digest
+  and body size, so it is a proxy for body equality. Batches under 100 rows are
+  classified one in eight; the skipped rows are counted in
+  `eshu_dp_content_file_upsert_unclassified_rows_total`. Nothing about the write
+  changes. See [Content File Upsert Outcomes](docs/public/reference/telemetry/content-file-upserts.md).
+
 ### Security alert reconciliation waits for its own impact producer without spending attempts
 
 - **A reconciliation no longer burns attempts while `supply_chain_impact` is in

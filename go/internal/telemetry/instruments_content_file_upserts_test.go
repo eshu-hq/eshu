@@ -4,9 +4,13 @@
 package telemetry
 
 import (
+	"context"
+	"net/http"
 	"slices"
+	"strings"
 	"testing"
 
+	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
@@ -29,6 +33,9 @@ func TestContentFileUpsertContract(t *testing.T) {
 	if got, want := []string{ContentFileSnapshotFull, ContentFileSnapshotDelta}, []string{"full", "delta"}; !slices.Equal(got, want) {
 		t.Fatalf("content file snapshot values = %v, want the closed set %v", got, want)
 	}
+	if got, want := []string{ContentFileUnclassifiedSampledOut, ContentFileUnclassifiedClassifyFailed}, []string{"sampled_out", "classify_failed"}; !slices.Equal(got, want) {
+		t.Fatalf("content file unclassified reasons = %v, want the closed set %v", got, want)
+	}
 	if got, want := MetricDimensionSnapshot, "snapshot"; got != want {
 		t.Fatalf("MetricDimensionSnapshot = %q, want %q", got, want)
 	}
@@ -45,5 +52,43 @@ func TestContentFileUpsertContract(t *testing.T) {
 	}
 	if instruments.ContentFileUpsertBodyBytes == nil {
 		t.Fatal("ContentFileUpsertBodyBytes counter not registered")
+	}
+	if instruments.ContentFileUpsertUnclassifiedRows == nil {
+		t.Fatal("ContentFileUpsertUnclassifiedRows counter not registered")
+	}
+}
+
+// TestContentFileUpsertScrapeNames pins the Prometheus series names operators
+// query (#8950): the exporter must not rewrite either counter name.
+func TestContentFileUpsertScrapeNames(t *testing.T) {
+	providers := newTestProviders(t)
+	instruments, err := NewInstruments(providers.MeterProvider.Meter("eshu/content-file-upserts-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	ctx := context.Background()
+	instruments.ContentFileUpserts.Add(ctx, 3, metric.WithAttributes(
+		AttrOutcome(ContentFileUpsertOutcomeMetadataOnly), AttrSnapshot(ContentFileSnapshotFull)))
+	instruments.ContentFileUpsertBodyBytes.Add(ctx, 1024, metric.WithAttributes(
+		AttrOutcome(ContentFileUpsertOutcomeMetadataOnly)))
+
+	instruments.ContentFileUpsertUnclassifiedRows.Add(ctx, 7, metric.WithAttributes(
+		AttrReason(ContentFileUnclassifiedSampledOut), AttrSnapshot(ContentFileSnapshotDelta)))
+
+	code, body := scrapeMetrics(providers.PrometheusHandler)
+	if code != http.StatusOK {
+		t.Fatalf("scrape status = %d, want 200: %s", code, body)
+	}
+	for _, want := range []string{
+		`eshu_dp_content_file_upserts_total{`,
+		`outcome="metadata_only"`,
+		`snapshot="full"`,
+		`eshu_dp_content_file_upsert_body_bytes_total{`,
+		`eshu_dp_content_file_upsert_unclassified_rows_total{`,
+		`reason="sampled_out"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("scrape lacks %q", want)
+		}
 	}
 }
