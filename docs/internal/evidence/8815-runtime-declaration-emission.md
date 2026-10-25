@@ -295,7 +295,7 @@ that `order_index` counts declarations on a line.
 
 `package.json` and `go.mod` are `store`-policy files (#8819), so their bodies
 reach the content store as written. The facts add no new exposure only if a
-value that is not a version cannot ride into `raw_spec`. The guard
+value outside the version grammar cannot ride into `raw_spec`. The guard
 (`safeSpec`, `manifest.go`) admits a value only when it is 1 to 128 bytes of
 ASCII from the version and range grammar (letters, digits, space and
 `. + * ^ ~ < > = | , - / : @ $ { } _`), holds no run of 16 or more letters,
@@ -305,9 +305,24 @@ is cut before the check, so the hash never reaches a fact. The seeded cases
 (built by concatenation) are a GitHub-style token, an AWS-style key, a
 Slack-style token, a JWT, a URL with a password and a version with a token
 tail, each in `engines`, `volta`, `packageManager` and the `go` and `toolchain`
-directives. A rejected value is dropped and counted, never truncated or masked.
+directives. A rejected value is dropped and counted, never truncated or masked. A string
+that declares nothing is counted the same way: an empty or whitespace-only
+value, and a `packageManager` with no `@`, an empty version after it, or a name
+outside the allowlist (`TestEmitPackageJSONCountsEveryStringThatYieldsNoDeclaration`
+asserts the count through `Skip`). A value that is not a string is absent, not
+rejected.
 
 The guard is a heuristic, not a secret scanner, and the documentation says so:
 a short word in an alias position (`hunter2`) passes, because an alias is kept
 as written and a short word cannot be told from a tag name. It bounds what a
 fact can carry; the body stays under the content-store policy.
+
+## Rejected-count follow-up (empty manifest values)
+
+Performance Evidence: baseline `origin/main` `1510ce66ad`, after this change, go1.26.10 linux/arm64 on the same host, `go test -bench -count=5 -benchmem` over the package.json emitter. `BenchmarkEmitPackageJSON`: 54.9 to 76.6 us/op and 620 allocs/op before, 53.8 to 71.0 us/op and 620 allocs/op after (the ranges overlap; the host is noisy). `BenchmarkExtractPackageJSONNoDeclaration`: 427 ns/op and 0 allocs before, 428 to 434 ns/op and 0 allocs after. `BenchmarkEmitPackageJSONAtByteCap`: 1.83 ms/op before and after. The change adds one integer increment on a path that already returned early.
+
+Benchmark Evidence: the three benchmarks above, input shapes from `emitter_bench_test.go`: a typical manifest, a manifest that declares nothing, and a body at the 1 MiB byte cap.
+
+No-Regression Evidence: allocations per operation are unchanged and the capped body costs the same time, so the counted path adds no measurable cost.
+
+No-Observability-Change: the existing WARN `git_runtime_declaration_values_rejected` and its `rejected_count` already carry the count; only more values are counted. The `Skip` reason and the log keys do not change.

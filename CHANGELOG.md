@@ -495,7 +495,7 @@ recent shipped work grouped by feature area.
   `pnpm@9.1.0+sha512.…` is runtime `pnpm`, `raw_spec` `9.1.0`: the integrity
   suffix is cut. `require`, `replace` and every other `go.mod` line never emit,
   and a copy under `node_modules` or `vendor` emits nothing.
-- **A value that is not a version never reaches a fact.** The two files are
+- **A value outside the version grammar never reaches a fact.** The two files are
   stored with the `store` policy, so a manifest value must be at most 128 bytes
   of version grammar with no long opaque token and no URL; anything else is
   dropped and counted, never truncated, and the file's other declarations still
