@@ -1,0 +1,16 @@
+docs/internal/evidence/8851-sdk-consumer-migration.md
+  h_78a442cba0b3e6 39-48
+scripts/test-delta-union-scheduled.py
+  h_78a442cba0b3e6 120-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8af01e4e7fd35f075628803b7257b03876d8ea11",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

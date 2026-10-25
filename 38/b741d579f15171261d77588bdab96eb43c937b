@@ -1,0 +1,760 @@
+go/cmd/collector-component-extension/status_signal_test.go
+  h_78a442cba0b3e6 19
+go/cmd/eshu/component_conform_test.go
+  h_78a442cba0b3e6 16
+go/cmd/eshu/component_init_test.go
+  h_78a442cba0b3e6 74-76
+go/cmd/fact-envelope-adapter/main.go
+  h_78a442cba0b3e6 83-84
+go/go.mod
+  h_78a442cba0b3e6 163-164
+go/go.sum
+  h_78a442cba0b3e6 476-479
+go/internal/cli/component/scaffold_templates.go
+  h_78a442cba0b3e6 78,146,149,157,233,305
+go/internal/collector/access/posture/aws_payload.go
+  h_78a442cba0b3e6 10-12
+go/internal/collector/access/posture/aws_payload_test.go
+  h_78a442cba0b3e6 10-12
+go/internal/collector/access/posture/envelope.go
+  h_78a442cba0b3e6 11
+go/internal/collector/awscloud/catalog/compute.go
+  h_78a442cba0b3e6 6
+go/internal/collector/awscloud/catalog/security.go
+  h_78a442cba0b3e6 6
+go/internal/collector/awscloud/dns_envelope.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/awscloud/ec2_posture_envelope.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/awscloud/envelope.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/awscloud/iam_permission_envelope.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/awscloud/internal/relguard/relguard.go
+  h_78a442cba0b3e6 18
+go/internal/collector/awscloud/internal/relguard/relguard_test.go
+  h_78a442cba0b3e6 48
+go/internal/collector/awscloud/posture_envelope.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/awscloud/resource_policy_permission_envelope.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/awscloud/resource_type_contract_test.go
+  h_78a442cba0b3e6 9
+go/internal/collector/awscloud/s3_external_principal_grant_envelope.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/awscloud/s3_posture_envelope.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/awscloud/security_group_rule_envelope.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/cicdrun/github_actions_deployments.go
+  h_78a442cba0b3e6 12-13
+go/internal/collector/cicdrun/github_actions_fixture.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/cicdrun/gitlab_ci_fixture.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/cloud/azure/dns_record.go
+  h_78a442cba0b3e6 12-13
+go/internal/collector/cloud/azure/envelope.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/cloud/azure/identity_observation.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/cloud/azure/image_reference.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/cloud/azure/relationship.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/cloud/azure/resource_change.go
+  h_78a442cba0b3e6 12-13
+go/internal/collector/extensionhost/claimed_service_test.go
+  h_78a442cba0b3e6 11
+go/internal/collector/extensionhost/contract.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/extensionhost/failure.go
+  h_78a442cba0b3e6 12
+go/internal/collector/extensionhost/mapping.go
+  h_78a442cba0b3e6 9
+go/internal/collector/extensionhost/mapping_test.go
+  h_78a442cba0b3e6 10
+go/internal/collector/extensionhost/oci.go
+  h_78a442cba0b3e6 17
+go/internal/collector/extensionhost/oci_number_test.go
+  h_78a442cba0b3e6 15-17
+go/internal/collector/extensionhost/oci_test.go
+  h_78a442cba0b3e6 14
+go/internal/collector/extensionhost/process.go
+  h_78a442cba0b3e6 15
+go/internal/collector/extensionhost/process_number_test.go
+  h_78a442cba0b3e6 13-15
+go/internal/collector/extensionhost/process_posture_test.go
+  h_78a442cba0b3e6 15
+go/internal/collector/extensionhost/process_test.go
+  h_78a442cba0b3e6 13
+go/internal/collector/extensionhost/producer_grant_bench_test.go
+  h_78a442cba0b3e6 15
+go/internal/collector/extensionhost/producer_grant_decision_test.go
+  h_78a442cba0b3e6 13
+go/internal/collector/extensionhost/producer_grant_test.go
+  h_78a442cba0b3e6 12
+go/internal/collector/extensionhost/request.go
+  h_78a442cba0b3e6 10
+go/internal/collector/extensionhost/retry_after_requested_test.go
+  h_78a442cba0b3e6 14
+go/internal/collector/extensionhost/retry_after_test.go
+  h_78a442cba0b3e6 17
+go/internal/collector/extensionhost/source.go
+  h_78a442cba0b3e6 15-16
+go/internal/collector/extensionhost/source_test.go
+  h_78a442cba0b3e6 15-16
+go/internal/collector/extensionhost/source_test_helpers_test.go
+  h_78a442cba0b3e6 13
+go/internal/collector/extensionhost/status.go
+  h_78a442cba0b3e6 10
+go/internal/collector/extensionhost/status_bench_test.go
+  h_78a442cba0b3e6 14
+go/internal/collector/extensionhost/status_telemetry.go
+  h_78a442cba0b3e6 10
+go/internal/collector/extensionhost/status_telemetry_test.go
+  h_78a442cba0b3e6 20
+go/internal/collector/extensionhost/types.go
+  h_78a442cba0b3e6 11
+go/internal/collector/extensionhost/validation_test.go
+  h_78a442cba0b3e6 10
+go/internal/collector/gcpcloud/dns_record.go
+  h_78a442cba0b3e6 12-13
+go/internal/collector/gcpcloud/envelope.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/gcpcloud/envelope_test.go
+  h_78a442cba0b3e6 12-13
+go/internal/collector/gcpcloud/iam_policy_observation.go
+  h_78a442cba0b3e6 12-13
+go/internal/collector/gcpcloud/image_reference.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/gcpcloud/relationship.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/gcpcloud/tag_observation.go
+  h_78a442cba0b3e6 12-13
+go/internal/collector/jira/envelope.go
+  h_78a442cba0b3e6 15-16
+go/internal/collector/kuberneteslive/envelope.go
+  h_78a442cba0b3e6 13-14
+go/internal/collector/kuberneteslive/envelope_namespace.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/observability/grafana/envelope.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/observability/loki/envelope.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/observability/prometheus/envelope.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/observability/tempo/envelope.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/pagerduty/config_envelope.go
+  h_78a442cba0b3e6 13-14
+go/internal/collector/pagerduty/encode_helpers.go
+  h_78a442cba0b3e6 9
+go/internal/collector/pagerduty/envelope.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/pagerduty/reference_component_test.go
+  h_78a442cba0b3e6 15
+go/internal/collector/registry/oci/encode_helpers.go
+  h_78a442cba0b3e6 9
+go/internal/collector/registry/oci/envelope.go
+  h_78a442cba0b3e6 14-15
+go/internal/collector/registry/oci/types.go
+  h_78a442cba0b3e6 9
+go/internal/collector/registry/oci/warning.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/registry/oci/warning_test.go
+  h_78a442cba0b3e6 11
+go/internal/collector/registry/package/envelope.go
+  h_78a442cba0b3e6 9-10
+go/internal/collector/registry/package/version.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/registry/package/warning.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/repo/codeowners/emitter.go
+  h_78a442cba0b3e6 7-8
+go/internal/collector/repo/git/runtime_declaration_facts_test.go
+  h_78a442cba0b3e6 14-15
+go/internal/collector/repo/git/tfstate_candidate.go
+  h_78a442cba0b3e6 14-15
+go/internal/collector/repo/runtime/declaration/emitter.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/repo/runtime/declaration/emitter_operator_test.go
+  h_78a442cba0b3e6 9
+go/internal/collector/repo/runtime/declaration/emitter_test.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/repo/submodule/emitter.go
+  h_78a442cba0b3e6 7-8
+go/internal/collector/sbom/document/cyclonedx_fixture.go
+  h_78a442cba0b3e6 12-13
+go/internal/collector/sbom/document/envelope.go
+  h_78a442cba0b3e6 14-15
+go/internal/collector/sbom/runtime/attestation.go
+  h_78a442cba0b3e6 16-17
+go/internal/collector/sbom/runtime/attestation_slsa.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/sbom/runtime/attestation_slsa_test.go
+  h_78a442cba0b3e6 9
+go/internal/collector/scannerworker/imageanalyzer/analysis.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/scannerworker/imageanalyzer/warning.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/scannerworker/imageanalyzer/warning_wireshape_test.go
+  h_78a442cba0b3e6 12
+go/internal/collector/scannerworker/sbomgenerator/envelope.go
+  h_78a442cba0b3e6 13-14
+go/internal/collector/scannerworker/warning_analyzer.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/scannerworker/warning_analyzer_test.go
+  h_78a442cba0b3e6 10
+go/internal/collector/securityalerts/envelope.go
+  h_78a442cba0b3e6 14-15
+go/internal/collector/terraformstate/modules.go
+  h_78a442cba0b3e6 9-10
+go/internal/collector/terraformstate/outputs.go
+  h_78a442cba0b3e6 9-10
+go/internal/collector/terraformstate/pagerduty_applied.go
+  h_78a442cba0b3e6 12-13
+go/internal/collector/terraformstate/parser.go
+  h_78a442cba0b3e6 13-14
+go/internal/collector/terraformstate/providers.go
+  h_78a442cba0b3e6 9-10
+go/internal/collector/terraformstate/resources.go
+  h_78a442cba0b3e6 10-11
+go/internal/collector/terraformstate/tags.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/terraformstate/warning_fact.go
+  h_78a442cba0b3e6 11-12
+go/internal/collector/terraformstate/warnings.go
+  h_78a442cba0b3e6 10-11
+go/internal/component/manifest.go
+  h_78a442cba0b3e6 19
+go/internal/extensionconformance/conformance.go
+  h_78a442cba0b3e6 13-15
+go/internal/extensionconformance/conformance_test.go
+  h_78a442cba0b3e6 15
+go/internal/extensionconformance/emitter_payload_conformance_test.go
+  h_78a442cba0b3e6 11-13
+go/internal/extensionconformance/fixturepack_conformance_test.go
+  h_78a442cba0b3e6 13-15
+go/internal/extensionconformance/granted_kinds_test.go
+  h_78a442cba0b3e6 14
+go/internal/factenvelope/adapter_drift_test.go
+  h_78a442cba0b3e6 12-13
+go/internal/factenvelope/adapter_generated.go
+  h_78a442cba0b3e6 9-10
+go/internal/factenvelope/adapter_test.go
+  h_78a442cba0b3e6 11
+go/internal/facts/docs/encode.go
+  h_78a442cba0b3e6 9-10
+go/internal/facts/semantic/encode.go
+  h_78a442cba0b3e6 7-8
+go/internal/ifa/catalog_seed.go
+  h_78a442cba0b3e6 9
+go/internal/ifa/code_call_family_catalog.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/code_call_family_catalog_typed_test.go
+  h_78a442cba0b3e6 15-16
+go/internal/ifa/codeowners_family_catalog.go
+  h_78a442cba0b3e6 9-11
+go/internal/ifa/deployable_unit_family_catalog.go
+  h_78a442cba0b3e6 10-11
+go/internal/ifa/family_fixture_compat.go
+  h_78a442cba0b3e6 7
+go/internal/ifa/familyodu/authenticates_vault_role_family_odu.go
+  h_78a442cba0b3e6 10-14
+go/internal/ifa/familyodu/built_from_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/cloud_resource_container_image_family_odu.go
+  h_78a442cba0b3e6 9-11
+go/internal/ifa/familyodu/cloud_resource_family_odu.go
+  h_78a442cba0b3e6 9-12
+go/internal/ifa/familyodu/code_interproc_evidence_family_odu.go
+  h_78a442cba0b3e6 9-11
+go/internal/ifa/familyodu/code_taint_evidence_family_odu.go
+  h_78a442cba0b3e6 9-11
+go/internal/ifa/familyodu/crossplane_satisfied_by_family_odu.go
+  h_78a442cba0b3e6 9,13
+go/internal/ifa/familyodu/derived_from_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/grants_secret_read_family_odu.go
+  h_78a442cba0b3e6 7-8
+go/internal/ifa/familyodu/iam_can_assume_family_odu.go
+  h_78a442cba0b3e6 10-12
+go/internal/ifa/familyodu/iam_can_perform_family_odu.go
+  h_78a442cba0b3e6 9-11
+go/internal/ifa/familyodu/iam_escalation_family_odu.go
+  h_78a442cba0b3e6 9-11
+go/internal/ifa/familyodu/iam_instance_profile_role_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/incident_routing_evidence_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/inheritance_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/kubernetes_correlation_family_odu.go
+  h_78a442cba0b3e6 9-11
+go/internal/ifa/familyodu/kubernetes_namespace_environment_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/observability_coverage_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/publishes_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/rationale_family_odu.go
+  h_78a442cba0b3e6 10-11
+go/internal/ifa/familyodu/repo_dependency_family_odu.go
+  h_78a442cba0b3e6 13
+go/internal/ifa/familyodu/s3_external_principal_grant_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/s3_logs_to_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/security_group_reachability_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/semantic_entity_containment_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/familyodu/shell_exec_family_odu.go
+  h_78a442cba0b3e6 10-11
+go/internal/ifa/familyodu/symbol_runtime_family_odu.go
+  h_78a442cba0b3e6 10-11
+go/internal/ifa/familyodu/uses_vault_policy_family_odu.go
+  h_78a442cba0b3e6 7-8
+go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/materializededges/rationale_family_live_fixture_test.go
+  h_78a442cba0b3e6 13-14
+go/internal/ifa/materializededges/submodule_pin_production_order_test.go
+  h_78a442cba0b3e6 12
+go/internal/ifa/mutate_test.go
+  h_78a442cba0b3e6 12
+go/internal/ifa/repo_dependency_family_catalog.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/repo_dependency_family_catalog_typed_test.go
+  h_78a442cba0b3e6 10-11
+go/internal/ifa/roundtrip.go
+  h_78a442cba0b3e6 9
+go/internal/ifa/roundtrip_test.go
+  h_78a442cba0b3e6 12
+go/internal/ifa/schema.go
+  h_78a442cba0b3e6 11-13
+go/internal/ifa/schema_test.go
+  h_78a442cba0b3e6 10
+go/internal/ifa/shell_exec_family_catalog_typed_test.go
+  h_78a442cba0b3e6 15-16
+go/internal/ifa/submodule_pin_family_catalog.go
+  h_78a442cba0b3e6 9-11
+go/internal/ifa/workload_dependency_family_catalog.go
+  h_78a442cba0b3e6 9-10
+go/internal/ifa/workload_dependency_family_catalog_typed_test.go
+  h_78a442cba0b3e6 15-16
+go/internal/parser/dockerfile/parsed_file_data_contract_test.go
+  h_78a442cba0b3e6 10
+go/internal/parser/gomod/gowork_test.go
+  h_78a442cba0b3e6 12
+go/internal/parser/gomod/parsed_file_data_contract_test.go
+  h_78a442cba0b3e6 12
+go/internal/parser/scip/parsed_file_data_contract_test.go
+  h_78a442cba0b3e6 10
+go/internal/payloadusage/additional_dirs_test.go
+  h_78a442cba0b3e6 16-17,33-34,50-51
+go/internal/payloadusage/decodeseam_test.go
+  h_78a442cba0b3e6 16-18,122-123
+go/internal/payloadusage/forwarder_test.go
+  h_78a442cba0b3e6 80
+go/internal/payloadusage/qualifier_drift_test.go
+  h_78a442cba0b3e6 34
+go/internal/payloadusage/trustchain_seam_6392_test.go
+  h_78a442cba0b3e6 22
+go/internal/payloadusage/usage_qualified_call_test.go
+  h_78a442cba0b3e6 226
+go/internal/projector/canonical/builder_fileless_guard_test.go
+  h_78a442cba0b3e6 36
+go/internal/projector/canonical/codegraph_extract.go
+  h_78a442cba0b3e6 14
+go/internal/projector/canonical/codegraph_fatal_test.go
+  h_78a442cba0b3e6 23
+go/internal/projector/canonical/directory_ownership_test.go
+  h_78a442cba0b3e6 12
+go/internal/projector/canonical/import_extract.go
+  h_78a442cba0b3e6 12-13
+go/internal/projector/canonical/import_flag_keys_test.go
+  h_78a442cba0b3e6 11
+go/internal/projector/canonical/package_registry.go
+  h_78a442cba0b3e6 14
+go/internal/projector/canonical/package_registry_artifact.go
+  h_78a442cba0b3e6 12
+go/internal/projector/cloud/aws/ec2/factschema_decode_aws.go
+  h_78a442cba0b3e6 9-10
+go/internal/projector/cloud/aws/iam/escalation/factschema_decode_iam.go
+  h_78a442cba0b3e6 9-10
+go/internal/projector/cloud/aws/iam/instance/profile/factschema_decode_aws.go
+  h_78a442cba0b3e6 9-10
+go/internal/projector/cloud/aws/iam/perform/factschema_decode_iam.go
+  h_78a442cba0b3e6 9-10
+go/internal/projector/cloud/aws/iam/trust/factschema_decode_iam.go
+  h_78a442cba0b3e6 9-10
+go/internal/projector/cloud/aws/s3/factschema_decode_aws.go
+  h_78a442cba0b3e6 9-10
+go/internal/projector/code/function/summary/factschema_decode.go
+  h_78a442cba0b3e6 9-10
+go/internal/projector/container/image/identity/factschema_decode_aws.go
+  h_78a442cba0b3e6 9-10
+go/internal/projector/decode/codegraph.go
+  h_78a442cba0b3e6 7-8
+go/internal/projector/decode/oci_registry.go
+  h_78a442cba0b3e6 10-11
+go/internal/projector/decode/package_registry.go
+  h_78a442cba0b3e6 7-8
+go/internal/projector/decode/quarantine.go
+  h_78a442cba0b3e6 15
+go/internal/projector/decode/schema_version_admission.go
+  h_78a442cba0b3e6 10
+go/internal/projector/decode/terraform_state.go
+  h_78a442cba0b3e6 7-8
+go/internal/projector/observability/coverage/factschema_decode_aws.go
+  h_78a442cba0b3e6 9-10
+go/internal/projector/observability/coverage/materialization/factschema_decode_aws.go
+  h_78a442cba0b3e6 9-10
+go/internal/projector/runtime/clone_removal_test.go
+  h_78a442cba0b3e6 15
+go/internal/projector/runtime/codegraph_input_invalid_test.go
+  h_78a442cba0b3e6 13
+go/internal/projector/runtime/package_registry_projection_test.go
+  h_78a442cba0b3e6 14
+go/internal/query/decode/error.go
+  h_78a442cba0b3e6 10
+go/internal/query/decode/workitem/factschema_decode.go
+  h_78a442cba0b3e6 7-8
+go/internal/query/decode/workitem/factschema_decode_test.go
+  h_78a442cba0b3e6 10
+go/internal/query/factschema_decode_supplychain.go
+  h_78a442cba0b3e6 7-10
+go/internal/query/factschema_decode_supplychain_test.go
+  h_78a442cba0b3e6 10
+go/internal/query/impact/deployment/live_evidence_store.go
+  h_78a442cba0b3e6 14
+go/internal/query/incident/store/decode.go
+  h_78a442cba0b3e6 9
+go/internal/query/incident/store/factschema_decode_incident.go
+  h_78a442cba0b3e6 10-12
+go/internal/query/package/registry/factschema_decode_package_correlations.go
+  h_78a442cba0b3e6 7-8
+go/internal/query/supply/chain/advisory/factschema_decode.go
+  h_78a442cba0b3e6 7-8
+go/internal/query/supply/chain/advisory/factschema_decode_test.go
+  h_78a442cba0b3e6 10
+go/internal/query/supply/chain/impact/decode_helpers.go
+  h_78a442cba0b3e6 9-12
+go/internal/query/supply/chain/impact/suppression_mutation_postgres.go
+  h_78a442cba0b3e6 12-13
+go/internal/query/supply/chain/server_failure_routes_test.go
+  h_78a442cba0b3e6 11
+go/internal/query/supply/chain/suppression_mutation.go
+  h_78a442cba0b3e6 15
+go/internal/query/supply_chain_suppression_mutation_test.go
+  h_78a442cba0b3e6 16
+go/internal/reducer/aws_relationship_instance_node_readiness.go
+  h_78a442cba0b3e6 11
+go/internal/reducer/aws_resource_materialization.go
+  h_78a442cba0b3e6 15
+go/internal/reducer/aws_resource_running_image.go
+  h_78a442cba0b3e6 7
+go/internal/reducer/aws_resource_running_image_test.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/aws_resource_service_anchor.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/aws_resource_type_contract_test.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/awscloud/aws_cloud_image_join.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/awscloud/aws_cloud_runtime_drift_writer.go
+  h_78a442cba0b3e6 16-17
+go/internal/reducer/awscloud/aws_cloud_runtime_drift_writer_batch_test.go
+  h_78a442cba0b3e6 13
+go/internal/reducer/azure_relationship_join.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/azure_resource_materialization.go
+  h_78a442cba0b3e6 13
+go/internal/reducer/cicdrun/ci_cd_run_correlation_decode.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/cicdrun/ci_cd_run_correlation_deploy_events.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/cicdrun/ci_cd_run_correlation_deploy_events_test.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/cicdrun/ci_cd_run_correlation_workflow_image_test.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/cloudjoin/s3_bucket_join_index.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/code/call/intents.go
+  h_78a442cba0b3e6 19
+go/internal/reducer/code/call/shared/parsed_file_data.go
+  h_78a442cba0b3e6 6
+go/internal/reducer/code/owners/handler_test.go
+  h_78a442cba0b3e6 12-13
+go/internal/reducer/codedivergence/writer.go
+  h_78a442cba0b3e6 13-14
+go/internal/reducer/codedivergence/writer_test.go
+  h_78a442cba0b3e6 12
+go/internal/reducer/containerimage/container_image_identity_ci_loader.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/containerimage/container_image_identity_cicdrun_cassette_test.go
+  h_78a442cba0b3e6 21
+go/internal/reducer/containerimage/container_image_identity_retirement.go
+  h_78a442cba0b3e6 13
+go/internal/reducer/containerimage/container_image_identity_retirement_review_test.go
+  h_78a442cba0b3e6 13
+go/internal/reducer/containerimage/container_image_identity_retirement_test.go
+  h_78a442cba0b3e6 16
+go/internal/reducer/containerimage/container_image_identity_slsa.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/documentation_edge_delta_scope.go
+  h_78a442cba0b3e6 12
+go/internal/reducer/ec2blockkms/ec2_block_device_kms_posture_index.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/ec2blockkms/ec2_block_device_kms_posture_rows.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/ec2instance/ec2_instance_identity_rows.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/ec2instance/ec2_instance_identity_rows_test.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/ec2usesprofile/ec2_uses_profile_edge_rows.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/ec2usesprofile/resource_type_contract_test.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/factdecode/decode_error.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/factdecode/decode_error_shape_contract_test.go
+  h_78a442cba0b3e6 11-12
+go/internal/reducer/factschema_contract_test.go
+  h_78a442cba0b3e6 12
+go/internal/reducer/iamcan/iam_can_perform_boundary.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/iamcan/iam_can_perform_catalog.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/iamcan/iam_can_perform_resource_policy.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/iamcan/iam_can_perform_resource_type_contract_test.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/iaminstprofile/iam_instance_profile_role_edge_rows.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/iampolicy/grant.go
+  h_78a442cba0b3e6 10-11
+go/internal/reducer/idempotency_cases_test.go
+  h_78a442cba0b3e6 12-13
+go/internal/reducer/incident/routing_evidence_decode.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/incident/routing_input_invalid_test.go
+  h_78a442cba0b3e6 11-12
+go/internal/reducer/incident/routing_materialization_test.go
+  h_78a442cba0b3e6 11-12
+go/internal/reducer/internetexposure/ec2_internet_exposure_rows.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/internetexposure/s3_internet_exposure_rows.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/kubernetescorrelation/kubernetes_correlation_edge_input_invalid_test.go
+  h_78a442cba0b3e6 11
+go/internal/reducer/kubernetescorrelation/kubernetes_correlation_index.go
+  h_78a442cba0b3e6 11
+go/internal/reducer/kubernetescorrelation/kubernetes_correlation_selector_match_test.go
+  h_78a442cba0b3e6 9-10
+go/internal/reducer/multicloudruntimedrift/multi_cloud_runtime_drift_writer.go
+  h_78a442cba0b3e6 14-15
+go/internal/reducer/multicloudruntimedrift/multi_cloud_runtime_drift_writer_batch_test.go
+  h_78a442cba0b3e6 12
+go/internal/reducer/obscoverage/observability_coverage_correlation_index.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/obscoverage/observability_coverage_metadata_view.go
+  h_78a442cba0b3e6 6
+go/internal/reducer/obscoverage/observability_coverage_metadata_view_observed.go
+  h_78a442cba0b3e6 6
+go/internal/reducer/packages/correlation/payloads.go
+  h_78a442cba0b3e6 9-10
+go/internal/reducer/packages/correlation/writer.go
+  h_78a442cba0b3e6 13
+go/internal/reducer/s3grant/s3_external_principal_grant_rows.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/sbomattest/sbom_attestation_attachment_classify.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/sbomattest/sbom_attestation_attachment_evidence_bounds.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/sbomattest/sbom_attestation_attachment_index.go
+  h_78a442cba0b3e6 7
+go/internal/reducer/sbomattest/sbom_attestation_attachment_slsa_index.go
+  h_78a442cba0b3e6 7
+go/internal/reducer/schemadecode/factschema_decode.go
+  h_78a442cba0b3e6 7-10
+go/internal/reducer/schemadecode/factschema_decode_azure.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_cicdrun.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_codedataflow.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_codegraph.go
+  h_78a442cba0b3e6 11-12
+go/internal/reducer/schemadecode/factschema_decode_codeowners.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_documentation.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_imagereference.go
+  h_78a442cba0b3e6 7-10
+go/internal/reducer/schemadecode/factschema_decode_incident.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_kuberneteslive.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_observability.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_ociregistry.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_reducerderived.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_sbom.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_scannerworker.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_secretsiam.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_securityalert.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_servicecatalog.go
+  h_78a442cba0b3e6 11-12
+go/internal/reducer/schemadecode/factschema_decode_submodule.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/schemadecode/factschema_decode_test.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/schemadecode/factschema_decode_vulnerability.go
+  h_78a442cba0b3e6 7-8
+go/internal/reducer/secgroup/security_group_cidr_materialization.go
+  h_78a442cba0b3e6 17
+go/internal/reducer/secgroup/security_group_reachability.go
+  h_78a442cba0b3e6 11
+go/internal/reducer/secretsiam/secrets_iam_trust_chain_build.go
+  h_78a442cba0b3e6 9-10
+go/internal/reducer/secretsiam/secrets_iam_trust_chain_iam_role.go
+  h_78a442cba0b3e6 7
+go/internal/reducer/secretsiam/secrets_iam_trust_chain_iam_role_uid_test.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/securityalert/reconciliation.go
+  h_78a442cba0b3e6 11
+go/internal/reducer/securityalert/reconciliation_decode.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/securityalert/reconciliation_observed_version.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/securityalert/reconciliation_test.go
+  h_78a442cba0b3e6 11
+go/internal/reducer/servicecatalog/service_catalog_correlation_input_invalid_test.go
+  h_78a442cba0b3e6 13
+go/internal/reducer/sqlrelationship/sql_relationship_aliases.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/submodule_pin_materialization_test.go
+  h_78a442cba0b3e6 11-12
+go/internal/reducer/supplychain/core/decode.go
+  h_78a442cba0b3e6 11-12
+go/internal/reducer/supplychain/core/go_reachability_extract.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/supplychain/core/typed_decode.go
+  h_78a442cba0b3e6 9
+go/internal/reducer/supplychain/core/writer.go
+  h_78a442cba0b3e6 13-14
+go/internal/reducer/tfconfigstate/terraform_config_state_drift_writer.go
+  h_78a442cba0b3e6 13-14
+go/internal/reducer/tfconfigstate/terraform_config_state_drift_writer_module_resolution_test.go
+  h_78a442cba0b3e6 11
+go/internal/reducer/tfconfigstate/terraform_config_state_drift_writer_retire_test.go
+  h_78a442cba0b3e6 15
+go/internal/reducer/tfconfigstate/terraform_config_state_drift_writer_test.go
+  h_78a442cba0b3e6 12-13
+go/internal/reducer/workload_cloud_relationship_materialization.go
+  h_78a442cba0b3e6 15
+go/internal/relationships/argocd_generator_config.go
+  h_78a442cba0b3e6 10
+go/internal/relationships/flux_evidence.go
+  h_78a442cba0b3e6 10,13
+go/internal/relationships/gcp_evidence.go
+  h_78a442cba0b3e6 9-10
+go/internal/relationships/gcp_evidence_bench_test.go
+  h_78a442cba0b3e6 10-11
+go/internal/relationships/gcp_evidence_test.go
+  h_78a442cba0b3e6 9-10
+go/internal/relationships/structured_family_evidence.go
+  h_78a442cba0b3e6 9,11
+go/internal/relationships/structured_kustomize_evidence.go
+  h_78a442cba0b3e6 7
+go/internal/relationships/terraform_evidence.go
+  h_78a442cba0b3e6 10
+go/internal/relationships/terragrunt_helper_evidence.go
+  h_78a442cba0b3e6 7,9
+go/internal/reportbundle/redact.go
+  h_78a442cba0b3e6 10
+go/internal/reportbundle/redact_test.go
+  h_78a442cba0b3e6 11
+go/internal/reportbundle/redaction_canary_test.go
+  h_78a442cba0b3e6 11
+go/internal/reportbundle/validate.go
+  h_78a442cba0b3e6 12
+go/internal/semanticdocs/golden_cassette_test.go
+  h_78a442cba0b3e6 14
+go/internal/storage/cypher/cloud/aws/ec2/instance_node_writer.go
+  h_78a442cba0b3e6 10
+go/internal/storage/postgres/aws_cloud_runtime_drift_findings_roundtrip_test.go
+  h_78a442cba0b3e6 12-13
+go/internal/storage/postgres/cloud_inventory_identity_decode.go
+  h_78a442cba0b3e6 9-11
+go/internal/storage/postgres/cloud_tag_evidence.go
+  h_78a442cba0b3e6 15
+go/internal/storage/postgres/code_drifted_findings.go
+  h_78a442cba0b3e6 11-12
+go/internal/storage/postgres/code_drifted_findings_test.go
+  h_78a442cba0b3e6 12-13
+go/internal/storage/postgres/container_image_identity_cloud_reopen_ordering_postgres_live_test.go
+  h_78a442cba0b3e6 15-16
+go/internal/storage/postgres/facts_active_supply_chain_impact_file_kind_gate_test.go
+  h_78a442cba0b3e6 15-21
+go/internal/storage/postgres/factschema_decode_cloud_tag_evidence.go
+  h_78a442cba0b3e6 7-9
+go/internal/storage/postgres/readiness_wait_supersession_live_test.go
+  h_78a442cba0b3e6 17
+go/internal/storage/postgres/secrets_iam_trust_chain_anchor_decode.go
+  h_78a442cba0b3e6 10
+go/internal/storage/postgres/secrets_iam_trust_chain_evidence_loader_test.go
+  h_78a442cba0b3e6 14
+go/internal/storage/postgres/service_incident_evidence_loader_test.go
+  h_78a442cba0b3e6 12
+go/internal/storage/postgres/vulnerability_suppression_advisory_e2e_live_test.go
+  h_78a442cba0b3e6 20
+go/internal/storage/postgres/vulnerability_suppression_store.go
+  h_78a442cba0b3e6 19
+go/internal/synth/gcp/collection_warnings.go
+  h_78a442cba0b3e6 9-10
+go/internal/synth/gcp/conformance_test.go
+  h_78a442cba0b3e6 12-14
+go/internal/synth/gcp/demo_envelopes_test.go
+  h_78a442cba0b3e6 9
+go/internal/synth/gcp/dns_records.go
+  h_78a442cba0b3e6 11-12
+go/internal/synth/gcp/generator.go
+  h_78a442cba0b3e6 14-15
+go/internal/synth/gcp/generator_test.go
+  h_78a442cba0b3e6 11
+go/internal/synth/gcp/iam_policy_observations.go
+  h_78a442cba0b3e6 9-10
+go/internal/synth/gcp/multiscope_test.go
+  h_78a442cba0b3e6 10
+go/internal/synth/gcp/relationships.go
+  h_78a442cba0b3e6 9-10
+go/internal/synth/gcp/resources.go
+  h_78a442cba0b3e6 10-11
+go/internal/urlredact/free_text.go
+  h_78a442cba0b3e6 11
+go/internal/urlredact/query.go
+  h_78a442cba0b3e6 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "38b741d579f15171261d77588bdab96eb43c937b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

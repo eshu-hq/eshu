@@ -1,0 +1,16 @@
+docs/internal/evidence/8851-sdk-consumer-migration.md
+  h_78a442cba0b3e6 6,9-13
+go/internal/collector/repo/git/manifest_declaration_emission_test.go
+  h_78a442cba0b3e6 15-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b8fda910d5891fb5242f5444a43958f4ce7ece0f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
