@@ -27,7 +27,7 @@ func addManifestDependencySupplyChainConsumption(
 		return
 	}
 	for _, dependency := range dependencies {
-		dependencyKeys := stringSet(dependency.ConsumptionKeys(dependency.DependencyName))
+		dependencyKeys := manifestDependencyKeySet(dependency)
 		if len(dependencyKeys) == 0 {
 			continue
 		}
@@ -41,6 +41,15 @@ func addManifestDependencySupplyChainConsumption(
 			)
 		}
 	}
+}
+
+// manifestDependencyKeySet is the one place a manifest dependency becomes the
+// registry-identity key set both supply-chain paths compare against affected
+// packages: the consumption join here and the parser-file repository scope in
+// active_filter.go. An sbt row yields the keys of its Maven artifact and
+// nothing else (#8961), so the two paths cannot disagree about a row.
+func manifestDependencyKeySet(dependency correlation.PackageManifestDependency) map[string]struct{} {
+	return stringSet(dependency.ConsumptionKeys(dependency.DependencyName))
 }
 
 type manifestAffectedPackageMatch struct {

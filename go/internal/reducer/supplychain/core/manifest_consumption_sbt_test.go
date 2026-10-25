@@ -4,10 +4,12 @@
 package core
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
@@ -150,4 +152,48 @@ func TestSBTSourcedFindingNeverClaimsJVMReachability(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestManifestDependencyKeySetIsSharedByBothSupplyChainPaths pins the one key
+// function the consumption join and the parser-file repository scope use. The
+// scope path admits only npm advisories while sbt keys are Maven, so the sbt
+// case is equivalent to "no repository" today; this is a consistency pin, not
+// a behavior change, and it fails if either path computes its own keys again.
+func TestManifestDependencyKeySetIsSharedByBothSupplyChainPaths(t *testing.T) {
+	t.Parallel()
+
+	binary := correlationDependency(t, sbtManifestRow("org.typelevel:cats-core", "binary", "org.typelevel:cats-core_2.13"))
+	if keys := manifestDependencyKeySet(binary); len(keys) == 0 {
+		t.Fatal("binary row key set is empty, want the Maven artifact keys")
+	} else {
+		for key := range keys {
+			if strings.HasSuffix(key, "cats-core") {
+				t.Fatalf("binary row key set holds the unsuffixed key %q", key)
+			}
+		}
+	}
+
+	npmAdvisory := vulnerabilityAffectedPackageFact(
+		"affected-npm", "CVE-2026-8961", "pkg:npm/cats-core", "npm", "org.typelevel:cats-core", "1.0.0", "2.0.0",
+	)
+	npmRow := packageManifestDependencyFactWithMetadata(
+		testImpactRepositoryID, "api", "package-lock.json", "org.typelevel:cats-core", "npm", "1.0.0",
+		time.Date(2026, 10, 25, 9, 0, 0, 0, time.UTC), map[string]any{"lockfile": true},
+	)
+	sbtRow := sbtManifestRow("org.typelevel:cats-core", "binary", "org.typelevel:cats-core_2.13")
+	if got := supplyChainImpactParserFileRepositoryIDs([]facts.Envelope{npmAdvisory, npmRow}); len(got) != 1 || got[0] != testImpactRepositoryID {
+		t.Fatalf("npm row repository scope = %v, want [%s]", got, testImpactRepositoryID)
+	}
+	if got := supplyChainImpactParserFileRepositoryIDs([]facts.Envelope{npmAdvisory, sbtRow}); len(got) != 0 {
+		t.Fatalf("sbt row repository scope = %v, want none: its keys are Maven, not npm", got)
+	}
+}
+
+func correlationDependency(t *testing.T, envelope facts.Envelope) correlation.PackageManifestDependency {
+	t.Helper()
+	dependencies := correlation.ExtractPackageManifestDependencies([]facts.Envelope{envelope})
+	if len(dependencies) != 1 {
+		t.Fatalf("dependencies = %d, want 1", len(dependencies))
+	}
+	return dependencies[0]
 }
