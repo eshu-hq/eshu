@@ -49,6 +49,9 @@ const (
 	DomainCodeValueFlowRefresh Domain = "code_value_flow_refresh"
 	// DomainCodeownersOwnership owns CODEOWNERS materialization.
 	DomainCodeownersOwnership Domain = "codeowners_ownership"
+	// DomainRuntimeDeclarationProjection projects runtime_declaration.version
+	// facts into Repository-[:DECLARES_RUNTIME]->RuntimeDeclaration (#8816).
+	DomainRuntimeDeclarationProjection Domain = "runtime_declaration_projection"
 	// DomainConfigStateDrift owns configuration-state drift correlation.
 	DomainConfigStateDrift Domain = "config_state_drift"
 	// DomainContainerImageIdentity owns container image identity.
@@ -252,6 +255,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainRationaleMaterialization:                 {},
 	DomainCodeownersOwnership:                      {},
 	DomainSubmodulePin:                             {},
+	DomainRuntimeDeclarationProjection:             {},
 	DomainConfigStateDrift:                         {},
 	DomainPackageSourceCorrelation:                 {},
 	DomainCodeImportRepoEdge:                       {},

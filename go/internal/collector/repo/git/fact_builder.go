@@ -436,6 +436,7 @@ func streamFacts(
 	w.Send(rationaleMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.Send(codeownersOwnershipFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.Send(submodulePinFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.Send(runtimeDeclarationProjectionFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	if snapshot.Delta {
 		w.Send(shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 		return

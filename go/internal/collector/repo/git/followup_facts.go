@@ -411,3 +411,35 @@ func submodulePinFactEnvelope(
 		repoPath,
 	)
 }
+
+// runtimeDeclarationProjectionFactEnvelope builds the per-repository follow-up
+// marker that triggers the runtime_declaration_projection reducer domain
+// (issue #8816). The handler projects runtime_declaration.version facts into
+// RuntimeDeclaration nodes. It is emitted unconditionally per repository, on
+// full and delta generations, not gated on pin-file presence: a generation
+// that deletes the last pin file emits no runtime_declaration.version fact,
+// and only this marker makes the domain run and retract the stale nodes.
+func runtimeDeclarationProjectionFactEnvelope(
+	repoPath string,
+	repoID string,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+) facts.Envelope {
+	payload := map[string]any{
+		"reducer_domain": "runtime_declaration_projection",
+		"entity_key":     followupEntityKey("runtime_declaration", repoID),
+		"reason":         "repository snapshot emitted runtime declaration follow-up",
+		"repo_id":        repoID,
+	}
+
+	return model.FactEnvelope(
+		"shared_followup",
+		scopeID,
+		generationID,
+		observedAt,
+		"shared_followup:"+repoID+":runtime_declaration_projection",
+		payload,
+		repoPath,
+	)
+}

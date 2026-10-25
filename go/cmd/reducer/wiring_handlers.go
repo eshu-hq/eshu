@@ -295,6 +295,7 @@ func buildReducerCodeEvidenceHandlers(
 	return reducer.CodeEvidenceHandlers{
 		CodeTaintEvidenceLoader:              factStore,
 		CodeTaintEvidenceWriter:              graphWriters.codeTaintEvidence,
+		RuntimeDeclarationWriter:             graphWriters.runtimeDeclaration,
 		CodeInterprocEvidenceLoader:          factStore,
 		CodeInterprocEvidenceWriter:          graphWriters.codeInterprocEvidence,
 		CodeFunctionSummaryLoader:            factStore,

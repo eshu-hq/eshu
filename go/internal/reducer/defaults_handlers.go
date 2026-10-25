@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/function/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
@@ -344,6 +345,12 @@ type CodeEvidenceHandlers struct {
 	// CodeTaintEvidenceWriter projects taint findings into CodeTaintEvidence graph
 	// nodes attached to their Function.
 	CodeTaintEvidenceWriter taint.EvidenceWriter
+
+	// RuntimeDeclarationWriter projects runtime_declaration.version facts into
+	// RuntimeDeclaration nodes linked from their Repository by DECLARES_RUNTIME
+	// (#8816). The domain is always registered, so cmd/reducer must wire it;
+	// a nil writer fails every runtime_declaration_projection intent loudly.
+	RuntimeDeclarationWriter declaration.Writer
 
 	// CodeInterprocEvidenceLoader loads the raw code_interproc_evidence fact
 	// envelopes; the handler decodes + quarantines them (Contract System v1

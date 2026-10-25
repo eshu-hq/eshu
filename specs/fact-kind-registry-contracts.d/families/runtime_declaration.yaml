@@ -10,7 +10,7 @@ admission_hook: facts.ValidateSchemaVersion
 read_surface: none
 truth_profile: deterministic
 provider_key_independent: true
-declaration: go/internal/facts/runtime_declaration.go:59
+declaration: go/internal/facts/runtime_declaration.go:58
 kinds:
     - runtime_declaration.version
 producers:

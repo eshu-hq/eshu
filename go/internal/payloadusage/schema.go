@@ -312,6 +312,10 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	// directly-emitted fact decoded by the reducer through the typed seam
 	// (factschema_decode_submodule.go).
 	"FactKindSubmodulePin": "submodule.pin.v1.schema.json",
+	// runtime_declaration family (issue #8816): runtime_declaration.version is
+	// a directly-emitted fact decoded by the reducer through the typed seam
+	// (factschema_decode_runtime_declaration.go).
+	"FactKindRuntimeDeclarationVersion": "runtime_declaration.version.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

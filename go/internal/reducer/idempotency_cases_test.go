@@ -153,6 +153,7 @@ func idempotencyReplayCases() []idempotencyReplayCase {
 		platformInfraReplayCase(),
 		codeownersOwnershipReplayCase(),
 		submodulePinReplayCase(),
+		runtimeDeclarationReplayCase(),
 		codeValueFlowRefreshReplayCase(),
 	}
 }

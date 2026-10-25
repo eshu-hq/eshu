@@ -262,10 +262,7 @@ func mergeUsageSets(sets ...map[string][]FieldUsage) map[string][]FieldUsage {
 // typed families as new ones are added. Any family's parse error is returned
 // as a startup-time configuration error, not silently skipped.
 func parseAllStructShapes(resolved Paths) (map[string]StructShape, error) {
-	families := []struct {
-		dir   string
-		alias string
-	}{
+	families := []struct{ dir, alias string }{
 		{resolved.AWSStructDir, "awsv1"},
 		{resolved.IAMStructDir, "iamv1"},
 		{resolved.IncidentStructDir, "incidentv1"},
@@ -289,6 +286,7 @@ func parseAllStructShapes(resolved Paths) (map[string]StructShape, error) {
 		{resolved.ReducerDerivedStructDir, "reducerderivedv1"},
 		{resolved.CodeownersStructDir, "codeownersv1"},
 		{resolved.SubmoduleStructDir, "submodulev1"},
+		{resolved.RuntimeDeclarationStructDir, "runtimedeclarationv1"},
 		{resolved.ScannerWorkerStructDir, "scannerworkerv1"},
 	}
 	shapes := make(map[string]StructShape)

@@ -115,6 +115,7 @@ func TestRegistrableReducerDomainsCharacterization(t *testing.T) {
 		DomainPlatformInfraMaterialization,
 		DomainRationaleMaterialization,
 		DomainRDSPostureMaterialization,
+		DomainRuntimeDeclarationProjection,
 		DomainS3ExternalPrincipalGrantMaterialization,
 		DomainS3InternetExposureMaterialization,
 		DomainS3LogsToMaterialization,
@@ -144,7 +145,7 @@ func TestRegistrableReducerDomainsCharacterization(t *testing.T) {
 	wantKnown = append(wantKnown, DomainDataLineage, DomainOwnership, DomainGovernance)
 	sort.Slice(wantKnown, func(i, j int) bool { return wantKnown[i] < wantKnown[j] })
 	if got := reducercontract.KnownDomains(); !reflect.DeepEqual(got, wantKnown) {
-		t.Fatalf("contract.KnownDomains() = %v, want 66 registrable plus reserved data_lineage, ownership, governance: %v", got, wantKnown)
+		t.Fatalf("contract.KnownDomains() = %v, want 67 registrable plus reserved data_lineage, ownership, governance: %v", got, wantKnown)
 	}
 }
 
@@ -166,6 +167,7 @@ func TestDefaultDomainDefinitionOrderCharacterization(t *testing.T) {
 		DomainRationaleMaterialization,
 		DomainCodeownersOwnership,
 		DomainSubmodulePin,
+		DomainRuntimeDeclarationProjection,
 	}
 
 	definitions := DefaultDomainDefinitions()
@@ -244,6 +246,7 @@ func TestAllDomainsUnionCharacterization(t *testing.T) {
 		DomainRDSPostureMaterialization,
 		reducercontract.DomainRepoDependency,
 		reducercontract.DomainRunsIn,
+		DomainRuntimeDeclarationProjection,
 		DomainS3ExternalPrincipalGrantMaterialization,
 		DomainS3InternetExposureMaterialization,
 		DomainS3LogsToMaterialization,
