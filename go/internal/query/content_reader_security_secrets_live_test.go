@@ -14,6 +14,7 @@ import (
 	"time"
 
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/secret/lines"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
@@ -27,6 +28,12 @@ func openSecretProofDatabase(t testing.TB) (context.Context, *sql.DB) {
 	)
 	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
 		t.Fatalf("ApplyBootstrap(): %v", err)
+	}
+	// Migration 235 leaves a fresh schema not_built (#8833 ruling-3). Publish
+	// it the way the reducer does, so the side-table path is the one under test.
+	repairer := lines.NewRepairer(storagepostgres.SQLDB{DB: db}, db, lines.RepairOptions{})
+	if outcome, err := repairer.Tick(ctx); err != nil || outcome != lines.RepairPublished {
+		t.Fatalf("publish the fresh side table = %s, %v; want published", outcome, err)
 	}
 	return ctx, db
 }
