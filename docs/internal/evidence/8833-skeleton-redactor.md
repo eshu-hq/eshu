@@ -160,5 +160,5 @@ from a real `telemetry.Instruments` and asserts the log holds no credential.
   The 60 s local runs pass at the final head. A round-4 run found one false
   positive in the test grammar, not in the redactor: `A:1E1000` is a number the
   allowlist keeps, but `strconv.ParseFloat` reports a range error. The grammar
-  now accepts it, and the input stays as a seed in
-  `go/internal/collector/git/content/testdata/fuzz/FuzzRedactSkeleton/bfc65bb480cf439d`.
+  now accepts it, and the input stays as a seed in the
+  fuzz corpus directory of the package.
