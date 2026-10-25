@@ -77,8 +77,9 @@ authority is unchanged ("Owner push order" in `eshu-code-review`).
 
 A change to the base, commit, tree, worktree, submodule, PR claims, packet, or
 verdict voids the receipt. Then rerun the affected proof and a full review.
-Never publish an unreviewed diff. A rebase follows the decision table in
-`eshu-code-review` ("Rebase Waiver"), the single source:
+Never publish an unreviewed diff, except row 4a and tier S, which publish
+on their checks. A rebase follows the decision table in `eshu-code-review`
+("Rebase Waiver"), the single source:
 
 - Mechanical conflict (row 4a: at most 10 choice lines, or a conflict-recipe
   file such as `CHANGELOG.md` or the content pin) and a small commit after a

@@ -6,6 +6,7 @@ stalled ready work.
 
 Contents: [The failure this exists to stop](#the-failure-this-exists-to-stop),
 [The bar](#the-bar), [Derivable figures](#derivable-figures),
+[Prose form](#prose-form),
 [Findings introduced by review fixes](#findings-introduced-by-review-fixes),
 [Sweeping rule text](#sweeping-rule-text), [Repeat findings](#repeat-findings),
 [Final exact-diff attestation](#final-exact-diff-attestation),
@@ -215,7 +216,8 @@ underneath it.
 
 One clean full semantic review is required before push. Capture its inputs
 with `ci-gates review-attest capture`. `make pre-push` is the required floor
-before every push; `make pre-pr` (`make pre-pr-full` for a package move) stays
+before every push (except row 4a, tier S, or an owner push order; see Rebase
+Waiver in `eshu-code-review`); `make pre-pr` (`make pre-pr-full` for a package move) stays
 recommended, not required, for queue/lease/claim code, schema DDL, hot-path
 Cypher or graph writes, reducer projection/materialization, or a move. After
 preflight, a matching `review-attest verify` receipt replaces a duplicate full

@@ -97,7 +97,8 @@ proof, then broader checks when callers or shared contracts are affected. Use
 [local testing](../../../docs/public/reference/local-testing.md) as the gate
 source of truth.
 
-`make pre-push` is the fast local floor before every push: changed-package
+`make pre-push` is the fast local floor before every push (except row 4a, tier S, or an owner push order):
+changed-package
 test, lint, build, and vet, the file-count cap, the registry-selected static
 gates (slow ones deferred to CI with a printed reason), and
 docs-contradiction. `make pre-pr` and `make pre-pr-full` are recommended, not

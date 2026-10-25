@@ -75,7 +75,8 @@ liveness misjudgement.
 4. Capture the clean review's inputs with `ci-gates review-attest capture`.
    For a waiver note or a scoped rebase verdict, run `make pre-push` first and
    capture after it exits 0.
-   Run `make pre-push` before every push — the required floor (changed-package
+   Run `make pre-push` before every push (except row 4a, tier S, or an owner push order; see Rebase
+   Waiver in `eshu-code-review`) — the required floor (changed-package
    test/lint/build/vet, file cap, registry-selected static gates,
    docs-contradiction). For queue/lease/claim code, schema DDL, hot-path
    Cypher or graph writes, reducer projection/materialization, or a package

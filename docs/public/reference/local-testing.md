@@ -24,7 +24,7 @@ Use this fixed promotion order before opening or updating a PR:
    `.agents/skills/eshu-code-review/references/merge-bar.md`), capture a receipt.
 4. Run `make pre-push` once as the late gate, verify the receipt (a match replaces the second full review), and make no edits before push.
 
-`make pre-push` is the fast local floor run before every push, scoped to
+`make pre-push` is the fast local floor run before every push (except row 4a, tier S, or an owner push order; see Rebase Waiver in `eshu-code-review`), scoped to
 changed packages/paths: `go test` and `go test -race`, the file cap, gofumpt/lint/build/vet,
 `go vet ./...` on the merge of HEAD with the `origin/main` commit its summary names (the [merge step](local-testing/pre-push-merge.md);
 a conflict fails closed; `main` has no merge queue, so the required checks on the PR head are the authority), the

@@ -30,7 +30,7 @@ Keep outward-facing comments and review requests within user authorization.
   force-push, so both of its "stable" reads can honestly describe a head that no
   longer exists. A read whose SHA is not the current head is stale — discard it.
   Before merging, confirm local `HEAD` equals the PR's `headRefOid`.
-  Only the orchestrator runs `make pre-push` before every push and, for a
+  Only the orchestrator runs `make pre-push` before every push (except row 4a, tier S, or an owner push order) and, for a
   risky change only, the late `make pre-pr`/`make pre-pr-full`; dispatched
   executors run focused proof only (see
   [Orchestration, PR, And CI Discipline](../../../../AGENTS.md)).

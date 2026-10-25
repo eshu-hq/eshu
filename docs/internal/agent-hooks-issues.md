@@ -51,7 +51,10 @@ rewrites.
 Capture fires on a Bash call when the output has a line that is **exactly**
 `https://github.com/<owner>/<repo>/issues/<N>`. That is what `gh issue create`
 prints, and what a script that files issues echoes. A `gh api` POST to
-`repos/<owner>/<repo>/issues` also counts, through the `html_url` in its JSON.
+`repos/<owner>/<repo>/issues` also counts, through the `html_url` in its JSON. That
+includes `-X POST`, `-f title=...` and `--input body.json` (gh sends a POST whenever
+it has a request body, which is the usual REST fallback when its GraphQL path
+fails).
 
 It must not capture URLs that merely appear in other output. A gh read verb
 (`gh issue list|view|status`, `gh search`, or a `gh api` GET) is excluded, unless
@@ -118,6 +121,14 @@ the goal is DONE: the first-line DONE, the DONE beneath the `SESSION:` header, a
 the lookup that finds nothing because `/goal done` retired this session's file.
 That last one matters most, since `/goal done` is how an owner retires a goal.
 
+The check does **not** run for an unheaded, owner-written `.claude/active-goal` or
+`~/.claude/active-goal` marked `DONE`. Capture still writes that goal's sidecar
+(the resolver treats an unheaded shared goal as every session's goal), but a DONE
+there is the owner's, not a session's: the Stop hook never gates on a goal it does
+not hold the session to, the same rule that lets a foreign `SESSION:` header allow
+the stop. The parity suite treats this as intended. Whether an unheaded DONE should
+gate is a design call for the arbiter and may change.
+
 The check applies `DEFER` lines, then asks `gh issue view N -R owner/repo --json
 state` for each record still open:
 
@@ -133,7 +144,11 @@ The agent writes the ledger, so a bare `DEFER` would be a self-issued permission
 slip, the same trap `BLOCKED:` fell into before it required a live `WATCH=<pid>`.
 `<path>` must exist, be non-empty, and mention `#N` (`#9101` does not satisfy
 `#91011`). A relative path is tried against the session's cwd, then the directory
-above `.claude/`. A `DEFER` that fails the check is refused, and the refusal names the path
+above `.claude/`. The path must also not be the ledger, its `.lock` or `.tmp.*`
+files, the goal file, or any other `.claude/active-goal*` file. Every ledger record
+names its own issue and the goal file can too, so either would pass "names the
+issue" for free; paths are compared by realpath, so a symlink or `..` does not get
+around it. A `DEFER` that fails the check is refused, and the refusal names the path
 and the reason.
 
 ### Timeouts
@@ -205,6 +220,12 @@ unchecked issue in front of the agent afterwards.
   owed. Close them or `DEFER` them.
 - A `/goal done` typed by the owner is checked the same way as one the agent
   writes.
+- An unheaded, owner-written `.claude/active-goal` or `~/.claude/active-goal` set to
+  `DONE` ends the goal without the DONE check, even when its sidecar holds an open
+  issue. See "The DONE check".
+- Capture misses an issue created through `gh api graphql` (a `createIssue`
+  mutation). Its output has no bare issue URL and no `repos/.../issues` endpoint in
+  the command, so neither path fires.
 - Capture is wired for Claude and Muse only. Neither Cursor (`.cursor/hooks.json`) nor Codex runs `issue-capture.sh`.
 
 Tests: `scripts/test-issue-capture-hook.sh` (with its sourced companion

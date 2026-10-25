@@ -76,7 +76,8 @@ Capture the clean verdict's exact inputs with `ci-gates review-attest capture`.
 The order is: proof, clean preliminary review plus that capture, `make
 pre-push`, `ci-gates review-attest verify`, then push. For a waiver note,
 `make pre-push` runs before the capture ([Rebase Waiver](#rebase-waiver)).
-`make pre-push` is the required floor before every push — changed-package test/lint/build/vet, the
+`make pre-push` is the required floor before every push (except row 4a, tier S, or an owner push order; see
+[Rebase Waiver](#rebase-waiver)) — changed-package test/lint/build/vet, the
 file cap, registry-selected static gates, and docs-contradiction. For
 queue/lease/claim code, schema DDL, hot-path Cypher or graph writes, reducer
 projection/materialization, or a package move, the orchestrator also runs one
