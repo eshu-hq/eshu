@@ -61,7 +61,7 @@ declarations, not with the label, because the seek is on the composite index.
 
 ## Repository-scale check
 
-The same shapes at 50,000 declarations across 5,000 repositories (10 per
+Run after the implementation, at review request, on the same image. The same shapes at 50,000 declarations across 5,000 repositories (10 per
 repository) on the same image stay index-driven: no plan holds
 `NodeByLabelScan` or `AllNodesScan`. The threshold query reads 10,002 matching
 index rows (50,061 db hits, 1 + 29 ms warm); the 500-row production upsert
@@ -86,6 +86,25 @@ table is in `docs/public/reference/cypher-runtime-declarations.md`.
 - The replay cost scenario
   (`go/internal/replay/costcounting/runtime_declaration_cost_test.go`) pins
   one write batch per intent; writing one row per call exceeds the budget.
+
+## Ifá coverage scope
+
+The family is a direct materialization (`WriteRuntimeDeclarations`), so it
+belongs in the direct half of the Ifá ledger. This change lands the offline
+half: the cataloged Odù `odu:ifa-runtime-declaration-family`, the
+`resolveRuntimeDeclarationMaterializedEdges` vacuity guard, the hand-derived
+four-edge fixture, and the registry entry (registered from
+`runtime_declaration_family.go` because `single_type_families.go` is past the
+500-line cap). `go test ./internal/ifa ./internal/ifa/materializededges
+./cmd/ifa` and `./internal/reducer/...` pass, and keeping blank-runtime facts
+fails the guard with an extra edge.
+
+The live half stays waived on #6228 for both proof gates, `ifa-determinism`
+and `ifa-fault-injection`. Those matrices are Docker live gates on fixed ports,
+so they cannot run locally under the lane rules, and CI must not be their first
+run. The live enrollment follows the code_taint_evidence live leaf (fee10c8346):
+a cassette, a registry row, drive and assert callbacks, the fault trio cells,
+and an `assert-edges` endpoint rule for the keyless `RuntimeDeclaration` label.
 
 No-Regression Evidence: the change adds a domain and touches no existing
 write path. The only shared effect is one more `shared_followup` fact per
