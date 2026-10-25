@@ -357,6 +357,20 @@ TABLE = {
         "go/internal/storage/postgres/package_manifest_consumption_page_plan_live_test.go": (
             "TestPackageManifestConsumptionScopeFactsPageUsesBackfillIndexLive",
         ),
+        "go/internal/storage/postgres/package_manifest_sbt_artifact_live_test.go": (
+            "TestListActivePackageManifestDependencyFactsReachesGradleAndSBTLive",
+        ),
+        "go/internal/storage/postgres/package_manifest_sbt_repair_live_test.go": (
+            "TestPackageManifestSBTRepairOldLogicRunLeavesRepairStateUntouched",
+            "TestPackageManifestSBTRepairAddsKeysWithoutFlippingReadiness",
+            "TestPackageManifestSBTRepairIsANoOpWithoutSBTRows",
+            "TestPackageManifestSBTRepairWaitsForTheV2Marker",
+        ),
+        "go/internal/storage/postgres/package_manifest_sbt_repair_lock_live_test.go": (
+            "TestPackageManifestSBTRepairResumesAtItsCursorAfterAFailedPage",
+            "TestPackageManifestSBTRepairReturnsLockTimeoutWithoutAdvancing",
+            "TestPackageManifestSBTRepairNeverInsertsAStaleKeyBehindARewrite",
+        ),
         "go/internal/storage/postgres/prefetch_batch_plan_live_test.go": (
             "TestPrefetchBatchQueriesUsePrimaryKeyLive",
         ),
@@ -470,21 +484,6 @@ TABLE = {
             "TestRetentionCascadeHeldRowRaceLive",
             "TestRetentionCascadeDeletesRowChangedBeforeItsLockLive",
             "TestRetentionCascadeConcurrentWithSweepAndReplaysNeverDeadlockLive",
-        ),
-        "go/internal/storage/postgres/recovery_refinalize_delta_active_fence_live_test.go": (
-            "TestRefinalizeDeltaActiveRollsBackReindexWithTheTransaction",
-            "TestRefinalizeDeltaActiveReindexLockContention",
-        ),
-        "go/internal/storage/postgres/recovery_refinalize_delta_active_live_test.go": (
-            "TestRefinalizeDeltaActiveRequestsFullReindex",
-            "TestRefinalizeDeltaActiveConvergesAcrossTwoCalls",
-        ),
-        "go/internal/storage/postgres/recovery_refinalize_fence_admission_live_test.go": (
-            "TestRefinalizeFenceAdmissionDeadlineStopsAfterFenceAcquire",
-            "TestRefinalizeFenceAdmissionPersistentHolderExhaustsWithoutConvoy",
-            "TestRefinalizeFenceAdmissionBoundsRetryBegin",
-            "TestRefinalizeFenceAdmissionCallerCancellation",
-            "TestRefinalizeFenceAdmissionWriteAndCommitFailuresKeepTheirCauses",
         ),
     },
 }
