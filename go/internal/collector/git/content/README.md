@@ -72,15 +72,34 @@ updated in the same change.
   quote restored around the marker. A value-shape match (an AWS key, a Slack
   token, a Stripe key) is replaced from the shape to the end of the line. One
   marker per line (arbiter ruling B1, 2026-10-24).
-- **YAML indirection fails closed** (`marker_yaml.go`, #8833). Before
-  redacting, the body is parsed with `gopkg.in/yaml.v3`. Any alias anywhere,
-  or a mapping key that decodes to a listed key on a source line where the
-  key pattern does not match (an explicit `? npmAuthToken` entry, an escaped
-  spelling such as `"npmAuth\x54oken"`), returns `errYAMLIndirection`. A line
-  check runs too, so a body that does not parse is still covered: an
+- **YAML indirection fails closed** (`marker_yaml.go`, `marker_yaml_cover.go`,
+  #8833). A body that holds `*`, `?`, a backslash, `{`, or `[` is parsed with
+  `gopkg.in/yaml.v3` after line redaction. Any alias anywhere, or a mapping key
+  that decodes to a listed key on a source line where the key pattern does not
+  match (an explicit `? npmAuthToken` entry, an escaped spelling such as
+  `"npmAuth\x54oken"`), returns `errYAMLIndirection`. So does a listed key
+  whose value can reach a line the redactor left alone: the redactor treats the
+  lines after a listed key as its value only while each is more indented than
+  the key's line (or a same-indent `- ` or `-<tab>` item), but inside a flow
+  collection a line break is white space at any indent, and a plain scalar can
+  continue at any indent. yaml.v3 reports only where a node starts, so the rule
+  is: for each listed key (not one inside another listed key's value), every line
+  from the line after the key to the line before the next node starts, and the
+  text before that node on its own line, must be a line the redactor replaced,
+  or blank, a comment, only flow brackets and commas, a `---` or `...` marker,
+  or a line that already holds a `REDACTED_<kind>` marker. Any other line fails
+  closed. An ordinary block file never trips it: the next key starts on the
+  next line, and a block scalar or quoted value spills only onto more-indented
+  lines the redactor covers. A comment line at or below the key's indent does
+  not end the continuation. yaml.v3 rejects a tab as flow indentation and a
+  bare document after `...`, which Yarn's js-yaml reads; for a body it cannot
+  parse, the same rule runs on the lines: after a line a listed key matches, the
+  following lines up to the first bracket-only line or entry line must be
+  replaced, blank, or comments. A line check runs for every body: an
   explicit-key indicator (also in a flow collection or with CRLF endings) or
   value line, and a listed key whose value starts with an alias. The path then
-  becomes a metadata row with reason `yaml_indirection`.
+  becomes a metadata row with reason `yaml_indirection`. The parse and the
+  per-line record are skipped for a body with none of the five characters.
 - **Known limits (denylist).** Marker mode redacts the values of the listed
   keys and the lines the detector matches. It does not see a listed key spelled
   with a homoglyph, or split across lines inside quotes in a body that is not

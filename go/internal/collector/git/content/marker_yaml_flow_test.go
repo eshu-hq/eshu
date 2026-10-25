@@ -1,0 +1,223 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package gitcontent
+
+import (
+	"errors"
+	"strings"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+)
+
+// flowSeedToken is a value the detector does not flag, so a body that keeps it
+// leaked it through the YAML structure, not through a detector line.
+const flowSeedToken = "Zq19FlowSeedAAAAAAAA"
+
+// flowHostileSeeds are valid .yarnrc.yml bodies where a listed key's value
+// starts or continues on a line the redactor's more-indented continuation does
+// not cover: the independent #8833 review (P1) found them stored verbatim with
+// outcome clean. yaml.v3, PyYAML, and js-yaml 4.1.1 all decode the token from
+// each of them. {T} is replaced with flowSeedToken.
+var flowHostileSeeds = map[string]string{
+	"flow map value on the next line":            "{\nnpmAuthToken:\n{T}\n}\n",
+	"flow map plain scalar second half":          "{\nnpmAuthToken: abcd\n{T}\n}\n",
+	"scope flow map, value less indented":        "npmScopes:\n  acme: {npmAuthToken:\n {T}}\n",
+	"scope flow map opened above the key":        "npmScopes: {acme: {\nnpmAuthToken:\n{T}}}\n",
+	"pretty-printed JSON":                        "{\n  \"npmAuthToken\":\n  \"{T}\"\n}\n",
+	"flow map in a block mapping":                "npmScopes:\n  acme:\n    {npmAuthIdent:\n    {T}}\n",
+	"compact JSON, value on the next line":       "{\"npmScopes\": {\"acme\": {\"npmAuthToken\":\n\"{T}\"}}}\n",
+	"flow map in a sequence":                     "- {npmAuthToken:\n{T}}\n",
+	"flow sequence of maps":                      "[{npmAuthToken:\n{T}}]\n",
+	"explicit document start":                    "---\n{\nnpmAuthToken:\n{T}\n}\n",
+	"second document":                            "a: 1\n---\n{npmAuthToken:\n{T}}\n",
+	"anchor on the key's value":                  "{\nnpmAuthToken: &a\n{T}\n}\n",
+	"anchor then a plain scalar":                 "{npmAuthToken: &a abcd\n{T}}\n",
+	"tag on the key's value":                     "{\nnpmAuthToken: !!str\n{T}\n}\n",
+	"value tail shares a line with the next key": "{\nnpmAuthToken: abcd\n{T}, other: 1\n}\n",
+	"flow sequence value, tail with a sibling":   "{npmAuthToken: [a,\n{T}], other: 1}\n",
+	"CRLF":                                       "{\r\nnpmAuthToken:\r\n{T}\r\n}\r\n",
+	"CRLF plain scalar second half":              "{\r\nnpmAuthToken: abcd\r\n{T}\r\n}\r\n",
+	"comment between the key and the value":      "{\nnpmAuthToken: # c\n{T}\n}\n",
+	"blank lines between the key and the value":  "{\nnpmAuthToken:\n\n\n{T}\n}\n",
+	"value is a flow sequence":                   "{\nnpmAuthToken: [\n{T}\n]\n}\n",
+	"value is a flow map":                        "{\nnpmAuthToken: {\na: {T}\n}\n}\n",
+	"value is a flow map at the key's line":      "npmAuthToken: {\na: {T}\n}\n",
+	"value is a flow sequence at the key's line": "npmAuthToken: [\n{T}\n]\n",
+	"URL key, value on the next line":            "{\nnpmRegistryServer:\nhttps://user:{T}@registry.example.com/\n}\n",
+	"URL key, plain scalar second half":          "{\nhttpsProxy: http://registry.example.com\nuser:{T}@proxy.example.com\n}\n",
+	"comment line closes a block continuation":   "npmAuthToken:\n# c\n  {T}\n",
+	"comment and blank lines before the value":   "npmScopes:\n  acme:\n    npmAuthToken:\n# c\n\n      {T}\n",
+	"tab after the sequence dash":                "npmAuthToken:\n-\t{T}\n",
+	"tab after the dash, nested":                 "npmScopes:\n  acme:\n    npmAuthToken:\n    -\t{T}\n",
+	"tab-indented flow value":                    "{\n\t\tnpmAuthToken:\n\t{T}\n}\n",
+	"double quoted, closes on a later line":      "{\nnpmAuthToken: \"abcd\n{T}\"\n}\n",
+	"single quoted, closes on a later line":      "{\nnpmAuthToken: 'abcd\n{T}'\n}\n",
+	"JSON key, quoted value folded":              "{\n  \"npmAuthToken\": \"ab\n{T}\"\n}\n",
+}
+
+func flowSeedBody(template string) string {
+	return strings.ReplaceAll(template, "{T}", flowSeedToken)
+}
+
+// TestRedactMarkerFlowValueOffTheKeyLineNeverLeaks pins the #8833 P1: a valid
+// .yarnrc.yml whose listed key's value sits on a later line that the redactor's
+// continuation does not cover must not be stored with the value in it. Each
+// body either fails closed (errYAMLIndirection, a metadata row) or comes back
+// without the token. None may be a verbatim clean result.
+func TestRedactMarkerFlowValueOffTheKeyLineNeverLeaks(t *testing.T) {
+	t.Parallel()
+
+	registry := parser.DefaultRegistry()
+	store := registry.ContentStoreForPath(".yarnrc.yml")
+	if store.Policy != parser.ContentStoreRedact {
+		t.Fatalf(".yarnrc.yml binds %q, want redact", store.Policy)
+	}
+	for name, template := range flowHostileSeeds {
+		body := flowSeedBody(template)
+		result := ApplyContentStore(store, body)
+		if strings.Contains(result.Body, flowSeedToken) {
+			t.Errorf("%s: the token was stored (outcome %s):\n%s", name, result.Outcome, result.Body)
+		}
+		if result.Outcome != StoreOutcomeRedactorFailed && result.Outcome != StoreOutcomeRedacted {
+			t.Errorf("%s: outcome = %s, want redactor_failed or redacted", name, result.Outcome)
+		}
+		if result.Outcome == StoreOutcomeRedactorFailed && result.Body != "" {
+			t.Errorf("%s: a failed result carries a body: %q", name, result.Body)
+		}
+	}
+}
+
+// TestRedactMarkerFlowShapesFailClosed pins the exact answer for the shapes the
+// review named: the redactor cannot reach the value, so the body becomes a
+// metadata row with reason yaml_indirection.
+func TestRedactMarkerFlowShapesFailClosed(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{
+		"flow map value on the next line",
+		"flow map plain scalar second half",
+		"scope flow map, value less indented",
+		"scope flow map opened above the key",
+		"pretty-printed JSON",
+		"flow map in a block mapping",
+		"compact JSON, value on the next line",
+		"flow sequence of maps",
+		"explicit document start",
+		"second document",
+		"CRLF",
+		"value is a flow sequence",
+		"value is a flow map",
+	} {
+		body := flowSeedBody(flowHostileSeeds[name])
+		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
+		if !errors.Is(err, errYAMLIndirection) {
+			t.Errorf("%s: err = %v, want errYAMLIndirection", name, err)
+		}
+		if got := failureReason(err); got != FailureYAMLIndirection {
+			t.Errorf("%s: failure reason = %q, want %q", name, got, FailureYAMLIndirection)
+		}
+	}
+}
+
+// TestRedactMarkerFlowFailClosedIsNotAFalsePositive pins the bodies the new rule
+// must leave alone: ordinary block files, a flow map whose listed values sit on
+// the key line, pretty-printed flow with closer-only lines, comments, block
+// and quoted scalars at greater indent, and a value on the next line that the
+// continuation covers.
+func TestRedactMarkerFlowFailClosedIsNotAFalsePositive(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"typical block file": "nodeLinker: node-modules\nnpmRegistryServer: \"https://registry.example.com/\"\n" +
+			"npmAuthToken: abcdef0123456789\nenableTelemetry: false\n",
+		"scopes block": "npmScopes:\n  acme:\n    npmAuthToken: " + flowSeedToken + "\n    npmRegistryServer: \"https://r.example.com/\"\n" +
+			"  other:\n    npmAuthIdent: " + flowSeedToken + "\n",
+		"registries block": "npmRegistries:\n  \"//registry.example.com\":\n    npmAuthToken: " + flowSeedToken + "\n    npmAlwaysAuth: true\n",
+		"comments between keys": "# header\nnpmScopes:\n  # scope\n  acme:\n    # token\n    npmAuthToken: " + flowSeedToken +
+			"\n\n    # tail\n  other: {}\n",
+		"folded scalar":                 "npmAuthToken: >\n  " + flowSeedToken + "\n  more\nnext: ok\n",
+		"literal scalar":                "npmAuthToken: |\n  " + flowSeedToken + "\nnext: ok\n",
+		"quoted value":                  "npmAuthToken: \"" + flowSeedToken + "\"\nnext: ok\n",
+		"quoted multi-line at greater":  "npmAuthToken: \"abcd\n  " + flowSeedToken + "\"\nnext: ok\n",
+		"value on the next line":        "npmAuthToken:\n  " + flowSeedToken + "\nnext: ok\n",
+		"same-indent sequence":          "npmAuthToken:\n- " + flowSeedToken + "\nnext: ok\n",
+		"env reference on the next":     "npmAuthToken:\n  ${NPM_TOKEN}\n",
+		"flow on one line":              "npmScopes: {acme: {npmAuthToken: " + flowSeedToken + "}}\n",
+		"JSON on one line":              "{\"npmScopes\": {\"acme\": {\"npmAuthToken\": \"" + flowSeedToken + "\"}}}\n",
+		"pretty JSON, values inline":    "{\n  \"npmAuthToken\": \"" + flowSeedToken + "\",\n  \"nodeLinker\": \"node-modules\"\n}\n",
+		"pretty flow with closers":      "npmScopes: {\n  acme: {\n    npmAuthToken: " + flowSeedToken + "\n  }\n}\n",
+		"pretty flow, trailing comma":   "npmScopes: {\n  acme: {npmAuthToken: " + flowSeedToken + "},\n  other: {}\n}\n",
+		"flow sequence unrelated":       "supportedArchitectures:\n  os: [linux, darwin]\n  cpu: [x64, arm64]\nnpmAuthToken: " + flowSeedToken + "\n",
+		"multi-line flow sequence":      "packageExtensions:\n  a@1:\n    peerDependencies: {\n      b: \"*\",\n    }\nnpmAuthToken: " + flowSeedToken + "\n",
+		"flow value then block sibling": "plugins: [a, b]\nnpmAuthToken: " + flowSeedToken + "\nlast: [1,\n  2]\n",
+		"document markers":              "---\nnpmAuthToken: " + flowSeedToken + "\n...\n",
+		"flow key on the key line":      "{npmAuthToken: " + flowSeedToken + ",\nnodeLinker: pnp}\n",
+		"CRLF block file":               "npmScopes:\r\n  acme:\r\n    npmAuthToken: " + flowSeedToken + "\r\n",
+		"non-YAML text with braces":     "npmAuthToken: " + flowSeedToken + "\n  bad: [\n",
+	} {
+		out, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
+		if err != nil {
+			t.Errorf("%s: err = %v, want the body redacted", name, err)
+			continue
+		}
+		if strings.Contains(out, flowSeedToken) {
+			t.Errorf("%s: the token survived:\n%s", name, out)
+		}
+	}
+}
+
+// realisticYarnrcFiles are ordinary .yarnrc.yml files in the shapes the Yarn
+// documentation and public repositories use: block mappings and sequences,
+// flow collections for short lists and maps, comments, quoted values, folded
+// and literal scalars, CRLF endings, and a document start. None may fail
+// closed: that is the false-positive floor of the flow rule.
+var realisticYarnrcFiles = map[string]string{
+	"minimal": "nodeLinker: node-modules\n",
+	"registry and scope": "nodeLinker: node-modules\nnpmRegistryServer: \"https://registry.example.com/\"\n" +
+		"npmScopes:\n  acme:\n    npmRegistryServer: \"https://npm.acme.example/\"\n    npmAlwaysAuth: true\n    npmAuthToken: ${ACME_NPM_TOKEN}\n",
+	"registries by host": "npmRegistries:\n  //registry.example.com:\n    npmAlwaysAuth: true\n    npmAuthIdent: ${NPM_IDENT:-}\n" +
+		"  \"//npm.pkg.github.com/\":\n    npmAuthToken: " + flowSeedToken + "\n",
+	"plugins and log filters": "plugins:\n  - path: .yarn/plugins/@yarnpkg/plugin-workspace-tools.cjs\n    spec: \"@yarnpkg/plugin-workspace-tools\"\n" +
+		"logFilters:\n  - code: YN0013\n    level: discard\n  - pattern: \"*@types/*\"\n    level: warning\n",
+	"flow lists and maps": "supportedArchitectures:\n  os: [linux, darwin]\n  cpu: [x64, arm64]\n  libc: [glibc]\n" +
+		"packageExtensions:\n  \"debug@*\":\n    peerDependenciesMeta: {supports-color: {optional: true}}\n" +
+		"npmScopes: {acme: {npmAuthToken: " + flowSeedToken + ", npmAlwaysAuth: true}}\n",
+	"multi-line flow with closers": "packageExtensions:\n  react-dom@*: {\n    peerDependencies: {\n      react: \"*\",\n    },\n  }\n" +
+		"npmScopes:\n  acme: {\n    npmAuthToken: " + flowSeedToken + ",\n    npmRegistryServer: \"https://npm.acme.example/\"\n  }\n",
+	"pretty JSON": "{\n  \"nodeLinker\": \"node-modules\",\n  \"npmScopes\": {\n    \"acme\": {\n      \"npmAuthToken\": \"" + flowSeedToken + "\",\n" +
+		"      \"npmRegistryServer\": \"https://npm.acme.example/\"\n    }\n  },\n  \"enableTelemetry\": false\n}\n",
+	"tab-indented JSON": "{\n\t\"nodeLinker\": \"node-modules\",\n\t\"npmAuthToken\": \"" + flowSeedToken + "\",\n\t\"enableTelemetry\": false\n}\n",
+	"comments everywhere": "# Yarn config\n\nnpmScopes: # scopes\n  # acme\n  acme:\n    # the token\n    npmAuthToken: " + flowSeedToken +
+		" # rotate yearly\n\n    # end\n  other: {} # none\n",
+	"folded and literal":     "npmAuthToken: >-\n  " + flowSeedToken + "\n\nenableMessageNames: |\n  yes\nchecksumBehavior: update\n",
+	"quoted multi-line":      "npmScopes:\n  acme:\n    npmAuthToken: \"" + flowSeedToken + "\n      more\"\n    npmAlwaysAuth: true\n",
+	"document start":         "---\nnodeLinker: pnp\nnpmAuthToken: " + flowSeedToken + "\n",
+	"CRLF":                   "nodeLinker: pnp\r\nnpmScopes:\r\n  acme: {npmAuthToken: " + flowSeedToken + "}\r\npackageExtensions: {}\r\n",
+	"empty credential keys":  "npmScopes:\n  acme:\n    npmAuthToken:\n    npmAuthIdent: \"\"\n  other:\n    npmAuthToken: ${TOKEN}\n",
+	"key last with comments": "npmAuthToken: " + flowSeedToken + "\n# trailing\n\n",
+	"list of flow maps":      "logFilters:\n  - {code: YN0013, level: discard}\n  - {pattern: \"x\", level: info}\nnpmAuthToken: " + flowSeedToken + "\n",
+}
+
+// TestRedactMarkerRealisticYarnrcFilesDoNotFailClosed pins the false-positive
+// floor: an ordinary file is redacted, never turned into a metadata row, and
+// keeps no token.
+func TestRedactMarkerRealisticYarnrcFilesDoNotFailClosed(t *testing.T) {
+	t.Parallel()
+
+	store := parser.DefaultRegistry().ContentStoreForPath(".yarnrc.yml")
+	for name, body := range realisticYarnrcFiles {
+		result := ApplyContentStore(store, body)
+		if result.Outcome == StoreOutcomeRedactorFailed {
+			t.Errorf("%s: failed closed (%s)", name, result.Reason)
+			continue
+		}
+		if strings.Contains(result.Body, flowSeedToken) {
+			t.Errorf("%s: the token survived:\n%s", name, result.Body)
+		}
+		if strings.Count(result.Body, "\n") != strings.Count(body, "\n") {
+			t.Errorf("%s: line count changed", name)
+		}
+	}
+}

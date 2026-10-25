@@ -5,6 +5,8 @@ package gitcontent
 
 import (
 	"errors"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -137,6 +139,11 @@ func FuzzRedactMarkerURLKeys(f *testing.F) {
 		"npmRegistryServer: 'https://a@b@c/'\n", "{httpsProxy: http://u:p@h, npmAuthToken: t}\n", "npmPublishRegistry: \"x\n",
 	} {
 		f.Add(s)
+	}
+	// The #8833 P1 shapes: a listed key's value on a line the redactor's
+	// continuation does not cover.
+	for _, name := range slices.Sorted(maps.Keys(flowHostileSeeds)) {
+		f.Add(flowSeedBody(flowHostileSeeds[name]))
 	}
 	f.Fuzz(func(t *testing.T, in string) {
 		out, _, err := redactMarkerWithURLKeys(in, testCredentialKeys, testURLUserinfoKeys)

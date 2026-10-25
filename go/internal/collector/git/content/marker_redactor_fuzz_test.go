@@ -5,6 +5,8 @@ package gitcontent
 
 import (
 	"errors"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -25,6 +27,11 @@ func FuzzRedactMarker(f *testing.F) {
 		"password　: abcdefghij\n", "ſecret: abcdefgh12345\n",
 	} {
 		f.Add(s)
+	}
+	// The #8833 P1 shapes: a listed key's value on a line the redactor's
+	// continuation does not cover.
+	for _, name := range slices.Sorted(maps.Keys(flowHostileSeeds)) {
+		f.Add(flowSeedBody(flowHostileSeeds[name]))
 	}
 	keys := []string{"npmAuthToken", "npmAuthIdent"}
 	f.Fuzz(func(t *testing.T, in string) {

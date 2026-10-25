@@ -96,13 +96,25 @@ func redactMarkerWithURLKeys(body string, keys, urlKeys []string) (string, int, 
 		}
 		state.lowerURLKeys = lowerKeys(urlKeys)
 	}
-	listed := append(append([]string{}, keys...), urlKeys...)
-	if err := checkYAMLIndirection(body, listed, keyPattern, state.urlKeyPattern); err != nil {
-		return "", 0, err
-	}
 	lines := strings.Split(body, "\n")
+	// A flow collection lets a value leave the key's line at any indent, which
+	// the redactor's indent-based continuation does not follow. Record which
+	// lines it replaced something on, so the YAML check can find a value line
+	// it left alone (checkYAMLIndirection). Other bodies skip the record.
+	var covered []bool
+	if holdsAnyByte(body, '{', '[') {
+		covered = make([]bool, len(lines))
+	}
 	for i, line := range lines {
+		before := state.replaced
 		lines[i] = state.redactLine(line)
+		if covered != nil {
+			covered[i] = state.replaced != before
+		}
+	}
+	listed := append(append([]string{}, keys...), urlKeys...)
+	if err := checkYAMLIndirection(body, covered, listed, keyPattern, state.urlKeyPattern); err != nil {
+		return "", 0, err
 	}
 	return strings.Join(lines, "\n"), state.replaced, nil
 }
@@ -319,7 +331,12 @@ func (s *markerState) redactInState(line string) (string, bool) {
 			s.replaced++
 			return indent + markerPrefix + defaultMarkerKind, true
 		}
-		s.continuationOpen = false
+		// A comment line at or below the key's indent is not the value and does
+		// not end it: `key:` newline `# note` newline `  value` is one entry.
+		// The ordinary pass still reads the comment for a detector match.
+		if trimmed[0] != '#' {
+			s.continuationOpen = false
+		}
 	}
 	return line, false
 }
@@ -335,8 +352,10 @@ func pemLeftOpen(line string) bool {
 	return pemEnd.FindStringIndex(line[last[1]:]) == nil
 }
 
+// isSequenceItem reports whether trimmed opens a block sequence entry: a dash
+// alone or followed by a space or a tab.
 func isSequenceItem(trimmed string) bool {
-	return trimmed == "-" || strings.HasPrefix(trimmed, "- ")
+	return trimmed == "-" || strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "-\t")
 }
 
 // redactListedKey replaces the value of the first listed key on the line and

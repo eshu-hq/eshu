@@ -111,10 +111,13 @@ replaced, and so are the continuation lines of a listed key's block scalar or
 multi-line quoted value. The marker keeps the finding kind so
 `investigate_hardcoded_secrets` can keep reporting the line. `[redacted]` and
 `***` are not used: the detector cannot see them. A YAML alias anywhere in the body,
-or a listed key the YAML parser finds on a line the key match cannot read (an
-explicit `? npmAuthToken` entry, an escaped spelling), could leave a secret on
-a line no key reads, so each stores the metadata row instead (reason
-`yaml_indirection`).
+a listed key the YAML parser finds on a line the key match cannot read (an
+explicit `? npmAuthToken` entry, an escaped spelling), or a listed key whose
+value, in YAML flow style, continues on a line that neither the redactor
+replaced nor holds only a comment, brackets, or a document marker (for
+example `{`, then `npmAuthToken:` and its value on the next lines at the same
+indent), could leave a secret on a line no key reads, so each stores the
+metadata row instead (reason `yaml_indirection`).
 
 A `marker` definition can also list URL-valued keys, such as `npmRegistryServer`
 and `httpsProxy` in `.yarnrc.yml`. For those keys only the URL userinfo is

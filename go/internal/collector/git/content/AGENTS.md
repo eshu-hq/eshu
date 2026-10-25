@@ -45,7 +45,12 @@ body. Rules that keep it safe:
   keeps its raw kind under the migration 235 marker arm (it pinned the measured
   migration 138 losses before #8833); do not loosen it.
 - Keep `redactMarker` fail-closed for YAML value shapes. A new key shape needs a
-  seeded-violation test in `marker_redactor_test.go`.
+  seeded-violation test in `marker_redactor_test.go`. A listed key whose value
+  can leave the key's line (flow style, a plain scalar at any indent) is
+  covered by `marker_yaml_cover.go`; add the shape to `flowHostileSeeds` and
+  keep `TestRedactMarkerNeverStoresADecodedCredential`, the independent
+  yaml.v3 oracle, green. The redactor's continuation (`redactInState`) must not
+  be the only thing standing between a decoded value and the stored body.
 - Keep the URL userinfo rule (`marker_url_userinfo.go`) narrower than the
   credential-key rule only when the value is exactly one readable URL; every
   other shape must fall back to whole-value redaction.
