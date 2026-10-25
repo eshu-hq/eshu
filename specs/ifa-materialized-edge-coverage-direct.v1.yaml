@@ -492,12 +492,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-10-25"
-    reason: "WriteRuntimeDeclarations -> cypher/edge/writer/runtime_declaration.go merges DECLARES_RUNTIME onto a RuntimeDeclaration node it owns (#8816); direct materialization, no Odu, expected-edge-set fixture, or live determinism cell yet"
+    reason: "WriteRuntimeDeclarations -> cypher/edge/writer/runtime_declaration.go merges DECLARES_RUNTIME onto a RuntimeDeclaration node it owns; direct materialization. The offline half landed with #8816 (cataloged Odu odu:ifa-runtime-declaration-family, vacuity guard resolveRuntimeDeclarationMaterializedEdges, hand-derived expected-edge fixture, registry entry). Stays waived: the live ifa-determinism matrix (verify-ifa-determinism.sh, ifa-determinism-gate.yml) does not drive the family yet; live enrollment follows the fee10c8346 code_taint_evidence live-leaf pattern (cassette, registry row, drive/assert callbacks) and needs an assert-edges endpoint rule for the keyless RuntimeDeclaration label"
   - surface: "materialized_edges:runtime_declaration"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-10-25"
-    reason: "WriteRuntimeDeclarations -> cypher/edge/writer/runtime_declaration.go merges DECLARES_RUNTIME onto a RuntimeDeclaration node it owns (#8816); direct materialization, no Odu, expected-edge-set fixture, or fault cells yet"
+    reason: "WriteRuntimeDeclarations -> cypher/edge/writer/runtime_declaration.go merges DECLARES_RUNTIME onto a RuntimeDeclaration node it owns; direct materialization. The offline half landed with #8816 (cataloged Odu odu:ifa-runtime-declaration-family, vacuity guard resolveRuntimeDeclarationMaterializedEdges, hand-derived expected-edge fixture, registry entry). Stays waived: the live ifa-fault-injection matrix (verify-ifa-fault-injection.sh) has no fault cells for the family yet; live enrollment follows the fee10c8346 code_taint_evidence live-leaf pattern (cassette, fault trio cells, shard and anchor rows)"
   - surface: "materialized_edges:s3_external_principal_grant"
     proof_gate: ifa-determinism
     issue: "#6228"

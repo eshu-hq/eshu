@@ -1,0 +1,42 @@
+{
+  "odu": "odu:ifa-runtime-declaration-family",
+  "note": "Hand-derived from RuntimeDeclarationUpsertCypher (go/internal/storage/cypher/edge/writer/runtime_declaration.go): `UNWIND $rows AS row MERGE (repo:Repository {id: row.repo_id}) MERGE (d:RuntimeDeclaration {repo_id, relative_path, line_number, runtime, order_index}) SET ... MERGE (repo)-[rel:DECLARES_RUNTIME]->(d)`. DECLARES_RUNTIME is the only type this writer emits and its MERGE has no property map. The source is the owning repository id; the target is the RuntimeDeclaration five-part key joined with '|' (the node carries no uid or id). raw_spec and spec_kind are SET from the row and pinned as properties. Exactly four edges: the two tokens on the .tool-versions line (order 0 and 1), the .python-version pin, and the web/.nvmrc lts/iron alias, which is a real declaration with no version_major. The tombstoned .ruby-version fact, the .go-version fact whose runtime is blank after trimming, and the replay of the .python-version fact under the same key add nothing.",
+  "edges": [
+    {
+      "relationship_type": "DECLARES_RUNTIME",
+      "source_entity_id": "repository:eshu-fixture-runtime-pins",
+      "target_entity_id": "repository:eshu-fixture-runtime-pins|.tool-versions|1|node|0",
+      "properties": {
+        "raw_spec": "20.11.1",
+        "spec_kind": "exact"
+      }
+    },
+    {
+      "relationship_type": "DECLARES_RUNTIME",
+      "source_entity_id": "repository:eshu-fixture-runtime-pins",
+      "target_entity_id": "repository:eshu-fixture-runtime-pins|.tool-versions|1|node|1",
+      "properties": {
+        "raw_spec": "18.19.0",
+        "spec_kind": "exact"
+      }
+    },
+    {
+      "relationship_type": "DECLARES_RUNTIME",
+      "source_entity_id": "repository:eshu-fixture-runtime-pins",
+      "target_entity_id": "repository:eshu-fixture-runtime-pins|.python-version|1|python|0",
+      "properties": {
+        "raw_spec": "3.12.1",
+        "spec_kind": "exact"
+      }
+    },
+    {
+      "relationship_type": "DECLARES_RUNTIME",
+      "source_entity_id": "repository:eshu-fixture-runtime-pins",
+      "target_entity_id": "repository:eshu-fixture-runtime-pins|web/.nvmrc|1|node|0",
+      "properties": {
+        "raw_spec": "lts/iron",
+        "spec_kind": "alias"
+      }
+    }
+  ]
+}
