@@ -135,6 +135,15 @@ Unlike the repository fence it does not join `ingestion_scopes`: the
 reconciliation waits for the producer of its own generation, whether or not
 that generation is the scope's active one.
 
+The statement also counts `succeeded` rows and `dead_letter` or `failed` rows
+(#8956). `ImpactProducerState.Settled` (at least one row, none in flight, all
+succeeded) tells the handler that an unmatched decision at its cap is a genuine
+no-match; a superseded or other terminal row is in neither count and keeps the
+generation unsettled. The two `FILTER` terms add no plan change: on 351,201
+rows the plan stays an `Aggregate` over an `Index Scan` on
+`fact_work_items_scope_generation_idx` with the same buffer count (4 for a
+one-row generation, 87 for a 1,201-row generation) before and after.
+
 Observability Evidence: the handler records each decision on
 `eshu_dp_security_alert_reconciliation_impact_wait_total{domain,outcome}`; this
 store adds no signal of its own.

@@ -63,3 +63,47 @@ func TestStatusMetricsHandlerTerminalFailureGaugeUsesPerKindClasses(t *testing.T
 		t.Fatalf("GET /metrics leaked an extension-defined class as a label value:\n%s", body)
 	}
 }
+
+// TestStatusMetricsHandlerTerminalFailureGaugeCollapsesHostedFirstPartyClasses
+// pins #8951: a component-activated instance that carries a first-party kind
+// shares one extension_defined series for every class its extension defines,
+// while an in-tree instance of the same kind keeps reading unknown. The class
+// text never becomes a label value, so the label set stays bounded.
+func TestStatusMetricsHandlerTerminalFailureGaugeCollapsesHostedFirstPartyClasses(t *testing.T) {
+	handler, err := NewStatusMetricsHandler("workflow-coordinator", &fakeStatusReader{
+		snapshot: statuspkg.RawSnapshot{
+			AsOf: time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC),
+			Coordinator: &statuspkg.CoordinatorSnapshot{
+				CollectorInstances: []collector.InstanceSummary{
+					{InstanceID: "jira-hosted-a", CollectorKind: "jira", Mode: "continuous", Enabled: true, ClaimsEnabled: true, ExtensionHosted: true},
+					{InstanceID: "jira-hosted-b", CollectorKind: "jira", Mode: "continuous", Enabled: true, ClaimsEnabled: true, ExtensionHosted: true},
+					{InstanceID: "jira-in-tree", CollectorKind: "jira", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+				},
+				CollectorTerminalFailures: []collector.TerminalFailure{
+					{CollectorKind: "jira", InstanceID: "jira-hosted-a", FailureClass: "vendor.quota-exceeded"},
+					{CollectorKind: "jira", InstanceID: "jira-hosted-b", FailureClass: "vendor.other-failure"},
+					{CollectorKind: "jira", InstanceID: "jira-in-tree", FailureClass: "vendor.quota-exceeded"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewStatusMetricsHandler() error = %v, want nil", err)
+	}
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := recorder.Body.String()
+
+	const series = `eshu_runtime_coordinator_collector_terminal_failure_instances`
+	for _, want := range []string{
+		series + `{collector_kind="jira",failure_class="extension_defined",service_name="workflow-coordinator"} 2`,
+		series + `{collector_kind="jira",failure_class="unknown",service_name="workflow-coordinator"} 1`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("GET /metrics body missing %q\nbody:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "vendor.quota-exceeded") || strings.Contains(body, "vendor.other-failure") {
+		t.Fatalf("GET /metrics leaked an extension-defined class as a label value:\n%s", body)
+	}
+}

@@ -1150,6 +1150,7 @@
       "domain": "domain-fixture-a",
       "conflict_domain": "conflict-domain-a",
       "conflict_key": "conflict-key-a",
+      "holder_domain": "",
       "blocked": 8,
       "oldest_age": "13m21s",
       "oldest_age_seconds": 801
@@ -1159,6 +1160,7 @@
       "domain": "domain-fixture-b",
       "conflict_domain": "conflict-domain-b",
       "conflict_key": "conflict-key-b",
+      "holder_domain": "holder-domain-b",
       "blocked": 5,
       "oldest_age": "8m21s",
       "oldest_age_seconds": 501

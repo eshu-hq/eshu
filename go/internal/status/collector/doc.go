@@ -49,7 +49,8 @@
 // instance and sets LastFailureClass, LastFailureOperation,
 // LastFailureTerminal, and LastFailureAt; PromotionProofs then reports the
 // instance as failed with the blocker "terminal fetch failure: <class>
-// (<operation>)". BoundedFailureClassForKind and BoundedFailureOperation keep both
+// (<operation>)". BoundedFailureClassForInstance (and its kind-only form BoundedFailureClassForKind) and
+// BoundedFailureOperation keep both
 // tokens inside a closed vocabulary (anything else reads as "unknown"; the
 // class set is per collector kind), and
 // the failure message and provider status code are never carried.

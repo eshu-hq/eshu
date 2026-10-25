@@ -5,7 +5,9 @@ package collector_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
@@ -38,23 +40,99 @@ func TestFirstPartyKindHostedByExtensionHostReadsHostClasses(t *testing.T) {
 	}
 }
 
-// TestFirstPartyKindKeepsExtensionDefinedLimit pins the deliberate limit that
-// goes with the host classes: a class an extension defines itself collapses to
-// extension_defined only for a kind that is not first-party. The status leaf
-// has no instance-level signal that a first-party kind is extension-hosted, so
-// on such an instance the extension's own class reads unknown, and a class an
-// in-tree writer forgot to register is never relabeled extension_defined.
-func TestFirstPartyKindKeepsExtensionDefinedLimit(t *testing.T) {
-	t.Parallel()
-	for _, kind := range scope.AllCollectorKinds() {
-		if got := collector.BoundedFailureClassForKind(string(kind), "vendor_quota_exceeded"); got != collector.UnknownFailureToken {
-			t.Errorf("first-party kind %q read an extension-defined class as %q, want unknown", kind, got)
-		}
-		if slices.Contains(collector.FailureClassesForKind(string(kind)), collector.ExtensionDefinedFailureToken) {
-			t.Errorf("first-party kind %q must not report %q", kind, collector.ExtensionDefinedFailureToken)
+// hostedKindClassRow is kindClassRow for an instance whose ExtensionHosted
+// marker is set, the way the status reader fills it for a component-activated
+// instance.
+func hostedKindClassRow(t *testing.T, kind string, class string, hosted bool) collector.RuntimeStatus {
+	t.Helper()
+	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
+	evidence := collector.Evidence{
+		AsOf: now,
+		Instances: []collector.InstanceSummary{{
+			InstanceID:      "hosted-example",
+			CollectorKind:   kind,
+			Mode:            "continuous",
+			Enabled:         true,
+			ClaimsEnabled:   true,
+			ExtensionHosted: hosted,
+			LastObservedAt:  now.Add(-time.Minute),
+			UpdatedAt:       now.Add(-time.Minute),
+		}},
+		TerminalFailures: []collector.TerminalFailure{{
+			CollectorKind:    kind,
+			InstanceID:       "hosted-example",
+			FailureClass:     class,
+			FailureOperation: "collect_failure",
+			ObservedAt:       now.Add(-time.Minute),
+		}},
+	}
+	for _, candidate := range collector.RuntimeStatuses(evidence) {
+		if candidate.InstanceID == "hosted-example" {
+			return candidate
 		}
 	}
-	if got := collector.BoundedFailureClassForKind("hosted_vendor", "vendor_quota_exceeded"); got != collector.ExtensionDefinedFailureToken {
-		t.Errorf("hosted_vendor read %q, want %q", got, collector.ExtensionDefinedFailureToken)
+	t.Fatalf("no runtime row for kind %q", kind)
+	return collector.RuntimeStatus{}
+}
+
+// TestExtensionHostedFirstPartyInstanceReadsExtensionDefined pins #8951. The
+// extension host takes its collector kind from the manifest, so a
+// component-activated instance can carry a first-party kind such as jira. A
+// class its extension defines itself reads extension_defined on that instance,
+// like it does for any non-first-party kind, and an in-tree instance of the
+// same kind keeps reading unknown so a class an in-tree writer forgot to
+// register is never relabeled.
+func TestExtensionHostedFirstPartyInstanceReadsExtensionDefined(t *testing.T) {
+	t.Parallel()
+	for _, kind := range scope.AllCollectorKinds() {
+		hosted := hostedKindClassRow(t, string(kind), "vendor_quota_exceeded", true)
+		if hosted.LastFailureClass != collector.ExtensionDefinedFailureToken {
+			t.Errorf("extension-hosted %q read %q, want %q", kind, hosted.LastFailureClass, collector.ExtensionDefinedFailureToken)
+		}
+		inTree := hostedKindClassRow(t, string(kind), "vendor_quota_exceeded", false)
+		if inTree.LastFailureClass != collector.UnknownFailureToken {
+			t.Errorf("in-tree %q read %q, want %q", kind, inTree.LastFailureClass, collector.UnknownFailureToken)
+		}
+		if got := collector.BoundedFailureClassForKind(string(kind), "vendor_quota_exceeded"); got != collector.UnknownFailureToken {
+			t.Errorf("BoundedFailureClassForKind(%q) = %q, want unknown for the kind-only read", kind, got)
+		}
+		if slices.Contains(collector.FailureClassesForKind(string(kind)), collector.ExtensionDefinedFailureToken) {
+			t.Errorf("FailureClassesForKind(%q) must not report %q: the kind alone is not extension-hosted", kind, collector.ExtensionDefinedFailureToken)
+		}
+	}
+}
+
+// TestExtensionHostedFirstPartyInstanceStaysBounded pins that the hosted
+// signal widens only the pattern-valid extension-defined classes. The kind's
+// own and common classes read as themselves, and free text, an empty class,
+// and an over-long class still read unknown, so the gauge label set stays
+// closed.
+func TestExtensionHostedFirstPartyInstanceStaysBounded(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		class string
+		want  string
+	}{
+		{"own class", "permission_hidden", "permission_hidden"},
+		{"common class", "terminal", "terminal"},
+		{"host class", "launch_failure", "launch_failure"},
+		{"extension-defined class", "vendor.quota-exceeded", "extension_defined"},
+		{"free text", "bad token: s3cr3t value", "unknown"},
+		{"uppercase", "Vendor_Failure", "unknown"},
+		{"over the 96 byte pattern", "a" + strings.Repeat("b", 96), "unknown"},
+		{"empty class", "", "unknown"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			row := hostedKindClassRow(t, "jira", tc.class, true)
+			if row.LastFailureClass != tc.want {
+				t.Fatalf("hosted jira class %q read %q, want %q", tc.class, row.LastFailureClass, tc.want)
+			}
+			if strings.Contains(row.Detail, "s3cr3t") {
+				t.Fatalf("Detail = %q, want no persisted free text", row.Detail)
+			}
+		})
 	}
 }

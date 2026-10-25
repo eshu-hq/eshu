@@ -59,3 +59,16 @@ answers `500` with a fixed message, and an unconfigured graph answers `503`
 with no `Retry-After`, never a silent `0`. See
 [Status And Evidence Route Failures](status-evidence-failures.md). `eshu mcp setup
 --verify` smokes this route and passes on the scoped shape.
+
+## Blockage rows and the fence holder
+
+Each `queue_blockages[]` row carries `holder_domain`: the reducer domain of the
+one live claimed or running row that holds the row's conflict fence, read in the
+same statement as the blockage itself. A security-alert reconciliation fenced
+behind a producer lease reports `holder_domain` `supply_chain_impact`. The field
+is an empty string, never absent, when no lease holds the fence, as for a row
+gated by a missing readiness requirement. Only the domain name is reported; the
+holder's work item id and scope id stay out of the payload. The text status
+report prints `holder_domain=<domain>` after `conflict_key` and omits it when
+empty. The field is part of `QueueBlockage` in
+`docs/openapi/runtime-admin-v1.yaml`.

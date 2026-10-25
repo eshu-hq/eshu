@@ -234,6 +234,7 @@ func queueBlockagesToSlice(blockages []queue.Blockage) []map[string]any {
 			"domain":          blockage.Domain,
 			"conflict_domain": blockage.ConflictDomain,
 			"conflict_key":    blockage.ConflictKey,
+			"holder_domain":   blockage.HolderDomain,
 			"blocked":         blockage.Blocked,
 			"oldest_age":      blockage.OldestAge.Seconds(),
 		})

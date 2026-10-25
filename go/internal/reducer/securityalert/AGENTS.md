@@ -133,7 +133,14 @@ non-versioned pieces this package's writer test uses — the same pattern
   enforces the `*_not_ready` naming and enrollment.
 - A probe error must stay a counting error. Never convert it into the
   non-counting class.
-- Keep the give-up visible: the counter outcome, the WARN log, and
-  `sub_signal_impact_wait_gave_up` move together with the cap.
+- Keep the give-up visible: the counter outcome, the WARN log,
+  `sub_signal_impact_wait_gave_up`, and the persisted `impact_wait_outcome`
+  move together with the cap. A settled producer (`ImpactProducerState.Settled`)
+  is a genuine no-match, not a give-up: it must not set any of the four
+  (#8956). Changing `PersistedImpactWaitOutcomes` moves the query OpenAPI enum,
+  the MCP description, and the contract matrix in the same change.
+- On the cap attempt the producer probe runs before the evidence load. Do not
+  move it after the load or probe again there: a finding committed in between
+  would be claimed absent from a settled generation.
 - A nil `ImpactProducerReadiness` disables the fence. Keep the reducer-root and
   `cmd/reducer` wiring guards green when touching registration.

@@ -114,6 +114,12 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 		return reducercontract.Result{}, fmt.Errorf("security alert reconciliation manifest consumption extractor is required")
 	}
 
+	// On the cap attempt settlement is read before any evidence loads, so a
+	// finding that commits during the load is never claimed absent (#8956).
+	earlyImpactState, err := h.probeImpactProducerBeforeLoad(ctx, intent)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
 	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
@@ -153,7 +159,7 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 	// visible input_invalid dead-letter — counter + structured error log — while
 	// every valid sibling alert still produces its reconciliation decision.
 	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainSecurityAlertReconciliation, intent.ScopeID, intent.GenerationID, quarantined)
-	impactWait, err := h.resolveImpactWait(ctx, intent, decisions)
+	impactWait, err := h.resolveImpactWait(ctx, intent, decisions, earlyImpactState)
 	if err != nil {
 		return reducercontract.Result{}, err
 	}
@@ -164,6 +170,9 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent r
 		SourceSystem: intent.SourceSystem,
 		Cause:        intent.Cause,
 		Decisions:    decisions,
+		// Empty unless the handler gave up (#8956): a settled producer is a
+		// genuine no-match and its rows keep the pre-#8956 payload.
+		ImpactWaitOutcome: impactWait.giveUp,
 	})
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("write security alert reconciliations: %w", err)
@@ -323,10 +332,12 @@ func impactProducingSecurityAlertReconciliation(intent reducercontract.Intent) b
 		strings.EqualFold(strings.TrimSpace(intent.Cause), "provider security alert evidence observed")
 }
 
-func firstUnmatchedPackageWithDependency(decisions []SecurityAlertReconciliationDecision) string {
+// firstWaitingPackage names the first package whose decision waits on impact
+// evidence (decisionWaitsOnImpactEvidence), so a defer or give-up never blames a
+// decision that already carries impact evidence.
+func firstWaitingPackage(decisions []SecurityAlertReconciliationDecision) string {
 	for _, decision := range decisions {
-		if decision.Status == SecurityAlertReconciliationUnmatched &&
-			strings.TrimSpace(decision.DependencyEvidenceID) != "" {
+		if decisionWaitsOnImpactEvidence(decision) {
 			return strings.TrimSpace(decision.PackageID)
 		}
 	}

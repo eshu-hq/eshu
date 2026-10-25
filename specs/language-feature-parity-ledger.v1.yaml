@@ -323,7 +323,7 @@ language_features:
   - language: python
     docs_claim: docs/public/languages/python.md
     ecosystem: pypi
-    manifest_files: [pyproject.toml, requirements.txt, Pipfile, Pipfile.lock, poetry.lock, uv.lock]
+    manifest_files: [pyproject.toml, requirements.txt, constraints.txt, Pipfile, Pipfile.lock, poetry.lock, uv.lock]
     pin_files: [.python-version]
     parser_backing: tree-sitter-backed
     no_provider_required: true

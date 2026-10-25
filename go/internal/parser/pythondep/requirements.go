@@ -31,6 +31,7 @@ func ParseRequirements(path string) (map[string]any, error) {
 	payload := basePayload(path, LangRequirements)
 
 	devScope := requirementsDevScopeFromFilename(path)
+	constraints := isConstraintsFile(path)
 	section := requirementsSectionFromFilename(path)
 
 	rows := make([]map[string]any, 0)
@@ -81,6 +82,9 @@ func ParseRequirements(path string) (map[string]any, error) {
 			}
 		}
 		row := parseRequirementLine(trimmed, raw, section, devScope, startLine)
+		if constraints {
+			row.applyConstraintPolicy()
+		}
 		rows = append(rows, row.finish())
 	}
 	if err := scanner.Err(); err != nil {
@@ -94,12 +98,15 @@ func requirementsDevScopeFromFilename(path string) bool {
 	name := strings.ToLower(filepath.Base(path))
 	name = strings.TrimSuffix(name, ".txt")
 	name = strings.TrimSuffix(name, ".in")
-	if name == "requirements" {
+	if name == "requirements" || name == "constraints" {
 		return false
 	}
-	suffix := strings.TrimPrefix(name, "requirements-")
-	if suffix == name {
-		suffix = strings.TrimPrefix(name, "requirements_")
+	suffix := name
+	for _, prefix := range []string{"requirements-", "requirements_", "constraints-", "constraints_"} {
+		if trimmed := strings.TrimPrefix(name, prefix); trimmed != name {
+			suffix = trimmed
+			break
+		}
 	}
 	if suffix == name {
 		return false
@@ -320,12 +327,25 @@ func stripFragment(content string) string {
 	return content
 }
 
+// eggNameFromURL reads the `egg` key of a URL fragment. The fragment starts at
+// the first "#" after the authority: a "#" inside userinfo is not a fragment,
+// and text there must never become a package name.
 func eggNameFromURL(content string) string {
-	hash := strings.Index(content, "#")
+	rest, start := content, 0
+	if scheme := strings.Index(content, "://"); scheme >= 0 {
+		start = scheme + 3
+		if slash := strings.IndexByte(content[start:], '/'); slash >= 0 {
+			start += slash
+		} else {
+			return ""
+		}
+		rest = content[start:]
+	}
+	hash := strings.Index(rest, "#")
 	if hash < 0 {
 		return ""
 	}
-	fragment := content[hash+1:]
+	fragment := rest[hash+1:]
 	for _, part := range strings.Split(fragment, "&") {
 		key, value, ok := strings.Cut(part, "=")
 		if !ok {

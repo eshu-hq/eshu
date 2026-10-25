@@ -41,6 +41,10 @@ TABLE = {
         "go/internal/storage/postgres/aws_cloud_runtime_drift_state_arn_plan_live_test.go": (
             "TestAWSCloudRuntimeDriftStateARNJoinProbesARNIndexLive",
         ),
+        "go/internal/storage/postgres/blockage_holder_live_test.go": (
+            "TestReducerConflictBlockageNamesHolderDomain",
+            "TestActiveWorkSummaryHolderLookupScansLeasesOnce",
+        ),
         "go/internal/storage/postgres/collector_terminal_failure_ack_live_test.go": (
             "TestTerminalFailureAckStoreRefusalsLive",
             "TestTerminalFailureAckStoreRecordsAndSuppressesLive",
@@ -478,13 +482,6 @@ TABLE = {
         "go/internal/storage/postgres/recovery_refinalize_delta_active_live_test.go": (
             "TestRefinalizeDeltaActiveRequestsFullReindex",
             "TestRefinalizeDeltaActiveConvergesAcrossTwoCalls",
-        ),
-        "go/internal/storage/postgres/recovery_refinalize_fence_admission_live_test.go": (
-            "TestRefinalizeFenceAdmissionDeadlineStopsAfterFenceAcquire",
-            "TestRefinalizeFenceAdmissionPersistentHolderExhaustsWithoutConvoy",
-            "TestRefinalizeFenceAdmissionBoundsRetryBegin",
-            "TestRefinalizeFenceAdmissionCallerCancellation",
-            "TestRefinalizeFenceAdmissionWriteAndCommitFailuresKeepTheirCauses",
         ),
     },
 }

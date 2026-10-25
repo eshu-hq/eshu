@@ -168,7 +168,7 @@ const workflowTerminalFailureAckScopes = `ARRAY(
 // cause. The class compare is on the raw persisted token (NULL and ” agree),
 // so a free-text class that varies per cycle lapses the acknowledgement; that
 // class already reads "unknown" and bounding it here would duplicate
-// collector.BoundedFailureClassForKind. The predicate reads only updated_at
+// collector.BoundedFailureClassForInstance. The predicate reads only updated_at
 // values written by one clock family, never now().
 const workflowTerminalFailureAckCovers = `k.collector_kind = t.collector_kind
                 AND k.collector_instance_id = t.collector_instance_id

@@ -63,6 +63,12 @@ Details: `docs/internal/evidence/8829-workflow-work-item-retention.md`.
 - `sweeper_live_test.go`, `concurrency_live_test.go`, `cancel_live_test.go`:
   real-Postgres proofs, each in its own database, gated on
   `ESHU_POSTGRES_DSN` (role needs `CREATE DATABASE`).
+- `plan_guard_live_test.go` (#8840): the newer-row probe must not use the
+  partial `workflow_work_items_security_alert_scope_updated_idx`, and its
+  shared buffers and walked index entries must stay within 1.2x of the plan
+  without that index. A planted full `(collector_kind, scope_id, updated_at
+  DESC)` index must trip the budget. It walked 18.6x the entries on the
+  test's recovered-target seed.
 - `overlap_gate_test.go`: paces the retention loop and the lifecycle
   workers of the claim-lifecycle proof against each other, so the two
   overlap by construction rather than by timing.

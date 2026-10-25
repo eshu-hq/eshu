@@ -57,3 +57,23 @@ func TestSecurityAlertReconciliationToolAdvertisesOwnedObservedVersion(t *testin
 	}
 	t.Fatal("list_security_alert_reconciliations tool not registered")
 }
+
+// TestSecurityAlertReconciliationToolAdvertisesTheImpactWaitGiveUp keeps the
+// MCP description in lockstep with the row's closed give-up set (#8956), so an
+// agent reading an unmatched row knows a give-up from a genuine no-match.
+func TestSecurityAlertReconciliationToolAdvertisesTheImpactWaitGiveUp(t *testing.T) {
+	t.Parallel()
+
+	for _, tool := range ReadOnlyTools() {
+		if tool.Name != "list_security_alert_reconciliations" {
+			continue
+		}
+		for _, want := range []string{"impact_wait_outcome", "gave_up_unmatched", "gave_up_bound_exceeded"} {
+			if !strings.Contains(tool.Description, want) {
+				t.Fatalf("list_security_alert_reconciliations description missing %q: %s", want, tool.Description)
+			}
+		}
+		return
+	}
+	t.Fatal("list_security_alert_reconciliations tool not registered")
+}

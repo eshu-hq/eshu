@@ -154,7 +154,7 @@ func TestListCoordinatorCollectorInstancesReadsScanInterval(t *testing.T) {
 
 	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
 	row := func(id, scanInterval any) []any {
-		return []any{id, "security_alert", "continuous", true, false, true, "", now, now, nil, scanInterval}
+		return []any{id, "security_alert", "continuous", true, false, true, "", now, now, nil, scanInterval, `{}`}
 	}
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{
 		row("sa-set", `"12h"`),
@@ -174,6 +174,47 @@ func TestListCoordinatorCollectorInstancesReadsScanInterval(t *testing.T) {
 	}
 	if !strings.Contains(workflowCoordinatorCollectorInstancesQuery, "configuration->'scan_interval'") {
 		t.Fatalf("instances query does not select the scan_interval value:\n%s", workflowCoordinatorCollectorInstancesQuery)
+	}
+}
+
+// TestListCoordinatorCollectorInstancesMarksExtensionHosted pins #8951: an
+// instance whose stored configuration is a component activation document is
+// marked ExtensionHosted, using the same predicate the coordinator scheduler
+// uses to partition component-extension instances from in-tree ones, and an
+// in-tree instance of the same first-party kind is not. Only the boolean
+// reaches the status layer, never the configuration text.
+func TestListCoordinatorCollectorInstancesMarksExtensionHosted(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
+	row := func(id, configuration string) []any {
+		return []any{id, "jira", "continuous", true, false, true, "", now, now, nil, nil, configuration}
+	}
+	const activation = `{"schema_version":"eshu.component.instance.v1","component_id":"vendor.example",` +
+		`"component_version":"1.0.0","manifest_digest":"sha256:abc","config_handle":"h",` +
+		`"runtime":{"sdk_protocol":"collector.sdk/v1alpha2","adapter":"oci"}}`
+	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{
+		row("hosted", activation),
+		row("hosted-incomplete", `{"schema_version":"eshu.component.instance.v1","component_id":"vendor.example"}`),
+		row("in-tree", `{"scan_interval":"15m","targets":[{"site":"example"}]}`),
+		row("empty", `{}`),
+		row("blank", ``),
+	}}}}
+	got, err := listCoordinatorCollectorInstances(context.Background(), queryer)
+	if err != nil {
+		t.Fatalf("listCoordinatorCollectorInstances() error = %v, want nil", err)
+	}
+	want := map[string]bool{"hosted": true, "hosted-incomplete": true, "in-tree": false, "empty": false, "blank": false}
+	if len(got) != len(want) {
+		t.Fatalf("len = %d, want %d: %#v", len(got), len(want), got)
+	}
+	for _, instance := range got {
+		if instance.ExtensionHosted != want[instance.InstanceID] {
+			t.Fatalf("%s ExtensionHosted = %t, want %t", instance.InstanceID, instance.ExtensionHosted, want[instance.InstanceID])
+		}
+	}
+	if !strings.Contains(workflowCoordinatorCollectorInstancesQuery, "configuration::text") {
+		t.Fatalf("instances query does not select the configuration for the component marker:\n%s", workflowCoordinatorCollectorInstancesQuery)
 	}
 }
 
@@ -228,7 +269,7 @@ func TestReadCoordinatorSnapshotIncludesTerminalFailures(t *testing.T) {
 	failedAt := now.Add(-10 * time.Minute)
 	queryer := &fakeQueryer{
 		responses: []fakeRows{
-			{rows: [][]any{{"security-alert-example", "security_alert", "continuous", true, false, true, "", now, now, nil, nil}}},
+			{rows: [][]any{{"security-alert-example", "security_alert", "continuous", true, false, true, "", now, now, nil, nil, `{}`}}},
 			{rows: [][]any{}},
 			{rows: [][]any{}},
 			{rows: [][]any{}},

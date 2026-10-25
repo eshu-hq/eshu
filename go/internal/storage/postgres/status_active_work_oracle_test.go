@@ -13,6 +13,12 @@ package postgres
 // on one snapshot and requires identical section rows. Never hand-edit it: a
 // changed oracle could agree with a wrong query.
 //
+// #8954 re-derived the blockage fragment (inflight_leases carries domain,
+// blockage_rows joins the holder domain, the section selects holder_domain) by
+// the lifecycle below; TestActiveWorkSummaryDiffersFromOracleOnlyInHistoryGroups
+// proves the result still differs from the shipped query only in the history
+// pieces.
+//
 // Lifecycle: the oracle is bound to 9bcca588f and to the #7009
 // transformation only. When a shared fragment changes (stageCountsSelect,
 // domainBacklogCTEs, reducerConflictBlockageCTEs, the scope join, or
@@ -190,6 +196,7 @@ eligible AS (
 ),
 inflight_leases AS MATERIALIZED (
     SELECT work_item_id,
+           domain,
            conflict_domain,
            COALESCE(conflict_key, scope_id) AS conflict_key
     FROM fact_work_items
@@ -245,7 +252,7 @@ all_blocked AS (
     UNION ALL
     SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM readiness_blocked
 ),
-blockage_rows AS (
+blockage_groups AS (
     SELECT domain,
            conflict_domain,
            conflict_key,
@@ -253,6 +260,29 @@ blockage_rows AS (
            COALESCE(EXTRACT(EPOCH FROM ($1 - MIN(available_at))), 0) AS oldest_blocked_age_seconds
     FROM all_blocked
     GROUP BY domain, conflict_domain, conflict_key
+),
+holder_map AS MATERIALIZED (
+    -- One row mapping each live lease's (conflict_domain, conflict_key), as a
+    -- JSON array rendered to text so no key can collide, to the domain holding
+    -- it. fact_work_items_reducer_live_lease_uniq allows one live lease per key.
+    SELECT COALESCE(
+        jsonb_object_agg(jsonb_build_array(conflict_domain, conflict_key)::text, domain),
+        '{}'::jsonb) AS by_key
+    FROM inflight_leases
+),
+blockage_rows AS (
+    -- Name the domain that holds each fence (#8954). holder_map is one row, so
+    -- no join method is left to choose and the lease set is read once whatever
+    -- the statistics say. A readiness row has no lease and reports an empty
+    -- holder.
+    SELECT blockage_groups.domain,
+           blockage_groups.conflict_domain,
+           blockage_groups.conflict_key,
+           COALESCE(holder_map.by_key ->> jsonb_build_array(blockage_groups.conflict_domain, blockage_groups.conflict_key)::text, '') AS holder_domain,
+           blockage_groups.blocked_count,
+           blockage_groups.oldest_blocked_age_seconds
+    FROM blockage_groups
+    CROSS JOIN holder_map
 ),
 domain_blocked AS (
     SELECT domain,
@@ -340,6 +370,7 @@ SELECT 'reducer' AS stage,
        domain,
        conflict_domain,
        conflict_key,
+       holder_domain,
        domain_blocked_count AS blocked_count,
        oldest_blocked_age_seconds
 FROM blockage_rows
@@ -387,4 +418,4 @@ ORDER BY section, ordinal
 `
 
 // activeWorkSummaryPreHistoryGroupsOracleSHA256 pins the oracle text.
-const activeWorkSummaryPreHistoryGroupsOracleSHA256 = "bef1078e2f5b971f6f35f576403b5c7197b59b6e37ccf13974d3240e4d432e2e"
+const activeWorkSummaryPreHistoryGroupsOracleSHA256 = "a2d562a8c96f7b5622ae5ef23cf9c28d57a32d7fb307d7c7b8c3761fbaeb4253"

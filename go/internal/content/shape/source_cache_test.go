@@ -256,3 +256,28 @@ func TestMaterializeLimitsWorkflowSourceCacheAtExactUTF8SafeBoundary(t *testing.
 		})
 	}
 }
+
+// TestEntitySourceCacheWithheldByParserMetadata proves that a parser can ask
+// for an entity's file-range snippet to be dropped (the pip constraints rows,
+// #8821), because the snippet is the raw source line and could carry text a
+// parsed field already scrubbed. Only the explicit boolean true does it.
+func TestEntitySourceCacheWithheldByParserMetadata(t *testing.T) {
+	t.Parallel()
+
+	body := "first==1.0\nsecond==2.0 # note\nthird==3.0\n"
+	for _, tc := range []struct {
+		name     string
+		metadata map[string]any
+		want     string
+	}{
+		{name: "withheld", metadata: map[string]any{"source_cache_withheld": true}, want: ""},
+		{name: "no metadata", metadata: nil, want: "second==2.0 # note\n"},
+		{name: "false", metadata: map[string]any{"source_cache_withheld": false}, want: "second==2.0 # note\n"},
+		{name: "string true is not a flag", metadata: map[string]any{"source_cache_withheld": "true"}, want: "second==2.0 # note\n"},
+	} {
+		item := Entity{Name: "second", LineNumber: 2, EndLine: 2, Metadata: tc.metadata}
+		if got := entitySourceCache("Variable", item, body, 2, 2); got != tc.want {
+			t.Errorf("%s: entitySourceCache = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}

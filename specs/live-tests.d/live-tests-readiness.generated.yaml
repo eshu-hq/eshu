@@ -142,7 +142,7 @@ tests:
   - file: go/internal/query/security_alert_collection_state_postgres_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped schema: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read on workflow_work_items_collector_scope_generation_updated_idx; isolated bootstrapped schema per test; wall time and plan timing are logged, not gated"
+    reason: "#8803 disposable PostgreSQL proof of the security-alert empty-answer collection-state reads on the bootstrapped schema: only enabled, non-deactivated security_alert instances contribute configuration; the latest work item per target is chosen by updated_at with the lowest work_item_id on a tie and ignores other collector kinds; a failed_terminal row with NULL last_failure_terminal (pre-migration-185) reads as failed_terminal with the flag false; a committed generation is active, superseded, or completed only; a target with no work items still returns a row; the 64-instance and 1024-target bounds fail with ErrSecurityAlertCollectionStateBound; EXPLAIN shows the lateral latest-item read as an index-only probe of workflow_work_items_security_alert_scope_updated_idx (#8840) with no sort over a 20,000-item history, and it returns the same rows as the pre-#8840 plan forced by dropping the index in a rolled-back transaction, including updated_at ties; isolated bootstrapped schema per test; wall time and plan timing are logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/query/security_alert_target_set_postgres_live_test.go
     tag: ~
@@ -448,6 +448,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#7584 activation obligation repo_id collision loser retired inapplicable after one callback against exported backfill.ActiveRepositoryGenerationsQuery from the targeted package external proof, on the full bootstrap schema in an isolated disposable PostgreSQL schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/blockage_holder_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8954 disposable PostgreSQL 18 proofs that the status blockage read names the domain holding a blocked row's conflict fence (a claimed supply_chain_impact row fencing a pending security_alert_reconciliation row) and that the holder lookup reads the live-lease set once with and without planner statistics; each proof opens its own schema from the bootstrap migrations and drops it; about 1 s per proof on PostgreSQL 18.6 locally; wall time is not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/code/reachability/loader_completed_index_live_test.go
     tag: ~
@@ -1219,6 +1224,11 @@ tests:
     class: postgres_ci
     reason: "#8829 disposable PostgreSQL 18 concurrency proofs that workflow_work_items retention batches (FOR UPDATE SKIP LOCKED) skip held rows without waiting and never block claim, heartbeat, completion or terminal failure through WorkflowControlStore, including while an uncommitted batch holds its locks; each proof creates and drops its own database from the bootstrap schema; about 1 to 3 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/work/items/plan_guard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8840 disposable PostgreSQL proof that the work-item retention prune keeps its pre-#8840 plan: on a seed where each security_alert target failed for its older half and then recovered, the newer-row probe never uses workflow_work_items_security_alert_scope_updated_idx, its shared buffers stay within 1.2x of the plan with that index dropped in a rolled-back transaction, and the batch outcome matches; a planted full (collector_kind, scope_id, updated_at DESC) index in a rolled-back transaction must be picked and must blow the budget, so the guard is proven to fire; buffers are gated, wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/retention/work/items/sweeper_live_test.go
     tag: ~
     class: postgres_ci
@@ -1257,7 +1267,7 @@ tests:
   - file: go/internal/storage/postgres/security_alert_impact_producer_store_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8827 disposable PostgreSQL 18 proof that readiness/producer.ImpactStore counts only the requested scope generation's supply_chain_impact rows (other generations, other scopes, and sibling domains never count), reports the last-workable anchor over in-flight rows only, and that its plan reaches fact_work_items through fact_work_items_scope_generation_idx with no sequential scan on a 350,000-row backlog; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 6s on postgres:18; wall time is logged, not gated"
+    reason: "#8827 disposable PostgreSQL 18 proof that readiness/producer.ImpactStore counts only the requested scope generation's supply_chain_impact rows (other generations, other scopes, and sibling domains never count), reports the last-workable anchor over in-flight rows only, counts succeeded and failed (dead_letter or failed) rows so a settled producer reads apart from a stopped one (#8956), and that its plan reaches fact_work_items through fact_work_items_scope_generation_idx with no sequential scan on a 350,000-row backlog; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 6s on postgres:18; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/service_catalog_runtime_producer_store_live_test.go
     tag: ~

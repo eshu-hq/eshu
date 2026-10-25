@@ -16,7 +16,10 @@ import (
 
 // ImpactProducerStateQuery counts one scope generation's supply_chain_impact
 // work items by status and returns the newest in-flight last-workable time
-// (NULL when none is in flight) (#8827).
+// (NULL when none is in flight) (#8827). The succeeded and failed
+// (dead_letter or failed) counts tell a settled producer, a genuine no-match,
+// from one that stopped without its evidence (#8956); a superseded or other
+// terminal row is in neither count and so is never settled.
 //
 // It is an aggregate with no GROUP BY, so it always returns exactly one row:
 // all zeros when no impact work was ever enqueued for the generation. It reads
@@ -35,6 +38,8 @@ SELECT count(*) FILTER (WHERE work.status = 'pending')  AS pending_count,
        count(*) FILTER (WHERE work.status = 'retrying') AS retrying_count,
        count(*) FILTER (WHERE work.status = 'claimed')  AS claimed_count,
        count(*) FILTER (WHERE work.status = 'running')  AS running_count,
+       count(*) FILTER (WHERE work.status = 'succeeded') AS succeeded_count,
+       count(*) FILTER (WHERE work.status IN ('dead_letter', 'failed')) AS failed_count,
        count(*)                                          AS producer_count,
        max(GREATEST(COALESCE(work.reopened_at, work.created_at),
                     COALESCE(work.last_attempt_at, work.created_at),
@@ -85,7 +90,8 @@ func (s ImpactStore) ImpactProducerState(
 	}
 	var state securityalert.ImpactProducerState
 	var workableAt sql.NullTime
-	if err := rows.Scan(&state.Pending, &state.Retrying, &state.Claimed, &state.Running, &state.Total, &workableAt); err != nil {
+	if err := rows.Scan(&state.Pending, &state.Retrying, &state.Claimed, &state.Running,
+		&state.Succeeded, &state.Failed, &state.Total, &workableAt); err != nil {
 		return securityalert.ImpactProducerState{}, fmt.Errorf("scan impact producer state: %w", err)
 	}
 	if workableAt.Valid {
