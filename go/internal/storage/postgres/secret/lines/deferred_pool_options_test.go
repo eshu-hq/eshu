@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"reflect"
 	"runtime"
 	"strings"
@@ -85,5 +86,57 @@ func TestBootstrapDeferredPoolOptionsWiresPlainProbeAndFencedWriterPool(t *testi
 	}
 	if options.Wait != 7*time.Second {
 		t.Fatalf("Wait = %v, want the ownership wait passed in", options.Wait)
+	}
+}
+
+// TestBootstrapDeferredPoolBirthHookFollowsOptionsFence pins, by behavior and
+// without a DSN, that the hook the writer pool runs is built from the very
+// fence the options expose (#8833 F21). The caller arms options.Fence through
+// the run lock; a hook built from any other fence stays unarmed and would admit
+// a session born after the lock session died.
+func TestBootstrapDeferredPoolBirthHookFollowsOptionsFence(t *testing.T) {
+	t.Parallel()
+	opener := &recordingOpener{}
+	options := BootstrapDeferredPoolOptions(opener, func(string) string { return "" }, NewRunFence(nil), time.Second, nil)
+	if _, err := options.Open(context.Background()); !errors.Is(err, errRecorded) {
+		t.Fatalf("Open err = %v, want the recording opener's error", err)
+	}
+	if len(opener.hooks) != 1 {
+		t.Fatalf("writer pool hooks = %d, want exactly the run fence's hook", len(opener.hooks))
+	}
+	hook := opener.hooks[0]
+
+	shim := &hookShim{}
+	conn := shim.connect(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Before the run lock is published the hook admits the session but still
+	// takes the (5318,2) shared lock.
+	if err := hook(ctx, conn); err != nil {
+		t.Fatalf("hook before the fence is armed = %v, want nil", err)
+	}
+	if got := shim.sharedLocks.Load(); got != 1 {
+		t.Fatalf("shared lock statements = %d, want 1 (the hook takes (5318,2) at birth)", got)
+	}
+
+	// The lock session is published through options.Fence, as the run lock does.
+	options.Fence.publish(4242, slog.New(slog.DiscardHandler))
+	shim.held.Store(true)
+	if err := hook(ctx, conn); err != nil {
+		t.Fatalf("hook while the lock session holds the run lock = %v, want nil", err)
+	}
+
+	// The lock session dies: the next birth must be refused.
+	shim.held.Store(false)
+	if err := hook(ctx, conn); !errors.Is(err, ErrDeferredSessionRefused) {
+		t.Fatalf("hook after the lock session is gone = %v, want ErrDeferredSessionRefused (the hook is not built from options.Fence)", err)
+	}
+
+	// Release clears the pid; the hook admits again, as it does for a run that
+	// no longer owns the lock.
+	options.Fence.clear()
+	if err := hook(ctx, conn); err != nil {
+		t.Fatalf("hook after the fence is cleared = %v, want nil", err)
 	}
 }
