@@ -50,6 +50,7 @@ canon_scripts=(
   "scripts/test-goal-refresh-hook-skill-nudge-cases.sh"
   "scripts/test-issue-capture-hook.sh"
   "scripts/test-issue-capture-hook-cases.sh"
+  "scripts/test-issue-capture-hook-gate-cases.sh"
   "scripts/lib/test-issue-capture-fake-gh.sh"
   "scripts/test-muse-hooks.sh"
   "scripts/test-cursor-hooks.sh"

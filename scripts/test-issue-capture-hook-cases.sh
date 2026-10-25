@@ -368,99 +368,18 @@ seed "$(ledger_of "${R}/.claude/active-goal.${sdef}")" "${OPEN9101}" "DEFER: #91
 run_stop "$(stop_payload "${sdef}" "${R}" p-defer-echo2)"
 ! rg -q 'DEFER honoured' <<<"${stop_err}" && ok "a refused DEFER is not echoed as honoured" || no "a refused DEFER is not echoed as honoured"
 
-# ── 13. DEFER cannot point at the ledger or a goal file ──────────────────────
-# Every ledger record names its own issue, and the agent writes the ledger and
-# the goal file: accepting either as a "ruling" is a self-issued permission slip.
-# A path that resolves to the ledger, its lock or temp files, or any
-# .claude/active-goal* file is refused, symlinks included.
-self_defer_case() { # label setup-fn-name
-	local label="$1" setup="$2" Rs g l
-	fx_reset
-	Rs="$(mk_repo "selfdefer-$RANDOM")"
-	g="${Rs}/.claude/active-goal.${sdone}"
-	l="$(ledger_of "${g}")"
-	printf 'DONE\nSESSION: %s\nFinish; this goal file mentions #9101.\n' "${sdone}" >"${g}"
-	seed "${l}" "${OPEN9101}"
-	DEFER_PATH="$("${setup}" "${Rs}" "${g}" "${l}")"
-	seed "${l}" "DEFER: #9101 ${DEFER_PATH}"
-	run_stop "$(stop_payload "${sdone}" "${Rs}" "p-${RANDOM}")"
-	if [[ "$(verdict_of "${stop_out}")" == block ]] && ! rg -q 'DEFER honoured' <<<"${stop_err}" &&
-		rg -q 'not a ruling' <<<"$(reason_of "${stop_out}")" &&
-		has_line "${l}" '^eshu-hq/eshu#9101 .* open$'; then
-		ok "DEFER ${label}: refused, the stop stays blocked, the record stays open"
-	else
-		no "DEFER ${label}: wanted a refusal naming 'not a ruling' (verdict=$(verdict_of "${stop_out}") err=${stop_err:0:120})"
-	fi
-}
-sd_ledger() { printf '%s' ".claude/active-goal.${sdone}.issues"; }
-sd_goal() { printf '%s' ".claude/active-goal.${sdone}"; }
-sd_lock() { printf 'held #9101\n' >"$3.lock"; printf '%s' ".claude/active-goal.${sdone}.issues.lock"; }
-sd_tmp() { printf 'scratch #9101\n' >"$3.tmp.123"; printf '%s' ".claude/active-goal.${sdone}.issues.tmp.123"; }
-sd_other_goal() { printf 'Other goal #9101\n' >"$1/.claude/active-goal.other"; printf '%s' ".claude/active-goal.other"; }
-sd_abs_ledger() { printf '%s' "$3"; }
-sd_symlink() { mkdir -p "$1/docs"; ln -s "$3" "$1/docs/ruling.md"; printf '%s' "docs/ruling.md"; }
-sd_dotdot() { mkdir -p "$1/docs"; printf '%s' "docs/../.claude/active-goal.${sdone}.issues"; }
-self_defer_case "naming the ledger itself" sd_ledger
-self_defer_case "naming the ledger by absolute path" sd_abs_ledger
-self_defer_case "naming the goal file" sd_goal
-self_defer_case "naming the ledger's lock file" sd_lock
-self_defer_case "naming a ledger temp file" sd_tmp
-self_defer_case "naming another active-goal file" sd_other_goal
-self_defer_case "naming a symlink that resolves to the ledger" sd_symlink
-self_defer_case "naming the ledger through .." sd_dotdot
-
-# ── 14. the total cap bounds a whole check; the lock serialises writers ──────
-# One hung call is bounded by the per-call cap alone, hiding a missing total cap.
-# Eight hung issues are 8 s at 1 s each; only the 3 s total cap keeps this under
-# 5 s, and the calls never made must still be reported.
-fx_reset
-fx_mode hang
-R="$(mk_repo stop-many-hung)"
-printf 'DONE\nSESSION: %s\nFinish.\n' "${sdone}" >"${R}/.claude/active-goal.${sdone}"
-for n in 9601 9602 9603 9604 9605 9606 9607 9608; do
-	seed "$(ledger_of "${R}/.claude/active-goal.${sdone}")" "eshu-hq/eshu#${n} 2026-10-25T00:00:00Z open"
-done
-t0=$SECONDS
-run_stop "$(stop_payload "${sdone}" "${R}" p-many)" CLAUDE_GOAL_ISSUE_CALL_TIMEOUT=1 CLAUDE_GOAL_ISSUE_TOTAL_TIMEOUT=3
-elapsed=$((SECONDS - t0))
-[[ "$(verdict_of "${stop_out}")" == allow && "${elapsed}" -le 5 ]] &&
-	ok "8 hung issues: bounded by the total cap (${elapsed}s, not 8 x the call cap)" || no "8 hung issues: bounded by the total cap (${elapsed}s, verdict=$(verdict_of "${stop_out}"))"
-all_named=1
-for n in 9601 9602 9603 9604 9605 9606 9607 9608; do rg -q "NOT_CHECKED issues: .*eshu-hq/eshu#${n}" <<<"${stop_err}" || all_named=0; done
-[[ "${all_named}" == 1 ]] && ok "8 hung issues: every one is NOT_CHECKED, including those never asked" || no "8 hung issues: every one is NOT_CHECKED (err=${stop_err:0:200})"
-[[ "$(gh_calls)" -le 4 ]] && ok "8 hung issues: gh is not called once the total cap is spent ($(gh_calls) calls)" || no "8 hung issues: gh is not called once the total cap is spent ($(gh_calls) calls)"
-
-# Hold the ledger's lock from outside, then capture: it has to wait for the lock
-# and lose neither the line already there nor the new one.
-fx_reset
-R="$(mk_repo lock-held)"
-printf 'SESSION: %s\nGoal.\n' "${lead}" >"${R}/.claude/active-goal.${lead}"
-LL="$(ledger_of "${R}/.claude/active-goal.${lead}")"
-seed "${LL}" 'eshu-hq/eshu#9701 2026-10-25T00:00:00Z open'
-LK="${LL}.lock" HELD="${work}/lock-held.flag" python3 -c '
-import fcntl, os, time
-with open(os.environ["LK"], "a") as fh:
-    fcntl.flock(fh, fcntl.LOCK_EX)
-    open(os.environ["HELD"], "w").close()
-    time.sleep(3)
-' &
-holder=$!
-for _ in $(seq 1 50); do [[ -f "${work}/lock-held.flag" ]] && break; sleep 0.1; done
-t0=$SECONDS
-run_capture "$(post_payload "${lead}" "${R}" 'gh issue create -R eshu-hq/eshu --title t' 'https://github.com/eshu-hq/eshu/issues/9702')"
-elapsed=$((SECONDS - t0))
-wait "${holder}" 2>/dev/null
-[[ "${elapsed}" -ge 2 ]] && ok "capture waits for the held ledger lock (${elapsed}s)" || no "capture waits for the held ledger lock (${elapsed}s)"
-has_line "${LL}" '^eshu-hq/eshu#9701 ' && has_line "${LL}" '^eshu-hq/eshu#9702 ' &&
-	ok "the writer behind the lock loses no line" || no "the writer behind the lock loses no line"
+# ── 13-14. DEFER hardening, total cap, lock: scripts/test-issue-capture-hook-gate-cases.sh
+# shellcheck source=scripts/test-issue-capture-hook-gate-cases.sh
+. "${repo_root}/scripts/test-issue-capture-hook-gate-cases.sh"
+[[ "${issue_capture_gate_cases_loaded:-0}" == 1 ]] || no "the gate companion cases file ran to its end"
 
 # ── 15. an unheaded DONE is gated too ────────────────────────────────────────
 # The agent writes its goal file, so an unheaded DONE cannot be an exit: it would
 # drop the SESSION header, put DONE first, and file into a ledger nothing reads.
-# Gated at the per-session, shared and per-user paths; a DONE headed for another
-# session is still that session's. The owner's exit is the sidecar.
-unheaded_done_case() { # label goal-path-fn
-	local label="$1" gfn="$2" Ru g l
+# Gated at the per-session and shared worktree paths, not the per-user HOME file;
+# a DONE headed for another session is still that session's. The exit is the sidecar.
+unheaded_done_case() { # label goal-path-fn expect(block|allow)
+	local label="$1" gfn="$2" expect="$3" Ru g l
 	fx_reset
 	Ru="$(mk_repo "unheaded-$RANDOM")"
 	g="$("${gfn}" "${Ru}")"
@@ -468,11 +387,12 @@ unheaded_done_case() { # label goal-path-fn
 	l="$(ledger_of "${g}")"
 	seed "${l}" "${OPEN9101}"
 	run_stop "$(stop_payload "${sdone}" "${Ru}" "p-${RANDOM}")"
-	if [[ "$(verdict_of "${stop_out}")" == block ]] && rg -q 'eshu-hq/eshu#9101' <<<"$(reason_of "${stop_out}")"; then
-		ok "unheaded DONE ${label} + open issue: the stop is refused"
+	if [[ "$(verdict_of "${stop_out}")" == "${expect}" ]]; then
+		ok "unheaded DONE ${label} + open issue: ${expect}"
 	else
-		no "unheaded DONE ${label} + open issue: the stop is refused (verdict=$(verdict_of "${stop_out}"))"
+		no "unheaded DONE ${label} + open issue: wanted ${expect}, got $(verdict_of "${stop_out}")"
 	fi
+	[[ "${expect}" == block ]] || return 0
 	sed -i.bak 's/ open$/ closed/' "${l}" && rm -f "${l}.bak"
 	run_stop "$(stop_payload "${sdone}" "${Ru}" "p-${RANDOM}")"
 	[[ "$(verdict_of "${stop_out}")" == allow ]] &&
@@ -482,9 +402,11 @@ unheaded_done_case() { # label goal-path-fn
 ud_session() { printf '%s' "$1/.claude/active-goal.${sdone}"; }
 ud_shared() { printf '%s' "$1/.claude/active-goal"; }
 ud_home() { mkdir -p "${HOME}/.claude"; printf '%s' "${HOME}/.claude/active-goal"; }
-unheaded_done_case "at the per-session path" ud_session
-unheaded_done_case "at the shared path" ud_shared
-unheaded_done_case "at the per-user path" ud_home
+unheaded_done_case "at the per-session path" ud_session block
+unheaded_done_case "at the shared path" ud_shared block
+# A stale per-user file is not this checkout's goal: it must not refuse the stops
+# of every goal-less session on the machine (decision 44 names the worktree paths).
+unheaded_done_case "at the per-user path (HOME)" ud_home allow
 rm -f "${HOME}/.claude/active-goal" "${HOME}/.claude/active-goal.issues" "${HOME}/.claude/active-goal.issues.lock"
 
 fx_reset

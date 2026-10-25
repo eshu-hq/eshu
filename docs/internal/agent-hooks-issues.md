@@ -121,11 +121,14 @@ the goal is DONE: the first-line DONE, the DONE beneath the `SESSION:` header, a
 the lookup that finds nothing because `/goal done` retired this session's file.
 That last one matters most, since `/goal done` is how an owner retires a goal.
 
-An unheaded `DONE` is gated too, at the per-session, shared, and per-user paths. The
-agent writes its goal file, so exempting an unheaded DONE would be an escape: rewrite
-the file without the `SESSION:` header, put `DONE` first, and the check never runs
-while capture keeps filling the sidecar. Only a `DONE` headed for **another**
-session is skipped; it is that session's.
+An unheaded `DONE` is gated too, at the per-session and shared worktree paths
+(`.claude/active-goal.<session>` and `.claude/active-goal`). The agent writes its goal
+file, so exempting an unheaded DONE would be an escape: rewrite the file without the
+`SESSION:` header, put `DONE` first, and the check never runs while capture keeps
+filling the sidecar. A `DONE` headed for **another** session is skipped; it is that
+session's. The per-user `~/.claude/active-goal` is the exception: an unheaded `DONE`
+there is not gated, so one stale file cannot refuse the stops of every goal-less
+session on the machine.
 
 For a hand-written goal the owner has two exits: `CLAUDE_GOAL_OFF=1` on Claude, and,
 on both harnesses, editing the sidecar to mark the record `closed` or `deferred`.
@@ -149,9 +152,11 @@ slip, the same trap `BLOCKED:` fell into before it required a live `WATCH=<pid>`
 above `.claude/`. The path must also not be the ledger, its `.lock` or `.tmp.*`
 files, the goal file, or any other `.claude/active-goal*` file. Every ledger record
 names its own issue and the goal file can too, so either would pass "names the
-issue" for free; paths are compared by realpath, so a symlink or `..` does not get
-around it. A `DEFER` that fails the check is refused, and the refusal names the path
-and the reason.
+issue" for free. Paths are compared by file identity (device and inode), not
+spelling, so a symlink, a hardlink, `..`, or another letter case on a
+case-insensitive volume does not get around it. A plain copy of the ledger is still
+honoured; the stderr echo of every honoured `DEFER` is the mitigation. A `DEFER` that
+fails the check is refused, and the refusal names the path and the reason.
 
 ### Timeouts
 
@@ -225,16 +230,17 @@ unchecked issue in front of the agent afterwards.
   owed. Close them or `DEFER` them.
 - A `/goal done` typed by the owner is checked the same way as one the agent
   writes.
-- A hand-written (unheaded) goal marked `DONE` is gated like any other. A stale
-  `~/.claude/active-goal` with an open record in its sidecar therefore refuses DONE
-  in every checkout until the record is closed or deferred. See "The DONE check".
+- A hand-written (unheaded) goal marked `DONE` at a worktree path is gated like any
+  other. A newcomer session in a checkout whose shared goal is `DONE` with an open
+  record is refused until the record is closed or deferred. See "The DONE check".
 - Capture misses an issue created through `gh api graphql` (a `createIssue`
   mutation). Its output has no bare issue URL and no `repos/.../issues` endpoint in
   the command, so neither path fires.
 - Capture is wired for Claude and Muse only. Neither Cursor (`.cursor/hooks.json`) nor Codex runs `issue-capture.sh`.
 
-Tests: `scripts/test-issue-capture-hook.sh` (with its sourced companion
-`scripts/test-issue-capture-hook-cases.sh`), the issue-ledger layouts in
+Tests: `scripts/test-issue-capture-hook.sh` (with its sourced companions
+`scripts/test-issue-capture-hook-cases.sh` and
+`scripts/test-issue-capture-hook-gate-cases.sh`), the issue-ledger layouts in
 `scripts/test-goal-refresh-hook-parity-cases.sh`, and section K of
 `scripts/test-muse-hooks.sh`. `gh` is a fake on `PATH`:
 `scripts/lib/test-issue-capture-fake-gh.sh`.

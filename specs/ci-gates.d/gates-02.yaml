@@ -77,6 +77,7 @@ gates:
       # covered by .claude/hooks/**.
       - "scripts/test-issue-capture-hook.sh"
       - "scripts/test-issue-capture-hook-cases.sh"
+      - "scripts/test-issue-capture-hook-gate-cases.sh"
       - "scripts/lib/test-issue-capture-fake-gh.sh"
       - "scripts/testdata/issue-capture/**"
       # The workflow itself, so removing a test STEP selects the gate
@@ -140,6 +141,7 @@ gates:
       - "scripts/test-goal-refresh-hook-hermetic-cases.sh"
       - "scripts/test-issue-capture-hook.sh"
       - "scripts/test-issue-capture-hook-cases.sh"
+      - "scripts/test-issue-capture-hook-gate-cases.sh"
       - "scripts/lib/test-issue-capture-fake-gh.sh"
       - "scripts/testdata/issue-capture/**"
       - ".github/workflows/verify-agent-hygiene.yml"

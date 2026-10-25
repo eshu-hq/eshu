@@ -198,20 +198,53 @@ def cmd_capture(ledger, refs):
         print(r)
 
 
-def is_control_file(real, ledger, goal_file):
-    """Reports whether a resolved path is the ledger, a goal file, or their scratch.
+def same_file(a, b):
+    """Reports whether two paths are one file (same device and inode)."""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
+def control_files(ledger, goal_file):
+    """Returns the existing files a DEFER must never point at.
+
+    The ledger, its lock, the goal file, every `active-goal*` file beside the
+    ledger, and the ledger's temp files. Names are matched case-folded, because a
+    case-insensitive volume (the macOS default) treats `ACTIVE-GOAL` as the same
+    file, and identity (below) is what finally decides.
+    """
+    found = [ledger, ledger + ".lock"]
+    if goal_file:
+        found.append(goal_file)
+    ledger_dir = os.path.dirname(os.path.abspath(ledger))
+    ledger_name = os.path.basename(ledger).casefold()
+    try:
+        names = os.listdir(ledger_dir)
+    except OSError:
+        names = []
+    for name in names:
+        folded = name.casefold()
+        if folded.startswith("active-goal") or folded.startswith(ledger_name + ".tmp."):
+            found.append(os.path.join(ledger_dir, name))
+    return [f for f in found if os.path.exists(f)]
+
+
+def is_control_file(cand, ledger, goal_file):
+    """Reports whether a DEFER path is the ledger, a goal file, or their scratch.
 
     Every ledger record contains `owner/repo#N`, and a goal file can name the
     issue too, so either would satisfy "names the issue" for free. Both are
-    written by the agent, which makes them a self-issued permission slip.
+    written by the agent, which makes them a self-issued permission slip. The
+    test is file identity, not spelling: a symlink, a hardlink, `..`, or another
+    letter case all reach the same file. A `.claude/active-goal*` name elsewhere
+    (the per-user goal) is refused by name.
     """
-    ledger_real = os.path.realpath(ledger)
-    if real == ledger_real or real == ledger_real + ".lock" or real.startswith(ledger_real + ".tmp."):
+    if any(same_file(cand, f) for f in control_files(ledger, goal_file)):
         return True
-    if goal_file and real == os.path.realpath(goal_file):
-        return True
-    return (os.path.basename(os.path.dirname(real)) == ".claude"
-            and os.path.basename(real).startswith("active-goal"))
+    real = os.path.realpath(cand)
+    return (os.path.basename(os.path.dirname(real)).casefold() == ".claude"
+            and os.path.basename(real).casefold().startswith("active-goal"))
 
 
 def defer_problem(path, number, cwd, ledger, goal_file=""):
@@ -219,8 +252,8 @@ def defer_problem(path, number, cwd, ledger, goal_file=""):
 
     The agent writes the ledger, so a bare DEFER would be a self-issued
     permission slip. The path must exist, be non-empty, name the issue, and not
-    be the ledger or a goal file (compared by realpath, so a symlink or `..`
-    does not get around it).
+    be the ledger or a goal file (compared by file identity, so a symlink,
+    hardlink, `..` or another letter case does not get around it).
     """
     roots = [cwd] if cwd and cwd != "-" else []
     ledger_dir = os.path.dirname(os.path.abspath(ledger))
@@ -232,7 +265,7 @@ def defer_problem(path, number, cwd, ledger, goal_file=""):
     for cand in candidates:
         if not os.path.isfile(cand):
             continue
-        if is_control_file(os.path.realpath(cand), ledger, goal_file):
+        if is_control_file(cand, ledger, goal_file):
             why = "the ledger or a goal file is not a ruling"
             continue
         try:

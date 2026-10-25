@@ -134,21 +134,28 @@ gi_resolve_goal_file() { # sid cwd
 # `/goal done` retires the per-session file, and the lookup passes over a
 # retired file, so the hook arrives here with "no goal" and must find it again.
 #
-# An UNHEADED retired file counts too, at every candidate path. The agent writes
-# its goal file, so exempting an unheaded DONE would be an escape: rewrite the
-# file without the SESSION header, put DONE first, and the gate never runs while
-# capture keeps filling the sidecar. Only a DONE headed for ANOTHER session is
-# skipped; it is that session's. The owner's exit is the sidecar (mark a record
-# closed or deferred) or CLAUDE_GOAL_OFF on Claude.
+# An UNHEADED retired file counts too, at the per-session and shared worktree
+# paths. The agent writes its goal file, so exempting an unheaded DONE would be an
+# escape: rewrite the file without the SESSION header, put DONE first, and the
+# gate never runs while capture keeps filling the sidecar. A DONE headed for
+# ANOTHER session is skipped; it is that session's. The per-user
+# `~/.claude/active-goal` is NOT matched when unheaded: a stale one would refuse
+# the stops of every goal-less session on the machine. The owner's exit is the
+# sidecar (mark a record closed or deferred) or CLAUDE_GOAL_OFF on Claude.
 gi_retired_goal_file() { # sid cwd
-	local cand hdr own_path sid_safe
+	local cand hdr own_path shared_path sid_safe
 	sid_safe="$(printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-')"
 	own_path="${2:-}/.claude/active-goal.${sid_safe}"
+	shared_path="${2:-}/.claude/active-goal"
 	while IFS= read -r cand; do
 		[ -f "${cand}" ] || continue
 		goal_file_retired "${cand}" || continue
 		hdr="$(gi_retired_header_session "${cand}")"
-		if [ "${cand}" = "${CLAUDE_GOAL_FILE:-}" ] || [ "${cand}" = "${own_path}" ] || [ -z "${hdr}" ] || [ "${hdr}" = "$1" ]; then
+		if [ "${cand}" = "${CLAUDE_GOAL_FILE:-}" ] || [ "${cand}" = "${own_path}" ] || [ "${hdr}" = "$1" ]; then
+			printf '%s' "${cand}"
+			return 0
+		fi
+		if [ "${cand}" = "${shared_path}" ] && [ -z "${hdr}" ]; then
 			printf '%s' "${cand}"
 			return 0
 		fi
