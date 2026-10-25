@@ -18,11 +18,12 @@ import (
 )
 
 // TestFaultingExecutorHoldFiredWaitsForMarkerWrite pins the publish order
-// HoldFired promises: an observer that sees HoldFired() == true must also see
-// the hold marker. The marker path is a FIFO, so the engaging goroutine's
-// os.WriteFile blocks on open until this test reads it. That freezes the
-// executor between engaging the hold and finishing the marker write, which
-// is the window where TestFaultingExecutorHoldBlocksExecuteUntilSentinelRemoval
+// HoldFired promises: an observer that sees HoldFired() == true also sees the
+// hold marker, unless its write failed. The marker path is a FIFO, so the
+// engaging goroutine's os.WriteFile blocks on open until this test reads it.
+// That freezes the executor between engaging the hold and finishing the
+// marker write, which is the window where
+// TestFaultingExecutorHoldBlocksExecuteUntilSentinelRemoval
 // failed intermittently (18 of 3000 runs at -cpu=4) by reading a marker that
 // did not exist yet.
 func TestFaultingExecutorHoldFiredWaitsForMarkerWrite(t *testing.T) {

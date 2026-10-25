@@ -157,7 +157,8 @@ func (fe *FaultingExecutor) maybeHoldBeforeDelegation(
 	// Record the engagement durably before blocking, so the gate's proof
 	// does not depend on the reducer's stderr reaching its captured file.
 	// Publish holdFired only after the write returns: an in-process observer
-	// that sees HoldFired() == true must find the marker on disk.
+	// that sees HoldFired() == true finds the marker on disk, unless the write
+	// failed, which writeHoldMarker reports on stderr.
 	fe.writeHoldMarker(ordinal, matched)
 	fe.holdFired.Store(true)
 	ticker := time.NewTicker(ifaFaultSentinelPollInterval)
