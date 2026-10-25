@@ -95,6 +95,7 @@ when:
   `-std=gnu17`, or any `CGO_CFLAGS` assignment drops the flag, adds a second
   `-std=`, uses a `${{ }}` expression, appends a later `-std=` with `+=`, or
   unsets or clears the variable (`unset`, `env -u`, `env --unset`, `env -i`,
+  `env --ignore-environment`, a bare `env -`, `declare +x` or `typeset +x`,
   `export -n`, `Remove-Item Env:`), or any `CGO_CPPFLAGS` value holds `-std=`.
   Blanks, tabs, or quotes around the key do not hide an assignment. A
   whole-line or trailing `#` comment (a `#` after whitespace) that names

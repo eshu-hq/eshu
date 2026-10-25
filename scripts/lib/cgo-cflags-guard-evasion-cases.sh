@@ -131,6 +131,7 @@ EOF
 	mk_case "spelling ::= passes" 0 'export CGO_CFLAGS ::= -O2 -g -std=gnu17\n'
 	mk_case "spelling ?= passes" 0 'export CGO_CFLAGS ?= -O2 -g -std=gnu17\n'
 	mk_case "spelling override export passes" 0 'override export CGO_CFLAGS := -O2 -g -std=gnu17\n'
+	mk_case "spelling export after leading spaces passes" 0 '  export CGO_CFLAGS := -O2 -g -std=gnu17\n'
 	mk_case "spelling with tabs passes" 0 'export\tCGO_CFLAGS\t:=\t-O2 -g -std=gnu17\n'
 	mk_case "spelling with a trailing comment passes" 0 'export CGO_CFLAGS = -O2 -g -std=gnu17 # keep\n'
 
