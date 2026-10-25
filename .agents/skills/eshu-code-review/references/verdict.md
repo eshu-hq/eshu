@@ -111,9 +111,10 @@ A rebase that applies with no conflicts, with every commit `=` in
 note in its place and pass it as `--verdict` to
 `ci-gates review-attest capture`. The table in "Rebase Waiver" in
 [SKILL.md](../SKILL.md#rebase-waiver) decides when a note applies: row 6 only.
-A rebase with a conflict resolution or an added commit (rows 3 and 4) needs a
-review, so it uses the [scoped rebase verdict](#scoped-rebase-verdict) and not
-this note. The attest tool hashes the file. It does not read it, so the note
+A rebase with a non-mechanical conflict resolution or an added commit (rows 3
+and 4b) needs a review, so it uses the
+[scoped rebase verdict](#scoped-rebase-verdict) and not this note. Row 4a and
+tier S use neither. The attest tool hashes the file. It does not read it, so the note
 MUST be truthful by its own words.
 
 The note MUST NOT claim a new review happened. It carries no finding counts for

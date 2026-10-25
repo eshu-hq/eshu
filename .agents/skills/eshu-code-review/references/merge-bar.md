@@ -230,7 +230,8 @@ being pushed.
 
 A rebase has its own decision table. See [Rebase Waiver](../SKILL.md#rebase-waiver),
 the [waiver note](verdict.md#waiver-note) (row 6), and the
-[scoped rebase verdict](verdict.md#scoped-rebase-verdict) (rows 3 and 4). It
+[scoped rebase verdict](verdict.md#scoped-rebase-verdict) (rows 3 and 4b);
+row 4a and tier S need neither. It
 holds the waiver conditions and the open-finding definition, which the
 deferred-P2 rule above feeds.
 
