@@ -25,7 +25,7 @@ failures, collector terminal failures). Its statement is the live
 `readCoordinatorSnapshot`, run by `storage/postgres.ReadCoordinatorSummaryEntries`
 with the database clock as the snapshot clock; the codec is
 `storage/postgres/workflow/snapshot`. Its pass duration grows with
-`workflow_work_items` (about 0.14 s at 600k rows), which is the cost the status
+`workflow_work_items` (measured in `docs/internal/evidence/8828-coordinator-snapshot-model.md`), which is the cost the status
 reads and scrapes no longer pay. It runs last so that cost never delays the
 other two rows.
 

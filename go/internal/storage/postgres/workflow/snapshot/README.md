@@ -39,7 +39,9 @@ by the number of work items.
 
 ## Freshness
 
-The counts are true at the row's `as_of`. Durations are advanced to the read by
+The counts are true at the row's `as_of`, to within the writer pass: it runs
+its nine statements in one READ COMMITTED transaction, so each sees its own
+snapshot over about 0.1 s. Durations are advanced to the read by
 `AdvanceAges`: the oldest-pending, oldest-retry and oldest-claim ages grow by the
 row's age, and the next-retry delay shrinks by it, stopping at zero. Counts and
 terminal failures are not adjusted, so the staleness bound
