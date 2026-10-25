@@ -16,10 +16,11 @@ Keep outward-facing comments and review requests within user authorization.
   `--force-with-lease` push; other rows repeat the promotion sequence. Restart
   the poll after the push. Active agents merge constantly; a green check
   snapshot can become stale while the PR is waiting.
-- `scripts/dev/pre-enqueue-check.sh` is stricter than the merge rule until
-  #9094 lands: it still requires `required-gates-complete` and fails on any
-  pending check. Wait it out or rerun the stranded gate; do not bypass the
-  script by hand and do not merge on a red arm.
+- `scripts/dev/pre-enqueue-check.sh` checks the merge rule. It fails on a
+  ruleset-required check that is not green, and on a completed red check that
+  is not named with `--dispositioned '<check>=<reason>'`; a pending or absent
+  non-required check is only a note. Do not bypass the script by hand and do
+  not merge on a red arm.
 - CI is done only after **two consecutive stable reads of the full check set**
   (`gh pr checks <n> --json bucket` shows `pending == 0` AND the total count is
   unchanged across two polls). GitHub registers large check sets in waves, so a
