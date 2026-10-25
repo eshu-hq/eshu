@@ -77,8 +77,11 @@ upsert is not.
 The writer creates a series only after it counts a non-zero value, so a series
 that never fired does not exist, and an empty vector on one side of `+`, `*` or
 `/` empties the whole result. Each query below wraps every sum that can be absent
-in `or vector(0)` for that reason. The bare small-classified divisor has no such
-fallback: when it is absent the whole small-batch term is dropped to 0.
+in `or vector(0)` for that reason. The small-classified divisor has no such
+fallback. It is filtered with `> 0` instead: a small-batch series that exists but
+did not increase in the window sums to 0, and `0 * x / 0` is NaN, which `or
+vector(0)` does not replace. When no small batch was classified in the window,
+whether the series is absent or flat, the small term drops to 0.
 
 To read one snapshot, add `snapshot="full"` or `snapshot="delta"` to every
 selector (a selector without braces gets `{snapshot="full"}`). The `or vector(0)`
@@ -98,7 +101,7 @@ count as they are; small-batch rows are scaled by the observed sampling ratio
         sum(increase(eshu_dp_content_file_upserts_total{batch_class="small"}[1d]))
         + (sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total{batch_class="small"}[1d])) or vector(0))
       )
-    / sum(increase(eshu_dp_content_file_upserts_total{batch_class="small"}[1d]))
+    / (sum(increase(eshu_dp_content_file_upserts_total{batch_class="small"}[1d])) > 0)
     or vector(0)
   )
 )

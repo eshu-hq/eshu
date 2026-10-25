@@ -177,7 +177,8 @@ test is the published text. Each is evaluated with no snapshot matcher and with
 `snapshot="delta"` and `snapshot="full"` added to every selector, and again with
 the metric names swapped for the byte counters. A case is skipped when its
 matcher selects no series (0/0). Values are compared after
-`floor(1e6 * x + 0.5)`, because promtool compares floats exactly. 72 cases.
+`floor(1e6 * x + 0.5)`, because promtool compares floats exactly. 96 cases in 14
+test files.
 
 | Scenario (rows per minute) | True share | Scaled | Lower bound | Naive (classified only) |
 |---|---|---|---|---|
@@ -186,15 +187,24 @@ matcher selects no series (0/0). Values are compared after
 | Large batches only: 30 `metadata_only` + 70 other | 0.30 | 0.30 | 0.30 | not run |
 | Delta only | 0 | 0 | 0 | not run |
 | Full only (the mix without its deltas) | 0.90 | 0.90 | 0.7688 | not run |
+| Zero increase (a): a small delta series that exists but is flat in the window (7 rows, 7 sampled out), then a large-only window of 30 `metadata_only` + 70 other | 0.30 | 0.30 | 0.30 | not run |
+| Zero increase (b): full snapshots, large 72 `metadata_only` + 8 other, a flat small `content_changed` series, 10 small rows sampled out | 0.80 | 0.80 | 0.80 | not run |
 
 With `snapshot="delta"` the worked example and the mix evaluate to 0, and with
-`snapshot="full"` to 0.90 on both. The naive 0.4235 is
+`snapshot="full"` to 0.90 on both; the two zero-increase scenarios give 0.30 and
+0.80 with `snapshot="full"` as well (the delta matcher selects nothing in them).
+Round 4 found the zero-increase cases: a small-batch classified series that
+exists but did not increase sums to 0, and `0 * x / 0` is NaN, which `or
+vector(0)` does not replace. The divisor is now `(sum(...) > 0)`, which empties
+the term instead, and the guard turns that into 0. The naive 0.4235 is
 `72 / 170` and was run as its own promtool test (exit 0).
 
-Seeded violation: the same harness pointed at the previous page text (git
-`03c03eb5b8`) fails in `t_worked_rows` (6 expressions), `t_mix_rows` (2),
-`t_delta-only_rows` (4) and `t_large-only_rows` (6), and passes `t_full-only_rows`
-(every series exists there). With the fixed page, all ten test files exit 0.
+Seeded violation: the same harness pointed at the page text of `4d57939e47`
+(divisor without `> 0`) fails the four zero-increase files (rows and bytes) and
+passes the other ten. Pointed at the page text of `03c03eb5b8` it also fails in
+`t_worked_rows` (6 expressions), `t_mix_rows` (2), `t_delta-only_rows` (4) and
+`t_large-only_rows` (6), and passes `t_full-only_rows` (every series exists
+there). With the fixed page, all 14 test files exit 0.
 
 Command per test file: `docker run --rm --entrypoint promtool -v "$PWD":/w -w /w
 prom/prometheus:v3.5.0 test rules <file>`.
