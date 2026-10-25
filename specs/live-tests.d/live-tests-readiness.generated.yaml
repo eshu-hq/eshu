@@ -279,6 +279,11 @@ tests:
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proof that two status summary writers at the production 5 s cadence for 30 s beside two workers claiming and Acking through the production ReducerQueue (80 to 100 percent live spike) cause zero claim errors and zero writer-attributable lock waits, keep the stored as_of monotone, never compute at once, and count overruns only for passes over the interval; the blocking reducer-contention-gate step also runs it with ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1, so an unset DSN fails there"
     runner: live-postgres-readiness
+  - file: go/internal/reducer/status/summary/coordinator_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8828 disposable PostgreSQL 18 proof of the coordinator_snapshot summary model: a row written by the production writer pass equals the live coordinator read recomputed at the row's as_of in one REPEATABLE READ snapshot, tuple for tuple, at an empty database and with runs, work items in every status, claims, collector instances, completeness rows, dead letters and an unacknowledged and an acknowledged terminal failure; the production stored-summary reader serves it with the live counts; four concurrent writer replicas racing for the same ticks beside workflow-queue claim traffic never error, write a monotonic as_of, leave exactly one decodable row, and never block the claims"
+    runner: live-postgres-readiness
   - file: go/internal/reducer/status/summary/reader_live_test.go
     tag: ~
     class: postgres_ci
