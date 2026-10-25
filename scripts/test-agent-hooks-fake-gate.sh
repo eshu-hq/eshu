@@ -14,6 +14,7 @@
 # macOS names a script process after its interpreter, so a shell or Python
 # script called ci-gates never matches `pgrep -x`. Only a compiled binary keeps
 # the name. Every case below runs on macOS and on Linux.
+# shellcheck disable=SC2154  # fakebin, fake_pid and fake_gate_kind come from the library.
 set -uo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -55,13 +56,22 @@ if start_fake_gate; then
     ok "killing the fake gate removes it from pgrep -x ci-gates"
   fi
   rm -rf "$fakebin"
+  # Where Go is installed the compiled fake must be the one in use; a silent
+  # fall back to the shell fake would pass on Linux and hide a broken build.
+  if command -v go >/dev/null 2>&1; then
+    if [ "$fake_gate_kind" = go ]; then
+      ok "with Go installed the compiled fake is used (kind=$fake_gate_kind)"
+    else
+      no "Go is installed but the fake gate kind is [$fake_gate_kind], not go"
+    fi
+  fi
 else
   no "start_fake_gate failed on a host with a Go toolchain or Linux"
 fi
 
 # --- 2. with no Go toolchain: Linux keeps the shell fake, macOS names the gap -
-out="$(ESHU_FAKE_GATE_GO=/nonexistent-go start_fake_gate 2>&1)"
-ESHU_FAKE_GATE_GO=/nonexistent-go start_fake_gate >/dev/null 2>&1
+gap_file="$(mktemp)"
+ESHU_FAKE_GATE_GO=/nonexistent-go start_fake_gate 2>"$gap_file"
 rc=$?
 case "$(uname -s)" in
   Linux)
@@ -74,18 +84,45 @@ case "$(uname -s)" in
       fi
       stop_fake
     else
-      no "Linux without Go must fall back to the shell fake; rc=$rc out=$out"
+      no "Linux without Go must fall back to the shell fake; rc=$rc gap=$(cat "$gap_file")"
     fi
     ;;
   *)
-    if [ "$rc" -ne 0 ] && rg -Fq 'HOST-GAP' <<<"$out"; then
+    if [ "$rc" -ne 0 ] && rg -Fq 'HOST-GAP' "$gap_file"; then
       ok "a host that cannot build the fake prints a named HOST-GAP line"
     else
-      no "expected rc!=0 and a HOST-GAP line without Go; rc=$rc out=$out"
+      no "expected rc!=0 and a HOST-GAP line without Go; rc=$rc gap=$(cat "$gap_file")"
     fi
     [ -n "${fakebin:-}" ] && rm -rf "$fakebin"
     ;;
 esac
+rm -f "$gap_file"
+
+# --- 3. the shell fallback must not hold its caller's stdout open -------------
+# A caller that captures start_fake_gate with $(...) waits for every holder of
+# the pipe. The shell fake's sleep child held it for 30 s and the fake's pid was
+# lost inside the subshell, so it was left running. Forced onto the Linux branch
+# on any host; the fake's pid and dir come back through the captured output.
+begin=$SECONDS
+captured="$(ESHU_FAKE_GATE_OS=Linux ESHU_FAKE_GATE_GO=/nonexistent-go start_fake_gate; printf '%s %s' "$fake_pid" "$fakebin")"
+elapsed=$((SECONDS - begin))
+read -r cap_pid cap_dir <<<"$captured"
+if [ "$elapsed" -lt 5 ]; then
+  ok "the shell fallback returns promptly inside a command substitution (${elapsed}s)"
+else
+  no "the shell fallback held the caller's stdout for ${elapsed}s inside a command substitution"
+fi
+if [ -n "$cap_pid" ]; then
+  kill "$cap_pid" 2>/dev/null
+  sleep 0.3
+  if kill -0 "$cap_pid" 2>/dev/null; then
+    no "shell fallback pid $cap_pid survived kill"
+    kill -9 "$cap_pid" 2>/dev/null
+  else
+    ok "the shell fallback leaves no process after kill"
+  fi
+fi
+[ -n "$cap_dir" ] && rm -rf "$cap_dir"
 
 printf '\n%s passed, %s failed\n' "$passed" "$failed"
 [ "$failed" -eq 0 ]

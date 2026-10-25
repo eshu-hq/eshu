@@ -27,10 +27,10 @@ if start_fake_gate; then
   if [ "$rc" -eq 2 ] && rg -Fq 'ci-gates run is already in flight' <<<"$out"; then
     printf 'ok - a running ci-gates process blocks the gate\n'
     passed=$((passed + 1))
-else
-  printf 'FAIL - running ci-gates should block(2); exit=%s out=%s\n' "$rc" "$out" >&2
-  failed=$((failed + 1))
-fi
+  else
+    printf 'FAIL - running ci-gates should block(2); exit=%s out=%s\n' "$rc" "$out" >&2
+    failed=$((failed + 1))
+  fi
 else
   printf 'skip - a running ci-gates process blocks the gate: HOST-GAP, no fake ci-gates here\n'
   skipped=$((skipped + 1))
@@ -50,10 +50,10 @@ if start_fake_gate; then
   if [ "$rc" -eq 2 ]; then
     printf 'ok - a port override does not waive the running-process check\n'
     passed=$((passed + 1))
-else
-  printf 'FAIL - override must not bypass the process check; exit=%s out=%s\n' "$rc" "$out" >&2
-  failed=$((failed + 1))
-fi
+  else
+    printf 'FAIL - override must not bypass the process check; exit=%s out=%s\n' "$rc" "$out" >&2
+    failed=$((failed + 1))
+  fi
 else
   printf 'skip - a port override does not waive the running-process check: HOST-GAP, no fake ci-gates here\n'
   skipped=$((skipped + 1))

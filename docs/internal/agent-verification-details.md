@@ -87,7 +87,12 @@ packages that are fine (`GOTOOLCHAIN=local` shows the same result). The floor
 `go/go.mod` and unsets `GOROOT`; its lint, gosec and registry gates inherit both
 (`scripts/lib/go-toolchain.sh`, tested by `scripts/test-go-toolchain.sh`). For a
 command you run by hand, use `env -u GOROOT GOTOOLCHAIN=go1.26.10 ...` with the
-version from `go/go.mod`.
+version from `go/go.mod`. The first run with a toolchain that is not cached
+downloads it, so it needs network access that once; offline and uncached, `go`
+fails with "toolchain not available". CI is unaffected, because `setup-go`
+installs the `go.mod` version. `scripts/lib/go-toolchain.sh` pins only a
+`toolchain` line or a three-part `go` line; a language version such as
+`go 1.22` is left alone.
 
 ## Hook test mirrors on macOS
 
@@ -99,7 +104,10 @@ process after its interpreter. The fake is a small compiled Go program
 `scripts/test-agent-hooks-fake-gate.sh` checks that `pgrep -x ci-gates` lists
 the fake by its own pid, so a real gate running on the host cannot hide a broken
 fake. A host with no Go toolchain prints a named `HOST-GAP` line and counts the
-cases as skipped. Linux falls back to a shell fake and still runs them.
+cases as skipped. Linux falls back to a shell fake and still runs them. Where Go
+is installed, the same mirror asserts that the compiled fake is the one in use,
+so CI cannot pass on the shell fake by accident, and that the shell fake returns
+promptly when a caller captures it in a command substitution.
 
 ## The custom lint plugins
 
