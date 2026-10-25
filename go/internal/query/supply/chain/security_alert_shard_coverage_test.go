@@ -211,3 +211,43 @@ func TestSecurityAlertEmptyAnswerOnARetiredActiveGenerationIsNotComplete(t *test
 		t.Fatalf("retired + terminal = rank %d %q, want 1 failed_terminal (nothing committed)", rank, verdict.collectorState)
 	}
 }
+
+// TestSecurityAlertUncollectedSlugIsJudgedPerShard is the #8838 x #9019
+// interaction: the target set check runs against the shard scope that covers
+// the requested repository. When that shard's latest committed generation did
+// not collect the repository (it joined the allowlist after that generation),
+// the anchored empty answer reads as collecting. A slug listed as uncollected
+// by a shard that does not cover it changes nothing.
+func TestSecurityAlertUncollectedSlugIsJudgedPerShard(t *testing.T) {
+	t.Parallel()
+
+	raw, leaves := shardCoverageConfig(t)
+	covering, _ := shard.For(leaves, "example-org/example-repo")
+	var other string
+	for _, leaf := range leaves {
+		if leaf.ScopeID != covering.ScopeID {
+			other = leaf.ScopeID
+		}
+	}
+	committed := SecurityAlertTargetState{LatestWorkItemStatus: "completed", CommittedGeneration: true}
+	missing := committed
+	missing.UncollectedRequested = []string{"example-org/example-repo"}
+	complete := coverageWant{"complete", nil, "exact", "fresh", "", "ready_zero_results"}
+	collecting := coverageWant{"target_incomplete", []string{"no_committed_generation"}, "derived", "building", "missing_collector_completion", ""}
+	for name, tc := range map[string]struct {
+		states map[string]SecurityAlertTargetState
+		want   coverageWant
+	}{
+		"covering shard missed the slug":       {map[string]SecurityAlertTargetState{covering.ScopeID: missing, other: committed}, collecting},
+		"another shard lists it, not covering": {map[string]SecurityAlertTargetState{covering.ScopeID: committed, other: missing}, complete},
+	} {
+		for route, target := range coverageRoutes(coverageTestRepositoryID) {
+			t.Run(name+"/"+route, func(t *testing.T) {
+				t.Parallel()
+				store := &fakeSecurityAlertCollectionState{configs: []string{raw}, states: tc.states}
+				_, _, resp := serveCoverage(context.Background(), t, coverageTestHandler(store, 0), target)
+				assertCoverage(t, resp, tc.want)
+			})
+		}
+	}
+}

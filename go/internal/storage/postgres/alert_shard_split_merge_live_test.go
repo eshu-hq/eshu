@@ -105,10 +105,15 @@ func shardSplitMergeProof(replicas int) func(*testing.T) {
 			if !state.Retired || !state.CommittedGeneration {
 				t.Fatalf("merged parent before its collection = %+v, want a retired active generation", state)
 			}
+			// #8838: the retirement recorded an empty target set, so the
+			// requested repository also reads as not collected.
+			if !slices.Equal(state.UncollectedRequested, []string{merged[0]}) {
+				t.Fatalf("merged parent before its collection uncollected = %v, want [%s]", state.UncollectedRequested, merged[0])
+			}
 		}
 		collect, retire = shardItemIDs(e.scan(merged, "schedule-20261025T090000Z", replicas, parentBeforeCollection))
-		if state := e.collectionState(shardLiveBaseScopeID, merged[0]); state.Retired {
-			t.Fatalf("merged parent after its collection = %+v, want not retired", state)
+		if state := e.collectionState(shardLiveBaseScopeID, merged[0]); state.Retired || len(state.UncollectedRequested) != 0 {
+			t.Fatalf("merged parent after its collection = %+v, want not retired and the repository collected", state)
 		}
 		if !slices.Equal(collect, []string{shardLiveBaseScopeID}) || !slices.Equal(retire, splitShards) {
 			t.Fatalf("merge planned %v and retired %v, want the base back and %v retired", collect, retire, splitShards)

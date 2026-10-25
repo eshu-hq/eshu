@@ -103,7 +103,9 @@ out only its own repositories; its read state and fan-out cursor are its own.
 `PreflightProviderAccess` checks one shard per target, since every shard reads
 the same org endpoint with the same credential. Shards of one target share the
 work item's `FairnessKey`; one process claims one item at a time and replicas
-claim distinct shard scopes.
+claim distinct shard scopes. Each shard records its own target set (#8838,
+`targetSet` on the shard's runtime config), so the set hash in a shard's
+freshness digest moves only when that shard's own membership changes.
 
 A work item whose `acceptance_unit_id` is `shard.RetirementAcceptanceUnitID(scope_id)`
 is a retirement (`retire.go`): the coordinator planned it for a scope of a
@@ -112,7 +114,9 @@ provider. It is an empty generation with `TrustedDeletion` (the only
 attestation that passes the #7926 successor guard over a content-bearing
 generation), the constant hint `RetirementFreshnessHint` (a replay is skipped as
 unchanged; it is also the retirement marker the query layer reads), and a
-read state with `repositories_total = 0`, which the coordinator's read skips. It fails retryable, committing nothing, for a scope
+read state with `repositories_total = 0`, which the coordinator's read skips,
+and an explicit empty target set (#8838: it collected nothing). It fails
+retryable, committing nothing, for a scope
 that is not part of a configured org target or that this collector's own
 partition still plans. `TrustedDeletion` is set on retirement generations only.
 

@@ -13,7 +13,10 @@ import (
 )
 
 // targetSet returns the repositories this target collects (#8838): its
-// repository, or the allowlisted repositories of its organization. It is
+// repository, or the allowlisted repositories of its organization. For a
+// shard target (#9019) the allowlist is the shard's own repositories, so each
+// shard records its own set and its unchanged-generation decision moves only
+// when its own membership changes. It is
 // recorded with each generation and moves the freshness digest, so a changed
 // allowlist or a reused scope_id that names another repository always commits
 // a new generation instead of being skipped as unchanged.

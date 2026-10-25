@@ -126,6 +126,11 @@ func TestShardedOrgTargetCollectsEachShardWithItsOwnRepositories(t *testing.T) {
 		if collected.Generation.TrustedDeletion {
 			t.Fatal("a collection generation carries TrustedDeletion")
 		}
+		// #8838 interaction: each shard records its own repositories, so its
+		// unchanged-generation decision moves only when its own membership does.
+		if got, want := collected.Generation.SecurityAlertTargetSet.Slugs(), slices.Sorted(slices.Values(leaf.Repositories)); !slices.Equal(got, want) {
+			t.Fatalf("shard %s target set = %d slugs, want its %d repositories", leaf.ScopeID, len(got), len(want))
+		}
 		if want := slices.Sorted(slices.Values(leaf.Repositories)); !slices.Equal(repositories, want) {
 			t.Fatalf("shard %s facts cover %d repositories, want its %d", leaf.ScopeID, len(repositories), len(want))
 		}
@@ -193,6 +198,11 @@ func TestRetirementClaimCommitsAnAttestedEmptyGeneration(t *testing.T) {
 	}
 	if collected.Scope.ScopeID != fanoutTestOrgScopeID || collected.Scope.ParentScopeID != "" {
 		t.Fatalf("retirement scope = %+v", collected.Scope)
+	}
+	// #8838 interaction: a retirement collected nothing, so it records an
+	// explicit empty target set (not the zero value, which means "no record").
+	if set := generation.SecurityAlertTargetSet; set.IsZero() || len(set.Slugs()) != 0 {
+		t.Fatalf("retirement target set = %q, want a recorded empty set", set.JSON())
 	}
 	if collected.StateWriter == nil || len(f.states) != 1 || f.states[0].RepositoriesTotal != 0 || f.states[0].ScopeID != fanoutTestOrgScopeID {
 		t.Fatalf("retirement read state = %+v, want one row with repositories_total 0", f.states)

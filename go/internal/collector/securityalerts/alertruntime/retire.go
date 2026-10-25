@@ -82,6 +82,10 @@ func (s *ClaimedSource) retire(
 			TriggerKind:     scope.TriggerKindSnapshot,
 			FreshnessHint:   RetirementFreshnessHint,
 			TrustedDeletion: true,
+			// A retirement collected nothing: it records an explicit empty
+			// target set (#8838), so the query layer's uncollected check
+			// agrees with its Retired flag for every repository.
+			SecurityAlertTargetSet: scope.NewSecurityAlertTargetSet(nil),
 		},
 		nil,
 	)
