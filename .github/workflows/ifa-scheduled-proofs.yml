@@ -30,7 +30,7 @@ jobs:
   ifa-scheduled:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'ifa-scheduled') }}
     name: Ifá scheduled proof vs NornicDB and PostgreSQL
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
       postgres:

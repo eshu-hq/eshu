@@ -16,7 +16,7 @@ INVENTORY = Path(__file__).with_name("ifa_scheduled_inventory.json")
 RUNNER = Path("scripts/run-ifa-scheduled-proofs.sh")
 WORKFLOW = Path(".github/workflows/ifa-scheduled-proofs.yml")
 FRAGMENT = Path("specs/ci-pr-workflows.d/ifa-scheduled-proofs.yml")
-WORKFLOW_SHA256 = "a3213999c2e28a1231fd3472042cc9ff958cc4144f68d7278e93f536b8cc86aa"
+WORKFLOW_SHA256 = "6ef742cc11d11c30a0dd48c1fbd9fb9790b9b764277b82a8bdaff58576f83c52"
 RUNNER_SHA256 = "63e6573b21b77cdab837b15080672368f53d97d47d6cb903c6037f663576a03e"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 SOURCE_PATHS = frozenset((
@@ -106,7 +106,7 @@ def verify_workflow_structure(workflow: str) -> str:
     if (
         set(keys) != JOB_KEYS
         or keys["if"] != "    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'ifa-scheduled') }}"
-        or keys["runs-on"] != "    runs-on: ubuntu-latest"
+        or keys["runs-on"] != "    runs-on: ubuntu-24.04"
         or keys["timeout-minutes"] != "    timeout-minutes: 20"
         or keys["services"] != "    services:"
         or keys["steps"] != "    steps:"

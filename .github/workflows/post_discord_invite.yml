@@ -19,7 +19,7 @@ jobs:
     # Skip if the event is a PR from a fork; still run for issues and in-repo PRs
     if: ${{ github.event_name == 'issues' || (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork) }}
     timeout-minutes: 5
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Post Discord Invite Comment
         uses: actions/github-script@v8

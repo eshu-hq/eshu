@@ -10,7 +10,7 @@ import sys
 from reducer_contention_events import canonical_keys, verify_events
 
 WORKFLOW = Path(".github/workflows/delta-union-scheduled.yml")
-WORKFLOW_SHA256 = "64de0b535ecba1699a88b3fa4a922cffe5a87171f6d0189a96f9082b1e6d7ca4"
+WORKFLOW_SHA256 = "5a822b617b2fcb543e7f896f67912afce931407090c6368bf8034e30196f316a"
 SOURCE = Path("go/cmd/projector/delta_union_live_test.go")
 PACKAGE = "github.com/eshu-hq/eshu/go/cmd/projector"
 TESTS = (
@@ -70,7 +70,7 @@ def verify(root: Path, workflow: str | None = None) -> None:
     if tuple(paths) != PR_PATHS:
         raise ValueError("scoped PR dependency route changed")
     required = (
-        "    runs-on: ubuntu-latest\n", "    timeout-minutes: 20\n",
+        "    runs-on: ubuntu-24.04\n", "    timeout-minutes: 20\n",
         f"        image: {PG_IMAGE}\n", f"        image: {NEO4J_IMAGE}\n",
         "          POSTGRES_DB: eshu_delta_union\n",
         "          POSTGRES_USER: eshu\n", "          POSTGRES_PASSWORD: change-me\n",

@@ -56,7 +56,8 @@ check_authority() { # step
 	if [[ "$in_tree_direct" == "true" ]]; then
 		# A direct producer holds no claim row, so the claim table cannot show it.
 		# Its Deployment stands in, read at every step so run and verify agree. An
-		# unreadable Deployment counts as running: fail closed, never pass.
+		# unknown answer counts as running, so an external claim fails closed; with no claim
+		# the step passes and records the read error.
 		read_direct_running
 		tree=0
 		[[ "$DIRECT_LIVE" == "no" ]] || tree=1

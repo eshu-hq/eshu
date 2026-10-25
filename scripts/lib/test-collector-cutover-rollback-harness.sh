@@ -49,6 +49,7 @@ new_state() {
 		printf 'jira|tree-1|pending|\n'
 	} >"${FAKE_STATE}/claims"
 	printf '1\n' >"${FAKE_STATE}/drain_polls_left"
+	printf 'eshu-worker\n' >"${FAKE_STATE}/worker_name"
 	printf '1\n' >"${FAKE_STATE}/worker_pods"
 	printf '1\n' >"${FAKE_STATE}/worker_replicas"
 	printf '0\n' >"${FAKE_STATE}/intree_replicas"

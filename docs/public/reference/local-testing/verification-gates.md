@@ -260,7 +260,7 @@ bash scripts/test-run-live-backend-tests.sh
 
 The runner starts Neo4j on the Docker host's native platform, read from
 `docker version`: `linux/arm64` on Apple silicon, `linux/amd64` on CI's
-ubuntu-latest runners. The pinned Neo4j digest is a multi-arch index, so both
+ubuntu-24.04 runners. The pinned Neo4j digest is a multi-arch index, so both
 platforms pull the same release. Forcing `linux/amd64` on an arm64 host runs
 the JVM under emulation. Cold Cypher planning was about six times slower on
 one Apple silicon host, and the first entity-context read on a fresh stack can
