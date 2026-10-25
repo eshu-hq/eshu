@@ -77,7 +77,10 @@ func NewRunFence(logger *slog.Logger) *RunFence {
 // during a rebuild waits for it. The wait is bounded by the context of the call
 // that opens the connection. Once the run's pinned session is known, it then
 // checks that session still holds (5318,1) and returns ErrDeferredSessionRefused
-// when it does not; pgx closes the connection, which frees the shared lock.
+// when it does not; the connect option that runs this hook closes the
+// connection (inventory.WriterConnectOptionWithHooks), which frees the shared
+// lock. The pgx stdlib connector does not close a connection whose AfterConnect
+// failed.
 func (f *RunFence) Hook() func(ctx context.Context, conn *pgx.Conn) error {
 	return func(ctx context.Context, conn *pgx.Conn) error {
 		if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock_shared($1, $2)",
