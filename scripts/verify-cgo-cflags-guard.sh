@@ -47,6 +47,11 @@
 # short). A "#" in a quoted string before an assignment is not treated as a
 # comment for Go detection, and an assignment after any " #" is reported.
 #
+# Also accepted: a -std= that reaches the compiler by another route, such as a
+# CC value (CC: "gcc -std=gnu23") or wrapper, a #cgo directive in Go source, or a
+# ${{ }} expression in CGO_CPPFLAGS whose value is only known at run time. The
+# guard reads literal text and cannot evaluate those.
+#
 # Coverage is exactly the files named above. A script that runs go without the
 # `CGO_ENABLED=1 go` prefix gets the flag from a workflow, make, or one of the
 # entrypoints, or from `go env -w CGO_CFLAGS=...` on the developer's host (see

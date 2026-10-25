@@ -119,6 +119,10 @@ anchor, a job-level `env`, or `go env -w`; the last group fails safe because no
 workflow-level flag is found. A quoted value that holds ` #`, `;`, `&`, or `|` is
 cut short and fails safe.
 
+The guard reads literal text, so it also cannot see a `-std=` that reaches the
+compiler by another route: a `CC` value or wrapper (`CC: "gcc -std=gnu23"`), a
+`#cgo` directive in Go source, or a `${{ }}` expression in `CGO_CPPFLAGS`.
+
 Its mirror test, `scripts/test-verify-cgo-cflags-guard.sh`, plants each
 violation in a fixture tree, including a comment-only mention and a source with
 no export, and compiles a probe that defines `bsearch` after `<stdlib.h>`: it
