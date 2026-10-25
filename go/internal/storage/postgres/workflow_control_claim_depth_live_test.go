@@ -30,7 +30,7 @@ func TestWorkflowClaimDepthEightClaimersDrainExactlyOnce(t *testing.T) {
 	}
 	seeded := seedClaimDepthBacklog(t, store, ctx, "claim-depth-even", base, keys)
 
-	result := drainClaimDepthBacklog(t, database, ctx, claimDepthClaimers, poolLimit)
+	result := drainClaimDepthBacklog(t, database, ctx, "claim-depth-even", claimDepthClaimers, poolLimit)
 
 	assertClaimDepthConcurrency(t, result, claimDepthClaimers)
 	assertClaimDepthExactlyOnce(t, seeded, result)
@@ -93,7 +93,7 @@ func TestWorkflowClaimDepthFairRotationServesSmallKeysEarly(t *testing.T) {
 	}
 	seeded := seedClaimDepthBacklog(t, store, ctx, "claim-depth-skew", base, keys)
 
-	result := drainClaimDepthBacklog(t, database, ctx, claimDepthClaimers, poolLimit)
+	result := drainClaimDepthBacklog(t, database, ctx, "claim-depth-skew", claimDepthClaimers, poolLimit)
 
 	assertClaimDepthConcurrency(t, result, claimDepthClaimers)
 	assertClaimDepthExactlyOnce(t, seeded, result)
@@ -107,14 +107,15 @@ func TestWorkflowClaimDepthFairRotationServesSmallKeysEarly(t *testing.T) {
 	// disposition, same root cause as the pacing floor: an absolute
 	// claims/s floor flakes on hosted runner noise): a same-run
 	// single-claimer calibration drain of the same backlog shape cancels
-	// host speed out of the ratio, so only throttled or serialized grants
-	// collapse the speedup below half the enrolled parallelism.
+	// host speed out of the ratio, so throttled or serialized grants
+	// collapse the speedup below half the enrolled parallelism (a uniform
+	// slowdown preserves the ratio and stays trend-logged, not gated).
 	calKeys := []claimDepthKeyBacklog{{FairnessKey: "claim-depth-skew-cal:large", Count: largeCount}}
 	for _, small := range smallKeys {
 		calKeys = append(calKeys, claimDepthKeyBacklog{FairnessKey: "claim-depth-skew-cal:" + small, Count: 20, CreatedOffset: time.Second})
 	}
 	calSeeded := seedClaimDepthBacklog(t, store, ctx, "claim-depth-skew-cal", base, calKeys)
-	cal := drainClaimDepthBacklog(t, database, ctx, 1, poolLimit)
+	cal := drainClaimDepthBacklog(t, database, ctx, "claim-depth-skew-cal", 1, poolLimit)
 	assertClaimDepthExactlyOnce(t, calSeeded, cal)
 	if !claimDepthDrainSpeedupOK(cal.Duration.Seconds(), result.Duration.Seconds(), claimDepthClaimers) {
 		t.Fatalf("skew drain speedup = %.2fx (single %s vs parallel %s), want >= %.1fx (half of %d enrolled claimers; throttled or serialized grants)",
