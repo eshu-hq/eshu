@@ -26,6 +26,7 @@ func TestClaimDepthMaxOverlap(t *testing.T) {
 		{"single window reports one", []claimDepthRecord{window(0, 10)}, 1},
 		{"disjoint windows report one", []claimDepthRecord{window(0, 10), window(20, 30)}, 1},
 		{"touching endpoints report one", []claimDepthRecord{window(0, 10), window(10, 20)}, 1},
+		{"lone zero-length window reports zero", []claimDepthRecord{window(10, 10)}, 0},
 		{"nested windows report two", []claimDepthRecord{window(0, 30), window(10, 20)}, 2},
 		{"identical windows report two", []claimDepthRecord{window(5, 15), window(5, 15)}, 2},
 		{"three staggered windows report three", []claimDepthRecord{window(0, 20), window(5, 25), window(10, 15)}, 3},
