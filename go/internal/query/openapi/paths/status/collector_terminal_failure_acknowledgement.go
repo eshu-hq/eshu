@@ -66,7 +66,25 @@ const CollectorTerminalFailureAcknowledgement = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "404": {"$ref": "#/components/responses/NotFound"},
+          "404": {
+            "description": "The instance is unknown, disabled, or deactivated, or the collector_kind does not match. Before the idempotency claim the key is not consumed. A 404 from the re-resolve inside the acknowledgement transaction (the instance was disabled or deactivated after the first check) consumes the key: the body then carries key_consumed true and key_detail, and a retry needs a new idempotency_key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {"$ref": "#/components/schemas/ErrorResponse"},
+                    {
+                      "type": "object",
+                      "properties": {
+                        "key_consumed": {"type": "boolean", "description": "Present and true only when the refusal came after the idempotency claim."},
+                        "key_detail": {"type": "string", "description": "Present only with key_consumed: nothing was acknowledged and a retry needs a new idempotency_key."}
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "409": {"$ref": "#/components/responses/Conflict"},
           "422": {"description": "ack_refused_no_terminal_failure: nothing to acknowledge on that instance and scope inside the window. Nothing was written. Before the idempotency claim the key was not consumed; from the re-resolve inside the acknowledgement transaction the key is consumed and a retry needs a new idempotency_key (the detail says which)."},
           "500": {"$ref": "#/components/responses/InternalError"},
