@@ -53,65 +53,83 @@ const (
 	SkipReasonByteCap = "byte_cap_exceeded"
 	// SkipReasonTokenCap marks a file with more than MaxTokensPerFile tokens.
 	SkipReasonTokenCap = "token_cap_exceeded"
+	// SkipReasonManifestUnparseable marks a package.json that is not readable
+	// JSON (malformed, or nested past the depth bound). It emits nothing.
+	SkipReasonManifestUnparseable = "manifest_unparseable"
+	// SkipReasonValueRejected marks a manifest from which Rejected values were
+	// dropped because they were credential-shaped, over the value bound, or
+	// ambiguous. Unlike the other reasons the file's other declarations are
+	// still emitted: each dropped value is one the file did not declare as a
+	// version, not a prefix of the file.
+	SkipReasonValueRejected = "value_rejected"
 )
 
 // Skip describes why EmitFile emitted nothing for an admitted pin file. The
 // zero value means the file was not skipped. It carries sizes and counts only,
 // never file content.
 type Skip struct {
-	// Reason is SkipReasonByteCap or SkipReasonTokenCap; empty when not skipped.
+	// Reason is one of the SkipReason constants; empty when not skipped.
 	Reason string
 	// ByteSize is the body size in bytes.
 	ByteSize int
+	// ByteCap is the cap a SkipReasonByteCap skip exceeded: MaxBytesPerFile for
+	// a pin file, MaxManifestBytesPerFile for a manifest.
+	ByteCap int
 	// TokenCount is the exact number of tokens the file holds. It is set for
 	// SkipReasonTokenCap only: a byte-cap skip never tokenizes the file.
 	TokenCount int
+	// Rejected is the number of values dropped from a manifest. It is set for
+	// SkipReasonValueRejected only.
+	Rejected int
 }
 
 // Skipped reports whether the file was skipped.
 func (s Skip) Skipped() bool { return s.Reason != "" }
 
-// Emit reads one version-pin file body and returns one
-// "runtime_declaration.version" fact envelope per (line, token). relativePath
-// is the repository-relative path of the file. It returns nil when the path is
-// not an admitted pin file, so a credential carrier such as .npmrc never emits,
-// when the body holds no declaration, and when the file is over MaxBytesPerFile
-// or MaxTokensPerFile. Use EmitFile to learn about a cap skip.
+// Emit reads one admitted file body (a version-pin file, package.json or
+// go.mod) and returns one "runtime_declaration.version" fact envelope per
+// declaration. relativePath is the repository-relative path of the file. It
+// returns nil when the path is not admitted, so a credential carrier such as
+// .npmrc never emits, when the body holds no declaration, and when the file is
+// over its byte or token cap or is not readable. Use EmitFile to learn about a
+// skip.
 func Emit(ctx FixtureContext, repoID, relativePath, body string) []facts.Envelope {
 	envelopes, _ := EmitFile(ctx, repoID, relativePath, body)
 	return envelopes
 }
 
-// EmitFile is Emit plus the cap signal: when the file is over MaxBytesPerFile
-// or holds more than MaxTokensPerFile tokens it emits nothing and returns a
-// Skip saying which cap tripped, so the caller can count and log the skip.
-// The byte cap is checked first, before any parsing; past the token cap the
-// parser counts without storing, so memory stays bounded by the cap and the
-// longest line, not by the size of the body.
-//
-// Each payload is built from the typed runtimedeclarationv1.Version through
-// factschema.EncodeRuntimeDeclarationVersion (Contract System v1 §3.1), never a
-// hand-built map. A token that fails to encode is skipped rather than emitted
-// malformed; this cannot happen in practice since every field is a plain
-// string, integer or boolean.
+// EmitFile is Emit plus the skip signal: when the file is over a cap, holds
+// more than MaxTokensPerFile tokens, is not readable, or lost values to the
+// credential guard, it returns a Skip saying which. A cap, token or readability
+// skip emits nothing; a value rejection still emits the file's other
+// declarations. The byte cap is checked first, before any parsing; past the
+// token cap the parser counts without storing, so memory stays bounded by the
+// cap and the longest line, not by the size of the body.
 func EmitFile(ctx FixtureContext, repoID, relativePath, body string) (envelopes []facts.Envelope, skip Skip) {
-	sourceKind, ok := SourceKindForPath(relativePath)
+	extraction, ok := Extract(relativePath, body)
 	if !ok {
 		return nil, Skip{}
 	}
-	if len(body) > MaxBytesPerFile {
-		return nil, Skip{Reason: SkipReasonByteCap, ByteSize: len(body)}
-	}
-	declarations, total := parse(sourceKind, body, MaxTokensPerFile)
-	if total == 0 {
-		return nil, Skip{}
-	}
-	if total > MaxTokensPerFile {
-		return nil, Skip{Reason: SkipReasonTokenCap, ByteSize: len(body), TokenCount: total}
-	}
+	return EmitExtraction(ctx, repoID, relativePath, extraction)
+}
+
+// EmitExtraction builds the fact envelopes of an Extraction. It is the second
+// half of EmitFile, split so the Git collector can read a manifest when the
+// content walk meets it and keep only its few declarations until emission.
+//
+// Each payload is built from the typed runtimedeclarationv1.Version through
+// factschema.EncodeRuntimeDeclarationVersion (Contract System v1 §3.1), never a
+// hand-built map. A declaration that fails to encode is skipped rather than
+// emitted malformed; this cannot happen in practice since every field is a
+// plain string, integer or boolean.
+func EmitExtraction(ctx FixtureContext, repoID, relativePath string, extraction Extraction) (envelopes []facts.Envelope, skip Skip) {
 	scopeDir := ScopeDir(relativePath)
-	envelopes = make([]facts.Envelope, 0, len(declarations))
-	for _, d := range declarations {
+	envelopes = make([]facts.Envelope, 0, len(extraction.declarations))
+	for _, d := range extraction.declarations {
+		sourceKind := extraction.sourceKind
+		if d.section != sectionNone {
+			sourceKind = sectionSourceKinds[d.section]
+		}
 		version := runtimedeclarationv1.Version{
 			CollectorInstanceID: ctx.CollectorInstanceID,
 			RepoID:              repoID,
@@ -125,7 +143,7 @@ func EmitFile(ctx FixtureContext, repoID, relativePath, body string) (envelopes 
 			RawSpec:             d.rawSpec,
 			Distribution:        d.distribution,
 		}
-		applySpec(&version, classifyDeclaration(sourceKind, d))
+		applySpec(&version, classifyDeclaration(extraction.sourceKind, d))
 		payload, err := factschema.EncodeRuntimeDeclarationVersion(version)
 		if err != nil {
 			continue
@@ -139,7 +157,7 @@ func EmitFile(ctx FixtureContext, repoID, relativePath, body string) (envelopes 
 		})
 		envelopes = append(envelopes, newEnvelope(ctx, stableKey, relativePath, payload))
 	}
-	return envelopes, Skip{}
+	return envelopes, extraction.skip
 }
 
 // classifyDeclaration classifies one pin-file declaration. A value that is not

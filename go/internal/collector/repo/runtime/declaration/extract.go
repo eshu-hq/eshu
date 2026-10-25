@@ -1,0 +1,76 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package declaration
+
+// Extraction is the declarations read from one admitted file, before they
+// become fact envelopes, plus the skip that applies to the file. It holds only
+// the few values a declaration needs, never the file body, so a caller can keep
+// one per manifest while the content walk continues. The zero value holds
+// nothing.
+type Extraction struct {
+	// sourceKind is the file-level source kind of a pin file; a manifest
+	// declaration carries its own section kind.
+	sourceKind   string
+	declarations []declaration
+	skip         Skip
+}
+
+// Skip reports why the file was skipped, or that values were dropped from it.
+func (e Extraction) Skip() Skip { return e.skip }
+
+// Len is the number of declarations the file will emit.
+func (e Extraction) Len() int { return len(e.declarations) }
+
+// Extract reads one admitted file body into an Extraction. ok is false when
+// relativePath is not admitted (see Admitted), so a credential carrier never
+// reaches a parser. The byte cap is checked before any parsing.
+func Extract(relativePath, body string) (Extraction, bool) {
+	if sourceKind, ok := SourceKindForPath(relativePath); ok {
+		return extractPinFile(sourceKind, body), true
+	}
+	switch manifestKindForPath(relativePath) {
+	case manifestNone:
+		return Extraction{}, false
+	case manifestPackageJSON:
+		return extractManifest(body, func() ([]declaration, int, error) { return extractPackageJSON(body) }), true
+	case manifestGoMod:
+		return extractManifest(body, func() ([]declaration, int, error) {
+			declarations, rejected := extractGoMod(body)
+			return declarations, rejected, nil
+		}), true
+	}
+	return Extraction{}, false
+}
+
+// extractPinFile reads a version-pin file body.
+func extractPinFile(sourceKind, body string) Extraction {
+	if len(body) > MaxBytesPerFile {
+		return Extraction{skip: Skip{Reason: SkipReasonByteCap, ByteSize: len(body), ByteCap: MaxBytesPerFile}}
+	}
+	declarations, total := parse(sourceKind, body, MaxTokensPerFile)
+	switch {
+	case total == 0:
+		return Extraction{}
+	case total > MaxTokensPerFile:
+		return Extraction{skip: Skip{Reason: SkipReasonTokenCap, ByteSize: len(body), TokenCount: total}}
+	}
+	return Extraction{sourceKind: sourceKind, declarations: declarations}
+}
+
+// extractManifest runs one manifest reader under the manifest byte cap and maps
+// its outcome onto a skip.
+func extractManifest(body string, read func() ([]declaration, int, error)) Extraction {
+	if len(body) > MaxManifestBytesPerFile {
+		return Extraction{skip: Skip{Reason: SkipReasonByteCap, ByteSize: len(body), ByteCap: MaxManifestBytesPerFile}}
+	}
+	declarations, rejected, err := read()
+	if err != nil {
+		return Extraction{skip: Skip{Reason: SkipReasonManifestUnparseable, ByteSize: len(body)}}
+	}
+	extraction := Extraction{declarations: declarations}
+	if rejected > 0 {
+		extraction.skip = Skip{Reason: SkipReasonValueRejected, ByteSize: len(body), Rejected: rejected}
+	}
+	return extraction
+}

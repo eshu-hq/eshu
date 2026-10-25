@@ -5,7 +5,10 @@
 1. `README.md` — purpose and the classification table.
 2. `classify.go` — `Classify` is the authority on spec kinds and range bounds.
 3. `parse.go` and `source.go` — the per-file line policy and the admitted names.
-4. `emitter.go` / `envelope.go` — fact envelope construction.
+   `manifest.go`, `packagejson.go`, `gomod.go` and `jsonscan.go` — the
+   `package.json` and `go.mod` readers and the credential guard (`safeSpec`).
+4. `extract.go` / `emitter.go` / `envelope.go` — extraction, caps and fact
+   envelope construction.
 5. `go/internal/facts/runtime_declaration.go` — the fact-kind constant, schema
    version and family declaration this package emits into.
 6. `sdk/go/factschema/runtimedeclaration/v1/version.go` — the typed payload;
@@ -28,6 +31,18 @@
   `pinFileSourceKinds` nor its `rawTextNonPinNames` list. Do not add
   `.npmrc`, `.yarnrc.yml`, `.pypirc`, `.netrc` or `mise.toml`: they can carry
   credentials, and the content store has no write-time redaction.
+- A manifest value reaches a fact only through `safeSpec`. Never widen its
+  character set, length bound or opaque-run bound to admit a case; a value it
+  rejects is a counted drop, not a bug. `package.json` and `go.mod` are `store`
+  policy files whose sections may be edited by anyone, so the guard is the
+  only thing between a pasted credential and a fact.
+- The JSON scan allocates for no skipped value and recurses to a fixed depth
+  (`maxJSONDepth`). Keep it that way: it runs on every `package.json` in every
+  repository, and a hostile file must cost time linear in its size only.
+- A manifest is never retained: the collector keeps its `Extraction`, not the
+  body. Do not add a field to `declaration` that grows the struct without
+  re-running `TestEmitOverTheTokenCapUnderTheByteCapCountsWithoutStoring`
+  (a pin file stores up to `MaxTokensPerFile` of them).
 - Build every payload from `runtimedeclarationv1.Version` via
   `factschema.EncodeRuntimeDeclarationVersion`. Never hand-build a
   `map[string]any` (Contract System v1 §3.1; see `eshu-contract-rigor`).
@@ -41,9 +56,10 @@
   a row in the stream test (`git/pin_file_emission_test.go`),
   and a row in `docs/public/languages/admitted-files.md` through
   `scripts/generate-parser-admission-doc.sh`.
-- A new `source_kind` family (package.json, go.mod, Dockerfile, CI) is its own
-  change. It emits through the same contract and documents its `source_kind`
-  values.
+- A new `source_kind` family (Dockerfile, CI) is its own change. It emits
+  through the same contract and documents its `source_kind` values. A new
+  `package.json` section or `go.mod` directive adds a `section` constant, its
+  `source_kind` and a table-test row, and its raw text goes through `safeSpec`.
 - A new value grammar: keep whitespace-split values going through
   `eachValue` (`values.go`) so a spaced operator or range is never cut into
   fragments, and extend the oracle in `emitter_oracle_test.go`.
