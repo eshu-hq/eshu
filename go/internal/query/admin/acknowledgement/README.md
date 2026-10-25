@@ -56,8 +56,10 @@ no further write. See
 ## Telemetry and audit
 
 - Counter `eshu_dp_collector_terminal_failure_acknowledgements_total{outcome}`:
-  `acknowledged`, `duplicate`, `refused`. A server fault is not counted; it is
-  on the request span and the audit event `ack_failed`.
+  `acknowledged`, `duplicate`, `refused`. A server fault, a malformed body, an
+  unconfigured service, and a key still in progress are not counted; they are
+  on the request span, and a store fault also records the audit event
+  `ack_failed`.
 - INFO log `collector terminal failure acknowledged` with the bounded kind,
   instance, and class.
 - One `admin_recovery_action` governance audit event per decision with a bounded
