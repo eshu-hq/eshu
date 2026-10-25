@@ -61,7 +61,7 @@ name is not defined as a quoted name in `go/`.
 
 | Alert | Fires when | Severity |
 | --- | --- | --- |
-| `EshuHostedStatusSummaryStale` | `eshu_runtime_status_summary_stale` is `1` for 5 minutes: the scrape could not serve a fresh stored row for a `model_key`. The runtime compares the row age with its own `ESHU_STATUS_SUMMARY_STALE_AFTER`, so the rule holds no copy of the bound. A stopped or failing writer shows here as a row that keeps aging. | warning |
+| `EshuHostedStatusSummaryStale` | `eshu_runtime_status_summary_stale` is `1` for 5 minutes: the scrape could not serve a fresh stored row for a `model_key` (`active_work_summary` or `coordinator_snapshot`). The runtime compares the row age with its own `ESHU_STATUS_SUMMARY_STALE_AFTER`, so the rule holds no copy of the bound. A stopped or failing writer shows here as a row that keeps aging. | warning |
 | `EshuHostedStatusSnapshotUnavailable` | `eshu_runtime_status_snapshot_available` is `0` for 5 minutes. Status-derived gauges are omitted, so the queue and completeness alerts above cannot fire. | critical |
 
 `EshuHostedStatusSummaryStale` is inert until `ESHU_STATUS_SUMMARY_READ_ENABLED`

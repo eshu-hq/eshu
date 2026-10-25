@@ -60,7 +60,11 @@
   check the selection still requests it; `TestStatusMetricsSkipsTerraformEvidence`
   and `TestStatusMetricsStatementInventory` pin both. `writeSummaryMarker`
   renders nothing unless the stored-summary reader answered, so a reader-off
-  scrape stays byte-identical.
+  scrape stays byte-identical. The stored-summary scrape reads two models, so
+  `writeSummaryMarkers` (`summary_marker.go`) writes one stale and one age
+  gauge per model_key: `active_work_summary` for the stage, queue, and domain
+  gauges and `coordinator_snapshot` (#8828) for the `eshu_runtime_coordinator_*`
+  gauges. A new gauge family that reads a stored model needs its own marker.
 
 - **`NewStatusMetricsServer` may return nil** — when `Config.MetricsAddr` is
   empty, the function returns `(nil, nil)`. Every caller of this function must

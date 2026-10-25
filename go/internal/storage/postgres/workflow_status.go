@@ -15,6 +15,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/workflow/snapshot"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
@@ -298,4 +300,48 @@ func readWorkflowCoordinatorClaimSnapshot(
 		return 0, 0, 0, fmt.Errorf("read workflow coordinator claim snapshot: %w", err)
 	}
 	return activeClaims, overdueClaims, scalars.DurationFromSeconds(oldestPendingAgeSeconds), nil
+}
+
+// CoordinatorSummarySourceSHA256 returns the hex SHA-256 of everything the
+// stored coordinator_snapshot row depends on: the text of every statement
+// readCoordinatorSnapshot runs, the two window rules that size the recent and
+// terminal-failure lookbacks, and the entry encoding (#8828). The periodic
+// status summary writer stores it with the row and the reader compares it with
+// its own value, so a row computed by another version of any statement is never
+// decoded: a rolling upgrade falls back instead of mixing definitions.
+func CoordinatorSummarySourceSHA256() string {
+	return snapshot.SourceSHA256(
+		workflowCoordinatorCollectorInstancesQuery,
+		workflowCoordinatorRunStatusCountsQuery,
+		workflowCoordinatorWorkItemStatusCountsQuery,
+		workflowCoordinatorCompletenessCountsQuery,
+		workflowCoordinatorClaimSnapshotQuery,
+		workflowCoordinatorRecentFailuresQuery,
+		workflowCollectorBackpressureQuery,
+		workflowCollectorBackpressureFailureClassQuery,
+		workflowCollectorTerminalFailuresQuery,
+		defaultCoordinatorRecentFailureWindow.String(),
+		fmt.Sprint(terminalFailureWindowCycles),
+	)
+}
+
+// ReadCoordinatorSummaryEntries runs the live coordinator read, byte for byte
+// the one the status snapshot runs, with asOf as the snapshot clock and returns
+// its result as stored entries for the status summary writer (#8828). The
+// entries are decoded again before they are returned, so a snapshot the reader
+// could not decode is an error here and is never stored. A deployment with no
+// coordinator state is the live read's nil snapshot and stores no entries.
+func ReadCoordinatorSummaryEntries(ctx context.Context, queryer db.Queryer, asOf time.Time) ([]summary.Entry, error) {
+	live, err := readCoordinatorSnapshot(ctx, queryer, asOf.UTC())
+	if err != nil {
+		return nil, err
+	}
+	entries, err := snapshot.Encode(live)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := snapshot.Decode(entries); err != nil {
+		return nil, fmt.Errorf("verify coordinator snapshot entries: %w", err)
+	}
+	return entries, nil
 }

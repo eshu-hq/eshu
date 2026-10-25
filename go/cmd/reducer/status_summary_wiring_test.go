@@ -60,8 +60,18 @@ func TestStatusSummaryWriterBuiltWhenEnabled(t *testing.T) {
 	if runner.Statement.SourceSHA256 != postgres.ActiveWorkSummarySourceSHA256() {
 		t.Fatalf("source digest = %q, want the storage statement's digest", runner.Statement.SourceSHA256)
 	}
-	if len(runner.Companions) != 1 {
-		t.Fatalf("companions = %d, want the terraform_state model", len(runner.Companions))
+	if len(runner.Companions) != 2 {
+		t.Fatalf("companions = %d, want the terraform_state and coordinator_snapshot models", len(runner.Companions))
+	}
+	coordinator := runner.Companions[1]
+	if coordinator.ModelKey != snapshots.ModelCoordinatorSnapshot || coordinator.Compute == nil {
+		t.Fatalf("second companion = %+v, want a wired coordinator_snapshot statement", coordinator)
+	}
+	if coordinator.SourceSHA256 != postgres.CoordinatorSummarySourceSHA256() {
+		t.Fatalf("coordinator digest = %q, want the storage statements' digest", coordinator.SourceSHA256)
+	}
+	if coordinator.SourceSHA256 == runner.Companions[0].SourceSHA256 || coordinator.SourceSHA256 == runner.Statement.SourceSHA256 {
+		t.Fatal("the coordinator model shares a digest with another model; each row must carry its own statements'")
 	}
 	companion := runner.Companions[0]
 	if companion.ModelKey != snapshots.ModelTerraformState || companion.Compute == nil {

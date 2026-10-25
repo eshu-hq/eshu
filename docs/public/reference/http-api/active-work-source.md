@@ -88,6 +88,56 @@ database's, so an `observed_at` can be later than `as_of`. No value in the
 section is an age, so nothing is advanced at read. The row shares the `ESHU_STATUS_SUMMARY_STALE_AFTER` limit and the other settings below,
 and `stale` is `false` for the same reason as above.
 
+## Coordinator source
+
+`GET /api/v0/status/pipeline`, `GET /api/v0/status/index` (and
+`GET /api/v0/index-status`), the ingester routes (`GET /api/v0/status/ingesters`,
+`GET /api/v0/ingesters`, and their `{ingester}` forms), `GET
+/api/v0/status/hosted-readiness`, and the runtime `/admin/status` JSON carry a
+`coordinator_source` object (#8828). It has the same five keys and the same
+`source` and `reason` values as `active_work_source`, and says where the
+coordinator section came from: collector instances, the workflow run,
+work-item and completeness status counts, claims, collector backpressure, the
+recent-failure counts, and the collector terminal failures that feed collector
+health. The reducer stores that section as its own row, `coordinator_snapshot`,
+because reading it live costs time linear in `workflow_work_items`, on every
+status read and every `/metrics` scrape of every hosted runtime. The row is a
+few KB and bounded by the number of collector instances and statuses, not by the
+number of work items.
+
+```json
+{
+  "coordinator_source": {
+    "source": "model",
+    "reason": "fresh",
+    "as_of": "2026-10-25T09:29:48Z",
+    "age_seconds": 12,
+    "stale": false
+  }
+}
+```
+
+The row has its own `as_of`, digest, and writer transaction, so the three
+markers are independent. `age_seconds` is the freshness bound of the whole
+section: the counts, claims, backpressure counts, and terminal failures are true
+at `as_of`, and the section can lag the live answer by up to that age. The
+oldest-pending, oldest-retry, and oldest-claim ages are advanced by the row's age
+at read time, and the next-retry delay is reduced by it and stops at zero. A row
+older than `ESHU_STATUS_SUMMARY_STALE_AFTER` is not served on a status route; the
+live workflow statements answer the whole section and `reason` says `stale`
+(`/metrics` scrapes never run them, see below).
+
+The counts are counts of the rows `workflow_work_items` retains, not cumulative
+history. With work-item retention on (the default,
+`ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE`), the `completed` and
+terminal counts fall as old rows are pruned; with it off
+(`ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE=0`) they keep growing. The
+stored model reads one row either way, so its read cost does not depend on
+retention; only the writer's pass duration does
+(`eshu_dp_status_summary_writer_pass_duration_seconds{model_key="coordinator_snapshot"}`).
+
+With the reader off it reads `source: live`, `reason: flag_off`.
+
 ## Staleness contract
 
 A stored row is never served older than `ESHU_STATUS_SUMMARY_STALE_AFTER`
@@ -107,14 +157,14 @@ A fallback is whole: one report never mixes a stored row with a live
 active-work read. When concurrent reads in one process fall back together, they
 share one live statement; each reports the clock that statement ran at as its
 `as_of`. The other sections of the report (scopes, generations,
-coordinator, collectors, and the rest) are always read live in the same
+collectors, and the rest) are always read live in the same
 snapshot transaction. A database error reading the row fails the status read
 instead of falling back, because inside a snapshot transaction a failed
 statement aborts it.
 
 ## Compatibility
 
-The `active_work_source` and `terraform_state_source` keys are present on their routes from the release that
+The `active_work_source`, `terraform_state_source`, and `coordinator_source` keys are present on their routes from the release that
 adds them, whatever the reader flag says: with the reader off it reads
 `source: live`, `reason: flag_off`. It is an additive field.
 
@@ -142,7 +192,11 @@ foreign, miscounted, or undecodable row serves an empty summary when the process
 has no other decodable row. `eshu_runtime_status_summary_stale{service_name,model_key}`
 is `0` for a fresh row and `1` otherwise, and
 `eshu_runtime_status_summary_age_seconds{service_name,model_key}` is the served
-row's age (`NaN` for the empty summary). A database error fails the
+row's age (`NaN` for the empty summary). The scrape reads two rows, so each gauge
+appears twice: `model_key="active_work_summary"` for the stage, queue, and domain
+gauges, and `model_key="coordinator_snapshot"` for the `eshu_runtime_coordinator_*`
+gauges. A scrape that can decode no coordinator row renders no coordinator gauge
+and reports the marker stale with a `NaN` age. A database error fails the
 scrape like any other failed status read
 (`eshu_runtime_status_snapshot_available 0`). With the reader off neither gauge
 is rendered and the scrape is unchanged.

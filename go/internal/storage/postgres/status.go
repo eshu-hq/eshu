@@ -184,9 +184,8 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	q, done = s.read(ctx, statusReadCoordinator)
-	coordinatorSnapshot, err := readCoordinatorSnapshot(ctx, q, asOf.UTC())
-	if err = done(err); err != nil {
+	coordinatorSnapshot, coordinatorSource, err := s.readCoordinator(ctx, asOf.UTC(), selection)
+	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 	var registryCollectors []statuspkg.RegistryCollectorSnapshot
@@ -270,6 +269,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		SemanticExtraction:             semanticExtraction,
 		ActiveWorkSource:               activeWorkSource,
 		TerraformStateSource:           terraformStateSource,
+		CoordinatorSource:              coordinatorSource,
 	}, nil
 }
 

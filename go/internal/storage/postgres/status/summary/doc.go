@@ -46,6 +46,11 @@
 // zero summary, marked stale (SourceLastRow, SourceZero). ObserveScrape records
 // its counter, span attributes, and rate-limited warning.
 //
+// A third model key, ModelCoordinatorSnapshot, holds the workflow coordinator
+// section of the status snapshot (#8828). Its codec lives in
+// storage/postgres/workflow/snapshot; this package serves it through its own
+// ModelReader like the others.
+//
 // A second model key, ModelTerraformState, holds the Terraform-state admin
 // evidence (last serial per locator and recent warnings). It has its own
 // ModelReader and Flight, and no age correction because its statements carry no

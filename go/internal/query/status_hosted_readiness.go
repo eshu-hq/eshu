@@ -39,9 +39,12 @@ type hostedReadinessReport struct {
 	// ActiveWorkSource says whether the queue came from the stored summary or
 	// the live statement (#7009); absent when the reader reports none.
 	ActiveWorkSource *status.ActiveWorkSourceJSON `json:"active_work_source,omitempty"`
-	Coordinator      map[string]any               `json:"coordinator"`
-	Checks           []hostedReadinessCheck       `json:"checks"`
-	DiagnosticPaths  []hostedDiagnosticTarget     `json:"diagnostic_paths"`
+	// CoordinatorSource says whether the coordinator section came from the
+	// stored coordinator_snapshot row or the live workflow statements (#8828).
+	CoordinatorSource *status.ActiveWorkSourceJSON `json:"coordinator_source,omitempty"`
+	Coordinator       map[string]any               `json:"coordinator"`
+	Checks            []hostedReadinessCheck       `json:"checks"`
+	DiagnosticPaths   []hostedDiagnosticTarget     `json:"diagnostic_paths"`
 }
 
 type hostedReadinessCheck struct {
@@ -142,17 +145,18 @@ func buildHostedReadinessReport(
 		coordinator = scopedCoordinatorToMap(report.Coordinator)
 	}
 	return hostedReadinessReport{
-		Version:          buildinfo.AppVersion(),
-		State:            state,
-		Ready:            state == hostedReadinessReady,
-		Summary:          hostedReadinessSummary(state, failureClasses),
-		GeneratedAt:      report.AsOf.UTC().Format(time.RFC3339),
-		FailureClasses:   failureClasses,
-		RepositoryCount:  repositoryCount,
-		Queue:            queueToMap(report.Queue),
-		ActiveWorkSource: report.ActiveWorkSource.JSON(),
-		Coordinator:      coordinator,
-		Checks:           builder.checks,
+		Version:           buildinfo.AppVersion(),
+		State:             state,
+		Ready:             state == hostedReadinessReady,
+		Summary:           hostedReadinessSummary(state, failureClasses),
+		GeneratedAt:       report.AsOf.UTC().Format(time.RFC3339),
+		FailureClasses:    failureClasses,
+		RepositoryCount:   repositoryCount,
+		Queue:             queueToMap(report.Queue),
+		ActiveWorkSource:  report.ActiveWorkSource.JSON(),
+		CoordinatorSource: report.CoordinatorSource.JSON(),
+		Coordinator:       coordinator,
+		Checks:            builder.checks,
 		DiagnosticPaths: []hostedDiagnosticTarget{
 			{Name: "admin_status", Path: "/admin/status"},
 			{Name: "index_status", Path: "/api/v0/status/index"},

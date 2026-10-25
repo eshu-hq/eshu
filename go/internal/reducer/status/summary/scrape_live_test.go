@@ -4,7 +4,7 @@
 package summary_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #7009 disposable PostgreSQL 18 proofs of the runtime /metrics scrape path in autocommit, the shape of every hosted runtime: a row written by the production writer is served equal to the live active-work statement at the same data and clock; once the row is stale, missing, or its table is dropped, the process keeps serving its last row as stale with an age that keeps growing; a process that restarts into a stale but decodable row serves that row as stale, and a process that restarts with the table dropped serves the zero summary (the empty-table and foreign or undecodable row cases are proven hermetically, not by this live file); the live active-work statement runs zero times; the statement inventory on an empty store through the production status store is 24 statements before, 20 with the reader off, and 21 with the reader on (no active-work statement); and the scrape renders identical bytes through the production handler with the metrics selection and the broader selection over a database whose collector fact-evidence, registry collector, and coordinator sections are populated (with a planted violation); the blocking reducer-contention-gate step also runs it with ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1, so an unset DSN fails there
+//eshu:readiness:reason #7009 disposable PostgreSQL 18 proofs of the runtime /metrics scrape path in autocommit, the shape of every hosted runtime: a row written by the production writer is served equal to the live active-work statement at the same data and clock; once the row is stale, missing, or its table is dropped, the process keeps serving its last row as stale with an age that keeps growing; a process that restarts into a stale but decodable row serves that row as stale, and a process that restarts with the table dropped serves the zero summary (the empty-table and foreign or undecodable row cases are proven hermetically, not by this live file); the live active-work statement runs zero times; the statement inventory on an empty store through the production status store is 25 statements before, 21 with the reader off, and 16 with the reader on (no active-work and no coordinator statement, #8828); and the scrape renders identical bytes through the production handler with the metrics selection and the broader selection over a database whose collector fact-evidence, registry collector, and coordinator sections are populated (with a planted violation); the blocking reducer-contention-gate step also runs it with ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1, so an unset DSN fails there
 //eshu:readiness:env ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE ESHU_STATUS_SUMMARY_PROOF_DSN
 
 import (
@@ -51,6 +51,33 @@ func (p *recordingPool) count() (total, activeWork int) {
 		}
 	}
 	return len(p.queries), activeWork
+}
+
+// coordinatorCount returns how many recorded statements are the live
+// coordinator read (#8828): the eight statements readCoordinatorSnapshot runs on
+// a store with no collector instance. The matched text is unique to them.
+func (p *recordingPool) coordinatorCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	n := 0
+	for _, query := range p.queries {
+		for _, marker := range []string{
+			"configuration->'scan_interval'",
+			"FROM workflow_runs\nGROUP BY status",
+			"FROM workflow_work_items\nGROUP BY status",
+			"FROM workflow_run_completeness\nGROUP BY status",
+			"AS active_claim_count,\n    (SELECT COUNT(*)",
+			"recent_failed_runs",
+			"WITH workflow_collector_backpressure",
+			"last_failure_class,\n    COUNT(*) AS count\nFROM workflow_work_items",
+		} {
+			if strings.Contains(query, marker) {
+				n++
+				break
+			}
+		}
+	}
+	return n
 }
 
 func scrapeStatusStore(pool db.Queryer, enabled bool, staleAfter time.Duration) postgres.StatusStore {
@@ -185,30 +212,32 @@ func TestScrapeServesTheStoredRowAndNeverTheLiveStatementLive(t *testing.T) {
 func TestScrapeStatementInventoryOnAnEmptyStoreLive(t *testing.T) {
 	ctx, database := openWriterDatabase(t)
 	mustExec(ctx, t, database, `DELETE FROM fact_work_items`)
-	if pass := newLiveWriter(database).RunOnce(ctx); pass.Outcome != statussummary.OutcomeOK {
+	if pass := newLiveWriterWithCoordinator(database).RunOnce(ctx); pass.Outcome != statussummary.OutcomeOK {
 		t.Fatalf("RunOnce() = %+v, want ok", pass)
 	}
-	inventory := func(selection statuspkg.SnapshotSelection, enabled bool) (total, activeWork int) {
+	inventory := func(selection statuspkg.SnapshotSelection, enabled bool) (total, activeWork, coordinator int) {
 		t.Helper()
 		pool := &recordingPool{database: database}
 		if _, err := scrapeStatusStore(pool, enabled, time.Hour).ReadStatusSnapshotFiltered(ctx, time.Now(), selection); err != nil {
 			t.Fatalf("scrape: %v", err)
 		}
-		return pool.count()
+		total, activeWork = pool.count()
+		return total, activeWork, pool.coordinatorCount()
 	}
-	beforeTotal, beforeActive := inventory(statuspkg.FullSnapshotSelection().WithoutTerraformStateEvidence(), false)
-	offTotal, offActive := inventory(scrapeSelection(), false)
-	onTotal, onActive := inventory(scrapeSelection(), true)
-	t.Logf("statements per scrape on an empty store: before=%d (active-work %d), reader off=%d (%d), reader on=%d (%d)",
-		beforeTotal, beforeActive, offTotal, offActive, onTotal, onActive)
-	if beforeTotal != 25 || beforeActive != 1 {
-		t.Fatalf("before = %d statements, %d active-work; want 25 and 1", beforeTotal, beforeActive)
+	beforeTotal, beforeActive, beforeCoordinator := inventory(statuspkg.FullSnapshotSelection().WithoutTerraformStateEvidence(), false)
+	offTotal, offActive, offCoordinator := inventory(scrapeSelection(), false)
+	onTotal, onActive, onCoordinator := inventory(scrapeSelection(), true)
+	t.Logf("statements per scrape on an empty store: before=%d (active-work %d, coordinator %d), reader off=%d (%d, %d), reader on=%d (%d, %d)",
+		beforeTotal, beforeActive, beforeCoordinator, offTotal, offActive, offCoordinator, onTotal, onActive, onCoordinator)
+	if beforeTotal != 25 || beforeActive != 1 || beforeCoordinator != 8 {
+		t.Fatalf("before = %d statements, %d active-work, %d coordinator; want 25, 1 and 8", beforeTotal, beforeActive, beforeCoordinator)
 	}
-	if offTotal != 21 || offActive != 1 {
-		t.Fatalf("reader off = %d statements, %d active-work; want 21 and 1", offTotal, offActive)
+	if offTotal != 21 || offActive != 1 || offCoordinator != 8 {
+		t.Fatalf("reader off = %d statements, %d active-work, %d coordinator; want 21, 1 and 8", offTotal, offActive, offCoordinator)
 	}
-	if onTotal != 22 || onActive != 0 {
-		t.Fatalf("reader on = %d statements, %d active-work; want 22 (the clock and the row read replace it) and 0", onTotal, onActive)
+	if onTotal != 16 || onActive != 0 || onCoordinator != 0 {
+		t.Fatalf("reader on = %d statements, %d active-work, %d coordinator; want 16 (the active-work and the eight coordinator statements are replaced by a clock and a row read for each of the two models), 0 and 0",
+			onTotal, onActive, onCoordinator)
 	}
 }
 

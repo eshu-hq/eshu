@@ -18,7 +18,7 @@ const Routes = `
             "description": "Pipeline status",
             "content": {
               "application/json": {
-                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}, "terraform_state_source": {"$ref": "#/components/schemas/TerraformStateSource"}}}
+                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}, "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"}, "terraform_state_source": {"$ref": "#/components/schemas/TerraformStateSource"}}}
               }
             }
           },
@@ -44,6 +44,7 @@ const Routes = `
                   "type": "object",
                   "properties": {
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
+                    "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"},
                     "ingesters": {"type": "array", "items": {"type": "object"}},
                     "count": {"type": "integer"}
                   }
@@ -145,7 +146,7 @@ const Routes = `
             "description": "Ingester status",
             "content": {
               "application/json": {
-                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}}}
+                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}, "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"}}}
               }
             }
           },
@@ -171,6 +172,7 @@ const Routes = `
                   "type": "object",
                   "properties": {
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
+                    "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"},
                     "ingesters": {"type": "array", "items": {"type": "object"}},
                     "count": {"type": "integer"}
                   }
@@ -222,7 +224,7 @@ const Routes = `
             "description": "Ingester status",
             "content": {
               "application/json": {
-                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}}}
+                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}, "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"}}}
               }
             }
           },
@@ -249,6 +251,7 @@ const Routes = `
                   "type": "object",
                   "properties": {
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
+                    "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"},
                     "terraform_state_source": {"$ref": "#/components/schemas/TerraformStateSource"},
                     "status": {"type": "string"},
                     "scoped": {"type": "boolean", "description": "true only on the scoped shape; absent for shared-key callers."},
@@ -375,6 +378,7 @@ const Routes = `
                   "type": "object",
                   "properties": {
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
+                    "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"},
                     "terraform_state_source": {"$ref": "#/components/schemas/TerraformStateSource"},
                     "status": {"type": "string"},
                     "scoped": {"type": "boolean", "description": "true only on the scoped shape; absent for shared-key callers."},

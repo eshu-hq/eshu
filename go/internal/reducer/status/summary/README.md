@@ -16,7 +16,18 @@ row (`Runner.Companions`): the last observed serial per state locator and the
 recent warnings per locator, from `storage/postgres/terraform/state`
 (`SummaryEntries`, `SummarySourceSHA256`). The companion has its own row, its
 own `as_of`, its own guarded upsert and its own digest. It adds no flag: the
-writer, reader and stale flags cover both models.
+writer, reader and stale flags cover every model.
+
+A third companion, `coordinator_snapshot` (#8828), is written last: the
+workflow coordinator section of the status snapshot (collector instances,
+run, work-item and completeness counts, claims, collector backpressure, recent
+failures, collector terminal failures). Its statement is the live
+`readCoordinatorSnapshot`, run by `storage/postgres.ReadCoordinatorSummaryEntries`
+with the database clock as the snapshot clock; the codec is
+`storage/postgres/workflow/snapshot`. Its pass duration grows with
+`workflow_work_items` (measured in `docs/internal/evidence/8828-coordinator-snapshot-model.md`), which is the cost the status
+reads and scrapes no longer pay. It runs last so that cost never delays the
+other two rows.
 
 ## Where it runs
 

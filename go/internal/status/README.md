@@ -56,7 +56,10 @@ See `doc.go` for the godoc contract. Key types and functions:
   when a reader reports none). `RawSnapshot.TerraformStateSource` and
   `Report.TerraformStateSource` reuse the type for the `terraform_state`
   section's own marker (`terraform_state_source`); they stay zero, and so emit
-  no key, on a read that skips Terraform-state evidence
+  no key, on a read that skips Terraform-state evidence; `RawSnapshot.CoordinatorSource`
+  and `Report.CoordinatorSource` (the `coordinator_source` key, #8828) say where
+  `Coordinator` came from, with `Age` as the freshness bound of that whole
+  section
 - `Report` — operator-facing projection of `RawSnapshot`; the fields below are
   the stable output surface
 - `Reader` — two-method interface that storage implementations satisfy:

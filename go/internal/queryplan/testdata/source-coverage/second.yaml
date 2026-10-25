@@ -364,7 +364,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 7d458e4c42ade50368757d8b7426acdf6d932195f4211b4908b615d48e92a028
+          source_sha256: df99315854058e192fd260457aad4c74669e7786ec0bdd43f3ca20607a534e33
           label: "Repository"
           max_results: 1
   - file: status_hosted_readiness.go

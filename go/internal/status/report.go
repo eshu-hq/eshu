@@ -71,6 +71,12 @@ type RawSnapshot struct {
 	// summary row or the live statements (#7009). Zero when the reader
 	// reports none or the selection skipped the Terraform-state reads.
 	TerraformStateSource ActiveWorkSource
+	// CoordinatorSource records where Coordinator came from: the stored
+	// coordinator_snapshot row or the live workflow statements (#8828). A
+	// stored row's counts are true at AsOf and its ages are advanced to the
+	// read; Age is the freshness bound of the whole section. Zero when the
+	// reader reports none.
+	CoordinatorSource ActiveWorkSource
 }
 
 // SnapshotSelection controls which optional, expensive sections a status reader
@@ -287,6 +293,8 @@ type Report struct {
 	// TerraformStateSource carries RawSnapshot.TerraformStateSource through
 	// unchanged.
 	TerraformStateSource ActiveWorkSource
+	// CoordinatorSource carries RawSnapshot.CoordinatorSource through unchanged.
+	CoordinatorSource ActiveWorkSource
 }
 
 // DefaultOptions returns the baseline operator heuristics for this first live

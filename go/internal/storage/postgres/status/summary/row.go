@@ -27,6 +27,13 @@ const ModelActiveWorkSummary = "active_work_summary"
 // the last serial per state locator and the recent warnings (#7009).
 const ModelTerraformState = "terraform_state"
 
+// ModelCoordinatorSnapshot is the model key of the workflow coordinator
+// snapshot: the work-item, run, completeness, claim, backpressure, and
+// terminal-failure state the status snapshot reads from the workflow_* tables
+// (#8828). The row holds counts of the rows the tables retain, not cumulative
+// history.
+const ModelCoordinatorSnapshot = "coordinator_snapshot"
+
 // Entry is one tuple of a stored statement result: the section name, the
 // ordinal within that section, and the section row as its JSON text. A reader
 // feeds the tuples, in stored order, to the same decoder that reads the live
