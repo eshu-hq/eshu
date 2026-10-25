@@ -45,7 +45,11 @@ func TestExtractPackageManifestDependenciesHonorsAnUnresolvedState(t *testing.T)
 		{"npm without a state", "npm", "1.0.0+build.1", "", false, "1.0.0+build.1"},
 		{"cargo lockfile without a state", "cargo", "1.0.0+build.1", "", true, "1.0.0+build.1"},
 		{"nuget lockfile without a state", "nuget", "13.0.3", "", true, "13.0.3"},
-		{"deb epoch without a state", "deb", "1:2.3-1", "", false, "1:2.3-1"},
+		// The exact-version backstop refuses ':' for every ecosystem (a ':' means
+		// notation text leaked into the version), so a deb epoch has no observed
+		// version whether or not the parser emits a state: the answer is
+		// unchanged by the state gate.
+		{"deb epoch without a state", "deb", "1:2.3-1", "", false, ""},
 	}
 	observedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	for _, tc := range cases {
