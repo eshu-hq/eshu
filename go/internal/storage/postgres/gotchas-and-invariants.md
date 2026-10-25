@@ -96,7 +96,7 @@ operational lessons that future storage changes still need to respect.
   waiting for package-registry enrichment to finish. A Maven ecosystem filter
   expands to `gradle`, `maven`, and `sbt` rows and adds a second branch for sbt
   `%%` rows, whose artifact name rides in `sbt_binary_artifact` (#8961); see
-  `package_manifest_dependency_sbt_query.go`. The branch reads the `sbt`
+  `facts_active_package_manifest_dependency.go`. The branch reads the `sbt`
   prefix of the same index, so its cost follows the number of sbt dependency
   rows. Both branches over-select; `packageidentity.ManifestConsumptionKeys` is
   the accuracy gate.

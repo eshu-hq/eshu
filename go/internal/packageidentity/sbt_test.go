@@ -145,3 +145,32 @@ func TestManifestPackageManagersForEcosystem(t *testing.T) {
 		t.Fatalf("npm managers = %v, want %v", got, want)
 	}
 }
+
+// BenchmarkManifestConsumptionKeys compares the helper with the direct
+// ConsumptionKeys call it replaced at every manifest site, for a non-sbt row
+// (the case that must not slow down) and for the two joining sbt shapes.
+func BenchmarkManifestConsumptionKeys(b *testing.B) {
+	b.Run("npm direct", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			_ = ConsumptionKeys("npm", "left-pad")
+		}
+	})
+	b.Run("npm helper", func(b *testing.B) {
+		input := ManifestKeyInput{PackageManager: "npm", Names: []string{"left-pad"}}
+		b.ReportAllocs()
+		for b.Loop() {
+			_ = ManifestConsumptionKeys(input)
+		}
+	})
+	b.Run("sbt binary", func(b *testing.B) {
+		input := ManifestKeyInput{
+			PackageManager: "sbt", Names: []string{"org.typelevel:cats-core"},
+			SBTCrossVersion: "binary", SBTBinaryArtifact: "org.typelevel:cats-core_2.13",
+		}
+		b.ReportAllocs()
+		for b.Loop() {
+			_ = ManifestConsumptionKeys(input)
+		}
+	})
+}

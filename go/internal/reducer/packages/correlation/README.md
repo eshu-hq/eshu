@@ -65,3 +65,29 @@ One-way imports only: this package reads the shared tier (`contract`,
 `telemetry`, and `securityalert`'s exported types. It never imports the
 parent reducer package. The parent references it only through
 `correlation`-qualified names.
+
+## Evidence (#8961)
+
+Performance Evidence: `go test -run '^$' -bench BenchmarkManifestConsumptionKeys
+-benchmem -count=3 ./internal/packageidentity` (linux, 16 CPUs, load average
+6 to 13) measured the helper every manifest site now calls. A non-sbt row costs
+the same as the direct `ConsumptionKeys` call it replaced: 669 to 690 ns/op,
+408 B/op, 11 allocs/op direct against 671 to 682 ns/op, 408 B/op, 11 allocs/op
+through the helper. An sbt `%%` row with a known artifact costs 920 to 924
+ns/op, 680 B/op, 16 allocs/op. The Postgres read this change widens is measured
+in `go/internal/storage/postgres/facts_active_package_manifest_dependency.go`
+(throwaway Postgres 18, 1.3M dependency rows, 13,000 sbt rows, EXPLAIN
+(ANALYZE, BUFFERS)).
+
+No-Regression Evidence: `go test -race -count=1 ./internal/packageidentity
+./internal/reducer/... ./internal/storage/postgres ./cmd/reducer` passed; the
+non-sbt key sets are asserted byte-identical to `ConsumptionKeys` in
+`TestManifestConsumptionKeysSBTJoinRules`, and the non-Maven read keeps the
+original query text and arguments
+(`TestListActivePackageManifestDependencyFactsKeepsNonMavenQueryUnchanged`).
+
+No-Observability-Change: the join is a pure function inside existing reducer
+handlers; the reducer run span, execution counters, and the package
+consumption counts they already emit cover it. A `%%` row with no known Scala
+binary version joins nothing on purpose, and the operator reads why from the
+row's `sbt_state` and `sbt_cross_version` on the content entity.
