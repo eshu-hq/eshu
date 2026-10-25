@@ -36,7 +36,7 @@ var skeletonKeys = []string{"region", "db_password", "api_token", "client_secret
 func skeletonLine(rng *rand.Rand, seed string) []string {
 	key := skeletonKeys[rng.IntN(len(skeletonKeys))]
 	indent := strings.Repeat(" ", rng.IntN(3)*2)
-	switch rng.IntN(26) {
+	switch rng.IntN(31) {
 	case 0:
 		return []string{indent + key + " = \"" + seed + "\""}
 	case 1:
@@ -97,6 +97,18 @@ func skeletonLine(rng *rand.Rand, seed string) []string {
 		return []string{indent + key + " = jsonencode(<<-EOT", "  " + seed + ": true", "  EOT", indent + ")"}
 	case 24:
 		return []string{indent + "# rotated", indent + seed + "=="}
+	case 25:
+		// Comment state from the whole line (rev-8833 G1).
+		return []string{indent + key + " = 1", "/* c */ " + key + " = 2 /* d", seed + ": 1", "*/"}
+	case 26:
+		return []string{"/* a", "*/ " + key + " = 1 /* b", seed + ": 1", "*/"}
+	case 27:
+		return []string{indent + key + " = 1 /* see <<EOF", "EOF", seed + ": 1", "*/"}
+	case 28:
+		// A heredoc opens after a one-line comment closes on the same line.
+		return []string{"/* c */ " + key + " = <<EOF", seed + ": 1", "EOF"}
+	case 29:
+		return []string{"/* a", "*/ " + key + " = <<EOF", seed + ": 1", "EOF"}
 	default:
 		return []string{""}
 	}
@@ -281,6 +293,9 @@ func FuzzRedactSkeleton(f *testing.F) {
 		// The rev-8833 F1-F3 shapes.
 		"x = module.sk_" + "live_4eC39HqLyjWDarjtT1zdp7dc\n", "dGhpc2lzYXNlY3JldHRva2Vu==\n", "X==,\n",
 		"keys = [<<EOF\nPassw0rdHunter2: true\nEOF\n]\n", "x = 1 /* old\nPassw0rdHunter2: true\n*/\n",
+		"/* c */ y = 2 /* d\nPassw0rdHunter2: 1\n*/\n", "/* a\n*/ x = 1 /* b\nPassw0rdHunter2: 1\n*/\n",
+		"x = 1 /* see <<EOF\nEOF\nPassw0rdHunter2: 1\n*/\n",
+		"/* c */ x = <<EOF\nPassw0rdHunter2: 1\nEOF\n", "/* a\n*/ x = <<EOF\nPassw0rdHunter2: 1\nEOF\n",
 	} {
 		f.Add(s)
 	}
@@ -301,6 +316,10 @@ func FuzzRedactSkeleton(f *testing.F) {
 			in + "\nQqZzSeed9988==\n",
 			in + "\nk = [<<EOF\nQqZzSeed9988: true\nEOF\n]\n",
 			in + "\nk = 1 /* c\nQqZzSeed9988: true\n*/\n",
+			in + "\n/* c */ y = 2 /* d\nQqZzSeed9988: 1\n*/\n",
+			in + "\nx = 1 /* see <<EOF\nEOF\nQqZzSeed9988: 1\n*/\n",
+			in + "\n/* c */ x = <<EOF\nQqZzSeed9988: 1\nEOF\n",
+			in + "\n/* a\n*/ k = 1 /* b\nQqZzSeed9988: 1\n*/\n",
 		} {
 			out, _, err := redactSkeleton(planted)
 			if err == nil && strings.Contains(out, "QqZzSeed9988") {

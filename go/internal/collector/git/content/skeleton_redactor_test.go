@@ -271,6 +271,24 @@ func TestRedactSkeletonFailsClosedAcrossLines(t *testing.T) {
 			"block comment after a value", "x = 1 /* old\nPassw0rdHunter2: true\n*/\nn = 2\n",
 			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
 		},
+		// The comment state is decided from the whole line, in both comment
+		// branches, and before a heredoc tail (rev-8833 round 2, G1).
+		{
+			"second comment opens after a closed one at line start", "x = 1\n/* c */ y = 2 /* d\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"x = 1\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"comment opens after the closing line", "/* a\n*/ x = 1 /* b\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"heredoc marker inside an open comment", "x = 1 /* see <<EOF\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		// A heredoc opened after a comment closes on the same line is a heredoc.
+		{"heredoc after a one-line comment", "/* c */ x = <<EOF\nPassw0rdHunter2: 1\nEOF\nn = 2\n", "REDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n"},
+		{"heredoc after a comment closing line", "/* a\n*/ x = <<EOF\nPassw0rdHunter2: 1\nEOF\nn = 2\n", "REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n"},
+		{"comment closing line stays closed", "/* a\n*/ x = 1 /* b */\nn = 2\n", "REDACTED_value\nREDACTED_value\nn = 2\n"},
 		{"block comment closed on its line", "x = 1 /* a */\nm = 2\n", "x = REDACTED_value\nm = 2\n"},
 		{"slash star in a line comment opens nothing", "n = 1 # see /* here\nm = 2\n", "n = REDACTED_value\nm = 2\n"},
 		{"bare token after a comment", "# rotated\ndGhpc2lzYXNlY3JldHRva2Vu==\n", "REDACTED_value\nREDACTED_value\n"},
