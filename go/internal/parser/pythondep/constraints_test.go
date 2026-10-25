@@ -292,3 +292,19 @@ func TestEggNameFromURLIgnoresFragmentInsideAuthority(t *testing.T) {
 		}
 	}
 }
+
+// TestSafeMarkerAllowlistMatchesDocumentedCharacters pins the allowlist the
+// README and AGENTS.md state: letters, digits, space, tab, and
+// . _ - ~ ' " < > = ! ( ) , * . Every other byte fails.
+func TestSafeMarkerAllowlistMatchesDocumentedCharacters(t *testing.T) {
+	t.Parallel()
+
+	if !safeMarker("python_version >= '3.9' and (os_name == \"nt\" or extra != 'x~y,z*')\t") {
+		t.Error("safeMarker rejected a marker made only of documented characters")
+	}
+	for _, bad := range []string{"@", ":", "/", "#", "+", "%", ";", "{", "}", "\\", "[", "]", "|", "&", "?", "$", "é"} {
+		if safeMarker("python_version" + bad) {
+			t.Errorf("safeMarker accepted %q; it is outside the documented allowlist", bad)
+		}
+	}
+}

@@ -38,7 +38,7 @@ func isConstraintsFile(path string) bool {
 // sign or a scheme separator. A registry pin is kept unless its specifier holds
 // an at sign or a scheme separator, which no version specifier contains; that
 // row is demoted to malformed with its name dropped. A marker is kept only when
-// it uses the characters a PEP 508 marker needs; a pin whose marker fails that
+// every character is in the safeMarker allowlist; a pin whose marker fails that
 // test is demoted to malformed too. Dropping only the marker would leave two
 // lines that differ only in their markers with one content identity, and the
 // content writer would keep one of them.
@@ -74,8 +74,10 @@ func (b *rowBuilder) applyConstraintPolicy() {
 }
 
 // safeMarker reports whether a PEP 508 environment marker uses only letters,
-// digits, spaces, and the punctuation of marker expressions. A marker with an
-// at sign, colon, or slash could hold URL-shaped text, so it fails.
+// digits, space, tab, and the characters . _ - ~ ' " < > = ! ( ) , *. It is an
+// allowlist, so any other character (an at sign, colon, slash, hash, plus,
+// percent, semicolon, brace, or non-ASCII byte) fails: such text could be
+// URL-shaped.
 func safeMarker(marker string) bool {
 	for i := 0; i < len(marker); i++ {
 		ch := marker[i]

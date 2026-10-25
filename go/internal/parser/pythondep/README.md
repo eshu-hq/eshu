@@ -73,8 +73,10 @@ constraint never declares a dependency:
   `source_cache_withheld: true`, which makes the content shaper drop the
   entity's `source_cache`. That snippet is the file's raw line range, so
   without the flag a comment or marker the row scrubbed would still reach the
-  fact stream. A marker is kept only when it uses the characters a PEP 508
-  marker needs. A pin whose marker has `@`, `:` or `/` is demoted to
+  fact stream. A marker is kept only when every character is in the allowlist:
+  letters, digits, space, tab, and ``. _ - ~ ' " < > = ! ( ) , *``. A pin
+  whose marker has any other character (`@`, `:`, `/`, `#`, `+`, `%`, `;`,
+  braces, non-ASCII) is demoted to
   `malformed_dependency` with no name or value, not just stripped of its
   marker: two lines that differ only in such markers would otherwise share one
   content identity and the content writer would keep one.
