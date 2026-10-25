@@ -2,8 +2,11 @@
 
 Eshu compiles tree-sitter grammars through cgo. One of them,
 `github.com/alexaandru/go-sitter-forest/perl` (v1.9.9, pinned in `go/go.mod`),
-does not compile as C23. Every build that compiles Go sets
-`CGO_CFLAGS="-O2 -g -std=gnu17"` so the grammar builds on current toolchains.
+does not compile as C23. Every workflow that provisions Go, `make`, and the
+developer entrypoints set `CGO_CFLAGS="-O2 -g -std=gnu17"` so the grammar builds
+on current toolchains. Other direct `go` runs need the flag in your environment;
+see [What the flag covers](#what-the-flag-covers) and
+[One-time setting for your host](#one-time-setting-for-your-host).
 Tracking issue: [#9066](https://github.com/eshu-hq/eshu/issues/9066).
 
 ## What fails without it
@@ -95,6 +98,14 @@ when:
 
 The guard covers exactly those files. It does not detect a script that runs
 `go` without the `CGO_ENABLED=1` prefix.
+
+It is a line-based text check, not a shell parser. These do not satisfy it: a
+whole-line comment, a trailing `#` comment, an `echo` string that holds none of
+`;`, `&`, `|`, `(`, `{`, `then`, `do`, or `else`, and a definition written
+`name() {`, `name () {`, or `function name`. Known and accepted, because each
+needs a parser: a string that holds one of those words or separators, a heredoc
+body line, and a call inside a function or branch that never runs. The build helpers call the export at the top of the
+function that runs `go`, and the mirror tests run the real entrypoints.
 
 Its mirror test, `scripts/test-verify-cgo-cflags-guard.sh`, plants each
 violation in a fixture tree, including a comment-only mention and a source with

@@ -20,10 +20,19 @@
 #   4. The developer entrypoints (--list-entrypoints) do the same, and the
 #      Makefile exports CGO_CFLAGS with -std=gnu17.
 #
-# Checks 3 and 4 read code only: whole-line comments are removed first, so a
-# comment that names the library (as the "see cgo-cflags.sh" notes do) cannot
-# satisfy them. Sourcing the library without calling the export does nothing,
-# so both must be present.
+# Checks 3 and 4 are line-based text checks, not a shell parser. These do not
+# satisfy them: a whole-line comment, a trailing " #" comment, an echo string
+# that holds none of ";", "&", "|", "(", "{", "then", "do", "else", and a
+# definition written "name() {", "name () {", or "function name". Sourcing the
+# library without calling the export does nothing, so both must be present.
+#
+# Known and accepted, because each needs a shell parser and the rest of the
+# repo's shell guards do not use one: a string that holds one of those words or
+# separators (for example echo "x; eshu_export_cgo_cflags" or
+# echo "do eshu_export_cgo_cflags"); a heredoc body line; a call inside a
+# function that nothing calls or a branch that never runs. The build helpers
+# (build_bin, ifa_det_build_bin) call the export at the top of the function
+# that runs go, and the mirror tests run the real entrypoints.
 #
 # Coverage is exactly the files named above. A script that runs go without the
 # `CGO_ENABLED=1 go` prefix gets the flag from a workflow, make, or one of the
@@ -37,15 +46,16 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "${script_dir}/.." && pwd)"
 
-# Entrypoints a developer runs directly. Each must source scripts/lib/
-# cgo-cflags.sh (the Makefile sets the same value itself).
-entrypoints="Makefile
-scripts/dev/pre-push.sh
-scripts/dev/pre-pr.sh
-scripts/dev/prove.sh
-scripts/dev/precommit-go.sh
-scripts/dev/run-selected-gates.sh
-scripts/install-local-binaries.sh"
+# Entrypoints a developer runs directly live in a data file next to the library
+# (one repo-relative path per line, "#" comments allowed). Each must source the
+# library and call the export (the Makefile sets the same value itself). The
+# list is data rather than literal script paths here so verify-dockerhub-login.sh,
+# which follows every script path a workflow step names, does not read this
+# guard as a runner of those scripts. Read from the guard's own checkout, not
+# --root, so fixture trees need no copy. --entrypoints-file reads another list
+# (the mirror test uses it to plant a list that lost a line).
+entry_file="${script_dir}/lib/cgo-cflags-entrypoints.txt"
+list_only=0
 
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -53,16 +63,26 @@ while [ $# -gt 0 ]; do
 		root="$(cd "$2" && pwd)"
 		shift 2
 		;;
+	--entrypoints-file)
+		entry_file="$2"
+		shift 2
+		;;
 	--list-entrypoints)
-		printf '%s\n' "${entrypoints}"
-		exit 0
+		list_only=1
+		shift
 		;;
 	*)
-		printf 'usage: %s [--root DIR] | --list-entrypoints\n' "$0" >&2
+		printf 'usage: %s [--root DIR] [--entrypoints-file FILE] | --list-entrypoints\n' "$0" >&2
 		exit 2
 		;;
 	esac
 done
+
+entrypoints="$(sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' "${entry_file}")"
+if [ "${list_only}" -eq 1 ]; then
+	printf '%s\n' "${entrypoints}"
+	exit 0
+fi
 
 failures=0
 fail() {
@@ -70,22 +90,42 @@ fail() {
 	failures=$((failures + 1))
 }
 
+# The list must keep these entrypoints (Makefile or a path ending in the name).
+# The names are bare words here, not paths, for the same reason the list is a
+# data file; a dropped line would otherwise leave the guard and its mirror green.
+for required in Makefile pre-push.sh pre-pr.sh prove.sh run-selected-gates.sh \
+	install-local-binaries.sh precommit-go.sh; do
+	if ! printf '%s\n' "${entrypoints}" | rg -q -x -e "(.*/)?${required//./\\.}"; then
+		fail "the entrypoint list ${entry_file##*/} is missing ${required}; the guard requires it (#9066)"
+	fi
+done
+
 # Matches a workflow line that provisions Go or compiles with it. Comment
 # lines are removed first.
 go_user_pattern='actions/setup-go|container:.*ci-tools|(^|[^A-Za-z0-9_./-])go( -C [^ ]+)? (build|test|vet|run|install)([^A-Za-z0-9_-]|$)'
 
-# code_of prints a file without whole-line comments.
+# code_of prints a file without whole-line comments or trailing " #" comments.
+# The trailing strip is deliberately simple: a " #" inside a quoted string
+# loses the rest of that line, which can only hide text, never invent a call.
 code_of() {
-	sed -e '/^[[:space:]]*#/d' "$1"
+	sed -e '/^[[:space:]]*#/d' -e 's/[[:space:]]#.*$//' "$1"
 }
 
-# sources_lib succeeds when the file has a real source (or ".") line naming
-# cgo-cflags.sh; exports_lib succeeds when it calls eshu_export_cgo_cflags.
+# A command position: start of line, or after ; & | ( { or then/do/else. It
+# keeps "source" and the export name inside echo strings from counting.
+cmd_pos='(^[[:space:]]*|[;&|({][[:space:]]*|(then|do|else)[[:space:]]+)'
+
+# sources_lib succeeds when the file has a real source (or ".") command naming
+# cgo-cflags.sh; exports_lib succeeds when it calls eshu_export_cgo_cflags. A
+# definition "name() {" or "name () {" is not a call, and "function name" never
+# sits at a command position.
 sources_lib() {
-	code_of "$1" | rg -q -e '(^|[^[:alnum:]_])(source|\.)[[:space:]]+[^#]*cgo-cflags\.sh'
+	code_of "$1" | rg -q -e "${cmd_pos}(source|\\.)[[:space:]]+[^#]*cgo-cflags\\.sh"
 }
 exports_lib() {
-	code_of "$1" | rg -q -e '(^|[^[:alnum:]_])eshu_export_cgo_cflags([^[:alnum:]_]|$)'
+	code_of "$1" \
+		| rg -e "${cmd_pos}eshu_export_cgo_cflags([^[:alnum:]_]|\$)" \
+		| rg -v -e 'eshu_export_cgo_cflags[[:space:]]*\(' >/dev/null
 }
 
 # require_lib_use REL describes what is missing for the script at ROOT/REL.

@@ -126,7 +126,11 @@ EOF
 run_guard() {
 	# $1 = tree; stderr to $2. Prints exit status.
 	local rc=0
-	"${guard}" --root "$1" >/dev/null 2>"$2" || rc=$?
+	if [ -n "${GUARD_LIST_FILE:-}" ]; then
+		"${guard}" --root "$1" --entrypoints-file "${GUARD_LIST_FILE}" >/dev/null 2>"$2" || rc=$?
+	else
+		"${guard}" --root "$1" >/dev/null 2>"$2" || rc=$?
+	fi
 	printf '%s' "$rc"
 }
 
@@ -225,6 +229,43 @@ EOF
 	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\n# eshu_export_cgo_cflags\n' >"${t}/scripts/dev/run-selected-gates.sh"
 	check_guard "guard: export only in a comment FAILS" 1 "$t" "run-selected-gates.sh"
 
+	# P3-f of the round 2 review: trailing comments and string text are not code.
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\ntrue # eshu_export_cgo_cflags\n' >"${t}/scripts/dev/pre-push.sh"
+	check_guard "guard: export only in a trailing comment FAILS" 1 "$t" "pre-push.sh"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh" # trailing note\neshu_export_cgo_cflags # trailing note\n' >"${t}/scripts/dev/pre-push.sh"
+	check_guard "guard: real source and export with trailing comments pass" 0 "$t"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\necho "source lib/cgo-cflags.sh"\neshu_export_cgo_cflags\n' >"${t}/scripts/dev/pre-pr.sh"
+	check_guard "guard: source text inside an echo string FAILS" 1 "$t" "pre-pr.sh"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\necho "eshu_export_cgo_cflags"\n' >"${t}/scripts/dev/prove.sh"
+	check_guard "guard: export text inside an echo string FAILS" 1 "$t" "prove.sh"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\n. "$(dirname "$0")/lib/cgo-cflags.sh"\nif true; then eshu_export_cgo_cflags; fi\n' >"${t}/scripts/dev/run-selected-gates.sh"
+	check_guard "guard: dot source and an export after then pass" 0 "$t"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\neshu_export_cgo_cflags() { :; }\n' >"${t}/scripts/dev/pre-pr.sh"
+	check_guard "guard: redefining the export function without calling it FAILS" 1 "$t" "pre-pr.sh"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\neshu_export_cgo_cflags () { :; }\n' >"${t}/scripts/dev/pre-pr.sh"
+	check_guard "guard: a spaced definition name () without a call FAILS" 1 "$t" "pre-pr.sh"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\nfunction eshu_export_cgo_cflags { :; }\n' >"${t}/scripts/dev/prove.sh"
+	check_guard "guard: a function-keyword definition without a call FAILS" 1 "$t" "prove.sh"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\neshu_export_cgo_cflags && echo "ready (ok)"\n' >"${t}/scripts/dev/run-selected-gates.sh"
+	check_guard "guard: a real call followed by text with parentheses passes" 0 "$t"
+
 	t="$(new_tree)"
 	printf 'export CGO_CFLAGS := -O2 -g -std=gnu17\n' >"${t}/Makefile"
 	check_guard "guard: Makefile with a real export passes" 0 "$t"
@@ -243,6 +284,29 @@ EOF
 	t="$(new_tree)"
 	printf '#!/usr/bin/env bash\nCGO_ENABLED=1 go -C go build ./cmd/api\n' >"${t}/scripts/lib/helper.sh"
 	check_guard "guard: nested scripts/lib helper without the lib FAILS" 1 "$t" "helper.sh"
+
+	# P3-g of the round 5 review: a data file that silently loses a line must fail.
+	list_src="${repo_root}/scripts/lib/cgo-cflags-entrypoints.txt"
+	list_tmp="$(mktemp)"
+	printf '%s\n' "$list_tmp" >>"$tmp_list"
+	t="$(new_tree)"
+	GUARD_LIST_FILE="$list_src"
+	check_guard "guard: the shipped entrypoint list passes" 0 "$t"
+	for dropped in precommit-go.sh install-local-binaries.sh Makefile; do
+		rg -v -e "(^|/)${dropped}\$" "$list_src" >"$list_tmp" || true
+		GUARD_LIST_FILE="$list_tmp"
+		check_guard "guard: entrypoint list without ${dropped} FAILS" 1 "$t" "${dropped}"
+	done
+	printf '# only a comment\n\n' >"$list_tmp"
+	check_guard "guard: an empty entrypoint list FAILS" 1 "$t" "pre-push.sh"
+	: >"$list_tmp"
+	check_guard "guard: a zero-byte entrypoint list FAILS" 1 "$t" "Makefile"
+	# No trailing newline: the last entry must still be read and checked.
+	printf '%s' "$(cat "$list_src")" >"$list_tmp"
+	check_guard "guard: a complete list without a trailing newline passes" 0 "$t"
+	printf '#!/usr/bin/env bash\necho no lib\n' >"${t}/scripts/install-local-binaries.sh"
+	check_guard "guard: the last list line without a newline is still checked" 1 "$t" "install-local-binaries.sh"
+	GUARD_LIST_FILE=""
 
 	check_guard "guard: real tree passes" 0 "${repo_root}"
 fi

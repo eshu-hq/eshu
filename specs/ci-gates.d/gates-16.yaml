@@ -51,10 +51,10 @@ gates:
     ci_only_reason: "manual main-only dispatch that needs live registry reads; no merge depends on it and it never runs on a pull_request or merge_group"
 
   - id: cgo-cflags-guard
-    name: Go builds carry the cgo C dialect flag
+    name: Go workflows and entrypoints set the cgo C dialect flag
     category: hygiene
     layer: hygiene
-    purpose: "Fails when a workflow or script that compiles Go lacks CGO_CFLAGS -std=gnu17, which keeps go-sitter-forest/perl building on GCC 15 + glibc 2.43 (#9066)."
+    purpose: "Fails when a Go workflow, CGO_ENABLED=1 go script, or developer entrypoint lacks CGO_CFLAGS -std=gnu17, which keeps the perl grammar building on GCC 15 (#9066)."
     tier: pre-push
     blocking: true
     triggers:
@@ -63,6 +63,7 @@ gates:
       - "Makefile"
       - "go/go.mod"
       - "scripts/lib/cgo-cflags.sh"
+      - "scripts/lib/cgo-cflags-entrypoints.txt"
       - "scripts/verify-cgo-cflags-guard.sh"
       - "scripts/test-verify-cgo-cflags-guard.sh"
       - "scripts/dev/pre-push.sh"
@@ -77,6 +78,7 @@ gates:
       - "scripts/verify-ifa-replay-drive.sh"
     self_test_triggers:
       - "scripts/lib/cgo-cflags.sh"
+      - "scripts/lib/cgo-cflags-entrypoints.txt"
       - "scripts/verify-cgo-cflags-guard.sh"
       - "scripts/test-verify-cgo-cflags-guard.sh"
     local:
