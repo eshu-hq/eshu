@@ -41,6 +41,19 @@ TABLE = {
         "go/internal/storage/postgres/aws_cloud_runtime_drift_state_arn_plan_live_test.go": (
             "TestAWSCloudRuntimeDriftStateARNJoinProbesARNIndexLive",
         ),
+        "go/internal/storage/postgres/collector_terminal_failure_ack_live_test.go": (
+            "TestTerminalFailureAckStoreRefusalsLive",
+            "TestTerminalFailureAckStoreRecordsAndSuppressesLive",
+            "TestTerminalFailureAckStoreConcurrentLive",
+            "TestTerminalFailureAckStoreRacesFailureWritesLive",
+        ),
+        "go/internal/storage/postgres/collector_terminal_failure_list_live_test.go": (
+            "TestTerminalFailureListSemanticsLive",
+            "TestTerminalFailureListPagesAreDisjointLive",
+            "TestTerminalFailureListNeverCarriesMessageOrReasonLive",
+            "TestTerminalFailureListUsesTheWindowIndexLive",
+            "TestCollectorFailureDiscoveryAcknowledgeLoopLive",
+        ),
         "go/internal/storage/postgres/container_image_identity_epoch_barrier_live_test.go": (
             "TestContainerImageIdentityEpochBarrierDefersPendingLive",
             "TestContainerImageIdentityActivationEpochMissIsSentinelLive",
@@ -476,14 +489,6 @@ TABLE = {
         "go/internal/storage/postgres/recovery_refinalize_lock_convoy_live_test.go": (
             "TestRefinalizeFenceDoesNotConvoyUnrelatedQueueWrite",
             "TestRefinalizeFenceRetryBudgetIncludesReducerDrain",
-        ),
-        "go/internal/storage/postgres/recovery_replay_lock_order_interleave_live_test.go": (
-            "TestRecoveryReplayTwoSessionsBlockOneWayLive",
-            "TestRecoveryReplayHeldRowRaceLive",
-            "TestRecoveryReplayDropsRowChangedBeforeItsLockLive",
-        ),
-        "go/internal/storage/postgres/recovery_replay_lock_order_live_test.go": (
-            "TestRecoveryReplayConcurrentReplaysNeverDeadlockLive",
         ),
     },
 }

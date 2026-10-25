@@ -46,33 +46,42 @@ func TestCollectorTerminalFailureReadUsesPartialIndexLive(t *testing.T) {
 	ids := []string{"hot", "recovered"}
 	cutoff := terminalFailureCutoff(f.asOf, 15*time.Minute)
 	cutoffs := []time.Time{cutoff, cutoff}
-	rows, err := f.database.QueryContext(f.ctx, "EXPLAIN (COSTS OFF) "+workflowCollectorTerminalFailuresQuery, kinds, ids, cutoffs)
-	if err != nil {
-		t.Fatalf("EXPLAIN terminal failure read: %v", err)
-	}
-	var plan []string
-	for rows.Next() {
-		var line string
-		if err := rows.Scan(&line); err != nil {
-			t.Fatalf("scan plan: %v", err)
+	explain := func(state string) string {
+		t.Helper()
+		rows, err := f.database.QueryContext(f.ctx, "EXPLAIN (COSTS OFF) "+workflowCollectorTerminalFailuresQuery, kinds, ids, cutoffs)
+		if err != nil {
+			t.Fatalf("EXPLAIN terminal failure read (%s): %v", state, err)
 		}
-		plan = append(plan, line)
+		var plan []string
+		for rows.Next() {
+			var line string
+			if err := rows.Scan(&line); err != nil {
+				t.Fatalf("scan plan: %v", err)
+			}
+			plan = append(plan, line)
+		}
+		if err := rows.Close(); err != nil {
+			t.Fatalf("close plan rows: %v", err)
+		}
+		text := strings.Join(plan, "\n")
+		if !strings.Contains(text, "Index Scan using "+workflowTerminalFailureIndexName+" on workflow_work_items t") {
+			t.Fatalf("%s: terminal failure read does not seek %s:\n%s", state, workflowTerminalFailureIndexName, text)
+		}
+		// The only Sort allowed is the outer one over the unnest rows. Both
+		// laterals (#8830) must come back in index order, so neither sorts a
+		// per-instance history.
+		if sorts := strings.Count(text, "Sort Key:"); sorts > 1 {
+			t.Fatalf("%s: plan has %d Sort nodes, want only the outer instance sort:\n%s", state, sorts, text)
+		}
+		if strings.Contains(text, "Sort Key: t.updated_at") || strings.Contains(text, "Sort Key: t_1.updated_at") {
+			t.Fatalf("%s: per-instance read sorts instead of reading the index in order:\n%s", state, text)
+		}
+		if !strings.Contains(text, "One-Time Filter") {
+			t.Fatalf("%s: acknowledged lateral is not gated on the instance having an acknowledgement:\n%s", state, text)
+		}
+		return text
 	}
-	if err := rows.Close(); err != nil {
-		t.Fatalf("close plan rows: %v", err)
-	}
-	text := strings.Join(plan, "\n")
-	if !strings.Contains(text, "Index Scan using "+workflowTerminalFailureIndexName+" on workflow_work_items t") {
-		t.Fatalf("terminal failure read does not seek %s:\n%s", workflowTerminalFailureIndexName, text)
-	}
-	// The only Sort allowed is the outer one over the unnest rows; the
-	// per-instance read must come back in index order.
-	if sorts := strings.Count(text, "Sort Key:"); sorts > 1 {
-		t.Fatalf("plan has %d Sort nodes, want only the outer instance sort:\n%s", sorts, text)
-	}
-	if strings.Contains(text, "Sort Key: t.updated_at") {
-		t.Fatalf("per-instance read sorts instead of reading the index in order:\n%s", text)
-	}
+	text := explain("no acknowledgement")
 	got := f.read()
 	if failure, ok := got["hot"]; !ok || failure.FailureClass != "auth_denied" || !failure.ObservedAt.Equal(f.asOf) {
 		t.Fatalf("hot failure = %+v (ok=%v), want auth_denied at asOf", failure, ok)
@@ -80,7 +89,16 @@ func TestCollectorTerminalFailureReadUsesPartialIndexLive(t *testing.T) {
 	if failure, ok := got["recovered"]; ok {
 		t.Fatalf("recovered instance reported %+v, want none", failure)
 	}
-	t.Logf("plan proof: 48,000 seeded work items, %s\n%s", time.Since(started), text)
+
+	// Acknowledge one scope of the hot instance, as the route would, and prove
+	// the plan keeps its shape and both rows come back.
+	f.ack("security_alert", "hot", "scope-hot-0", "auth_denied", "hot-0-0", 0)
+	ackedText := explain("hot scope acknowledged")
+	open, acked := split(t, f.readAll()["hot"])
+	if open == nil || open.Acknowledged || open.ScopeID == "scope-hot-0" || acked == nil || acked.ScopeID != "scope-hot-0" {
+		t.Fatalf("hot with scope-hot-0 acknowledged: unacknowledged=%+v acknowledged=%+v, want another scope open and scope-hot-0 acknowledged", open, acked)
+	}
+	t.Logf("plan proof: 48,000 seeded work items, %s\n%s\nacknowledged:\n%s", time.Since(started), text, ackedText)
 }
 
 func TestCollectorTerminalFailureIndexMigrationReappliesLive(t *testing.T) {

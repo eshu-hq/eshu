@@ -2097,6 +2097,16 @@ type Instruments struct {
 	// path-conflict retirement, unrelated to this operator path).
 	OperatorRepositoryRetirements metric.Int64Counter
 
+	// CollectorTerminalFailureAcknowledgements counts the operator
+	// acknowledgement requests for a collector terminal failure (#8830) by
+	// closed outcome: acknowledged (a new acknowledgement committed),
+	// duplicate (a completed idempotency key replayed its stored outcome), and
+	// refused (the request was invalid, the caller not allowed, or an expected
+	// refusal such as an unknown instance or no unresolved failure on the
+	// scope). A server fault, a malformed body, an unconfigured service and a
+	// replay still in flight are not counted; they are on the request span.
+	CollectorTerminalFailureAcknowledgements metric.Int64Counter
+
 	// RepositorySelectionEvaluations counts git collector repository
 	// selection evaluations (#7625) by collector_kind and a closed outcome
 	// (evaluated, listing_truncated, guard_tripped, store_error).
@@ -6046,6 +6056,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerCanonicalFilelessWipeGuard(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerCollectorTerminalFailureAcknowledgements(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerOperatorRepositoryRetirement(meter, inst); err != nil {

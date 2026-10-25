@@ -181,7 +181,15 @@ set reads `unknown`, and no persisted text reaches the label. It is a gauge,
 not a counter, so a recovered or aged-out instance
 drops out. Every runtime that scrapes status exports the same value with its
 own `service_name`, so read it with `max by (collector_kind, failure_class)`,
-never summed.
+never summed. It counts only unacknowledged failures: an instance whose only failures
+an operator acknowledged (#8830) leaves it and appears in
+`eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances`,
+which has the same labels, bounds, and `max by` rule, so alerts page on the
+first and dashboards can still count the second (an instance with both kinds of
+failure counts in both). The counter
+`eshu_dp_collector_terminal_failure_acknowledgements_total` (label `outcome`:
+`acknowledged`, `duplicate`, `refused`) counts acknowledgement requests on the
+API.
 
 ## Data-Plane Core
 

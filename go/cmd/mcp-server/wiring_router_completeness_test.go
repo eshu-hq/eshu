@@ -189,6 +189,7 @@ var routerFieldsNotWiredByNewMCPQueryRouter = map[string]string{
 	"Metrics":                      "API-only: the time-series metrics endpoint has no MCP tool",
 	"Admin":                        "the MCP server has no admin mutation surface (see the router.Admin != nil check above)",
 	"AdminRetirement":              "the MCP server has no admin mutation surface: repository retirement is an operator admin action with no MCP tool",
+	"AdminTerminalFailure":         "the MCP server has no admin mutation surface: acknowledging a collector terminal failure is an operator admin action with no MCP tool",
 	"LocalIdentity":                "the MCP server has no browser-session identity surface",
 	"BrowserSessions":              "the MCP server has no browser-session identity surface",
 	"SessionList":                  "the MCP server has no browser-session identity surface",

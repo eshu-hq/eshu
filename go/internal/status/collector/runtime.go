@@ -64,6 +64,10 @@ type RuntimeStatus struct {
 	LastFailureOperation string
 	LastFailureTerminal  bool
 	LastFailureAt        time.Time
+	// AcknowledgedFailure is the newest unresolved terminal failure an operator
+	// acknowledged (#8830), or nil. It is separate from LastFailure*: the
+	// failure is still happening, so health reads partial, never healthy.
+	AcknowledgedFailure *AcknowledgedFailure
 }
 
 // RuntimeStatuses derives the shared collector runtime readback from
@@ -457,6 +461,10 @@ func RenderRuntimeStatusLines(rows []RuntimeStatus) []string {
 		}
 		if row.LastFailureTerminal {
 			line += fmt.Sprintf(" last_failure_class=%s last_failure_operation=%s", row.LastFailureClass, row.LastFailureOperation)
+		}
+		if row.AcknowledgedFailure != nil {
+			line += fmt.Sprintf(" acknowledged_failure_class=%s acknowledged_failure_operation=%s",
+				row.AcknowledgedFailure.FailureClass, row.AcknowledgedFailure.FailureOperation)
 		}
 		lines = append(lines, line)
 	}

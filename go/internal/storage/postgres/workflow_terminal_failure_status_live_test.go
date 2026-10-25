@@ -75,8 +75,24 @@ VALUES ($1, 'run-8803', $2, $3, $4, $1, $5, $6, $7, $8, 'provider text that must
 }
 
 // read runs the production snapshot path: the instance list with its
-// scan_interval, then the windowed failure read on the same asOf.
+// scan_interval, then the windowed failure read on the same asOf. It returns the
+// unacknowledged failure of each instance, the one that degrades it.
 func (f *terminalFailureLiveFixture) read() map[string]collector.TerminalFailure {
+	f.t.Helper()
+	got := make(map[string]collector.TerminalFailure)
+	for instance, failures := range f.readAll() {
+		for _, failure := range failures {
+			if !failure.Acknowledged {
+				got[instance] = failure
+			}
+		}
+	}
+	return got
+}
+
+// readAll runs the same path and returns every failure the reader supplied per
+// instance: at most one unacknowledged and one acknowledged.
+func (f *terminalFailureLiveFixture) readAll() map[string][]collector.TerminalFailure {
 	f.t.Helper()
 	snapshot, err := readCoordinatorSnapshot(f.ctx, SQLDB{DB: f.database}, f.asOf)
 	if err != nil {
@@ -85,9 +101,9 @@ func (f *terminalFailureLiveFixture) read() map[string]collector.TerminalFailure
 	if snapshot == nil {
 		f.t.Fatal("readCoordinatorSnapshot() = nil, want a snapshot")
 	}
-	got := make(map[string]collector.TerminalFailure, len(snapshot.CollectorTerminalFailures))
+	got := make(map[string][]collector.TerminalFailure, len(snapshot.CollectorTerminalFailures))
 	for _, failure := range snapshot.CollectorTerminalFailures {
-		got[failure.InstanceID] = failure
+		got[failure.InstanceID] = append(got[failure.InstanceID], failure)
 	}
 	return got
 }
