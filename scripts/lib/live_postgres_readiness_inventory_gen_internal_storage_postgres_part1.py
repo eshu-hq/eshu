@@ -487,15 +487,5 @@ TABLE = {
             "TestProjectorClaimMarkedGuardPlanShapeAtScale",
             "TestProjectorClaimMarkedGuardLockSet",
         ),
-        "go/internal/storage/postgres/projector_queue_claim_marker_fence_live_test.go": (
-            "TestMarkProjectionWriteStartedFenceSync",
-            "TestMarkProjectionWriteStartedMissingFenceRefuses",
-        ),
-        "go/internal/storage/postgres/projector_queue_dead_letter_live_test.go": (
-            "TestProjectorDeadLetterGuardCellsLive",
-        ),
-        "go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go": (
-            "TestProjectorZombieHealRestoresCanonicalNodesLive",
-        ),
     },
 }
