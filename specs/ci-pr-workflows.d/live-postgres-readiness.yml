@@ -10,6 +10,7 @@ workflows:
   - go/internal/query/supply/chain/**
   - go/internal/query/supply/chain/impact/**
   - go/internal/query/admin/**
+  - go/internal/query/iac/**
   - go/internal/query/content_reader_dead_code*.go
   - go/internal/query/code_topic*.go
   - go/internal/query/content_reader_code_topic.go
