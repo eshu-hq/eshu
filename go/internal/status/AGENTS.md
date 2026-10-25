@@ -34,7 +34,9 @@
   and the `ActiveWorkSource` and `TerraformStateSource` OpenAPI enums; change
   all four together. `TerraformStateSource` (the `terraform_state_source` key)
   reuses the Go type and is emitted only on the routes that render the
-  `terraform_state` section.
+  `terraform_state` section. `CoordinatorSource` (the `coordinator_source` key,
+  #8828) does the same for the `coordinator` section, so its OpenAPI component
+  enums follow the same four-way rule.
 - **`BuildReport` is pure.** It takes `RawSnapshot` and `Options` and returns
   `Report` with no I/O. Keep it that way — it makes health-logic unit tests
   possible without a storage dependency.

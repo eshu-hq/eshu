@@ -33,6 +33,9 @@
   interval boundary after the previous one ends. Do not replace the loop with a
   `time.Ticker` (its buffered tick starts a pass back to back after an
   overrun).
+- Keep the coordinator companion last in `Runner.Companions`: its compute grows
+  with `workflow_work_items`, and a slow companion must not delay the rows
+  before it.
 - Keep `MinInterval` at 5 s unless new measurements of reducer claim latency
   beside the writer justify a change. A 2 s cadence measurably raised claim
   p95.

@@ -30,7 +30,7 @@ Migration `161_status_summary_snapshots.sql` creates one row per `model_key`:
 
 | column | meaning |
 | --- | --- |
-| `model_key` | which summary the row holds; primary key (`active_work_summary`, `terraform_state`) |
+| `model_key` | which summary the row holds; primary key (`active_work_summary`, `terraform_state`, `coordinator_snapshot`) |
 | `schema_version` | encoding version of `rows` (`SchemaVersion`, 1) |
 | `source_sha256` | sha256 of the statement text the writer ran |
 | `as_of` | the clock value the writer bound as the statement's `$1` |
@@ -100,6 +100,11 @@ storage parameters with a new `ALTER TABLE ... SET` migration.
   (`status.active_work.*` or `status.terraform_state.*`, from
   `Observation.SpanPrefix`), and the rate-limited fallback Warn (once per model
   and reason).
+- `ModelCoordinatorSnapshot`: the key of the workflow coordinator model (#8828),
+  encoded and decoded by `storage/postgres/workflow/snapshot`. It has its own
+  `ModelReader` and `Flight`, so a status route can serve it while another model
+  falls back. Its clock-relative durations are advanced by the caller after the
+  decode (`snapshot.AdvanceAges` with the result's age), not by `AddAge`.
 - `ModelTerraformState`: the key of the second model. The Terraform-state rows
   carry no clock, so `Select` serves them with no age correction. Each model has
   its own `ModelReader` and `Flight`, so one model can be served while the other
