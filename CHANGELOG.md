@@ -727,8 +727,10 @@ recent shipped work grouped by feature area.
   bytes, and the `upsert_files` stage log carries the same counts. The outcome
   comes from one lock-free pre-read per batch that compares the content digest
   and body size, so it is a proxy for body equality. Batches under 100 rows are
-  classified one in eight; the skipped rows are counted in
-  `eshu_dp_content_file_upsert_unclassified_rows_total`. Nothing about the write
+  classified about one in eight; the skipped rows and bytes are counted in
+  `eshu_dp_content_file_upsert_unclassified_rows_total` and
+  `eshu_dp_content_file_upsert_unclassified_body_bytes_total`, and every counter
+  carries `batch_class` (`small` or `large`) so a share can weight them back. Nothing about the write
   changes. See [Content File Upsert Outcomes](docs/public/reference/telemetry/content-file-upserts.md).
 
 ### Security alert reconciliation waits for its own impact producer without spending attempts

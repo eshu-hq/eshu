@@ -159,17 +159,23 @@ func sumPoints(t *testing.T, rm metricdata.ResourceMetrics, name string, want ma
 	return total
 }
 
-func newOutcomeWriter(t *testing.T, stored [][]any) (ContentWriter, *outcomeFakeDB, *sdkmetric.ManualReader, *bytes.Buffer) {
+func newOutcomeInstruments(t *testing.T) (*sdkmetric.ManualReader, *telemetry.Instruments) {
 	t.Helper()
 	reader := sdkmetric.NewManualReader()
 	instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
 	if err != nil {
 		t.Fatalf("NewInstruments: %v", err)
 	}
+	return reader, instruments
+}
+
+func newOutcomeWriter(t *testing.T, stored [][]any) (ContentWriter, *outcomeFakeDB, *sdkmetric.ManualReader, *bytes.Buffer) {
+	t.Helper()
+	reader, instruments := newOutcomeInstruments(t)
 	fake := &outcomeFakeDB{transactionalFakeDB: withTransactions(&fakeExecQueryer{}), storedRows: stored}
 	var logs bytes.Buffer
-	// Classify every batch: the sampling policy has its own tests below.
-	writer := NewContentWriter(fake).WithInstruments(instruments).WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))).WithOutcomeSampling(0, 1)
+	// Classify every batch: the sampling policy has its own tests.
+	writer := NewContentWriter(fake).WithInstruments(instruments).WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))).WithOutcomeSampling(contentFileOutcomeMinBatchRows, 1)
 	writer.Now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
 	return writer, fake, reader, &logs
 }
@@ -227,8 +233,14 @@ func TestContentWriterCountsMixedUpsertOutcomes(t *testing.T) {
 	if got := sumPoints(t, rm, "eshu_dp_content_file_upserts_total", map[string]string{"snapshot": "delta"}); got != 0 {
 		t.Errorf("delta count = %d, want 0 for a full snapshot", got)
 	}
-	if got, want := sumPoints(t, rm, "eshu_dp_content_file_upsert_body_bytes_total", map[string]string{"outcome": "metadata_only"}), int64(len(meta)); got != want {
+	if got, want := sumPoints(t, rm, "eshu_dp_content_file_upsert_body_bytes_total", map[string]string{"outcome": "metadata_only", "snapshot": "full", "batch_class": "small"}), int64(len(meta)); got != want {
 		t.Errorf("metadata_only bytes = %d, want %d", got, want)
+	}
+	if got := sumPoints(t, rm, "eshu_dp_content_file_upserts_total", map[string]string{"batch_class": "large"}); got != 0 {
+		t.Errorf("large-batch rows = %d, want 0 for a five-file write", got)
+	}
+	if got := sumPoints(t, rm, "eshu_dp_content_file_upserts_total", map[string]string{"batch_class": "small"}); got != 5 {
+		t.Errorf("small-batch rows = %d, want 5", got)
 	}
 	if got, want := sumPoints(t, rm, "eshu_dp_content_file_upsert_body_bytes_total", map[string]string{"outcome": "unchanged_skipped"}), int64(len(same)); got != want {
 		t.Errorf("unchanged_skipped bytes = %d, want %d", got, want)
@@ -312,8 +324,11 @@ func TestContentWriterPreReadFailureDoesNotFailWrite(t *testing.T) {
 	if got, _ := line["classify_failed_batch_count"].(float64); got != 1 {
 		t.Fatalf("classify_failed_batch_count = %v, want 1", line["classify_failed_batch_count"])
 	}
-	if got := sumPoints(t, rm, "eshu_dp_content_file_upsert_unclassified_rows_total", map[string]string{"reason": "classify_failed", "snapshot": "delta"}); got != 1 {
+	if got := sumPoints(t, rm, "eshu_dp_content_file_upsert_unclassified_rows_total", map[string]string{"reason": "classify_failed", "snapshot": "delta", "batch_class": "small"}); got != 1 {
 		t.Fatalf("classify_failed unclassified rows = %d, want 1: the written row must still be accounted for", got)
+	}
+	if got, want := sumPoints(t, rm, "eshu_dp_content_file_upsert_unclassified_body_bytes_total", map[string]string{"reason": "classify_failed", "snapshot": "delta", "batch_class": "small"}), int64(len("package a\n")); got != want {
+		t.Fatalf("classify_failed unclassified body bytes = %d, want %d", got, want)
 	}
 }
 

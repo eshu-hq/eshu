@@ -32,7 +32,7 @@ func newLiveOutcomeWriter(t *testing.T, database *sql.DB) (ContentWriter, *sdkme
 	}
 	// Classify every batch: the correctness proofs need each one, and the
 	// sampling policy has its own tests.
-	writer := NewContentWriter(SQLDB{DB: database}).WithInstruments(instruments).WithOutcomeSampling(0, 1)
+	writer := NewContentWriter(SQLDB{DB: database}).WithInstruments(instruments).WithOutcomeSampling(contentFileOutcomeMinBatchRows, 1)
 	writer.Now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
 	return writer, reader
 }

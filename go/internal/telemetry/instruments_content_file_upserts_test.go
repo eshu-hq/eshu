@@ -36,6 +36,15 @@ func TestContentFileUpsertContract(t *testing.T) {
 	if got, want := []string{ContentFileUnclassifiedSampledOut, ContentFileUnclassifiedClassifyFailed}, []string{"sampled_out", "classify_failed"}; !slices.Equal(got, want) {
 		t.Fatalf("content file unclassified reasons = %v, want the closed set %v", got, want)
 	}
+	if got, want := []string{ContentFileBatchSmall, ContentFileBatchLarge}, []string{"small", "large"}; !slices.Equal(got, want) {
+		t.Fatalf("content file batch classes = %v, want the closed set %v", got, want)
+	}
+	if got, want := MetricDimensionBatchClass, "batch_class"; got != want {
+		t.Fatalf("MetricDimensionBatchClass = %q, want %q", got, want)
+	}
+	if !slices.Contains(MetricDimensionKeys(), "batch_class") {
+		t.Fatal("batch_class is not in the frozen MetricDimensionKeys registry")
+	}
 	if got, want := MetricDimensionSnapshot, "snapshot"; got != want {
 		t.Fatalf("MetricDimensionSnapshot = %q, want %q", got, want)
 	}
@@ -53,6 +62,9 @@ func TestContentFileUpsertContract(t *testing.T) {
 	if instruments.ContentFileUpsertBodyBytes == nil {
 		t.Fatal("ContentFileUpsertBodyBytes counter not registered")
 	}
+	if instruments.ContentFileUpsertUnclassifiedBodyBytes == nil {
+		t.Fatal("ContentFileUpsertUnclassifiedBodyBytes counter not registered")
+	}
 	if instruments.ContentFileUpsertUnclassifiedRows == nil {
 		t.Fatal("ContentFileUpsertUnclassifiedRows counter not registered")
 	}
@@ -68,12 +80,14 @@ func TestContentFileUpsertScrapeNames(t *testing.T) {
 	}
 	ctx := context.Background()
 	instruments.ContentFileUpserts.Add(ctx, 3, metric.WithAttributes(
-		AttrOutcome(ContentFileUpsertOutcomeMetadataOnly), AttrSnapshot(ContentFileSnapshotFull)))
+		AttrOutcome(ContentFileUpsertOutcomeMetadataOnly), AttrSnapshot(ContentFileSnapshotFull), AttrBatchClass(ContentFileBatchLarge)))
 	instruments.ContentFileUpsertBodyBytes.Add(ctx, 1024, metric.WithAttributes(
-		AttrOutcome(ContentFileUpsertOutcomeMetadataOnly)))
+		AttrOutcome(ContentFileUpsertOutcomeMetadataOnly), AttrSnapshot(ContentFileSnapshotFull), AttrBatchClass(ContentFileBatchLarge)))
+	instruments.ContentFileUpsertUnclassifiedBodyBytes.Add(ctx, 2048, metric.WithAttributes(
+		AttrReason(ContentFileUnclassifiedSampledOut), AttrSnapshot(ContentFileSnapshotDelta), AttrBatchClass(ContentFileBatchSmall)))
 
 	instruments.ContentFileUpsertUnclassifiedRows.Add(ctx, 7, metric.WithAttributes(
-		AttrReason(ContentFileUnclassifiedSampledOut), AttrSnapshot(ContentFileSnapshotDelta)))
+		AttrReason(ContentFileUnclassifiedSampledOut), AttrSnapshot(ContentFileSnapshotDelta), AttrBatchClass(ContentFileBatchSmall)))
 
 	code, body := scrapeMetrics(providers.PrometheusHandler)
 	if code != http.StatusOK {
@@ -85,7 +99,10 @@ func TestContentFileUpsertScrapeNames(t *testing.T) {
 		`snapshot="full"`,
 		`eshu_dp_content_file_upsert_body_bytes_total{`,
 		`eshu_dp_content_file_upsert_unclassified_rows_total{`,
+		`eshu_dp_content_file_upsert_unclassified_body_bytes_total{`,
 		`reason="sampled_out"`,
+		`batch_class="small"`,
+		`batch_class="large"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("scrape lacks %q", want)

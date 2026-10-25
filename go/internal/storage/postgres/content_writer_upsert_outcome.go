@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -219,12 +220,22 @@ func (w ContentWriter) classifyFileBatch(ctx context.Context, batch []preparedFi
 // percent for 1 to 50 rows (docs/internal/evidence/8950-upsert-outcome-counter.md).
 // A batch of at least contentFileOutcomeMinBatchRows rows is always classified;
 // a smaller one is classified one time in contentFileOutcomeSampleEvery, and the
-// rest are counted as unclassified rows so the counters still add up to every
-// row written.
+// rest are counted as unclassified rows and bytes so the counters still add up
+// to every row written. Every counter carries the batch_class label (small or
+// large), so a query can weight the sampled small batches back up; without it a
+// combined share would count small-batch rows at one eighth.
 const (
 	contentFileOutcomeMinBatchRows = 100
 	contentFileOutcomeSampleEvery  = 8
 )
+
+// outcomeWeylStride is the golden-ratio increment of a Weyl sequence over
+// uint64: slot n is sampled when n*stride (mod 2^64) falls in the lowest 1/every
+// of the range. The long-run rate is exactly 1/every, and because the golden
+// ratio is badly approximable no integer period of the workload lines up with
+// the sampled slots, which a plain `n % every == 0` would do with a workload that
+// cycles a fixed list of 8, 16 or 24 repositories.
+const outcomeWeylStride uint64 = 0x9E3779B97F4A7C15
 
 // outcomeSampler decides which small batches are classified. It is shared by
 // every copy of a ContentWriter and safe for concurrent use.
@@ -236,12 +247,28 @@ type outcomeSampler struct {
 
 // classify reports whether a batch of rows rows should be classified. A large
 // batch always is and does not spend a slot; a small one takes the next slot and
-// is classified when the slot is the first of its cycle.
+// is classified when the slot falls in the sampled 1/every of the Weyl sequence.
+// The first slot always classifies.
 func (s *outcomeSampler) classify(rows int) bool {
 	if s == nil || s.every <= 1 || rows >= s.minRows {
 		return true
 	}
-	return (s.next.Add(1)-1)%s.every == 0
+	return (s.next.Add(1)-1)*outcomeWeylStride < math.MaxUint64/s.every
+}
+
+// batchClass names the size class of a batch for the counters' batch_class
+// label: large when the sampler always classifies a batch of that size, small
+// when it samples it. The class depends on size only, so a writer that
+// classifies every batch still labels its small batches small.
+func (w ContentWriter) batchClass(rows int) string {
+	minRows := contentFileOutcomeMinBatchRows
+	if w.outcomeSampler != nil {
+		minRows = w.outcomeSampler.minRows
+	}
+	if rows >= minRows {
+		return telemetry.ContentFileBatchLarge
+	}
+	return telemetry.ContentFileBatchSmall
 }
 
 // WithOutcomeSampling returns a copy that classifies every batch of at least
@@ -285,6 +312,7 @@ func (w ContentWriter) recordFileUpsertOutcomes(ctx context.Context, obs *fileUp
 	if obs == nil {
 		return
 	}
+	batchClass := w.batchClass(len(batch))
 	if outcomes == nil {
 		switch reason {
 		case telemetry.ContentFileUnclassifiedSampledOut:
@@ -292,9 +320,19 @@ func (w ContentWriter) recordFileUpsertOutcomes(ctx context.Context, obs *fileUp
 		case telemetry.ContentFileUnclassifiedClassifyFailed:
 			obs.tally.classifyFailed++
 		}
-		if w.instruments != nil && w.instruments.ContentFileUpsertUnclassifiedRows != nil && reason != "" {
-			w.instruments.ContentFileUpsertUnclassifiedRows.Add(ctx, int64(len(batch)), metric.WithAttributes(
-				telemetry.AttrReason(reason), telemetry.AttrSnapshot(obs.snapshot)))
+		if w.instruments != nil && reason != "" {
+			var bodyBytes int64
+			for _, row := range batch {
+				bodyBytes += int64(len(row.body))
+			}
+			attrs := metric.WithAttributes(
+				telemetry.AttrReason(reason), telemetry.AttrSnapshot(obs.snapshot), telemetry.AttrBatchClass(batchClass))
+			if w.instruments.ContentFileUpsertUnclassifiedRows != nil {
+				w.instruments.ContentFileUpsertUnclassifiedRows.Add(ctx, int64(len(batch)), attrs)
+			}
+			if w.instruments.ContentFileUpsertUnclassifiedBodyBytes != nil {
+				w.instruments.ContentFileUpsertUnclassifiedBodyBytes.Add(ctx, bodyBytes, attrs)
+			}
 		}
 		return
 	}
@@ -313,13 +351,13 @@ func (w ContentWriter) recordFileUpsertOutcomes(ctx context.Context, obs *fileUp
 		if batchTally.rows[outcome] == 0 {
 			continue
 		}
+		attrs := metric.WithAttributes(
+			telemetry.AttrOutcome(outcome.String()), telemetry.AttrSnapshot(obs.snapshot), telemetry.AttrBatchClass(batchClass))
 		if w.instruments.ContentFileUpserts != nil {
-			w.instruments.ContentFileUpserts.Add(ctx, int64(batchTally.rows[outcome]), metric.WithAttributes(
-				telemetry.AttrOutcome(outcome.String()), telemetry.AttrSnapshot(obs.snapshot)))
+			w.instruments.ContentFileUpserts.Add(ctx, int64(batchTally.rows[outcome]), attrs)
 		}
 		if w.instruments.ContentFileUpsertBodyBytes != nil {
-			w.instruments.ContentFileUpsertBodyBytes.Add(ctx, batchTally.bodyBytes[outcome], metric.WithAttributes(
-				telemetry.AttrOutcome(outcome.String())))
+			w.instruments.ContentFileUpsertBodyBytes.Add(ctx, batchTally.bodyBytes[outcome], attrs)
 		}
 	}
 }

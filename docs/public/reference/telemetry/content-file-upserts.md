@@ -9,9 +9,10 @@ is Eshu rewriting a file whose content did not change, only its `commit_sha` or
 
 | Signal | Labels | Meaning |
 | --- | --- | --- |
-| `eshu_dp_content_file_upserts_total` | `outcome`, `snapshot` | Rows per upsert batch, counted after the batch's upsert statement succeeds. |
-| `eshu_dp_content_file_upsert_body_bytes_total` | `outcome` | Body bytes of those rows. It is the bytes the writer was handed, not the bytes written. |
-| `eshu_dp_content_file_upsert_unclassified_rows_total` | `reason`, `snapshot` | Rows written but not classified: `sampled_out` (a small batch the writer skipped the pre-read for) or `classify_failed`. The outcome counter plus this one is every row written. |
+| `eshu_dp_content_file_upserts_total` | `outcome`, `snapshot`, `batch_class` | Classified rows per upsert batch, counted after the batch's upsert statement succeeds. |
+| `eshu_dp_content_file_upsert_body_bytes_total` | `outcome`, `snapshot`, `batch_class` | Body bytes of those rows. It is the bytes the writer was handed, not the bytes written. |
+| `eshu_dp_content_file_upsert_unclassified_rows_total` | `reason`, `snapshot`, `batch_class` | Rows written but not classified: `sampled_out` (a small batch the writer skipped the pre-read for) or `classify_failed`. The outcome counter plus this one is every row written. |
+| `eshu_dp_content_file_upsert_unclassified_body_bytes_total` | `reason`, `snapshot`, `batch_class` | Body bytes of those rows. The two body-bytes counters together are every body byte written. |
 | `upsert_files` stage log | none | Per `Write`: `snapshot`, `inserted_count`, `unchanged_skipped_count`, `metadata_only_count`, `content_changed_count`, `metadata_only_body_bytes`, `classified_batch_count`, `sampled_out_batch_count`, `classify_failed_batch_count`, `classify_seconds`. |
 
 `outcome` is a closed set, and the labels carry no repository or path:
@@ -26,6 +27,10 @@ is Eshu rewriting a file whose content did not change, only its `commit_sha` or
 `snapshot` is `full` when the `Write` carried the repository's complete file set
 and `delta` otherwise. A delta carries only changed paths, so `metadata_only` is
 close to zero there by construction.
+
+`batch_class` is `large` for a batch of 100 rows or more and `small` for a
+smaller one. It exists because of sampling (below): a combined share needs it to
+weight the sampled small batches back up.
 
 ## How the outcome is decided
 
@@ -43,12 +48,20 @@ writer can change a row between them and shift one row's class. The totals stay
 exact: every row of a successfully upserted, classified batch is counted once.
 
 The pre-read has a fixed cost per batch (about 0.1 to 0.3 ms), so the writer
-classifies every batch of 100 rows or more and one smaller batch in eight. Every
-row of a skipped batch is counted in
-`eshu_dp_content_file_upsert_unclassified_rows_total{reason="sampled_out"}`.
-Delta writes are usually small batches, so for `snapshot="delta"` the outcome
-counter holds about one eighth of the rows; use the unclassified counter to see
-the coverage and read the outcome counter as shares, not totals.
+classifies every batch of 100 rows or more (`batch_class="large"`) and about one
+in eight smaller ones (`batch_class="small"`). The small batches are picked by a
+golden-ratio (Weyl) sequence, not a fixed modulus, so a workload that cycles a
+fixed list of repositories is not systematically sampled or missed. Every row and
+body byte of a skipped batch is counted in the unclassified counters with
+`reason="sampled_out"`.
+
+**A share over the classified counters alone is wrong when the mix of batch
+sizes differs between outcomes**, because small-batch rows are present at about
+one eighth of their weight. Deltas and the tail batch of every `Write` are small
+batches. Example: if 90% of written rows are deltas with a 0% `metadata_only`
+share and 10% are full snapshots with 90%, the true share is 9%, but the
+classified counters read about 42%, which would wrongly pass a 20% gate. Use the
+scaled estimate or the lower bound below.
 
 The pre-read is observability only. If it fails, the `Write` still succeeds, the
 batch is counted under `reason="classify_failed"`, the log carries a
@@ -61,24 +74,57 @@ upsert is not.
 
 ## Queries
 
-Share of upserted rows that were an unchanged-content rewrite, per snapshot
-shape. Compare it with the rewrite-share gate below:
+Write C(o, b) for `sum(increase(eshu_dp_content_file_upserts_total{outcome="o",batch_class="b"}[1d]))`
+and U(b) for `sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total{batch_class="b"}[1d]))`.
+Add the same `snapshot="full"` or `snapshot="delta"` matcher to every selector for
+a per-snapshot value.
+
+**Scaled estimate of the `metadata_only` share of rows written.** Large batches
+count as they are; small-batch rows are scaled by the observed sampling ratio
+(about 8):
 
 ```promql
-sum by (snapshot) (increase(eshu_dp_content_file_upserts_total{outcome="metadata_only"}[1d]))
+(
+  sum(increase(eshu_dp_content_file_upserts_total{outcome="metadata_only",batch_class="large"}[1d]))
+  +
+  sum(increase(eshu_dp_content_file_upserts_total{outcome="metadata_only",batch_class="small"}[1d]))
+    * (
+        sum(increase(eshu_dp_content_file_upserts_total{batch_class="small"}[1d]))
+        + sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total{batch_class="small"}[1d]))
+      )
+    / sum(increase(eshu_dp_content_file_upserts_total{batch_class="small"}[1d]))
+)
 /
-sum by (snapshot) (increase(eshu_dp_content_file_upserts_total[1d]))
+(
+  sum(increase(eshu_dp_content_file_upserts_total[1d]))
+  + sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total[1d]))
+)
 ```
 
-Share of body bytes:
+It is an estimate: it assumes the sampled small batches are typical of the
+unsampled ones, and it counts `classify_failed` rows only in the denominator, so
+it reads low while `reason="classify_failed"` is above zero.
+
+**Lower bound of the same share.** It treats every unclassified row as not
+`metadata_only`, so the true share is at least this:
 
 ```promql
-sum(increase(eshu_dp_content_file_upsert_body_bytes_total{outcome="metadata_only"}[1d]))
+sum(increase(eshu_dp_content_file_upserts_total{outcome="metadata_only"}[1d]))
 /
-sum(increase(eshu_dp_content_file_upsert_body_bytes_total[1d]))
+(
+  sum(increase(eshu_dp_content_file_upserts_total[1d]))
+  + sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total[1d]))
+)
 ```
 
-Share of written rows the pre-read did not classify:
+**Body-byte share.** The same two queries over the byte counters, replacing
+`eshu_dp_content_file_upserts_total` with `eshu_dp_content_file_upsert_body_bytes_total`
+and `eshu_dp_content_file_upsert_unclassified_rows_total` with
+`eshu_dp_content_file_upsert_unclassified_body_bytes_total`. The scale factor then
+uses bytes: (small classified bytes + small unclassified bytes) / small classified
+bytes.
+
+**Coverage.** Share of written rows the pre-read did not classify:
 
 ```promql
 sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total[1d]))
@@ -118,11 +164,15 @@ figure as an approximation of the writer's HOT share.
 - `metadata_only` low overall: unchanged-content rewrites are not a material
   share of writes. #8950 proposes deferring the metadata-only writer if
   `metadata_only` stays under 20% of upserted rows and under 10% of body bytes.
+  Judge the gate on the scaled estimate; if the lower bound already clears it,
+  the true share does too.
 - `content_changed` dominant: the write cost is real change, not rewrite.
 - `reason="classify_failed"` above zero: the pre-read is failing. Look for the
   `classify_failed` warning, which carries the database error.
 
 The `classify_seconds` field in the same stage log is the measured cost of the
 pre-read for that `Write`. A whole `Write` with the sampling policy measured
-within +2.2% and -1.4% of an unobserved writer on the benchmark shapes (see the
-evidence note, `docs/internal/evidence/8950-upsert-outcome-counter.md`).
+between -1.7% and +5.1% of an unobserved writer across the benchmark shapes in two
+independent runs. That spread is the noise floor of an alternating comparison;
+the expected cost is about 0.1 ms per eighth of the small batches. See the
+evidence note, `docs/internal/evidence/8950-upsert-outcome-counter.md`.

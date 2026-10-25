@@ -619,6 +619,9 @@ type Instruments struct {
 	// were written but not classified, by reason (sampled_out, classify_failed)
 	// and snapshot (#8950). With ContentFileUpserts it accounts for every row.
 	ContentFileUpsertUnclassifiedRows metric.Int64Counter
+	// ContentFileUpsertUnclassifiedBodyBytes counts the body bytes of those
+	// rows, with the same labels plus batch_class (#8950).
+	ContentFileUpsertUnclassifiedBodyBytes metric.Int64Counter
 	// ReconcileParseSkipPersistentDrops counts forced reconciles that skipped
 	// the parse while carrying the active generation's recorded stream drops
 	// (#8185): every recorded path still failed to open, so the skip replays

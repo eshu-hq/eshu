@@ -58,8 +58,11 @@ Performance Evidence: the pre-read has a fixed cost of about 0.1 to 0.3 ms per
 batch (a round trip and a plan; the server-side execution is 0.02 to 0.1 ms). It
 is a negligible share of a large batch and a visible one of a small batch, so the
 writer classifies every batch of 100 rows or more and one small batch in eight.
-With that policy a whole `ContentWriter.Write` measured within +2.2% and -1.4% of
-an unobserved writer across 1 to 50 files, with and without entities.
+With that policy a whole `ContentWriter.Write` measured between -1.4% and +2.2% of
+an unobserved writer across 1 to 50 files, with and without entities, and between
+-1.7% and +5.1% in an independent run of the same bench. That spread is the noise
+floor of an alternating whole-Write comparison; the expected cost is the per-batch
+share below divided by eight.
 
 Method: PostgreSQL 18.6 (`postgres:18.6-bookworm`, Docker, a free local port,
 `shared_buffers=1GB`, removed afterwards), all 251 migrations applied, 30,000
@@ -94,9 +97,18 @@ classifying every batch is not inside the cap on common shapes. Hence the policy
 - a smaller batch is classified one time in eight, by a counter shared across
   writers, so the expected per-batch cost is the table above divided by eight;
 - every row of a skipped batch is counted in
-  `eshu_dp_content_file_upsert_unclassified_rows_total{reason="sampled_out"}`,
-  and a failed pre-read in `{reason="classify_failed"}`, so the outcome counter
-  plus the unclassified counter is every row written.
+  `eshu_dp_content_file_upsert_unclassified_rows_total{reason="sampled_out"}`
+  (and `..._unclassified_body_bytes_total` for the bytes), and a failed pre-read
+  in `{reason="classify_failed"}`, so the outcome counters plus the unclassified
+  counters are every row and byte written;
+- every counter carries `batch_class` (`small` below 100 rows, `large` at or above),
+  because a share over the classified rows alone counts small-batch rows at one
+  eighth of their weight: with 90% of rows in 0%-share deltas and 10% in 90%-share
+  full snapshots the true share is 9% and the classified counters read about 42%.
+  The reference page gives a scaled estimate and a lower bound;
+- the small batches are picked by a golden-ratio (Weyl) sequence, so a period-8
+  workload is not systematically sampled or missed
+  (`TestOutcomeSamplerRateAndAliasing`).
 
 Whole Write with the shipped policy, observed against unobserved writer
 alternating on one database, 60 rounds, medians (ms per Write; files alone are
@@ -113,9 +125,9 @@ the cheapest Write, the entity rows are the common shape):
 | 50 | 0 | 31.51 / 31.41, -0.32% | 12.91 / 12.93, +0.11% |
 | 50 | 10 | 46.06 / 45.44, -1.35% | 26.28 / 26.55, +1.00% |
 
-The spread is the noise floor of an alternating whole-Write comparison; the
-claim is that the policy keeps the added cost within it (at most +2.2%), not that
-it is zero. The absolute times are this box's, which was quieter for this run
+The spread is the noise floor of an alternating whole-Write comparison. The
+claim is that the policy keeps the added cost inside that floor, not that it is
+zero: two runs gave -1.4% to +2.2% and -1.7% to +5.1% across the same shapes. The absolute times are this box's, which was quieter for this run
 than for the first, so they differ from the first table's; each table compares
 within its own run.
 
@@ -129,8 +141,10 @@ at that size.
 Benchmark Evidence: the two tables above, plus the lock test (the pre-read
 returned at once behind an uncommitted writer) and the concurrency test (6
 sessions by 5 rounds over 40 shared keys, no error, 1,200 of 1,200 rows counted).
-The sampling policy is pinned by `TestContentWriterSamplesSmallBatches` and
-`TestContentWriterAlwaysClassifiesLargeBatches`.
+The sampling policy is pinned by `TestContentWriterSamplesSmallBatches`,
+`TestContentWriterAlwaysClassifiesLargeBatches`, `TestOutcomeSamplerRateAndAliasing`
+and, for the shipped default, `TestNewContentWriterSamplesByDefault` (deleting the
+default in `NewContentWriter` makes it classify all 160 writes).
 
 ## Operator signals
 
@@ -144,7 +158,7 @@ rows the pre-read did not classify, so the outcome counter plus it is every row
 written. A failed pre-read logs `content_file_upsert_outcome.classify_failed` and
 shows as `reason="classify_failed"`; the write is unaffected. The HOT share of
 `content_files` comes from `pg_stat_user_tables` (query in the reference page).
-Labels are closed (`outcome` has four values, `snapshot` two, `reason` two);
+Labels are closed (`outcome` has four values, `snapshot` two, `reason` two, `batch_class` two);
 there is no repository, path or generation label.
 
 ## Measured share on one local corpus
