@@ -89,6 +89,10 @@ EOF
 	append_case env-i.yml 1 "guard: env -i FAILS" '      - run: env -i PATH="$PATH" go build ./...\n'
 	append_case export-n.yml 1 "guard: export -n CGO_CFLAGS FAILS" '      - run: export -n CGO_CFLAGS; go build ./...\n'
 	append_case remove-item.yml 1 "guard: Remove-Item Env:CGO_CFLAGS FAILS" '      - run: Remove-Item Env:CGO_CFLAGS\n'
+	append_case declare-x.yml 1 "guard: declare +x CGO_CFLAGS FAILS" '      - run: declare +x CGO_CFLAGS; go build ./...\n'
+	append_case typeset-x.yml 1 "guard: typeset +x CGO_CFLAGS FAILS" '      - run: typeset +x CGO_CFLAGS; go build ./...\n'
+	append_case env-ignore.yml 1 "guard: env --ignore-environment FAILS" '      - run: env --ignore-environment go build ./...\n'
+	append_case env-dash.yml 1 "guard: bare env - FAILS" '      - run: env - go build ./...\n'
 	append_case space-colon.yml 1 "guard: step-level 'CGO_CFLAGS : -O2' FAILS" "${step_env}"'          CGO_CFLAGS : -O2\n'
 	append_case tab-colon.yml 1 "guard: step-level CGO_CFLAGS with a tab after the colon FAILS" "${step_env}"'          CGO_CFLAGS:\t-O2\n'
 	append_case quoted-key.yml 1 "guard: step-level quoted key \"CGO_CFLAGS\" FAILS" "${step_env}"'          "CGO_CFLAGS": -O2\n'
@@ -97,6 +101,16 @@ EOF
 	t="$(new_tree)"
 	good_workflow | sed 's/^  CGO_CFLAGS:/  CGO_CFLAGS :/' >"${t}/.github/workflows/env-space-colon.yml"
 	check_guard "guard: workflow-level 'CGO_CFLAGS :' with the flag passes" 0 "$t"
+
+	# Line anchoring: a prefix must not be spoofed into the workflow-level env or
+	# the global Makefile export.
+	t="$(new_tree)"
+	printf 'name: F\non: push\nenv:\n  FOO:\n    CGO_CFLAGS: "-O2 -g -std=gnu17"\njobs:\n  b:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/setup-go@v6\n' >"${t}/.github/workflows/nested-env.yml"
+	check_guard "guard: CGO_CFLAGS nested under another env key FAILS" 1 "$t" "nested-env.yml"
+
+	t="$(new_tree)"
+	good_workflow | sed 's/^env:/env: # note/' >"${t}/.github/workflows/env-comment.yml"
+	check_guard "guard: workflow env: with a trailing comment passes" 0 "$t"
 
 	# Makefile: make strips "#" with no space before it, and the last -std= wins.
 	mk_case() {
@@ -110,6 +124,10 @@ EOF
 	mk_case "that unexports CGO_CFLAGS FAILS" 1 'export CGO_CFLAGS := -O2 -g -std=gnu17\nunexport CGO_CFLAGS\n'
 	mk_case "that never exports CGO_CFLAGS FAILS" 1 'CGO_CFLAGS ?= -O2 -g -std=gnu17\n'
 	mk_case "that sets CGO_CFLAGS with != FAILS" 1 'export CGO_CFLAGS != echo -std=gnu17\n'
+	mk_case "with only a target-specific export FAILS" 1 'build: export CGO_CFLAGS := -O2 -g -std=gnu17\n'
+	mk_case "with only a recipe-line export FAILS" 1 '\texport CGO_CFLAGS := -O2 -g -std=gnu17\n'
+	mk_case "with only an \$(eval export) FAILS" 1 '$(eval export CGO_CFLAGS := -O2 -g -std=gnu17)\n'
+	mk_case "spelling export override passes" 0 'export override CGO_CFLAGS := -O2 -g -std=gnu17\n'
 	mk_case "spelling ::= passes" 0 'export CGO_CFLAGS ::= -O2 -g -std=gnu17\n'
 	mk_case "spelling ?= passes" 0 'export CGO_CFLAGS ?= -O2 -g -std=gnu17\n'
 	mk_case "spelling override export passes" 0 'override export CGO_CFLAGS := -O2 -g -std=gnu17\n'

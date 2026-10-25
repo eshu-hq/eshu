@@ -101,7 +101,9 @@ when:
   `-std=gnu17` does not count as the flag;
 - the `Makefile` has no line that exports `CGO_CFLAGS` with exactly one
   `-std=`, and it is `-std=gnu17`, or another `CGO_CFLAGS` line adds a `-std=`,
-  or it unexports the variable or sets it in a `define CGO_CFLAGS` block. make starts a comment at any `#`, so a `#` with
+  or it unexports the variable or sets it in a `define CGO_CFLAGS` block. The export must start the line (after
+  spaces and `override`): a target-specific `build: export ...`, a tab-indented
+  recipe line, or `$(eval export ...)` does not count. make starts a comment at any `#`, so a `#` with
   no space before it hides the rest of the line from the guard too;
 - a script under `scripts/` that runs `CGO_ENABLED=1 go`, or a developer
   entrypoint, lacks a non-comment line that sources `scripts/lib/cgo-cflags.sh`
