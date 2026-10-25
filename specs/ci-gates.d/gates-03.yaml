@@ -11,6 +11,7 @@ gates:
       - "scripts/dev/pre-enqueue-check.sh"
       - "scripts/dev/test-pre-enqueue-check.sh"
       - "scripts/lib/test-pre-enqueue-check-*"
+      - "scripts/lib/pre-enqueue-check-*"
       - "scripts/lib/ai-attribution-pattern.sh"
       - "scripts/lib/private-identifier-pattern.sh"
     local:

@@ -266,6 +266,6 @@ if [[ ${overall} -ne 0 ]]; then
 	printf '\n\033[31mpre-push: failures above — fix before pushing.\033[0m\n'
 else
 	printf '\n\033[32mpre-push: all local gates passed.\033[0m\n'
-	printf 'CI required-gates remain the blocking proof for Ifá/Odù contracts, performance, and end-to-end behavior (required-gates-complete must still be green to merge).\n'
+	printf 'CI remains the blocking proof for Ifá/Odù contracts, performance, and end-to-end behavior: go-core-complete and go-race-complete must be green to merge, and no completed red gate may be left undispositioned.\n'
 fi
 exit ${overall}

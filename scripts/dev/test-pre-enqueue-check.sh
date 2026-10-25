@@ -109,6 +109,12 @@ export FAKE_PR=100 PRE_ENQUEUE_REPO=eshu-hq/eshu
 mkdir -p "${work}/bin"
 cp "${repo_root}/scripts/lib/test-pre-enqueue-check-fake-gh.sh" "${work}/bin/gh"
 chmod +x "${work}/bin/gh"
+cp "${repo_root}/scripts/lib/test-pre-enqueue-check-fake-ci-gates.sh" "${work}/bin/ci-gates"
+chmod +x "${work}/bin/ci-gates"
+# The check script reads the ruleset-required set from ci-gates (#9094); the
+# fake serves the per-case lists. One case below unsets this to run the real
+# `go run ./cmd/ci-gates` against specs/ci-gates.v1.yaml.
+export PRE_ENQUEUE_CI_GATES="${work}/bin/ci-gates"
 export PATH="${work}/bin:${PATH}"
 
 # new_case <name> [origin]: green fixtures plus a fresh single-branch clone,
@@ -117,6 +123,7 @@ new_case() {
 	FIXTURES="${work}/case-$1"
 	CLONE="${FIXTURES}/clone"
 	export FIXTURES
+	RUN_ARGS=()
 	mkdir -p "${FIXTURES}"
 	git clone -q --single-branch --branch main "${2:-${work}/origin.git}" "${CLONE}"
 	jq -n --arg h "${HEAD_SHA}" '{state:"OPEN",isDraft:false,headRefOid:$h,
@@ -141,6 +148,10 @@ new_case() {
 		{name:"go-core-complete",status:"completed",conclusion:"success"},
 		{name:"go-race-complete",status:"completed",conclusion:"success"}]}' >"${FIXTURES}/check-runs.json"
 	jq -n '{state:"success",statuses:[{context:"required-gates-complete",state:"success"}]}' >"${FIXTURES}/status.json"
+	# The manifest: the two Go umbrellas are ruleset-required, the aggregate
+	# publisher is not (specs/ci-gates.v1.yaml, #9089).
+	printf 'go-core-complete\ngo-race-complete\nrequired-gates-complete\n' >"${FIXTURES}/contexts-full.txt"
+	printf 'go-core-complete\ngo-race-complete\n' >"${FIXTURES}/contexts-ruleset.txt"
 	jq -n '{data:{repository:{pullRequest:{reviewThreads:{totalCount:2,
 		pageInfo:{hasNextPage:false},nodes:[{isResolved:true},{isResolved:true}]}}}}}' >"${FIXTURES}/threads.json"
 }
@@ -152,7 +163,7 @@ edit() {
 }
 run() {
 	set +e
-	OUT="$(cd "${CLONE}" && "${target}" "${FAKE_PR}" "${1:-${HEAD_SHA}}" 2>&1)"
+	OUT="$(cd "${CLONE}" && "${target}" ${RUN_ARGS[@]+"${RUN_ARGS[@]}"} "${FAKE_PR}" "${1:-${HEAD_SHA}}" 2>&1)"
 	RC=$?
 	set -e
 	printf '%s\n' "${OUT}" >"${FIXTURES}/out.txt"
@@ -226,17 +237,20 @@ run
 ok=0
 [[ "${RC}" -eq 0 ]] || ok=1
 [[ "$(fail_lines)" == 0 ]] || ok=1
-rg -q '^PASS checks +IN-GROUP: complete; required-gates-complete=success; mergeStateStatus=UNKNOWN \(PR is in a merge group\)$' <<<"${OUT}" || ok=1
+rg -q '^PASS checks +IN-GROUP: complete; go-core-complete,go-race-complete=success; mergeStateStatus=UNKNOWN \(PR is in a merge group\)$' <<<"${OUT}" || ok=1
 rg -q 'checks +rows=127 pending=0 fail=0 unknown=0$' <<<"${OUT}" || ok=1
 check "GREEN a queued PR with mergeStateStatus UNKNOWN prints IN-GROUP and passes" "${ok}"
 [[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
 new_case in-group-pending
 queue_self
 edit check-runs.json '.check_runs += [{name:"go-race",status:"in_progress",conclusion:null}]'
-expect_red "queued PR with a pending check" checks
+run
 ok=0
-rg -q '^FAIL checks +IN-GROUP: pending=1' <<<"${OUT}" || ok=1
-check "RED the queued FAIL row is labeled IN-GROUP" "${ok}"
+[[ "${RC}" -eq 0 ]] || ok=1
+rg -q '^     checks +pending=1: go-race' <<<"${OUT}" || ok=1
+rg -q '^PASS checks +IN-GROUP: complete; ' <<<"${OUT}" || ok=1
+check "GREEN a queued PR with a pending non-required check passes with a note (#9094)" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
 new_case in-group-failing
 queue_self
 edit check-runs.json '.check_runs += [{name:"go-core",status:"completed",conclusion:"failure"}]'
@@ -249,7 +263,7 @@ edit pr.json '.mergeStateStatus = "CLEAN"'
 run
 ok=0
 [[ "${RC}" -eq 0 ]] || ok=1
-rg -q '^PASS checks +IN-GROUP: complete; required-gates-complete=success; mergeStateStatus=CLEAN ' <<<"${OUT}" || ok=1
+rg -q '^PASS checks +IN-GROUP: complete; go-core-complete,go-race-complete=success; mergeStateStatus=CLEAN ' <<<"${OUT}" || ok=1
 check "GREEN a queued PR with mergeStateStatus CLEAN passes" "${ok}"
 for state in BLOCKED DIRTY BEHIND; do
 	new_case "in-group-${state}"

@@ -54,7 +54,9 @@ forbid "the whole-module prelude (pre-pr/pre-pr-full's job, not pre-push's)" '--
 forbid "any stamp write" 'eshu-prepr-stamp'
 forbid "any stamp bypass variable" 'UNSTAMPED_PUSH'
 require "runs the advisory docs-contradiction gate unconditionally" 'verify-docs-contradiction.sh'
-require "names the CI required-gates aggregate on success" 'required-gates-complete'
+require "states the merge rule on success: both Go umbrellas green" 'go-core-complete and go-race-complete must be green to merge'
+require "states the merge rule on success: no undispositioned red gate" 'no completed red gate may be left undispositioned'
+forbid "the retired claim that the aggregate must be green to merge (#9094)" 'required-gates-complete must still be green to merge'
 
 # ---------------------------------------------------------------------------
 # Behavioral: execute the real driver against a hermetic fixture repo.
