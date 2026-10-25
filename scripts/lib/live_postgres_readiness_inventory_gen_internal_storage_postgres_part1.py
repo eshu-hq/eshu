@@ -35,6 +35,15 @@ TABLE = {
         "go/internal/storage/postgres/alert_read_state_concurrency_live_test.go": (
             "TestSecurityAlertReadStateLiveConcurrency",
         ),
+        "go/internal/storage/postgres/alert_shard_planner_cost_live_test.go": (
+            "TestShardPlannerScanCostLive",
+        ),
+        "go/internal/storage/postgres/alert_shard_retirement_live_test.go": (
+            "TestShardRetirementLive",
+        ),
+        "go/internal/storage/postgres/alert_shard_split_merge_live_test.go": (
+            "TestShardSplitMergeLive",
+        ),
         "go/internal/storage/postgres/aws_cloud_runtime_drift_state_arn_differential_live_test.go": (
             "TestAWSCloudRuntimeDriftStateARNJoinMatchesReferenceLive",
         ),
@@ -474,14 +483,6 @@ TABLE = {
             "TestRetentionCascadeHeldRowRaceLive",
             "TestRetentionCascadeDeletesRowChangedBeforeItsLockLive",
             "TestRetentionCascadeConcurrentWithSweepAndReplaysNeverDeadlockLive",
-        ),
-        "go/internal/storage/postgres/recovery_refinalize_delta_active_fence_live_test.go": (
-            "TestRefinalizeDeltaActiveRollsBackReindexWithTheTransaction",
-            "TestRefinalizeDeltaActiveReindexLockContention",
-        ),
-        "go/internal/storage/postgres/recovery_refinalize_delta_active_live_test.go": (
-            "TestRefinalizeDeltaActiveRequestsFullReindex",
-            "TestRefinalizeDeltaActiveConvergesAcrossTwoCalls",
         ),
     },
 }

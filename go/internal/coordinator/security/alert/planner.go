@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/contract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -26,21 +28,38 @@ type PlanRequest struct {
 
 // WorkPlanner plans workflow rows for configured provider
 // security-alert targets without resolving credentials or contacting providers.
-type WorkPlanner struct{}
+type WorkPlanner struct {
+	// ShardScopes reads the scopes org targets already have, so the planner
+	// can retire the ones the current partition no longer plans (#9019). It
+	// is required when the configuration has an org target; a
+	// repository-only configuration never calls it.
+	ShardScopes ShardScopeReader
+	// Logger receives the retirement summary and the per-scan bound warning.
+	// Nil disables them.
+	Logger *slog.Logger
+}
 
 type securityAlertRuntimeConfiguration struct {
 	Targets []securityAlertTargetConfiguration `json:"targets"`
 }
 
 type securityAlertTargetConfiguration struct {
-	Provider string `json:"provider"`
-	ScopeID  string `json:"scope_id"`
+	Provider            string   `json:"provider"`
+	Scope               string   `json:"scope"`
+	ScopeID             string   `json:"scope_id"`
+	Organization        string   `json:"organization"`
+	AllowedRepositories []string `json:"allowed_repositories"`
 }
 
-// PlanSecurityAlertWork returns one run and one work item per configured
-// provider security-alert target.
+// PlanSecurityAlertWork returns one run and one work item per planned scope:
+// a repository target is one scope; an org target is one scope per shard of
+// its partition (shard.Partition), the base scope_id when it has one shard.
+// Each scope of an org target that still has a non-retired active generation
+// but is no longer planned gets one retirement work item, marked by
+// shard.RetirementAcceptanceUnitID, which the collector answers with an empty
+// generation.
 func (p WorkPlanner) PlanSecurityAlertWork(
-	_ context.Context,
+	ctx context.Context,
 	request PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	if err := validateSecurityAlertPlanRequest(request); err != nil {
@@ -53,20 +72,24 @@ func (p WorkPlanner) PlanSecurityAlertWork(
 	if err := validateUniqueSecurityAlertTargets(targets); err != nil {
 		return workflow.Run{}, nil, err
 	}
+	scopes, err := p.plannedScopes(ctx, request.Instance, targets)
+	if err != nil {
+		return workflow.Run{}, nil, err
+	}
 
 	observedAt := request.ObservedAt.UTC()
 	run := workflow.Run{
 		RunID:              securityAlertRunID(request.Instance, request.PlanKey),
 		TriggerKind:        securityAlertTriggerKind(request.Instance),
 		Status:             workflow.RunStatusCollectionPending,
-		RequestedScopeSet:  securityAlertRequestedScopeSet(request.Instance, targets),
+		RequestedScopeSet:  securityAlertRequestedScopeSet(request.Instance, scopes),
 		RequestedCollector: string(scope.CollectorSecurityAlert),
 		CreatedAt:          observedAt,
 		UpdatedAt:          observedAt,
 	}
-	items := make([]workflow.WorkItem, 0, len(targets))
-	for _, target := range targets {
-		item, err := securityAlertWorkItem(request.Instance, target, run.RunID, request.PlanKey, observedAt)
+	items := make([]workflow.WorkItem, 0, len(scopes))
+	for _, planned := range scopes {
+		item, err := securityAlertWorkItem(request.Instance, planned, run.RunID, request.PlanKey, observedAt)
 		if err != nil {
 			return workflow.Run{}, nil, err
 		}
@@ -108,6 +131,7 @@ func parseSecurityAlertRuntimeTargets(raw string) ([]securityAlertTargetConfigur
 	targets := make([]securityAlertTargetConfiguration, 0, len(decoded.Targets))
 	for _, target := range decoded.Targets {
 		target.Provider = strings.TrimSpace(target.Provider)
+		target.Scope = strings.TrimSpace(target.Scope)
 		target.ScopeID = strings.TrimSpace(target.ScopeID)
 		targets = append(targets, target)
 	}
@@ -145,23 +169,27 @@ func securityAlertTriggerKind(instance workflow.CollectorInstance) workflow.Trig
 
 func securityAlertRequestedScopeSet(
 	instance workflow.CollectorInstance,
-	targets []securityAlertTargetConfiguration,
+	scopes []plannedScope,
 ) string {
 	type requestedTarget struct {
 		ScopeID  string `json:"scope_id"`
 		Provider string `json:"provider"`
+		// Retire marks a retirement item; omitted for collection, so a
+		// configuration without org shards keeps its exact prior payload.
+		Retire bool `json:"retire,omitempty"`
 	}
 	payload := struct {
 		CollectorInstanceID string            `json:"collector_instance_id"`
 		Targets             []requestedTarget `json:"targets"`
 	}{
 		CollectorInstanceID: strings.TrimSpace(instance.InstanceID),
-		Targets:             make([]requestedTarget, 0, len(targets)),
+		Targets:             make([]requestedTarget, 0, len(scopes)),
 	}
-	for _, target := range targets {
+	for _, planned := range scopes {
 		payload.Targets = append(payload.Targets, requestedTarget{
-			ScopeID:  strings.TrimSpace(target.ScopeID),
-			Provider: strings.TrimSpace(target.Provider),
+			ScopeID:  planned.scopeID,
+			Provider: planned.provider,
+			Retire:   planned.retire,
 		})
 	}
 	sort.Slice(payload.Targets, func(i, j int) bool {
@@ -176,18 +204,26 @@ func securityAlertRequestedScopeSet(
 
 func securityAlertWorkItem(
 	instance workflow.CollectorInstance,
-	target securityAlertTargetConfiguration,
+	planned plannedScope,
 	runID string,
 	planKey string,
 	observedAt time.Time,
 ) (workflow.WorkItem, error) {
-	scopeID := strings.TrimSpace(target.ScopeID)
-	provider := strings.TrimSpace(target.Provider)
-	generationID := "security_alert:" + facts.StableID("SecurityAlertWorkflowGeneration", map[string]any{
+	scopeID := planned.scopeID
+	provider := planned.provider
+	identity := map[string]any{
 		"instance_id": strings.TrimSpace(instance.InstanceID),
 		"plan_key":    strings.TrimSpace(planKey),
 		"scope_id":    scopeID,
-	})
+	}
+	acceptanceUnitID := scopeID
+	if planned.retire {
+		// A retirement never shares a generation id with a collection of
+		// the same scope and plan key; a collection keeps its prior identity.
+		identity["retire"] = true
+		acceptanceUnitID = shard.RetirementAcceptanceUnitID(scopeID)
+	}
+	generationID := "security_alert:" + facts.StableID("SecurityAlertWorkflowGeneration", identity)
 	item := workflow.WorkItem{
 		WorkItemID:          fmt.Sprintf("%s:%s:%s", scope.CollectorSecurityAlert, instance.InstanceID, generationID),
 		RunID:               runID,
@@ -195,7 +231,7 @@ func securityAlertWorkItem(
 		CollectorInstanceID: strings.TrimSpace(instance.InstanceID),
 		SourceSystem:        string(scope.CollectorSecurityAlert),
 		ScopeID:             scopeID,
-		AcceptanceUnitID:    scopeID,
+		AcceptanceUnitID:    acceptanceUnitID,
 		SourceRunID:         generationID,
 		GenerationID:        generationID,
 		FairnessKey:         fmt.Sprintf("%s:%s:%s", scope.CollectorSecurityAlert, strings.TrimSpace(instance.InstanceID), provider),

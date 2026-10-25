@@ -5,7 +5,6 @@ package shared
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -193,8 +192,15 @@ func ClearSource(path string) {
 // path too, not only the disk path -- the git collector reads the file itself
 // and primes these bytes, so a disk-only normalization would miss the entire
 // production parse path.
+//
+// ReadSource enforces the per-file read cap (#8986): a file over
+// SourceReadCap, read from disk or primed, returns an error wrapping
+// ErrSourceTooLarge, so it never reaches a parser.
 func ReadSource(path string) ([]byte, error) {
 	if cached, ok := cachedSource(path); ok {
+		if capBytes := SourceReadCap(); int64(len(cached)) > capBytes {
+			return nil, fmt.Errorf("read source %q: %w: %d bytes, cap %d bytes", path, ErrSourceTooLarge, len(cached), capBytes)
+		}
 		return NormalizeLineEndings(cached), nil
 	}
 	readSourceHookMu.Lock()
@@ -203,7 +209,7 @@ func ReadSource(path string) ([]byte, error) {
 	if hook != nil {
 		hook(path)
 	}
-	body, err := os.ReadFile(path) // #nosec G304 -- reads an indexed repository source file at a path derived from the scan target
+	body, err := ReadFileCapped(path)
 	if err != nil {
 		return nil, fmt.Errorf("read source %q: %w", path, err)
 	}

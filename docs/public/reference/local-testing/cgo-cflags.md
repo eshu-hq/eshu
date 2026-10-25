@@ -92,7 +92,17 @@ packages took 17 s. The hosted-runner cost was not measured.
 when:
 
 - a workflow that compiles Go has no workflow-level `CGO_CFLAGS` with
-  `-std=gnu17`, or any `CGO_CFLAGS` assignment drops the flag;
+  `-std=gnu17`, or any `CGO_CFLAGS` assignment drops the flag, adds a second
+  `-std=`, uses a `${{ }}` expression, appends a later `-std=` with `+=`, or
+  unsets or clears the variable (`unset`, `env -u`, `env --unset`, `env -i`,
+  `export -n`, `Remove-Item Env:`), or any `CGO_CPPFLAGS` value holds `-std=`.
+  Blanks, tabs, or quotes around the key do not hide an assignment. A
+  whole-line or trailing `#` comment (a `#` after whitespace) that names
+  `-std=gnu17` does not count as the flag;
+- the `Makefile` has no line that exports `CGO_CFLAGS` with exactly one
+  `-std=`, and it is `-std=gnu17`, or another `CGO_CFLAGS` line adds a `-std=`,
+  or it unexports the variable or sets it in a `define CGO_CFLAGS` block. make starts a comment at any `#`, so a `#` with
+  no space before it hides the rest of the line from the guard too;
 - a script under `scripts/` that runs `CGO_ENABLED=1 go`, or a developer
   entrypoint, lacks a non-comment line that sources `scripts/lib/cgo-cflags.sh`
   or a non-comment call to `eshu_export_cgo_cflags`. A comment that names the
@@ -108,6 +118,22 @@ whole-line comment, a trailing `#` comment, an `echo` string that holds none of
 needs a parser: a string that holds one of those words or separators, a heredoc
 body line, and a call inside a function or branch that never runs. The build helpers call the export at the top of the
 function that runs `go`, and the mirror tests run the real entrypoints.
+
+The workflow check also accepts, for the same reason: a later `-std=` on the
+same command line after the assignment (`CGO_CFLAGS=-O2 go build -x -std=gnu17`),
+other ways to hide the variable (`readonly`, an `env -S` string), and a flag set
+through a YAML anchor, a job-level `env`, or `go env -w`; the last group fails
+safe because no workflow-level flag is found. The `Makefile` check cannot tell a
+later reset from the real `else` branch (which keeps a caller's own `-std=`),
+and it treats a separate `export CGO_CFLAGS` line or a backslash continuation as
+missing, which fails safe. A Makefile `include` of a file that sets `CGO_CFLAGS`, and a `$(eval ...)` or
+target-specific assignment that drops the flag without adding a `-std=`, are not
+detected (adding one is). The table in the guard's header lists every shape. A quoted value that holds ` #`, `;`, `&`, or `|` is
+cut short and fails safe.
+
+The guard reads literal text, so it also cannot see a `-std=` that reaches the
+compiler by another route: a `CC` value or wrapper (`CC: "gcc -std=gnu23"`), a
+`#cgo` directive in Go source, or a `${{ }}` expression in `CGO_CPPFLAGS`.
 
 Its mirror test, `scripts/test-verify-cgo-cflags-guard.sh`, plants each
 violation in a fixture tree, including a comment-only mention and a source with

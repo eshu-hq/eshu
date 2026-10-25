@@ -81,8 +81,7 @@ func TestEmitPackageJSONPackageManagerOutsideCorepackIsRejected(t *testing.T) {
 
 	for _, value := range []string{"bun@1.1.0", "deno@1.40.0", "PNPM@9.1.0", "pnpm9"} {
 		envelopes, skip := EmitFile(testContext("package.json"), "repo-1", "package.json", `{"packageManager":"`+value+`"}`)
-		wantRejected := strings.Contains(value, "@")
-		if len(envelopes) != 0 || (wantRejected && (skip.Reason != SkipReasonValueRejected || skip.Rejected != 1)) {
+		if len(envelopes) != 0 || skip.Reason != SkipReasonValueRejected || skip.Rejected != 1 {
 			t.Errorf("%q: emitted %d, skip %+v, want nothing and a counted rejection", value, len(envelopes), skip)
 		}
 	}

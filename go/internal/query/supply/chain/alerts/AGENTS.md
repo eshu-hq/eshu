@@ -36,6 +36,13 @@ evidence).
   in-package (`queries_test.go`, `aggregates_test.go`), moved verbatim from
   the root scope/aggregates tests. Do not re-export these to serve a root
   test; move the test here instead.
+- Keep the shard grant disjuncts (`grant_scope.go`, #9019) an equality on
+  the text before the first `shard.Marker` against the same grant array the
+  exact disjuncts use; never a prefix `LIKE` (a granted id would become a
+  pattern) and never a `%` (the aggregate templates go through
+  `fmt.Sprintf`). `grant_scope_test.go` pins them in every scoped read, and
+  `TestShardSplitMergeLive` proves base, ungranted, prefix-only, marked, and
+  repository-id grants.
 - `Queryer` and `AggregateQueryer` are exported because they are
   `NewPostgresStore`/`NewPostgresAggregateStore`'s parameter types: root's
   `NewPostgresSecurityAlertReconciliationStore`/

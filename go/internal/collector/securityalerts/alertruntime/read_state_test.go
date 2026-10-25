@@ -56,7 +56,7 @@ func newStateSource(
 	item := testSecurityAlertWorkItem(now)
 	item.ScopeID = target.ScopeID
 	item.AcceptanceUnitID = target.ScopeID
-	return source, item
+	return depthCappedLeaf(source), item
 }
 
 func orgStateTarget(allowed ...string) TargetConfig {

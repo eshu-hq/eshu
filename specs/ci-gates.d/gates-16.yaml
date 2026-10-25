@@ -66,6 +66,7 @@ gates:
       - "scripts/lib/cgo-cflags-entrypoints.txt"
       - "scripts/verify-cgo-cflags-guard.sh"
       - "scripts/test-verify-cgo-cflags-guard.sh"
+      - "scripts/lib/cgo-cflags-guard-evasion-cases.sh"
       - "scripts/dev/pre-push.sh"
       - "scripts/dev/pre-pr.sh"
       - "scripts/dev/prove.sh"
@@ -81,6 +82,7 @@ gates:
       - "scripts/lib/cgo-cflags-entrypoints.txt"
       - "scripts/verify-cgo-cflags-guard.sh"
       - "scripts/test-verify-cgo-cflags-guard.sh"
+      - "scripts/lib/cgo-cflags-guard-evasion-cases.sh"
     local:
       command: "bash scripts/verify-cgo-cflags-guard.sh"
       pre_push: floor

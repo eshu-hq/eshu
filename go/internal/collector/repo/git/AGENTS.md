@@ -439,3 +439,31 @@ status field, queue, worker, lease, batch, or runtime knob is added. When a PR a
 a dot-prefixed registry name without adding it to
 `preservedHiddenFilesystemFileNames`,
 `TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails.
+
+## Per-file read cap (#8986)
+
+A parser file whose discovered size is over `shared.SourceReadCap` (64 MiB) is
+removed by `splitOversizeParserFiles` after `partitionNativeSnapshotFiles`, in
+both full and delta mode, before the import pre-scan. Keep it there: pre-scan
+reads every parser file and one read failure fails the whole snapshot, so a
+file left in the set stops the repository from indexing. Terraform state
+candidates stay (metadata-only), and documentation files keep their own bounded
+readers. Only the full set counts, as `skip_reason=content:oversize`, and
+`snapshotOneRepository` logs WARN `git_snapshot_file_skipped_oversize` per file
+once the generation ids exist. A size skip is deterministic for the commit, so
+it never degrades the snapshot. On a delta, `withOversizeDeltaTombstones` lists
+each skipped target as deleted so its earlier facts are retracted, not left
+stale; keep that or a delta serves the old file as current. A file that grew past the cap after discovery
+is refused by `shared.ReadFileCapped` in the parse (`file_read_failed`) and the
+stream (`content_read_failed`). A file that grows past the cap after discovery
+and before the import pre-scan is skipped by
+`Engine.PreScanRepositoryPathsSkippingOversizeStats`, not a snapshot failure;
+`skipPreScanGrownFiles` then counts it under `content:oversize`, lists it in
+`OversizeSkippedFiles`, drops it from the parse set and the Go package pre-scan,
+tombstones a delta target, and marks the snapshot degraded (`file_read_failed`),
+because the tree changed under the collector. Only `ErrSourceTooLarge` from a
+file whose own size is over the cap is a per-file skip there; keep every other
+pre-scan error fatal, and keep the Go package pre-scan on the filtered set
+(`withoutPreScanSkips`). A Kotlin sibling over the cap must stay out of its
+neighbours' pre-scan (`snapshot_prescan_sibling_test.go`).
+`snapshot_oversize_test.go` and `snapshot_prescan_growth_test.go` pin all of it.

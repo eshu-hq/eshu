@@ -5,7 +5,6 @@ package python
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -104,7 +103,7 @@ func pythonPackageInitExportedNames(repoRoot string, sourcePath string) map[stri
 	repoRoot = pythonLambdaRepoRoot(repoRoot, sourcePath)
 	sourcePath = filepath.Clean(sourcePath)
 	for _, initPath := range pythonPackageInitCandidates(repoRoot, sourcePath) {
-		source, err := os.ReadFile(initPath) // #nosec G304 -- reads a Python package __init__ file at a path derived from the scan target repo root
+		source, err := shared.ReadFileCapped(initPath) // #nosec G304 -- reads a Python package __init__ file at a path derived from the scan target repo root; capped at shared.SourceReadCap (#8986)
 		if err != nil {
 			continue
 		}

@@ -93,7 +93,7 @@ extraction:
   functions referenced indirectly through pointers, not symbol extraction.
 - `cHeaderPrototypePattern` and the comment-stripping patterns
   (`cBlockCommentPattern`, `cLineCommentPattern`) scan the bytes of directly
-  included local header files read via `os.ReadFile`. Those headers are not part
+  included local header files read via `shared.ReadFileCapped`. Those headers are not part
   of the tree-sitter parse of the current source and are intentionally not
   parsed (to keep cost bounded and avoid repo-wide include-graph resolution), so
   a raw prototype scan over the unparsed file is the only available structured

@@ -9,10 +9,14 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 )
 
 // targetSet returns the repositories this target collects (#8838): its
-// repository, or the allowlisted repositories of its organization. It is
+// repository, or the allowlisted repositories of its organization. For a
+// shard target (#9019) the allowlist is the shard's own repositories, so each
+// shard records its own set and its unchanged-generation decision moves only
+// when its own membership changes. It is
 // recorded with each generation and moves the freshness digest, so a changed
 // allowlist or a reused scope_id that names another repository always commits
 // a new generation instead of being skipped as unchanged.
@@ -51,6 +55,10 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	}
 	if target.ScopeID == "" {
 		return TargetConfig{}, fmt.Errorf("scope_id is required")
+	}
+	if shard.HasMarker(target.ScopeID) {
+		// Generated org shard scope ids use the marker (#9019).
+		return TargetConfig{}, fmt.Errorf("scope_id must not contain the reserved %q marker", shard.Marker)
 	}
 	switch target.AuthMode {
 	case AuthModeTokenEnv:
@@ -121,7 +129,7 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 }
 
 func normalizeOrganization(organization string) string {
-	return strings.ToLower(strings.Trim(strings.TrimSpace(organization), "/"))
+	return shard.NormalizeOrganization(organization)
 }
 
 func cleanRepositories(values []string) []string {
@@ -158,15 +166,8 @@ func (t TargetConfig) RepositoryAllowed(fullName string) bool {
 	return repositoryAllowed(fullName, t.AllowedRepositories)
 }
 
+// normalizeRepository is the shared owner/name normalization
+// (shard.NormalizeRepository) the planner and the query layer also use.
 func normalizeRepository(repository string) string {
-	parts := strings.Split(strings.Trim(strings.TrimSpace(repository), "/"), "/")
-	if len(parts) != 2 {
-		return ""
-	}
-	owner := strings.ToLower(strings.TrimSpace(parts[0]))
-	repo := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(parts[1]), ".git"))
-	if owner == "" || repo == "" {
-		return ""
-	}
-	return owner + "/" + repo
+	return shard.NormalizeRepository(repository)
 }

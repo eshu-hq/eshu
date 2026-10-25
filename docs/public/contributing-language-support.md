@@ -34,7 +34,7 @@ Read a file's bytes through `shared.ReadSource` (or the engine-local
 up front and primes a call-scoped cache keyed by absolute path, so a parser that
 reads through `shared.ReadSource` reuses that single physical read instead of
 issuing its own; a parser that bypasses it forces a redundant second read of the
-same file.
+same file. A side read of another repository file (a header, a sibling module, a manifest) uses `shared.ReadFileCapped`, never `os.ReadFile`, so it keeps the 64 MiB per-file read cap (`shared.MaxSourceBytes`, #8986); `TestParserTreeReadsRepositoryFilesThroughTheCap` fails on a new raw read.
 
 Repository-wide config that many files share (a language's project manifest,
 not a single source file) should be memoized per resolved config path, not
@@ -393,7 +393,7 @@ Two rules follow for new parser code:
   scanner is dead weight at best and a second, divergent normalization at
   worst.
 - **A file read outside `shared.ReadSource` does not inherit this.** A parser
-  that reaches for a second file with its own `os.ReadFile` -- a C/C++ header,
+  that reaches for a second file with its own read -- a C/C++ header,
   a sibling module, a tsconfig, a Terragrunt include -- must call
   `shared.NormalizeLineEndings` on those bytes itself. Six call sites do this
   today. Five of them lost real data without it:

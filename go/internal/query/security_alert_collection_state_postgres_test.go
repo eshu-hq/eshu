@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -120,18 +121,20 @@ func TestPostgresSecurityAlertCollectionStateTargetStates(t *testing.T) {
 	t.Parallel()
 
 	queryer := &recordingCollectionStateQueryer{rows: [][]any{
-		{"sa-target-a", "failed_terminal", "auth_denied", true, false, []string{}, 0, []string{}, []string{}, []string{}},
+		{"sa-target-a", "failed_terminal", "auth_denied", true, false, []string{}, false, 0, []string{}, []string{}, []string{}},
 		{
 			"sa-target-b", "completed", "", false, true,
 			[]string{"acme/new"},
+			false,
 			3,
 			[]string{"org_repository_fanout_cap_reached", "org_repository_read_failed"},
 			[]string{"acme/a"},
 			[]string{"org_repository_read_failed"},
 		},
+		{"sa-target-c#shard-0", "pending", "", false, true, []string{}, true, 0, []string{}, []string{}, []string{}},
 	}}
 	store := NewPostgresSecurityAlertCollectionStateStoreWithReadStore(queryer)
-	states, err := store.SecurityAlertTargetStates(context.Background(), []string{"sa-target-a", "sa-target-b"}, []string{"acme/a", "acme/new"})
+	states, err := store.SecurityAlertTargetStates(context.Background(), []string{"sa-target-a", "sa-target-b", "sa-target-c#shard-0"}, []string{"acme/a", "acme/new"})
 	if err != nil {
 		t.Fatalf("SecurityAlertTargetStates() error = %v", err)
 	}
@@ -143,6 +146,7 @@ func TestPostgresSecurityAlertCollectionStateTargetStates(t *testing.T) {
 			UnreadReasons:        []string{"org_repository_fanout_cap_reached", "org_repository_read_failed"},
 			UnreadRequested:      map[string]string{"acme/a": "org_repository_read_failed"},
 		},
+		{ScopeID: "sa-target-c#shard-0", LatestWorkItemStatus: "pending", CommittedGeneration: true, Retired: true},
 	}
 	if len(states) != len(want) {
 		t.Fatalf("states = %+v, want %+v", states, want)
@@ -171,6 +175,8 @@ func TestPostgresSecurityAlertCollectionStateTargetStates(t *testing.T) {
 		"rs.generation_id = sc.active_generation_id",
 		"u.generation_id = rs.generation_id",
 		"u.repository = ANY($2::text[])",
+		"LEFT JOIN scope_generations ag ON ag.generation_id = sc.active_generation_id",
+		"COALESCE(ag.freshness_hint = $3, FALSE)",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("target state query missing %q:\n%s", want, query)
@@ -178,6 +184,9 @@ func TestPostgresSecurityAlertCollectionStateTargetStates(t *testing.T) {
 	}
 	if strings.Contains(query, "failure_message") {
 		t.Fatalf("target state query reads the failure message:\n%s", query)
+	}
+	if args := queryer.args[0]; len(args) != 3 || args[2] != shard.RetirementFreshnessHint {
+		t.Fatalf("target state args = %v, want the retirement freshness hint as $3", args)
 	}
 }
 

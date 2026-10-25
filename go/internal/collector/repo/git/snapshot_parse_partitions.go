@@ -363,7 +363,7 @@ func (s NativeRepositorySnapshotter) parseRepositoryFile(
 	// (#4851). The refcount contract (PrimeSource first-writer-wins +
 	// ClearSource releases at refs≤0) makes this safe for concurrent parse
 	// workers on distinct paths.
-	body, bodyErr := os.ReadFile(job.path)
+	body, bodyErr := shared.ReadFileCapped(job.path)
 	if bodyErr != nil {
 		s.recordParseFileStatus(ctx, "skipped")
 		markSnapshotDegraded(ctx, telemetry.PreparseDropFileReadFailed)

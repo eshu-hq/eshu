@@ -58,8 +58,10 @@ const (
 	// JSON (malformed, or nested past the depth bound). It emits nothing.
 	SkipReasonManifestUnparseable = "manifest_unparseable"
 	// SkipReasonValueRejected marks a manifest from which Rejected values were
-	// dropped because they were credential-shaped, over the value bound, or
-	// ambiguous. Unlike the other reasons the file's other declarations are
+	// dropped: every string value that did not become a declaration, whether
+	// credential-shaped, over the value bound, ambiguous, empty or whitespace
+	// only, or a packageManager with no "@", no version, or a name corepack does
+	// not permit. Unlike the other reasons the file's other declarations are
 	// still emitted: each dropped value is one the file did not declare as a
 	// version, not a prefix of the file.
 	SkipReasonValueRejected = "value_rejected"

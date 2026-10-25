@@ -27,6 +27,32 @@ recent shipped work grouped by feature area.
   fact moves `gitGenerationContentVersion` to `git-collector.v14`, so each
   repository re-collects once. Evidence:
   `docs/internal/evidence/8816-runtime-declaration-graph.md`.
+### Parser reads: one per-file read cap
+
+- **A parser file over 64 MiB is skipped instead of read whole**
+  ([#8986](https://github.com/eshu-hq/eshu/issues/8986)). `shared.ReadSource`,
+  the read every language parser uses, now refuses a file over
+  `shared.MaxSourceBytes` with `ErrSourceTooLarge`. The git collector skips such
+  a parser file at discovery from its recorded size, before the import
+  pre-scan, so the rest of the repository keeps indexing; before this change
+  the file was read whole by every parse worker that touched it, and with only
+  the shared cap a single such file would have failed the whole snapshot at
+  pre-scan. The skip counts as `skip_reason=content:oversize` on
+  `eshu_dp_discovery_files_skipped_total` and logs WARN
+  `git_snapshot_file_skipped_oversize` per file with the repository, scope, and
+  generation ids, the path, and the size. The parse and content-stream reads
+  are capped too, for a file that grows after discovery, and a file that grows
+  past the cap before the import pre-scan is skipped like an oversize file
+  instead of failing the snapshot (it also marks the snapshot degraded). The parser
+  side reads of headers, sibling modules, tsconfig and package.json, composer
+  files, Python package and Lambda files, and `go.mod`. A delta whose target
+  grew past the cap retracts the file instead of leaving its earlier facts
+  served as current, and a workflow over the cap no longer marks every delta
+  sync `workflow_read_failed`. The largest lock file
+  measured in the repository and golden corpus is 274,035 bytes, so no lock
+  file below the cap is affected. `gitGenerationContentVersion` moves from
+  `git-collector.v13` to `git-collector.v14`, so each repository re-collects
+  once when its reconciliation sweep next comes due.
 
 ### Security alerts: a newly allowlisted repository no longer reads as covered
 
@@ -46,6 +72,48 @@ recent shipped work grouped by feature area.
   one adds about 0.2 ms and 14 buffers per covering target at 5,000
   incompressible repositories (0.09 to 0.34 ms for one target).
   Evidence: `docs/internal/evidence/8838-security-alert-target-set.md`.
+
+### Security alerts: org targets over 100 repositories are collected as shards
+
+- **Upgrade order: the collector and the API before the coordinator.** All
+  three ship in one image set. A new coordinator plans shard scopes an old
+  collector does not know (those claims fail retryable until it upgrades). A
+  new collector that an old coordinator still hands a sharded target's base
+  scope (or that a coordinator on another configuration does, mid rolling
+  restart) fails the claim retryable and logs
+  `security_alert.target_sharded_coordinator_skew` instead of collecting part
+  of the allowlist.
+- **An org target of more than 100 same-org repositories is planned as shards
+  of at most 100** ([#9019](https://github.com/eshu-hq/eshu/issues/9019)).
+  One claim reads at most 100 repositories after a truncated org read, so a
+  larger target used to leave the rest unread on every claim. The coordinator
+  now plans one work item per shard, computed from the configuration alone
+  (`go/internal/scope/org/shard`, shared by the planner, the collector, and
+  the query layer). A target of at most 100 keeps its `scope_id`; a larger one
+  is collected as `<scope_id>#shard-<bits>` scopes, and every repository is
+  read within one scan interval (250 repositories in 4 shards: 254 provider
+  requests at `max_pages` 1, measured). A configured `scope_id` containing
+  `#shard-` is now refused.
+- **Scopes the partition no longer plans are retired.** After a split (the
+  base scope) or a merge (both leaves), the coordinator plans a retirement
+  work item and the collector commits an empty generation attested with
+  `TrustedDeletion`, so list, count, and inventory stop returning that
+  scope's alerts and a repository removed from the allowlist leaves every
+  read. Until a re-created scope's first collection lands, its empty answer
+  reads as still collecting, not complete. A removed or re-scoped target is
+  not retired yet
+  ([#9071](https://github.com/eshu-hq/eshu/issues/9071)); an ordinary shrink
+  of a scope can still be refused by the empty-successor guard
+  ([#9072](https://github.com/eshu-hq/eshu/issues/9072)).
+- **Fix: org targets never covered an anchored empty answer.** The query
+  layer compared an org target's scope with `organization`, a value the
+  collector refuses; it accepts only `org`. Repositories of an org target now
+  read the target's real collection state instead of
+  `repository_outside_target_set`.
+- **Tenant-bounded deployments** authorize a shard item, and the retirement
+  of one, through the base scope's grant; an ungranted base still denies
+  them. A scoped API token granted the base scope id keeps reading every
+  shard's alerts.
 
 ### Status: blockage rows name the domain that holds the fence
 
@@ -514,7 +582,7 @@ recent shipped work grouped by feature area.
   `pnpm@9.1.0+sha512.…` is runtime `pnpm`, `raw_spec` `9.1.0`: the integrity
   suffix is cut. `require`, `replace` and every other `go.mod` line never emit,
   and a copy under `node_modules` or `vendor` emits nothing.
-- **A value that is not a version never reaches a fact.** The two files are
+- **A value outside the version grammar never reaches a fact.** The two files are
   stored with the `store` policy, so a manifest value must be at most 128 bytes
   of version grammar with no long opaque token and no URL; anything else is
   dropped and counted, never truncated, and the file's other declarations still

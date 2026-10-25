@@ -4,7 +4,7 @@
 package query
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8943 disposable PostgreSQL proof of the security-alert unread-repository read on the bootstrapped schema: the read follows ingestion_scopes.active_generation_id to the generation's read state and returns unread rows of the requested repositories only, ignores a superseded generation's rows, reports a target with no read state as nothing unread, returns the distinct reasons without any child row on an unanchored read, and plans the child read as primary-key index probes on a seeded set of 50 targets with 4 generations and 2,000 unread repositories each; isolated bootstrapped schema per test; plan timing is logged, not gated
+//eshu:readiness:reason #8943 disposable PostgreSQL proof of the security-alert unread-repository read on the bootstrapped schema: the read follows ingestion_scopes.active_generation_id to the generation's read state and returns unread rows of the requested repositories only, ignores a superseded generation's rows, reports a target with no read state as nothing unread, returns the distinct reasons without any child row on an unanchored read, reports an active retirement generation (#9019) as retired and an older one under a newer collection as not, and plans the child read as primary-key index probes on a seeded set of 50 targets with 4 generations and 2,000 unread repositories each; isolated bootstrapped schema per test; plan timing is logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -94,6 +95,25 @@ func TestSecurityAlertUnreadRepositoriesLive(t *testing.T) {
 	if states[0].UnreadTotal != 2 || len(states[0].UnreadRequested) != 0 {
 		t.Errorf("unanchored t-org = %+v, want total 2 and no requested rows", states[0])
 	}
+
+	// #9019: an active retirement generation reads as Retired; an older
+	// retirement under a newer collection does not, and t-org (a collection)
+	// is not retired either.
+	f.readState("t-retired", "gen-retired", true, nil, map[string]string{})
+	f.readState("t-recollected", "gen-recollected-old", false, nil, map[string]string{})
+	f.readState("t-recollected", "gen-recollected", true, nil, map[string]string{})
+	f.exec(`UPDATE scope_generations SET freshness_hint = $1 WHERE generation_id IN ('gen-retired', 'gen-recollected-old')`,
+		shard.RetirementFreshnessHint)
+	f.exec(`UPDATE scope_generations SET freshness_hint = 'hint-collected' WHERE generation_id = 'gen-recollected'`)
+	states, err = f.store().SecurityAlertTargetStates(f.ctx, []string{"t-org", "t-recollected", "t-retired"}, []string{"acme/capped"})
+	if err != nil {
+		t.Fatalf("retired SecurityAlertTargetStates() error = %v", err)
+	}
+	for _, state := range states {
+		if want := state.ScopeID == "t-retired"; state.Retired != want || !state.CommittedGeneration {
+			t.Errorf("%s Retired = %v committed = %v, want retired %v and committed", state.ScopeID, state.Retired, state.CommittedGeneration, want)
+		}
+	}
 }
 
 // TestSecurityAlertUnreadRepositoriesPlanLive seeds 50 targets with 4
@@ -133,7 +153,7 @@ FROM generate_series(1, 50) AS t, generate_series(1, 4) AS g, generate_series(1,
 		t.Fatalf("states = %+v, want the one unread requested repository", states)
 	}
 	rows, err := f.database.QueryContext(f.ctx, "EXPLAIN (ANALYZE, BUFFERS) "+securityAlertTargetStatesQuery,
-		array.Of(scopeIDs), array.Of([]string{"acme7/repo-7"}))
+		array.Of(scopeIDs), array.Of([]string{"acme7/repo-7"}), shard.RetirementFreshnessHint)
 	if err != nil {
 		t.Fatalf("EXPLAIN: %v", err)
 	}

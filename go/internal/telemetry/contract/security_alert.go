@@ -57,6 +57,19 @@ const (
 	// last allowlist position returned the start to the top, where it stays until
 	// a claim reads every repository or that repository leaves the allowlist.
 	AttrSecurityAlertFanoutLapped = "eshu.security_alert.org_fanout.lapped"
+	// AttrSecurityAlertShardCount is the span attribute key recording how many
+	// shard scopes the claim's org target is collected as (#9019): 1 for a
+	// target of at most 100 same-org repositories. It is a count, never a
+	// scope id or repository name.
+	AttrSecurityAlertShardCount = "eshu.security_alert.shard.count"
+	// AttrSecurityAlertShardRepositories is the span attribute key recording
+	// how many same-org allowlisted repositories the claim's shard covers
+	// (#9019), 0 on a retirement claim.
+	AttrSecurityAlertShardRepositories = "eshu.security_alert.shard.repositories"
+	// AttrSecurityAlertRetirement is the span attribute key recording whether
+	// the claim retired a scope its org target no longer plans (#9019) instead
+	// of reading the provider.
+	AttrSecurityAlertRetirement = "eshu.security_alert.retirement"
 )
 
 // Org-scope security-alert fan-out outcomes (#8805), recorded on the existing

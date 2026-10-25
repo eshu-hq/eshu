@@ -263,6 +263,14 @@ type SecurityAlertTargetState struct {
 	// the slugs of an anchored read, and only when the generation recorded its
 	// target set; a generation committed before the record existed lists none.
 	UncollectedRequested []string
+	// Retired reports that the scope's active generation is a retirement
+	// (#9019): the empty generation the collector commits, with the shard
+	// package's RetirementFreshnessHint, for a scope its org target's
+	// partition no longer plans. Such a scope holds no data until its next
+	// collection activates, so it classifies as not yet committed. A
+	// repositories_total of 0 is not the marker: an org target whose
+	// allowlist holds only other owners' repositories also stores 0.
+	Retired bool
 	// UnreadTotal is the number of the target's allowlisted repositories the
 	// collector did not read in full in the target's active generation. Zero
 	// when the generation has no read state (written before #8943) or nothing

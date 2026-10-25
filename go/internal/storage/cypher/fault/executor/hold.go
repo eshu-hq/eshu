@@ -120,9 +120,11 @@ func (fe *FaultingExecutor) applyHoldFault(f faultreplay.FaultOp, sentinelPath s
 }
 
 // HoldFired reports whether the scripted hold-statement-before-delegation
-// fault (if any) has engaged. Tests and the gate's marker assert use this
-// (in-process) and the marker file (cross-process) respectively to prove the
-// hold genuinely engaged rather than silently no-op'ing.
+// fault (if any) has engaged and its marker write has returned. Tests and the
+// gate's marker assert use this (in-process) and the marker file
+// (cross-process) respectively to prove the hold genuinely engaged rather
+// than silently no-op'ing. A true result means the marker is on disk unless
+// its write failed, which writeHoldMarker reports on stderr.
 func (fe *FaultingExecutor) HoldFired() bool {
 	return fe.holdMatch != "" && fe.holdFired.Load()
 }
@@ -149,12 +151,15 @@ func (fe *FaultingExecutor) maybeHoldBeforeDelegation(
 	if !ok {
 		return nil
 	}
-	if !fe.holdFired.CompareAndSwap(false, true) {
+	if !fe.holdEngaged.CompareAndSwap(false, true) {
 		return nil
 	}
 	// Record the engagement durably before blocking, so the gate's proof
 	// does not depend on the reducer's stderr reaching its captured file.
+	// Publish holdFired only after the write returns: an in-process observer
+	// that sees HoldFired() == true must find the marker on disk.
 	fe.writeHoldMarker(ordinal, matched)
+	fe.holdFired.Store(true)
 	ticker := time.NewTicker(ifaFaultSentinelPollInterval)
 	defer ticker.Stop()
 	for {

@@ -9,6 +9,7 @@ import (
 
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -61,6 +62,11 @@ LIMIT $1`
 // with no read state (a generation committed before the carrier, or a
 // repository-scope target) returns zero and empty arrays. $2 is the requested
 // slugs; empty for an unanchored read, which then reads no child row.
+//
+// retired reports that the active generation is a retirement (#9019): its
+// freshness_hint is $3, shard.RetirementFreshnessHint, read by a primary-key
+// probe of scope_generations. A retired scope holds no data until its next
+// collection activates, so the classifier counts it as not yet committed.
 // Evidence: docs/internal/evidence/8803-security-alert-empty-answer-truth.md,
 // docs/internal/evidence/8840-security-alert-latest-work-item-index.md,
 // and docs/internal/evidence/8943-security-alert-org-read-state.md.
@@ -70,6 +76,7 @@ SELECT t.scope_id,
        COALESCE(w.last_failure_class, ''),
        COALESCE(w.last_failure_terminal, FALSE),
 ` + securityAlertCommittedColumns + `
+       COALESCE(ag.freshness_hint = $3, FALSE) AS retired,
        COALESCE(rs.unread_total, 0),
        COALESCE(rs.unread_reasons, '{}'::text[]),
        COALESCE(unread.repositories, '{}'::text[]),
@@ -86,6 +93,7 @@ LEFT JOIN LATERAL (
 LEFT JOIN workflow_work_items w ON w.work_item_id = latest.work_item_id
 ` + securityAlertLatestCommittedGenerationLateral + `
 LEFT JOIN ingestion_scopes sc ON sc.scope_id = t.scope_id
+LEFT JOIN scope_generations ag ON ag.generation_id = sc.active_generation_id
 LEFT JOIN security_alert_target_read_states rs ON rs.generation_id = sc.active_generation_id
 LEFT JOIN LATERAL (
     SELECT array_agg(u.repository ORDER BY u.repository) AS repositories,
@@ -210,7 +218,8 @@ func (s PostgresSecurityAlertCollectionStateStore) SecurityAlertTargetStates(
 		return nil, fmt.Errorf("security alert targets exceed the %d-target read bound: %w",
 			securityAlertCollectionStateMaxTargets, supplychain.ErrSecurityAlertCollectionStateBound)
 	}
-	rows, err := s.reader.QueryContext(ctx, securityAlertTargetStatesQuery, array.Of(scopeIDs), array.Of(requestedSlugs))
+	rows, err := s.reader.QueryContext(ctx, securityAlertTargetStatesQuery, array.Of(scopeIDs), array.Of(requestedSlugs),
+		shard.RetirementFreshnessHint)
 	if err != nil {
 		return nil, fmt.Errorf("read security alert target states: %w", err)
 	}
@@ -227,6 +236,7 @@ func (s PostgresSecurityAlertCollectionStateStore) SecurityAlertTargetStates(
 			&state.LatestFailureTerminal,
 			&state.CommittedGeneration,
 			&uncollected,
+			&state.Retired,
 			&state.UnreadTotal,
 			&unreadReasons,
 			&unreadRepositories,
