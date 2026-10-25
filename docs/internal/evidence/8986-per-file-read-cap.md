@@ -30,7 +30,9 @@ touched it.
   out of its return-type collection, as the JavaScript sibling parser does,
   so an oversize sibling is not an error of its neighbours. The other
   sibling and include readers (C and C++ headers, tsconfig, package.json,
-  composer, Python `__init__`, `go.mod`) already ignore a read error. The collector lists the file in `OversizeSkippedFiles`, counts it
+  composer, Python `__init__` and Lambda configuration, `go.mod`, Rust
+  `Cargo.toml`) already ignore a read error. The collector lists the file in
+  `OversizeSkippedFiles`, counts it
   under `content:oversize`, drops it from the parse set and the Go package
   pre-scan, retracts a delta target through the deleted paths, and marks the
   snapshot degraded with `file_read_failed`.
