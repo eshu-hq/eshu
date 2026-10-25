@@ -97,10 +97,9 @@ and the 3 AM runbook section.
 
 ## Not covered
 
-- The status blockage row does not name the holder's domain. A reconciliation
-  fenced behind a claimed producer shows under the scope's conflict key; the
-  holder is the `supply_chain_impact` row on that scope id. Naming it in the
-  status payload changes the status JSON, OpenAPI, and MCP contract.
+- The status blockage row named no holder domain when this change landed. #8954
+  adds `holder_domain` to each `queue_blockages` row; see
+  `docs/internal/evidence/8954-status-blockage-holder-domain.md`.
 - Impact evidence written by another scope's `supply_chain_impact` run is not
   waited on; the probe is keyed on the intent's own scope generation.
 - A deployed run with a real pending-impact wait.

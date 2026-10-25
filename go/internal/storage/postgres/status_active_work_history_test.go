@@ -30,7 +30,7 @@ func TestActiveWorkSummaryOracleIsThePinnedBaseline(t *testing.T) {
 // compare packet refuses to run when its text hashes differently (#7009
 // arbiter ruling S4 D3 C1, S5 D5.4). Any edit to the statement must re-pin
 // this with the re-rendered SHA-256 and rerun the oracle differential.
-const activeWorkSummaryQuerySHA256 = "d280ed6f0c2b2ed56e16e442673a52ed108ece6f20f0998edf03dae3cb802dd2"
+const activeWorkSummaryQuerySHA256 = "54554b7a901ffd19477a582cf268db58e2cad3a1d0131bbb51e0a72ae0ed8e01"
 
 // TestActiveWorkSummaryQueryIsThePinnedRender keeps the calibrated production
 // statement equal to the reviewed render.

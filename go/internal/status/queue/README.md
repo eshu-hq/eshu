@@ -23,7 +23,8 @@ sibling leaf.
 
 ## Exported surface
 
-- `Blockage` — one conflict-domain-blocked queue row
+- `Blockage` — one conflict-domain-blocked queue row, including `HolderDomain`,
+  the domain of the live row that holds the fence (empty when no lease does)
 - `CloneBlockages` — normalize and order blockage rows (biggest, oldest
   first), dropping blank-stage rows
 - `RenderBlockageLines` — plain-text operator lines for blocked work

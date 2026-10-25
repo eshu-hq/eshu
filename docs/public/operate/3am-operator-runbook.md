@@ -170,8 +170,10 @@ not `failed`.
   the counting path. Find the holder with
   `eshu_runtime_domain_oldest_age_seconds{domain="supply_chain_impact"}`, and in
   the status endpoint's blockage view: a reconciliation fenced behind a live
-  producer lease appears there under the scope's conflict key, and the holder
-  is the `supply_chain_impact` row on that same scope id.
+  producer lease appears there under the scope's conflict key, and its
+  `holder_domain` names the domain that holds the lease (`supply_chain_impact`
+  for this wait). An empty `holder_domain` means no lease holds the fence: the
+  row is gated by a missing readiness requirement.
 - **Worry** when
   `eshu_dp_security_alert_reconciliation_impact_wait_total{outcome="gave_up_unmatched"}`
   or `{outcome="gave_up_bound_exceeded"}` rises. That is the handler giving up:
