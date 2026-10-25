@@ -100,8 +100,11 @@ party that knows which goal the issue belongs to.
 
 ### Recorded, not assumed
 
-Two payload facts were recorded live for this change and are kept as fixtures in
-`scripts/testdata/issue-capture/`:
+Two payload facts were recorded live for this change. The fixtures are
+`scripts/testdata/issue-capture/claude-posttool-bash-lead.json`,
+`scripts/testdata/issue-capture/claude-posttool-bash-subagent.json`, and
+`scripts/testdata/issue-capture/muse-posttool-bash.json`, and
+`scripts/test-issue-capture-hook.sh` replays all three:
 
 - **Recorded: Claude Code subagents share the lead's `session_id`.** A subagent's Bash
   PostToolUse carries the same `session_id` as the lead, plus `agent_id` and

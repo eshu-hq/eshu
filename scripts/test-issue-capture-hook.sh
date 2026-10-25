@@ -234,10 +234,28 @@ has_line "$(ledger_of "${R}/.claude/active-goal.${lead}")" '^eshu-hq/eshu#9109 '
 # session_id (plus agent_id/agent_type), so it resolves the lead's goal
 # directly. Muse observers and other sessions DO have their own ids, which is
 # what the fallback is for.
+FIX="${FIXDIR}" python3 -c '
+import json, os
+lead = json.load(open(os.environ["FIX"] + "/claude-posttool-bash-lead.json"))
+sub = json.load(open(os.environ["FIX"] + "/claude-posttool-bash-subagent.json"))
+assert lead["session_id"] == sub["session_id"] and "agent_id" in sub and "agent_id" not in lead
+' 2>/dev/null && ok "recorded Claude fixtures: the subagent carries the lead session_id plus agent_id" ||
+	no "recorded Claude fixtures: the subagent carries the lead session_id plus agent_id"
+
+# Replay the recorded subagent payload, keeping its agent_id and agent_type.
 fx_reset
 R="$(mk_repo subagent)"
 printf 'SESSION: %s\nGoal.\n' "${lead}" >"${R}/.claude/active-goal.${lead}"
-run_capture "$(post_payload "${lead}" "${R}" 'gh issue create -R eshu-hq/eshu --title t' 'https://github.com/eshu-hq/eshu/issues/9110' '{"agent_id":"a94bb56e95918e2c7","agent_type":"general-purpose"}')"
+sub_p="$(FIX="${FIXDIR}" SID="${lead}" CWD="${R}" python3 -c '
+import json, os
+d = json.load(open(os.environ["FIX"] + "/claude-posttool-bash-subagent.json"))
+d["session_id"] = os.environ["SID"]
+d["cwd"] = os.environ["CWD"]
+d["tool_input"]["command"] = "gh issue create -R eshu-hq/eshu --title t"
+d["tool_response"]["stdout"] = "https://github.com/eshu-hq/eshu/issues/9110"
+print(json.dumps(d))
+')"
+run_capture "${sub_p}"
 has_line "$(ledger_of "${R}/.claude/active-goal.${lead}")" '^eshu-hq/eshu#9110 ' &&
 	ok "Claude subagent (same session_id): lands in the lead's ledger" || no "Claude subagent (same session_id): lands in the lead's ledger"
 
