@@ -64,7 +64,7 @@ jobs:
   changes:
     needs: queue-selection
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'changes')) && (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       image: ${{ steps.filter.outputs.image }}
@@ -94,7 +94,7 @@ jobs:
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.apkfloors }}
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -116,7 +116,7 @@ jobs:
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
     timeout-minutes: 45
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -249,7 +249,7 @@ jobs:
     needs: [queue-selection, changes, build-and-push-image]
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'promote-moving-tags')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true' && needs.build-and-push-image.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')) }}
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -289,7 +289,7 @@ jobs:
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -350,7 +350,7 @@ jobs:
     needs: [queue-selection, changes, build-and-push-image]
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'attach-release-sbom')) && ((github.event_name != 'workflow_dispatch' || inputs.mode == 'release') && needs.changes.outputs.image == 'true' && github.ref_type == 'tag') }}
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: write
@@ -390,7 +390,7 @@ jobs:
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.chart }}
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -419,7 +419,7 @@ jobs:
         run: bash scripts/ci/push-helm-chart.sh
   publish-ci-service-mirrors:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-publish' && github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -451,7 +451,7 @@ jobs:
         run: bash scripts/dev/publish-ci-image-mirrors.sh publish
   verify-public-ci-service-mirrors:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-verify-public' && github.repository == 'eshu-hq/eshu' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read

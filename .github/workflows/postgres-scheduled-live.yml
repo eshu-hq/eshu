@@ -41,7 +41,7 @@ concurrency:
 jobs:
   scheduled-setup:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'scheduled-setup') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Enrollment gate and manifest writer. No proof load: 15 min covers
     # checkout, module pre-warm, the three negative-case suites, and the
     # manifest write with margin at several times the measured ~5 min.
@@ -107,7 +107,7 @@ jobs:
           retention-days: 14
   scheduled-freshness-scale:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'scheduled-freshness-scale') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Scale chunk: the 30m-deadline scale proofs plus the retention-timing
     # template build and the scale fixture setup, isolated from the chunks.
     # Measured tests ~16.6m; 45 min covers the fixture load, the timing
@@ -192,7 +192,7 @@ jobs:
           retention-days: 14
   scheduled-freshness-a:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'scheduled-freshness-a') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Chunk A: 9 files / 33 tests, measured ~5.7m. 25 min covers a cold
     # links-package build with wide margin.
     timeout-minutes: 25
@@ -253,7 +253,7 @@ jobs:
           retention-days: 14
   scheduled-freshness-b:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'scheduled-freshness-b') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Chunk B: 9 files / 21 tests, measured ~4.3m. 25 min covers a cold
     # links-package build with wide margin.
     timeout-minutes: 25
@@ -313,7 +313,7 @@ jobs:
           retention-days: 14
   scheduled-ack:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'scheduled-ack') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # ACK and completion proofs stay whole: measured 22.4m including the
     # one-time -race build of the storage test binary, so 30 min keeps thin
     # but sufficient margin without masking a hang.
@@ -375,7 +375,7 @@ jobs:
           retention-days: 14
   scheduled-bulk:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'scheduled-bulk') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Bulk leg: every family outside ACK and the freshness splits, serially
     # in current enrollment order sharing one warm build cache. Measured
     # tests ~16m; 40 min covers the cold multi-package build with margin.
@@ -413,7 +413,7 @@ jobs:
   scheduled-aggregate:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'scheduled-aggregate') }}
     needs: [scheduled-setup, scheduled-freshness-scale, scheduled-freshness-a, scheduled-freshness-b, scheduled-ack, scheduled-bulk]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Bundle assembly. No proof load and no database: 15 min covers checkout,
     # the six artifact downloads, bundle verification, and retention. The
     # needs list fails this job when any leg fails, so a partial stream set

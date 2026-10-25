@@ -52,7 +52,7 @@ jobs:
     needs: queue-selection
     name: Scorecard example go test
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}

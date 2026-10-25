@@ -40,7 +40,7 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'changes')) && (github.event_name != 'workflow_run') }}
     needs: queue-selection
     name: Detect code changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       code: ${{ steps.filter.outputs.code }}
@@ -71,7 +71,7 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'trivy-fs')) && (github.event_name != 'workflow_run') }}
     needs: queue-selection
     name: Trivy filesystem scan (vuln + secret + config)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -115,7 +115,7 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'trivy-image')) && (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')) }}
     needs: queue-selection
     name: Trivy image scan (ghcr.io/eshu-hq/eshu)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -167,7 +167,7 @@ jobs:
   govulncheck:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'govulncheck')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true')) }}
     name: govulncheck (Go vulnerability database)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [queue-selection, changes]
     permissions:
@@ -210,7 +210,7 @@ jobs:
   gosec:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gosec')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true')) }}
     name: gosec (Go static analysis)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [queue-selection, changes]
     permissions:
@@ -264,7 +264,7 @@ jobs:
   nancy:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'nancy')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true')) }}
     name: nancy (Sonatype dep CVE + license scan)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [queue-selection, changes]
     permissions:

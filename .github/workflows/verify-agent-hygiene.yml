@@ -51,7 +51,7 @@ jobs:
     needs: queue-selection
     name: Agent hygiene test mirror
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -137,7 +137,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify') }}
     name: Agent hygiene gate
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [queue-selection, test-verify]
     steps:
       - name: Require queue selection to succeed

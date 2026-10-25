@@ -72,7 +72,7 @@ jobs:
   # -----------------------------------------------------------------------
   static-mirror:
     name: Cassette refresh static mirror
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     # Run for label events only when the correct label was applied; always
     # run for workflow_dispatch.
@@ -123,7 +123,7 @@ jobs:
   record:
     name: Record cassettes (credentialed)
     needs: static-mirror
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     # Elevate to write so we can git push and gh pr create.
     permissions:

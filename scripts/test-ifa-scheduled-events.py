@@ -73,7 +73,7 @@ class ScheduledProofTest(unittest.TestCase):
             ("  - scripts/lib/ifa_scheduled_events.py", "  - go/**"),
             ("  - go/internal/replay/offlinetier/postgres_test.go\n", ""),
             ("  workflow_call:\n", "  push:\n  workflow_call:\n"),
-            ("    runs-on: ubuntu-latest", "    if: false\n    runs-on: ubuntu-latest"),
+            ("    runs-on: ubuntu-24.04", "    if: false\n    runs-on: ubuntu-24.04"),
             ("      - name: Run tagged Ifá proofs", "      # - name: Run tagged Ifá proofs"),
             ("          bash scripts/run-ifa-scheduled-proofs.sh", "          bash scripts/run-ifa-scheduled-proofs.sh\n        continue-on-error: true"),
             ("          python3 scripts/lib/ifa_scheduled_events.py", "          # python3 scripts/lib/ifa_scheduled_events.py"),
@@ -133,7 +133,7 @@ class ScheduledProofTest(unittest.TestCase):
         mutations.extend((
             workflow.replace("jobs:\n", "defaults:\n  run:\n    shell: bash {0} || true\njobs:\n", 1),
             workflow.replace("jobs:\n", "defaults :\n  run:\n    shell: bash {0} || true\njobs:\n", 1),
-            workflow.replace("  ifa-scheduled:\n", "  ifa-scheduled:\n    runs-on: ubuntu-latest\n", 1),
+            workflow.replace("  ifa-scheduled:\n", "  ifa-scheduled:\n    runs-on: ubuntu-24.04\n", 1),
             workflow + "\n  ifa-scheduled:\n    continue-on-error: true\n",
             workflow.replace(
                 "      - name: Run tagged Ifá proofs\n",
