@@ -58,8 +58,9 @@ func TestReaderCountsEachModelReadUnderItsOwnModelKey(t *testing.T) {
 		}
 	}
 	want := map[labels]int64{
-		{"active_work_summary", "model", "fresh"}:       1,
-		{"terraform_state", "live_fallback", "missing"}: 1,
+		{"active_work_summary", "model", "fresh"}:            1,
+		{"coordinator_snapshot", "live_fallback", "missing"}: 1,
+		{"terraform_state", "live_fallback", "missing"}:      1,
 	}
 	if len(points) != len(want) {
 		t.Fatalf("eshu_dp_status_summary_read_total points = %v, want exactly %v", points, want)

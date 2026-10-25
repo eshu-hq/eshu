@@ -20,7 +20,7 @@ import (
 
 // scrapeInventory counts the statements one scrape issues.
 type scrapeInventory struct {
-	total, activeWork, factRecords, clock, modelRow int
+	total, activeWork, factRecords, clock, modelRow, coordinator int
 }
 
 func inventoryOf(calls []fake.QueryCall) scrapeInventory {
@@ -36,9 +36,31 @@ func inventoryOf(calls []fake.QueryCall) scrapeInventory {
 			inv.activeWork++
 		case strings.Contains(call.Query, "fact_records"):
 			inv.factRecords++
+		case isLiveCoordinatorStatement(call.Query):
+			inv.coordinator++
 		}
 	}
 	return inv
+}
+
+// isLiveCoordinatorStatement matches the eight statements readCoordinatorSnapshot
+// runs on an empty store (the terminal-failure read needs an enabled instance).
+func isLiveCoordinatorStatement(query string) bool {
+	for _, marker := range []string{
+		"configuration->'scan_interval'",
+		"FROM workflow_runs\nGROUP BY status",
+		"FROM workflow_work_items\nGROUP BY status",
+		"FROM workflow_run_completeness\nGROUP BY status",
+		"AS active_claim_count,\n    (SELECT COUNT(*)",
+		"recent_failed_runs",
+		"WITH workflow_collector_backpressure",
+		"last_failure_class,\n    COUNT(*) AS count\nFROM workflow_work_items",
+	} {
+		if strings.Contains(query, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // emptyStoreQueryer answers every statement with no rows except the summary
@@ -60,8 +82,9 @@ func scrapeStore(queryer *fake.ExecQueryer, readerOn bool) postgres.StatusStore 
 // TestStatusMetricsStatementInventory runs the production StatusStore over an
 // empty store and counts the statements one scrape issues: before this change
 // (full minus Terraform, reader off), and now with the reader off and on. The
-// reader on removes the live active-work statement and adds the clock and the
-// keyed row read; both selections drop the fact_records aggregate and the three
+// reader on removes the live active-work statement and the eight live
+// coordinator statements (#8828) and adds, per stored model, the clock and the
+// keyed row read (two models, so two of each); both selections drop the fact_records aggregate and the three
 // registry collector statements, which the scrape never renders. The
 // terminal-failure read (#8803) runs only when an enabled collector instance
 // exists; this empty store has none, so it adds no statement here.
@@ -79,13 +102,13 @@ func TestStatusMetricsStatementInventory(t *testing.T) {
 	off := count(metricsSnapshotSelection(), false)
 	on := count(metricsSnapshotSelection(), true)
 
-	if want := (scrapeInventory{total: 25, activeWork: 1, factRecords: 1}); before != want {
+	if want := (scrapeInventory{total: 25, activeWork: 1, factRecords: 1, coordinator: 8}); before != want {
 		t.Fatalf("before = %+v, want %+v", before, want)
 	}
-	if want := (scrapeInventory{total: 21, activeWork: 1}); off != want {
+	if want := (scrapeInventory{total: 21, activeWork: 1, coordinator: 8}); off != want {
 		t.Fatalf("reader off = %+v, want %+v", off, want)
 	}
-	if want := (scrapeInventory{total: 22, clock: 1, modelRow: 1}); on != want {
+	if want := (scrapeInventory{total: 16, clock: 2, modelRow: 2}); on != want {
 		t.Fatalf("reader on = %+v, want %+v", on, want)
 	}
 }

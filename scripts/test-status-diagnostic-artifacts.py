@@ -116,6 +116,22 @@ class ArtifactValidationTest(unittest.TestCase):
         server, client = fixture()
         MODULE.validate_reports(server, client, 20)
 
+    def test_status_read_labels_are_retained(self) -> None:
+        """Keep every stored-summary row read label; reject an unknown one."""
+        for label in ("active_work_summary_model", "terraform_state_model", "coordinator_model"):
+            with self.subTest(label=label):
+                server, client = fixture()
+                spans = server["spans"]
+                assert isinstance(spans, list)
+                spans[4]["query_summary"] = label
+                MODULE.validate_reports(server, client, 20)
+        server, client = fixture()
+        spans = server["spans"]
+        assert isinstance(spans, list)
+        spans[4]["query_summary"] = "coordinator_model_typo"
+        with self.assertRaises(ValueError):
+            MODULE.validate_reports(server, client, 20)
+
     def test_missing_spans_with_complete_flag(self) -> None:
         """Reject a producer completion flag with removed span evidence."""
         server, client = fixture()

@@ -83,3 +83,20 @@ func recordStatusDiagnosticStages(ctx context.Context, tracer trace.Tracer) {
 	read.End()
 	snapshot.End()
 }
+
+// TestClosedStatusQuerySummaryKeepsEveryStoredSummaryReadLabel pins the
+// stored-summary row read labels the status store emits (the db.query.summary of
+// each model's keyed row read). A label missing here is blanked in the retained
+// diagnostic evidence, so a new model must be added with its label (#8828).
+func TestClosedStatusQuerySummaryKeepsEveryStoredSummaryReadLabel(t *testing.T) {
+	for _, label := range []string{"active_work_summary_model", "terraform_state_model", "coordinator_model", "coordinator"} {
+		if got := closedStatusQuerySummary(label); got != label {
+			t.Errorf("closedStatusQuerySummary(%q) = %q, want it kept", label, got)
+		}
+	}
+	for _, label := range []string{"", "coordinator_model_typo", "SELECT 1"} {
+		if got := closedStatusQuerySummary(label); got != "" {
+			t.Errorf("closedStatusQuerySummary(%q) = %q, want it blanked", label, got)
+		}
+	}
+}

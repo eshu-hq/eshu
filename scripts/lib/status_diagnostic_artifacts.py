@@ -74,7 +74,7 @@ def _validate_spans(server: dict[str, object], requests: dict[str, dict[str, obj
                           "collector_generation_dead_letters", "coordinator", "registry_collectors",
                           "aws_cloud_scans", "aws_freshness", "infra_inventory", "vulnerability_sources",
                           "collector_fact_evidence", "terraform_state", "terraform_state_model",
-                          "semantic_extraction"},
+                          "coordinator_model", "semantic_extraction"},
     }
     grouped: dict[str, list[dict[str, object]]] = {key: [] for key in requests}
     seen: set[tuple[str, str]] = set()

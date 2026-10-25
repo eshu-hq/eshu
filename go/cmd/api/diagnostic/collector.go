@@ -305,7 +305,7 @@ func closedDiagnosticValue(value string, allowed ...string) string {
 
 func closedStatusQuerySummary(value string) string {
 	switch value {
-	case "scope_counts", "generation_counts", "generation_transitions", "active_work_summary", "active_work_summary_model", "producer_activity", "collector_generation_dead_letters", "coordinator", "registry_collectors", "aws_cloud_scans", "aws_freshness", "infra_inventory", "vulnerability_sources", "collector_fact_evidence", "terraform_state", "terraform_state_model", "semantic_extraction":
+	case "scope_counts", "generation_counts", "generation_transitions", "active_work_summary", "active_work_summary_model", "producer_activity", "collector_generation_dead_letters", "coordinator", "registry_collectors", "aws_cloud_scans", "aws_freshness", "infra_inventory", "vulnerability_sources", "collector_fact_evidence", "terraform_state", "terraform_state_model", "coordinator_model", "semantic_extraction":
 		return value
 	default:
 		return ""

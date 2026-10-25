@@ -42,6 +42,7 @@ const HostedReadiness = `
                     "repository_count": {"type": "integer"},
                     "queue": {"type": "object"},
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
+                    "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"},
                     "coordinator": {"type": "object"},
                     "checks": {
                       "type": "array",
