@@ -608,19 +608,22 @@ type Instruments struct {
 	ContentStorePolicyFiles metric.Int64Counter
 	// ContentFileUpserts counts content_files rows per ContentWriter upsert
 	// batch by outcome (inserted, unchanged_skipped, metadata_only,
-	// content_changed) and snapshot (full, delta) (#8950). The share of
-	// metadata_only rows is the unchanged-content rewrite share. Registered by
-	// registerContentStorePolicyInstruments.
+	// content_changed), snapshot (full, delta) and batch_class (small, large)
+	// (#8950). The share of metadata_only rows is the unchanged-content rewrite
+	// share. Registered by registerContentStorePolicyInstruments.
 	ContentFileUpserts metric.Int64Counter
-	// ContentFileUpsertBodyBytes counts the body bytes of those rows by
-	// outcome (#8950).
+	// ContentFileUpsertBodyBytes counts the body bytes of those rows, with the
+	// same labels as ContentFileUpserts: outcome, snapshot and batch_class
+	// (#8950).
 	ContentFileUpsertBodyBytes metric.Int64Counter
 	// ContentFileUpsertUnclassifiedRows counts the rows of upsert batches that
-	// were written but not classified, by reason (sampled_out, classify_failed)
-	// and snapshot (#8950). With ContentFileUpserts it accounts for every row.
+	// were written but not classified, by reason (sampled_out, classify_failed),
+	// snapshot (full, delta) and batch_class (small, large) (#8950). With
+	// ContentFileUpserts it accounts for every row.
 	ContentFileUpsertUnclassifiedRows metric.Int64Counter
 	// ContentFileUpsertUnclassifiedBodyBytes counts the body bytes of those
-	// rows, with the same labels plus batch_class (#8950).
+	// rows, with the same labels as ContentFileUpsertUnclassifiedRows: reason,
+	// snapshot and batch_class (#8950).
 	ContentFileUpsertUnclassifiedBodyBytes metric.Int64Counter
 	// ReconcileParseSkipPersistentDrops counts forced reconciles that skipped
 	// the parse while carrying the active generation's recorded stream drops

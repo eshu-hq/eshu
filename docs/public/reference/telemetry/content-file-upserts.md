@@ -74,10 +74,15 @@ upsert is not.
 
 ## Queries
 
-Write C(o, b) for `sum(increase(eshu_dp_content_file_upserts_total{outcome="o",batch_class="b"}[1d]))`
-and U(b) for `sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total{batch_class="b"}[1d]))`.
-Add the same `snapshot="full"` or `snapshot="delta"` matcher to every selector for
-a per-snapshot value.
+The writer creates a series only after it counts a non-zero value, so a series
+that never fired does not exist, and an empty vector on one side of `+`, `*` or
+`/` empties the whole result. Each query below wraps every sum that can be absent
+in `or vector(0)` for that reason. The bare small-classified divisor has no such
+fallback: when it is absent the whole small-batch term is dropped to 0.
+
+To read one snapshot, add `snapshot="full"` or `snapshot="delta"` to every
+selector (a selector without braces gets `{snapshot="full"}`). The `or vector(0)`
+guards keep each query defined for a snapshot that has no series for an outcome.
 
 **Scaled estimate of the `metadata_only` share of rows written.** Large batches
 count as they are; small-batch rows are scaled by the observed sampling ratio
@@ -85,35 +90,40 @@ count as they are; small-batch rows are scaled by the observed sampling ratio
 
 ```promql
 (
-  sum(increase(eshu_dp_content_file_upserts_total{outcome="metadata_only",batch_class="large"}[1d]))
+  (sum(increase(eshu_dp_content_file_upserts_total{outcome="metadata_only",batch_class="large"}[1d])) or vector(0))
   +
-  sum(increase(eshu_dp_content_file_upserts_total{outcome="metadata_only",batch_class="small"}[1d]))
+  (
+    (sum(increase(eshu_dp_content_file_upserts_total{outcome="metadata_only",batch_class="small"}[1d])) or vector(0))
     * (
         sum(increase(eshu_dp_content_file_upserts_total{batch_class="small"}[1d]))
-        + sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total{batch_class="small"}[1d]))
+        + (sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total{batch_class="small"}[1d])) or vector(0))
       )
     / sum(increase(eshu_dp_content_file_upserts_total{batch_class="small"}[1d]))
+    or vector(0)
+  )
 )
 /
 (
-  sum(increase(eshu_dp_content_file_upserts_total[1d]))
-  + sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total[1d]))
+  (sum(increase(eshu_dp_content_file_upserts_total[1d])) or vector(0))
+  + (sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total[1d])) or vector(0))
 )
 ```
 
 It is an estimate: it assumes the sampled small batches are typical of the
-unsampled ones, and it counts `classify_failed` rows only in the denominator, so
-it reads low while `reason="classify_failed"` is above zero.
+unsampled ones. A `classify_failed` large-batch row counts only in the
+denominator, so it lowers the estimate. A `classify_failed` small-batch row is in
+the small unclassified sum, so it also raises the scale factor. The estimate is
+off while `reason="classify_failed"` is above zero.
 
 **Lower bound of the same share.** It treats every unclassified row as not
 `metadata_only`, so the true share is at least this:
 
 ```promql
-sum(increase(eshu_dp_content_file_upserts_total{outcome="metadata_only"}[1d]))
+(sum(increase(eshu_dp_content_file_upserts_total{outcome="metadata_only"}[1d])) or vector(0))
 /
 (
-  sum(increase(eshu_dp_content_file_upserts_total[1d]))
-  + sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total[1d]))
+  (sum(increase(eshu_dp_content_file_upserts_total[1d])) or vector(0))
+  + (sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total[1d])) or vector(0))
 )
 ```
 
@@ -122,15 +132,17 @@ sum(increase(eshu_dp_content_file_upserts_total{outcome="metadata_only"}[1d]))
 and `eshu_dp_content_file_upsert_unclassified_rows_total` with
 `eshu_dp_content_file_upsert_unclassified_body_bytes_total`. The scale factor then
 uses bytes: (small classified bytes + small unclassified bytes) / small classified
-bytes.
+bytes. The `or vector(0)` guards stay as written.
 
 **Coverage.** Share of written rows the pre-read did not classify:
 
 ```promql
-sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total[1d]))
+(sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total[1d])) or vector(0))
 /
-(sum(increase(eshu_dp_content_file_upserts_total[1d]))
- + sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total[1d])))
+(
+  (sum(increase(eshu_dp_content_file_upserts_total[1d])) or vector(0))
+  + (sum(increase(eshu_dp_content_file_upsert_unclassified_rows_total[1d])) or vector(0))
+)
 ```
 
 `reason="classify_failed"` above zero is a fault; `reason="sampled_out"` is the

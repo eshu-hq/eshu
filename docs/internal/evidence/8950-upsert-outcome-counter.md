@@ -12,8 +12,8 @@ does not change what the writer writes.
 
 `ContentWriter` classifies each `content_files` row of every upsert batch as
 `inserted`, `unchanged_skipped`, `metadata_only` or `content_changed`, and
-counts it in `eshu_dp_content_file_upserts_total{outcome,snapshot}` after the
-batch's upsert succeeds. `eshu_dp_content_file_upsert_body_bytes_total{outcome}`
+counts it in `eshu_dp_content_file_upserts_total{outcome,snapshot,batch_class}` after the
+batch's upsert succeeds. `eshu_dp_content_file_upsert_body_bytes_total{outcome,snapshot,batch_class}`
 counts the body bytes. The `upsert_files` stage log carries the same counts.
 The operator reference is `docs/public/reference/telemetry/content-file-upserts.md`.
 
@@ -153,13 +153,51 @@ Observability Evidence: an operator reads the share from `eshu_dp_content_file_u
 and per write from the `upsert_files` stage log: `snapshot`, the four
 `*_count` fields, `metadata_only_body_bytes`, `classified_batch_count`,
 `sampled_out_batch_count`, `classify_failed_batch_count` and `classify_seconds`.
-`eshu_dp_content_file_upsert_unclassified_rows_total{reason,snapshot}` counts the
+`eshu_dp_content_file_upsert_unclassified_rows_total{reason,snapshot,batch_class}` counts the
 rows the pre-read did not classify, so the outcome counter plus it is every row
 written. A failed pre-read logs `content_file_upsert_outcome.classify_failed` and
 shows as `reason="classify_failed"`; the write is unaffected. The HOT share of
 `content_files` comes from `pg_stat_user_tables` (query in the reference page).
 Labels are closed (`outcome` has four values, `snapshot` two, `reason` two, `batch_class` two);
 there is no repository, path or generation label.
+
+## PromQL evaluation
+
+Round 3 found that the scaled-estimate query returned no data whenever a series
+it sums had never been created: the writer adds a non-zero count only
+(`if batchTally.rows[outcome] == 0 { continue }`), and an empty vector on one
+side of `+`, `*` or `/` empties the result. The page's own worked example hit it.
+The fix puts `or vector(0)` on every sum that can be absent, and on the whole
+small-batch term, but not on the bare small-classified divisor.
+
+Observability Evidence: `promtool test rules` v3.5.0 (`prom/prometheus:v3.5.0`),
+one unit test per scenario and metric family. The three queries are extracted
+from the three `promql` blocks of the reference page by script, so the text under
+test is the published text. Each is evaluated with no snapshot matcher and with
+`snapshot="delta"` and `snapshot="full"` added to every selector, and again with
+the metric names swapped for the byte counters. A case is skipped when its
+matcher selects no series (0/0). Values are compared after
+`floor(1e6 * x + 0.5)`, because promtool compares floats exactly. 72 cases.
+
+| Scenario (rows per minute) | True share | Scaled | Lower bound | Naive (classified only) |
+|---|---|---|---|---|
+| Worked example: delta small 90 `content_changed` + 630 `sampled_out`; full large 72 `metadata_only` + 8 `content_changed` | 0.09 | 0.09 | 0.09 | 0.4235 |
+| Realistic mix: the worked example's deltas; full large 360 `metadata_only` + 40 other; full small 9 + 1 other + 70 `sampled_out` | 0.36 | 0.36 | 0.3075 | not run |
+| Large batches only: 30 `metadata_only` + 70 other | 0.30 | 0.30 | 0.30 | not run |
+| Delta only | 0 | 0 | 0 | not run |
+| Full only (the mix without its deltas) | 0.90 | 0.90 | 0.7688 | not run |
+
+With `snapshot="delta"` the worked example and the mix evaluate to 0, and with
+`snapshot="full"` to 0.90 on both. The naive 0.4235 is
+`72 / 170` and was run as its own promtool test (exit 0).
+
+Seeded violation: the same harness pointed at the previous page text (git
+`03c03eb5b8`) fails in `t_worked_rows` (6 expressions), `t_mix_rows` (2),
+`t_delta-only_rows` (4) and `t_large-only_rows` (6), and passes `t_full-only_rows`
+(every series exists there). With the fixed page, all ten test files exit 0.
+
+Command per test file: `docker run --rm --entrypoint promtool -v "$PWD":/w -w /w
+prom/prometheus:v3.5.0 test rules <file>`.
 
 ## Measured share on one local corpus
 

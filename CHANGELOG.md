@@ -720,18 +720,20 @@ recent shipped work grouped by feature area.
 
 - **The content writer counts each `content_files` upsert row by outcome**
   ([#8950](https://github.com/eshu-hq/eshu/issues/8950)).
-  `eshu_dp_content_file_upserts_total{outcome,snapshot}` splits rows into
+  `eshu_dp_content_file_upserts_total{outcome,snapshot,batch_class}` splits rows into
   `inserted`, `unchanged_skipped`, `metadata_only` (same content, new commit or
   generation) and `content_changed`, with `snapshot` `full` or `delta`;
-  `eshu_dp_content_file_upsert_body_bytes_total{outcome}` counts their body
+  `eshu_dp_content_file_upsert_body_bytes_total{outcome,snapshot,batch_class}` counts their body
   bytes, and the `upsert_files` stage log carries the same counts. The outcome
   comes from one lock-free pre-read per batch that compares the content digest
   and body size, so it is a proxy for body equality. Batches under 100 rows are
   classified about one in eight; the skipped rows and bytes are counted in
-  `eshu_dp_content_file_upsert_unclassified_rows_total` and
-  `eshu_dp_content_file_upsert_unclassified_body_bytes_total`, and every counter
-  carries `batch_class` (`small` or `large`) so a share can weight them back. Nothing about the write
-  changes. See [Content File Upsert Outcomes](docs/public/reference/telemetry/content-file-upserts.md).
+  `eshu_dp_content_file_upsert_unclassified_rows_total{reason,snapshot,batch_class}` and
+  `eshu_dp_content_file_upsert_unclassified_body_bytes_total{reason,snapshot,batch_class}`,
+  and every counter carries `batch_class` (`small` or `large`) so a share can
+  weight them back. The reference page gives scaled-estimate, lower-bound and
+  coverage queries that stay defined when a series was never created. Nothing
+  about the write changes. See [Content File Upsert Outcomes](docs/public/reference/telemetry/content-file-upserts.md).
 
 ### Security alert reconciliation waits for its own impact producer without spending attempts
 
