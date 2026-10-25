@@ -71,10 +71,10 @@ parent reducer package. The parent references it only through
 Performance Evidence: `go test -run '^$' -bench BenchmarkManifestConsumptionKeys
 -benchmem -count=3 ./internal/packageidentity` (linux, 16 CPUs, load average
 6 to 13) measured the helper every manifest site now calls. A non-sbt row costs
-the same as the direct `ConsumptionKeys` call it replaced: 669 to 690 ns/op,
-408 B/op, 11 allocs/op direct against 671 to 682 ns/op, 408 B/op, 11 allocs/op
-through the helper. An sbt `%%` row with a known artifact costs 920 to 924
-ns/op, 680 B/op, 16 allocs/op. The Postgres read this change widens is measured
+the same as the direct `ConsumptionKeys` call it replaced: 669 to 811 ns/op,
+408 B/op, 11 allocs/op direct against 671 to 685 ns/op, 408 B/op, 11 allocs/op
+through the helper (two runs, the spread is host load). An sbt `%%` row with a
+known artifact costs 906 to 924 ns/op, 680 B/op, 16 allocs/op. The Postgres read this change widens is measured
 in `go/internal/storage/postgres/facts_active_package_manifest_dependency.go`
 (throwaway Postgres 18, 1.3M dependency rows, 13,000 sbt rows, EXPLAIN
 (ANALYZE, BUFFERS)).
