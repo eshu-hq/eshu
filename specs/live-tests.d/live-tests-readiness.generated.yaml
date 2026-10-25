@@ -954,6 +954,11 @@ tests:
     class: postgres_ci
     reason: "#8961 disposable PostgreSQL 18 proof that ListActivePackageManifestDependencyFacts reaches Gradle rows and sbt rows (a percent row by name, a double-percent row by sbt_binary_artifact) from a Maven identity filter, returns each row once, and leaves tombstoned, other-ecosystem, and unlisted-artifact rows out; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/package_manifest_sbt_repair_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8961 disposable PostgreSQL 18 proof that the sbt repair migration marks only the scopes holding sbt dependency rows dirty, that the existing backfill repair then gives a stored keyless sbt row its registry keys while a non-sbt scope's sidecar rows are not rewritten, and that re-running or racing the statement is safe; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/poison/liveness_integration_live_test.go
     tag: ~
     class: postgres_ci

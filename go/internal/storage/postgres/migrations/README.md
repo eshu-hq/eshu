@@ -313,6 +313,24 @@ returns the same rows, only slower; a missing 229 costs the most. Steps and
 progress signals: `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md`
 (Deployment).
 
+## 234: sbt sidecar repair (#8961)
+
+`234_package_manifest_consumption_keys_sbt_repair.sql` is one DML statement. It
+marks every scope that holds an sbt dependency row in
+`package_manifest_consumption_key_dirty_scopes`, so the reducer's existing
+sidecar backfill rebuilds those scopes' registry keys. sbt rows stored before
+#8961 have no keys, and an unchanged repository is never re-collected, so
+nothing else would give them any. Only scopes with sbt rows are marked; the
+`package_manifest_consumption_keys_v2` marker is untouched. While a scope is
+dirty, `PackageManifestConsumptionKeysReady` is false and readiness reads wait.
+The statement is safe to re-run and to race: it upserts with a new row version
+(as the dirty trigger does), so a rebuild already fencing a scope keeps the row
+when it compares `xmin`. The scan reads the `package_manager = 'sbt'` prefix of
+`fact_records_active_package_dependency_entity_idx`, so it follows the number of
+sbt rows. On a throwaway Postgres 18 with 1.3M dependency rows plus 0.4M other
+`content_entity` rows and 13,000 sbt rows across 40 scopes it ran in 52 ms with a
+cold cache (10,705 buffers read), one index scan, no sequential scan.
+
 ## Verification
 
 ```bash
