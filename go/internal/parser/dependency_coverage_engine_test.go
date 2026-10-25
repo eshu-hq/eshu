@@ -330,6 +330,11 @@ spring-core = { module = "org.springframework:spring-core", version.ref = "sprin
 			},
 			expectedPackageMgr: "pypi",
 		},
+		"constraints.txt": {
+			body:                 "-c base.txt\nrequests==2.31.0\nurllib3<2\n",
+			expectedDependencies: map[string]string{"requests": "==2.31.0", "urllib3": "<2"},
+			expectedPackageMgr:   "pypi",
+		},
 		"pyproject.toml": {
 			body: "[project]\n" +
 				"name = \"demo\"\n" +

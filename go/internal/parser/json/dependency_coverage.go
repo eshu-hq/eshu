@@ -190,6 +190,18 @@ func DependencyCoverage() []DependencyCoverageEntry {
 		},
 		{
 			Ecosystem:               "pypi",
+			FilePattern:             "constraints.txt",
+			FileKind:                "manifest",
+			Status:                  DependencyCoverageCovered,
+			CapturesPackageIdentity: true,
+			CapturesVersionRange:    true,
+			CapturesScope:           true,
+			CapturesDevRuntimeSplit: true,
+			SourceReference:         "go/internal/parser/pythondep/constraints.go",
+			Notes:                   "pip constraints files (constraints.txt and constraints-*.txt / constraints_*.txt) emit the same pypi rows as requirements files, each flagged central_version_declaration. A constraint limits the version a package gets if something else installs it and never declares the dependency, so no consumption, alert, or DEPENDS_ON evidence reads it. Lines with a direct source (URL, VCS, path) keep only their kind: the value, source URL, and raw text are dropped so a credential cannot reach a row. -c, -r, and index options are skipped.",
+		},
+		{
+			Ecosystem:               "pypi",
 			FilePattern:             "pipfile",
 			FileKind:                "manifest",
 			Status:                  DependencyCoverageCovered,

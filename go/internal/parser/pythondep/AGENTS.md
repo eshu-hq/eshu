@@ -39,6 +39,20 @@ follow when editing this package.
   surfaces as a zero-row payload so the readiness envelope can report
   missing evidence rather than safe.
 
+## Constraints file rules
+
+- A constraints file (`isConstraintsFile`) only limits versions, so
+  `applyConstraintPolicy` sets `central_version_declaration` on every row. Do
+  not set `direct_dependency` on one, and do not unset the flag: the reducer,
+  the Postgres sidecar, and the readiness SQL read it to keep a constraint out
+  of consumption evidence.
+- A constraints row with a direct source or an unparsed line MUST lose its
+  value, source URL, ref, marker, and raw text. Do not add URL cleaning there:
+  a password can hold `/` or `@`, which no cleaner here handles safely.
+- `isConstraintsFile` and the registry rule `isPipConstraintsName` in
+  `go/internal/parser/registry_definitions.go` must agree. The registry rule
+  needs `.txt`, so a `constraints-*.yaml` policy file keeps its YAML parser.
+
 ## uv.lock rules
 
 - `uv_lock*.go` is a fail-closed reader. A row resolves only when the entry

@@ -31,6 +31,7 @@ func ParseRequirements(path string) (map[string]any, error) {
 	payload := basePayload(path, LangRequirements)
 
 	devScope := requirementsDevScopeFromFilename(path)
+	constraints := isConstraintsFile(path)
 	section := requirementsSectionFromFilename(path)
 
 	rows := make([]map[string]any, 0)
@@ -81,6 +82,9 @@ func ParseRequirements(path string) (map[string]any, error) {
 			}
 		}
 		row := parseRequirementLine(trimmed, raw, section, devScope, startLine)
+		if constraints {
+			row.applyConstraintPolicy()
+		}
 		rows = append(rows, row.finish())
 	}
 	if err := scanner.Err(); err != nil {
@@ -94,12 +98,15 @@ func requirementsDevScopeFromFilename(path string) bool {
 	name := strings.ToLower(filepath.Base(path))
 	name = strings.TrimSuffix(name, ".txt")
 	name = strings.TrimSuffix(name, ".in")
-	if name == "requirements" {
+	if name == "requirements" || name == "constraints" {
 		return false
 	}
-	suffix := strings.TrimPrefix(name, "requirements-")
-	if suffix == name {
-		suffix = strings.TrimPrefix(name, "requirements_")
+	suffix := name
+	for _, prefix := range []string{"requirements-", "requirements_", "constraints-", "constraints_"} {
+		if trimmed := strings.TrimPrefix(name, prefix); trimmed != name {
+			suffix = trimmed
+			break
+		}
 	}
 	if suffix == name {
 		return false

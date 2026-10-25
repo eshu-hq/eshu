@@ -79,6 +79,7 @@ Paths are matched case-insensitively:
 - `conf/routes`, `*.routes` bind to `scala`.
 - `.mvn/extensions.xml` bind to `raw_text`.
 - `*.tfvars.json` bind to `hcl`.
+- `constraints.txt`, `constraints-*.txt`, `constraints_*.txt` bind to `python_requirements`.
 <!-- parser-admission-table:end -->
 
 ## Content store policy
