@@ -7,9 +7,11 @@
 
 version: v1
 
-# Repository-owned mirror of the active main ruleset. The two Go umbrellas stay
-# required during rollout; required-gates-complete is the trusted default-branch
-# status publisher that aggregates every path-selected blocking gate below.
+# Repository-owned manifest of the required contexts. The live main ruleset
+# requires only the two Go umbrellas (ruleset_required defaults to true);
+# required-gates-complete is the trusted default-branch status publisher that
+# aggregates every path-selected blocking gate below and feeds Main Health. It is
+# ruleset_required: false, so the live-ruleset verifier skips it (#9089).
 required_status_checks:
   - context: go-core-complete
     workflow: test.yml
@@ -27,6 +29,7 @@ required_status_checks:
     source_workflow: Build Test
     integration_id: 15368
     aggregates_blocking_gates: true
+    ruleset_required: false
 
 gate_fragments:
   - ci-gates.d/gates-01.yaml

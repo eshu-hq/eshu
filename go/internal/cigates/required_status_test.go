@@ -50,6 +50,7 @@ func TestValidateRequiredStatusChecks_RejectsBlockingGateWithoutCIReachability(t
 			SourceWorkflow:          "Build Test",
 			IntegrationID:           15368,
 			AggregatesBlockingGates: true,
+			RulesetRequired:         true,
 		}},
 	}
 
@@ -121,6 +122,7 @@ func TestValidate_RequiredStatusWorkflowExists(t *testing.T) {
 		SourceWorkflow:          "Build Test",
 		IntegrationID:           15368,
 		AggregatesBlockingGates: true,
+		RulesetRequired:         true,
 	}}}
 
 	errs := reg.Validate(root)
@@ -129,5 +131,58 @@ func TestValidate_RequiredStatusWorkflowExists(t *testing.T) {
 	}
 	if !strings.Contains(errs[0].Error(), "required-gates.yml") {
 		t.Fatalf("error %q should name the missing required-status workflow", errs[0])
+	}
+}
+
+func TestLoad_RulesetRequiredDefaultsToTrueWhenOmitted(t *testing.T) {
+	t.Parallel()
+
+	path := writeYAML(t, minimalValidYAML+`required_status_checks:
+  - context: go-core-complete
+    workflow: test.yml
+    job: go-core-complete
+    integration_id: 15368
+  - context: required-gates-complete
+    workflow: required-gates.yml
+    job: aggregate
+    source_workflow: Build Test
+    integration_id: 15368
+    aggregates_blocking_gates: true
+    ruleset_required: false
+`)
+	reg, err := cigates.Load(path)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if len(reg.RequiredStatusChecks) != 2 {
+		t.Fatalf("required status checks = %d; want 2", len(reg.RequiredStatusChecks))
+	}
+	if !reg.RequiredStatusChecks[0].RulesetRequired {
+		t.Errorf("omitted ruleset_required must default to true: %#v", reg.RequiredStatusChecks[0])
+	}
+	if reg.RequiredStatusChecks[1].RulesetRequired {
+		t.Errorf("explicit ruleset_required: false must be kept: %#v", reg.RequiredStatusChecks[1])
+	}
+}
+
+func TestValidateRequiredStatusChecks_RequiresAtLeastOneRulesetRequiredEntry(t *testing.T) {
+	t.Parallel()
+
+	reg := &cigates.Registry{RequiredStatusChecks: []cigates.RequiredStatusCheck{{
+		Context:                 "required-gates-complete",
+		Workflow:                "required-gates.yml",
+		Job:                     "aggregate",
+		SourceWorkflow:          "Build Test",
+		IntegrationID:           15368,
+		AggregatesBlockingGates: true,
+		RulesetRequired:         false,
+	}}}
+
+	errs := reg.ValidateRequiredStatusChecks()
+	if len(errs) == 0 {
+		t.Fatal("expected a manifest with no ruleset_required entry to fail validation")
+	}
+	if !strings.Contains(errs[0].Error(), "ruleset_required") {
+		t.Fatalf("error %q should name ruleset_required", errs[0])
 	}
 }
