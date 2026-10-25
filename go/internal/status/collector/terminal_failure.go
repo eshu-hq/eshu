@@ -117,7 +117,8 @@ func (b *runtimeStatusBuilder) applyTerminalFailures(failures []TerminalFailure)
 		if row.Health == "disabled" {
 			continue
 		}
-		class := BoundedFailureClassForKind(failure.CollectorKind, failure.FailureClass)
+		class := BoundedFailureClassForInstance(
+			failure.CollectorKind, failure.FailureClass, b.extensionHosted[key])
 		operation := BoundedFailureOperation(failure.FailureOperation)
 		if failure.Acknowledged {
 			if row.AcknowledgedFailure != nil && !failure.ObservedAt.After(row.AcknowledgedFailure.FailedAt) {
@@ -136,14 +137,8 @@ func (b *runtimeStatusBuilder) applyTerminalFailures(failures []TerminalFailure)
 		if row.LastFailureTerminal && !failure.ObservedAt.After(row.LastFailureAt) {
 			continue
 		}
-<<<<<<< HEAD
 		row.LastFailureClass = class
 		row.LastFailureOperation = operation
-=======
-		row.LastFailureClass = BoundedFailureClassForInstance(
-			failure.CollectorKind, failure.FailureClass, b.extensionHosted[key])
-		row.LastFailureOperation = BoundedFailureOperation(failure.FailureOperation)
->>>>>>> 0db2364a6b (feat(status): read extension-defined failure classes on component-activated first-party instances)
 		row.LastFailureTerminal = true
 		row.LastFailureAt = failure.ObservedAt
 		row.Health = combineRuntimeHealth(row.Health, "degraded")
