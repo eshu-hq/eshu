@@ -28,10 +28,13 @@ const RetirementFreshnessHint = shard.RetirementFreshnessHint
 // retire answers a retirement work item (#9019): the coordinator planned it
 // for a scope of a configured org target that the current partition no longer
 // plans, the base scope after a split or a leaf after a merge. The answer is
-// an empty generation with TrustedDeletion set, the only attestation that lets
-// it replace a content-bearing generation past the #7926 successor guard,
-// and a read state with repositories_total = 0, the marker the coordinator's
-// retirement read skips. No provider is contacted.
+// an empty generation with three properties. TrustedDeletion is set, the only
+// attestation that lets it replace a content-bearing generation past the
+// #7926 successor guard. Its freshness hint is RetirementFreshnessHint, the
+// retirement marker the query layer reads. Its read state has
+// repositories_total = 0, which the coordinator's retirement read skips, so
+// the scope is retired once (the zero count is that skip condition, not the
+// marker). No provider is contacted.
 //
 // The claim fails retryable, and nothing is committed, when the scope is not
 // a scope of a configured org target (the coordinator and this collector read

@@ -44,9 +44,12 @@ appear on the Postgres store metrics and spans.
   `ingestion_scopes_parent_idx` and the primary key, and the read-state join
   is a primary-key probe on `generation_id`; the live proof EXPLAINs the
   statement on more than 10k scopes.
-- A retirement generation is recognized by its read state's
-  `repositories_total = 0`. A generation without a read state (before #8943)
-  is still a candidate.
+- The read skips an active generation whose read state has
+  `repositories_total = 0`: every retirement, and a collection with no
+  allowlisted repository of the organization, which holds no alert fact (org
+  alerts pass `RepositoryAllowed` first). The zero count is a skip condition,
+  not the retirement marker; the marker is `shard.RetirementFreshnessHint`. A
+  generation without a read state (before #8943) is still a candidate.
 - An error is returned, never an empty list.
 - Never import the parent `postgres` package.
 

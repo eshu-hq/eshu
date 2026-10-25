@@ -18,8 +18,10 @@ the base, that still hold an active generation that is not already a
 retirement. Each one outside the current shard set gets one retirement work
 item: same scope, `acceptance_unit_id = <scope_id>#retire`, a generation id
 hashed with `retire`. The collector answers it with an empty generation
-committed with `TrustedDeletion` and a read state with `repositories_total = 0`,
-which the reader then skips. A split retires the leaf's old name (or the base)
+committed with `TrustedDeletion`, the freshness hint
+`shard.RetirementFreshnessHint` (the retirement marker), and a read state with
+`repositories_total = 0`, which the reader skips. The reader skips any
+collection with 0 too; it holds no alert fact, so nothing stays readable. A split retires the leaf's old name (or the base)
 and a merge retires both leaves; the merged parent is collected again.
 
 ## Ownership boundary

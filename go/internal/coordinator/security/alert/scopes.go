@@ -30,8 +30,11 @@ const (
 // scopes that still hold a non-retired active generation and that the current
 // plan does not contain (#9019). A scope belongs to a target when it is the
 // target's base scope_id or a shard scope whose parent is that base. A scope
-// whose active generation is already a retirement (its read state has
-// repositories_total = 0) is not returned, so a retired scope is retired once.
+// whose active generation's read state has repositories_total = 0 is not
+// returned. Every retirement commits 0, so a retired scope is retired once; a
+// collection with 0 held no allowlisted repository of the organization and so
+// no alert fact, so skipping it leaves no readable row. The zero count is a
+// skip condition, not the retirement marker (shard.RetirementFreshnessHint).
 type ShardScopeReader interface {
 	// RetirementCandidates returns at most limit such scope ids, ordered by
 	// scope id. An error fails planning for the instance; it never means

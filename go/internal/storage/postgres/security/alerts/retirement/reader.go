@@ -14,10 +14,16 @@ import (
 // CandidatesQuery returns the scopes of the listed org targets that still need
 // a retirement: the base scope itself ($1 by scope id) or a shard scope whose
 // parent is a base ($1 by parent_scope_id), with an active generation, not in
-// the planned set ($2), and whose active generation is not already a
-// retirement. A retirement generation commits a read state with
-// repositories_total = 0; a generation with no read state (committed before
-// #8943) is still a candidate. The two scope predicates combine as a BitmapOr
+// the planned set ($2), and whose active generation's read state does not
+// have repositories_total = 0. That skips every retirement generation (it
+// commits 0) and also an org collection whose allowlist held no repository of
+// the organization. Skipping the latter is safe: such a generation holds no
+// alert fact, because the collector keeps an org alert only when
+// RepositoryAllowed matches it against the allowlist, so it leaves no
+// readable row. The zero count is a skip condition, not the retirement
+// marker; the marker is the generation's freshness hint
+// (shard.RetirementFreshnessHint), which the query layer reads. A generation
+// with no read state (committed before #8943) is still a candidate. The two scope predicates combine as a BitmapOr
 // of ingestion_scopes_parent_idx and the primary key, and the read-state join
 // is a primary-key probe on generation_id, so the read never scans either
 // table. $3 bounds the rows. It is exported so the live plan proof can

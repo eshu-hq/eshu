@@ -10,8 +10,11 @@
 // after a split, two leaves after a merge) keeps its last active generation,
 // which every alert read joins. Reader.RetirementCandidates returns those
 // scopes: the base scope or a shard of a listed base, with an active
-// generation, outside the planned set, and whose active generation is not
-// already a retirement (its read state has repositories_total = 0). The
+// generation, outside the planned set, and whose active generation's read
+// state does not have repositories_total = 0: a retirement commits 0, and a
+// collection with 0 holds no alert fact, so skipping it leaves no readable
+// row. The retirement marker itself is the freshness hint
+// shard.RetirementFreshnessHint, not the zero count. The
 // planner turns each into a retirement work item; the collector commits an
 // empty generation for it.
 //

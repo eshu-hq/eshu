@@ -111,8 +111,8 @@ configured org target the partition no longer plans. The answer reads no
 provider. It is an empty generation with `TrustedDeletion` (the only
 attestation that passes the #7926 successor guard over a content-bearing
 generation), the constant hint `RetirementFreshnessHint` (a replay is skipped as
-unchanged), and a read state with `repositories_total = 0`, the marker the
-coordinator's read skips. It fails retryable, committing nothing, for a scope
+unchanged; it is also the retirement marker the query layer reads), and a
+read state with `repositories_total = 0`, which the coordinator's read skips. It fails retryable, committing nothing, for a scope
 that is not part of a configured org target or that this collector's own
 partition still plans. `TrustedDeletion` is set on retirement generations only.
 
