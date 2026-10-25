@@ -172,7 +172,7 @@ No-Regression Evidence:
   | Without the copy | 31,484,408 B (the bodies) |
   | Copy of `rawSpec` only | 15,757,000 B (the `packageManager` name still aliased) |
   | Copy of `runtime` only | 31,484,904 B |
-  | With the copy | 34,128 B (limit 491,520) |
+  | With the copy | 29,336 to 34,128 B over two runs (limit 491,520) |
 - **Cost of the copy** (`BenchmarkNoteAndEmitRuntimeDeclarationCorpus` and the
   hook benchmark, `-benchtime=200x -count=3`, load average 5 to 7, a 597-file
   corpus of 497 `go.mod` from the host module cache and 100 `package.json`,
