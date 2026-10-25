@@ -58,10 +58,13 @@ rewrites the same paths under a post-watermark generation. It runs 40
 iterations with random starts. On odd iterations the purge holds its batch
 locks for 150 ms before it rewrites, so the writer waits on them.
 
-- The purge blanked first in 34 iterations, and the writer rebuilt first in 6.
+- Both orders occur in every run; the test fails if one order never runs. Two
+  runs split 34/6 and 33/7, purge first against writer first.
 - In every iteration each row ended with the post-watermark generation, the
   redacted body, the rebuilt entity cache, and its reference row.
 - No raw body and no blank row was left, and no deadlock occurred.
+- With the watermark guard removed from the page's files statement, the test
+  fails (`iteration 24: 0 of 5 files hold the rebuilt body`).
 
 The narrow window between the lock statement's snapshot and its row lock is
 not forced here without editing the page's SQL. The #8813 purge page's measured
