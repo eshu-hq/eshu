@@ -107,6 +107,12 @@ begin=$SECONDS
 captured="$(ESHU_FAKE_GATE_OS=Linux ESHU_FAKE_GATE_GO=/nonexistent-go start_fake_gate; printf '%s %s' "$fake_pid" "$fakebin")"
 elapsed=$((SECONDS - begin))
 read -r cap_pid cap_dir <<<"$captured"
+# An empty pid means the forced Linux branch never started the shell fake, for
+# instance a library that ignores ESHU_FAKE_GATE_OS. Without this check the
+# timing and kill checks below pass on nothing.
+if [ -z "$cap_pid" ]; then
+  no "the forced Linux branch did not start the shell fake (captured: [$captured])"
+fi
 if [ "$elapsed" -lt 5 ]; then
   ok "the shell fallback returns promptly inside a command substitution (${elapsed}s)"
 else
