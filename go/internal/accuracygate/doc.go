@@ -19,7 +19,8 @@
 // test and a CI verify script. Floors are minimums: accuracy may improve freely,
 // but a drop below the published floor or a missing measurement fails the gate.
 // Because floors live in the tracked baseline file, tightening or relaxing a
-// floor is a reviewed data diff rather than a code change.
+// floor is a reviewed data diff rather than a code change. The gate result
+// names the failing dimension so a regression points at its measurement.
 //
 // ScorePredictions and CoverageMetric build dimension Metrics from a confusion
 // matrix or a scored-item count using the same div-by-zero convention as
