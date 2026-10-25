@@ -110,11 +110,14 @@ flowchart LR
   session advisory lock `(5318,1)` on a pinned connection from before
   `BeginDeferral` until after `Finalize`; a second run waits up to
   `ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` (default 3 m), then fails naming the
-  holder's pid, application name, connection age, lock and mode. The holder can
-  be a reducer rebuild, which is not an orphan: it ends when the rebuild
-  publishes. A bootstrap-index that starts during a rebuild first waits for
+  holder's pid, application name, connection age, lock and mode. The holder is
+  normally another bootstrap-index run: a reducer rebuild is waited out earlier,
+  because the probe below holds `(5318,2)` shared and the pool's connections
+  keep it from then on, so a Repairer meets `(5318,1)` only in a non-waiting
+  try. A bootstrap-index that starts during a rebuild first waits for
   `(5318,2)` the same way, on a probe session (`OpenDeferredWriterPool`, logged
-  `lock=deferred_writers`), and the schema-bootstrap ownership wait uses the
+  `lock=deferred_writers`); the rebuild is not an orphan, it ends when it
+  publishes. The schema-bootstrap ownership wait uses the
   same bound too, so the worst case before work starts is three times the
   value. The epoch fence covers the
   remaining ordering: a finalizer that outlives its epoch after a crash and a
@@ -146,3 +149,13 @@ flowchart LR
 - `go/internal/query/content_reader_security_secrets.go` (the gated read)
 - `go/cmd/bootstrap-index/bootstrap_finalize.go` (the caller)
 - `docs/internal/evidence/7125-secret-lines-side-table.md`
+
+## Shared pool composition
+
+`BootstrapDeferredPoolOptions` is the one place that composes the probe pool
+(plain, no hook) and the writer pool (`RunFence.Hook` plus
+`DeferredSessionSQL`) for `OpenDeferredWriterPool`. bootstrap-index's
+`openBootstrapDB` and the enrolled live tests both call it, so a test cannot
+drift from production. Its opener is a `PostgresOpener`: production uses
+`RuntimePostgresOpener`, and the unit tests use a recorder to pin that a dropped
+hook (F1) or a hooked probe (F8) fails in CI-run tests.

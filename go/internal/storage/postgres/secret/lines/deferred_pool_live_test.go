@@ -16,9 +16,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/stdlib"
-
-	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
 
 // fixtureGetenv points the runtime openers at the fixture's disposable database.
@@ -38,28 +35,14 @@ func fixtureGetenv(t *testing.T, f *repairFixture, extra map[string]string) func
 	}
 }
 
-// productionDeferredOptions opens the two pools the way bootstrap-index does:
-// the plain probe pool through runtime.OpenPostgres and the deferred-writer
-// pool through OpenPostgresWithSessionHooks with the run fence's hook.
+// productionDeferredOptions is the production composition
+// (BootstrapDeferredPoolOptions, the same call openBootstrapDB makes) with a
+// faster probe cadence so the tests do not wait a second per try.
 func productionDeferredOptions(getenv func(string) string, fence *RunFence, wait time.Duration, logger *slog.Logger) DeferredPoolOptions {
-	return DeferredPoolOptions{
-		Probe: func(ctx context.Context) (*sql.DB, error) {
-			pool, err := runtimecfg.OpenPostgres(ctx, getenv)
-			if err != nil {
-				return nil, err
-			}
-			pool.SetMaxOpenConns(1)
-			return pool, nil
-		},
-		Open: func(ctx context.Context) (*sql.DB, error) {
-			return runtimecfg.OpenPostgresWithSessionHooks(ctx, getenv,
-				[]inventory.ConnectHook{fence.Hook()}, DeferredSessionSQL)
-		},
-		Wait:     wait,
-		Poll:     100 * time.Millisecond,
-		LogEvery: time.Second,
-		Logger:   logger,
-	}
+	options := BootstrapDeferredPoolOptions(RuntimePostgresOpener{}, getenv, fence, wait, logger)
+	options.Poll = 100 * time.Millisecond
+	options.LogEvery = time.Second
+	return options
 }
 
 // holdBothLocksExclusive takes (5318,1) and (5318,2) exclusive on one session,

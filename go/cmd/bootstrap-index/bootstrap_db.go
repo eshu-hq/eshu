@@ -12,9 +12,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel/trace"
 
-	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	secretlines "github.com/eshu-hq/eshu/go/internal/storage/postgres/secret/lines"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -45,6 +43,15 @@ var _ interface{ RunFence() *secretlines.RunFence } = (*bootstrapSQLDB)(nil)
 // database/sql never closes an in-use connection for ConnMaxLifetime.
 func (b *bootstrapSQLDB) Conn(ctx context.Context) (*sql.Conn, error) { return b.raw.Conn(ctx) }
 
+// bootstrapPostgresOpener and openDeferredWriterPool are the two seams of
+// openBootstrapDB. Production never changes them; the composition test swaps
+// them to observe the pools the real function builds, because CI runs no live
+// test of it (#8833 F14).
+var (
+	bootstrapPostgresOpener secretlines.PostgresOpener = secretlines.RuntimePostgresOpener{}
+	openDeferredWriterPool                             = secretlines.OpenDeferredWriterPool
+)
+
 func openBootstrapDB(ctx context.Context, getenv func(string) string, logger *slog.Logger, ownershipWait time.Duration) (bootstrapDB, error) {
 	// Every bootstrap connection is a deferred-derivation session: content_files
 	// triggers skip its writes and the finalizer rebuilds the hardcoded-secret
@@ -59,22 +66,8 @@ func openBootstrapDB(ctx context.Context, getenv func(string) string, logger *sl
 	// (ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT) and failing naming the holder (#8833
 	// ruling-6); an unreachable database still fails within the ping timeout.
 	fence := secretlines.NewRunFence(nil)
-	db, err := secretlines.OpenDeferredWriterPool(ctx, secretlines.DeferredPoolOptions{
-		Probe: func(ctx context.Context) (*sql.DB, error) {
-			pool, err := runtimecfg.OpenPostgres(ctx, getenv)
-			if err != nil {
-				return nil, err
-			}
-			pool.SetMaxOpenConns(1)
-			return pool, nil
-		},
-		Open: func(ctx context.Context) (*sql.DB, error) {
-			return runtimecfg.OpenPostgresWithSessionHooks(ctx, getenv,
-				[]inventory.ConnectHook{fence.Hook()}, secretlines.DeferredSessionSQL)
-		},
-		Wait:   ownershipWait,
-		Logger: logger,
-	})
+	db, err := openDeferredWriterPool(ctx, secretlines.BootstrapDeferredPoolOptions(
+		bootstrapPostgresOpener, getenv, fence, ownershipWait, logger))
 	if err != nil {
 		return nil, err
 	}

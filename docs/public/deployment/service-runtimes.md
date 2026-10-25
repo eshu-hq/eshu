@@ -204,8 +204,8 @@ configuration.
   polls the state every `ESHU_SECRET_LINES_REPAIR_POLL_INTERVAL` (default `30s`),
   takes the two bulk-load advisory locks without waiting, and skips while a
   bootstrap-index connection is alive. Its lock session comes from a dedicated
-  one-connection pool, so the reducer opens up to `ESHU_POSTGRES_MAX_OPEN_CONNS`
-  + 1 connections while a secret-lines rebuild runs (see
+  one-connection pool, so while a secret-lines rebuild runs the reducer opens up
+  to one more connection than `ESHU_POSTGRES_MAX_OPEN_CONNS` (see
   [Postgres tuning](../reference/postgres-tuning.md)). It is on by default;
   `ESHU_SECRET_LINES_REPAIR_ENABLED=false` is for diagnostics only. Until the
   state is `ready`, `investigate_hardcoded_secrets` reads use the legacy content

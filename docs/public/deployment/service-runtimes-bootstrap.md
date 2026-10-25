@@ -443,13 +443,16 @@ indexes: a bulk-load regime with a finalizer, gated by a state row.
   the worst case before work starts is three times the value, 9 m by default),
   logging `bootstrap.postgres.ownership.waiting` with `lock=bulk_load`, then
   fails naming the holder (pid, application name, connection age, lock, mode).
-  The holder can be a reducer rebuild. It is not an orphan: it holds both locks
-  exclusive, carries the reducer's application name, and ends when the rebuild
-  publishes (about 42 s per 150,000 files with no writers). A bootstrap-index
-  that starts during a rebuild first waits for `(5318,2)` on a short-lived probe
-  connection, logging `bootstrap.postgres.ownership.waiting` with
-  `lock=deferred_writers`, up to the same ownership wait, and fails naming the
-  holder when it is spent; it does not wait on the 10 s startup ping, which
+  The holder is normally another bootstrap-index run. A reducer rebuild cannot
+  hold this wait: the probe below has already waited for it, and the pool's
+  connections keep the repair out from then on, so a reducer meets `(5318,1)`
+  only in a sub-second non-waiting try. A bootstrap-index that starts during a
+  rebuild first waits for `(5318,2)` on a short-lived probe connection, up to
+  the same ownership wait, logging
+  `bootstrap.postgres.ownership.waiting` with `lock=deferred_writers`. That
+  holder is not an orphan: it holds both locks exclusive, carries the reducer's
+  application name, and ends when the rebuild publishes (about 42 s per 150,000
+  files with no writers). It fails naming the holder when it is spent; it does not wait on the 10 s startup ping, which
   still reports an unreachable database. Then it waits for `(5318,1)` as above,
   and the schema apply waits last. Each lock dies with its
   backend, so a killed pod frees both at once; after a node death without a TCP
