@@ -285,6 +285,7 @@ func (s *GitSource) snapshotOneRepository(
 			ScopeID: generation.Scope.ScopeID, GenerationID: generation.Generation.GenerationID,
 		})
 	}
+	s.recordOversizeSkips(ctx, snapshot.OversizeSkippedFiles, metadata.ID, generation.Scope.ScopeID, generation.Generation.GenerationID)
 	enrichDiscoveryAdvisoryRun(
 		generation.DiscoveryAdvisory,
 		s.componentName(),

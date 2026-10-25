@@ -9,6 +9,33 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Parser reads: one per-file read cap
+
+- **A parser file over 64 MiB is skipped instead of read whole**
+  ([#8986](https://github.com/eshu-hq/eshu/issues/8986)). `shared.ReadSource`,
+  the read every language parser uses, now refuses a file over
+  `shared.MaxSourceBytes` with `ErrSourceTooLarge`. The git collector skips such
+  a parser file at discovery from its recorded size, before the import
+  pre-scan, so the rest of the repository keeps indexing; before this change
+  the file was read whole by every parse worker that touched it, and with only
+  the shared cap a single such file would have failed the whole snapshot at
+  pre-scan. The skip counts as `skip_reason=content:oversize` on
+  `eshu_dp_discovery_files_skipped_total` and logs WARN
+  `git_snapshot_file_skipped_oversize` per file with the repository, scope, and
+  generation ids, the path, and the size. The parse and content-stream reads
+  are capped too, for a file that grows after discovery, and a file that grows
+  past the cap before the import pre-scan is skipped like an oversize file
+  instead of failing the snapshot (it also marks the snapshot degraded). The parser
+  side reads of headers, sibling modules, tsconfig and package.json, composer
+  files, Python package and Lambda files, and `go.mod`. A delta whose target
+  grew past the cap retracts the file instead of leaving its earlier facts
+  served as current, and a workflow over the cap no longer marks every delta
+  sync `workflow_read_failed`. The largest lock file
+  measured in the repository and golden corpus is 274,035 bytes, so no lock
+  file below the cap is affected. `gitGenerationContentVersion` moves from
+  `git-collector.v13` to `git-collector.v14`, so each repository re-collects
+  once when its reconciliation sweep next comes due.
+
 ### Security alerts: a newly allowlisted repository no longer reads as covered
 
 - **Per-generation target set**
@@ -89,20 +116,21 @@ recent shipped work grouped by feature area.
   `1.0.0+build.1` stays exact in the reducer for npm and Cargo. A string
   notation classifier no longer leaks into the version: `g:a:1.0:jdk8` now
   resolves to `1.0`, not `1.0:jdk8`, and text past the classifier
-  (`g:a:1.0:jdk8:extra`, which Gradle rejects) emits no row.
-  The git collector content version moves to `git-collector.v12`, so each
-  repository re-collects once and stale `resolved` selector rows are replaced.
+  (`g:a:1.0:jdk8:extra`, which Gradle rejects) emits no row. The git
+  collector content version moves to `git-collector.v12`, so each repository
+  re-collects once and stale `resolved` selector rows are replaced.
 
-- **An unresolved manifest row never becomes an observed version**
-  ([#8988](https://github.com/eshu-hq/eshu/issues/8988)). Package
-  correlation and the manifest security-alert path now give an `unresolved` Gradle, Maven or sbt row no observed version, so a map-form
-  `1.0:jdk8`, a `1.0!`, a `1.0+build.1` or an sbt version identifier the
-  parser could not resolve no longer becomes the installed version; a
-  `partial` row and an ecosystem that emits no state keep today's answer. The persisted package-consumption correlation fact
-  gains an optional `dependency_resolution_state` field (a minor, additive contract change that
-  old readers ignore); a fact written before the field keeps today's answer
-  until its repository is re-materialized.
-
+- **An unresolved manifest row never becomes an observed version in the
+  persisted-fact readers** ([#8988](https://github.com/eshu-hq/eshu/issues/8988)).
+  Package correlation already gave an `unresolved` row no observed version
+  (#9101). The persisted package-consumption correlation fact now carries an
+  optional `dependency_resolution_state` field (a minor, additive contract
+  change that old readers ignore), and security-alert reconciliation and
+  supply-chain impact skip an `unresolved` row, so a map-form `1.0:jdk8`, a
+  `1.0!`, a `1.0+build.1` or an sbt version identifier the parser could not
+  resolve no longer becomes the installed version. A `partial` row and an
+  ecosystem that emits no state keep today's answer; a fact written before the
+  field exists keeps today's answer until its repository is re-materialized.
 
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
 

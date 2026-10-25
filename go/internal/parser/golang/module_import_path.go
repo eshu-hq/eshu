@@ -4,7 +4,6 @@
 package golang
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -15,7 +14,7 @@ import (
 // or "" when no readable go.mod names a module. See issue #6306 for the
 // bare-CR normalization this read depends on.
 func GoModulePath(repoRoot string) string {
-	body, err := os.ReadFile(filepath.Join(repoRoot, "go.mod")) // #nosec G304 -- reads go.mod at a path derived from the scan target repo root
+	body, err := shared.ReadFileCapped(filepath.Join(repoRoot, "go.mod")) // #nosec G304 -- reads go.mod at a path derived from the scan target repo root; capped at shared.SourceReadCap (#8986)
 	if err != nil {
 		return ""
 	}

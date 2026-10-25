@@ -250,6 +250,14 @@ The README cross-references this section from its tree-sitter support table.
   likely cause: `preScanOnePath` returns unordered names, or a language adapter
   iterates a map without sorting → sort names before returning from every
   `preScan<Language>` function; verify `sortPreScanResults` is called.
+- Symptom: one file that grew past the read cap after discovery fails a whole
+  repository snapshot → likely cause: the caller used the strict
+  `PreScanRepositoryPathsWithWorkersStats`, which returns the first per-file
+  error → use `PreScanRepositoryPathsSkippingOversizeStats`, which returns only
+  an `ErrSourceTooLarge` error as a skip, only when the scanned file's own
+  size is over the cap, and keeps every other error fatal (#8986). A parser
+  that reads siblings must leave an oversize sibling out instead of returning
+  its error, as `kotlin` and `javascript` do.
 
 ## Anti-patterns specific to this package
 

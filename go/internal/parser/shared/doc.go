@@ -53,4 +53,9 @@
 // one consistent snapshot for as long as any of them are in flight, and
 // neither call can overwrite the other's snapshot or delete it out from
 // under the other mid-parse.
+//
+// ReadSource also enforces the per-file read cap, MaxSourceBytes (#8986): a
+// file over SourceReadCap, read from disk or primed, returns an error wrapping
+// ErrSourceTooLarge and never reaches a parser. ReadFileCapped is the capped
+// read the git collector also uses for parse and content-stream bodies.
 package shared

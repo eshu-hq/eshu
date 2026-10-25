@@ -210,16 +210,38 @@ func TestWorkflowClaimDepthStaggeredStartHoldsGates(t *testing.T) {
 	}
 	seeded := seedClaimDepthBacklog(t, store, ctx, "claim-depth-stagger", base, keys)
 
-	result := drainClaimDepthBacklog(t, database, ctx, claimDepthClaimers, poolLimit)
+	result := drainClaimDepthBacklog(t, database, ctx, "claim-depth-stagger", claimDepthClaimers, poolLimit)
 
 	assertClaimDepthConcurrency(t, result, claimDepthClaimers)
 	assertClaimDepthExactlyOnce(t, seeded, result)
 	assertClaimDepthMinGrantsPerOwner(t, result, claimDepthClaimers, 10)
-	if got := result.ClaimsPerSecond(); got < 119 {
-		t.Fatalf("staggered drain throughput = %.1f claims/s, want >= 119 (design floor)", got)
-	}
 	t.Logf("staggered drain items=%d claimers=%d duration=%s claims_per_second=%.1f empty_attempts=%d",
 		len(seeded), claimDepthClaimers, result.Duration, result.ClaimsPerSecond(), result.EmptyAttempts)
+
+	// Load-insensitive anti-serialization bound (#8725 P1 disposition, same
+	// root cause as the pacing floor: an absolute claims/s floor flakes on
+	// hosted runner noise). A same-run single-claimer calibration drain of
+	// the same backlog shape cancels host speed out of the ratio; throttled or
+	// serialized grants collapse the speedup below half the enrolled
+	// parallelism (a uniform slowdown preserves the ratio and stays
+	// trend-logged, not gated). (The 5ms start stagger is per-claimer index, so
+	// the single calibration claimer waits zero.)
+	calKeys := []claimDepthKeyBacklog{{FairnessKey: "claim-depth-cal:large", Count: 500}}
+	for _, small := range []string{"cal-small-1", "cal-small-2", "cal-small-3", "cal-small-4"} {
+		calKeys = append(calKeys, claimDepthKeyBacklog{FairnessKey: "claim-depth-cal:" + small, Count: 20, CreatedOffset: time.Second})
+	}
+	calSeeded := seedClaimDepthBacklog(t, store, ctx, "claim-depth-stagger-cal", base, calKeys)
+	cal := drainClaimDepthBacklog(t, database, ctx, "claim-depth-stagger-cal", 1, poolLimit)
+	assertClaimDepthExactlyOnce(t, calSeeded, cal)
+	overlap := claimDepthMaxOverlap(result.Records)
+	t.Logf("staggered drain max grant overlap = %d (want >= %d half of %d enrolled claimers); speedup=%.2fx (single %s vs parallel %s; trend only, not gated)",
+		overlap, claimDepthClaimers/2, claimDepthClaimers, cal.Duration.Seconds()/result.Duration.Seconds(), cal.Duration, result.Duration)
+	if overlap < claimDepthClaimers/2 {
+		t.Fatalf("staggered drain max grant overlap = %d, want >= %d (half of %d enrolled claimers; serialized grant path)",
+			overlap, claimDepthClaimers/2, claimDepthClaimers)
+	}
+	t.Logf("staggered calibration items=%d claimers=1 duration=%s claims_per_second=%.1f",
+		len(calSeeded), cal.Duration, cal.ClaimsPerSecond())
 }
 
 // assertClaimDepthMinGrantsPerOwner proves every claimer kept granting deep

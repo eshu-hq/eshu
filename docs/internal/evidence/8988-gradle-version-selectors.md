@@ -112,23 +112,24 @@ evidence string. Parse timing stays with the parent parser engine.
 
 ## Observed-version state gate (follow-up to #9023)
 
-The package-correlation reader, the manifest security-alert bridge and the two
-persisted-fact readers now give an `unresolved` row no observed version, and the
-persisted consumption fact carries an optional `dependency_resolution_state`.
-The gate changes only rows a parser left unresolved (Gradle `1.0!`,
-`1.0+build.1`, map-form `1.0:jdk8`, sbt version identifiers); `partial`,
-`resolved` and no-state rows keep today's answer.
+The package-correlation reader gates an `unresolved` row (#9101). This change
+carries the same rule to the two persisted-fact readers, security-alert
+reconciliation and supply-chain impact, through an optional
+`dependency_resolution_state` on the persisted consumption fact. The gate
+changes only rows a parser left unresolved (Gradle `1.0!`, `1.0+build.1`,
+map-form `1.0:jdk8`, sbt version identifiers); `partial`, `resolved` and
+no-state rows keep today's answer.
 
 No-Regression Evidence: the added work is one trimmed, case-folded string
-compare per consumption row, on a reducer path that runs once per
-reconciliation, not per query. Baseline `e9f54bf7b0` against this change, the
-same throwaway benchmark over four representative rows (resolved, unresolved,
-partial, no state) through `packageManifestObservedVersion`, 2,000,000
-iterations, three runs each on one shared dev host: 698 to 701 ns per four
-rows and 6 allocations before, 774 to 782 ns and 8 allocations after, about
-20 ns and 0.5 allocations per row. The figures are a single-host measurement,
-not a throughput claim, and the benchmark was removed after the run. Backend:
-none (pure in-memory decision; no SQL or Cypher changed).
+compare per consumption row in `exactConsumptionDependencyVersion`, on a
+reducer path that runs once per reconciliation, not per query. Baseline
+`origin/main` against this change, the same throwaway benchmark over four
+representative versions, 3,000,000 iterations, three runs each on one shared
+dev host: 448 to 450 ns per four rows and 2 allocations before, 462 to 463 ns
+and 2 allocations after, about 4 ns per row and no new allocation. The figure
+is a single-host measurement, not a throughput claim, and the benchmark was
+removed after the run. Backend: none (pure in-memory decision; no SQL or
+Cypher changed).
 
 No-Observability-Change: the gate adds no metric, span or log key. An operator
 sees the effect as an empty `ObservedVersion` on the affected consumption row,

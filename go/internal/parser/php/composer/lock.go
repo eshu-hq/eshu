@@ -5,11 +5,11 @@ package composer
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 // lockPrefix is one namespace prefix a locked package autoloads. name is ""
@@ -142,7 +142,7 @@ func readLock(path string) (lockIndex, bool) {
 		return lockIndex{}, false
 	}
 	return lockCache.Get(path, stat, func() lockIndex {
-		content, err := os.ReadFile(path) // #nosec G304 -- reads an indexed repository composer.lock at a path found by the nearest-file walk under the scan target
+		content, err := shared.ReadFileCapped(path) // #nosec G304 -- reads an indexed repository composer.lock at a path found by the nearest-file walk under the scan target; capped at shared.SourceReadCap (#8986)
 		if err != nil {
 			return lockIndex{}
 		}

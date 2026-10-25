@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"os"
 	"sync"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 // ScopeCache memoizes the parsed content of one repository config file
@@ -276,7 +278,7 @@ func cachedPackageManifest(manifestPath string) (packageManifest, bool) {
 
 // readPackageManifest performs the actual uncached package.json read+parse.
 func readPackageManifest(manifestPath string) (packageManifest, bool) {
-	body, err := os.ReadFile(manifestPath) // #nosec G304 -- reads a package.json at a path derived from the scan target repo tree
+	body, err := shared.ReadFileCapped(manifestPath) // #nosec G304 -- reads a package.json at a path derived from the scan target repo tree; capped at shared.SourceReadCap (#8986)
 	if err != nil {
 		return packageManifest{}, false
 	}

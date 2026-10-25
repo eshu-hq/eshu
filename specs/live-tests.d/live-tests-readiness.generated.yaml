@@ -1339,6 +1339,11 @@ tests:
     class: postgres_ci
     reason: "#8468 claim-issuance-under-depth harness proofs on real PostgreSQL: eight concurrent claimers on eight distinct pinned backends drain a seeded workflow backlog exactly once (no duplicate work-item or claim grant under SKIP LOCKED and the Read Committed EvalPlanQual recheck, one completed claim row per item), and the #8469 fair-rotation bound proves every key of a skewed backlog is first granted within the first draws (small keys no longer wait for the 500-item large key to drain); isolated schema from ESHU_POSTGRES_DSN with the full bootstrap applied by the harness opener; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/workflow_control_claim_forced_serial_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8725 forced-serialization RED proof on real PostgreSQL: serializing claim grants collapses attempt-window overlap to one, proving the overlap signal responds to contention instead of sitting at a fixed value"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/workflow_control_claim_order_plan_live_test.go
     tag: ~
     class: postgres_ci
