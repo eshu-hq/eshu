@@ -332,10 +332,12 @@ func impactProducingSecurityAlertReconciliation(intent reducercontract.Intent) b
 		strings.EqualFold(strings.TrimSpace(intent.Cause), "provider security alert evidence observed")
 }
 
-func firstUnmatchedPackageWithDependency(decisions []SecurityAlertReconciliationDecision) string {
+// firstWaitingPackage names the first package whose decision waits on impact
+// evidence (decisionWaitsOnImpactEvidence), so a defer or give-up never blames a
+// decision that already carries impact evidence.
+func firstWaitingPackage(decisions []SecurityAlertReconciliationDecision) string {
 	for _, decision := range decisions {
-		if decision.Status == SecurityAlertReconciliationUnmatched &&
-			strings.TrimSpace(decision.DependencyEvidenceID) != "" {
+		if decisionWaitsOnImpactEvidence(decision) {
 			return strings.TrimSpace(decision.PackageID)
 		}
 	}

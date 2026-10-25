@@ -275,7 +275,7 @@ func (h SecurityAlertReconciliationHandler) resolveImpactWait(
 				return impactWaitDecision{}, impactInFlightError{
 					scopeID:      intent.ScopeID,
 					generationID: intent.GenerationID,
-					packageID:    firstUnmatchedPackageWithDependency(decisions),
+					packageID:    firstWaitingPackage(decisions),
 				}
 			}
 			boundExceeded = true
@@ -283,7 +283,7 @@ func (h SecurityAlertReconciliationHandler) resolveImpactWait(
 	}
 	if intent.AttemptCount < pendingImpactSecurityAlertReconciliationMaxAttempts {
 		return impactWaitDecision{}, retryableSecurityAlertReconciliationEvidenceError{
-			packageID: firstUnmatchedPackageWithDependency(decisions),
+			packageID: firstWaitingPackage(decisions),
 		}
 	}
 	if probed && state.Settled() {
