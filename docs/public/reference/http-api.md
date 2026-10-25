@@ -1,8 +1,7 @@
 # HTTP API Reference
 
-The HTTP API is versioned under `/api/v0` and shares the same query model as
-CLI and MCP. Use it for AI agents, automation, Console, and internal tools that
-need stable JSON contracts.
+The HTTP API is versioned under `/api/v0` and shares the same query model as CLI and MCP.
+Use it for AI agents, automation, Console, and internal tools that need stable JSON contracts.
 
 This page is the map. The detailed route contracts live in focused pages so the
 API reference stays readable.
