@@ -62,3 +62,16 @@ with open(path, 'w') as target:
     target.write(content.replace('run: bash scripts/ci/assert-go-complete.sh', 'run: true', 1))
 PY
 }
+
+# Install an `awk` shim into <dir> that releases the first 1024 bytes of output
+# at once and the rest 0.2s later. It makes a short-lived reader such as
+# `rg -q` exit while a producer is still writing, which is the interleaving
+# behind the intermittent pipefail/SIGPIPE false failure in job_needs. The
+# real awk is resolved before <dir> is put on PATH.
+docs_skip_install_slow_awk() {
+  local dir="$1" real_awk
+  real_awk="$(command -v awk)"
+  mkdir -p "${dir}"
+  printf '#!/usr/bin/env bash\n%s "$@" | { dd bs=1024 count=1 iflag=fullblock 2>/dev/null; sleep 0.2; cat; }\n' "${real_awk}" >"${dir}/awk"
+  chmod +x "${dir}/awk"
+}
