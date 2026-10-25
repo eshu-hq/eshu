@@ -45,6 +45,7 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplychainmod
 		UnresolvedMSBuildProperty: strings.TrimSpace(payloadcore.DerefString(consumption.UnresolvedMSBuildProperty)),
 		AmbiguousMSBuildProperty:  strings.TrimSpace(payloadcore.DerefString(consumption.AmbiguousMSBuildProperty)),
 		PartialEvidence:           payloadcore.DerefBool(consumption.PartialEvidence),
+		DependencyResolutionState: strings.TrimSpace(payloadcore.DerefString(consumption.DependencyResolutionState)),
 		Lockfile:                  payloadcore.DerefBool(consumption.Lockfile),
 	}, nil
 }

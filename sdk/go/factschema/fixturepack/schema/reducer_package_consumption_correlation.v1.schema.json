@@ -48,6 +48,12 @@
         "null"
       ]
     },
+    "dependency_resolution_state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "dependency_scope": {
       "type": [
         "string",
