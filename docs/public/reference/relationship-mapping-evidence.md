@@ -276,6 +276,14 @@ logic and reducer/query layers, not in one-off parser rules.
 ECS and EKS are current examples. Add new runtime families through the shared
 registry before adding provider-specific story text.
 
+### Module Resolution For Evidence Schemas
+
+Relationship evidence emission, including the `runtime_declaration.version`
+family, resolves fact schemas through the standalone `eshu-sdk` modules
+(`collector v0.1.0-rc.3`, `factschema v0.1.0-rc.4`, hash-pinned in `go.mod`)
+instead of the retired in-tree SDK paths (#8851). Evidence bytes,
+relationship types, and the families above are unchanged by the module move.
+
 ### Kustomize paths that stay inside the repository
 
 A `resources`, `components`, or `bases` entry naming a path inside the same
