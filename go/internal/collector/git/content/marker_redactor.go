@@ -96,7 +96,8 @@ func redactMarkerWithURLKeys(body string, keys, urlKeys []string) (string, int, 
 		}
 		state.lowerURLKeys = lowerKeys(urlKeys)
 	}
-	if err := checkYAMLIndirection(body, keyPattern, state.urlKeyPattern); err != nil {
+	listed := append(append([]string{}, keys...), urlKeys...)
+	if err := checkYAMLIndirection(body, listed, keyPattern, state.urlKeyPattern); err != nil {
 		return "", 0, err
 	}
 	lines := strings.Split(body, "\n")

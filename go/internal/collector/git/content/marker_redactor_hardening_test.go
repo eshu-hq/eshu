@@ -158,10 +158,10 @@ func TestRedactMarkerKnownLimits(t *testing.T) {
 	t.Parallel()
 
 	for name, in := range map[string]string{
-		"escaped key spelling":   "\"npmAuth\\x54oken\": " + hardeningSeed + "\n",
-		"homoglyph key":          "npmAuthTоken: " + hardeningSeed + "\n",
-		"anchor value on a key":  "base: &t " + hardeningSeed + "\n",
-		"unlisted key with text": "note: " + hardeningSeed + "\n",
+		"key split across lines in invalid YAML": "\"npmAuth\\\n  Ident\": " + hardeningSeed + "\n",
+		"homoglyph key":                          "npmAuthTоken: " + hardeningSeed + "\n",
+		"anchor value on a key":                  "base: &t " + hardeningSeed + "\n",
+		"unlisted key with text":                 "note: " + hardeningSeed + "\n",
 	} {
 		if got := redactForTest(t, in); got != in {
 			t.Errorf("%s: the documented limit no longer holds (good news, update the README): %q -> %q", name, in, got)

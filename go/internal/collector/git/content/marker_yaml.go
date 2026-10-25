@@ -5,31 +5,44 @@ package gitcontent
 
 import (
 	"errors"
+	"io"
 	"regexp"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // errYAMLIndirection marks a body whose credential value marker mode cannot
 // reach on the key's own line: a listed key whose value is a YAML alias leaves
-// the secret on the anchor's line, and an explicit "? key" entry puts the value
-// on a line that holds no key. The caller stores a metadata row instead (#8833
-// security review).
+// the secret on the anchor's line, and an explicit "? key" entry, an escaped
+// key spelling, or a key split across lines puts the key where no line-wise
+// match sees it. The caller stores a metadata row instead (#8833 security
+// review).
 var errYAMLIndirection = errors.New("content body reaches a credential key through a YAML alias or an explicit key")
 
-// checkYAMLIndirection returns errYAMLIndirection when body holds:
+// checkYAMLIndirection returns errYAMLIndirection for a body marker mode cannot
+// redact line by line. listed holds the credential and URL-userinfo keys, and
+// keyPatterns their line matchers. It runs two checks:
 //
-//   - an explicit-key indicator "?" outside a quoted scalar, at the start of a
-//     line, after a "- " list marker, or after "{", "[", or "," in a flow
-//     collection, followed by white space or the end of the line;
-//   - a line whose content starts with ":" and white space, the value line of
-//     an explicit key;
-//   - a line where a key one of keyPatterns matches has an alias (*name) as its
-//     value. Pass the credential-key and the URL-userinfo-key patterns.
+//   - The YAML check, when the body parses: any alias anywhere, or a mapping
+//     key that decodes to a listed key (case-insensitive) on a source line
+//     where no key pattern matches (an explicit key, an escape, a key split
+//     across lines).
+//   - The line check, always, so a body that does not parse is still covered:
+//     an explicit-key indicator or explicit-key value line, and a listed key
+//     whose value starts with an alias.
 //
-// An alias on any other key, an anchor on a listed key's value, and a merge key
-// are left alone: the line that holds the secret is still a listed key's line.
-func checkYAMLIndirection(body string, keyPatterns ...*regexp.Regexp) error {
-	for _, line := range strings.Split(body, "\n") {
+// An anchor on a listed key's value, an alias on another key, a merge key, and
+// a value on the line after its key are left alone: the redactor reaches each.
+func checkYAMLIndirection(body string, listed []string, keyPatterns ...*regexp.Regexp) error {
+	lines := strings.Split(body, "\n")
+	for i := range lines {
+		lines[i] = strings.TrimSuffix(lines[i], "\r")
+	}
+	if err := checkYAMLStructure(body, lines, listed, keyPatterns); err != nil {
+		return err
+	}
+	for _, line := range lines {
 		if explicitKeyLine(line) {
 			return errYAMLIndirection
 		}
@@ -45,6 +58,70 @@ func checkYAMLIndirection(body string, keyPatterns ...*regexp.Regexp) error {
 		}
 	}
 	return nil
+}
+
+// checkYAMLStructure walks every document of body. A body that does not parse
+// returns nil: it has no YAML semantics to hide a value behind, and the line
+// check still runs.
+func checkYAMLStructure(body string, lines, listed []string, keyPatterns []*regexp.Regexp) error {
+	decoder := yaml.NewDecoder(strings.NewReader(body))
+	for {
+		var document yaml.Node
+		err := decoder.Decode(&document)
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return nil
+		}
+		if walkYAML(&document, lines, listed, keyPatterns) {
+			return errYAMLIndirection
+		}
+	}
+}
+
+// walkYAML reports whether node holds an alias or a listed key off its line.
+func walkYAML(node *yaml.Node, lines, listed []string, keyPatterns []*regexp.Regexp) bool {
+	if node.Kind == yaml.AliasNode {
+		return true
+	}
+	if node.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			key := node.Content[i]
+			if isListedKey(key.Value, listed) && !keyMatchesItsLine(key.Line, lines, keyPatterns) {
+				return true
+			}
+		}
+	}
+	for _, child := range node.Content {
+		if walkYAML(child, lines, listed, keyPatterns) {
+			return true
+		}
+	}
+	return false
+}
+
+func isListedKey(value string, listed []string) bool {
+	for _, key := range listed {
+		if strings.EqualFold(value, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// keyMatchesItsLine reports whether a key pattern matches the 1-based source
+// line, which is where the redactor looks for the key.
+func keyMatchesItsLine(line int, lines []string, keyPatterns []*regexp.Regexp) bool {
+	if line < 1 || line > len(lines) {
+		return false
+	}
+	for _, pattern := range keyPatterns {
+		if pattern != nil && pattern.MatchString(lines[line-1]) {
+			return true
+		}
+	}
+	return false
 }
 
 // explicitKeyLine reports whether line holds an explicit-key indicator or is

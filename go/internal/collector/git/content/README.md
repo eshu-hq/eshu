@@ -72,18 +72,21 @@ updated in the same change.
   quote restored around the marker. A value-shape match (an AWS key, a Slack
   token, a Stripe key) is replaced from the shape to the end of the line. One
   marker per line (arbiter ruling B1, 2026-10-24).
-- **YAML indirection fails closed** (`marker_yaml.go`, #8833). A listed key
-  whose value is an alias (`npmAuthToken: *t`) leaves the secret on the
-  anchor's line, and an explicit `? npmAuthToken` entry puts the value on the
-  next line. Either shape anywhere in the body returns `errYAMLIndirection`,
-  and the path becomes a metadata row with reason `yaml_indirection`.
+- **YAML indirection fails closed** (`marker_yaml.go`, #8833). Before
+  redacting, the body is parsed with `gopkg.in/yaml.v3`. Any alias anywhere,
+  or a mapping key that decodes to a listed key on a source line where the
+  key pattern does not match (an explicit `? npmAuthToken` entry, an escaped
+  spelling such as `"npmAuth\x54oken"`), returns `errYAMLIndirection`. A line
+  check runs too, so a body that does not parse is still covered: an
+  explicit-key indicator (also in a flow collection or with CRLF endings) or
+  value line, and a listed key whose value starts with an alias. The path then
+  becomes a metadata row with reason `yaml_indirection`.
 - **Known limits (denylist).** Marker mode redacts the values of the listed
   keys and the lines the detector matches. It does not see a listed key spelled
-  with an escape (`"npmAuth\x54oken"`) or a homoglyph, and it does not redact a
-  value under an unlisted key that the detector does not flag (an anchor
-  definition `base: &t value` that no listed key aliases). Marker mode is for
-  closed-schema files, where these shapes do not occur;
-  `TestRedactMarkerKnownLimits` pins them.
+  with a homoglyph, or split across lines inside quotes in a body that is not
+  valid YAML, and it does not redact a value under an unlisted key that the
+  detector does not flag. Marker mode is for closed-schema files, where these
+  shapes do not occur; `TestRedactMarkerKnownLimits` pins them.
 - **URL userinfo keys.** A definition's `URLUserinfoKeys` (for `.yarnrc.yml`:
   `npmRegistryServer`, `npmPublishRegistry`, `httpProxy`, `httpsProxy`) lose
   only the userinfo of their URL value (`marker_url_userinfo.go`). The userinfo
