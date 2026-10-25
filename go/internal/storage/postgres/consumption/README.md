@@ -78,3 +78,30 @@ blocking writers; this design trades that for bounded writer waits. If a scope
 livelocks, quiesce its ingestion or park the backfill with the leadership lock
 (see the park-holder runbook). `DefaultLockTimeout` is a Go constant, so raising
 it is a code change and a deploy, not an operator setting.
+
+## sbt key repair (#8961)
+
+`SBTRepair` (`sbt_repair.go`) adds the registry keys stored sbt rows never got.
+It is the one sidecar writer outside the dirty fence, and it is additive on
+purpose: one transaction per 500-fact page, each taking the scope row `FOR NO
+KEY UPDATE` under `lock_timeout` (the lock keeps it from inserting a key from a
+payload an ingester is rewriting), reading only the scope's sbt facts, and
+inserting with `ON CONFLICT (fact_id, ecosystem, package_name) DO NOTHING`. It
+never deletes, never sets the sidecar-writer setting, and never writes a dirty
+row, so reader readiness cannot flip. Only the existence-based package
+consumption count reads these keys, and adding keys can only raise it.
+
+The reducer runs it inside the backfill loop, only once the v2 marker exists,
+100 scopes per pass, with its cursor in `package_manifest_consumption_key_
+backfill_progress` and its running insert total under the same name plus
+`:inserted`. A walk that inserted any key restarts at the first scope; the
+marker `package_manifest_consumption_keys_sbt_repair_v1` is written only after
+a complete walk that inserted nothing, which also catches keys a pre-upgrade
+writer dropped before then. A lock timeout returns an error and the cursor does
+not advance.
+
+Residual. During a rolling deploy, a pre-upgrade reducer that rebuilds an sbt
+scope an old ingester dirtied drops the keys the repair added, and a
+pre-upgrade ingester writes new sbt rows without keys. Both heal at the next
+change of that repository or the next rebuild by current code. To force a fresh
+repair, delete the marker row and the two progress rows named above.

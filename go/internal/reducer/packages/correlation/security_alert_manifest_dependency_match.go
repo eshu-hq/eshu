@@ -93,7 +93,7 @@ func securityAlertManifestConsumptionMatches(
 	if len(alertKeys) == 0 {
 		return false
 	}
-	for _, key := range PackageConsumptionKeys(dependency.PackageManager, packageManifestDependencyNameCandidates(dependency)...) {
+	for _, key := range dependency.ConsumptionKeys(packageManifestDependencyNameCandidates(dependency)...) {
 		if _, ok := alertKeys[key]; ok {
 			return true
 		}
@@ -102,6 +102,9 @@ func securityAlertManifestConsumptionMatches(
 }
 
 func packageManifestDependencyNameCandidates(dependency PackageManifestDependency) []string {
+	if strings.EqualFold(strings.TrimSpace(dependency.PackageManager), "sbt") {
+		return sbtDependencyNameCandidates(dependency)
+	}
 	names := []string{dependency.DependencyName}
 	namespace := strings.TrimSpace(dependency.PackageNamespace)
 	name := strings.TrimSpace(dependency.DependencyName)
@@ -149,4 +152,22 @@ func SecurityAlertPackageNameMatches(alert securityalert.ProviderSecurityAlert, 
 		}
 	}
 	return false
+}
+
+// sbtDependencyNameCandidates returns the registry names an sbt row can be
+// matched on by name alone: the exact organization:name for a `%` row, only
+// the derived Scala-suffixed artifact for a `%%` row, and nothing for a row
+// whose artifact is unknown (`%%` without one binary version, `%%%`, custom
+// cross, or no label). A `%%` row's own name is unsuffixed and never names a
+// published artifact, so it must not match an alert on that coordinate.
+func sbtDependencyNameCandidates(dependency PackageManifestDependency) []string {
+	switch strings.TrimSpace(dependency.SBTCrossVersion) {
+	case "none":
+		return payloadcore.UniqueSortedStrings([]string{strings.TrimSpace(dependency.DependencyName)})
+	case "binary":
+		if artifact := strings.TrimSpace(dependency.SBTBinaryArtifact); artifact != "" {
+			return []string{artifact}
+		}
+	}
+	return nil
 }

@@ -465,6 +465,10 @@ func defaultRawPayloadExemptions() []RawPayloadExemption {
 		// #8824: a central version pin (NuGet PackageVersion) is never package
 		// consumption, so the sidecar predicate drops it by this flag.
 		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "centralFlagText", Key: "central_version_declaration"},
+		// #8961: an sbt row joins the Maven artifact it publishes, which only
+		// these two keys name; the sbt parser writes both (go/internal/parser/sbt).
+		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestMetadataString", Key: "sbt_cross_version"},
+		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestMetadataString", Key: "sbt_binary_artifact"},
 		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestMetadataString", Key: "namespace"},
 		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: rawPayloadIndexAccessor, Key: "entity_metadata"},
 		{Path: "go/internal/storage/postgres/package_registry_identity_keys.go", Accessor: "packageManifestPayloadString", Key: "package_id"},

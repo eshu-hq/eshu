@@ -391,5 +391,9 @@ tracked. A leading UTF-8 byte order mark is ignored.
 - `ThisBuild /` and `Global /` keys and a declared-project axis (`core /`) are
   partial. sbt can read them through delegation, but the grammar keeps only the
   forms it can prove.
-- Sbt rows do not yet join a registry package identity (#8961) and keep the
-  line-keyed entity id (#8962).
+- Sbt rows join a Maven registry identity through
+  `packageidentity.ManifestConsumptionKeys` (#8961): a `%` row by its exact
+  name, a `%%` row only by `sbt_binary_artifact`, and every other row (`%%%`,
+  custom `cross`, no known binary version, a pre-release) not at all. The
+  parser does not change for this: `name` stays the unsuffixed
+  `organization:name`. Rows keep the line-keyed entity id (#8962).

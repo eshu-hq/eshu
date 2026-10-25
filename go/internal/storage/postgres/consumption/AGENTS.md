@@ -23,3 +23,7 @@ Scoped instructions for this package. The root `AGENTS.md` and the parent
 - This package imports `facts`, `telemetry`, `postgres/db`, and
   `postgres/coordination`, never the parent `postgres` package. The parent
   supplies the page query and the refresh through `PageLoader` and `Refresher`.
+- `SBTRepair` must stay additive: no delete, no `DO UPDATE`, no dirty row, and no
+  writer setting. It keeps the scope row lock per page, which is what stops it
+  inserting a key from a payload an ingester is rewriting. Write its marker only
+  after a walk that inserted nothing.

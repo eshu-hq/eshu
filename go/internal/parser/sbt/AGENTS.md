@@ -105,7 +105,11 @@
 - `dependency_resolution_state` stays in the `resolved`/`partial`/`unresolved`
   vocabulary the reducer and docs depend on.
 - `name` is `organization:name` as written. Do not append the Scala suffix to
-  it; `sbt_binary_artifact` carries the derived artifact name.
+  it; `sbt_binary_artifact` carries the derived artifact name. The registry
+  join reads `sbt_cross_version` and `sbt_binary_artifact`
+  (`packageidentity.ManifestConsumptionKeys`): a row without an artifact joins
+  nothing, so a change to when `sbt_binary_artifact` is emitted changes which
+  Scala dependencies reach a registry package.
 - Emitted rows and `sbt_state` are deterministic: rows sort by name with a
   stable sort, and no map iteration order reaches the output.
 

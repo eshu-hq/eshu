@@ -57,19 +57,23 @@ func TestPackageManifestBackfillWaitsForCancellationAndDrain(t *testing.T) {
 
 func TestPackageManifestBackfillPollInterval(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		ran   bool
-		ready bool
-		err   error
-		want  time.Duration
+		name          string
+		ran           bool
+		ready         bool
+		repairPending bool
+		err           error
+		want          time.Duration
 	}{
 		{name: "initial backfill", ran: true, ready: false, want: time.Second},
 		{name: "ready repair", ran: true, ready: true, want: 30 * time.Second},
+		{name: "ready with a pending sbt repair", ran: true, ready: true, repairPending: true, want: time.Second},
+		{name: "contended replica with a pending sbt repair", ran: false, repairPending: true, want: 30 * time.Second},
+		{name: "failed pass with a pending sbt repair", ran: true, repairPending: true, err: context.DeadlineExceeded, want: 30 * time.Second},
 		{name: "contended replica", ran: false, want: 30 * time.Second},
 		{name: "failed pass", ran: true, err: context.DeadlineExceeded, want: 30 * time.Second},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := packageManifestBackfillPollInterval(tc.ran, tc.ready, tc.err); got != tc.want {
+			if got := packageManifestBackfillPollInterval(tc.ran, tc.ready, tc.repairPending, tc.err); got != tc.want {
 				t.Fatalf("poll interval = %v, want %v", got, tc.want)
 			}
 		})

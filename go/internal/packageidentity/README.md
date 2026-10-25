@@ -28,6 +28,16 @@ truth; reducers admit user-facing truth.
   `pub.dev` and `dart`, and distro package managers, plus SwiftPM aliases such
   as `swiftpm` and `spm` and Hex aliases such as `hexpm`, onto Eshu's canonical
   ecosystems.
+- `ManifestConsumptionKeys` turns one manifest dependency row into registry
+  join keys. Every package manager but sbt goes through `ConsumptionKeys`
+  unchanged; an sbt row joins the Maven artifact it publishes: `%` by its exact
+  name, `%%` only by `sbt_binary_artifact` (`name_2.13`, `name_3`), and `%%%`, a
+  custom `cross`, or a row with no known Scala binary version not at all.
+  `NormalizeEcosystem("sbt")` stays empty so no caller can reach the unsuffixed
+  name through an alias.
+- `ManifestPackageManagersForEcosystem` lists the `package_manager` values a
+  registry ecosystem's manifests can carry (`maven` -> `gradle`, `maven`,
+  `sbt`). It is a read prefilter, never an identity rule.
 - `NormalizeRegistry` canonicalizes registry host/path values without hiding
   the source registry.
 - `DefaultRegistry` returns the canonical registry host for an ecosystem so

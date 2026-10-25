@@ -115,11 +115,26 @@ partial rows, both counted in `sbt_state.unresolved_declaration_count`.
 The registry binds `build.sbt` by its base name, so `project/build.sbt`, sbt's
 meta-build, is parsed: its `sbt_state.meta_build` is `true` and every row from
 it is partial, because those dependencies are on the build definition's
-classpath, not the project's. Package-registry correlation for sbt rows is not
-wired yet: `sbt` is not a recognised package-manager alias, so these rows do not
-join registry identities until [#8961](https://github.com/eshu-hq/eshu/issues/8961)
-lands, and they keep the line-keyed entity id
-([#8962](https://github.com/eshu-hq/eshu/issues/8962)).
+classpath, not the project's. sbt rows join a Maven registry identity through
+the artifact they publish, never through the unsuffixed row name
+([#8961](https://github.com/eshu-hq/eshu/issues/8961)):
+
+| Row | Joins Maven package |
+| --- | --- |
+| `%` | the exact `organization:name` |
+| `%%` with one known Scala binary version | only `organization:name_<binary>` (`_2.13`, `_3`) |
+| `%%` without a known binary version, a pre-release or conflicting `scalaVersion` | nothing |
+| `%%%`, a custom `cross`, or no cross label | nothing |
+
+`sbt` is deliberately not a package-manager alias: only the row's cross-version
+label and `sbt_binary_artifact` can name a Maven artifact. The join is identity
+evidence for package consumption and security-alert matching. It adds no JVM
+package API evidence, so an sbt-sourced finding does not claim package
+reachability. sbt rows keep the line-keyed entity id
+([#8962](https://github.com/eshu-hq/eshu/issues/8962)). Rows already stored
+gain their registry keys through the reducer's sbt repair within minutes of the
+upgrade, without a readiness gap; rows a pre-upgrade reducer or ingester
+rewrites during the rollout are repaired at the next change of that repository.
 
 Known limits of the sbt reading:
 

@@ -36,6 +36,9 @@ read the durable facts; they never import this package.
 ## Seams other families use
 
 - Manifest evidence: `ExtractPackageManifestDependencies`,
+  `PackageManifestDependency.ConsumptionKeys` (the one place a dependency row
+  becomes registry keys; an sbt row joins only the Maven artifact it publishes,
+  #8961),
   `PackageConsumptionKeys`, `PackageConsumptionNameCandidates`,
   `ExtractPackageRegistryIdentities`, `PackageManifestDependency`,
   `PackageRegistryIdentity`, `PackageManifestDependencyFactFilter`.
@@ -85,3 +88,36 @@ the predicate runs in memory during projection.
 
 No-Observability-Change: no metric, span, log line, or status field changes;
 the existing decision fields already surface the row state.
+
+## Evidence (#8961)
+
+Performance Evidence: `go test -run '^$' -bench BenchmarkManifestConsumptionKeys
+-benchmem -count=3 ./internal/packageidentity` (linux, 16 CPUs, load average
+6 to 13) measured the helper every manifest site now calls. A non-sbt row costs
+the same as the direct `ConsumptionKeys` call it replaced: 669 to 811 ns/op,
+408 B/op, 11 allocs/op direct against 671 to 685 ns/op, 408 B/op, 11 allocs/op
+through the helper (two runs, the spread is host load). An sbt `%%` row with a
+known artifact costs 906 to 924 ns/op, 680 B/op, 16 allocs/op. The Postgres read this change widens is measured
+in `go/internal/storage/postgres/facts_active_package_manifest_dependency.go`
+(throwaway Postgres 18, 1.3M dependency rows, 13,000 sbt rows, EXPLAIN
+(ANALYZE, BUFFERS)).
+The reducer's sbt key repair for stored rows (`consumption/sbt_repair.go`) ran
+end to end on 1,713,000 `content_entity` rows with 13,000 sbt rows in all 4,000
+scopes (throwaway Postgres 18, hot cache): walk 1 took 41 passes and 7.5 s and
+inserted 17,334 keys, walk 2 took 41 passes and 8.3 to 9.5 s and inserted none
+and wrote the marker; the slowest page transaction was 95 to 158 ms, and 805 ms
+when an ingester held the scope row for 800 ms (lock timeout 5 s). The listing
+page took 5.8 ms (28.4 ms on a cold first run) and one scope page 1.2 ms.
+
+No-Regression Evidence: `go test -race -count=1 ./internal/packageidentity
+./internal/reducer/... ./internal/storage/postgres ./cmd/reducer` passed; the
+non-sbt key sets are asserted byte-identical to `ConsumptionKeys` in
+`TestManifestConsumptionKeysSBTJoinRules`, and the non-Maven read keeps the
+original query text and arguments
+(`TestListActivePackageManifestDependencyFactsKeepsNonMavenQueryUnchanged`).
+
+No-Observability-Change: the join is a pure function inside existing reducer
+handlers; the reducer run span, execution counters, and the package
+consumption counts they already emit cover it. A `%%` row with no known Scala
+binary version joins nothing on purpose, and the operator reads why from the
+row's `sbt_state` and `sbt_cross_version` on the content entity.

@@ -93,7 +93,17 @@ operational lessons that future storage changes still need to respect.
   correlation and supply-chain impact. The query stays indexed on active Git
   dependency entities by `(package_manager, entity_name)`, so vulnerability
   impact can load repository lockfile evidence for one advisory package without
-  waiting for package-registry enrichment to finish.
+  waiting for package-registry enrichment to finish. A Maven ecosystem filter
+  expands to `gradle`, `maven`, and `sbt` rows and adds a second branch for sbt
+  `%%` rows, whose artifact name rides in `sbt_binary_artifact` (#8961); see
+  `facts_active_package_manifest_dependency.go`. The branch reads the `sbt`
+  prefix of the same index, so its cost follows the number of sbt dependency
+  rows. Both branches over-select; `packageidentity.ManifestConsumptionKeys` is
+  the accuracy gate.
+  Stored sbt rows have no sidecar keys until the reducer's marker-gated sbt
+  repair adds them (#8961). It writes the sidecar outside the dirty fence on
+  purpose: it only inserts, under the scope row lock, so readiness never flips.
+  A rolling deploy can drop keys it added; see `consumption/README.md`.
 - `ListActiveJVMReachabilityFacts` serves JVM vulnerability reachability
   enrichment after Maven or Gradle dependency evidence has already proven a
   canonical repository and resolver-backed API package prefix. The query is

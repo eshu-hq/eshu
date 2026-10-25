@@ -7,6 +7,20 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/projector_queue_zombie_heal_live_test.go": (
+            "TestProjectorRefusalHealsMarkedSupersededGeneration",
+            "TestProjectorRepeatedRefusalsOpenOneActiveRow",
+            "TestProjectorConcurrentHealsOpenOneActiveRow",
+            "TestProjectorRefusalSkipsHealWithoutWriteMarker",
+            "TestProjectorSupersededByNewerSkipsHeal",
+            "TestProjectorRefusalSkipsHealWithoutActiveGeneration",
+            "TestProjectorRefusalSkipsHealWhenActiveRowInFlight",
+        ),
+        "go/internal/storage/postgres/pruned_generation_lock_order_live_test.go": (
+            "TestRetentionCascadeHeldRowRaceLive",
+            "TestRetentionCascadeDeletesRowChangedBeforeItsLockLive",
+            "TestRetentionCascadeConcurrentWithSweepAndReplaysNeverDeadlockLive",
+        ),
         "go/internal/storage/postgres/recovery_refinalize_delta_active_fence_live_test.go": (
             "TestRefinalizeDeltaActiveRollsBackReindexWithTheTransaction",
             "TestRefinalizeDeltaActiveReindexLockContention",

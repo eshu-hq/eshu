@@ -370,6 +370,20 @@ TABLE = {
         "go/internal/storage/postgres/package_manifest_consumption_page_plan_live_test.go": (
             "TestPackageManifestConsumptionScopeFactsPageUsesBackfillIndexLive",
         ),
+        "go/internal/storage/postgres/package_manifest_sbt_artifact_live_test.go": (
+            "TestListActivePackageManifestDependencyFactsReachesGradleAndSBTLive",
+        ),
+        "go/internal/storage/postgres/package_manifest_sbt_repair_live_test.go": (
+            "TestPackageManifestSBTRepairOldLogicRunLeavesRepairStateUntouched",
+            "TestPackageManifestSBTRepairAddsKeysWithoutFlippingReadiness",
+            "TestPackageManifestSBTRepairIsANoOpWithoutSBTRows",
+            "TestPackageManifestSBTRepairWaitsForTheV2Marker",
+        ),
+        "go/internal/storage/postgres/package_manifest_sbt_repair_lock_live_test.go": (
+            "TestPackageManifestSBTRepairResumesAtItsCursorAfterAFailedPage",
+            "TestPackageManifestSBTRepairReturnsLockTimeoutWithoutAdvancing",
+            "TestPackageManifestSBTRepairNeverInsertsAStaleKeyBehindARewrite",
+        ),
         "go/internal/storage/postgres/prefetch_batch_plan_live_test.go": (
             "TestPrefetchBatchQueriesUsePrimaryKeyLive",
         ),
@@ -469,20 +483,6 @@ TABLE = {
         ),
         "go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go": (
             "TestProjectorZombieHealRestoresCanonicalNodesLive",
-        ),
-        "go/internal/storage/postgres/projector_queue_zombie_heal_live_test.go": (
-            "TestProjectorRefusalHealsMarkedSupersededGeneration",
-            "TestProjectorRepeatedRefusalsOpenOneActiveRow",
-            "TestProjectorConcurrentHealsOpenOneActiveRow",
-            "TestProjectorRefusalSkipsHealWithoutWriteMarker",
-            "TestProjectorSupersededByNewerSkipsHeal",
-            "TestProjectorRefusalSkipsHealWithoutActiveGeneration",
-            "TestProjectorRefusalSkipsHealWhenActiveRowInFlight",
-        ),
-        "go/internal/storage/postgres/pruned_generation_lock_order_live_test.go": (
-            "TestRetentionCascadeHeldRowRaceLive",
-            "TestRetentionCascadeDeletesRowChangedBeforeItsLockLive",
-            "TestRetentionCascadeConcurrentWithSweepAndReplaysNeverDeadlockLive",
         ),
     },
 }
