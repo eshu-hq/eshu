@@ -70,6 +70,15 @@ gates:
       # ambient goal state, so editing it alone must select the gate that
       # runs it, for the same reason as every sibling companion.
       - "scripts/test-goal-refresh-hook-hermetic-cases.sh"
+      # The goal issue ledger: capture hook, its suite and sourced companion, the
+      # fake gh the suite puts on PATH, and the payloads recorded live from
+      # Claude and Muse. Each is a trigger path in its own right so editing one
+      # alone selects the gate that runs it. The hooks and lib/ are already
+      # covered by .claude/hooks/**.
+      - "scripts/test-issue-capture-hook.sh"
+      - "scripts/test-issue-capture-hook-cases.sh"
+      - "scripts/lib/test-issue-capture-fake-gh.sh"
+      - "scripts/testdata/issue-capture/**"
       # The workflow itself, so removing a test STEP selects the gate
       # that asserts the step is there. Without this a workflow-only
       # edit re-opens the local/CI parity gap silently.
@@ -129,6 +138,10 @@ gates:
       - "scripts/test-goal-refresh-hook-guard-cases.sh"
       - "scripts/test-goal-refresh-hook-parity-cases.sh"
       - "scripts/test-goal-refresh-hook-hermetic-cases.sh"
+      - "scripts/test-issue-capture-hook.sh"
+      - "scripts/test-issue-capture-hook-cases.sh"
+      - "scripts/lib/test-issue-capture-fake-gh.sh"
+      - "scripts/testdata/issue-capture/**"
       - ".github/workflows/verify-agent-hygiene.yml"
       - ".pre-commit-config.yaml"
       - "scripts/verify-no-ai-attribution.sh"
@@ -146,7 +159,7 @@ gates:
       # change selects it -- but running only the canon mirror would skip the
       # behavioural hook suite, and an exit-code or routing regression would
       # first appear in Actions despite being credential-free.
-      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && python3 scripts/test-codex-spawn-guard.py && python3 scripts/test-goal-role-router.py && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-muse-hooks.sh && bash scripts/test-cursor-hooks.sh && bash scripts/test-verify-agent-canon-pipes.sh"
+      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && python3 scripts/test-codex-spawn-guard.py && python3 scripts/test-goal-role-router.py && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-issue-capture-hook.sh && bash scripts/test-muse-hooks.sh && bash scripts/test-cursor-hooks.sh && bash scripts/test-verify-agent-canon-pipes.sh"
     ci:
       workflow: verify-agent-hygiene.yml
       job: "Agent hygiene gate"

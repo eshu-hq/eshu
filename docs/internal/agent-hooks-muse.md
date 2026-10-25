@@ -23,6 +23,7 @@ payloads are per-harness (the canon rule in `agent-hooks.md` applies).
 | `guard-spawn.sh` | PreToolUse | `subagent_spawn`, `workflow` (separate entries) | `goal-role-router.py muse-dispatch` (no Claude sibling; Muse's analogue of Claude's `PreToolUse: Agent` dispatch) |
 | `on-compact.sh` | SessionStart, PreCompact | — | `on-compact.sh` |
 | `eshu-doc-staleness.sh` | PostToolUse | `write_file`, `edit_file` | `eshu-doc-staleness.sh` |
+| `issue-capture.sh` | PostToolUse | `bash` | `issue-capture.sh` (records an issue filed during a goal; see [Goal Issue Ledger](agent-hooks-issues.md)) |
 
 `scripts/test-muse-hooks.sh` feeds recorded Muse payloads through the
 wrappers and asserts translation plus verdict, including a parity section
@@ -42,7 +43,10 @@ the port; the shapes that matter:
 - `UserPromptSubmit` carries `prompt`. `Stop` carries
   `last_assistant_message` and `stop_hook_active`.
 - `PreToolUse`/`PostToolUse` carry `tool_name`, `tool_input`,
-  `tool_use_id` (and `tool_response` on PostToolUse). Tool names differ:
+  `tool_use_id` (and `tool_response` on PostToolUse; for `bash` it is a
+  **JSON-encoded string** whose object has `output` and `exit_code`, recorded live
+  in `scripts/testdata/issue-capture/muse-posttool-bash.json`, where Claude sends
+  an object with `stdout`). Tool names differ:
   `write_file` (path at `tool_input.path`), `edit_file` (same),
   `bash` (command at `tool_input.command`, same as Claude), `read_skill`
   (id at `tool_input.name`). The edit path may be **relative to the
@@ -92,7 +96,13 @@ Output protocol is Claude-compatible where it matters:
   progress by design, same as Claude).
 - **Observer sessions have their own ids.** Background observer tool
   calls arrive with distinct `session_id`s, so their skill markers never
-  satisfy the lead session's nudge. Same as Claude's subagent behavior.
+  satisfy the lead session's nudge. This is NOT Claude's subagent behavior:
+  a Claude Code subagent's Bash PostToolUse carries the lead's `session_id` (plus
+  `agent_id`), recorded live. `issue-capture.sh` therefore falls back to the
+  single live goal for a session with none of its own.
+- **Hook timeout.** A probe PostToolUse hook that slept 75 seconds was not
+  cut off, so the Stop gate's 30-second `gh` cap fits under Muse's default.
+  No setting for it is used in `.muse/hooks.json`.
 - **Goal files are shared.** Both harnesses read and write the same
   `.claude/active-goal*` files: a `/goal` set under Claude is enforced
   under Muse and vice versa.

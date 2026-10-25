@@ -100,6 +100,15 @@
             "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/skill-loaded.sh\""
           }
         ]
+      },
+      {
+        "matcher": "bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/issue-capture.sh\""
+          }
+        ]
       }
     ],
     "PreCompact": [

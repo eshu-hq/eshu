@@ -1,0 +1,27 @@
+{
+ "agent_id": "a94bb56e95918e2c7",
+ "agent_type": "general-purpose",
+ "cwd": "/WORKTREE",
+ "duration_ms": 26,
+ "effort": {
+  "level": "high"
+ },
+ "hook_event_name": "PostToolUse",
+ "permission_mode": "bypassPermissions",
+ "prompt_id": "2d148134-0baa-4a3b-9fb1-ca6d1714981e",
+ "session_id": "7db7cb25-8813-4ff1-8444-cd1661e53ff6",
+ "tool_input": {
+  "command": "echo sub",
+  "description": "Print the word sub"
+ },
+ "tool_name": "Bash",
+ "tool_response": {
+  "interrupted": false,
+  "isImage": false,
+  "noOutputExpected": false,
+  "stderr": "",
+  "stdout": "sub"
+ },
+ "tool_use_id": "toolu_01Ud91nCgL5BmhUwYBzEmu1C",
+ "transcript_path": "/TRANSCRIPT.jsonl"
+}

@@ -249,5 +249,106 @@ else
 	ok "an explicit override never falls through to another goal file"
 fi
 
+# ── the goal issue ledger: three readers, one resolver ──────────────────────
+#
+# issue-capture.sh, goal-continue.sh and goal-refresh.sh all find a session's
+# ledger through lib/goal-issues.sh, so they must agree layout by layout:
+#   refresher  restates an open ledger issue iff the goal is active for the session
+#   capture    files a new issue into that same ledger (kind "goal") iff the
+#              resolver finds an active goal for the session
+#   Stop       refuses DONE for an open ledger issue iff the session's own goal
+#              was retired (an unheaded or foreign DONE file is the owner's)
+# gh is a fake on PATH; the refresher is also asserted to make NO call.
+ic_work="${work}/issue-parity"
+mkdir -p "${ic_work}/bin" "${ic_work}/fx"
+cp "${repo_root}/scripts/lib/test-issue-capture-fake-gh.sh" "${ic_work}/bin/gh"
+chmod +x "${ic_work}/bin/gh"
+
+# issue_parity_case <label> <refresher: yes|no> <capture-into-goal: yes|no> <stop: block|allow> <file-content>
+issue_parity_case() {
+	local label="$1" want_r="$2" want_c="$3" want_s="$4" content="$5"
+	local dir ctx cap_in got_r got_c got_s ledger out
+	dir="$(mktemp -d)"
+	mkdir -p "${dir}/.claude" "${dir}/.agents/skills/eshu-code-review"
+	printf '%s' "${content}" >"${dir}/.claude/active-goal"
+	ledger="${dir}/.claude/active-goal.issues"
+	printf 'eshu-hq/eshu#7777 2026-10-25T00:00:00Z open\n' >"${ledger}"
+	: >"${ic_work}/fx/calls.log"
+
+	ctx="$(injected "$(SID="${me}" CWD="${dir}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "ip", "cwd": os.environ["CWD"],
+                  "prompt": "carry on", "hook_event_name": "UserPromptSubmit"}))
+' | PATH="${ic_work}/bin:${PATH}" FIXTURES="${ic_work}/fx" bash "${REFRESH}" 2>/dev/null)")"
+	got_r=no
+	rg -q 'eshu-hq/eshu#7777' <<<"${ctx}" && got_r=yes
+	[[ "$(wc -l <"${ic_work}/fx/calls.log" | tr -d ' ')" == 0 ]] || got_r="${got_r}+network"
+
+	cap_in="$(SID="${me}" CWD="${dir}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "cwd": os.environ["CWD"],
+                  "tool_input": {"command": "gh issue create -R eshu-hq/eshu --title t"},
+                  "tool_response": {"stdout": "https://github.com/eshu-hq/eshu/issues/7778"}}))
+')"
+	printf '%s' "${cap_in}" | PATH="${ic_work}/bin:${PATH}" FIXTURES="${ic_work}/fx" \
+		bash "${repo_root}/.claude/hooks/issue-capture.sh" >/dev/null 2>&1
+	got_c=no
+	rg -q '^eshu-hq/eshu#7778 ' "${ledger}" && got_c=yes
+
+	out="$(SID="${me}" CWD="${dir}" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "ips-" + os.environ["SID"],
+                  "stop_hook_active": False, "cwd": os.environ["CWD"], "hook_event_name": "Stop"}))
+' | PATH="${ic_work}/bin:${PATH}" FIXTURES="${ic_work}/fx" bash "${CONTINUE}" 2>/dev/null)"
+	got_s=allow
+	rg -q '"decision"[[:space:]]*:[[:space:]]*"block"' <<<"${out}" && got_s=block
+	rm -rf "${dir}"
+
+	# An ACTIVE goal also blocks the Stop hook (the goal itself); what this case
+	# pins is the ISSUE refusal, so an active layout only has to agree it blocks.
+	if [[ "${got_r}" == "${want_r}" && "${got_c}" == "${want_c}" && "${got_s}" == "${want_s}" ]]; then
+		ok "ISSUE LEDGER PARITY ${label}: refresher=${got_r} capture-into-goal=${got_c} stop=${got_s}"
+	else
+		no "ISSUE LEDGER PARITY ${label}: refresher=${got_r} capture=${got_c} stop=${got_s} (want ${want_r}/${want_c}/${want_s})"
+	fi
+}
+ime="issue-${sid}"
+me="${ime}"
+issue_parity_case "own goal, active" yes yes block \
+	"SESSION: ${me}
+ISSUEPLAIN objective.
+"
+issue_parity_case "unheaded owner goal, active" yes yes block \
+	"ISSUEUNHEADED objective.
+"
+issue_parity_case "CONSENT above own SESSION, active" yes yes block \
+	"CONSENT: push
+SESSION: ${me}
+ISSUECONSENT objective.
+"
+# A shared goal headed for another session is not THIS session's goal (refresher
+# silent, Stop allows), but it is the one live goal in the checkout, so capture
+# files into it through the single-lead fallback rather than dropping the issue.
+issue_parity_case "foreign SESSION (single-lead fallback)" no yes allow \
+	"SESSION: somebody-else
+ISSUEFOREIGN objective.
+"
+issue_parity_case "own SESSION, DONE beneath it (retired)" no no block \
+	"SESSION: ${me}
+DONE
+ISSUEHEADEDDONE objective.
+"
+issue_parity_case "CONSENT above own SESSION above DONE (retired)" no no block \
+	"CONSENT: push
+SESSION: ${me}
+DONE
+ISSUECONSENTDONE objective.
+"
+issue_parity_case "unheaded DONE is the owner's, never the session's" no no allow \
+	"DONE
+ISSUEOWNERDONE objective.
+"
+me="parity-${sid}"
+
 # LAST line on purpose -- see the sibling companions.
 goal_refresh_parity_cases_loaded=1

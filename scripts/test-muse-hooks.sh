@@ -92,7 +92,7 @@ else
   no ".muse/hooks.json is valid JSON (missing file or python3)"
 fi
 
-for w in goal-continue goal-refresh skill-nudge skill-loaded guard-live-gate guard-spawn on-compact eshu-doc-staleness; do
+for w in goal-continue goal-refresh skill-nudge skill-loaded guard-live-gate guard-spawn on-compact eshu-doc-staleness issue-capture; do
   if [[ -f "${MH}/${w}.sh" ]]; then
     ok "wrapper exists: .muse/hooks/${w}.sh"
   else
@@ -105,7 +105,7 @@ done
 [[ -f "${MH}/lib/muse-root.sh" ]] || no "shared lib .muse/hooks/lib/muse-root.sh exists"
 
 if [[ -f "${repo_root}/.muse/hooks.json" ]]; then
-  for w in goal-continue goal-refresh skill-nudge skill-loaded guard-live-gate guard-spawn on-compact eshu-doc-staleness; do
+  for w in goal-continue goal-refresh skill-nudge skill-loaded guard-live-gate guard-spawn on-compact eshu-doc-staleness issue-capture; do
     if rg -q "\.muse/hooks/${w}\.sh" "${repo_root}/.muse/hooks.json"; then
       ok "hooks.json routes to ${w}.sh"
     else
@@ -298,6 +298,47 @@ spawn() { # tool_input-json -> exit code on stdout
 [[ "$(spawn '{"subagent_type":"arbiter-eshu","model":"muse-wonder-full-1.0","effort":"xhigh"}')" -eq 0 ]] && ok "guard allows manifest-tier arbiter-eshu" || no "guard allows manifest-tier arbiter-eshu"
 [[ "$(spawn '{"subagent_type":"bogus-eshu"}')" -eq 2 ]] && ok "guard blocks unknown Eshu role" || no "guard blocks unknown Eshu role"
 [[ "$(spawn '{"subagent_type":"general-purpose"}')" -eq 0 ]] && ok "guard passes non-Eshu spawn through" || no "guard passes non-Eshu spawn through"
+
+# ── K. issue-capture wrapper: the recorded Muse envelope, then the DONE gate ──
+#
+# The payload is scripts/testdata/issue-capture/muse-posttool-bash.json, recorded
+# live from `muse exec`: tool_response is a JSON-encoded STRING whose object has
+# `output` (Claude sends an object with `stdout`). gh is the same fake the
+# issue-capture suite uses, so nothing here reaches the network.
+icrepo="${work}/icrepo"
+mkdir -p "${icrepo}/.claude" "${icrepo}/.agents/skills/eshu-code-review" "${work}/icbin" "${work}/icfx"
+cp "${repo_root}/scripts/lib/test-issue-capture-fake-gh.sh" "${work}/icbin/gh"
+chmod +x "${work}/icbin/gh"
+: >"${work}/icfx/calls.log"
+printf 'SESSION: %s\nCapture me.\n' "${sid}" >"${icrepo}/.claude/active-goal.${sid}"
+ic_payload="$(FIX="${repo_root}/scripts/testdata/issue-capture/muse-posttool-bash.json" SID="${sid}" CWD="${icrepo}" python3 -c '
+import json, os
+d = json.load(open(os.environ["FIX"]))
+d["session_id"] = os.environ["SID"]
+d["cwd"] = os.environ["CWD"]
+d["tool_input"]["command"] = "gh issue create -R eshu-hq/eshu --title t"
+d["tool_response"] = json.dumps({"output": "https://github.com/eshu-hq/eshu/issues/9501\n", "exit_code": 0})
+print(json.dumps(d))
+')"
+ic_out="$(printf '%s' "${ic_payload}" | PATH="${work}/icbin:${PATH}" FIXTURES="${work}/icfx" bash "${MH}/issue-capture.sh" 2>/dev/null)"
+if rg -q '^eshu-hq/eshu#9501 [0-9T:Z-]+ open$' "${icrepo}/.claude/active-goal.${sid}.issues" 2>/dev/null; then
+  ok "issue-capture wrapper: the recorded Muse envelope lands in the goal's ledger"
+else
+  no "issue-capture wrapper: the recorded Muse envelope lands in the goal's ledger"
+fi
+rg -q 'eshu-hq/eshu#9501' <<<"${ic_out}" && ok "issue-capture wrapper: additionalContext names the issue" || no "issue-capture wrapper: additionalContext names the issue"
+printf 'garbage' | bash "${MH}/issue-capture.sh" >/dev/null 2>&1
+[[ "$?" -eq 0 ]] && ok "issue-capture wrapper never blocks, even on garbage" || no "issue-capture wrapper never blocks, even on garbage"
+
+# Stop under the Muse envelope: DONE is refused while the captured issue is open.
+printf 'DONE\nSESSION: %s\nCapture me.\n' "${sid}" >"${icrepo}/.claude/active-goal.${sid}"
+ic_stop() { # turn_id
+  printf '{"hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"status","session_id":"%s","turn_id":"%s","cwd":"%s","transcript_path":null}' \
+    "${sid}" "$1" "${icrepo}" | PATH="${work}/icbin:${PATH}" FIXTURES="${work}/icfx" bash "${MH}/goal-continue.sh" 2>/dev/null
+}
+[[ "$(verdict "$(ic_stop ic1)")" == "block" ]] && ok "Stop (Muse envelope): DONE refused while a captured issue is open" || no "Stop (Muse envelope): DONE refused while a captured issue is open"
+printf 'CLOSED' >"${work}/icfx/state-9501"
+[[ "$(verdict "$(ic_stop ic2)")" == "allow" ]] && ok "Stop (Muse envelope): DONE allowed once the issue is closed" || no "Stop (Muse envelope): DONE allowed once the issue is closed"
 
 rm -f "/tmp/claude-skill-loaded-${sid12}-"* "/tmp/claude-skill-override-${sid12}"
 

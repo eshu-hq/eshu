@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+# Sourced by scripts/test-issue-capture-hook.sh -- not run on its own.
+#
+# The READ side of the goal issue ledger: the Stop hook's DONE refusal, the
+# DEFER escape and its check, the independence of that refusal from the goal's
+# no-progress budget, fail-open on a slow or dead gh, and the per-turn
+# restatement plus orphan merge in goal-refresh.sh.
+#
+# A trigger path for the agent-canon gate. Its sentinel is the last line,
+# asserted by the parent suite. Append ABOVE it.
+
+# shellcheck disable=SC2154,SC2034 # variables come from the sourcing suite; the sentinel is read there
+
+stop_payload() { # sid cwd prompt_id
+	SID="$1" CWD="$2" PID_="$3" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": os.environ["PID_"],
+                  "stop_hook_active": False, "cwd": os.environ["CWD"],
+                  "hook_event_name": "Stop"}))
+'
+}
+
+refresh_payload() { # sid cwd
+	SID="$1" CWD="$2" python3 -c '
+import json, os
+print(json.dumps({"session_id": os.environ["SID"], "prompt_id": "refresh",
+                  "cwd": os.environ["CWD"], "prompt": "carry on",
+                  "hook_event_name": "UserPromptSubmit"}))
+'
+}
+
+stop_out="" stop_err="" stop_rc=0
+run_stop() { # payload [VAR=value ...]
+	local payload="$1"
+	shift
+	stop_out="$(printf '%s' "${payload}" | env "$@" bash "${CONTINUE}" 2>"${work}/stop.err")"
+	stop_rc=$?
+	stop_err="$(cat "${work}/stop.err")"
+}
+verdict_of() { if rg -q '"decision"[[:space:]]*:[[:space:]]*"block"' <<<"$1"; then printf block; else printf allow; fi; }
+reason_of() {
+	printf '%s' "$1" | python3 -c '
+import json, sys
+try:
+    print(json.load(sys.stdin).get("reason", ""))
+except Exception:
+    pass
+' 2>/dev/null
+}
+
+seed() { # ledger line... (appends, one per argument)
+	local f="$1"
+	shift
+	local l
+	for l in "$@"; do printf '%s\n' "${l}" >>"${f}"; done
+}
+OPEN9101='eshu-hq/eshu#9101 2026-10-25T00:00:00Z open'
+nudge_counters() { ls "${TMPDIR}"/claude-goal-nudge-* 2>/dev/null | wc -l | tr -d ' '; }
+
+# ── 6. Stop: DONE is refused while an issue is open ──────────────────────────
+# `/goal done` prepends DONE to the per-session file; the lookup then PASSES
+# OVER that tombstone, so the gate has to find it again -- the layout the owner
+# actually produces. Two further layouts reach it through CLAUDE_GOAL_FILE,
+# which is honoured as retired rather than skipped.
+sdone="sd-${run_tag}"
+
+fx_reset
+R="$(mk_repo stop-tomb)"
+printf 'DONE\nSESSION: %s\nFinish the thing.\n' "${sdone}" >"${R}/.claude/active-goal.${sdone}"
+seed "$(ledger_of "${R}/.claude/active-goal.${sdone}")" "${OPEN9101}"
+run_stop "$(stop_payload "${sdone}" "${R}" p-tomb)"
+[[ "$(verdict_of "${stop_out}")" == block ]] &&
+	ok "DONE tombstone + open issue: the stop is refused" || no "DONE tombstone + open issue: the stop is refused (out=${stop_out:0:80})"
+reason="$(reason_of "${stop_out}")"
+rg -q 'eshu-hq/eshu#9101' <<<"${reason}" && rg -q 'DEFER: #9101' <<<"${reason}" &&
+	ok "the refusal names the issue and both exits" || no "the refusal names the issue and both exits"
+rg -q -- 'issue view 9101 -R eshu-hq/eshu --json state' "${FIXTURES}/calls.log" &&
+	ok "the gate asks gh for the issue state" || no "the gate asks gh for the issue state"
+has_line "$(ledger_of "${R}/.claude/active-goal.${sdone}")" '^eshu-hq/eshu#9101 .* open$' &&
+	ok "an open issue stays open in the ledger" || no "an open issue stays open in the ledger"
+
+fx_reset
+R="$(mk_repo stop-first-line)"
+printf 'DONE\nFinish the thing.\n' >"${R}/goal"
+seed "$(ledger_of "${R}/goal")" "${OPEN9101}"
+run_stop "$(stop_payload "${sdone}" "${R}" p-first)" CLAUDE_GOAL_FILE="${R}/goal"
+[[ "$(verdict_of "${stop_out}")" == block ]] &&
+	ok "first-line DONE (explicit goal file) + open issue: refused" || no "first-line DONE (explicit goal file) + open issue: refused"
+
+fx_reset
+R="$(mk_repo stop-header-done)"
+printf 'SESSION: %s\nDONE\nFinish the thing.\n' "${sdone}" >"${R}/goal"
+seed "$(ledger_of "${R}/goal")" "${OPEN9101}"
+run_stop "$(stop_payload "${sdone}" "${R}" p-header)" CLAUDE_GOAL_FILE="${R}/goal"
+[[ "$(verdict_of "${stop_out}")" == block ]] &&
+	ok "DONE under the SESSION header + open issue: refused" || no "DONE under the SESSION header + open issue: refused"
+
+# ── 7. closed issues release the stop and are rewritten ──────────────────────
+fx_reset
+fx_state 9101 CLOSED
+R="$(mk_repo stop-closed)"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${sdone}" >"${R}/.claude/active-goal.${sdone}"
+seed "$(ledger_of "${R}/.claude/active-goal.${sdone}")" "${OPEN9101}"
+run_stop "$(stop_payload "${sdone}" "${R}" p-closed)"
+[[ "$(verdict_of "${stop_out}")" == allow ]] &&
+	ok "every issue closed: DONE is allowed" || no "every issue closed: DONE is allowed"
+has_line "$(ledger_of "${R}/.claude/active-goal.${sdone}")" '^eshu-hq/eshu#9101 .* closed$' &&
+	ok "a closed issue's ledger line is rewritten closed" || no "a closed issue's ledger line is rewritten closed"
+
+fx_reset
+fx_state 9101 CLOSED
+R="$(mk_repo stop-mixed)"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${sdone}" >"${R}/.claude/active-goal.${sdone}"
+seed "$(ledger_of "${R}/.claude/active-goal.${sdone}")" "${OPEN9101}" 'eshu-hq/eshu#9102 2026-10-25T00:00:00Z open'
+run_stop "$(stop_payload "${sdone}" "${R}" p-mixed)"
+reason="$(reason_of "${stop_out}")"
+[[ "$(verdict_of "${stop_out}")" == block ]] && rg -q '#9102' <<<"${reason}" && ! rg -q 'eshu#9101' <<<"${reason}" &&
+	ok "one closed, one open: only the open one is named" || no "one closed, one open: only the open one is named"
+
+# ── 8. DEFER is a checkable escape ───────────────────────────────────────────
+# `DEFER: #N <path>`: the path must exist, be non-empty, and mention #N. The
+# agent writes this file, so a bare claim would be a self-issued permission
+# slip -- the same reason BLOCKED needs a live WATCH pid.
+defer_case() { # label path-arg file-content-or-NONE expect
+	local label="$1" patharg="$2" content="$3" expect="$4" Rd
+	fx_reset
+	Rd="$(mk_repo "defer-$RANDOM")"
+	printf 'DONE\nSESSION: %s\nFinish.\n' "${sdone}" >"${Rd}/.claude/active-goal.${sdone}"
+	mkdir -p "${Rd}/docs"
+	case "${content}" in
+	NONE) ;;
+	EMPTY) : >"${Rd}/docs/ruling.md" ;;
+	*) printf '%s\n' "${content}" >"${Rd}/docs/ruling.md" ;;
+	esac
+	seed "$(ledger_of "${Rd}/.claude/active-goal.${sdone}")" "${OPEN9101}" "DEFER: #9101 ${patharg}"
+	run_stop "$(stop_payload "${sdone}" "${Rd}" "p-${RANDOM}")"
+	if [[ "$(verdict_of "${stop_out}")" == "${expect}" ]]; then
+		ok "DEFER ${label}: ${expect}"
+	else
+		no "DEFER ${label}: wanted ${expect}, got $(verdict_of "${stop_out}")"
+	fi
+	DEFER_REPO="${Rd}"
+}
+defer_case "path missing" docs/ruling.md NONE block
+rg -q 'ruling.md' <<<"$(reason_of "${stop_out}")" && ok "DEFER refusal names the failing path" || no "DEFER refusal names the failing path"
+defer_case "path empty" docs/ruling.md EMPTY block
+defer_case "path lacks #N" docs/ruling.md 'A ruling about issue 9101 without the hash.' block
+defer_case "path mentions only #91011" docs/ruling.md 'Deferred #91011 for a good reason.' block
+defer_case "path valid (relative to the worktree)" docs/ruling.md 'Ruling: #9101 is deferred to the next quarter.' allow
+has_line "$(ledger_of "${DEFER_REPO}/.claude/active-goal.${sdone}")" '^eshu-hq/eshu#9101 .* deferred docs/ruling.md$' &&
+	! rg -q '^DEFER:' "$(ledger_of "${DEFER_REPO}/.claude/active-goal.${sdone}")" &&
+	ok "a valid DEFER rewrites the line deferred with its path and drops the DEFER line" ||
+	no "a valid DEFER rewrites the line deferred with its path and drops the DEFER line"
+defer_case "absolute path missing" "${work}/no-such-ruling.md" NONE block
+printf 'Ruling #9101 deferred.\n' >"${work}/abs-ruling.md"
+fx_reset
+Rd="$(mk_repo defer-abs)"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${sdone}" >"${Rd}/.claude/active-goal.${sdone}"
+seed "$(ledger_of "${Rd}/.claude/active-goal.${sdone}")" "${OPEN9101}" "DEFER: eshu-hq/eshu#9101 ${work}/abs-ruling.md"
+run_stop "$(stop_payload "${sdone}" "${Rd}" p-abs)"
+[[ "$(verdict_of "${stop_out}")" == allow ]] &&
+	ok "DEFER owner/repo#N with an absolute path: allow" || no "DEFER owner/repo#N with an absolute path: allow"
+
+# ── 9. fail-open: a slow or dead gh never wedges the session ─────────────────
+fx_reset
+fx_mode hang
+R="$(mk_repo stop-hang)"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${sdone}" >"${R}/.claude/active-goal.${sdone}"
+seed "$(ledger_of "${R}/.claude/active-goal.${sdone}")" "${OPEN9101}"
+t0=$SECONDS
+run_stop "$(stop_payload "${sdone}" "${R}" p-hang)" CLAUDE_GOAL_ISSUE_CALL_TIMEOUT=1 CLAUDE_GOAL_ISSUE_TOTAL_TIMEOUT=2
+elapsed=$((SECONDS - t0))
+[[ "$(verdict_of "${stop_out}")" == allow ]] && ok "gh hangs: the stop is allowed" || no "gh hangs: the stop is allowed"
+rg -q 'goal-continue: NOT_CHECKED issues: .*eshu-hq/eshu#9101' <<<"${stop_err}" &&
+	ok "gh hangs: NOT_CHECKED names the issue on stderr" || no "gh hangs: NOT_CHECKED names the issue on stderr (err=${stop_err:0:120})"
+[[ "${elapsed}" -le 8 ]] && ok "gh hangs: bounded by the timeouts (${elapsed}s)" || no "gh hangs: bounded by the timeouts (${elapsed}s)"
+
+fx_reset
+fx_mode fail
+R="$(mk_repo stop-dead)"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${sdone}" >"${R}/.claude/active-goal.${sdone}"
+seed "$(ledger_of "${R}/.claude/active-goal.${sdone}")" "${OPEN9101}"
+run_stop "$(stop_payload "${sdone}" "${R}" p-dead)"
+[[ "$(verdict_of "${stop_out}")" == allow ]] && rg -q 'NOT_CHECKED issues' <<<"${stop_err}" &&
+	ok "gh unreachable: allowed with NOT_CHECKED on stderr" || no "gh unreachable: allowed with NOT_CHECKED on stderr"
+has_line "$(ledger_of "${R}/.claude/active-goal.${sdone}")" '^eshu-hq/eshu#9101 .* open$' &&
+	ok "an unchecked issue stays open in the ledger" || no "an unchecked issue stays open in the ledger"
+
+fx_reset
+R="$(mk_repo stop-garbage)"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${sdone}" >"${R}/.claude/active-goal.${sdone}"
+printf 'this is not a ledger line\n\n   \nowner/repo#notanumber x open\n' >"$(ledger_of "${R}/.claude/active-goal.${sdone}")"
+run_stop "$(stop_payload "${sdone}" "${R}" p-garbage)"
+[[ "${stop_rc}" -eq 0 && "$(verdict_of "${stop_out}")" == allow ]] &&
+	ok "a garbage ledger never wedges the stop" || no "a garbage ledger never wedges the stop"
+
+# ── 10. the refusal never spends, or hides behind, the goal's own budget ──────
+# The DONE gate sits ahead of the no-progress counter, so it must not read or
+# write it -- otherwise three refusals would exhaust the budget and the fourth
+# stop would release OPEN issues with no message, reading as a clean finish.
+fx_reset
+R="$(mk_repo stop-budget)"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${sdone}" >"${R}/.claude/active-goal.${sdone}"
+seed "$(ledger_of "${R}/.claude/active-goal.${sdone}")" "${OPEN9101}"
+before_counters="$(nudge_counters)"
+blocks=0
+for _ in 1 2 3 4 5 6; do
+	run_stop "$(stop_payload "${sdone}" "${R}" p-budget)"
+	[[ "$(verdict_of "${stop_out}")" == block ]] && blocks=$((blocks + 1))
+done
+[[ "${blocks}" -eq 6 ]] && ok "six stops on one prompt_id with an open issue: all six refused (more than CLAUDE_GOAL_MAX_NUDGES)" ||
+	no "six stops on one prompt_id with an open issue: all six refused (got ${blocks})"
+[[ "$(nudge_counters)" == "${before_counters}" ]] &&
+	ok "the issue refusal writes no goal nudge counter" || no "the issue refusal writes no goal nudge counter"
+
+# An ACTIVE goal is refused as before and the gate stays off the network.
+fx_reset
+R="$(mk_repo stop-active)"
+printf 'SESSION: %s\nKeep going.\n' "${sdone}" >"${R}/.claude/active-goal.${sdone}"
+seed "$(ledger_of "${R}/.claude/active-goal.${sdone}")" "${OPEN9101}"
+run_stop "$(stop_payload "${sdone}" "${R}" p-active)"
+[[ "$(verdict_of "${stop_out}")" == block && "$(gh_calls)" == 0 ]] &&
+	ok "an active goal blocks as before and makes no gh call" || no "an active goal blocks as before and makes no gh call (calls=$(gh_calls))"
+
+# No ledger, DONE goal: the pre-existing allow, untouched, no gh call.
+fx_reset
+R="$(mk_repo stop-noledger)"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${sdone}" >"${R}/.claude/active-goal.${sdone}"
+run_stop "$(stop_payload "${sdone}" "${R}" p-nol)"
+[[ "$(verdict_of "${stop_out}")" == allow && "$(gh_calls)" == 0 ]] &&
+	ok "DONE goal with no ledger: allowed, no gh call" || no "DONE goal with no ledger: allowed, no gh call"
+
+# ── 11. refresh: restate open issues, never touching the network ─────────────
+srf="rf-${run_tag}"
+fx_reset
+R="$(mk_repo refresh-restate)"
+printf 'SESSION: %s\nRESTATEOBJECTIVE for the drive.\n' "${srf}" >"${R}/.claude/active-goal.${srf}"
+seed "$(ledger_of "${R}/.claude/active-goal.${srf}")" \
+	'eshu-hq/eshu#9201 2026-10-25T00:00:00Z open' \
+	'eshu-hq/eshu#9202 2026-10-25T00:00:00Z closed' \
+	'eshu-hq/eshu#9203 2026-10-25T00:00:00Z deferred docs/ruling.md'
+rf_out="$(refresh_payload "${srf}" "${R}" | bash "${REFRESH}" 2>/dev/null)"
+ctx="$(ctx_of "${rf_out}")"
+rg -q 'RESTATEOBJECTIVE' <<<"${ctx}" && rg -q 'eshu-hq/eshu#9201' <<<"${ctx}" && rg -q 'DEFER: #9201' <<<"${ctx}" &&
+	ok "refresh restates the open issue and its exits next to the goal" || no "refresh restates the open issue and its exits next to the goal"
+! rg -q '#9202|#9203' <<<"${ctx}" && ok "refresh omits closed and deferred issues" || no "refresh omits closed and deferred issues"
+[[ "$(gh_calls)" == 0 ]] && ok "refresh restates with no gh call" || no "refresh restates with no gh call ($(gh_calls))"
+
+# Orphans: the lead's refresh merges them into its own ledger and restates.
+fx_reset
+R="$(mk_repo refresh-orphan)"
+printf 'SESSION: %s\nORPHANOBJECTIVE.\n' "${srf}" >"${R}/.claude/active-goal.${srf}"
+seed "$(ledger_of "${R}/.claude/active-goal.${srf}")" 'eshu-hq/eshu#9301 2026-10-25T00:00:00Z open'
+seed "${R}/.claude/active-goal.orphan.issues" \
+	'eshu-hq/eshu#9301 2026-10-25T00:00:00Z open' \
+	'eshu-hq/eshu#9302 2026-10-25T00:01:00Z open'
+rf_out="$(refresh_payload "${srf}" "${R}" | bash "${REFRESH}" 2>/dev/null)"
+ctx="$(ctx_of "${rf_out}")"
+L="$(ledger_of "${R}/.claude/active-goal.${srf}")"
+has_line "${L}" '^eshu-hq/eshu#9302 ' && [[ "$(rg -c '^eshu-hq/eshu#9301 ' "${L}")" == 1 ]] &&
+	ok "refresh merges the orphan ledger into the lead's, without duplicating" || no "refresh merges the orphan ledger into the lead's, without duplicating"
+[[ ! -f "${R}/.claude/active-goal.orphan.issues" ]] && ok "the merged orphan ledger is consumed" || no "the merged orphan ledger is consumed"
+rg -q '#9302' <<<"${ctx}" && ok "the merged orphan issue is restated on the same turn" || no "the merged orphan issue is restated on the same turn"
+
+# A session with no goal of its own must not swallow the orphans.
+fx_reset
+R="$(mk_repo refresh-orphan-nogoal)"
+seed "${R}/.claude/active-goal.orphan.issues" 'eshu-hq/eshu#9303 2026-10-25T00:01:00Z open'
+rf_out="$(refresh_payload "${srf}" "${R}" | bash "${REFRESH}" 2>/dev/null)"
+[[ -z "${rf_out}" && -f "${R}/.claude/active-goal.orphan.issues" ]] &&
+	ok "a session with no goal leaves the orphan ledger alone" || no "a session with no goal leaves the orphan ledger alone"
+
+# The whole loop: capture (two leads -> orphan), then the lead's refresh.
+fx_reset
+R="$(mk_repo loop)"
+printf 'SESSION: lead-a\nLOOPGOAL A.\n' >"${R}/.claude/active-goal.lead-a"
+printf 'SESSION: lead-b\nLOOPGOAL B.\n' >"${R}/.claude/active-goal.lead-b"
+run_capture "$(post_payload "obs-${run_tag}" "${R}" 'gh issue create -R eshu-hq/eshu --title t' 'https://github.com/eshu-hq/eshu/issues/9401')"
+rf_out="$(refresh_payload lead-a "${R}" | bash "${REFRESH}" 2>/dev/null)"
+rg -q '#9401' <<<"$(ctx_of "${rf_out}")" && has_line "${R}/.claude/active-goal.lead-a.issues" '^eshu-hq/eshu#9401 ' &&
+	ok "capture -> orphan -> lead refresh restates the issue" || no "capture -> orphan -> lead refresh restates the issue"
+
+# LAST line on purpose -- the parent suite asserts the companion ran to here.
+issue_capture_cases_loaded=1

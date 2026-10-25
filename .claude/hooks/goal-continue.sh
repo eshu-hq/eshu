@@ -85,38 +85,14 @@ print(g("transcript_path"))
 
 [ "${session_id:--}" = "-" ] && exit 0
 
-# A RETIRED candidate must not shadow an active one. `/goal done` leaves a DONE
-# tombstone at the per-session path, and an existence-only lookup then selects
-# it ahead of a live checkout-shared goal forever -- the session goes
-# unenforced and unrefreshed with nothing saying so. Reported by codex against
-# the opened PR.
-#
-# Retired means: the first line that is neither blank nor a CONSENT: line is
-# DONE, or is a SESSION: header whose next such line is DONE. Same rule both
-# hooks apply to the file they finally select, applied one step earlier so the
-# lookup can pass over it.
-goal_file_retired() { # path
-	local line seen_header=0 head_line
-	[ -f "$1" ] || return 1
-	while IFS= read -r line; do
-		head_line="${line#"${line%%[![:space:]]*}"}"
-		case "${head_line}" in
-			[Cc][Oo][Nn][Ss][Ee][Nn][Tt]:*|'') continue ;;
-		esac
-		case "${head_line}" in
-			DONE*|done*) return 0 ;;
-			SESSION:*)
-				if [ "${seen_header}" -eq 0 ]; then
-					seen_header=1
-					continue
-				fi
-				return 1
-				;;
-			*) return 1 ;;
-		esac
-	done <"$1"
-	return 1
-}
+# goal_file_retired -- a RETIRED candidate must not shadow an active one -- and
+# the issue-ledger helpers live in lib/goal-issues.sh, shared with
+# goal-refresh.sh and issue-capture.sh so the three decide alike. Reported by
+# codex against the opened PR: `/goal done` leaves a DONE tombstone at the
+# per-session path, and an existence-only lookup selected it ahead of a live
+# checkout-shared goal forever.
+# shellcheck source=.claude/hooks/lib/goal-issues.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/goal-issues.sh" 2>/dev/null || exit 0
 
 # Goal file: an explicit override, then this session's own goal in the worktree
 # it is in, then the worktree's shared goal, then a single per-user goal. The
@@ -157,7 +133,9 @@ for candidate in \
 		break
 	fi
 done
-[ -n "${goal_file}" ] || exit 0
+# Nothing active. If this session's own goal was just retired, the DONE check on
+# its issue ledger still has to run: the lookup above skips retired files.
+[ -n "${goal_file}" ] || { gi_done_gate "$(gi_retired_goal_file "${session_id}" "${cwd}")" "${cwd}"; exit 0; }
 
 goal="$(sed -e 's/[[:space:]]*$//' "${goal_file}" 2>/dev/null)"
 [ -n "${goal}" ] || exit 0
@@ -166,7 +144,7 @@ goal="$(sed -e 's/[[:space:]]*$//' "${goal_file}" 2>/dev/null)"
 # before the budget so a finished goal never costs a nudge.
 first_line="$(printf '%s\n' "${goal}" | head -1)"
 case "${first_line}" in
-	DONE*|done*) exit 0 ;;
+	DONE*|done*) gi_done_gate "${goal_file}" "${cwd}"; exit 0 ;;
 esac
 
 # A goal belongs to the session that set it. goal-refresh.sh writes a
@@ -200,7 +178,7 @@ apply_session_header() {
 			;;
 	esac
 	case "${first_line}" in
-		DONE*|done*) return 1 ;;
+		DONE*|done*) gi_done_gate "${goal_file}" "${cwd}"; return 1 ;;
 	esac
 	return 0
 }
