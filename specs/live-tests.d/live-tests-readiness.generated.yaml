@@ -1262,7 +1262,7 @@ tests:
   - file: go/internal/storage/postgres/security_alert_impact_producer_store_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8827 disposable PostgreSQL 18 proof that readiness/producer.ImpactStore counts only the requested scope generation's supply_chain_impact rows (other generations, other scopes, and sibling domains never count), reports the last-workable anchor over in-flight rows only, and that its plan reaches fact_work_items through fact_work_items_scope_generation_idx with no sequential scan on a 350,000-row backlog; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 6s on postgres:18; wall time is logged, not gated"
+    reason: "#8827 disposable PostgreSQL 18 proof that readiness/producer.ImpactStore counts only the requested scope generation's supply_chain_impact rows (other generations, other scopes, and sibling domains never count), reports the last-workable anchor over in-flight rows only, counts succeeded and failed (dead_letter or failed) rows so a settled producer reads apart from a stopped one (#8956), and that its plan reaches fact_work_items through fact_work_items_scope_generation_idx with no sequential scan on a 350,000-row backlog; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 6s on postgres:18; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/service_catalog_runtime_producer_store_live_test.go
     tag: ~

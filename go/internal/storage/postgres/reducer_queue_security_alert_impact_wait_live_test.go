@@ -114,6 +114,7 @@ type impactWaitWriter struct {
 	calls     int
 	statuses  []securityalert.SecurityAlertReconciliationStatus
 	intentIDs []string
+	outcomes  []string
 }
 
 func (w *impactWaitWriter) WriteSecurityAlertReconciliations(
@@ -124,6 +125,7 @@ func (w *impactWaitWriter) WriteSecurityAlertReconciliations(
 	defer w.mu.Unlock()
 	w.calls++
 	w.intentIDs = append(w.intentIDs, write.IntentID)
+	w.outcomes = append(w.outcomes, write.ImpactWaitOutcome)
 	for _, decision := range write.Decisions {
 		w.statuses = append(w.statuses, decision.Status)
 	}
@@ -134,6 +136,13 @@ func (w *impactWaitWriter) snapshot() (int, []securityalert.SecurityAlertReconci
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.calls, append([]securityalert.SecurityAlertReconciliationStatus(nil), w.statuses...)
+}
+
+// outcomeSnapshot returns the ImpactWaitOutcome of every write (#8956).
+func (w *impactWaitWriter) outcomeSnapshot() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return append([]string(nil), w.outcomes...)
 }
 
 // impactWaitRetryable is a transient failure the producer's queue retries on
@@ -299,7 +308,9 @@ func TestReducerContentionGateSecurityAlertReconciliationImpactFenceKeepsItsAtte
 // the producer still pending (the pre-fix behavior), and with the fence wired
 // but the producer dead-lettered (nothing left to wait for), the
 // reconciliation spends attempts 1 and 2 on counting deferrals and on attempt 3
-// writes unmatched, now naming the give-up on the result.
+// writes unmatched, now naming the give-up on the result. With the fence wired
+// and the producer succeeded (#8956) the same counting path ends in a genuine
+// no-match: unmatched, but no give-up on the result or the write.
 func TestReducerContentionGateSecurityAlertReconciliationGivesUpVisiblyWithoutAFence(t *testing.T) {
 	dsn := reducerDomainFairnessDSN()
 	if dsn == "" {
@@ -309,9 +320,11 @@ func TestReducerContentionGateSecurityAlertReconciliationGivesUpVisiblyWithoutAF
 		name         string
 		fenced       bool
 		impactStatus string
+		wantOutcome  string
 	}{
-		{"no fence, producer pending (pre-fix behavior)", false, "pending"},
-		{"fence wired, producer dead-lettered", true, "dead_letter"},
+		{"no fence, producer pending (pre-fix behavior)", false, "pending", securityalert.ImpactWaitGaveUpUnmatched},
+		{"fence wired, producer dead-lettered", true, "dead_letter", securityalert.ImpactWaitGaveUpUnmatched},
+		{"fence wired, producer succeeded (genuine no-match)", true, "succeeded", ""},
 	}
 	for i, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -354,8 +367,11 @@ func TestReducerContentionGateSecurityAlertReconciliationGivesUpVisiblyWithoutAF
 				if handleErr != nil {
 					t.Fatalf("attempt 3: Handle() error = %v, want the give-up write", handleErr)
 				}
-				if !strings.Contains(result.EvidenceSummary, "impact_wait=gave_up_unmatched") {
-					t.Fatalf("attempt 3: summary %q must name the gave_up_unmatched reason", result.EvidenceSummary)
+				if tc.wantOutcome != "" && !strings.Contains(result.EvidenceSummary, "impact_wait="+tc.wantOutcome) {
+					t.Fatalf("attempt 3: summary %q must name the %s reason", result.EvidenceSummary, tc.wantOutcome)
+				}
+				if tc.wantOutcome == "" && strings.Contains(result.EvidenceSummary, "impact_wait=") {
+					t.Fatalf("attempt 3: summary %q names a give-up for a settled producer", result.EvidenceSummary)
 				}
 				if err := queue.Ack(ctx, intent, result); err != nil {
 					t.Fatalf("attempt 3: Ack() error = %v", err)
@@ -364,6 +380,9 @@ func TestReducerContentionGateSecurityAlertReconciliationGivesUpVisiblyWithoutAF
 			calls, statuses := writer.snapshot()
 			if calls != 1 || len(statuses) != 1 || statuses[0] != securityalert.SecurityAlertReconciliationUnmatched {
 				t.Fatalf("writes = %d statuses = %v, want one unmatched decision", calls, statuses)
+			}
+			if outcomes := writer.outcomeSnapshot(); len(outcomes) != 1 || outcomes[0] != tc.wantOutcome {
+				t.Fatalf("write impact wait outcomes = %q, want [%q]", outcomes, tc.wantOutcome)
 			}
 			if status, _, attempts := readRuntimeFenceItem(t, ctx, db, reconID); status != "succeeded" || attempts != 3 {
 				t.Fatalf("reconciliation terminal = %s attempts=%d, want succeeded at 3", status, attempts)

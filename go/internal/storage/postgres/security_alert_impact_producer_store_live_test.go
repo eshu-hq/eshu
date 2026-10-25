@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8827 disposable PostgreSQL 18 proof that readiness/producer.ImpactStore counts only the requested scope generation's supply_chain_impact rows (other generations, other scopes, and sibling domains never count), reports the last-workable anchor over in-flight rows only, and that its plan reaches fact_work_items through fact_work_items_scope_generation_idx with no sequential scan on a 350,000-row backlog; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 6s on postgres:18; wall time is logged, not gated
+//eshu:readiness:reason #8827 disposable PostgreSQL 18 proof that readiness/producer.ImpactStore counts only the requested scope generation's supply_chain_impact rows (other generations, other scopes, and sibling domains never count), reports the last-workable anchor over in-flight rows only, counts succeeded and failed (dead_letter or failed) rows so a settled producer reads apart from a stopped one (#8956), and that its plan reaches fact_work_items through fact_work_items_scope_generation_idx with no sequential scan on a 350,000-row backlog; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 6s on postgres:18; wall time is logged, not gated
 //eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -113,6 +113,25 @@ func TestReducerContentionGateSecurityAlertImpactProducerStateScopesToTheGenerat
 	if done.InFlight() != 0 || done.Total != 2 || !done.NewestInFlightWorkableAt.IsZero() {
 		t.Fatalf("terminal-only = %+v, want 0 in flight, total 2, NULL anchor", done)
 	}
+	if done.Succeeded != 2 || done.Failed != 0 || !done.Settled() {
+		t.Fatalf("all succeeded = %+v, want 2 succeeded, 0 failed, settled (#8956 genuine no-match)", done)
+	}
+
+	// #8956: a dead-lettered, failed, or superseded producer row is not
+	// settled. Only dead_letter and failed count as failed; superseded is in
+	// neither count, so Succeeded < Total keeps the generation unsettled.
+	seedImpactProducerScope(t, ctx, sqlDB, "scope-impact-c", "gen-c1")
+	seedImpactProducerRow(t, ctx, sqlDB, "c1-done", "scope-impact-c", "gen-c1", "supply_chain_impact", "succeeded", nil)
+	seedImpactProducerRow(t, ctx, sqlDB, "c1-dead", "scope-impact-c", "gen-c1", "supply_chain_impact", "dead_letter", nil)
+	seedImpactProducerRow(t, ctx, sqlDB, "c1-failed", "scope-impact-c", "gen-c1", "supply_chain_impact", "failed", nil)
+	seedImpactProducerRow(t, ctx, sqlDB, "c1-superseded", "scope-impact-c", "gen-c1", "supply_chain_impact", "superseded", nil)
+	mixed, err := store.ImpactProducerState(ctx, "scope-impact-c", "gen-c1")
+	if err != nil {
+		t.Fatalf("ImpactProducerState() mixed error = %v", err)
+	}
+	if mixed.Succeeded != 1 || mixed.Failed != 2 || mixed.Total != 4 || mixed.InFlight() != 0 || mixed.Settled() {
+		t.Fatalf("mixed terminal = %+v, want 1 succeeded, 2 failed, 4 total, not settled", mixed)
+	}
 }
 
 // TestReducerContentionGateSecurityAlertImpactProducerStatePlanUsesScopeGenerationIndex
@@ -174,7 +193,11 @@ FROM generate_series(1, 2000) AS s CROSS JOIN generate_series(1, 5) AS g CROSS J
 		plan[0]["Planning Time"], plan[0]["Execution Time"], top["Shared Hit Blocks"], top["Shared Read Blocks"])
 
 	state, err := producerreadiness.ImpactStore{DB: SQLDB{DB: sqlDB}}.ImpactProducerState(ctx, "plan8827-10", "plan8827-10-g5")
-	if err != nil || state.Pending != 1 || state.Total != 1 {
-		t.Fatalf("ImpactProducerState() = %+v, %v; want 1 pending of 1", state, err)
+	if err != nil || state.Pending != 1 || state.Total != 1 || state.Succeeded != 0 || state.Failed != 0 {
+		t.Fatalf("ImpactProducerState() = %+v, %v; want 1 pending of 1, none succeeded or failed", state, err)
+	}
+	settled, err := producerreadiness.ImpactStore{DB: SQLDB{DB: sqlDB}}.ImpactProducerState(ctx, "plan8827-11", "plan8827-11-g5")
+	if err != nil || settled.Succeeded != 1 || settled.Total != 1 || !settled.Settled() {
+		t.Fatalf("ImpactProducerState() = %+v, %v; want 1 succeeded of 1, settled (#8956)", settled, err)
 	}
 }

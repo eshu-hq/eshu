@@ -75,9 +75,11 @@ pending producer row).
   `EXPLAIN (ANALYZE, BUFFERS)`: execution 0.054, 0.042, 0.042 ms; planning
   0.151, 0.146, 0.157 ms; 4 buffer touches. The run was on a shared host and
   is not a throughput claim.
-- It runs once per reconciliation pass that has a decision waiting on impact
-  evidence, never for a pass with nothing to wait for
-  (`TestSecurityAlertReconciliationSkipsTheProbeWhenNothingIsPending`).
+- Below the attempt cap it runs once per reconciliation pass that has a decision
+  waiting on impact evidence, never for a pass with nothing to wait for
+  (`TestSecurityAlertReconciliationSkipsTheProbeWhenNothingIsPending`). On the
+  cap attempt of an impact-producing intent it runs once before the evidence
+  load even when nothing waits (#8956, `probeImpactProducerBeforeLoad`).
 
 No-Regression Evidence: the only claim-path change is one more
 `work.failure_class = '...'` term in the `attempt_count` CASE of the claim
