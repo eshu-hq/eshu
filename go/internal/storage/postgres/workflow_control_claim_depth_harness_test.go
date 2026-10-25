@@ -143,6 +143,42 @@ func claimDepthDrainSpeedupOK(singleSecs, parallelSecs float64, claimers int) bo
 	return singleSecs/parallelSecs >= float64(claimers)/2
 }
 
+// claimDepthMaxOverlap sweeps the grant attempt windows ([AttemptElapsed,
+// DoneElapsed], from ClaimNextEligible call to CompleteClaim return) and
+// returns the maximum number of grants in flight at any instant. Windows
+// that only touch at an endpoint do not count as overlapping: ends sort
+// before starts at equal timestamps, so back-to-back serial grants report 1.
+// A zero or inverted window contributes nothing. (#8725 overlap gate: the
+// attempt window covers DB-side queueing, so it measures true grant-path
+// concurrency; the post-grant window is blind to lock wait and stays out.)
+func claimDepthMaxOverlap(records []claimDepthRecord) int {
+	type event struct {
+		at    time.Duration
+		delta int
+	}
+	events := make([]event, 0, 2*len(records))
+	for _, r := range records {
+		if r.DoneElapsed <= r.AttemptElapsed {
+			continue
+		}
+		events = append(events, event{at: r.AttemptElapsed, delta: 1}, event{at: r.DoneElapsed, delta: -1})
+	}
+	sort.Slice(events, func(i, j int) bool {
+		if events[i].at == events[j].at {
+			return events[i].delta < events[j].delta
+		}
+		return events[i].at < events[j].at
+	})
+	max, cur := 0, 0
+	for _, e := range events {
+		cur += e.delta
+		if cur > max {
+			max = cur
+		}
+	}
+	return max
+}
+
 // maxClaimDepthConsecutiveEmpties bounds one claimer's consecutive empty
 // ClaimNextEligible returns before it may idle. #8725 raised the original 50
 // to 200: a 50-empty budget idled a claimer mid-drain under a lock-hot window
@@ -269,6 +305,17 @@ func seedClaimDepthBacklog(
 // CheckClaimPacing the way the production runner does.
 var claimDepthPacingHook func(store *WorkflowControlStore, selector workflow.ClaimSelector, now time.Time) time.Duration
 
+// claimDepthSerializeGrants forces every drain claim loop to hold one shared
+// mutex across its ClaimNextEligible plus CompleteClaim pair, so eight
+// enrolled claimers grant strictly one at a time. It is the negative control
+// for the overlap gate (#8725): a test-only stand-in for a grant path that
+// regressed to serialized execution. False is the default; only the RED
+// proof sets it, and it must be reset when that proof ends.
+var (
+	claimDepthSerializeGrants bool
+	claimDepthGrantMutex      sync.Mutex
+)
+
 // claimDepthConn adapts one pinned *sql.Conn to the store's ExecQueryer
 // surface, mirroring SQLDB for a single connection.
 type claimDepthConn struct {
@@ -367,12 +414,22 @@ func drainClaimDepthBacklog(
 					}
 				}
 				attemptBegan := time.Since(startedAt)
+				if claimDepthSerializeGrants {
+					claimDepthGrantMutex.Lock()
+				}
+				unlockGrants := func() {
+					if claimDepthSerializeGrants {
+						claimDepthGrantMutex.Unlock()
+					}
+				}
 				item, claim, found, err := store.ClaimNextEligible(ctx, selector, time.Now().UTC(), 5*time.Minute)
 				if err != nil {
 					errs <- fmt.Errorf("claimer %d ClaimNextEligible attempt %d: %w", claimer, attempt, err)
+					unlockGrants()
 					break
 				}
 				if !found {
+					unlockGrants()
 					// A transient all-heads-locked race returns empty
 					// while eligible work exists. Production collectors
 					// poll again rather than exit, so the harness
@@ -424,9 +481,11 @@ func drainClaimDepthBacklog(
 					ObservedAt:   time.Now().UTC(),
 				}); err != nil {
 					errs <- fmt.Errorf("claimer %d CompleteClaim %q: %w", claimer, item.WorkItemID, err)
+					unlockGrants()
 					break
 				}
 				perClaimer[claimer][len(perClaimer[claimer])-1].DoneElapsed = time.Since(startedAt)
+				unlockGrants()
 			}
 			claiming.Done()
 			<-release

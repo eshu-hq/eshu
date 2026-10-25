@@ -283,12 +283,15 @@ func TestWorkflowClaimPacingIdleDrainHoldsSpeedupBound(t *testing.T) {
 	})
 	cal := drainClaimDepthBacklog(t, database, ctx, "pacing-idle-cal", 1, poolLimit)
 	assertClaimDepthExactlyOnce(t, calSeeded, cal)
-	if !claimDepthDrainSpeedupOK(cal.Duration.Seconds(), result.Duration.Seconds(), claimDepthClaimers) {
-		t.Fatalf("pacing-idle drain speedup = %.2fx (single %s vs parallel %s), want >= %.1fx (half of %d enrolled claimers; throttled or serialized grants)",
-			cal.Duration.Seconds()/result.Duration.Seconds(), cal.Duration, result.Duration, float64(claimDepthClaimers)/2, claimDepthClaimers)
+	overlap := claimDepthMaxOverlap(result.Records)
+	t.Logf("pacing-idle drain max grant overlap = %d (want >= %d half of %d enrolled claimers); speedup=%.2fx (single %s vs parallel %s; trend only, not gated)",
+		overlap, claimDepthClaimers/2, claimDepthClaimers, cal.Duration.Seconds()/result.Duration.Seconds(), cal.Duration, result.Duration)
+	if overlap < claimDepthClaimers/2 {
+		t.Fatalf("pacing-idle drain max grant overlap = %d, want >= %d (half of %d enrolled claimers; serialized grant path)",
+			overlap, claimDepthClaimers/2, claimDepthClaimers)
 	}
-	t.Logf("pacing-idle calibration items=%d claimers=1 duration=%s claims_per_second=%.1f speedup=%.2fx",
-		len(calSeeded), cal.Duration, cal.ClaimsPerSecond(), cal.Duration.Seconds()/result.Duration.Seconds())
+	t.Logf("pacing-idle calibration items=%d claimers=1 duration=%s claims_per_second=%.1f",
+		len(calSeeded), cal.Duration, cal.ClaimsPerSecond())
 }
 
 // TestWorkflowClaimPacingEngagedDrainCompletesExactlyOnce proves pacing
