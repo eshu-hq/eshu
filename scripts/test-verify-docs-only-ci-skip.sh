@@ -6,6 +6,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script_rel="scripts/verify-docs-only-ci-skip.sh"
+# shellcheck source=scripts/lib/docs-skip-mutations.sh
+. "${repo_root}/scripts/lib/docs-skip-mutations.sh"
 
 pass=0
 fail=0
@@ -50,29 +52,21 @@ else
 	printf '%s\n' "${out}" >&2
 fi
 
-sed -i '/^  call-build:/s/ && contains(/ \&\& false \&\& contains(/' "${tmp}/.github/workflows/test.yml"
+docs_skip_mutate_disable_planned_build "${tmp}/.github/workflows/test.yml"
 if run_scratch >/dev/null 2>&1; then no 'disabled planned build caller must fail'; else ok 'disabled planned build caller fails'; fi
 cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
 
 # The trusted build fragment and the selected-full Go assertion are live inputs.
-sed -i '/^  - docs\/\*\*$/d' "${tmp}/specs/ci-pr-workflows.d/build.yml"
+docs_skip_mutate_drop_docs_filter "${tmp}/specs/ci-pr-workflows.d/build.yml"
 if run_scratch >/dev/null 2>&1; then no 'missing trusted docs filter must fail'
 else ok 'missing trusted docs filter fails'; fi
 cp "${repo_root}/specs/ci-pr-workflows.d/build.yml" "${tmp}/specs/ci-pr-workflows.d/build.yml"
-sed -i '/selected full ${LANE} result=/d' "${tmp}/scripts/ci/assert-go-complete.sh"
+docs_skip_mutate_drop_lane_assertion "${tmp}/scripts/ci/assert-go-complete.sh"
 if run_scratch >/dev/null 2>&1; then no 'missing selected-full assertion must fail'
 else ok 'missing selected-full assertion fails'; fi
 cp "${repo_root}/scripts/ci/assert-go-complete.sh" "${tmp}/scripts/ci/assert-go-complete.sh"
 
-python3 - "${tmp}/.github/workflows/test.yml" <<'PY'
-import sys
-path = sys.argv[1]
-with open(path) as source:
-    content = source.read()
-assert content.count('run: bash scripts/ci/assert-go-complete.sh') == 2
-with open(path, 'w') as target:
-    target.write(content.replace('run: bash scripts/ci/assert-go-complete.sh', 'run: true', 1))
-PY
+docs_skip_mutate_drop_go_umbrella_call "${tmp}/.github/workflows/test.yml"
 if run_scratch >/dev/null 2>&1; then no 'missing Go umbrella assertion call must fail'
 else ok 'missing Go umbrella assertion call fails'; fi
 cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
