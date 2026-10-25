@@ -5,6 +5,7 @@ package parser
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -91,5 +92,59 @@ func TestPreScanSkippingOversizeKeepsOtherErrorsFatal(t *testing.T) {
 		if !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("workers=%d: error = %v, skips = %v, want an os.ErrNotExist failure", workers, err, skips)
 		}
+	}
+}
+
+// ownSizeProvider is a language provider whose pre-scan fails with a read-cap
+// error for every file it is asked to scan, as a parser does when a sibling it
+// reads is over the cap.
+type ownSizeProvider struct{}
+
+func (ownSizeProvider) Parse(ParseRequest) (map[string]any, error) { return nil, nil }
+
+func (ownSizeProvider) PreScan(request PreScanRequest) ([]string, error) {
+	return nil, fmt.Errorf("read sibling of %q: %w", request.Path, shared.ErrSourceTooLarge)
+}
+
+func (ownSizeProvider) Capabilities() LanguageCapabilities {
+	return LanguageCapabilities{PreScan: true}
+}
+
+// TestPreScanSkippingOversizeSkipsOnlyAFileOverTheCapItself (#8986 review P2):
+// an ErrSourceTooLarge from a pre-scan is a skip only when the scanned file's
+// own size is over the cap. The same error from a small file means a file it
+// read (a sibling) was over the cap, and blaming the scanned file would drop it
+// from the snapshot. That error stays fatal, in both loops. Not parallel: it
+// lowers the process-wide read cap.
+func TestPreScanSkippingOversizeSkipsOnlyAFileOverTheCapItself(t *testing.T) {
+	defer shared.SetSourceReadCapForTest(preScanSkipCap)()
+
+	registry, err := NewRegistry([]Definition{{
+		ParserKey: "toy", Language: "toy", Extensions: []string{".toy"}, Provider: ownSizeProvider{},
+	}})
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+	engine, err := NewEngine(registry, NewRuntime())
+	if err != nil {
+		t.Fatalf("NewEngine() error = %v", err)
+	}
+	repoRoot := t.TempDir()
+	small := filepath.Join(repoRoot, "small.toy")
+	big := filepath.Join(repoRoot, "big.toy")
+	writeTestFile(t, small, "x\n")
+	writeTestFile(t, big, preScanSkipBigBody)
+
+	for _, workers := range []int{1, 4} {
+		t.Run("workers="+strconv.Itoa(workers), func(t *testing.T) {
+			_, _, skips, err := engine.PreScanRepositoryPathsSkippingOversizeStats(repoRoot, []string{small, small}, workers)
+			if !errors.Is(err, shared.ErrSourceTooLarge) || len(skips) != 0 {
+				t.Fatalf("small file: error = %v, skips = %v, want a fatal read-cap error and no skip", err, skips)
+			}
+			_, _, skips, err = engine.PreScanRepositoryPathsSkippingOversizeStats(repoRoot, []string{big, big}, workers)
+			if err != nil || len(skips) != 2 {
+				t.Fatalf("file over the cap: error = %v, skips = %v, want two skips", err, skips)
+			}
+		})
 	}
 }

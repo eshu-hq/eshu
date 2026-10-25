@@ -5,6 +5,7 @@ package parser
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -129,9 +130,17 @@ func (e *Engine) PreScanRepositoryPathsSkippingOversizeStats(
 
 // skipsPreScanPath reports whether a per-file pre-scan error is one the
 // caller opted to skip: only a file over the read cap, and only when the scan
-// was asked to tolerate it.
-func skipsPreScanPath(tolerateOversize bool, err error) bool {
-	return tolerateOversize && errors.Is(err, shared.ErrSourceTooLarge)
+// was asked to tolerate it. The file must be over the cap itself. A parser that
+// reads siblings (Kotlin reads every .kt in the package directory) can return
+// the same error for a small file because a sibling was over the cap, and
+// blaming the scanned file would drop it from the snapshot, so that error stays
+// fatal.
+func skipsPreScanPath(tolerateOversize bool, path string, err error) bool {
+	if !tolerateOversize || !errors.Is(err, shared.ErrSourceTooLarge) {
+		return false
+	}
+	info, statErr := os.Stat(path)
+	return statErr == nil && info.Size() > shared.SourceReadCap()
 }
 
 // preScanPathsSequential preserves the historical first-error behavior for
@@ -147,7 +156,7 @@ func (e *Engine) preScanPathsSequential(
 	for _, rawPath := range paths {
 		scanned, err := e.preScanOnePath(resolvedRepoRoot, rawPath)
 		if err != nil {
-			if skipsPreScanPath(tolerateOversize, err) {
+			if skipsPreScanPath(tolerateOversize, rawPath, err) {
 				skips = append(skips, PreScanSkip{Path: rawPath, Err: err})
 				continue
 			}
@@ -241,7 +250,7 @@ func (e *Engine) preScanPathsConcurrent(
 	var skips []PreScanSkip
 	for _, result := range resultSlice {
 		if result.err != nil {
-			if skipsPreScanPath(tolerateOversize, result.err) {
+			if skipsPreScanPath(tolerateOversize, paths[result.index], result.err) {
 				skips = append(skips, PreScanSkip{Path: paths[result.index], Err: result.err})
 				continue
 			}

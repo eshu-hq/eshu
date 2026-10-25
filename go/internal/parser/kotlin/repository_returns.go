@@ -4,6 +4,7 @@
 package kotlin
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -135,6 +136,12 @@ func kotlinCollectFunctionReturnTypesFromDirectory(directory string, currentAbs 
 // requested package. Extraction walks the AST so it agrees with the main parse.
 func kotlinCollectFunctionReturnTypesFromFile(path string, packageName string, parser *tree_sitter.Parser) (map[string]string, error) {
 	source, err := shared.ReadSource(path)
+	if errors.Is(err, shared.ErrSourceTooLarge) {
+		// A sibling over the read cap adds no return types. It is not an
+		// error of the file being parsed (#8986), the same as the JavaScript
+		// sibling parser leaving an oversize sibling out.
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
