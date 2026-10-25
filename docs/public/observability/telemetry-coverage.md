@@ -1101,5 +1101,4 @@ Each documented bucket set maps a short name to the exact boundary values in `go
 | webhook-claim-wait-seconds | 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600 |
 
 Bucket sets for `eshu_dp_cloud_resource_list_*` live in
-`go/internal/query/cloud_resources_metrics.go`, outside this table's registered
-instrument scope, and are omitted (#5548).
+`go/internal/query/cloud_resources_metrics.go`, outside this table's scope; omitted (#5548).
