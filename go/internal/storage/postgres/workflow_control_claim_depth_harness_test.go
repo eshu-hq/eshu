@@ -85,6 +85,15 @@ type claimDepthRecord struct {
 	Seq int64
 	// Elapsed is the wall time from drain start to this grant returning.
 	Elapsed time.Duration
+	// DoneElapsed is the wall time from drain start to this grant's
+	// CompleteClaim returning. The [Elapsed, DoneElapsed] window is the
+	// grant's in-flight interval for overlap measurement.
+	DoneElapsed time.Duration
+	// AttemptElapsed is the wall time from drain start to this grant's
+	// ClaimNextEligible call (after any pacing-hook wait). The
+	// [AttemptElapsed, DoneElapsed] window covers DB-side queueing, so it
+	// measures true grant-path concurrency.
+	AttemptElapsed time.Duration
 }
 
 // claimDepthResult is the full measured outcome of one drain.
@@ -114,6 +123,42 @@ func (r claimDepthResult) ClaimsPerSecond() float64 {
 		return 0
 	}
 	return float64(len(r.Records)) / r.Duration.Seconds()
+}
+
+// claimDepthMaxOverlap sweeps the grant attempt windows ([AttemptElapsed,
+// DoneElapsed], from ClaimNextEligible call to CompleteClaim return) and
+// returns the maximum number of grants in flight at any instant. Windows
+// that only touch at an endpoint do not count as overlapping: ends sort
+// before starts at equal timestamps, so back-to-back serial grants report 1.
+// A zero or inverted window contributes nothing. (#8725 overlap gate: the
+// attempt window covers DB-side queueing, so it measures true grant-path
+// concurrency; the post-grant window is blind to lock wait and stays out.)
+func claimDepthMaxOverlap(records []claimDepthRecord) int {
+	type event struct {
+		at    time.Duration
+		delta int
+	}
+	events := make([]event, 0, 2*len(records))
+	for _, r := range records {
+		if r.DoneElapsed <= r.AttemptElapsed {
+			continue
+		}
+		events = append(events, event{at: r.AttemptElapsed, delta: 1}, event{at: r.DoneElapsed, delta: -1})
+	}
+	sort.Slice(events, func(i, j int) bool {
+		if events[i].at == events[j].at {
+			return events[i].delta < events[j].delta
+		}
+		return events[i].at < events[j].at
+	})
+	max, cur := 0, 0
+	for _, e := range events {
+		cur += e.delta
+		if cur > max {
+			max = cur
+		}
+	}
+	return max
 }
 
 // maxClaimDepthConsecutiveEmpties bounds one claimer's consecutive empty
@@ -242,6 +287,17 @@ func seedClaimDepthBacklog(
 // CheckClaimPacing the way the production runner does.
 var claimDepthPacingHook func(store *WorkflowControlStore, selector workflow.ClaimSelector, now time.Time) time.Duration
 
+// claimDepthSerializeGrants forces every drain claim loop to hold one shared
+// mutex across its ClaimNextEligible plus CompleteClaim pair, so eight
+// enrolled claimers grant strictly one at a time. It is the negative control
+// for the overlap gate (#8725): a test-only stand-in for a grant path that
+// regressed to serialized execution. False is the default; only the RED
+// proof sets it, and it must be reset when that proof ends.
+var (
+	claimDepthSerializeGrants bool
+	claimDepthGrantMutex      sync.Mutex
+)
+
 // claimDepthConn adapts one pinned *sql.Conn to the store's ExecQueryer
 // surface, mirroring SQLDB for a single connection.
 type claimDepthConn struct {
@@ -259,7 +315,11 @@ func (c claimDepthConn) ExecContext(ctx context.Context, query string, args ...a
 // drainClaimDepthBacklog runs concurrent claim loops from one start barrier.
 // Each claimer pins its own pool connection for the whole drain, claims
 // through its own WorkflowControlStore over that connection, records the
-// grant, and completes it under its fence. A claimer idles only on
+// grant, and completes it under its fence. The tag namespaces the drain's
+// claim IDs: claim rows persist after CompleteClaim, so a second drain in the
+// same schema (e.g. a single-claimer calibration after the parallel drain)
+// must use a different tag or its claimer-0 attempt-0 collides on the
+// workflow_claims primary key. A claimer idles only on
 // quiescence proof (claimDepthQuiescent): a full budget of consecutive
 // empties with no global grant landing during the streak. Pending work only
 // shrinks during a drain (nothing requeues), and each streak reset requires
@@ -269,6 +329,7 @@ func drainClaimDepthBacklog(
 	t *testing.T,
 	database *sql.DB,
 	ctx context.Context,
+	tag string,
 	claimers int,
 	poolLimit int,
 ) claimDepthResult {
@@ -327,19 +388,34 @@ func drainClaimDepthBacklog(
 					CollectorKind:       scope.CollectorGit,
 					CollectorInstanceID: "claim-depth-instance",
 					OwnerID:             owner,
-					ClaimID:             fmt.Sprintf("claim-depth-%d-%d", claimer, attempt),
+					ClaimID:             fmt.Sprintf("claim-depth-%s-%d-%d", tag, claimer, attempt),
 				}
 				if claimDepthPacingHook != nil {
 					if delay := claimDepthPacingHook(store, selector, time.Now().UTC()); delay > 0 {
 						time.Sleep(delay)
 					}
 				}
+				if claimDepthSerializeGrants {
+					claimDepthGrantMutex.Lock()
+				}
+				unlockGrants := func() {
+					if claimDepthSerializeGrants {
+						claimDepthGrantMutex.Unlock()
+					}
+				}
+				// The attempt window opens after the serialization knob: time
+				// spent queued on the test-only grant mutex is scaffolding,
+				// not grant-path concurrency. DB-side queueing stays inside
+				// the window, which is what the overlap gate measures.
+				attemptBegan := time.Since(startedAt)
 				item, claim, found, err := store.ClaimNextEligible(ctx, selector, time.Now().UTC(), 5*time.Minute)
 				if err != nil {
 					errs <- fmt.Errorf("claimer %d ClaimNextEligible attempt %d: %w", claimer, attempt, err)
+					unlockGrants()
 					break
 				}
 				if !found {
+					unlockGrants()
 					// A transient all-heads-locked race returns empty
 					// while eligible work exists. Production collectors
 					// poll again rather than exit, so the harness
@@ -374,13 +450,14 @@ func drainClaimDepthBacklog(
 				}
 				consecutiveEmpties = 0
 				perClaimer[claimer] = append(perClaimer[claimer], claimDepthRecord{
-					WorkItemID:  item.WorkItemID,
-					FairnessKey: item.FairnessKey,
-					ClaimID:     claim.ClaimID,
-					OwnerID:     claim.OwnerID,
-					BackendPID:  pid,
-					Seq:         seq.Add(1),
-					Elapsed:     time.Since(startedAt),
+					WorkItemID:     item.WorkItemID,
+					FairnessKey:    item.FairnessKey,
+					ClaimID:        claim.ClaimID,
+					OwnerID:        claim.OwnerID,
+					BackendPID:     pid,
+					Seq:            seq.Add(1),
+					Elapsed:        time.Since(startedAt),
+					AttemptElapsed: attemptBegan,
 				})
 				if err := store.CompleteClaim(ctx, workflow.ClaimMutation{
 					WorkItemID:   item.WorkItemID,
@@ -390,8 +467,11 @@ func drainClaimDepthBacklog(
 					ObservedAt:   time.Now().UTC(),
 				}); err != nil {
 					errs <- fmt.Errorf("claimer %d CompleteClaim %q: %w", claimer, item.WorkItemID, err)
+					unlockGrants()
 					break
 				}
+				perClaimer[claimer][len(perClaimer[claimer])-1].DoneElapsed = time.Since(startedAt)
+				unlockGrants()
 			}
 			claiming.Done()
 			<-release
