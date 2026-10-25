@@ -103,11 +103,25 @@ func TestWorkflowClaimDepthFairRotationServesSmallKeysEarly(t *testing.T) {
 	assertClaimDepthMinGrantsPerOwner(t, result, claimDepthClaimers, 10)
 	// The anti-serialization gate from the claim-pacing design: a fairness
 	// change that fixes the tail by throttling the burst lowers aggregate
-	// throughput and fails here. The 119 floor is the shipped FIFO rate on
-	// the reference machine; this drain must hold it with all 8 claimers.
-	if got := result.ClaimsPerSecond(); got < 119 {
-		t.Fatalf("skew drain throughput = %.1f claims/s, want >= 119 (design floor)", got)
+	// throughput and fails here. The bound is load-insensitive (#8725 P1
+	// disposition, same root cause as the pacing floor: an absolute
+	// claims/s floor flakes on hosted runner noise): a same-run
+	// single-claimer calibration drain of the same backlog shape cancels
+	// host speed out of the ratio, so only throttled or serialized grants
+	// collapse the speedup below half the enrolled parallelism.
+	calKeys := []claimDepthKeyBacklog{{FairnessKey: "claim-depth-skew-cal:large", Count: largeCount}}
+	for _, small := range smallKeys {
+		calKeys = append(calKeys, claimDepthKeyBacklog{FairnessKey: "claim-depth-skew-cal:" + small, Count: 20, CreatedOffset: time.Second})
 	}
+	calSeeded := seedClaimDepthBacklog(t, store, ctx, "claim-depth-skew-cal", base, calKeys)
+	cal := drainClaimDepthBacklog(t, database, ctx, 1, poolLimit)
+	assertClaimDepthExactlyOnce(t, calSeeded, cal)
+	if !claimDepthDrainSpeedupOK(cal.Duration.Seconds(), result.Duration.Seconds(), claimDepthClaimers) {
+		t.Fatalf("skew drain speedup = %.2fx (single %s vs parallel %s), want >= %.1fx (half of %d enrolled claimers; throttled or serialized grants)",
+			cal.Duration.Seconds()/result.Duration.Seconds(), cal.Duration, result.Duration, float64(claimDepthClaimers)/2, claimDepthClaimers)
+	}
+	t.Logf("skew calibration items=%d claimers=1 duration=%s claims_per_second=%.1f speedup=%.2fx",
+		len(calSeeded), cal.Duration, cal.ClaimsPerSecond(), cal.Duration.Seconds()/result.Duration.Seconds())
 	for _, key := range append([]string{largeKey}, smallKeys...) {
 		record, ok := first[key]
 		if !ok {

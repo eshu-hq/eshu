@@ -116,6 +116,22 @@ func (r claimDepthResult) ClaimsPerSecond() float64 {
 	return float64(len(r.Records)) / r.Duration.Seconds()
 }
 
+// claimDepthDrainSpeedupOK is the load-insensitive anti-serialization bound
+// (#8725 P1 disposition): a parallel drain over the same backlog shape must
+// achieve at least half the enrolled claimers' worth of speedup over a
+// single-claimer calibration drain. The ratio cancels hosted runner speed,
+// so a slow runner cannot trip it; only throttled or serialized grants
+// collapse the speedup. The bound derives from the test's own parameters —
+// below half the enrolled parallelism provably indicates throttling — not
+// from a measured wall-clock floor. A degenerate calibration (fewer than two
+// claimers, non-positive durations) proves nothing and fails closed.
+func claimDepthDrainSpeedupOK(singleSecs, parallelSecs float64, claimers int) bool {
+	if claimers < 2 || singleSecs <= 0 || parallelSecs <= 0 {
+		return false
+	}
+	return singleSecs/parallelSecs >= float64(claimers)/2
+}
+
 // maxClaimDepthConsecutiveEmpties bounds one claimer's consecutive empty
 // ClaimNextEligible returns before it may idle. #8725 raised the original 50
 // to 200: a 50-empty budget idled a claimer mid-drain under a lock-hot window

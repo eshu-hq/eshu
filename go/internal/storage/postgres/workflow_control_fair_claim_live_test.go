@@ -215,11 +215,29 @@ func TestWorkflowClaimDepthStaggeredStartHoldsGates(t *testing.T) {
 	assertClaimDepthConcurrency(t, result, claimDepthClaimers)
 	assertClaimDepthExactlyOnce(t, seeded, result)
 	assertClaimDepthMinGrantsPerOwner(t, result, claimDepthClaimers, 10)
-	if got := result.ClaimsPerSecond(); got < 119 {
-		t.Fatalf("staggered drain throughput = %.1f claims/s, want >= 119 (design floor)", got)
-	}
 	t.Logf("staggered drain items=%d claimers=%d duration=%s claims_per_second=%.1f empty_attempts=%d",
 		len(seeded), claimDepthClaimers, result.Duration, result.ClaimsPerSecond(), result.EmptyAttempts)
+
+	// Load-insensitive anti-serialization bound (#8725 P1 disposition, same
+	// root cause as the pacing floor: an absolute claims/s floor flakes on
+	// hosted runner noise). A same-run single-claimer calibration drain of
+	// the same backlog shape cancels host speed out of the ratio; only
+	// throttled or serialized grants collapse the speedup below half the
+	// enrolled parallelism. (The 5ms start stagger is per-claimer index, so
+	// the single calibration claimer waits zero.)
+	calKeys := []claimDepthKeyBacklog{{FairnessKey: "claim-depth-cal:large", Count: 500}}
+	for _, small := range []string{"cal-small-1", "cal-small-2", "cal-small-3", "cal-small-4"} {
+		calKeys = append(calKeys, claimDepthKeyBacklog{FairnessKey: "claim-depth-cal:" + small, Count: 20, CreatedOffset: time.Second})
+	}
+	calSeeded := seedClaimDepthBacklog(t, store, ctx, "claim-depth-stagger-cal", base, calKeys)
+	cal := drainClaimDepthBacklog(t, database, ctx, 1, poolLimit)
+	assertClaimDepthExactlyOnce(t, calSeeded, cal)
+	if !claimDepthDrainSpeedupOK(cal.Duration.Seconds(), result.Duration.Seconds(), claimDepthClaimers) {
+		t.Fatalf("staggered drain speedup = %.2fx (single %s vs parallel %s), want >= %.1fx (half of %d enrolled claimers; throttled or serialized grants)",
+			cal.Duration.Seconds()/result.Duration.Seconds(), cal.Duration, result.Duration, float64(claimDepthClaimers)/2, claimDepthClaimers)
+	}
+	t.Logf("staggered calibration items=%d claimers=1 duration=%s claims_per_second=%.1f speedup=%.2fx",
+		len(calSeeded), cal.Duration, cal.ClaimsPerSecond(), cal.Duration.Seconds()/result.Duration.Seconds())
 }
 
 // assertClaimDepthMinGrantsPerOwner proves every claimer kept granting deep

@@ -227,10 +227,13 @@ func TestWorkflowClaimPacingGlobalCeiling(t *testing.T) {
 
 // TestWorkflowClaimPacingIdleDrainHoldsFloor is the #8470 anti-serialization
 // gate: with pacing configured but the backlog below every threshold, the
-// full eight-claimer concurrent drain holds the shipped throughput floor
-// with every claimer sharing work. A pacing mechanism that fixes the tail by
-// throttling the burst — fewer concurrent grants, one claimer at a time —
-// fails here.
+// full eight-claimer concurrent drain holds a load-insensitive speedup bound
+// against a same-run single-claimer calibration drain, with every claimer
+// sharing work. A pacing mechanism that fixes the tail by throttling the
+// burst — fewer concurrent grants, one claimer at a time — fails here.
+// (#8725: the prior absolute claims/s floor flaked on hosted runner noise,
+// so the bound is now the dimensionless speedup ratio, which cancels host
+// speed; the absolute throughput stays logged for trend work.)
 func TestWorkflowClaimPacingIdleDrainHoldsFloor(t *testing.T) {
 	database, store, ctx, poolLimit := openClaimDepthHarness(t, claimDepthClaimers)
 	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
@@ -256,14 +259,35 @@ func TestWorkflowClaimPacingIdleDrainHoldsFloor(t *testing.T) {
 	assertClaimDepthConcurrency(t, result, claimDepthClaimers)
 	assertClaimDepthExactlyOnce(t, seeded, result)
 	assertClaimDepthMinGrantsPerOwner(t, result, claimDepthClaimers, 10)
-	if got := result.ClaimsPerSecond(); got < 119 {
-		t.Fatalf("pacing-idle drain throughput = %.1f claims/s, want >= 119 (design floor)", got)
-	}
 	if got := idle.count(); got != 0 {
 		t.Fatalf("pacing-idle paced waits = %d, want 0 (backlog below every threshold)", got)
 	}
 	t.Logf("pacing-idle drain items=%d claimers=%d duration=%s claims_per_second=%.1f empty_attempts=%d backends=%v",
 		len(seeded), claimDepthClaimers, result.Duration, result.ClaimsPerSecond(), result.EmptyAttempts, result.BackendPIDs)
+
+	// Load-insensitive anti-serialization bound (#8725 P1 disposition): the
+	// absolute claims/s floor above flaked on hosted runner noise (112.1 vs
+	// 119 on a green-neighbor head with zero code overlap), so the gate now
+	// compares against a same-run single-claimer calibration drain of the
+	// same backlog shape. Host speed cancels out of the ratio; only
+	// throttled or serialized grants collapse the speedup below half the
+	// enrolled parallelism. The absolute throughput stays logged for trend
+	// work, and #8725 tracks the bound's scheduled-tier ownership.
+	calSeeded := seedClaimDepthBacklog(t, store, ctx, "pacing-idle-cal", base, []claimDepthKeyBacklog{
+		{FairnessKey: "pacing:idle-cal-large", Count: 500},
+		{FairnessKey: "pacing:idle-cal-small-1", Count: 20, CreatedOffset: time.Second},
+		{FairnessKey: "pacing:idle-cal-small-2", Count: 20, CreatedOffset: time.Second},
+		{FairnessKey: "pacing:idle-cal-small-3", Count: 20, CreatedOffset: time.Second},
+		{FairnessKey: "pacing:idle-cal-small-4", Count: 20, CreatedOffset: time.Second},
+	})
+	cal := drainClaimDepthBacklog(t, database, ctx, 1, poolLimit)
+	assertClaimDepthExactlyOnce(t, calSeeded, cal)
+	if !claimDepthDrainSpeedupOK(cal.Duration.Seconds(), result.Duration.Seconds(), claimDepthClaimers) {
+		t.Fatalf("pacing-idle drain speedup = %.2fx (single %s vs parallel %s), want >= %.1fx (half of %d enrolled claimers; throttled or serialized grants)",
+			cal.Duration.Seconds()/result.Duration.Seconds(), cal.Duration, result.Duration, float64(claimDepthClaimers)/2, claimDepthClaimers)
+	}
+	t.Logf("pacing-idle calibration items=%d claimers=1 duration=%s claims_per_second=%.1f speedup=%.2fx",
+		len(calSeeded), cal.Duration, cal.ClaimsPerSecond(), cal.Duration.Seconds()/result.Duration.Seconds())
 }
 
 // TestWorkflowClaimPacingEngagedDrainCompletesExactlyOnce proves pacing
