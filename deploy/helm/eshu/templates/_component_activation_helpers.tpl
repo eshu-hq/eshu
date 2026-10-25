@@ -255,6 +255,12 @@ image, then a reconcile container from the Eshu image, per activation.
       value: {{ include "eshu.componentCSVList" $root.Values.componentExtensionCollector.revokeIds | quote }}
     - name: REVOKE_PUBLISHERS
       value: {{ include "eshu.componentCSVList" $root.Values.componentExtensionCollector.revokePublishers | quote }}
+    {{- with $root.Values.componentExtensionCollector.coreVersion }}
+    {{- /* eshu component install checks compatibleCore against this; without it a
+           main-branch image checks its commit SHA and refuses every install (#9090). */}}
+    - name: ESHU_COMPONENT_CORE_VERSION
+      value: {{ . | quote }}
+    {{- end }}
   securityContext:
     {{- toYaml $root.Values.initContainerSecurityContext | nindent 4 }}
   volumeMounts:

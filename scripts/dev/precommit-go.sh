@@ -396,7 +396,7 @@ case "${cmd}" in
 		gosec_arm_changed
 		;;
 	surface)
-		( cd "${go_dir}" && go run ./cmd/capability-inventory -mode verify >/dev/null ) \
+		( source "${script_root}/scripts/lib/cgo-cflags.sh" && eshu_export_cgo_cflags && cd "${go_dir}" && go run ./cmd/capability-inventory -mode verify >/dev/null ) \
 			|| die "capability surface inventory is stale — run: cd go && go run ./cmd/capability-inventory -mode generate"
 		;;
 	perf-evidence)

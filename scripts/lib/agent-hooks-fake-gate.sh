@@ -5,7 +5,7 @@
 # `pgrep -x ci-gates` without running a gate. A `sleep` symlinked under that
 # name does not work: the multi-call uutils coreutils on Ubuntu 26.04 refuses
 # to run under another name (#9067). Linux only: macOS names a script process
-# after its interpreter, and these mirrors run in CI on ubuntu-latest.
+# after its interpreter, and these mirrors run in CI on ubuntu-24.04.
 
 # start_fake_gate starts the fake and sets fakebin and fake_pid. The caller
 # stops it with `kill "$fake_pid"` and removes "$fakebin".

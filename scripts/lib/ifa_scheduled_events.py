@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 import sys
 
-from reducer_contention_events import verify_events
+from reducer_contention_events import verify_events, without_cgo_env
 from ifa_scheduled_manifest import NORNIC_DIGEST, POSTGRES_DIGEST
 
 
@@ -16,7 +16,7 @@ INVENTORY = Path(__file__).with_name("ifa_scheduled_inventory.json")
 RUNNER = Path("scripts/run-ifa-scheduled-proofs.sh")
 WORKFLOW = Path(".github/workflows/ifa-scheduled-proofs.yml")
 FRAGMENT = Path("specs/ci-pr-workflows.d/ifa-scheduled-proofs.yml")
-WORKFLOW_SHA256 = "6ef742cc11d11c30a0dd48c1fbd9fb9790b9b764277b82a8bdaff58576f83c52"
+WORKFLOW_SHA256 = "6fdfa24d2e0dd0a0e375a488a143b158475593334020978d9b231cf270c039d0"
 RUNNER_SHA256 = "63e6573b21b77cdab837b15080672368f53d97d47d6cb903c6037f663576a03e"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 SOURCE_PATHS = frozenset((
@@ -90,6 +90,7 @@ def canonical_keys(text: str, indent: int, allowed: frozenset[str]) -> dict[str,
 
 def verify_workflow_structure(workflow: str) -> str:
     """Reject alternate YAML properties that can disable the owner job or steps."""
+    workflow = without_cgo_env(workflow)
     root = canonical_keys(workflow, 0, ROOT_KEYS)
     if set(root) != ROOT_KEYS or root["jobs"] != "jobs:":
         raise ValueError("inactive Ifá owner job: noncanonical workflow root")

@@ -26,7 +26,7 @@ import (
 // fails when the output moves without a bump (ruling a9-117 d6). Do not derive
 // it from the build version: that would store a duplicate generation of every
 // repository on every release.
-const gitGenerationContentVersion = "git-collector.v12"
+const gitGenerationContentVersion = "git-collector.v14"
 
 // GenerationReconcileReasonUnspecified is the reconcile reason a generation
 // carries when its snapshot was forced to reconcile without a decision reason,

@@ -10,6 +10,10 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# #9066: cgo needs -std=gnu17 on GCC 15 + glibc 2.43; see scripts/lib/cgo-cflags.sh.
+# shellcheck source=../lib/cgo-cflags.sh
+source "${repo_root}/scripts/lib/cgo-cflags.sh"
+eshu_export_cgo_cflags
 registry="${repo_root}/specs/ci-gates.v1.yaml"
 
 # --repo-root is passed explicitly so selected gate commands (which are

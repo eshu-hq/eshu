@@ -826,6 +826,10 @@ componentExtensionCollector:
   allowPublishers: ""
   revokeIds: ""
   revokePublishers: ""
+  # coreVersion becomes ESHU_COMPONENT_CORE_VERSION on the worker, the workflow
+  # coordinator, and every activation reconcile init container. Set it when the
+  # image tag is a commit SHA: compatibleCore cannot match a SHA, so the
+  # reconcile step's `eshu component install` refuses the package without it.
   coreVersion: ""
   extensionEgressPolicyJSON: ""
   scopeKind: component

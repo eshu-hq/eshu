@@ -17,7 +17,8 @@ import (
 // starting the standard service set.
 //
 // Peak demand = (number of services that open a Postgres pool) *
-// defaultPostgresMaxOpenConns. If a new pool-holding service is added, or the
+// defaultPostgresMaxOpenConns, plus one connection per reducer for the
+// secret-lines repair's dedicated lock pool. If a new pool-holding service is added, or the
 // per-process pool default is raised, without lifting max_connections, this test
 // fails — keeping the envelope coherent by construction.
 func TestComposePostgresMaxConnectionsCoversPoolBudget(t *testing.T) {
@@ -35,7 +36,10 @@ func TestComposePostgresMaxConnectionsCoversPoolBudget(t *testing.T) {
 		if poolServices == 0 {
 			t.Fatalf("%s: found no services with a Postgres pool; the budget check cannot be evaluated", fileName)
 		}
-		peakDemand := poolServices * defaultPostgresMaxOpenConns
+		if reducerLockPoolConnections(doc) == 0 {
+			t.Fatalf("%s: found no eshu-reducer service; the secret-lines lock pool term of the budget would silently vanish", fileName)
+		}
+		peakDemand := poolServices*defaultPostgresMaxOpenConns + reducerLockPoolConnections(doc)
 
 		maxConns, err := composePostgresMaxConnections(doc)
 		if err != nil {
@@ -57,6 +61,21 @@ func TestComposePostgresMaxConnectionsCoversPoolBudget(t *testing.T) {
 // per-process pools for superuser_reserved_connections, an operator psql session,
 // the admin-status probe, and transient tooling.
 const reservedAdminConnections = 20
+
+// reducerLockPoolConnections is the extra connection each reducer opens while a
+// secret-lines rebuild runs (#8833): the Repairer pins its advisory lock on a
+// dedicated one-connection pool so the rebuild keeps the shared pool's whole
+// capacity. The shared pool still peaks at defaultPostgresMaxOpenConns, so a
+// reducer's worst case is that plus one.
+func reducerLockPoolConnections(doc composeDocument) int {
+	n := 0
+	for _, service := range doc.Services {
+		if strings.Contains(fmt.Sprint(service.Command), "eshu-reducer") {
+			n++
+		}
+	}
+	return n
+}
 
 // TestRemoteE2EStackFitsConnectionBudget checks the remote-e2e proof stack, which
 // `extends` the base postgres (inheriting its max_connections) but composes many
@@ -84,7 +103,7 @@ func TestRemoteE2EStackFitsConnectionBudget(t *testing.T) {
 	if poolServices == 0 {
 		t.Fatal("remote-e2e merged stack has no Postgres pool services; the budget check cannot be evaluated")
 	}
-	peakDemand := poolServices * defaultPostgresMaxOpenConns
+	peakDemand := poolServices*defaultPostgresMaxOpenConns + reducerLockPoolConnections(merged)
 
 	// The remote-e2e postgres inherits max_connections from the base compose.
 	base := readComposeDocument(t, "docker-compose.yaml")

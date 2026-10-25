@@ -421,6 +421,7 @@ assert_driver_lane() {
 	mkdir -p "${fixture}/scripts/dev" "${fixture}/scripts/lib" "${fixture}/go" "${fixture}/bin"
 	cp "${script}" "${fixture}/scripts/dev/pre-pr.sh"
 	cp "${repo_root}"/scripts/lib/pre-pr-*.sh "${fixture}/scripts/lib/"
+	cp "${repo_root}/scripts/lib/cgo-cflags.sh" "${fixture}/scripts/lib/"
 	cp "${repo_root}"/scripts/lib/test-pre-pr-*.sh "${fixture}/scripts/lib/"
 	printf '#!/bin/sh\nexit 0\n' > "${fixture}/bin/go"
 	ln -s "${shell_path}" "${fixture}/bin/bash"

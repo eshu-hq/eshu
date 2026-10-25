@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package declaration turns the version-pin files a repository commits
-// into "runtime_declaration.version" facts (issue #8815, epic #8807).
+// Package declaration turns the version-pin files a repository commits, the
+// engines, volta and packageManager sections of its package.json files and
+// the go and toolchain directives of its go.mod files into
+// "runtime_declaration.version" facts (issue #8815, epic #8807).
 //
 // The package is the producer half of the contract defined by
 // facts.RuntimeDeclarationVersionFactKind and the typed
-// sdk/go/factschema/runtimedeclaration/v1.Version payload. Three pieces
+// sdk/go/factschema/runtimedeclaration/v1.Version payload. Four pieces
 // compose it:
 //
 //   - Classify reads one declared version string into a Spec: exact, partial,
@@ -24,13 +26,19 @@
 //     whitespace-split value keeps a spaced comparator with its version
 //     (">= 18" is one declaration) and reports a value with an operator-only
 //     token left over ("18 - 20") as one alias, never as fragments.
+//   - ClassifyPath, Extract and EmitExtraction read one package.json or go.mod
+//     body. source_kind names the section (package_json_engines,
+//     package_json_volta, package_json_package_manager, go_mod_go,
+//     go_mod_toolchain). The package.json scan is a bounded, allocation-free
+//     JSON walk that fails closed on malformed input, and every value passes a
+//     credential guard before it can become a raw_spec: a value that is not
+//     short ASCII version text is dropped and counted, never emitted.
 //   - ScopeDir reports the declaring file's directory in the contract's form.
 //
 // This package does not select which files reach it, decide scope or
 // generation identifiers, or call the reducer or query packages. The Git
 // collector (go/internal/collector/repo/git/runtime/declaration) accumulates
-// candidate bodies during its content stream and calls Emit once per
-// generation. package.json, go.mod, Dockerfile and CI sources are separate
-// changes; the reducer projection (#8816) and query tool (#8817) consume the
-// facts later.
+// pin file bodies and manifest extractions during its content stream and emits
+// them once per generation. Dockerfile and CI sources are a separate change; the
+// reducer projection (#8816) and query tool (#8817) consume the facts later.
 package declaration

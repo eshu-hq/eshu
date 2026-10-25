@@ -127,6 +127,10 @@ Supported today:
 - Vulnerability reachability for Maven/Gradle findings can use Java imports and
   calls only after resolver evidence proves the dependency's package API prefix;
   this is a reachable prioritization signal, not a not-called or safe result.
+- A `build.gradle` dependency declared with a Gradle selector (`1.+`,
+  `latest.release`, `[1.0,2.0)`, `1.0!!`, `1.0@jar`) is `unresolved`, not an
+  observed version, so package matching and alert version checks never
+  compare against selector text.
 
 Not claimed today:
 

@@ -20,9 +20,10 @@ One fact kind decodes through this package today:
 
 `Version` models one runtime version a repository declares in one file. The
 git collector emits it from the version-pin files (`.nvmrc`, `.node-version`,
-`.tool-versions`, `.sdkmanrc`, `rust-toolchain` and peers). `package.json`,
-`go.mod`, Dockerfile and CI setup sources follow in later changes through the
-same contract.
+`.tool-versions`, `.sdkmanrc`, `rust-toolchain` and peers), the `engines`,
+`volta` and `packageManager` sections of `package.json`, and the `go` and
+`toolchain` directives of `go.mod`. Dockerfile and CI setup sources follow in a
+later change through the same contract.
 
 ## Required vs. optional fields
 
@@ -54,13 +55,19 @@ error naming the field.
   `python`, `ruby`, `java`, `rust`, `terraform`, `swift`). An unknown tool is carried
   verbatim and lower cased. `ToolName` holds the verbatim token when it
   differed (`nodejs` for `node`).
-- `SourceKind` is one snake-case value per file name: `nvmrc`, `node_version`,
-  `python_version`, `ruby_version`, `java_version`, `go_version`,
-  `terraform_version`, `tool_versions`, `sdkmanrc`, `rust_toolchain`,
-  `swift_version`. It is an
-  open set.
-- `LineNumber` is 1-based. `OrderIndex` is the 0-based token on the line, so
-  `nodejs 20.1.0 18.0.0` is two facts on one line.
+- `SourceKind` is snake case, an open set, and one value per declaring source.
+  A version-pin file is one source, so it has one value even when the file has
+  two spellings (`rust-toolchain` and `rust-toolchain.toml` are both
+  `rust_toolchain`): `nvmrc`, `node_version`, `python_version`, `ruby_version`,
+  `java_version`, `go_version`, `terraform_version`, `tool_versions`,
+  `sdkmanrc`, `rust_toolchain`, `swift_version`. A manifest with several
+  declaring sections has one value per section, named `<file>_<section>`:
+  `package_json_engines`, `package_json_volta`, `package_json_package_manager`,
+  `go_mod_go`, `go_mod_toolchain`. Later sources follow the convention, and a
+  value is never renamed after it is emitted.
+- `LineNumber` is 1-based. `OrderIndex` is the 0-based declaration on the line,
+  so `nodejs 20.1.0 18.0.0` is two facts on one line, and a one-line
+  `package.json` gives each of its declarations its own index.
 - Aliases such as `lts/*`, `node` and `system` are never resolved offline.
 
 ## Changing this struct

@@ -38,33 +38,77 @@ const WriterSessionSQL = "SET eshu.infra_inventory_writer = '" + writerSessionVa
 // triggers skip.
 const writerSessionValue = "derive"
 
+// ConnectHook is a per-connection step a binary runs after the session SQL of
+// WriterConnectOption. A hook that returns an error fails the connection:
+// WriterConnectOptionWithHooks closes the session itself, because the pgx
+// stdlib connector returns an AfterConnect error without closing, and any
+// session-scoped state the hook took (an advisory lock) must die with it.
+type ConnectHook func(ctx context.Context, conn *pgx.Conn) error
+
 // WriterConnectOption runs WriterSessionSQL on every new pool connection, then
 // each extraSessionSQL statement in order. The extras carry other per-session
 // writer settings a binary opts into, such as the bulk-load setting
 // bootstrap-index adds for the hardcoded-secret side table (#7125).
 func WriterConnectOption(extraSessionSQL ...string) stdlib.OptionOpenDB {
+	return WriterConnectOptionWithHooks(nil, extraSessionSQL...)
+}
+
+// WriterConnectOptionWithHooks is WriterConnectOption that also runs each hook,
+// in order, after the extra statements. bootstrap-index uses a hook for the
+// secret-lines deferred-writer lock and birth fence (#8833), which need a
+// parameter that only exists at run time and so cannot be a fixed statement.
+// When any statement or hook fails it closes the connection before returning
+// the error, because the pgx stdlib connector leaves it open.
+func WriterConnectOptionWithHooks(hooks []ConnectHook, extraSessionSQL ...string) stdlib.OptionOpenDB {
 	return stdlib.OptionAfterConnect(func(ctx context.Context, conn *pgx.Conn) error {
-		if _, err := conn.Exec(ctx, WriterSessionSQL); err != nil {
-			return fmt.Errorf("mark connection as infra inventory writer: %w", err)
+		err := prepareWriterConn(ctx, conn, hooks, extraSessionSQL)
+		if err != nil {
+			// Close on any failure: the driver would hand the error back and leave
+			// the session open, still holding whatever a hook took.
+			closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), connCloseTimeout)
+			defer cancel()
+			_ = conn.Close(closeCtx)
 		}
-		for _, statement := range extraSessionSQL {
-			if _, err := conn.Exec(ctx, statement); err != nil {
-				return fmt.Errorf("apply writer session setting %q: %w", statement, err)
-			}
-		}
-		return nil
+		return err
 	})
+}
+
+// connCloseTimeout bounds the close of a connection a hook refused.
+const connCloseTimeout = 2 * time.Second
+
+// prepareWriterConn runs the writer session statements and then each hook.
+func prepareWriterConn(ctx context.Context, conn *pgx.Conn, hooks []ConnectHook, extraSessionSQL []string) error {
+	if _, err := conn.Exec(ctx, WriterSessionSQL); err != nil {
+		return fmt.Errorf("mark connection as infra inventory writer: %w", err)
+	}
+	for _, statement := range extraSessionSQL {
+		if _, err := conn.Exec(ctx, statement); err != nil {
+			return fmt.Errorf("apply writer session setting %q: %w", statement, err)
+		}
+	}
+	for _, hook := range hooks {
+		if err := hook(ctx, conn); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // OpenWriterDB opens a database/sql pool over the pgx driver whose
 // connections are marked derive-aware (WriterConnectOption), then run each
 // extraSessionSQL statement. It does not connect; the first use or a ping does.
 func OpenWriterDB(dsn string, extraSessionSQL ...string) (*sql.DB, error) {
+	return OpenWriterDBWithHooks(dsn, nil, extraSessionSQL...)
+}
+
+// OpenWriterDBWithHooks is OpenWriterDB with connect hooks
+// (WriterConnectOptionWithHooks).
+func OpenWriterDBWithHooks(dsn string, hooks []ConnectHook, extraSessionSQL ...string) (*sql.DB, error) {
 	config, err := pgx.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("parse postgres dsn: %w", err)
 	}
-	return stdlib.OpenDB(*config, WriterConnectOption(extraSessionSQL...)), nil
+	return stdlib.OpenDB(*config, WriterConnectOptionWithHooks(hooks, extraSessionSQL...)), nil
 }
 
 // readModelReadySQL is the readers' gate: the backfill marker exists and no

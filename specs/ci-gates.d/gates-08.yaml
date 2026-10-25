@@ -8,6 +8,7 @@ gates:
     tier: ci-heavy
     blocking: false
     triggers:
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/ci-gates-resolved-fixtures.sh"
       - "go/internal/collector/**"
       - "go/internal/parser/**"
@@ -177,6 +178,7 @@ gates:
     tier: ci-heavy
     blocking: true
     triggers:
+      - "scripts/lib/cgo-cflags.sh"
       # cmd/api compiles 363 of the repo's 558 internal packages (go list
       # -deps ./cmd/api, 2026-09). A narrower,
       # hand-picked package list drifts silently as eshu-api's own imports
@@ -323,6 +325,7 @@ gates:
     tier: ci-heavy
     blocking: true
     triggers:
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/ci-gates-resolved-fixtures.sh"
       - "go/internal/collector/**"
       - "go/internal/parser/**"

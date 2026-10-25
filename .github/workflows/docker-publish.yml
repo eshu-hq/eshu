@@ -45,7 +45,11 @@ permissions:
 concurrency:
   group: ci-leaf-docker-publish-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+# #9066: -std=gnu17 keeps go-sitter-forest/perl compiling on GCC 15 + glibc 2.43 (C23
+# bsearch macro) when the Go build cache is cold. "-O2 -g" is Go's own default, kept
+# because setting CGO_CFLAGS replaces it. Remove with scripts/lib/cgo-cflags.sh.
 env:
+  CGO_CFLAGS: "-O2 -g -std=gnu17"
   CI_BUILDKIT_IMAGE: ghcr.io/eshu-hq/ci-mirror-buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
   ESHU_XX_IMAGE: ghcr.io/eshu-hq/ci-mirror-xx@sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f
   ESHU_GO_IMAGE: ghcr.io/eshu-hq/ci-mirror-golang@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca

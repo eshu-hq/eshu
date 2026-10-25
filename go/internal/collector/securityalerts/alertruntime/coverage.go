@@ -72,6 +72,7 @@ func (c alertCollection) freshnessInput(target TargetConfig) securityAlertFreshn
 		truncated:      c.truncated,
 		fanoutOutcomes: c.fanoutOutcomes,
 		orgReadState:   target.IsOrganizationScope(),
+		targetSetHash:  target.targetSet().Hash(),
 	}
 }
 

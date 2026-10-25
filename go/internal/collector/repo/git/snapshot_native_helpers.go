@@ -179,13 +179,18 @@ func (s *GitSource) recordIdentityDrop(ctx context.Context, drop identityDrop) {
 }
 
 // pinSkipRecorder returns the onSkip callback the runtime declaration emitter
-// calls for a pin file over runtimedeclaration.MaxBytesPerFile or
-// runtimedeclaration.MaxTokensPerFile. It logs WARN
-// git_runtime_declaration_file_skipped through the GitSource ctx carries, with
-// the closed reason and the sizes that tripped the cap (never file content).
-// The skip is deterministic for the file content, so it does not mark the
-// generation dropped. A ctx without a recorder or a logger makes the callback
-// a no-op; the file emits no facts either way.
+// calls for a file it did not read in full: a pin file over
+// runtimedeclaration.MaxBytesPerFile or runtimedeclaration.MaxTokensPerFile, a
+// manifest over runtimedeclaration.MaxManifestBytesPerFile, a package.json that
+// is not readable JSON, or a manifest that lost values to the credential guard.
+// It logs WARN git_runtime_declaration_file_skipped through the GitSource ctx
+// carries, with the closed reason and the sizes that tripped the cap (never
+// file content). A value rejection logs WARN
+// git_runtime_declaration_values_rejected with rejected_count instead, because
+// the file's other declarations were still emitted. Every skip is deterministic
+// for the file content, so none marks the generation dropped. A ctx without a
+// recorder or a logger makes the callback a no-op; the facts are emitted or not
+// either way.
 func pinSkipRecorder(ctx context.Context, repositoryID, scopeID, generationID string) func(relativePath string, skip runtimedeclaration.Skip) {
 	return func(relativePath string, skip runtimedeclaration.Skip) {
 		s, _ := ctx.Value(streamDropRecorderKey{}).(*GitSource)
@@ -200,15 +205,23 @@ func pinSkipRecorder(ctx context.Context, repositoryID, scopeID, generationID st
 			slog.String("relative_path", relativePath),
 			slog.Int("byte_size", skip.ByteSize),
 		}
+		message := "git_runtime_declaration_file_skipped"
 		switch skip.Reason {
 		case runtimedeclaration.SkipReasonByteCap:
-			attrs = append(attrs, slog.Int("byte_cap", runtimedeclaration.MaxBytesPerFile))
+			byteCap := skip.ByteCap
+			if byteCap == 0 {
+				byteCap = runtimedeclaration.MaxBytesPerFile
+			}
+			attrs = append(attrs, slog.Int("byte_cap", byteCap))
 		case runtimedeclaration.SkipReasonTokenCap:
 			attrs = append(attrs,
 				slog.Int("token_count", skip.TokenCount),
 				slog.Int("token_cap", runtimedeclaration.MaxTokensPerFile))
+		case runtimedeclaration.SkipReasonValueRejected:
+			message = "git_runtime_declaration_values_rejected"
+			attrs = append(attrs, slog.Int("rejected_count", skip.Rejected))
 		}
-		s.Logger.WarnContext(ctx, "git_runtime_declaration_file_skipped", attrs...)
+		s.Logger.WarnContext(ctx, message, attrs...)
 	}
 }
 

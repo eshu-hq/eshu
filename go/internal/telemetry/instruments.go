@@ -2638,6 +2638,13 @@ type Instruments struct {
 	// size while the ready state row still reads building.
 	SecretLinesBackfillFiles metric.Int64Counter
 
+	// SecretLinesRepairRuns counts reducer polls of the hardcoded-secret side
+	// table repair (#8833) by outcome: skipped_ready, skipped_locked,
+	// published, superseded, or failed. A not-ready state with only
+	// skipped_locked means another session holds the bulk-load lock; repeated
+	// failed means reads stay on the legacy scan.
+	SecretLinesRepairRuns metric.Int64Counter
+
 	// HardcodedSecretReads counts hardcoded-secret investigation reads by source
 	// (side_table or legacy_scan). Any legacy_scan means a bulk load has not yet
 	// published the side table as ready, and that read pays the full content scan.
@@ -7027,6 +7034,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecretLinesBackfillFiles counter: %w", err)
+	}
+
+	if err := registerSecretLinesRepairInstruments(meter, inst); err != nil {
+		return nil, err
 	}
 
 	inst.HardcodedSecretReads, err = meter.Int64Counter(

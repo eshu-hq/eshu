@@ -33,8 +33,27 @@ recent shipped work grouped by feature area.
   sync `workflow_read_failed`. The largest lock file
   measured in the repository and golden corpus is 274,035 bytes, so no lock
   file below the cap is affected. `gitGenerationContentVersion` moves from
-  `git-collector.v11` to `git-collector.v12`, so each repository re-collects
+  `git-collector.v13` to `git-collector.v14`, so each repository re-collects
   once when its reconciliation sweep next comes due.
+
+### Security alerts: a newly allowlisted repository no longer reads as covered
+
+- **Per-generation target set**
+  ([#8838](https://github.com/eshu-hq/eshu/issues/8838)). Each security-alert
+  generation records the repositories it collected in
+  `scope_generations.payload` (`security_alert_target_set` and
+  `security_alert_target_set_hash`). An empty answer for a repository added to
+  an allowlist, or for a reused repository `scope_id`, now reads
+  `target_incomplete` with `no_committed_generation` until a generation that
+  collected it projects. Before, it read `complete`, exact and fresh. The set's
+  hash is part of the freshness hint, so an allowlist change commits a new
+  generation even when the provider's alerts did not change. Each target
+  commits one extra generation after the upgrade; an unchanged allowlist still
+  skips every cycle. No DDL. An unanchored empty answer costs what it did
+  (19.88 to 19.75 ms for 1,024 targets with 5,000-repository sets). An anchored
+  one adds about 0.2 ms and 14 buffers per covering target at 5,000
+  incompressible repositories (0.09 to 0.34 ms for one target).
+  Evidence: `docs/internal/evidence/8838-security-alert-target-set.md`.
 
 ### Status: blockage rows name the domain that holds the fence
 
@@ -80,6 +99,28 @@ recent shipped work grouped by feature area.
   `producer_settled` outcome for that case, and `gave_up_unmatched` no longer
   counts it. No migration; rows written before the change carry no field.
 
+### Parser: Gradle version selectors are no longer exact versions
+
+- **One fail-closed exact-version rule for Gradle readers**
+  ([#8988](https://github.com/eshu-hq/eshu/issues/8988)). A `build.gradle` or
+  `build.gradle.kts` dependency declared as `1.+`, `latest.release`,
+  `[1.0,2.0)`, `1.0!!` or `1.0@jar` used to be marked `resolved`, and the
+  reducer took the selector text as the observed version. The new
+  `go/internal/parser/gradle/selector` package holds the rule and a shared
+  table. A selector row is now `unresolved` and keeps the text as written.
+  The reducer backstop `payloadcore.ExactManifestDependencyVersion` also
+  rejects a trailing `+`, a `latest.` prefix, `!!`, `@`, and `:` (a colon
+  means leaked notation text). Security-alert
+  reconciliation now uses that same function and reports a selector as a
+  missing version, not a malformed one. Semver build metadata such as
+  `1.0.0+build.1` stays exact in the reducer for npm and Cargo. A string
+  notation classifier no longer leaks into the version: `g:a:1.0:jdk8` now
+  resolves to `1.0`, not `1.0:jdk8`, and text past the classifier
+  (`g:a:1.0:jdk8:extra`, which Gradle rejects) emits no row. The git
+  collector content version moves to `git-collector.v12`, so each repository
+  re-collects once and stale `resolved` selector rows are replaced.
+
+
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
 
 - **A 403 saying Dependabot alerts are disabled classifies as `not_found`**
@@ -92,6 +133,24 @@ recent shipped work grouped by feature area.
   `status_class=not_found` for it. A 403 with a rate-limit signal stays
   `rate_limited`, and every other 403 stays `auth_denied`. The org fan-out
   still reports the repository as `alerts_disabled` and continues.
+
+### CI: cold-cache cgo builds on GCC 15 and glibc 2.43
+
+- **Go builds compile cgo as `gnu17`**
+  ([#9066](https://github.com/eshu-hq/eshu/issues/9066)). A Go build cache miss
+  on the `go-sitter-forest/perl` grammar failed with
+  `bsearch.h:72:7: error: expected identifier or '(' before '_Generic'` on
+  GCC 15 with glibc 2.43 (the Ubuntu 26.04 `ubuntu-latest` image before the runners were pinned to `ubuntu-24.04`), because C23's
+  `bsearch` macro breaks the grammar's own `bsearch` definition. Every workflow
+  that builds Go, the Makefile, and the developer entrypoints (`pre-push`,
+  `pre-pr`, `prove`, `run-selected-gates`, `install-local-binaries`) and the
+  golden-corpus and Ifa build helpers now set `CGO_CFLAGS="-O2 -g -std=gnu17"`,
+  keeping Go's default `-O2 -g`. A script run by hand outside those needs the
+  flag in the environment; on an affected host run
+  `go env -w CGO_CFLAGS="-O2 -g -std=gnu17"` once. The new `cgo-cflags-guard`
+  gate fails a workflow or a `CGO_ENABLED=1 go` script that lacks the flag.
+  Remove the flag once the grammar builds under C23; see
+  [Cgo C Dialect Flag](docs/public/reference/local-testing/cgo-cflags.md).
 
 ### Parser: `.npmrc` registry URLs
 
@@ -449,6 +508,31 @@ recent shipped work grouped by feature area.
 
 ### Declared runtime versions become typed facts
 
+- **`package.json` and `go.mod` now emit `runtime_declaration.version` facts**
+  ([#8815](https://github.com/eshu-hq/eshu/issues/8815), part of
+  [#8807](https://github.com/eshu-hq/eshu/issues/8807)). The git collector
+  reads `engines.node`, `.npm`, `.yarn` and `.pnpm`, `volta.node`, `.npm`,
+  `.yarn` and `.pnpm`, and `packageManager` from every `package.json`, and the
+  `go` and `toolchain` directives from every `go.mod`, at any depth. A monorepo
+  gets one set of facts per package directory. The `source_kind` names the
+  section (`package_json_engines`, `package_json_volta`,
+  `package_json_package_manager`, `go_mod_go`, `go_mod_toolchain`). A range,
+  `lts/*`, `workspace:*`, `catalog:`, `toolchain default`, `toolchain local`
+  and `${X}` are kept as written and never resolved. `packageManager`
+  `pnpm@9.1.0+sha512.…` is runtime `pnpm`, `raw_spec` `9.1.0`: the integrity
+  suffix is cut. `require`, `replace` and every other `go.mod` line never emit,
+  and a copy under `node_modules` or `vendor` emits nothing.
+- **A value that is not a version never reaches a fact.** The two files are
+  stored with the `store` policy, so a manifest value must be at most 128 bytes
+  of version grammar with no long opaque token and no URL; anything else is
+  dropped and counted, never truncated, and the file's other declarations still
+  emit. The collector logs WARN `git_runtime_declaration_values_rejected` with
+  `rejected_count`. A `package.json` that is not readable JSON, or is over 1 MiB,
+  emits nothing and logs `git_runtime_declaration_file_skipped` with reason
+  `manifest_unparseable` or `byte_cap_exceeded`. `gitGenerationContentVersion`
+  moves from `git-collector.v12` to `git-collector.v13`, so each repository
+  re-collects once when its reconciliation sweep next comes due. The fact kind
+  and schema are unchanged.
 - **Version-pin files now emit `runtime_declaration.version` facts**
   ([#8815](https://github.com/eshu-hq/eshu/issues/8815), part of
   [#8807](https://github.com/eshu-hq/eshu/issues/8807)). The git collector reads
@@ -476,8 +560,8 @@ recent shipped work grouped by feature area.
   allocation (1.87 GB before).
 - **Contract only, nothing reads it yet.** The kind is registered additively as
   schema 1.0.0 and disclosed unconsumed; the graph projection (#8816), the
-  query tool (#8817) and the `package.json`, `go.mod`, Dockerfile and CI sources
-  (#8818) are separate changes. Existing repositories pick the facts up at their
+  query tool (#8817) and the Dockerfile and CI sources (#8818) are separate
+  changes. Existing repositories pick the facts up at their
   next reconciliation sweep, because adding a fact kind moves the fact-schema
   digest in `GenerationContentVersion`.
 
@@ -626,6 +710,34 @@ recent shipped work grouped by feature area.
   entity id ([#8962](https://github.com/eshu-hq/eshu/issues/8962)) stay open.
   The registry fingerprint moves with the new exact name, so every repository
   re-collects once; the `git-collector` content version constant is unchanged.
+
+### Reducer: hardcoded-secret side table repair
+
+- **The reducer rebuilds the hardcoded-secret side table whenever it is not
+  ready** ([#8833](https://github.com/eshu-hq/eshu/issues/8833)). Until now only
+  `bootstrap-index` finalized `content_file_secret_lines`, so a failed finalize,
+  or a later migration that changes the derivation, left
+  `investigate_hardcoded_secrets` on the slow legacy scan until an operator
+  reran it. The reducer now polls the state every 30 s
+  (`ESHU_SECRET_LINES_REPAIR_POLL_INTERVAL`). It tries the bulk-load lock
+  `(5318,1)` and a new deferred-writer lock `(5318,2)` without waiting, on its
+  own one-connection pool, rebuilds for the current epoch, and publishes
+  `ready`. Every `bootstrap-index` connection holds `(5318,2)` shared, so the
+  reducer never publishes over a load that is still writing, even if the
+  bootstrap's pinned lock connection died. `bootstrap-index` also refuses to
+  open a connection once its lock connection is gone, keeps that connection
+  alive against `idle_session_timeout`, and fails loudly if its own finalize
+  claims nothing for its epoch. A `bootstrap-index` that starts during a rebuild
+  waits for it, up to `ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT`, and fails naming
+  the holder if it is still running (the worst case before work starts is now
+  three of those waits). The reducer opens up to
+  `ESHU_POSTGRES_MAX_OPEN_CONNS` + 1 connections: the extra one is open for the
+  startup ping, each poll that finds the table not ready, and a rebuild. Finalizer batches (the reducer's
+  and `bootstrap-index`'s) are now also bounded by 4 MiB of content, so a live
+  write waits about half a second behind a batch instead of up to 11 s. It is
+  on by default (`ESHU_SECRET_LINES_REPAIR_ENABLED`). Watch
+  `eshu_dp_secret_lines_repair_runs_total{outcome}` and the
+  `secret_lines.repair_*` logs.
 
 ### Service story defaults to a bounded handles view over MCP
 

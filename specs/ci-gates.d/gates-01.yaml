@@ -10,6 +10,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh fmt-all"
@@ -33,6 +34,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh lint-all"
@@ -95,6 +97,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/test-precommit-go-filecap.sh"
       - "scripts/lib/test-precommit-go-filecap-cases.sh"
@@ -411,6 +414,7 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/gates-01.yaml"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh filecap-all"

@@ -107,7 +107,7 @@ tag_revision() {
 		return 1
 	fi
 	doc="$(ghcr_get "/blobs/${cfg}")" || return 1
-	# No rg here: the publish runners are plain ubuntu-latest, so this script
+	# No rg here: the publish runners are plain ubuntu-24.04, so this script
 	# is limited to curl, jq, git, docker, and POSIX text tools.
 	rev="$(jq -r '.config.Labels["org.opencontainers.image.revision"] // empty' <<<"${doc}")"
 	if [[ -z "${rev}" ]]; then
