@@ -2525,6 +2525,11 @@
     },
     {
       "category": "command",
+      "name": "pr-watch",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "projector",
       "readiness": "implemented"
     },
