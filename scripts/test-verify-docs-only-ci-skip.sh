@@ -489,5 +489,11 @@ else
 fi
 cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
 
+# Flake regression: a producer that is still writing when `rg -q` exits must not
+# fail the guard (SIGPIPE under pipefail made job_needs report a missing gate).
+docs_skip_install_slow_awk "${tmp}/slow-awk"
+if out="$(PATH="${tmp}/slow-awk:${PATH}" run_scratch 2>&1)"; then ok "guard passes when awk is still writing after rg -q exits"
+else no "guard must pass with a slow awk producer; got:"; printf '%s\n' "${out}" >&2; fi
+
 printf '\n%d passed, %d failed\n' "${pass}" "${fail}"
 [[ "${fail}" -eq 0 ]]

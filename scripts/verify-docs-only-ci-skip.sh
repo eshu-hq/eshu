@@ -54,8 +54,22 @@ has() { rg -qF -- "$2" "$1"; }
 # job_block <file> <job> — the YAML lines of one top-level job, header through the
 # line before the next 2-space job key.
 job_block() { awk -v j="  $2:" '$0==j{f=1;print;next} f&&/^  [A-Za-z]/{exit} f{print}' "$1"; }
+# job_needs and job_block_has read the block into a variable first. Piping
+# job_block straight into `rg -q` lets rg exit on the first match while awk is
+# still writing the rest of a block larger than the 4096-byte pipe write; awk
+# then dies of SIGPIPE and `set -o pipefail` turns a found match into a failed
+# check (an intermittent "carries needs:changes" false negative).
+job_needs() {
+	local block
+	block="$(job_block "$1" "$2")"
+	rg -q "^[[:space:]]+needs:[[:space:]]*($3[[:space:]]*$|\\[[[:space:]]*([^]]*,[[:space:]]*)?$3[[:space:]]*(,|\\]))" <<<"${block}"
+}
+job_block_has() {
+	local block
+	block="$(job_block "$1" "$2")"
+	rg -qF -- "$3" <<<"${block}"
+}
 # job_gated <file> <job> — true if the job carries a `needs: changes` code gate.
-job_needs() { job_block "$1" "$2" | rg -q "^[[:space:]]+needs:[[:space:]]*($3[[:space:]]*$|\\[[[:space:]]*([^]]*,[[:space:]]*)?$3[[:space:]]*(,|\\]))"; }
 job_gated() { job_needs "$1" "$2" changes; }
 job_alwayson() { ! job_gated "$1" "$2"; }
 
@@ -292,7 +306,7 @@ declare -F run_docs_planner_checks >/dev/null ||
 
 # --- security-scan.yml: keep the secret scan on, gate the Go scanners. ---
 s="${wf}/security-scan.yml"
-if has "${s}" 'dorny/paths-filter' && job_block "${s}" changes | rg -F 'code: ${{ steps.filter.outputs.code }}' >/dev/null; then
+if has "${s}" 'dorny/paths-filter' && job_block_has "${s}" changes 'code: ${{ steps.filter.outputs.code }}'; then
 	ok "security-scan.yml has a changes job exporting the code filter"
 else
 	bad "security-scan.yml has a changes job exporting code"
@@ -309,7 +323,7 @@ done
 
 # --- mcp-schema-drift.yml: keep the docs guard on, gate the Go drift jobs. ---
 m="${wf}/mcp-schema-drift.yml"
-if has "${m}" 'dorny/paths-filter' && job_block "${m}" changes | rg -F 'code: ${{ steps.filter.outputs.code }}' >/dev/null; then
+if has "${m}" 'dorny/paths-filter' && job_block_has "${m}" changes 'code: ${{ steps.filter.outputs.code }}'; then
 	ok "mcp-schema-drift.yml has a changes job exporting the code filter"
 else
 	bad "mcp-schema-drift.yml has a changes job exporting code"
