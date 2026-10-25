@@ -280,7 +280,7 @@ registry before adding provider-specific story text.
 
 Relationship evidence emission, including the `runtime_declaration.version`
 family, resolves fact schemas through the standalone `eshu-sdk` modules
-(`collector v0.1.0-rc.3`, `factschema v0.1.0-rc.4`, hash-pinned in `go.mod`)
+(`collector v0.1.0-rc.3`, `factschema v0.1.0-rc.5`, hash-pinned in `go.mod`)
 instead of the retired in-tree SDK paths (#8851). Evidence bytes,
 relationship types, and the families above are unchanged by the module move.
 

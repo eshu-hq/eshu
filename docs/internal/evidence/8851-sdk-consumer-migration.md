@@ -20,6 +20,14 @@ resolution) plus blank lines from import regrouping. No assertion, branch,
 query, schema, or wire byte changes. The factschema sources linked at rc.4
 were reviewed byte-faithful against core `62b925d86b`, so the reducer links
 identical code through a new module path; observed graph truth cannot differ.
+The rc.4-to-rc.5 step re-syncs the published module with the rebased tree:
+rc.5's compiled sources match the in-tree tree modulo the module-path rename
+and comment text, adding only the additive optional
+`dependency_resolution_state` field the rebased reducer reads, so the
+identical-code argument carries forward. The rc.5 follow-up itself adds
+16 added / 14 removed content lines under `go/`: the `go.mod` pin line, two
+`go.sum` hash lines, and import-path-only swaps in seven files (no assertion,
+branch, query, schema, or wire byte changes).
 
 No-Regression Evidence (tests, #8851): `go build ./...` green on the migrated
 tree. Changed-package `go test` (105 packages): green except two to three
@@ -29,8 +37,8 @@ reproduced identically on the unmodified pre-rebase base
 in a disposable worktree —
 pre-existing host load behavior, not the migration. `go test -race` on the
 changed packages passes (171s). `gofumpt`, `golint`, `go vet`, and the
-merge-tree vet pass. Pins: `collector v0.1.0-rc.3`, `factschema v0.1.0-rc.4`
-(both proxy Origin-hash and sumdb verified); zero SDK `replace` directives
+merge-tree vet pass. Pins: `collector v0.1.0-rc.3`, `factschema v0.1.0-rc.5`
+(both proxy Origin-hash and sumdb verified; rc.5 at `9a5e624c0f75e83306514df13c9e5b40a6d77066`); zero SDK `replace` directives
 (the two remaining replaces are pre-existing tree-sitter/embedded-postgres
 pins). Host note: tree-sitter perl cgo needs `CC=clang` under host gcc 16;
 CI runners are unaffected. `go.mod` declares `go 1.26.10`; proof ran under `GOTOOLCHAIN=go1.26.10` (`go version go1.26.10 linux/amd64`).

@@ -49,15 +49,18 @@ candidates are now published and verified together through the public Go
 proxy. Fresh proxy proof for the historical collector `v0.2.0-rc.1` remains
 pending. No new-path pair has completed qualification or deployed acceptance;
 core PR [#9111](https://github.com/eshu-hq/eshu/pull/9111) pins the
-`collector/v0.1.0-rc.3` + `factschema/v0.1.0-rc.4` pair pending CI.
+`collector/v0.1.0-rc.3` + `factschema/v0.1.0-rc.5` pair pending CI.
 `collector/v0.1.0-rc.3` and `factschema/v0.1.0-rc.3` are published and
 proxy-verified; `factschema/v0.1.0-rc.4` is published and proxy-verified and
 carries the `runtime_declaration.version` contract family.
+`factschema/v0.1.0-rc.5` is published and proxy-verified and adds only the
+additive optional `dependency_resolution_state` field on
+`PackageConsumptionCorrelation`, which the rebased core reducer requires.
 
 | Original published module | New module identity | Available first candidate | Other published candidate | Preferred candidate | Latest published candidate (core-pinned) |
 | --- | --- | --- | --- | --- | --- |
 | `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` | `collector/v0.2.0-rc.1` | `collector/v0.1.0-rc.2` (published; proxy verified) | `collector/v0.1.0-rc.3` (published; proxy verified; pinned by core #9111) |
-| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) | `factschema/v0.1.0-rc.3` (published) and `factschema/v0.1.0-rc.4` (published; proxy verified; adds `runtime_declaration.version`; pinned by core #9111) |
+| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` | `factschema/v0.1.0-rc.2` | `factschema/v0.1.0-rc.2` (published; proxy verified) | `factschema/v0.1.0-rc.4` (published; proxy verified; adds `runtime_declaration.version`) and `factschema/v0.1.0-rc.5` (published; proxy verified; adds additive optional `dependency_resolution_state`; pinned by core #9111) |
 
 The new module version histories are independent of the original paths'
 `v0.2.0` lines. The migration starts on the initial `v0.1.0` prerelease line,
@@ -96,8 +99,8 @@ round-trip (#8941), reducer/graph behavior, or API/MCP results.
 
 | State | Required evidence | Current recorded status for the new paths |
 | --- | --- | --- |
-| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s and both preferred `v0.1.0-rc.2` modules tagged and proxy verified; historical collector `v0.2.0-rc.1` tagged, with fresh proxy proof pending; `collector/v0.1.0-rc.3`, `factschema/v0.1.0-rc.3`, and `factschema/v0.1.0-rc.4` tagged and proxy verified |
-| Qualified consumer/core pair | Exact new module pins, contract and runtime proof against a named core version, including grant-aware conformance for reserved fact kinds | No pair fully qualified yet. Core PR #9111 pins `collector/v0.1.0-rc.3` + `factschema/v0.1.0-rc.4`; qualification proof pending CI green and the pair gates |
+| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s and both preferred `v0.1.0-rc.2` modules tagged and proxy verified; historical collector `v0.2.0-rc.1` tagged, with fresh proxy proof pending; `collector/v0.1.0-rc.3`, `factschema/v0.1.0-rc.3`, `factschema/v0.1.0-rc.4`, and `factschema/v0.1.0-rc.5` tagged and proxy verified |
+| Qualified consumer/core pair | Exact new module pins, contract and runtime proof against a named core version, including grant-aware conformance for reserved fact kinds | No pair fully qualified yet. Core PR #9111 pins `collector/v0.1.0-rc.3` + `factschema/v0.1.0-rc.5`; qualification proof pending CI green and the pair gates |
 | Deployed accepted pair | Matching deployment, reducer, graph, API/MCP, retry, operator, and rollback proof | No deployment accepted |
 
 The expanded first candidate preparation includes current collector tooling,
@@ -138,7 +141,10 @@ the exact release commits, separate tag approval, and fresh public-proxy
 resolution (`collector/v0.1.0-rc.3` and `factschema/v0.1.0-rc.3` at
 `d6aaf61`); `factschema/v0.1.0-rc.4` followed at `75d52e0` carrying the
 `runtime_declaration.version` contract family the consumer migration
-requires. Consumer contract and runtime proof, producer authority,
+requires. `factschema/v0.1.0-rc.5` followed at `9a5e624c0f75e83306514df13c9e5b40a6d77066`
+carrying only the additive optional `dependency_resolution_state` field the
+rebased core reducer reads; `go mod download` resolves it through the public
+proxy and `go mod verify` passes with sumdb entries. Consumer contract and runtime proof, producer authority,
 rollback, and deployed graph/API/MCP evidence remain separate acceptance
 steps. Until they pass, keep existing pins and the preferred RC2 candidate
 status above.
