@@ -78,7 +78,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'changes') }}
     needs: queue-selection
     name: Detect code changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       code: ${{ steps.filter.outputs.code }}
@@ -152,7 +152,7 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'mcp-tool-count')) && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     name: Verify ReadOnlyTools count
     timeout-minutes: 5
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [queue-selection, changes]
     steps:
       - name: Require queue selection to succeed
@@ -194,7 +194,7 @@ jobs:
     needs: queue-selection
     name: Verify capability inventory
     timeout-minutes: 15
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -252,7 +252,7 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'mcp-test-suite')) && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     name: Full MCP test suite
     timeout-minutes: 15
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [queue-selection, changes]
     steps:
       - name: Require queue selection to succeed
@@ -289,7 +289,7 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'mcp-router-eval')) && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     name: MCP router eval report
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [queue-selection, changes]
     steps:
       - name: Require queue selection to succeed

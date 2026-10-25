@@ -105,7 +105,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'hermetic') }}
     needs: queue-selection
     name: live-postgres-readiness hermetic
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The fake-Go runner checks every ledger-selected proof and its fail-closed
     # accounting, and the shard contract checks the planner the matrix legs
     # use. Keep them in a separate job so they cannot consume a live
@@ -175,7 +175,7 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards')) && (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) }}
     needs: queue-selection
     name: live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/4)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -362,7 +362,7 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness')) && (always()) }}
     needs: [queue-selection, live-postgres-readiness-shards]
     name: live-postgres-readiness (postgres18)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The aggregator carries no proof load: it reunites the four shard
     # reports and fails the check when any leg timed out, left no report,
     # or covered less than the full ledger plan.

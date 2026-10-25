@@ -174,12 +174,12 @@ on every pull request and on push to `main`. The contract mirror
 `scripts/test-verify-reducer-perf-gate.sh` exercises the median parser and breach
 logic against synthetic results without running any benchmark.
 
-The committed baseline was captured on darwin/arm64, not the CI `ubuntu-latest`
+The committed baseline was captured on darwin/arm64, not the CI `ubuntu-24.04`
 runner class, so an absolute single-run ceiling there is only a like-for-like
 comparison once the baseline is recaptured on the enforcement runner. Until then
 the gate runs **advisory** (`REDUCER_PERF_ENFORCE=false`: it reports a breach but
 does not fail the job) — the same shared-runner-variance reasoning as the B-2
-bench-regression gate. Recapture the budgets on `ubuntu-latest` with
+bench-regression gate. Recapture the budgets on `ubuntu-24.04` with
 `scripts/refresh-reducer-handler-budgets.sh`, review the diff, then flip the
 workflow to `REDUCER_PERF_ENFORCE=true` to make a breach blocking. A breach must
 be fixed at the handler or proven to be an intended cost and re-baselined with a

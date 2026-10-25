@@ -43,7 +43,7 @@ jobs:
     needs: queue-selection
     name: Detect changed gate paths
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       openapi: ${{ steps.filter.outputs.openapi }}
       route: ${{ steps.filter.outputs.route }}
@@ -214,7 +214,7 @@ jobs:
     # is true there; the explicit arm lets ci-gates validate prove this job
     # always runs on a queue entry.
     timeout-minutes: ${{ matrix.timeout }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults: {run: {shell: bash}}
     container: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && 'ghcr.io/eshu-hq/ci-tools@sha256:2cd4305390057560cd876df8c3350e296b7df0b4b11a3d04e3a7d904d169a776' || '' }}
     strategy:

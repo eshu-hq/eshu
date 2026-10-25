@@ -37,7 +37,7 @@ permissions:
 jobs:
   delta-union:
     name: Delta union proof vs Neo4j and PostgreSQL
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
       postgres:

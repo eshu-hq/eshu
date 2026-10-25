@@ -90,7 +90,7 @@ jobs:
     needs: queue-selection
     name: Verify factschema-diff test mirror
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -146,7 +146,7 @@ jobs:
     name: Verify factschema-diff gate
     needs: [queue-selection, test-mirror]
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}

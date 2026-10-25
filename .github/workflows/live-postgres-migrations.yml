@@ -56,7 +56,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-migrations') }}
     needs: queue-selection
     name: live-postgres-migrations (postgres18)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Require queue selection to succeed
