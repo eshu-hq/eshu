@@ -133,6 +133,13 @@ gi_resolve_goal_file() { # sid cwd
 # The RETIRED goal file this session owns, for the Stop hook's DONE check.
 # `/goal done` retires the per-session file, and the lookup passes over a
 # retired file, so the hook arrives here with "no goal" and must find it again.
+#
+# An UNHEADED retired file counts too, at every candidate path. The agent writes
+# its goal file, so exempting an unheaded DONE would be an escape: rewrite the
+# file without the SESSION header, put DONE first, and the gate never runs while
+# capture keeps filling the sidecar. Only a DONE headed for ANOTHER session is
+# skipped; it is that session's. The owner's exit is the sidecar (mark a record
+# closed or deferred) or CLAUDE_GOAL_OFF on Claude.
 gi_retired_goal_file() { # sid cwd
 	local cand hdr own_path sid_safe
 	sid_safe="$(printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-')"
@@ -141,7 +148,7 @@ gi_retired_goal_file() { # sid cwd
 		[ -f "${cand}" ] || continue
 		goal_file_retired "${cand}" || continue
 		hdr="$(gi_retired_header_session "${cand}")"
-		if [ "${cand}" = "${CLAUDE_GOAL_FILE:-}" ] || [ "${cand}" = "${own_path}" ] || [ "${hdr}" = "$1" ]; then
+		if [ "${cand}" = "${CLAUDE_GOAL_FILE:-}" ] || [ "${cand}" = "${own_path}" ] || [ -z "${hdr}" ] || [ "${hdr}" = "$1" ]; then
 			printf '%s' "${cand}"
 			return 0
 		fi

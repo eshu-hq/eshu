@@ -198,9 +198,8 @@ run_stop "$(stop_payload "${sdone}" "${R}" p-garbage)"
 	ok "a garbage ledger never wedges the stop" || no "a garbage ledger never wedges the stop"
 
 # ── 10. the refusal never spends, or hides behind, the goal's own budget ──────
-# The DONE gate sits ahead of the no-progress counter, so it must not read or
-# write it -- otherwise three refusals would exhaust the budget and the fourth
-# stop would release OPEN issues with no message, reading as a clean finish.
+# The DONE gate must not read or write the no-progress counter, or three refusals
+# would exhaust it and the fourth stop would release OPEN issues silently.
 fx_reset
 R="$(mk_repo stop-budget)"
 printf 'DONE\nSESSION: %s\nFinish.\n' "${sdone}" >"${R}/.claude/active-goal.${sdone}"
@@ -284,11 +283,9 @@ rg -q '#9401' <<<"$(ctx_of "${rf_out}")" && has_line "${R}/.claude/active-goal.l
 	ok "capture -> orphan -> lead refresh restates the issue" || no "capture -> orphan -> lead refresh restates the issue"
 
 # ── 12. the refusal is loud: issues, count, escalation, DEFER echo ───────────
-# Unbounded by design (a capped valve would release open issues silently), so the
-# cost of a stuck agent has to show: every refusal names the open issues and the
-# consecutive count on stderr, and from the third no-progress refusal the block
-# reason tells the agent to escalate. The counter has its own state file, never
-# the goal's nudge counter.
+# Unbounded by design, so a stuck agent has to show: every refusal names the open
+# issues and the consecutive count on stderr, and from the third no-progress
+# refusal the block reason says to escalate. The count has its own state file.
 ESCALATE='Escalate to arbiter-eshu for the DEFER ruling now.'
 sloud="sl-${run_tag}"
 fx_reset
@@ -372,11 +369,10 @@ run_stop "$(stop_payload "${sdef}" "${R}" p-defer-echo2)"
 ! rg -q 'DEFER honoured' <<<"${stop_err}" && ok "a refused DEFER is not echoed as honoured" || no "a refused DEFER is not echoed as honoured"
 
 # ── 13. DEFER cannot point at the ledger or a goal file ──────────────────────
-# Every ledger record contains owner/repo#N, so the ledger is a valid "ruling"
-# for every issue in it, and so is the goal file once it names the issue. The
-# agent writes both. Accepting either turns the escape into a self-issued
-# permission slip, so a DEFER path that resolves to the ledger, its lock or temp
-# files, or any .claude/active-goal* file is refused, symlinks included.
+# Every ledger record names its own issue, and the agent writes the ledger and
+# the goal file: accepting either as a "ruling" is a self-issued permission slip.
+# A path that resolves to the ledger, its lock or temp files, or any
+# .claude/active-goal* file is refused, symlinks included.
 self_defer_case() { # label setup-fn-name
 	local label="$1" setup="$2" Rs g l
 	fx_reset
@@ -414,9 +410,9 @@ self_defer_case "naming a symlink that resolves to the ledger" sd_symlink
 self_defer_case "naming the ledger through .." sd_dotdot
 
 # ── 14. the total cap bounds a whole check; the lock serialises writers ──────
-# One hung call is bounded by the per-call cap alone, which hides a missing total
-# cap. Eight hung issues are 8 s at 1 s each, so only the total cap (3 s) keeps
-# this under 5 s, and the calls it never made must still be reported.
+# One hung call is bounded by the per-call cap alone, hiding a missing total cap.
+# Eight hung issues are 8 s at 1 s each; only the 3 s total cap keeps this under
+# 5 s, and the calls never made must still be reported.
 fx_reset
 fx_mode hang
 R="$(mk_repo stop-many-hung)"
@@ -457,6 +453,48 @@ wait "${holder}" 2>/dev/null
 [[ "${elapsed}" -ge 2 ]] && ok "capture waits for the held ledger lock (${elapsed}s)" || no "capture waits for the held ledger lock (${elapsed}s)"
 has_line "${LL}" '^eshu-hq/eshu#9701 ' && has_line "${LL}" '^eshu-hq/eshu#9702 ' &&
 	ok "the writer behind the lock loses no line" || no "the writer behind the lock loses no line"
+
+# ── 15. an unheaded DONE is gated too ────────────────────────────────────────
+# The agent writes its goal file, so an unheaded DONE cannot be an exit: it would
+# drop the SESSION header, put DONE first, and file into a ledger nothing reads.
+# Gated at the per-session, shared and per-user paths; a DONE headed for another
+# session is still that session's. The owner's exit is the sidecar.
+unheaded_done_case() { # label goal-path-fn
+	local label="$1" gfn="$2" Ru g l
+	fx_reset
+	Ru="$(mk_repo "unheaded-$RANDOM")"
+	g="$("${gfn}" "${Ru}")"
+	printf 'DONE\nFinish.\n' >"${g}"
+	l="$(ledger_of "${g}")"
+	seed "${l}" "${OPEN9101}"
+	run_stop "$(stop_payload "${sdone}" "${Ru}" "p-${RANDOM}")"
+	if [[ "$(verdict_of "${stop_out}")" == block ]] && rg -q 'eshu-hq/eshu#9101' <<<"$(reason_of "${stop_out}")"; then
+		ok "unheaded DONE ${label} + open issue: the stop is refused"
+	else
+		no "unheaded DONE ${label} + open issue: the stop is refused (verdict=$(verdict_of "${stop_out}"))"
+	fi
+	sed -i.bak 's/ open$/ closed/' "${l}" && rm -f "${l}.bak"
+	run_stop "$(stop_payload "${sdone}" "${Ru}" "p-${RANDOM}")"
+	[[ "$(verdict_of "${stop_out}")" == allow ]] &&
+		ok "unheaded DONE ${label}: marking the record closed in the sidecar releases the stop" ||
+		no "unheaded DONE ${label}: marking the record closed in the sidecar releases the stop"
+}
+ud_session() { printf '%s' "$1/.claude/active-goal.${sdone}"; }
+ud_shared() { printf '%s' "$1/.claude/active-goal"; }
+ud_home() { mkdir -p "${HOME}/.claude"; printf '%s' "${HOME}/.claude/active-goal"; }
+unheaded_done_case "at the per-session path" ud_session
+unheaded_done_case "at the shared path" ud_shared
+unheaded_done_case "at the per-user path" ud_home
+rm -f "${HOME}/.claude/active-goal" "${HOME}/.claude/active-goal.issues" "${HOME}/.claude/active-goal.issues.lock"
+
+fx_reset
+R="$(mk_repo foreign-done)"
+printf 'DONE\nSESSION: somebody-else\nTheir goal.\n' >"${R}/.claude/active-goal"
+seed "$(ledger_of "${R}/.claude/active-goal")" "${OPEN9101}"
+run_stop "$(stop_payload "${sdone}" "${R}" p-foreign-done)"
+[[ "$(verdict_of "${stop_out}")" == allow ]] &&
+	ok "a DONE headed for another session is that session's: this stop is not gated" ||
+	no "a DONE headed for another session is that session's: this stop is not gated"
 
 # LAST line on purpose -- the parent suite asserts the companion ran to here.
 issue_capture_cases_loaded=1

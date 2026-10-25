@@ -256,8 +256,9 @@ fi
 #   refresher  restates an open ledger issue iff the goal is active for the session
 #   capture    files a new issue into that same ledger (kind "goal") iff the
 #              resolver finds an active goal for the session
-#   Stop       refuses DONE for an open ledger issue iff the session's own goal
-#              was retired (an unheaded or foreign DONE file is the owner's)
+#   Stop       refuses DONE for an open ledger issue iff the goal was retired and
+#              is this session's or unheaded (a DONE headed for ANOTHER session
+#              is that session's)
 # gh is a fake on PATH; the refresher is also asserted to make NO call.
 ic_work="${work}/issue-parity"
 mkdir -p "${ic_work}/bin" "${ic_work}/fx"
@@ -344,7 +345,9 @@ SESSION: ${me}
 DONE
 ISSUECONSENTDONE objective.
 "
-issue_parity_case "unheaded DONE is the owner's, never the session's" no no allow \
+# The agent writes the goal file, so an unheaded DONE cannot be an exit: it would
+# rewrite the file without the header and walk past the ledger.
+issue_parity_case "unheaded DONE (retired) still gates on the ledger" no no block \
 	"DONE
 ISSUEOWNERDONE objective.
 "
