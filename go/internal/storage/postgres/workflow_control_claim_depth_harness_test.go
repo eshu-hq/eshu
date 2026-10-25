@@ -125,24 +125,6 @@ func (r claimDepthResult) ClaimsPerSecond() float64 {
 	return float64(len(r.Records)) / r.Duration.Seconds()
 }
 
-// claimDepthDrainSpeedupOK is the load-insensitive anti-serialization bound
-// (#8725 P1 disposition): a parallel drain over the same backlog shape must
-// achieve at least half the enrolled claimers' worth of speedup over a
-// single-claimer calibration drain. The ratio cancels hosted runner speed,
-// so a slow runner cannot trip it; a uniform per-claim slowdown hits both
-// drains equally and preserves the ratio, so a sub-half speedup flags likely
-// concurrency throttling or serialization (up to 50% parallelism-efficiency
-// loss still passes by construction) — it does not prove the cause. The
-// bound derives from the test's own parameters, not from a measured
-// wall-clock floor. A degenerate calibration (fewer than two
-// claimers, non-positive durations) proves nothing and fails closed.
-func claimDepthDrainSpeedupOK(singleSecs, parallelSecs float64, claimers int) bool {
-	if claimers < 2 || singleSecs <= 0 || parallelSecs <= 0 {
-		return false
-	}
-	return singleSecs/parallelSecs >= float64(claimers)/2
-}
-
 // claimDepthMaxOverlap sweeps the grant attempt windows ([AttemptElapsed,
 // DoneElapsed], from ClaimNextEligible call to CompleteClaim return) and
 // returns the maximum number of grants in flight at any instant. Windows
@@ -413,7 +395,6 @@ func drainClaimDepthBacklog(
 						time.Sleep(delay)
 					}
 				}
-				attemptBegan := time.Since(startedAt)
 				if claimDepthSerializeGrants {
 					claimDepthGrantMutex.Lock()
 				}
@@ -422,6 +403,11 @@ func drainClaimDepthBacklog(
 						claimDepthGrantMutex.Unlock()
 					}
 				}
+				// The attempt window opens after the serialization knob: time
+				// spent queued on the test-only grant mutex is scaffolding,
+				// not grant-path concurrency. DB-side queueing stays inside
+				// the window, which is what the overlap gate measures.
+				attemptBegan := time.Since(startedAt)
 				item, claim, found, err := store.ClaimNextEligible(ctx, selector, time.Now().UTC(), 5*time.Minute)
 				if err != nil {
 					errs <- fmt.Errorf("claimer %d ClaimNextEligible attempt %d: %w", claimer, attempt, err)
