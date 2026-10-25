@@ -139,6 +139,13 @@ var schemaConstraints = []string{
 	// label scan per row.
 	"CREATE CONSTRAINT codeowner_team_ref IF NOT EXISTS FOR (t:CodeownerTeam) REQUIRE t.ref IS UNIQUE",
 
+	// Runtime declaration identity — one declared runtime version per (repo,
+	// file, line, runtime, token position), the graph key the #8815 arbiter
+	// ruling fixed for runtime_declaration.version (#8816). Composite so the
+	// reducer MERGE is a unique-index seek on Neo4j (MergeUniqueNode in the
+	// PROFILE recorded in docs/internal/evidence/8816-runtime-declaration-graph.md).
+	"CREATE CONSTRAINT runtime_declaration_identity IF NOT EXISTS FOR (d:RuntimeDeclaration) REQUIRE (d.repo_id, d.relative_path, d.line_number, d.runtime, d.order_index) IS UNIQUE",
+
 	// Platform identity
 	"CREATE CONSTRAINT platform_id IF NOT EXISTS FOR (p:Platform) REQUIRE p.id IS UNIQUE",
 

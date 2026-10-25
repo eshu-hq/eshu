@@ -62,6 +62,10 @@ const (
 	// Repository to the CodeownerTeam a CODEOWNERS rule pattern names as
 	// owner, issue #5419 Phase 3).
 	DeclaresCodeowner EdgeType = "DECLARES_CODEOWNER"
+	// DeclaresRuntime is the "DECLARES_RUNTIME" graph relationship type (a
+	// Repository to a RuntimeDeclaration node, one per runtime version a file
+	// in that repository declares, issue #8816).
+	DeclaresRuntime EdgeType = "DECLARES_RUNTIME"
 	// DeclaresDependency is the "DECLARES_DEPENDENCY" graph relationship type.
 	DeclaresDependency EdgeType = "DECLARES_DEPENDENCY"
 	// Defines is the "DEFINES" graph relationship type.
@@ -263,7 +267,7 @@ var registered = []EdgeType{
 	AWSLambdaFunctionUsesImage,
 	Aliases, AllowsEgress, AllowsIngress, AtlantisDependsOn, BuiltFrom, Calls,
 	CanAssume, CanEscalateTo, CanPerform, Contains,
-	CorrelatesDeployableUnit, DeclaresCodeowner, DeclaresDependency, Defines, DefinesJob, DependsOn,
+	CorrelatesDeployableUnit, DeclaresCodeowner, DeclaresDependency, DeclaresRuntime, Defines, DefinesJob, DependsOn,
 	DependsOnPackage, DeploymentSource, DeploysFrom, DerivedFrom, DiscoversConfigIn,
 	Documents, EvidencesRepositoryRelationship, Executes, ExecutesShell,
 	Explains, ExposesEndpoint, ExtendsBase, GrantsAccessTo, HandlesRoute,

@@ -152,6 +152,15 @@ var schemaPerformanceIndexes = []string{
 	// single-property indexes rather than one composite index.
 	"CREATE INDEX kubernetes_namespace_cluster_id IF NOT EXISTS FOR (n:KubernetesNamespace) ON (n.cluster_id)",
 	"CREATE INDEX kubernetes_namespace_namespace IF NOT EXISTS FOR (n:KubernetesNamespace) ON (n.namespace)",
+	// RuntimeDeclaration (runtime, version_major) backs the version-threshold
+	// read "runtime = $r AND version_major < $n" (#8816, read by #8817). On the
+	// pinned Neo4j a PROFILE over 10,000 declarations in 1,000 repositories
+	// plans a NodeIndexSeek on this index (10,066 db hits for a 50-row page);
+	// see docs/internal/evidence/8816-runtime-declaration-graph.md. NornicDB
+	// registers a composite index under its first property only (see the
+	// module_name_lookup comment in schema_tables.go), so there it backs the
+	// runtime equality alone.
+	"CREATE INDEX runtime_declaration_runtime_major IF NOT EXISTS FOR (d:RuntimeDeclaration) ON (d.runtime, d.version_major)",
 	// CloudResource lookup indexes back the AWS relationship edge join
 	// (issue #805). The edge projection resolves both endpoints to a
 	// CloudResource.uid using an in-memory index built from aws_resource facts,
@@ -342,6 +351,10 @@ var nornicDBMergeLookupIndexes = []string{
 	"CREATE INDEX nornicdb_environment_name_lookup IF NOT EXISTS FOR (e:Environment) ON (e.name)",
 	"CREATE INDEX nornicdb_source_local_record_scope_lookup IF NOT EXISTS FOR (n:SourceLocalRecord) ON (n.scope_id)",
 	"CREATE INDEX nornicdb_parameter_path_lookup IF NOT EXISTS FOR (n:Parameter) ON (n.path)",
+	// RuntimeDeclaration's five-part identity constraint is composite, which
+	// nornicDBSchemaConstraint drops, so the reducer MERGE needs this
+	// single-property lookup to avoid a label scan per row (#8816).
+	"CREATE INDEX nornicdb_runtime_declaration_repo_id_lookup IF NOT EXISTS FOR (d:RuntimeDeclaration) ON (d.repo_id)",
 }
 
 // neo4jRetirementLookupIndexes are single-property RANGE indexes applied

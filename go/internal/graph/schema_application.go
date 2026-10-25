@@ -75,8 +75,11 @@ const (
 	// backs the retirement G5f File retract's repo anchor on both
 	// backends, parameter_path backs the G5p Parameter prefix seek on
 	// Neo4j only (NornicDB keeps its existing nornicdb_parameter_path_lookup
-	// for the same label and property). The index bumps change no MERGE or
-	// MATCH identity. The bump as a whole is NOT additive, and it
+	// for the same label and property), plus the #8816 RuntimeDeclaration
+	// identity constraint, its (runtime, version_major) index and the
+	// NornicDB repo_id lookup, which back a new reducer domain and touch no
+	// existing label. The index bumps change no MERGE or MATCH identity of an
+	// existing label. The bump as a whole is NOT additive, and it
 	// deliberately lists no compatible predecessors (see
 	// graphSchemaCompatibleFingerprints): a writer on the previous release
 	// MERGEs Module on (name, lang) and never sets import_key, so it would
@@ -89,8 +92,8 @@ const (
 	// tf_module/tf_output evidence_source, the Neo4j-only #7057 uid indexes,
 	// the #7095/#7097 constraint retirements, #7675, and the Neo4j-only #7245
 	// infra_search_key_ft index.
-	graphSchemaNeo4jFingerprint    = "7a861dc33bb8618b4cd585001c2c76470d8c3b98de3e592db72a22fb9e572312"
-	graphSchemaNornicDBFingerprint = "260d9733c38d8ba5ea1a6cf035fcb07090ca617300c34769cd464927d2a40da8"
+	graphSchemaNeo4jFingerprint    = "f41d86abcb08707e328254f8d0be247bfcfe135713e7a9147d8eb960afd0a5e0"
+	graphSchemaNornicDBFingerprint = "8f1251766e77d4e5bf6fc41ad1a049994db4321d55706a47e92ed193ffb8cd25"
 
 	// graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint and its NornicDB peer
 	// are the digests immediately before that index was added, which is the
