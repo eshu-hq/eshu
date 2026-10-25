@@ -284,9 +284,10 @@ From #8819:
 - [x] It depends on the content-store admission issue and says how: #8812
   provides `metadata`, and no mise name is admitted before it lands (items 1, 2
   and 4).
-- [ ] The runtime-declaration source list is updated to match. The revised table
-  above is written here, but the #8807 and #8815 bodies still carry the v1 list.
-  Applying it is a to-do for the owner and is not done.
+- [x] The runtime-declaration source list is updated to match. The revised table
+  above is written here, and the #8807 and #8815 bodies carry a "Source list
+  update from #8819" section that keeps the v1 list and adds mise `[tools]` as a
+  later source.
 
 For the later implementation:
 
