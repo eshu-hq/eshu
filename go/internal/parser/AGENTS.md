@@ -98,7 +98,11 @@
   `.mvn/extensions.xml` is a path rule (`isMavenExtensionsPath`) because
   `extensions.xml` is too generic to bind by name. Path rules sit outside
   `Registry.Fingerprint`, so adding one needs a bump of
-  `gitGenerationContentVersion` and a re-pin.
+  `gitGenerationContentVersion` and a re-pin. The pip constraints family
+  (`constraints.txt`, `constraints-*.txt`, `constraints_*.txt`, #8821) is a path
+  rule (`isPipConstraintsName`) because a `PrefixNames` entry matches before
+  the extension index and would take `constraints-*.yaml` policy files from the
+  YAML parser.
 - **Ecosystem gate (#8825)** — each ledger row declares `ecosystem`,
   `manifest_files` (admitted at L2), and `pin_files` (admitted at L1 or better).
   `registry_ecosystem_gate_test.go` fails on a name the registry does not admit.

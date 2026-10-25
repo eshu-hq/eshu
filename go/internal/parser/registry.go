@@ -170,6 +170,10 @@ func (r Registry) LookupByPath(path string) (Definition, bool) {
 	}
 
 	base := strings.ToLower(filepath.Base(path))
+	if isPipConstraintsName(base) {
+		definition, ok := r.byKey["python_requirements"]
+		return cloneDefinition(definition), ok
+	}
 	if strings.HasSuffix(base, ".tfvars.json") {
 		if definition, ok := r.byKey["hcl"]; ok {
 			return cloneDefinition(definition), true
@@ -216,8 +220,8 @@ func (r Registry) Definitions() []Definition {
 // bindings only, not parser logic: a behavior change with identical bindings
 // still needs a hand-bumped content version (see the git collector's pin test).
 // The hardcoded path-dispatch rules in LookupByPath (java metadata, Scala
-// routes, .mvn/extensions.xml, .tfvars.json) also live outside the bindings:
-// adding or changing one needs a hand bump too.
+// routes, .mvn/extensions.xml, .tfvars.json, pip constraints files) also live
+// outside the bindings: adding or changing one needs a hand bump too.
 func (r Registry) Fingerprint() string {
 	h := sha256.New()
 	for _, definition := range r.definitions {

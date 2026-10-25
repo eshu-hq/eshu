@@ -1,0 +1,4 @@
+# Version limits only; requirements.txt declares what installs.
+-c ../base-constraints.txt
+requests==2.31.0
+urllib3<2 ; python_version < "3.10"
