@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
+	"github.com/eshu-hq/eshu/go/internal/reducer/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
@@ -157,6 +158,13 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			def.Handler = SubmodulePinEdgeMaterializationHandler{
 				FactLoader:           handlers.FactLoader,
 				EdgeWriter:           handlers.SubmodulePinEdgeWriter,
+				PriorGenerationCheck: handlers.PriorGenerationCheck,
+				Instruments:          handlers.Instruments,
+			}
+		case DomainRuntimeDeclarationProjection:
+			def.Handler = declaration.Handler{
+				FactLoader:           handlers.FactLoader,
+				Writer:               handlers.RuntimeDeclarationWriter,
 				PriorGenerationCheck: handlers.PriorGenerationCheck,
 				Instruments:          handlers.Instruments,
 			}

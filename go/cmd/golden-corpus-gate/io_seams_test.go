@@ -97,7 +97,8 @@ func pinnedSelfLoopCounts() map[string]int64 {
 // TerraformStateResource node (renamed from TerraformResource by #5443)
 // carrying tf_attr_instance_type; the #5446 entry pins identity via the SAME
 // TerraformStateResource node additionally carrying provider="aws";
-// CodeownerTeam/ref (#5419 Phase 5); the #5450 entry pins identity via
+// CodeownerTeam/ref (#5419 Phase 5); RuntimeDeclaration identity and spec
+// properties (#8816); the #5450 entry pins identity via
 // CloudResource nodes carrying running_image_ref and running_image_digest (the
 // ECS running task's and Lambda function's deployed image evidence); and the
 // #5448 entry pins identity via a CloudResource node carrying ami_id (the EC2
@@ -123,6 +124,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		"FluxHelmRepository":     1,
 		"TerraformStateResource": 1,
 		"CodeownerTeam":          1,
+		"RuntimeDeclaration":     1,
 		"PackageArtifact":        1,
 		"RegistryEvent":          1,
 	}
@@ -161,6 +163,13 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		"TerraformStateResource|tf_attr_instance_type": {"t3.micro"},
 		"TerraformStateResource|provider":              {"aws"},
 		"CodeownerTeam|ref":                            {"@eshu-hq/platform"},
+		"RuntimeDeclaration|repo_id":                   {"repository:r_go"},
+		"RuntimeDeclaration|relative_path":             {".tool-versions"},
+		"RuntimeDeclaration|line_number":               {"1"},
+		"RuntimeDeclaration|runtime":                   {"go"},
+		"RuntimeDeclaration|order_index":               {"0"},
+		"RuntimeDeclaration|raw_spec":                  {"1.22.5"},
+		"RuntimeDeclaration|spec_kind":                 {"exact"},
 		"CloudResource|running_image_ref": {
 			"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
 			"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",

@@ -16,8 +16,9 @@ const (
 	// package.json, or the go and toolchain directives of go.mod, with
 	// Dockerfile and CI setup sources following. A line that lists several
 	// versions is one fact per token. Issue #8815 defines the contract and
-	// the emission; the graph projection (#8816) and the query tool (#8817)
-	// land separately, so nothing reads this kind yet.
+	// the emission; the runtime_declaration_projection reducer domain (#8816)
+	// projects it to Repository-[:DECLARES_RUNTIME]->RuntimeDeclaration; the
+	// query tool (#8817) lands separately.
 	RuntimeDeclarationVersionFactKind = "runtime_declaration.version"
 
 	// RuntimeDeclarationSchemaVersionV1 is the first runtime_declaration fact
@@ -51,12 +52,10 @@ func RuntimeDeclarationSchemaVersion(factKind string) (string, bool) {
 // build-time metadata: the fact-kind-registry generator discovers it
 // statically and derives the registry, shards, and catalog from it.
 //
-// The kind is disclosed DispositionUnconsumed: this change ships the contract
-// and the pin-file emission only, and the generator rejects a kind with
-// neither a reducer binding nor a disposition. Issue #8816 adds the reducer
-// binding that projects Repository-[:DECLARES_RUNTIME]->RuntimeDeclaration and
-// removes the disposition. Until then read_surface stays "none", the
-// recognized no-claim sentinel.
+// The reducer domain runtime_declaration_projection (#8816) consumes the kind
+// and projects Repository-[:DECLARES_RUNTIME]->RuntimeDeclaration. ReadSurface
+// stays "none", the recognized no-claim sentinel, until the query tool (#8817)
+// lands.
 var RuntimeDeclarationFamilyDeclaration = contract.Declare(contract.Family{
 	ID:                     "runtime_declaration",
 	FactDir:                "go/internal/facts",
@@ -70,13 +69,7 @@ var RuntimeDeclarationFamilyDeclaration = contract.Declare(contract.Family{
 	TruthProfile:           "deterministic",
 	ProviderKeyIndependent: true,
 	Kinds: []contract.Kind{
-		{
-			Kind:              "runtime_declaration.version",
-			PayloadSchema:     "sdk/go/factschema/schema/runtime_declaration.version.v1.schema.json",
-			Disposition:       contract.DispositionUnconsumed,
-			NoReducerReason:   "Contract and pin-file emission for eshu-hq/eshu#8815: the reducer projection (#8816) and the query tool (#8817) land in separate changes, so no reducer decodes this kind yet and declarations produce zero canonical rows.",
-			NoReducerEvidence: "rg -n RuntimeDeclarationVersionFactKind go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g *.go --glob !*_test.go -> 0 matches at declaration time; same for the wire string runtime_declaration.version",
-		},
+		{Kind: "runtime_declaration.version", PayloadSchema: "sdk/go/factschema/schema/runtime_declaration.version.v1.schema.json"},
 	},
 	Producers: []contract.Producer{
 		{ID: "git-core", Repository: "eshu-hq/eshu", Path: "go/internal/collector/repo", AuthorityMode: contract.AuthorityCoreOwned, Kinds: []string{"runtime_declaration.version"}},

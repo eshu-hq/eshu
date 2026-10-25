@@ -3930,6 +3930,11 @@
     },
     {
       "category": "reducer_domain",
+      "name": "runtime_declaration_projection",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "s3_external_principal_grant_materialization",
       "readiness": "implemented"
     },

@@ -16,19 +16,19 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Read surfaces (API/MCP) | 26 | 26 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 31 | 31 | 100.00% | 0 | 2 |
+| Projections (cost/ordering) | 31 | 31 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 64 | 64 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 100 | 100 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **460** | **460** | **100.00%** | **0** | **12** |
+| **Total** | **460** | **460** | **100.00%** | **0** | **11** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | baseline | 243 | 243 | 100.00% | 0 | 5 |
-| cost | 30 | 30 | 100.00% | 0 | 2 |
+| cost | 30 | 30 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 165 | 165 | 100.00% | 0 | 1 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
@@ -300,7 +300,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `projection:rds_posture_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/rds_posture_cost_test.go` |
 | `projection:reducer_derived_findings` | cost | go_test | go-test-race | `go/internal/replay/costcounting/multi_cloud_runtime_drift_cost_test.go` |
 | `projection:ref_overlay_isolation` | cost | exempt | — | Contract-only domain: ref_overlay.branch_observation and config_key_divergence are admitted facts with no reducer binding and no materialization path yet (DispositionUnconsumed, read_surface none). A cost scenario must drive the domain's real production writer; no writer exists, so there is nothing whose cost a scenario could bound. Remove when the #5393 overlay-projection leaf lands, with its cost-counting test. |
-| `projection:runtime_declaration_projection` | cost | exempt | — | Contract-only domain: runtime_declaration.version is an admitted fact emitted from version-pin files with no reducer binding and no materialization path yet (DispositionUnconsumed, read_surface none). A cost scenario must drive the domain's real production writer; no writer exists, so there is nothing whose cost a scenario could bound. Remove when the #8816 projection lands, with its cost-counting test. |
+| `projection:runtime_declaration_projection` | cost | go_test | go-test-race | `go/internal/replay/costcounting/runtime_declaration_cost_test.go` |
 | `projection:s3_external_principal_grant_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/s3_external_principal_grant_cost_test.go` |
 | `projection:s3_internet_exposure_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/s3_internet_exposure_cost_test.go` |
 | `projection:sbom_attestation_attachment` | cost | go_test | go-test-race | `go/internal/replay/costcounting/sbom_attestation_attachment_cost_test.go` |

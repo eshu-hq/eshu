@@ -215,12 +215,14 @@ EOF
 # requires Neo4j's supported graph semantics)
 # (#8795: +4 neo4j ledger rows for the legacy workload detection, retirement,
 # and story-route live proofs; #8795 is tested on Neo4j only by owner direction)
+# (#8816: +2 neo4j ledger rows for edge/writer runtime_declaration_live_test.go
+# and runtime_declaration_retract_live_test.go; Neo4j is the supported backend)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "86" ]] || fail "planned runs ${#plan[@]}, want 86 (34 nornicdb + 52 neo4j)"
+[[ "${#plan[@]}" == "88" ]] || fail "planned runs ${#plan[@]}, want 88 (34 nornicdb + 54 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
 [[ "${#plan_nornicdb[@]}" == "34" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 34"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "52" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 52"
+[[ "${#plan_neo4j[@]}" == "54" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 54"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*repository_context_workload_count_neo4j_live_test' ||
 	fail "materialized workload-count regression missing from neo4j plan"
 assert_workload_count_neo4j_only() {

@@ -95,6 +95,9 @@ type Paths struct {
 	// SubmoduleStructDir is sdk/go/factschema/submodule/v1 (issue #5420 Phase
 	// 3: the submodule.pin fact the reducer decodes).
 	SubmoduleStructDir string
+	// RuntimeDeclarationStructDir is sdk/go/factschema/runtimedeclaration/v1
+	// (issue #8816: the runtime_declaration.version fact the reducer decodes).
+	RuntimeDeclarationStructDir string
 	// ScannerWorkerStructDir is sdk/go/factschema/scannerworker/v1 (issue
 	// #5463: the scanner_worker.analysis fact the supply-chain-impact index
 	// builder decodes to anchor an os_package finding's SubjectDigest on a
@@ -225,6 +228,7 @@ func ResolvePaths(p Paths) Paths {
 		{&resolved.ReducerDerivedStructDir, "reducerderived"},
 		{&resolved.CodeownersStructDir, "codeowners"},
 		{&resolved.SubmoduleStructDir, "submodule"},
+		{&resolved.RuntimeDeclarationStructDir, "runtimedeclaration"},
 		{&resolved.ScannerWorkerStructDir, "scannerworker"},
 	} {
 		if strings.TrimSpace(*family.dir) == "" {

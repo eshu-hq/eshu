@@ -30,6 +30,7 @@ const (
 	BuiltFromFamilyOduName                      = familyodu.BuiltFromFamilyOduName
 	DerivedFromFamilyOduName                    = familyodu.DerivedFromFamilyOduName
 	PublishesFamilyOduName                      = familyodu.PublishesFamilyOduName
+	RuntimeDeclarationFamilyOduName             = familyodu.RuntimeDeclarationFamilyOduName
 	CloudResourceContainerImageFamilyOduName    = familyodu.CloudResourceContainerImageFamilyOduName
 	CrossplaneSatisfiedByFamilyOduName          = familyodu.CrossplaneSatisfiedByFamilyOduName
 	CodeInterprocEvidenceFamilyOduName          = familyodu.CodeInterprocEvidenceFamilyOduName
@@ -214,6 +215,10 @@ func SecurityGroupReachabilityFamilyOdu() CatalogOdu {
 // CodeTaintEvidenceFamilyOdu returns the cataloged code-taint-evidence
 // family Odù.
 func CodeTaintEvidenceFamilyOdu() CatalogOdu { return familyodu.CodeTaintEvidenceFamilyOdu() }
+
+// RuntimeDeclarationFamilyOdu returns the cataloged runtime_declaration
+// family Odù (#8816).
+func RuntimeDeclarationFamilyOdu() CatalogOdu { return familyodu.RuntimeDeclarationFamilyOdu() }
 
 // CodeInterprocEvidenceFamilyOdu returns the cataloged
 // code-interproc-evidence family Odù.

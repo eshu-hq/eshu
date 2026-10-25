@@ -3,10 +3,10 @@
   "blocking": true,
   "totals": {
     "total": 460,
-    "covered": 448,
+    "covered": 449,
     "uncovered": 0,
     "unresolved": 0,
-    "exempt": 12,
+    "exempt": 11,
     "percent_satisfied": 100
   },
   "registry_summaries": [
@@ -67,10 +67,10 @@
     {
       "registry": "projection",
       "total": 31,
-      "covered": 29,
+      "covered": 30,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 2,
+      "exempt": 1,
       "percent_satisfied": 100
     },
     {
@@ -123,10 +123,10 @@
     {
       "scenario_type": "cost",
       "total": 30,
-      "covered": 28,
+      "covered": 29,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 2,
+      "exempt": 1,
       "percent_satisfied": 100
     },
     {
@@ -2665,8 +2665,11 @@
       "registry": "projection",
       "key": "projection:runtime_declaration_projection",
       "scenario_type": "cost",
-      "status": "exempt",
-      "detail": "Contract-only domain: runtime_declaration.version is an admitted fact emitted from version-pin files with no reducer binding and no materialization path yet (DispositionUnconsumed, read_surface none). A cost scenario must drive the domain's real production writer; no writer exists, so there is nothing whose cost a scenario could bound. Remove when the #8816 projection lands, with its cost-counting test."
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/runtime_declaration_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/runtime_declaration_cost_test.go"
     },
     {
       "registry": "projection",

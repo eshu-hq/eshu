@@ -88,6 +88,10 @@ const (
 	// repository (ResolvedRepoID nil) projects no edge, mirroring
 	// DomainCodeownersOwnership's shared-projection intent-queue path.
 	DomainSubmodulePin = reducercontract.DomainSubmodulePin
+	// DomainRuntimeDeclarationProjection projects runtime_declaration.version
+	// facts into Repository-[:DECLARES_RUNTIME]->RuntimeDeclaration (#8816,
+	// handler in internal/reducer/runtime/declaration).
+	DomainRuntimeDeclarationProjection = reducercontract.DomainRuntimeDeclarationProjection
 	// DomainConfigStateDrift correlates Terraform config (parsed HCL) against
 	// Terraform state to detect five drift kinds. Cross-source, cross-scope,
 	// non-canonical-write — counters and structured logs are the v1 surface.

@@ -236,7 +236,7 @@ func TestMergeSeamsByIdentityCollapsesCrossSurfaceDuplicate(t *testing.T) {
 
 // TestMergeSeamsByIdentityLeavesDistinctFactKindsAlone proves the merge is
 // scoped to genuine identity collisions: seams for different fact kinds (the
-// common case — 132 of the real manifest's 133 kinds today) pass through
+// common case — 133 of the real manifest's 134 kinds today) pass through
 // unmerged and keep their own usage.
 func TestMergeSeamsByIdentityLeavesDistinctFactKindsAlone(t *testing.T) {
 	t.Parallel()

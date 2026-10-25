@@ -6,9 +6,14 @@ the package contract.
 
 ## Ownership
 
-- Owner: graph write path (`cmd/reducer` wires `NewEdgeWriter` and the five
-  standalone domain evidence writers: code taint, code interproc, incident
-  routing, Kubernetes correlation, observability coverage).
+- Owner: graph write path (`cmd/reducer` wires `NewEdgeWriter` and the
+  standalone domain writers: code taint, code interproc, incident routing,
+  Kubernetes correlation, observability coverage, and runtime declarations).
+- `RuntimeDeclarationWriter` (#8816) MERGEs one `RuntimeDeclaration` node per
+  declared runtime version on its five-part key and retracts them per
+  repository (full generation) or per repository and file (delta). The
+  path-scoped retract binds each path list to its own repository, because pin
+  file paths repeat across repositories.
 - Inputs: reducer projection rows, `sourcecypher.Executor` (group-capable).
 - Outputs: Cypher `MERGE`/`MATCH+DELETE` batches against NornicDB/Neo4j.
 

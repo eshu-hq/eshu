@@ -143,6 +143,11 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		EdgeTypes: []string{"CONTAINS"},
 	},
 	{
+		Family:    runtimeDeclarationFamily,
+		OduName:   ifa.RuntimeDeclarationFamilyOduName,
+		EdgeTypes: []string{"DECLARES_RUNTIME"},
+	},
+	{
 		Family:          cloudResourceFamily,
 		OduName:         ifa.CloudResourceFamilyOduName,
 		PredicateScoped: true,

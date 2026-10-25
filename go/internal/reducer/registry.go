@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/runtime/declaration"
+
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -308,5 +310,6 @@ func DefaultDomainDefinitions() []DomainDefinition {
 				},
 			},
 		},
+		declaration.Definition(),
 	}
 }
