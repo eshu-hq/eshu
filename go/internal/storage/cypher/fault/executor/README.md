@@ -50,6 +50,11 @@ live proof; unit proof is the tagged tests in this directory.
   the gate derives each from the fault-script path the same way; the
   Go/shell write-failure prefix mirror is pinned by
   `scripts/test-verify-ifa-fault-injection.sh`.
+- `HoldFired()` turns true only after the hold marker write returns (#9063).
+  A separate `holdEngaged` flag carries the one-winner CompareAndSwap, so an
+  in-process observer that sees the hold as fired can always read the
+  marker. `TestFaultingExecutorHoldFiredWaitsForMarkerWrite` pins this with a
+  FIFO marker path that blocks the write.
 - No production, CI, or default-tag build links `FaultingExecutor` — only
   the `off.go` stub. The `test-verify-ifa-fault-injection.sh` gate asserts
   both files exist and carry their build tags.
@@ -89,3 +94,21 @@ builds project identical graph truth.
 No-Observability-Change: no spans, metrics, logs, or status fields added.
 Hold and fail surfaces report through the existing failgraphwrite path and
 cell assertions, so current gate signals are unchanged.
+
+## No-Regression Evidence (#9063): hold publish order
+
+No-Regression Evidence: #9063 moves the hold's one-winner CompareAndSwap to
+a new holdEngaged flag and stores holdFired after writeHoldMarker returns.
+Only the ifafaultinjection build links this code; default builds still link
+the off.go stub. No Cypher is authored and no graph write changes.
+
+- Before: TestFaultingExecutorHoldBlocksExecuteUntilSentinelRemoval failed
+  18 of 3000 runs at -cpu=4 (read hold marker while held: no such file or
+  directory). TestFaultingExecutorHoldFiredWaitsForMarkerWrite, which blocks
+  the marker write on a FIFO, failed every run.
+- After: both tests passed 3000 of 3000 runs at -cpu=4 (-tags
+  ifafaultinjection, Go 1.26.10), and the package passes -race with and
+  without the tag.
+
+No-Observability-Change: no spans, metrics, logs, or status fields change.
+A failed marker write still prints the HoldMarkerWriteFailedPrefix line.
