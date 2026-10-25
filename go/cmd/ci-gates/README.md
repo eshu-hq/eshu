@@ -164,11 +164,11 @@ ci-gates reuse \
 Prints `reuse`, `source_sha`, `source_full_sha`, HEAD `tree`, target run and
 attempt, tested merge SHA and tree, and `reason`. Native `GITHUB_RUN_ID` and
 `GITHUB_RUN_ATTEMPT` bind the probe to its exact Build Test caller. Reuse
-requires equal HEAD and tested merge trees plus still-current green v3 source
-and direct full-root proof. Generic/v2 and independently scheduled legacy
-leaves cannot transfer; they bootstrap through an ordinary full run. Probe
-uncertainty returns `reuse=false` or an error; both run full. The bound is two
-minutes. The publisher retains human run links in the status `target_url`.
+requires equal HEAD and tested merge trees, one immutable merge base, and an
+exact multiset of all stored messages in both tested commit ranges. Only the
+validated synthetic merge message is excluded. Source and direct full root
+need current green v3 proof. Incomplete evidence runs full. The probe has a
+two-minute bound and ten compare pages per range; status links stay retained.
 
 A transfer needs a consumer that understands it: the required-gates
 publisher runs from the default branch, so the pull request that introduces

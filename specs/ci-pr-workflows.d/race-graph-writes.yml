@@ -1,0 +1,23 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: race-graph-writes.yml
+  name: Race Graph Writes
+  synchronize: true
+  paths:
+  - go/cmd/ingester/**
+  - go/cmd/projector/**
+  - go/internal/storage/cypher/**
+  - go/internal/storage/nornicdb/**
+  - go/internal/reducer/**
+  - go/internal/projector/**
+  - go/internal/correlation/**
+  - go/internal/content/shape/**
+  - go/internal/relationships/**
+  - scripts/ci/go-mod-download-retry.sh
+  - .github/workflows/race-graph-writes.yml
+  - specs/ci-pr-workflows.d/race-graph-writes.yml
+  jobs:
+  - queue-selection
+  - race
+  job_names: {}

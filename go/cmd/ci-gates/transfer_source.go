@@ -253,6 +253,10 @@ func fullBackedSource(ctx context.Context, runner ghRunner, repo string, pr int,
 		if rootHead.Tree.SHA != candidateHead.Tree.SHA {
 			return transferProof{}, testedInput{}, false, nil
 		}
+		messagesEqual, err := sameReuseMessages(ctx, runner, repo, rootInput, input)
+		if err != nil || !messagesEqual {
+			return transferProof{}, testedInput{}, false, err
+		}
 		rootJobs, err = readAttemptJobs(ctx, runner, repo, rootInput)
 		if err != nil {
 			return transferProof{}, testedInput{}, false, err

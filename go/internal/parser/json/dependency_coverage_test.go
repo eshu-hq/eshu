@@ -82,6 +82,7 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"maven|pom.xml",
 		"gradle|build.gradle",
 		"gradle|build.gradle.kts",
+		"sbt|build.sbt",
 		"pypi|requirements.txt",
 		"pypi|pyproject.toml",
 		"pypi|pipfile",

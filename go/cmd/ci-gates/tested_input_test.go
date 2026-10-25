@@ -35,7 +35,7 @@ func TestReadTestedInputBindsExactRunAndImmutableMerge(t *testing.T) {
 		{match: "git/commits/" + testedMergeSHA, output: testedCommitJSON(testedMergeSHA, reuseHeadSHA)},
 	}}
 	got, err := readTestedInput(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA, 101, 2)
-	if err != nil || got.MergeSHA != testedMergeSHA || got.MergeTree != testedTreeSHA || got.RunID != 101 || got.Attempt != 2 {
+	if err != nil || got.MergeSHA != testedMergeSHA || got.MergeTree != testedTreeSHA || got.BaseSHA != testedBaseSHA || got.HeadSHA != reuseHeadSHA || got.RunID != 101 || got.Attempt != 2 {
 		t.Fatalf("tested input = %#v, err=%v", got, err)
 	}
 	for _, args := range runner.calls {

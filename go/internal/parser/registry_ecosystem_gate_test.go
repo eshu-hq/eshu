@@ -43,7 +43,6 @@ type ecosystemGap struct {
 // registry grows and cannot rot. Do not add an entry without an issue.
 var knownEcosystemGaps = []ecosystemGap{
 	{Language: "java", File: "gradle-wrapper.properties", Issue: "#8822"},
-	{Language: "scala", File: "build.sbt", Issue: "#8938"},
 }
 
 type rowViolation struct {

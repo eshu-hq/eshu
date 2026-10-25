@@ -28,7 +28,7 @@ from postgres_scheduled_runner import (
 )
 
 
-NORNIC_GUARD_SHA256 = "b377aad24ddc0b36e8b7adea2cf8708ce21369c4cf2af756285086ed46c74384"
+NORNIC_GUARD_SHA256 = "4352e4ff79450134115d3beaa4cf96bad552c71723a6728a3a075ce988fc9f5d"
 
 def verify_nornic_guard_source(path: Path) -> None:
     """Reject executable helper declarations before importing the CLI guard."""
@@ -101,7 +101,7 @@ REPLAY_PROOF_SOURCE_SHA256 = {
         "9a588e169c81abc96b363adced5c60918b76b9ac7bfdcda210939121880d6822"
     ),
     "scripts/lib/replay_tier_routes.py": (
-        "d58e765b2715586632a6db59d41a3181b908f67617b2ddf67e71f6ffc9ae3605"
+        "bf9b10b2f27d21d882d7b555b994741b4b91fc77cf196e8acf7eb38fe91169c9"
     ),
 }
 replay_sources: dict[str, str] = {}

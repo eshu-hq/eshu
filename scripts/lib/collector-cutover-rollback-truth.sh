@@ -52,25 +52,35 @@ check_authority() { # step
 	fi
 	local ext tree overlaps
 	IFS='|' read -r ext tree overlaps <<<"$XOUT"
+	local direct_note=""
 	if [[ "$in_tree_direct" == "true" ]]; then
 		# A direct producer holds no claim row, so the claim table cannot show it.
-		# Its Deployment stands in: from step 5 on it has been restored and is
-		# running, so any claim of the kind is the external producer beside it.
+		# Its Deployment stands in, read at every step so run and verify agree. An
+		# unreadable Deployment counts as running: fail closed, never pass.
+		read_direct_running
 		tree=0
-		((${1} < 5)) || tree=1
-		printf '  external_claimed=%s in_tree_direct_running=%s overlapping_claim_pairs=%s\n' "$ext" "$tree" "$overlaps"
+		[[ "$DIRECT_LIVE" == "no" ]] || tree=1
+		printf '  external_claimed=%s in_tree_direct_running=%s overlapping_claim_pairs=%s\n' "$ext" "$DIRECT_LIVE" "$overlaps"
+		# DIRECT_NOTE is set by read_direct_running in the gates library.
+		# shellcheck disable=SC2153
+		[[ "$DIRECT_LIVE" != "unknown" ]] || direct_note=" The direct Deployment ${DIRECT_NOTE}; it is treated as running."
 	else
 		printf '  external_claimed=%s in_tree_claimed=%s overlapping_claim_pairs=%s\n' "$ext" "$tree" "$overlaps"
 	fi
 	if ((ext > 0 && tree > 0)) || ((overlaps > 0)); then
-		printf 'DUAL AUTHORITY[step %s]: both producers hold or held authority for one scope.\n' "$1" >&2
+		if [[ "$in_tree_direct" == "true" ]]; then
+			printf 'DUAL AUTHORITY[step %s]: live producers: external claims=%s; direct Deployment running=%s; overlapping claim pairs=%s.%s\n' \
+				"$1" "$ext" "$DIRECT_LIVE" "$overlaps" "$direct_note" >&2
+		else
+			printf 'DUAL AUTHORITY[step %s]: both producers hold or held authority for one scope.\n' "$1" >&2
+		fi
 		exit "$EX_DUAL_AUTHORITY"
 	fi
 	if ((ext > 0)); then
 		printf 'REFUSED[step %s]: an external instance still holds %s claimed work item(s).\n' "$1" "$ext" >&2
 		exit "$EX_REFUSED"
 	fi
-	evidence "$1" "no dual authority: external_claimed=0 overlapping_claim_pairs=0"
+	evidence "$1" "no dual authority: external_claimed=0 overlapping_claim_pairs=0${direct_note}"
 }
 
 # report_drift prints, per fact kind, how many stable keys were added, removed,

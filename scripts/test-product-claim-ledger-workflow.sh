@@ -3,6 +3,8 @@ set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
 workflow="${repo_root}/.github/workflows/product-claim-ledger.yml"
+caller="${repo_root}/.github/workflows/test.yml"
+fragment="${repo_root}/specs/ci-pr-workflows.d/product-claim-ledger.yml"
 
 failures=0
 
@@ -55,7 +57,16 @@ else
   exit 1
 fi
 
-require_regex "workflow runs on pull requests" '^  pull_request:$'
+if rg -q '^  workflow_call:$' "${workflow}" &&
+  rg -q '^  synchronize: true$' "${fragment}" &&
+  rg -q '^  - scripts/ci/install-apt-packages.sh$' "${fragment}" &&
+  rg -q 'call-product-claim-ledger:.*uses: ./\.github/workflows/product-claim-ledger.yml' "${caller}" &&
+  rg -q "if: .*contains\(fromJSON\(needs.pr-plan.outputs.workflows || '\[\]'\), 'product-claim-ledger.yml'\)" "${caller}" &&
+  rg -q "if: .*contains\(fromJSON\(inputs.plan_jobs || '\[\]'\), 'verify-product-claims'\)" "${workflow}"; then
+  record_pass "planned pull requests route to the selected product claim job"
+else
+  record_fail "planned pull requests route to the selected product claim job"
+fi
 require_regex "workflow runs on main pushes" '^  push:$'
 require_regex "workflow supports manual dispatch" '^  workflow_dispatch:$'
 require_regex "workflow has scheduled verification" '^  schedule:$'

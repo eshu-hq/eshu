@@ -61,8 +61,9 @@ push run exits 0 and `W` keeps the `N`); a `+N` valid at its last-checked base b
 merged after a concurrent shrink; and UI-edited or `PR_TITLE` squash messages or
 admin pushes. The push run goes RED for an unused trailer only while the trailer is
 in the range being evaluated; once merged, no revert or shrink PR lowers `W`. See
-the docs page for the full list. The `dirgate` CI job runs on every pull request,
-including docs-only ones, and the registry marks it required for every change.
+the docs page for the full list. The registry marks `dirgate` required for every
+pull request, including docs-only changes. The trusted PR plan selects its CI
+job unless validated reuse covers the gate; a code-path guard cannot skip it.
 
 ## Modes
 

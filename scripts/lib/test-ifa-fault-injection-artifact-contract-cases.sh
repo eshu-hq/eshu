@@ -52,6 +52,8 @@ test_ifa_fault_upload_condition_mutations() {
 
 test_ifa_fault_failure_artifact_contract() {
 	local workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
+	local fragment="${repo_root}/specs/ci-pr-workflows.d/ifa-determinism-gate.yml"
+	local caller="${repo_root}/.github/workflows/test.yml"
 	local needle
 	for needle in \
 		'run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/8"' \
@@ -155,8 +157,12 @@ test_ifa_fault_failure_artifact_contract() {
 	if rg --fixed-strings --quiet -- "rg '^NORNICDB_'" "${diagnostics_lib}"; then
 		fail "NornicDB environment capture reverted to an open prefix match"
 	fi
-	rg --fixed-strings --quiet -- "'go/internal/storage/cypher/fault/executor/*.go'" "${workflow}" \
-		|| fail "workflow does not trigger on every fault-executor module"
+	rg --fixed-strings --quiet -- '- go/internal/storage/cypher/fault/executor/*.go' "${fragment}" \
+		|| fail "PR fragment does not trigger on every fault-executor module"
+	rg --quiet '^  synchronize: true$' "${fragment}" &&
+	rg --quiet 'call-ifa-determinism-gate:.*uses: ./\.github/workflows/ifa-determinism-gate.yml' "${caller}" &&
+	rg --quiet "if: .*contains\(fromJSON\(inputs.plan_jobs || '\[\]'\), 'fault-injection'\)" "${workflow}" \
+		|| fail "planned PR does not route fault injection to the selected job"
 	rg --fixed-strings --quiet --glob 'gates-*.yaml' -- '"go/internal/storage/cypher/fault/executor/*.go"' "${repo_root}/specs/ci-gates.d" \
 		|| fail "CI registry does not trigger on every fault-executor module"
 }

@@ -253,7 +253,7 @@ func buildPRPlan(ctx context.Context, runner ghRunner, reg *cigates.Registry, de
 			for _, check := range reg.RequiredStatusChecks {
 				contexts = append(contexts, check.Context)
 			}
-			smoke, smokeErr := probeSmokeEvidence(ctx, runner, repo, pr, headSHA, paths, contexts)
+			smoke, smokeErr := probeSmokeEvidence(ctx, runner, repo, pr, headSHA, paths, truncated, contexts)
 			if smokeErr == nil && smoke.Applied {
 				plan.Mode, plan.SourceSHA, plan.SourceFullSHA, plan.Tree, plan.Reason = "smoke", smoke.SourceSHA, smoke.FullRootSHA, smoke.Tree, "full-backed clean rebase; explicit fast jobs only"
 			}

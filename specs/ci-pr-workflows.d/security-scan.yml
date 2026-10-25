@@ -1,0 +1,21 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: security-scan.yml
+  name: Security Scan
+  synchronize: true
+  jobs:
+  - changes
+  - gosec
+  - govulncheck
+  - nancy
+  - queue-selection
+  - trivy-fs
+  - trivy-image
+  job_names:
+    changes: Detect code changes
+    gosec: gosec (Go static analysis)
+    govulncheck: govulncheck (Go vulnerability database)
+    nancy: nancy (Sonatype dep CVE + license scan)
+    trivy-fs: Trivy filesystem scan (vuln + secret + config)
+    trivy-image: Trivy image scan (ghcr.io/eshu-hq/eshu)

@@ -35,18 +35,28 @@
 name: MCP Schema Drift
 
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   # Merge-queue entries (#7111): every job runs, publication stays off, and
   # required-gates.yml aggregates the merge_group check rows.
   # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
   merge_group:
     types: [checks_requested]
-  pull_request:
   push:
     branches:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ci-leaf-mcp-schema-drift-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -54,6 +64,7 @@ permissions:
 
 jobs:
   queue-selection:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: mcp-schema-drift.yml
@@ -64,6 +75,7 @@ jobs:
   # capability-state / collector-readiness / product-claim docs. Non-PR events
   # run everything.
   changes:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'changes') }}
     needs: queue-selection
     name: Detect code changes
     runs-on: ubuntu-latest
@@ -137,11 +149,11 @@ jobs:
 
   # ── Gate 1: Tool count ──
   mcp-tool-count:
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'mcp-tool-count')) && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     name: Verify ReadOnlyTools count
     timeout-minutes: 5
     runs-on: ubuntu-latest
     needs: [queue-selection, changes]
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -178,6 +190,7 @@ jobs:
   # Runs in parallel with mcp-tool-count (no data dependency) so both
   # failures surface in a single CI run.
   capability-verify:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'capability-verify') }}
     needs: queue-selection
     name: Verify capability inventory
     timeout-minutes: 15
@@ -236,11 +249,11 @@ jobs:
 
   # ── Gate 3: Full MCP test suite ──
   mcp-test-suite:
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'mcp-test-suite')) && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     name: Full MCP test suite
     timeout-minutes: 15
     runs-on: ubuntu-latest
     needs: [queue-selection, changes]
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -273,11 +286,11 @@ jobs:
   # accuracy and every miss to the job summary and never fails on them. It does
   # fail on a malformed corpus or an expected tool that is not registered.
   mcp-router-eval:
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'mcp-router-eval')) && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     name: MCP router eval report
     timeout-minutes: 10
     runs-on: ubuntu-latest
     needs: [queue-selection, changes]
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}

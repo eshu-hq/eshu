@@ -290,6 +290,18 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			Notes:                   "Kotlin DSL dependencies blocks emit content_entity rows mirroring the Groovy parser; configuration closures (e.g., version { strictly(...) }) without a top-level coordinate version remain partial.",
 		},
 		{
+			Ecosystem:               "sbt",
+			FilePattern:             "build.sbt",
+			FileKind:                "build",
+			Status:                  DependencyCoverageCovered,
+			CapturesPackageIdentity: true,
+			CapturesVersionRange:    true,
+			CapturesScope:           true,
+			CapturesDevRuntimeSplit: true,
+			SourceReference:         "go/internal/parser/sbt/parser.go",
+			Notes:                   "Literal libraryDependencies += / ++= / := coordinates (% and %% and %%% forms) emit content_entity rows with organization:name identity. Scope and the dev/runtime split are captured only for statements that match the closed grammar in go/internal/parser/sbt/README.md (a bare key at the file top level or in a project's .settings(...), one % config such as Test, allowlisted infix ModuleID calls); every other form (an axis, inConfig, a brace block, .map, ++, a dotted or parenthesised call, a repeated or empty configuration) emits partial rows with a placeholder scope, counted in sbt_state.unresolved_declaration_count. Versions held in top-level string vals resolve in-file; other non-literal revisions stay unresolved. A dotted member that rewrites the key (.transform, .set) or sbt 0.13's <<= supersedes earlier rows; a member that returns no Setting (.map) is denied: it supersedes every row and is counted once. sbt is a Scala DSL: the parser never evaluates it; plugins.sbt, the other project/*.sbt files and Build.scala are not read, and project/build.sbt (the meta-build) is parsed with sbt_state.meta_build true and every row partial.",
+		},
+		{
 			Ecosystem:               "gradle",
 			FilePattern:             "libs.versions.toml",
 			FileKind:                "manifest",
@@ -310,30 +322,6 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			CapturesDevRuntimeSplit: true,
 			SourceReference:         "go/internal/parser/nuget/parser.go",
 			Notes:                   "PackageReference rows preserve requested versions, resolved MSBuild properties, unresolved-property partial evidence, and PrivateAssets dev/test signals.",
-		},
-		{
-			Ecosystem:               "nuget",
-			FilePattern:             "directory.build.props",
-			FileKind:                "manifest",
-			Status:                  DependencyCoverageCovered,
-			CapturesPackageIdentity: true,
-			CapturesVersionRange:    true,
-			CapturesScope:           true,
-			CapturesDevRuntimeSplit: true,
-			SourceReference:         "go/internal/parser/nuget/props.go",
-			Notes:                   "Shared PackageReference rows and literal PropertyGroup values from the file itself; conditional, expression, %XX-escaped, or ambiguous values stay partial, a row that a later Update or Remove, a duplicate Include, or an Import can change is partial with item_ambiguity, dependency scope is absent when the PrivateAssets or IncludeAssets value that decides it is unproven, and no sibling project file is read.",
-		},
-		{
-			Ecosystem:               "nuget",
-			FilePattern:             "directory.packages.props",
-			FileKind:                "manifest",
-			Status:                  DependencyCoverageCovered,
-			CapturesPackageIdentity: true,
-			CapturesVersionRange:    true,
-			CapturesScope:           true,
-			CapturesDevRuntimeSplit: true,
-			SourceReference:         "go/internal/parser/nuget/props.go",
-			Notes:                   "Central PackageVersion and GlobalPackageReference rows; a PackageVersion is a version pin, not proof that a project references the package, so neither the reducer nor the readiness package.consumption count treats it as consumption, and project PackageReference rows are not joined to it. A GlobalPackageReference is always development scope, because NuGet forces PrivateAssets=All on it. A row that a later Update or Remove, a duplicate Include, an Import, a %XX-escaped item spec, or an unproven ManagePackageVersionsCentrally can change is partial with item_ambiguity.",
 		},
 		{
 			Ecosystem:               "nuget",
@@ -453,6 +441,7 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			Notes:                   "Pub lockfiles emit exact hosted pub.dev versions with direct/transitive and runtime/dev scope evidence; git, private hosted, and mismatched package rows remain non-evidence.",
 		},
 	}
+	entries = append(entries, nugetCentralCoverage()...)
 
 	sort.SliceStable(entries, func(i, j int) bool {
 		if entries[i].Ecosystem != entries[j].Ecosystem {

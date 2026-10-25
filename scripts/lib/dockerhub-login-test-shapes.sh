@@ -100,6 +100,24 @@ expect_red composite-action-script-pulls-from-hub "${CASE_DIR}" "$(job_no_login 
 composite_case composite-action-no-docker '[{"run": "echo hello", "shell": "bash"}]'
 expect_green composite-action-without-docker-needs-no-login "${CASE_DIR}"
 
+# The composite inherits the caller's environment. Its own run step can then
+# override that environment, exactly as a direct workflow run step can.
+composite_case composite-inherited-image '[{"run": "bash scripts/fixture-image.sh", "shell": "bash"}]'
+printf '#!/usr/bin/env bash\nimage="${FIXTURE_IMAGE:-postgres:18}"\ndocker run --rm "$image" true\n' >"${CASE_DIR}/scripts/fixture-image.sh"
+yq e -i '.env.FIXTURE_IMAGE = "ghcr.io/eshu-hq/ci-postgres:18"' "${CASE_DIR}/.github/workflows/verify-agent-hygiene.yml"
+expect_green composite-inherits-workflow-ghcr-image "${CASE_DIR}"
+yq e -i '.jobs.fixture-action.env.FIXTURE_IMAGE = "postgres:18"' "${CASE_DIR}/.github/workflows/verify-agent-hygiene.yml"
+expect_red composite-job-env-overrides-workflow-ghcr "${CASE_DIR}" "$(job_no_login fixture-action)"
+yq e -i '.jobs.fixture-action.steps[1].env.FIXTURE_IMAGE = "ghcr.io/eshu-hq/ci-postgres:18"' "${CASE_DIR}/.github/workflows/verify-agent-hygiene.yml"
+expect_green composite-caller-step-overrides-job-hub "${CASE_DIR}"
+yq e -i '.runs.steps[0].env.FIXTURE_IMAGE = "postgres:18"' "${CASE_DIR}/.github/actions/fixture/action.yml"
+expect_red composite-child-step-overrides-caller-ghcr "${CASE_DIR}" "$(job_no_login fixture-action)"
+yq e -i '.runs.steps[0].env.FIXTURE_IMAGE = "ghcr.io/eshu-hq/ci-postgres:18"' "${CASE_DIR}/.github/actions/fixture/action.yml"
+expect_green composite-child-step-restores-ghcr "${CASE_DIR}"
+composite_case composite-default-image '[{"run": "bash scripts/fixture-image.sh", "shell": "bash"}]'
+printf '#!/usr/bin/env bash\nimage="${FIXTURE_IMAGE:-postgres:18}"\ndocker run --rm "$image" true\n' >"${CASE_DIR}/scripts/fixture-image.sh"
+expect_red composite-without-image-override-keeps-hub-default "${CASE_DIR}" "$(job_no_login fixture-action)"
+
 # --- H3: the gate's triggers cover composite actions (.github/**) and .sh and
 # .bash scripts (**/*.*sh). The registry rejects a glob that matches no tracked
 # file, so .github/actions/** and **/*.bash cannot be listed on their own.

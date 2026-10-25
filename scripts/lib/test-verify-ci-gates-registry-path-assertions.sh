@@ -21,3 +21,11 @@ require_path_line() {
 		rg --fixed-strings --line-regexp -- "      - \"${needle}\"" >/dev/null ||
 		fail "${message}: expected the exact line \`      - \"${needle}\"\` (six spaces, double-quoted)"
 }
+
+# Callable PR inventories store unquoted paths at two-space indentation.
+require_inventory_path_line() {
+	local haystack="$1" needle="$2" message="$3"
+	printf '%s\n' "${haystack}" |
+		rg --fixed-strings --line-regexp -- "  - ${needle}" >/dev/null ||
+		fail "${message}: expected the active inventory line \`  - ${needle}\`"
+}

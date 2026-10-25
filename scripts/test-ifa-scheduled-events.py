@@ -55,7 +55,7 @@ class ScheduledProofTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             MODULE.verify_inventory(ROOT, inventory, workflow_text=workflow.replace("50 4 * * *", "50 5 * * *"))
         with self.assertRaises(ValueError):
-            MODULE.verify_inventory(ROOT, inventory, workflow_text=workflow.replace("  pull_request:\n", "  merge_group:\n  pull_request:\n"))
+            MODULE.verify_inventory(ROOT, inventory, workflow_text=workflow.replace("  workflow_call:\n", "  merge_group:\n  workflow_call:\n"))
         changed = {path: dict(row) for path, row in inventory.items()}
         path = "go/internal/replay/offlinetier/repo_dependency_ifa_cleanup_live_test.go"
         changed[path]["tests"] = ["TestMissing"]
@@ -67,36 +67,41 @@ class ScheduledProofTest(unittest.TestCase):
         inventory = MODULE.load_inventory()
         workflow = (ROOT / MODULE.WORKFLOW).read_text(encoding="utf-8")
         MODULE.verify_inventory(ROOT, inventory, workflow_text=workflow)
+        fragment = (ROOT / MODULE.FRAGMENT).read_text()
         for old, new in (
-            ("  pull_request:\n", "  # pull_request:\n"),
-            ("      - 'scripts/lib/ifa_scheduled_events.py'", "      - 'go/**'"),
-            ("      - 'go/internal/replay/offlinetier/postgres_test.go'\n", ""),
-            ("  pull_request:\n", "  push:\n  pull_request:\n"),
-            ("    runs-on: ubuntu-latest", "    if: github.event_name != 'pull_request'\n    runs-on: ubuntu-latest"),
+            ("  synchronize: true", "  synchronize: false"),
+            ("  - scripts/lib/ifa_scheduled_events.py", "  - go/**"),
+            ("  - go/internal/replay/offlinetier/postgres_test.go\n", ""),
+            ("  workflow_call:\n", "  push:\n  workflow_call:\n"),
+            ("    runs-on: ubuntu-latest", "    if: false\n    runs-on: ubuntu-latest"),
             ("      - name: Run tagged Ifá proofs", "      # - name: Run tagged Ifá proofs"),
-            ("          bash scripts/run-ifa-scheduled-proofs.sh", "        if: github.event_name != 'pull_request'\n          bash scripts/run-ifa-scheduled-proofs.sh"),
             ("          bash scripts/run-ifa-scheduled-proofs.sh", "          bash scripts/run-ifa-scheduled-proofs.sh\n        continue-on-error: true"),
             ("          python3 scripts/lib/ifa_scheduled_events.py", "          # python3 scripts/lib/ifa_scheduled_events.py"),
-            ("      - name: Verify Ifá runner contract", "      - name: Verify Ifá runner contract\n        if: github.event_name != 'pull_request'"),
+            ("      - name: Verify Ifá runner contract", "      - name: Verify Ifá runner contract\n        if: false"),
             ("            ${{ runner.temp }}/ifa-scheduled/manifest.json", "            # ${{ runner.temp }}/ifa-scheduled/manifest.json"),
         ):
             with self.subTest(old=old):
-                self.assertIn(old, workflow)
-                with self.assertRaises(ValueError):
-                    MODULE.verify_inventory(ROOT, inventory, workflow_text=workflow.replace(old, new))
+                if old in workflow:
+                    with self.assertRaises(ValueError):
+                        MODULE.verify_inventory(ROOT, inventory,
+                                                workflow_text=workflow.replace(old, new, 1))
+                else:
+                    self.assertIn(old, fragment)
+                    with self.assertRaises(ValueError):
+                        MODULE.verify_workflow_route(workflow, fragment.replace(old, new, 1))
 
     def test_pr_route_covers_go_module_inputs(self) -> None:
-        """The production validator rejects PR routes missing Go build inputs."""
+        """The production validator rejects fragment routes missing Go build inputs."""
         workflow = (ROOT / MODULE.WORKFLOW).read_text(encoding="utf-8")
+        fragment = (ROOT / MODULE.FRAGMENT).read_text(encoding="utf-8")
         self.assertIn("          go-version-file: go/go.mod", workflow)
         self.assertIn("        run: scripts/ci/go-mod-download-retry.sh", workflow)
         for path in ("go/go.mod", "go/go.sum"):
             with self.subTest(path=path):
-                altered = workflow.replace(f"      - '{path}'\n", "", 1)
-                digest = hashlib.sha256(altered.encode("utf-8")).hexdigest()
-                with mock.patch.object(MODULE, "WORKFLOW_SHA256", digest):
-                    with self.assertRaisesRegex(ValueError, "path filter drifted"):
-                        MODULE.verify_workflow_route(altered)
+                old = f"  - {path}\n"
+                self.assertIn(old, fragment)
+                with self.assertRaisesRegex(ValueError, "path filter drifted"):
+                    MODULE.verify_workflow_route(workflow, fragment.replace(old, "", 1))
 
     def test_workflow_rejects_alternate_activation_and_failure_keys(self) -> None:
         """The owner job and steps accept only their literal reviewed keys."""
@@ -278,6 +283,7 @@ class ScheduledProofTest(unittest.TestCase):
     def test_static_mirror_selects_harness_changes(self) -> None:
         """PR and merge queue changes must run the hermetic negative guards."""
         workflow = (ROOT / ".github/workflows/live-backend-tests.yml").read_text()
+        fragment = (ROOT / "specs/ci-pr-workflows.d/live-backend-tests.yml").read_text()
         registry = (ROOT / "specs/ci-gates.d/gates-09.yaml").read_text()
         mirror = registry.split("  - id: live-backend-static-mirror\n", 1)[1].split(
             "\n  - id:", 1
@@ -297,7 +303,7 @@ class ScheduledProofTest(unittest.TestCase):
             "specs/ci-gates.d/gates-09.yaml",
         ):
             with self.subTest(path=path):
-                self.assertIn(path, workflow)
+                self.assertIn(path, fragment)
                 triggers = re.findall(r'^      - "([^"]+)"$', mirror, re.MULTILINE)
                 self.assertTrue(
                     any(fnmatch.fnmatchcase(path, trigger) for trigger in triggers),
@@ -314,7 +320,7 @@ class ScheduledProofTest(unittest.TestCase):
                 self.assertIn(command, workflow)
                 self.assertIn(command, mirror)
         self.assertIn("merge_group:", workflow)
-        self.assertIn("pull_request:", workflow)
+        self.assertIn("workflow_call:", workflow)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,8 @@ type testedInput struct {
 	Attempt       int
 	MergeSHA      string
 	MergeTree     string
+	BaseSHA       string
+	HeadSHA       string
 	RunStatus     string
 	RunConclusion string
 }
@@ -100,5 +102,5 @@ func readTestedInput(ctx context.Context, runner ghRunner, repo string, pr int, 
 		!fullLowerSHA(commit.Parents[0].SHA) || commit.Parents[1].SHA != headSHA {
 		return testedInput{}, fmt.Errorf("tested merge %s is not the immutable merge of head %s", mergeSHA, headSHA)
 	}
-	return testedInput{RunID: runID, Attempt: attempt, MergeSHA: mergeSHA, MergeTree: commit.Tree.SHA, RunStatus: run.Status, RunConclusion: run.Conclusion}, nil
+	return testedInput{RunID: runID, Attempt: attempt, MergeSHA: mergeSHA, MergeTree: commit.Tree.SHA, BaseSHA: commit.Parents[0].SHA, HeadSHA: headSHA, RunStatus: run.Status, RunConclusion: run.Conclusion}, nil
 }

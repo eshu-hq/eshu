@@ -33,6 +33,7 @@ FILES = (
     "scripts/verify-query-methodology.sh",
     "scripts/verify-query-plan-regression.sh",
     ".github/workflows/test.yml",
+    ".github/actions/ci-verify-contracts/action.yml",
     "go/internal/mcp/methodology_live_test.go",
     *(f"go/internal/query/methodology_graph_{part}_live_test.go" for part in (
         "artifact", "cases", "cycle_cap", "fixture", "measure", "oracle", "profile"
@@ -88,11 +89,13 @@ class ContractTest(unittest.TestCase):
         job = workflow.split("  verify-contracts:\n", 1)[1].split(
             "\n  go-core:", 1
         )[0]
-        self.assertIn("uses: actions/setup-python@v6", job)
-        self.assertIn("python -m pip install pre-commit==4.6.2", job)
+        action = (self.root / ".github/actions/ci-verify-contracts/action.yml").read_text()
+        self.assertIn("uses: ./.github/actions/ci-verify-contracts", job)
         self.assertIn("fetch-depth: 0", job)
-        self.assertIn("python3 scripts/test-query-methodology-comparison-identity.py", job)
-        self.assertIn("path: .proof-artifacts/query-methodology/*.json", job)
+        self.assertIn("uses: actions/setup-python@v6", action)
+        self.assertIn("python -m pip install pre-commit==4.6.2", action)
+        self.assertIn("python3 scripts/test-query-methodology-comparison-identity.py", action)
+        self.assertIn("path: .proof-artifacts/query-methodology/*.json", action)
 
     def test_hook_selects_every_owned_input(self) -> None:
         """A change to any proof input must invoke the static hook."""
@@ -108,6 +111,7 @@ class ContractTest(unittest.TestCase):
             "scripts/lib/live_tests_registry.py",
             ".pre-commit-config.yaml",
             ".github/workflows/test.yml",
+            ".github/actions/ci-verify-contracts/action.yml",
             "scripts/lib/verify-live-tests-ledger.py",
             "scripts/lib/verify-query-methodology-live-contract.py",
             "scripts/test-verify-query-methodology-live-contract.py",
@@ -225,6 +229,7 @@ class ContractTest(unittest.TestCase):
             "scripts/lib/live_tests_registry.py",
             ".pre-commit-config.yaml",
             ".github/workflows/test.yml",
+            ".github/actions/ci-verify-contracts/action.yml",
             "scripts/lib/verify-live-tests-ledger.py",
             "scripts/lib/verify-query-methodology-live-contract.py",
             "scripts/test-verify-query-methodology-live-contract.py",
@@ -286,7 +291,7 @@ class ContractTest(unittest.TestCase):
 
     def test_removed_blocking_workflow_call(self) -> None:
         self.mutate(
-            ".github/workflows/test.yml",
+            ".github/actions/ci-verify-contracts/action.yml",
             "scripts/verify-query-plan-regression.sh",
             "true # planted workflow skip",
         )
@@ -448,7 +453,7 @@ class ContractTest(unittest.TestCase):
 
     def test_removed_workflow_self_test(self) -> None:
         self.mutate(
-            ".github/workflows/test.yml",
+            ".github/actions/ci-verify-contracts/action.yml",
             "python3 scripts/test-verify-query-methodology-live-contract.py",
             "true # planted self-test bypass",
         )

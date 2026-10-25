@@ -304,6 +304,13 @@ dependencies {
 			expectedDependencies: map[string]string{"org.springframework:spring-core": "5.3.20"},
 			expectedPackageMgr:   "gradle",
 		},
+		"build.sbt": {
+			body: `scalaVersion := "2.13.12"
+libraryDependencies += "org.typelevel" %% "cats-core" % "2.10.0"
+`,
+			expectedDependencies: map[string]string{"org.typelevel:cats-core": "2.10.0"},
+			expectedPackageMgr:   "sbt",
+		},
 		"libs.versions.toml": {
 			body: `[versions]
 spring = "5.3.20"

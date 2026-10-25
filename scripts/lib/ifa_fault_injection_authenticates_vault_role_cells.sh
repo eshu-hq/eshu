@@ -9,7 +9,7 @@
 # stage (projection-scoped reducer, flag on). The projection claim is NOT
 # readiness-gated (no readiness row names this domain), so the kill cell
 # needs no prereq-scoped reducer -- but it MUST wait for the trust-chain
-# stage's read-model facts to commit before the lock goes on, or the
+# stage's read-model facts and queue ACK before the lock goes on, or the
 # projection claims an empty generation, succeeds vacuously, and never
 # re-runs.
 # WIRED: scripts/verify-ifa-fault-injection.sh sources this file (through
@@ -33,7 +33,7 @@
 # sources this file and drives
 # ifa_authenticates_vault_role_start_fact_records_lock,
 # ifa_authenticates_vault_role_release_fact_records_lock, and
-# ifa_authenticates_vault_role_wait_for_read_models under stubs,
+# ifa_authenticates_vault_role_wait_for_read_models and the trust-chain ACK under stubs,
 # and scripts/test-verify-ifa-fault-injection.sh runs that module -- so editing
 # any fail-closed behavior or bg_pids bookkeeping will fail `make pre-pr`.
 #
@@ -197,8 +197,50 @@ ifa_authenticates_vault_role_wait_for_read_models() {
 	return 1
 }
 
+# ifa_authenticates_vault_role_wait_for_trust_chain_succeeded waits for the
+# queue ACK after the read-model facts appear. A claimed/running row still
+# fences the projection row on the same scope conflict key, so the reducer
+# must remain alive until at least one row succeeded and none remain open.
+ifa_authenticates_vault_role_wait_for_trust_chain_succeeded() {
+	local cell="$1" budget="$2" i rows row status count succeeded open bad
+	[[ "${budget}" =~ ^[1-9][0-9]*$ ]] || return 1
+	for i in $(seq 1 "${budget}"); do
+		if ! rows="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"SELECT status, count(*) FROM fact_work_items WHERE stage = 'reducer' AND domain = 'secrets_iam_trust_chain' GROUP BY status;" \
+			"${compose_file}")"; then
+			printf '%s: trust-chain ACK wait: queue query failed\n' "${cell}" >&2
+			return 1
+		fi
+		succeeded=0 open=0 bad=0
+		for row in ${rows}; do
+			status="${row%%|*}"
+			count="${row##*|}"
+			[[ "${count}" =~ ^[0-9]+$ ]] || { printf '%s: trust-chain ACK wait: invalid count %q\n' "${cell}" "${row}" >&2; return 1; }
+			case "${status}" in
+			succeeded) succeeded=$((succeeded + count)) ;;
+			pending | claimed | running | retrying) open=$((open + count)) ;;
+			superseded) ;;
+			failed | dead_letter) bad=$((bad + count)) ;;
+			*) printf '%s: trust-chain ACK wait: unknown status %q\n' "${cell}" "${status}" >&2; return 1 ;;
+			esac
+		done
+		if ((bad > 0)); then
+			printf '%s: trust-chain ACK wait: %s terminally failed row(s)\n' "${cell}" "${bad}" >&2
+			return 1
+		fi
+		if ((succeeded > 0 && open == 0)); then
+			printf '%s: trust-chain ACK complete: %s succeeded row(s)\n' "${cell}" "${succeeded}"
+			return 0
+		fi
+		sleep 1
+	done
+	printf '%s: trust-chain ACK wait: no completed row within %ss\n' "${cell}" "${budget}" >&2
+	return 1
+}
+
 # ifa_authenticates_vault_role_run_trust_chain_stage runs the trust-chain
-# stage to committed read models and then STOPS its reducer: the stage is
+# stage to committed read models and an acknowledged row, then stops its
+# reducer. The stage is
 # scoped to secrets_iam_trust_chain so it can never claim the projection
 # row early, and stopping it before the lock frees its workers. The flag is
 # on for this reducer so the follow-up writer is wired and the trust-chain
@@ -211,6 +253,8 @@ ifa_authenticates_vault_role_run_trust_chain_stage() {
 		env "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED=true" "ESHU_REDUCER_CLAIM_DOMAIN=secrets_iam_trust_chain" "${bin_dir}/eshu-reducer"
 	ifa_authenticates_vault_role_wait_for_read_models "${cell}" 300 \
 		|| die "${cell}: trust-chain stage never committed read models"
+	ifa_authenticates_vault_role_wait_for_trust_chain_succeeded "${cell}" 300 \
+		|| die "${cell}: trust-chain row did not succeed; refusing to stop the worker"
 	kill "${trust_reducer_pid}" >/dev/null 2>&1 || true
 	wait "${trust_reducer_pid}" 2>/dev/null || true
 	ifa_det_untrack_bg_pid "${trust_reducer_pid}"
@@ -278,7 +322,7 @@ cell_killworker_authenticates_vault_role() {
 	# an empty generation, succeed vacuously, and never re-run. The
 	# trust-chain-scoped reducer (flag on, so the follow-up writer is wired)
 	# can never claim the projection row early; it is stopped once the read
-	# models commit.
+	# models and its queue ACK commit.
 	ifa_authenticates_vault_role_run_trust_chain_stage "killworkerauthenticatesvaultrole"
 	# The projection intent is created by the trust-chain handler when its
 	# read-model writes commit -- not by ingestion and not by the projector,

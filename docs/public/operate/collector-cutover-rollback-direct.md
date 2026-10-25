@@ -55,13 +55,23 @@ scripts/collector-cutover-rollback.sh plan \
 ### Dual authority
 
 A direct collector holds no claim row, so the claim table cannot show it. The
-script uses the restored Deployment instead. From step 5 on the Deployment is
-running, so a claim of the kind beside it belongs to the external producer, and
-the script exits 7. Before the restore, the same claim is a refusal (exit 4).
-The script assumes the Deployment is running from step 5 on; it does not read
-the replica count. Keep the Deployment at zero replicas until step 4 scales it
-up, so that assumption holds. A standalone `verify` run reports that same
-assumption for any claim of the kind.
+script reads the `--in-tree-deployment` replica counts instead
+(`spec.replicas` and `status.replicas`). The Deployment counts as running when
+either is above zero, so a pod that is still stopping counts. It does not use
+`kubectl rollout status`, which also reports success at zero replicas. The
+authority line prints `in_tree_direct_running=yes`, `no`, or `unknown`.
+
+| External claims of the kind | Deployment | Result |
+| --- | --- | --- |
+| 1 or more | Running | Exit 7. The message names both live producers. |
+| 1 or more | Not running | Exit 4 (refused). The external producer is alone. |
+| 1 or more | Unreadable or missing | Exit 7. It counts as running, and the message says the read failed. |
+| None | Running | Passes. No external claim exists, so there is no overlap. |
+| None | Not running | Passes. |
+| None | Unreadable or missing | Passes. The authority line prints `unknown`, and the evidence line names the read error. |
+
+Every step uses this one read, so `run` and `verify` agree. A standalone
+`verify` before the restore, with the Deployment at zero, is not dual authority.
 
 ### The step 5 signal
 
@@ -94,13 +104,18 @@ source (or wait for the next real change), then rerun from step 5 with
 ## Verify and capture
 
 `verify` and `--capture` take `--in-tree-direct` where the other pages show
-`--in-tree-instance <id>`, and no `--in-tree-deployment`:
+`--in-tree-instance <id>`. `verify` also needs `--namespace` and
+`--in-tree-deployment`, because it reads the Deployment's replica counts for the
+authority check. Without them it exits 2. `--capture` needs neither. The default
+mode is unchanged and does not read the Deployment.
 
 ```bash
 scripts/collector-cutover-rollback.sh verify \
   --collector-kind documentation \
   --external-instance <external-instance-id> \
   --in-tree-direct \
+  --namespace <namespace> \
+  --in-tree-deployment <direct-collector-deployment> \
   --baseline baseline-documentation.txt
 ```
 

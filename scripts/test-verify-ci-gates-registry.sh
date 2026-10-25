@@ -17,6 +17,8 @@ static_contract_workflow="${repo_root}/.github/workflows/static-contract-gates.y
 build_test_workflow="${repo_root}/.github/workflows/test.yml"
 frontend_workflow="${repo_root}/.github/workflows/frontend.yml"
 e2e_workflow="${repo_root}/.github/workflows/e2e-tests.yml"
+frontend_inventory="${repo_root}/specs/ci-pr-workflows.d/frontend.yml"
+e2e_inventory="${repo_root}/specs/ci-pr-workflows.d/e2e-tests.yml"
 registry_workflow="${repo_root}/.github/workflows/verify-ci-gate-registry.yml"
 # Existing row-shape assertions consume a validated, temporary flat view.
 registry_root="${registry}"
@@ -122,26 +124,27 @@ done < <(
 . "${repo_root}/scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh"
 check_parser_relationship_trigger_parity
 
-frontend_pull_request_paths="$(
-	sed -n '/^  pull_request:/,/^  workflow_dispatch:/p' "${frontend_workflow}"
-)"
+[[ -f "${frontend_inventory}" ]] || fail "missing ${frontend_inventory}"
+require "frontend PR inventory identity" "- file: frontend.yml" "${frontend_inventory}"
+frontend_pull_request_paths="$(sed -n '/^  paths:/,/^  jobs:/p' "${frontend_inventory}")"
 
 # A change to the live backend-conformance driver must schedule the E2E
 # workflow that executes it and select the same registered CI-heavy gate.
 [[ -f "${e2e_workflow}" ]] || fail "missing ${e2e_workflow}"
-e2e_pull_request_paths="$(
-	# `concurrency:` is a top-level key at column 0, so a two-space end anchor
-	# never matches and the range ran to EOF -- scoping this "pull_request
-	# paths" assertion to the entire workflow, where a path line anywhere in
-	# the file would have satisfied it.
-	sed -n '/^  pull_request:/,/^concurrency:/p' "${e2e_workflow}"
-)"
+[[ -f "${e2e_inventory}" ]] || fail "missing ${e2e_inventory}"
+require "e2e PR inventory identity" "- file: e2e-tests.yml" "${e2e_inventory}"
+require "trusted e2e caller" "uses: ./.github/workflows/e2e-tests.yml" "${build_test_workflow}"
+e2e_pull_request_paths="$(sed -n '/^  paths:/,/^  jobs:/p' "${e2e_inventory}")"
 e2e_gate="$(
 	sed -n '/^  - id: e2e-tests$/,/^  - id:/p' "${registry}"
 )"
 backend_conformance_script='scripts/verify_backend_conformance_live.sh'
-require_path_line "${e2e_pull_request_paths}" "${backend_conformance_script}" \
+require_inventory_path_line "${e2e_pull_request_paths}" "${backend_conformance_script}" \
 	"e2e-tests pull_request paths omit the live backend-conformance driver"
+mutated_e2e_paths="$(printf '%s\n' "${e2e_pull_request_paths}" | rg --invert-match --fixed-strings -- "  - ${backend_conformance_script}")"
+if (require_inventory_path_line "${mutated_e2e_paths}" "${backend_conformance_script}" "seeded missing E2E path" >/dev/null 2>&1); then
+	fail "e2e inventory path assertion accepted a planted missing driver"
+fi
 require_path_line "${e2e_gate}" "${backend_conformance_script}" \
 	"e2e-tests registry triggers omit the live backend-conformance driver"
 
@@ -281,7 +284,7 @@ scripts_tree_gates="$(
 for sql_fixture in \
 	'scripts/lib/console-retained-create-proof-schema.sql' \
 	'scripts/lib/console-retained-verify-public-identity.sql'; do
-	require_path_line "${frontend_pull_request_paths}" "${sql_fixture}" \
+	require_inventory_path_line "${frontend_pull_request_paths}" "${sql_fixture}" \
 		"frontend pull_request paths omit retained SQL fixture"
 
 	selection="$(
@@ -326,7 +329,7 @@ select_explain() {
 }
 
 for cloudflare_input in '.nvmrc' 'CLOUDFLARE_PAGES.md'; do
-	require_path_line "${frontend_pull_request_paths}" "${cloudflare_input}" \
+	require_inventory_path_line "${frontend_pull_request_paths}" "${cloudflare_input}" \
 		"frontend pull_request paths omit Cloudflare Pages input"
 	require_path_line "${frontend_site_gate}" "${cloudflare_input}" \
 		"frontend-site registry triggers omit Cloudflare Pages input"
@@ -347,7 +350,7 @@ for bundle_input in \
 	'scripts/console-bundle-budget.d.mts' \
 	'scripts/console-bundle-report.mjs' \
 	'scripts/console-bundle-report.d.mts'; do
-	require_path_line "${frontend_pull_request_paths}" "${bundle_input}" \
+	require_inventory_path_line "${frontend_pull_request_paths}" "${bundle_input}" \
 		"frontend pull_request paths omit console bundle-budget input"
 	require_path_line "${frontend_console_checks_gate}" "${bundle_input}" \
 		"frontend-console-checks registry triggers omit console bundle-budget input"
@@ -390,7 +393,7 @@ for marketing_input in \
 	'scripts/marketing-review.mjs' \
 	'scripts/marketing-review-runtime.mjs' \
 	'scripts/marketing-review-runtime.test.mjs'; do
-	require_path_line "${frontend_pull_request_paths}" "${marketing_input}" \
+	require_inventory_path_line "${frontend_pull_request_paths}" "${marketing_input}" \
 		"frontend pull_request paths omit marketing-review input"
 	require_path_line "${frontend_site_gate}" "${marketing_input}" \
 		"frontend-site registry triggers omit marketing-review input"
@@ -428,7 +431,7 @@ linted_scripts="$(
 # process substitution keeps the no-silent-false-green property.
 while IFS= read -r linted_script; do
 	[[ -n "${linted_script}" ]] || continue
-	require_path_line "${frontend_pull_request_paths}" "${linted_script}" \
+	require_inventory_path_line "${frontend_pull_request_paths}" "${linted_script}" \
 		"frontend pull_request paths omit linted script"
 done < <(printf '%s\n' "${linted_scripts}")
 
@@ -436,7 +439,7 @@ done < <(printf '%s\n' "${linted_scripts}")
 # public/ is copied verbatim into build.outDir and shipped - a direct input to
 # frontend-site's own `npm run build`, yet it selected no gate at all. Asserted
 # as a class glob, and proven through a real asset so the glob cannot be vacuous.
-require_path_line "${frontend_pull_request_paths}" 'public/**' \
+require_inventory_path_line "${frontend_pull_request_paths}" 'public/**' \
 	"frontend pull_request paths omit the published public assets"
 require_path_line "${frontend_site_gate}" 'public/**' \
 	"frontend-site registry triggers omit the published public assets"
@@ -464,7 +467,7 @@ for auth_cli_path in \
 	'scripts/test-auth-e2e-cli.sh'; do
 	require_path_line "${auth_mcp_gate}" "${auth_cli_path}" \
 		"auth-mcp-e2e registry triggers omit the auth CLI helper"
-	require_path_line "${frontend_pull_request_paths}" "${auth_cli_path}" \
+	require_inventory_path_line "${frontend_pull_request_paths}" "${auth_cli_path}" \
 		"frontend pull_request paths omit the auth CLI helper"
 done
 

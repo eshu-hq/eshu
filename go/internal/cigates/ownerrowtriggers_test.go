@@ -4,11 +4,44 @@
 package cigates_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
+
+func TestOwnerRowTriggerUsesCallablePRInventory(t *testing.T) {
+	t.Parallel()
+	root := buildDriftRepo(t, minimalPreCommit("a"), nil)
+	writeWorkflow(t, root, "callable.yml", "name: Callable\non: [workflow_call]\njobs:\n"+
+		"  owned-job:\n    runs-on: ubuntu-latest\n    steps: []\n")
+	fragmentDir := filepath.Join(root, "specs", "ci-pr-workflows.d")
+	if err := os.MkdirAll(fragmentDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(fragmentDir, "callable.yml")
+	fragment := func(selected string) []byte {
+		return []byte("schema_version: 1\nworkflows:\n" +
+			"  - file: callable.yml\n    name: Callable\n    synchronize: true\n" +
+			"    paths: ['" + selected + "']\n    jobs: [owned-job]\n")
+	}
+	if err := os.WriteFile(path, fragment("scripts/covered.sh"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g := ciOnlyGate("a", "callable.yml", "owned-job", "scripts/missing.sh")
+	reg := minimalReg([]cigates.Gate{g}, nil, nil)
+	if errs := ownerRowTriggerErrors(t, root, reg); len(errs) != 1 || !strings.Contains(errs[0], "scripts/missing.sh") {
+		t.Fatalf("uncovered trigger in callable PR inventory must fail: %v", errs)
+	}
+	if err := os.WriteFile(path, fragment("scripts/missing.sh"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if errs := ownerRowTriggerErrors(t, root, reg); len(errs) != 0 {
+		t.Fatalf("covered trigger in callable PR inventory must pass: %v", errs)
+	}
+}
 
 // ownerRowTriggerErrors returns only the findings of the owner-row
 // trigger check, so a fixture proves that one rule.

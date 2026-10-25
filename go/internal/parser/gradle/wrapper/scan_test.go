@@ -98,6 +98,8 @@ func TestScanEmitsNothingWhenTheGrammarDoesNotMatch(t *testing.T) {
 		"key only in a longer key":        {"xdistributionUrl=https\\://h/gradle-8.5-bin.zip\n", 0},
 		"not a gradle archive":            {"distributionUrl=https\\://h/dist/other-8.5-bin.zip\n", 1},
 		"no version":                      {"distributionUrl=https\\://h/gradle--bin.zip\n", 1},
+		"bin archive with no token":       {"distributionUrl=https\\://example.com/gradle-bin.zip\n", 1},
+		"all archive with no token":       {"distributionUrl=https\\://example.com/gradle-all.zip\n", 1},
 		"wrong extension":                 {"distributionUrl=https\\://h/gradle-8.5-bin.tar.gz\n", 1},
 		"no distribution type":            {"distributionUrl=https\\://h/gradle-8.5.zip\n", 1},
 		"version with a quote":            {"distributionUrl=https\\://h/gradle-8'5-bin.zip\n", 1},

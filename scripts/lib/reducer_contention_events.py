@@ -40,7 +40,7 @@ CONTRACT_COMMANDS = (
     "bash scripts/verify-live-tests-ledger.sh",
 )
 ROOT_KEYS = frozenset({"name", "on", "concurrency", "permissions", "jobs"})
-JOB_KEYS = frozenset({"needs", "name", "runs-on", "timeout-minutes", "services", "steps"})
+JOB_KEYS = frozenset({"if", "needs", "name", "runs-on", "timeout-minutes", "services", "steps"})
 
 
 def canonical_keys(text: str, indent: int, allowed: frozenset[str]) -> dict[str, str]:
@@ -77,7 +77,7 @@ def workflow_steps(workflow: str) -> dict[str, str]:
     if set(root) != ROOT_KEYS or root["jobs"] != "jobs:":
         raise ValueError("inactive contention owner job: noncanonical root")
     job_ids = [
-        line for line in workflow.split("jobs:\n", 1)[1].splitlines()
+        line for line in workflow.split("\njobs:\n", 1)[1].splitlines()
         if line.startswith("  ") and not line.startswith("   ")
         and line.strip() and not line.lstrip().startswith("#")
     ]
@@ -88,7 +88,10 @@ def workflow_steps(workflow: str) -> dict[str, str]:
         raise ValueError("inactive contention owner job: missing job")
     body = jobs[0].group("body")
     job_keys = canonical_keys(body, 4, JOB_KEYS)
-    if (set(job_keys) != JOB_KEYS or job_keys["needs"] != "    needs: queue-selection"
+    if (set(job_keys) != JOB_KEYS or job_keys["if"] !=
+            "    if: ${{ github.event_name != 'pull_request' || "
+            "contains(fromJSON(inputs.plan_jobs || '[]'), 'contention-gate') }}"
+            or job_keys["needs"] != "    needs: queue-selection"
             or job_keys["services"] != "    services:"
             or job_keys["steps"] != "    steps:"):
         raise ValueError("inactive or non-fail-closed contention owner job")

@@ -87,10 +87,20 @@ type pullRequestFilter struct {
 	Ignore []string
 }
 
-// readPullRequestFilter returns the `on.pull_request` paths and paths-ignore
-// entries of workflow, or the zero filter when the file is unreadable or has
-// neither.
+// readPullRequestFilter returns the frozen PR inventory filter for a callable
+// workflow, or its direct pull_request filter. An unreadable or unfiltered
+// workflow has the zero filter.
 func readPullRequestFilter(repoRoot, workflow string) pullRequestFilter {
+	fragmentPath := filepath.Join(repoRoot, "specs", "ci-pr-workflows.d", filepath.Base(workflow))
+	if fragment, err := os.ReadFile(fragmentPath); err == nil { // #nosec G304 -- basename-confined workflow from the committed registry
+		if definitions, parseErr := ParsePRPlanFragment(fragment); parseErr == nil {
+			for _, definition := range definitions {
+				if definition.File == filepath.Base(workflow) {
+					return pullRequestFilter{Paths: definition.Paths, Ignore: definition.PathsIgnore}
+				}
+			}
+		}
+	}
 	path := filepath.Join(repoRoot, ".github", "workflows", filepath.Base(workflow))
 	raw, err := os.ReadFile(path) // #nosec G304 -- basename-confined workflow from the committed registry
 	if err != nil {

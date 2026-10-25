@@ -362,6 +362,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/projector_queue_ack_journal_cost_live_test.go": (
             "TestProjectorAckJournalCost",
+            "TestProjectorAckJournalCostCacheImbalance",
         ),
         "go/internal/storage/postgres/projector_queue_ack_journal_equivalence_live_test.go": (
             "TestProjectorAckJournalEquivalence",

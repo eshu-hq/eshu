@@ -10,6 +10,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// manualScaleCondition keeps diagnostics dispatch-only even when a PR plan
+// names the job. The planner selection and the manual event guard are joined.
+const manualScaleCondition = "${{ (github.event_name != 'pull_request' || " +
+	"contains(fromJSON(inputs.plan_jobs || '[]'), 'methodology-scale')) && " +
+	"(github.event_name == 'workflow_dispatch') }}"
+
 func TestDiagnosticWorkflowIsManualAndDefaultsOff(t *testing.T) {
 	data, err := os.ReadFile("../../../.github/workflows/read-api-latency-gate.yml")
 	if err != nil {
@@ -45,7 +51,7 @@ func TestDiagnosticWorkflowIsManualAndDefaultsOff(t *testing.T) {
 			if !exists {
 				continue
 			}
-			if name != "methodology-scale" || job.If != "github.event_name == 'workflow_dispatch'" || expression != "${{ inputs.status_diagnostic && format('{0}/methodology-status-diagnostics', runner.temp) || '' }}" {
+			if name != "methodology-scale" || job.If != manualScaleCondition || expression != "${{ inputs.status_diagnostic && format('{0}/methodology-status-diagnostics', runner.temp) || '' }}" {
 				t.Fatal("diagnostic mode escaped the dedicated manual job or disabled default")
 			}
 			bindings++

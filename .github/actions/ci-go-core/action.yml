@@ -1,0 +1,68 @@
+name: Verify Go core
+description: Run the selected Go contract checks and required build.
+inputs:
+  mode:
+    description: PR plan mode, or full for non-PR events.
+    required: true
+  gates:
+    description: JSON array of selected registry gate IDs.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Verify CI apt/ripgrep installer test mirror
+      if: ${{ !cancelled() && (inputs.mode != 'smoke') }}
+      shell: bash
+      run: bash scripts/test-ci-install-apt-packages.sh
+    - name: Verify go-mod-download-retry test mirror
+      if: ${{ !cancelled() && (inputs.mode != 'smoke') }}
+      shell: bash
+      run: bash scripts/test-ci-go-mod-download-retry.sh
+    - name: Verify go-install-retry test mirror
+      if: ${{ !cancelled() && (inputs.mode != 'smoke') }}
+      shell: bash
+      run: bash scripts/test-ci-go-install-retry.sh
+    - name: Pre-warm golangci-lint filelength plugin modules
+      if: ${{ !cancelled() && (inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'go-lint') || contains(fromJSON(inputs.gates), 'go-fmt')) }}
+      shell: bash
+      run: scripts/ci/go-mod-download-retry.sh tools/golangci-lint-filelength
+    - name: Build golangci-lint filelength plugin
+      if: ${{ !cancelled() && (inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'go-lint') || contains(fromJSON(inputs.gates), 'go-fmt')) }}
+      working-directory: tools/golangci-lint-filelength
+      shell: bash
+      run: make build
+    - name: Test golangci-lint filelength plugin
+      if: ${{ !cancelled() && (inputs.mode != 'smoke') }}
+      working-directory: tools/golangci-lint-filelength
+      shell: bash
+      run: make test
+    - name: Lint Go
+      if: ${{ !cancelled() && (inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'go-lint')) }}
+      working-directory: go
+      shell: bash
+      run: golangci-lint run ./...
+    - name: Check gofumpt formatting
+      if: ${{ !cancelled() && (inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'go-fmt')) }}
+      working-directory: go
+      shell: bash
+      run: golangci-lint fmt --diff
+    - name: Verify Go file cap in smoke
+      if: ${{ !cancelled() && (inputs.mode == 'smoke' && contains(fromJSON(inputs.gates), 'go-file-cap')) }}
+      shell: bash
+      run: bash scripts/dev/precommit-go.sh filecap-all
+    - name: Run go vet in smoke
+      if: ${{ !cancelled() && (inputs.mode == 'smoke' && contains(fromJSON(inputs.gates), 'go-vet')) }}
+      working-directory: go
+      shell: bash
+      run: go vet ./...
+    - name: Build all Go binaries
+      if: ${{ !cancelled() && (inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'go-build')) }}
+      working-directory: go
+      shell: bash
+      env:
+        CI_PLAN_MODE: ${{ inputs.mode }}
+        CI_PLAN_GATES: ${{ inputs.gates }}
+      run: |
+        set -euo pipefail
+        go build ./...
+        python3 ../scripts/ci/smoke_go_build_canary.py
