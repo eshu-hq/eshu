@@ -486,9 +486,5 @@ TABLE = {
             "TestRefinalizeFenceAdmissionCallerCancellation",
             "TestRefinalizeFenceAdmissionWriteAndCommitFailuresKeepTheirCauses",
         ),
-        "go/internal/storage/postgres/recovery_refinalize_lock_convoy_live_test.go": (
-            "TestRefinalizeFenceDoesNotConvoyUnrelatedQueueWrite",
-            "TestRefinalizeFenceRetryBudgetIncludesReducerDrain",
-        ),
     },
 }
