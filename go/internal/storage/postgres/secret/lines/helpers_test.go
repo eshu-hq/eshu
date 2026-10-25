@@ -49,7 +49,26 @@ func openDatabase(t *testing.T) (context.Context, *sql.DB, *pgx.ConnConfig) {
 // carries the writer marker and DeferredSessionSQL.
 func openDeferredPool(t *testing.T, config *pgx.ConnConfig) *sql.DB {
 	t.Helper()
-	pool := stdlib.OpenDB(*config, inventory.WriterConnectOption(DeferredSessionSQL))
+	return openFencedPool(t, config, NewRunFence(nil))
+}
+
+// openFencedPool is openDeferredPool whose connect hook shares fence with the
+// run lock a test acquires through the pool.
+func openFencedPool(t *testing.T, config *pgx.ConnConfig, fence *RunFence) *sql.DB {
+	t.Helper()
+	pool := stdlib.OpenDB(*config, inventory.WriterConnectOptionWithHooks(
+		[]inventory.ConnectHook{fence.Hook()}, DeferredSessionSQL))
+	t.Cleanup(func() { _ = pool.Close() })
+	return pool
+}
+
+// openDedicatedPool is the Repairer's lock pool as cmd/reducer opens it: one
+// connection, none kept idle.
+func openDedicatedPool(t *testing.T, config *pgx.ConnConfig) *sql.DB {
+	t.Helper()
+	pool := stdlib.OpenDB(*config)
+	pool.SetMaxOpenConns(1)
+	pool.SetMaxIdleConns(0)
 	t.Cleanup(func() { _ = pool.Close() })
 	return pool
 }
@@ -62,6 +81,13 @@ func writeRecords(ctx context.Context, t *testing.T, pool *sql.DB, repoID string
 		RepoID: repoID, ScopeID: "scope-" + repoID, GenerationID: "gen-1", SourceSystem: "git", Records: records,
 	}); err != nil {
 		t.Fatalf("write %s: %v", repoID, err)
+	}
+}
+
+// contentMaterialization is the 40-file corpus of repoID as one materialization.
+func contentMaterialization(repoID string) content.Materialization {
+	return content.Materialization{
+		RepoID: repoID, ScopeID: "scope-" + repoID, GenerationID: "gen-1", SourceSystem: "git", Records: corpus(repoID, 40),
 	}
 }
 

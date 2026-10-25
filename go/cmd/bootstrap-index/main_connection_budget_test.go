@@ -6,8 +6,10 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunRejectsSinglePostgresConnectionBeforeOpeningDatabase(t *testing.T) {
@@ -22,7 +24,7 @@ func TestRunRejectsSinglePostgresConnectionBeforeOpeningDatabase(t *testing.T) {
 			}
 			return ""
 		},
-		func(context.Context, func(string) string) (bootstrapDB, error) {
+		func(context.Context, func(string) string, *slog.Logger, time.Duration) (bootstrapDB, error) {
 			opened = true
 			return nil, errors.New("database opened before pool budget validation")
 		},

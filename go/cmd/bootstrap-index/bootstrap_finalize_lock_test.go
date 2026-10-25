@@ -81,7 +81,9 @@ func (r *lockedRun) execute() error {
 			}
 			return ""
 		},
-		func(context.Context, func(string) string) (bootstrapDB, error) { return r.db, nil },
+		func(context.Context, func(string) string, *slog.Logger, time.Duration) (bootstrapDB, error) {
+			return r.db, nil
+		},
 		func(context.Context, bootstrapDB, *slog.Logger) error {
 			r.record("schema")
 			return r.schemaErr
