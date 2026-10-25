@@ -1,0 +1,2 @@
+go test fuzz v1
+string("x = \"a\rb\"\nPassw0rdHunter2: 1\n")

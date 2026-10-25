@@ -137,13 +137,29 @@ func (st *scanState) endHeredocLine(line string, segStart int) bool {
 	return false
 }
 
+// failCR fails the scan closed for a \r that is not the end of a CRLF line,
+// inside a quoted template or heredoc text. hclsyntax lexes it as
+// TokenQuotedNewline in a string and as TokenInvalid in heredoc text, where it
+// stops lexing, so no later line has a lexical state to follow. It returns the
+// end of the line. A \r in code or in a comment is no failure (TokenInvalid in
+// code, valid in a comment, and lexing goes on) and is not routed here.
+func (st *scanState) failCR(line string) int {
+	st.failed = true
+	return len(line)
+}
+
 // scanString reads quoted-template text from i. It stops when the template
 // closes or an interpolation opens, and returns the next index.
 func (st *scanState) scanString(line string, i int) int {
 	for ; i < len(line); i++ {
 		switch c := line[i]; c {
 		case '\\':
+			if i+1 < len(line) && line[i+1] == '\r' {
+				return st.failCR(line)
+			}
 			i++
+		case '\r':
+			return st.failCR(line)
 		case '"':
 			st.depth--
 			return i + 1
@@ -164,13 +180,18 @@ func (st *scanState) scanString(line string, i int) int {
 // scanHeredoc reads heredoc text from i. Heredoc text has no escapes. It stops
 // when an interpolation opens, and returns the next index.
 func (st *scanState) scanHeredoc(line string, i int) int {
-	// Most heredoc text holds neither opener byte; two vectorized searches skip
-	// it without a byte loop.
+	// Most heredoc text holds none of the opener bytes or a \r; vectorized
+	// searches skip it without a byte loop.
 	if strings.IndexByte(line[i:], '$') < 0 && strings.IndexByte(line[i:], '%') < 0 {
+		if strings.IndexByte(line[i:], '\r') >= 0 {
+			return st.failCR(line)
+		}
 		return len(line)
 	}
 	for ; i < len(line); i++ {
-		if c := line[i]; c == '$' || c == '%' {
+		if c := line[i]; c == '\r' {
+			return st.failCR(line)
+		} else if c == '$' || c == '%' {
 			switch {
 			case i+1 < len(line) && line[i+1] == '{':
 				st.top().startOfLine = false

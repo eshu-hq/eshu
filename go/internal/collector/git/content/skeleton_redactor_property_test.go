@@ -311,6 +311,10 @@ func FuzzRedactSkeleton(f *testing.F) {
 		"x = \"abc\nPassw0rdHunter2: 1\n*/\n", "x = <<EOF\n$${ a\n%%{ b\nEOF\nPassw0rdHunter2: 1\n",
 		"x = \"${ # c\n}\" /* d\nPassw0rdHunter2: 1\n*/\n", "x = <<EOF\r\nPassw0rdHunter2: 1\r\nEOF\r\n",
 		strings.Repeat(`"${`, 17) + "\nPassw0rdHunter2: 1\n",
+		// The rev-8833 round-5 shapes (J1): a bare \r in a string or heredoc text.
+		"A=<<EOF\n\rEOF\n", "A=<<EOF\n\rEOF\nPassw0rdHunter2: 1\nEOF\nn = 2\n", "x = \"a\rb\"\nPassw0rdHunter2: 1\n",
+		"x = \"a\\\rb\"\nPassw0rdHunter2: 1\n", "x = <<EOF\na\rb\nEOF\nPassw0rdHunter2: 1\n",
+		"x = \"${ <<IN\n\r\nIN\n}\"\nPassw0rdHunter2: 1\n", "A = <<EOF\n$x \r $$y\nEOF\nPassw0rdHunter2: 1\n", "# a\rb\nn = 2\n", "n = 2\r\r\nm = 3\n",
 		"x = \"${\"#\"}\" /* c\nPassw0rdHunter2: 1\n*/\n", "x = \"${\"//\"}\" <<EOF\nPassw0rdHunter2: 1\nEOF\n",
 	} {
 		f.Add(s)

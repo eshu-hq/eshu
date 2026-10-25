@@ -132,9 +132,13 @@ number, the trailing newline, and `\r` line endings.
   - When the opener line was redacted, its closer is redacted too, which keeps
     the fixed point. When a top-level `key = <<ID` line is kept, its closer is
     kept.
-  - Lexing failure is sticky. Nesting past 32 levels, or a line that ends
-    inside a quoted template (HCL's `TokenQuotedNewline`, invalid HCL), redacts
-    every later line whole. Nothing clears it. The body is still stored with
+  - Lexing failure is sticky. Nesting past 32 levels, a line that ends inside
+    a quoted template (HCL's `TokenQuotedNewline`, invalid HCL), or a bare
+    `\r` inside a quoted template or heredoc text redacts every later line
+    whole. A bare `\r` is one that is not the `\r` of a CRLF line ending; it
+    is a `TokenQuotedNewline` in a string and a `TokenInvalid` in heredoc text,
+    where HCL stops lexing. A CRLF ending is trimmed as usual, and a bare `\r`
+    in code or in a comment is no failure. Nothing clears it. The body is still stored with
     its line count and its findings; what is lost is the key names and the kept
     values after the first failure, so an unclosed `${` in a JSON string value
     costs the rest of that file. An unterminated `/*` that never closes redacts

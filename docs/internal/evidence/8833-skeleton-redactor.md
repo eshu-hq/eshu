@@ -108,6 +108,24 @@ vectorized byte searches per line plus one `TrimSpace`. A CPU profile of that
 row puts the cost in the detector and the byte searches, not in a byte loop.
 Neither redactor runs until part 2 binds a definition.
 
+The round-5 bare-`\r` check (J1) adds one vectorized `IndexByte` per heredoc
+line that holds no `$` or `%`, and one `case` in the string loop. It was
+measured against `070d079446` the same way, 3 rounds of 2 runs each,
+interleaved (`-benchtime=200ms`, load average about 5), ns/op range:
+
+| Benchmark | before (`070d079446`) | after |
+| --- | --- | --- |
+| `typical` | 10.79 to 11.23 µs | 10.87 to 11.16 µs |
+| `clean_1MiB` | 50.0 to 50.9 ms | 49.7 to 51.0 ms |
+| `dense_1MiB` | 119.0 to 122.7 ms | 118.2 to 122.8 ms |
+| `nested_interp_1MiB_open` | 1.31 to 1.35 ms | 1.31 to 1.33 ms |
+| `heredoc_4MiB` | 27.5 to 27.9 ms | 27.8 to 28.1 ms |
+
+B/op and allocs match on every row. The first four rows are inside the spread.
+The heredoc row reads about 0.3 ms (1 %) higher, with the ranges just touching;
+the 5 % growth disclosed above is the cost of scanning heredoc text for `${`,
+and this check adds no more than the spread.
+
 ## Observability Evidence
 
 Observability Evidence: no new metric. `eshu_dp_collector_content_store_files_total`
@@ -142,23 +160,101 @@ from a real `telemetry.Instruments` and asserts the log holds no credential.
   changes nothing, that every stored line fits a grammar the test writes itself,
   and that every raw finding keeps `REDACTED_<kind>` while no other line gains a
   kind marker.
-- `TestRedactSkeletonScanProperty` (round-3 H1) composes 20000 random bodies
-  from comment, string, `${ }`, and heredoc tokens (`#`, `//`, `/*`, `*/`, `"`,
-  `<<EOF`, `<<-EOF`, `<<~EOF`, `EOF`, `${`, a seeded value secret). It checks
-  them against a line-by-line reference model written in the test, which lexes
-  by recursive descent where the redactor uses one pass over a frame stack. A
-  standalone `Passw0rdHunter2: 1` line must be kept verbatim where HCL reads
-  code and replaced where HCL reads a comment or heredoc body; the value secret
-  must survive nowhere; the line count and the fixed point hold. All cross-line
-  state comes from one scan (`scanLineEnd`), so a `<<ID` in a `#` or `//`
-  comment or a string opens no heredoc. A `${ }` left open at the end of a line
-  carries to the next (those lines go whole, and a heredoc or comment after it
-  closes still opens), which the reference model also carries. Twelve mutations
-  of the scan and of the state decisions in `advance` each fail this test or
-  the fuzz seeds.
-- `FuzzRedactSkeleton` and `FuzzRedactMarkerURLKeys` run the same invariants.
-  The 60 s local runs pass at the final head. A round-4 run found one false
-  positive in the test grammar, not in the redactor: `A:1E1000` is a number the
-  allowlist keeps, but `strconv.ParseFloat` reports a range error. The grammar
-  now accepts it, and the input stays as a seed in the
-  fuzz corpus directory of the package.
+- `TestRedactSkeletonOracle` (rounds 4 and 5) compares the redactor with
+  HashiCorp's lexer, `hclsyntax.LexConfig` (v2.24.0, already in `go.mod`, a test
+  import only: `rg -n 'hashicorp/hcl' go/internal/collector/git/content/*.go`
+  lists `skeleton_redactor_oracle_test.go` alone). The redactor keeps its own
+  hand-written scanner (`skeleton_scan.go`) so that it needs O(line) memory; the
+  lexer allocates 16 to 600 times the body per pass (ruling 5). The scanner is
+  one value in `skeletonState` that crosses lines: a stack of 32 frames, each a
+  quoted template (`s`), a heredoc template (`h`, with its marker, a
+  `startOfLine` bit, and whether its closer goes), a `${ }` or `%{ }`
+  interpolation (`i`), or a brace inside one (`b`), plus an open `/* */`
+  comment and a sticky `failed` flag.
+  - The oracle says which lines begin inside a block comment, a heredoc body, or
+    a quoted template. Those lines are NON-CODE and must be stored whole. A
+    heredoc closing line is exempt. For every body, valid or not, every NON-CODE
+    line before a lexical failure is whole (no leak). After a quoted newline, or
+    an invalid token inside a heredoc or template (a bare `\r`), every later line
+    is whole. For a body that lexes without a diagnostic, the scanner and the
+    oracle must agree on every line in both directions (no over-redaction). A
+    body nested deeper than 32 is exempt from the second direction because the
+    scanner fails closed there by design; `TestRedactSkeletonNestingDepth` pins
+    that cap.
+  - Three seeded generators (PCG, seed 8833) feed it, each checked as well by
+    the property invariants (line count, fixed point, no planted token). Token
+    soup throws `${ %{ $${ %%{ } { " \" <<EOF <<-EOF <<INNER # // /* */`, LF,
+    CRLF, a bare `\r`, a burst of 40 `"${`, and a `Passw0rdHunter2: 1` line
+    together with no regard for validity. Valid HCL builds multi-line
+    interpolations, heredocs inside interpolations, interpolations and nested
+    heredocs inside heredoc bodies, comments inside interpolations,
+    `%{ if }`, CRLF, and (in about one body in four) a bare `\r` in a quoted
+    template or heredoc body. Valid JSON builds `.tfvars.json` shapes.
+  - Results at the final head (0 leaks and 0 over-redacted lines in every row):
+
+    | Run | Generator | Bodies | Lex clean | Compared both ways | Lines compared |
+    | --- | --- | --- | --- | --- | --- |
+    | default | token soup | 20,000 | 3,562 | 2,632 | 6,552 |
+    | default | valid HCL | 20,000 | 15,352 | 15,344 | 217,818 |
+    | default | valid JSON | 20,000 | 20,000 | 20,000 | 190,425 |
+    | opt-in `-skeleton-oracle-bodies=200000` | token soup | 200,000 | 35,302 | 25,953 | 64,178 |
+    | opt-in | valid HCL | 200,000 | 152,941 | 152,887 | 2,156,980 |
+    | opt-in | valid JSON | 200,000 | 200,000 | 200,000 | 1,907,052 |
+
+    The opt-in run compares 4,128,210 lines. The test also fails when a
+    generator reaches the two-way comparison on fewer than half its bodies
+    (a fiftieth for token soup).
+  - `TestRedactSkeletonOracleCorpus` (`-skeleton-oracle-corpus=<dir>`) is a
+    one-shot run over a public corpus of 451 `.tfvars` files (22,710 lines, not
+    committed): 451 lex clean, 451 compared both ways, 0 leaks, 0 over-redacted.
+- The bare `\r` rule (round 5, J1). A `\r` that is not the one of a CRLF line
+  ending, found inside a quoted template or heredoc text, sets the sticky
+  `failed` flag, so every later line is whole. `hclsyntax` lexes it as
+  `TokenQuotedNewline` in a string (and `\` followed by `\r` as `TokenInvalid`
+  then `TokenQuotedNewline`) and as `TokenInvalid` in heredoc text, after which
+  the lexer stops at `TokenEOF`; the scanner has no lexical state to follow
+  after that point. A `\r` in code is a `TokenInvalid` and lexing goes on, and
+  in a `#` comment it is valid, so neither is a failure. A CRLF ending is
+  trimmed before the scan and a trailing `\r\r` leaves one bare `\r`. The
+  committed `FuzzRedactSkeleton` failed at `070d079446` after about 16 s on
+  `A=<<EOF\n\rEOF\n`, and `x = "a\rb"\nPassw0rdHunter2: 1\n` failed as well.
+  `TestRedactSkeletonBareCarriageReturn` holds both inputs and seven more
+  shapes that must fail closed, plus three that must not (a CRLF heredoc, a
+  bare `\r` in a `#` comment, and one in code). The first seven failed before
+  the fix. The two inputs are also fuzz seeds and corpus files, and the
+  generators plant the byte.
+- Mutations of the scanner, each red in at least one committed test. "Fuzz"
+  is the `FuzzRedactSkeleton` seed corpus; "Oracle" is `TestRedactSkeletonOracle`
+  at its default size; "Fails closed" is `TestRedactSkeletonFailsClosedAcrossLines`.
+
+  | Mutation | Committed tests that fail |
+  | --- | --- |
+  | m1 reset the frame stack at each line (I1) | Fuzz, Fails closed, Oracle |
+  | m2 overflow acts as an open block comment, not `failed` (I2) | `TestRedactSkeletonNestingDepth`, Oracle |
+  | m3 one heredoc marker: an inner line closes the outer heredoc (I3) | Fuzz, Fails closed, `TestRedactSkeletonPropertyCorpus`, `TestRedactSkeletonTfvarsBody`, `TestRedactSkeletonBareCarriageReturn`, Oracle |
+  | m4 `$${` and `%%{` open an interpolation | Fuzz, Fails closed, Oracle |
+  | m5 heredoc text is not scanned for `${` | Fuzz, Fails closed, `TestRedactSkeletonBareCarriageReturn`, Oracle |
+  | m6 `#` or `//` inside an interpolation drops the frames | Fuzz, Fails closed, Oracle |
+  | m7 a closer is accepted when `startOfLine` is false (`${a}EOF`) | Fuzz, Fails closed, Oracle |
+  | m8 the trailing `\r` is not trimmed before the scan | Fuzz, Fails closed, `TestRedactSkeletonBareCarriageReturn`, `TestRedactSkeletonPreservesLineGeometryAndCRLF`, Oracle |
+  | m9 `*/` clears a failed scan | `TestRedactSkeletonFailureNeverClears`, Oracle |
+  | m10 an unterminated literal resets to code | Fuzz, Fails closed, Oracle |
+  | m11 a bare `\r` does not fail (the J1 fix removed) | Fuzz, `TestRedactSkeletonBareCarriageReturn`, Oracle |
+  | m12 `\` then `\r` in a string is skipped | Fuzz, `TestRedactSkeletonBareCarriageReturn`, Oracle |
+  | m13 `\r` is not checked in a string | Fuzz, `TestRedactSkeletonBareCarriageReturn`, Oracle |
+  | m14 `\r` is not checked in heredoc text without `$` or `%` | Fuzz, `TestRedactSkeletonBareCarriageReturn`, Oracle |
+  | m15 `\r` is not checked in heredoc text with `$` or `%` | Fuzz, `TestRedactSkeletonBareCarriageReturn`, Oracle |
+
+  The first draft of m2 (overflow as a block comment with the frames kept) was
+  equivalent to the code, because the open frames already redact every later
+  line; the table lists the version that drops the frames, as the old scanner
+  did. A draft of m14 passed the unit test and the fuzz seeds until a case
+  with a `$` before the `\r` was added.
+- `FuzzRedactSkeleton` and `FuzzRedactMarkerURLKeys` run the same invariants,
+  and the skeleton target also runs the oracle's no-leak and fail-closed checks
+  on every input. The 60 s local runs (`-parallel 4`) pass at the final head. A
+  round-4 run found one false positive in the test grammar, not in the
+  redactor: `A:1E1000` is a number the allowlist keeps, but `strconv.ParseFloat`
+  reports a range error. The grammar now accepts it, and the input stays as a
+  seed in the fuzz corpus directory of the package. A round-5 review run found
+  the bare `\r` failure above; both inputs are in that directory now.

@@ -38,7 +38,7 @@ type oracleLines struct {
 	nonCode   []bool // the line begins inside a comment, heredoc, or template
 	exempt    []bool // the closing marker line of a heredoc
 	clean     bool   // no invalid token, bad UTF-8, or quoted newline
-	quotedEnd int    // line index of the first quoted newline, or -1
+	quotedEnd int    // line of the first quoted newline or invalid token inside a template, or -1
 	dangling  bool   // an unterminated /*: HCL lexes it as / and *, we redact
 	maxDepth  int    // deepest string, heredoc, interpolation, and brace nesting
 }
@@ -115,6 +115,11 @@ func lexOracle(body string) oracleLines {
 			}
 		case hclsyntax.TokenInvalid, hclsyntax.TokenBadUTF8:
 			or.clean = false
+			// Inside a heredoc or a quoted template an invalid token (a bare \r)
+			// ends or poisons the lexing: the scanner fails every later line.
+			if n := len(kinds); n > 0 && (kinds[n-1] == 'h' || kinds[n-1] == 'q') && or.quotedEnd < 0 {
+				or.quotedEnd = lineOf(or.starts, start)
+			}
 		case hclsyntax.TokenSlash:
 			if k+1 < len(tokens) && tokens[k+1].Type == hclsyntax.TokenStar && tokens[k+1].Range.Start.Byte == end {
 				or.dangling = true
@@ -189,11 +194,12 @@ func checkSkeletonOracle(t *testing.T, body string, counts *oracleCounts) {
 			t.Fatalf("line %d is NON-CODE for hclsyntax but stored %q\n body %q\n out  %q", i+1, outLines[i], body, out)
 		}
 	}
-	// (iv) A quoted newline is invalid HCL: every later line goes whole.
+	// (iv) A quoted newline, or an invalid token (a bare \r) in a heredoc or
+	// template, is invalid HCL: every later line goes whole.
 	if or.quotedEnd >= 0 {
 		for i := or.quotedEnd + 1; i < len(outLines); i++ {
 			if !isWholeLine(outLines[i]) {
-				t.Fatalf("line %d follows a quoted newline but stored %q\n body %q\n out  %q", i+1, outLines[i], body, out)
+				t.Fatalf("line %d follows a lexical failure but stored %q\n body %q\n out  %q", i+1, outLines[i], body, out)
 			}
 		}
 		return

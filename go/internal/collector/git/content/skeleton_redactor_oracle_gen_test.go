@@ -12,11 +12,13 @@ import (
 // The body generators for TestRedactSkeletonOracle. tokenSoupBody throws the
 // comment, string, template, and heredoc tokens together with no regard for
 // validity; validBody and jsonBody build bodies hclsyntax lexes cleanly, so the
-// two-direction comparison with the oracle runs on most of them.
+// two-direction comparison with the oracle runs on most of them. validBody also
+// plants a bare \r in a few quoted templates and heredoc bodies (about one body
+// in four): HCL rejects those, and the oracle checks the scanner fails closed.
 
 var soupTokens = []string{
 	"${", "%{", "$${", "%%{", "}", "{", `"`, `\"`, "<<EOF", "<<-EOF", "EOF", "<<INNER", "INNER",
-	"#", "//", "/*", "*/", "\n", "\n", "\r\n", "\nPassw0rdHunter2: 1\n", "a", " ZqVx7Rk3Lm9 ", "x = ",
+	"#", "//", "/*", "*/", "\n", "\n", "\r\n", "\r", "\"a\rb\"", "\nPassw0rdHunter2: 1\n", "a", " ZqVx7Rk3Lm9 ", "x = ",
 	strings.Repeat(`"${`, 40),
 }
 
@@ -119,6 +121,9 @@ func (g *hclGen) quoted(depth int) string {
 		default:
 			b.WriteString(g.pick("text", " ", "k=v", "/a/*"))
 		}
+		if g.chance(3) {
+			b.WriteString(g.pick("\r", "a\rb", `\`+"\r"))
+		}
 	}
 	b.WriteByte('"')
 	return b.String()
@@ -168,6 +173,9 @@ func (g *hclGen) heredoc(depth int) string {
 			b.WriteString("${" + g.interp(depth) + "}" + marker)
 		case 4:
 			b.WriteString("%{ if a }")
+		}
+		if g.chance(4) {
+			b.WriteString(g.pick("\r", "a\rb", "\r"+marker))
 		}
 		b.WriteString(g.nl)
 	}
