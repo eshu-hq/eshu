@@ -12,28 +12,38 @@ here follows row 4a's class and choice-line rules.
 
 ## `CHANGELOG.md`
 
-Keep both entries under `## Unreleased`: the PR's block below main's newest
-block. No gate, workflow, or release step reads the root file (the release
-skill names only the two SDK changelogs), and it is outside the Markdown cap,
-which walks `go/` and `docs/` only.
+The root `/CHANGELOG.md` merges by union (`.gitattributes`, #9096), so a rebase
+or merge normally applies with no conflict and keeps both sides. A conflict
+marker in it means union was not in effect: a checkout without the attribute,
+or a server-side merge (whether GitHub honors the attribute is unverified).
+Then keep both entries under `## Unreleased`, the PR's block below main's newest
+block. The file is outside the Markdown cap, which walks `go/` and `docs/` only.
 
-Check that these print nothing:
+The two SDK changelogs, `sdk/go/collector/CHANGELOG.md` and
+`sdk/go/factschema/CHANGELOG.md`, are not union-merged and still conflict. They
+are versioned release documents that repeat headings per version, and the
+release skill reads them. Resolve a conflict there by hand: keep both entries
+and check each against its version section.
+
+After any merge of the root file, run:
 
 ```bash
-rg -n '^(<<<<<<<|=======|>>>>>>>)' CHANGELOG.md
-awk '/^- \*\*/{t=$0; while (t !~ /\*\*.*\*\*/ && (getline l) > 0) t=t " " l; sub(/^- \*\*/,"",t); sub(/\*\*.*$/,"",t); gsub(/  +/," ",t); print t}' CHANGELOG.md | sort | uniq -d
-rg '^### ' CHANGELOG.md | sort | uniq -d
+bash scripts/verify-changelog-unreleased.sh
+git diff --check
 ```
 
-Also check that `rg -c '^## Unreleased' CHANGELOG.md` prints 1, and run
-`git diff --check`.
+The script fails a second `## Unreleased` heading, a conflict marker, a
+duplicate `### ` heading, and a duplicate entry. The duplicate key is the
+entry's bold title joined across its wrapped lines. The first line alone is
+wrong: on `main`, two distinct entries (#7547 and #7129) share a wrapped first
+line, so `rg '^- \*\*' | sort | uniq -d` reports a false duplicate. A duplicate
+entry is a correctness finding: fix it.
 
-The duplicate key is the entry's bold title joined across its wrapped lines.
-The first line alone is wrong: on `main`, two distinct entries (#7547 and
-#7129) share a wrapped first line, so `rg '^- \*\*' | sort | uniq -d` reports
-a false duplicate. A duplicate entry is a correctness finding: fix it. How the
-merged entries read is prose form, which is P3
-([merge-bar](merge-bar.md#prose-form)).
+A clean union merge is not proof the result is right. Two branches that edit
+the same existing entry merge without a conflict, keep both versions, and can
+still pass the script, for example when one branch changes the title and the
+other the body. Read that hunk. How the merged entries read is prose form, which
+is P3 ([merge-bar](merge-bar.md#prose-form)).
 
 ## Collector content pin
 
