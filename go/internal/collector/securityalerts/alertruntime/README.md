@@ -45,10 +45,11 @@ repository or that last repository leaves the allowlist. A rate limit leaves
 the start where the claim began. Several persistent stoppers therefore settle
 in at most one stored generation per stopper plus one, then the committer
 skips the unchanged generation, and the settled read set is never smaller than
-the start-at-top set. A target over the cap always starts at the top and reads the same
-first 100 (rotating a window through a full-snapshot scope stored a generation
-per claim and was withdrawn; the fix is a split target, #9019), and
-`NewClaimedSource` logs one `security_alert.org_fanout_over_cap` warning for it.
+the start-at-top set. A target with more than 100 same-org repositories is
+collected as shards (#9019, below), so a claim over the cap is left only for a
+leaf at the shard depth cap; it always starts at the top and reads the same
+first 100, and `NewClaimedSource` logs one `security_alert.org_fanout_over_cap`
+warning for it.
 `NextClaimed` only computes the cursor. It travels on `TargetReadState`
 (`FanoutStartRepository`, `FanoutNextRepository`, `FanoutLapRepository`) and commits with the
 generation (migration 232, the `unread.Writer` in the commit transaction), so a
@@ -87,6 +88,48 @@ repository and the fan-out outcomes, so a changed outcome is a new refresh
 boundary. Because of the repository field, org-scope digests differ from those
 computed before #8805: each org target takes one extra generation after an
 upgrade.
+
+## Org-target shards and retirement (#9019)
+
+`NewClaimedSource` expands every org target through `shard.Partition`
+(`internal/scope/org/shard`, `shard_targets.go`). A target of at most 100
+distinct same-org repositories keeps its configured `scope_id` and full
+allowlist, exactly as before. A larger target becomes one runtime target per
+shard: scope id `<scope_id>#shard-<bits>`, the shard's repositories as its
+allowlist, and `ParentScopeID` set to the base `scope_id`, which
+`ingestionScope` writes to `ingestion_scopes.parent_scope_id` for the
+coordinator's retirement read. Each shard claim reads the org window, then fans
+out only its own repositories; its read state and fan-out cursor are its own.
+`PreflightProviderAccess` checks one shard per target, since every shard reads
+the same org endpoint with the same credential. Shards of one target share the
+work item's `FairnessKey`; one process claims one item at a time and replicas
+claim distinct shard scopes.
+
+A work item whose `acceptance_unit_id` is `shard.RetirementAcceptanceUnitID(scope_id)`
+is a retirement (`retire.go`): the coordinator planned it for a scope of a
+configured org target the partition no longer plans. The answer reads no
+provider. It is an empty generation with `TrustedDeletion` (the only
+attestation that passes the #7926 successor guard over a content-bearing
+generation), the constant hint `RetirementFreshnessHint` (a replay is skipped as
+unchanged), and a read state with `repositories_total = 0`, the marker the
+coordinator's read skips. It fails retryable, committing nothing, for a scope
+that is not part of a configured org target or that this collector's own
+partition still plans. `TrustedDeletion` is set on retirement generations only.
+
+Skew guard: a collector claimed the base `scope_id` of a sharded target without
+the retirement marker is talking to a coordinator older than itself. It fails
+the claim retryable with `ErrShardedTargetNeedsCoordinatorUpgrade` and logs
+`security_alert.target_sharded_coordinator_skew`, instead of collecting a
+partial allowlist under the base scope or retiring it. Upgrade the collector
+and the API before the coordinator.
+
+Signals, counts only: the `security_alert.observe` span of an org claim carries
+`eshu.security_alert.shard.count`, `.shard.repositories`, and
+`eshu.security_alert.retirement`; startup logs one
+`security_alert.org_target_sharded` INFO per sharded target with
+`shard_count`, `smallest_shard_repositories`, and `largest_shard_repositories`;
+each retirement logs `security_alert.scope_retired` with `scope_id`,
+`parent_scope_id`, `generation_id`, and `shard_count`.
 
 ## Org read state (#8943)
 

@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package alertruntime //nolint:filelength // 575 lines: claim-driven hosted provider security-alert runtime; per alertruntime/AGENTS.md this package owns the full claim → provider API → source-fact path. Splitting across files would scatter the per-credential resolution and classification logic.
+package alertruntime
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -19,9 +18,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/github/app"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -137,6 +136,11 @@ type TargetConfig struct {
 	RepositoryAlertLimit    int
 	MaxPages                int
 	SourceURI               string
+	// ParentScopeID is the base scope_id of the org target a shard target
+	// was generated from (#9019), "" for a configured target. It is written
+	// to ingestion_scopes.parent_scope_id, which the coordinator's
+	// retirement read keys on.
+	ParentScopeID string
 }
 
 // IsOrganizationScope reports whether the target polls the organization-wide
@@ -165,6 +169,12 @@ type ClaimedSource struct {
 	instruments         *telemetry.Instruments
 	readStateFactory    func(securityalerts.TargetReadState) collector.GenerationStateWriter
 	cursors             FanoutCursorReader
+	// orgTargets maps each configured org target's base scope_id to its
+	// shard set, so a retirement claim can be checked against it (#9019).
+	orgTargets map[string]orgTarget
+	logger     *slog.Logger
+	// configuredTargets counts the configured targets before shard expansion.
+	configuredTargets int
 }
 
 // NewClaimedSource validates configuration and builds a claim-driven source.
@@ -178,6 +188,7 @@ func NewClaimedSource(config SourceConfig) (*ClaimedSource, error) {
 		factory = defaultClientFactory
 	}
 	targets := make(map[string]targetRuntime, len(config.Targets))
+	orgTargets := map[string]orgTarget{}
 	for i, target := range config.Targets {
 		validated, err := validateTarget(target)
 		if err != nil {
@@ -186,11 +197,20 @@ func NewClaimedSource(config SourceConfig) (*ClaimedSource, error) {
 		if _, exists := targets[validated.ScopeID]; exists {
 			return nil, fmt.Errorf("duplicate security alert target scope_id %q", validated.ScopeID)
 		}
-		client, err := factory(validated)
-		if err != nil {
-			return nil, fmt.Errorf("target %d client: %w", i, err)
+		if _, exists := orgTargets[validated.ScopeID]; exists {
+			return nil, fmt.Errorf("duplicate security alert target scope_id %q", validated.ScopeID)
 		}
-		targets[validated.ScopeID] = targetRuntime{config: validated, client: client}
+		expanded, org := expandTarget(validated)
+		if validated.IsOrganizationScope() {
+			orgTargets[validated.ScopeID] = org
+		}
+		for _, runtimeConfig := range expanded {
+			client, err := factory(runtimeConfig)
+			if err != nil {
+				return nil, fmt.Errorf("target %d client: %w", i, err)
+			}
+			targets[runtimeConfig.ScopeID] = targetRuntime{config: runtimeConfig, client: client}
+		}
 	}
 	if len(targets) == 0 {
 		return nil, fmt.Errorf("at least one security alert target is required")
@@ -205,7 +225,11 @@ func NewClaimedSource(config SourceConfig) (*ClaimedSource, error) {
 		return nil, fmt.Errorf("security alert read state writer requires a fan-out cursor reader")
 	}
 	warnOversizedTargets(config.Logger, targets)
+	logShardedTargets(config.Logger, orgTargets)
 	return &ClaimedSource{
+		orgTargets:          orgTargets,
+		logger:              config.Logger,
+		configuredTargets:   len(config.Targets),
 		collectorInstanceID: collectorID,
 		cursors:             config.FanoutCursorReader,
 		targets:             targets,
@@ -219,11 +243,16 @@ func NewClaimedSource(config SourceConfig) (*ClaimedSource, error) {
 // PreflightProviderAccess verifies each configured provider target with one
 // bounded request before workflow claims are processed.
 func (s *ClaimedSource) PreflightProviderAccess(ctx context.Context) (PreflightResult, error) {
-	result := PreflightResult{TargetCount: len(s.targets)}
+	result := PreflightResult{TargetCount: s.configuredTargets}
 	targets := s.sortedTargets()
 	for _, target := range targets {
+		if target.config.ParentScopeID != "" && !firstShardOf(targets, target) {
+			// Every shard of a target reads the same org endpoint with the
+			// same credential; one bounded request proves access for all.
+			continue
+		}
 		startedAt := time.Now()
-		observeCtx, observeSpan := s.startObserve(ctx, target.config)
+		observeCtx, observeSpan := s.startObserve(ctx, target.config, false)
 		fetchCtx, fetchSpan := s.startFetch(observeCtx)
 		_, err := fetchAlerts(fetchCtx, target, providerAccessPreflightMaxPages)
 		if err != nil {
@@ -277,16 +306,17 @@ func (s *ClaimedSource) NextClaimed(
 	if strings.TrimSpace(item.GenerationID) == "" {
 		return collector.CollectedGeneration{}, false, fmt.Errorf("security alert work item generation_id is required")
 	}
-	target, ok := s.targets[strings.TrimSpace(item.ScopeID)]
+	scopeID := strings.TrimSpace(item.ScopeID)
+	if shard.IsRetirement(scopeID, item.AcceptanceUnitID) {
+		return s.retire(ctx, item, scopeID)
+	}
+	target, ok := s.targets[scopeID]
 	if !ok {
-		return collector.CollectedGeneration{}, false, ProviderFailure{
-			failureClass: FailureRetryable,
-			cause:        fmt.Errorf("security alert target scope_id is not configured"),
-		}
+		return collector.CollectedGeneration{}, false, s.unconfiguredScope(scopeID)
 	}
 
 	startedAt := time.Now()
-	observeCtx, observeSpan := s.startObserve(ctx, target.config)
+	observeCtx, observeSpan := s.startObserve(ctx, target.config, false)
 	defer observeSpan.End()
 	fetchCtx, fetchSpan := s.startFetch(observeCtx)
 	result, err := fetchAlerts(fetchCtx, target, target.config.MaxPages)
@@ -384,114 +414,10 @@ func defaultClientFactory(target TargetConfig) (RepositoryAlertClient, error) {
 	}), nil
 }
 
-func (s *ClaimedSource) envelopes(
-	item workflow.WorkItem,
-	target TargetConfig,
-	collection alertCollection,
-	observedAt time.Time,
-) ([]facts.Envelope, error) {
-	envs := make([]facts.Envelope, 0, len(collection.alerts))
-	for _, alert := range collection.alerts {
-		// ctx.ScopeID is always the target's committed generation scope so that
-		// every envelope's ScopeID matches the scope committed to Postgres.
-		// For per-repository targets that is the per-repo scope; for org
-		// targets it is the org scope (the committed generation scope).
-		//
-		// For org targets ctx.RepositoryID carries the per-repo scope so that
-		// payload["repository_id"] and the stableFactKey still key on the same
-		// canonical per-repository value the reducer expects.
-		ctx := securityalerts.EnvelopeContext{
-			ScopeID:             target.ScopeID,
-			GenerationID:        item.GenerationID,
-			CollectorInstanceID: s.collectorInstanceID,
-			FencingToken:        item.CurrentFencingToken,
-			ObservedAt:          observedAt,
-			SourceURI:           safeSourceURI(firstNonBlank(target.SourceURI, alert.HTMLURL)),
-		}
-		if target.IsOrganizationScope() {
-			// Derive the per-repository scope from the alert's repository
-			// object. Alerts whose repository cannot be resolved are skipped
-			// rather than misattributed to the org scope.
-			repoScopeID := organizationAlertScopeID(alert)
-			if repoScopeID == "" {
-				continue
-			}
-			// Honor the operator-declared allowlist: only fan out alerts for
-			// explicitly allowed repositories. This preserves the private-data
-			// boundary that the per-repository path enforces via its allowlist.
-			if !target.RepositoryAllowed(organizationAlertFullName(alert)) {
-				continue
-			}
-			ctx.RepositoryID = repoScopeID
-		}
-		env, err := securityalerts.NewGitHubDependabotAlertEnvelope(ctx, alert)
-		if err != nil {
-			return nil, err
-		}
-		if env.FactKind != facts.SecurityAlertRepositoryAlertFactKind {
-			return nil, fmt.Errorf("security alert runtime refusing unsupported fact_kind %q", env.FactKind)
-		}
-		if target.IsOrganizationScope() {
-			if name := organizationAlertRepositoryName(alert); name != "" {
-				env.Payload["repository_name"] = name
-			}
-		}
-		annotateRepositoryAlertCollectionCoverage(env.Payload, collection.coverageFor(alert))
-		envs = append(envs, env)
-	}
-	return envs, nil
-}
-
-// organizationAlertScopeID derives the canonical per-repository security-alert
-// scope ID (security-alert:github:<owner>/<repo>) from an organization alert's
-// repository object. It returns "" when the repository cannot be resolved.
-func organizationAlertScopeID(alert securityalerts.GitHubDependabotAlert) string {
-	fullName := normalizeOrganizationAlertRepositoryFullName(alert)
-	if fullName == "" {
-		return ""
-	}
-	return "security-alert:github:" + fullName
-}
-
-// organizationAlertFullName returns the normalized "owner/repo" full name for
-// an organization alert. Used for allowlist filtering.
-func organizationAlertFullName(alert securityalerts.GitHubDependabotAlert) string {
-	return normalizeOrganizationAlertRepositoryFullName(alert)
-}
-
-// organizationAlertRepositoryName returns the short repository name for an
-// organization alert, used to populate the repository_name payload field that
-// the per-repository path leaves for the reducer to derive.
-func organizationAlertRepositoryName(alert securityalerts.GitHubDependabotAlert) string {
-	if name := strings.TrimSpace(alert.Repository.Name); name != "" {
-		return name
-	}
-	fullName := normalizeOrganizationAlertRepositoryFullName(alert)
-	if slash := strings.LastIndex(fullName, "/"); slash >= 0 && slash+1 < len(fullName) {
-		return fullName[slash+1:]
-	}
-	return ""
-}
-
-func normalizeOrganizationAlertRepositoryFullName(alert securityalerts.GitHubDependabotAlert) string {
-	fullName := strings.ToLower(strings.Trim(strings.TrimSpace(alert.Repository.FullName), "/"))
-	if fullName != "" {
-		if strings.Count(fullName, "/") == 1 {
-			return fullName
-		}
-		return ""
-	}
-	owner := strings.ToLower(strings.TrimSpace(alert.Repository.Owner.Login))
-	name := strings.ToLower(strings.TrimSpace(alert.Repository.Name))
-	if owner == "" || name == "" {
-		return ""
-	}
-	return owner + "/" + name
-}
-
 func ingestionScope(target TargetConfig) scope.IngestionScope {
 	return scope.IngestionScope{
 		ScopeID:       target.ScopeID,
+		ParentScopeID: target.ParentScopeID,
 		SourceSystem:  string(scope.CollectorSecurityAlert),
 		ScopeKind:     scope.KindSecurityAlert,
 		CollectorKind: scope.CollectorSecurityAlert,
@@ -502,14 +428,15 @@ func ingestionScope(target TargetConfig) scope.IngestionScope {
 	}
 }
 
-func (s *ClaimedSource) startObserve(ctx context.Context, target TargetConfig) (context.Context, trace.Span) {
+func (s *ClaimedSource) startObserve(ctx context.Context, target TargetConfig, retirement bool) (context.Context, trace.Span) {
 	if s.tracer == nil {
 		return ctx, trace.SpanFromContext(ctx)
 	}
-	return s.tracer.Start(ctx, telemetry.SpanSecurityAlertObserve, trace.WithAttributes(
+	attrs := []attribute.KeyValue{
 		attribute.String(telemetry.MetricDimensionProvider, target.Provider),
 		attribute.String(telemetry.AttrSecurityAlertTargetScope, targetScopeLabel(target)),
-	))
+	}
+	return s.tracer.Start(ctx, telemetry.SpanSecurityAlertObserve, trace.WithAttributes(append(attrs, s.shardAttributes(target, retirement)...)...))
 }
 
 func targetScopeLabel(target TargetConfig) string {
@@ -532,44 +459,4 @@ func recordSpanError(span trace.Span, err error) {
 	}
 	span.RecordError(err)
 	span.SetStatus(codes.Error, err.Error())
-}
-
-func safeSourceURI(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return ""
-	}
-	parsed, err := url.Parse(trimmed)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return ""
-	}
-	parsed.User = nil
-	query := parsed.Query()
-	for key := range query {
-		if sensitiveQueryKey(key) {
-			query.Del(key)
-		}
-	}
-	parsed.RawQuery = query.Encode()
-	parsed.Fragment = ""
-	return parsed.String()
-}
-
-func sensitiveQueryKey(key string) bool {
-	switch strings.ToLower(strings.TrimSpace(key)) {
-	case "access_token", "api_key", "apikey", "auth", "authorization", "jwt",
-		"key", "password", "passwd", "secret", "sig", "signature", "token":
-		return true
-	default:
-		return false
-	}
-}
-
-func firstNonBlank(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }

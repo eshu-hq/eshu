@@ -401,8 +401,10 @@ func TestClaimedSourceReadStateCarriesTheFanoutCursor(t *testing.T) {
 }
 
 // TestNewClaimedSourceWarnsForAnOrgTargetOverTheFanoutCap proves the 3 AM
-// signal: one warning, with counts and no repository name, for an org target
-// that will read only its first window, and none for a target within the cap.
+// signals: a target within the cap logs nothing, a target over it is sharded
+// (#9019) and logs one INFO with counts, and the over-cap WARN is left for the
+// only claim that can still exceed the cap, a leaf at the shard depth cap. None
+// names a repository.
 func TestNewClaimedSourceWarnsForAnOrgTargetOverTheFanoutCap(t *testing.T) {
 	t.Parallel()
 
@@ -410,14 +412,25 @@ func TestNewClaimedSourceWarnsForAnOrgTargetOverTheFanoutCap(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
 	newCursorSourceWith(t, truncatedOrgClient(), cursorAllowlist(maxOrganizationFanoutRepositories), newCursorLedger(), nil, logger)
 	if logs.Len() != 0 {
-		t.Fatalf("warned for a target within the cap: %s", logs.String())
+		t.Fatalf("logged for a target within the cap: %s", logs.String())
 	}
-	newCursorSourceWith(t, truncatedOrgClient(), cursorAllowlist(maxOrganizationFanoutRepositories+1), newCursorLedger(), nil, logger)
+	source := newCursorSourceWith(t, truncatedOrgClient(), cursorAllowlist(maxOrganizationFanoutRepositories+1), newCursorLedger(), nil, logger)
 	out := logs.String()
-	if strings.Count(out, "level=WARN") != 1 {
-		t.Fatalf("want exactly one WARN, got: %s", out)
+	if strings.Contains(out, "level=WARN") || strings.Count(out, "org_target_sharded") != 1 {
+		t.Fatalf("want one sharded INFO and no WARN for a target that shards, got: %s", out)
 	}
-	for _, want := range []string{"repositories=101", "cap=100", "scope_id=" + fanoutTestOrgScopeID, "#9019", "org_fanout_over_cap"} {
+	for _, want := range []string{"shard_count=2", "cap=100", "scope_id=" + fanoutTestOrgScopeID} {
+		if !strings.Contains(out, want) {
+			t.Errorf("sharded log is missing %q: %s", want, out)
+		}
+	}
+	logs.Reset()
+	warnOversizedTargets(logger, source.targets) // the depth-capped leaf
+	out = logs.String()
+	if strings.Count(out, "level=WARN") != 1 {
+		t.Fatalf("want exactly one WARN for a depth-capped leaf, got: %s", out)
+	}
+	for _, want := range []string{"repositories=101", "cap=100", "scope_id=" + fanoutTestOrgScopeID, "org_fanout_over_cap"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("warning is missing %q: %s", want, out)
 		}
