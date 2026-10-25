@@ -152,8 +152,12 @@ func (f *tableFields) setVersion(rest [][]byte, value *unstable.Node) bool {
 		if f.seen&fieldVersionTable != 0 {
 			return false
 		}
+		spec, ok := readVersionTable(value)
+		if !ok {
+			return false
+		}
 		f.seen |= fieldVersionTable
-		f.ver = readVersionTable(value)
+		f.ver = spec
 		return true
 	case len(rest) == 1 && string(rest[0]) == "ref" && value.Kind == unstable.String:
 		text, ok := boundedString(value.Data)
@@ -163,6 +167,9 @@ func (f *tableFields) setVersion(rest [][]byte, value *unstable.Node) bool {
 		f.seen |= fieldVersionRef
 		f.ver = versionSpec{kind: versionRef, text: text}
 		return true
+	case len(rest) == 1 && string(rest[0]) == "ref":
+		// A reference that is not a string is a type error, like version = 123.
+		return false
 	case len(rest) == 1:
 		f.seen |= fieldVersionRich
 		f.ver = versionSpec{kind: versionRich}
@@ -173,21 +180,37 @@ func (f *tableFields) setVersion(rest [][]byte, value *unstable.Node) bool {
 
 // readVersionTable classifies { ref = "x" } as a reference and every other
 // version table as rich. A rich version (strictly, require, prefer, reject)
-// is a constraint, not one version, so the parser does not pick a value.
-func readVersionTable(table *unstable.Node) versionSpec {
-	only := table.Children()
-	if only.Next() {
-		pair := only.Node()
-		if !only.Next() && pair.Kind == unstable.KeyValue {
-			if parts, ok := keyParts(pair, 2); ok && len(parts) == 1 && string(parts[0]) == "ref" &&
-				pair.Value().Kind == unstable.String {
-				if text, ok := boundedString(pair.Value().Data); ok {
-					return versionSpec{kind: versionRef, text: text}
-				}
-			}
+// is a constraint, not one version, so the parser does not pick a value. It
+// reports false when a ref key holds anything but a string, which is a type
+// error in Gradle like any other mistyped version.
+func readVersionTable(table *unstable.Node) (versionSpec, bool) {
+	pairs := 0
+	var only versionSpec
+	for children := table.Children(); children.Next(); {
+		pair := children.Node()
+		pairs++
+		if pair.Kind != unstable.KeyValue {
+			continue
 		}
+		parts, ok := keyParts(pair, 2)
+		if !ok || len(parts) != 1 || string(parts[0]) != "ref" {
+			continue
+		}
+		if pair.Value().Kind != unstable.String {
+			return versionSpec{}, false
+		}
+		text, ok := boundedString(pair.Value().Data)
+		if !ok {
+			// An empty or oversize reference is outside the grammar, the same
+			// as the dotted version.ref form.
+			return versionSpec{}, false
+		}
+		only = versionSpec{kind: versionRef, text: text}
 	}
-	return versionSpec{kind: versionRich}
+	if pairs == 1 && only.kind == versionRef {
+		return only, true
+	}
+	return versionSpec{kind: versionRich}, true
 }
 
 // versionConsistent rejects mixed version forms such as version and version.ref

@@ -86,15 +86,21 @@ func archiveVersion(value []byte) (version, kind string, ok bool) {
 	if !bytes.HasPrefix(name, []byte(prefix)) {
 		return "", "", false
 	}
+	var suffix string
 	switch {
 	case bytes.HasSuffix(name, []byte("-bin.zip")):
-		kind = "bin"
+		kind, suffix = "bin", "-bin.zip"
 	case bytes.HasSuffix(name, []byte("-all.zip")):
-		kind = "all"
+		kind, suffix = "all", "-all.zip"
 	default:
 		return "", "", false
 	}
-	token := name[len(prefix) : len(name)-len("-bin.zip")]
+	// The prefix and suffix can overlap in a name such as gradle-bin.zip, which
+	// has no version between them.
+	if len(name) <= len(prefix)+len(suffix) {
+		return "", "", false
+	}
+	token := name[len(prefix) : len(name)-len(suffix)]
 	if !validVersion(token) {
 		return "", "", false
 	}
