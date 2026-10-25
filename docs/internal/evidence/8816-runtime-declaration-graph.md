@@ -80,9 +80,18 @@ table is in `docs/public/reference/cypher-runtime-declarations.md`.
   Neo4j: idempotent replay, an in-place edit, a full-generation retract, a
   delta delete that keeps the unchanged file, and 8 repositories projecting at
   once with the same pin-file paths. Local `-race` runs took 1.17 to 1.65 s.
-  Two mutants fail it: treating a delta as a full generation (every node of
-  the repository is gone), and dropping the repository anchor from the
-  path-scoped retract (the repositories that did not delete `.nvmrc` lose it).
+  `runtime_declaration_retract_live_test.go` adds the retract edge cases: a
+  delta that shrinks `.tool-versions` from 4 declarations to 1 (no stale
+  higher line or token survives), a rename (old path deleted, new path
+  written), a full generation after the last pin file is deleted (0 owned
+  nodes and edges; a node from another evidence source survives), and one
+  path retract over two repositories with crossed path lists.
+- Eight mutants fail the tests (`go test -overlay`): a delta treated as a
+  full generation, a path retract without the repository anchor, a
+  zero-filled `version_major`, keeping blank-runtime facts (the Ifá guard), a
+  full retract without the evidence-source filter, a scope that ignores
+  deleted paths, a skipped delta retract, and full-generation repositories
+  taken only from rows instead of the repository fact.
 - The replay cost scenario
   (`go/internal/replay/costcounting/runtime_declaration_cost_test.go`) pins
   one write batch per intent; writing one row per call exceeds the budget.
