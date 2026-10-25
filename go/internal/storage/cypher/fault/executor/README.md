@@ -52,9 +52,12 @@ live proof; unit proof is the tagged tests in this directory.
   `scripts/test-verify-ifa-fault-injection.sh`.
 - `HoldFired()` turns true only after the hold marker write returns (#9063).
   A separate `holdEngaged` flag carries the one-winner CompareAndSwap, so an
-  in-process observer that sees the hold as fired can always read the
-  marker. `TestFaultingExecutorHoldFiredWaitsForMarkerWrite` pins this with a
-  FIFO marker path that blocks the write.
+  in-process observer that sees the hold as fired can read the marker, unless
+  the write failed. A failed write still marks the hold fired and prints the
+  `HoldMarkerWriteFailedPrefix` line to stderr; the shell gate then reports
+  the missing marker, so check that line before reading it as "never
+  engaged". `TestFaultingExecutorHoldFiredWaitsForMarkerWrite` pins the order
+  with a FIFO marker path that blocks the write.
 - No production, CI, or default-tag build links `FaultingExecutor` — only
   the `off.go` stub. The `test-verify-ifa-fault-injection.sh` gate asserts
   both files exist and carry their build tags.
@@ -112,3 +115,11 @@ the off.go stub. No Cypher is authored and no graph write changes.
 
 No-Observability-Change: no spans, metrics, logs, or status fields change.
 A failed marker write still prints the HoldMarkerWriteFailedPrefix line.
+
+No-Regression Evidence (#9063 review): the follow-up commit changes comments
+and this README only. The hold.go edit qualifies the publish-order comment with
+the write-failure path; no statement, branch, or value changes, and
+`go test -tags ifafaultinjection ./internal/storage/cypher/fault/executor/` passes.
+
+No-Observability-Change (#9063 review): no metric, span, log, or status field
+changes; the HoldMarkerWriteFailedPrefix stderr line is unchanged.
