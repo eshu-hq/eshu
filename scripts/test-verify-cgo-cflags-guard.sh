@@ -187,6 +187,45 @@ else
 	good_workflow | sed 's/CGO_CFLAGS: "-O2 -g -std=gnu17"/CGO_CFLAGS: "-O2 -g -std=gnu17" # keep/' >"${t}/.github/workflows/comment-ok.yml"
 	check_guard "guard: compliant CGO_CFLAGS with a trailing comment passes" 0 "$t"
 
+	# A "#" inside a quoted shell string is not a comment. It must neither hide
+	# a Go build nor hide a CGO_CFLAGS assignment that follows it on the line.
+	t="$(new_tree)"
+	cat >"${t}/.github/workflows/quoted-go.yml" <<'EOF'
+name: Fixture
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "build #1" && go build ./...
+EOF
+	check_guard "guard: Go build after a quoted # in a workflow with no env FAILS" 1 "$t" "quoted-go.yml"
+
+	t="$(new_tree)"
+	{ good_workflow; printf '      - run: echo "step #2"; CGO_CFLAGS=-O3 go build ./...\n'; } >"${t}/.github/workflows/quoted-clobber.yml"
+	check_guard "guard: CGO_CFLAGS=-O3 after a quoted # FAILS" 1 "$t" "quoted-clobber.yml"
+
+	# Cheap hardening: the value must be exactly the flag, in that assignment.
+	t="$(new_tree)"
+	good_workflow | sed 's/-std=gnu17"/-std=gnu17 -std=gnu23"/' >"${t}/.github/workflows/two-std.yml"
+	check_guard "guard: a later -std=gnu23 in the value FAILS" 1 "$t" "two-std.yml"
+
+	t="$(new_tree)"
+	{ good_workflow; printf '      - run: env -u CGO_CFLAGS go build ./...\n'; } >"${t}/.github/workflows/env-unset.yml"
+	check_guard "guard: env -u CGO_CFLAGS FAILS" 1 "$t" "env-unset.yml"
+
+	t="$(new_tree)"
+	{ good_workflow; printf '      - run: unset CGO_CFLAGS; go build ./...\n'; } >"${t}/.github/workflows/unset.yml"
+	check_guard "guard: unset CGO_CFLAGS FAILS" 1 "$t" "unset.yml"
+
+	t="$(new_tree)"
+	{ good_workflow; printf '      - run: CGO_CFLAGS=-O2 CGO_CPPFLAGS=-std=gnu17 go build ./...\n'; } >"${t}/.github/workflows/cppflags.yml"
+	check_guard "guard: -std=gnu17 only in CGO_CPPFLAGS on the same line FAILS" 1 "$t" "cppflags.yml"
+
+	t="$(new_tree)"
+	good_workflow | sed "s/CGO_CFLAGS: \"-O2 -g -std=gnu17\"/CGO_CFLAGS: \${{ vars.CFLAGS || '-std=gnu17' }}/" >"${t}/.github/workflows/expr.yml"
+	check_guard "guard: a \${{ }} value that names the flag as text FAILS" 1 "$t" "expr.yml"
+
 	t="$(new_tree)"
 	cat >"${t}/.github/workflows/container.yml" <<'EOF'
 name: Fixture
@@ -289,6 +328,10 @@ EOF
 	t="$(new_tree)"
 	printf '# export CGO_CFLAGS := -O2 -g -std=gnu17\n' >"${t}/Makefile"
 	check_guard "guard: Makefile with the export only in a comment FAILS" 1 "$t" "Makefile"
+
+	t="$(new_tree)"
+	printf 'X := -std=gnu17\nexport CGO_CFLAGS := -O2 -g\n' >"${t}/Makefile"
+	check_guard "guard: Makefile with -std=gnu17 on a different line than the export FAILS" 1 "$t" "Makefile"
 
 	t="$(new_tree)"
 	printf 'export CGO_CFLAGS := -O2 -g # -std=gnu17 kept for docs\n' >"${t}/Makefile"

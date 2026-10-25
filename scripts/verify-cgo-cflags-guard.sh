@@ -14,13 +14,14 @@
 #      CGO_CFLAGS with -std=gnu17 in its workflow-level env. GitHub passes no
 #      env between workflow files, so each file must carry its own.
 #   2. No CGO_CFLAGS assignment anywhere in a workflow drops -std=gnu17, so a
-#      later job or step cannot clobber the flag. Checks 1 and 2 ignore whole-
-#      line and trailing " #" comments, so comment text never counts as the flag.
-#      Check 4's Makefile test reads through the same comment strip.
+#      later job or step cannot clobber the flag. The value must hold exactly
+#      -std=gnu17 (no second -std=, no "${{ }}" expression) before any trailing
+#      " #" comment, so comment text never counts as the flag. "unset
+#      CGO_CFLAGS" and "env -u CGO_CFLAGS" also fail.
 #   3. Every script under scripts/ that runs `CGO_ENABLED=1 go ...` sources
 #      scripts/lib/cgo-cflags.sh and calls eshu_export_cgo_cflags.
 #   4. The developer entrypoints (--list-entrypoints) do the same, and the
-#      Makefile exports CGO_CFLAGS with -std=gnu17.
+#      Makefile exports CGO_CFLAGS with -std=gnu17 on the export line itself.
 #
 # Checks 3 and 4 are line-based text checks, not a shell parser. These do not
 # satisfy them: a whole-line comment, a trailing " #" comment, an echo string
@@ -35,6 +36,15 @@
 # function that nothing calls or a branch that never runs. The build helpers
 # (build_bin, ifa_det_build_bin) call the export at the top of the function
 # that runs go, and the mirror tests run the real entrypoints.
+#
+# Known and accepted for the workflow checks, because each needs a shell and
+# YAML parser: CGO_CFLAGS=-O2 go build -x -std=gnu17 (the value runs to the end
+# of the line, so a later -std= on the same command counts); env -i or another
+# way to clear the variable; a value set through a YAML anchor, job-level env,
+# or "go env -w" (these fail safe: no workflow-level flag is found); and a quoted
+# value that holds " #", ";", "&", or "|" (fail safe: the checked text is cut
+# short). A "#" in a quoted string before an assignment is not treated as a
+# comment for Go detection, and an assignment after any " #" is reported.
 #
 # Coverage is exactly the files named above. A script that runs go without the
 # `CGO_ENABLED=1 go` prefix gets the flag from a workflow, make, or one of the
@@ -140,33 +150,71 @@ require_lib_use() {
 	fi
 }
 
-# Both workflow checks read the file through code_of, so a trailing YAML comment
-# ("CGO_CFLAGS: -O2 # -std=gnu17 kept") cannot supply the flag. YAML starts a
-# comment at whitespace plus "#", the same cut code_of makes. A quoted value that
-# itself holds " #" loses its tail, which can only turn a pass into a FAIL here.
-# workflow_env_has_flag prints "yes" when the workflow-level env block (a
-# column-zero "env:" key) sets CGO_CFLAGS to a value containing -std=gnu17.
-workflow_env_has_flag() {
-	code_of "$1" | awk '
+# cgo_cflags_assignments FILE prints one tab-separated record per CGO_CFLAGS
+# assignment or unset in a workflow: OK or BAD, "env" when it is a workflow-level
+# env key (else "-"), and the line. Whole-line comments are dropped first. A
+# trailing YAML comment starts at whitespace plus "#", but a "#" inside a quoted
+# shell string looks the same, so the comment cut is applied to the VALUE only:
+# an assignment is OK when the text between it and the comment start (or the
+# next ";", "&", "|", or CGO_* assignment) holds -std=gnu17, no other -std=, and
+# no "${{" expression. An assignment after a comment start has no checkable
+# value, so it is BAD. "unset CGO_CFLAGS" and "-u CGO_CFLAGS" are BAD. Every
+# error here turns a pass into a FAIL, never the reverse.
+cgo_cflags_assignments() {
+	sed -e '/^[[:space:]]*#/d' "$1" | awk '
+		function value_of(s,   e) {
+			e = length(s) + 1
+			if (match(s, /[;&|]/) && RSTART < e) e = RSTART
+			if (match(s, /[[:space:]]CGO_[A-Z_]+[:=]/) && RSTART < e) e = RSTART
+			return substr(s, 1, e - 1)
+		}
 		/^env:[[:space:]]*$/ { inenv = 1; next }
 		/^[^[:space:]#]/ { inenv = 0 }
-		inenv && /^[[:space:]]+CGO_CFLAGS:/ && /-std=gnu17/ { found = 1 }
-		END { print found ? "yes" : "no" }
+		{
+			line = $0
+			cstart = length(line) + 1
+			if (match(line, /[[:space:]]#/)) cstart = RSTART
+			if (line ~ /(^|[^[:alnum:]_])unset[[:space:]]+[^;&|]*CGO_CFLAGS/ || line ~ /-u[[:space:]]*CGO_CFLAGS/)
+				printf "BAD\t-\t%s\n", line
+			scan = line
+			off = 0
+			while (match(scan, /CGO_CFLAGS[:=]/)) {
+				rs = RSTART; rl = RLENGTH
+				start = off + rs + rl
+				val = ""
+				if (off + rs < cstart && cstart > start) val = value_of(substr(line, start, cstart - start))
+				rest = val
+				ok = (val ~ /-std=gnu17/) && (val !~ /\$\{\{/)
+				gsub(/-std=gnu17/, "", rest)
+				if (rest ~ /-std=/) ok = 0
+				kind = (inenv && line ~ /^[[:space:]]+CGO_CFLAGS:/ && off == 0) ? "env" : "-"
+				printf "%s\t%s\t%s\n", ok ? "OK" : "BAD", kind, line
+				off = off + rs + rl - 1
+				scan = substr(scan, rs + rl)
+			}
+		}
 	'
+}
+
+# workflow_env_has_flag prints "yes" when the workflow-level env block (a
+# column-zero "env:" key) sets CGO_CFLAGS to a value with exactly -std=gnu17.
+workflow_env_has_flag() {
+	cgo_cflags_assignments "$1" | awk -F '\t' '$1 == "OK" && $2 == "env" { f = 1 } END { print f ? "yes" : "no" }'
 }
 
 if [ -d "${root}/.github/workflows" ]; then
 	for wf in "${root}"/.github/workflows/*.yml "${root}"/.github/workflows/*.yaml; do
 		[ -f "${wf}" ] || continue
 		rel="${wf#"${root}"/}"
-		body="$(code_of "${wf}")"
+		# Go detection sees the whole line, so a quoted "#" cannot hide a call.
+		body="$(sed -e '/^[[:space:]]*#/d' "${wf}")"
 		if printf '%s\n' "${body}" | rg -q -e "${go_user_pattern}"; then
 			if [ "$(workflow_env_has_flag "${wf}")" != "yes" ]; then
 				fail "${rel} compiles Go but has no workflow-level env CGO_CFLAGS containing -std=gnu17 (#9066)"
 			fi
 		fi
 		# Any assignment that lacks the flag would clobber the workflow value.
-		clobbers="$(printf '%s\n' "${body}" | rg -e 'CGO_CFLAGS[:=]' | rg -v -e '-std=gnu17' || true)"
+		clobbers="$(cgo_cflags_assignments "${wf}" | awk -F '\t' '$1 == "BAD" { print $3 }')"
 		if [ -n "${clobbers}" ]; then
 			fail "${rel} assigns CGO_CFLAGS without -std=gnu17 (#9066): $(printf '%s\n' "${clobbers}" | head -1)"
 		fi
@@ -188,7 +236,7 @@ while IFS= read -r entry; do
 	if [ ! -f "${root}/${entry}" ]; then
 		fail "${entry} is missing; it must carry the #9066 CGO_CFLAGS flag"
 	elif [ "${entry}" = "Makefile" ]; then
-		if ! { code_of "${root}/${entry}" | rg -q -e '^export CGO_CFLAGS' && code_of "${root}/${entry}" | rg -q -e '-std=gnu17'; }; then
+		if ! code_of "${root}/${entry}" | rg -q -e '^export CGO_CFLAGS.*-std=gnu17'; then
 			fail "${entry} has no non-comment export of CGO_CFLAGS with -std=gnu17 (#9066)"
 		fi
 	else

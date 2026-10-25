@@ -92,7 +92,8 @@ packages took 17 s. The hosted-runner cost was not measured.
 when:
 
 - a workflow that compiles Go has no workflow-level `CGO_CFLAGS` with
-  `-std=gnu17`, or any `CGO_CFLAGS` assignment drops the flag. A whole-line or
+  `-std=gnu17`, or any `CGO_CFLAGS` assignment drops the flag, adds a second
+  `-std=`, uses a `${{ }}` expression, or unsets the variable. A whole-line or
   trailing `#` comment that names `-std=gnu17` does not count as the flag;
 - a script under `scripts/` that runs `CGO_ENABLED=1 go`, or a developer
   entrypoint, lacks a non-comment line that sources `scripts/lib/cgo-cflags.sh`
@@ -109,6 +110,13 @@ whole-line comment, a trailing `#` comment, an `echo` string that holds none of
 needs a parser: a string that holds one of those words or separators, a heredoc
 body line, and a call inside a function or branch that never runs. The build helpers call the export at the top of the
 function that runs `go`, and the mirror tests run the real entrypoints.
+
+The workflow check also accepts, for the same reason: a later `-std=` on the
+same command line after the assignment (`CGO_CFLAGS=-O2 go build -x -std=gnu17`),
+`env -i` or another way to clear the variable, and a flag set through a YAML
+anchor, a job-level `env`, or `go env -w`; the last group fails safe because no
+workflow-level flag is found. A quoted value that holds ` #`, `;`, `&`, or `|` is
+cut short and fails safe.
 
 Its mirror test, `scripts/test-verify-cgo-cflags-guard.sh`, plants each
 violation in a fixture tree, including a comment-only mention and a source with
