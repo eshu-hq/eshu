@@ -60,6 +60,10 @@ workflows:
   - scripts/test-postgres-scheduled-matrix.py
   - scripts/test-postgres-scheduled-runner.py
   - scripts/test-postgres-scheduled-ledger-policy.py
+  - scripts/lib/delta_union_scheduled.py
+  - scripts/lib/live_tests_legacy_policy.py
+  - scripts/test-delta-union-scheduled.py
+  - .github/workflows/delta-union-scheduled.yml
   - scripts/lib/ifa_scheduled_events.py
   - scripts/lib/ifa_scheduled_inventory.json
   - scripts/lib/ifa_scheduled_manifest.py
