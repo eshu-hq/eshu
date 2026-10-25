@@ -238,11 +238,26 @@ recent shipped work grouped by feature area.
   over 16 levels, and rows past 5000 per table, and counts each. The TOML
   library overflows the stack on a one-million-level array, so the nesting
   check runs before it. No fact kind, schema, or content version changes: the
-  exact name moves the registry fingerprint. A reader for
-  `gradle/wrapper/gradle-wrapper.properties` is built and tested but not
-  registered: admitting the name stores the raw file, and a `distributionUrl`
-  can carry `user:password@` userinfo, so the admission waits on the
-  content-store policy of #8812.
+  exact name moves the registry fingerprint. The wrapper pin,
+  `gradle/wrapper/gradle-wrapper.properties`, is admitted separately, below.
+
+- **`gradle/wrapper/gradle-wrapper.properties` is parsed for the Gradle
+  version** ([#8822](https://github.com/eshu-hq/eshu/issues/8822)). A
+  `distributionUrl` can carry `user:password@` userinfo, so the name is its own
+  `gradle_wrapper` definition bound to the `metadata` content-store policy:
+  the row keeps the path and the source digest with an empty body, and the file
+  is never stored. The parser emits one `gradle_distribution` row with the
+  version from the archive name (`gradle-8.5-bin.zip`) and the `bin` or `all`
+  type, and nothing else: no URL, host, userinfo, query, or other property,
+  even when the caller asks for source indexing. A value outside the archive
+  grammar (a repeated `distributionUrl`, a version-less `gradle-bin.zip`, a
+  custom archive name) yields no row and is counted in
+  `gradle_wrapper_state.unsupported_count`. A seeded scan of every emitted fact
+  finds none of the planted userinfo, query, fragment, or second-property
+  values. The package reducer ignores the row (`config_kind` is not
+  `dependency`). No fact kind or schema changes. The parser registry
+  fingerprint moves once, so every repository re-collects once, and the
+  `content_version` fixture pin moves with the new wrapper fixture.
 
 ### Content store: per-definition policy
 

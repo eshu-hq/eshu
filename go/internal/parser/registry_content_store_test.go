@@ -32,19 +32,21 @@ func TestContentStoreForPathDefaultsToStore(t *testing.T) {
 			t.Errorf("ContentStoreForPath(%q).Policy = %q, want %q", path, got, ContentStoreStore)
 		}
 	}
-	// #8978 binds .npmrc to metadata, which needs no marker-arm migration. No
-	// other definition may bind a non-store policy, and none may bind marker
-	// mode, before #8833's marker-arm migration lands (arbiter, 2026-10-24).
+	// #8978 binds .npmrc and #8822 binds gradle-wrapper.properties to
+	// metadata, which needs no marker-arm migration. No other definition may
+	// bind a non-store policy, and none may bind marker mode, before #8833's
+	// marker-arm migration lands (arbiter, 2026-10-24).
+	metadataOnly := map[string]bool{"npmrc": true, "gradle_wrapper": true}
 	for _, definition := range DefaultRegistry().Definitions() {
 		got := definition.ContentStore
-		if definition.ParserKey == "npmrc" {
+		if metadataOnly[definition.ParserKey] {
 			if got.Policy != ContentStoreMetadata {
-				t.Errorf("npmrc binds policy %q in the default registry, want metadata", got.Policy)
+				t.Errorf("%s binds policy %q in the default registry, want metadata", definition.ParserKey, got.Policy)
 			}
 			continue
 		}
 		if got.Policy != ContentStoreStore {
-			t.Errorf("%s binds policy %q in the default registry; only npmrc binds a non-store policy before #8833", definition.ParserKey, got.Policy)
+			t.Errorf("%s binds policy %q in the default registry; only npmrc and gradle_wrapper bind a non-store policy before #8833", definition.ParserKey, got.Policy)
 		}
 	}
 }

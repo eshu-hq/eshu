@@ -42,6 +42,7 @@ a line there.
 | `go` | go | L2 structured fact | store | `.go` |  |  |
 | `gomod` | go | L2 structured fact | store |  | `go.mod`, `go.sum`, `go.work` |  |
 | `gradle` | java | L2 structured fact | store |  | `build.gradle`, `build.gradle.kts`, `libs.versions.toml` |  |
+| `gradle_wrapper` | java | L2 structured fact | metadata |  | `gradle-wrapper.properties` |  |
 | `groovy` | groovy | L2 structured fact | store | `.groovy` |  |  |
 | `haskell` | haskell | L2 structured fact | store | `.hs` |  |  |
 | `hcl` | terraform | L2 structured fact | store | `.hcl`, `.tf`, `.tfvars` |  |  |
@@ -92,7 +93,7 @@ export would bypass it.
 
 | Policy | What is stored | Use it for |
 | --- | --- | --- |
-| `store` | The body, verbatim. This is the default for every definition except `.npmrc`. | Source and configuration files that hold no credentials. |
+| `store` | The body, verbatim. This is the default for every definition except `.npmrc` and `gradle-wrapper.properties`. | Source and configuration files that hold no credentials. |
 | `metadata` | A `content_files` row with an empty body. The path stays in the repository tree, file counts, language inventory, and coverage. The row is never a tombstone. | Files that can hold credentials where the registry URLs or version pins matter more than the text. |
 | `redact` | The body with credential values replaced in place. The `marker` mode writes `REDACTED_<finding_kind>`, for example `npmAuthToken: REDACTED_api_token`. | Closed-schema files where every credential key is known. |
 
@@ -158,7 +159,7 @@ they are. A registry that binds no non-store policy keeps today's fingerprint.
 
 ### Which files use each policy
 
-Every definition uses `store` except `.npmrc`, which uses `metadata` (#8978). The
+Every definition uses `store` except `.npmrc` (#8978) and `gradle-wrapper.properties` (#8822), which use `metadata`. The
 other bindings follow once the detector gains the key shapes that file formats
 need (#8833). The bindings, recorded in the
 [credential-file design record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8813-credential-file-exposure.md):
@@ -168,6 +169,7 @@ need (#8833). The bindings, recorded in the
 | `.yarnrc.yml` | `redact` | `marker` |
 | `*.tfvars`, `*.tfvars.json` | `redact` | allowlist skeleton, added in #8833 |
 | `.npmrc` | `metadata` | none, shipped in #8978 |
+| `gradle-wrapper.properties` | `metadata` | none, shipped in #8822 |
 | `gradle.properties`, `nuget.config` | `metadata`, if a later record admits them | none |
 
 `.eshuignore` stays the per-repository override and drops the file's parser
@@ -196,6 +198,10 @@ Some names are left out on purpose:
   repository tree and file counts keep the path, no body is stored, and its
   `registry=` and `@scope:registry=` URLs are reported with any userinfo, query,
   and fragment removed.
+  `gradle-wrapper.properties` is the other exception (#8822): it is admitted
+  under `metadata` because its `distributionUrl` can carry `user:password@`
+  userinfo, and only the Gradle version and the `bin` or `all` distribution
+  type are reported.
 
 In filesystem source mode, the managed-workspace copy keeps the admitted
 dot-prefixed names, including the runtime-version pins such as `.nvmrc` and
@@ -205,7 +211,7 @@ already applies the source repository's ignore rules, so `.gitignore` is not
 indexed in that mode. Discovery then applies the registry to what the copy kept,
 as it does in clone mode: `.mvn/extensions.xml` is admitted as text, a `.java`
 file under `.mvn/wrapper` is admitted as Java, and `.mvn/jvm.config`,
-`.mvn/maven.config` and the wrapper properties have no registry entry, so they
+`.mvn/maven.config` and `.mvn/wrapper/maven-wrapper.properties` have no registry entry, so they
 are not indexed. The copy still prunes any other, unallowlisted dot-directory
 (other than a dot-directory whose name is itself an allowlisted file name)
 whole, so an admitted name inside one, such as `tools/.config/.eslintrc`, is
