@@ -265,8 +265,9 @@ func TestOrgFreshnessHintMovesOnceForTheReadState(t *testing.T) {
 	t.Parallel()
 
 	input := securityAlertFreshnessInput{
-		alerts:       []securityalerts.GitHubDependabotAlert{orgAlert(1, "example-org/alpha-repo")},
-		pagesFetched: 1,
+		alerts:        []securityalerts.GitHubDependabotAlert{orgAlert(1, "example-org/alpha-repo")},
+		pagesFetched:  1,
+		targetSetHash: testTargetSetHash("example-org/alpha-repo"),
 	}
 	plain := securityAlertFreshnessHint(input)
 	input.orgReadState = true

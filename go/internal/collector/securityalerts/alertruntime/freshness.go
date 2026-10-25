@@ -33,6 +33,13 @@ type securityAlertFreshnessInput struct {
 	// provider truth is unchanged still commits one generation that carries the
 	// record instead of keeping an older generation without it.
 	orgReadState bool
+	// targetSetHash is the hash of the repository set the target collects
+	// (#8838). An allowlist change, or a reused scope_id naming another
+	// repository, leaves the provider answer unchanged when the added
+	// repository has no alerts; the hash moves the digest so the ingestion
+	// store commits a generation that records the new set instead of skipping
+	// it as unchanged. It moves every target's digest once after the upgrade.
+	targetSetHash string
 }
 
 type securityAlertFreshnessSnapshot struct {
@@ -92,6 +99,9 @@ func securityAlertFreshnessHint(input securityAlertFreshnessInput) string {
 	}
 	if input.orgReadState {
 		digest["org_read_state"] = 1
+	}
+	if input.targetSetHash != "" {
+		digest["target_set"] = input.targetSetHash
 	}
 	raw, err := json.Marshal(digest)
 	if err != nil {

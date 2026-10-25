@@ -330,6 +330,8 @@ func (s *ClaimedSource) NextClaimed(
 			Status:        scope.GenerationStatusPending,
 			TriggerKind:   scope.TriggerKindSnapshot,
 			FreshnessHint: securityAlertFreshnessHint(collection.freshnessInput(target.config)),
+			// The repository set this generation collected (#8838).
+			SecurityAlertTargetSet: target.config.targetSet(),
 		},
 		envs,
 	)

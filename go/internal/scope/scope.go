@@ -257,6 +257,11 @@ type ScopeGeneration struct {
 	// skip probe reads them back through the active generation. A pointer
 	// keeps ScopeGeneration comparable; it is never persisted directly.
 	PreparseIdentityDroppedPaths *StreamDroppedPaths `json:"-"`
+	// SecurityAlertTargetSet is the repository set a security-alert target
+	// generation collected (#8838). The ingestion store persists it and its
+	// hash in the generation payload; it is the zero value for every other
+	// collector.
+	SecurityAlertTargetSet SecurityAlertTargetSet
 }
 
 // Validate checks the generation fields and lifecycle status.
