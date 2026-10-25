@@ -63,4 +63,7 @@ type requiredStatusCheckFile struct {
 	SourceWorkflow          string `yaml:"source_workflow"`
 	IntegrationID           int64  `yaml:"integration_id"`
 	AggregatesBlockingGates bool   `yaml:"aggregates_blocking_gates"`
+	// RulesetRequired is a pointer so an omitted key is distinguishable from an
+	// explicit false; Load maps omitted to true.
+	RulesetRequired *bool `yaml:"ruleset_required"`
 }

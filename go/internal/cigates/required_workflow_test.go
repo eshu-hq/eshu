@@ -91,6 +91,7 @@ func requiredWorkflowRegistry() *Registry {
 		SourceWorkflow:          "Build Test",
 		IntegrationID:           15368,
 		AggregatesBlockingGates: true,
+		RulesetRequired:         true,
 	}}}
 }
 

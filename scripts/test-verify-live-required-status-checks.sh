@@ -162,4 +162,56 @@ if run_verifier >/dev/null 2>&1; then
 	exit 1
 fi
 
+# #9089: the live ruleset requires only the two Go umbrellas; the aggregate
+# publisher is a registry entry the ruleset does not require. These cases go
+# through the real `ci-gates contexts --ruleset-only` path (no expected-JSON
+# override) against a fixture registry.
+write_fixture_registry() {
+	local aggregate_ruleset_required="$1"
+	cat >"${tmp_dir}/fixture-registry.yaml" <<YAML
+version: v1
+gates: []
+required_status_checks:
+  - context: go-core-complete
+    workflow: test.yml
+    job: go-core-complete
+    integration_id: 15368
+  - context: go-race-complete
+    workflow: test.yml
+    job: go-race-complete
+    integration_id: 15368
+  - context: required-gates-complete
+    workflow: required-gates.yml
+    job: aggregate
+    source_workflow: Build Test
+    integration_id: 15368
+    aggregates_blocking_gates: true
+    ruleset_required: ${aggregate_ruleset_required}
+YAML
+}
+
+run_registry_verifier() {
+	ESHU_CI_GATES_REGISTRY="${tmp_dir}/fixture-registry.yaml" \
+		ESHU_EFFECTIVE_RULES_JSON="${effective}" \
+		ESHU_RULESET_JSON="${ruleset}" \
+		"${verifier}"
+}
+
+two_context_checks='[{"context":"go-core-complete","integration_id":15368},{"context":"go-race-complete","integration_id":15368}]'
+write_ruleset active '[]' '["~DEFAULT_BRANCH"]'
+jq --argjson checks "${two_context_checks}" \
+	'(.rules[] | select(.type == "required_status_checks").parameters.required_status_checks) = $checks' \
+	"${ruleset}" >"${tmp_dir}/ruleset-two-contexts.json"
+mv "${tmp_dir}/ruleset-two-contexts.json" "${ruleset}"
+write_effective true "${two_context_checks}"
+
+write_fixture_registry false
+run_registry_verifier >/dev/null
+
+write_fixture_registry true
+if run_registry_verifier >/dev/null 2>&1; then
+	echo "expected a registry that ruleset-requires the aggregate to fail against a two-context ruleset" >&2
+	exit 1
+fi
+
 echo "test-verify-live-required-status-checks: pass"
