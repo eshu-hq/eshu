@@ -101,7 +101,7 @@ when:
   `-std=gnu17` does not count as the flag;
 - the `Makefile` has no line that exports `CGO_CFLAGS` with exactly one
   `-std=`, and it is `-std=gnu17`, or another `CGO_CFLAGS` line adds a `-std=`,
-  or it unexports the variable. make starts a comment at any `#`, so a `#` with
+  or it unexports the variable or sets it in a `define CGO_CFLAGS` block. make starts a comment at any `#`, so a `#` with
   no space before it hides the rest of the line from the guard too;
 - a script under `scripts/` that runs `CGO_ENABLED=1 go`, or a developer
   entrypoint, lacks a non-comment line that sources `scripts/lib/cgo-cflags.sh`
@@ -126,7 +126,9 @@ through a YAML anchor, a job-level `env`, or `go env -w`; the last group fails
 safe because no workflow-level flag is found. The `Makefile` check cannot tell a
 later reset from the real `else` branch (which keeps a caller's own `-std=`),
 and it treats a separate `export CGO_CFLAGS` line or a backslash continuation as
-missing, which fails safe. The table in the guard's header lists every shape. A quoted value that holds ` #`, `;`, `&`, or `|` is
+missing, which fails safe. A Makefile `include` of a file that sets `CGO_CFLAGS`, and a `$(eval ...)` or
+target-specific assignment that drops the flag without adding a `-std=`, are not
+detected (adding one is). The table in the guard's header lists every shape. A quoted value that holds ` #`, `;`, `&`, or `|` is
 cut short and fails safe.
 
 The guard reads literal text, so it also cannot see a `-std=` that reaches the

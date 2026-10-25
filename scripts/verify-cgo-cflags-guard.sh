@@ -44,7 +44,8 @@
 #                     "+=" may add anything but a -std=;
 #                     CGO_CPPFLAGS may hold no -std=
 #   expressions       "${{" in a value fails                n/a
-#   unset spellings   unset [-v], env -u, env --unset[=],   unexport CGO_CFLAGS
+#   unset spellings   unset [-v], env -u, env --unset[=],   unexport CGO_CFLAGS,
+#                                                           define CGO_CFLAGS
 #                     env -i, --ignore-environment,
 #                     export -n, declare/typeset +x,
 #                     Remove-Item Env:
@@ -72,7 +73,10 @@
 #     value (CC: "gcc -std=gnu23") or wrapper, a #cgo directive in Go source, or
 #     a ${{ }} expression in CGO_CPPFLAGS whose value is only known at run time;
 #     other ways to hide the variable, such as "readonly" or an "env -S" string.
-#   - Makefile: a later assignment that resets the variable without a -std=
+#   - Makefile: an "include" or "-include" of a file that sets CGO_CFLAGS (the
+#     guard reads one file; the real Makefile includes nothing); a "$(eval ...)"
+#     or target-specific "target: CGO_CFLAGS := ..." that DROPS the flag without
+#     adding a -std= (adding one fails); a later assignment that resets the variable without a -std=
 #     (the real Makefile has exactly that in its else branch, which keeps a
 #     caller's own -std=, and telling the two apart needs make); a "CGO_CFLAGS :=
 #     ... -std=gnu17" line with a separate "export CGO_CFLAGS" (fail safe); a
@@ -257,8 +261,10 @@ cgo_cflags_assignments() {
 # whose value holds exactly one -std=, and it is -std=gnu17. make starts a comment
 # at any "#", with no space needed, so this strip differs from code_of's
 # whitespace rule (a "\#" is cut too, which can only turn a pass into a FAIL).
-# It is "no" when any other CGO_CFLAGS assignment adds a -std=, or when the
-# variable is unexported.
+# It is "no" when any other CGO_CFLAGS assignment adds a -std=, when the
+# variable is unexported, or when a "define CGO_CFLAGS" block (any flavor, with
+# or without "override") sets it, because the block body has no "CGO_CFLAGS="
+# token to scan.
 makefile_exports_flag() {
 	sed -e 's/#.*$//' "$1" | awk '
 		function std_count(s,   n, t) {
@@ -267,6 +273,7 @@ makefile_exports_flag() {
 			return n
 		}
 		/(^|[^[:alnum:]_])unexport[[:space:]]+([^;]*[[:space:]])?CGO_CFLAGS/ { bad = 1 }
+		/(^|[^[:alnum:]_])define[[:space:]]+CGO_CFLAGS/ { bad = 1 }
 		{
 			if (!match($0, /CGO_CFLAGS[[:space:]]*[:+?!]*=/)) next
 			pre = substr($0, 1, RSTART - 1)

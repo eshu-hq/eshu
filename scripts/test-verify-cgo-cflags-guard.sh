@@ -23,6 +23,8 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 guard="${script_dir}/verify-cgo-cflags-guard.sh"
+# shellcheck source=lib/cgo-cflags-guard-evasion-cases.sh
+source "${script_dir}/lib/cgo-cflags-guard-evasion-cases.sh"
 failures=0
 tmp_list="$(mktemp)"
 trap 'while IFS= read -r d; do [ -n "$d" ] && rm -rf "$d"; done <"$tmp_list"; rm -f "$tmp_list"' EXIT
@@ -172,112 +174,7 @@ else
 	{ good_workflow; printf '      - run: go test ./...\n        env:\n          CGO_CFLAGS: -O2\n'; } >"${t}/.github/workflows/step.yml"
 	check_guard "guard: step-level CGO_CFLAGS clobber FAILS" 1 "$t" "step.yml"
 
-	# A trailing YAML comment that names -std=gnu17 is not a value. The line
-	# keeps its flag-less value, so the guard must still FAIL it; a compliant
-	# value that merely ends in a comment must still pass.
-	t="$(new_tree)"
-	good_workflow | sed 's/CGO_CFLAGS: "-O2 -g -std=gnu17"/CGO_CFLAGS: "-O2 -g" # -std=gnu17 kept for docs/' >"${t}/.github/workflows/comment-env.yml"
-	check_guard "guard: workflow-level CGO_CFLAGS with -std=gnu17 only in a trailing comment FAILS" 1 "$t" "comment-env.yml"
-
-	t="$(new_tree)"
-	{ good_workflow; printf '      - run: go test ./...\n        env:\n          CGO_CFLAGS: "-O2" # -std=gnu17 kept for docs\n'; } >"${t}/.github/workflows/comment-step.yml"
-	check_guard "guard: step-level CGO_CFLAGS with -std=gnu17 only in a trailing comment FAILS" 1 "$t" "comment-step.yml"
-
-	t="$(new_tree)"
-	good_workflow | sed 's/CGO_CFLAGS: "-O2 -g -std=gnu17"/CGO_CFLAGS: "-O2 -g -std=gnu17" # keep/' >"${t}/.github/workflows/comment-ok.yml"
-	check_guard "guard: compliant CGO_CFLAGS with a trailing comment passes" 0 "$t"
-
-	# A "#" inside a quoted shell string is not a comment. It must neither hide
-	# a Go build nor hide a CGO_CFLAGS assignment that follows it on the line.
-	t="$(new_tree)"
-	cat >"${t}/.github/workflows/quoted-go.yml" <<'EOF'
-name: Fixture
-on: push
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "build #1" && go build ./...
-EOF
-	check_guard "guard: Go build after a quoted # in a workflow with no env FAILS" 1 "$t" "quoted-go.yml"
-
-	t="$(new_tree)"
-	{ good_workflow; printf '      - run: echo "step #2"; CGO_CFLAGS=-O3 go build ./...\n'; } >"${t}/.github/workflows/quoted-clobber.yml"
-	check_guard "guard: CGO_CFLAGS=-O3 after a quoted # FAILS" 1 "$t" "quoted-clobber.yml"
-
-	# Cheap hardening: the value must be exactly the flag, in that assignment.
-	t="$(new_tree)"
-	good_workflow | sed 's/-std=gnu17"/-std=gnu17 -std=gnu23"/' >"${t}/.github/workflows/two-std.yml"
-	check_guard "guard: a later -std=gnu23 in the value FAILS" 1 "$t" "two-std.yml"
-
-	t="$(new_tree)"
-	{ good_workflow; printf '      - run: env -u CGO_CFLAGS go build ./...\n'; } >"${t}/.github/workflows/env-unset.yml"
-	check_guard "guard: env -u CGO_CFLAGS FAILS" 1 "$t" "env-unset.yml"
-
-	t="$(new_tree)"
-	{ good_workflow; printf '      - run: unset CGO_CFLAGS; go build ./...\n'; } >"${t}/.github/workflows/unset.yml"
-	check_guard "guard: unset CGO_CFLAGS FAILS" 1 "$t" "unset.yml"
-
-	t="$(new_tree)"
-	{ good_workflow; printf '      - run: CGO_CFLAGS=-O2 CGO_CPPFLAGS=-std=gnu17 go build ./...\n'; } >"${t}/.github/workflows/cppflags.yml"
-	check_guard "guard: -std=gnu17 only in CGO_CPPFLAGS on the same line FAILS" 1 "$t" "cppflags.yml"
-
-	t="$(new_tree)"
-	good_workflow | awk '{ print } /^  CGO_CFLAGS:/ { print "  CGO_CPPFLAGS: \"-std=gnu23\"" }' >"${t}/.github/workflows/cppflags-key.yml"
-	check_guard "guard: a separate CGO_CPPFLAGS key with -std= FAILS" 1 "$t" "cppflags-key.yml"
-
-	t="$(new_tree)"
-	{ good_workflow; printf '      - run: export CGO_CFLAGS+=" -std=gnu23"\n'; } >"${t}/.github/workflows/append-std.yml"
-	check_guard "guard: CGO_CFLAGS+= that adds a later -std= FAILS" 1 "$t" "append-std.yml"
-
-	t="$(new_tree)"
-	{ good_workflow; printf '      - run: export CGO_CFLAGS+=" -Wall"\n'; } >"${t}/.github/workflows/append-ok.yml"
-	check_guard "guard: CGO_CFLAGS+= that keeps the workflow flag passes" 0 "$t"
-
-	t="$(new_tree)"
-	good_workflow | sed "s/CGO_CFLAGS: \"-O2 -g -std=gnu17\"/CGO_CFLAGS: \${{ vars.CFLAGS || '-std=gnu17' }}/" >"${t}/.github/workflows/expr.yml"
-	check_guard "guard: a \${{ }} value that names the flag as text FAILS" 1 "$t" "expr.yml"
-
-	# Review of #9105: spelling and unset families the first pass missed. Each
-	# row appends the lines in $4 (printf %b) to the compliant workflow.
-	append_case() {
-		t="$(new_tree)"
-		{ good_workflow; printf '%b' "$4"; } >"${t}/.github/workflows/$1"
-		check_guard "$3" "$2" "$t" "$1"
-	}
-	step_env='      - run: go test ./...\n        env:\n'
-	append_case unset-long.yml 1 "guard: env --unset=CGO_CFLAGS FAILS" '      - run: env --unset=CGO_CFLAGS go build ./...\n'
-	append_case unset-long-sp.yml 1 "guard: env --unset CGO_CFLAGS FAILS" '      - run: env --unset CGO_CFLAGS go build ./...\n'
-	append_case unset-v.yml 1 "guard: unset -v CGO_CFLAGS FAILS" '      - run: unset -v CGO_CFLAGS; go build ./...\n'
-	append_case env-i.yml 1 "guard: env -i FAILS" '      - run: env -i PATH="$PATH" go build ./...\n'
-	append_case export-n.yml 1 "guard: export -n CGO_CFLAGS FAILS" '      - run: export -n CGO_CFLAGS; go build ./...\n'
-	append_case remove-item.yml 1 "guard: Remove-Item Env:CGO_CFLAGS FAILS" '      - run: Remove-Item Env:CGO_CFLAGS\n'
-	append_case space-colon.yml 1 "guard: step-level 'CGO_CFLAGS : -O2' FAILS" "${step_env}"'          CGO_CFLAGS : -O2\n'
-	append_case tab-colon.yml 1 "guard: step-level CGO_CFLAGS with a tab after the colon FAILS" "${step_env}"'          CGO_CFLAGS:\t-O2\n'
-	append_case quoted-key.yml 1 "guard: step-level quoted key \"CGO_CFLAGS\" FAILS" "${step_env}"'          "CGO_CFLAGS": -O2\n'
-	append_case squoted-key.yml 1 "guard: step-level single-quoted key 'CGO_CFLAGS' FAILS" "${step_env}""          'CGO_CFLAGS': -O2\\n"
-
-	t="$(new_tree)"
-	good_workflow | sed 's/^  CGO_CFLAGS:/  CGO_CFLAGS :/' >"${t}/.github/workflows/env-space-colon.yml"
-	check_guard "guard: workflow-level 'CGO_CFLAGS :' with the flag passes" 0 "$t"
-
-	# Makefile: make strips "#" with no space before it, and the last -std= wins.
-	mk_case() {
-		t="$(new_tree)"
-		printf '%b' "$3" >"${t}/Makefile"
-		check_guard "guard: Makefile $1" "$2" "$t" "$([ "$2" = 1 ] && printf Makefile)"
-	}
-	mk_case "with a later -std=gnu23 FAILS" 1 'export CGO_CFLAGS := -O2 -g -std=gnu17 -std=gnu23\n'
-	mk_case "with -std=gnu17 after a bare # FAILS" 1 'export CGO_CFLAGS := -O2 -g# -std=gnu17 kept for docs\n'
-	mk_case "that appends a later -std= FAILS" 1 'export CGO_CFLAGS := -O2 -g -std=gnu17\nexport CGO_CFLAGS += -std=gnu23\n'
-	mk_case "that unexports CGO_CFLAGS FAILS" 1 'export CGO_CFLAGS := -O2 -g -std=gnu17\nunexport CGO_CFLAGS\n'
-	mk_case "that never exports CGO_CFLAGS FAILS" 1 'CGO_CFLAGS ?= -O2 -g -std=gnu17\n'
-	mk_case "that sets CGO_CFLAGS with != FAILS" 1 'export CGO_CFLAGS != echo -std=gnu17\n'
-	mk_case "spelling ::= passes" 0 'export CGO_CFLAGS ::= -O2 -g -std=gnu17\n'
-	mk_case "spelling ?= passes" 0 'export CGO_CFLAGS ?= -O2 -g -std=gnu17\n'
-	mk_case "spelling override export passes" 0 'override export CGO_CFLAGS := -O2 -g -std=gnu17\n'
-	mk_case "spelling with tabs passes" 0 'export\tCGO_CFLAGS\t:=\t-O2 -g -std=gnu17\n'
-	mk_case "spelling with a trailing comment passes" 0 'export CGO_CFLAGS = -O2 -g -std=gnu17 # keep\n'
+	run_evasion_cases
 
 	t="$(new_tree)"
 	cat >"${t}/.github/workflows/container.yml" <<'EOF'
