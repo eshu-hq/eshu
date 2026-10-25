@@ -200,7 +200,9 @@ The waiver note and the scoped rebase verdict state the
 `make pre-push` exit, so the floor runs first: `make pre-push` on the rebased
 head, then write the note or verdict, capture (`--verdict <file>`),
 `ci-gates review-attest verify`, push. The file records the exit code and the
-head SHA the floor ran on. Never write it before the floor exits 0. Before capture, re-read the PR title and body claims
+head SHA the floor ran on. Never write it before the floor exits 0. A floor red that reproduces
+on the bare base AND passes on the CI OS for the touched surface is recorded, not
+fixed; name the issue. Before capture, re-read the PR title and body claims
 against the final diff, and rerun the proof the rebase can affect. The receipt
 hashes the claims file, so a claims edit after capture voids it. Make no edit
 after the floor. A green CI wave on the exact
