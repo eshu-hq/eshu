@@ -107,7 +107,7 @@ func TestStatusActiveWorkQueriesPreserveSemantics(t *testing.T) {
 			args:  []any{statusSemanticsAsOf},
 			// w-old-pending shares the fenced conflict key but is a hidden
 			// stale row, so domain "done" must not appear.
-			want: []string{"reducer|d4|cd|k|1|1800"},
+			want: []string{"reducer|d4|cd|k|d5|1|1800"},
 		},
 	}
 	for _, tc := range cases {

@@ -199,6 +199,7 @@ queue_blockages.blocked
 queue_blockages.conflict_domain
 queue_blockages.conflict_key
 queue_blockages.domain
+queue_blockages.holder_domain
 queue_blockages.oldest_age
 queue_blockages.oldest_age_seconds
 queue_blockages.stage

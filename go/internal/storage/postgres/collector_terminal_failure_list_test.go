@@ -21,10 +21,17 @@ func (listQueryer) ExecContext(context.Context, string, ...any) (sql.Result, err
 // instanceRow is one collector_instances row in the shape
 // workflowCoordinatorCollectorInstancesQuery returns: instance id, kind, mode,
 // enabled, bootstrap, claims enabled, display name, last observed, updated,
-// deactivated, scan_interval.
+// deactivated, scan_interval, configuration. The configuration is the in-tree
+// empty document, so the instance is not extension-hosted.
 func instanceRow(id, kind string, enabled bool, deactivatedAt any) []any {
+	return instanceRowWithConfiguration(id, kind, enabled, deactivatedAt, `{}`)
+}
+
+// instanceRowWithConfiguration is instanceRow with an explicit stored
+// configuration text, which decides whether the instance is extension-hosted.
+func instanceRowWithConfiguration(id, kind string, enabled bool, deactivatedAt any, configuration string) []any {
 	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
-	return []any{id, kind, "continuous", enabled, false, true, "", now, now, deactivatedAt, nil}
+	return []any{id, kind, "continuous", enabled, false, true, "", now, now, deactivatedAt, nil, configuration}
 }
 
 // TestListTerminalFailuresBindsTheClampedPageSize pins the limit contract

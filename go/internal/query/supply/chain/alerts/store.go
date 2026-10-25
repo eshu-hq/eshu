@@ -269,6 +269,7 @@ func decodeRow(
 		ReconciliationStatus: querycontract.StringVal(payload, "reconciliation_status"),
 		Reason:               querycontract.StringVal(payload, "reason"),
 		ReasonCode:           querycontract.StringVal(payload, "reason_code"),
+		ImpactWaitOutcome:    querycontract.StringVal(payload, "impact_wait_outcome"),
 		MissingEvidence:      missingEvidenceVal(payload, "missing_evidence"),
 		EvidenceFactIDs:      querycontract.StringSliceVal(payload, "evidence_fact_ids"),
 		SourceFreshness:      sourceFreshness(payload),

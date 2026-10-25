@@ -75,8 +75,17 @@ type StoreResult struct {
 	Reason FailureReason
 }
 
-// redactFunc is one redactor mode's implementation.
-type redactFunc func(body string, credentialKeys []string) (redacted string, replaced int, err error)
+// redactFunc is one redactor mode's implementation. It reads the key lists it
+// needs from the definition's policy.
+type redactFunc func(body string, store parser.ContentStore) (redacted string, replaced int, err error)
+
+func markerRedactor(body string, store parser.ContentStore) (string, int, error) {
+	return redactMarkerWithURLKeys(body, store.CredentialKeys, store.URLUserinfoKeys)
+}
+
+func skeletonRedactor(body string, _ parser.ContentStore) (string, int, error) {
+	return redactSkeleton(body)
+}
 
 // ApplyContentStore applies one definition's content-store policy to a source
 // body at the collector write boundary, before any fact or row exists. The
@@ -86,19 +95,24 @@ type redactFunc func(body string, credentialKeys []string) (redacted string, rep
 //
 // Every failure path returns an empty body: there is no raw-body fallback.
 func ApplyContentStore(store parser.ContentStore, body string) StoreResult {
-	return applyContentStore(store, body, redactMarker)
+	return applyContentStore(store, body, nil)
 }
 
-func applyContentStore(store parser.ContentStore, body string, marker redactFunc) StoreResult {
+// applyContentStore is ApplyContentStore with an optional redactor that
+// replaces the known mode's implementation, so a test can inject a failure.
+func applyContentStore(store parser.ContentStore, body string, override redactFunc) StoreResult {
 	switch store.Policy {
 	case "", parser.ContentStoreStore:
 		return StoreResult{Body: body, Outcome: StoreOutcomeStored}
 	case parser.ContentStoreMetadata:
 		return StoreResult{Outcome: StoreOutcomeMetadata}
 	case parser.ContentStoreRedact:
+		var redact redactFunc
 		switch store.Redactor {
 		case parser.RedactorMarker:
-			return redactResult(marker, body, store.CredentialKeys)
+			redact = markerRedactor
+		case parser.RedactorSkeleton:
+			redact = skeletonRedactor
 		default:
 			return StoreResult{
 				Outcome: StoreOutcomeRedactorFailed,
@@ -106,6 +120,10 @@ func applyContentStore(store parser.ContentStore, body string, marker redactFunc
 				Reason:  FailureUnknownMode,
 			}
 		}
+		if override != nil {
+			redact = override
+		}
+		return redactResult(redact, body, store)
 	default:
 		return StoreResult{
 			Outcome: StoreOutcomeRedactorFailed,
@@ -115,7 +133,7 @@ func applyContentStore(store parser.ContentStore, body string, marker redactFunc
 	}
 }
 
-func redactResult(redact redactFunc, body string, keys []string) (result StoreResult) {
+func redactResult(redact redactFunc, body string, store parser.ContentStore) (result StoreResult) {
 	// A redactor panic is a redactor failure: the file must become a metadata
 	// row, not take the collector down or leak the source through a recovered
 	// partial result.
@@ -124,7 +142,7 @@ func redactResult(redact redactFunc, body string, keys []string) (result StoreRe
 			result = StoreResult{Outcome: StoreOutcomeRedactorFailed, Err: fmt.Errorf("redactor panic: %v", r), Reason: FailureRedactorPanic}
 		}
 	}()
-	redacted, replaced, err := redact(body, keys)
+	redacted, replaced, err := redact(body, store)
 	if err != nil {
 		return StoreResult{Outcome: StoreOutcomeRedactorFailed, Err: err, Reason: failureReason(err)}
 	}

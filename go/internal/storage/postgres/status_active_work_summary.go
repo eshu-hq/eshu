@@ -343,6 +343,7 @@ func (s *activeWorkSummary) add(section string, raw string) error {
 			Domain:         r.text("domain"),
 			ConflictDomain: r.text("conflict_domain"),
 			ConflictKey:    r.text("conflict_key"),
+			HolderDomain:   r.optionalText("holder_domain"),
 			Blocked:        r.count("blocked_count"),
 			OldestAge:      scalars.DurationFromSeconds(r.float("oldest_blocked_age_seconds")),
 		})
@@ -411,6 +412,15 @@ func (r *activeWorkRow) text(key string) string {
 		r.fail(fmt.Errorf("%s: want text, got %T", key, value))
 	}
 	return text
+}
+
+// optionalText reads a text field a stored row written before the field existed
+// may lack: a missing key is empty, a wrongly typed value still fails the row.
+func (r *activeWorkRow) optionalText(key string) string {
+	if _, ok := r.fields[key]; !ok {
+		return ""
+	}
+	return r.text(key)
 }
 
 func (r *activeWorkRow) flag(key string) bool {

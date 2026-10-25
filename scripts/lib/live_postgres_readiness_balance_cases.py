@@ -160,7 +160,11 @@ class BalanceContractTest(unittest.TestCase):
 
     def test_seeded_slow_tests_overflow_a_count_split_but_not_the_weighted_one(self) -> None:
         position = 70  # inside shard 1/4's range under the retired count split
-        inserted = slow_runs(10, package=self.plan[position].split("|")[0])
+        # The fleet got faster (weighted shards predict ~1260 s, naive worst
+        # 1638 s), so 10x25 s no longer overflows the naive 1800 s cap
+        # (1769 s). Plant 12 to restore the bite; the weighted cut still
+        # absorbs them at 1357 s against the 1440 s budget.
+        inserted = slow_runs(12, package=self.plan[position].split("|")[0])
         plan = [*self.plan[:position], *inserted, *self.plan[position:]]
         weights = with_slow(self.weights, inserted)
         naive = self.job_seconds(plan, weights, naive_count_bounds(len(plan)))

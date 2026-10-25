@@ -45,4 +45,7 @@ Scoped instructions for this package. The root `AGENTS.md` still applies.
   An unanswerable question is an error, never an empty state: an empty state
   reads as "no impact work in flight" and lets the reconciliation spend
   attempts or give up while the producer runs. The domain constant comes from
-  `reducercontract.DomainSupplyChainImpact`.
+  `reducercontract.DomainSupplyChainImpact`. The succeeded and failed counts
+  (#8956) decide a genuine no-match: count only `succeeded` as succeeded and
+  only `dead_letter`/`failed` as failed, so any other terminal status keeps
+  `Settled` false.

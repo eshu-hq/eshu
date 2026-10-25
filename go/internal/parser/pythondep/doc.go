@@ -13,7 +13,11 @@
 //     pinned/range specifiers, extras, environment markers, runtime vs dev
 //     scope (derived from the filename), and distinguishes PEP 508 direct
 //     references, VCS, path, URL, editable, and malformed entries from
-//     registry-version evidence.
+//     registry-version evidence. It also reads pip constraints files
+//     (constraints.txt, constraints-*.txt, constraints_*.txt) as version
+//     policy: each row is flagged central_version_declaration, never stores
+//     the raw line, and asks the content shaper to withhold its source_cache;
+//     a row with a direct source drops its value, URL, and marker.
 //   - ParsePyProject parses pyproject.toml for PEP 621 `[project]`
 //     dependencies, `[project.optional-dependencies]`, Poetry's
 //     `[tool.poetry.dependencies]` and group-style dev dependencies, and

@@ -25,6 +25,50 @@ recent shipped work grouped by feature area.
   the next change of that repository. The repair only adds keys, so readiness
   does not flip. The git collector content version does not change.
 
+### Status: blockage rows name the domain that holds the fence
+
+- **`queue_blockages[]` carries `holder_domain`**
+  ([#8954](https://github.com/eshu-hq/eshu/issues/8954)). A blocked reducer
+  row used to show its conflict key but not which domain held the fence, so an
+  operator could not see that a blocked `security_alert_reconciliation` was
+  waiting for `supply_chain_impact`. Each row now reports the domain of the one
+  live claimed or running row that holds the fence, read in the same statement.
+  The field is an empty string for a readiness-gated row. The status JSON,
+  text report, and `docs/openapi/runtime-admin-v1.yaml` move together. A stored
+  status summary written before this change still decodes, with an empty holder.
+
+### Collector status: extension-defined failure classes on component-activated first-party kinds
+
+- **A component-activated instance that carries a first-party kind such as
+  `jira` reads `extension_defined` for the classes its extension defines**
+  ([#8951](https://github.com/eshu-hq/eshu/issues/8951)). The status leaf
+  bounded failure classes per collector kind and had no instance-level signal,
+  so these classes read `unknown`. The status reader now marks an instance
+  extension-hosted when the generic component planner claims its stored
+  configuration, the check the coordinator already uses, and the class bound
+  collapses pattern-valid extension classes only for such instances. An in-tree
+  instance of the same kind still reads `unknown` for an unregistered class.
+  The marker is a boolean read from existing state: no payload field and no new
+  `failure_class` label value. The admin failed-scope list, the acknowledge
+  response, and the stored acknowledgement records bound the class by the same
+  instance, so they agree with collector status. A record whose instance is
+  gone reads the kind-only form.
+
+### Security alerts: a reconciliation give-up reads apart from a genuine no-match
+
+- **An `unmatched` reconciliation row now says when the reducer gave up
+  waiting for impact evidence**
+  ([#8956](https://github.com/eshu-hq/eshu/issues/8956)). A row written after
+  the handler stopped waiting carries `impact_wait_outcome`
+  (`gave_up_unmatched` or `gave_up_bound_exceeded`) on the reducer payload, the
+  `/api/v0/supply-chain/security-alerts/reconciliations` row, and the
+  `list_security_alert_reconciliations` MCP row. A genuine no-match, where the
+  same generation's `supply_chain_impact` work all succeeded and matched
+  nothing, omits it and keeps its payload byte for byte.
+  `eshu_dp_security_alert_reconciliation_impact_wait_total` gains the
+  `producer_settled` outcome for that case, and `gave_up_unmatched` no longer
+  counts it. No migration; rows written before the change carry no field.
+
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
 
 - **A 403 saying Dependabot alerts are disabled classifies as `not_found`**
@@ -137,6 +181,42 @@ recent shipped work grouped by feature area.
   gauge and `eshu_dp_collector_terminal_failure_acknowledgements_total` counter
   cover the rest. The 3 AM runbook says when to acknowledge and when not to.
 
+### Collector: skeleton redactor and URL userinfo rule for the content-store policy
+
+- **Allowlist-skeleton redactor and URL-userinfo keys, not yet bound**
+  ([#8833](https://github.com/eshu-hq/eshu/issues/8833)). The `redact` policy
+  gains a `skeleton` mode for open-schema files such as `*.tfvars`: it keeps
+  structure, keys, and values whose shape cannot carry a credential (booleans,
+  numbers, `var.`/`local.`/`module.`/`data.` references, quoted versions), writes
+  `REDACTED_<finding_kind>` for a value or line the hardcoded-secret detector
+  reports, and `REDACTED_value` for everything else. Line numbers are kept. The
+  `marker` mode can now list URL-valued keys (`npmRegistryServer`, `httpsProxy`)
+  whose URL loses only its userinfo, so the host stays readable; any value the
+  rule cannot read as exactly one URL is redacted whole.
+  `eshu_dp_collector_content_store_files_total` gains a `redactor` label
+  (`marker`, `skeleton`, `none`). No definition binds either mode yet, so the
+  registry fingerprint and every stored body are unchanged; the bindings for
+  `.yarnrc.yml` and `*.tfvars` land with the detector migration in a later
+  #8833 change.
+
+### Storage: security-alert empty-answer read no longer scans target history
+
+- **Latest-work-item index for the collection-state read**
+  ([#8840](https://github.com/eshu-hq/eshu/issues/8840)). Migration 233 adds
+  `workflow_work_items_security_alert_scope_updated_idx` on `(scope_id,
+  updated_at DESC, work_item_id ASC) WHERE collector_kind =
+  'security_alert'`, built `CONCURRENTLY`. The security-alert empty-answer
+  read used to scan and sort every work item a target ever had, so a long
+  history could push it past its 1 s probe deadline. It is now a one-entry
+  index-only probe per target. On 561,120 work items, a 120,000-item target
+  went from 22 to 36 ms to about 0.1 ms (13 or 14 buffers), and 50 targets
+  from 46 to 64 ms to about 1 ms. The index is partial so the work-item
+  retention prune keeps its plan; a full key made that prune 8x to 13x slower
+  on targets that recovered from a run of terminal failures.
+  Worst case, every write a `security_alert` row: about 9% more WAL per
+  insert, claim, and completion at 4 and 8 clients.
+  Evidence: `docs/internal/evidence/8840-security-alert-latest-work-item-index.md`.
+
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
 - **Nesting guard before every Cargo TOML decode**
@@ -165,6 +245,27 @@ recent shipped work grouped by feature area.
   is not yet checked. Evidence:
   `docs/internal/evidence/8930-readiness-weights-refresh.md`.
 
+### Parser: pip constraints files
+
+- **`constraints.txt` and `constraints-*.txt` now give Python version-policy rows**
+  ([#8821](https://github.com/eshu-hq/eshu/issues/8821)). The pip requirements
+  parser reads `constraints.txt`, `constraints-*.txt`, and `constraints_*.txt`.
+  A constraint limits the version a package gets if something else installs
+  it, so each row carries `central_version_declaration` (the flag a NuGet
+  central `PackageVersion` uses), so no consumption, alert, or `DEPENDS_ON`
+  evidence or edge results from it. Registry target planning still picks the
+  rows as collection targets, as it does for NuGet pins, and no match or edge
+  follows. A row never stores the raw line, a line with a direct source (URL,
+  VCS, path) keeps only its kind, and a pin whose marker holds URL-shaped text reads as a
+  malformed row. The entity `source_cache` is withheld for these rows. The file body
+  keeps the whole file, credentials included, until the
+  [#8812](https://github.com/eshu-hq/eshu/issues/8812) content-store policy
+  covers this parser. The family needs the `.txt` extension, so a
+  `constraints-*.yaml` policy file keeps its YAML parser. These files were
+  documents before; they are no longer emitted as documents. The git
+  collector content version moves to `git-collector.v11`, so each repository
+  stores one new generation on its next sync.
+
 ### Parser: uv.lock dependency rows
 
 - **`uv.lock` now gives exact-version Python dependency rows**
@@ -183,7 +284,7 @@ recent shipped work grouped by feature area.
   the entries after it are still read. A members list is trusted only when it
   follows the array grammar, holds at most 4,096 names, and each member path
   stays inside the workspace. Dev or
-  runtime scope is not captured. `constraints*.txt` is not part of this change.
+  runtime scope is not captured.
   The raw lock body, including direct-URL credentials `uv` persists, is stored
   verbatim in the content store until the
   [#8812](https://github.com/eshu-hq/eshu/issues/8812) policy gates land.
@@ -254,11 +355,26 @@ recent shipped work grouped by feature area.
   over 16 levels, and rows past 5000 per table, and counts each. The TOML
   library overflows the stack on a one-million-level array, so the nesting
   check runs before it. No fact kind, schema, or content version changes: the
-  exact name moves the registry fingerprint. A reader for
-  `gradle/wrapper/gradle-wrapper.properties` is built and tested but not
-  registered: admitting the name stores the raw file, and a `distributionUrl`
-  can carry `user:password@` userinfo, so the admission waits on the
-  content-store policy of #8812.
+  exact name moves the registry fingerprint. The wrapper pin,
+  `gradle/wrapper/gradle-wrapper.properties`, is admitted separately, below.
+
+- **`gradle/wrapper/gradle-wrapper.properties` is parsed for the Gradle
+  version** ([#8822](https://github.com/eshu-hq/eshu/issues/8822)). A
+  `distributionUrl` can carry `user:password@` userinfo, so the name is its own
+  `gradle_wrapper` definition bound to the `metadata` content-store policy:
+  the row keeps the path and the source digest with an empty body, and the file
+  is never stored. The parser emits one `gradle_distribution` row with the
+  version from the archive name (`gradle-8.5-bin.zip`) and the `bin` or `all`
+  type, and nothing else: no URL, host, userinfo, query, or other property,
+  even when the caller asks for source indexing. A value outside the archive
+  grammar (a repeated `distributionUrl`, a version-less `gradle-bin.zip`, a
+  custom archive name) yields no row and is counted in
+  `gradle_wrapper_state.unsupported_count`. A seeded scan of every emitted fact
+  finds none of the planted userinfo, query, fragment, or second-property
+  values. The package reducer ignores the row (`config_kind` is not
+  `dependency`). No fact kind or schema changes. The parser registry
+  fingerprint moves once, so every repository re-collects once, and the
+  `content_version` fixture pin moves with the new wrapper fixture.
 
 ### Content store: per-definition policy
 

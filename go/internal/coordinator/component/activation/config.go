@@ -48,6 +48,19 @@ type RuntimeConfig struct {
 	Adapter     string `json:"adapter"`
 }
 
+// IsConfiguration reports whether raw collector-instance configuration is a
+// generic component-extension activation document, so the extension host, not
+// an in-tree planner, owns the instance. A malformed or incomplete activation
+// document counts, because the generic planner reports that error and no
+// in-tree planner may claim the instance as well. Blank and in-tree target
+// configuration return false. The coordinator scheduler, its startup claim
+// validation, and the status reader share this one check so they always agree
+// on which instances are extension-hosted.
+func IsConfiguration(raw string) bool {
+	_, ok, err := ParseConfig(raw)
+	return ok || err != nil
+}
+
 // ParseConfig parses and validates raw collector-instance configuration as a
 // generic component-extension activation configuration. ok reports whether
 // the configuration is a component-extension activation configuration at

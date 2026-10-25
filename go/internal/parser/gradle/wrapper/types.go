@@ -4,8 +4,10 @@
 package wrapper
 
 const (
-	// LanguageName is the lang tag on every payload and row.
-	LanguageName = "gradle"
+	// LanguageName is the parser language key and the lang value on the payload
+	// and the row. It equals the registry definition's Language, so a payload
+	// reads back to the definition that parsed it.
+	LanguageName = "gradle_wrapper"
 	// KeyDistributionURL is the only property the parser reads.
 	KeyDistributionURL = "distributionUrl"
 	// StateKey is the payload key that carries the scan state and counts.

@@ -40,6 +40,9 @@ var entitySourceCacheByteLimits = map[string]int{
 // entitySourceCache returns the best source snippet for one entity using parser
 // source first, then falling back to the owning file line range.
 func entitySourceCache(label string, item Entity, body string, startLine int, endLine int) string {
+	if sourceCacheWithheld(item) {
+		return ""
+	}
 	if label == "File" && item.ArtifactType == githubActionsWorkflowArtifactType {
 		return item.Source
 	}
@@ -67,6 +70,17 @@ func entitySourceCache(label string, item Entity, body string, startLine int, en
 		return item.Source
 	}
 	return ""
+}
+
+// sourceCacheWithheld reports whether the parser asked for this entity's
+// snippet to be dropped with source_cache_withheld=true (the pip constraints
+// rows, #8821). The snippet is the raw source line, which can carry text the
+// parser already scrubbed from the row's fields. Only the boolean true counts.
+// The flag stays in the entity metadata so a reader can see why the snippet is
+// empty. The file body is separate and unaffected.
+func sourceCacheWithheld(item Entity) bool {
+	withheld, _ := item.Metadata["source_cache_withheld"].(bool)
+	return withheld
 }
 
 // limitEntitySourceCache bounds oversized low-signal snippets while preserving

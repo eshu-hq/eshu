@@ -19,8 +19,12 @@ type Blockage struct {
 	Domain         string
 	ConflictDomain string
 	ConflictKey    string
-	Blocked        int
-	OldestAge      time.Duration
+	// HolderDomain is the reducer domain of the live claimed or running row
+	// that holds the conflict fence. It is empty when no lease holds the
+	// fence, as for a row gated by a missing readiness requirement.
+	HolderDomain string
+	Blocked      int
+	OldestAge    time.Duration
 }
 
 // CloneBlockages normalizes queue-blockage rows into the same priority
@@ -61,14 +65,19 @@ func RenderBlockageLines(rows []Blockage) []string {
 
 	lines := []string{"Blocked queue work:"}
 	for _, row := range rows {
+		holder := ""
+		if row.HolderDomain != "" {
+			holder = " holder_domain=" + row.HolderDomain
+		}
 		lines = append(
 			lines,
 			fmt.Sprintf(
-				"  %s domain=%s conflict_domain=%s conflict_key=%s blocked=%d oldest=%s",
+				"  %s domain=%s conflict_domain=%s conflict_key=%s%s blocked=%d oldest=%s",
 				row.Stage,
 				row.Domain,
 				row.ConflictDomain,
 				row.ConflictKey,
+				holder,
 				row.Blocked,
 				row.OldestAge,
 			),

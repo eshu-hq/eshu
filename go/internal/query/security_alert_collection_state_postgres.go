@@ -40,16 +40,17 @@ LIMIT $1`
 // security_alert work item, whether any committed generation exists, and the
 // unread repositories of the target's active generation (#8943).
 //
-// The latest work item is found by a scan of
-// workflow_work_items_collector_scope_generation_updated_idx
-// (collector_kind, scope_id, generation_id, updated_at DESC, work_item_id)
-// with a top-1 sort on updated_at, then a primary-key fetch of that one row.
-// The scan reads the target's whole work-item history as index tuples (work
-// items carry no retention, and generation_id is a hash, so no index orders a
-// scope by updated_at). It is index-only when the visibility map is set;
-// otherwise it reads the heap, as a bitmap heap scan before VACUUM (see the
-// evidence note). The committed generation check is an index-only EXISTS on
-// scope_generations_scope_idx.
+// The latest work item is found by an index-only probe of
+// workflow_work_items_security_alert_scope_updated_idx (migration 233:
+// scope_id, updated_at DESC, work_item_id ASC, partial on collector_kind =
+// 'security_alert'), whose key matches the lateral's ORDER BY, so it reads one
+// entry per target however long the target's history is. A primary-key fetch
+// then reads that one row. Keep the collector_kind literal: the partial index
+// is only usable because the planner can prove it from this predicate.
+// Before migration 233 the lateral scanned and top-1 sorted the target's whole
+// history on workflow_work_items_collector_scope_generation_updated_idx, where
+// generation_id (a hash) sits before updated_at. The committed generation
+// check is an index-only EXISTS on scope_generations_scope_idx.
 //
 // The unread read follows ingestion_scopes (primary key) to the active
 // generation, then security_alert_target_read_states (primary key), then the
@@ -58,7 +59,8 @@ LIMIT $1`
 // with no read state (a generation committed before the carrier, or a
 // repository-scope target) returns zero and empty arrays. $2 is the requested
 // slugs; empty for an unanchored read, which then reads no child row.
-// Evidence: docs/internal/evidence/8803-security-alert-empty-answer-truth.md
+// Evidence: docs/internal/evidence/8803-security-alert-empty-answer-truth.md,
+// docs/internal/evidence/8840-security-alert-latest-work-item-index.md,
 // and docs/internal/evidence/8943-security-alert-org-read-state.md.
 const securityAlertTargetStatesQuery = `
 SELECT t.scope_id,

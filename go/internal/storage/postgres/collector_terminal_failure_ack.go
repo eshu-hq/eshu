@@ -262,11 +262,11 @@ func (s *TerminalFailureAckStore) resolveTarget(ctx context.Context, queryer db.
 		return TerminalFailureAckTarget{}, err
 	}
 	var scanInterval time.Duration
-	found := false
+	var extensionHosted, found bool
 	for _, instance := range instances {
 		if instance.InstanceID == req.InstanceID && instance.CollectorKind == req.CollectorKind &&
 			instance.Enabled && instance.DeactivatedAt.IsZero() {
-			scanInterval, found = instance.ScanInterval, true
+			scanInterval, extensionHosted, found = instance.ScanInterval, instance.ExtensionHosted, true
 			break
 		}
 	}
@@ -294,7 +294,7 @@ func (s *TerminalFailureAckStore) resolveTarget(ctx context.Context, queryer db.
 		return TerminalFailureAckTarget{}, fmt.Errorf("read collector terminal failure acknowledgement target: %w", err)
 	}
 	target.FailureAt = target.FailureAt.UTC()
-	target.FailureClass = collector.BoundedFailureClassForKind(req.CollectorKind, target.rawClass)
+	target.FailureClass = collector.BoundedFailureClassForInstance(req.CollectorKind, target.rawClass, extensionHosted)
 	target.FailureOperation = collector.BoundedFailureOperation(operation)
 	return target, nil
 }
@@ -316,22 +316,54 @@ func (s *TerminalFailureAckStore) ListTerminalFailureAcks(ctx context.Context, f
 	if err != nil {
 		return nil, fmt.Errorf("list collector terminal failure acknowledgements: %w", err)
 	}
+	records, rawClasses, err := scanTerminalFailureAckRecords(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(records) == 0 {
+		return records, nil
+	}
+	// The record rows are closed before the registry read so both reads can
+	// share one connection. A record bounds its class by its own instance, as
+	// the status read and the runtime gauge do (#8951); a record whose
+	// instance is gone keeps the kind-only reading, because no stored
+	// configuration says it was extension-hosted.
+	instances, err := listCoordinatorCollectorInstances(ctx, s.db)
+	if err != nil {
+		return nil, err
+	}
+	hosted := make(map[[2]string]bool, len(instances))
+	for _, instance := range instances {
+		hosted[[2]string{instance.CollectorKind, instance.InstanceID}] = instance.ExtensionHosted
+	}
+	for i := range records {
+		records[i].FailureClass = collector.BoundedFailureClassForInstance(
+			records[i].CollectorKind, rawClasses[i], hosted[[2]string{records[i].CollectorKind, records[i].InstanceID}])
+	}
+	return records, nil
+}
+
+// scanTerminalFailureAckRecords drains and closes rows. It returns the records
+// with FailureClass unset and the raw persisted classes, index for index, for
+// the caller to bound once it knows each record's instance.
+func scanTerminalFailureAckRecords(rows db.Rows) ([]TerminalFailureAckRecord, []string, error) {
 	defer func() { _ = rows.Close() }()
 	var records []TerminalFailureAckRecord
+	var rawClasses []string
 	for rows.Next() {
 		var record TerminalFailureAckRecord
 		var rawClass string
 		if err := rows.Scan(&record.CollectorKind, &record.InstanceID, &record.ScopeID, &rawClass, &record.FailureAt,
 			&record.WorkItemID, &record.Reason, &record.ActorClass, &record.CorrelationID, &record.AcknowledgedAt); err != nil {
-			return nil, fmt.Errorf("list collector terminal failure acknowledgements: %w", err)
+			return nil, nil, fmt.Errorf("list collector terminal failure acknowledgements: %w", err)
 		}
-		record.FailureClass = collector.BoundedFailureClassForKind(record.CollectorKind, rawClass)
 		record.FailureAt = record.FailureAt.UTC()
 		record.AcknowledgedAt = record.AcknowledgedAt.UTC()
 		records = append(records, record)
+		rawClasses = append(rawClasses, rawClass)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list collector terminal failure acknowledgements: %w", err)
+		return nil, nil, fmt.Errorf("list collector terminal failure acknowledgements: %w", err)
 	}
-	return records, nil
+	return records, rawClasses, nil
 }

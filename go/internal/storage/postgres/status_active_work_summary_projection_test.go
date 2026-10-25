@@ -64,7 +64,7 @@ func TestActiveWorkSummaryDecodesStoredSummaryRowsUnchanged(t *testing.T) {
 		{Section: activeWorkSectionStage, Ordinal: 1, JSON: `{"stage":"projector","status":"claimed","count":2}`},
 		{Section: activeWorkSectionBacklog, Ordinal: 0, JSON: `{"domain":"workload","outstanding_count":5,"in_flight_count":1,"retrying_count":0,"dead_letter_count":0,"failed_count":0,"oldest_outstanding_age_seconds":12.5}`},
 		{Section: activeWorkSectionQueue, Ordinal: 0, JSON: `{"total_count":9,"outstanding_count":6,"pending_count":4,"in_flight_count":2,"retrying_count":0,"succeeded_count":3,"dead_letter_count":0,"failed_count":0,"provenance_edge_identity_upgrade_applied":true,"provenance_edge_identity_upgrade_required":0,"oldest_outstanding_age_seconds":12.5,"overdue_claim_count":1}`},
-		{Section: activeWorkSectionBlockage, Ordinal: 0, JSON: `{"stage":"reducer","domain":"workload","conflict_domain":"repo","conflict_key":"r1","blocked_count":3,"oldest_blocked_age_seconds":7}`},
+		{Section: activeWorkSectionBlockage, Ordinal: 0, JSON: `{"stage":"reducer","domain":"workload","conflict_domain":"repo","conflict_key":"r1","holder_domain":"supply_chain_impact","blocked_count":3,"oldest_blocked_age_seconds":7}`},
 		{Section: activeWorkSectionFailure, Ordinal: 0, JSON: `{"stage":"reducer","domain":"workload","status":"dead_letter","work_item_id":"w-1","scope_id":"s-1","generation_id":"g-1","failure_class":"boom","failure_message":"m","failure_details":"d","updated_at":"2026-10-06T12:00:00Z"}`},
 	}
 	build := func(entries []summarystore.Entry) activeWorkSummary {

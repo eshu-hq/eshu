@@ -36,15 +36,17 @@ const preLeaseRewriteBlockedCTE = `blocked AS (
 `
 
 // preLeaseRewrite returns query with the live-lease CTEs swapped back to the
-// pre-#6794 join. It fails the test when the swap does not happen, so an
-// oracle can never silently equal the query it is checking.
+// pre-#6794 join, keeping the lease CTE the holder join reads. It fails the
+// test when the swap does not happen, so an oracle can never silently equal the query it is checking.
 func preLeaseRewrite(t *testing.T, query string) string {
 	t.Helper()
 	current := reducerConflictInflightLeasesCTE + reducerConflictBlockedCTE
 	if strings.Count(query, current) != 1 {
 		t.Fatalf("query does not contain the live-lease CTEs exactly once:\n%s", query)
 	}
-	return strings.Replace(query, current, preLeaseRewriteBlockedCTE, 1)
+	// inflight_leases stays defined: since #8954 blockage_rows joins it for the
+	// holder domain, which does not change which rows are blocked.
+	return strings.Replace(query, current, reducerConflictInflightLeasesCTE+preLeaseRewriteBlockedCTE, 1)
 }
 
 // TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin is the #6794

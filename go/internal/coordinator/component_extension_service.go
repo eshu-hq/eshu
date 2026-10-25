@@ -106,6 +106,5 @@ func hasComponentActivationConfiguration(instance workflow.CollectorInstance) bo
 // hasComponentActivationConfiguration, taking the raw configuration so the
 // desired-instance startup path, which has no stored row yet, shares it.
 func isComponentActivationConfiguration(configuration string) bool {
-	_, ok, err := activation.ParseConfig(configuration)
-	return ok || err != nil
+	return activation.IsConfiguration(configuration)
 }

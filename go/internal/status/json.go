@@ -238,6 +238,7 @@ type queueBlockageJSON struct {
 	Domain           string  `json:"domain"`
 	ConflictDomain   string  `json:"conflict_domain"`
 	ConflictKey      string  `json:"conflict_key"`
+	HolderDomain     string  `json:"holder_domain"`
 	Blocked          int     `json:"blocked"`
 	OldestAge        string  `json:"oldest_age"`
 	OldestAgeSeconds float64 `json:"oldest_age_seconds"`
@@ -310,6 +311,7 @@ func queueBlockagesJSON(rows []queue.Blockage) []queueBlockageJSON {
 			Domain:           row.Domain,
 			ConflictDomain:   row.ConflictDomain,
 			ConflictKey:      row.ConflictKey,
+			HolderDomain:     row.HolderDomain,
 			Blocked:          row.Blocked,
 			OldestAge:        row.OldestAge.String(),
 			OldestAgeSeconds: row.OldestAge.Seconds(),
