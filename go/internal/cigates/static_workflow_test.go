@@ -79,10 +79,10 @@ func TestRepositoryStaticContractCommandComparisonIsCaseSensitive(t *testing.T) 
 	if firstCall < 0 {
 		t.Fatal("matrix builder has no append_gate invocation")
 	}
-	probe := strings.ReplaceAll(builder[:firstCall], "${{ github.event_name }}", "pull_request")
+	probe := strings.ReplaceAll(builder[:firstCall], "${{ github.event_name }}", "push")
 	probe += `
-append_gate "true" "equal" "Equal" "echo FOO" "echo FOO"
-append_gate "true" "case-only" "Case only" "echo FOO" "echo foo"
+append_gate "true" "equal" "Equal" "echo FOO" "echo FOO" "equal"
+append_gate "true" "case-only" "Case only" "echo FOO" "echo foo" "case-only"
 printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
 `
 	outputPath := filepath.Join(t.TempDir(), "output")

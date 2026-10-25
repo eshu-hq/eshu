@@ -10,6 +10,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-replay-coverage-gate.sh"
 workflow="${repo_root}/.github/workflows/replay-coverage-gate.yml"
+pr_inventory="${repo_root}/specs/ci-pr-workflows.d/replay-coverage-gate.yml"
 manifest="${repo_root}/specs/replay-coverage-manifest.v1.yaml"
 ci_gates="$(mktemp)"
 trap 'rm -f "${ci_gates}"' EXIT
@@ -60,33 +61,54 @@ require "dashboard in docs nav" "reference/generated/replay-coverage.md" "${repo
 require "advisory default" 'blocking=""' "${script}"
 require "blocking is opt-in" "--blocking) blocking=" "${script}"
 
+require_pr_path() {
+	local label="$1" pattern="$2"
+	rg --fixed-strings --line-regexp --quiet -- "  - ${pattern}" "${pr_inventory}" \
+		|| fail "missing ${label} in frozen PR inventory: ${pattern}"
+}
+
 # The workflow: invokes the verifier and uploads the coverage report artifact.
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
+[[ -f "${pr_inventory}" ]] || fail "missing ${pr_inventory}"
+rg --fixed-strings --line-regexp --quiet -- 'schema_version: 1' "${pr_inventory}" || fail "unsupported PR inventory schema"
+rg --fixed-strings --line-regexp --quiet -- '- file: replay-coverage-gate.yml' "${pr_inventory}" || fail "wrong PR inventory workflow"
+rg --fixed-strings --line-regexp --quiet -- '  synchronize: true' "${pr_inventory}" || fail "PR inventory omits synchronize"
+require "workflow callable event" "workflow_call:" "${workflow}"
+require "trusted central caller" "uses: ./.github/workflows/replay-coverage-gate.yml" "${repo_root}/.github/workflows/test.yml"
 require "workflow runs verifier" "scripts/verify-replay-coverage-gate.sh" "${workflow}"
 require "workflow runs blocking gate" "verify-replay-coverage-gate.sh --blocking" "${workflow}"
 require "workflow uploads report" "upload-artifact" "${workflow}"
 require "workflow report name" "replay-coverage-report" "${workflow}"
-require "workflow watches inputtape depth proofs" "go/internal/replay/inputtape/**" "${workflow}"
-require "workflow watches schedule depth proofs" "go/internal/replay/schedulereplay/**" "${workflow}"
-require "workflow watches crash depth proofs" "go/internal/replay/crashreplay/**" "${workflow}"
-require "workflow watches budget proof artifact" "specs/capability-budget-proof.v1.yaml" "${workflow}"
-require "workflow watches language ledger" "specs/language-feature-parity-ledger.v1.yaml" "${workflow}"
-require "workflow watches ci gate registry" "specs/ci-gates.v1.yaml" "${workflow}"
-require "workflow watches parser fixtures" "go/internal/replay/parserfixture/**" "${workflow}"
-require "workflow watches capability catalog" "specs/capability-catalog.v1.yaml" "${workflow}"
-require "workflow watches capability matrix dir" "specs/capability-matrix/**" "${workflow}"
-require "workflow watches product claims" "specs/product-claims.v1.yaml" "${workflow}"
-require "workflow watches fact-kind registry" "specs/fact-kind-registry.v1.yaml" "${workflow}"
-require "workflow watches golden assertions" "go/internal/goldengate/**" "${workflow}"
-require "workflow watches CLI command tree" "go/cmd/eshu/**" "${workflow}"
-require "workflow watches extracted CLI family packages" "go/internal/cli/**" "${workflow}"
-require "workflow watches query authz tests" "go/internal/query/**" "${workflow}"
-require "workflow watches mcp authz tests" "go/internal/mcp/**" "${workflow}"
-require "workflow watches scoped-token authz code" "go/internal/scopedtoken/**" "${workflow}"
-require "workflow watches ci gate loader" "go/internal/cigates/**" "${workflow}"
-require "workflow watches authorization catalog" "specs/authorization-catalog.v1.yaml" "${workflow}"
-require "workflow watches authorization replay proof" "specs/authorization-replay-coverage.v1.yaml" "${workflow}"
-require "workflow watches cassettes" "testdata/cassettes/**" "${workflow}"
+require_pr_path "workflow watches inputtape depth proofs" "go/internal/replay/inputtape/**"
+require_pr_path "workflow watches schedule depth proofs" "go/internal/replay/schedulereplay/**"
+require_pr_path "workflow watches crash depth proofs" "go/internal/replay/crashreplay/**"
+require_pr_path "workflow watches budget proof artifact" "specs/capability-budget-proof.v1.yaml"
+require_pr_path "workflow watches language ledger" "specs/language-feature-parity-ledger.v1.yaml"
+require_pr_path "workflow watches ci gate registry" "specs/ci-gates.v1.yaml"
+require_pr_path "workflow watches parser fixtures" "go/internal/replay/parserfixture/**"
+require_pr_path "workflow watches capability catalog" "specs/capability-catalog.v1.yaml"
+require_pr_path "workflow watches capability matrix dir" "specs/capability-matrix/**"
+require_pr_path "workflow watches product claims" "specs/product-claims.v1.yaml"
+require_pr_path "workflow watches fact-kind registry" "specs/fact-kind-registry.v1.yaml"
+require_pr_path "workflow watches golden assertions" "go/internal/goldengate/**"
+require_pr_path "workflow watches CLI command tree" "go/cmd/eshu/**"
+require_pr_path "workflow watches extracted CLI family packages" "go/internal/cli/**"
+require_pr_path "workflow watches query authz tests" "go/internal/query/**"
+require_pr_path "workflow watches mcp authz tests" "go/internal/mcp/**"
+require_pr_path "workflow watches scoped-token authz code" "go/internal/scopedtoken/**"
+require_pr_path "workflow watches ci gate loader" "go/internal/cigates/**"
+require_pr_path "workflow watches authorization catalog" "specs/authorization-catalog.v1.yaml"
+require_pr_path "workflow watches authorization replay proof" "specs/authorization-replay-coverage.v1.yaml"
+require_pr_path "workflow watches cassettes" "testdata/cassettes/**"
+
+# Seed one missing path in the same inventory parser used above.
+seeded_inventory="$(mktemp)"
+rg --invert-match --fixed-strings -- '  - go/internal/replay/inputtape/**' "${pr_inventory}" >"${seeded_inventory}"
+if (pr_inventory="${seeded_inventory}"; require_pr_path "seeded inputtape proof" "go/internal/replay/inputtape/**" >/dev/null 2>&1); then
+	rm -f "${seeded_inventory}"
+	fail "missing replay path passed its PR inventory guard"
+fi
+rm -f "${seeded_inventory}"
 
 # The CI gate registry must agree with the workflow. The registry powers local
 # gate selection, so it must fail on the same replay coverage gaps CI rejects.
@@ -122,7 +144,7 @@ require "ci registry watches authorization replay proof" "specs/authorization-re
 require "ci registry watches cassettes" "testdata/cassettes/**" "${ci_gates}"
 require "ci registry watches depth requirements" "specs/replay-depth-requirements.v1.yaml" "${ci_gates}"
 require "ci registry watches cypher retract labels" "go/internal/storage/cypher/**" "${ci_gates}"
-require "workflow watches depth requirements" "specs/replay-depth-requirements.v1.yaml" "${workflow}"
+require_pr_path "workflow watches depth requirements" "specs/replay-depth-requirements.v1.yaml"
 # The descriptive layer and purpose fields (#7337) sit between category and
 # tier; they are allowed there and nothing else is.
 if ! rg --multiline --quiet 'id: replay-coverage-gate\n    name: C-1/C-8/C-9/C-10/C-13 Replay Coverage Gate\n    category: exactness\n(?:    (?:layer|purpose): [^\n]*\n)*    tier: pre-pr\n    blocking: true' "${ci_gates}"; then

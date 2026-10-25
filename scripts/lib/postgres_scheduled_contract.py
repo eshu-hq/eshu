@@ -80,6 +80,7 @@ IMAGE = (
 )
 
 PR_PATHS = {
+    ".github/actions/postgres-scheduled-bulk/action.yml",
     ".github/workflows/postgres-scheduled-live.yml",
     "docs/internal/evidence/7127-ledger-retention-timing.sh",
     "docs/internal/evidence/7127-link-writer-fixture.sql",
@@ -127,6 +128,7 @@ PR_PATHS = {
     "scripts/verify-live-tests-ledger.sh",
     "specs/ci-gates.d/gates-09.yaml",
     "specs/ci-gates.v1.yaml",
+    "specs/ci-pr-workflows.d/postgres-scheduled-live.yml",
     "specs/live-tests.d/**",
     "specs/live-tests.v1.yaml",
 }

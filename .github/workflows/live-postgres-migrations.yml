@@ -3,29 +3,19 @@ name: Live PostgreSQL Migrations
 # Dedicated, bounded migration correctness lane. The larger readiness suite
 # remains advisory; this exact seven-test fixture has its own blocking row.
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   merge_group:
     types: [checks_requested]
-  pull_request:
-    branches: [main]
-    paths:
-      - 'go/internal/storage/postgres/**'
-      - 'go/go.mod'
-      - 'go/go.sum'
-      - 'specs/live-tests.v1.yaml'
-      - 'specs/live-tests.d/**'
-      - 'specs/ci-gates.v1.yaml'
-      - 'specs/ci-gates.d/**'
-      - 'scripts/lib/live_postgres_migrations.py'
-      - 'scripts/lib/live_tests_registry.py'
-      - 'scripts/ci/go-mod-download-retry.sh'
-      - 'scripts/ci/install-apt-packages.sh'
-      - 'scripts/run-live-postgres-migrations.sh'
-      - 'scripts/test-live-postgres-migrations.py'
-      - 'scripts/test-run-live-postgres-migrations.sh'
-      - 'scripts/testdata/live-postgres-migrations-fake-docker.sh'
-      - 'scripts/testdata/live-postgres-migrations-fake-go.sh'
-      - '.github/workflows/live-postgres-migrations.yml'
-      - '.github/workflows/required-gates.yml'
   push:
     branches: [main]
     paths:
@@ -49,7 +39,7 @@ on:
       - '.github/workflows/required-gates.yml'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ci-leaf-live-postgres-migrations-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -57,11 +47,13 @@ permissions:
 
 jobs:
   queue-selection:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: live-postgres-migrations.yml
 
   live-postgres-migrations:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-migrations') }}
     needs: queue-selection
     name: live-postgres-migrations (postgres18)
     runs-on: ubuntu-latest

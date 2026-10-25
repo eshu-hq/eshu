@@ -1,0 +1,24 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: product-claim-ledger.yml
+  name: Product Claim Ledger
+  synchronize: true
+  paths:
+  - README.md
+  - docs/public/**
+  - specs/product-claims.v1.yaml
+  - specs/capability-catalog.v1.yaml
+  - specs/capability-matrix.v1.yaml
+  - specs/capability-matrix/**
+  - go/internal/capabilitycatalog/**
+  - go/cmd/capability-inventory/**
+  - scripts/ci/install-apt-packages.sh
+  - scripts/ci/go-mod-download-retry.sh
+  - .github/workflows/product-claim-ledger.yml
+  - specs/ci-pr-workflows.d/product-claim-ledger.yml
+  jobs:
+  - queue-selection
+  - verify-product-claims
+  job_names:
+    verify-product-claims: Verify product claim ledger

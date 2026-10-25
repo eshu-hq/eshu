@@ -1,0 +1,42 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: verify-replay-tier.yml
+  name: Replay Tier (offline NornicDB)
+  synchronize: true
+  branches:
+  - main
+  paths:
+  - go/cmd/ingester/**
+  - go/cmd/projector/**
+  - go/internal/query/**
+  - go/internal/replay/**
+  - go/internal/reducer/**
+  - go/internal/storage/cypher/**
+  - go/internal/storage/nornicdb/**
+  - go/internal/projector/**
+  - go/internal/graph/**
+  - go/internal/runtime/**
+  - testdata/cassettes/replayoffline/**
+  - testdata/cassettes/replaydelta/**
+  - scripts/verify-replay-tier.sh
+  - scripts/test-verify-replay-tier.sh
+  - scripts/lib/replay_tier_*
+  - scripts/test-replay-tier-*.py
+  - scripts/lib/verify-live-tests-ledger.py
+  - specs/live-tests.v1.yaml
+  - specs/live-tests.d/**
+  - specs/ci-gates.d/gates-15.yaml
+  - scripts/lib/ci-gates-resolved-fixtures.sh
+  - scripts/dev/pre-pr.sh
+  - scripts/ci/install-apt-packages.sh
+  - scripts/ci/go-mod-download-retry.sh
+  - .github/workflows/live-backend-tests.yml
+  - specs/ci-gates.d/gates-09.yaml
+  - .github/workflows/verify-replay-tier.yml
+  - specs/ci-pr-workflows.d/verify-replay-tier.yml
+  jobs:
+  - queue-selection
+  - replay-tier
+  job_names:
+    replay-tier: Offline replay tier vs real NornicDB

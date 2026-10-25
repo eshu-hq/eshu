@@ -43,7 +43,7 @@ capture_stage_run="$(extract_capture_run 'Require and stage all four recordings'
 join_header="$(sed -n '/^  differential:$/,/^    steps:$/p' "${workflow}")"
 rg -q '^    needs: \[queue-selection, differential-capture\]$' <<<"${join_header}" ||
   fail 'differential join must depend on all capture legs'
-rg -q '^    if: always\(\)$' <<<"${join_header}" ||
+rg --fixed-strings --line-regexp --quiet "    if: \${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'differential')) && (always()) }}" <<<"${join_header}" ||
   fail 'differential join must run after a failed or cancelled capture leg'
 
 require_in 'golden-corpus-gate.yml Compare step id (#6965)' "${workflow}" 'id: compare'

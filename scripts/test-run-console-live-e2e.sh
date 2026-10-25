@@ -4,6 +4,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 target="$repo_root/scripts/run-console-live-e2e.sh"
 workflow="$repo_root/.github/workflows/frontend.yml"
+fragment="$repo_root/specs/ci-pr-workflows.d/frontend.yml"
+caller="$repo_root/.github/workflows/test.yml"
 registry="$repo_root/specs/ci-gates.d"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -141,8 +143,8 @@ for harness_input in \
   'scripts/test-run-console-live-e2e.sh' \
   'scripts/test-run-console-retained-e2e.sh' \
   'scripts/console-live-e2e-runtime.mjs'; do
-  rg -q --fixed-strings "$harness_input" "$workflow" || {
-    echo "frontend workflow does not watch live harness input: $harness_input" >&2
+  rg -q --fixed-strings -- "- $harness_input" "$fragment" || {
+    echo "frontend PR fragment does not watch live harness input: $harness_input" >&2
     exit 1
   }
   rg -q --fixed-strings "$harness_input" "$registry" || {
@@ -150,6 +152,13 @@ for harness_input in \
     exit 1
   }
 done
+
+rg -q '^  synchronize: true$' "$fragment" &&
+rg -q 'call-frontend:.*uses: ./\.github/workflows/frontend.yml' "$caller" &&
+rg -q "if: .*contains\(fromJSON\(inputs.plan_jobs || '\[\]'\), 'console'\)" "$workflow" || {
+  echo "frontend console job is not reachable through planned PR routing" >&2
+  exit 1
+}
 
 for harness_test in \
   'bash scripts/test-run-console-live-e2e.sh' \

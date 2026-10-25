@@ -1,0 +1,64 @@
+name: Verify docs and Helm hygiene
+description: Run selected docs checks without broad smoke commands.
+inputs:
+  mode:
+    description: PR plan mode, or full for non-PR events.
+    required: true
+  gates:
+    description: JSON array of selected registry gate IDs.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Verify docs-only CI carve-out wiring
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-verify-docs-only-ci-skip.sh
+        scripts/verify-docs-only-ci-skip.sh
+    - name: Verify docs catalog metadata
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-verify-docs-catalog.sh
+        scripts/verify-docs-catalog.sh
+    - name: Verify context and story reference layout
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-context-stories-doc-split.sh
+        scripts/test-context-stories-markdown-visible.sh
+    - name: Verify gate labelling annotations
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-issue-6184-gate-labelling.sh
+    - name: Set up Helm
+      if: ${{ inputs.mode != 'smoke' }}
+      uses: azure/setup-helm@v5.0.0
+      with:
+        version: v4.2.3
+    - name: Lint Helm chart
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: helm lint deploy/helm/eshu
+    - name: Verify bundled NornicDB storage example
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-verify-storage-doc-bundled-nornicdb-example.sh
+        scripts/verify-storage-doc-bundled-nornicdb-example.sh
+    - name: Verify changed docs contract in smoke
+      if: ${{ inputs.mode == 'smoke' && contains(fromJSON(inputs.gates), 'docs-build-changed') }}
+      shell: bash
+      run: bash scripts/verify-docs-build-changed.sh
+    - name: Verify docs build
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        pip install mkdocs mkdocs-material pymdown-extensions
+        mkdocs build --strict --clean --config-file docs/mkdocs.yml
+    - name: Check whitespace hygiene
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: git show --check --format= HEAD

@@ -230,10 +230,7 @@ func TestRepositoryDocumentationStandardsAreEnforced(t *testing.T) {
 		}
 	}
 
-	workflow := readRepositoryFile(t, root, ".github/workflows/test.yml")
-	if !strings.Contains(workflow, "golangci-lint run ./...") {
-		t.Fatal(".github/workflows/test.yml must run golangci-lint")
-	}
+	assertGoCoreLinterWorkflow(t, root)
 
 	// Every Go package directory under go/ must carry README.md and AGENTS.md
 	// alongside its doc.go. This is the new per-package convention; the

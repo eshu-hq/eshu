@@ -1,18 +1,28 @@
 name: Verify CI Gate Registry
 
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   # Merge-queue entries (#7111): every job runs, publication stays off, and
   # required-gates.yml aggregates the merge_group check rows.
   # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
   merge_group:
     types: [checks_requested]
-  pull_request:
   push:
     branches:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ci-leaf-verify-ci-gate-registry-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -20,11 +30,13 @@ permissions:
 
 jobs:
   queue-selection:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: verify-ci-gate-registry.yml
 
   test-verify:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'test-verify') }}
     needs: queue-selection
     name: Verify ci-gate registry test mirror
     timeout-minutes: 15
@@ -70,8 +82,10 @@ jobs:
           scripts/test-main-health.sh
           scripts/dev/test-pre-enqueue-check.sh
           (cd go && go test ./internal/cigates -count=1)
+          python3 scripts/ci/test_pr_scheduling.py
 
   verify:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify') }}
     name: Verify ci-gate registry + drift
     timeout-minutes: 15
     runs-on: ubuntu-latest

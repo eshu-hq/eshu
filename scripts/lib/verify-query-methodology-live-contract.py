@@ -213,15 +213,19 @@ def check_static(root: Path) -> None:
     )
     require(verify_job is not None, "verify-contracts workflow job missing")
     job_lines = verify_job.group(1).splitlines()
+    action = (root / ".github/actions/ci-verify-contracts/action.yml").read_text()
+    action_lines = action.splitlines()
     require(
-        "          scripts/verify-query-plan-regression.sh" in job_lines
-        and "          python3 scripts/test-verify-query-methodology-live-contract.py" in job_lines
-        and "          python3 scripts/test-query-methodology-comparison-identity.py"
-        in job_lines
+        "        uses: ./.github/actions/ci-verify-contracts" in job_lines
         and "          fetch-depth: 0" in job_lines
-        and "          path: .proof-artifacts/query-methodology/*.json" in job_lines
-        and "        uses: actions/setup-python@v6" in job_lines
-        and "        run: python -m pip install pre-commit==4.6.2" in job_lines,
+        and "        scripts/verify-query-plan-regression.sh" in action_lines
+        and "        python3 scripts/test-verify-query-methodology-live-contract.py"
+        in action_lines
+        and "        python3 scripts/test-query-methodology-comparison-identity.py"
+        in action_lines
+        and "        path: .proof-artifacts/query-methodology/*.json" in action_lines
+        and "      uses: actions/setup-python@v6" in action_lines
+        and "      run: python -m pip install pre-commit==4.6.2" in action_lines,
         "blocking verify-contracts workflow lost proof, self-test, or hook tool",
     )
     registry_root = (root / "specs/ci-gates.v1.yaml").read_text()

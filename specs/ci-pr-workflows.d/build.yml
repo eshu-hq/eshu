@@ -1,0 +1,20 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: build.yml
+  name: Build and Release Binaries
+  synchronize: true
+  branches:
+  - main
+  paths_ignore:
+  - docs/**
+  - '*.md'
+  - mkdocs.yml
+  - .github/**/*.md
+  - .agents/**
+  jobs:
+  - build
+  - release
+  job_names:
+    build: Build on ${{ matrix.os }}
+    release: Create Release
