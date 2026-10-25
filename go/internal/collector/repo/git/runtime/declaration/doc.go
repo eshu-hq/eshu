@@ -11,7 +11,7 @@
 // while the stream walks content files on both its two-phase and legacy
 // branches. A pin body over the parser's byte cap is recorded by size only, so
 // the walk never retains it. A manifest is parsed on the spot and only its few
-// declarations are kept, never its body. EmitRuntimeDeclarationFactsForCandidates
+// declarations are kept, as copies that do not reference its body. EmitRuntimeDeclarationFactsForCandidates
 // then sends the facts once, in path order, after both branches close.
 //
 // A file over the parser's per-file byte or token cap, and a package.json that

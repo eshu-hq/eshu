@@ -23,8 +23,9 @@ and classification live in `go/internal/collector/repo/runtime/declaration`.
 - `Candidate` — one admitted file held until emission. A pin file keeps its
   size, and its body only when the file is at or under
   `runtimedeclaration.MaxBytesPerFile`. A `package.json` or `go.mod` keeps only
-  its `runtimedeclaration.Extraction` (a handful of declarations), never its
-  body.
+  its `runtimedeclaration.Extraction` (a handful of declarations). The
+  Extraction owns copies of its strings, so it does not pin the body; the
+  retention test proves it.
 - `NoteRuntimeDeclarationCandidate` — records an admitted file during the
   content walk, on both the two-phase and the legacy branch. A pin body over
   the byte cap is recorded by size only. A manifest is parsed here and recorded

@@ -22,9 +22,10 @@ const gitRuntimeDeclarationCollectorInstanceID = "git-runtime-declaration"
 // hostile pin file is.
 //
 // A package.json or go.mod is read when the walk meets it (Manifest is true)
-// and keeps only its Extraction, a handful of declarations and never the body,
-// so a repository with thousands of manifests retains kilobytes, not their
-// size.
+// and keeps only its Extraction. The Extraction owns copies of the few strings
+// it holds (see runtimedeclaration.Extract), so it does not pin the body and a
+// repository with thousands of manifests retains their declarations, not their
+// size. TestNoteRuntimeDeclarationCandidateRetainsNoManifestBody holds that.
 type Candidate struct {
 	// Body is the pin file content, retained only when ByteSize is at or under
 	// runtimedeclaration.MaxBytesPerFile. Empty for a manifest.

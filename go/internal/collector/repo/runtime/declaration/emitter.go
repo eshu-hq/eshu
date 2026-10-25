@@ -49,7 +49,8 @@ const MaxBytesPerFile = 64 * 1024
 // Skip reasons reported by EmitFile. They are closed values for a log field,
 // never a metric label.
 const (
-	// SkipReasonByteCap marks a file larger than MaxBytesPerFile.
+	// SkipReasonByteCap marks an admitted file larger than its byte cap:
+	// MaxBytesPerFile for a pin file, MaxManifestBytesPerFile for a manifest.
 	SkipReasonByteCap = "byte_cap_exceeded"
 	// SkipReasonTokenCap marks a file with more than MaxTokensPerFile tokens.
 	SkipReasonTokenCap = "token_cap_exceeded"
@@ -64,8 +65,9 @@ const (
 	SkipReasonValueRejected = "value_rejected"
 )
 
-// Skip describes why EmitFile emitted nothing for an admitted pin file. The
-// zero value means the file was not skipped. It carries sizes and counts only,
+// Skip describes why EmitFile emitted nothing for an admitted file (a
+// version-pin file or a manifest), or dropped values from it. The zero value
+// means the file was not skipped. It carries sizes and counts only,
 // never file content.
 type Skip struct {
 	// Reason is one of the SkipReason constants; empty when not skipped.

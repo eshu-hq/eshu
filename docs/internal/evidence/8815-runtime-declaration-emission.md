@@ -156,9 +156,37 @@ No-Regression Evidence:
 - **What is added per file:** one switch on the base name for every content
   file, and for a `package.json` or `go.mod` one bounded scan of the body held
   in memory. The scan allocates for no value it skips. A manifest is parsed
-  when the walk meets it and the walk keeps only its declarations (a few
-  hundred bytes), never the body, so the retained state does not grow with the
+  when the walk meets it and the walk keeps only its declarations, as copies
+  (`detach` in `extract.go`). The readers return substrings of the body, and a
+  substring keeps the whole backing array alive, so the first version of this
+  change retained every manifest body through its declarations; the review
+  caught it and the copy fixes it. The retained state does not grow with the
   size of the manifests.
+- **Retention proof**
+  (`TestNoteRuntimeDeclarationCandidateRetainsNoManifestBody`, serial, heap read
+  after two `runtime.GC` calls): 30 near-cap manifests (15 `package.json`, 15
+  `go.mod`, 31,427,130 body bytes in all) are noted and their bodies dropped.
+
+  | | Live heap growth |
+  |---|---|
+  | Without the copy | 31,484,408 B (the bodies) |
+  | Copy of `rawSpec` only | 15,757,000 B (the `packageManager` name still aliased) |
+  | Copy of `runtime` only | 31,484,904 B |
+  | With the copy | 34,128 B (limit 491,520) |
+- **Cost of the copy** (`BenchmarkNoteAndEmitRuntimeDeclarationCorpus` and the
+  hook benchmark, `-benchtime=200x -count=3`, load average 5 to 7, a 597-file
+  corpus of 497 `go.mod` from the host module cache and 100 `package.json`,
+  average 451 bytes, so not the 2,104-file corpus below):
+
+  | | Before the copy | After the copy |
+  |---|---|---|
+  | Hook only, per file | 1,140 to 1,152 ns, 454,301 to 454,355 B and 1,550 allocs per pass | 1,148 to 1,158 ns, 459,038 to 459,078 B and 2,632 allocs per pass |
+  | Hook plus emission, per file | 10,858 to 10,897 ns, 4.09 MB and 64,950 allocs per pass | 10,869 to 10,929 ns, 4.09 MB and 66,031 allocs per pass |
+  | Per fact (541 facts per pass) | 11,982 to 12,025 ns | 11,994 to 12,060 ns |
+
+  The copy adds about two allocations per declaration (1,082 per pass over 541
+  facts) and about 4.7 KB per pass; the time difference is inside the run to
+  run noise.
 - **Backend and hardware:** no database or graph backend is touched. Go 1.26.10
   on linux/arm64, 16 cores, `go test -bench`, load average 4 to 5 during the
   runs. Base is the branch parent (`b46fe6aa1d`), run from a second worktree

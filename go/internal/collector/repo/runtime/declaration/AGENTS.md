@@ -40,8 +40,12 @@
   (`maxJSONDepth`). Keep it that way: it runs on every `package.json` in every
   repository, and a hostile file must cost time linear in its size only.
 - A manifest is never retained: the collector keeps its `Extraction`, not the
-  body. Do not add a field to `declaration` that grows the struct without
-  re-running `TestEmitOverTheTokenCapUnderTheByteCapCountsWithoutStoring`
+  body. The readers hand out substrings of the body, and a substring pins the
+  whole backing array, so `extractManifest` copies every kept string
+  (`detach` in `extract.go`). `TestNoteRuntimeDeclarationCandidateRetainsNoManifestBody`
+  in the git hook package fails when a kept string aliases the body. Route any
+  new retained manifest field through `detach`. Do not add a field to
+  `declaration` that grows the struct without re-running `TestEmitOverTheTokenCapUnderTheByteCapCountsWithoutStoring`
   (a pin file stores up to `MaxTokensPerFile` of them).
 - Build every payload from `runtimedeclarationv1.Version` via
   `factschema.EncodeRuntimeDeclarationVersion`. Never hand-build a
