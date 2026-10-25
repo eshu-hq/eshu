@@ -118,8 +118,8 @@ flowchart LR
   `(5318,2)` the same way, on a probe session (`OpenDeferredWriterPool`, logged
   `lock=deferred_writers`); the rebuild is not an orphan, it ends when it
   publishes. The schema-bootstrap ownership wait uses the
-  same bound too, so the worst case before work starts is three times the
-  value. The epoch fence covers the
+  same bound too, so the worst case before work starts is three sequential
+  ownership waits (probe, run lock, schema lock), 9 m by default. The epoch fence covers the
   remaining ordering: a finalizer that outlives its epoch after a crash and a
   rerun cannot publish over the newer load. Without the lock, two overlapping
   loads could publish `ready` over rows the second was still writing without

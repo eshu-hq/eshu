@@ -118,7 +118,8 @@ sequenceDiagram
   the hook never waits. A holder past the wait fails the run naming the holder.
   An unreachable database still fails inside the ping timeout, before the probe
   (`TestDeferredPoolUnreachableDatabaseFailsWithinThePingTimeoutLive`). Worst
-  case before work starts: three ownership waits (probe, run lock, schema).
+  case before work starts: three sequential ownership waits (probe, run lock,
+  schema), 9 m by default.
 - **Not done.** No migration, no heartbeat or TTL column (a timestamp cannot
   prove a writer is dead, and a TTL would delay every repair), no change to the
   138 triggers, and no `Workers=1` or startup refusal for a pool of one.

@@ -44,7 +44,7 @@ type LockOptions struct {
 	// bootstrap-index passes the schema ownership wait
 	// (ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT) so one knob sets every bound. The
 	// deferred-writer probe, this wait, and the schema apply run in sequence, so
-	// the worst case is three times that value.
+	// the worst case is three sequential ownership waits, 9 m by default.
 	Wait time.Duration
 	// Poll is the pg_try_advisory_lock cadence.
 	Poll time.Duration

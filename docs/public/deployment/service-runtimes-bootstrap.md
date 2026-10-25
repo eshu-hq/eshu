@@ -440,7 +440,7 @@ indexes: a bulk-load regime with a finalizer, gated by a state row.
   A second bootstrap-index run waits for `(5318,1)`, bounded by
   `ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` (default 3 m, the same knob as the
   schema wait; the waits run in sequence, each with its own full bound, so
-  the worst case before work starts is three times the value, 9 m by default),
+  the worst case before work starts is three sequential ownership waits, 9 m by default),
   logging `bootstrap.postgres.ownership.waiting` with `lock=bulk_load`, then
   fails naming the holder (pid, application name, connection age, lock, mode).
   The holder is normally another bootstrap-index run. A reducer rebuild cannot
