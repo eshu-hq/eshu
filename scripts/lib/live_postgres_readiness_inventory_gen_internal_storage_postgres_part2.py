@@ -155,7 +155,7 @@ TABLE = {
             "TestWorkflowClaimPacingFailsOpenOnDepthQueryFailure",
             "TestWorkflowClaimPacingStuckSignal",
             "TestWorkflowClaimPacingGlobalCeiling",
-            "TestWorkflowClaimPacingIdleDrainHoldsFloor",
+            "TestWorkflowClaimPacingIdleDrainHoldsSpeedupBound",
             "TestWorkflowClaimPacingEngagedDrainCompletesExactlyOnce",
             "TestWorkflowClaimPacingSwitchPreservesEngagedAt",
             "TestWorkflowClaimPacingDepthCacheReuse",
