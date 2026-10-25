@@ -282,9 +282,13 @@ Limits:
   secrets in it.
 - The failure must be inside the instance's window (3 x `scan_interval`, 30
   minute floor) with no later completed work item. Otherwise the call answers
-  `422` with `ack_refused_no_terminal_failure`, writes nothing, and does not
-  consume the key. An unknown, disabled, or deactivated instance, or a kind that
-  does not match, answers `404`.
+  `422` with `ack_refused_no_terminal_failure` and writes nothing. A refusal
+  before the ledger claim leaves the key unconsumed. The same refusal from the
+  re-resolve inside the acknowledgement transaction (a resolution landed after
+  the first check) consumes the key: a retry with the same key answers `409`
+  until a fresh `idempotency_key` is used, and the `detail` in the `422` body
+  says which case applied. An unknown, disabled, or deactivated instance, or a
+  kind that does not match, answers `404`.
 - The same key with the same instance and scope replays the stored outcome with
   `status=duplicate`; the same key with another target, or a key whose call is
   still in progress, answers `409`. Two different keys on one scope both commit
@@ -294,8 +298,7 @@ Limits:
   `ack_refused_missing_reason`, `ack_refused_missing_idempotency_key`,
   `ack_refused_invalid_request`, `ack_refused_unauthorized`,
   `ack_refused_instance_not_found`, `ack_refused_no_terminal_failure`,
-  `ack_refused_class_changed`, `ack_idempotency_key_reused`, `ack_failed`) and the
-  hashed actor.
+  `ack_idempotency_key_reused`, `ack_failed`) and the hashed actor.
 - An acknowledgement deletes nothing. The failed work items stay for triage until
   retention removes them.
 

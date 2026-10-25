@@ -47,6 +47,15 @@ const (
 	listFailedMessage        = "collector terminal failure query failed"
 )
 
+// The 422 detail for a refusal with no unresolved failure, per path. Before the
+// ledger claim the key stays unconsumed. From the re-resolve inside the
+// acknowledgement transaction the claim is already taken and the row stays in
+// progress, so a retry with the same key answers 409.
+const (
+	noFailureDetailUnclaimed = "nothing was acknowledged and the idempotency key was not consumed"
+	noFailureDetailClaimed   = "nothing was acknowledged, the idempotency key is now consumed, and a retry needs a new idempotency_key"
+)
+
 // Outcomes of the acknowledgement counter, a closed set (#8830).
 const (
 	outcomeAcknowledged = "acknowledged"
@@ -192,7 +201,7 @@ func (h *Handler) acknowledge(w http.ResponseWriter, r *http.Request) {
 	// and refusing it here leaves the idempotency key unconsumed. The store
 	// re-resolves authoritatively inside the acknowledgement transaction.
 	if _, err := h.Acknowledger.ResolveTarget(r.Context(), storeReq); err != nil {
-		h.answerStoreError(w, r, err, authCtx, correlationID, scopeHash)
+		h.answerStoreError(w, r, err, false, authCtx, correlationID, scopeHash)
 		return
 	}
 
@@ -218,7 +227,7 @@ func (h *Handler) acknowledge(w http.ResponseWriter, r *http.Request) {
 		// durable. The ledger row stays in_progress either way, so a retry
 		// answers 409 instead of losing the outcome. A refusal here is a race
 		// with the pre-claim resolve; the key is then consumed.
-		h.answerStoreError(w, r, err, authCtx, correlationID, scopeHash)
+		h.answerStoreError(w, r, err, true, authCtx, correlationID, scopeHash)
 		return
 	}
 
@@ -276,18 +285,25 @@ func (h *Handler) respondDuplicate(
 
 // answerStoreError maps a store error to its answer: the two refusals are
 // client errors with their own audit reasons, and anything else is a server
-// fault with the fixed body (#7674).
-func (h *Handler) answerStoreError(w http.ResponseWriter, r *http.Request, err error, authCtx auth.AuthContext, correlationID, scopeHash string) {
+// fault with the fixed body (#7674). claimed reports whether the idempotency
+// claim was already taken: a refusal after it (a resolve race inside the
+// acknowledgement transaction) leaves the ledger row in progress, so the 422
+// says the key is consumed instead of promising a same-key retry works.
+func (h *Handler) answerStoreError(w http.ResponseWriter, r *http.Request, err error, claimed bool, authCtx auth.AuthContext, correlationID, scopeHash string) {
 	switch {
 	case errors.Is(err, pgstorage.ErrTerminalFailureAckInstanceNotFound):
 		h.refuse(r.Context(), "ack_refused_instance_not_found", authCtx, correlationID, scopeHash)
 		querycontract.WriteError(w, http.StatusNotFound, "collector instance is not registered or not active for that collector_kind")
 	case errors.Is(err, pgstorage.ErrTerminalFailureAckNoFailure):
 		h.refuse(r.Context(), "ack_refused_no_terminal_failure", authCtx, correlationID, scopeHash)
+		detail := noFailureDetailUnclaimed
+		if claimed {
+			detail = noFailureDetailClaimed
+		}
 		querycontract.WriteJSON(w, http.StatusUnprocessableEntity, map[string]any{
 			"status": "refused",
 			"reason": "no unresolved terminal failure inside the window on that instance and scope",
-			"detail": "nothing was acknowledged and the idempotency key was not consumed",
+			"detail": detail,
 		})
 	default:
 		h.record(r.Context(), governanceaudit.DecisionDenied, "ack_failed", authCtx, correlationID, scopeHash)

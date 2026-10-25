@@ -16,7 +16,8 @@
 - **Refuse before the claim.** Every expected refusal (validation, auth,
   unknown instance, nothing to acknowledge) happens before
   `ClaimReplayIdempotency`, so the key stays unconsumed. After the claim only a
-  store fault or a resolve race can fail.
+  store fault or a resolve race can fail, and then the key is consumed: the 422
+  from the in-transaction re-resolve says so (`answerStoreError` `claimed`).
 - **The ledger answers retries.** A completed key replays its stored outcome
   (`encodeOutcome`/`decodeOutcome`); the same key with another target is 409.
   Do not add a second dedupe path.
