@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -49,8 +50,9 @@ LIMIT $1`
 // is only usable because the planner can prove it from this predicate.
 // Before migration 233 the lateral scanned and top-1 sorted the target's whole
 // history on workflow_work_items_collector_scope_generation_updated_idx, where
-// generation_id (a hash) sits before updated_at. The committed generation
-// check is an index-only EXISTS on scope_generations_scope_idx.
+// generation_id (a hash) sits before updated_at. The committed generation and
+// its target set come from securityAlertLatestCommittedGenerationLateral
+// (#8838).
 //
 // The unread read follows ingestion_scopes (primary key) to the active
 // generation, then security_alert_target_read_states (primary key), then the
@@ -67,12 +69,7 @@ SELECT t.scope_id,
        COALESCE(w.status, ''),
        COALESCE(w.last_failure_class, ''),
        COALESCE(w.last_failure_terminal, FALSE),
-       EXISTS (
-           SELECT 1
-           FROM scope_generations g
-           WHERE g.scope_id = t.scope_id
-             AND g.status IN ('active', 'superseded', 'completed')
-       ) AS committed,
+` + securityAlertCommittedColumns + `
        COALESCE(rs.unread_total, 0),
        COALESCE(rs.unread_reasons, '{}'::text[]),
        COALESCE(unread.repositories, '{}'::text[]),
@@ -87,6 +84,7 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) latest ON TRUE
 LEFT JOIN workflow_work_items w ON w.work_item_id = latest.work_item_id
+` + securityAlertLatestCommittedGenerationLateral + `
 LEFT JOIN ingestion_scopes sc ON sc.scope_id = t.scope_id
 LEFT JOIN security_alert_target_read_states rs ON rs.generation_id = sc.active_generation_id
 LEFT JOIN LATERAL (
@@ -97,6 +95,49 @@ LEFT JOIN LATERAL (
       AND u.repository = ANY($2::text[])
 ) unread ON TRUE
 ORDER BY t.scope_id`
+
+// securityAlertLatestCommittedGenerationLateral joins each target's latest
+// committed generation (#8838). It replaces the any-committed-generation
+// EXISTS: the lateral's ORDER BY matches
+// scope_generations_scope_latest_lookup_idx (scope_id, ingested_at DESC,
+// generation_id DESC), so the planner walks the target's history newest first,
+// skips the few pending or failed rows at the head, and stops at the first
+// committed row. That is one index probe and one heap fetch per target however
+// long the history is. The row's payload holds the target set the generation
+// collected.
+//
+// The CASE guard reads the set only for an anchored read ($2 not empty). The
+// payload is one TOASTed value, so any read of it decompresses the whole set:
+// at 5,000 incompressible slugs (82 KB stored) that costs about 0.2 ms and
+// 14 buffers per covering target. An unanchored read needs no set, so the
+// guard keeps it at the cost of the EXISTS it replaced. Containment
+// (payload @> ...) per slug is slower: it decompresses once per slug.
+// Evidence: docs/internal/evidence/8838-security-alert-target-set.md.
+const securityAlertLatestCommittedGenerationLateral = `LEFT JOIN LATERAL (
+    SELECT g.generation_id,
+           CASE WHEN cardinality($2::text[]) > 0 THEN g.payload -> '` + scope.SecurityAlertTargetSetPayloadKey + `' END AS target_set
+    FROM scope_generations g
+    WHERE g.scope_id = t.scope_id
+      AND g.status IN ('active', 'superseded', 'completed')
+    ORDER BY g.ingested_at DESC, g.generation_id DESC
+    LIMIT 1
+) committed ON TRUE`
+
+// securityAlertCommittedColumns selects whether the target has a committed
+// generation and the requested slugs ($2) missing from that generation's
+// recorded target set (#8838), sorted. The slugs are the caller's own, so no
+// other repository name leaves Postgres. A generation that recorded no set
+// (committed before #8838) returns an empty array, which keeps the answer it
+// gave before the record existed. An unanchored read passes no slug and gets
+// an empty array.
+const securityAlertCommittedColumns = `       committed.generation_id IS NOT NULL AS committed,
+       COALESCE(ARRAY(
+           SELECT s
+           FROM unnest($2::text[]) AS s
+           WHERE jsonb_typeof(committed.target_set) = 'array'
+             AND NOT committed.target_set ? s
+           ORDER BY s
+       ), '{}'::text[]) AS uncollected,`
 
 // PostgresSecurityAlertCollectionStateStore reads the security-alert
 // collector's configuration and per-target collection state for an empty
@@ -151,8 +192,9 @@ func (s PostgresSecurityAlertCollectionStateStore) SecurityAlertCollectorConfigu
 }
 
 // SecurityAlertTargetStates returns the latest work item, committed
-// generation existence, and unread repositories for each target scope id, in
-// scope id order. requestedSlugs are the normalized slugs of an anchored read.
+// generation existence, the requested repositories the latest committed
+// generation did not collect (#8838), and unread repositories for each target
+// scope id, in scope id order. requestedSlugs are the normalized slugs of an anchored read.
 func (s PostgresSecurityAlertCollectionStateStore) SecurityAlertTargetStates(
 	ctx context.Context,
 	scopeIDs []string,
@@ -177,19 +219,23 @@ func (s PostgresSecurityAlertCollectionStateStore) SecurityAlertTargetStates(
 	states := make([]supplychain.SecurityAlertTargetState, 0, len(scopeIDs))
 	for rows.Next() {
 		var state supplychain.SecurityAlertTargetState
-		var unreadReasons, unreadRepositories, unreadRepositoryReasons array.StringArray
+		var uncollected, unreadReasons, unreadRepositories, unreadRepositoryReasons array.StringArray
 		if err := rows.Scan(
 			&state.ScopeID,
 			&state.LatestWorkItemStatus,
 			&state.LatestFailureClass,
 			&state.LatestFailureTerminal,
 			&state.CommittedGeneration,
+			&uncollected,
 			&state.UnreadTotal,
 			&unreadReasons,
 			&unreadRepositories,
 			&unreadRepositoryReasons,
 		); err != nil {
 			return nil, fmt.Errorf("scan security alert target state: %w", err)
+		}
+		if len(uncollected) > 0 {
+			state.UncollectedRequested = []string(uncollected)
 		}
 		if len(unreadReasons) > 0 {
 			state.UnreadReasons = []string(unreadReasons)

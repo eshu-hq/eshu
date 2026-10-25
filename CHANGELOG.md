@@ -9,6 +9,25 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Security alerts: a newly allowlisted repository no longer reads as covered
+
+- **Per-generation target set**
+  ([#8838](https://github.com/eshu-hq/eshu/issues/8838)). Each security-alert
+  generation records the repositories it collected in
+  `scope_generations.payload` (`security_alert_target_set` and
+  `security_alert_target_set_hash`). An empty answer for a repository added to
+  an allowlist, or for a reused repository `scope_id`, now reads
+  `target_incomplete` with `no_committed_generation` until a generation that
+  collected it projects. Before, it read `complete`, exact and fresh. The set's
+  hash is part of the freshness hint, so an allowlist change commits a new
+  generation even when the provider's alerts did not change. Each target
+  commits one extra generation after the upgrade; an unchanged allowlist still
+  skips every cycle. No DDL. An unanchored empty answer costs what it did
+  (19.88 to 19.75 ms for 1,024 targets with 5,000-repository sets). An anchored
+  one adds about 0.2 ms and 14 buffers per covering target at 5,000
+  incompressible repositories (0.09 to 0.34 ms for one target).
+  Evidence: `docs/internal/evidence/8838-security-alert-target-set.md`.
+
 ### Status: blockage rows name the domain that holds the fence
 
 - **`queue_blockages[]` carries `holder_domain`**

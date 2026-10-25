@@ -122,6 +122,8 @@ func TestClaimedSourceFanoutFreshnessHintMatchesDigestInput(t *testing.T) {
 		pagesFetched: 3,
 		truncated:    true,
 		orgReadState: true,
+		// The allowlist the fan-out source is configured with (#8838).
+		targetSetHash: testTargetSetHash("example-org/alpha-repo", "example-org/beta-repo"),
 		fanoutOutcomes: map[string]string{
 			"example-org/alpha-repo": contract.SecurityAlertFanoutOutcomeComplete,
 			"example-org/beta-repo":  contract.SecurityAlertFanoutOutcomeFailed,

@@ -296,7 +296,11 @@ func activeTimestamp(generation scope.ScopeGeneration) any {
 // scopeGenerationPayload returns the scope_generations.payload JSON a stored
 // generation carries (#7978): reconcile_reason for a forced reconciliation
 // snapshot and default_branch_changed for a #7678 default-branch observation,
-// so an operator can tell why a generation was stored; "{}" otherwise.
+// so an operator can tell why a generation was stored; and, for a
+// security-alert generation (#8838), security_alert_target_set (the sorted
+// repository slugs it collected) with security_alert_target_set_hash, which the
+// security-alert collection-state read checks a requested repository against;
+// "{}" otherwise.
 func scopeGenerationPayload(generation scope.ScopeGeneration) string {
 	payload := make(map[string]any, 2)
 	if reason := strings.TrimSpace(generation.ReconcileReason); reason != "" {
@@ -307,6 +311,10 @@ func scopeGenerationPayload(generation scope.ScopeGeneration) string {
 	}
 	if identity := strings.TrimSpace(generation.PreparseIdentity); identity != "" {
 		payload["preparse_identity"] = identity
+	}
+	if set := generation.SecurityAlertTargetSet; !set.IsZero() {
+		payload[scope.SecurityAlertTargetSetPayloadKey] = json.RawMessage(set.JSON())
+		payload[scope.SecurityAlertTargetSetHashPayloadKey] = set.Hash()
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
