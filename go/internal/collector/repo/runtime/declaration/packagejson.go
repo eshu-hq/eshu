@@ -145,7 +145,11 @@ func runtimeSlot(key string) int {
 	return -1
 }
 
-// declarations turns the kept sections into declarations in a fixed order:
+// declarations turns the kept sections into declarations in a fixed order.
+// Every string value that does not become a declaration (empty, whitespace
+// only, failing the credential guard, a packageManager without "@" or with an
+// unlisted name or an empty spec) adds one to rejected. A value that is not a
+// string is absent, not rejected. The order is fixed:
 // engines, volta, then packageManager, each runtime in packageJSONRuntimes
 // order. order_index counts the declarations already placed on the same line,
 // so a minified one-line manifest still gets distinct stable keys.
@@ -153,10 +157,10 @@ func (s packageJSONSections) declarations() (out []declaration, rejected int, er
 	onLine := map[int]int{}
 	add := func(section section, runtime string, e entry) {
 		raw := strings.TrimSpace(e.value)
-		if raw == "" {
-			return
-		}
-		if !safeSpec(raw) {
+		if raw == "" || !safeSpec(raw) {
+			// An empty value declares no version, the same as a malformed one:
+			// it is dropped and counted, as a go.mod directive without an
+			// argument is.
 			rejected++
 			return
 		}
@@ -180,9 +184,9 @@ func (s packageJSONSections) declarations() (out []declaration, rejected int, er
 		name, spec, ok := packageManagerSpec(s.manager.value)
 		switch {
 		case !ok:
-			if strings.TrimSpace(s.manager.value) != "" && strings.Contains(s.manager.value, "@") {
-				rejected++
-			}
+			// No "@", or a name corepack does not permit: the string declares
+			// no manager and version, so it is counted, not silently absent.
+			rejected++
 		default:
 			add(sectionPackageJSONManager, name, entry{line: s.manager.line, value: spec, present: true})
 		}

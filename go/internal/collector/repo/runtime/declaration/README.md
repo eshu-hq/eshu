@@ -92,7 +92,8 @@ after the tool name, a legacy `rust-toolchain` line and a `.sdkmanrc` value.
    guessed version.
 
 `Classify` itself keeps its hyphen-range and disjunction grammar for source
-kinds whose tools define it (`package.json` engines, a later change).
+kinds whose tools define it (`package.json` engines, which the manifest
+readers pass to `Classify` whole).
 
 ### `.swift-version`
 
@@ -177,7 +178,11 @@ Rules that keep a manifest read bounded and fail closed:
   fact. A value is emitted only when it is at most 128 bytes of ASCII from the
   version and range grammar, holds no run of 16 or more letters, digits or
   underscores, and is not a URL. A failing value is dropped and counted, never
-  truncated or masked; the file's other declarations still emit. The
+  truncated or masked; the file's other declarations still emit. "Failing"
+  covers a string that declares nothing: an empty or whitespace-only value, a
+  `packageManager` with no `@`, with an empty version after it, or with a name
+  corepack does not permit. A value that is not a string (a number, `null`, an
+  object) is absent, not rejected. The
   `packageManager` name must be one of the three package managers corepack
   permits (`npm`, `pnpm`, `yarn`), so the name cannot carry file text either;
   any other, `bun` and `deno` included, is rejected and counted.
