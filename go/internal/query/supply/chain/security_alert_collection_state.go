@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 )
 
 // Security-alert collection-state truth for an empty answer (#8803).
@@ -99,6 +100,12 @@ const (
 	securityAlertCollectorStateUnavailable      = "state_unavailable"
 )
 
+// securityAlertTargetScopeOrg is the scope value of an organization target.
+// It is the token the collector and the workflow validator accept ("org");
+// the decoder used to compare against "organization", which no accepted
+// configuration carries, so no org target ever covered an anchored read.
+const securityAlertTargetScopeOrg = "org"
+
 // securityAlertProviderScopePrefix is the provider scope id prefix the
 // repository selector emits for a GitHub repository slug.
 const securityAlertProviderScopePrefix = "security-alert:github:"
@@ -131,7 +138,9 @@ func decodeSecurityAlertTargets(configs []string) []securityAlertTargetConfig {
 		}
 		for _, target := range decoded.Targets {
 			target.ScopeID = strings.TrimSpace(target.ScopeID)
-			if target.ScopeID == "" {
+			if target.ScopeID == "" || shard.HasMarker(target.ScopeID) {
+				// The collector refuses a scope_id with the reserved shard
+				// marker (#9019), so it collects nothing for it.
 				continue
 			}
 			target.Scope = strings.TrimSpace(target.Scope)
@@ -139,7 +148,7 @@ func decodeSecurityAlertTargets(configs []string) []securityAlertTargetConfig {
 				target.Scope = "repository"
 			}
 			target.Repository = normalizeSecurityAlertRepository(target.Repository)
-			target.Organization = strings.ToLower(strings.Trim(strings.TrimSpace(target.Organization), "/"))
+			target.Organization = shard.NormalizeOrganization(target.Organization)
 			allowed := make([]string, 0, len(target.AllowedRepositories))
 			for _, repo := range target.AllowedRepositories {
 				if normalized := normalizeSecurityAlertRepository(repo); normalized != "" {
@@ -153,19 +162,12 @@ func decodeSecurityAlertTargets(configs []string) []securityAlertTargetConfig {
 	return out
 }
 
-// normalizeSecurityAlertRepository mirrors the collector's owner/name
-// normalization (lower case, trimmed, no .git suffix) without importing it.
+// normalizeSecurityAlertRepository is the shared owner/name normalization
+// (shard.NormalizeRepository) the planner and the collector also use. The
+// shard package is a stdlib-only leaf, so query still imports no collector
+// package.
 func normalizeSecurityAlertRepository(value string) string {
-	parts := strings.Split(strings.Trim(strings.TrimSpace(value), "/"), "/")
-	if len(parts) != 2 {
-		return ""
-	}
-	owner := strings.ToLower(strings.TrimSpace(parts[0]))
-	repo := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(parts[1]), ".git"))
-	if owner == "" || repo == "" {
-		return ""
-	}
-	return owner + "/" + repo
+	return shard.NormalizeRepository(value)
 }
 
 // securityAlertRequestedSlugs extracts the owner/name slugs from the provider
@@ -192,7 +194,7 @@ func securityAlertTargetCovers(target securityAlertTargetConfig, slug string) bo
 	switch target.Scope {
 	case "repository":
 		return target.Repository == slug
-	case "organization":
+	case securityAlertTargetScopeOrg:
 		owner, _, _ := strings.Cut(slug, "/")
 		return owner == target.Organization && slices.Contains(target.AllowedRepositories, slug)
 	default:

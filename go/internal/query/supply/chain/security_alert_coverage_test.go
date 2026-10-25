@@ -23,7 +23,7 @@ import (
 const (
 	coverageTestRepositoryID = "repository:r_example"
 	coverageTestRepoTarget   = `{"targets":[{"provider":"github_dependabot","scope":"repository","scope_id":"sa-target-repo","repository":"Example-Org/Example-Repo","allowed_repositories":["example-org/example-repo"]}]}`
-	coverageTestOrgTarget    = `{"targets":[{"provider":"github_dependabot","scope":"organization","scope_id":"sa-target-org","organization":"example-org","allowed_repositories":["example-org/other-repo"]}]}`
+	coverageTestOrgTarget    = `{"targets":[{"provider":"github_dependabot","scope":"org","scope_id":"sa-target-org","organization":"example-org","allowed_repositories":["example-org/other-repo"]}]}`
 )
 
 // fakeSecurityAlertCollectionState is a SecurityAlertCollectionStateStore
@@ -333,7 +333,7 @@ func TestSecurityAlertEmptyAnswerCoverageInvariant(t *testing.T) {
 			name: "one covering target failed and another covering target healthy",
 			configs: []string{
 				coverageTestRepoTarget,
-				`{"targets":[{"provider":"github_dependabot","scope":"organization","scope_id":"sa-target-org-covering","organization":"example-org","allowed_repositories":["example-org/example-repo"]}]}`,
+				`{"targets":[{"provider":"github_dependabot","scope":"org","scope_id":"sa-target-org-covering","organization":"example-org","allowed_repositories":["example-org/example-repo"]}]}`,
 			},
 			states: map[string]SecurityAlertTargetState{
 				"sa-target-repo":         terminalState("auth_denied", false),
@@ -343,7 +343,7 @@ func TestSecurityAlertEmptyAnswerCoverageInvariant(t *testing.T) {
 		},
 		{
 			name:    "org allowlist names the repository under another owner",
-			configs: []string{`{"targets":[{"provider":"github_dependabot","scope":"organization","scope_id":"sa-target-org-other","organization":"another-org","allowed_repositories":["example-org/example-repo"]}]}`},
+			configs: []string{`{"targets":[{"provider":"github_dependabot","scope":"org","scope_id":"sa-target-org-other","organization":"another-org","allowed_repositories":["example-org/example-repo"]}]}`},
 			states:  map[string]SecurityAlertTargetState{"sa-target-org-other": healthy},
 			want:    coverageWant{"not_configured", []string{"repository_outside_target_set"}, "fallback", "unavailable", cause, ""},
 		},
