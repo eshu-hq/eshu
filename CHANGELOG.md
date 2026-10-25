@@ -21,6 +21,23 @@ recent shipped work grouped by feature area.
   text report, and `docs/openapi/runtime-admin-v1.yaml` move together. A stored
   status summary written before this change still decodes, with an empty holder.
 
+### Collector status: extension-defined failure classes on component-activated first-party kinds
+
+- **A component-activated instance that carries a first-party kind such as
+  `jira` reads `extension_defined` for the classes its extension defines**
+  ([#8951](https://github.com/eshu-hq/eshu/issues/8951)). The status leaf
+  bounded failure classes per collector kind and had no instance-level signal,
+  so these classes read `unknown`. The status reader now marks an instance
+  extension-hosted when the generic component planner claims its stored
+  configuration, the check the coordinator already uses, and the class bound
+  collapses pattern-valid extension classes only for such instances. An in-tree
+  instance of the same kind still reads `unknown` for an unregistered class.
+  The marker is a boolean read from existing state: no payload field and no new
+  `failure_class` label value. The admin failed-scope list, the acknowledge
+  response, and the stored acknowledgement records bound the class by the same
+  instance, so they agree with collector status. A record whose instance is
+  gone reads the kind-only form.
+
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
 
 - **A 403 saying Dependabot alerts are disabled classifies as `not_found`**

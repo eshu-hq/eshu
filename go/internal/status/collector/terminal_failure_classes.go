@@ -159,18 +159,31 @@ func BoundedFailureClasses() []string {
 }
 
 // BoundedFailureClassForKind returns class when collectorKind may report it
-// and UnknownFailureToken otherwise. Every kind reports the common classes and
-// the extension host classes as they are, and a first-party kind adds its own.
-// A kind that is not first-party also collapses any other class matching the
-// extension host's class pattern to ExtensionDefinedFailureToken. Collapsing is
-// not applied to a first-party kind: the status leaf has no signal that a
-// first-party kind is extension-hosted, and relabeling would hide an in-tree
-// class that the writer ties should catch. So an extension-defined class on a
-// component-configured first-party instance reads UnknownFailureToken. Free
-// text, an empty class, and a class only another kind owns read
-// UnknownFailureToken, so no persisted text reaches a status payload or a
-// metric label.
+// and UnknownFailureToken otherwise, for an instance that is not known to be
+// extension-hosted. It is BoundedFailureClassForInstance with extensionHosted
+// false: a first-party kind never collapses an unregistered class to
+// ExtensionDefinedFailureToken, so an in-tree class that a writer forgot to
+// register stays visible as unknown for the writer tie test to catch.
 func BoundedFailureClassForKind(collectorKind string, class string) string {
+	return BoundedFailureClassForInstance(collectorKind, class, false)
+}
+
+// BoundedFailureClassForInstance returns class when the instance may report it
+// and UnknownFailureToken otherwise. Every instance reports the common classes
+// and the extension host classes as they are, and a first-party kind adds its
+// own. An instance whose kind is not first-party, or whose extensionHosted
+// signal is set, also collapses any other class matching the extension host's
+// class pattern to ExtensionDefinedFailureToken. extensionHosted is the
+// component-activation marker the status reader fills on InstanceSummary: the
+// extension host takes its collector kind from the component manifest, so a
+// component-activated instance can carry a first-party kind such as jira and
+// then defines its own failure classes. Without that signal a first-party kind
+// does not collapse, which keeps an in-tree class that a writer forgot to
+// register visible as unknown. Free text, an empty class, and a class only
+// another kind owns read UnknownFailureToken, so no persisted text reaches a
+// status payload or a metric label, and the result stays inside the closed
+// set BoundedFailureClasses returns.
+func BoundedFailureClassForInstance(collectorKind string, class string, extensionHosted bool) string {
 	kind := strings.TrimSpace(collectorKind)
 	class = strings.TrimSpace(class)
 	if slices.Contains(commonFailureClasses, class) || slices.Contains(extensionHostFailureClasses, class) {
@@ -180,7 +193,9 @@ func BoundedFailureClassForKind(collectorKind string, class string) string {
 		if slices.Contains(kindFailureClasses[kind], class) {
 			return class
 		}
-		return UnknownFailureToken
+		if !extensionHosted {
+			return UnknownFailureToken
+		}
 	}
 	if extensionFailureClassPattern.MatchString(class) {
 		return ExtensionDefinedFailureToken

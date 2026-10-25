@@ -73,8 +73,12 @@ type RuntimeStatus struct {
 // RuntimeStatuses derives the shared collector runtime readback from
 // the collector evidence in the status report, without performing I/O.
 func RuntimeStatuses(evidence Evidence) []RuntimeStatus {
-	builder := runtimeStatusBuilder{byKey: map[string]int{}}
+	builder := runtimeStatusBuilder{byKey: map[string]int{}, extensionHosted: map[string]bool{}}
 	for _, instance := range evidence.Instances {
+		if instance.ExtensionHosted {
+			builder.extensionHosted[runtimeStatusKey(
+				strings.TrimSpace(instance.CollectorKind), strings.TrimSpace(instance.InstanceID))] = true
+		}
 		builder.add(coordinatorRuntimeStatus(instance))
 	}
 	builder.addAWSScans(evidence.AWSScans)
@@ -87,6 +91,10 @@ func RuntimeStatuses(evidence Evidence) []RuntimeStatus {
 type runtimeStatusBuilder struct {
 	statuses []RuntimeStatus
 	byKey    map[string]int
+	// extensionHosted holds the runtimeStatusKey of every coordinator instance
+	// marked InstanceSummary.ExtensionHosted, so terminal failures can bound
+	// their class by instance, not only by collector kind (#8951).
+	extensionHosted map[string]bool
 }
 
 func (b *runtimeStatusBuilder) add(status RuntimeStatus) int {
