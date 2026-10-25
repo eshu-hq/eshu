@@ -1,0 +1,9 @@
+# Developer entrypoints that must carry the #9066 CGO_CFLAGS flag. Read by
+# the cgo-cflags guard; one repo-relative path per line.
+Makefile
+scripts/dev/pre-push.sh
+scripts/dev/pre-pr.sh
+scripts/dev/prove.sh
+scripts/dev/precommit-go.sh
+scripts/dev/run-selected-gates.sh
+scripts/install-local-binaries.sh

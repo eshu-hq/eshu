@@ -26,7 +26,7 @@
 #
 # No word-boundary metacharacter (`\<`/`\>`) is used: this awk's regex engine
 # (the same one-true-awk build that ships in /usr/bin/awk on macOS and mawk on
-# the ubuntu-latest GHA runner) has no GNU boundary extension. Instead, every
+# the ubuntu-24.04 GHA runner) has no GNU boundary extension. Instead, every
 # line is normalized to a space-padded, lowercased, non-alnum-collapsed-to-
 # single-space string before matching, so a plain " word " substring check is
 # an exact word match without relying on any awk beyond POSIX.

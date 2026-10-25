@@ -143,6 +143,11 @@ tests:
     class: verified_scheduled
     reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
     runner: postgres-scheduled
+  - file: go/internal/storage/postgres/secret/lines/batch_bytes_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "#8833 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/secret/lines/bulk_load_lock_live_test.go
     tag: ~
     class: verified_scheduled
@@ -152,6 +157,11 @@ tests:
     tag: ~
     class: verified_scheduled
     reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
+  - file: go/internal/storage/postgres/secret/lines/deferred_pool_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "#8833 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/secret/lines/finalize_live_test.go
     tag: ~
@@ -167,6 +177,21 @@ tests:
     tag: ~
     class: verified_scheduled
     reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
+  - file: go/internal/storage/postgres/secret/lines/lock_session_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "#8833 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
+  - file: go/internal/storage/postgres/secret/lines/lost_lock_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "#8833 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
+  - file: go/internal/storage/postgres/secret/lines/repair_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "#8833 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/service_catalog_corpus_fence_live_test.go
     tag: ~

@@ -84,8 +84,17 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
   snapshot's pre-parse identity, #7978 follow-up), and `PreparseIdentityDropped`
   (a runtime-only `*atomic.Bool` the git fact stream sets when it dropped a file
   it could not read; the store then keeps the identity off and marks the row
-  `stream_dropped`; never persisted). Methods: `Validate`, `ValidateForScope`, `IsTerminal`, `CanTransitionTo`,
+  `stream_dropped`; never persisted), and `SecurityAlertTargetSet` (the
+  repositories a security-alert generation collected, #8838; persisted in the
+  generation payload). Methods: `Validate`, `ValidateForScope`, `IsTerminal`, `CanTransitionTo`,
   `TransitionTo`, `MarkActive`, `MarkCompleted`, `MarkSuperseded`, `MarkFailed`.
+- `SecurityAlertTargetSet` — the sorted, deduplicated slug set
+  (`NewSecurityAlertTargetSet`, `Slugs`, `JSON`, `Hash`, `IsZero`), held as
+  canonical JSON so `ScopeGeneration` stays comparable. The zero value records
+  no set; a set built from no slugs is a recorded empty set.
+  `SecurityAlertTargetSetPayloadKey` and `SecurityAlertTargetSetHashPayloadKey`
+  name its payload keys for the ingestion store and the query read.
+- `CollectorKind` constants and `AllCollectorKinds` live in `collector_kind.go`.
 - `FullReconcileState` — the reconciliation sweep's view of one scope's full
   (non-delta) generations: the newest activated full generation
   (`HasProjectedFull`, `LastProjectedFullAt`) and the newest full generation of

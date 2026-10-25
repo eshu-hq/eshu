@@ -28,9 +28,13 @@ const (
 )
 
 const (
-	defaultWorkers     = 4
-	defaultBatchSize   = 500
-	defaultLockTimeout = 250 * time.Millisecond
+	defaultWorkers   = 4
+	defaultBatchSize = 500
+	// defaultMaxBatchBytes keeps a worst-case batch near half a second of
+	// derivation (measured 0.47 s per 4 MiB), so a live writer waits well under
+	// a second behind one.
+	defaultMaxBatchBytes = 4 << 20
+	defaultLockTimeout   = 250 * time.Millisecond
 	// defaultMaxAttempts bounds the yield-and-retry loop of one batch. With the
 	// backoff below it gives a contended batch roughly a minute before the
 	// finalizer fails loudly instead of spinning forever.
@@ -38,47 +42,6 @@ const (
 	progressLogInterval = 10 * time.Second
 	backoffCeiling      = time.Second
 )
-
-const listReposSQL = `SELECT DISTINCT repo_id FROM content_files ORDER BY repo_id`
-
-// windowBatchSQL reads, without locking, the next window of up to $3 file keys
-// of one repository after the keyset cursor $2. It is a plain ordered index
-// range scan, so its keys come back in order and its last key is a cursor that
-// cannot jump: unlike a locking read, no concurrent update can change a row it
-// returns.
-const windowBatchSQL = `
-SELECT relative_path
-FROM content_files
-WHERE repo_id = $1 AND relative_path > $2
-ORDER BY relative_path
-LIMIT $3`
-
-// lockBatchSQL locks the window's rows FOR SHARE in primary-key order. FOR SHARE
-// conflicts with a writer's row update, so the batch derives from content no
-// writer can change until this transaction commits; a writer that commits first
-// is seen through the READ COMMITTED recheck, and its own trigger has already
-// produced the rows this batch re-derives to the same values. A row a writer
-// deleted or moved to a key outside the window fails the recheck and drops out.
-// The lock is taken by key, not by the cursor range, because a locking read
-// that waits on a concurrently updated row returns the row's new version at its
-// old position: with a range and LIMIT the keys arrive out of order and a
-// cursor taken from the last one can skip files.
-const lockBatchSQL = `
-SELECT relative_path
-FROM content_files
-WHERE repo_id = $1 AND relative_path = ANY($2)
-ORDER BY relative_path
-FOR SHARE`
-
-const deleteBatchSQL = `
-DELETE FROM content_file_secret_lines
-WHERE repo_id = $1 AND relative_path = ANY($2)`
-
-const insertBatchSQL = `
-INSERT INTO content_file_secret_lines (repo_id, relative_path, line_number, language, finding_kind, line_text)
-SELECT f.repo_id, f.relative_path, d.line_number, coalesce(f.language, ''), d.finding_kind, d.line_text
-FROM content_files f CROSS JOIN LATERAL eshu_secret_line_findings(f.content) d
-WHERE f.repo_id = $1 AND f.relative_path = ANY($2)`
 
 // Database is what Finalize needs: autocommit reads and writes for the state
 // row and repository list, and transactions for the batches.
@@ -95,6 +58,13 @@ type Options struct {
 	Workers int
 	// BatchSize is the number of files locked and re-derived per transaction.
 	BatchSize int
+	// MaxBatchBytes bounds a batch by content size as well as file count: the
+	// window keeps files, in key order, until their content bytes reach this
+	// budget, and always keeps at least one. The derivation holds FOR SHARE
+	// locks for the whole batch, so a live writer on one of its rows waits for
+	// the batch; 500 files of large generated sources took 11.3 s, and the wait
+	// tracks bytes (about 0.5 s per 4 MiB). Default 4 MiB.
+	MaxBatchBytes int64
 	// LockTimeout is the per-batch lock_timeout. It must be shorter than the
 	// server's deadlock_timeout so the finalizer, not a live writer, always
 	// yields when the two contend for the same rows.
@@ -115,6 +85,9 @@ func (o Options) withDefaults() Options {
 	}
 	if o.BatchSize <= 0 {
 		o.BatchSize = defaultBatchSize
+	}
+	if o.MaxBatchBytes <= 0 {
+		o.MaxBatchBytes = defaultMaxBatchBytes
 	}
 	if o.LockTimeout <= 0 {
 		o.LockTimeout = defaultLockTimeout
@@ -318,21 +291,25 @@ func backfillRepository(ctx context.Context, database Database, repoID string, o
 				return err
 			}
 		}
-		if batch.window < options.BatchSize {
+		if batch.exhausted {
 			return nil
 		}
 	}
 }
 
 // batchResult is one committed batch. window is how many keys the cursor scan
-// returned (the paging and termination signal); files is how many of them were
-// still present and locked, which can be fewer when a writer deleted or moved a
-// row between the scan and the lock. lastPath is the window's last key.
+// kept (zero ends the repository); files is how many of them were still present
+// and locked, which can be fewer when a writer deleted or moved a row between
+// the scan and the lock. lastPath is the window's last kept key. exhausted is
+// true when the scan's LIMIT window was not full and every row of it was kept:
+// the repository has no keys beyond lastPath. A byte cut keeps fewer rows than
+// the window held, so it never sets exhausted even when the window was not full.
 type batchResult struct {
-	window   int
-	files    int
-	rows     int64
-	lastPath string
+	window    int
+	files     int
+	rows      int64
+	lastPath  string
+	exhausted bool
 }
 
 // backfillBatchWithRetry runs one batch, retrying it after a lock or deadlock
@@ -376,7 +353,7 @@ func backfillBatch(ctx context.Context, database Database, repoID, cursor string
 		fmt.Sprintf("%dms", options.LockTimeout.Milliseconds())); err != nil {
 		return result, fmt.Errorf("set secret lines batch lock_timeout: %w", err)
 	}
-	window, err := scanWindow(ctx, tx, repoID, cursor, options.BatchSize)
+	window, windowRows, err := scanWindow(ctx, tx, repoID, cursor, options)
 	if err != nil {
 		return result, err
 	}
@@ -385,6 +362,7 @@ func backfillBatch(ctx context.Context, database Database, repoID, cursor string
 	}
 	result.window = len(window)
 	result.lastPath = window[len(window)-1]
+	result.exhausted = windowRows < options.BatchSize && len(window) == windowRows
 	keys, err := lockBatch(ctx, tx, repoID, window)
 	if err != nil {
 		return result, err
@@ -409,42 +387,6 @@ func backfillBatch(ctx context.Context, database Database, repoID, cursor string
 	}
 	result.files, result.rows = len(keys), rows
 	return result, nil
-}
-
-// scanWindow returns the next window of file keys after the cursor without
-// locking them.
-func scanWindow(ctx context.Context, tx db.Transaction, repoID, cursor string, size int) ([]string, error) {
-	rows, err := tx.QueryContext(ctx, windowBatchSQL, repoID, cursor, size)
-	if err != nil {
-		return nil, fmt.Errorf("scan secret lines batch window: %w", err)
-	}
-	return scanKeys(rows, size, "scan secret lines batch window")
-}
-
-// lockBatch locks the window's files FOR SHARE in primary-key order and returns
-// the keys that are still present.
-func lockBatch(ctx context.Context, tx db.Transaction, repoID string, window []string) ([]string, error) {
-	rows, err := tx.QueryContext(ctx, lockBatchSQL, repoID, array.Of(window))
-	if err != nil {
-		return nil, fmt.Errorf("lock secret lines batch: %w", err)
-	}
-	return scanKeys(rows, len(window), "lock secret lines batch")
-}
-
-func scanKeys(rows db.Rows, capacity int, action string) ([]string, error) {
-	defer func() { _ = rows.Close() }()
-	keys := make([]string, 0, capacity)
-	for rows.Next() {
-		var path string
-		if err := rows.Scan(&path); err != nil {
-			return nil, fmt.Errorf("scan secret lines batch key: %w", err)
-		}
-		keys = append(keys, path)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("%s: %w", action, err)
-	}
-	return keys, nil
 }
 
 // isYield reports the Postgres errors that mean "a live writer holds a row this

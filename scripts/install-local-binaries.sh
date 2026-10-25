@@ -5,6 +5,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 GO_DIR="$REPO_ROOT/go"
+# #9066: cgo needs -std=gnu17 on GCC 15 + glibc 2.43; see scripts/lib/cgo-cflags.sh.
+# shellcheck source=lib/cgo-cflags.sh
+source "$REPO_ROOT/scripts/lib/cgo-cflags.sh"
+eshu_export_cgo_cflags
 
 resolve_install_dir() {
     if [[ -n "${GOBIN:-}" ]]; then

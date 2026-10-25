@@ -8,7 +8,20 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
+
+// targetSet returns the repositories this target collects (#8838): its
+// repository, or the allowlisted repositories of its organization. It is
+// recorded with each generation and moves the freshness digest, so a changed
+// allowlist or a reused scope_id that names another repository always commits
+// a new generation instead of being skipped as unchanged.
+func (t TargetConfig) targetSet() scope.SecurityAlertTargetSet {
+	if t.IsOrganizationScope() {
+		return scope.NewSecurityAlertTargetSet(organizationFanoutRepositories(t))
+	}
+	return scope.NewSecurityAlertTargetSet([]string{t.Repository})
+}
 
 func validateTarget(target TargetConfig) (TargetConfig, error) {
 	target.Provider = strings.TrimSpace(target.Provider)

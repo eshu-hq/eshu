@@ -10,4 +10,4 @@ producers:
 disposition: unconsumed
 no_reducer_reason: 'Contract and pin-file emission for eshu-hq/eshu#8815: the reducer projection (#8816) and the query tool (#8817) land in separate changes, so no reducer decodes this kind yet and declarations produce zero canonical rows.'
 no_reducer_evidence: rg -n RuntimeDeclarationVersionFactKind go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g *.go --glob !*_test.go -> 0 matches at declaration time; same for the wire string runtime_declaration.version
-declaration: go/internal/facts/runtime_declaration.go:72
+declaration: go/internal/facts/runtime_declaration.go:73

@@ -19,6 +19,10 @@ type declaration struct {
 	// whole marks a value that is not a list of versions (see values.go): it
 	// is one declaration classified alias or unresolved, never parsed.
 	whole bool
+	// section names the manifest section a declaration came from; sectionNone
+	// for a pin file, whose kind is the file's. It is a byte so the struct
+	// does not grow: a pin file stores up to MaxTokensPerFile of these.
+	section section
 }
 
 // fileRuntime is the runtime a single-runtime pin file declares.

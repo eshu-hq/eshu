@@ -12,7 +12,9 @@
 // (factschema.DecodeRuntimeDeclarationVersion, decode_runtime_declaration.go).
 //
 // This package is the payload contract only. The git collector emits the fact
-// from the version-pin files (go/internal/collector/repo/runtime/declaration).
+// from the version-pin files, the engines, volta and packageManager sections of
+// package.json, and the go and toolchain directives of go.mod
+// (go/internal/collector/repo/runtime/declaration).
 // The reducer projection (#8816) and the query tool (#8817) are separate
 // changes, so the kind is disclosed unconsumed until they land.
 //

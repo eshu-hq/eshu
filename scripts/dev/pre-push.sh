@@ -73,6 +73,10 @@ set -uo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 go_dir="${repo_root}/go"
 precommit="${repo_root}/scripts/dev/precommit-go.sh"
+# #9066: cgo needs -std=gnu17 on GCC 15 + glibc 2.43; see scripts/lib/cgo-cflags.sh.
+# shellcheck source=../lib/cgo-cflags.sh
+source "${repo_root}/scripts/lib/cgo-cflags.sh"
+eshu_export_cgo_cflags
 # shellcheck source=../lib/pre-pr-lane.sh
 source "${repo_root}/scripts/lib/pre-pr-lane.sh"
 # shellcheck source=../lib/pre-pr-fixture-consumers.sh

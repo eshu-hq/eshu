@@ -63,6 +63,12 @@ concurrency:
 permissions:
   contents: read
 
+# #9066: -std=gnu17 keeps go-sitter-forest/perl compiling on GCC 15 + glibc 2.43 (C23
+# bsearch macro) when the Go build cache is cold. "-O2 -g" is Go's own default, kept
+# because setting CGO_CFLAGS replaces it. Remove with scripts/lib/cgo-cflags.sh.
+env:
+  CGO_CFLAGS: "-O2 -g -std=gnu17"
+
 jobs:
 
   # -----------------------------------------------------------------------

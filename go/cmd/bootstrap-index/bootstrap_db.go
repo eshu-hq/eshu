@@ -7,11 +7,11 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel/trace"
 
-	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	secretlines "github.com/eshu-hq/eshu/go/internal/storage/postgres/secret/lines"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -21,27 +21,57 @@ import (
 // db.ExecQueryer (QueryContext returns db.Rows, not *sql.Rows).
 type bootstrapSQLDB struct {
 	postgres.SQLDB
-	raw *sql.DB
+	raw   *sql.DB
+	fence *secretlines.RunFence
 }
+
+// RunFence is the deferred-writer fence shared by every connection of this
+// pool; the secret-lines run lock publishes its pinned session to it so a
+// session born after that session died is refused (#8833).
+func (b *bootstrapSQLDB) RunFence() *secretlines.RunFence { return b.fence }
 
 func (b *bootstrapSQLDB) Close() error { return b.raw.Close() }
 
 var _ secretlines.Conner = (*bootstrapSQLDB)(nil)
+
+// productionSecretLines refuses a database without this method (#8833 F10), so
+// the pool type must keep it.
+var _ interface{ RunFence() *secretlines.RunFence } = (*bootstrapSQLDB)(nil)
 
 // Conn pins one connection for the secret-lines bulk-load run lock
 // (secretlines.Conner). The connection keeps its session for the whole run;
 // database/sql never closes an in-use connection for ConnMaxLifetime.
 func (b *bootstrapSQLDB) Conn(ctx context.Context) (*sql.Conn, error) { return b.raw.Conn(ctx) }
 
-func openBootstrapDB(ctx context.Context, getenv func(string) string) (bootstrapDB, error) {
+// bootstrapPostgresOpener and openDeferredWriterPool are the two seams of
+// openBootstrapDB. Production never changes them; the composition test swaps
+// them to observe the pools the real function builds, because CI runs no live
+// test of it (#8833 F14).
+var (
+	bootstrapPostgresOpener secretlines.PostgresOpener = secretlines.RuntimePostgresOpener{}
+	openDeferredWriterPool                             = secretlines.OpenDeferredWriterPool
+)
+
+func openBootstrapDB(ctx context.Context, getenv func(string) string, logger *slog.Logger, ownershipWait time.Duration) (bootstrapDB, error) {
 	// Every bootstrap connection is a deferred-derivation session: content_files
 	// triggers skip its writes and the finalizer rebuilds the hardcoded-secret
 	// side table after collection (#7125).
-	db, err := runtimecfg.OpenPostgresWithSession(ctx, getenv, secretlines.DeferredSessionSQL)
+	//
+	// Each connection also takes the deferred-writer lock (5318,2) shared and,
+	// once the run lock is held, refuses to be born when the run's pinned lock
+	// session is gone (secretlines.RunFence). A reducer rebuild holds (5318,2)
+	// exclusive, and the connect hook waits for it inside the startup ping, which
+	// ESHU_POSTGRES_PING_TIMEOUT cuts off. OpenDeferredWriterPool therefore takes
+	// (5318,2) shared on a probe session first, waiting up to ownershipWait
+	// (ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT) and failing naming the holder (#8833
+	// ruling-6); an unreachable database still fails within the ping timeout.
+	fence := secretlines.NewRunFence(nil)
+	db, err := openDeferredWriterPool(ctx, secretlines.BootstrapDeferredPoolOptions(
+		bootstrapPostgresOpener, getenv, fence, ownershipWait, logger))
 	if err != nil {
 		return nil, err
 	}
-	return &bootstrapSQLDB{SQLDB: postgres.SQLDB{DB: db}, raw: db}, nil
+	return &bootstrapSQLDB{SQLDB: postgres.SQLDB{DB: db}, raw: db, fence: fence}, nil
 }
 
 // applySchemaFromEnv applies the bootstrap layout with content search
