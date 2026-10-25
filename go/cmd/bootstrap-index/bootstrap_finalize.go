@@ -30,8 +30,10 @@ const secretLinesFinalizationTimeout = 30 * time.Minute
 // finalize, so two bootstrap-index runs never overlap between begin and
 // finalize: the epoch fence alone cannot stop the first finalizer from
 // publishing ready over rows the second run is still writing without
-// derivation. Its wait is the schema ownership wait, and the schema apply then
-// waits again with the same bound, so the worst case is twice that value.
+// derivation. Its wait is the schema ownership wait. The deferred-writer probe
+// before it and the schema apply after it wait with the same bound, so the
+// worst case before work starts is three sequential ownership waits, 9 m by
+// default.
 type secretLinesLifecycle struct {
 	lock     func(context.Context, bootstrapDB, *slog.Logger, time.Duration) (func(context.Context) error, error)
 	begin    func(context.Context, bootstrapDB) (int64, error)
@@ -42,11 +44,11 @@ type secretLinesLifecycle struct {
 func productionSecretLines() secretLinesLifecycle {
 	return secretLinesLifecycle{
 		lock: func(ctx context.Context, database bootstrapDB, logger *slog.Logger, wait time.Duration) (func(context.Context) error, error) {
-			conner, ok := database.(secretlines.Conner)
-			if !ok {
-				return nil, errors.New("bootstrap database cannot pin a connection for the secret lines bulk load lock")
+			conner, options, err := secretLinesLockInputs(database, logger, wait)
+			if err != nil {
+				return nil, err
 			}
-			held, err := secretlines.AcquireBulkLoadLock(ctx, conner, secretlines.LockOptions{Wait: wait, Logger: logger})
+			held, err := secretlines.AcquireBulkLoadLock(ctx, conner, options)
 			if err != nil {
 				return nil, err
 			}
@@ -60,13 +62,37 @@ func productionSecretLines() secretLinesLifecycle {
 			if !ok {
 				return errors.New("bootstrap database does not support transactions")
 			}
-			_, err := secretlines.Finalize(ctx, secretLinesDatabase{ExecQueryer: database, Beginner: beginner}, epoch, secretlines.Options{
+			result, err := secretlines.Finalize(ctx, secretLinesDatabase{ExecQueryer: database, Beginner: beginner}, epoch, secretlines.Options{
 				Logger:      logger,
 				Instruments: instruments,
 			})
-			return err
+			if err != nil {
+				return err
+			}
+			if !result.Claimed {
+				return reconcileUnclaimedFinalize(ctx, database, epoch, logger)
+			}
+			return nil
 		},
 	}
+}
+
+// secretLinesLockInputs resolves what secretlines.AcquireBulkLoadLock needs
+// from the bootstrap database: a connection pinner and the deferred-writer
+// fence. Missing either is an error, never a fallback: without the fence the
+// pool's connect hook cannot refuse a session born after the pinned lock
+// session died, and the Repairer could then publish ready over a live load
+// (#8833 ruling-4 Decision 1b).
+func secretLinesLockInputs(database bootstrapDB, logger *slog.Logger, wait time.Duration) (secretlines.Conner, secretlines.LockOptions, error) {
+	conner, ok := database.(secretlines.Conner)
+	if !ok {
+		return nil, secretlines.LockOptions{}, errors.New("bootstrap database cannot pin a connection for the secret lines bulk load lock")
+	}
+	fenced, ok := database.(interface{ RunFence() *secretlines.RunFence })
+	if !ok || fenced.RunFence() == nil {
+		return nil, secretlines.LockOptions{}, errors.New("bootstrap database has no deferred-writer run fence: refusing to run the deferred writers unfenced")
+	}
+	return conner, secretlines.LockOptions{Wait: wait, Logger: logger, Fence: fenced.RunFence()}, nil
 }
 
 // secretLinesDatabase adapts the bootstrap database to secretlines.Database.

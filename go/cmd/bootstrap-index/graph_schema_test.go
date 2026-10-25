@@ -9,6 +9,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/graph"
@@ -32,7 +33,7 @@ func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 	err := run(
 		context.Background(),
 		func(string) string { return "" },
-		func(context.Context, func(string) string) (bootstrapDB, error) {
+		func(context.Context, func(string) string, *slog.Logger, time.Duration) (bootstrapDB, error) {
 			return database, nil
 		},
 		func(context.Context, bootstrapDB, *slog.Logger) error {
@@ -100,7 +101,7 @@ func TestRunReturnsGraphSchemaErrorBeforeOpeningGraph(t *testing.T) {
 	err := run(
 		context.Background(),
 		func(string) string { return "" },
-		func(context.Context, func(string) string) (bootstrapDB, error) {
+		func(context.Context, func(string) string, *slog.Logger, time.Duration) (bootstrapDB, error) {
 			return database, nil
 		},
 		func(context.Context, bootstrapDB, *slog.Logger) error {

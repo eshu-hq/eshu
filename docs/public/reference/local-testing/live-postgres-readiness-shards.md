@@ -44,26 +44,32 @@ job and fails when:
 
 - any shard's predicted job seconds pass 80% of the 1800 s cap (1440 s). Adding
   tests without refreshing the weights is caught here once the defaults stop
-  covering them. The 20% headroom is the model's error band. Replayed on the
-  retired count cut, the weights file's prediction missed the eight measured
-  shard jobs of source runs 40047410741 and 40049588589 by -15% to +24%
-  (prediction minus measurement, as a share of the measurement; shards 1 to 3
-  of 4 by -6% to +11%). Those runs also fitted the weights, so
-  treat the band as a floor. At the -15% end a 1440 s prediction runs about
-  1700 s, still under the cap. Runner speed adds noise on top. On one layout
+  covering them. The 20% headroom is the model's error band. Replayed with the
+  shipped weights against what each shard actually ran, five weighted-cut
+  waves miss by -21% to +67% (prediction minus measurement, as a share of the
+  measurement): run 40071537963 by +14.3%, +17.1%, -5.0%, and -19.8%; run
+  40078812653 by +66.9%, -4.2%, -2.9%, and +0.8%; run 40157207251 by +17.3%,
+  -5.2%, -15.2%, and -20.7%; run 40177924581 by +30.8%, -9.4%, -1.5%, and
+  +12.7%; and the first wave on the refit cut, run 40197054198, by +19.9%,
+  +13.4%, +20.1%, and +10.4% (shards 1 to 4). The two fit waves are in the
+  sample, so treat the
+  band as a floor. The extremes land on identical content: shard 1's 91 tests
+  score +14.3% on one wave and +66.9% on another (1242 s, then 851 s
+  measured), so the band is runner variance the fit never saw, not model bias.
+  At the -21% end a 1440 s prediction runs about 1740 s, still under the cap.
+  Runner speed adds noise on top. On one layout
   and plan, shard 1 took 1129 s in run 40057201268 and 1568 s in run
   40057373740 (+39%), and its summed test seconds rose from 598 to 841 (+41%),
   which fits a slower runner. At +39% a shard predicted above about 1296 s
   crosses the 1800 s cap, so the 80% rule (1.25x) does not cover that spread by
   itself. The cut's worst predicted shard can sit above that line, so read the
   first CI wave on the new cut, and refresh the weights from it, before
-  relaxing anything. The first wave on the weighted cut (run 40071537963)
-  measured 1242, 958, 1244, and 1418 s for shards 1 to 4, so the cut did hold
-  every shard under the cap. The refreshed weights, replayed on that wave's
-  own cut, miss it by -5.3%, +25.2%, +6.4%, and -9.3% (shard 2, whose
-  proofs ran 126 s under their summed weights, is the +25.2%). That wave is
-  also in the fit, so the band stays a floor. The 20% headroom, not the fit,
-  is what keeps a slow runner under the cap;
+  relaxing anything. The weighted-cut waves measured (shards 1 to 4)
+  1242, 958, 1244, and 1418 s, then 851, 1174, 1185, and 1160 s, then 1218,
+  1235, 1416, and 1572 s, then 1093, 1310, 1219, and 1107 s, so every shard
+  stayed under the cap. The first wave on the refit cut (run 40197054198)
+  measured 1079, 1119, 1052, and 1150 s, also under the cap. The 20%
+  headroom, not the fit, is what keeps a slow runner under the cap;
 - the live plan's shard spread passes 15% of the mean (the acceptance bound of
   #8930), or the cut on a fixed synthetic plan passes 1%. The fixed plan guards
   the cut itself and does not change when tests are enrolled, so an unrelated

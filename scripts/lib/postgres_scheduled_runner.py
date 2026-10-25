@@ -25,7 +25,7 @@ WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
 FRAGMENT = Path("specs/ci-pr-workflows.d/postgres-scheduled-live.yml")
 BULK_ACTION = Path(".github/actions/postgres-scheduled-bulk/action.yml")
 WORKFLOW_SHA256 = "1dcb7d11df10b33a3175ca26867ea8a93fa4f260c871fa87756587b47411aa0f"
-BULK_ACTION_SHA256 = "d366a58c744788453f5701cbc069b8555454215cc483054ff167b1b0ba8a2865"
+BULK_ACTION_SHA256 = "65c583923ff8b30886fd5f89d6c067be46cc9205e18e583fc2e1c411f5d47b21"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 GROUP_LABELS = {
     "crossplane": "Crossplane",
@@ -36,6 +36,7 @@ GROUP_LABELS = {
     "freshness_links_b": "freshness chunk B",
 }
 GROUP_TIMEOUTS = {
+    "secret_lines": "8m",
     "ack_family": "10m",
     "crossplane": "7m",
     "infra_inventory": "7m",

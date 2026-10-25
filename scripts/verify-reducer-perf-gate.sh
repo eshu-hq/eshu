@@ -18,7 +18,7 @@
 # clears any inherited backend DSN so the run can never dial a live database.
 #
 # Enforcement: the committed budgets' baseline column was captured on
-# darwin/arm64, NOT the CI ubuntu-latest runner class, so an absolute single-run
+# darwin/arm64, NOT the CI ubuntu-24.04 runner class, so an absolute single-run
 # ceiling there is only a like-for-like comparison once the baseline is
 # recaptured on the enforcement runner. Until then the gate defaults to ADVISORY
 # (report, exit 0) — same shared-runner-variance reasoning as the B-2 gate. Set

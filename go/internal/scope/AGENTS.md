@@ -5,7 +5,8 @@
 1. `go/internal/scope/README.md` — lifecycle diagram, exported surface, and
    invariants
 2. `go/internal/scope/scope.go` — `IngestionScope`, `ScopeGeneration`,
-   `GenerationStatus`, and all enum constants
+   `GenerationStatus`, and the scope and trigger enum constants;
+   `go/internal/scope/collector_kind.go` holds `CollectorKind`
 3. `go/internal/scope/doc.go` — package contract statement
 4. `go/internal/storage/postgres/` — Postgres rows that use these types as
    their in-memory shape
@@ -35,7 +36,8 @@
   kinds, so no switch update is needed; add a test in `scope_test.go` confirming
   the new kind passes validation.
 
-- **Add a new `CollectorKind`** → same pattern as `ScopeKind`; confirm any
+- **Add a new `CollectorKind`** → add the constant and its
+  `AllCollectorKinds` entry in `collector_kind.go`; confirm any
   downstream switch on `CollectorKind` in `internal/collector` or
   `internal/storage/postgres` covers the new value.
 

@@ -26,8 +26,9 @@
   server's `deadlock_timeout`, so a lock cycle ends with the finalizer's
   timeout, not a deadlock abort of a live writer. A writer blocked on a row a
   batch holds `FOR SHARE` still waits until that batch commits (lock, delete,
-  and derive of up to `BatchSize` files: hundreds of milliseconds at 500, tunable
-  by `BatchSize`). The finalizer never forms a wait cycle.
+  and derive of up to `BatchSize` files and `MaxBatchBytes` of content, 500 files
+  and 4 MiB with at least one file: the cost tracks bytes, and 500 large
+  generated sources took 11.3 s). The finalizer never forms a wait cycle.
 - **Page by a non-locking key window, lock by key.** A locking `ORDER BY ...
   LIMIT ... FOR SHARE` that waits on a concurrently moved row returns keys out
   of order, so a cursor from its last row can skip files
@@ -48,6 +49,22 @@
   release it on every path, returning a failed release as a run error. Never
   turn the wait into a blocking `pg_advisory_lock`: both waiters poll a
   try-lock so neither is ever in the wait-for graph.
+- **The Repairer locks before it claims, and never waits.** `Repairer.Tick`
+  takes `(5318,1)` and then `(5318,2)` exclusive with `TryAcquireBulkLoadLock`
+  before `Finalize`, because `claimSQL` also claims a `building` row: two
+  unlocked finalizers collide on the side table key (23505,
+  `TestRepairerIsSingleFlightLive` turns red without the lock). It re-reads the
+  state under the locks and keeps both until `Finalize` returns. Never replace a
+  try with a blocking lock, and never take `(5318,0)` from it.
+- **`(5318,2)` is what ties exclusivity to the writers.** Every deferred-writer
+  session takes it shared at birth (`RunFence.Hook`, in the pool's connect
+  options after `DeferredSessionSQL`, waiting form) and checks that the run's own
+  pinned session still holds `(5318,1)`. Drop either and the Repairer publishes
+  ready over a live load (`lost_lock_live_test.go` turns red for each). The
+  Repairer's lock connection must come from a pool other than the one `Finalize`
+  uses: on a pool of one the lock starves the rebuild
+  (`TestRepairerPublishesOnAPoolOfOneLive`). A session whose lock state is
+  uncertain is discarded with `driver.ErrBadConn`, never returned to a pool.
 - **Never import the parent `postgres` package from non-test code.** It is a
   leaf beside it; the live tests import the parent for the schema and the
   content writer.

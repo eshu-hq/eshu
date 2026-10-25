@@ -5,6 +5,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -23,12 +25,7 @@ func TestOpenBootstrapDBMarksEveryConnectionDeferredLive(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	database, err := openBootstrapDB(ctx, func(key string) string {
-		if key == "ESHU_POSTGRES_DSN" {
-			return dsn
-		}
-		return ""
-	})
+	database, err := openBootstrapDB(ctx, liveGetenv(dsn, nil), slog.New(slog.DiscardHandler), time.Minute)
 	if err != nil {
 		t.Fatalf("openBootstrapDB: %v", err)
 	}
@@ -45,5 +42,131 @@ func TestOpenBootstrapDBMarksEveryConnectionDeferredLive(t *testing.T) {
 	}
 	if setting != "deferred" {
 		t.Fatalf("bootstrap-index connection eshu.secret_lines_derive = %q, want deferred", setting)
+	}
+}
+
+func liveGetenv(dsn string, extra map[string]string) func(string) string {
+	return func(key string) string {
+		if key == "ESHU_POSTGRES_DSN" {
+			return dsn
+		}
+		return extra[key]
+	}
+}
+
+// TestOpenBootstrapDBHoldsTheDeferredWriterLockSharedLive: every connection of
+// the bootstrap pool holds (5318,2) shared from birth (#8833 ruling-4). A pool
+// opened while another session holds it exclusive (a reducer rebuild) waits for
+// it up to the ownership wait, not the startup ping timeout, and fails naming
+// the deferred writers and the holder when that wait is spent (ruling-6). Once
+// the holder ends, the pool opens, and the probe's own lock is gone.
+func TestOpenBootstrapDBHoldsTheDeferredWriterLockSharedLive(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	if dsn == "" {
+		t.Skip("ESHU_POSTGRES_DSN not set; skipping the bootstrap postgres session test")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	logger := slog.New(slog.DiscardHandler)
+
+	holder, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = holder.Close() }()
+	conn, err := holder.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock(5318, 2)`); err != nil {
+		t.Fatal(err)
+	}
+	_, err = openBootstrapDB(ctx, liveGetenv(dsn, map[string]string{"ESHU_POSTGRES_PING_TIMEOUT": "1s"}), logger, 2*time.Second)
+	if err == nil {
+		t.Fatal("openBootstrapDB while (5318,2) is held exclusive = nil error, want the ownership failure")
+	}
+	for _, want := range []string{"secret lines deferred writers", "ExclusiveLock"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("openBootstrapDB error %q does not contain %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "ping postgres") {
+		t.Fatalf("openBootstrapDB error %q is a ping error; the wait must be the ownership wait", err)
+	}
+	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_unlock(5318, 2)`); err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.Close()
+
+	database, err := openBootstrapDB(ctx, liveGetenv(dsn, nil), logger, time.Minute)
+	if err != nil {
+		t.Fatalf("openBootstrapDB after the holder released: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+	rows, err := database.QueryContext(ctx, `
+SELECT count(*) FROM pg_locks
+WHERE locktype = 'advisory' AND classid = 5318 AND objid = 2 AND mode = 'ShareLock' AND granted
+  AND pid IN (SELECT pid FROM pg_stat_activity WHERE datname = current_database())`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rows.Close() }()
+	var shared int
+	if !rows.Next() || rows.Scan(&shared) != nil || shared < 1 {
+		t.Fatalf("shared (5318,2) holders = %d, want the pool's connection", shared)
+	}
+}
+
+// TestOpenBootstrapDBWaitsForARebuildLongerThanThePingLive: the production open
+// waits out a rebuild that outlasts the startup ping budget (#8833 ruling-6).
+func TestOpenBootstrapDBWaitsForARebuildLongerThanThePingLive(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	if dsn == "" {
+		t.Skip("ESHU_POSTGRES_DSN not set; skipping the bootstrap postgres session test")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	holder, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = holder.Close() }()
+	conn, err := holder.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock(5318, 2)`); err != nil {
+		t.Fatal(err)
+	}
+	time.AfterFunc(4*time.Second, func() {
+		_, _ = conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock(5318, 2)`)
+		_ = conn.Close()
+	})
+	started := time.Now()
+	database, err := openBootstrapDB(ctx, liveGetenv(dsn, map[string]string{"ESHU_POSTGRES_PING_TIMEOUT": "2s"}), slog.New(slog.DiscardHandler), time.Minute)
+	if err != nil {
+		t.Fatalf("openBootstrapDB behind a 4 s rebuild with a 2 s ping budget: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+	if waited := time.Since(started); waited < 3500*time.Millisecond {
+		t.Fatalf("opened after %s, before the rebuild released", waited)
+	}
+}
+
+// TestOpenBootstrapDBUnreachableDatabaseFailsWithinThePingTimeoutLive: the
+// ownership wait must not delay the report of an unreachable database.
+func TestOpenBootstrapDBUnreachableDatabaseFailsWithinThePingTimeoutLive(t *testing.T) {
+	if strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN")) == "" {
+		t.Skip("ESHU_POSTGRES_DSN not set; skipping the bootstrap postgres session test")
+	}
+	getenv := liveGetenv("postgres://nobody:nothing@127.0.0.1:1/none?sslmode=disable&connect_timeout=1",
+		map[string]string{"ESHU_POSTGRES_PING_TIMEOUT": "1s"})
+	started := time.Now()
+	_, err := openBootstrapDB(context.Background(), getenv, slog.New(slog.DiscardHandler), 3*time.Minute)
+	if err == nil || !strings.Contains(err.Error(), "ping postgres") {
+		t.Fatalf("openBootstrapDB on an unreachable database = %v, want a ping error", err)
+	}
+	if elapsed := time.Since(started); elapsed >= 3*time.Second {
+		t.Fatalf("unreachable database reported after %s, want under 3 s", elapsed)
 	}
 }
