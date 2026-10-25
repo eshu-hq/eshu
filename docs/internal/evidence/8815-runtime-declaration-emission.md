@@ -172,7 +172,8 @@ No-Regression Evidence:
 
   | Benchmark | Base (3 rounds) | After (3 rounds) |
   |---|---|---|
-  | `BenchmarkNoteRuntimeDeclarationCandidateCorpus`, whole hook over the corpus | 11.2 to 11.7 ns/file, 0 B, 0 allocs | 1,690 to 1,713 ns/file, 393 B/file, 1.25 allocs/file |
+  | `BenchmarkNoteRuntimeDeclarationCandidateCorpus`, whole hook over the corpus | 11.2 to 11.7 ns/file, 0 B, 0 allocs | 1,687 to 1,725 ns/file, 405 B/file, 1.25 allocs/file |
+  | `BenchmarkNoteAndEmitRuntimeDeclarationCorpus`, hook plus emission of every fact through a real writer | no facts for these files, so nothing to compare | 7,030 to 7,071 ns/file, 1,135 facts per pass, 13.0 to 13.1 us/fact, about 8.3 MB and 138,484 allocs per pass |
   | `BenchmarkNoteRuntimeDeclarationCandidateNonPin`, a non-pin, non-manifest path | 13.1 to 13.5 ns/op, 0 allocs | 14.5 to 19.9 ns/op, 0 allocs (one noisy round; 14.5 twice) |
   | `BenchmarkEmitToolVersions` (pin path) | 73.6 to 74.2 us/op, 866 allocs | 73.7 to 74.1 us/op, 866 allocs |
   | `BenchmarkEmitAtTokenCap` (pin path) | 10.6 to 11.1 ms/op, about 6.9 MB, 120,140 to 120,154 allocs | 10.7 ms/op, about 6.9 MB, 120,140 to 120,151 allocs |
@@ -180,16 +181,22 @@ No-Regression Evidence:
   For scale, the parser that already runs on the same files costs 37.8 to
   38.7 us/file on this corpus (`json.Parse` and `gomod.Parse`, including the file
   read, `go test -bench` with a scratch benchmark that is not committed). The
-  added hook is about 4.4 percent of that, and it reads no file. A repository
-  pays it once per `package.json` or `go.mod`; a typical repository holds
-  between one and a few hundred.
+  hook alone is 1.7 us/file, but the cost to quote is hook plus emission:
+  about 7.0 us/file, which is about 18 percent of the parser figure, and it
+  reads no file. Emission dominates. It costs about 10 us per fact (envelope
+  identity and payload encoding) and the hook is the rest, so the cost scales
+  with the number of declarations, not the number of files. The reviewer's
+  independent run over a different 1,585-file mix measured 8.2 to 8.3 us/file
+  and 9.4 us per fact. A repository of a few hundred manifests pays a few
+  milliseconds per generation in total; the first draft of this note quoted the
+  hook alone (4.4 percent) and understated the cost.
 - **Per-file figures** (`emitter_bench_test.go`, `-count=3`):
 
   | Benchmark | Input | Result |
   |---|---|---|
   | `BenchmarkExtractPackageJSONNoDeclaration` | the common package.json: no section | 421 ns/op, 0 B/op, 0 allocs/op |
   | `BenchmarkEmitPackageJSON` | engines (2), volta (2), packageManager: 5 facts | 54.2 us/op, 37 KB/op, 610 allocs/op |
-  | `BenchmarkEmitGoMod` | go and toolchain beside require and replace | 20.0 to 20.4 us/op, 13.3 KB/op, 229 allocs/op |
+  | `BenchmarkEmitGoMod` | go and toolchain beside require and replace | 19.5 to 20.4 us/op, 13.3 KB/op, 229 allocs/op |
   | `BenchmarkEmitGoModLarge` | 400 require lines, 2 facts | 38.7 to 39.2 us/op, 13.3 KB/op, 229 allocs/op (544 MB/s) |
   | `BenchmarkEmitPackageJSONAtByteCap` | valid package.json of about 1,047,600 bytes, 2 facts | 1.82 ms/op, 13.3 KB/op, 237 allocs/op (575 MB/s) |
 
@@ -198,13 +205,14 @@ No-Regression Evidence:
   the body size. B/op at 1 MiB (13.3 KB for two facts) equals the 13.3 KB of
   `BenchmarkEmitGoMod`, which also emits two facts from a few hundred bytes.
 - **Hostile input** (`manifest_hostile_test.go`, ceilings on allocation and a
-  generous wall bound, never a speed claim):
+  generous wall bound, never a speed claim; a 1 MiB package.json must allocate
+  within 128 KiB of a tiny one, which any cost proportional to the body fails):
 
   | Input | Result |
   |---|---|
   | 10 MiB body | skipped before parsing, at most 16 KiB allocated |
   | 500,000 nested `[`, 100,000 nested `{"a":`, deep mixed | unparseable at depth 64, at most 32 KiB allocated, no fact |
-  | 1 MiB of repeated `"engines"` and `"packageManager"` keys | last one wins, at most 64 KiB allocated |
+  | 1 MiB of repeated `"engines"` and `"packageManager"` keys (17,475 repeats) | last one wins, within 128 KiB of the same two declarations without the repeats (measured jitter 40 KiB from the encoder's pooled buffers; one allocation per repeat would add over 500 KiB) |
   | 1 MiB of escaped-key repeats | at most 24 MiB transient (each escaped key decodes into a short string, linear in the body, nothing retained) |
   | `go.mod` with 100,000 `go` lines, 50,000 `toolchain` lines, 100,000 `require (` openers, quote soup, NUL bytes | at most 4 MiB allocated, at most 2 facts, under 2 s |
 
@@ -264,7 +272,7 @@ value that is not a version cannot ride into `raw_spec`. The guard
 ASCII from the version and range grammar (letters, digits, space and
 `. + * ^ ~ < > = | , - / : @ $ { } _`), holds no run of 16 or more letters,
 digits or underscores, and does not contain `://`. The `packageManager` name is
-an allowlist (`npm`, `pnpm`, `yarn`, `bun`), and the integrity suffix after `+`
+an allowlist (`npm`, `pnpm`, `yarn`, the three corepack permits), and the integrity suffix after `+`
 is cut before the check, so the hash never reaches a fact. The seeded cases
 (built by concatenation) are a GitHub-style token, an AWS-style key, a
 Slack-style token, a JWT, a URL with a password and a version with a token
