@@ -142,20 +142,20 @@ run_checks_arm() {
 		success | skipped | neutral) ;;
 		pending | absent) note checks "${ctx}=${ctx_state} (not ruleset-required; does not block)" ;;
 		*)
-			red_states+="${ctx} ${ctx_state}"$'\n'
+			red_states+="${ctx}"$'\t'"${ctx_state}"$'\n'
 			if ! in_list "${ctx}" ${disp_ctx[@]+"${disp_ctx[@]}"}; then
 				checks_bad+=("${ctx}=${ctx_state} (not ruleset-required; pass --dispositioned ${ctx}=<issue-or-reason> to accept)")
 			fi
 			;;
 		esac
 	done
-	local i state rows
+	local i state rows red_state
 	for ((i = 0; i < ${#disp_ctx[@]}; i++)); do
 		ctx="${disp_ctx[i]}"
 		if in_list "${ctx}" "${ruleset_contexts[@]}"; then
 			state="ignored: ruleset-required"
-		elif [[ -n "$(awk -v c="${ctx}" '$1 == c {print $2}' <<<"${red_states}")" ]]; then
-			state="applied: $(awk -v c="${ctx}" '$1 == c {print $2; exit}' <<<"${red_states}")"
+		elif red_state="$(RED_CTX="${ctx}" awk -F'\t' '$1 == ENVIRON["RED_CTX"] {print $2; exit}' <<<"${red_states}")" && [[ -n "${red_state}" ]]; then
+			state="applied: ${red_state}"
 		else
 			rows="$(jq -r --arg c "${ctx}" "[.[] | select(.name == \$c) | ${failing_sel}] | length" <<<"${generic_json}" 2>/dev/null)"
 			if [[ "${rows:-0}" -gt 0 ]]; then

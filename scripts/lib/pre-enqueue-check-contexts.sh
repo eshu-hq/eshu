@@ -91,14 +91,18 @@ in_list() {
 disp_ctx=()
 disp_reason=()
 
-# add_disposition <context>=<issue-or-reason>: record one disposition. Returns 1
-# when the value has no context, no reason, or whitespace in the context.
+# add_disposition <context>=<issue-or-reason>: record one disposition. The value
+# splits at the first "=": check names hold spaces and slashes (114 of the 164
+# live names, such as "queue-selection / select"), and the reason may hold "=".
+# Returns 1 when there is no "=", the context or reason is blank, or the context
+# holds a tab, newline or carriage return (the red-state table is tab-separated).
 add_disposition() {
 	local value="$1" ctx reason
 	[[ "${value}" == *=* ]] || return 1
 	ctx="${value%%=*}"
 	reason="${value#*=}"
-	[[ -n "${ctx}" && -n "${reason}" && "${ctx}" != *[[:space:]]* ]] || return 1
+	[[ "${ctx}" =~ [^[:space:]] && "${reason}" =~ [^[:space:]] ]] || return 1
+	[[ "${ctx}" != *[$'\t\r\n']* ]] || return 1
 	disp_ctx+=("${ctx}")
 	disp_reason+=("${reason}")
 }

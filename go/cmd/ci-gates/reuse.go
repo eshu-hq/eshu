@@ -83,6 +83,12 @@ func probeReuseForAwait(ctx context.Context, runner ghRunner, reg *cigates.Regis
 	return probeReuse(ctx, runner, repo, pr, headSHA, transferProofContexts(reg))
 }
 
+// probeSmokeForAwait adapts the registry to the smoke probe's context list for
+// await and pr-plan, so both judge a candidate against the same list as reuse.
+func probeSmokeForAwait(ctx context.Context, runner ghRunner, reg *cigates.Registry, repo string, pr int, headSHA string, changedPaths []string, truncated bool) (smokeEvidence, error) {
+	return probeSmokeEvidence(ctx, runner, repo, pr, headSHA, changedPaths, truncated, transferProofContexts(reg))
+}
+
 // transferProofContexts lists the contexts a previous head must show green
 // before its verdict transfers to a new head (reuse, smoke tier, pr-plan).
 //

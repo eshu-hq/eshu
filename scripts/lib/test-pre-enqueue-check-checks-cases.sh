@@ -160,7 +160,7 @@ ok=0
 rg -q '^     checks +dispositioned: go-core-complete=#1 \(ignored: ruleset-required\)$' <<<"${OUT}" || ok=1
 check "RED a ruleset-required context ignores its disposition and says so" "${ok}"
 bad_n=0
-for bad in "no-equals" "=reason" "ctx=" "two words=reason"; do
+for bad in "no-equals" "=reason" "ctx=" " =reason"; do
 	bad_n=$((bad_n + 1))
 	new_case "disposition-malformed-${bad_n}"
 	RUN_ARGS=(--dispositioned "${bad}")
@@ -170,6 +170,38 @@ for bad in "no-equals" "=reason" "ctx=" "two words=reason"; do
 	rg -q 'usage: ' <<<"${OUT}" || ok=1
 	check "usage error (exit 2) for malformed --dispositioned '${bad}'" "${ok}"
 done
+# 114 of the 164 live check names contain spaces (queue-selection / select).
+# The context splits at the first "=": the name keeps its spaces, the reason may
+# hold "=" too. A check-run row that is not in the manifest is judged by row.
+new_case disposition-spaced-row
+edit check-runs.json '.check_runs += [{name:"queue-selection / select",status:"completed",conclusion:"failure"}]'
+expect_red "red spaced-name check with no disposition" checks
+new_case disposition-spaced-row-dispositioned
+edit check-runs.json '.check_runs += [{name:"queue-selection / select",status:"completed",conclusion:"failure"}]'
+RUN_ARGS=(--dispositioned "queue-selection / select=#9094 a=b")
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+rg -q '^     checks +dispositioned: queue-selection / select=#9094 a=b \(applied: 1 failing row\(s\)\)$' <<<"${OUT}" || ok=1
+check "GREEN a spaced-name red check passes with its disposition, which prints applied" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
+# A spaced name in the manifest takes the context path (check run or status).
+new_case disposition-spaced-manifest
+printf 'go-core-complete\ngo-race-complete\nqueue-selection / select\n' >"${FIXTURES}/contexts-full.txt"
+edit check-runs.json '.check_runs += [{name:"queue-selection / select",status:"completed",conclusion:"failure"}]'
+expect_red "red spaced-name manifest context with no disposition" checks
+new_case disposition-spaced-manifest-dispositioned
+printf 'go-core-complete\ngo-race-complete\nqueue-selection / select\n' >"${FIXTURES}/contexts-full.txt"
+edit check-runs.json '.check_runs += [{name:"queue-selection / select",status:"completed",conclusion:"failure"}]'
+RUN_ARGS=(--dispositioned "queue-selection / select=#9094")
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+rg -q '^     checks +dispositioned: queue-selection / select=#9094 \(applied: failure\)$' <<<"${OUT}" || ok=1
+check "GREEN a spaced-name manifest context passes with its disposition, which prints applied" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
 # The required set comes from ci-gates, never from a list in the script
 # (#9094): a context the manifest adds is required, and one it drops is not.
 new_case ruleset-adds-context
@@ -207,7 +239,7 @@ rg -q 'cannot read the ruleset-required contexts' <<<"${OUT}" || ok=1
 check "usage error (exit 2) when the ruleset set is empty" "${ok}"
 # End to end with the real binary and the real manifest: the live set is the two
 # Go umbrellas and the aggregate is not in it.
-if command -v go >/dev/null 2>&1; then
+if go version >/dev/null 2>&1; then
 	new_case real-ci-gates
 	set +e
 	OUT="$(cd "${CLONE}" && env -u PRE_ENQUEUE_CI_GATES "${target}" "${FAKE_PR}" "${HEAD_SHA}" 2>&1)"
@@ -219,7 +251,7 @@ if command -v go >/dev/null 2>&1; then
 	check "GREEN the real ci-gates --ruleset-only yields the two Go umbrellas" "${ok}"
 	[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
 else
-	printf 'SKIP: go not found; real ci-gates case not run\n'
+	printf 'SKIP: `go version` failed (go missing or its toolchain/GOROOT is broken); real ci-gates case not run\n'
 fi
 new_case not-clean
 edit pr.json '.mergeStateStatus = "BLOCKED"'

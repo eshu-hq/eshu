@@ -88,7 +88,7 @@ func runAwait(args []string) error {
 	smoke := false
 	var smokeProof smokeEvidence
 	if transferPRPathsSafe(paths, truncated) && len(resolved) > 0 {
-		evidence, smokeErr := probeSmokeEvidence(ctx, runner, *repo, *pr, *headSHA, paths, truncated, transferProofContexts(reg))
+		evidence, smokeErr := probeSmokeForAwait(ctx, runner, reg, *repo, *pr, *headSHA, paths, truncated)
 		if smokeErr != nil {
 			_, _ = fmt.Fprintf(os.Stdout, "required-gates: smoke probe failed (%v); awaiting full selection\n", smokeErr)
 		} else if evidence.Applied {

@@ -57,6 +57,12 @@ require "runs the advisory docs-contradiction gate unconditionally" 'verify-docs
 require "states the merge rule on success: both Go umbrellas green" 'go-core-complete and go-race-complete must be green to merge'
 require "states the merge rule on success: no undispositioned red gate" 'no completed red gate may be left undispositioned'
 forbid "the retired claim that the aggregate must be green to merge (#9094)" 'required-gates-complete must still be green to merge'
+# The header comment wraps across lines, so fold it before the same checks.
+flat="$(sed 's/^# *//' "${script}" | tr '\n' ' ' | tr -s ' ')"
+[[ "${flat}" != *'A merge still requires required-gates-complete green'* ]] ||
+	fail "header states the retired merge rule (aggregate green) beside the success line (#9094)"
+[[ "${flat}" == *'A merge requires go-core-complete and go-race-complete green'* ]] ||
+	fail "header must state the same merge rule as the success line (#9094)"
 
 # ---------------------------------------------------------------------------
 # Behavioral: execute the real driver against a hermetic fixture repo.
