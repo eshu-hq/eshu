@@ -113,6 +113,9 @@ var oracleFragments = []string{
 	// text, and keys opened inside a flow collection.
 	"npmAuthToken: [\"abcd", "{npmAuthToken: ['abcd", "{npmAuthToken: {a: \"abcd", "{npmAuthToken: [!!str \"abcd", "\"abcd",
 	"#{T}\"]}", "#{T}'", "\t#{T}\"]", "  #{T}\"", "]},{T}", ",{T}]", "], {T}", "}, {T}}", "{a: \"x", "{T}\"]}", "...{T}\"]",
+	// Quote characters that are plain text, and quotes after them.
+	"a\"b", "it's", "[a\"b, \"abcd", "[it's, 'abcd", "{npmAuthToken: [a\"b, \"abcd", "{npmAuthToken: [it's, 'abcd", "b\"c, \"abcd",
+	"{npmAuthToken: [\"x\", b\"c, \"abcd",
 }
 
 // randomOracleBody joins random fragments, numbering each planted token so the

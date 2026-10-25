@@ -202,7 +202,9 @@ lines after the separator of a line a listed key matches are followed with a
 lexical bracket and quote count: while a bracket or quote the value opened is
 open every line is value and is held to the same text rule (a leading closer
 or comma does not end it); once both are closed, a bracket-only line or an
-entry line ends it. A line inside a quoted scalar (found by reading the source
+entry line ends it. A quote opens a scalar only where YAML starts one (`a"b`
+and `it's` are plain text), and once any quote has opened a `#` line is value
+text, because the count cannot place every quote with certainty. A line inside a quoted scalar (found by reading the source
 for the closing quote in the parsed path, by the quote count in the lexical
 one) gets no comment or marker shortcut: only white space is nothing. The reason is the existing
 `yaml_indirection`; no new label value.

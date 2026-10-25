@@ -101,7 +101,11 @@ updated in the same change.
   yaml.v3 rejects a tab as flow indentation and a bare document after `...`,
   which Yarn's js-yaml reads; for a body it cannot parse, the lines after the
   separator of a line a listed key matches are followed with a lexical bracket
-  and quote count. While a bracket or quote the value opened is open, every
+  and quote count. A quote opens a scalar only where YAML starts one (the
+  start of the value, after a flow opener, comma, `: `, `? `, `- `, or a tag or
+  anchor), so `a"b` and `it's` are plain text. Because the count cannot place
+  every quote with certainty, once any quote has opened a `#` line is value
+  text, not a comment. While a bracket or quote the value opened is open, every
   line is value and is held to the same text rule (a leading closer or comma
   does not end it). Once both are closed, a bracket-only line or an entry line
   ends it. A line check runs for every body: an

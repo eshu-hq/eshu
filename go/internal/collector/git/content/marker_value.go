@@ -100,9 +100,61 @@ var entryLine = regexp.MustCompile(`^(?:-[ \t]+)*(?:"[^"]*"|'[^']*'|[^\s"'#,:{}\
 // flowScan follows flow brackets and quotes across lines, enough to know when a
 // listed key's flow value is still open. It is lexical on purpose: it serves
 // only a body yaml.v3 cannot parse, and it errs toward staying open.
+//
+// A quote character opens a quoted scalar only where YAML starts a scalar: at the
+// start of the value, after a flow opener, comma, "? ", ": ", or "- ", or after
+// a tag or anchor token. Anywhere else it is plain text ("a"b", "it's"), and
+// treating it as a quote would flip the state for the rest of the body.
 type flowScan struct {
 	depth int
 	quote byte
+	// opened is true once any quote has opened. It never resets, because the
+	// scanner cannot place every quote with certainty.
+	opened bool
+	// prev is the last character before the cursor that is not white space,
+	// zero at the start; tagged is true when the token ending the previous line
+	// was a tag or anchor.
+	prev   byte
+	tagged bool
+}
+
+// opensScalar reports whether the quote at text[i] starts a quoted scalar.
+func (f *flowScan) opensScalar(text string, i int) bool {
+	if i > 0 && strings.IndexByte("[{,: \t", text[i-1]) < 0 {
+		return false
+	}
+	j := i - 1
+	for j >= 0 && (text[j] == ' ' || text[j] == '\t') {
+		j--
+	}
+	if j < 0 {
+		return f.tagged || f.prev == 0 || strings.IndexByte("[{,?:-", f.prev) >= 0
+	}
+	if strings.IndexByte("[{,?:-", text[j]) >= 0 {
+		if text[j] == ':' && j == i-1 && gluedColonIsPlain(text, i) {
+			return false
+		}
+		return true
+	}
+	return isTagOrAnchor(text[strings.LastIndexAny(text[:j+1], " \t[{,")+1 : j+1])
+}
+
+// gluedColonIsPlain reports whether the colon at text[i-1] joins the quote at
+// text[i] to a plain scalar, as in ab:"cd or http:"x. After a letter or digit
+// no YAML dialect starts a quoted scalar there: yaml.v3, js-yaml 4.1.1, and
+// PyYAML all read the quote as text. Opening it would flip the scan state for
+// the rest of the body. Any other gluing (a closing quote or bracket as in
+// {"a":"b"}, or an unplaceable rune) keeps opening and fails closed.
+func gluedColonIsPlain(text string, i int) bool {
+	if i < 2 {
+		return false
+	}
+	c := text[i-2]
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
+}
+
+func isTagOrAnchor(token string) bool {
+	return token != "" && (token[0] == '!' || token[0] == '&')
 }
 
 // scan advances the state over one line.
@@ -117,22 +169,36 @@ func (f *flowScan) scan(text string) {
 				i++
 			case c == f.quote:
 				f.quote = 0
+				f.prev = c
 			}
 			continue
 		}
 		switch c {
+		case ' ', '\t':
+			continue
 		case '"', '\'':
-			f.quote = c
+			if f.opensScalar(text, i) {
+				f.quote, f.opened = c, true
+			}
 		case '{', '[':
 			f.depth++
 		case '}', ']':
 			f.depth--
 		case '#':
 			if i == 0 || text[i-1] == ' ' || text[i-1] == '\t' {
+				f.endLine(text[:i])
 				return
 			}
 		}
+		f.prev = c
 	}
+	f.endLine(text)
+}
+
+// endLine records whether the last token of a line is a tag or anchor.
+func (f *flowScan) endLine(text string) {
+	text = strings.TrimRight(text, " \t")
+	f.tagged = f.quote == 0 && isTagOrAnchor(text[strings.LastIndexAny(text, " \t[{,")+1:])
 }
 
 // lexicalValueGap is valueReachesUnreplacedText for a body yaml.v3 cannot
@@ -164,16 +230,18 @@ func (c *yamlCheck) lexicalValueGap() bool {
 			text := c.lines[j]
 			trimmed := strings.TrimSpace(text)
 			inQuote := state.quote != 0
+			// Once a quote has opened, a "#" line may be inside a scalar the
+			// scan misplaced, so it is value text, not a comment.
 			if !inQuote {
-				if trimmed == "" || trimmed[0] == '#' {
+				if trimmed == "" || (trimmed[0] == '#' && !state.opened) {
 					continue
 				}
 				if first, _ := contentBounds(trimmed); state.depth <= 0 &&
-					(first < 0 || trimmed == "..." || entryLine.MatchString(strings.TrimLeft(trimmed, "{[, \t"))) {
+					((first < 0 && !strings.ContainsAny(trimmed, "{[")) || trimmed == "..." || entryLine.MatchString(strings.TrimLeft(trimmed, ", \t"))) {
 					break
 				}
 			}
-			if !c.textHandled(j+1, len(text), inQuote) {
+			if !c.textHandled(j+1, len(text), inQuote || state.opened) {
 				return true
 			}
 			state.scan(text)
