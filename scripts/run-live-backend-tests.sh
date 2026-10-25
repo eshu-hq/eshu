@@ -96,7 +96,7 @@ fi
 # first entity-context read overran its 10s budget.
 # An explicit NEO4J_PLATFORM always wins. An arch this does not map, or a
 # docker that cannot report one, leaves the compose default. CI's
-# ubuntu-latest runners are amd64, so CI still resolves linux/amd64.
+# ubuntu-24.04 runners are amd64, so CI still resolves linux/amd64.
 # NornicDB is untouched: its image is amd64-only.
 neo4j_native_platform() {
 	local arch

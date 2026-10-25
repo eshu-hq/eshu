@@ -87,7 +87,7 @@ disable_unstable_runner_sources() {
 }
 
 # sha256_command prints the sha256 tool invocation to use, preferring
-# sha256sum (the ubuntu-latest runners) and falling back to `shasum -a 256`
+# sha256sum (the ubuntu-24.04 runners) and falling back to `shasum -a 256`
 # (macOS dev machines) -- same detection order as
 # scripts/run-two-team-governance-proof.sh.
 sha256_command() {
@@ -248,7 +248,7 @@ verify_ripgrep_checksum() {
 # exists to remove -- it always exits non-zero instead.
 # assert_ripgrep_arch_supported fails at INSTALL time if the machine is not
 # the architecture the pin is built for. The default pin is
-# x86_64-unknown-linux-musl and every caller runs on ubuntu-latest today, so
+# x86_64-unknown-linux-musl and every caller runs on ubuntu-24.04 today, so
 # this never fires now. It exists because the failure it prevents is
 # expensive to read: on an arm64 runner the install would SUCCEED, and the
 # breakage would surface later as "cannot execute binary file" at whatever
