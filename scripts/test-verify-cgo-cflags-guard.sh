@@ -238,6 +238,47 @@ EOF
 	good_workflow | sed "s/CGO_CFLAGS: \"-O2 -g -std=gnu17\"/CGO_CFLAGS: \${{ vars.CFLAGS || '-std=gnu17' }}/" >"${t}/.github/workflows/expr.yml"
 	check_guard "guard: a \${{ }} value that names the flag as text FAILS" 1 "$t" "expr.yml"
 
+	# Review of #9105: spelling and unset families the first pass missed. Each
+	# row appends the lines in $4 (printf %b) to the compliant workflow.
+	append_case() {
+		t="$(new_tree)"
+		{ good_workflow; printf '%b' "$4"; } >"${t}/.github/workflows/$1"
+		check_guard "$3" "$2" "$t" "$1"
+	}
+	step_env='      - run: go test ./...\n        env:\n'
+	append_case unset-long.yml 1 "guard: env --unset=CGO_CFLAGS FAILS" '      - run: env --unset=CGO_CFLAGS go build ./...\n'
+	append_case unset-long-sp.yml 1 "guard: env --unset CGO_CFLAGS FAILS" '      - run: env --unset CGO_CFLAGS go build ./...\n'
+	append_case unset-v.yml 1 "guard: unset -v CGO_CFLAGS FAILS" '      - run: unset -v CGO_CFLAGS; go build ./...\n'
+	append_case env-i.yml 1 "guard: env -i FAILS" '      - run: env -i PATH="$PATH" go build ./...\n'
+	append_case export-n.yml 1 "guard: export -n CGO_CFLAGS FAILS" '      - run: export -n CGO_CFLAGS; go build ./...\n'
+	append_case remove-item.yml 1 "guard: Remove-Item Env:CGO_CFLAGS FAILS" '      - run: Remove-Item Env:CGO_CFLAGS\n'
+	append_case space-colon.yml 1 "guard: step-level 'CGO_CFLAGS : -O2' FAILS" "${step_env}"'          CGO_CFLAGS : -O2\n'
+	append_case tab-colon.yml 1 "guard: step-level CGO_CFLAGS with a tab after the colon FAILS" "${step_env}"'          CGO_CFLAGS:\t-O2\n'
+	append_case quoted-key.yml 1 "guard: step-level quoted key \"CGO_CFLAGS\" FAILS" "${step_env}"'          "CGO_CFLAGS": -O2\n'
+	append_case squoted-key.yml 1 "guard: step-level single-quoted key 'CGO_CFLAGS' FAILS" "${step_env}""          'CGO_CFLAGS': -O2\\n"
+
+	t="$(new_tree)"
+	good_workflow | sed 's/^  CGO_CFLAGS:/  CGO_CFLAGS :/' >"${t}/.github/workflows/env-space-colon.yml"
+	check_guard "guard: workflow-level 'CGO_CFLAGS :' with the flag passes" 0 "$t"
+
+	# Makefile: make strips "#" with no space before it, and the last -std= wins.
+	mk_case() {
+		t="$(new_tree)"
+		printf '%b' "$3" >"${t}/Makefile"
+		check_guard "guard: Makefile $1" "$2" "$t" "$([ "$2" = 1 ] && printf Makefile)"
+	}
+	mk_case "with a later -std=gnu23 FAILS" 1 'export CGO_CFLAGS := -O2 -g -std=gnu17 -std=gnu23\n'
+	mk_case "with -std=gnu17 after a bare # FAILS" 1 'export CGO_CFLAGS := -O2 -g# -std=gnu17 kept for docs\n'
+	mk_case "that appends a later -std= FAILS" 1 'export CGO_CFLAGS := -O2 -g -std=gnu17\nexport CGO_CFLAGS += -std=gnu23\n'
+	mk_case "that unexports CGO_CFLAGS FAILS" 1 'export CGO_CFLAGS := -O2 -g -std=gnu17\nunexport CGO_CFLAGS\n'
+	mk_case "that never exports CGO_CFLAGS FAILS" 1 'CGO_CFLAGS ?= -O2 -g -std=gnu17\n'
+	mk_case "that sets CGO_CFLAGS with != FAILS" 1 'export CGO_CFLAGS != echo -std=gnu17\n'
+	mk_case "spelling ::= passes" 0 'export CGO_CFLAGS ::= -O2 -g -std=gnu17\n'
+	mk_case "spelling ?= passes" 0 'export CGO_CFLAGS ?= -O2 -g -std=gnu17\n'
+	mk_case "spelling override export passes" 0 'override export CGO_CFLAGS := -O2 -g -std=gnu17\n'
+	mk_case "spelling with tabs passes" 0 'export\tCGO_CFLAGS\t:=\t-O2 -g -std=gnu17\n'
+	mk_case "spelling with a trailing comment passes" 0 'export CGO_CFLAGS = -O2 -g -std=gnu17 # keep\n'
+
 	t="$(new_tree)"
 	cat >"${t}/.github/workflows/container.yml" <<'EOF'
 name: Fixture

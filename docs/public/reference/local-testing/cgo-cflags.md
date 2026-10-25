@@ -94,8 +94,15 @@ when:
 - a workflow that compiles Go has no workflow-level `CGO_CFLAGS` with
   `-std=gnu17`, or any `CGO_CFLAGS` assignment drops the flag, adds a second
   `-std=`, uses a `${{ }}` expression, appends a later `-std=` with `+=`, or
-  unsets the variable, or any `CGO_CPPFLAGS` value holds `-std=`. A whole-line or
-  trailing `#` comment that names `-std=gnu17` does not count as the flag;
+  unsets or clears the variable (`unset`, `env -u`, `env --unset`, `env -i`,
+  `export -n`, `Remove-Item Env:`), or any `CGO_CPPFLAGS` value holds `-std=`.
+  Blanks, tabs, or quotes around the key do not hide an assignment. A
+  whole-line or trailing `#` comment (a `#` after whitespace) that names
+  `-std=gnu17` does not count as the flag;
+- the `Makefile` has no line that exports `CGO_CFLAGS` with exactly one
+  `-std=`, and it is `-std=gnu17`, or another `CGO_CFLAGS` line adds a `-std=`,
+  or it unexports the variable. make starts a comment at any `#`, so a `#` with
+  no space before it hides the rest of the line from the guard too;
 - a script under `scripts/` that runs `CGO_ENABLED=1 go`, or a developer
   entrypoint, lacks a non-comment line that sources `scripts/lib/cgo-cflags.sh`
   or a non-comment call to `eshu_export_cgo_cflags`. A comment that names the
@@ -114,9 +121,12 @@ function that runs `go`, and the mirror tests run the real entrypoints.
 
 The workflow check also accepts, for the same reason: a later `-std=` on the
 same command line after the assignment (`CGO_CFLAGS=-O2 go build -x -std=gnu17`),
-`env -i` or another way to clear the variable, and a flag set through a YAML
-anchor, a job-level `env`, or `go env -w`; the last group fails safe because no
-workflow-level flag is found. A quoted value that holds ` #`, `;`, `&`, or `|` is
+other ways to hide the variable (`readonly`, an `env -S` string), and a flag set
+through a YAML anchor, a job-level `env`, or `go env -w`; the last group fails
+safe because no workflow-level flag is found. The `Makefile` check cannot tell a
+later reset from the real `else` branch (which keeps a caller's own `-std=`),
+and it treats a separate `export CGO_CFLAGS` line or a backslash continuation as
+missing, which fails safe. The table in the guard's header lists every shape. A quoted value that holds ` #`, `;`, `&`, or `|` is
 cut short and fails safe.
 
 The guard reads literal text, so it also cannot see a `-std=` that reaches the

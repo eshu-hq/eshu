@@ -14,43 +14,69 @@
 #      CGO_CFLAGS with -std=gnu17 in its workflow-level env. GitHub passes no
 #      env between workflow files, so each file must carry its own.
 #   2. No CGO_CFLAGS assignment anywhere in a workflow drops -std=gnu17, so a
-#      later job or step cannot clobber the flag. The value must hold exactly
-#      -std=gnu17 (no second -std=, no "${{ }}" expression) before any trailing
-#      " #" comment, so comment text never counts as the flag. A "+=" append
-#      must not add a -std=, any CGO_CPPFLAGS value with -std= fails, and
-#      "unset CGO_CFLAGS" and "env -u CGO_CFLAGS" also fail.
+#      later job or step cannot clobber the flag.
 #   3. Every script under scripts/ that runs `CGO_ENABLED=1 go ...` sources
 #      scripts/lib/cgo-cflags.sh and calls eshu_export_cgo_cflags.
 #   4. The developer entrypoints (--list-entrypoints) do the same, and the
-#      Makefile exports CGO_CFLAGS with -std=gnu17 on the export line itself.
+#      Makefile exports CGO_CFLAGS with exactly -std=gnu17 on the export line.
 #
-# Checks 3 and 4 are line-based text checks, not a shell parser. These do not
-# satisfy them: a whole-line comment, a trailing " #" comment, an echo string
-# that holds none of ";", "&", "|", "(", "{", "then", "do", "else", and a
+# Shape table. The guard reads literal text and never evaluates it. Every
+# unresolved case below fails SAFE (the guard reports a violation) unless it is
+# listed under "Accepted".
+#
+#   Family            Workflow YAML and its run: shell      Makefile
+#   ----------------- ------------------------------------- ----------------------
+#   comment strip     whole-line "#"; trailing at white-    any "#" (make needs
+#                     space + "#" (a quoted " #" is cut     no space); "\#" is cut
+#                     from the value only, not from Go      too (fail safe)
+#                     detection)
+#   assignment name   CGO_CFLAGS or CGO_CPPFLAGS, optional  CGO_CFLAGS, optional
+#                     quote around a YAML key, blanks or    blanks before the
+#                     tabs before ":" "=" "+="              operator
+#   operator          ":" "=" "+="                          ":=" "::=" ":::=" "="
+#                                                           "?=" count; "+=" "!="
+#                                                           do not
+#   export            n/a (env key or shell var)            "export" on the same
+#                                                           line, "override" ok
+#   separators        value ends at ";" "&" "|" or the      value runs to the
+#                     next CGO_* assignment                 end of the line
+#   -std= count       exactly one, and it is -std=gnu17;    exactly one, gnu17
+#                     "+=" may add anything but a -std=;
+#                     CGO_CPPFLAGS may hold no -std=
+#   expressions       "${{" in a value fails                n/a
+#   unset spellings   unset [-v], env -u, env --unset[=],   unexport CGO_CFLAGS
+#                     env -i, --ignore-environment,
+#                     export -n, declare/typeset +x,
+#                     Remove-Item Env:
+#   Go detection      whole line, only whole-line comments  n/a
+#                     removed
+#
+# Checks 3 and 4 (scripts) are line-based text checks, not a shell parser. These
+# do not satisfy them: a whole-line comment, a trailing " #" comment, an echo
+# string that holds none of ";", "&", "|", "(", "{", "then", "do", "else", and a
 # definition written "name() {", "name () {", or "function name". Sourcing the
 # library without calling the export does nothing, so both must be present.
 #
-# Known and accepted, because each needs a shell parser and the rest of the
-# repo's shell guards do not use one: a string that holds one of those words or
-# separators (for example echo "x; eshu_export_cgo_cflags" or
-# echo "do eshu_export_cgo_cflags"); a heredoc body line; a call inside a
-# function that nothing calls or a branch that never runs. The build helpers
-# (build_bin, ifa_det_build_bin) call the export at the top of the function
-# that runs go, and the mirror tests run the real entrypoints.
-#
-# Known and accepted for the workflow checks, because each needs a shell and
-# YAML parser: CGO_CFLAGS=-O2 go build -x -std=gnu17 (the value runs to the end
-# of the line, so a later -std= on the same command counts); env -i or another
-# way to clear the variable; a value set through a YAML anchor, job-level env,
-# or "go env -w" (these fail safe: no workflow-level flag is found); and a quoted
-# value that holds " #", ";", "&", or "|" (fail safe: the checked text is cut
-# short). A "#" in a quoted string before an assignment is not treated as a
-# comment for Go detection, and an assignment after any " #" is reported.
-#
-# Also accepted: a -std= that reaches the compiler by another route, such as a
-# CC value (CC: "gcc -std=gnu23") or wrapper, a #cgo directive in Go source, or a
-# ${{ }} expression in CGO_CPPFLAGS whose value is only known at run time. The
-# guard reads literal text and cannot evaluate those.
+# Accepted, because each needs a shell, YAML, or make parser and the rest of the
+# repo's guards do not use one:
+#   - scripts: a string that holds one of those words or separators (for example
+#     echo "x; eshu_export_cgo_cflags"); a heredoc body line; a call inside a
+#     function that nothing calls or a branch that never runs. The build helpers
+#     (build_bin, ifa_det_build_bin) call the export at the top of the function
+#     that runs go, and the mirror tests run the real entrypoints.
+#   - workflows: CGO_CFLAGS=-O2 go build -x -std=gnu17 (a later -std= on the
+#     same command counts); a value set through a YAML anchor, job-level env, or
+#     "go env -w" (these fail safe: no workflow-level flag is found); a quoted
+#     value that holds " #", ";", "&", or "|" (fail safe: the value is cut
+#     short); a -std= that reaches the compiler by another route, such as a CC
+#     value (CC: "gcc -std=gnu23") or wrapper, a #cgo directive in Go source, or
+#     a ${{ }} expression in CGO_CPPFLAGS whose value is only known at run time;
+#     other ways to hide the variable, such as "readonly" or an "env -S" string.
+#   - Makefile: a later assignment that resets the variable without a -std=
+#     (the real Makefile has exactly that in its else branch, which keeps a
+#     caller's own -std=, and telling the two apart needs make); a "CGO_CFLAGS :=
+#     ... -std=gnu17" line with a separate "export CGO_CFLAGS" (fail safe); a
+#     backslash continuation (fail safe).
 #
 # Coverage is exactly the files named above. A script that runs go without the
 # `CGO_ENABLED=1 go` prefix gets the flag from a workflow, make, or one of the
@@ -157,24 +183,35 @@ require_lib_use() {
 }
 
 # cgo_cflags_assignments FILE prints one tab-separated record per CGO_CFLAGS or
-# CGO_CPPFLAGS assignment, append, or unset in a workflow: OK or BAD, "env" when it is a workflow-level
-# env key (else "-"), and the line. Whole-line comments are dropped first. A
-# trailing YAML comment starts at whitespace plus "#", but a "#" inside a quoted
-# shell string looks the same, so the comment cut is applied to the VALUE only:
-# an assignment is OK when the text between it and the comment start (or the
-# next ";", "&", "|", or CGO_* assignment) holds -std=gnu17, no other -std=, and
-# no "${{" expression. A "+=" append keeps the earlier value, so it is OK unless
-# it adds a -std=. Any CGO_CPPFLAGS value with -std= is BAD, because cgo passes
-# those flags to the C compiler as well. An assignment after a comment start has no checkable
-# value, so it is BAD. "unset CGO_CFLAGS" and "-u CGO_CFLAGS" are BAD. Every
-# error here turns a pass into a FAIL, never the reverse.
+# CGO_CPPFLAGS assignment, append, or unset-like command in a workflow: OK or
+# BAD, "env" when it is a workflow-level env key (else "-"), and the line.
+# Whole-line comments are dropped first. YAML (and the shell inside "run:")
+# starts a trailing comment at whitespace plus "#", but a "#" inside a quoted
+# shell string looks the same, so the comment cut is applied to the VALUE only.
+# The name may be followed by blanks and may be a quoted YAML key; the operator
+# is ":", "=", or "+=". An assignment is OK when the text between the operator and
+# the comment start (or the next ";", "&", "|", or CGO_* assignment) holds
+# -std=gnu17, no other -std=, and no "${{" expression. A "+=" append keeps the
+# earlier value, so it is OK unless it adds a -std=. Any CGO_CPPFLAGS value with
+# -std= is BAD, because cgo passes those flags to the C compiler as well. An
+# assignment after a comment start has no checkable value, so it is BAD. These
+# are BAD too: "unset [-v] CGO_CFLAGS", "env -u CGO_CFLAGS", "env --unset[=]
+# CGO_CFLAGS", "env -i" (or "--ignore-environment"), and "export -n" or
+# "declare +x" naming CGO_CFLAGS, and PowerShell "Remove-Item Env:CGO_CFLAGS". Every error here turns a pass into a FAIL,
+# never the reverse.
 cgo_cflags_assignments() {
 	sed -e '/^[[:space:]]*#/d' "$1" | awk '
 		function value_of(s,   e) {
 			e = length(s) + 1
 			if (match(s, /[;&|]/) && RSTART < e) e = RSTART
-			if (match(s, /[[:space:]]CGO_[A-Z_]+\+?[:=]/) && RSTART < e) e = RSTART
+			if (match(s, /[[:space:]]CGO_[A-Z_]+[[:space:]]*\+?[:=]/) && RSTART < e) e = RSTART
 			return substr(s, 1, e - 1)
+		}
+		BEGIN {
+			sq = sprintf("%c", 39)
+			q = "[\"" sq "]?"
+			assign_re = "CGO_(CFLAGS|CPPFLAGS)" q "[[:space:]]*\\+?[:=]"
+			env_key_re = "^[[:space:]]+" q "CGO_CFLAGS" q "[[:space:]]*:"
 		}
 		/^env:[[:space:]]*$/ { inenv = 1; next }
 		/^[^[:space:]#]/ { inenv = 0 }
@@ -182,11 +219,13 @@ cgo_cflags_assignments() {
 			line = $0
 			cstart = length(line) + 1
 			if (match(line, /[[:space:]]#/)) cstart = RSTART
-			if (line ~ /(^|[^[:alnum:]_])unset[[:space:]]+[^;&|]*CGO_CFLAGS/ || line ~ /-u[[:space:]]*CGO_CFLAGS/)
+			if (line ~ /CGO_CFLAGS/ && (line ~ /(^|[^[:alnum:]_])unset[[:space:]]+[^;&|]*CGO_CFLAGS/ || line ~ /-u[[:space:]]*CGO_CFLAGS/ || line ~ /--unset[=[:space:]]+CGO_CFLAGS/ || line ~ /(^|[^[:alnum:]_])export[[:space:]]+-[a-zA-Z]*n/ || line ~ /(declare|typeset)[[:space:]]+\+[a-z]*x/ || line ~ /Remove-Item[[:space:]]+[^;&|]*CGO_CFLAGS/))
+				printf "BAD\t-\t%s\n", line
+			else if (line ~ /(^|[^[:alnum:]_])env[[:space:]]+(-[^[:space:]]+[[:space:]]+)*(-i|--ignore-environment|-)([[:space:]]|$)/)
 				printf "BAD\t-\t%s\n", line
 			scan = line
 			off = 0
-			while (match(scan, /CGO_(CFLAGS|CPPFLAGS)\+?[:=]/)) {
+			while (match(scan, assign_re)) {
 				rs = RSTART; rl = RLENGTH
 				name = substr(scan, rs, rl)
 				start = off + rs + rl
@@ -204,12 +243,43 @@ cgo_cflags_assignments() {
 				} else {
 					ok = (val ~ /-std=gnu17/) && (val !~ /\$\{\{/) && (rest !~ /-std=/)
 				}
-				kind = (inenv && name == "CGO_CFLAGS:" && line ~ /^[[:space:]]+CGO_CFLAGS:/ && off == 0) ? "env" : "-"
+				kind = (inenv && name !~ /CPPFLAGS/ && name !~ /\+/ && line ~ env_key_re && off == 0) ? "env" : "-"
 				printf "%s\t%s\t%s\n", ok ? "OK" : "BAD", kind, line
 				off = off + rs + rl - 1
 				scan = substr(scan, rs + rl)
 			}
 		}
+	'
+}
+
+# makefile_exports_flag prints "yes" when the Makefile has a line that exports
+# CGO_CFLAGS (":=", "::=", ":::=", "=", or "?=", with or without "override")
+# whose value holds exactly one -std=, and it is -std=gnu17. make starts a comment
+# at any "#", with no space needed, so this strip differs from code_of's
+# whitespace rule (a "\#" is cut too, which can only turn a pass into a FAIL).
+# It is "no" when any other CGO_CFLAGS assignment adds a -std=, or when the
+# variable is unexported.
+makefile_exports_flag() {
+	sed -e 's/#.*$//' "$1" | awk '
+		function std_count(s,   n, t) {
+			n = 0; t = s
+			while (match(t, /-std=/)) { n++; t = substr(t, RSTART + RLENGTH) }
+			return n
+		}
+		/(^|[^[:alnum:]_])unexport[[:space:]]+([^;]*[[:space:]])?CGO_CFLAGS/ { bad = 1 }
+		{
+			if (!match($0, /CGO_CFLAGS[[:space:]]*[:+?!]*=/)) next
+			pre = substr($0, 1, RSTART - 1)
+			if (pre ~ /[[:alnum:]_]$/) next
+			op = substr($0, RSTART, RLENGTH)
+			sub(/^CGO_CFLAGS[[:space:]]*/, "", op)
+			val = substr($0, RSTART + RLENGTH)
+			exporting = (pre ~ /(^|[^[:alnum:]_])export([[:space:]]|$)/)
+			plain = (op ~ /^(:|::|:::|\?)?=$/)
+			if (exporting && plain && std_count(val) == 1 && val ~ /-std=gnu17/) found = 1
+			else if (std_count(val) > 0) bad = 1
+		}
+		END { print (found && !bad) ? "yes" : "no" }
 	'
 }
 
@@ -253,8 +323,8 @@ while IFS= read -r entry; do
 	if [ ! -f "${root}/${entry}" ]; then
 		fail "${entry} is missing; it must carry the #9066 CGO_CFLAGS flag"
 	elif [ "${entry}" = "Makefile" ]; then
-		if ! code_of "${root}/${entry}" | rg -q -e '^export CGO_CFLAGS.*-std=gnu17'; then
-			fail "${entry} has no non-comment export of CGO_CFLAGS with -std=gnu17 (#9066)"
+		if [ "$(makefile_exports_flag "${root}/${entry}")" != "yes" ]; then
+			fail "${entry} has no non-comment export of CGO_CFLAGS with exactly -std=gnu17 (#9066)"
 		fi
 	else
 		require_lib_use "${entry}" "is a developer entrypoint"
