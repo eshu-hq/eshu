@@ -7,6 +7,14 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/recovery_refinalize_delta_active_fence_live_test.go": (
+            "TestRefinalizeDeltaActiveRollsBackReindexWithTheTransaction",
+            "TestRefinalizeDeltaActiveReindexLockContention",
+        ),
+        "go/internal/storage/postgres/recovery_refinalize_delta_active_live_test.go": (
+            "TestRefinalizeDeltaActiveRequestsFullReindex",
+            "TestRefinalizeDeltaActiveConvergesAcrossTwoCalls",
+        ),
         "go/internal/storage/postgres/recovery_refinalize_fence_admission_live_test.go": (
             "TestRefinalizeFenceAdmissionDeadlineStopsAfterFenceAcquire",
             "TestRefinalizeFenceAdmissionPersistentHolderExhaustsWithoutConvoy",
