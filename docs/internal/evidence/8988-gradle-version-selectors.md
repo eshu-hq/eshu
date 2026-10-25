@@ -17,8 +17,7 @@ The same string-notation reader stored a classifier as part of the version:
 `g:a:1.0:jdk8` had `value` `1.0:jdk8`, and `g:a@jar` had name `g:a@jar`.
 `parseCoordinateLiteral` now reads `group:name[:version[:classifier]][@ext]`.
 The classifier never joins the version, and `selector.Exact` rejects `:`.
-The reducer backstop does not reject `:`, because other ecosystems' exact
-versions can hold one (a Debian epoch such as `1:2.3-1`).
+The reducer backstop rejects `:` through `GradleVersionSelector`: a version never holds one, so a `:` means a classifier or other notation text leaked into the version. No parser in the tree emits Debian epochs, and the rejection is pinned by `TestExactManifestDependencyVersionRejectsGradleSelectors` and `TestPackageManifestObservedVersionRejectsColonBearingGradleValue`.
 
 ## Accuracy proof
 
