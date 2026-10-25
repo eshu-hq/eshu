@@ -126,6 +126,22 @@ func defaultDefinitions() []Definition {
 			ExactNames: []string{"build.gradle", "build.gradle.kts", "libs.versions.toml"},
 		},
 		{
+			// gradle-wrapper.properties pins the Gradle distribution, and its
+			// distributionUrl can carry user:password@ userinfo. It is its own
+			// exact-name definition, never bound to the gradle definition above,
+			// and it binds the metadata content-store policy (#8822): the row
+			// keeps the path and the source digest with an empty body, and the
+			// wrapper parser emits only the version and the distribution type.
+			// Parser output is not governed by the policy, so the parser, not
+			// the policy, keeps credentials out of facts.
+			ParserKey:    "gradle_wrapper",
+			Language:     "gradle_wrapper",
+			Ecosystem:    "java",
+			Admission:    AdmissionStructuredFact,
+			ContentStore: ContentStore{Policy: ContentStoreMetadata},
+			ExactNames:   []string{"gradle-wrapper.properties"},
+		},
+		{
 			ParserKey:  "javascript",
 			Language:   "javascript",
 			Ecosystem:  "javascript",
@@ -387,7 +403,28 @@ func PathDispatches() []PathDispatch {
 			ParserKey: "hcl",
 			Examples:  []string{"prod.tfvars.json", "env/stage.auto.tfvars.json"},
 		},
+		{
+			Patterns:  []string{"constraints.txt", "constraints-*.txt", "constraints_*.txt"},
+			ParserKey: "python_requirements",
+			Examples:  []string{"constraints.txt", "services/api/constraints-dev.txt", "Constraints_Prod.TXT"},
+		},
 	}
+}
+
+// isPipConstraintsName reports whether a lower-cased base name is a pip
+// constraints file: constraints.txt, constraints-*.txt, or constraints_*.txt
+// (#8821). It is a path rule, not a PrefixNames entry, because a prefix
+// matches before the extension index and would take constraints-*.yaml
+// policy files (Gatekeeper constraints, for one) away from the YAML parser.
+// The .txt suffix keeps the family to pip input.
+func isPipConstraintsName(base string) bool {
+	stem, ok := strings.CutSuffix(base, ".txt")
+	if !ok {
+		return false
+	}
+	return stem == "constraints" ||
+		strings.HasPrefix(stem, "constraints-") ||
+		strings.HasPrefix(stem, "constraints_")
 }
 
 func isScalaPlayRoutesPath(path string) bool {

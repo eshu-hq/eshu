@@ -36,8 +36,9 @@ Anything both sides need lives in
   `marker` redactor replaces credential values with `REDACTED_<finding_kind>`,
   binds to the migration 138 detector in `go/internal/secret/detect`, and fails
   closed: a redactor error or non-UTF-8 body returns an empty body with
-  `StoreOutcomeRedactorFailed`, never the source. The caller keeps the content
-  digest on the SOURCE bytes.
+  `StoreOutcomeRedactorFailed`, never the source. The `skeleton` redactor
+  (#8833) keeps an allowlist skeleton of an open-schema file such as `*.tfvars`.
+  The caller keeps the content digest on the SOURCE bytes.
 
 ## Notes
 
@@ -77,7 +78,83 @@ updated in the same change.
   value under an unlisted key that the detector does not flag (an anchor
   definition `base: &t value`). Marker mode is for closed-schema files, where
   these shapes do not occur; `TestRedactMarkerKnownLimits` pins them.
+- **URL userinfo keys.** A definition's `URLUserinfoKeys` (for `.yarnrc.yml`:
+  `npmRegistryServer`, `npmPublishRegistry`, `httpProxy`, `httpsProxy`) lose
+  only the userinfo of their URL value (`marker_url_userinfo.go`). The userinfo
+  runs to the last `@` of the authority. A value that is not exactly one URL, a
+  host that is not a plain name or IPv6 literal with a numeric port, an `@`
+  after the host, a backslash in the value (YAML escapes), or any other detector
+  match on the line falls back to the credential-key rule and the whole value
+  goes. A URL key and a
+  credential key on one line (a flow mapping) are both covered by the
+  credential rule from the leftmost key.
 - **Parity with migration 138.** The Go detector uses a superset whitespace
   class (`detect.SpaceClass`) because Postgres `[[:space:]]` matches U+2003 and
   U+3000 and RE2's does not, and Go `(?i)` folds U+017F and U+212A where Postgres
   in a C collation does not. #8833's parity corpus must include both.
+
+## Skeleton redactor: rules and bounds
+
+`redactSkeleton` (`skeleton_redactor.go`) is line-wise and keeps every line
+number, the trailing newline, and `\r` line endings.
+
+- **Kept:** empty lines, structural lines (`{`, `}`, `[`, `]`, `key = {`,
+  `key = [`, heredoc openers and closers), and a `key = value` or
+  `"key": value` value that is a boolean, `null`, a number, a `var.`, `local.`,
+  `module.`, or `data.` reference, or a quoted version or constraint whose
+  prerelease is a known word (`alpha`, `beta`, `rc`, `pre`, `dev`, `snapshot`).
+- **Finding first:** when the raw line is a migration 138 finding (the line
+  gate matches and the `CASE` names a kind), the value becomes
+  `REDACTED_<finding_kind>`, even for a reference. A gate match with no kind
+  (an `sk_live_` key alone) is no finding, so it becomes `REDACTED_value` and the
+  #8833 marker arm adds no finding the raw body lacked. Any detector match still
+  blocks the allowlist, so `x = var.sk_live_...` is not kept.
+- **Whole line:** a line it cannot place (comment, bare list element, heredoc
+  body, PEM block line, unterminated string, a detector match inside the key, a
+  value that starts with `=` or `:` such as the base64 padding of `TOKEN==`)
+  becomes `REDACTED_<finding_kind>` when it is a finding, else `REDACTED_value`,
+  with its indent kept and no trailing comma.
+- **State across lines:** a PEM `BEGIN` header with no `END` after it redacts
+  every line through the footer, or to the end of the file. Everything else
+  comes from one lexical stack (`scanState`, `skeleton_scan.go`) that follows
+  HashiCorp's HCL lexer: quoted templates, heredoc templates, `${ }` and `%{ }`
+  interpolations, and braces inside them, plus an open `/* */` comment. A line
+  that begins inside any of them is redacted whole.
+  - A heredoc opens at the end of a line that ends in code, with `<<ID` or
+    `<<-ID` and nothing after it (`key = <<EOF`, `keys = [<<EOF`, or inside an
+    interpolation). It closes on a line whose text, after its last
+    interpolation, is the marker. A heredoc nests: `${ <<INNER` inside a
+    heredoc body opens a second one, and only the innermost marker closes.
+    `<<~EOF` and `<<"EOF"` are not HCL heredocs and open nothing.
+  - A `<<EOF` inside a `#` or `//` comment, a string, or a heredoc body is text.
+    `$${` and `%%{` are text in strings and heredocs. A comment inside an
+    interpolation does not end it.
+  - When the opener line was redacted, its closer is redacted too, which keeps
+    the fixed point. When a top-level `key = <<ID` line is kept, its closer is
+    kept.
+  - Lexing failure is sticky. Nesting past 32 levels, a line that ends inside
+    a quoted template (HCL's `TokenQuotedNewline`, invalid HCL), or a bare
+    `\r` inside a quoted template or heredoc text redacts every later line
+    whole. A bare `\r` is one that is not the `\r` of a CRLF line ending; it
+    is a `TokenQuotedNewline` in a string and a `TokenInvalid` in heredoc text,
+    where HCL stops lexing. A CRLF ending is trimmed as usual, and a bare `\r`
+    in code or in a comment is no failure. Nothing clears it. The body is still stored with
+    its line count and its findings; what is lost is the key names and the kept
+    values after the first failure, so an unclosed `${` in a JSON string value
+    costs the rest of that file. An unterminated `/*` that never closes redacts
+    to the end of the file.
+- **Fixed point:** an exact marker, as a value or a whole line, is kept, so a
+  second pass changes nothing.
+- **Keys are kept when they are names** (8813 record): an identifier or a quoted
+  key of letters, digits, `_`, `.`, and `-`. A quoted key holding other text (a
+  URL, a CIDR, an ARN, symbols) takes the whole line. A credential spelled as a
+  plain name survives as a key unless the detector flags it. `REDACTED_value` is
+  used only by this mode.
+- **Fail closed:** the same `MaxGovernedBodyBytes`, UTF-8, and NUL checks as the
+  marker redactor; the caller stores a metadata row.
+- **Proof:** `TestRedactSkeletonLineRules` pins the table,
+  `TestRedactSkeletonPropertyCorpus` plants a credential-shape corpus (AWS key,
+  `sk_live_`, Slack token, PEM block in a comment and in a heredoc, base64, hex,
+  word with symbols, URL userinfo) and checks the stored-line grammar, line
+  count, fixed point, and that every raw finding keeps its kind marker, and
+  `FuzzRedactSkeleton` runs the same checks on arbitrary input.

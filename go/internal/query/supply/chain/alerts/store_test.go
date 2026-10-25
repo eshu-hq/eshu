@@ -225,3 +225,52 @@ func TestSecurityAlertProviderRepositoryScopesQueryIsExactAndBounded(t *testing.
 		}
 	}
 }
+
+// TestDecodeSecurityAlertReconciliationRowSurfacesTheImpactWaitGiveUp proves
+// the reader tells a give-up row from a genuine no-match (#8956): the give-up
+// row carries impact_wait_outcome, the genuine no-match row omits it from the
+// row and from its JSON.
+func TestDecodeSecurityAlertReconciliationRowSurfacesTheImpactWaitGiveUp(t *testing.T) {
+	t.Parallel()
+
+	base := map[string]any{
+		"provider":               "github_dependabot",
+		"provider_alert_number":  float64(15),
+		"reconciliation_status":  "unmatched",
+		"reason_code":            "impact_finding_missing",
+		"dependency_evidence_id": "dep-1",
+	}
+	decode := func(payload map[string]any) (supplychain.SecurityAlertReconciliationRow, string) {
+		t.Helper()
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal: %v", err)
+		}
+		row, err := decodeRow("reconciliation-unmatched", "inferred", raw)
+		if err != nil {
+			t.Fatalf("decodeRow() error = %v", err)
+		}
+		out, err := json.Marshal(row)
+		if err != nil {
+			t.Fatalf("marshal row: %v", err)
+		}
+		return row, string(out)
+	}
+
+	genuine, genuineJSON := decode(base)
+	if genuine.ImpactWaitOutcome != "" || strings.Contains(genuineJSON, "impact_wait_outcome") {
+		t.Fatalf("genuine no-match row = %q / %s, want no impact_wait_outcome", genuine.ImpactWaitOutcome, genuineJSON)
+	}
+
+	giveUp := map[string]any{"impact_wait_outcome": "gave_up_bound_exceeded"}
+	for key, value := range base {
+		giveUp[key] = value
+	}
+	row, rowJSON := decode(giveUp)
+	if row.ImpactWaitOutcome != "gave_up_bound_exceeded" || !strings.Contains(rowJSON, `"impact_wait_outcome":"gave_up_bound_exceeded"`) {
+		t.Fatalf("give-up row = %q / %s, want impact_wait_outcome gave_up_bound_exceeded", row.ImpactWaitOutcome, rowJSON)
+	}
+	if row.ReconciliationStatus != genuine.ReconciliationStatus || row.ReasonCode != genuine.ReasonCode {
+		t.Fatalf("give-up row status/reason = %q/%q, want the genuine row's %q/%q", row.ReconciliationStatus, row.ReasonCode, genuine.ReconciliationStatus, genuine.ReasonCode)
+	}
+}

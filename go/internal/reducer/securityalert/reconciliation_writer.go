@@ -28,6 +28,12 @@ type SecurityAlertReconciliationWrite struct {
 	SourceSystem string
 	Cause        string
 	Decisions    []SecurityAlertReconciliationDecision
+	// ImpactWaitOutcome is the give-up outcome of the pass (#8956), one of
+	// PersistedImpactWaitOutcomes, or empty when the handler did not give up
+	// (including a settled producer, a genuine no-match). The writer stamps it
+	// as impact_wait_outcome only on decisions that waited on impact evidence
+	// and rejects any value outside the closed set.
+	ImpactWaitOutcome string
 }
 
 // SecurityAlertReconciliationWriteResult summarizes durable reconciliation
@@ -62,6 +68,11 @@ func (w PostgresSecurityAlertReconciliationWriter) WriteSecurityAlertReconciliat
 ) (SecurityAlertReconciliationWriteResult, error) {
 	if w.DB == nil {
 		return SecurityAlertReconciliationWriteResult{}, fmt.Errorf("security alert reconciliation database is required")
+	}
+	if !persistedImpactWaitOutcome(write.ImpactWaitOutcome) {
+		return SecurityAlertReconciliationWriteResult{}, fmt.Errorf(
+			"security alert reconciliation impact wait outcome %q is not in the persisted set %v",
+			write.ImpactWaitOutcome, PersistedImpactWaitOutcomes())
 	}
 	now := factwrite.Now(w.Now)
 	rows := make([]factwrite.Row, 0, len(write.Decisions))
@@ -150,7 +161,7 @@ func securityAlertReconciliationPayload(
 ) map[string]any {
 	scopeID := securityAlertReconciliationWriteScopeID(write, decision)
 	generationID := securityAlertReconciliationWriteGenerationID(write, decision)
-	return map[string]any{
+	payload := map[string]any{
 		"reducer_domain":         string(reducercontract.DomainSecurityAlertReconciliation),
 		"intent_id":              write.IntentID,
 		"scope_id":               scopeID,
@@ -215,6 +226,26 @@ func securityAlertReconciliationPayload(
 			string(truth.LayerObservedResource),
 		},
 	}
+	// The key is added only for a give-up on a decision that waited on impact
+	// evidence (#8956); a genuine no-match keeps the pre-#8956 payload bytes.
+	if write.ImpactWaitOutcome != "" && decisionWaitsOnImpactEvidence(decision) {
+		payload["impact_wait_outcome"] = write.ImpactWaitOutcome
+	}
+	return payload
+}
+
+// persistedImpactWaitOutcome reports whether outcome may be written: empty (no
+// give-up) or one of PersistedImpactWaitOutcomes.
+func persistedImpactWaitOutcome(outcome string) bool {
+	if outcome == "" {
+		return true
+	}
+	for _, allowed := range PersistedImpactWaitOutcomes() {
+		if outcome == allowed {
+			return true
+		}
+	}
+	return false
 }
 
 func securityAlertReconciliationWriteScopeID(

@@ -22,4 +22,12 @@ type InstanceSummary struct {
 	// it is unset or malformed. The status reader sizes the terminal-failure
 	// window from it (#8803). It is not part of any payload.
 	ScanInterval time.Duration `json:"-"`
+	// ExtensionHosted reports that the instance was activated from a
+	// component, so the extension host runs it and its failure classes are
+	// extension-defined whatever CollectorKind says (the host takes the kind
+	// from the component manifest, so it can be a first-party kind such as
+	// jira). The status reader fills it from the instance configuration's
+	// component activation marker. It is a boolean, never a label value, and
+	// is not part of any payload (#8951).
+	ExtensionHosted bool `json:"-"`
 }

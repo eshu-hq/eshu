@@ -116,6 +116,12 @@ around the `Materialize` call.
   writes `source_cache_truncated`, `source_cache_original_bytes`, and
   `source_cache_limit_bytes` into entity metadata so API clients can detect the
   cut. Truncation is UTF-8-safe (`truncateUTF8ByBytes`).
+- `sourceCacheWithheld` makes `entitySourceCache` return an empty snippet when
+  the parser set `source_cache_withheld: true` in `Entity.Metadata` (the pip
+  constraints rows, #8821). The snippet is the raw line range of the file, which
+  can hold text the parser scrubbed from the row's fields. Only the boolean
+  `true` counts, the flag stays in the entity metadata, and the file body is
+  unaffected.
 - `entityEndLine` falls back in order: entity's own `EndLine`, next entity's
   `LineNumber - 1`, `startLine + 24` capped to total lines, then `startLine`
   when the body is empty. This means entities without an `EndLine` in the

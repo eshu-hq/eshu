@@ -37,6 +37,10 @@
 - Version catalog (`libs.versions.toml`) support lives in the separate TOML
   parser package `catalog/`, not here. The parent hook
   `../gradle_language.go` routes by base name.
+- `gradle-wrapper.properties` is parsed by `wrapper/` under its own
+  `gradle_wrapper` definition and the `metadata` content-store policy. It
+  never reaches this package: this parser can echo the file body, and a
+  `distributionUrl` can carry `user:password@` userinfo.
 - Telemetry, registry dispatch, and engine wrappers belong in the parent
   parser package.
 

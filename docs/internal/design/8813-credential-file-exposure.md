@@ -48,9 +48,9 @@ No step transforms the body; #8812 adds the per-definition store policy. The
 registry still withholds the credential-bearing names (`phpunit.xml(.dist)`,
 `.mvn/jvm.config`, `.mvn/maven.config`, `.mvn/settings.xml`, `settings.xml`,
 `.pypirc`, `.netrc`, `.env*`, `mise.toml`) while the store has no write-time
-redaction (`TestDefaultRegistryKeepsCredentialBearing*`). `.npmrc` is the one
-name admitted since #8978, under `metadata` (see the rule table). Admitting any
-other needs a new record.
+redaction (`TestDefaultRegistryKeepsCredentialBearing*`). `.npmrc` (#8978) and
+`gradle-wrapper.properties` (#8822) are admitted under `metadata` (see the rule
+table). Admitting any other needs a new record.
 
 ### Where the body is then readable
 
@@ -188,6 +188,7 @@ These decide what each policy costs for `*.tfvars`.
 | `.yarnrc.yml` | `redact` | marker | #8812 mode; bound in #8833 with or after the marker-arm migration |
 | `*.tfvars`, `*.tfvars.json` | `redact` | allowlist skeleton | #8833 |
 | `.npmrc` | `metadata` | none | #8978 |
+| `gradle-wrapper.properties` | `metadata` | none | #8822, [record](../evidence/8822-gradle-wrapper.md) |
 
 `.eshuignore` stays the override. A looser tfvars rule needs a new record.
 

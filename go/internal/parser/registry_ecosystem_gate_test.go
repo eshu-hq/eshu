@@ -41,9 +41,7 @@ type ecosystemGap struct {
 // Each entry names the language, the file, and the issue that closes it. The
 // gate fails on an entry that stops being a gap, so the list shrinks as the
 // registry grows and cannot rot. Do not add an entry without an issue.
-var knownEcosystemGaps = []ecosystemGap{
-	{Language: "java", File: "gradle-wrapper.properties", Issue: "#8822"},
-}
+var knownEcosystemGaps = []ecosystemGap{}
 
 type rowViolation struct {
 	file    string

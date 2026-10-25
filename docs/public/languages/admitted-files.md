@@ -42,6 +42,7 @@ a line there.
 | `go` | go | L2 structured fact | store | `.go` |  |  |
 | `gomod` | go | L2 structured fact | store |  | `go.mod`, `go.sum`, `go.work` |  |
 | `gradle` | java | L2 structured fact | store |  | `build.gradle`, `build.gradle.kts`, `libs.versions.toml` |  |
+| `gradle_wrapper` | java | L2 structured fact | metadata |  | `gradle-wrapper.properties` |  |
 | `groovy` | groovy | L2 structured fact | store | `.groovy` |  |  |
 | `haskell` | haskell | L2 structured fact | store | `.hs` |  |  |
 | `hcl` | terraform | L2 structured fact | store | `.hcl`, `.tf`, `.tfvars` |  |  |
@@ -78,6 +79,7 @@ Paths are matched case-insensitively:
 - `conf/routes`, `*.routes` bind to `scala`.
 - `.mvn/extensions.xml` bind to `raw_text`.
 - `*.tfvars.json` bind to `hcl`.
+- `constraints.txt`, `constraints-*.txt`, `constraints_*.txt` bind to `python_requirements`.
 <!-- parser-admission-table:end -->
 
 ## Content store policy
@@ -92,9 +94,9 @@ export would bypass it.
 
 | Policy | What is stored | Use it for |
 | --- | --- | --- |
-| `store` | The body, verbatim. This is the default for every definition except `.npmrc`. | Source and configuration files that hold no credentials. |
+| `store` | The body, verbatim. This is the default for every definition except `.npmrc` and `gradle-wrapper.properties`. | Source and configuration files that hold no credentials. |
 | `metadata` | A `content_files` row with an empty body. The path stays in the repository tree, file counts, language inventory, and coverage. The row is never a tombstone. | Files that can hold credentials where the registry URLs or version pins matter more than the text. |
-| `redact` | The body with credential values replaced in place. The `marker` mode writes `REDACTED_<finding_kind>`, for example `npmAuthToken: REDACTED_api_token`. | Closed-schema files where every credential key is known. |
+| `redact` | The body with credential values replaced in place. The `marker` mode writes `REDACTED_<finding_kind>`, for example `npmAuthToken: REDACTED_api_token`. The `skeleton` mode keeps structure, keys, and values whose shape cannot carry a credential, and writes `REDACTED_value` or `REDACTED_<finding_kind>` for every other value. | `marker`: closed-schema files where every credential key is known. `skeleton`: open-schema files such as `*.tfvars`, where a key name does not say whether the value is secret. |
 
 A `redact` definition lists its credential keys. `marker` mode replaces the
 value of each listed key at any length, keeps an exact `${NAME}` environment
@@ -107,6 +109,47 @@ replaced, and so are the continuation lines of a listed key's block scalar or
 multi-line quoted value. The marker keeps the finding kind so
 `investigate_hardcoded_secrets` can keep reporting the line. `[redacted]` and
 `***` are not used: the detector cannot see them.
+
+A `marker` definition can also list URL-valued keys, such as `npmRegistryServer`
+and `httpsProxy` in `.yarnrc.yml`. For those keys only the URL userinfo is
+replaced, so `"https://user:pass@npm.example.com/"` is stored as
+`"https://REDACTED_secret_literal@npm.example.com/"` and the host stays
+readable. The userinfo ends at the last `@` before the first `/`, `?`, or `#`,
+so a raw `@` in a password is covered. The rule fails closed: the whole value is
+replaced, as for a credential key, when the value is not exactly one URL (a
+trailing comment, two URLs, an environment default such as
+`${REGISTRY:-https://...}`), when the host is not a plain name or IPv6 literal
+with an optional numeric port (a raw `/` in a password, a percent escape), when
+an `@` follows the host (a scoped path such as `/@acme/` included, because
+`http://tok/en@host` may be a token holding a raw `/`), when a double-quoted
+value holds a backslash (YAML decodes `\x40` to `@`), or when the line holds
+any other detector match.
+
+The `skeleton` mode is line-wise and keeps every line number. It keeps empty
+lines, structural lines (`{`, `}`, `[`, `]`, `key = {`, `key = [`, and heredoc
+openers and closers), and a `key = value` or `"key": value` value that is a
+boolean, `null`, a number, a `var.`, `local.`, `module.`, or `data.` reference,
+or a quoted version or constraint (`"14.7"`, `"~> 5.31.0"`). When the raw line
+is a hardcoded-secret finding, the value becomes `REDACTED_<finding_kind>`, even
+for a reference, so `db_password = var.db_password` is stored as
+`db_password = REDACTED_password_literal`. Every other value becomes
+`REDACTED_value`, which the detector never reports. A line it cannot place as
+`key = value` (a comment, a bare list element, a heredoc body line, a PEM block
+line, an unterminated string, a credential inside the key itself, or a value
+that starts with `=` or `:`, such as a bare base64 `TOKEN==`) becomes the
+whole-line `REDACTED_<finding_kind>` when it is a finding and `REDACTED_value`
+otherwise. A heredoc or block comment opened after other text on a line
+(`keys = [<<EOF`, `x = 1 /* old`) redacts every line to its close, however heredocs,
+interpolations, and comments nest. A quoted string that ends at a line break, or
+nesting deeper than 32 levels, is a lexing failure: every later line is redacted
+whole. A detector
+match blocks the allowlist even without a finding kind, so a token inside a
+reference is not kept. The stored body is not parseable HCL or JSON. Keys are kept when
+they are names: an identifier, or a quoted key of letters, digits, `_`, `.`,
+and `-` (`"us-east-1"`, `"app.example.com"`). A quoted key holding anything
+else (a URL, a CIDR, an ARN, a password with symbols) takes the whole line. A
+credential spelled as a plain name and used as a key survives unless the
+detector flags it.
 
 ### What a governed row holds
 
@@ -143,7 +186,8 @@ seeded full-stream scan over every path shape the definition covers
 If the redactor returns an error, the file is not valid UTF-8, the body holds a
 NUL byte (a BOM-less UTF-16 file does), or a `redact` body is over 4 MiB, Eshu
 stores the `metadata` row for that path and counts it as
-`eshu_dp_collector_content_store_files_total{outcome="redactor_failed"}`. It
+`eshu_dp_collector_content_store_files_total{outcome="redactor_failed"}`, with
+`redactor` naming the mode that failed (`marker` or `skeleton`). It
 never falls back to the raw body. The WARN log names the repo-relative path and
 a bounded reason class, never the error text.
 
@@ -158,7 +202,7 @@ they are. A registry that binds no non-store policy keeps today's fingerprint.
 
 ### Which files use each policy
 
-Every definition uses `store` except `.npmrc`, which uses `metadata` (#8978). The
+Every definition uses `store` except `.npmrc` (#8978) and `gradle-wrapper.properties` (#8822), which use `metadata`. The
 other bindings follow once the detector gains the key shapes that file formats
 need (#8833). The bindings, recorded in the
 [credential-file design record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8813-credential-file-exposure.md):
@@ -166,8 +210,9 @@ need (#8833). The bindings, recorded in the
 | File | Policy | Mode |
 | --- | --- | --- |
 | `.yarnrc.yml` | `redact` | `marker` |
-| `*.tfvars`, `*.tfvars.json` | `redact` | allowlist skeleton, added in #8833 |
+| `*.tfvars`, `*.tfvars.json` | `redact` | `skeleton`, bound in #8833 |
 | `.npmrc` | `metadata` | none, shipped in #8978 |
+| `gradle-wrapper.properties` | `metadata` | none, shipped in #8822 |
 | `gradle.properties`, `nuget.config` | `metadata`, if a later record admits them | none |
 
 `.eshuignore` stays the per-repository override and drops the file's parser
@@ -196,6 +241,10 @@ Some names are left out on purpose:
   repository tree and file counts keep the path, no body is stored, and its
   `registry=` and `@scope:registry=` URLs are reported with any userinfo, query,
   and fragment removed.
+  `gradle-wrapper.properties` is the other exception (#8822): it is admitted
+  under `metadata` because its `distributionUrl` can carry `user:password@`
+  userinfo, and only the Gradle version and the `bin` or `all` distribution
+  type are reported.
 
 In filesystem source mode, the managed-workspace copy keeps the admitted
 dot-prefixed names, including the runtime-version pins such as `.nvmrc` and
@@ -205,7 +254,7 @@ already applies the source repository's ignore rules, so `.gitignore` is not
 indexed in that mode. Discovery then applies the registry to what the copy kept,
 as it does in clone mode: `.mvn/extensions.xml` is admitted as text, a `.java`
 file under `.mvn/wrapper` is admitted as Java, and `.mvn/jvm.config`,
-`.mvn/maven.config` and the wrapper properties have no registry entry, so they
+`.mvn/maven.config` and `.mvn/wrapper/maven-wrapper.properties` have no registry entry, so they
 are not indexed. The copy still prunes any other, unallowlisted dot-directory
 (other than a dot-directory whose name is itself an allowlisted file name)
 whole, so an admitted name inside one, such as `tools/.config/.eslintrc`, is

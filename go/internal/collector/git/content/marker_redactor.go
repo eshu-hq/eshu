@@ -66,6 +66,12 @@ var (
 // (invalid UTF-8 or a NUL byte) or is over MaxGovernedBodyBytes: the caller
 // falls back to a metadata row, not the raw body.
 func redactMarker(body string, keys []string) (string, int, error) {
+	return redactMarkerWithURLKeys(body, keys, nil)
+}
+
+// redactMarkerWithURLKeys is redactMarker plus the userinfo-only rule for the
+// URL-valued keys in urlKeys (redactURLKey). With no URL keys it is redactMarker.
+func redactMarkerWithURLKeys(body string, keys, urlKeys []string) (string, int, error) {
 	if len(body) > MaxGovernedBodyBytes {
 		return "", 0, errTooLarge
 	}
@@ -79,8 +85,14 @@ func redactMarker(body string, keys []string) (string, int, error) {
 	if err != nil {
 		return "", 0, err
 	}
-	lines := strings.Split(body, "\n")
 	state := markerState{keyPattern: keyPattern, lowerKeys: lowerKeys(keys)}
+	if len(urlKeys) > 0 {
+		if state.urlKeyPattern, err = credentialKeyPattern(urlKeys); err != nil {
+			return "", 0, err
+		}
+		state.lowerURLKeys = lowerKeys(urlKeys)
+	}
+	lines := strings.Split(body, "\n")
 	for i, line := range lines {
 		lines[i] = state.redactLine(line)
 	}
@@ -133,7 +145,11 @@ func credentialKeyPattern(keys []string) (*regexp.Regexp, error) {
 type markerState struct {
 	keyPattern *regexp.Regexp
 	lowerKeys  []string
-	inPEM      bool
+	// urlKeyPattern matches the URL-valued keys whose userinfo alone is
+	// redacted; nil when the definition lists none.
+	urlKeyPattern *regexp.Regexp
+	lowerURLKeys  []string
+	inPEM         bool
 	// openQuote is the quote character of a listed key's quoted value that has
 	// not closed yet; every line up to and including the closing one is
 	// redacted. Zero when none is open.
@@ -180,29 +196,41 @@ func (s *markerState) redactText(line string) string {
 	// The common line holds no credential, so the finding kind (six regular
 	// expressions) is computed only for a line that matched a listed key or the
 	// detector.
-	var keyLoc []int
-	if s.mayHoldKey(line) {
+	var keyLoc, urlLoc []int
+	if mayHoldAny(line, s.lowerKeys) {
 		keyLoc = s.keyPattern.FindStringSubmatchIndex(line)
 	}
+	if s.urlKeyPattern != nil && mayHoldAny(line, s.lowerURLKeys) {
+		urlLoc = s.urlKeyPattern.FindStringSubmatchIndex(line)
+	}
 	spans := detect.Spans(line)
-	if keyLoc == nil && len(spans) == 0 {
+	if keyLoc == nil && urlLoc == nil && len(spans) == 0 {
 		return line
 	}
 	// The kind comes from the raw line, as the ruling says, so a header the PEM
 	// pass already replaced still decides it.
 	kind := detect.Classify(rawLine)
 	out := line
-	if keyLoc != nil {
+	switch {
+	case keyLoc != nil && (urlLoc == nil || keyLoc[0] <= urlLoc[0]):
 		out = s.redactListedKey(line, line[keyLoc[2]:keyLoc[3]], keyLoc[3], keyLoc[1], kind, false)
+		spans = detect.Spans(out)
+	case keyLoc != nil:
+		// A URL key before a credential key on one line (a flow mapping): the
+		// credential rule from the URL key's separator covers both values.
+		out = s.redactListedKey(line, line[urlLoc[2]:urlLoc[3]], urlLoc[3], urlLoc[1], kind, false)
+		spans = detect.Spans(out)
+	case urlLoc != nil:
+		out = s.redactURLKey(line, line[urlLoc[2]:urlLoc[3]], urlLoc[3], urlLoc[1], kind)
 		spans = detect.Spans(out)
 	}
 	return s.redactDetectorMatch(out, spans, kind)
 }
 
-// mayHoldKey is a cheap necessary test for a listed key: the line, lowercased,
+// mayHoldAny is a cheap necessary test for a listed key: the line, lowercased,
 // holds one of the lowercased keys. It keeps the key regular expression off the
 // common line.
-func (s *markerState) mayHoldKey(line string) bool {
+func mayHoldAny(line string, lowerKeys []string) bool {
 	// Go (?i) folds U+017F and U+212A where ToLower does not, so a non-ASCII
 	// byte skips nothing.
 	for i := 0; i < len(line); i++ {
@@ -211,7 +239,7 @@ func (s *markerState) mayHoldKey(line string) bool {
 		}
 	}
 	lower := strings.ToLower(line)
-	for _, key := range s.lowerKeys {
+	for _, key := range lowerKeys {
 		if strings.Contains(lower, key) {
 			return true
 		}
@@ -358,85 +386,6 @@ func (s *markerState) redactListedKey(line, keyText string, keyEnd, valueStart i
 		quoteText = string(quote)
 	}
 	return line[:valueStart] + quoteText + marker + quoteText
-}
-
-// keepsVerbatim reports whether the whole remainder of the line, after the
-// separator, is exactly an environment reference or an earlier marker,
-// optionally in one matching pair of quotes, with nothing after it. Anything
-// else, a trailing comment included, is redacted from the separator on.
-func keepsVerbatim(value string) bool {
-	inner := value
-	if n := len(value); n >= 2 && (value[0] == '"' || value[0] == '\'') && value[n-1] == value[0] {
-		inner = value[1 : n-1]
-	}
-	return envReference.MatchString(inner) || existingMarker.MatchString(inner)
-}
-
-// stripCommentTagAnchor removes a YAML comment and leading !tag and &anchor
-// tokens from a value, returning what is left of the node itself. A tag or
-// anchor token is only stripped when more value follows it: a lone "!abc" or
-// "&abc" is returned unchanged, so it is redacted as a value, not mistaken for
-// an empty one. A comment needs whitespace before "#": spacedAfterColon says
-// the separator supplied it for a "#" at the start of the value.
-func stripCommentTagAnchor(value string, spacedAfterColon bool) string {
-	if strings.HasPrefix(value, "#") && spacedAfterColon {
-		return ""
-	}
-	if cut := strings.Index(value, " #"); cut >= 0 && !startsQuoted(value) {
-		value = strings.TrimSpace(value[:cut])
-	}
-	for value != "" && (value[0] == '!' || value[0] == '&') {
-		space := strings.IndexAny(value, " \t")
-		if space < 0 {
-			return value
-		}
-		rest := strings.TrimSpace(value[space:])
-		if rest == "" || strings.HasPrefix(rest, "#") {
-			return value
-		}
-		value = rest
-	}
-	return value
-}
-
-func startsQuoted(value string) bool {
-	return value != "" && (value[0] == '"' || value[0] == '\'')
-}
-
-// splitQuotedValue splits a value into its quote character (zero when
-// unquoted), the unquoted text, any text after the closing quote, and whether
-// the quote closed on this line. An unquoted value is one token; an unterminated
-// quote takes the rest of the line as the value, which fails closed.
-func splitQuotedValue(value string) (quote byte, inner, rest string, closed bool) {
-	if !startsQuoted(value) {
-		return 0, value, "", true
-	}
-	quote = value[0]
-	end := quoteEnd(value[1:], quote)
-	if end < 0 {
-		return quote, value[1:], "", false
-	}
-	return quote, value[1 : 1+end], value[2+end:], true
-}
-
-// quoteEnd returns the index of the first unescaped closing quote in text, or
-// -1. Double quotes escape with a backslash; single quotes escape by doubling.
-func quoteEnd(text string, quote byte) int {
-	for i := 0; i < len(text); i++ {
-		switch {
-		case quote == '"' && text[i] == '\\':
-			i++
-		case text[i] == quote && quote == '\'' && i+1 < len(text) && text[i+1] == '\'':
-			i++
-		case text[i] == quote:
-			return i
-		}
-	}
-	return -1
-}
-
-func closesQuote(line string, quote byte) bool {
-	return quoteEnd(line, quote) >= 0
 }
 
 // redactDetectorMatch redacts the leftmost detector match on a line (arbiter

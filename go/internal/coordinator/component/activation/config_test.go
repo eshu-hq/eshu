@@ -141,3 +141,31 @@ func TestParseConfig(t *testing.T) {
 		})
 	}
 }
+
+// TestIsConfigurationMatchesParseConfigPartition pins that IsConfiguration
+// treats a valid, malformed, or incomplete activation document as
+// extension-hosted and blank or in-tree configuration as not, the partition
+// the scheduler and the status reader share (#8951).
+func TestIsConfigurationMatchesParseConfigPartition(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{"blank", ``, false},
+		{"empty object", `{}`, false},
+		{"in-tree targets", `{"scan_interval":"15m","targets":[{"site":"example"}]}`, false},
+		{"incomplete activation", `{"schema_version":"eshu.component.instance.v1","component_id":"vendor.example"}`, true},
+		{"wrong schema with component id", `{"schema_version":"other","component_id":"vendor.example"}`, true},
+		{"malformed json", `{"component_id":`, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := IsConfiguration(tc.raw); got != tc.want {
+				t.Fatalf("IsConfiguration(%q) = %t, want %t", tc.raw, got, tc.want)
+			}
+		})
+	}
+}

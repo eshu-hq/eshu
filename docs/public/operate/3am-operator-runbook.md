@@ -170,8 +170,10 @@ not `failed`.
   the counting path. Find the holder with
   `eshu_runtime_domain_oldest_age_seconds{domain="supply_chain_impact"}`, and in
   the status endpoint's blockage view: a reconciliation fenced behind a live
-  producer lease appears there under the scope's conflict key, and the holder
-  is the `supply_chain_impact` row on that same scope id.
+  producer lease appears there under the scope's conflict key, and its
+  `holder_domain` names the domain that holds the lease (`supply_chain_impact`
+  for this wait). An empty `holder_domain` means no lease holds the fence: the
+  row is gated by a missing readiness requirement.
 - **Worry** when
   `eshu_dp_security_alert_reconciliation_impact_wait_total{outcome="gave_up_unmatched"}`
   or `{outcome="gave_up_bound_exceeded"}` rises. That is the handler giving up:
@@ -182,7 +184,10 @@ not `failed`.
   line carries `sub_signal_impact_wait_gave_up=1`. `gave_up_unmatched` means no impact work
   was in flight (check whether `supply_chain_impact` dead-lettered for that
   scope); `gave_up_bound_exceeded` means it was in flight but stuck for over 30
-  minutes.
+  minutes. The written rows carry the same `impact_wait_outcome` on the
+  reconciliation API and MCP rows. `{outcome="producer_settled"}` is not a
+  give-up: the impact work succeeded and matched nothing, so its rows carry no
+  `impact_wait_outcome`.
 - A `failed` execution with the `waiting_for_impact` class is not a normal end
   of the wait. It means `ESHU_REDUCER_MAX_ATTEMPTS` is 1 or 2, so the queue
   dead-letters before the handler's cap of 3, or the error is a real one. Replay
@@ -223,8 +228,8 @@ A source is not refreshing, or a collector family reports unhealthy.
   kinds `registry_auth_denied` (fix the registry credential), and `scanner_worker`
   `timeout`; any kind running under the extension host can also report
   `invalid_claim`, `invalid_result`, `launch_failure`, or `status_record`, and a
-  class an extension defines for a kind that is not first-party reads
-  `extension_defined`.
+  class an extension defines reads `extension_defined`, on a kind that is not
+  first-party or on a component-activated instance of a first-party kind.
   The full table is in
   [Collector Terminal Failure Readiness](../reference/http-api/collector-terminal-failure.md#values). The
   gauge `eshu_runtime_coordinator_collector_terminal_failure_instances` counts

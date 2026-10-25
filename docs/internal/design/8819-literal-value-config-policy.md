@@ -42,7 +42,7 @@ Nothing is stored. The question is what to admit later, and under which rule.
 
 The registry comment and the parser scoped guide already state the rule for new
 names: a name that is conventionally a credential or literal-environment carrier
-(`.pypirc`, `.netrc`, `.env*`, `mise.toml`; `.npmrc` was admitted under `metadata` by #8978) stays out because the
+(`.pypirc`, `.netrc`, `.env*`, `mise.toml`; `.npmrc` and `gradle-wrapper.properties` were admitted under `metadata` by #8978 and #8822) stays out because the
 content store has no write-time redaction (`go/internal/parser/registry_definitions.go`,
 comment above the `raw_text` exact-name list; raw-text row of the language table
 in `go/internal/parser/AGENTS.md`). The epic #8807 ruling says the same.

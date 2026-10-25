@@ -201,6 +201,7 @@ func isNonDocumentationTextPath(relativePath string) bool {
 	return base == "requirements.txt" ||
 		strings.HasPrefix(base, "requirements-") ||
 		strings.HasPrefix(base, "requirements_") ||
+		base == "constraints.txt" ||
 		strings.HasPrefix(base, "constraints-") ||
 		strings.HasPrefix(base, "constraints_")
 }

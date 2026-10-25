@@ -32,19 +32,21 @@ func TestContentStoreForPathDefaultsToStore(t *testing.T) {
 			t.Errorf("ContentStoreForPath(%q).Policy = %q, want %q", path, got, ContentStoreStore)
 		}
 	}
-	// #8978 binds .npmrc to metadata, which needs no marker-arm migration. No
-	// other definition may bind a non-store policy, and none may bind marker
-	// mode, before #8833's marker-arm migration lands (arbiter, 2026-10-24).
+	// #8978 binds .npmrc and #8822 binds gradle-wrapper.properties to
+	// metadata, which needs no marker-arm migration. No other definition may
+	// bind a non-store policy, and none may bind marker mode, before #8833's
+	// marker-arm migration lands (arbiter, 2026-10-24).
+	metadataOnly := map[string]bool{"npmrc": true, "gradle_wrapper": true}
 	for _, definition := range DefaultRegistry().Definitions() {
 		got := definition.ContentStore
-		if definition.ParserKey == "npmrc" {
+		if metadataOnly[definition.ParserKey] {
 			if got.Policy != ContentStoreMetadata {
-				t.Errorf("npmrc binds policy %q in the default registry, want metadata", got.Policy)
+				t.Errorf("%s binds policy %q in the default registry, want metadata", definition.ParserKey, got.Policy)
 			}
 			continue
 		}
 		if got.Policy != ContentStoreStore {
-			t.Errorf("%s binds policy %q in the default registry; only npmrc binds a non-store policy before #8833", definition.ParserKey, got.Policy)
+			t.Errorf("%s binds policy %q in the default registry; only npmrc and gradle_wrapper bind a non-store policy before #8833", definition.ParserKey, got.Policy)
 		}
 	}
 }
@@ -81,7 +83,7 @@ func TestNewRegistryRejectsInvalidContentStore(t *testing.T) {
 	cases := map[string]ContentStore{
 		"unknown policy":                 {Policy: "drop"},
 		"redact without a redactor mode": {Policy: ContentStoreRedact, CredentialKeys: []string{"k"}},
-		"redact with unknown mode":       {Policy: ContentStoreRedact, Redactor: "skeleton", CredentialKeys: []string{"k"}},
+		"redact with unknown mode":       {Policy: ContentStoreRedact, Redactor: "bogus", CredentialKeys: []string{"k"}},
 		"marker without credential keys": {Policy: ContentStoreRedact, Redactor: RedactorMarker},
 		"marker with a blank key":        {Policy: ContentStoreRedact, Redactor: RedactorMarker, CredentialKeys: []string{" "}},
 		"metadata with a redactor mode":  {Policy: ContentStoreMetadata, Redactor: RedactorMarker},
@@ -230,7 +232,7 @@ func TestFlippingOneDefinitionMovesTheFingerprint(t *testing.T) {
 
 	// The redactor mode is part of the hash. NewRegistry rejects a mode it does
 	// not know, so this checks the renderer directly.
-	if fingerprintContentStore(marker(RedactorMarker, "k")) == fingerprintContentStore(marker("skeleton", "k")) {
+	if fingerprintContentStore(marker(RedactorMarker, "k")) == fingerprintContentStore(marker("bogus", "k")) {
 		t.Error("the redactor mode is not part of the fingerprint token")
 	}
 }

@@ -44,6 +44,7 @@ gates:
       - "scripts/test-verify-agent-hygiene.sh"
       - "scripts/test-agent-hooks.sh"
       - "scripts/test-goal-*cases*.sh"
+      - "scripts/lib/agent-hooks-fake-gate.sh"
       - "scripts/test-goal-continue-hook.sh"
       # The Stop-hook mirror's later suites live in a sourced companion file,
       # so it is a trigger path in its own right -- otherwise deleting a case
@@ -119,6 +120,7 @@ gates:
       - "scripts/test-verify-agent-hygiene.sh"
       - "scripts/test-agent-hooks.sh"
       - "scripts/test-goal-*cases*.sh"
+      - "scripts/lib/agent-hooks-fake-gate.sh"
       - "scripts/test-goal-continue-hook.sh"
       - "scripts/test-goal-continue-hook-cases.sh"
       - "scripts/test-goal-continue-hook-budget-cases.sh"

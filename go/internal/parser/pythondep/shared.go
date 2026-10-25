@@ -56,6 +56,13 @@ type rowBuilder struct {
 	SourceRef      string
 	Malformed      bool
 	Raw            string
+
+	// CentralVersionDeclaration marks a row that only limits a version, such as
+	// a pip constraints pin, and never declares the dependency (#8821).
+	CentralVersionDeclaration bool
+	// SourceCacheWithheld asks the content shaper to drop the entity's
+	// file-range source_cache, because that snippet is the raw source line.
+	SourceCacheWithheld bool
 }
 
 func (b rowBuilder) finish() map[string]any {
@@ -94,6 +101,12 @@ func (b rowBuilder) finish() map[string]any {
 	}
 	if b.Raw != "" {
 		row["raw"] = b.Raw
+	}
+	if b.CentralVersionDeclaration {
+		row["central_version_declaration"] = true
+	}
+	if b.SourceCacheWithheld {
+		row["source_cache_withheld"] = true
 	}
 	return row
 }

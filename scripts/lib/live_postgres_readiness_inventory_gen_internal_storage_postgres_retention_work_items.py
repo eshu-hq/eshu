@@ -17,6 +17,9 @@ TABLE = {
             "TestPruneWorkItemsLiveSkipsLockedRowsWithoutWaiting",
             "TestPruneWorkItemsLiveOpenBatchDoesNotBlockLifecycle",
         ),
+        "go/internal/storage/postgres/retention/work/items/plan_guard_live_test.go": (
+            "TestPruneWorkItemsLivePlanIgnoresSecurityAlertIndex",
+        ),
         "go/internal/storage/postgres/retention/work/items/sweeper_live_test.go": (
             "TestPruneWorkItemsLiveKeepsRowsNeededForFailureReporting",
             "TestPruneWorkItemsLiveKeepsRegistryLastCompletedAt",
