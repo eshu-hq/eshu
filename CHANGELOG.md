@@ -63,7 +63,8 @@ recent shipped work grouped by feature area.
   `go/internal/parser/gradle/selector` package holds the rule and a shared
   table. A selector row is now `unresolved` and keeps the text as written.
   The reducer backstop `payloadcore.ExactManifestDependencyVersion` also
-  rejects a trailing `+`, a `latest.` prefix, `!!` and `@`. Security-alert
+  rejects a trailing `+`, a `latest.` prefix, `!!`, `@`, and `:` (a colon
+  means leaked notation text). Security-alert
   reconciliation now uses that same function and reports a selector as a
   missing version, not a malformed one. Semver build metadata such as
   `1.0.0+build.1` stays exact in the reducer for npm and Cargo. A string
@@ -186,25 +187,6 @@ recent shipped work grouped by feature area.
   `eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances`
   gauge and `eshu_dp_collector_terminal_failure_acknowledgements_total` counter
   cover the rest. The 3 AM runbook says when to acknowledge and when not to.
-### Parser: Gradle version selectors are no longer exact versions
-
-- **One fail-closed exact-version rule for Gradle readers**
-  ([#8988](https://github.com/eshu-hq/eshu/issues/8988)). A `build.gradle` or
-  `build.gradle.kts` dependency declared as `1.+`, `latest.release`,
-  `[1.0,2.0)`, `1.0!!` or `1.0@jar` used to be marked `resolved`, and the
-  reducer took the selector text as the observed version. The new
-  `go/internal/parser/gradle/selector` package holds the rule and a shared
-  table. A selector row is now `unresolved` and keeps the text as written.
-  The reducer backstop `payloadcore.ExactManifestDependencyVersion` also
-  rejects a trailing `+`, a `latest.` prefix, `!!` and `@`. Security-alert
-  reconciliation now uses that same function and reports a selector as a
-  missing version, not a malformed one. Semver build metadata such as
-  `1.0.0+build.1` stays exact in the reducer for npm and Cargo. A string
-  notation classifier no longer leaks into the version: `g:a:1.0:jdk8` now
-  resolves to `1.0`, not `1.0:jdk8`. The git
-  collector content version moves from `git-collector.v10` to
-  `git-collector.v11`, so each repository re-collects once and stale
-  `resolved` selector rows are replaced.
 
 ### Collector: skeleton redactor and URL userinfo rule for the content-store policy
 
