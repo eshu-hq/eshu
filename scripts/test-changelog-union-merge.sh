@@ -121,12 +121,35 @@ for spot in top end; do
   done
 done
 
-# The real attribute must be the exact rule the union cases depend on.
-if rg -q '^CHANGELOG\.md[[:space:]]+merge=union([[:space:]]|$)' "${attrs_file}"; then
-  record_pass "repo .gitattributes declares CHANGELOG.md merge=union"
+# The real attribute must be the exact rule the union cases depend on, anchored
+# to the repository root: a pattern with no slash matches the basename at any
+# depth and would also union the SDK changelogs, which the gate never reads.
+if rg -q '^/CHANGELOG\.md[[:space:]]+merge=union([[:space:]]|$)' "${attrs_file}"; then
+  record_pass "repo .gitattributes declares /CHANGELOG.md merge=union anchored to the root"
 else
-  record_fail "repo .gitattributes does not declare CHANGELOG.md merge=union"
+  record_fail "repo .gitattributes does not declare /CHANGELOG.md merge=union anchored to the root"
 fi
+
+# git itself must resolve the root file to union and every other tracked
+# CHANGELOG.md (the SDK changelogs) to not-union.
+attr_of() { git -C "${repo_root}" check-attr merge -- "$1" | awk -F': ' '{ print $3 }'; }
+if [[ "$(attr_of CHANGELOG.md)" == union ]]; then
+  record_pass "git check-attr: root CHANGELOG.md is union"
+else
+  record_fail "git check-attr: root CHANGELOG.md is not union"
+fi
+nested="$(git -C "${repo_root}" ls-files -- '*/CHANGELOG.md')"
+if [[ -z "${nested}" ]]; then
+  record_fail "no nested CHANGELOG.md is tracked, so the anchoring case checks nothing"
+fi
+while IFS= read -r path; do
+  [[ -n "${path}" ]] || continue
+  if [[ "$(attr_of "${path}")" == union ]]; then
+    record_fail "git check-attr: ${path} is union (the root pattern must be anchored)"
+  else
+    record_pass "git check-attr: ${path} is not union"
+  fi
+done <<<"${nested}"
 
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"
 [[ "${FAIL}" -eq 0 ]]

@@ -49,15 +49,17 @@ recent shipped work grouped by feature area.
 - **`CHANGELOG.md` is union-merged, and a new gate checks the result**
   ([#9096](https://github.com/eshu-hq/eshu/issues/9096)). Every PR appends under
   `## Unreleased`, so parallel PRs conflicted on the same lines and each
-  conflict was a keep-both merge. `.gitattributes` now marks the file
-  `merge=union`, so a local rebase or merge keeps both sides. Union keeps what
-  it cannot judge, so `scripts/verify-changelog-unreleased.sh` (gate
+  conflict was a keep-both merge. `.gitattributes` now marks the root file
+  `/CHANGELOG.md` `merge=union`, so a local rebase or merge keeps both sides.
+  The two SDK changelogs are release documents and keep conflicts. Union keeps
+  what it cannot judge, so `scripts/verify-changelog-unreleased.sh` (gate
   `changelog-unreleased`) fails a second `## Unreleased` heading, a conflict
   marker, a duplicate `### ` heading, and a duplicate entry. An entry is keyed
   on its bold title joined across wrapped lines, because a first-line key
-  reports two different titles that share an opening line. Whether GitHub's
-  server-side merge honors the attribute is unverified, so rebase locally
-  before merging.
+  reports two different titles that share an opening line. Two branches that
+  edit the same existing entry still merge to a file that passes the gate, so
+  read such a merge. Whether GitHub's server-side merge honors the attribute is
+  unverified, so rebase locally before merging.
 
 ### Parser reads: one per-file read cap
 

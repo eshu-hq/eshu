@@ -124,6 +124,20 @@ expect_fail "a violation inside a long file still fails" "$(write_fixture dup-af
   '## Unreleased' '' '### One' '' '```text' '- **Fenced.** ignored' '```' '' \
   '- **Alpha.** x' '' '- **Alpha.** y')" "duplicate entry"
 
+expect_pass "a conflict marker inside a ~~~ fence is skipped" "$(write_fixture tilde-fence \
+  '## Unreleased' '' '### One' '' '~~~text' '<<<<<<< fenced example, not a marker' '~~~' '' \
+  '- **Alpha.** x')"
+
+# An entry whose bold title never closes ends at a blank line or a heading,
+# so the opener keys on its own text and cannot swallow the next paragraph.
+expect_fail "a blank line ends an entry whose title never closes" "$(write_fixture blank-ends-entry \
+  '## Unreleased' '' '### One' '' '- **Same key' '' 'text.** later' '' '- **Same key** y')" \
+  "duplicate entry"
+
+expect_fail "a heading ends an entry whose title never closes" "$(write_fixture heading-ends-entry \
+  '## Unreleased' '' '### One' '' '- **Same key' '### Two' '- **Same key** y')" \
+  "duplicate entry"
+
 # A missing file is a usage error, not a pass.
 if bash "${validator}" "${tmp_root}/does-not-exist.md" >/dev/null 2>&1; then
   record_fail "missing file fails"
