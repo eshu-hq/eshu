@@ -168,7 +168,7 @@ fi
 # override) against a fixture registry.
 write_fixture_registry() {
 	local aggregate_ruleset_required="$1"
-	cat >"${tmp_dir}/fixture-registry.yaml" <<YAML
+	cat >"${tmp_dir}/fixture-registry.yaml" <<'YAML'
 version: v1
 gates: []
 required_status_checks:
@@ -186,8 +186,8 @@ required_status_checks:
     source_workflow: Build Test
     integration_id: 15368
     aggregates_blocking_gates: true
-    ruleset_required: ${aggregate_ruleset_required}
 YAML
+	printf '    ruleset_required: %s\n' "${aggregate_ruleset_required}" >>"${tmp_dir}/fixture-registry.yaml"
 }
 
 run_registry_verifier() {
