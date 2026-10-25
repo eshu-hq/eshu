@@ -10,8 +10,7 @@ import (
 )
 
 // persistedConsumptionStateCases are persisted consumption facts as the writer
-// stores them: the Gradle map form keeps a colon-bearing text, the Gradle rule
-// rejects a single '!', and an sbt version identifier keeps its name, all with
+// stores them: the Gradle rule rejects a single '!', and an sbt version identifier keeps its name, all with
 // state unresolved. A partial sbt row with an exact literal and a row from an
 // ecosystem that emits no state keep their version.
 var persistedConsumptionStateCases = []struct {
@@ -20,7 +19,6 @@ var persistedConsumptionStateCases = []struct {
 	state string
 	want  string
 }{
-	{"colon unresolved", "1.0:jdk8", "unresolved", ""},
 	{"single bang unresolved", "1.0!", "unresolved", ""},
 	{"sbt identifier unresolved", "someIdent", "unresolved", ""},
 	{"exact partial", "2.3.4-RC1", "partial", "2.3.4-RC1"},

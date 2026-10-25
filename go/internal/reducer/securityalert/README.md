@@ -230,7 +230,7 @@ for the same value. Each bullet below says which:
   `security_alert.go` and `ranges.go`
   (which holds all three version helpers): pure version-string and
   evidence-kind-fallback logic with no reducer-root state. Only
-  `exactConsumptionDependencyVersion` is re-parameterised, to the three
+  `exactConsumptionDependencyVersion` is re-parameterised, to the four
   `SecurityAlertConsumption` fields the logic reads instead of the full
   `supplychainmodel.PackageConsumption` value type; the Evidence section below
   has the detail.
@@ -275,7 +275,7 @@ reducer root originals for the same reason -- that bullet list is the single
 enumeration of the copied functions, so it does not disagree with a second copy
 here. Two of
 the three version helpers are byte-identical;
-`exactConsumptionDependencyVersion` is re-parameterised to the three
+`exactConsumptionDependencyVersion` is re-parameterised to the four
 `SecurityAlertConsumption` fields it reads instead of the full
 `supplychainmodel.PackageConsumption` value type, with a behaviour-equivalent
 body

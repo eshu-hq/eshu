@@ -117,7 +117,8 @@ carries the same rule to the two persisted-fact readers, security-alert
 reconciliation and supply-chain impact, through an optional
 `dependency_resolution_state` on the persisted consumption fact. The gate
 changes only rows a parser left unresolved (Gradle `1.0!`, `1.0+build.1`,
-map-form `1.0:jdk8`, sbt version identifiers); `partial`, `resolved` and
+sbt version identifiers; a colon text such as `1.0:jdk8` is already refused
+by the exact-version backstop); `partial`, `resolved` and
 no-state rows keep today's answer.
 
 No-Regression Evidence: the added work is one trimmed, case-folded string
