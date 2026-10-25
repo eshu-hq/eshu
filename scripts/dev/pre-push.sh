@@ -78,6 +78,12 @@ precommit="${repo_root}/scripts/dev/precommit-go.sh"
 # shellcheck source=../lib/cgo-cflags.sh
 source "${repo_root}/scripts/lib/cgo-cflags.sh"
 eshu_export_cgo_cflags
+# #9098: pin GOTOOLCHAIN to go/go.mod and clear GOROOT, so lint and gosec (and
+# the gates that inherit this env) do not run under a newer host go. Child
+# processes (precommit-go.sh, ci-gates) inherit it; see scripts/lib/go-toolchain.sh.
+# shellcheck source=../lib/go-toolchain.sh
+source "${repo_root}/scripts/lib/go-toolchain.sh"
+eshu_export_go_toolchain "${repo_root}"
 # shellcheck source=../lib/pre-pr-lane.sh
 source "${repo_root}/scripts/lib/pre-pr-lane.sh"
 # shellcheck source=../lib/pre-pr-fixture-consumers.sh

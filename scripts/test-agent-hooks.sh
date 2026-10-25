@@ -380,49 +380,10 @@ else
   failed=$((failed + 1))
 fi
 
-# --- the guard's BLOCKING path, which is its whole reason to exist -----------
-# Both detection branches are exercised hermetically. Neither needs a real
-# gate: a typo in the lsof flags or pgrep -x becoming pgrep -f would silently
-# disable detection, and every pass-through case above would still be green.
-
-# pgrep branch: a process whose name is literally ci-gates, made by a script
-# (see the helper for why it is not a sleep symlink).
-. "$repo_root/scripts/lib/agent-hooks-fake-gate.sh"
-sid=$((sid + 1))
-start_fake_gate
-sleep 0.3
-out=$(printf '{"cwd":"%s","tool_input":{"command":"make pre-pr"}}' "$repo_root" \
-  | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
-rc=$?
-kill "$fake_pid" 2>/dev/null
-wait "$fake_pid" 2>/dev/null
-rm -rf "$fakebin"
-if [ "$rc" -eq 2 ] && rg -Fq 'ci-gates run is already in flight' <<<"$out"; then
-  printf 'ok - a running ci-gates process blocks the gate\n'
-  passed=$((passed + 1))
-else
-  printf 'FAIL - running ci-gates should block(2); exit=%s out=%s\n' "$rc" "$out" >&2
-  failed=$((failed + 1))
-fi
-
-# A running gate blocks even with a full port override: the second run still
-# contends for CPU, and an earlier revision let any override skip this check.
-sid=$((sid + 1))
-start_fake_gate
-sleep 0.3
-out=$(printf '{"cwd":"%s","tool_input":{"command":"ESHU_POSTGRES_PORT=15532 NEO4J_BOLT_PORT=7788 make pre-pr"}}' "$repo_root" \
-  | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
-rc=$?
-kill "$fake_pid" 2>/dev/null
-wait "$fake_pid" 2>/dev/null
-rm -rf "$fakebin"
-if [ "$rc" -eq 2 ]; then
-  printf 'ok - a port override does not waive the running-process check\n'
-  passed=$((passed + 1))
-else
-  printf 'FAIL - override must not bypass the process check; exit=%s out=%s\n' "$rc" "$out" >&2
-  failed=$((failed + 1))
-fi
+# The BLOCKING-path cases against a fake running gate live in a companion file
+# (the mirror may not grow past its grandfathered size).
+# shellcheck source=scripts/lib/test-agent-hooks-gate-process-cases.sh
+. "$repo_root/scripts/lib/test-agent-hooks-gate-process-cases.sh"
 
 # The residual collision. A Postgres-only override waives the 15432 probe, but
 # the live lane also binds Bolt, HTTP, API and MCP, and `pgrep -x ci-gates`
