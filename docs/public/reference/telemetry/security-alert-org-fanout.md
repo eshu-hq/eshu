@@ -67,9 +67,10 @@ collector logs `security_alert.org_target_sharded` (INFO, once per sharded
 target at startup: `shard_count`, `smallest_shard_repositories`,
 `largest_shard_repositories`), `security_alert.scope_retired` (INFO, per
 retirement claim: `scope_id`, `parent_scope_id`, `generation_id`), and
-`security_alert.target_sharded_coordinator_skew` (WARN: a coordinator older
-than the collector still plans a sharded target's base scope; upgrade the
-coordinator). The coordinator logs `security alert planner retiring unplanned
+`security_alert.target_sharded_coordinator_skew` (WARN: a coordinator that
+is older than the collector, or reads a different configuration during a
+rolling restart, still plans a sharded target's base scope; it clears once
+both run the same version and configuration). The coordinator logs `security alert planner retiring unplanned
 org target scopes` (INFO, `retired_scope_count`) and, when one scan reaches
 1,024 retirements, `security alert planner reached the per-scan retirement
 bound` (WARN); its candidate read is Postgres store

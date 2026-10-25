@@ -117,7 +117,8 @@ that is not part of a configured org target or that this collector's own
 partition still plans. `TrustedDeletion` is set on retirement generations only.
 
 Skew guard: a collector claimed the base `scope_id` of a sharded target without
-the retirement marker is talking to a coordinator older than itself. It fails
+the retirement marker is talking to a coordinator older than itself, or to one
+that reads another configuration (a rolling restart). It fails
 the claim retryable with `ErrShardedTargetNeedsCoordinatorUpgrade` and logs
 `security_alert.target_sharded_coordinator_skew`, instead of collecting a
 partial allowlist under the base scope or retiring it. Upgrade the collector
@@ -143,9 +144,12 @@ and 100 rows from list, count, and inventory, with zero rows from retired
 scopes, and two collector replicas commit one target's shards concurrently.
 The coordinator's retirement read (`TestShardRetirementLive`) is a BitmapOr of
 `ingestion_scopes_parent_idx` and the primary key plus a read-state
-primary-key probe, 0.198 ms on 14,401 scopes. Planning 50 instances takes
-11.2 ms against 0.56 ms for one item per target (`TestShardPlannerScanCostLive`,
-median of 15). A retirement claim makes no provider call.
+primary-key probe, 0.198 ms on 14,401 scopes. Planning 50 instances of one
+150-repository org target each takes 11.2 ms at this head
+(`TestShardPlannerScanCostLive`, median of 15: 7.2 ms partition, about 4 ms
+retirement read). The base planner (b46fe6aa1d) on the same 50 org targets
+took 5.09 ms in the #9019 review, so the change adds about 6.2 ms per
+50-instance scan. A retirement claim makes no provider call.
 
 Observability Evidence (#9019): `security_alert.observe` carries
 `eshu.security_alert.shard.count`, `.shard.repositories`, and

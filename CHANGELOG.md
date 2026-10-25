@@ -34,9 +34,10 @@ recent shipped work grouped by feature area.
   three ship in one image set. A new coordinator plans shard scopes an old
   collector does not know (those claims fail retryable until it upgrades). A
   new collector that an old coordinator still hands a sharded target's base
-  scope fails the claim retryable and logs
-  `security_alert.target_sharded_coordinator_skew` ("upgrade the
-  coordinator") instead of collecting part of the allowlist.
+  scope (or that a coordinator on another configuration does, mid rolling
+  restart) fails the claim retryable and logs
+  `security_alert.target_sharded_coordinator_skew` instead of collecting part
+  of the allowlist.
 - **An org target of more than 100 same-org repositories is planned as shards
   of at most 100** ([#9019](https://github.com/eshu-hq/eshu/issues/9019)).
   One claim reads at most 100 repositories after a truncated org read, so a
@@ -53,7 +54,9 @@ recent shipped work grouped by feature area.
   work item and the collector commits an empty generation attested with
   `TrustedDeletion`, so list, count, and inventory stop returning that
   scope's alerts and a repository removed from the allowlist leaves every
-  read. A removed target is not retired yet
+  read. Until a re-created scope's first collection lands, its empty answer
+  reads as still collecting, not complete. A removed or re-scoped target is
+  not retired yet
   ([#9071](https://github.com/eshu-hq/eshu/issues/9071)); an ordinary shrink
   of a scope can still be refused by the empty-successor guard
   ([#9072](https://github.com/eshu-hq/eshu/issues/9072)).
@@ -64,7 +67,8 @@ recent shipped work grouped by feature area.
   `repository_outside_target_set`.
 - **Tenant-bounded deployments** authorize a shard item, and the retirement
   of one, through the base scope's grant; an ungranted base still denies
-  them.
+  them. A scoped API token granted the base scope id keeps reading every
+  shard's alerts.
 
 ### Status: blockage rows name the domain that holds the fence
 

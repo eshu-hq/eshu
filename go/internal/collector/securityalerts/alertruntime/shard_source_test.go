@@ -171,7 +171,7 @@ func TestBaseClaimOfAShardedTargetFailsRetryableForAnOldCoordinator(t *testing.T
 	if f.client.orgCalls != 0 {
 		t.Fatalf("org reads = %d, want none: the guard neither collects nor retires", f.client.orgCalls)
 	}
-	if !strings.Contains(f.logs.String(), "upgrade the coordinator") || !strings.Contains(f.logs.String(), "security_alert.target_sharded_coordinator_skew") {
+	if !strings.Contains(f.logs.String(), "rolling restart") || !strings.Contains(f.logs.String(), "security_alert.target_sharded_coordinator_skew") {
 		t.Fatalf("skew guard log missing: %s", f.logs.String())
 	}
 }

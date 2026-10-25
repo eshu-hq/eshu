@@ -4,7 +4,7 @@
 package postgres_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9019 disposable PostgreSQL 18 measurement of the security-alert planner's scan cost on 50 collector instances, each with one org target of 150 repositories (2 shards) whose scopes hold active generations, beside 8,000 unrelated scopes: one-item-per-target planning (the pre-#9019 work), partition-only planning, and partition plus the Postgres retirement read, median of 15 scans; creates and drops its own database from the bootstrap schema; about 3 s on PostgreSQL 18.6 locally; timings are logged, not gated
+//eshu:readiness:reason #9019 disposable PostgreSQL 18 measurement of the security-alert planner's scan cost on 50 collector instances, each with one org target of 150 repositories (2 shards) whose scopes hold active generations, beside 8,000 unrelated scopes: one-repository repository-target planning (a different input, the floor of the planner's own cost), partition-only planning, and partition plus the Postgres retirement read, median of 15 scans; creates and drops its own database from the bootstrap schema; about 3 s on PostgreSQL 18.6 locally; timings are logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -123,7 +123,7 @@ VALUES ($1, $2, 'snapshot', now(), now(), 'active')`, generation, leaf.ScopeID);
 	if afterItems != partitionItems || afterItems != wantItems {
 		t.Fatalf("items: partition %d, with read %d, want %d (no retirement on a converged plan)", partitionItems, afterItems, wantItems)
 	}
-	t.Logf("PERF #9019 planner scan, %d instances (median of 15): one item per target %s (%d items, %.3f s); partition only %s (%d items, %.3f s); partition + retirement read %s (%d items, %.3f s); read adds %s per instance",
+	t.Logf("PERF #9019 planner scan, %d instances (median of 15): one-repository repository targets %s (%d items, %.3f s; a different input, not the pre-#9019 planner on these org targets, which the #9019 review measured at 5.09 ms); partition only %s (%d items, %.3f s); partition + retirement read %s (%d items, %.3f s); read adds %s per instance",
 		instances, before, beforeItems, before.Seconds(), partition, partitionItems, partition.Seconds(), after, afterItems, after.Seconds(),
 		(after-partition)/instances)
 }

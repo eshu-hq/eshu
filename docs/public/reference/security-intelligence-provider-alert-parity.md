@@ -117,16 +117,29 @@ repository of that organization through
   repositories. List, count, and inventory stop returning that scope's alerts
   once the projector activates it, and a repository removed from the allowlist
   leaves every read on the next scan. Up to 1,024 scopes retire per instance
-  per scan. A target removed from the configuration entirely is not retired
-  yet (#9071), and an ordinary shrink of a scope's own allowlist can still be
-  refused by the #7926 guard (#9072).
+  per scan. Until a re-created scope's first collection activates (the merged
+  parent, or a shard name planned again), its active generation is still the
+  earlier retirement, and an empty answer for its repositories reads as still
+  collecting (`no_committed_generation`), never complete. A target removed
+  from the configuration or re-scoped (switched to a repository target, or its
+  `scope_id` renamed) leaves its scopes unretired for now (#9071), and an
+  ordinary shrink of a scope's own allowlist can still be refused by the
+  #7926 guard (#9072).
+- **Scoped tokens.** A token granted an org target's base `scope_id` sees the
+  alerts of all its shards: the alert reads match a row whose scope id is
+  `<granted>#shard-<bits>`, exactly and only that. Repository-id grants work
+  as before. The extra match costs about one more grant-array comparison per
+  shard row a token is not granted (113 to 141 ms on 20,480 rows with 200
+  grants, measured).
 - **Upgrade order.** Upgrade the collector and the API before the
   coordinator; all three ship in one image set. A new coordinator with an old
   collector plans shard scopes the old collector does not know (they fail
   retryable until it upgrades). A new collector claimed a sharded target's base
-  scope by an old coordinator fails the claim retryable and logs
-  `security_alert.target_sharded_coordinator_skew` ("upgrade the
-  coordinator") instead of collecting a partial allowlist. An old API reads
+  scope by an old coordinator, or by one that reads a different configuration
+  during a rolling restart, fails the claim retryable and logs
+  `security_alert.target_sharded_coordinator_skew` instead of collecting a
+  partial allowlist; it clears once both run the same version and
+  configuration. An old API reads
   only the base scope of a sharded target.
 - **A shard at the depth cap.** More than 100 repositories whose hashes share
   their first 32 bits cannot split further. That shard reads the same first

@@ -108,7 +108,9 @@ func (s *ClaimedSource) shardAttributes(target TargetConfig, retirement bool) []
 
 // unconfiguredScope is the failure for a claim whose scope this collector
 // does not collect. The base scope_id of a sharded target is the skew guard
-// (#9019): a coordinator older than this collector still plans the base scope,
+// (#9019): a coordinator older than this collector, or one that reads a
+// configuration this collector does not (a rolling restart), still plans the
+// base scope,
 // which this collector neither collects (it would cover only part of the
 // allowlist) nor retires (it carries no retirement marker). The claim fails
 // retryable with an operator-facing log until the coordinator is upgraded.
@@ -116,7 +118,7 @@ func (s *ClaimedSource) unconfiguredScope(scopeID string) error {
 	if org, ok := s.orgTargets[scopeID]; ok && org.sharded() {
 		if s.logger != nil {
 			s.logger.Warn(
-				"security alert target is sharded; upgrade the coordinator: it still plans the target's base scope, which this collector collects only as shards",
+				"security alert target is sharded, but the coordinator still plans its base scope: the coordinator is older than this collector or reads a different configuration (as during a rolling restart); upgrade it or finish the rollout",
 				telemetry.EventAttr("security_alert.target_sharded_coordinator_skew"),
 				slog.String(telemetry.LogKeyScopeID, scopeID),
 				slog.Int("shard_count", len(org.scopeIDs)),

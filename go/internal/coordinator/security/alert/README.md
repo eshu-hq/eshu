@@ -69,8 +69,11 @@ counts only, never a scope id or repository name:
 
 The retirement read runs through the coordinator's `InstrumentedDB` with
 store name `security_alert_shard_scopes`, so its duration and errors show on
-the Postgres store metrics and spans. A failed read fails the instance's plan
-and surfaces as the coordinator's `plan security alert work` error.
+the Postgres store metrics and spans. A failed read fails the instance's plan. `scheduleSecurityAlertWork` returns
+that first error as `plan security alert work for <instance>`, and the first
+scheduler error ends the coordinator's whole reconcile pass for that cycle
+(the `reconcile_error` outcome), the same as any other scheduled planner's
+error; the next pass retries.
 
 ## Gotchas / invariants
 
@@ -92,7 +95,8 @@ and surfaces as the coordinator's `plan security alert work` error.
 - The shard set is a pure function of the configuration: replaying a
   reconciliation yields the same shard ids, retirement ids, and generation ids.
 - Retirement covers merged-away shards and the base of a split target. A
-  target removed from the configuration is not retired here (#9071).
+  target removed from the configuration, or re-scoped (switched to a
+  repository target, or its `scope_id` renamed), is not retired here (#9071).
 - The plan key is validated but not normalized.
 
 No-Regression Evidence: the focused child test calls the production planner.
