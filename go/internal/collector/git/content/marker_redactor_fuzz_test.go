@@ -4,6 +4,7 @@
 package gitcontent
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -29,7 +30,9 @@ func FuzzRedactMarker(f *testing.F) {
 	f.Fuzz(func(t *testing.T, in string) {
 		out, _, err := redactMarker(in, keys)
 		if err != nil {
-			if utf8.ValidString(in) && !strings.Contains(in, "\x00") {
+			// errYAMLIndirection is the fail-closed answer for a body that
+			// could hide a credential off its key's line (#8833).
+			if utf8.ValidString(in) && !strings.Contains(in, "\x00") && !errors.Is(err, errYAMLIndirection) {
 				t.Fatalf("unexpected err %v", err)
 			}
 			return
