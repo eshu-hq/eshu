@@ -78,7 +78,9 @@ Read `doc.go` and `README.md` first.
   failure message. A new reason token changes `securityAlertCoverageReasons`
   and the OpenAPI enum together (`TestSecurityAlertCoverageOpenAPIEnum`).
   Do not import `collector/securityalerts/alertruntime` here; the
-  membership decoder is deliberately query-side, and the terminal
+  membership decoder is deliberately query-side (it shares only the stdlib
+  `scope/org/shard` partition and normalization with the planner and the
+  collector, #9019; never mirror them), and the terminal
   failure-class literals are pinned with their collector source lines
   (`TestSecurityAlertCoverageReasonsPinned`). The unread-repository reasons
   (`security_alert_unread_reason.go`, #8943) are the collector's own tokens

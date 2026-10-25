@@ -55,6 +55,48 @@ recent shipped work grouped by feature area.
   incompressible repositories (0.09 to 0.34 ms for one target).
   Evidence: `docs/internal/evidence/8838-security-alert-target-set.md`.
 
+### Security alerts: org targets over 100 repositories are collected as shards
+
+- **Upgrade order: the collector and the API before the coordinator.** All
+  three ship in one image set. A new coordinator plans shard scopes an old
+  collector does not know (those claims fail retryable until it upgrades). A
+  new collector that an old coordinator still hands a sharded target's base
+  scope (or that a coordinator on another configuration does, mid rolling
+  restart) fails the claim retryable and logs
+  `security_alert.target_sharded_coordinator_skew` instead of collecting part
+  of the allowlist.
+- **An org target of more than 100 same-org repositories is planned as shards
+  of at most 100** ([#9019](https://github.com/eshu-hq/eshu/issues/9019)).
+  One claim reads at most 100 repositories after a truncated org read, so a
+  larger target used to leave the rest unread on every claim. The coordinator
+  now plans one work item per shard, computed from the configuration alone
+  (`go/internal/scope/org/shard`, shared by the planner, the collector, and
+  the query layer). A target of at most 100 keeps its `scope_id`; a larger one
+  is collected as `<scope_id>#shard-<bits>` scopes, and every repository is
+  read within one scan interval (250 repositories in 4 shards: 254 provider
+  requests at `max_pages` 1, measured). A configured `scope_id` containing
+  `#shard-` is now refused.
+- **Scopes the partition no longer plans are retired.** After a split (the
+  base scope) or a merge (both leaves), the coordinator plans a retirement
+  work item and the collector commits an empty generation attested with
+  `TrustedDeletion`, so list, count, and inventory stop returning that
+  scope's alerts and a repository removed from the allowlist leaves every
+  read. Until a re-created scope's first collection lands, its empty answer
+  reads as still collecting, not complete. A removed or re-scoped target is
+  not retired yet
+  ([#9071](https://github.com/eshu-hq/eshu/issues/9071)); an ordinary shrink
+  of a scope can still be refused by the empty-successor guard
+  ([#9072](https://github.com/eshu-hq/eshu/issues/9072)).
+- **Fix: org targets never covered an anchored empty answer.** The query
+  layer compared an org target's scope with `organization`, a value the
+  collector refuses; it accepts only `org`. Repositories of an org target now
+  read the target's real collection state instead of
+  `repository_outside_target_set`.
+- **Tenant-bounded deployments** authorize a shard item, and the retirement
+  of one, through the base scope's grant; an ungranted base still denies
+  them. A scoped API token granted the base scope id keeps reading every
+  shard's alerts.
+
 ### Status: blockage rows name the domain that holds the fence
 
 - **`queue_blockages[]` carries `holder_domain`**

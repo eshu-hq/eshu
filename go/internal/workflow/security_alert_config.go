@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 )
 
 const (
@@ -70,6 +72,11 @@ func ValidateSecurityAlertCollectorConfiguration(raw string) error {
 func validateSecurityAlertTargetConfiguration(target securityAlertTargetConfiguration) error {
 	if strings.TrimSpace(target.ScopeID) == "" {
 		return fmt.Errorf("scope_id is required")
+	}
+	if shard.HasMarker(target.ScopeID) {
+		// Generated org shard scope ids use the marker (#9019); an operator
+		// scope_id with it could collide with one.
+		return fmt.Errorf("scope_id must not contain the reserved %q marker", shard.Marker)
 	}
 	switch strings.TrimSpace(target.Provider) {
 	case "github_dependabot":
@@ -195,15 +202,9 @@ func cleanSecurityAlertRepositories(values []string) []string {
 	return out
 }
 
+// normalizeSecurityAlertRepository is the shared owner/name normalization
+// (shard.NormalizeRepository), so validation, the planner, the collector, and
+// the query layer agree on allowlist membership.
 func normalizeSecurityAlertRepository(repository string) string {
-	parts := strings.Split(strings.Trim(strings.TrimSpace(repository), "/"), "/")
-	if len(parts) != 2 {
-		return ""
-	}
-	owner := strings.ToLower(strings.TrimSpace(parts[0]))
-	repo := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(parts[1]), ".git"))
-	if owner == "" || repo == "" {
-		return ""
-	}
-	return owner + "/" + repo
+	return shard.NormalizeRepository(repository)
 }

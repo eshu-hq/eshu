@@ -46,6 +46,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/incident"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/retention/work/items"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/security/alerts/retirement"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -200,6 +201,14 @@ func run(parent context.Context) error {
 	// The retention sweeper is always wired: retention is on by default in
 	// active mode, and Service.Run fails when it is on without a store
 	// (#8829). ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE=0 turns it off.
+	// The security-alert planner reads the scopes org targets already have, to
+	// retire the shard scopes a partition no longer plans (#9019).
+	securityAlertShardScopesDB := &postgres.InstrumentedDB{
+		Inner:       postgres.SQLDB{DB: db},
+		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
+		Instruments: instruments,
+		StoreName:   "security_alert_shard_scopes",
+	}
 	workItemRetentionDB := &postgres.InstrumentedDB{
 		Inner:       postgres.SQLDB{DB: db},
 		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
@@ -218,7 +227,7 @@ func run(parent context.Context) error {
 		VulnerabilityIntelligencePlanner:  vulnerability.IntelligenceWorkPlanner{},
 		SBOMAttestationPlanner:            attestation.WorkPlanner{},
 		ScannerWorkerPlanner:              scannerworker.WorkPlanner{},
-		SecurityAlertPlanner:              alert.WorkPlanner{},
+		SecurityAlertPlanner:              alert.WorkPlanner{ShardScopes: retirement.NewReader(securityAlertShardScopesDB), Logger: logger},
 		CICDRunPlanner:                    cicdrun.WorkPlanner{},
 		PagerDutyPlanner:                  pagerduty.WorkPlanner{},
 		JiraPlanner:                       jira.WorkPlanner{},

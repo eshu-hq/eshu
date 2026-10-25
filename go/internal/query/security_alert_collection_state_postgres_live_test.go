@@ -19,6 +19,7 @@ import (
 	"time"
 
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -272,7 +273,7 @@ func securityAlertTargetStatesWithoutIndex(f *collectionStateLiveFixture, scopeI
 		f.t.Fatalf("drop index inside differential transaction: %v", err)
 	}
 	var plan strings.Builder
-	planRows, err := tx.QueryContext(f.ctx, "EXPLAIN "+securityAlertTargetStatesQuery, array.Of(scopeIDs), array.Of([]string(nil)))
+	planRows, err := tx.QueryContext(f.ctx, "EXPLAIN "+securityAlertTargetStatesQuery, array.Of(scopeIDs), array.Of([]string(nil)), shard.RetirementFreshnessHint)
 	if err != nil {
 		f.t.Fatalf("EXPLAIN pre-#8840 plan: %v", err)
 	}
@@ -300,7 +301,8 @@ const securityAlertLatestWorkItemIndex = "workflow_work_items_security_alert_sco
 
 func explainSecurityAlertTargetStates(f *collectionStateLiveFixture, scopeIDs []string) string {
 	f.t.Helper()
-	rows, err := f.database.QueryContext(f.ctx, "EXPLAIN (ANALYZE, BUFFERS) "+securityAlertTargetStatesQuery, array.Of(scopeIDs), array.Of([]string(nil)))
+	rows, err := f.database.QueryContext(f.ctx, "EXPLAIN (ANALYZE, BUFFERS) "+securityAlertTargetStatesQuery, array.Of(scopeIDs), array.Of([]string(nil)),
+		shard.RetirementFreshnessHint)
 	if err != nil {
 		f.t.Fatalf("EXPLAIN target states: %v", err)
 	}

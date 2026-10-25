@@ -13,7 +13,7 @@ import (
 
 // coverageTestCoveringOrgTarget is an organization target whose allowlist holds
 // the repository the coverage tests ask about.
-const coverageTestCoveringOrgTarget = `{"targets":[{"provider":"github_dependabot","scope":"organization","scope_id":"sa-target-org-covering","organization":"example-org","allowed_repositories":["example-org/example-repo","example-org/other-repo"]}]}`
+const coverageTestCoveringOrgTarget = `{"targets":[{"provider":"github_dependabot","scope":"org","scope_id":"sa-target-org-covering","organization":"example-org","allowed_repositories":["example-org/example-repo","example-org/other-repo"]}]}`
 
 // TestSecurityAlertEmptyAnswerReportsAnUnreadRepositoryAsIncomplete is the
 // #8943 invariant as a table: an empty answer for a repository the collector

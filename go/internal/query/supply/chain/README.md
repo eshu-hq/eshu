@@ -216,6 +216,18 @@ decodes only the membership fields (`scope`, `scope_id`, `repository`,
 `organization`, `allowed_repositories`) and classifies the answer into
 `coverage.state` and the closed `coverage.reasons` set;
 `security_alert_coverage_truth.go` applies it to the body and truth envelope.
+An org target (scope `org`, the only value the collector accepts) is expanded
+through `shard.Partition` exactly as the planner and the collector expand it
+(#9019): a target of more than 100 same-org repositories is read as its shard
+scopes, the requested repository's shard covers an anchored read, and an
+unanchored read takes every shard. A configured `scope_id` with the reserved
+`#shard-` marker is dropped, as the collector refuses it. A scope whose active
+generation is a retirement (its freshness hint is
+`shard.RetirementFreshnessHint`; `SecurityAlertTargetState.Retired`) holds no
+data until its next collection activates, so it classifies as nothing
+committed (`collecting`, `no_committed_generation`), never complete. A
+`repositories_total` of 0 is not that marker: an org target whose allowlist
+holds only other owners' repositories stores 0 too.
 The read runs as stage `security_alert_collection_state`, whose completion log
 carries `coverage_state`, `coverage_reason`, and `collector_state`, and it
 increments `eshu_dp_query_security_alert_empty_answers_total`. Pages with rows

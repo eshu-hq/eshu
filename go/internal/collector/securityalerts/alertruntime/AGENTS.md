@@ -30,6 +30,15 @@ to `collector.ClaimedService`.
   through `TargetReadState`); never retry inside a
   claim. Update `testdata/org_fanout_cassette.json` when the request sequence
   changes.
+- Split org targets only through `shard.Partition` (`shard_targets.go`); a
+  target of at most 100 same-org repositories keeps its exact configured scope
+  and allowlist. Every shard target carries `ParentScopeID`.
+- Answer a retirement item (`shard.IsRetirement`) only in `retire.go`: an empty
+  generation, `TrustedDeletion`, `RetirementFreshnessHint`, a read state with
+  `repositories_total = 0`, and no provider call. Never set `TrustedDeletion`
+  on a collection generation. Refuse (retryable) a retirement of a planned or
+  unconfigured scope, and keep the skew guard for a sharded base scope claimed
+  without the marker.
 - Build the org read state (`read_state.go`) from the same fan-out outcomes the
   facts use; a repository the fan-out did not read in full MUST appear in it
   with the same reason token, and a repository read in full MUST NOT. The

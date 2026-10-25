@@ -31,6 +31,13 @@ the `reducer_security_alert_reconciliation` fact
   `aggregateGroupQueryTemplate`, `inventoryQueryTemplate`,
   `sourceFreshnessGroupExpr`) built on the shared unexported
   `aggregateRankingCTE`.
+- `grant_scope.go` -- `shardGrantMatch8` and `shardGrantMatch11`, the grant
+  disjuncts that let a scoped token granted an org target's base scope id read
+  its shard scopes' rows (#9019): a row whose `scope_id` carries
+  `shard.Marker` matches when the text before the first marker equals a
+  granted id. Exact by construction (a base never holds the marker), and
+  measured at about one more grant-array comparison per ungranted shard row
+  (113 to 141 ms on 20,480 rows with 200 grants, PostgreSQL 18.6).
 - `triage.go` -- `missingEvidenceVal`, the row-level triage-detail decoder.
 - `queries_test.go`, `aggregates_test.go`, `store_test.go`, `triage_test.go`
   -- the tests that pin this package's own unexported SQL text, decoder, and

@@ -45,10 +45,11 @@ repository or that last repository leaves the allowlist. A rate limit leaves
 the start where the claim began. Several persistent stoppers therefore settle
 in at most one stored generation per stopper plus one, then the committer
 skips the unchanged generation, and the settled read set is never smaller than
-the start-at-top set. A target over the cap always starts at the top and reads the same
-first 100 (rotating a window through a full-snapshot scope stored a generation
-per claim and was withdrawn; the fix is a split target, #9019), and
-`NewClaimedSource` logs one `security_alert.org_fanout_over_cap` warning for it.
+the start-at-top set. A target with more than 100 same-org repositories is
+collected as shards (#9019, below), so a claim over the cap is left only for a
+leaf at the shard depth cap; it always starts at the top and reads the same
+first 100, and `NewClaimedSource` logs one `security_alert.org_fanout_over_cap`
+warning for it.
 `NextClaimed` only computes the cursor. It travels on `TargetReadState`
 (`FanoutStartRepository`, `FanoutNextRepository`, `FanoutLapRepository`) and commits with the
 generation (migration 232, the `unread.Writer` in the commit transaction), so a
@@ -87,6 +88,81 @@ repository and the fan-out outcomes, so a changed outcome is a new refresh
 boundary. Because of the repository field, org-scope digests differ from those
 computed before #8805: each org target takes one extra generation after an
 upgrade.
+
+## Org-target shards and retirement (#9019)
+
+`NewClaimedSource` expands every org target through `shard.Partition`
+(`internal/scope/org/shard`, `shard_targets.go`). A target of at most 100
+distinct same-org repositories keeps its configured `scope_id` and full
+allowlist, exactly as before. A larger target becomes one runtime target per
+shard: scope id `<scope_id>#shard-<bits>`, the shard's repositories as its
+allowlist, and `ParentScopeID` set to the base `scope_id`, which
+`ingestionScope` writes to `ingestion_scopes.parent_scope_id` for the
+coordinator's retirement read. Each shard claim reads the org window, then fans
+out only its own repositories; its read state and fan-out cursor are its own.
+`PreflightProviderAccess` checks one shard per target, since every shard reads
+the same org endpoint with the same credential. Shards of one target share the
+work item's `FairnessKey`; one process claims one item at a time and replicas
+claim distinct shard scopes. Each shard records its own target set (#8838,
+`targetSet` on the shard's runtime config), so the set hash in a shard's
+freshness digest moves only when that shard's own membership changes.
+
+A work item whose `acceptance_unit_id` is `shard.RetirementAcceptanceUnitID(scope_id)`
+is a retirement (`retire.go`): the coordinator planned it for a scope of a
+configured org target the partition no longer plans. The answer reads no
+provider. It is an empty generation with `TrustedDeletion` (the only
+attestation that passes the #7926 successor guard over a content-bearing
+generation), the constant hint `RetirementFreshnessHint` (a replay is skipped as
+unchanged; it is also the retirement marker the query layer reads), and a
+read state with `repositories_total = 0`, which the coordinator's read skips,
+and an explicit empty target set (#8838: it collected nothing). It fails
+retryable, committing nothing, for a scope
+that is not part of a configured org target or that this collector's own
+partition still plans. `TrustedDeletion` is set on retirement generations only.
+
+Skew guard: a collector claimed the base `scope_id` of a sharded target without
+the retirement marker is talking to a coordinator older than itself, or to one
+that reads another configuration (a rolling restart). It fails
+the claim retryable with `ErrShardedTargetNeedsCoordinatorUpgrade` and logs
+`security_alert.target_sharded_coordinator_skew`, instead of collecting a
+partial allowlist under the base scope or retiring it. Upgrade the collector
+and the API before the coordinator.
+
+Signals, counts only: the `security_alert.observe` span of an org claim carries
+`eshu.security_alert.shard.count`, `.shard.repositories`, and
+`eshu.security_alert.retirement`; startup logs one
+`security_alert.org_target_sharded` INFO per sharded target with
+`shard_count`, `smallest_shard_repositories`, and `largest_shard_repositories`;
+each retirement logs `security_alert.scope_retired` with `scope_id`,
+`parent_scope_id`, `generation_id`, and `shard_count`.
+
+Performance Evidence (#9019): baseline is origin/main b46fe6aa1d, where one
+claim of an org target read at most 100 of its allowlisted repositories, so a
+larger target never read the rest. After: over HTTP with the real provider
+client (`TestShardedOrgTargetReadsEveryRepositoryOncePerScan`), one scan of a
+250-repository target in K = 4 shards reads each repository exactly once and
+sends 254 requests at `max_pages` 1 and 508 at 2, equal to
+`max_pages` x (K + N). On PostgreSQL 18.6 (`TestShardSplitMergeLive`, `-race`)
+an allowlist of 100, then 101, then 100 repositories returns exactly 100, 101,
+and 100 rows from list, count, and inventory, with zero rows from retired
+scopes, and two collector replicas commit one target's shards concurrently.
+The coordinator's retirement read (`TestShardRetirementLive`) is a BitmapOr of
+`ingestion_scopes_parent_idx` and the primary key plus a read-state
+primary-key probe, 0.198 ms on 14,401 scopes. Planning 50 instances of one
+150-repository org target each takes 11.2 ms at this head
+(`TestShardPlannerScanCostLive`, median of 15: 7.2 ms partition, about 4 ms
+retirement read). The base planner (b46fe6aa1d) on the same 50 org targets
+took 5.09 ms in the #9019 review, so the change adds about 6.2 ms per
+50-instance scan. A retirement claim makes no provider call.
+
+Observability Evidence (#9019): `security_alert.observe` carries
+`eshu.security_alert.shard.count`, `.shard.repositories`, and
+`eshu.security_alert.retirement`; the logs `security_alert.org_target_sharded`,
+`security_alert.scope_retired`, and `security_alert.target_sharded_coordinator_skew`
+carry counts and scope ids, never a repository name, and the existing
+`eshu_dp_security_alert_*` provider, fan-out, and fact counters keep counting
+every shard claim (span attributes asserted in
+`TestShardAndRetirementClaimsCarryShardSpanAttributes`).
 
 ## Org read state (#8943)
 
