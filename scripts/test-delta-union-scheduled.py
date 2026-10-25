@@ -128,7 +128,11 @@ class DeltaUnionScheduledTest(unittest.TestCase):
                              old_module, "--", "go/"],
                             text=True,
                         ).strip()
-                    except subprocess.CalledProcessError:
+                    except subprocess.CalledProcessError as exc:
+                        # Exit 1 means "no matches": the clean case. Any
+                        # other git failure must stay loud, never clean.
+                        if exc.returncode != 1:
+                            raise
                         still_imported = ""
                     if still_imported:
                         self.assertIn(replacement, module)

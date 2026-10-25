@@ -1,8 +1,11 @@
 # SDK consumer migration no-regression evidence (#8851)
 
-Mechanical migration of all in-repo importers from
+Mechanical migration of all go-module importers from
 `github.com/eshu-hq/eshu/sdk/go/{collector,factschema}` to the standalone
-`github.com/eshu-hq/eshu-sdk/{collector,factschema}` modules. Branch
+`github.com/eshu-hq/eshu-sdk/{collector,factschema}` modules.
+`examples/collector-extensions/*` and `templates/collector` are separate
+modules that stay on the old paths with their own replaces, explicitly out
+of scope; no mixed-type build results. Branch
 `drive/8851-sdk-consumer-migration`, base `1510ce66ad` (rebased twice; original base `8a66731df3`).
 
 No-Regression Evidence (#8851): the migration diff is import-path-only.
