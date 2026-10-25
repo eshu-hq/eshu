@@ -17,7 +17,9 @@
   unknown instance, nothing to acknowledge) happens before
   `ClaimReplayIdempotency`, so the key stays unconsumed. After the claim only a
   store fault or a resolve race can fail, and then the key is consumed: the 422
-  from the in-transaction re-resolve says so (`answerStoreError` `claimed`).
+  from the in-transaction re-resolve says so (`answerStoreError` `claimed`). The
+  404 from the same re-resolve (instance disabled or deactivated meanwhile)
+  consumes the key too, and its body does not say so.
 - **The ledger answers retries.** A completed key replays its stored outcome
   (`encodeOutcome`/`decodeOutcome`); the same key with another target is 409.
   Do not add a second dedupe path.

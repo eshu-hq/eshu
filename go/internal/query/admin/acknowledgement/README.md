@@ -33,12 +33,14 @@ The caller names `collector_kind`, `instance_id`, `scope_id`, a `reason` of at
 most 512 characters, and an `idempotency_key`. Every expected refusal happens before the ledger claim, so it leaves the
 key unconsumed: an unknown, mismatched, or inactive instance (404), a scope with no
 unresolved failure inside the instance's window (422
-`ack_refused_no_terminal_failure`). The one exception is a concurrent resolution
-that lands between the pre-claim resolve and the acknowledgement transaction:
-the re-resolve inside the transaction then refuses with the same 422, the key is
-consumed (the ledger row stays in progress), and a retry with the same key
-answers 409 until a fresh key is used, as in the reopen and replay ledger
-contract. The 422 `detail` says which case applied. The same key and
+`ack_refused_no_terminal_failure`). The exceptions are concurrent changes that
+land between the pre-claim resolve and the acknowledgement transaction: the
+re-resolve inside the transaction can then refuse with the same 422 (a
+resolution landed) or with a 404 (the instance was disabled or deactivated).
+Either way the key is consumed (the ledger row stays in progress), and a retry
+with the same key answers 409 until a fresh key is used, as in the reopen and
+replay ledger contract. The 422 `detail` says which case applied; the post-claim
+404 body does not. The same key and
 target replays the stored outcome (`status` duplicate); the same key with another
 target answers 409. A scoped token gets 403; unauthenticated dev mode stays open.
 
