@@ -606,6 +606,15 @@ type Instruments struct {
 	// outcome=redactor_failed means the file became a metadata row because the
 	// redactor failed; the raw body is never stored.
 	ContentStorePolicyFiles metric.Int64Counter
+	// ContentFileUpserts counts content_files rows per ContentWriter upsert
+	// batch by outcome (inserted, unchanged_skipped, metadata_only,
+	// content_changed) and snapshot (full, delta) (#8950). The share of
+	// metadata_only rows is the unchanged-content rewrite share. Registered by
+	// registerContentStorePolicyInstruments.
+	ContentFileUpserts metric.Int64Counter
+	// ContentFileUpsertBodyBytes counts the body bytes of those rows by
+	// outcome (#8950).
+	ContentFileUpsertBodyBytes metric.Int64Counter
 	// ReconcileParseSkipPersistentDrops counts forced reconciles that skipped
 	// the parse while carrying the active generation's recorded stream drops
 	// (#8185): every recorded path still failed to open, so the skip replays

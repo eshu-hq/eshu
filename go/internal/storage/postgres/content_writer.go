@@ -292,13 +292,16 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 
 	// Batch upsert file records
 	fileUpsertStart := time.Now()
-	if err := w.upsertContentFileBatches(ctx, fileUpserts, indexedAt, cloned.GenerationID); err != nil {
+	fileObservation := w.newFileUpsertObservation(cloned.FullSnapshot)
+	if err := w.upsertContentFileBatches(ctx, fileUpserts, indexedAt, cloned.GenerationID, fileObservation); err != nil {
 		return content.Result{}, err
 	}
 	w.logStage(
 		ctx, cloned, "upsert_files", fileUpsertStart,
-		"row_count", len(fileUpserts),
-		"batch_count", contentBatchCount(len(fileUpserts), contentFileBatchSize),
+		append([]any{
+			"row_count", len(fileUpserts),
+			"batch_count", contentBatchCount(len(fileUpserts), contentFileBatchSize),
+		}, fileObservation.stageAttrs()...)...,
 	)
 
 	// Process entity records: accumulate tombstone entity IDs for

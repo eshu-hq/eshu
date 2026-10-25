@@ -103,6 +103,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"table",
 		"metadata_path",
 		"coverage_state",
+		"snapshot",
 		"source_file_kind",
 		"bootstrap_phase",
 		"stage",
