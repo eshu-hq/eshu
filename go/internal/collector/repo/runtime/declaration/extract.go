@@ -3,11 +3,16 @@
 
 package declaration
 
+import "strings"
+
 // Extraction is the declarations read from one admitted file, before they
-// become fact envelopes, plus the skip that applies to the file. It holds only
-// the few values a declaration needs, never the file body, so a caller can keep
-// one per manifest while the content walk continues. The zero value holds
-// nothing.
+// become fact envelopes, plus the skip that applies to the file. A manifest's
+// Extraction holds its own copy of the few values a declaration needs and no
+// reference to the file body, so a caller can keep one per manifest while the
+// content walk continues and the body is collected. A pin file's declarations
+// still share the body they were read from; the collector keeps that body
+// anyway, and the readers here do not hand a pin Extraction out for keeping.
+// The zero value holds nothing.
 type Extraction struct {
 	// sourceKind is the file-level source kind of a pin file; a manifest
 	// declaration carries its own section kind.
@@ -68,9 +73,33 @@ func extractManifest(body string, read func() ([]declaration, int, error)) Extra
 	if err != nil {
 		return Extraction{skip: Skip{Reason: SkipReasonManifestUnparseable, ByteSize: len(body)}}
 	}
-	extraction := Extraction{declarations: declarations}
+	extraction := Extraction{declarations: detach(declarations)}
 	if rejected > 0 {
 		extraction.skip = Skip{Reason: SkipReasonValueRejected, ByteSize: len(body), Rejected: rejected}
 	}
 	return extraction
+}
+
+// detach copies every string a declaration keeps out of the manifest body. The
+// readers hand out substrings of the body (the JSON scanner's rawString, a
+// TrimSpace result, a go.mod line slice), and a Go substring keeps the whole
+// backing array reachable, so a kept declaration would otherwise pin a body of
+// up to MaxManifestBytesPerFile for as long as the collector holds the
+// Extraction. It runs once per declaration, after the credential guard, on the
+// few values that survive it.
+func detach(declarations []declaration) []declaration {
+	for i := range declarations {
+		d := &declarations[i]
+		d.runtime = strings.Clone(d.runtime)
+		d.rawSpec = strings.Clone(d.rawSpec)
+		if d.toolName != nil {
+			name := strings.Clone(*d.toolName)
+			d.toolName = &name
+		}
+		if d.distribution != nil {
+			dist := strings.Clone(*d.distribution)
+			d.distribution = &dist
+		}
+	}
+	return declarations
 }
