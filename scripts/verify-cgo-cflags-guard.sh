@@ -221,7 +221,7 @@ cgo_cflags_assignments() {
 			assign_re = "CGO_(CFLAGS|CPPFLAGS)" q "[[:space:]]*\\+?[:=]"
 			env_key_re = "^[[:space:]]+" q "CGO_CFLAGS" q "[[:space:]]*:"
 		}
-		/^env:[[:space:]]*(#.*)?$/ { inenv = 1; envind = -1; next }
+		/^env:[[:space:]]*([[:space:]]#.*)?$/ { inenv = 1; envind = -1; next }
 		/^[^[:space:]#]/ { inenv = 0 }
 		{
 			line = $0

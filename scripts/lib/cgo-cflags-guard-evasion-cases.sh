@@ -112,6 +112,10 @@ EOF
 	good_workflow | sed 's/^env:/env: # note/' >"${t}/.github/workflows/env-comment.yml"
 	check_guard "guard: workflow env: with a trailing comment passes" 0 "$t"
 
+	t="$(new_tree)"
+	good_workflow | sed 's/^env:/env:#note/' >"${t}/.github/workflows/env-nospace-comment.yml"
+	check_guard "guard: workflow env:#note without a space before the # does not count as the env key, FAILS" 1 "$t" "env-nospace-comment.yml"
+
 	# Makefile: make strips "#" with no space before it, and the last -std= wins.
 	mk_case() {
 		t="$(new_tree)"
