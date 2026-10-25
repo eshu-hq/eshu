@@ -62,3 +62,55 @@ func TestCreateWorkflowWorkAuthorizesSecurityAlertShardsByTheBaseGrant(t *testin
 		}
 	}
 }
+
+// The base-scope rule never widens a grant: a shard or a retirement whose base
+// scope has no grant, or a grant under another policy revision, is denied, and
+// an item of another collector kind never reads a shard-shaped id as its base.
+func TestCreateWorkflowWorkDeniesSecurityAlertShardsWithoutTheBaseGrant(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.October, 25, 6, 0, 0, 0, time.UTC)
+	const (
+		granted   = "security-alert:github-org:granted"
+		ungranted = "security-alert:github-org:ungranted"
+		stale     = "security-alert:github-org:stale"
+	)
+	store := &fakeStore{}
+	grants := &fakeTenantGrantReader{grants: []WorkflowTenantScopeGrant{
+		{ScopeID: granted, PolicyRevisionHash: "policy-a"},
+		{ScopeID: stale, PolicyRevisionHash: "policy-old"},
+	}}
+	service := Service{
+		Config: Config{TenantBoundary: WorkflowTenantBoundary{
+			TenantID: "tenant-a", WorkspaceID: "workspace-a", SubjectClass: "collector", PolicyRevisionHash: "policy-a",
+		}},
+		Store:             store,
+		TenantGrantReader: grants,
+	}
+	securityAlert := func(scopeID, acceptanceUnitID string) workflow.WorkItem {
+		w := workItemForTenantGrantTest(now, scopeID)
+		w.CollectorKind, w.SourceSystem, w.AcceptanceUnitID = scope.CollectorSecurityAlert, string(scope.CollectorSecurityAlert), acceptanceUnitID
+		return w
+	}
+	ungrantedShard := shard.ScopeID(ungranted, "01")
+	staleShard := shard.ScopeID(stale, "1")
+	otherKind := workItemForTenantGrantTest(now, shard.ScopeID(granted, "0")) // an AWS item, shard-shaped id
+	instance := collectorInstanceForTenantGrantTest()
+	instance.CollectorKind = scope.CollectorSecurityAlert
+	enqueued, err := service.createWorkflowWorkIfNoOpenTargets(context.Background(), instance, runForTenantGrantTest(now), []workflow.WorkItem{
+		securityAlert(ungrantedShard, ungrantedShard),
+		securityAlert(ungranted, shard.RetirementAcceptanceUnitID(ungranted)),
+		securityAlert(ungrantedShard, shard.RetirementAcceptanceUnitID(ungrantedShard)),
+		securityAlert(staleShard, staleShard),
+		otherKind,
+	})
+	if err != nil {
+		t.Fatalf("createWorkflowWorkIfNoOpenTargets() error = %v", err)
+	}
+	if enqueued != 0 || len(store.enqueuedItems) != 0 {
+		t.Fatalf("enqueued %d items (%v), want every ungranted shard, retirement, and other-kind item denied", enqueued, store.enqueuedItems)
+	}
+	if got := grants.queries[0].ScopeIDs; !slices.Contains(got, shard.ScopeID(granted, "0")) {
+		t.Fatalf("grant query %v: the other-kind item must be looked up by its own id", got)
+	}
+}

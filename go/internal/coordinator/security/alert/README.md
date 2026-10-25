@@ -74,6 +74,13 @@ and surfaces as the coordinator's `plan security alert work` error.
 
 ## Gotchas / invariants
 
+- Tenant grants (parent `workflow_tenant_grants.go`): a shard item, and the
+  retirement of a shard or base scope, is authorized by the base scope's
+  grant, since operators grant the configured target and never a generated
+  shard id (validation refuses a configured `scope_id` with `#shard-`). An
+  ungranted or stale-policy base denies its shards and retirements; other
+  collector kinds keep exact-id lookup.
+
 - The planner never resolves `token_env` or copies it into
   `requested_scope_set`.
 - Run and work-item identities depend on the collector instance, plan key, and
