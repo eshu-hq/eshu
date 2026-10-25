@@ -108,6 +108,11 @@ type RepositorySnapshot struct {
 	// TerraformStateCandidates carries metadata-only repo-local state-file
 	// candidates. Raw .tfstate bytes never enter repository snapshots.
 	TerraformStateCandidates []TerraformStateCandidate `json:"terraform_state_candidates,omitempty"`
+	// OversizeSkippedFiles lists the parser files of the full discovery whose
+	// size is over shared.SourceReadCap (#8986). They are never read, parsed,
+	// or streamed; snapshotOneRepository logs each one with the repository,
+	// scope, and generation ids once the generation exists.
+	OversizeSkippedFiles []SkippedOversizeFile `json:"oversize_skipped_files,omitempty"`
 	// DiscoveryAdvisory summarizes noisy repo discovery and materialization
 	// shapes for focused operator tuning.
 	DiscoveryAdvisory *collector.DiscoveryAdvisoryReport `json:"discovery_advisory,omitempty"`

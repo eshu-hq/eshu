@@ -5,7 +5,6 @@ package git
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -23,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/workflow/image"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -469,4 +469,7 @@ func streamFacts(
 // file body once at emit time. It is a package var so a test can count physical
 // body reads and prove the #4877 change reads each candidate body exactly once
 // (emit only) rather than twice (the removed pre-stream count pass plus emit).
-var streamContentBodyReadFile = os.ReadFile
+// The read is capped (#8986): a file that grew past shared.SourceReadCap after
+// discovery is refused, not read whole, and the stream drops it as a read
+// failure.
+var streamContentBodyReadFile = shared.ReadFileCapped

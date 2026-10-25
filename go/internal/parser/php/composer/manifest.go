@@ -5,11 +5,11 @@ package composer
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 // psr4Mapping is one autoload psr-4 entry of a composer.json: a namespace
@@ -115,7 +115,7 @@ func readManifest(path string) (manifest, bool) {
 		return manifest{}, false
 	}
 	return manifestCache.Get(path, stat, func() manifest {
-		content, err := os.ReadFile(path) // #nosec G304 -- reads an indexed repository composer.json at a path found by the nearest-file walk under the scan target
+		content, err := shared.ReadFileCapped(path) // #nosec G304 -- reads an indexed repository composer.json at a path found by the nearest-file walk under the scan target; capped at shared.SourceReadCap (#8986)
 		if err != nil {
 			return manifest{}
 		}

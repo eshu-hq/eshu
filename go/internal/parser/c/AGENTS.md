@@ -83,7 +83,7 @@ All remaining `parser/c` regexes live in `dead_code_roots.go` and are
 out-of-AST or call-site/initializer EVIDENCE, not primary symbol extraction:
 
 - `cHeaderPrototypePattern`, `cBlockCommentPattern`, `cLineCommentPattern` —
-  scan the bytes of EXTERNAL local header files read via `os.ReadFile` in
+  scan the bytes of EXTERNAL local header files read via `shared.ReadFileCapped` in
   `AnnotatePublicHeaderRoots`. The header is not part of the tree-sitter parse
   of the current source, so this is a raw-text scan of an unparsed file
   (bounded, no transitive include resolution). Out-of-AST evidence.
