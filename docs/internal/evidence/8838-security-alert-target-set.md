@@ -54,9 +54,15 @@ With the set removed from the digest, every store case returns skip.
   DDL.
 - The collection-state read replaces the committed `EXISTS` with a top-1
   lateral over the latest committed generation and returns the requested slugs
-  missing from its set. The classifier treats a target as uncommitted for the
+  missing from its set. It reads the set only for an anchored read. The classifier treats a target as uncommitted for the
   read when a slug the target covers is missing.
 - A generation that recorded no set keeps the earlier answer.
+
+## Known limit (pre-existing)
+
+An anchored request that names several repositories takes the best covering
+target. It can read `complete` while another requested repository's target is
+still collecting. main behaves the same; this change does not alter it.
 
 ## Performance Evidence
 
@@ -74,15 +80,37 @@ It removes at most 3 rows by filter and stops at the first committed row.
 | 1 target, warm | 18 buffers, 0.160 ms | 21 buffers, 0.105 ms |
 | 1,024 targets, warm | 10,741 buffers, 19.032 ms | 12,522 buffers, 20.168 ms |
 
-The added cost is 1,781 buffers for 1,024 targets, about 1.7 per target: one
-heap fetch of the committed row's payload. It does not grow with generation
-history. The first cold run of each query is not comparable, because the
-earlier query warmed the shared work-item and scope pages for the later one.
-With migration 233 (#9051) also applied, the same delta held: 10,581 to 12,362
-buffers. With a
-5,000-repository target set, the payload is 150,077 bytes as text and 22,660
-bytes stored (TOAST-compressed). The one-target read is 25 buffers and 0.34 ms
-warm, and it returns the right membership.
+Those rows use 50-slug sets, which fit inline. The added cost there is 1,781
+buffers for 1,024 targets, about 1.7 per target: one heap fetch of the
+committed row. It does not grow with generation history. The first cold run of
+each query is not comparable, because the earlier query warmed the shared
+work-item and scope pages for the later one. With migration 233 (#9051) also
+applied, the same delta held: 10,581 to 12,362 buffers.
+
+### Large target sets
+
+The payload is one TOASTed value, so reading the set decompresses all of it.
+The worst case was re-seeded on the same table: every target's latest
+generation holds 5,000 incompressible (md5-derived) slugs, 82,375 bytes stored
+and 134,659 bytes as text. The table below is the shipped query text, printed
+from the constant and run as a prepared statement, third warm run.
+
+| Read | main (EXISTS) | This change |
+| --- | --- | --- |
+| Unanchored, 1,024 targets | 17,555 buffers, 19.878 ms | 18,344 buffers, 19.752 ms |
+| Unanchored, 1 target | 18 buffers, 0.103 ms | 21 buffers, 0.103 ms |
+| Anchored, 1 covering target | 18 buffers, 0.093 ms | 34 buffers, 0.341 ms |
+| Anchored, all 1,024 targets covering | 11,754 buffers, 19.179 ms | 25,841 buffers, 227.590 ms |
+
+An unanchored read never touches the set: a `CASE` on `cardinality($2)` skips
+it. Without the guard, review measured the unanchored read at 165.7 ms, and
+this table measured it at 210.524 ms. An anchored read pays about 14 buffers
+and 0.2 ms per covering target. Only targets that cover a requested repository
+are read, usually one or two. Containment per slug
+(`payload @> jsonb_build_object(...)`) was slower: 52,465 buffers and
+516.102 ms for 1,024 covering targets, because it decompresses once per slug.
+A compressible 5,000-slug set (22,660 bytes stored) reads in 0.34 ms for one
+target.
 
 The read runs only on an empty answer, inside the existing 1 s probe deadline.
 Pages with rows skip it.

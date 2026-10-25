@@ -22,9 +22,10 @@ recent shipped work grouped by feature area.
   hash is part of the freshness hint, so an allowlist change commits a new
   generation even when the provider's alerts did not change. Each target
   commits one extra generation after the upgrade; an unchanged allowlist still
-  skips every cycle. No DDL. The empty-answer read adds about 1.7 buffers per
-  target (19.03 to 20.17 ms for 1,024 targets with 2,000 generations each,
-  warm).
+  skips every cycle. No DDL. An unanchored empty answer costs what it did
+  (19.88 to 19.75 ms for 1,024 targets with 5,000-repository sets). An anchored
+  one adds about 0.2 ms and 14 buffers per covering target at 5,000
+  incompressible repositories (0.09 to 0.34 ms for one target).
   Evidence: `docs/internal/evidence/8838-security-alert-target-set.md`.
 
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure

@@ -49,8 +49,8 @@ LIMIT $1`
 // items carry no retention, and generation_id is a hash, so no index orders a
 // scope by updated_at). It is index-only when the visibility map is set;
 // otherwise it reads the heap, as a bitmap heap scan before VACUUM (see the
-// evidence note). The committed generation check is an index-only EXISTS on
-// scope_generations_scope_idx.
+// evidence note). The committed generation and its target set come from
+// securityAlertLatestCommittedGenerationLateral (#8838).
 //
 // The unread read follows ingestion_scopes (primary key) to the active
 // generation, then security_alert_target_read_states (primary key), then the
@@ -101,10 +101,18 @@ ORDER BY t.scope_id`
 // skips the few pending or failed rows at the head, and stops at the first
 // committed row. That is one index probe and one heap fetch per target however
 // long the history is. The row's payload holds the target set the generation
-// collected. Evidence: docs/internal/evidence/8838-security-alert-target-set.md.
+// collected.
+//
+// The CASE guard reads the set only for an anchored read ($2 not empty). The
+// payload is one TOASTed value, so any read of it decompresses the whole set:
+// at 5,000 incompressible slugs (82 KB stored) that costs about 0.2 ms and
+// 14 buffers per covering target. An unanchored read needs no set, so the
+// guard keeps it at the cost of the EXISTS it replaced. Containment
+// (payload @> ...) per slug is slower: it decompresses once per slug.
+// Evidence: docs/internal/evidence/8838-security-alert-target-set.md.
 const securityAlertLatestCommittedGenerationLateral = `LEFT JOIN LATERAL (
     SELECT g.generation_id,
-           g.payload -> '` + scope.SecurityAlertTargetSetPayloadKey + `' AS target_set
+           CASE WHEN cardinality($2::text[]) > 0 THEN g.payload -> '` + scope.SecurityAlertTargetSetPayloadKey + `' END AS target_set
     FROM scope_generations g
     WHERE g.scope_id = t.scope_id
       AND g.status IN ('active', 'superseded', 'completed')

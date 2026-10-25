@@ -22,7 +22,8 @@ import (
 // repository (#8805), so org-scope digests, fan-out or not, differ from those
 // computed before that field existed: each org target takes one extra
 // generation after an upgrade, then the digest is stable again. Repository-scope
-// digests are unchanged.
+// digests were unchanged by that field. targetSetHash (#8838) moves every
+// target's digest, repository and org, once after its upgrade.
 type securityAlertFreshnessInput struct {
 	alerts         []securityalerts.GitHubDependabotAlert
 	pagesFetched   int

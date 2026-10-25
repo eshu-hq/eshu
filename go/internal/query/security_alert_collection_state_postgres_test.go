@@ -162,6 +162,8 @@ func TestPostgresSecurityAlertCollectionStateTargetStates(t *testing.T) {
 		// recorded target set, newest first on the latest-lookup index order.
 		"ORDER BY g.ingested_at DESC, g.generation_id DESC",
 		"g.payload -> 'security_alert_target_set'",
+		// An unanchored read must not detoast the payload (#8838 review F1).
+		"CASE WHEN cardinality($2::text[]) > 0 THEN g.payload -> 'security_alert_target_set' END",
 		"NOT committed.target_set ? s",
 		"jsonb_typeof(committed.target_set) = 'array'",
 		"unnest($1::text[])",
