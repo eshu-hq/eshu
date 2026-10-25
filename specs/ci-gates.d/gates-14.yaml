@@ -8,6 +8,7 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/ifa_mirror_pins.sh"
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"

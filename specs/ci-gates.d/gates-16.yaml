@@ -59,6 +59,7 @@ gates:
     blocking: true
     triggers:
       - ".github/workflows/*.yml"
+      - "scripts/**/*.sh"
       - "Makefile"
       - "go/go.mod"
       - "scripts/lib/cgo-cflags.sh"

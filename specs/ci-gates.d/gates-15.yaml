@@ -411,6 +411,7 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "scripts/lib/cgo-cflags.sh"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       - "go/internal/cigates/**"
@@ -466,6 +467,7 @@ gates:
       - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/queue-selection.yml"
     self_test_triggers:
+      - "scripts/lib/cgo-cflags.sh"
       - "specs/ci-gates.v1.yaml"
       - "go/internal/cigates/**"
       - "go/cmd/ci-gates/**"

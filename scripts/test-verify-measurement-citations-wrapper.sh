@@ -18,8 +18,7 @@ git init -q "${fixture}/feature"
 git -C "${fixture}/feature" config user.name "Eshu Test"
 git -C "${fixture}/feature" config user.email "test@example.invalid"
 mkdir -p "${fixture}/feature/docs/internal" "${fixture}/feature/scripts/dev" \
-  "${fixture}/feature/scripts/lib" "${fixture}/feature/.github/workflows"
-cp "${repo_root}/scripts/lib/cgo-cflags.sh" "${fixture}/feature/scripts/lib/"
+  "${fixture}/feature/.github/workflows"
 printf '%s\n' 'golangci-lint@v2.12.2' >"${fixture}/feature/.github/workflows/test.yml"
 printf '%s\n' 'gosec@v2.27.1' >"${fixture}/feature/.github/workflows/security-scan.yml"
 printf '%s\n' '{"id":"9999-common","value":0,"trials":10}' \

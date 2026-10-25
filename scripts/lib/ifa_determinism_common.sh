@@ -23,7 +23,8 @@
 
 # #9066: cgo needs -std=gnu17 on GCC 15 + glibc 2.43; see cgo-cflags.sh.
 # shellcheck source=cgo-cflags.sh
-source "$(dirname "${BASH_SOURCE[0]}")/cgo-cflags.sh"
+# (The literal scripts/ path lets the ci-gates trigger walk see this dependency.)
+source "$(dirname "${BASH_SOURCE[0]}")/../../scripts/lib/cgo-cflags.sh"
 
 # ifa_det_build_bin builds go/cmd/<cmd> into <bin_dir>/eshu-<cmd> with cgo
 # enabled (NornicDB's Bolt driver needs cgo). An optional third argument

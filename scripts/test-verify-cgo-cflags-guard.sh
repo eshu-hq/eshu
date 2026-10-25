@@ -46,11 +46,44 @@ expect_eq() {
 source "${repo_root}/scripts/lib/cgo-cflags.sh"
 
 # ---- 1. lib unit cases ------------------------------------------------------
-expect_eq "lib: unset keeps Go's -O2 -g default" "-O2 -g -std=gnu17" "$(CGO_CFLAGS='' eshu_cgo_cflags)"
-expect_eq "lib: appends to the caller's value" "-O1 -Wall -std=gnu17" "$(CGO_CFLAGS='-O1 -Wall' eshu_cgo_cflags)"
-expect_eq "lib: idempotent" "-O2 -g -std=gnu17" "$(CGO_CFLAGS='-O2 -g -std=gnu17' eshu_cgo_cflags)"
-expect_eq "lib: caller's own -std wins" "-std=c2x -O2" "$(CGO_CFLAGS='-std=c2x -O2' eshu_cgo_cflags)"
-expect_eq "lib: export sets the variable" "-O2 -g -std=gnu17" "$(unset CGO_CFLAGS; eshu_export_cgo_cflags; printf '%s' "${CGO_CFLAGS}")"
+# The lib seeds from the process env, then from `go env CGO_CFLAGS` (which
+# honours a developer's `go env -w`), then from Go's own "-O2 -g" default. A
+# fake `go` on PATH stands in for the host's Go env so the cases do not depend
+# on the host.
+fake_go_dir="$(mktemp -d)"
+printf '%s\n' "$fake_go_dir" >>"$tmp_list"
+cat >"${fake_go_dir}/go" <<'EOF_GO'
+#!/bin/sh
+if [ "$1" = env ] && [ "$2" = CGO_CFLAGS ]; then
+	printf '%s\n' "${FAKE_GO_ENV_CGO_CFLAGS-}"
+fi
+EOF_GO
+chmod +x "${fake_go_dir}/go"
+
+lib_case() {
+	# $1 = process env value, or UNSET; $2 = what `go env CGO_CFLAGS` prints, or NOGO
+	(
+		if [ "$1" = UNSET ]; then unset CGO_CFLAGS; else export CGO_CFLAGS="$1"; fi
+		if [ "$2" = NOGO ]; then
+			PATH=/nonexistent
+		else
+			export FAKE_GO_ENV_CGO_CFLAGS="$2"
+			PATH="${fake_go_dir}:${PATH}"
+		fi
+		eshu_cgo_cflags
+	)
+}
+
+expect_eq "lib: Go's own -O2 -g default survives" "-O2 -g -std=gnu17" "$(lib_case UNSET '-O2 -g')"
+expect_eq "lib: no go on PATH falls back to -O2 -g" "-O2 -g -std=gnu17" "$(lib_case UNSET NOGO)"
+expect_eq "lib: empty go env falls back to -O2 -g" "-O2 -g -std=gnu17" "$(lib_case UNSET '')"
+expect_eq "lib: a developer's go env -w value is kept and appended to" "-O3 -march=native -std=gnu17" "$(lib_case UNSET '-O3 -march=native')"
+expect_eq "lib: a go env -w value with its own -std is untouched" "-O2 -std=c2x" "$(lib_case UNSET '-O2 -std=c2x')"
+expect_eq "lib: process env wins over go env" "-O1 -Wall -std=gnu17" "$(lib_case '-O1 -Wall' '-O3')"
+expect_eq "lib: empty process env falls through to go env" "-O3 -std=gnu17" "$(lib_case '' '-O3')"
+expect_eq "lib: idempotent" "-O2 -g -std=gnu17" "$(lib_case '-O2 -g -std=gnu17' '-O2 -g')"
+expect_eq "lib: caller's own -std wins" "-std=c2x -O2" "$(lib_case '-std=c2x -O2' '-O2 -g')"
+expect_eq "lib: export sets the variable" "-O2 -g -std=gnu17" "$(unset CGO_CFLAGS; PATH="${fake_go_dir}:${PATH}" FAKE_GO_ENV_CGO_CFLAGS='-O2 -g' bash -c 'source "$1"; eshu_export_cgo_cflags; printf "%s" "${CGO_CFLAGS}"' _ "${repo_root}/scripts/lib/cgo-cflags.sh")"
 
 # ---- 2. guard on seeded fixture trees --------------------------------------
 new_tree() {
@@ -65,7 +98,7 @@ new_tree() {
 		mkdir -p "$(dirname "${dir}/${f}")"
 		case "$f" in
 		Makefile) printf 'export CGO_CFLAGS := -O2 -g -std=gnu17\n' >"${dir}/${f}" ;;
-		*) printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\n' >"${dir}/${f}" ;;
+		*) printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\neshu_export_cgo_cflags\n' >"${dir}/${f}" ;;
 		esac
 	done
 	printf '%s' "$dir"
@@ -163,7 +196,7 @@ EOF
 	check_guard "guard: CGO_ENABLED=1 go script without the lib FAILS" 1 "$t" "build-x.sh"
 
 	t="$(new_tree)"
-	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\nCGO_ENABLED=1 go -C go build ./cmd/api\n' >"${t}/scripts/build-y.sh"
+	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\neshu_export_cgo_cflags\nCGO_ENABLED=1 go -C go build ./cmd/api\n' >"${t}/scripts/build-y.sh"
 	check_guard "guard: CGO_ENABLED=1 go script sourcing the lib passes" 0 "$t"
 
 	t="$(new_tree)"
@@ -173,6 +206,43 @@ EOF
 	t="$(new_tree)"
 	printf '#!/usr/bin/env bash\necho no lib\n' >"${t}/scripts/dev/pre-push.sh"
 	check_guard "guard: entrypoint that does not source the lib FAILS" 1 "$t" "pre-push.sh"
+
+	# F1 of the #9066 review: a comment that names the library must not satisfy
+	# the guard, and sourcing the library without exporting does nothing.
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\n# #9066: see scripts/lib/cgo-cflags.sh\n# shellcheck source=../lib/cgo-cflags.sh\n# eshu_export_cgo_cflags\n' >"${t}/scripts/dev/pre-push.sh"
+	check_guard "guard: entrypoint that only mentions the lib in comments FAILS" 1 "$t" "pre-push.sh"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\n' >"${t}/scripts/dev/pre-pr.sh"
+	check_guard "guard: entrypoint that sources but never exports FAILS" 1 "$t" "pre-pr.sh"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\neshu_export_cgo_cflags\n' >"${t}/scripts/dev/prove.sh"
+	check_guard "guard: entrypoint that exports without sourcing FAILS" 1 "$t" "prove.sh"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\n# eshu_export_cgo_cflags\n' >"${t}/scripts/dev/run-selected-gates.sh"
+	check_guard "guard: export only in a comment FAILS" 1 "$t" "run-selected-gates.sh"
+
+	t="$(new_tree)"
+	printf 'export CGO_CFLAGS := -O2 -g -std=gnu17\n' >"${t}/Makefile"
+	check_guard "guard: Makefile with a real export passes" 0 "$t"
+	t="$(new_tree)"
+	printf '# export CGO_CFLAGS := -O2 -g -std=gnu17\n' >"${t}/Makefile"
+	check_guard "guard: Makefile with the export only in a comment FAILS" 1 "$t" "Makefile"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\n# see cgo-cflags.sh\nCGO_ENABLED=1 go -C go build ./cmd/api\n' >"${t}/scripts/build-z.sh"
+	check_guard "guard: CGO_ENABLED=1 go script with a comment-only mention FAILS" 1 "$t" "build-z.sh"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\nsource "$(dirname "$0")/lib/cgo-cflags.sh"\nCGO_ENABLED=1 go -C go build ./cmd/api\n' >"${t}/scripts/build-w.sh"
+	check_guard "guard: CGO_ENABLED=1 go script that sources but never exports FAILS" 1 "$t" "build-w.sh"
+
+	t="$(new_tree)"
+	printf '#!/usr/bin/env bash\nCGO_ENABLED=1 go -C go build ./cmd/api\n' >"${t}/scripts/lib/helper.sh"
+	check_guard "guard: nested scripts/lib helper without the lib FAILS" 1 "$t" "helper.sh"
 
 	check_guard "guard: real tree passes" 0 "${repo_root}"
 fi
@@ -195,7 +265,7 @@ void *bsearch(const void *key, const void *base0, size_t nmemb, size_t size,
   return 0;
 }
 EOF
-	flags="$(unset CGO_CFLAGS; eshu_cgo_cflags)"
+	flags="$(lib_case UNSET '-O2 -g')"
 	# shellcheck disable=SC2086 # the flag string is intentionally word-split
 	if "${cc_bin}" -fsyntax-only ${flags} "$probe" 2>"${probe_dir}/flag.err"; then
 		pass "probe compiles with the chosen flags (${flags})"

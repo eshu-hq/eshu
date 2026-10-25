@@ -59,10 +59,14 @@ recent shipped work grouped by feature area.
   `bsearch.h:72:7: error: expected identifier or '(' before '_Generic'` on
   GCC 15 with glibc 2.43 (the current `ubuntu-latest` image), because C23's
   `bsearch` macro breaks the grammar's own `bsearch` definition. Every workflow
-  that builds Go, the Makefile, and the local gate scripts now set
-  `CGO_CFLAGS="-O2 -g -std=gnu17"`, keeping Go's default `-O2 -g`. The new
-  `cgo-cflags-guard` gate fails a workflow or script that compiles Go without
-  the flag. Remove the flag once the grammar builds under C23; see
+  that builds Go, the Makefile, and the developer entrypoints (`pre-push`,
+  `pre-pr`, `prove`, `run-selected-gates`, `install-local-binaries`) and the
+  golden-corpus and Ifa build helpers now set `CGO_CFLAGS="-O2 -g -std=gnu17"`,
+  keeping Go's default `-O2 -g`. A script run by hand outside those needs the
+  flag in the environment; on an affected host run
+  `go env -w CGO_CFLAGS="-O2 -g -std=gnu17"` once. The new `cgo-cflags-guard`
+  gate fails a workflow or a `CGO_ENABLED=1 go` script that lacks the flag.
+  Remove the flag once the grammar builds under C23; see
   [Cgo C Dialect Flag](docs/public/reference/local-testing/cgo-cflags.md).
 
 ### Parser: `.npmrc` registry URLs

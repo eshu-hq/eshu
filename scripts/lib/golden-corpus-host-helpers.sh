@@ -12,7 +12,8 @@
 
 # #9066: cgo needs -std=gnu17 on GCC 15 + glibc 2.43; see cgo-cflags.sh.
 # shellcheck source=cgo-cflags.sh
-source "$(dirname "${BASH_SOURCE[0]}")/cgo-cflags.sh"
+# (The literal scripts/ path lets the ci-gates trigger walk see this dependency.)
+source "$(dirname "${BASH_SOURCE[0]}")/../../scripts/lib/cgo-cflags.sh"
 
 build_bin() {
 	local cmd="$1"

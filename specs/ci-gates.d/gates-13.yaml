@@ -8,6 +8,7 @@ gates:
     tier: pre-pr
     blocking: false
     triggers:
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/test-ifa-determinism-private-data-cases.sh"
       - "scripts/lib/ifa_private_data_pattern.sh"
       - "scripts/lib/ifa_dead_command_line.sh"
