@@ -15,6 +15,8 @@ This leaf owns the request contract only:
   (all-scopes) authorization gate, the replay idempotency ledger claim, the
   200/400/403/404/409/422/500/503 answers, the outcome counter, and the
   governance audit events.
+- `refusals.go` - the 404, 422, and 500 answers for a store refusal, including
+  the consumed-key text a refusal after the ledger claim carries.
 - `outcome.go` - the encoding of a recorded acknowledgement in the ledger's
   outcome list, and the 200 body.
 
@@ -40,7 +42,8 @@ resolution landed) or with a 404 (the instance was disabled or deactivated).
 Either way the key is consumed (the ledger row stays in progress), and a retry
 with the same key answers 409 until a fresh key is used, as in the reopen and
 replay ledger contract. The 422 `detail` says which case applied; the post-claim
-404 body does not. The same key and
+404 body keeps its `error` and `detail` and adds `key_consumed` and `key_detail`.
+The same key and
 target replays the stored outcome (`status` duplicate); the same key with another
 target answers 409. A scoped token gets 403; unauthenticated dev mode stays open.
 

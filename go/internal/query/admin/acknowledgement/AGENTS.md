@@ -4,7 +4,7 @@
 
 1. `go/internal/query/admin/acknowledgement/README.md` - what this leaf owns
 2. `go/internal/query/admin/acknowledgement/handler.go` - the routes and their
-   answers
+   answers (`refusals.go` holds the store-refusal answers)
 3. `go/internal/storage/postgres/collector_terminal_failure_ack.go` - the store
    and its refusals
 4. `go/internal/storage/postgres/workflow_terminal_failure_status.go` - the status
@@ -19,7 +19,8 @@
   store fault or a resolve race can fail, and then the key is consumed: the 422
   from the in-transaction re-resolve says so (`answerStoreError` `claimed`). The
   404 from the same re-resolve (instance disabled or deactivated meanwhile)
-  consumes the key too, and its body does not say so.
+  consumes the key too, and its body says so (`key_consumed`, `key_detail`) while
+  keeping the standard `error` and `detail`.
 - **The ledger answers retries.** A completed key replays its stored outcome
   (`encodeOutcome`/`decodeOutcome`); the same key with another target is 409.
   Do not add a second dedupe path.

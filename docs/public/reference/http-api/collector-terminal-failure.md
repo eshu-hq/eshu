@@ -290,8 +290,9 @@ Limits:
   says which case applied. An unknown, disabled, or deactivated instance, or a
   kind that does not match, answers `404`. The same `404` from the re-resolve
   inside the acknowledgement transaction (the instance was disabled or
-  deactivated after the first check) also consumes the key, and its body does
-  not say so.
+  deactivated after the first check) also consumes the key. Its body keeps the
+  same `error` and `detail` and adds `key_consumed: true` and a `key_detail`
+  that says nothing was acknowledged and a retry needs a new `idempotency_key`.
 - The same key with the same instance and scope replays the stored outcome with
   `status=duplicate`; the same key with another target, or a key whose call is
   still in progress, answers `409`. Two different keys on one scope both commit

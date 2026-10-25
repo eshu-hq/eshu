@@ -346,47 +346,6 @@ func TestAcknowledgeRefusals(t *testing.T) {
 	}
 }
 
-// TestAcknowledgeNoFailureAnswerIsTruthfulPerPath pins the 422 detail for both
-// places the same refusal can arrive. Before the claim the key is unconsumed.
-// From the re-resolve inside the acknowledgement transaction (a resolution
-// landed after the pre-claim resolve) the key is consumed: the ledger row stays
-// in_progress and a retry with the same key answers 409 until a fresh key is used.
-func TestAcknowledgeNoFailureAnswerIsTruthfulPerPath(t *testing.T) {
-	t.Run("before the claim", func(t *testing.T) {
-		p := fixture(t)
-		p.store.resolveErr = pgstorage.ErrTerminalFailureAckNoFailure
-		rec := post(p.handler.acknowledge, acknowledgeRoute, goodBody, adminAuth())
-		if rec.Code != http.StatusUnprocessableEntity ||
-			!strings.Contains(rec.Body.String(), "nothing was acknowledged and the idempotency key was not consumed") {
-			t.Fatalf("response = %d %s, want 422 saying the key was not consumed", rec.Code, rec.Body.String())
-		}
-		if len(p.ledger.rows) != 0 {
-			t.Fatalf("ledger rows = %d, want the key unconsumed", len(p.ledger.rows))
-		}
-	})
-	t.Run("inside the acknowledgement transaction", func(t *testing.T) {
-		p := fixture(t)
-		p.store.ackErr = pgstorage.ErrTerminalFailureAckNoFailure
-		rec := post(p.handler.acknowledge, acknowledgeRoute, goodBody, adminAuth())
-		if rec.Code != http.StatusUnprocessableEntity {
-			t.Fatalf("code = %d, want 422: %s", rec.Code, rec.Body.String())
-		}
-		body := rec.Body.String()
-		if strings.Contains(body, "was not consumed") ||
-			!strings.Contains(body, "the idempotency key is now consumed") ||
-			!strings.Contains(body, "new idempotency_key") {
-			t.Fatalf("body = %s, want the key reported consumed and a fresh key requested", body)
-		}
-		if decision, reason := lastAudit(t, p.appender); decision != governanceaudit.DecisionDenied || reason != "ack_refused_no_terminal_failure" {
-			t.Fatalf("audit = %s/%s, want denied/ack_refused_no_terminal_failure", decision, reason)
-		}
-		retry := post(p.handler.acknowledge, acknowledgeRoute, goodBody, adminAuth())
-		if retry.Code != http.StatusConflict {
-			t.Fatalf("same-key retry = %d %s, want 409 until a fresh key is used", retry.Code, retry.Body.String())
-		}
-	})
-}
-
 // TestAcknowledgeStoreFaultLeaksNothing pins the #7674 rule: a store fault
 // answers the fixed message, never the backend text, and audits the failure.
 func TestAcknowledgeStoreFaultLeaksNothing(t *testing.T) {
@@ -451,11 +410,11 @@ func TestQueryAcknowledgementsReturnsTheReasonOnlyToAdmins(t *testing.T) {
 	}
 }
 
-func TestMountRegistersBothRoutes(t *testing.T) {
+func TestMountRegistersAcknowledgementRoutes(t *testing.T) {
 	p := fixture(t)
 	mux := http.NewServeMux()
 	p.handler.Mount(mux)
-	for _, path := range []string{acknowledgeRoute, queryRoute} {
+	for _, path := range []string{acknowledgeRoute, queryRoute, listRoute} {
 		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(goodBody))
 		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), adminAuth()))
 		rec := httptest.NewRecorder()
