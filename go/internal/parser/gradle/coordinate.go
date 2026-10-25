@@ -75,9 +75,21 @@ func firstStringLiteral(value string) (string, bool) {
 	return "", false
 }
 
+// parseCoordinateLiteral reads Gradle string notation,
+// group:name[:version[:classifier]][@ext]. The classifier and the extension
+// name the artifact, not the module, so neither joins the coordinate name and
+// the classifier never joins the version. An "@ext" suffix stays on a declared
+// version ("1.0@jar") so the selector rule keeps that row unresolved; it is
+// dropped when no version is declared. Text past the classifier is not a
+// notation Gradle accepts, so the literal is no dependency: it emits no row,
+// and no reader can take its colon-bearing text as an observed version.
 func parseCoordinateLiteral(literal string) (coordinate, bool) {
 	literal = strings.TrimSpace(literal)
-	parts := strings.SplitN(literal, ":", 3)
+	body, ext := literal, ""
+	if at := strings.LastIndexByte(literal, '@'); at > strings.LastIndexByte(literal, ':') {
+		body, ext = literal[:at], literal[at:]
+	}
+	parts := splitNotation(body, 4)
 	if len(parts) < 2 {
 		return coordinate{}, false
 	}
@@ -93,10 +105,45 @@ func parseCoordinateLiteral(literal string) (coordinate, bool) {
 		return coordinate{}, false
 	}
 	version := ""
-	if len(parts) == 3 {
+	switch len(parts) {
+	case 3, 4:
 		version = strings.TrimSpace(parts[2])
+		if len(parts) == 4 && len(splitNotation(parts[3], 2)) > 1 {
+			return coordinate{}, false
+		}
+	}
+	if version != "" {
+		version += ext
 	}
 	return coordinate{group: group, artifact: artifact, version: version}, true
+}
+
+// splitNotation splits Gradle string notation at the ':' separators that sit
+// outside a ${...} interpolation, into at most limit parts; the last part keeps
+// the rest of the text. A ':' inside an interpolation belongs to the version
+// expression (a ternary such as ${c?1:2}), not to the notation.
+func splitNotation(body string, limit int) []string {
+	parts := make([]string, 0, limit)
+	depth, start := 0, 0
+	for index := 0; index < len(body) && len(parts) < limit-1; index++ {
+		switch body[index] {
+		case '$':
+			if index+1 < len(body) && body[index+1] == '{' {
+				depth++
+				index++
+			}
+		case '}':
+			if depth > 0 {
+				depth--
+			}
+		case ':':
+			if depth == 0 {
+				parts = append(parts, body[start:index])
+				start = index + 1
+			}
+		}
+	}
+	return append(parts, body[start:])
 }
 
 func parseMapCoordinate(value string) (coordinate, bool) {

@@ -5,8 +5,8 @@ package catalog
 
 import (
 	"bytes"
-	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/gradle/selector"
 	"github.com/pelletier/go-toml/v2/unstable"
 )
 
@@ -322,17 +322,16 @@ func validCoordinatePart(part []byte) bool {
 }
 
 // exactVersionText reports whether text names one exact version, the only
-// text a resolved row may carry. Beyond validVersionText it rejects what
-// Gradle reads as a selector or a modifier rather than a version: a dynamic
-// version ("1.+", "+"), a "latest." status selector, a range ("[1.0,2.0)",
-// "]1.0,2.0[", "1.0,2.0"), a strict marker ("1.0!!", "[1.0,2.0)!!1.5", any
-// '!'), and an artifact-type suffix ("1.0@jar"). Gradle's StrictVersionParser
-// reads "1.0!!" as strictly 1.0, so even that text is not the version.
+// text a resolved row may carry. It is the shared selector rule
+// (selector.Exact) over the catalog's character floor: validVersionText keeps
+// the printable-ASCII floor and the MaxFieldBytes cap, which Exact leaves to
+// its callers, and Exact rejects every selector and modifier form Gradle
+// reads instead of a version.
 func exactVersionText(text string) bool {
-	if !validVersionText(text) || strings.ContainsAny(text, "+!@[](),") {
+	if !validVersionText(text) {
 		return false
 	}
-	return len(text) < len("latest.") || !strings.EqualFold(text[:len("latest.")], "latest.")
+	return selector.Exact(text)
 }
 
 // validVersionText accepts printable ASCII except whitespace, quotes,
