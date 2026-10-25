@@ -47,7 +47,7 @@ body. Rules that keep it safe:
 - Keep `redactMarker` fail-closed for YAML value shapes. A new key shape needs a
   seeded-violation test in `marker_redactor_test.go`. A listed key whose value
   can leave the key's line (flow style, a plain scalar at any indent) is
-  covered by `marker_yaml_cover.go`; add the shape to `flowHostileSeeds` and
+  covered by `marker_yaml.go`; add the shape to `flowHostileSeeds` and
   keep `TestRedactMarkerNeverStoresADecodedCredential`, the independent
   yaml.v3 oracle, green. The redactor's continuation (`redactInState`) must not
   be the only thing standing between a decoded value and the stored body.

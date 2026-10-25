@@ -97,23 +97,13 @@ func redactMarkerWithURLKeys(body string, keys, urlKeys []string) (string, int, 
 		state.lowerURLKeys = lowerKeys(urlKeys)
 	}
 	lines := strings.Split(body, "\n")
-	// A flow collection lets a value leave the key's line at any indent, which
-	// the redactor's indent-based continuation does not follow. Record which
-	// lines it replaced something on, so the YAML check can find a value line
-	// it left alone (checkYAMLIndirection). Other bodies skip the record.
-	var covered []bool
-	if holdsAnyByte(body, '{', '[') {
-		covered = make([]bool, len(lines))
-	}
 	for i, line := range lines {
-		before := state.replaced
 		lines[i] = state.redactLine(line)
-		if covered != nil {
-			covered[i] = state.replaced != before
-		}
 	}
+	// The YAML check reads the redacted lines: a listed key's value that leaves
+	// the key's line is safe only where the redactor replaced it (#8833).
 	listed := append(append([]string{}, keys...), urlKeys...)
-	if err := checkYAMLIndirection(body, covered, listed, keyPattern, state.urlKeyPattern); err != nil {
+	if err := checkYAMLIndirection(body, lines, listed, keyPattern, state.urlKeyPattern); err != nil {
 		return "", 0, err
 	}
 	return strings.Join(lines, "\n"), state.replaced, nil

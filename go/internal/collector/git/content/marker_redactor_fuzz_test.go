@@ -50,8 +50,10 @@ func FuzzRedactMarker(f *testing.F) {
 		if strings.Count(out, "\n") != strings.Count(in, "\n") {
 			t.Fatalf("line count changed %q -> %q", in, out)
 		}
-		out2, _, _ := redactMarker(out, keys)
-		if out2 != out {
+		// The output is not the source: redaction can cut a flow collection,
+		// and a lexical re-read then fails closed. That is the safe direction,
+		// so it is not a fixed-point failure.
+		if out2, _, err2 := redactMarker(out, keys); !errors.Is(err2, errYAMLIndirection) && out2 != out {
 			t.Fatalf("not fixed point:\n in  %q\n out %q\n out2 %q", in, out, out2)
 		}
 		for _, planted := range []string{

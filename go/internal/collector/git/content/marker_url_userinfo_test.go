@@ -158,7 +158,9 @@ func FuzzRedactMarkerURLKeys(f *testing.F) {
 		if strings.Count(out, "\n") != strings.Count(in, "\n") {
 			t.Fatalf("line count changed %q -> %q", in, out)
 		}
-		if again, _, _ := redactMarkerWithURLKeys(out, testCredentialKeys, testURLUserinfoKeys); again != out {
+		// The output is not the source: redaction can cut a flow collection,
+		// and a lexical re-read then fails closed, which is the safe direction.
+		if again, _, err2 := redactMarkerWithURLKeys(out, testCredentialKeys, testURLUserinfoKeys); !errors.Is(err2, errYAMLIndirection) && again != out {
 			t.Fatalf("not a fixed point:\n in   %q\n out  %q\n out2 %q", in, out, again)
 		}
 		for _, planted := range []string{

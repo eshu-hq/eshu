@@ -166,52 +166,58 @@ No-Regression Evidence: the YAML structure check that marker mode runs after
 redacting a `.yarnrc.yml` (#8833 security review). It parses only a body that
 holds `*`, `?`, a backslash, `{`, or `[`; the last two came with the flow-style
 fix and rule that a listed key's value must not reach a line the redactor left
-alone (`marker_yaml_cover.go`). A body without one of the five bytes costs five
-vectorized `IndexByte` passes and no per-line record. `BenchmarkRedactMarker`,
+alone (`marker_yaml.go`). A body without one of the five bytes costs five
+vectorized `IndexByte` passes. `BenchmarkRedactMarker`,
 interleaved against part 2a's head before the flow rule (`ecb7e9cd70`), two
 rounds of three each, medians:
 
 | Body | Part 1 | Part 2a before the flow rule | With the flow rule |
 | --- | --- | --- | --- |
-| typical `.yarnrc.yml` | 7.1 µs | 24.9 µs | 24.9 µs |
-| clean 1 MiB | 11.0 ms | 34.9 ms | 34.8 ms |
-| dense 1 MiB | 106.1 to 106.2 ms | 155.3 ms | 155.6 ms |
-| URL keys | 49.5 to 49.8 µs | 87.1 µs | 87.4 µs |
-| typical with a flow scope (parses) | n/a | 66.2 µs | 79.1 µs |
-| 1 MiB list of flow entries (parses) | n/a | 25.3 ms | 85.1 ms |
+| typical `.yarnrc.yml` | 7.1 µs | 25.2 µs | 24.9 µs |
+| clean 1 MiB | 11.0 ms | 35.0 ms | 35.0 ms |
+| dense 1 MiB | 106.1 to 106.2 ms | 156.8 ms | 155.6 ms |
+| URL keys | 49.5 to 49.8 µs | 87.5 µs | 87.2 µs |
+| typical with a flow scope (parses) | n/a | 66.6 µs | 79.7 µs |
+| 1 MiB list of flow entries (parses) | n/a | 25.3 ms | 86.3 ms |
 
 The first four bodies hold none of the five bytes, so they do not move. A body
-that parses pays the parse and a per-line record: 13 µs on a typical file with
-a flow scope, and 60 ms per MiB on a file that is all flow entries, which a
+that parses pays the parse: 13 µs on a typical file with
+a flow scope, and 61 ms per MiB on a file that is all flow entries, which a
 `.yarnrc.yml` never is. Without the byte prefilter the clean 1 MiB body took
 74 ms. A repository holds one or two small `.yarnrc.yml` files, so the added
 cost is tens of microseconds per repository.
 
-Fail-closed rule, exactly (`marker_yaml_cover.go`): for each listed key that is
-not inside another listed key's value, every source line from the line after the
-key to the line before the next node starts, and the text before that node on
-its own line, must be a line the redactor replaced, or blank, a comment, only
-flow brackets and commas, a `---` or `...` marker, or a line that already holds
-a `REDACTED_<kind>` marker. Any other line fails closed with reason
-`yaml_indirection`. For a body yaml.v3 cannot parse (it rejects a tab as flow
-indentation and a bare document after `...`; js-yaml reads both), the lines
-after a line a listed key matches must be replaced, blank, or comments, up to
-the first bracket-only line or entry line. No new label value: the reason is the
-existing `yaml_indirection`.
+Fail-closed rule, exactly (`marker_yaml.go`): for each listed key that is not
+inside another listed key's value, the value is taken to reach every source line
+from the line after the key to the line before the next node starts, plus the
+text before that node on its own line. The text that could be value on those
+lines must be nothing (blank, a comment, only flow brackets and commas, a `---`
+or `...` marker), or lie inside the single span the redactor replaced with one
+`REDACTED_<kind>` marker on that line (the text before and after the marker must
+equal the source), or be exactly a marker or `${NAME}` reference an earlier
+pass kept. Marker text beside other text fails; so does a line whose replaced
+span stops short of the tail. For a body yaml.v3 cannot parse (it rejects a tab
+as flow indentation and a bare document after `...`; js-yaml reads both), the
+lines after a line a listed key matches are held to the same text rule, up to
+the first bracket-only line or entry line. The reason is the existing
+`yaml_indirection`; no new label value.
 
 Accuracy proof for the rule: `TestRedactMarkerNeverStoresADecodedCredential`
-generates 120,000 bodies per run from a fragment pool (flow and block openers,
+generates 250,000 bodies per run from a fragment pool (flow and block openers,
 listed keys with and without inline values, tabs, comments, document markers,
-closers), parses each with yaml.v3 as an oracle independent of the redactor, and
-requires that no token decoded under a listed key survives. A one-off run of
-6 million bodies over four seeds found none. The same generator, run through
-js-yaml 4.1.1 (Yarn's parser) found 9 leaks in a first run of 350,000
-candidate bodies, all from `...` or tab shapes yaml.v3 rejects, and none in two
-later runs of 470,000 candidates each, after the lexical fallback. With the
-rule switched off, 26 of the 34 hostile seeds store the token and the oracle test
-fails; the other 8 are held by the redactor's own fixes (a comment line no
-longer ends a continuation, and `-<tab>` is a sequence item) or by its quoted
-scalar and detector handling.
+marker text, URL-key and detector lines, 70-deep nesting, closers), parses each
+with yaml.v3 as an oracle independent of the redactor, and requires that no
+token decoded under a listed key survives. A one-off run of 4.5 million bodies
+over three seeds found none. `TestRedactMarkerNoParserDecodedCredentialSurvives`
+sends 6,000 bodies per run (500,000 in two one-off runs) through js-yaml 4.1.1
+(Yarn's parser) and PyYAML as well and requires that a token any of the three
+decodes under a listed key is gone from the stored body; it skips a parser that
+is not installed. The js-yaml run found 9 leaks in a first 350,000-candidate
+sweep, all from `...` or tab shapes yaml.v3 rejects, which the lexical fallback
+now covers. With the text rule switched off, 32 of the 40 hostile seeds store
+the token and both oracle tests fail; the other 8 are held by the redactor's
+own fixes (a comment line no longer ends a continuation, and `-<tab>` is a
+sequence item) or by its quoted scalar and detector handling.
 
 ## Differentials
 

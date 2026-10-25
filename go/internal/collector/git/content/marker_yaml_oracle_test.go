@@ -44,7 +44,7 @@ func yamlTokensUnderListedKey(body string, listed []string) (tokens map[string]b
 }
 
 func collectTokens(node *yaml.Node, listed []string, inside bool, depth int, tokens map[string]bool) {
-	if node == nil || depth > 64 {
+	if node == nil || depth > 20000 {
 		return
 	}
 	switch node.Kind {
@@ -105,6 +105,10 @@ var oracleFragments = []string{
 	"{T}", " {T}", "  {T}", "    {T}", "\t{T}", "\"{T}\"", "  \"{T}\"", "{T}}", " {T}}", "{T},", "{T}\"", "{T}'", "{T}]",
 	"- {T}", "  - {T}", "-\t{T}", "- \"{T}\"", "a: {T}", "  a: {T}", "&a {T}", "{T}: 1", "[{T}]", "{a: {T}}", "{T} #c", "*a",
 	"? {T}", ": {T}",
+	// Marker text, partial replacements, and nesting deeper than any cap.
+	"REDACTED_api_token", "{T} REDACTED_api_token", "{T}-REDACTED_api_token", "REDACTED_secret_literal {T}",
+	"{T}, httpsProxy: http://user:pw@h/, z: 1}", "{T}, note: " + "AKIA" + "ABCDEFGHIJKLMNOP" + ", z: 1}",
+	"httpsProxy: http://user:pw@h/, npmAuthToken: abcd", strings.Repeat("[", 70), "{T}" + strings.Repeat("]", 70),
 }
 
 // randomOracleBody joins random fragments, numbering each planted token so the
@@ -132,7 +136,7 @@ func TestRedactMarkerNeverStoresADecodedCredential(t *testing.T) {
 	listed := append(append([]string{}, yarnrcCredentialKeys...), oracleURLKeys...)
 	// ESHU_8833_YAML_ORACLE_N and ESHU_8833_YAML_ORACLE_SEED widen the search
 	// for a one-off run; the defaults keep the test under a second.
-	iterations, seed := envInt("ESHU_8833_YAML_ORACLE_N", 120000), envInt("ESHU_8833_YAML_ORACLE_SEED", 8833)
+	iterations, seed := envInt("ESHU_8833_YAML_ORACLE_N", 250000), envInt("ESHU_8833_YAML_ORACLE_SEED", 8833)
 	rng := rand.New(rand.NewSource(int64(seed)))
 	decodedBodies, failedClosed := 0, 0
 	for i := 0; i < iterations; i++ {
@@ -158,7 +162,7 @@ func TestRedactMarkerNeverStoresADecodedCredential(t *testing.T) {
 			}
 		}
 	}
-	if decodedBodies < 1000 {
+	if decodedBodies < 1500 {
 		t.Fatalf("the generator reached only %d decoding bodies; widen it", decodedBodies)
 	}
 	t.Logf("decoding bodies %d, failed closed %d", decodedBodies, failedClosed)
