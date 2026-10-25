@@ -127,15 +127,18 @@ import (
 // (one CREATE INDEX CONCURRENTLY per file).
 // #8943 adds 230_security_alert_target_read_states.sql (the collector-owned
 // org read state and its unread-repository child rows; DDL only).
+// #8830 adds 231_collector_terminal_failure_acknowledgements.sql (operator
+// acknowledgement rows for the collector terminal-failure read; DDL only, rows
+// are written by the admin acknowledge route, so no backfill half exists).
 // #8946 adds 232_security_alert_fanout_cursor.sql (three nullable text columns
-// on that read-state row; 231 belongs to #8830; DDL only, no backfill).
-const goldenBootstrapDefinitionsDigest = "e9329d441e2442465314a58f143d51738cf9ff322d93274af106448e67f45aaf"
+// on that read-state row; DDL only, no backfill).
+const goldenBootstrapDefinitionsDigest = "9923d1a34540e225639c582d2f36bb6cde6b31e1a477c0a662b9f8995b2e0fae"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 249
+const goldenBootstrapDefinitionsCount = 250
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

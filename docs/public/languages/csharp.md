@@ -57,12 +57,35 @@ Supported today:
   that handler to exactly one Function entity.
 - Main methods, constructors, overrides, and same-file interface methods and
   implementations are also modeled as root evidence.
+- `Directory.Packages.props` and `Directory.Build.props` are admitted by exact
+  file name and parsed by the same `nuget_project` path (#8824). Central
+  `PackageVersion` and `GlobalPackageReference` declarations, shared
+  `PackageReference` items, and literal `PropertyGroup` values become rows of
+  their own; a `PackageVersion` is a version pin and is not joined to the
+  project `PackageReference` rows that use it. The reducer never counts a pin
+  as package consumption, so an unused pin creates no `DEPENDS_ON` edge and no
+  security-alert match, and supply-chain readiness does not count it as owned
+  package evidence: a repository with only pins reads `evidence_incomplete`. The scanner is fail-closed: conditional, expression,
+  ambiguous, or out-of-grammar constructs are partial or skipped and counted
+  in `msbuild_props_limits`. A row that MSBuild can change after its `Include`
+  (a later `Update` or `Remove`, a duplicate `Include`, a conditioned metadata
+  child, `Exclude`, an `Import` or other unread element, or a
+  `ManagePackageVersionsCentrally` that is not a literal `true`) stays partial
+  with an `item_ambiguity` reason. MSBuild `%XX` escapes are not unescaped: an
+  escaped version is unresolved and an escaped item spec is treated like a
+  wildcard. A `GlobalPackageReference` is `development` scope (`test` for a test-named package), because
+  NuGet sets `PrivateAssets="All"` on it; other rows leave `dependency_scope`
+  absent when the asset metadata that decides it is conditioned or unresolved.
+  Size, depth, row, and field bounds apply.
+  `$(Property)` resolves from the same file only. The grammar is in
+  `go/internal/parser/nuget/README.md`.
 - `.csproj` PackageReference entries are parsed into repository dependency
   evidence by the separate `nuget_project` parser path. That parser lives in
   `go/internal/parser/nuget`; a thin dispatch wrapper stays in
   `go/internal/parser` because the Engine method set must remain there. Requested
   versions, resolved MSBuild property versions, unresolved-property partial
-  evidence, and PrivateAssets dev/test signals are preserved for the
+  evidence (a `%XX`-escaped version is unresolved, and an escaped
+  `Include`/`Update` spec emits no row, as in the props scanner, #8994), and PrivateAssets dev/test signals are preserved for the
   supply-chain impact reducer. Multi-targeting identity keys the same package
   name across `<ItemGroup>`s by BOTH the item-level and group-level `Condition`
   (the parser exposes them as separate `condition_item` and `condition_group`

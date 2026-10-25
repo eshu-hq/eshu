@@ -119,6 +119,33 @@ recent shipped work grouped by feature area.
   (#9019 tracks doing it automatically). Spans gain
   `eshu.security_alert.org_fanout.start_offset`, `.next_offset`, and `.lapped`.
 
+### Collector readiness: acknowledge an expected terminal failure
+
+- **An operator can acknowledge one terminal collector failure**
+  ([#8830](https://github.com/eshu-hq/eshu/issues/8830)). A failure on a target
+  nobody will fix (a deleted repository, a credential revoked on purpose) used
+  to keep the instance `degraded` and `failed` for as long as the target kept
+  failing. `POST /api/v0/admin/collector-failures/acknowledge` and
+  `eshu admin collector-failure acknowledge` record the acknowledgement for one
+  instance and scope with a required reason and idempotency key, behind an admin
+  token, with one governance audit event per decision (migration 231).
+  `POST /api/v0/admin/collector-failures/query` and `eshu admin collector-failure
+  list` list the failed scopes of one instance, because no status surface carries
+  a scope id. The
+  instance then reads `partial` with the blocker `terminal fetch failure
+  acknowledged: <class> (<operation>)`, never healthy or implemented, and the
+  failure stays visible as an `acknowledged_failure` object on collector status
+  and readiness. The acknowledgement covers that failure and later failures on the
+  scope with the same raw class; a completed work item after it, or a failure of
+  another class, reports the failure again with no further write. It has no
+  expiry. An acknowledgement of a scope with no unresolved failure inside the
+  window is refused with 422. The operator's reason is returned only by
+  `POST /api/v0/admin/collector-failures/acknowledgements/query`. The
+  terminal-failure gauge counts only unacknowledged failures; the new
+  `eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances`
+  gauge and `eshu_dp_collector_terminal_failure_acknowledgements_total` counter
+  cover the rest. The 3 AM runbook says when to acknowledge and when not to.
+
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
 - **Nesting guard before every Cargo TOML decode**
@@ -169,6 +196,40 @@ recent shipped work grouped by feature area.
   The raw lock body, including direct-URL credentials `uv` persists, is stored
   verbatim in the content store until the
   [#8812](https://github.com/eshu-hq/eshu/issues/8812) policy gates land.
+
+### NuGet central package files parsed
+
+- **`Directory.Packages.props` and `Directory.Build.props` are now parsed**
+  ([#8824](https://github.com/eshu-hq/eshu/issues/8824)). The registry admits
+  the two exact names (case-insensitive, no generic `.props` rule) and the
+  NuGet project parser reads them with a fail-closed XML scanner. `PackageVersion`,
+  `GlobalPackageReference`, and `PackageReference` items become dependency rows
+  in their own section, and literal `PropertyGroup` values become
+  `msbuild_property` rows. A `PackageVersion` is a version pin: it is not
+  joined to the project `PackageReference` rows that use it. The reducer never
+  counts it as package consumption, a `DEPENDS_ON` edge, or security-alert
+  evidence, the Postgres consumption sidecar never stores it, and supply-chain
+  readiness does not count it as `package.consumption`, so a repository with
+  only pins reads `evidence_incomplete` with `owned_packages` missing. Conditional, expression, and ambiguous values stay
+  partial, and constructs outside the documented grammar are skipped and
+  counted in `msbuild_props_limits`. A row that MSBuild can change after its
+  `Include` (a later `Update` or `Remove`, a duplicate `Include`, a conditioned
+  metadata child, `Exclude`, an `Import` or other unread element, or a
+  `ManagePackageVersionsCentrally` that is not a literal `true`) is partial
+  with an `item_ambiguity` reason. MSBuild `%XX` escapes are not unescaped:
+  an escaped version is unresolved and an escaped item spec is treated like a
+  wildcard. The `.csproj` path now applies the same rule (#8994): a
+  `PackageReference` whose `Include` or `Update` holds a `%XX` escape emits
+  no row, and an escaped version (declared, or reached through a property)
+  stays `unresolved_msbuild_property`. A `GlobalPackageReference` is `development` scope (`test` for a test-named package), because
+  NuGet sets `PrivateAssets="All"` on it; other rows leave `dependency_scope`
+  absent (`unresolved_asset_metadata`) when a conditioned or unresolved asset
+  value could change it. Input size, nesting depth, row counts,
+  tracked item names, and field lengths are bounded. The change
+  adds two registry names, so every repository re-collects once; the content
+  version constant stays at `git-collector.v10` because the parser registry
+  fingerprint already moves the generation version. The ecosystem-gate
+  allowlist drops its `Directory.Packages.props` entry.
 
 ### Gradle version catalog becomes dependency facts
 

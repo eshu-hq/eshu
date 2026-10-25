@@ -7,7 +7,7 @@
 //
 // Two unrelated groups of operations share it. The work-item side (Reindex, TuningReport,
 // ListWorkItems, ListDecisions, Replay, DeadLetter, Skip, Backfill,
-// ListReplayEvents, Retire) decides which admin endpoint to call and what request
+// ListReplayEvents, Retire, ListCollectorFailures, AcknowledgeCollectorFailure) decides which admin endpoint to call and what request
 // body to send, then returns the decoded response for the caller to render.
 // The credential side (RetrieveInitialCredential, ResetInitialCredential)
 // opens or regenerates the sealed bootstrap credential envelope and appends

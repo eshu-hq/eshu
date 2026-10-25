@@ -48,6 +48,16 @@ func collectorRuntimeStatusToMap(row collector.RuntimeStatus) map[string]any {
 		result["last_failure_terminal"] = true
 		result["last_failure_at"] = nullableRFC3339(row.LastFailureAt)
 	}
+	if row.AcknowledgedFailure != nil {
+		// An operator acknowledged a terminal failure (#8830). Bounded tokens
+		// and times only; the operator's reason is admin-only and never here.
+		result["acknowledged_failure"] = map[string]any{
+			"failure_class":     row.AcknowledgedFailure.FailureClass,
+			"failure_operation": row.AcknowledgedFailure.FailureOperation,
+			"failed_at":         nullableRFC3339(row.AcknowledgedFailure.FailedAt),
+			"acknowledged_at":   nullableRFC3339(row.AcknowledgedFailure.AcknowledgedAt),
+		}
+	}
 	return result
 }
 

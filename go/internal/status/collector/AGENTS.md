@@ -81,6 +81,18 @@ the reader selects rows by the `failed_terminal` status, never by the
 setting that flag. Do not add a per-row terminal gate back. A failure for an
 unregistered or disabled instance never changes health.
 
+An acknowledged `TerminalFailure` (#8830, `Acknowledged` set by the reader)
+never touches `LastFailure*`. It becomes the `AcknowledgedFailure` sub-record,
+raises health to `partial` (never `healthy`, `registered`, or `observed`, and
+never `degraded` by itself), and `derivePromotionState` returns
+`PromotionPartial` with the `terminal fetch failure acknowledged` blocker in an
+arm before the generic partial case. A real unacknowledged failure outranks it by
+health rank. The runtime gauge in `internal/runtime` counts it only on the
+acknowledged series. The operator's reason, the scope id, and the work item id
+are never carried on `RuntimeStatus`, `PromotionProof`, or their JSON; the
+reason is admin-only. Do not add the covering rule here; it is one SQL predicate
+in `storage/postgres`.
+
 ## Exporting the render/clone/JSON surface
 
 Every render, clone, and JSON-projection helper in this family

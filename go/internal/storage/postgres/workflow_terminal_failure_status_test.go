@@ -27,9 +27,10 @@ func TestReadWorkflowCollectorTerminalFailuresScansBoundedColumns(t *testing.T) 
 
 	asOf := time.Date(2026, 10, 23, 12, 30, 0, 0, time.UTC)
 	failedAt := asOf.Add(-10 * time.Minute)
+	ackedAt := failedAt.Add(2 * time.Minute)
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{
-		{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt},
-		{"git", "git-example", "", "", failedAt.Add(-time.Minute)},
+		{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt, "scope-1", "work-1", false, nil},
+		{"git", "git-example", "", "", failedAt.Add(-time.Minute), "scope-2", "work-2", true, ackedAt},
 	}}}}
 
 	got, err := readWorkflowCollectorTerminalFailures(context.Background(), queryer, []collector.InstanceSummary{
@@ -47,6 +48,16 @@ func TestReadWorkflowCollectorTerminalFailuresScansBoundedColumns(t *testing.T) 
 		first.FailureClass != "auth_denied" || first.FailureOperation != "list_org_alerts" ||
 		!first.ObservedAt.Equal(failedAt) {
 		t.Fatalf("first = %#v, want security_alert/auth_denied/list_org_alerts/terminal", first)
+	}
+	if first.ScopeID != "scope-1" {
+		t.Fatalf("first ScopeID = %q, want scope-1", first.ScopeID)
+	}
+	if first.WorkItemID != "work-1" || first.Acknowledged || !first.AcknowledgedAt.IsZero() {
+		t.Fatalf("first = %#v, want no acknowledgement fields", first)
+	}
+	second := got[1]
+	if second.ScopeID != "scope-2" || second.WorkItemID != "work-2" || !second.Acknowledged || !second.AcknowledgedAt.Equal(ackedAt) {
+		t.Fatalf("second = %#v, want the acknowledgement time and reason", second)
 	}
 }
 
@@ -177,7 +188,7 @@ func TestWorkflowCollectorTerminalFailuresQueryShape(t *testing.T) {
 	}
 	normalized := strings.Join(strings.Fields(query), " ")
 	for _, want := range []string{
-		"FROM unnest($1::text[], $2::text[], $3::timestamptz[]) AS i(collector_kind, instance_id, cutoff) CROSS JOIN LATERAL",
+		"FROM unnest($1::text[], $2::text[], $3::timestamptz[]) AS i(collector_kind, instance_id, cutoff) CROSS JOIN LATERAL (",
 		"t.status = 'failed_terminal'",
 		"t.updated_at >= i.cutoff",
 		"NOT EXISTS",
@@ -186,10 +197,27 @@ func TestWorkflowCollectorTerminalFailuresQueryShape(t *testing.T) {
 		"s.status = 'completed'",
 		"s.updated_at > t.updated_at",
 		"ORDER BY t.updated_at DESC, t.work_item_id ASC LIMIT 1",
+		"UNION ALL",
+		"ORDER BY i.collector_kind ASC, i.instance_id ASC, f.acknowledged ASC",
+		"t.scope_id <> ALL (ARRAY( SELECT a.scope_id FROM collector_terminal_failure_acknowledgements AS a",
+		// The ruling's predicate, verbatim in meaning.
+		"t.updated_at <= k.failure_at",
+		"t.last_failure_class IS NOT DISTINCT FROM NULLIF(k.failure_class, '')",
+		"k.failure_at < c.updated_at AND c.updated_at < t.updated_at",
 	} {
 		if !strings.Contains(normalized, want) {
 			t.Fatalf("query missing %q:\n%s", want, query)
 		}
+	}
+	// The operator's reason is admin-only: the status read must never select it.
+	for _, forbidden := range []string{"k.reason", "reason,", "actor_"} {
+		if strings.Contains(normalized, forbidden) {
+			t.Fatalf("status read selects %q; the acknowledgement reason is admin-only", forbidden)
+		}
+	}
+	// The suppression predicate has one definition, used by both laterals.
+	if got := strings.Count(normalized, "t.last_failure_class IS NOT DISTINCT FROM NULLIF(k.failure_class, '')"); got != 2 {
+		t.Fatalf("covering predicate appears %d times, want once per lateral (2)", got)
 	}
 }
 
@@ -208,7 +236,7 @@ func TestReadCoordinatorSnapshotIncludesTerminalFailures(t *testing.T) {
 			{rows: [][]any{{int64(0), int64(0), int64(0)}}},
 			{rows: [][]any{}},
 			{rows: [][]any{}},
-			{rows: [][]any{{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt}}},
+			{rows: [][]any{{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt, "scope-1", "work-1", false, nil}}},
 		},
 	}
 

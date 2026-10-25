@@ -105,6 +105,11 @@ type PromotionProof struct {
 	LastFailureClass     string
 	LastFailureOperation string
 	LastFailureAt        time.Time
+	// AcknowledgedFailure is the operator-acknowledged terminal failure of the
+	// instance (#8830), or nil. It is a partial-state blocker, not a failure:
+	// the failure is real and still happening, so the proof never reads
+	// implemented.
+	AcknowledgedFailure *AcknowledgedFailure
 	// ReducerReadback reports whether reducer-projected evidence is available.
 	ReducerReadback string
 	// TelemetryHandles lists stable metric and span names for diagnosis.
@@ -260,6 +265,7 @@ func promotionProofForInstance(
 		LastFailureClass:     row.LastFailureClass,
 		LastFailureOperation: row.LastFailureOperation,
 		LastFailureAt:        row.LastFailureAt,
+		AcknowledgedFailure:  row.AcknowledgedFailure,
 		TelemetryHandles:     telemetryHandles(entry),
 		LastObservedAt:       row.LastObservedAt,
 		UpdatedAt:            row.UpdatedAt,
@@ -287,6 +293,10 @@ func derivePromotionState(
 		return PromotionFailed, []string{terminalFailureDetail(row.LastFailureClass, row.LastFailureOperation)}
 	case row.Health == "degraded":
 		return PromotionFailed, []string{degradedBlocker(row)}
+	case row.AcknowledgedFailure != nil:
+		// An operator acknowledged the failure (#8830). It is still happening,
+		// so the proof is partial with the failure named, never implemented.
+		return PromotionPartial, []string{acknowledgedFailureDetail(row.AcknowledgedFailure.FailureClass, row.AcknowledgedFailure.FailureOperation)}
 	case row.Health == "partial":
 		return PromotionPartial, []string{"runtime health partial: some work did not complete"}
 	case isGated(entry, row, claimState):

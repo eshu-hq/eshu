@@ -4,6 +4,7 @@
 package correlation
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -93,4 +94,25 @@ func packageManifestMetadataBool(payload map[string]any, key string) *bool {
 func packageManifestMetadataBoolValue(payload map[string]any, key string) bool {
 	value := packageManifestMetadataBool(payload, key)
 	return value != nil && *value
+}
+
+// centralFlagText returns a payload flag as the readiness SQL reads it: a
+// missing key and null are empty, only ASCII blanks are trimmed (the set BTRIM
+// takes in the postgres package's NotCentralVersionDeclarationSQL), and a
+// literal "<nil>" is ordinary text. It differs on purpose from
+// packageManifestMetadataString, whose strings.TrimSpace also strips Unicode
+// spaces such as NBSP and NEL and whose PayloadStr blanks "<nil>": with that
+// rule a NBSP-padded "true" would be a pin here and consumption in the
+// sidecar and readiness count. It mirrors the postgres package's helper of
+// the same name instead of importing it, because the reducer must not depend
+// on storage.
+func centralFlagText(payload map[string]any, key string) string {
+	if payload == nil {
+		return ""
+	}
+	value, ok := payload[key]
+	if !ok || value == nil {
+		return ""
+	}
+	return strings.Trim(fmt.Sprint(value), " \t\n\r\f\v")
 }

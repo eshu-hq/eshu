@@ -48,6 +48,45 @@ func TestOpenAPITerminalFailureFieldsMatchStatusContract(t *testing.T) {
 			t.Fatalf("last_failure_at = %v, want omitted-when-absent with no nullable marker", schema)
 		}
 	}
+
+	// The acknowledged_failure sub-record (#8830) carries the same bounded
+	// class on both routes, so its enum is pinned to the same set.
+	var acknowledged []map[string]any
+	collectNamedProperties(spec, "acknowledged_failure", &acknowledged)
+	if len(acknowledged) != 2 {
+		t.Fatalf("found %d acknowledged_failure schemas, want 2 (collectors and collector readiness)", len(acknowledged))
+	}
+	for _, schema := range acknowledged {
+		properties, _ := schema["properties"].(map[string]any)
+		class, _ := properties["failure_class"].(map[string]any)
+		raw, _ := class["enum"].([]any)
+		got := make([]string, 0, len(raw))
+		for _, value := range raw {
+			text, _ := value.(string)
+			got = append(got, text)
+		}
+		slices.Sort(got)
+		if !slices.Equal(got, want) {
+			t.Fatalf("acknowledged_failure.failure_class enum = %v, want %v", got, want)
+		}
+	}
+}
+
+// collectNamedProperties gathers every object-valued property named name.
+func collectNamedProperties(node any, name string, out *[]map[string]any) {
+	switch typed := node.(type) {
+	case map[string]any:
+		for key, value := range typed {
+			if schema, ok := value.(map[string]any); ok && key == name {
+				*out = append(*out, schema)
+			}
+			collectNamedProperties(value, name, out)
+		}
+	case []any:
+		for _, value := range typed {
+			collectNamedProperties(value, name, out)
+		}
+	}
 }
 
 // collectTerminalFailureProperties walks the spec and gathers every

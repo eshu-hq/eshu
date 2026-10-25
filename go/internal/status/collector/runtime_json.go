@@ -33,6 +33,9 @@ type RuntimeStatusJSON struct {
 	LastFailureOperation string `json:"last_failure_operation,omitempty"`
 	LastFailureTerminal  bool   `json:"last_failure_terminal,omitempty"`
 	LastFailureAt        string `json:"last_failure_at,omitempty"`
+	// AcknowledgedFailure describes an operator-acknowledged terminal failure
+	// (#8830); omitted when there is none. The operator's reason is never in it.
+	AcknowledgedFailure *AcknowledgedFailureJSON `json:"acknowledged_failure,omitempty"`
 }
 
 func RuntimeStatusesJSON(rows []RuntimeStatus) []RuntimeStatusJSON {
@@ -61,7 +64,28 @@ func RuntimeStatusesJSON(rows []RuntimeStatus) []RuntimeStatusJSON {
 			LastFailureOperation:  row.LastFailureOperation,
 			LastFailureTerminal:   row.LastFailureTerminal,
 			LastFailureAt:         shared.NullableRFC3339Value(row.LastFailureAt),
+			AcknowledgedFailure:   acknowledgedFailureJSON(row.AcknowledgedFailure),
 		})
 	}
 	return projected
+}
+
+// AcknowledgedFailureJSON is the wire shape of an AcknowledgedFailure.
+type AcknowledgedFailureJSON struct {
+	FailureClass     string `json:"failure_class"`
+	FailureOperation string `json:"failure_operation"`
+	FailedAt         string `json:"failed_at,omitempty"`
+	AcknowledgedAt   string `json:"acknowledged_at,omitempty"`
+}
+
+func acknowledgedFailureJSON(failure *AcknowledgedFailure) *AcknowledgedFailureJSON {
+	if failure == nil {
+		return nil
+	}
+	return &AcknowledgedFailureJSON{
+		FailureClass:     failure.FailureClass,
+		FailureOperation: failure.FailureOperation,
+		FailedAt:         shared.NullableRFC3339Value(failure.FailedAt),
+		AcknowledgedAt:   shared.NullableRFC3339Value(failure.AcknowledgedAt),
+	}
 }

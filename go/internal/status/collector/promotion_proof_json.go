@@ -39,6 +39,9 @@ type PromotionProofJSON struct {
 	LastFailureClass     string `json:"last_failure_class,omitempty"`
 	LastFailureOperation string `json:"last_failure_operation,omitempty"`
 	LastFailureAt        string `json:"last_failure_at,omitempty"`
+	// AcknowledgedFailure describes an operator-acknowledged terminal failure
+	// (#8830); omitted when there is none. The operator's reason is never in it.
+	AcknowledgedFailure *AcknowledgedFailureJSON `json:"acknowledged_failure,omitempty"`
 }
 
 func PromotionProofsJSON(rows []PromotionProof) []PromotionProofJSON {
@@ -66,6 +69,8 @@ func PromotionProofsJSON(rows []PromotionProof) []PromotionProofJSON {
 			LastFailureClass:     row.LastFailureClass,
 			LastFailureOperation: row.LastFailureOperation,
 			LastFailureAt:        shared.NullableRFC3339Value(row.LastFailureAt),
+
+			AcknowledgedFailure: acknowledgedFailureJSON(row.AcknowledgedFailure),
 		})
 	}
 	return projected

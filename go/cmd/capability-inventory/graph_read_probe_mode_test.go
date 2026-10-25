@@ -38,7 +38,7 @@ func TestGraphReadProbeSanitizesHostileTransportErrors(t *testing.T) {
 	} else {
 		assertSanitizedProbeError(t, err, privateCause)
 	}
-	if _, err := discoverProbeSelectors(client, "https://private.example.invalid", "secret-marker"); err == nil {
+	if _, err := discoverProbeSelectors(client, "https://private.example.invalid", "secret-marker", "secret-marker"); err == nil {
 		t.Fatal("discoverProbeSelectors() error = nil, want sanitized transport failure")
 	} else {
 		assertSanitizedProbeError(t, err, privateCause)
@@ -85,7 +85,7 @@ func TestDiscoverProbeSelectorsUsesRepositoryScopedAuthoritativeSources(t *testi
 	}))
 	defer server.Close()
 
-	selectors, err := discoverProbeSelectors(server.Client(), server.URL, "user-token")
+	selectors, err := discoverProbeSelectors(server.Client(), server.URL, "user-token", "admin-token")
 	if err != nil {
 		t.Fatalf("discoverProbeSelectors() error = %v", err)
 	}
@@ -182,6 +182,7 @@ func TestCurrentProbeRegistryIsRedactedAndClassifiesMappedDelta(t *testing.T) {
 		"generation_id": {}, "terraform_state_scope": {}, "package_id": {}, "fact_kind": {}, "collector_family": {},
 		"component_id": {}, "finding_id": {}, "fingerprint": {}, "packet_id": {}, "incident_id": {}, "relationship_id": {},
 		"workflow_id": {}, "playbook_id": {}, "tag": {}, "oci_repository_id": {},
+		"collector_kind": {}, "instance_id": {},
 	}
 	unknownSelectors := map[string]struct{}{}
 	for _, match := range regexp.MustCompile(`\{\{selector:([^}]+)}}`).FindAllStringSubmatch(text, -1) {
@@ -255,7 +256,8 @@ func TestRunGraphReadProbeUsesDeclaredArgumentsAuthAndExplicitSelectorFailure(t 
 			request.URL.Path == "/api/v0/auth/setup-state" || strings.HasPrefix(request.URL.Path, "/api/v0/auth/github/") {
 			wantToken = ""
 		}
-		if strings.HasPrefix(request.URL.Path, "/api/v0/admin/") {
+		// Collector selector discovery reads with the admin token.
+		if strings.HasPrefix(request.URL.Path, "/api/v0/admin/") || request.URL.Path == "/api/v0/status/collectors" {
 			wantToken = adminToken
 		}
 		if request.URL.Path == "/api/v0/code/cypher" || request.URL.Path == "/api/v0/code/visualize" {
@@ -333,7 +335,7 @@ func TestCurrentProbeRegistryResolvesEveryExecutableFixture(t *testing.T) {
 		"fact_kind": "repository", "collector_family": "repository", "component_id": "component-fixture",
 		"finding_id": "finding-fixture", "fingerprint": "fingerprint-fixture", "packet_id": "packet-fixture", "relationship_id": "relationship-fixture",
 		"workflow_id": "workflow-fixture", "playbook_id": "playbook-fixture", "tag": "tag-fixture",
-		"oci_repository_id": "oci-registry://ghcr.io/eshu-hq/demo",
+		"oci_repository_id": "oci-registry://ghcr.io/eshu-hq/demo", "collector_kind": "git", "instance_id": "git-main",
 	}
 	for _, probe := range registry {
 		if !probe.execute {
