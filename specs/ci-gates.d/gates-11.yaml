@@ -9,6 +9,7 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/test-ifa-determinism-private-data-cases.sh"
       - "scripts/lib/ifa_private_data_pattern.sh"
       - "scripts/lib/ifa_dead_command_line.sh"
@@ -392,6 +393,7 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/ifa_mirror_pins.sh"
       - "go/internal/ifa/mutate.go"
       - "go/internal/ifa/dead_letters.go"

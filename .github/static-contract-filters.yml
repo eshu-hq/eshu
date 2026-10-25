@@ -237,6 +237,7 @@ ifareplaydrive:
   - '.github/static-contract-filters.yml'
   - 'scripts/verify-ifa-replay-drive.sh'
   - 'scripts/test-verify-ifa-replay-drive.sh'
+  - 'scripts/lib/cgo-cflags.sh'
   - 'scripts/lib/ifa_mirror_pins.sh'
   - 'scripts/lib/ifa_private_data_pattern.sh'
   - 'scripts/lib/ifa_dead_command_line.sh'

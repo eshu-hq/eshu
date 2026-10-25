@@ -7,6 +7,19 @@ ROOT_KEYS = frozenset({"name", "on", "permissions", "concurrency", "jobs"})
 JOB_KEYS = frozenset({"if", "runs-on", "timeout-minutes", "services", "steps", "needs"})
 STEP_KEYS = frozenset({"uses", "with", "run", "env", "working-directory", "if"})
 
+# #9066: the reviewed workflow-level CGO_CFLAGS env stanza (see
+# scripts/lib/cgo-cflags.sh and reducer_contention_events.CGO_ENV_STANZA, the same
+# pattern). It cannot change job activation; any other env key still fails closed.
+CGO_ENV_STANZA = re.compile(
+    r'(?m)^(?:#.*\n)*env:\n  CGO_CFLAGS: "-O2 -g -std=gnu17"\n(?:\n|(?=\S))'
+)
+
+
+def without_cgo_env(workflow: str) -> str:
+    """Return the workflow without the reviewed CGO_CFLAGS env stanza."""
+    return CGO_ENV_STANZA.sub("", workflow, count=1)
+
+
 JOB_ORDER = (
     "scheduled-setup",
     "scheduled-freshness-scale",
@@ -168,6 +181,7 @@ def job_blocks(workflow: str) -> dict[str, str]:
 
 def verify_canonical_workflow(workflow: str) -> None:
     """Reject alternate activation or failure-suppression keys in owned jobs."""
+    workflow = without_cgo_env(workflow)
     root = canonical_keys(workflow, 0, ROOT_KEYS)
     if (set(root) != ROOT_KEYS or root["on"] != "on:"
             or root["jobs"] != "jobs:" or root["permissions"] != "permissions:"

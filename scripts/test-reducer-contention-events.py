@@ -325,5 +325,27 @@ class EventProofTest(unittest.TestCase):
                         MODULE.verify_inventory(root, inventory)
 
 
+class CgoEnvAllowlistTest(unittest.TestCase):
+    """#9066: the owned-workflow grammars allow exactly one reviewed env stanza."""
+
+    STANZA = 'env:\n  CGO_CFLAGS: "-O2 -g -std=gnu17"\n'
+
+    def test_only_the_reviewed_env_stanza_is_allowed(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        text = (root / MODULE.WORKFLOW).read_text(encoding="utf-8")
+        self.assertIn(self.STANZA, text)
+        MODULE.workflow_steps(text)
+        for label, stanza in (
+            ("other key", 'env:\n  OTHER: "1"\n'),
+            ("other value", 'env:\n  CGO_CFLAGS: "-O3"\n'),
+            ("extra key", self.STANZA + '  BASH_ENV: "/tmp/x"\n'),
+        ):
+            with self.subTest(label=label):
+                with self.assertRaisesRegex(ValueError, "fail-closed|noncanonical"):
+                    MODULE.workflow_steps(text.replace(self.STANZA, stanza, 1))
+        self.assertEqual(MODULE.without_cgo_env("name: x\n" + self.STANZA + "\njobs:\n"),
+                         "name: x\njobs:\n")
+
+
 if __name__ == "__main__":
     unittest.main()

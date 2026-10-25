@@ -10,8 +10,14 @@
 # this file before those globals are set is safe as long as they exist by the
 # time a given helper actually runs.
 
+# #9066: cgo needs -std=gnu17 on GCC 15 + glibc 2.43; see cgo-cflags.sh.
+# shellcheck source=cgo-cflags.sh
+# (The literal scripts/ path lets the ci-gates trigger walk see this dependency.)
+source "$(dirname "${BASH_SOURCE[0]}")/../../scripts/lib/cgo-cflags.sh"
+
 build_bin() {
 	local cmd="$1"
+	eshu_export_cgo_cflags
 	CGO_ENABLED=1 go -C go build -o "${bin_dir}/eshu-${cmd}" "./cmd/${cmd}" \
 		|| die "build ${cmd} failed"
 }

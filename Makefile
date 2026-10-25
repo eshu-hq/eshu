@@ -1,5 +1,16 @@
 # Eshu convenience targets. The canonical gates live in scripts/ (and CI under
 # .github/workflows/); this Makefile only provides ergonomic entry points.
+# #9066: go-sitter-forest/perl does not compile as C23, which GCC 15 on glibc 2.43
+# defaults to. Same rule as scripts/lib/cgo-cflags.sh, which has the details: start
+# from the caller's CGO_CFLAGS, then `go env CGO_CFLAGS`, then Go's -O2 -g default
+# (setting the variable replaces it), and respect a caller's own -std=.
+eshu_cgo_base := $(or $(CGO_CFLAGS),$(shell go env CGO_CFLAGS 2>/dev/null),-O2 -g)
+ifeq (,$(findstring -std=,$(eshu_cgo_base)))
+export CGO_CFLAGS := $(eshu_cgo_base) -std=gnu17
+else
+export CGO_CFLAGS := $(eshu_cgo_base)
+endif
+
 .PHONY: help pre-push pre-pr pre-pr-full frontend-preflight security-preflight prove
 
 help: ## List available targets
