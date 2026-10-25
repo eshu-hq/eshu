@@ -88,8 +88,11 @@ guess.
 Every gh and git child process has a deadline (-gh-timeout 60s, -git-timeout
 120s). A call that exceeds it is killed, with its whole process group on unix
 so no grandchild keeps running, and reported as an ERROR (or as the reason of
-a CONFLICT test merge) naming the command; the poll goes on. git
-children run with GIT_TERMINAL_PROMPT=0.
+a CONFLICT test merge) naming the command; the poll goes on. Because each
+child runs in its own process group, a run from an interactive terminal stops a
+child that reads the terminal (an ssh passphrase prompt) with SIGTTIN until its
+deadline kills it; the intended background use has no terminal. git children
+run with GIT_TERMINAL_PROMPT=0.
 
 The branch name and SHAs read from GitHub reach git only after validation: the
 SHAs must be hex, the base branch must not start with "-" and must pass

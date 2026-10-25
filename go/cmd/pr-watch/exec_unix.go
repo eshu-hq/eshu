@@ -16,6 +16,12 @@ import (
 // (a deadline or an interrupt) kill the whole group. Killing only the direct
 // child leaves its own children (an ssh under git fetch, a pager under gh)
 // running, and they keep the output pipes open after the poll has moved on.
+//
+// A run from an interactive terminal puts each child in a background process
+// group, so a child that reads the terminal (an ssh passphrase prompt; git is
+// covered by GIT_TERMINAL_PROMPT=0) is stopped by SIGTTIN until its deadline
+// kills it. The intended Monitor or background use has no terminal. Untested
+// on a terminal.
 func confineChild(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
