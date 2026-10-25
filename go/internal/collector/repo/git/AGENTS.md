@@ -451,4 +451,12 @@ it never degrades the snapshot. On a delta, `withOversizeDeltaTombstones` lists
 each skipped target as deleted so its earlier facts are retracted, not left
 stale; keep that or a delta serves the old file as current. A file that grew past the cap after discovery
 is refused by `shared.ReadFileCapped` in the parse (`file_read_failed`) and the
-stream (`content_read_failed`). `snapshot_oversize_test.go` pins all of it.
+stream (`content_read_failed`). A file that grows past the cap after discovery
+and before the import pre-scan is skipped by
+`Engine.PreScanRepositoryPathsSkippingOversizeStats`, not a snapshot failure;
+`skipPreScanGrownFiles` then counts it under `content:oversize`, lists it in
+`OversizeSkippedFiles`, drops it from the parse set and the Go package pre-scan,
+tombstones a delta target, and marks the snapshot degraded (`file_read_failed`),
+because the tree changed under the collector. Only `ErrSourceTooLarge` is a
+per-file skip there; keep every other pre-scan error fatal.
+`snapshot_oversize_test.go` and `snapshot_prescan_growth_test.go` pin all of it.

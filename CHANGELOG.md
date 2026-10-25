@@ -23,7 +23,9 @@ recent shipped work grouped by feature area.
   `eshu_dp_discovery_files_skipped_total` and logs WARN
   `git_snapshot_file_skipped_oversize` per file with the repository, scope, and
   generation ids, the path, and the size. The parse and content-stream reads
-  are capped too, for a file that grows after discovery, and so are the parser
+  are capped too, for a file that grows after discovery, and a file that grows
+  past the cap before the import pre-scan is skipped like an oversize file
+  instead of failing the snapshot (it also marks the snapshot degraded). The parser
   side reads of headers, sibling modules, tsconfig and package.json, composer
   files, Python package and Lambda files, and `go.mod`. A delta whose target
   grew past the cap retracts the file instead of leaving its earlier facts

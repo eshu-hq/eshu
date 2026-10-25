@@ -20,6 +20,14 @@ touched it.
   (bounded readers) are not affected.
 - The parse read and the fact-stream content read use `ReadFileCapped`, so a
   file that grew past the cap after discovery is refused, not read whole.
+- A file that grows past the cap between discovery and the import pre-scan is
+  skipped, not a failure of the snapshot. `Engine.PreScanRepositoryPathsSkippingOversizeStats`
+  returns a per-file error wrapping `ErrSourceTooLarge` as a skip in both the
+  sequential and the worker-aware loop; every other per-file error still fails
+  the scan. The collector lists the file in `OversizeSkippedFiles`, counts it
+  under `content:oversize`, drops it from the parse set and the Go package
+  pre-scan, retracts a delta target through the deleted paths, and marks the
+  snapshot degraded with `file_read_failed`.
 - A delta target over the cap joins the delta's deleted paths, so the stream
   emits its file and content tombstones and the graph retracts it. A full
   generation already drops an absent file; both end with the file absent.
@@ -39,7 +47,8 @@ touched it.
 A first cut that capped only `ReadSource` failed the whole snapshot: the import
 pre-scan reads every parser file and returns an error on the first failure
 (`pre-scan repository imports ...: source file exceeds the per-file read cap`).
-That is why the skip runs at the parser file set, before pre-scan.
+That is why the skip runs at the parser file set, before pre-scan, and why the
+pre-scan itself tolerates a file that grows past the cap after that check.
 
 ## Cap measurement
 
@@ -59,8 +68,11 @@ Performance Evidence: baseline is `os.ReadFile` on `origin/main`; after is
 `shared.ReadFileCapped`. Backend: none; no Cypher, graph write, Postgres SQL,
 queue, lease, or worker count changes, so there are no terminal queue or row
 counts to compare. Input shape: one regular file of 1 KiB, 64 KiB, or 4 MiB.
-The content-version fixture stream stays at 320 facts with digest
-`755a5940...`, so collector output for files under the cap is unchanged.
+The content-version pin
+(`go/internal/collector/repo/git/testdata/content_version_pin.json`, checked by
+`TestGenerationContentVersionPinsCollectorOutput`) holds 342 facts with digest
+`50c4a5d0...`, and only its version line moved, so collector output for files
+under the cap is unchanged.
 
 A throwaway benchmark (`-benchtime 2000x -count 3`, 16-thread Linux host)
 compared `os.ReadFile` with the capped read (stat, buffer sized from the stat,
@@ -84,14 +96,18 @@ and the `discovery stats` log key `files_skipped.content.oversize`. After the
 generation exists, `snapshotOneRepository` logs WARN
 `git_snapshot_file_skipped_oversize` per file with `repository_id`, `scope_id`,
 `generation_id`, `relative_path`, `size_bytes`, and `cap_bytes`, never content
-or the host path. A size skip is deterministic for the commit, so it keeps the
-pre-parse identity.
+or the host path. A size skip found at discovery is deterministic for the
+commit, so it keeps the pre-parse identity. A file that grew past the cap
+before the import pre-scan is counted and logged the same way, and also marks
+the snapshot degraded with `file_read_failed`, because the tree changed under
+the collector.
 
 ## Known limits
 
-- A file that grows past the cap between discovery and the import pre-scan
-  fails that snapshot, as any unreadable parser file does. The failure is
-  transient: the next cycle's discovery records the new size and skips the file.
+- Only the import pre-scan tolerates growth. A Go file that grows past the cap
+  after that pre-scan read it and before the Go package pre-scan reads it still
+  fails that snapshot, and so does any other unreadable parser file (a file
+  deleted in the window). The next cycle's discovery records the new size.
 - A `.gitmodules` or CODEOWNERS file over the cap in the full discovery set is
   counted as an oversize skip although those files are read by their own
   readers; files of that size are not realistic.
