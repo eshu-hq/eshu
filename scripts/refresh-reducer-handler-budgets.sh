@@ -4,7 +4,7 @@
 # baseline column in testdata/benchmarks/reducer-handler-budgets.txt and recompute
 # each ceiling as round(median * REDUCER_PERF_HEADROOM).
 #
-# Run on the enforcement runner class (CI ubuntu-latest) so the committed
+# Run on the enforcement runner class (CI ubuntu-24.04) so the committed
 # baseline/ceiling are a like-for-like comparison target for
 # scripts/verify-reducer-perf-gate.sh, then flip the bench.yml job to
 # REDUCER_PERF_ENFORCE=true. Review the diff before committing — a budget bump is
