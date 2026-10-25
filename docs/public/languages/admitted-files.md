@@ -110,7 +110,10 @@ end of the line. Every line inside a PEM `BEGIN` to `END` block is
 replaced, and so are the continuation lines of a listed key's block scalar or
 multi-line quoted value. The marker keeps the finding kind so
 `investigate_hardcoded_secrets` can keep reporting the line. `[redacted]` and
-`***` are not used: the detector cannot see them.
+`***` are not used: the detector cannot see them. A listed key whose value is a YAML
+alias (`npmAuthToken: *t`), or an explicit `? npmAuthToken` entry, would leave
+the secret on a line no key reads, so either shape stores the metadata row
+instead (reason `yaml_indirection`).
 
 A `marker` definition can also list URL-valued keys, such as `npmRegistryServer`
 and `httpsProxy` in `.yarnrc.yml`. For those keys only the URL userinfo is

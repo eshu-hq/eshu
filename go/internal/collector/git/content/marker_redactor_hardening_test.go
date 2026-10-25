@@ -158,7 +158,6 @@ func TestRedactMarkerKnownLimits(t *testing.T) {
 	t.Parallel()
 
 	for name, in := range map[string]string{
-		"YAML complex key":       "? npmAuthToken\n: " + hardeningSeed + "\n",
 		"escaped key spelling":   "\"npmAuth\\x54oken\": " + hardeningSeed + "\n",
 		"homoglyph key":          "npmAuthTоken: " + hardeningSeed + "\n",
 		"anchor value on a key":  "base: &t " + hardeningSeed + "\n",

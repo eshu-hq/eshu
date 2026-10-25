@@ -58,8 +58,9 @@ updated in the same change.
 - **Not text.** A body that is invalid UTF-8 or holds a NUL byte (BOM-less
   UTF-16 or UTF-32 is NUL-interleaved) becomes a metadata row. The WARN log
   names the repo-relative path and a bounded reason class: `invalid_utf8`,
-  `not_text`, `too_large`, `redactor_error`, `redactor_panic`,
-  `unknown_policy`, `unknown_mode`. It never carries error text.
+  `not_text`, `too_large`, `yaml_indirection`, `redactor_error`,
+  `redactor_panic`, `unknown_policy`, `unknown_mode`. It never carries error
+  text.
 - **PEM blocks.** A BEGIN header is replaced through its END footer on the same
   line, or to the end of the line when the footer is on a later line, and every
   following line is replaced until the footer. All header types are replaced, so
@@ -71,13 +72,18 @@ updated in the same change.
   quote restored around the marker. A value-shape match (an AWS key, a Slack
   token, a Stripe key) is replaced from the shape to the end of the line. One
   marker per line (arbiter ruling B1, 2026-10-24).
+- **YAML indirection fails closed** (`marker_yaml.go`, #8833). A listed key
+  whose value is an alias (`npmAuthToken: *t`) leaves the secret on the
+  anchor's line, and an explicit `? npmAuthToken` entry puts the value on the
+  next line. Either shape anywhere in the body returns `errYAMLIndirection`,
+  and the path becomes a metadata row with reason `yaml_indirection`.
 - **Known limits (denylist).** Marker mode redacts the values of the listed
   keys and the lines the detector matches. It does not see a listed key spelled
-  as a YAML complex key (`? npmAuthToken` then `: value`), with an escaped
-  spelling (`"npmAuth\x54oken"`), or with a homoglyph, and it does not redact a
+  with an escape (`"npmAuth\x54oken"`) or a homoglyph, and it does not redact a
   value under an unlisted key that the detector does not flag (an anchor
-  definition `base: &t value`). Marker mode is for closed-schema files, where
-  these shapes do not occur; `TestRedactMarkerKnownLimits` pins them.
+  definition `base: &t value` that no listed key aliases). Marker mode is for
+  closed-schema files, where these shapes do not occur;
+  `TestRedactMarkerKnownLimits` pins them.
 - **URL userinfo keys.** A definition's `URLUserinfoKeys` (for `.yarnrc.yml`:
   `npmRegistryServer`, `npmPublishRegistry`, `httpProxy`, `httpsProxy`) lose
   only the userinfo of their URL value (`marker_url_userinfo.go`). The userinfo

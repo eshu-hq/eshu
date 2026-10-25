@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package gitcontent
+
+import (
+	"errors"
+	"testing"
+)
+
+var yarnrcCredentialKeys = []string{"npmAuthIdent", "npmAuthToken"}
+
+// TestRedactMarkerFailsClosedOnYAMLIndirection pins the #8833 security review:
+// a credential key whose value is an alias leaves the secret on the anchor
+// line, and an explicit "? key" puts the value on a line no key reads. Both
+// shapes fail closed, so the caller stores a metadata row.
+func TestRedactMarkerFailsClosedOnYAMLIndirection(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"alias value":            "base: &tok Zq1SeedAAAAAAAAA\nnpmAuthToken: *tok\n",
+		"alias to a mapping":     "creds: &c\n  t: Zq14SeedAAAAAAAA\nnpmScopes:\n  acme:\n    npmAuthToken: *c\n",
+		"alias under a registry": "x: &a Zq15SeedAAAAAAAA\nnpmRegistries:\n  \"//r\":\n    npmAuthIdent: *a\n",
+		"alias in a flow map":    "a: &s Zq16SeedAAAAAAAA\nnpmScopes: {acme: {npmAuthToken: *s}}\n",
+		"explicit key":           "? npmAuthToken\n: Zq6SeedAAAAAAAAA\n",
+		"explicit key in a list": "npmScopes:\n  - ? npmAuthToken\n    : Zq7SeedAAAAAAAA\n",
+	} {
+		_, _, err := redactMarker(body, yarnrcCredentialKeys)
+		if !errors.Is(err, errYAMLIndirection) {
+			t.Errorf("%s: err = %v, want errYAMLIndirection", name, err)
+		}
+		if got := failureReason(err); got != FailureYAMLIndirection {
+			t.Errorf("%s: failure reason = %q, want %q", name, got, FailureYAMLIndirection)
+		}
+	}
+	for name, body := range map[string]string{
+		"anchor on the credential value": "npmAuthToken: &tok Zq2SeedAAAAAAAA\nother: *tok\n",
+		"alias on another key":           "base: &b https://r.example.com\nnpmRegistryServer: *b\n",
+		"merge key":                      "defs: &d\n  npmAuthToken: Zq8SeedAAAAAAAAA\nnpmScopes:\n  acme:\n    <<: *d\n",
+		"question mark in a value":       "npmAuthToken: \"?abcdefgh\"\nx: \"? y\"\n",
+	} {
+		if _, _, err := redactMarker(body, yarnrcCredentialKeys); err != nil {
+			t.Errorf("%s: err = %v, want the body redacted", name, err)
+		}
+	}
+}
