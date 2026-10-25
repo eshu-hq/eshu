@@ -449,3 +449,34 @@ func TestPackageManifestObservedVersionRejectsColonBearingGradleValue(t *testing
 		t.Fatalf("packageManifestObservedVersion = %q, want empty for colon-bearing text", got)
 	}
 }
+
+// An unresolved row must never become an observed version, even when its
+// literal text passes the syntactic exactness gate on its own (issue #9101):
+// a single '!' and semver build metadata ('+' inside the version) are exact
+// for other ecosystems, but the parser left this row unresolved, so the
+// value is a requested range, not an observation.
+func TestPackageManifestObservedVersionRejectsUnresolvedExactLookingValues(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"1.0!", "1.0.0+build.1"} {
+		payload := map[string]any{
+			"value":                       value,
+			"dependency_resolution_state": "unresolved",
+		}
+		if got := packageManifestObservedVersion(payload, "gradle", false); got != "" {
+			t.Fatalf("packageManifestObservedVersion(%q, unresolved) = %q, want empty", value, got)
+		}
+	}
+}
+
+// A resolved row keeps the existing syntactic behavior: an exact literal
+// still becomes the observed version.
+func TestPackageManifestObservedVersionKeepsResolvedExactValue(t *testing.T) {
+	t.Parallel()
+	payload := map[string]any{
+		"value":                       "2.15.3",
+		"dependency_resolution_state": "resolved",
+	}
+	if got, want := packageManifestObservedVersion(payload, "gradle", false), "2.15.3"; got != want {
+		t.Fatalf("packageManifestObservedVersion(resolved) = %q, want %q", got, want)
+	}
+}
