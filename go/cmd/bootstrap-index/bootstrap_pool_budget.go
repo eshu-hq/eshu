@@ -6,6 +6,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
 )
 
 // openBootstrapDatabaseWithPoolBudget leaves a connection free while the
@@ -13,10 +15,12 @@ import (
 func openBootstrapDatabaseWithPoolBudget(
 	ctx context.Context,
 	getenv func(string) string,
+	logger *slog.Logger,
+	ownershipWait time.Duration,
 	openDBFn openBootstrapDBFn,
 ) (bootstrapDB, error) {
 	if maxOpenConns := postgresMaxOpenConns(getenv); maxOpenConns < 2 {
 		return nil, fmt.Errorf("ESHU_POSTGRES_MAX_OPEN_CONNS=%d: bootstrap-index requires at least 2 connections while its secret-lines bulk-load lock is held", maxOpenConns)
 	}
-	return openDBFn(ctx, getenv)
+	return openDBFn(ctx, getenv, logger, ownershipWait)
 }

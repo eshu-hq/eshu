@@ -35,10 +35,26 @@
 // deadlock_timeout and retries a timed-out batch, so the finalizer, never a
 // writer, is the side that gives way and it never forms a wait cycle. A writer
 // blocked on a row a batch holds still waits until that batch commits, which is
-// the lock, the delete, and the derivation of up to BatchSize files (hundreds of
-// milliseconds at 500) and tunable by BatchSize. Each batch pages by a
+// the lock, the delete, and the derivation of up to BatchSize files and up to
+// MaxBatchBytes of content (500 files and 4 MiB, at least one file): the cost
+// tracks bytes, and 500 large generated sources took 11.3 s. Each batch pages by a
 // non-locking key window and then locks those keys, because a locking range read
 // returns a concurrently moved row out of order and would skip files.
+//
+// Repairer is the steady-state path to ready (#8833): the reducer runs it, and
+// whenever the state is not ready (a migration that changes the derivation
+// function moved it to not_built, or a bootstrap finalize failed or died) it
+// takes the run lock (5318,1) and then the deferred-writer lock (5318,2)
+// exclusive, both with non-waiting tries on a dedicated one-connection pool,
+// re-reads the state, and runs Finalize for the current epoch. The run lock
+// comes before the claim because the claim also takes a building row; two
+// unlocked finalizers would collide on the side table's primary key. (5318,2) is
+// held shared by every deferred-writer session from birth (RunFence.Hook), so the
+// Repairer cannot take it while any bootstrap-index connection is alive: the
+// pinned (5318,1) session can die while the pool sessions keep writing, and
+// (5318,1) alone would then let the Repairer publish ready over underived rows.
+// RunFence also refuses a session born after the run's pinned session is gone,
+// and the pinned session sends a keep-alive against idle_session_timeout.
 //
 // DeferredSessionSQL is a session setting, so a transaction-mode pooler can
 // carry it from a bootstrap-index connection to another binary's client, whose

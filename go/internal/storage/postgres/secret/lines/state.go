@@ -120,3 +120,35 @@ func publishFailed(exec db.Executor, epoch int64) error {
 	}
 	return nil
 }
+
+// StateRow is the singleton content_file_secret_lines_state row.
+type StateRow struct {
+	// State is one of the State* values.
+	State string
+	// Epoch is the current bulk-load epoch.
+	Epoch int64
+	// Found is false when no state row exists.
+	Found bool
+}
+
+const readStateSQL = `
+SELECT state, epoch FROM content_file_secret_lines_state WHERE singleton`
+
+// ReadState reads the state row. bootstrap-index calls it when its Finalize did
+// not claim its own epoch, to tell a newer epoch (superseded) from lost
+// exclusivity.
+func ReadState(ctx context.Context, queryer db.Queryer) (StateRow, error) {
+	rows, err := queryer.QueryContext(ctx, readStateSQL)
+	if err != nil {
+		return StateRow{}, fmt.Errorf("read secret lines state: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return StateRow{}, rows.Err()
+	}
+	row := StateRow{Found: true}
+	if err := rows.Scan(&row.State, &row.Epoch); err != nil {
+		return StateRow{}, fmt.Errorf("scan secret lines state: %w", err)
+	}
+	return row, rows.Err()
+}

@@ -58,10 +58,20 @@ documents `max_connections` as the server-wide concurrent connection cap and
 notes that raising it increases allocated resources, including shared memory:
 <https://www.postgresql.org/docs/current/runtime-config-connection.html>.
 
+The reducer is the one exception: while its secret-lines repair rebuilds the
+hardcoded-secret side table (#8833), it holds one extra connection from a
+dedicated one-connection pool for the rebuild's advisory lock, so it opens up to
+`ESHU_POSTGRES_MAX_OPEN_CONNS` + 1. The extra connection is open while the
+repair holds the lock (a rebuild, about 42 s per 150,000 files) and briefly each
+time it tries it: once at startup for the ping, and once per poll
+(`ESHU_SECRET_LINES_REPAIR_POLL_INTERVAL`, default 30 s) while the side table is
+not ready, which the pool closes right after. A ready side table opens no
+connection on the poll. The check below counts the extra one.
+
 Use this sizing check before raising pools:
 
 ```text
-sum(pool-holding services * ESHU_POSTGRES_MAX_OPEN_CONNS)
+sum(pool-holding services * ESHU_POSTGRES_MAX_OPEN_CONNS) + reducers * 1
   + reserved/admin headroom (superuser_reserved_connections, psql, admin-status)
   <= Postgres max_connections
 ```
@@ -69,7 +79,7 @@ sum(pool-holding services * ESHU_POSTGRES_MAX_OPEN_CONNS)
 In local Compose this inequality is enforced by
 `TestComposePostgresMaxConnectionsCoversPoolBudget`: the default
 `ESHU_PG_MAX_CONNECTIONS` (640) must cover every pool-holding service at
-`ESHU_POSTGRES_MAX_OPEN_CONNS` (30) plus a 20-connection reserve, so adding a
+`ESHU_POSTGRES_MAX_OPEN_CONNS` (30), one more per reducer, plus a 20-connection reserve, so adding a
 pool-holder or raising the per-process pool without lifting the server ceiling
 fails the build.
 

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -29,11 +30,16 @@ const (
 // double that records every call so a test can prove the probe never runs on a
 // non-empty answer or an out-of-grant selector.
 type fakeSecurityAlertCollectionState struct {
-	mu        sync.Mutex
-	configs   []string
-	states    map[string]SecurityAlertTargetState
-	configErr error
-	stateErr  error
+	mu      sync.Mutex
+	configs []string
+	states  map[string]SecurityAlertTargetState
+	// targetSets is the repository set each target's latest committed
+	// generation recorded (#8838). When a scope has one, the double reports
+	// the requested slugs outside it as UncollectedRequested, the contract
+	// the Postgres store's live test proves against the real payload.
+	targetSets map[string][]string
+	configErr  error
+	stateErr   error
 	// block makes the configuration read wait for its context, so a test can
 	// prove the probe deadline fails closed.
 	block        bool
@@ -77,6 +83,13 @@ func (f *fakeSecurityAlertCollectionState) SecurityAlertTargetStates(
 	for _, id := range scopeIDs {
 		if state, ok := f.states[id]; ok {
 			state.ScopeID = id
+			if set, recorded := f.targetSets[id]; recorded && state.CommittedGeneration {
+				for _, slug := range requestedSlugs {
+					if !slices.Contains(set, slug) {
+						state.UncollectedRequested = append(state.UncollectedRequested, slug)
+					}
+				}
+			}
 			out = append(out, state)
 		}
 	}

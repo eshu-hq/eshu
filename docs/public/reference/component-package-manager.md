@@ -459,9 +459,10 @@ component-extension worker supports `process` activations and digest-pinned
 requires an approved policy, a runnable digest artifact, and runtime proof for
 the target deployment.
 
-`compatibleCore` is checked during verification. Release builds compare the
-manifest range against the running Eshu core version. Local source builds that
-report `dev` still parse the range but do not enforce a release comparison.
+`compatibleCore` is checked during verification against the running core
+version; a `dev` build parses the range but skips the comparison. Main-branch
+images report a commit SHA that no range matches, so set
+`ESHU_COMPONENT_CORE_VERSION` (or `--core-version`) to the version you assert.
 
 Each `emittedFacts` entry must declare `sourceConfidence`. Allowed values are
 `observed`, `reported`, `inferred`, and `derived`. `unknown` is reserved for

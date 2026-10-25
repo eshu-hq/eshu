@@ -478,5 +478,19 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                 verify_events(stream, expected, 0)
 
 
+class ReplayWorkflowEnvPinTest(unittest.TestCase):
+    """#9066: the literal control-line pin allows exactly the reviewed env stanza."""
+
+    def test_only_the_reviewed_env_stanza_is_allowed(self) -> None:
+        from replay_tier_routes import verify_workflow_liveness
+        stanza = 'env:\n  CGO_CFLAGS: "-O2 -g -std=gnu17"\n'
+        text = (ROOT / ".github/workflows/verify-replay-tier.yml").read_text()
+        verify_workflow_liveness(text)
+        for other in ("", 'env:\n  OTHER: "1"\n', 'env:\n  CGO_CFLAGS: "-O3"\n'):
+            with self.subTest(other=other), self.assertRaisesRegex(
+                    ValueError, "unsupported active YAML controls"):
+                verify_workflow_liveness(text.replace(stanza, other, 1))
+
+
 if __name__ == "__main__":
     unittest.main()

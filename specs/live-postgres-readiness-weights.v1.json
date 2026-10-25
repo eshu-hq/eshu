@@ -52,6 +52,8 @@
     "./internal/query|TestSearchFilesUnscopedEdgeRowsAreExactLive": 7.8, "./internal/query|TestSearchFilesUnscopedMatchesOldStatementLive": 9.6,
     "./internal/query|TestSearchFilesUnscopedTailFilledPageKeepsMoreLive": 7.8, "./internal/query|TestSecurityAlertCollectionStateBoundsLive": 1.4,
     "./internal/query|TestSecurityAlertCollectionStatePlanLive": 9.3, "./internal/query|TestSecurityAlertCollectionStateSemanticsLive": 1.1,
+    "./internal/query|TestSecurityAlertTargetSetAllowlistChangeLive": 5.0,
+    "./internal/query|TestSecurityAlertTargetSetLegacyAndEmptyLive": 5.0,
     "./internal/query|TestSecurityAlertUnreadRepositoriesLive": 1.3, "./internal/query|TestSecurityAlertUnreadRepositoriesPlanLive": 6.0,
     "./internal/query|TestStatusRoutesTerraformSelectionLive": 1.8, "./internal/query|TestUnionAllProbeDerivationGuard": 0.0,
     "./internal/query|TestUnionAllProbePoisonLegKeepsBindPositions": 0.0, "./internal/query|TestUnionAllProbeWorkAndEquivalenceLive": 3.3,

@@ -102,6 +102,10 @@ jobs:
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'gitignore-rg-parity')) }}
         run: scripts/test-verify-gitignore-rg-parity.sh
 
+      - name: Run cgo-cflags-guard gate test mirror
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'cgo-cflags-guard')) }}
+        run: scripts/test-verify-cgo-cflags-guard.sh
+
       - name: Run agent hooks test mirror
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
         run: scripts/test-agent-hooks.sh
@@ -213,3 +217,7 @@ jobs:
       - name: Tracked files visible to ripgrep from every search root
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'gitignore-rg-parity')) }}
         run: scripts/verify-gitignore-rg-parity.sh
+
+      - name: Go workflows and entrypoints set the cgo C dialect flag
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'cgo-cflags-guard')) }}
+        run: scripts/verify-cgo-cflags-guard.sh

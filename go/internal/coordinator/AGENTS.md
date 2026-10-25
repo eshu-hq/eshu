@@ -267,7 +267,7 @@ because schedulers stop at the first error. One predicate enforces it:
   `in_tree_schedulers.go` (guarded by active mode and `ClaimsEnabled`; see
   **Component ownership**); wire
   the concrete planner in `go/cmd/workflow-coordinator/main.go`; add the
-  `CollectorKind` constant in `internal/scope/scope.go`. The planner must be
+  `CollectorKind` constant in `internal/scope/collector_kind.go`. The planner must be
   idempotent: `RunID` derives from the instance, resolved trigger, and plan key;
   `GenerationID` and `WorkItemID` derive from the instance, plan key, and target
   scope. Run the child package explicitly with

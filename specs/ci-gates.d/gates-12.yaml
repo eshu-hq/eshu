@@ -9,6 +9,7 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh"
       - "scripts/lib/ifa_live_gate_*.sh"
       - "go/internal/storage/postgres/migrations/**"

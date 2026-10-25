@@ -50,7 +50,22 @@ Not claimed today:
   `references` entry, and `compilerOptions.paths` alias -- reported line 1, and
   the content identity derived from those positions was wrong with it (#6268).
 
+## Runtime Version Declarations
+
+The git collector also emits `runtime_declaration.version` facts from a
+`package.json`: `engines.node`, `.npm`, `.yarn` and `.pnpm`, `volta.node`,
+`.npm`, `.yarn` and `.pnpm`, and `packageManager` (`source_kind`
+`package_json_engines`, `package_json_volta`, `package_json_package_manager`).
+A range, an alias such as `lts/*` or `workspace:*`, and a placeholder are kept
+as written and never resolved; the `+sha512` integrity suffix of
+`packageManager` is cut. A copy under `node_modules`, `vendor`,
+`bower_components` or `jspm_packages` emits nothing. A value that is not a
+short version string (over 128 bytes, a URL, or holding a long opaque token)
+is dropped and logged by count, never emitted, and a `package.json` that is
+not readable JSON emits nothing.
+
 ## Known Limitations
+- Runtime version declaration facts are emitted but nothing reads them yet (graph projection #8816, query tool #8817).
 - Generic JSON files emit metadata only and do not expand arbitrary nested objects into graph nodes
 - `json_metadata.top_level_keys` is parsed and returned in the parser payload, but it is not queryable: no reducer, content materializer, or query/MCP reader consumes it today. There is no `property:File` graph surface for this capability. The properties/`Property` bucket this row previously implied it fed is unimplemented repository-wide (no emitter, reducer, or query reader for `:Property` nodes; tracked as issue #5341) and is out of scope for this fix. The `generic-json-metadata-only` row's `partial` status is parser-proof only; it does not have the consumer proof [Support Maturity](support-maturity.md)'s promotion rule requires for `partial`, and is recorded here rather than silently passing as compliant
 - `json_metadata.top_level_keys` is preserved in JSON source order for every JSON file. Manifest files that also emit source-ordered dependency, script, or TypeScript path rows (`package.json`, `composer.json`, `tsconfig*.json`) retain nested key order through a full ordered decode; every other file derives the top-level key order alone through a lighter key-order scan. Both paths yield identical `top_level_keys`; the distinction is an internal cost optimization, not a change in emitted evidence

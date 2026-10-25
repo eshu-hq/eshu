@@ -157,11 +157,16 @@ workflows:
   - go/internal/storage/postgres/reducer_queue_supersede_readiness_test.go
   - go/internal/storage/postgres/schema*.go
   - go/internal/storage/postgres/scope/completion/quiescence_live_test.go
+  - go/internal/storage/postgres/secret/lines/batch_bytes_live_test.go
   - go/internal/storage/postgres/secret/lines/bulk_load_lock_live_test.go
   - go/internal/storage/postgres/secret/lines/contention_live_test.go
+  - go/internal/storage/postgres/secret/lines/deferred_pool_live_test.go
   - go/internal/storage/postgres/secret/lines/finalize_live_test.go
   - go/internal/storage/postgres/secret/lines/gate_live_test.go
   - go/internal/storage/postgres/secret/lines/keymove_live_test.go
+  - go/internal/storage/postgres/secret/lines/lock_session_live_test.go
+  - go/internal/storage/postgres/secret/lines/lost_lock_live_test.go
+  - go/internal/storage/postgres/secret/lines/repair_live_test.go
   - go/internal/storage/postgres/supersede_prior_failure_fidelity_live_test.go
   - go/internal/storage/postgres/supersede_prior_failure_live_test.go
   - go/internal/storage/postgres/supply_chain_runtime_filter_index_restart_live_test.go

@@ -34,6 +34,7 @@ do not belong here even when more than one family reads them.
   `FirstNonBlank`, `DerefString`, `DerefBool`, `SortedKeys`, `FormatTally`,
   `MissingStrings`, `StringSet`, `CloneBoolPointer`, `OrderedStrings`,
   `NonVersionDependencyPrefix`, `ExactManifestDependencyVersion`,
+  `GradleVersionSelector`,
   `PackageNameFromPURL`, `PackageNameFromPackageID`.
 - Identity derivation: `RepositoryIDFromReducerScope`,
   `SupplyChainWorkloadIDsFromPayload`, `OCIRepositoryID`.

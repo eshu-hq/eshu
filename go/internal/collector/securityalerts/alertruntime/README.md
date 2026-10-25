@@ -113,7 +113,19 @@ The org freshness digest includes a read-state marker (`orgReadState`), so each
 org target commits one extra generation after the upgrade; without it a target
 whose provider truth is unchanged would keep a generation with no record,
 because an unchanged digest skips the commit. Repository-scope digests are
-unchanged.
+unchanged by that marker.
+
+Every generation also records its target set (`TargetConfig.targetSet`,
+#8838): the repository of a repository target, or the organization's
+allowlisted repositories of an org target. The ingestion store writes it to
+the generation payload, and the query read reports a requested repository
+outside the latest committed set as `no_committed_generation`. The set's hash
+is part of the freshness digest. Without it, an allowlist entry for a
+repository with no alerts (or a `scope_id` reused for another repository)
+would leave the digest unchanged, the commit would be skipped, and no
+generation would ever record the repository. Every target, repository or org,
+commits one extra generation after the upgrade; an unchanged set skips as
+before (`TestTargetSetDrivesTheUnchangedGenerationDecision`).
 
 Performance Evidence: one org claim sends at most
 `max_pages` x (1 + min(allowlisted org repositories, 100)) alert-page requests

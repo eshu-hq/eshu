@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -51,7 +52,7 @@ func TestRunAppliesSchemaAndDrainsCollectorAndProjector(t *testing.T) {
 	err := run(
 		context.Background(),
 		func(string) string { return "" },
-		func(context.Context, func(string) string) (bootstrapDB, error) {
+		func(context.Context, func(string) string, *slog.Logger, time.Duration) (bootstrapDB, error) {
 			return db, nil
 		},
 		func(ctx context.Context, database bootstrapDB, _ *slog.Logger) error {
@@ -123,7 +124,7 @@ func TestRunReturnsSchemaError(t *testing.T) {
 	err := run(
 		context.Background(),
 		func(string) string { return "" },
-		func(context.Context, func(string) string) (bootstrapDB, error) {
+		func(context.Context, func(string) string, *slog.Logger, time.Duration) (bootstrapDB, error) {
 			return db, nil
 		},
 		func(ctx context.Context, database bootstrapDB, _ *slog.Logger) error {
@@ -168,7 +169,7 @@ func TestRunReturnsCollectorError(t *testing.T) {
 	err := run(
 		context.Background(),
 		func(string) string { return "" },
-		func(context.Context, func(string) string) (bootstrapDB, error) {
+		func(context.Context, func(string) string, *slog.Logger, time.Duration) (bootstrapDB, error) {
 			return db, nil
 		},
 		func(ctx context.Context, database bootstrapDB, _ *slog.Logger) error {

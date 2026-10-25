@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 import sys
 
-from reducer_contention_events import canonical_keys, verify_events
+from reducer_contention_events import canonical_keys, verify_events, without_cgo_env
 
 WORKFLOW = Path(".github/workflows/delta-union-scheduled.yml")
 WORKFLOW_SHA256 = "5a822b617b2fcb543e7f896f67912afce931407090c6368bf8034e30196f316a"
@@ -42,6 +42,7 @@ def verify(root: Path, workflow: str | None = None) -> None:
         raise ValueError(f"delta union source inventory changed: {actual}")
     if workflow is None:
         workflow = (root / WORKFLOW).read_text(encoding="utf-8")
+    workflow = without_cgo_env(workflow)
     prefix, separator, jobs = workflow.partition("\njobs:\n")
     if not separator or jobs.count("\n  delta-union:\n") or not jobs.startswith("  delta-union:\n"):
         raise ValueError("delta union owner job missing")

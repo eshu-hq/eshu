@@ -9,4 +9,4 @@ producers:
     - git-core
 reducer_bindings:
     - declaration/declaration_handle
-declaration: go/internal/facts/runtime_declaration.go:71
+declaration: go/internal/facts/runtime_declaration.go:72

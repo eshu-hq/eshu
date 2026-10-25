@@ -72,6 +72,10 @@ changes readiness before that snapshot begins, the request takes the legacy
 path. If it starts later, the side-table result reflects the earlier snapshot.
 The snapshot is released before a slower legacy scan.
 Check `content_file_secret_lines_state.state`; `ready` means the fast path.
+Outside a bulk load, the reducer rebuilds and publishes a state that is not
+`ready` within a poll plus the rebuild (about 28 s per 100,000 files measured on
+a scratch database). It skips while a `bootstrap-index` run is alive, because
+that run's connections write rows without derivation until it finalizes.
 
 ## What is redacted, what is returned
 

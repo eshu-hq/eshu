@@ -120,16 +120,18 @@ func TestPostgresSecurityAlertCollectionStateTargetStates(t *testing.T) {
 	t.Parallel()
 
 	queryer := &recordingCollectionStateQueryer{rows: [][]any{
-		{"sa-target-a", "failed_terminal", "auth_denied", true, false, 0, []string{}, []string{}, []string{}},
+		{"sa-target-a", "failed_terminal", "auth_denied", true, false, []string{}, 0, []string{}, []string{}, []string{}},
 		{
-			"sa-target-b", "completed", "", false, true, 3,
+			"sa-target-b", "completed", "", false, true,
+			[]string{"acme/new"},
+			3,
 			[]string{"org_repository_fanout_cap_reached", "org_repository_read_failed"},
 			[]string{"acme/a"},
 			[]string{"org_repository_read_failed"},
 		},
 	}}
 	store := NewPostgresSecurityAlertCollectionStateStoreWithReadStore(queryer)
-	states, err := store.SecurityAlertTargetStates(context.Background(), []string{"sa-target-a", "sa-target-b"}, []string{"acme/a"})
+	states, err := store.SecurityAlertTargetStates(context.Background(), []string{"sa-target-a", "sa-target-b"}, []string{"acme/a", "acme/new"})
 	if err != nil {
 		t.Fatalf("SecurityAlertTargetStates() error = %v", err)
 	}
@@ -137,8 +139,9 @@ func TestPostgresSecurityAlertCollectionStateTargetStates(t *testing.T) {
 		{ScopeID: "sa-target-a", LatestWorkItemStatus: "failed_terminal", LatestFailureClass: "auth_denied", LatestFailureTerminal: true},
 		{
 			ScopeID: "sa-target-b", LatestWorkItemStatus: "completed", CommittedGeneration: true, UnreadTotal: 3,
-			UnreadReasons:   []string{"org_repository_fanout_cap_reached", "org_repository_read_failed"},
-			UnreadRequested: map[string]string{"acme/a": "org_repository_read_failed"},
+			UncollectedRequested: []string{"acme/new"},
+			UnreadReasons:        []string{"org_repository_fanout_cap_reached", "org_repository_read_failed"},
+			UnreadRequested:      map[string]string{"acme/a": "org_repository_read_failed"},
 		},
 	}
 	if len(states) != len(want) {
@@ -155,6 +158,14 @@ func TestPostgresSecurityAlertCollectionStateTargetStates(t *testing.T) {
 		"l.scope_id = t.scope_id",
 		"ORDER BY l.updated_at DESC, l.work_item_id ASC",
 		"g.status IN ('active', 'superseded', 'completed')",
+		// #8838: membership comes from the latest committed generation's
+		// recorded target set, newest first on the latest-lookup index order.
+		"ORDER BY g.ingested_at DESC, g.generation_id DESC",
+		"g.payload -> 'security_alert_target_set'",
+		// An unanchored read must not detoast the payload (#8838 review F1).
+		"CASE WHEN cardinality($2::text[]) > 0 THEN g.payload -> 'security_alert_target_set' END",
+		"NOT committed.target_set ? s",
+		"jsonb_typeof(committed.target_set) = 'array'",
 		"unnest($1::text[])",
 		"LEFT JOIN ingestion_scopes sc ON sc.scope_id = t.scope_id",
 		"rs.generation_id = sc.active_generation_id",

@@ -403,38 +403,68 @@ indexes: a bulk-load regime with a finalizer, gated by a state row.
   index build. It re-derives the side table one repository per worker (four
   workers), in batches of 500 files. Each batch locks its files `FOR SHARE`,
   deletes exactly those files' rows, derives them from the locked content, and
-  commits. A live ingester write to a row a batch holds waits until that batch
-  commits: the lock, the delete, and the derivation of up to 500 files, which is
-  hundreds of milliseconds at the default batch size and is tunable through the
-  batch size. The finalizer's own lock waits are bounded by `lock_timeout`
+  commits. A batch holds at most 500 files and at most 4 MiB of content (at
+  least one file), so a live ingester write to a row it holds waits roughly half
+  a second: a window of 500 large generated sources once took 11.3 s, and the
+  derivation cost tracks bytes. The finalizer's own lock waits are bounded by `lock_timeout`
   (250 ms, below the server `deadlock_timeout`); when a writer holds a row the
   batch needs, the finalizer rolls back and retries, so it never forms a wait
   cycle with a writer, a writer is never the deadlock victim, and no row is lost
   or duplicated. It then publishes `ready` for its epoch only; a newer bulk load
   leaves readers on the legacy scan.
 - The finalizer is idempotent. A crash or a failed run leaves the state
-  `failed` (readers stay correct on the legacy scan); rerunning
-  `eshu-bootstrap-index`, which opens a new epoch and finalizes again, repairs
-  it.
-- One bootstrap-index at a time is enforced, not just documented.
-  bootstrap-index takes a session advisory lock, key `(5318,1)`, on a pinned
-  connection right after opening the database, before the schema apply and
-  before `BeginDeferral`, and releases it after the finalizers. A second run
-  waits for it, bounded by `ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` (default 3 m,
-  the same knob as the schema wait; the two waits run in sequence, each with
-  its own full bound, so the worst case before work starts is twice the value,
-  6 m by default), logging
-  `bootstrap.postgres.ownership.waiting` with `lock=bulk_load`, then fails
-  naming the holder (pid, application name, connection age). Without it, two
-  overlapping runs could publish `ready` over rows the second run was still
-  writing without derivation. The lock dies with its backend, so a killed pod
-  frees it at once; after a node death without a TCP close it lingers until
-  keepalive. Find the holder with
-  `SELECT l.pid, a.application_name, a.backend_start FROM pg_locks l JOIN pg_stat_activity a USING (pid) WHERE l.locktype='advisory' AND l.classid=5318 AND l.objid=1 AND l.granted;`
-  and clear an orphan with `SELECT pg_terminate_backend(<pid>)`. Lock order is
-  fixed: the run lock, then the schema lock `(5318,0)`; `db-migrate` takes only
-  the schema lock and never waits on the run lock. A release that finds the lock
-  already gone fails the run loudly (a rerun rebuilds the table).
+  `failed` (readers stay correct on the legacy scan). The reducer repairs any
+  state that is not `ready` on its own (#8833): every
+  `ESHU_SECRET_LINES_REPAIR_POLL_INTERVAL` (30 s) it reads the state row. For a
+  state that is not `ready` it tries the run lock `(5318,1)` and the
+  deferred-writer lock `(5318,2)`, both without waiting, on a dedicated
+  one-connection pool, runs the same finalizer for the current epoch, and
+  publishes `ready`. While a bootstrap-index run is alive it skips. Rerunning
+  `eshu-bootstrap-index` also repairs it.
+- One bulk-load owner at a time is enforced, not just documented. Two session
+  advisory locks of class 5318 carry it. `(5318,1)` is the run lock:
+  bootstrap-index takes it exclusive on a pinned connection right after opening
+  the database, before the schema apply and `BeginDeferral`, and releases it
+  after the finalizers; a reducer takes it exclusive for one rebuild.
+  `(5318,2)` marks live deferred writers: every bootstrap-index connection takes
+  it shared when it is born and keeps it until it ends; a reducer rebuild takes
+  it exclusive, so a rebuild runs only while no bootstrap-index connection is
+  alive. Without it, a bootstrap-index whose pinned connection died (an idle
+  session timeout, a failover, a terminated backend) while its other
+  connections kept writing would let the reducer publish `ready` over rows no
+  one derived. A bootstrap-index connection also refuses to be born while its
+  own run lock connection is gone: the write that needed it fails with
+  `secret_lines.deferred_session_refused` and the run exits non-zero (a rerun
+  rebuilds). The pinned connection sends `SELECT 1` every 30 s so a server
+  `idle_session_timeout` does not end it mid-run.
+  A second bootstrap-index run waits for `(5318,1)`, bounded by
+  `ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` (default 3 m, the same knob as the
+  schema wait; the waits run in sequence, each with its own full bound, so
+  the worst case before work starts is three sequential ownership waits, 9 m by default),
+  logging `bootstrap.postgres.ownership.waiting` with `lock=bulk_load`, then
+  fails naming the holder (pid, application name, connection age, lock, mode).
+  The holder is normally another bootstrap-index run. A reducer rebuild cannot
+  hold this wait: the probe below has already waited for it, and the pool's
+  connections keep the repair out from then on, so a reducer meets `(5318,1)`
+  only in a sub-second non-waiting try. A bootstrap-index that starts during a
+  rebuild first waits for `(5318,2)` on a short-lived probe connection, up to
+  the same ownership wait, logging
+  `bootstrap.postgres.ownership.waiting` with `lock=deferred_writers`. That
+  holder is not an orphan: it holds both locks exclusive, carries the reducer's
+  application name, and ends when the rebuild publishes (about 42 s per 150,000
+  files with no writers). It fails naming the holder when it is spent; it does not wait on the 10 s startup ping, which
+  still reports an unreachable database. Then it waits for `(5318,1)` as above,
+  and the schema apply waits last. Each lock dies with its
+  backend, so a killed pod frees both at once; after a node death without a TCP
+  close they linger until keepalive. Find the holders with
+  `SELECT l.pid, l.objid, l.mode, a.application_name, a.backend_start FROM pg_locks l JOIN pg_stat_activity a USING (pid) WHERE l.locktype='advisory' AND l.classid=5318 AND l.objid IN (1,2) AND l.granted;`
+  and clear a bootstrap-index orphan with `SELECT pg_terminate_backend(<pid>)`;
+  wait for a reducer rebuild instead. Lock order is fixed: the run lock, then
+  the schema lock `(5318,0)`; `db-migrate` takes only the schema lock and never
+  waits on the run lock. A release that finds the lock already gone fails the
+  run loudly. If bootstrap-index's finalizer claims nothing, a newer epoch is
+  `secret_lines.finalize_superseded` (Warn, exit 0: the reducer owns it) and the
+  same epoch is `secret_lines.finalize_lost_epoch` (ERROR, exit non-zero).
 
 Check readiness:
 
@@ -453,8 +483,14 @@ Watch a run with the log events `secret_lines.finalize_started`,
 `eshu_dp_secret_lines_backfill_files_total`, and
 `eshu_dp_bootstrap_pipeline_phase_seconds{bootstrap_phase="secret_lines_finalization"}`.
 A read served by the legacy scan is counted in
-`eshu_dp_hardcoded_secret_reads_total{source="legacy_scan"}`; any sustained
-non-zero rate after bootstrap-index finished means the finalizer failed.
+`eshu_dp_hardcoded_secret_reads_total{source="legacy_scan"}`. The reducer's
+repair logs `secret_lines.repair_skipped` (`reason=locked` with the holder),
+`secret_lines.repair_started`, `secret_lines.repair_complete`, and
+`secret_lines.repair_failed` (`failure_class`, `next_retry_seconds`), and counts
+`eshu_dp_secret_lines_repair_runs_total{outcome}`. A sustained `legacy_scan`
+rate with repeated `failed` outcomes means the repair cannot publish. With
+`ESHU_SECRET_LINES_REPAIR_ENABLED=false`, or with no reducer running, reads stay
+on the legacy scan until a bootstrap-index run publishes.
 
 ## Related Pages
 

@@ -169,6 +169,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/ci/go-install-retry.sh"
       # precommit-go.sh reads the pinned gosec version from this workflow.
@@ -213,6 +214,7 @@ gates:
       - "go/go.sum"
       - "go/**/*.go"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/test-precommit-go-toolchain-isolation.sh"
       - "scripts/ci/go-mod-download-retry.sh"
@@ -253,6 +255,7 @@ gates:
       - "go/go.mod"
       - "go/go.sum"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/dev/nancy-local.sh"
       - "scripts/test-nancy-local.sh"

@@ -257,7 +257,7 @@ skip this read, because the rows already prove the collector ran.
 | --- | --- | --- | --- | --- |
 | No enabled `security_alert` instance | `not_configured` | `collector_not_configured` | `fallback` | `unavailable` |
 | No enabled target covers the repository | `not_configured` | `repository_outside_target_set` | `fallback` | `unavailable` |
-| Covering target has no projected generation yet | `target_incomplete` | `no_committed_generation` | `derived` | `building` |
+| Covering target has no projected generation yet, or its latest projected generation did not collect the repository | `target_incomplete` | `no_committed_generation` | `derived` | `building` |
 | Latest fetch failed terminally, nothing projected before | `target_incomplete` | `terminal_fetch_failure:<class>` | `fallback` | `unavailable` |
 | Latest fetch failed terminally after an earlier projected generation | `target_incomplete` | `terminal_fetch_failure:<class>` | `derived` | `stale` |
 | Projected generation, no later terminal failure, but the collector did not read the repository in full | `target_incomplete` | one of the `org_repository_*` reasons or `provider_open_alert_page_limit_reached` | `derived` | `fresh` |
@@ -322,12 +322,20 @@ An empty security-alert list, count, or first inventory page reports
 collector has a projected generation and no later terminal fetch failure for a
 target that covers the requested repository (or, unanchored, for every
 configured target). It does not cover a pending or dead-lettered reducer
-reconciliation, a repository added to a target after its latest projected
-generation, or a scoped caller's grants on an unanchored read, and a caller
+reconciliation or a scoped caller's grants on an unanchored read, and a caller
 with no grants gets `not_configured` with reason `no_authorized_repositories`.
 
-Coverage reflects each target's latest projected generation, so a repository
-added to a target after it reads covered until the next cycle projects. A
+Coverage reflects each target's latest projected generation and the
+repositories that generation collected (#8838). Each generation records its
+target set in `scope_generations.payload`: `security_alert_target_set` (the
+repository of a repository target, or the organization's allowlisted
+repositories of an org target, sorted) and `security_alert_target_set_hash`. A
+repository added to an allowlist, or a `scope_id` reused for another
+repository, reads `no_committed_generation` until a generation that collected
+it projects. The set's hash is part of the freshness hint, so an allowlist
+change always commits a new generation, even when the provider's alerts did
+not change; each target commits one extra generation after the upgrade. A
+generation committed before the set was recorded keeps the earlier answer. A
 zero-row answer is clean only when coverage.state is complete and the
 reducer's security_alert_reconciliation domain has no pending or dead-lettered
 work for the scope (`get_freshness_causality`). A later success clears a terminal

@@ -50,6 +50,42 @@ successful elected pass, not during Prometheus scrapes. Structured reducer pass 
 retain detailed context; the reader's unavailable
 reason distinguishes missing initial backfill from a fresh old-writer mutation.
 
+## Secret-lines side table repair
+
+`startSecretLinesRepair` (`run.go`, #8833) runs `lines.Repairer` from
+`internal/storage/postgres/secret/lines`. Every
+`ESHU_SECRET_LINES_REPAIR_POLL_INTERVAL` (default 30 s) it reads
+`content_file_secret_lines_state`. A `ready` state is a no-op. Any other state
+(`not_built` after a migration that changes the derivation function, or a
+`failed` or abandoned bootstrap finalize) gets two non-waiting tries on a
+dedicated connection: `pg_try_advisory_lock(5318,1)`, the run lock, then
+`pg_try_advisory_lock(5318,2)`, which is free only while no bootstrap-index
+connection is alive (every one holds it shared). When either is taken the poll
+skips (`skipped_locked`, `reason=locked|deferred_writers`). When both are
+granted, the Repairer re-reads the state and runs `lines.Finalize` for the
+current epoch, then releases both. The locks come before the claim because the
+claim is not single-flight; without them two replicas collide on the side
+table's primary key, and without `(5318,2)` a bootstrap-index whose pinned
+lock connection died would be published over while its other connections still
+write.
+
+The lock connection comes from its own pool (`openSecretLinesLockPool`: the
+runtime opener, then `SetMaxOpenConns(1)`, `SetMaxIdleConns(0)`), never the
+shared one. A rebuild pins a connection for its whole length while `Finalize`
+needs the shared pool, so with `ESHU_POSTGRES_MAX_OPEN_CONNS=1` taking the lock
+from the shared pool left `Finalize` waiting for the connection the lock held.
+The cost is one extra connection: the reducer opens up
+to `ESHU_POSTGRES_MAX_OPEN_CONNS` + 1. The lock pool opens it for the startup
+ping, for each poll that finds the side table not ready (a try that may skip),
+and for the whole rebuild; a ready side table opens none. A pinned session sends `SELECT 1` every
+30 s so an `idle_session_timeout` does not end it. A failed poll backs off,
+doubling up to 1 h; a poll cut short by shutdown counts `outcome=cancelled` and
+logs a Warn. The loop is on by default; `ESHU_SECRET_LINES_REPAIR_ENABLED=false`
+is for diagnostics only and leaves reads on the legacy scan. Shutdown cancels it,
+waits for it, and then closes the lock pool, all before the database closes.
+Signals: `eshu_dp_secret_lines_repair_runs_total{outcome}` and the
+`secret_lines.repair_*` logs.
+
 ## Id-anchor census
 
 `startIDAnchorCensus` (issue #7212) runs only on Neo4j, because the labeled

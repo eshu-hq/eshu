@@ -350,6 +350,31 @@ func classifySecurityAlertTarget(state SecurityAlertTargetState, anchored bool) 
 	}
 }
 
+// securityAlertTargetMissesCoveredSlug reports whether the state's latest
+// committed generation did not collect a requested slug that a configured
+// target with the state's scope id covers. A slug no such target covers is
+// ignored: the target was never asked to collect it.
+func securityAlertTargetMissesCoveredSlug(
+	targets []securityAlertTargetConfig,
+	state SecurityAlertTargetState,
+	slugs []string,
+) bool {
+	if len(state.UncollectedRequested) == 0 {
+		return false
+	}
+	for _, slug := range slugs {
+		if !slices.Contains(state.UncollectedRequested, slug) {
+			continue
+		}
+		for _, target := range targets {
+			if target.ScopeID == state.ScopeID && securityAlertTargetCovers(target, slug) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func securityAlertTerminalReason(class string) string {
 	class = strings.TrimSpace(class)
 	if !slices.Contains(securityAlertTerminalFailureClasses, class) {
@@ -362,13 +387,24 @@ func securityAlertTerminalReason(class string) string {
 // into one verdict. An anchored read takes the best covering target (one
 // healthy target makes the repository complete); an unanchored read takes the
 // worst target (every target must be healthy) and lists each distinct reason.
+//
+// For an anchored read, a target whose latest committed generation did not
+// collect a requested repository the target now covers (#8838: an allowlist
+// entry added, or a scope_id reused for another repository, after that
+// generation) has no committed generation for this read, so it ranks as still
+// collecting, or as a terminal failure that never collected.
 func classifySecurityAlertCollection(
+	targets []securityAlertTargetConfig,
 	scopeIDs []string,
 	states []SecurityAlertTargetState,
+	slugs []string,
 	anchored bool,
 ) securityAlertCoverageVerdict {
 	byScope := make(map[string]SecurityAlertTargetState, len(states))
 	for _, state := range states {
+		if anchored && state.CommittedGeneration && securityAlertTargetMissesCoveredSlug(targets, state, slugs) {
+			state.CommittedGeneration = false
+		}
 		byScope[state.ScopeID] = state
 	}
 	bestRank, worstRank := 0, 6

@@ -41,6 +41,19 @@ CONTRACT_COMMANDS = (
 )
 ROOT_KEYS = frozenset({"name", "on", "concurrency", "permissions", "jobs"})
 JOB_KEYS = frozenset({"if", "needs", "name", "runs-on", "timeout-minutes", "services", "steps"})
+# #9066: every workflow that compiles Go carries this one reviewed workflow-level
+# env entry (see scripts/lib/cgo-cflags.sh). It sets a C dialect flag and cannot
+# change job activation, so the owned-workflow grammars drop exactly this stanza
+# (and the comment lines directly above it) before checking the rest. Any other
+# env key still fails closed.
+CGO_ENV_STANZA = re.compile(
+    r'(?m)^(?:#.*\n)*env:\n  CGO_CFLAGS: "-O2 -g -std=gnu17"\n(?:\n|(?=\S))'
+)
+
+
+def without_cgo_env(workflow: str) -> str:
+    """Return the workflow without the reviewed CGO_CFLAGS env stanza."""
+    return CGO_ENV_STANZA.sub("", workflow, count=1)
 
 
 def canonical_keys(text: str, indent: int, allowed: frozenset[str]) -> dict[str, str]:
@@ -73,6 +86,7 @@ def load_inventory(path: Path = INVENTORY) -> dict[str, dict[str, object]]:
 
 def workflow_steps(workflow: str) -> dict[str, str]:
     """Read the owner job and reject enclosing skip or failure suppression."""
+    workflow = without_cgo_env(workflow)
     root = canonical_keys(workflow, 0, ROOT_KEYS)
     if set(root) != ROOT_KEYS or root["jobs"] != "jobs:":
         raise ValueError("inactive contention owner job: noncanonical root")

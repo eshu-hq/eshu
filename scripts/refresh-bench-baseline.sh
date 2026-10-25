@@ -2,7 +2,7 @@
 #
 # refresh-bench-baseline.sh — B-2 (#3795): (re)capture testdata/benchmarks/baseline.txt by
 # running the Go benchmark suite. Run on the enforcement runner class (the weekly
-# bench-baseline-refresh workflow runs this on ubuntu-latest) so the committed
+# bench-baseline-refresh workflow runs this on ubuntu-24.04) so the committed
 # baseline is a like-for-like comparison target for the per-PR regression gate.
 #
 # Uses the same count/benchtime as the gate (scripts/verify-bench-regression.sh)

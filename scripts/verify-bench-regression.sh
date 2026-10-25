@@ -12,7 +12,7 @@
 # Enforcement: a committed micro-benchmark baseline is only a like-for-like
 # comparison when it was captured on the same runner class as the current run.
 # The weekly bench-baseline-refresh workflow recaptures testdata/benchmarks/baseline.txt
-# on ubuntu-latest for exactly that reason. Until a baseline is refreshed on the
+# on ubuntu-24.04 for exactly that reason. Until a baseline is refreshed on the
 # CI runner class, the check defaults to ADVISORY (report, do not fail) — the same
 # shared-runner-variance reasoning as the B-11 macro gate. Set
 # BENCH_REGRESSION_ENFORCE=true (the weekly-refreshed baseline makes this safe) to
@@ -53,7 +53,7 @@ command -v benchstat >/dev/null 2>&1 || die "missing required tool: benchstat (g
 # (the mirror feeds synthetic files); otherwise always (re)generate so a stale
 # current.txt from a previous run is never silently reused. The generated sample
 # is runner-bounded by default because this gate is advisory until the weekly
-# refresh establishes an ubuntu-latest baseline.
+# refresh establishes an ubuntu-24.04 baseline.
 if [[ -n "${current_explicit}" ]]; then
 	[[ -f "${current}" ]] || die "BENCH_CURRENT set but not found: ${current}"
 else
