@@ -1,4 +1,4 @@
-# #8833 part 2: detector migration 234 and the credential-file bindings
+# #8833 part 2a: detector migrations 234 and 235 and the credential-file bindings
 
 Part of #8807. The design record is
 [8813-credential-file-exposure.md](../design/8813-credential-file-exposure.md),
@@ -6,7 +6,9 @@ and the issue body of #8833 is the binding acceptance list. This note holds the
 measurements for part 2:
 
 - the dedicated `tfvars` and `yarnrc` definitions and their bindings;
-- migration 234, which carries the marker arm and the detector extras;
+- migrations 234 and 235 (ruling-3's split form): 234 adds `policy_version`
+  to the state row, and 235 carries the marker arm and the detector extras and
+  moves the state to `not_built`;
 - the evidence shapes;
 - the `eshu_dp_content_policy_raw_rows` gauge.
 
@@ -26,12 +28,12 @@ Only counts are recorded. No file content leaves the scratch host.
 
 ## Performance Evidence
 
-Performance Evidence: finding-count delta and derivation cost of migration 234
+Performance Evidence: finding-count delta and derivation cost of the new function
 against migration 138, on the scale corpus.
 
-Finding counts, 138 against 233:
+Finding counts, 138 against the new function (measured before the 234/235 split):
 
-| Kind | Migration 138 | Migration 234 |
+| Kind | Migration 138 | New function |
 | --- | --- | --- |
 | api_token | 12,485 | 19,133 |
 | secret_literal | 2,085 | 2,529 |
@@ -41,7 +43,15 @@ Finding counts, 138 against 233:
 | slack_token | 4 | 9 |
 | total | 16,403 | 24,350 |
 
-None lost. 7,947 gained. Four changed kind, all from api_token: two to slack_token and two to aws_access_key, because the marker arm comes first on lines that hold a literal marker.
+Re-measured after the split, on the same corpus, with the shipped 235 function
+(case-sensitive marker arms): the repair published 24,359 rows (api_token
+19,133, secret_literal 2,529, password_literal 2,324, private_key 276,
+aws_access_key 88, slack_token 9). The table above is from an earlier revision
+of the function; the 9 extra password_literal lines are not attributed here.
+The corpus holds no lower-case `redacted_<kind>` spelling, so the case-sensitive
+marker arm changes no count on it.
+
+None lost. 7,947 gained (7,956 with the shipped function). Four changed kind, all from api_token: two to slack_token and two to aws_access_key, because the marker arm comes first on lines that hold a literal marker.
 
 Gained lines by the extra that explains them:
 
@@ -76,10 +86,10 @@ interleaved rounds:
 | Detector | Seconds per 10k files |
 | --- | --- |
 | migration 138 | 7.4 to 7.6 |
-| 233 with the marker as a case-insensitive ARE alternative | 12.3 to 13.2 |
-| 233 with the marker as `strpos(.., 'REDACTED_')` OR the regex (shipped) | 9.2 to 10.1 |
-| 233 with no marker gate at all | 9.0 to 9.1 |
-| 138 gate with all 233 CASE arms | 7.3 to 7.5 |
+| new function with the marker as a case-insensitive ARE alternative | 12.3 to 13.2 |
+| new function with the marker as `strpos(.., 'REDACTED_')` OR the regex (shipped) | 9.2 to 10.1 |
+| new function with no marker gate at all | 9.0 to 9.1 |
+| 138 gate with all new CASE arms | 7.3 to 7.5 |
 
 Moving the marker alternative first, or spelling it `REDACTED_[a-z_]*(key|token|literal)`, did not help (12.0 to 12.7 s). The extra CASE arms cost nothing measurable.
 
@@ -90,17 +100,39 @@ The QA environment figure is not measured here: migration 138 recorded
 0.27 ms per file in the QA environment, so the shipped detector would scale to
 about 0.35 ms there.
 
-Lock window: migration 234 is a single `CREATE OR REPLACE FUNCTION`. It takes no
-table lock, and writes keep running. A lock-and-re-derive in one file is refused
-by the #7961 migration-immutability gate. Re-deriving existing
-`content_file_secret_lines` rows is a separate decision, pending a coordinator
-ruling. For reference, a single-transaction re-derive measured 160.9 s of
-INSERT over the 150k files: it held `FOR SHARE` on every row and wrote 109 MB of
-WAL for the row locks.
+Time-to-ready (ruling-3 Decision 6), on the scale corpus with the shipped
+234 and 235 and part 2b's `lines.Repairer` (default `Finalize` settings: 4
+workers, 500-file batches). The host load average ran 3 to 25.
+
+| Step | Result |
+| --- | --- |
+| apply 234 / apply 235 | 17.0 ms / 11.4 ms; neither locks `content_files` |
+| re-apply 235 after a reset to policy 138 | 13 to 43 ms |
+| repair, no writers | 42.7 s and 43.5 s; 856 batches, 0 retries; parity 0/0 |
+| repair under 3 writers (50-file UPDATEs on random repositories) | 51.8 s, 0 retries; parity 0/0 |
+| writer statements during that repair | 2,877; p50 19 ms, p99 361 ms, max 10.67 s |
+| the same writers, no repair, 50 s | 3,976; p50 10 ms, p99 282 ms, max 1.11 s |
+| legacy-scan read during the window, limit 50 / 200 | 0.16 to 0.21 s / 0.67 s (the plan walks `content_files_pkey` and stops at the limit) |
+| legacy-scan read with a rare-kind filter (`private_key`, `slack_token`), limit 200 | 123 to 161 s per call (no early stop; this corpus has no trigram index) |
+
+The repair stays under ruling-3's 160.9 s threshold. The QA environment
+recorded 0.27 ms per file for migration 138; at the 24 to 33% derivation cost
+above, a 145k-file repair there projects to the same tens of seconds. The
+projection is not measured.
+
+Finding: the writer max of 10.67 s is one finalizer batch. Finalize bounds a
+batch by file count only, and 25 batches took over 500 ms; the worst were 500
+files holding 72 MB in 11.3 s. A writer that touches any row of such a batch
+waits for its whole derivation. A shim on that repository's first window
+derived 2 MiB in 0.15 s, 4 MiB in 0.47 s, 8 MiB in 1.04 s, and the full 72 MB
+in 8.9 s. A byte bound on each batch is proposed to the coordinator; it is not
+in this change.
 
 No-Regression Evidence: the per-file policy lookup that every repository now
 pays (the default registry binds two definitions), measured with
-`BenchmarkContentStoreGovernedRegistry` over 5,000 ungoverned files:
+`BenchmarkContentStoreGovernedRegistry` (now the `metas_5000_files` and
+snapshot sub-benchmarks of `BenchmarkContentStoreGovernedDefault`) over 5,000
+ungoverned files:
 
 | Stage | Before | After |
 | --- | --- | --- |
@@ -128,7 +160,7 @@ The 12 lost items, listed for acceptance on #8833:
 - 1 github URL whose owner holds a `;`;
 - 1 `codeload.github.com` subdomain. The host must follow a boundary, so a github.com string inside another URL's query cannot pass.
 
-Findings differential: `eshu_secret_line_findings` from migration 234 over the
+Findings differential: `eshu_secret_line_findings` (the new function) over the
 raw and the stored bodies of both samples, comparing `(line_number,
 finding_kind)` per line.
 

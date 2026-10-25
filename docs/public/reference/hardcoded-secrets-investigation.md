@@ -76,6 +76,14 @@ Outside a bulk load, the reducer rebuilds and publishes a state that is not
 `ready` within a poll plus the rebuild (about 28 s per 100,000 files measured on
 a scratch database). It skips while a `bootstrap-index` run is alive, because
 that run's connections write rows without derivation until it finalizes.
+Migration 235 (#8833) starts one such window on upgrade: it changes how findings
+are classified, so it moves the state to `not_built` with a new epoch in the
+same transaction as the function replace, and neither 234 nor 235 locks
+`content_files`. Reads use the legacy scan until the reducer publishes, within
+one poll plus the rebuild (52 s under three writers on 150,000 files). A
+rare-kind filter on the legacy scan can take minutes on a large corpus. An API
+or MCP pod older than this release answers the window with the previous
+classification until it rolls.
 
 ## What is redacted, what is returned
 
