@@ -51,6 +51,20 @@ recent shipped work grouped by feature area.
   `rate_limited`, and every other 403 stays `auth_denied`. The org fan-out
   still reports the repository as `alerts_disabled` and continues.
 
+### CI: cold-cache cgo builds on GCC 15 and glibc 2.43
+
+- **Go builds compile cgo as `gnu17`**
+  ([#9066](https://github.com/eshu-hq/eshu/issues/9066)). A Go build cache miss
+  on the `go-sitter-forest/perl` grammar failed with
+  `bsearch.h:72:7: error: expected identifier or '(' before '_Generic'` on
+  GCC 15 with glibc 2.43 (the current `ubuntu-latest` image), because C23's
+  `bsearch` macro breaks the grammar's own `bsearch` definition. Every workflow
+  that builds Go, the Makefile, and the local gate scripts now set
+  `CGO_CFLAGS="-O2 -g -std=gnu17"`, keeping Go's default `-O2 -g`. The new
+  `cgo-cflags-guard` gate fails a workflow or script that compiles Go without
+  the flag. Remove the flag once the grammar builds under C23; see
+  [Cgo C Dialect Flag](docs/public/reference/local-testing/cgo-cflags.md).
+
 ### Parser: `.npmrc` registry URLs
 
 - **`.npmrc` is admitted under the `metadata` content-store policy and reports

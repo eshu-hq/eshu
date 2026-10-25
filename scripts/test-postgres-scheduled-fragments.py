@@ -401,5 +401,27 @@ class InventoryFragmentTest(unittest.TestCase):
             helper.write_text("changed\n")
             self.assertNotEqual(run(), 0)
 
+class CgoEnvAllowlistTest(unittest.TestCase):
+    """#9066: the grammar allows exactly the reviewed workflow-level env stanza."""
+
+    STANZA = 'env:\n  CGO_CFLAGS: "-O2 -g -std=gnu17"\n'
+
+    def test_only_the_reviewed_env_stanza_is_allowed(self) -> None:
+        workflow = (ROOT / runner.WORKFLOW).read_text(encoding="utf-8")
+        action = (ROOT / runner.BULK_ACTION).read_text(encoding="utf-8")
+        self.assertIn(self.STANZA, workflow)
+        runner.verify_canonical_workflow(runner.expand_bulk_action(workflow, action))
+        for label, stanza in (
+            ("other key", 'env:\n  OTHER: "1"\n'),
+            ("other value", 'env:\n  CGO_CFLAGS: "-O3"\n'),
+            ("extra key", self.STANZA + '  BASH_ENV: "/tmp/x"\n'),
+        ):
+            with self.subTest(label=label):
+                mutated = workflow.replace(self.STANZA, stanza, 1)
+                with self.assertRaises(ValueError):
+                    runner.verify_canonical_workflow(
+                        runner.expand_bulk_action(mutated, action))
+
+
 if __name__ == "__main__":
     unittest.main()

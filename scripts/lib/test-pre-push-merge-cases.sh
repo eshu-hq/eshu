@@ -43,6 +43,7 @@ build_merge_fixture() {
 		"${fixture}/go/internal/p"
 	cp "${script}" "${fixture}/scripts/dev/pre-push.sh"
 	cp "${repo_root}"/scripts/lib/pre-pr-*.sh "${fixture}/scripts/lib/"
+	cp "${repo_root}/scripts/lib/cgo-cflags.sh" "${fixture}/scripts/lib/"
 	cp "${repo_root}"/scripts/lib/pre-push-*.sh "${fixture}/scripts/lib/" 2>/dev/null || true
 	write_merge_fake_go "${fixture}/bin"
 	printf '#!/usr/bin/env bash\nexit 0\n' > "${fixture}/scripts/dev/precommit-go.sh"

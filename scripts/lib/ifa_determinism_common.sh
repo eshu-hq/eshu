@@ -21,6 +21,10 @@
 # its own --teeth mode from slice 6) and scripts/verify-ifa-dead-letter-
 # matrix.sh (slice 6's failure-path determinism leg) both source this file.
 
+# #9066: cgo needs -std=gnu17 on GCC 15 + glibc 2.43; see cgo-cflags.sh.
+# shellcheck source=cgo-cflags.sh
+source "$(dirname "${BASH_SOURCE[0]}")/cgo-cflags.sh"
+
 # ifa_det_build_bin builds go/cmd/<cmd> into <bin_dir>/eshu-<cmd> with cgo
 # enabled (NornicDB's Bolt driver needs cgo). An optional third argument
 # names one or more comma-separated Go build tags (passed to `go build
@@ -35,6 +39,7 @@
 # `go build` stderr already explains why.
 ifa_det_build_bin() {
 	local bin_dir="$1" cmd="$2" tags="${3:-}"
+	eshu_export_cgo_cflags
 	local tag_args=()
 	if [[ -n "${tags}" ]]; then
 		tag_args=(-tags "${tags}")

@@ -56,6 +56,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
+env:
+  CGO_CFLAGS: "-O2 -g -std=gnu17"
 jobs:
   queue-selection:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}

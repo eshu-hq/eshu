@@ -93,6 +93,7 @@ build_fixture() {
 	mkdir -p "${fixture}/scripts/dev" "${fixture}/scripts/lib" "${fixture}/go" "${fixture}/bin"
 	cp "${script}" "${fixture}/scripts/dev/pre-push.sh"
 	cp "${repo_root}"/scripts/lib/pre-pr-*.sh "${fixture}/scripts/lib/"
+	cp "${repo_root}/scripts/lib/cgo-cflags.sh" "${fixture}/scripts/lib/"
 	cp "${repo_root}"/scripts/lib/pre-push-*.sh "${fixture}/scripts/lib/" 2>/dev/null || true
 	printf '#!/bin/sh\nexit 0\n' > "${fixture}/bin/go"
 	chmod +x "${fixture}/bin/go"
@@ -178,6 +179,7 @@ build_fixture_deleted_package() {
 	mkdir -p "${fixture}/scripts/dev" "${fixture}/scripts/lib" "${fixture}/go/internal/deleted" "${fixture}/bin"
 	cp "${script}" "${fixture}/scripts/dev/pre-push.sh"
 	cp "${repo_root}"/scripts/lib/pre-pr-*.sh "${fixture}/scripts/lib/"
+	cp "${repo_root}/scripts/lib/cgo-cflags.sh" "${fixture}/scripts/lib/"
 	cp "${repo_root}"/scripts/lib/pre-push-*.sh "${fixture}/scripts/lib/" 2>/dev/null || true
 	printf '#!/bin/sh\nexit 0\n' > "${fixture}/bin/go"
 	chmod +x "${fixture}/bin/go"
