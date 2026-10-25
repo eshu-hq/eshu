@@ -434,3 +434,18 @@ func TestBuildPackageConsumptionDecisionsAdmitsUnresolvedJVMDependencyEvidence(t
 		t.Fatalf("DependencyRange = %q, want raw unresolved literal %q so callers can spot the gap", got, want)
 	}
 }
+
+// A Gradle row keeps its literal text as the value even when unresolved, so
+// the consumer must not take colon-bearing text (a classifier or other
+// notation text leaked into the version, issue #8988) as the observed
+// version: the row state is recorded separately and the value gate decides.
+func TestPackageManifestObservedVersionRejectsColonBearingGradleValue(t *testing.T) {
+	t.Parallel()
+	payload := map[string]any{
+		"value":                       "1:2",
+		"dependency_resolution_state": "unresolved",
+	}
+	if got := packageManifestObservedVersion(payload, "gradle", false); got != "" {
+		t.Fatalf("packageManifestObservedVersion = %q, want empty for colon-bearing text", got)
+	}
+}

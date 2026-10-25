@@ -12,11 +12,12 @@ import (
 // A Gradle selector names no single version, so the reducer backstop must
 // refuse it as an observed version even if a parser marks the row resolved
 // (issue #8988): the prefix form, latest.<status>, a range, the '!!' strict
-// short-hand, and the '@ext' artifact-only suffix.
+// short-hand, the '@ext' artifact-only suffix, and a ':' leaked from string
+// notation into the version text.
 func TestExactManifestDependencyVersionRejectsGradleSelectors(t *testing.T) {
 	t.Parallel()
 	for _, raw := range []string{
-		"+", "1.+", "1.0.+", "1.0+",
+		"+", "1.+", "1.0.+", "1.0+", "1:2",
 		"latest.release", "latest.integration", "Latest.Milestone", "LATEST.RELEASE",
 		"[1.0,2.0)", "(,2.0]", "]1.0,2.0[", "1.0,",
 		"1.0!!", "[1.0,2.0)!!1.5",

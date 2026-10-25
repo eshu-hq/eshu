@@ -53,6 +53,7 @@ as a selector or a modifier:
 | `[1.0,2.0)`, `]1.0,2.0[`, `(,2.0]`, `1.0,2.0` | range | `unresolved`, key `version` |
 | `1.0!!`, `[1.0,2.0)!!1.5`, any `!` | strict version (`1.0!!` is strictly 1.0) | `unresolved`, key `version` |
 | `1.0@jar` | version plus artifact type | `unresolved`, key `version` |
+| `1:2` | string-notation separator leaked into the version | `unresolved`, key `version` |
 
 The rule is the same for a literal `version = "..."`, the third part of a
 string notation, and the `[versions]` string a `version.ref` names; through a

@@ -324,10 +324,12 @@ func ExactManifestDependencyVersion(raw string) (string, bool) {
 // GradleVersionSelector reports whether version is Gradle selector text that
 // no other ecosystem uses for an exact version: the prefix form ("1.+", "+",
 // a trailing '+'), a "latest." status selector in any letter case, the '!!'
-// strict short-hand ("1.0!!"), or the '@ext' artifact-only suffix
-// ("1.0@jar"). Ranges are already caught by the range operators. An interior
-// '+' is not reported, because semver build metadata ("1.0.0+build.1") is an
-// exact version in npm and Cargo.
+// strict short-hand ("1.0!!"), the '@ext' artifact-only suffix
+// ("1.0@jar"), or a ':' leaked from string notation into the version (a
+// version never holds one, so a ':' means a classifier or other notation
+// text leaked into it). Ranges are already caught by the range operators. An
+// interior '+' is not reported, because semver build metadata
+// ("1.0.0+build.1") is an exact version in npm and Cargo.
 func GradleVersionSelector(version string) bool {
 	version = strings.TrimSpace(version)
 	if version == "" {
@@ -336,7 +338,8 @@ func GradleVersionSelector(version string) bool {
 	return strings.HasSuffix(version, "+") ||
 		strings.HasPrefix(strings.ToLower(version), "latest.") ||
 		strings.Contains(version, "!!") ||
-		strings.Contains(version, "@")
+		strings.Contains(version, "@") ||
+		strings.Contains(version, ":")
 }
 
 // PackageNameFromPURL extracts the package name from a package-URL string by
