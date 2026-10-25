@@ -29,6 +29,10 @@
   and a stack overflow kills the ingester without a recoverable panic. The
   regressions in `cargo_nesting_test.go` run in a re-executed child process so
   a crash fails one subtest instead of the test binary.
+- The same call enforces `cargoMaxKeyWork` (#8991), because go-toml's key
+  lookup is quadratic in the keys of one table. Never raise it without
+  re-measuring the decode time at the new limit and the real-file corpus
+  maximum; `TestCargoKeyWorkLimitBoundary` pins the constant.
 
 ## Common Changes And Scope
 

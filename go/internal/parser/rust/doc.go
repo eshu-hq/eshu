@@ -35,9 +35,10 @@
 // preserve exact crate versions and dependency paths only when the lock graph
 // proves reachability from a workspace root package, including source-qualified
 // edge resolution when Cargo names a parenthesized source. Every Cargo TOML
-// decode first runs the shared nesting guard at depth 64, so a hostile file
-// that would overflow the decoder's stack fails as an unparseable file instead
-// of killing the process. The parent parser engine may
+// decode first runs the shared nesting guard at depth 64 and key work 25
+// million, so a hostile file that would overflow the decoder's stack, or hold
+// it in a quadratic key lookup, fails as an unparseable file instead of
+// killing or stalling the process. The parent parser engine may
 // probe repo-bounded module candidates and attach bounded
 // module_resolution_status metadata when parsing a concrete repo path. Existing
 // files outside the repo root are not treated as resolved modules. Item

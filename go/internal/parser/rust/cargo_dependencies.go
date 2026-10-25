@@ -26,11 +26,24 @@ const cargoPackageManager = "cargo"
 // table with a features array adds 2. 64 leaves wide room for legal files.
 const cargoMaxNesting = 64
 
+// cargoMaxKeyWork bounds the decoder's key-lookup work before it runs (see
+// nesting.Bounds.KeyWork). go-toml v2.3.1 finds a key by scanning a linked
+// list, so a table of n keys costs n squared: 100,000 keys in one
+// [dependencies] table hold a parse worker for about 18 seconds (#8991).
+// The corpus of 290 real Cargo.toml and Cargo.lock files tops out at 16,919
+// (a 190 KB lockfile; the widest table is 45 keys). 25,000,000 is about
+// 1,480 times that, admits one table of 4,999 keys, and passes a lockfile of
+// 50,000 packages (1.25 million); the decode it permits takes well under a
+// tenth of a second.
+const cargoMaxKeyWork = 25_000_000
+
 // decodeCargoTOML checks source with the nesting guard and then decodes it
 // into target. A too-deep file returns an error wrapping nesting.ErrTooDeep,
+// a file with too much key-lookup work one wrapping nesting.ErrTooManyKeys,
 // and an unterminated string one wrapping nesting.ErrUnterminatedString.
 func decodeCargoTOML(source []byte, target any) error {
-	if err := nesting.Check(source, cargoMaxNesting); err != nil {
+	bounds := nesting.Bounds{Depth: cargoMaxNesting, KeyWork: cargoMaxKeyWork}
+	if err := nesting.CheckBounds(source, bounds); err != nil {
 		return err
 	}
 	return toml.Unmarshal(source, target)

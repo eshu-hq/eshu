@@ -459,6 +459,20 @@ recent shipped work grouped by feature area.
   manifest is skipped and the member still parses. A collector-wide read cap
   is tracked separately in #8986.
 
+### Parser: Cargo TOML with a huge table no longer stalls a parse worker
+
+- **Key-work bound before every Cargo TOML decode**
+  ([#8991](https://github.com/eshu-hq/eshu/issues/8991)). go-toml v2.3.1
+  finds a key with a linked-list scan, so a table of n keys decodes in n
+  squared steps: 100,000 keys under one `[dependencies]` header held a parse
+  worker for 18.5 s, and 13 MB would hold it for minutes. The shared guard now
+  has `CheckBounds`, which also adds up each table's squared entry count
+  (plain, dotted, and inline-table keys, plus distinct child headers) and
+  stops with `nesting.ErrTooManyKeys` past 25,000,000. The same 100,000-key
+  file now fails in under 10 ms as an unparseable file; the widest of 290
+  real Cargo files has 45 keys in one table and a work total of 16,919. A
+  50,000-package `Cargo.lock` (repeated `[[package]]` sections) still parses.
+
 ### CI: readiness shard weights refreshed from the first weighted wave
 
 - **Live PostgreSQL readiness shard weights refreshed**
