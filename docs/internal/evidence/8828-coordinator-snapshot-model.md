@@ -51,7 +51,7 @@ The #7009 model removed only the active-work read.
 ## Measurement
 
 Fixture: scratch PostgreSQL 18.6, the full bootstrap schema (251 migrations,
-rebased on `origin/main` e39c3bb949); 600,000 `workflow_work_items` (498,000 completed, 60,000
+rebased on `origin/main` 11058bc517); 600,000 `workflow_work_items` (498,000 completed, 60,000
 failed_terminal, 18,000 pending, 12,000 expired, 6,000 claimed, 6,000
 failed_retryable, 5 collector instances, 20,000 scopes), 6,000 active claims,
 5,000 runs, `ANALYZE`d, retention off, default `shared_buffers` (the table is 490
@@ -59,32 +59,32 @@ MB with its indexes). `EXPLAIN (ANALYZE, BUFFERS)` of each prepared statement, t
 run, warm cache.
 
 Performance Evidence: before, the coordinator statements of one snapshot cost
-156.9 ms and 62,529 shared buffers; after, the same snapshot reads one
-primary-key row, 0.005 ms and 1 buffer, so the per-snapshot work no longer depends
+125.4 ms and 51,920 shared buffers; after, the same snapshot reads one
+primary-key row, 0.003 ms and 1 buffer (0.002 ms for the row, 0.001 ms for the clock), so the per-snapshot work no longer depends
 on `workflow_work_items`.
 
 | Statement | Before exec (ms) | Before buffers | Dominant node |
 | --- | ---: | ---: | --- |
-| work-item status counts | 47.2 | 13,941 | Parallel Seq Scan (2 workers) |
-| claim snapshot (oldest pending) | 7.3 | 6,348 | Bitmap Heap Scan, 18,000 rows |
-| collector backpressure | 69.0 | 28,161 | Parallel Seq Scan twice (2 workers) |
-| backpressure failure classes | 32.0 | 13,941 | Parallel Seq Scan (2 workers) |
+| collector backpressure | 57.5 | 22,805 | Parallel Seq Scan twice (2 workers) |
+| work-item status counts | 44.3 | 13,460 | Parallel Seq Scan (2 workers) |
+| backpressure failure classes | 16.7 | 9,040 | Parallel Seq Scan (2 workers) |
+| claim snapshot (oldest pending) | 6.0 | 6,194 | Bitmap Heap Scan, 18,000 rows |
 | run status counts | 0.7 | 51 | Seq Scan, 5,000 rows |
-| instances, completeness, recent failures, terminal failures | 0.7 | 87 | index seeks and small scans |
-| **Total** | **156.9** | **62,529** | |
+| instances, completeness, recent failures, terminal failures | 0.5 | 370 | index seeks and small scans |
+| **Total** | **125.4** | **51,920** | |
 
 | Read after | Exec (ms) | Buffers |
 | --- | ---: | ---: |
-| summary clock | 0.002 | 0 |
-| keyed row (22 entries, 1,198 byte payload) | 0.003 | 1 |
+| summary clock | 0.001 | 0 |
+| keyed row (25 entries) | 0.002 | 1 |
 
 The scan nodes launch two parallel workers, so the before cost in CPU time is
 about three times the wall figure. An independent reviewer re-seeded a similar
 table (different scope and timestamp shape) and measured 129 ms and 49,832
-buffers before and 0.002 ms and 1 buffer after. The writer pass that replaces
-them took 135 to 146 ms at the same size (three passes, `ReadCoordinatorSummaryEntries` through
-the production runner), once per 10 s tick on the primary regardless of how many
-processes read status; before, about 30 scrapes per 30 s each paid the 157 ms.
+buffers before and 0.002 ms and 1 buffer after; the two seeds agree within 5%. The writer pass that replaces
+them took 101 ms at the same size (three consecutive calls of `ReadCoordinatorSummaryEntries`:
+101.6, 100.9 and 101.0 ms), once per 10 s tick on the primary regardless of how many
+processes read status; before, about 30 scrapes per 30 s each paid the 125 ms.
 The statements and their plans are unchanged (the digest pins the texts), so no
 index was added.
 
