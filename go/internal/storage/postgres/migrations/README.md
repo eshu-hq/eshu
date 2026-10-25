@@ -331,6 +331,20 @@ sbt rows. On a throwaway Postgres 18 with 1.3M dependency rows plus 0.4M other
 `content_entity` rows and 13,000 sbt rows across 40 scopes it ran in 52 ms with a
 cold cache (10,705 buffers read), one index scan, no sequential scan.
 
+Residual: an older ingester that is still running when 234 applies and writes a
+new sbt row afterwards leaves that scope keyless. Its sidecar writes set the
+sidecar-writer setting, which bypasses the dirty trigger, so nothing re-marks the
+scope. It heals on the next content change of that repository, which writes a
+new generation with the current code. Roll the ingester before or with the
+schema Job to avoid the window.
+
+The number 234 is provisional: 231 is #9050's, 233 is #9051's, and a migration
+that lands first takes its place. To renumber, rename the file, change its key in
+`migration_checksum_manifest_test.go`, set `goldenBootstrapDefinitionsDigest` in
+`embed_invariant_test.go` to the `got` value the test prints, move its name in
+`schema_order_late_test.go` after the other new entry, and update the numbers in
+this section and in the live test's comment.
+
 ## Verification
 
 ```bash
