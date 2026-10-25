@@ -224,8 +224,9 @@ type SecurityAlertCollectionStateStore interface {
 	// the target membership fields from it and never echoes the JSON.
 	SecurityAlertCollectorConfigurations(context.Context) ([]string, error)
 	// SecurityAlertTargetStates returns the latest work item and committed
-	// generation existence for each target scope id, plus the target's unread
-	// repositories in its active generation (#8943). requestedSlugs are the
+	// generation existence for each target scope id, the requested
+	// repositories the latest committed generation did not collect (#8838),
+	// and the target's unread repositories in its active generation (#8943). requestedSlugs are the
 	// normalized owner/name slugs of an anchored read, empty for an unanchored
 	// one. A scope id with no work item and no generation may be omitted from
 	// the result.
@@ -249,6 +250,13 @@ type SecurityAlertTargetState struct {
 	LatestFailureClass    string
 	LatestFailureTerminal bool
 	CommittedGeneration   bool
+	// UncollectedRequested lists the requested repository slugs that the
+	// target's latest committed generation did not collect (#8838): a
+	// repository added to the target's allowlist, or a reused scope_id naming
+	// another repository, after that generation. The store fills it only for
+	// the slugs of an anchored read, and only when the generation recorded its
+	// target set; a generation committed before the record existed lists none.
+	UncollectedRequested []string
 	// UnreadTotal is the number of the target's allowlisted repositories the
 	// collector did not read in full in the target's active generation. Zero
 	// when the generation has no read state (written before #8943) or nothing

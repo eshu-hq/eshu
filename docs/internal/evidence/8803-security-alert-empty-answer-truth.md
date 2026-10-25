@@ -11,8 +11,11 @@ page reports `coverage.state=complete` with exact, fresh truth only when the
 security-alert collector has a projected generation and no later terminal
 fetch failure for a target that covers the requested repository (or,
 unanchored, for every configured target). It does not cover a pending or
-dead-lettered reducer reconciliation, a repository added to a target after its
-latest projected generation, or a scoped caller's grants on an unanchored read.
+dead-lettered reducer reconciliation or a scoped caller's grants on an
+unanchored read. Since #8838 a repository added to a target after its latest
+projected generation reads `no_committed_generation`: each generation records
+the repository set it collected, and the read checks the requested repository
+against the latest committed generation's set.
 A caller with no grants gets `not_configured` with reason
 `no_authorized_repositories`. The `coverage` object on an empty inventory page
 and the `collector_readiness` envelope are additive fields. The envelope appears

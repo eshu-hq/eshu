@@ -11,6 +11,17 @@ import (
 	"strings"
 )
 
+// Payload keys of a security-alert generation's recorded target set in
+// scope_generations.payload (#8838). The ingestion store writes them and the
+// security-alert collection-state read reads them, so both name these
+// constants.
+const (
+	// SecurityAlertTargetSetPayloadKey holds the canonical JSON array of slugs.
+	SecurityAlertTargetSetPayloadKey = "security_alert_target_set"
+	// SecurityAlertTargetSetHashPayloadKey holds the set's Hash.
+	SecurityAlertTargetSetHashPayloadKey = "security_alert_target_set_hash"
+)
+
 // SecurityAlertTargetSet is the set of owner/name repository slugs one
 // security-alert target generation collected (#8838): the repository of a
 // repository target, or the organization's allowlisted repositories of an

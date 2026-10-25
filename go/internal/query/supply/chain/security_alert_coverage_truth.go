@@ -165,7 +165,9 @@ func securityAlertCoverageReasonLabel(verdict securityAlertCoverageVerdict) stri
 
 // readSecurityAlertCollectionVerdict performs at most two bounded reads: the
 // enabled instances' configuration, then the latest work item, committed
-// generation existence, and unread repositories for the covering targets.
+// generation existence, the requested repositories the latest committed
+// generation did not collect (#8838), and unread repositories for the covering
+// targets.
 func (h *Handler) readSecurityAlertCollectionVerdict(
 	ctx context.Context,
 	anchored bool,
@@ -179,19 +181,20 @@ func (h *Handler) readSecurityAlertCollectionVerdict(
 	if len(targets) == 0 {
 		return securityAlertCollectorNotConfiguredVerdict(), nil
 	}
-	scopeIDs := securityAlertTargetScopeIDs(targets, securityAlertRequestedSlugs(repositoryScopeIDs), anchored)
+	slugs := securityAlertRequestedSlugs(repositoryScopeIDs)
+	scopeIDs := securityAlertTargetScopeIDs(targets, slugs, anchored)
 	if len(scopeIDs) == 0 {
 		return securityAlertOutsideTargetsVerdict(), nil
 	}
 	var requestedSlugs []string
 	if anchored {
-		requestedSlugs = securityAlertRequestedSlugs(repositoryScopeIDs)
+		requestedSlugs = slugs
 	}
 	states, err := h.SecurityAlertCollectionState.SecurityAlertTargetStates(ctx, scopeIDs, requestedSlugs)
 	if err != nil {
 		return securityAlertCoverageVerdict{}, err
 	}
-	return classifySecurityAlertCollection(scopeIDs, states, anchored), nil
+	return classifySecurityAlertCollection(targets, scopeIDs, states, requestedSlugs, anchored), nil
 }
 
 // applySecurityAlertCoverageVerdict folds a verdict into an empty answer. A

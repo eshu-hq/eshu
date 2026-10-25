@@ -71,6 +71,10 @@ TABLE = {
             "TestSecurityAlertCollectionStateBoundsLive",
             "TestSecurityAlertCollectionStatePlanLive",
         ),
+        "go/internal/query/security_alert_target_set_postgres_live_test.go": (
+            "TestSecurityAlertTargetSetAllowlistChangeLive",
+            "TestSecurityAlertTargetSetLegacyAndEmptyLive",
+        ),
         "go/internal/query/security_alert_unread_state_postgres_live_test.go": (
             "TestSecurityAlertUnreadRepositoriesLive",
             "TestSecurityAlertUnreadRepositoriesPlanLive",

@@ -9,6 +9,23 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Security alerts: a newly allowlisted repository no longer reads as covered
+
+- **Per-generation target set**
+  ([#8838](https://github.com/eshu-hq/eshu/issues/8838)). Each security-alert
+  generation records the repositories it collected in
+  `scope_generations.payload` (`security_alert_target_set` and
+  `security_alert_target_set_hash`). An empty answer for a repository added to
+  an allowlist, or for a reused repository `scope_id`, now reads
+  `target_incomplete` with `no_committed_generation` until a generation that
+  collected it projects. Before, it read `complete`, exact and fresh. The set's
+  hash is part of the freshness hint, so an allowlist change commits a new
+  generation even when the provider's alerts did not change. Each target
+  commits one extra generation after the upgrade. No DDL. The empty-answer read
+  adds about 1.7 buffers per target (14.96 to 17.01 ms for 1,024 targets with
+  2,000 generations each, warm).
+  Evidence: `docs/internal/evidence/8838-security-alert-target-set.md`.
+
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
 
 - **A 403 saying Dependabot alerts are disabled classifies as `not_found`**

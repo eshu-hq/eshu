@@ -313,8 +313,8 @@ func scopeGenerationPayload(generation scope.ScopeGeneration) string {
 		payload["preparse_identity"] = identity
 	}
 	if set := generation.SecurityAlertTargetSet; !set.IsZero() {
-		payload["security_alert_target_set"] = json.RawMessage(set.JSON())
-		payload["security_alert_target_set_hash"] = set.Hash()
+		payload[scope.SecurityAlertTargetSetPayloadKey] = json.RawMessage(set.JSON())
+		payload[scope.SecurityAlertTargetSetHashPayloadKey] = set.Hash()
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {

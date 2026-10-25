@@ -36,3 +36,8 @@ to `collector.ClaimedService`.
   reason tokens are mirrored in `query/supply/chain/security_alert_unread_reason.go`
   and the OpenAPI enum; change them together. Repository targets write no
   state. Never put a repository name in a metric label or span attribute.
+- Every generation carries `SecurityAlertTargetSet` from
+  `TargetConfig.targetSet` (#8838), and its hash stays in the freshness
+  digest. Removing it from the digest lets an allowlist change be skipped as
+  unchanged, and the added repository then never leaves
+  `no_committed_generation`.
