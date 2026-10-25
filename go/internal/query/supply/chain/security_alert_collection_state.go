@@ -156,8 +156,33 @@ func decodeSecurityAlertTargets(configs []string) []securityAlertTargetConfig {
 				}
 			}
 			target.AllowedRepositories = allowed
-			out = append(out, target)
+			out = append(out, expandSecurityAlertOrgTarget(target)...)
 		}
+	}
+	return out
+}
+
+// expandSecurityAlertOrgTarget returns the scopes an org target is collected
+// as (#9019): itself when shard.Partition gives one shard, otherwise one
+// target per shard with the shard's scope id and its repositories, the same
+// expansion the planner and the collector run. An anchored read is then
+// covered by the requested repository's shard only, and an unanchored read
+// takes every shard. A sharded target's base scope is retired, so it is not
+// listed.
+func expandSecurityAlertOrgTarget(target securityAlertTargetConfig) []securityAlertTargetConfig {
+	if target.Scope != securityAlertTargetScopeOrg {
+		return []securityAlertTargetConfig{target}
+	}
+	leaves := shard.Partition(target.ScopeID, target.Organization, target.AllowedRepositories)
+	if len(leaves) == 1 {
+		return []securityAlertTargetConfig{target}
+	}
+	out := make([]securityAlertTargetConfig, 0, len(leaves))
+	for _, leaf := range leaves {
+		shardTarget := target
+		shardTarget.ScopeID = leaf.ScopeID
+		shardTarget.AllowedRepositories = leaf.Repositories
+		out = append(out, shardTarget)
 	}
 	return out
 }
