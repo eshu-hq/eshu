@@ -5,7 +5,6 @@ package runtime
 
 import (
 	"fmt"
-	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -15,7 +14,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -229,39 +227,9 @@ func renderStatusMetrics(serviceName string, report statuspkg.Report) string {
 		)
 	}
 	writeCoordinatorMetrics(writeGauge, serviceName, report.Coordinator)
-	writeSummaryMarker(writeGauge, serviceName, report.ActiveWorkSource)
+	writeSummaryMarkers(writeGauge, serviceName, report)
 
 	return builder.String()
-}
-
-// writeSummaryMarker says whether the active-work gauges above came from a fresh
-// stored row. It writes nothing unless the stored-summary reader answered, so a
-// scrape with the reader off is byte-identical to one from before the reader.
-func writeSummaryMarker(
-	writeGauge func(name string, labels map[string]string, value string),
-	serviceName string,
-	source statuspkg.ActiveWorkSource,
-) {
-	switch source.Source {
-	case statuspkg.ActiveWorkSourceModel, statuspkg.ActiveWorkSourceLastRow, statuspkg.ActiveWorkSourceZero:
-	default:
-		return
-	}
-	labels := map[string]string{
-		"service_name":                    serviceName,
-		telemetry.MetricDimensionModelKey: summary.ModelActiveWorkSummary,
-	}
-	stale, age := "0", strconv.FormatFloat(source.Age.Seconds(), 'f', -1, 64)
-	if source.Stale {
-		stale = "1"
-	}
-	if source.Source == statuspkg.ActiveWorkSourceZero {
-		// No row was ever decodable, so there is no age: NaN is the exposition
-		// format's value for it, and PromQL comparisons drop it.
-		age = strconv.FormatFloat(math.NaN(), 'f', -1, 64)
-	}
-	writeGauge(telemetry.RuntimeStatusSummaryStaleMetric, labels, stale)
-	writeGauge(telemetry.RuntimeStatusSummaryAgeSecondsMetric, labels, age)
 }
 
 func writeProvenanceEdgeIdentityUpgradeMetrics(

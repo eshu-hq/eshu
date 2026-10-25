@@ -155,6 +155,10 @@ var directMaterializedEdgeFamilyByPort = map[string]string{
 	// Observability coverage.
 	"WriteObservabilityCoverageEdges": "observability_coverage",
 
+	// Runtime declarations (#8816): Repository-[:DECLARES_RUNTIME]->
+	// RuntimeDeclaration, reaped by DETACH DELETE of the owned nodes.
+	"WriteRuntimeDeclarations": "runtime_declaration",
+
 	// The six ports whose names do not carry their family. Each is a real
 	// production write site, not a dead port; each MERGEs the relationship
 	// named beside it.

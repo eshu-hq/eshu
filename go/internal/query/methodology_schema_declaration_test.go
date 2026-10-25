@@ -33,11 +33,12 @@ import (
 // the declaration goes inert, and the pin behaves as before. Any other PR
 // leaves the zero value alone.
 var methodologyCommittedSchemaDeclaration = methodologyRewriteDeclaration{
-	Issue:  8659,
-	Reason: "Retires a repository subgraph at retirement complete (retract statements, tombstone capture, residue census, lease barrier); the base tree cannot build that schema, so the paired Base/Candidate sides in this run both measure candidate schema.",
+	Issue:  8816,
+	Reason: "Adds the RuntimeDeclaration identity constraint, its (runtime, version_major) index, and the NornicDB repo_id lookup, and bumps both schema fingerprints; the new label touches no existing label, but the base tree cannot build that schema, so the paired Base/Candidate sides in this run both measure candidate schema.",
 	// Production sources only: the pin inventory excludes *_test.go, so the
 	// declaration names exactly the differing non-test schema files.
 	Paths: []string{
+		"go/internal/graph/schema_application.go",
 		"go/internal/graph/schema_tables.go",
 		"go/internal/graph/schema_tables_indexes.go",
 	},

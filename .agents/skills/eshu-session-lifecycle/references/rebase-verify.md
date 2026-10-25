@@ -24,9 +24,12 @@ that another live agent holds is not yours; see
    Work against `$NEW_BASE` until the run ends. If `main` moves again, report the
    new tip and do not chase it.
 
-2. **Rebase onto the pin.** Run `git rebase "$NEW_BASE"`, not `git pull`. If it
-   conflicts, stop and report each conflicting file. Do not resolve a semantic
-   conflict by guessing. Never `git stash`.
+2. **Rebase onto the pin.** Run `git rebase "$NEW_BASE"`, not `git pull`. A
+   conflict that meets [row 4a](../../eshu-code-review/SKILL.md#row-4a-mechanical-conflict),
+   including every [recipe](../../eshu-code-review/references/conflict-recipes.md)
+   file, is resolved now and shipped on that row. For any other conflict, stop
+   and report each conflicting file: do not resolve a semantic conflict by
+   guessing. Never `git stash`.
 
 3. **Prove the content did not change.** Run the content tests that
    [eshu-code-review](../../eshu-code-review/SKILL.md#rebase-waiver) defines:
@@ -35,9 +38,10 @@ that another live agent holds is not yours; see
    `$OLD_HEAD`, and `$NEW_BASE` as its old and new bases.
 
 4. **Choose the proof to rerun.** Follow the decision table in that same
-   section: a waiver note (row 6 only), the scoped re-review with its
+   section: row 4a or tier S (file-type checks and a PR comment only), a
+   waiver note (row 6 only), the scoped re-review with its
    [scoped rebase verdict](../../eshu-code-review/references/verdict.md#scoped-rebase-verdict)
-   (rows 3 and 4), or the full review. Do not restate it here.
+   (rows 3 and 4b), or the full review. Do not restate it here.
 
    A subagent runs focused proof and the registry-selected static gates its role
    names. Only the coordinator runs `make pre-push` or `make pre-pr`.

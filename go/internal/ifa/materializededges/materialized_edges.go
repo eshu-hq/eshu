@@ -256,6 +256,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveObservabilityCoverageMaterializedEdges(odu, observabilityCoverageExpectedEdgesPath(r.RepoRoot))
 	case codeInterprocEvidenceFamily:
 		return resolveCodeInterprocEvidenceMaterializedEdges(odu, codeInterprocEvidenceExpectedEdgesPath(r.RepoRoot))
+	case runtimeDeclarationFamily:
+		return resolveRuntimeDeclarationMaterializedEdges(odu, runtimeDeclarationExpectedEdgesPath(r.RepoRoot))
 	case semanticEntityContainmentFamily:
 		return resolveSemanticEntityContainmentMaterializedEdges(odu, semanticEntityContainmentExpectedEdgesPath(r.RepoRoot))
 	case cloudResourceFamily:

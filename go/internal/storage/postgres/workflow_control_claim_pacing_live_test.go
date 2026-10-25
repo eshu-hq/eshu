@@ -266,15 +266,16 @@ func TestWorkflowClaimPacingIdleDrainHoldsGrantOverlap(t *testing.T) {
 	t.Logf("pacing-idle drain items=%d claimers=%d duration=%s claims_per_second=%.1f empty_attempts=%d backends=%v",
 		len(seeded), claimDepthClaimers, result.Duration, result.ClaimsPerSecond(), result.EmptyAttempts, result.BackendPIDs)
 
-	// Load-insensitive anti-serialization bound (#8725 P1 disposition): the
+	// Load-insensitive anti-serialization gate (#8725 P1 disposition): the
 	// absolute claims/s floor above flaked on hosted runner noise (112.1 vs
-	// 119 on a green-neighbor head with zero code overlap), so the gate now
-	// compares against a same-run single-claimer calibration drain of the
-	// same backlog shape. Host speed cancels out of the ratio; throttled or
-	// serialized grants collapse the speedup below half the enrolled
-	// parallelism (a uniform slowdown preserves the ratio and stays
-	// trend-logged, not gated). The absolute throughput stays logged for
-	// trend work, and #8725 tracks the bound's scheduled-tier ownership.
+	// 119 on a green-neighbor head with zero code overlap), so the body
+	// below gates attempt-window max overlap (half the enrolled claimers),
+	// not a comparison against the calibration drain. A same-run
+	// single-claimer calibration drain of the same backlog shape still runs
+	// for trend work: its speedup ratio is logged, never gated (a uniform
+	// slowdown preserves the ratio; throttled or serialized grants collapse
+	// the overlap and fail the gate). The absolute throughput stays logged
+	// for trend work.
 	calSeeded := seedClaimDepthBacklog(t, store, ctx, "pacing-idle-cal", base, []claimDepthKeyBacklog{
 		{FairnessKey: "pacing:idle-cal-large", Count: 500},
 		{FairnessKey: "pacing:idle-cal-small-1", Count: 20, CreatedOffset: time.Second},

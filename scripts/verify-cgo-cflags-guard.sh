@@ -36,8 +36,11 @@
 #   operator          ":" "=" "+="                          ":=" "::=" ":::=" "="
 #                                                           "?=" count; "+=" "!="
 #                                                           do not
-#   export            n/a (env key or shell var)            "export" on the same
-#                                                           line, "override" ok
+#   export            workflow-level env key: the first    "export" must start the
+#                     child indent under a column-zero      line (spaces, "override"
+#                     "env:" (a nested key does not count)  ok); a "build:" prefix,
+#                                                           a tab, or "$(eval" is
+#                                                           not the global export
 #   separators        value ends at ";" "&" "|" or the      value runs to the
 #                     next CGO_* assignment                 end of the line
 #   -std= count       exactly one, and it is -std=gnu17;    exactly one, gnu17
@@ -73,7 +76,8 @@
 #     value (CC: "gcc -std=gnu23") or wrapper, a #cgo directive in Go source, or
 #     a ${{ }} expression in CGO_CPPFLAGS whose value is only known at run time;
 #     other ways to hide the variable, such as "readonly" or an "env -S" string.
-#   - Makefile: an "include" or "-include" of a file that sets CGO_CFLAGS (the
+#   - Makefile: assignments inside ifeq/else blocks are all read as if they ran
+#     (both branches count; the real else branch has no -std=); an "include" or "-include" of a file that sets CGO_CFLAGS (the
 #     guard reads one file; the real Makefile includes nothing); a "$(eval ...)"
 #     or target-specific "target: CGO_CFLAGS := ..." that DROPS the flag without
 #     adding a -std= (adding one fails); a later assignment that resets the variable without a -std=
@@ -217,10 +221,14 @@ cgo_cflags_assignments() {
 			assign_re = "CGO_(CFLAGS|CPPFLAGS)" q "[[:space:]]*\\+?[:=]"
 			env_key_re = "^[[:space:]]+" q "CGO_CFLAGS" q "[[:space:]]*:"
 		}
-		/^env:[[:space:]]*$/ { inenv = 1; next }
+		/^env:[[:space:]]*([[:space:]]#.*)?$/ { inenv = 1; envind = -1; next }
 		/^[^[:space:]#]/ { inenv = 0 }
 		{
 			line = $0
+			if (inenv && envind < 0 && line !~ /^[[:space:]]*$/) {
+				match(line, /^[[:space:]]*/)
+				envind = RLENGTH
+			}
 			cstart = length(line) + 1
 			if (match(line, /[[:space:]]#/)) cstart = RSTART
 			if (line ~ /CGO_CFLAGS/ && (line ~ /(^|[^[:alnum:]_])unset[[:space:]]+[^;&|]*CGO_CFLAGS/ || line ~ /-u[[:space:]]*CGO_CFLAGS/ || line ~ /--unset[=[:space:]]+CGO_CFLAGS/ || line ~ /(^|[^[:alnum:]_])export[[:space:]]+-[a-zA-Z]*n/ || line ~ /(declare|typeset)[[:space:]]+\+[a-z]*x/ || line ~ /Remove-Item[[:space:]]+[^;&|]*CGO_CFLAGS/))
@@ -247,7 +255,7 @@ cgo_cflags_assignments() {
 				} else {
 					ok = (val ~ /-std=gnu17/) && (val !~ /\$\{\{/) && (rest !~ /-std=/)
 				}
-				kind = (inenv && name !~ /CPPFLAGS/ && name !~ /\+/ && line ~ env_key_re && off == 0) ? "env" : "-"
+				kind = (inenv && name !~ /CPPFLAGS/ && name !~ /\+/ && line ~ env_key_re && off == 0 && match(line, /^[[:space:]]*/) && RLENGTH == envind) ? "env" : "-"
 				printf "%s\t%s\t%s\n", ok ? "OK" : "BAD", kind, line
 				off = off + rs + rl - 1
 				scan = substr(scan, rs + rl)
@@ -258,7 +266,10 @@ cgo_cflags_assignments() {
 
 # makefile_exports_flag prints "yes" when the Makefile has a line that exports
 # CGO_CFLAGS (":=", "::=", ":::=", "=", or "?=", with or without "override")
-# whose value holds exactly one -std=, and it is -std=gnu17. make starts a comment
+# whose value holds exactly one -std=, and it is -std=gnu17. The export must
+# start the line (after spaces and "override"): a target-specific
+# "build: export ...", a tab-indented recipe line, and "$(eval export ...)" do
+# not export globally. make starts a comment
 # at any "#", with no space needed, so this strip differs from code_of's
 # whitespace rule (a "\#" is cut too, which can only turn a pass into a FAIL).
 # It is "no" when any other CGO_CFLAGS assignment adds a -std=, when the
@@ -281,7 +292,10 @@ makefile_exports_flag() {
 			op = substr($0, RSTART, RLENGTH)
 			sub(/^CGO_CFLAGS[[:space:]]*/, "", op)
 			val = substr($0, RSTART + RLENGTH)
-			exporting = (pre ~ /(^|[^[:alnum:]_])export([[:space:]]|$)/)
+			# Only leading spaces (a tab starts a recipe line) and the words
+			# override and export may precede the name, so "build: export ..." and
+			# "$(eval export ...)" are not the global export.
+			exporting = (pre ~ /^ *((override|export)[ \t]+)+$/ && pre ~ /export/)
 			plain = (op ~ /^(:|::|:::|\?)?=$/)
 			if (exporting && plain && std_count(val) == 1 && val ~ /-std=gnu17/) found = 1
 			else if (std_count(val) > 0) bad = 1

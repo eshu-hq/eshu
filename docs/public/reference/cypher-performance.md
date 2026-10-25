@@ -1801,8 +1801,7 @@ the bounded branch returned exactly 1,000 and excluded all third-level controls.
 Warm Bolt medians were 1.246 ms for the old 500-row shape and 2.194 ms for the
 new 1,000-row shape; all new-shape samples stayed below 2.5 ms. The intended
 accuracy gain doubles the useful result set while keeping traversal depth and
-latency bounded. See
-the repository evidence note at
+latency bounded. See the repository evidence note at
 `docs/internal/evidence/5410-sql-relationships-performance.md`
 for the graph shape, samples, source-executor PROFILE result, and NornicDB
 PROFILE-display limitation.
@@ -1819,3 +1818,4 @@ write counters; no metric, span, queue, or runtime knob was added.
 - [Local Testing](local-testing.md)
 - [Telemetry Overview](telemetry/index.md)
 - [Graph Backend Operations](graph-backend-operations.md)
+- [Runtime Declaration Graph Writes](cypher-runtime-declarations.md)

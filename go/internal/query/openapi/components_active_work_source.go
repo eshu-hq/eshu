@@ -37,3 +37,20 @@ const componentsTerraformStateSource = `      "TerraformStateSource": {
         }
       },
 `
+
+// componentsCoordinatorSource documents the coordinator_source object of the
+// routes that render the workflow coordinator section (#8828): the same five
+// keys and closed value sets as ActiveWorkSource, with a coordinator
+// description. TestOpenAPIDocumentsTheCoordinatorSource keeps the enums equal.
+const componentsCoordinatorSource = `      "CoordinatorSource": {
+        "type": "object",
+        "description": "Where the coordinator section of a status report (collector instances, work-item, run, and completeness status counts, claims, collector backpressure, and the collector terminal failures that feed collector health) came from, and how old it is. A stored coordinator_snapshot row is counted at its as_of: the counts are true at as_of to within the writer pass (see docs/internal/evidence/8828-coordinator-snapshot-model.md), the oldest-pending, oldest-retry, and oldest-claim ages are advanced to the read, and the next-retry delay is reduced by it. Counts are counts of the rows workflow_work_items retains, not cumulative history, so with retention on they fall as old rows are pruned. age_seconds is the freshness bound of the whole section. The live statements are true at the snapshot clock. Absent when the status reader reports no source.",
+        "properties": {
+          "source": {"type": "string", "enum": ["model", "live", "live_fallback"], "description": "model: a stored coordinator_snapshot row that passed every fence. live: the stored-summary reader is off, so the live workflow statements ran. live_fallback: the stored row could not be served, so the live statements answered the whole section; reason says why."},
+          "reason": {"type": "string", "enum": ["fresh", "flag_off", "missing", "not_installed", "version", "row_count", "stale", "decode"], "description": "fresh: served from the row. flag_off: the reader is off. missing: no row yet. not_installed: the table does not exist yet. version: the row was written by another schema or statement version. row_count: the stored row_count disagrees with its payload. stale: the row is older than the configured stale limit. decode: the row could not be decoded."},
+          "as_of": {"type": "string", "format": "date-time", "description": "The time the coordinator counts are true at: the stored row's as_of for source model, otherwise the snapshot clock."},
+          "age_seconds": {"type": "number", "description": "How old the served coordinator data was at the read, from the database clock; 0 for a live read. Alert on this growing: it means the reducer writer is down or slow."},
+          "stale": {"type": "boolean", "description": "Always false on a status route: a stored row that is too old is never served. The live statements answer and reason says stale. The runtime /metrics scrape reports staleness through eshu_runtime_status_summary_stale{model_key=\"coordinator_snapshot\"}."}
+        }
+      },
+`

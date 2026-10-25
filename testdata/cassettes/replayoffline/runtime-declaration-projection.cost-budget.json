@@ -1,0 +1,10 @@
+{
+  "scenario": "runtime-declaration-projection",
+  "cassette": "none: the runtime_declaration_projection handler reads flat fact envelopes, not a CanonicalMaterialization; the repository fact and three runtime_declaration.version facts (one .tool-versions line with two node tokens, one .python-version line) live inline in go/internal/replay/costcounting/runtime_declaration_cost_test.go",
+  "description": "One full generation of one repository with three declarations, driven through the production declaration.Handler and edgewriter.RuntimeDeclarationWriter over an InstrumentedExecutor. The handler issues one whole-repository retract (no rows parameter, so it does not move eshu_dp_neo4j_batches_executed_total) and one UNWIND write batch for all three rows, giving eshu_dp_neo4j_batches_executed_total=1 and statements_executed=2. Any increase means the handler writes more than one batch per intent, the N+1 pattern this gate exists to catch.",
+  "refresh_path": "manual: edit the inline fixture facts in runtime_declaration_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_neo4j_batches_executed_total": 1,
+    "statements_executed": 2
+  }
+}

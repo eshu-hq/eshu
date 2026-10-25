@@ -26,9 +26,9 @@
 - `exactVersionText` is the `MaxFieldBytes` bound plus `selector.Exact` and
   nothing else. Do not add a catalog-only version rule: a selector or notation
   form is added to `../selector/testdata/versions.txt` and `selector.Exact`
-  first. `selector_agreement_test.go` runs that table through the literal and
-  `version.ref` paths and generates text to prove the catalog never resolves
-  what `Exact` rejects. Mutants killed there: let `:` through, and replace
+  first. `shared_version_table_test.go` (`TestScanAgreesWithSharedVersionTable`)
+  runs that table through the literal and `version.ref` paths to prove the
+  catalog never resolves what `Exact` rejects. Mutants killed there: let `:` through, and replace
   `Exact` with a quote check, and drop the length cap (it fails
   `TestScanOverlongFieldIsUnsupportedNotTruncated`: a notation third part is
   not size-checked at read time, so the cap in `exactVersionText` is the only

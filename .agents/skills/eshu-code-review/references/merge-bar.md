@@ -6,6 +6,7 @@ stalled ready work.
 
 Contents: [The failure this exists to stop](#the-failure-this-exists-to-stop),
 [The bar](#the-bar), [Derivable figures](#derivable-figures),
+[Prose form](#prose-form),
 [Findings introduced by review fixes](#findings-introduced-by-review-fixes),
 [Sweeping rule text](#sweeping-rule-text), [Repeat findings](#repeat-findings),
 [Final exact-diff attestation](#final-exact-diff-attestation),
@@ -39,7 +40,8 @@ A P2 **blocks** when either is true:
    this bar bounds the loop, it does not license deferral.
 
 A wrong derivable figure meets neither criterion. See
-[Derivable figures](#derivable-figures).
+[Derivable figures](#derivable-figures). A prose-form finding meets neither
+criterion either. See [Prose form](#prose-form).
 
 A P2 **does not block** when it is genuinely orthogonal to the PR's claims,
 needs its own proof or a design decision, or would only be reachable by widening
@@ -156,6 +158,26 @@ body edit. Do not post it as an inline review thread, because an
 open thread blocks the merge. If it is already an inline thread, resolve it
 with "P3, no action".
 
+## Prose form
+
+A **prose-form** finding is about how Markdown or a code comment reads, where
+no gate reads the text: wording, style, heading phrasing, list shape,
+punctuation, and enumeration style. It is P3 in any file and on any lane. It
+goes in the verdict's P3 list, posted as a PR comment, and the author fixes it
+at their discretion or the next time they touch the file. The owner set this on
+2026-10-25 (#9093) after a CHANGELOG "colon enumeration" note blocked a
+two-file conflict fix as P2. The writing standard governs how we write; a
+reviewer's taste is not a merge authority.
+
+Prose **correctness** keeps its grade everywhere: a wrong fact or claim, a lost
+or duplicated entry, a broken reference to a real target, syntax a renderer or
+gate rejects, and any text a gate reads (environment names, the Markdown cap,
+citations, the docs build). If CI would go red on it, it is at least P2.
+
+A reviewer who files prose form as P2 has misclassified it. The author
+reclassifies it in a one-line reply instead of fixing it and asking for another
+review round.
+
 ## Findings introduced by review fixes
 
 Count these separately and say so in the verdict. This section is the single
@@ -194,7 +216,8 @@ underneath it.
 
 One clean full semantic review is required before push. Capture its inputs
 with `ci-gates review-attest capture`. `make pre-push` is the required floor
-before every push; `make pre-pr` (`make pre-pr-full` for a package move) stays
+before every push (except row 4a, tier S, or an owner push order; see Rebase
+Waiver in `eshu-code-review`); `make pre-pr` (`make pre-pr-full` for a package move) stays
 recommended, not required, for queue/lease/claim code, schema DDL, hot-path
 Cypher or graph writes, reducer projection/materialization, or a move. After
 preflight, a matching `review-attest verify` receipt replaces a duplicate full
@@ -209,7 +232,8 @@ being pushed.
 
 A rebase has its own decision table. See [Rebase Waiver](../SKILL.md#rebase-waiver),
 the [waiver note](verdict.md#waiver-note) (row 6), and the
-[scoped rebase verdict](verdict.md#scoped-rebase-verdict) (rows 3 and 4). It
+[scoped rebase verdict](verdict.md#scoped-rebase-verdict) (rows 3 and 4b);
+row 4a and tier S need neither. It
 holds the waiver conditions and the open-finding definition, which the
 deferred-P2 rule above feeds.
 

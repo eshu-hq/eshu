@@ -3,7 +3,7 @@
 # Fact family: runtime_declaration
 
 - Canonical fact owner: `eshu-hq/eshu`
-- Fact definitions: `go/internal/facts` (declared at go/internal/facts/runtime_declaration.go:60)
+- Fact definitions: `go/internal/facts` (declared at go/internal/facts/runtime_declaration.go:59)
 - Reducer domain: `runtime_declaration_projection`
 - Read surface: `none`
 
@@ -17,4 +17,4 @@
 
 | Kind | Producers | Reducer consumers | Read surface | Payload schema |
 | --- | --- | --- | --- | --- |
-| `runtime_declaration.version` | `git-core` | `none (unconsumed)` | `none` | `sdk/go/factschema/schema/runtime_declaration.version.v1.schema.json` |
+| `runtime_declaration.version` | `git-core` | `declaration/declaration_handle` | `none` | `sdk/go/factschema/schema/runtime_declaration.version.v1.schema.json` |

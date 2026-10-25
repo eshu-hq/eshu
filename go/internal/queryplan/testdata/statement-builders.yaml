@@ -485,6 +485,22 @@ builders:
             - {}
           source_sha256: 77b7f318c75ff49e076f2d58715a0c44dfd9fce1895067dc7f2ea12cf6141c8a
           exempt: executed but unattributed (single-rel 70/73, single-runson 36/37, single-art 70/73 execs in Sept-21 captures); emits branch-chosen package consts via helpers that discovery cannot resolve inter-procedurally
+    - file: internal/storage/cypher/edge/writer/runtime_declaration.go
+      builders:
+        - symbol: (*RuntimeDeclarationWriter).RetractRuntimeDeclarations
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (repo:Repository)-[:DECLARES_RUNTIME]->(d:RuntimeDeclaration) WHERE repo.id IN $repo_ids AND d.evidence_source = $evidence_source DETACH DELETE d
+          source_sha256: 0bb4a7db032ac1de0cf04e56200b201c0dbd6e90c4f0d45ea8751bb461b6dff9
+          exempt: B-7 replays each corpus repository as its first generation, so the prior-generation check skips this retract and the differential captures hold zero executions; the retract path is pinned by the leaf unit tests and runtime_declaration_live_test.go on Neo4j
+        - symbol: (*RuntimeDeclarationWriter).RetractRuntimeDeclarationsByPath
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: 'UNWIND $scopes AS row MATCH (repo:Repository {id: row.repo_id})-[:DECLARES_RUNTIME]->(d:RuntimeDeclaration) WHERE d.relative_path IN row.relative_paths AND d.evidence_source = $evidence_source DETACH DELETE d'
+          source_sha256: 8a02305dd01dd741afe391bfe59cdd84450614cf3905f5d9bc29302ed38fad48
+          exempt: B-7 replays each corpus repository as its first generation, so the prior-generation check skips this retract and the differential captures hold zero executions; the retract path is pinned by the leaf unit tests and runtime_declaration_live_test.go on Neo4j
     - file: internal/storage/cypher/edge/writer/shell_exec.go
       builders:
         - symbol: (*EdgeWriter).cleanupOrphanShellCommands

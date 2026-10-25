@@ -25,6 +25,25 @@ recent shipped work grouped by feature area.
   the next change of that repository. The repair only adds keys, so readiness
   does not flip. The git collector content version does not change.
 
+### Declared runtime versions reach the graph
+
+- **`runtime_declaration.version` facts now project to the graph as
+  `Repository-[:DECLARES_RUNTIME]->RuntimeDeclaration`**
+  ([#8816](https://github.com/eshu-hq/eshu/issues/8816), part of
+  [#8807](https://github.com/eshu-hq/eshu/issues/8807)). A new reducer domain,
+  `runtime_declaration_projection`, writes one `RuntimeDeclaration` node per
+  declared version, keyed on (repository, file, line, runtime, token
+  position), with the spec, its kind and the parsed version parts. Version
+  parts stay null for aliases, ranges and unresolved specs. A full generation
+  replaces a repository's declarations; a delta generation replaces only the
+  declarations of the files it changed or deleted, so deleting a pin file
+  removes its declarations. The graph schema gains the
+  `runtime_declaration_identity` constraint and a `(runtime, version_major)`
+  index for the coming version-threshold query (#8817). The extra follow-up
+  fact moves `gitGenerationContentVersion` to `git-collector.v15`, so each
+  repository re-collects once. Evidence:
+  `docs/internal/evidence/8816-runtime-declaration-graph.md`.
+
 ### Parser reads: one per-file read cap
 
 - **A parser file over 64 MiB is skipped instead of read whole**
@@ -184,9 +203,9 @@ recent shipped work grouped by feature area.
   (#9101). The persisted package-consumption correlation fact now carries an
   optional `dependency_resolution_state` field (a minor, additive contract
   change that old readers ignore), and security-alert reconciliation and
-  supply-chain impact skip an `unresolved` row, so a map-form `1.0:jdk8`, a
-  `1.0!`, a `1.0+build.1` or an sbt version identifier the parser could not
-  resolve no longer becomes the installed version. A `partial` row and an
+  supply-chain impact skip an `unresolved` row, so a `1.0!`, a `1.0+build.1` or
+  an sbt version identifier the parser could not resolve no longer becomes the
+  installed version. A `partial` row and an
   ecosystem that emits no state keep today's answer; a fact written before the
   field exists keeps today's answer until its repository is re-materialized.
 

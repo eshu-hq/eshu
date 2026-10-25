@@ -1,0 +1,25 @@
+{
+ "cwd": "/WORKTREE",
+ "duration_ms": 466,
+ "effort": {
+  "level": "high"
+ },
+ "hook_event_name": "PostToolUse",
+ "permission_mode": "bypassPermissions",
+ "prompt_id": "2d148134-0baa-4a3b-9fb1-ca6d1714981e",
+ "session_id": "7db7cb25-8813-4ff1-8444-cd1661e53ff6",
+ "tool_input": {
+  "command": "echo lead",
+  "description": "Print lead"
+ },
+ "tool_name": "Bash",
+ "tool_response": {
+  "interrupted": false,
+  "isImage": false,
+  "noOutputExpected": false,
+  "stderr": "",
+  "stdout": "lead"
+ },
+ "tool_use_id": "toolu_013VHUVNbZ4rbqXXzoUx31hs",
+ "transcript_path": "/TRANSCRIPT.jsonl"
+}

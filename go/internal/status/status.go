@@ -179,6 +179,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		AnswerNarration:                normalizeAnswerNarrationStatus(raw.AnswerNarration),
 		ActiveWorkSource:               raw.ActiveWorkSource,
 		TerraformStateSource:           raw.TerraformStateSource,
+		CoordinatorSource:              raw.CoordinatorSource,
 		CollectorGenerationDeadLetters: collector.CloneGenerationDeadLetterSnapshot(raw.CollectorGenerationDeadLetters),
 		CollectorFactEvidence:          collector.CloneFactEvidence(raw.CollectorFactEvidence),
 		AWSCloudScansTruncated:         raw.AWSCloudScansTruncated,

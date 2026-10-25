@@ -31,6 +31,7 @@ var followupKeyPrefixes = map[string]string{
 	"code_import_repo_edge":            "repo:",
 	"codeowners_ownership":             "codeowners:",
 	"submodule_pin":                    "submodule:",
+	"runtime_declaration_projection":   "runtime_declaration:",
 }
 
 // deltaFollowupDomains are the follow-ups streamFacts emits before the delta
@@ -39,6 +40,7 @@ var deltaFollowupDomains = []string{
 	"rationale_materialization",
 	"codeowners_ownership",
 	"submodule_pin",
+	"runtime_declaration_projection",
 	"shell_exec_materialization",
 }
 

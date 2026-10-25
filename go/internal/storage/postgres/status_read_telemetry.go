@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 	statestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state"
+	coordinatorsnapshot "github.com/eshu-hq/eshu/go/internal/storage/postgres/workflow/snapshot"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -37,6 +38,7 @@ const (
 	statusReadProducerActivity               = "producer_activity"
 	statusReadCollectorGenerationDeadLetters = "collector_generation_dead_letters"
 	statusReadCoordinator                    = "coordinator"
+	statusReadCoordinatorModel               = "coordinator_model"
 	statusReadRegistryCollectors             = "registry_collectors"
 	statusReadAWSCloudScans                  = "aws_cloud_scans"
 	statusReadAWSFreshness                   = "aws_freshness"
@@ -122,6 +124,8 @@ func recordActiveWorkSummaryMode(ctx context.Context, summary activeWorkSummary)
 type StatusSummaryReader struct {
 	activeWork *summary.ModelReader[activeWorkSummary]
 	terraform  *summary.ModelReader[statestore.TerraformStateAdminEvidence]
+	// coordinator serves the workflow coordinator snapshot (#8828).
+	coordinator *summary.ModelReader[*statuspkg.CoordinatorSnapshot]
 }
 
 // NewStatusSummaryReader loads ESHU_STATUS_SUMMARY_READ_ENABLED and
@@ -137,8 +141,9 @@ func NewStatusSummaryReader(getenv func(string) string) (*StatusSummaryReader, e
 // NewStatusSummaryReaderWithConfig builds a reader from explicit settings.
 func NewStatusSummaryReaderWithConfig(cfg summary.ReadConfig) *StatusSummaryReader {
 	return &StatusSummaryReader{
-		activeWork: summary.NewModelReaderWithConfig[activeWorkSummary](cfg),
-		terraform:  summary.NewModelReaderWithConfig[statestore.TerraformStateAdminEvidence](cfg),
+		activeWork:  summary.NewModelReaderWithConfig[activeWorkSummary](cfg),
+		terraform:   summary.NewModelReaderWithConfig[statestore.TerraformStateAdminEvidence](cfg),
+		coordinator: summary.NewModelReaderWithConfig[*statuspkg.CoordinatorSnapshot](cfg),
 	}
 }
 
@@ -148,6 +153,9 @@ func (r *StatusSummaryReader) Waiting() int { return r.activeWork.Waiting() }
 
 // TerraformWaiting is Waiting for the shared live Terraform-state statements.
 func (r *StatusSummaryReader) TerraformWaiting() int { return r.terraform.Waiting() }
+
+// CoordinatorWaiting is Waiting for the shared live coordinator statements.
+func (r *StatusSummaryReader) CoordinatorWaiting() int { return r.coordinator.Waiting() }
 
 // active and terraformModel return the per-model readers, nil when there is no
 // process-wide reader (the stored summary is off).
@@ -163,6 +171,13 @@ func (r *StatusSummaryReader) terraformModel() *summary.ModelReader[statestore.T
 		return nil
 	}
 	return r.terraform
+}
+
+func (r *StatusSummaryReader) coordinatorModel() *summary.ModelReader[*statuspkg.CoordinatorSnapshot] {
+	if r == nil {
+		return nil
+	}
+	return r.coordinator
 }
 
 // readActiveWork returns the active-work summary and where it came from: the
@@ -295,5 +310,81 @@ func (s StatusStore) readTerraformState(ctx context.Context, asOf time.Time) (st
 	})
 	return result.Value, statuspkg.ActiveWorkSource{
 		Source: string(result.Source), Reason: string(result.Reason), AsOf: result.AsOf, Age: result.Age,
+	}, err
+}
+
+// readCoordinator returns the workflow coordinator snapshot and where it came
+// from: the stored coordinator_snapshot row when every fence passes, otherwise
+// the live workflow statements for the whole answer (#8828). The row has its
+// own as_of and digest, so this decision is independent of the other models.
+// A selection that asks for the stored summary only (the runtime /metrics
+// scrape) never reaches the live statements while the reader is on; see
+// readCoordinatorScrape. Durations in a stored row are advanced from its as_of
+// to the read; counts stay true at as_of, and the source marker's Age is the
+// freshness bound of the whole section.
+func (s StatusStore) readCoordinator(ctx context.Context, asOf time.Time, selection statuspkg.SnapshotSelection) (*statuspkg.CoordinatorSnapshot, statuspkg.ActiveWorkSource, error) {
+	if s.startupErr != nil {
+		return nil, statuspkg.ActiveWorkSource{}, s.startupErr
+	}
+	if selection.StoredActiveWorkOnly && s.summaryReader.coordinatorModel().Enabled() {
+		return s.readCoordinatorScrape(ctx)
+	}
+	result, err := s.summaryReader.coordinatorModel().Read(ctx, asOf, summary.Hooks[*statuspkg.CoordinatorSnapshot]{
+		Select: func(ctx context.Context) (summary.Selection, error) {
+			q, done := s.read(ctx, statusReadCoordinatorModel)
+			selection, err := summary.Select(ctx, q, summary.SelectConfig{
+				ModelKey: summary.ModelCoordinatorSnapshot, SourceSHA256: CoordinatorSummarySourceSHA256(),
+				StaleAfter: s.summaryReader.coordinator.Config.StaleAfter,
+			})
+			return selection, done(err)
+		},
+		Decode: coordinatorsnapshot.Decode,
+		Live: func(ctx context.Context) (*statuspkg.CoordinatorSnapshot, error) {
+			q, done := s.read(ctx, statusReadCoordinator)
+			live, err := readCoordinatorSnapshot(ctx, q, asOf)
+			return live, done(err)
+		},
+		Clone: coordinatorsnapshot.Clone,
+		Observe: func(ctx context.Context, selection summary.Selection) {
+			summary.Observe(ctx, s.Instruments, summary.Observation{
+				ModelKey: summary.ModelCoordinatorSnapshot, SpanPrefix: "status.coordinator",
+				Source: selection.Source, Reason: selection.Reason,
+				AsOf: selection.AsOf, Age: selection.Age, SignedAge: selection.SignedAge,
+			})
+		},
+	})
+	if result.Source == summary.SourceModel {
+		coordinatorsnapshot.AdvanceAges(result.Value, result.Age)
+	}
+	return result.Value, statuspkg.ActiveWorkSource{
+		Source: string(result.Source), Reason: string(result.Reason), AsOf: result.AsOf, Age: result.Age,
+	}, err
+}
+
+// readCoordinatorScrape answers the scrape path: a fresh stored row, else the
+// newest row the process can decode (a stale one included), else no snapshot,
+// and never the live statements. The marker carries Stale for the last two and
+// the row's age at this read; the durations are advanced by that age.
+func (s StatusStore) readCoordinatorScrape(ctx context.Context) (*statuspkg.CoordinatorSnapshot, statuspkg.ActiveWorkSource, error) {
+	result, err := s.summaryReader.coordinatorModel().ReadScrape(ctx, summary.ScrapeHooks[*statuspkg.CoordinatorSnapshot]{
+		Select: func(ctx context.Context) (summary.Selection, error) {
+			q, done := s.read(ctx, statusReadCoordinatorModel)
+			selection, err := summary.Select(ctx, q, summary.SelectConfig{
+				ModelKey: summary.ModelCoordinatorSnapshot, SourceSHA256: CoordinatorSummarySourceSHA256(),
+				StaleAfter: s.summaryReader.coordinator.Config.StaleAfter, DecodeStale: true,
+			})
+			return selection, done(err)
+		},
+		Decode: coordinatorsnapshot.Decode,
+		Observe: func(ctx context.Context, o summary.ScrapeObservation) {
+			o.ModelKey = summary.ModelCoordinatorSnapshot
+			summary.ObserveScrape(ctx, s.Instruments, o)
+		},
+	})
+	if result.Source != summary.SourceZero {
+		coordinatorsnapshot.AdvanceAges(result.Value, result.Age)
+	}
+	return result.Value, statuspkg.ActiveWorkSource{
+		Source: string(result.Source), Reason: string(result.Reason), AsOf: result.AsOf, Age: result.Age, Stale: result.Stale,
 	}, err
 }

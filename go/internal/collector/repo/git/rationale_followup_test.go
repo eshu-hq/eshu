@@ -84,7 +84,7 @@ func TestBuildStreamingGenerationDeltaEstimateAccountsForRationaleMarker(t *test
 		t.Fatalf("minimal delta EstimatedFactCount = %d, want conservative floor %d (repository + shell baseline + rationale)", got, want)
 	}
 	envelopes := drainFactChannel(collected.Facts)
-	if got, want := len(envelopes), 5; got != want {
+	if got, want := len(envelopes), 6; got != want {
 		t.Fatalf("minimal delta emitted facts = %d, want exact %d", got, want)
 	}
 	if got, want := collected.FactCount(), len(envelopes); got != want {

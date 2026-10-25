@@ -95,13 +95,16 @@ when:
   `-std=gnu17`, or any `CGO_CFLAGS` assignment drops the flag, adds a second
   `-std=`, uses a `${{ }}` expression, appends a later `-std=` with `+=`, or
   unsets or clears the variable (`unset`, `env -u`, `env --unset`, `env -i`,
+  `env --ignore-environment`, a bare `env -`, `declare +x` or `typeset +x`,
   `export -n`, `Remove-Item Env:`), or any `CGO_CPPFLAGS` value holds `-std=`.
   Blanks, tabs, or quotes around the key do not hide an assignment. A
   whole-line or trailing `#` comment (a `#` after whitespace) that names
   `-std=gnu17` does not count as the flag;
 - the `Makefile` has no line that exports `CGO_CFLAGS` with exactly one
   `-std=`, and it is `-std=gnu17`, or another `CGO_CFLAGS` line adds a `-std=`,
-  or it unexports the variable or sets it in a `define CGO_CFLAGS` block. make starts a comment at any `#`, so a `#` with
+  or it unexports the variable or sets it in a `define CGO_CFLAGS` block. The export must start the line (after
+  spaces and `override`): a target-specific `build: export ...`, a tab-indented
+  recipe line, or `$(eval export ...)` does not count. make starts a comment at any `#`, so a `#` with
   no space before it hides the rest of the line from the guard too;
 - a script under `scripts/` that runs `CGO_ENABLED=1 go`, or a developer
   entrypoint, lacks a non-comment line that sources `scripts/lib/cgo-cflags.sh`

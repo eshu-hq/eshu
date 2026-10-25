@@ -122,6 +122,10 @@ jobs:
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
         run: scripts/test-goal-refresh-hook.sh
 
+      - name: Run issue-capture hook test mirror
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        run: scripts/test-issue-capture-hook.sh
+
       - name: Run Muse hooks port test mirror
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
         run: scripts/test-muse-hooks.sh

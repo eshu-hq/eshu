@@ -215,11 +215,13 @@ configuration.
   replica runs the loop, but a transaction advisory lock lets exactly one
   replica compute per tick (`ESHU_STATUS_SUMMARY_WRITER_INTERVAL`, default `10s`,
   minimum `5s`) and the others count `skipped_lock`. A pass runs the status
-  active-work statement and the two Terraform-state admin-evidence statements on
-  the primary and stores the results as two rows in `status_summary_snapshots`,
-  each row in its own transaction under the same advisory lock, the active-work
-  row first. A failed or slow Terraform-state row never discards the active-work
-  row. Watch
+  active-work statement, the two Terraform-state admin-evidence statements, and
+  the workflow coordinator read (#8828: collector instances, work-item, run and
+  completeness counts, claims, backpressure, terminal failures) on the primary and
+  stores the results as three rows in `status_summary_snapshots`, each row in its
+  own transaction under the same advisory lock, the active-work row first and
+  the coordinator row last. A failed or slow companion row never discards an
+  earlier row. Watch
   `eshu_dp_status_summary_writer_passes_total{model_key,outcome}` and
   `eshu_dp_status_summary_writer_overrun_total`. The API, MCP server, and
   ingester do not run the writer.
@@ -230,8 +232,9 @@ configuration.
   `ESHU_STATUS_SUMMARY_STALE_AFTER` stops the process from starting. A row older than `ESHU_STATUS_SUMMARY_STALE_AFTER`
   (default `33s`), a missing row or table, or a row from another statement
   version runs the live statement for the whole answer; the status payload's
-  `active_work_source` object (and `terraform_state_source` on the routes that
-  render the Terraform-state section) and
+  `active_work_source` object (`terraform_state_source` on the routes that
+  render the Terraform-state section and `coordinator_source` on the routes that
+  render the coordinator section) and
   `eshu_dp_status_summary_read_total{model_key,source,reason}` report which path
   answered. A runtime's `/metrics` scrape never falls back
   to the live statement: a stale or missing row serves the newest row that

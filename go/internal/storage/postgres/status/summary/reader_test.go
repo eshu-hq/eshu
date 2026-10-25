@@ -71,6 +71,15 @@ func (r *readerRows) Scan(dest ...any) error {
 			default:
 				return fmt.Errorf("readerRows: %T is not a time for a NullTime", v)
 			}
+		case *sql.NullString:
+			switch v := row[i].(type) {
+			case sql.NullString:
+				*d = v
+			case nil:
+				*d = sql.NullString{}
+			default:
+				return fmt.Errorf("readerRows: %T is not a string for a NullString", v)
+			}
 		case *[]byte:
 			*d = row[i].([]byte)
 		default:
@@ -102,6 +111,10 @@ type sourceQueryer struct {
 	tfWarnings  [][]any
 	tfLiveRuns  atomic.Int32
 	tfModelRead atomic.Int32
+
+	// coordRow is the stored coordinator_snapshot row (nil means none).
+	coordRow       []any
+	coordModelRead atomic.Int32
 }
 
 func (q *sourceQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
@@ -120,6 +133,9 @@ func (q *sourceQueryer) QueryContext(ctx context.Context, query string, args ...
 		if len(args) == 1 && args[0] == summary.ModelTerraformState {
 			q.tfModelRead.Add(1)
 			row = q.tfRow
+		} else if len(args) == 1 && args[0] == summary.ModelCoordinatorSnapshot {
+			q.coordModelRead.Add(1)
+			row = q.coordRow
 		} else {
 			q.modelReads.Add(1)
 		}

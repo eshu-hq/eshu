@@ -175,7 +175,7 @@ func (h *StatusHandler) listIngesters(w http.ResponseWriter, r *http.Request) {
 	// health, queue, and coordinator-instance counts, so it loads a filtered
 	// snapshot that skips the fact_records aggregates (see issue #3368) and the
 	// Terraform-state reads (#7009).
-	var activeWorkSource status.ActiveWorkSource
+	var activeWorkSource, coordinatorSource status.ActiveWorkSource
 	if h.StatusReader != nil {
 		_, report, err := loadStatusReportFiltered(
 			r.Context(),
@@ -186,6 +186,7 @@ func (h *StatusHandler) listIngesters(w http.ResponseWriter, r *http.Request) {
 		)
 		if err == nil {
 			activeWorkSource = report.ActiveWorkSource
+			coordinatorSource = report.CoordinatorSource
 			ingesters[0]["health"] = report.Health.State
 			ingesters[0]["queue_outstanding"] = report.Queue.Outstanding
 			if report.Coordinator != nil {
@@ -194,11 +195,11 @@ func (h *StatusHandler) listIngesters(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	WriteJSON(w, http.StatusOK, withActiveWorkSource(map[string]any{
+	WriteJSON(w, http.StatusOK, withCoordinatorSource(withActiveWorkSource(map[string]any{
 		"version":   buildinfo.AppVersion(),
 		"ingesters": ingesters,
 		"count":     len(ingesters),
-	}, activeWorkSource))
+	}, activeWorkSource), coordinatorSource))
 }
 
 // getIngesterStatus returns detailed status for a specific ingester.
@@ -241,7 +242,7 @@ func (h *StatusHandler) getIngesterStatus(w http.ResponseWriter, r *http.Request
 		coordinator = scopedCoordinatorToMap(report.Coordinator)
 	}
 
-	WriteJSON(w, http.StatusOK, withActiveWorkSource(map[string]any{
+	WriteJSON(w, http.StatusOK, withCoordinatorSource(withActiveWorkSource(map[string]any{
 		"version":         buildinfo.AppVersion(),
 		"ingester":        ingester,
 		"runtime_family":  "ingester",
@@ -251,7 +252,7 @@ func (h *StatusHandler) getIngesterStatus(w http.ResponseWriter, r *http.Request
 		"scope_activity":  scopeActivityToMap(report.ScopeActivity),
 		"stage_summaries": stageSummariesToSlice(report.StageSummaries),
 		"domain_backlogs": domainBacklogsToSlice(report.DomainBacklogs, report.QueueBlockages),
-	}, report.ActiveWorkSource))
+	}, report.ActiveWorkSource), report.CoordinatorSource))
 }
 
 // getIndexStatus returns the index status using the pipeline report as a proxy.
@@ -349,5 +350,6 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 	payload["terraform_state"] = terraformStateStatusToMap(report.TerraformState)
 	withActiveWorkSource(payload, report.ActiveWorkSource)
 	withTerraformStateSource(payload, report.TerraformStateSource)
+	withCoordinatorSource(payload, report.CoordinatorSource)
 	WriteJSON(w, http.StatusOK, payload)
 }

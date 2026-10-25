@@ -118,6 +118,12 @@ func statusSummaryWriterFor(
 			Compute: func(ctx context.Context, queryer db.Queryer, _ time.Time) ([]snapshots.Entry, error) {
 				return statestore.SummaryEntries(ctx, queryer)
 			},
+		}, {
+			// The workflow coordinator snapshot is the third row of the pass
+			// (#8828), last so its cost never delays the others.
+			ModelKey:     snapshots.ModelCoordinatorSnapshot,
+			SourceSHA256: postgres.CoordinatorSummarySourceSHA256(),
+			Compute:      postgres.ReadCoordinatorSummaryEntries,
 		}},
 		Interval:    cfg.Interval,
 		Tracer:      tracer,

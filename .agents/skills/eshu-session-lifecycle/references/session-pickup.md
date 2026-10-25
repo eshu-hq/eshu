@@ -53,7 +53,7 @@ turn after context compaction.
 
 6. **Verify promotion state.** Any rebase or amend invalidates the review
    receipt. Before the next push, use the current `eshu-code-review` promotion
-   sequence and run `make pre-push` (the required floor; add `make pre-pr`/
+   sequence and run `make pre-push` (the required floor, except row 4a, tier S, or an owner push order; add `make pre-pr`/
    `make pre-pr-full` only for a risky change) — an inherited summary cannot
    replace either. If HEAD did not change, inspect the actual receipt rather
    than assuming it is absent or valid.

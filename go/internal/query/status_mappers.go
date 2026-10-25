@@ -101,8 +101,22 @@ func statusReportToMapWithAWS(
 	result["terraform_state"] = terraformStateStatusToMap(r.TerraformState)
 	withActiveWorkSource(result, r.ActiveWorkSource)
 	withTerraformStateSource(result, r.TerraformStateSource)
+	withCoordinatorSource(result, r.CoordinatorSource)
 
 	return result
+}
+
+// withCoordinatorSource adds the coordinator_source object (#8828) that says
+// whether the coordinator section (collector instances, work-item, run, and
+// completeness counts, claims, backpressure) came from the stored
+// coordinator_snapshot row or the live workflow statements, and how old it is.
+// It has the shape and the closed value sets of active_work_source. It adds no
+// key when the status reader reports no source. It returns payload for chaining.
+func withCoordinatorSource(payload map[string]any, source status.ActiveWorkSource) map[string]any {
+	if view := source.JSON(); view != nil {
+		payload["coordinator_source"] = view
+	}
+	return payload
 }
 
 // withActiveWorkSource adds the active_work_source object (#7009) that says

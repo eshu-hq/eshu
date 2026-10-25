@@ -223,10 +223,11 @@ func TestBuildStreamingGenerationDeltaEmitsWholeRepoResolveFollowups(t *testing.
 	}
 
 	want := map[string]int{
-		"shell_exec_materialization": 1,
-		"codeowners_ownership":       1,
-		"submodule_pin":              1,
-		"rationale_materialization":  1,
+		"shell_exec_materialization":     1,
+		"codeowners_ownership":           1,
+		"submodule_pin":                  1,
+		"runtime_declaration_projection": 1,
+		"rationale_materialization":      1,
 	}
 	if !reflect.DeepEqual(domainCounts, want) {
 		t.Fatalf("delta generation shared_followup reducer_domain counts = %#v, want %#v", domainCounts, want)

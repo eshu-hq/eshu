@@ -11,6 +11,10 @@ TABLE = {
             "TestWritersBesideTheProductionClaimLoopLive",
             "TestDrainActiveBackendsLive",
         ),
+        "go/internal/reducer/status/summary/coordinator_live_test.go": (
+            "TestCoordinatorModelServedEqualToLiveLive",
+            "TestCoordinatorWritersBesideQueueTrafficLive",
+        ),
         "go/internal/reducer/status/summary/reader_live_test.go": (
             "TestReaderServesWhatTheWriterStoredEqualToLiveLive",
             "TestReaderFallsBackAndNeverMixesWhenTheRowIsStaleLive",
