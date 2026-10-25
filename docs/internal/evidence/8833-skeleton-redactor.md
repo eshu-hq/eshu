@@ -70,21 +70,23 @@ So a repository with no `.npmrc` goes from about 8.1 ns to 2.35 ns per emitted
 file. A repository with an `.npmrc` has a non-empty map and takes the lookup as
 before.
 
-Performance Evidence: new code, measured on the head only, means of 6 runs:
+Performance Evidence: new code, measured on the head only. The skeleton rows are
+means of 6 interleaved runs against the previous commit's source, which they
+match within noise; the host was busier than for the earlier rows:
 
 | Benchmark | ns/op | MB/s | allocs |
 | --- | --- | --- | --- |
-| `BenchmarkRedactSkeleton/typical` (8-line tfvars) | 10188 | 13.5 | 27 |
-| `BenchmarkRedactSkeleton/clean_1MiB` (allowlisted values) | 42.6 ms | 24.6 | 123395 |
-| `BenchmarkRedactSkeleton/dense_1MiB` (a finding every fifth line) | 114.3 ms | 8.9 | 247626 |
+| `BenchmarkRedactSkeleton/typical` (8-line tfvars) | 11300 | 12.2 | 28 |
+| `BenchmarkRedactSkeleton/clean_1MiB` (allowlisted values) | 52.3 ms | 20.0 | 123400 |
+| `BenchmarkRedactSkeleton/dense_1MiB` (a finding every fifth line) | 123 ms | 8.5 | 247640 |
 | `BenchmarkRedactMarkerURLKeys` (typical body, URL keys listed) | 50602 | 2.8 | 40 |
 
 The skeleton redactor parses every non-empty line, about one allocation per
-line, so a clean body costs about 3.7 times the marker's prefiltered clean
+line, so a clean body costs several times the marker's prefiltered clean
 body. Governed bodies are capped at `MaxGovernedBodyBytes` (4 MiB). The worst
-case is therefore about 0.46 s per pass at the dense rate, run twice per
+case is therefore about 0.5 s per pass at the dense rate, run twice per
 collection. tfvars files are small configuration files: a typical one costs
-about 10 µs. Neither redactor runs until part 2 binds a definition.
+about 11 µs. Neither redactor runs until part 2 binds a definition.
 
 ## Observability Evidence
 
