@@ -32,7 +32,7 @@ jobs:
   static-mirror:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}
     name: static mirror
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
@@ -59,7 +59,7 @@ jobs:
     # commit the result. The cheap static-mirror contract check above still runs
     # on every PR, so a change to the generator script is still validated
     # pre-merge.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: static-mirror
     timeout-minutes: 45
     steps:

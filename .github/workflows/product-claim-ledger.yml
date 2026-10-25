@@ -56,7 +56,7 @@ jobs:
     needs: queue-selection
     name: Verify product claim ledger
     timeout-minutes: 15
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}

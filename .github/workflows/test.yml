@@ -32,7 +32,7 @@ jobs:
     needs: [queue-selection, pr-plan]
     if: ${{ github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse') }}
     name: Detect code changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       code: ${{ steps.filter.outputs.code || steps.merge_group_code.outputs.code }}
@@ -65,7 +65,7 @@ jobs:
               - '!.agents/**'
   pr-plan:
     needs: queue-selection
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions: {checks: read, contents: read, pull-requests: read, statuses: read}
     timeout-minutes: 5
     outputs:
@@ -130,7 +130,7 @@ jobs:
   markdown-file-cap:
     if: ${{ github.event_name == 'merge_group' || (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'markdown-file-cap'))) }}
     needs: [queue-selection, pr-plan]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Require queue selection to succeed
@@ -154,7 +154,7 @@ jobs:
   scripts-file-cap:
     if: ${{ github.event_name == 'merge_group' || (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'scripts-file-cap'))) }}
     needs: [queue-selection, pr-plan]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Require queue selection to succeed
@@ -173,7 +173,7 @@ jobs:
   dirgate:
     if: ${{ github.event_name == 'merge_group' || (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'dirgate'))) }}
     needs: [queue-selection, pr-plan]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Require queue selection to succeed
@@ -200,7 +200,7 @@ jobs:
   merge-group-slim:
     if: ${{ github.event_name == 'merge_group' || ((github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'merge-group-slim'))) && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true')) }}
     needs: [queue-selection, changes, pr-plan]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - name: Require queue selection to succeed
@@ -250,7 +250,7 @@ jobs:
   verify-contracts:
     if: ${{ github.event_name == 'merge_group' || ((github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'verify-contracts'))) && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts'))) }}
     needs: [queue-selection, changes, pr-plan]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Require queue selection to succeed
@@ -284,7 +284,7 @@ jobs:
   go-core:
     if: ${{ github.event_name == 'merge_group' || ((github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'go-core'))) && ((github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') && (github.event_name != 'pull_request' || needs.pr-plan.outputs.mode != 'reuse')) && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) }}
     needs: [queue-selection, changes, pr-plan]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
@@ -330,7 +330,7 @@ jobs:
   go-core-complete:
     needs: [queue-selection, changes, go-core, pr-plan]
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - {name: Require queue selection to succeed, if: "${{ always() && github.event_name == 'merge_group' }}", run: 'test "${{ needs.queue-selection.result }}" = success'}
@@ -358,7 +358,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
@@ -416,7 +416,7 @@ jobs:
   go-race-complete:
     needs: [queue-selection, changes, go-race, pr-plan]
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - {name: Require queue selection to succeed, if: "${{ always() && github.event_name == 'merge_group' }}", run: 'test "${{ needs.queue-selection.result }}" = success'}
@@ -440,7 +440,7 @@ jobs:
   docs-helm-hygiene:
     if: ${{ github.event_name == 'merge_group' || (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'docs-helm-hygiene'))) }}
     needs: [queue-selection, pr-plan]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Require queue selection to succeed

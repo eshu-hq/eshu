@@ -88,7 +88,7 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'methodology-scale')) && (github.event_name == 'workflow_dispatch') }}
     needs: queue-selection
     name: methodology scale (neo4j)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Run 38032713508 reached its serial report after 30m8s from first job
     # setup log, then the 30m job limit canceled the concurrent stage. Ten
     # operations (#7009 pilots included) x ceil(20 requests / 4 workers) x
@@ -191,7 +191,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}
     needs: queue-selection
     name: static-mirror (work budget refresh)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require queue selection to succeed
@@ -221,7 +221,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror-backend-latency-compare') }}
     needs: queue-selection
     name: static-mirror (backend latency comparator)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require queue selection to succeed
@@ -245,7 +245,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'latency-gate') }}
     needs: queue-selection
     name: latency-gate (nornicdb)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       # Fixed (not PID-derived) so the log-dump and teardown steps below can
