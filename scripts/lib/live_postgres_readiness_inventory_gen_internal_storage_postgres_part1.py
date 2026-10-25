@@ -26,6 +26,9 @@ TABLE = {
             "TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsFixturePackageManifests",
             "TestFixtureDirPatternAgreesBetweenPostgresAndGo",
         ),
+        "go/internal/storage/postgres/alert_fanout_cursor_live_test.go": (
+            "TestSecurityAlertFanoutCursorLive",
+        ),
         "go/internal/storage/postgres/alert_read_state_commit_live_test.go": (
             "TestSecurityAlertReadStateLiveCommit",
         ),
@@ -41,6 +44,19 @@ TABLE = {
         "go/internal/storage/postgres/blockage_holder_live_test.go": (
             "TestReducerConflictBlockageNamesHolderDomain",
             "TestActiveWorkSummaryHolderLookupScansLeasesOnce",
+        ),
+        "go/internal/storage/postgres/collector_terminal_failure_ack_live_test.go": (
+            "TestTerminalFailureAckStoreRefusalsLive",
+            "TestTerminalFailureAckStoreRecordsAndSuppressesLive",
+            "TestTerminalFailureAckStoreConcurrentLive",
+            "TestTerminalFailureAckStoreRacesFailureWritesLive",
+        ),
+        "go/internal/storage/postgres/collector_terminal_failure_list_live_test.go": (
+            "TestTerminalFailureListSemanticsLive",
+            "TestTerminalFailureListPagesAreDisjointLive",
+            "TestTerminalFailureListNeverCarriesMessageOrReasonLive",
+            "TestTerminalFailureListUsesTheWindowIndexLive",
+            "TestCollectorFailureDiscoveryAcknowledgeLoopLive",
         ),
         "go/internal/storage/postgres/container_image_identity_epoch_barrier_live_test.go": (
             "TestContainerImageIdentityEpochBarrierDefersPendingLive",
@@ -320,6 +336,9 @@ TABLE = {
         "go/internal/storage/postgres/migration_169_reader_bound_live_test.go": (
             "TestMigration169PhasedBackfillReaderBoundLive",
         ),
+        "go/internal/storage/postgres/package_manifest_central_pin_live_test.go": (
+            "TestNotCentralVersionDeclarationSQLAgreesWithGoLive",
+        ),
         "go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go": (
             "TestPackageManifestConsumptionBackfillRepairsOldWriterAfterReadyLive",
             "TestPackageManifestConsumptionBackfillPagesHeavyScopeLive",
@@ -360,6 +379,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/projector_queue_ack_journal_cost_live_test.go": (
             "TestProjectorAckJournalCost",
+            "TestProjectorAckJournalCostCacheImbalance",
         ),
         "go/internal/storage/postgres/projector_queue_ack_journal_equivalence_live_test.go": (
             "TestProjectorAckJournalEquivalence",
@@ -462,25 +482,6 @@ TABLE = {
         "go/internal/storage/postgres/recovery_refinalize_delta_active_live_test.go": (
             "TestRefinalizeDeltaActiveRequestsFullReindex",
             "TestRefinalizeDeltaActiveConvergesAcrossTwoCalls",
-        ),
-        "go/internal/storage/postgres/recovery_refinalize_fence_admission_live_test.go": (
-            "TestRefinalizeFenceAdmissionDeadlineStopsAfterFenceAcquire",
-            "TestRefinalizeFenceAdmissionPersistentHolderExhaustsWithoutConvoy",
-            "TestRefinalizeFenceAdmissionBoundsRetryBegin",
-            "TestRefinalizeFenceAdmissionCallerCancellation",
-            "TestRefinalizeFenceAdmissionWriteAndCommitFailuresKeepTheirCauses",
-        ),
-        "go/internal/storage/postgres/recovery_refinalize_lock_convoy_live_test.go": (
-            "TestRefinalizeFenceDoesNotConvoyUnrelatedQueueWrite",
-            "TestRefinalizeFenceRetryBudgetIncludesReducerDrain",
-        ),
-        "go/internal/storage/postgres/recovery_replay_lock_order_interleave_live_test.go": (
-            "TestRecoveryReplayTwoSessionsBlockOneWayLive",
-            "TestRecoveryReplayHeldRowRaceLive",
-            "TestRecoveryReplayDropsRowChangedBeforeItsLockLive",
-        ),
-        "go/internal/storage/postgres/recovery_replay_lock_order_live_test.go": (
-            "TestRecoveryReplayConcurrentReplaysNeverDeadlockLive",
         ),
     },
 }
