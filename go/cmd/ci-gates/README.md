@@ -396,11 +396,12 @@ selects only; it does not run or await jobs.
 ### contexts
 
 ```bash
-ci-gates contexts --registry specs/ci-gates.v1.yaml [--json]
+ci-gates contexts --registry specs/ci-gates.v1.yaml [--json] [--ruleset-only]
 ```
 
-Prints the required-status manifest. JSON includes each context's pinned GitHub
-App integration ID and is consumed by the live effective-rules verifier.
+Prints the required-status manifest. JSON adds each context's pinned GitHub App
+integration ID and `ruleset_required`; `--ruleset-only` drops entries with
+`ruleset_required: false`, as the live-rules verifier does (`await`/`reuse` do not).
 
 ### validate
 

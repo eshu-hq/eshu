@@ -178,6 +178,8 @@ func ExtractSecurityAlertConsumptions(envelopes []facts.Envelope) []SecurityAler
 			DirectDependency: securityAlertPayloadBoolPointer(envelope.Payload, "direct_dependency"),
 			DependencyScope:  securityAlertDependencyScope(envelope.Payload),
 			Lockfile:         payloadcore.PayloadBool(envelope.Payload, "lockfile"),
+
+			DependencyResolutionState: strings.TrimSpace(payloadcore.PayloadStr(envelope.Payload, "dependency_resolution_state")),
 		})
 	}
 	return consumptions

@@ -139,6 +139,12 @@ type RequiredStatusCheck struct {
 	// AggregatesBlockingGates marks the required context that waits for every
 	// path-selected gate whose Blocking field is true.
 	AggregatesBlockingGates bool
+	// RulesetRequired reports whether the live GitHub ruleset lists Context as
+	// a required status check. Load defaults it to true when the registry omits
+	// ruleset_required. A false entry (the Main Health aggregate publisher)
+	// stays in the manifest for the publisher contract but is excluded from the
+	// live-ruleset comparison (ci-gates contexts --ruleset-only).
+	RulesetRequired bool
 }
 
 // Gate is a single CI/local gate entry in the registry.
@@ -423,6 +429,7 @@ func Load(path string) (*Registry, error) {
 		if context == "" {
 			return nil, fmt.Errorf("ci-gates registry %s: required_status_checks[%d] has blank context", path, i)
 		}
+		rulesetRequired := rf.RulesetRequired == nil || *rf.RulesetRequired
 		reg.RequiredStatusChecks = append(reg.RequiredStatusChecks, RequiredStatusCheck{
 			Context:                 context,
 			Workflow:                strings.TrimSpace(rf.Workflow),
@@ -430,6 +437,7 @@ func Load(path string) (*Registry, error) {
 			SourceWorkflow:          strings.TrimSpace(rf.SourceWorkflow),
 			IntegrationID:           rf.IntegrationID,
 			AggregatesBlockingGates: rf.AggregatesBlockingGates,
+			RulesetRequired:         rulesetRequired,
 		})
 	}
 

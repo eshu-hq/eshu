@@ -55,6 +55,13 @@ type SecurityAlertConsumption struct {
 	DirectDependency *bool
 	DependencyScope  string
 	Lockfile         bool
+	// DependencyResolutionState is the state the parser gave the manifest row
+	// ("resolved", "partial", "unresolved"), read from the manifest evidence or
+	// from the persisted fact's dependency_resolution_state. It is empty when
+	// the ecosystem emits none and for a fact written before the field existed.
+	// An unresolved row never falls back to its text as the observed version
+	// (issue #8988).
+	DependencyResolutionState string
 }
 
 // SecurityAlertImpact is one reducer_supply_chain_impact_finding fact,

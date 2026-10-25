@@ -74,8 +74,9 @@ func buildSecurityAlertImpactFinding(
 	observedVersion := strings.TrimSpace(consumption.ObservedVersion)
 	if observedVersion == "" {
 		if manifestVersion, ok := exactConsumptionDependencyVersion(alert.Ecosystem, supplychainmodel.PackageConsumption{
-			DependencyRange: consumption.DependencyRange,
-			Lockfile:        consumption.Lockfile,
+			DependencyRange:           consumption.DependencyRange,
+			DependencyResolutionState: consumption.DependencyResolutionState,
+			Lockfile:                  consumption.Lockfile,
 		}); ok {
 			observedVersion = manifestVersion
 		}

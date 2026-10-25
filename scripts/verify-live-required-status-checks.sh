@@ -12,7 +12,8 @@
 #     required_status_checks rule (extra rule types such as copilot_code_review
 #     or merge_queue pass);
 #   - the effective rules for the branch require exactly the registry's
-#     contexts.
+#     ruleset_required contexts (ci-gates contexts --ruleset-only). The
+#     aggregate publisher (required-gates-complete) is ruleset_required: false.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,6 +25,9 @@ ruleset_name="${ESHU_RULESET_NAME:-main protection}"
 require_visible_bypass_actors="${ESHU_REQUIRE_VISIBLE_BYPASS_ACTORS:-true}"
 branch="${ESHU_RULESET_BRANCH:-main}"
 repo="${GITHUB_REPOSITORY:-eshu-hq/eshu}"
+# #9089: only registry entries with ruleset_required true are compared with the
+# live ruleset; the aggregate publisher is not a ruleset-required context.
+registry_path="${ESHU_CI_GATES_REGISTRY:-${repo_root}/specs/ci-gates.v1.yaml}"
 
 if [[ "${require_visible_bypass_actors}" != "true" && "${require_visible_bypass_actors}" != "false" ]]; then
 	echo "ESHU_REQUIRE_VISIBLE_BYPASS_ACTORS must be true or false" >&2
@@ -38,11 +42,11 @@ if [[ -n "${expected_source}" ]]; then
 else
 	(
 		cd "${repo_root}/go"
-		go run ./cmd/ci-gates contexts --registry ../specs/ci-gates.v1.yaml --json
+		go run ./cmd/ci-gates contexts --registry "${registry_path}" --ruleset-only --json
 	) >"${tmp_dir}/expected-source.json"
 fi
 
-jq -S 'sort_by(.context, .integration_id)' \
+jq -S '[.[] | {context, integration_id}] | sort_by(.context, .integration_id)' \
 	"${tmp_dir}/expected-source.json" >"${tmp_dir}/expected.json"
 
 if [[ -n "${effective_source}" ]]; then

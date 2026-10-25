@@ -49,8 +49,13 @@ Every gate also declares a `layer` and a `purpose` ([#7337](https://github.com/e
 - `Load` rejects an unknown layer but allows both fields to be absent, so test registries stay small. `ci-gates validate` runs `DescriptionCheck` on the real registry and requires both fields on every gate, and it rejects a blocking gate in the `secondary` layer.
 - Neither field affects selection, blocking or check identity. They feed only validation and the "Gates by layer" section of `docs/public/reference/ci-gates.md`.
 
-The top-level `required_status_checks` manifest mirrors the contexts expected in
-the effective `main` ruleset. Exactly one entry sets
+The top-level `required_status_checks` manifest names the contexts the
+repository publishes and mirrors the ones the effective `main` ruleset requires.
+Each entry carries `ruleset_required` (default `true` when omitted). The live
+ruleset requires only the two Go umbrellas; the aggregate publisher is
+`ruleset_required: false`, so `ci-gates contexts --ruleset-only` leaves it out
+of the live-ruleset comparison (#9089). Validation requires at least one
+`ruleset_required: true` entry. Exactly one entry sets
 `aggregates_blocking_gates: true` and names its trusted `source_workflow`.
 Matrix jobs declare their concrete API-visible check names in `ci.check_names`;
 the aggregate never relies on a prefix match. `main` merges through a merge
