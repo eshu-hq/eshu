@@ -4,6 +4,7 @@
 package gitcontent
 
 import (
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"slices"
@@ -259,8 +260,10 @@ func grammarAllowed(value string) bool {
 		return true
 	}
 	if strings.Trim(value, "0123456789.eE+-") == "" {
+		// A literal past float64 (1E1000) is still a number: ErrRange is not a
+		// syntax error.
 		_, err := strconv.ParseFloat(value, 64)
-		return err == nil
+		return err == nil || errors.Is(err, strconv.ErrRange)
 	}
 	if root, rest, ok := strings.Cut(value, "."); ok && slices.Contains([]string{"var", "local", "module", "data"}, root) {
 		return strings.Trim(rest, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.[]") == ""

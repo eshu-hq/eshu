@@ -157,4 +157,8 @@ from a real `telemetry.Instruments` and asserts the log holds no credential.
   of the scan and of the state decisions in `advance` each fail this test or
   the fuzz seeds.
 - `FuzzRedactSkeleton` and `FuzzRedactMarkerURLKeys` run the same invariants.
-  The 40 to 60 s local runs passed.
+  The 60 s local runs pass at the final head. A round-4 run found one false
+  positive in the test grammar, not in the redactor: `A:1E1000` is a number the
+  allowlist keeps, but `strconv.ParseFloat` reports a range error. The grammar
+  now accepts it, and the input stays as a seed in
+  `testdata/fuzz/FuzzRedactSkeleton`.
