@@ -31,10 +31,12 @@ rebuilding the whole snapshot, which only works for a hook that needs no path.
 | `on-compact.sh` | Claude | SessionStart, compact or resume | advisory | Points a re-grounded session at `eshu-session-lifecycle` |
 | `goal-continue.sh` | Claude | Stop | **blocking** | Refuses to end the turn while this session's goal file (`.claude/active-goal.<session_id>`, else the shared `.claude/active-goal`) names unfinished work, and hands the goal back. |
 | `goal-refresh.sh` | Claude | UserPromptSubmit | side effect | Sets a goal from `/goal <text>`, and re-injects the active goal into context on every prompt so it cannot go stale. |
+| `issue-capture.sh` | Claude, Muse | PostToolUse on Bash | side effect | Records an issue filed during a goal in the goal's ledger; `goal-continue.sh` then refuses DONE while one is open. |
 
 Muse Code runs the same files through envelope-translating wrappers in
 `.muse/hooks/` (wired by `.muse/hooks.json`): see [Muse Hooks](agent-hooks-muse.md).
 Cursor runs them through `scripts/cursor-hook.py`: see [Cursor Hooks](agent-hooks-cursor.md).
+The issue ledger behind `issue-capture.sh`: see [Goal Issue Ledger](agent-hooks-issues.md).
 
 ## Why the nudge blocks instead of suggesting
 
@@ -86,8 +88,7 @@ They are separate so that guidance prose cannot mint a skill id, and so
 
 Four of those serve Claude, and Muse Code via `.muse/hooks/`. Porting their
 pre-tool and session-start behavior to Codex still needs the `apply_patch`
-payload shape and event equivalents pinned. Do not write those adapters
-against guessed payloads.
+payload shape and event equivalents pinned. Do not write adapters against guessed payloads.
 
 The Codex `UserPromptSubmit` goal router has a live probe on `codex-cli
 0.156.1`. See [Codex Goal Hook](agent-hooks-codex-goal.md) for its payload,
@@ -158,7 +159,7 @@ to survive that:
 
 | Escape | Why it is safe to trust |
 |---|---|
-| `DONE` on the first line | Checkable against the work itself. |
+| `DONE` on the first line | Checkable against the work itself, and against the [issue ledger](agent-hooks-issues.md): open issues refuse it. |
 | `BLOCKED: … WATCH=<pid>` | The hook verifies the process is alive. **A dead watcher REFUSES the stop** — nothing would wake the agent, so waiting is the bug rather than the excuse. |
 | `BLOCKED: <reason>`, no `WATCH` | **Refused.** "Blocked" was where agents parked a hard question overnight; the refusal sends it to an arbiter model. The claim is still echoed to stderr. |
 | `CLAUDE_GOAL_OFF=1` | Owner-side, not agent-side. |

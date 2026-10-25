@@ -53,6 +53,16 @@
             "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/skill-loaded.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/issue-capture.sh",
+            "timeout": 20
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -72,7 +82,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/goal-continue.sh",
-            "timeout": 10
+            "timeout": 45
           }
         ]
       }

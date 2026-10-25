@@ -34,7 +34,8 @@ lives in CI, not in any local command: the `required-gates-complete` aggregate
 `go-race-complete`) collects every Ifá/Odù gate (fault injection, dead-letter
 matrix, load saturation, replay drive, contract-layer, materialized-edge
 coverage, determinism) plus every other `blocking: true` registry row for the
-changed paths, and a merge requires it green. The live Ifá/Odù cells (fault
+changed paths. It is disabled as a required check for now; a red gate under it
+is still a finding ([When a PR may merge](agent-git-hygiene.md#when-a-pr-may-merge)). The live Ifá/Odù cells (fault
 injection, determinism and dead-letter matrices) need Docker/NornicDB/Postgres
 and never ran locally; `make pre-pr` ran only their static mirrors. The
 hermetic Ifá rows (load saturation, contract-layer, materialized-edge coverage)

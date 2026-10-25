@@ -75,7 +75,8 @@ liveness misjudgement.
 4. Capture the clean review's inputs with `ci-gates review-attest capture`.
    For a waiver note or a scoped rebase verdict, run `make pre-push` first and
    capture after it exits 0.
-   Run `make pre-push` before every push — the required floor (changed-package
+   Run `make pre-push` before every push (except row 4a, tier S, or an owner push order; see Rebase
+   Waiver in `eshu-code-review`) — the required floor (changed-package
    test/lint/build/vet, file cap, registry-selected static gates,
    docs-contradiction). For queue/lease/claim code, schema DDL, hot-path
    Cypher or graph writes, reducer projection/materialization, or a package
@@ -93,19 +94,25 @@ liveness misjudgement.
    commit, tree, worktree, submodule, PR claim, review packet, or verdict
    requires affected proof and a new full review/receipt before promotion.
    The one exception is a rebase. The decision table in `eshu-code-review`
-   ("Rebase Waiver") sends it to a waiver note, a scoped re-review with a
-   scoped rebase verdict, or the full review.
+   ("Rebase Waiver") sends it to row 4a or tier S (no review, no
+   `make pre-push`, no receipt: run the file-type checks, comment, push; tier S
+   excludes agent-rule files and test-assertion edits), a
+   waiver note, a scoped re-review with a scoped rebase verdict, or the full
+   review. A `CHANGELOG.md` union or a regenerated pin is row 4a; do not wait
+   on a floor for it.
    On preflight failure, diagnose and fix it, rerun affected proof, and obtain
    a clean preliminary review before another attempt. Deferred P2 and cosmetic
-   P3 findings do not restart this loop. Once pushed, CI's
-   `required-gates-complete` (with `go-core-complete` and `go-race-complete`)
-   is the actual blocking authority; on a red check, reproduce only that gate
-   locally.
+   P3 findings do not restart this loop. Once pushed, CI decides the merge
+   ([When a PR may merge](../../../docs/internal/agent-git-hygiene.md#when-a-pr-may-merge));
+   on a red gate, reproduce only that gate locally.
 6. With authorization already established for the act, push the reviewed head
    and verify the remote SHA equals local HEAD before PR creation/update.
    Use `--force-with-lease` for an authorized rebase of an already-pushed branch.
    No edits may occur between verified attestation and push. Make the PR title,
    description, and affected docs match the final change and its proof.
+   An explicit owner order to push overrides the floor, the review, and the
+   receipt for that push: push now and record it (`eshu-code-review`, "Owner
+   push order"). Never refuse or ask again after the order.
 7. Arm the CI watcher in the same turn as the `gh pr create` (see
    `eshu-session-lifecycle` babysit-prs step 1: one watcher, rebuilt set,
    GHA failures + merge conflicts + any-author reviews/comments/threads;
@@ -142,10 +149,13 @@ create a goal or schedule future work by itself.
 Every GitHub issue this session creates as part of a goal MUST, in the same
 turn that creates it and before work on it starts:
 
-1. Be added to the active backlog: the active goal file's issue inventory
-   (and the GitHub Project/milestone, when the goal names one and access
-   allows — never invent a project number). A created issue outside the goal
-   inventory is an orphan and a rule violation.
+1. Be in the goal's issue ledger. The issue-capture hook records every issue
+   it sees created into `<goal file>.issues`
+   ([Issue Capture Hooks](../../../docs/internal/agent-hooks-issues.md)); add
+   one by hand only if the hook missed it. Also add it to the GitHub
+   Project/milestone when the goal names one and access allows — never invent
+   a project number. A created issue outside the ledger is an orphan and a
+   rule violation.
 2. Carry at least one **existing** label, chosen from `gh label list` output.
    Never invent a label; if no existing label fits, say so in the issue and
    the goal inventory instead of creating one silently.
@@ -153,9 +163,11 @@ turn that creates it and before work on it starts:
    (`gh issue list --label type:epic --state open`), add `Part of #<epic>` to
    the body and reference the epic from the goal inventory. When no epic fits,
    state that explicitly in the inventory.
-4. Be worked as in-goal work (a parallel lane where safe) until the goal is
-   complete with no leftover session-created issues, or explicitly deferred
-   with the owner's agreement recorded.
+4. Be worked as in-goal work, in a parallel lane where safe, now, not at the
+   end. "Filed for later" is not an outcome. The only other exit is a
+   `DEFER: #N <path>` line in the ledger, where `<path>` is an arbiter ruling
+   file that names `#N` and says why it waits. The Stop hook refuses `DONE`
+   while a ledger issue is open with neither.
 
 Tell every subagent/workflow on the goal to follow this for issues it creates.
 
@@ -163,10 +175,11 @@ Tell every subagent/workflow on the goal to follow this for issues it creates.
 
 Fix related defects inline when they fit the authorized change and its proof.
 Use `eshu-code-review`'s merge bar to classify blocking and deferred findings.
-A defect needing an owner design decision, unrelated projected-truth changes,
-or unavailable infrastructure may need separate work. Obtain owner agreement
-before creating a follow-up issue unless that act and scope are already granted;
-link it to the originating issue and epic. Do not expand the drive silently.
+A defect needing a design decision, unrelated projected-truth changes, or
+unavailable infrastructure may need separate work. Take the design decision to
+an arbiter model, not the owner. Create the follow-up issue inside the goal and
+link it to the originating issue and epic; the ledger then holds it to the goal.
+Do not expand the drive silently: say in the goal report what was added.
 A follow-up issue created under this section follows
 [Issues Created During A Goal](#issues-created-during-a-goal) in full.
 

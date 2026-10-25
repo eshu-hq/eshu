@@ -3,7 +3,8 @@
 
 Invoked by goal-refresh.sh with the goal text (minus the SESSION header) on
 stdin, CONSENT_ENV holding any launcher-side grant, and NUDGE_SKILLS holding
-the space-separated ids of named-but-unloaded project skills. Split out of
+the space-separated ids of named-but-unloaded project skills, and ISSUES_NOTE
+holding the open-issue restatement from the goal issue ledger. Split out of
 goal-refresh.sh, which the repo's 500-line file cap could otherwise not fit
 while still growing the goal-contract behavior.
 """
@@ -89,6 +90,10 @@ nudge_note = ""
 if nudge_ids:
     nudge_note = "\n\n" + " ".join("load `%s` now" % i for i in nudge_ids)
 
+# Open issues filed during this goal, from the ledger (lib/goal-issues.py list).
+issues_note = os.environ.get("ISSUES_NOTE", "").strip()
+issues_block = "\n\n" + issues_note if issues_note else ""
+
 note = (
     "ACTIVE GOAL (restated each turn so it cannot go stale):\n"
     + goal
@@ -97,6 +102,7 @@ note = (
       "Deep-tier model dispatch can settle -- their rules already cover it."
     + consent_note
     + nudge_note
+    + issues_block
 )
 print(json.dumps({"hookSpecificOutput": {
     "hookEventName": "UserPromptSubmit",

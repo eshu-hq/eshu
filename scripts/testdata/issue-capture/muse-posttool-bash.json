@@ -1,0 +1,18 @@
+{
+ "cwd": "/WORKTREE",
+ "hook_event_name": "PostToolUse",
+ "model": "muse-spark-1.3",
+ "model_provider": "meta",
+ "permission_mode": "default",
+ "session_id": "01a17341-5571-73a3-a8af-4af5298e11cf",
+ "tool_input": {
+  "command": "echo hello-muse",
+  "description": "Run hello-muse echo command",
+  "workdir": "/WORKTREE"
+ },
+ "tool_name": "bash",
+ "tool_response": "{\n  \"chunk_id\": \"exec-1-1\",\n  \"command\": \"echo hello-muse\",\n  \"description\": \"Run hello-muse echo command\",\n  \"exit_code\": 0,\n  \"terminal_status\": \"completed\",\n  \"output\": \"hello-muse\\n\",\n  \"original_output_bytes\": 11,\n  \"original_output_tokens\": 3,\n  \"truncated\": false\n}",
+ "tool_use_id": "call_01a173416f7e765284eb2a79d2ea07d7",
+ "transcript_path": null,
+ "turn_id": "01a17341-640c-7283-9135-5cc4078ed3ef"
+}
