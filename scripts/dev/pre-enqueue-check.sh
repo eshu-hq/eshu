@@ -75,7 +75,8 @@ usage() {
 		'                      GH_TOKEN=$(gh auth token --user <account>) scripts/dev/pre-enqueue-check.sh ...' \
 		'  PRE_ENQUEUE_REPO    owner/name override (default: gh repo view)' \
 		'  PRE_ENQUEUE_REMOTE  git remote to fetch from (default: origin)' \
-		'  PRE_ENQUEUE_CI_GATES  ci-gates command (default: go -C <repo>/go run ./cmd/ci-gates)' \
+		'  PRE_ENQUEUE_CI_GATES  ci-gates command, split on whitespace with no quoting' \
+		'                      (default: go -C <repo>/go run ./cmd/ci-gates)' \
 		'  PRE_ENQUEUE_REGISTRY  registry path (default: <repo>/specs/ci-gates.v1.yaml)' \
 		'  GH, GIT             command overrides for testing (default: gh, git)'
 }

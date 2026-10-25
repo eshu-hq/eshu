@@ -19,7 +19,7 @@ manifest_contexts=()
 
 # load_contexts <repo-root>: fill ruleset_contexts and manifest_contexts from
 # ci-gates. PRE_ENQUEUE_CI_GATES overrides the command (a fake in the self-test),
-# PRE_ENQUEUE_REGISTRY the registry path. Returns 1 on any read failure or an
+# split on whitespace with no quoting; PRE_ENQUEUE_REGISTRY the registry path. Returns 1 on any read failure or an
 # empty ruleset set: with nothing required the check would pass vacuously.
 load_contexts() {
 	local root="$1" registry out rc
