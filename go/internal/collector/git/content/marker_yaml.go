@@ -64,6 +64,12 @@ func checkYAMLIndirection(body string, listed []string, keyPatterns ...*regexp.R
 // returns nil: it has no YAML semantics to hide a value behind, and the line
 // check still runs.
 func checkYAMLStructure(body string, lines, listed []string, keyPatterns []*regexp.Regexp) error {
+	// A listed key or its value can only leave the key's line through an alias
+	// (*), an explicit key (?), or a double-quoted escape (\). A body with none
+	// of them needs no parse, which keeps the common file at line-redaction cost.
+	if !strings.ContainsAny(body, "*?\\") {
+		return nil
+	}
 	decoder := yaml.NewDecoder(strings.NewReader(body))
 	for {
 		var document yaml.Node

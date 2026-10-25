@@ -142,6 +142,22 @@ ungoverned files:
 The improvement comes from `ContentStoreForPath` resolving through a
 non-cloning `lookupPath`.
 
+No-Regression Evidence: the YAML structure check that marker mode runs before
+redacting a `.yarnrc.yml` (#8833 security review). It parses only a body
+that holds `*`, `?`, or a backslash. `BenchmarkRedactMarker`, interleaved
+against part 1's head, two rounds each:
+
+| Body | Part 1 | Part 2a |
+| --- | --- | --- |
+| typical `.yarnrc.yml` | 7.1 µs | 25.0 to 25.1 µs |
+| clean 1 MiB | 11.0 ms | 34.9 to 35.3 ms |
+| dense 1 MiB | 106.1 to 106.2 ms | 156.1 to 156.7 ms |
+| URL keys | 49.5 to 49.8 µs | 86.9 to 87.0 µs |
+
+Without the prefilter the clean 1 MiB body took 74 ms. A repository holds one
+or two small `.yarnrc.yml` files, so the added cost is tens of microseconds per
+repository.
+
 ## Differentials
 
 Evidence differential (`TestTfvarsSkeletonEvidenceDifferential`, tfvars sample).
