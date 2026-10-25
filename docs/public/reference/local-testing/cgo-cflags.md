@@ -12,18 +12,20 @@ Tracking issue: [#9066](https://github.com/eshu-hq/eshu/issues/9066).
 ## What fails without it
 
 The perl grammar's `scanner.c` includes `<stdlib.h>` and then its own
-`bsearch.h`, which defines `void *bsearch(...)`. On glibc 2.43 (Ubuntu 26.04,
-the `ubuntu-latest` image from 20261012.163.1) built with GCC 15, whose default
-dialect is C23, `<stdlib.h>` defines `bsearch` as a `_Generic` macro. The macro
-rewrites that definition into invalid C:
+`bsearch.h`, which defines `void *bsearch(...)`. On glibc 2.43 (Ubuntu 26.04)
+built with GCC 15, whose default dialect is C23, `<stdlib.h>` defines `bsearch`
+as a `_Generic` macro. The macro rewrites that definition into invalid C:
 
 ```text
 bsearch.h:72:7: error: expected identifier or '(' before '_Generic'
 ```
 
-The error appears only when the Go build cache misses for that package, so a PR
-with a warm cache passes and a PR with a cold cache fails every job that builds
-Go. Compiling the cgo packages as `gnu17` skips the macro. The perl grammar has
+The error appears only when the Go build cache misses for that package, so on
+such a host a warm cache passes and a cold cache fails every job that builds Go.
+The workflows run on `ubuntu-24.04` (GCC 13, glibc 2.39), which does not hit it,
+so the flag is defensive there and guards a local or CI host that moves to
+GCC 15 with glibc 2.43 (it was the 26.04 `ubuntu-latest` image before the
+runner pin). Compiling the cgo packages as `gnu17` skips the macro. The perl grammar has
 no newer release than v1.9.9, so there is no upstream fix to take.
 
 ## What the flag covers
@@ -119,5 +121,6 @@ Remove it when `go/go.mod` pins a `go-sitter-forest/perl` release that builds
 under C23. Delete the `CGO_CFLAGS` lines from the workflows and Makefile,
 delete `scripts/lib/cgo-cflags.sh` and its source lines (and the library's
 trigger entries in `specs/ci-gates.d/` and `specs/ci-pr-workflows.d/`), retire the
-`cgo-cflags-guard` gate, and prove a cold-cache build on the current runner
-image without the flag.
+`cgo-cflags-guard` gate, and prove a cold-cache build without the flag on a
+host with glibc 2.43 and GCC 15 (the 24.04 runners pass either way, so they
+prove nothing).

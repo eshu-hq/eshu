@@ -57,7 +57,7 @@ recent shipped work grouped by feature area.
   ([#9066](https://github.com/eshu-hq/eshu/issues/9066)). A Go build cache miss
   on the `go-sitter-forest/perl` grammar failed with
   `bsearch.h:72:7: error: expected identifier or '(' before '_Generic'` on
-  GCC 15 with glibc 2.43 (the current `ubuntu-latest` image), because C23's
+  GCC 15 with glibc 2.43 (the Ubuntu 26.04 `ubuntu-latest` image before the runners were pinned to `ubuntu-24.04`), because C23's
   `bsearch` macro breaks the grammar's own `bsearch` definition. Every workflow
   that builds Go, the Makefile, and the developer entrypoints (`pre-push`,
   `pre-pr`, `prove`, `run-selected-gates`, `install-local-binaries`) and the
