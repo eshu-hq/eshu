@@ -77,7 +77,9 @@ bound` (WARN); its candidate read is Postgres store
 `security_alert_shard_scopes`. To see which scopes a target has:
 `SELECT scope_id, active_generation_id FROM ingestion_scopes WHERE scope_id =
 '<scope_id>' OR parent_scope_id = '<scope_id>'`; a retired scope's active
-generation has a read state with `repositories_total = 0`.
+generation carries `scope_generations.freshness_hint =
+'security_alert_retired:v1'`. A zero `repositories_total` alone does not mark
+a retirement.
 
 `eshu_dp_security_alert_fetch_duration_seconds` records the org read as one
 `success` sample taken when that read finishes, before the fan-out. Each
