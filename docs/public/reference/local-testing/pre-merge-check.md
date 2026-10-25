@@ -24,7 +24,9 @@ the ruleset-required contexts by running `go -C go run ./cmd/ci-gates contexts`,
 so it needs Go on `PATH`. `PRE_ENQUEUE_CI_GATES` replaces that command and
 `PRE_ENQUEUE_REGISTRY` the registry path. The script splits
 `PRE_ENQUEUE_CI_GATES` on whitespace and honors no quoting, so a path or
-argument with a space fails with exit `2`; point it at a wrapper script instead.
+argument with a space becomes separate words. That usually fails with exit `2`,
+but if the first word is itself a command, that command runs with the rest as
+arguments. Point the variable at a wrapper script instead.
 If `ci-gates` cannot list a ruleset
 context, the script exits `2` rather than guess. Pass
 `--dispositioned <context>=<issue-or-reason>` before the two positionals to accept
