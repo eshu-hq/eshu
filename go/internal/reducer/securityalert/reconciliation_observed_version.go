@@ -44,6 +44,7 @@ func securityAlertObservedVersion(
 	}
 	if manifestVersion, ok := exactConsumptionDependencyVersion(
 		alert.Ecosystem,
+		consumption.DependencyResolutionState,
 		consumption.Lockfile,
 		consumption.InstalledVersion,
 		consumption.DependencyRange,
@@ -128,7 +129,12 @@ func securityAlertConsumptionEvidenceKind(consumption SecurityAlertConsumption) 
 // full supplychainmodel.PackageConsumption value type, and inlines the root's
 // one-line normalizedSupplyChainVersionEcosystem. The behaviour is equivalent;
 // the body is not the same text.
-func exactConsumptionDependencyVersion(ecosystem string, lockfile bool, installedVersion, dependencyRange string) (string, bool) {
+func exactConsumptionDependencyVersion(ecosystem, resolutionState string, lockfile bool, installedVersion, dependencyRange string) (string, bool) {
+	if strings.EqualFold(strings.TrimSpace(resolutionState), "unresolved") {
+		// The parser left the version text as written; it is not a version
+		// (issue #8988). The same rule gates supplychain/core.
+		return "", false
+	}
 	switch string(packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem))) {
 	case string(packageidentity.EcosystemCargo), string(packageidentity.EcosystemNuGet):
 		if !lockfile {

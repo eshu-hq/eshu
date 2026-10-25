@@ -97,6 +97,9 @@ func typedPackageConsumptionPayload(
 	if strings.TrimSpace(decision.DependencyScope) != "" {
 		correlation.DependencyScope = payloadcore.StringPointer(strings.TrimSpace(decision.DependencyScope))
 	}
+	if strings.TrimSpace(decision.DependencyResolutionState) != "" {
+		correlation.DependencyResolutionState = payloadcore.StringPointer(strings.TrimSpace(decision.DependencyResolutionState))
+	}
 	if strings.TrimSpace(decision.PrivateAssets) != "" {
 		correlation.PrivateAssets = payloadcore.StringPointer(strings.TrimSpace(decision.PrivateAssets))
 	}

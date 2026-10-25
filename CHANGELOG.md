@@ -181,6 +181,17 @@ recent shipped work grouped by feature area.
   collector content version moves to `git-collector.v12`, so each repository
   re-collects once and stale `resolved` selector rows are replaced.
 
+- **An unresolved manifest row never becomes an observed version in the
+  persisted-fact readers** ([#8988](https://github.com/eshu-hq/eshu/issues/8988)).
+  Package correlation already gave an `unresolved` row no observed version
+  (#9101). The persisted package-consumption correlation fact now carries an
+  optional `dependency_resolution_state` field (a minor, additive contract
+  change that old readers ignore), and security-alert reconciliation and
+  supply-chain impact skip an `unresolved` row, so a map-form `1.0:jdk8`, a
+  `1.0!`, a `1.0+build.1` or an sbt version identifier the parser could not
+  resolve no longer becomes the installed version. A `partial` row and an
+  ecosystem that emits no state keep today's answer; a fact written before the
+  field exists keeps today's answer until its repository is re-materialized.
 
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
 

@@ -35,8 +35,10 @@
 // selects every blocking CI job without path filtering, for callers whose
 // changed-path listing was truncated (giant PRs past the pull-files endpoint
 // cap): over-selection fails closed in the safe direction. The top-level
-// required status manifest names the GitHub ruleset contexts and exactly one
-// trusted aggregate publisher. Matrix jobs use explicit concrete check names.
+// required status manifest names the repository's required contexts, marks the
+// ones the live GitHub ruleset requires (RulesetRequired, default true), and
+// names exactly one trusted aggregate publisher, which the ruleset need not
+// require. Matrix jobs use explicit concrete check names.
 //
 // # Validation
 //

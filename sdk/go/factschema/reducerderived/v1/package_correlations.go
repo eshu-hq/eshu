@@ -68,6 +68,12 @@ type PackageConsumptionCorrelation struct {
 	UnresolvedMSBuildProperty *string  `json:"unresolved_msbuild_property,omitempty"`
 	AmbiguousMSBuildProperty  *string  `json:"ambiguous_msbuild_property,omitempty"`
 	PartialEvidence           *bool    `json:"partial_evidence,omitempty"`
+	// DependencyResolutionState is the state the manifest parser gave the row:
+	// "resolved", "partial", or "unresolved". A reader gives an unresolved row
+	// no observed version, because the row keeps its version text as written.
+	// It is absent for an ecosystem whose parser emits no state and for a fact
+	// written before this field existed; a reader then keeps its text fallback.
+	DependencyResolutionState *string  `json:"dependency_resolution_state,omitempty"`
 	Outcome                   *string  `json:"outcome,omitempty"`
 	Reason                    *string  `json:"reason,omitempty"`
 	ProvenanceOnly            *bool    `json:"provenance_only,omitempty"`

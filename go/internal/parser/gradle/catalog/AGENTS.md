@@ -23,6 +23,16 @@
   the grammar cannot read, a selector such as `1.+`, `latest.release`, a range,
   `!!` or `@jar`, or a colliding alias), or no row. Never invent, normalize,
   trim or truncate a value.
+- `exactVersionText` is the `MaxFieldBytes` bound plus `selector.Exact` and
+  nothing else. Do not add a catalog-only version rule: a selector or notation
+  form is added to `../selector/testdata/versions.txt` and `selector.Exact`
+  first. `selector_agreement_test.go` runs that table through the literal and
+  `version.ref` paths and generates text to prove the catalog never resolves
+  what `Exact` rejects. Mutants killed there: let `:` through, and replace
+  `Exact` with a quote check, and drop the length cap (it fails
+  `TestScanOverlongFieldIsUnsupportedNotTruncated`: a notation third part is
+  not size-checked at read time, so the cap in `exactVersionText` is the only
+  bound on it).
 - Match aliases the way Gradle does: `-`, `_` and `.` are one separator, and
   a `version.ref` is normalized before its lookup. Never pick the survivor of a
   normalized collision; Gradle's choice depends on registration order the file
