@@ -86,8 +86,9 @@ type claimDepthRecord struct {
 	// Elapsed is the wall time from drain start to this grant returning.
 	Elapsed time.Duration
 	// DoneElapsed is the wall time from drain start to this grant's
-	// CompleteClaim returning. The [Elapsed, DoneElapsed] window is the
-	// grant's in-flight interval for overlap measurement.
+	// CompleteClaim returning. It closes the grant's overlap window:
+	// the gate measures attempt-window overlap over
+	// [AttemptElapsed, DoneElapsed] across all grants.
 	DoneElapsed time.Duration
 	// AttemptElapsed is the wall time from drain start to this grant's
 	// ClaimNextEligible call (after any pacing-hook wait). The
