@@ -28,8 +28,8 @@ Performance Evidence: the default registry was already governed by the `.npmrc`
 binding, so the per-file policy lookup is not new. The exact name adds one entry
 to the registry index and no work for other files. A wrapper file costs one
 linear pass over at most 64 KiB. `BenchmarkParseConfig/gradle_wrapper` parses a
-10,000-line file (about 35 KB, under the bound) in 0.66 ms, 125,928 B/op and
-41 allocs/op, on a shared arm64 host.
+10,000-line file (about 35 KB, under the bound) in 0.17 to 0.66 ms across runs,
+at about 126 KB and 41 allocs per parse, on a shared arm64 host.
 
 ## Observability
 

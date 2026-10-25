@@ -83,7 +83,8 @@ by the `.npmrc` binding, so the policy lookup is not new). Work for a wrapper
 file is one linear pass over at most 64 KiB; the tests assert that a 10 MB line
 allocates nothing and that 60 KiB inputs of continuations, escapes and
 backslash runs allocate under 16 KiB. `BenchmarkParseConfig/gradle_wrapper`
-parses a 10,000-line file in about 0.66 ms (arm64).
+parses a 10,000-line file (about 35 KB) in 0.17 to 0.66 ms across runs on a
+shared arm64 host, at about 126 KB and 41 allocations per parse.
 
 ## Verification
 
