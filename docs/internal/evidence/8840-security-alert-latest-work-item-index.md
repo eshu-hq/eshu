@@ -18,8 +18,8 @@ literal, so the planner can prove the predicate. Its equality column and its
 exact `ORDER BY` match the key, so each target's lateral is an index-only
 probe that stops at the first entry. The SQL text of the read does not change.
 
-Migration number: open PR #9015 also shipped a migration 230 and main has
-since taken 230-232. This change takes 233.
+Migration number: main holds 230 through 232 (the security-alert read state,
+the acknowledgement table, and the fan-out cursor), so this change takes 233.
 
 ## Why the index is partial
 
