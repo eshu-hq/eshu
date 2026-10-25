@@ -134,27 +134,55 @@ shipped test runs only the gated statement.
 ### Cost gate (deterministic; timing-proof rules, rule 2)
 
 One backend runs every Ack (single-connection pool), alternating the flag over
-4 rounds of 200 Acks. WAL records and buffer hits come from
+4 rounds of 200 Acks. WAL records and relation blocks come from
 `pg_stat_get_backend_wal` and `pg_stat_get_backend_io` (PostgreSQL 18), which
 count only that backend; `pg_stat_statements` is gated too when preloaded. The
-gate is on the on-minus-off difference of the per-Ack means. Absolute levels
-move with the state of the database (they differ between a run alone and a
-run inside the whole package suite), the differences do not. Four runs, two
-per server, the last two at the final commit inside the full package suite:
+block metric is relation `hits` plus relation `read_bytes` /
+`current_setting('block_size')` with `object = 'relation'`, so WAL bytes
+cannot mix with blocks; `pg_stat_statements` uses `shared_blks_hit` +
+`shared_blks_read`. The gate is on the on-minus-off difference of the
+per-Ack means. Absolute levels move with the state of the database (they
+differ between a run alone and a run inside the whole package suite), the
+differences do not. Four runs, two per server, the last two at the final
+commit inside the full package suite (balanced-cache figures; reads were
+zero there, so the relabeled block values equal the former hit values):
 
-| Run | Statements client / `pg_stat_statements` (off = on) | WAL records off, on (diff) | Buffer hits off, on (diff) | Seeded RED caught |
+| Run | Statements client / `pg_stat_statements` (off = on) | WAL records off, on (diff) | Relation blocks off, on (diff) | Seeded RED caught |
 | --- | --- | --- | --- | --- |
-| with `pg_stat_statements`, alone | 9 / 14 | 39.97, 44.67 (+4.70); `pg_stat_statements` 42.90, 47.56 (+4.67) | 122.80, 133.91 (+11.11); `pg_stat_statements` 136.76, 147.81 (+11.05) | WAL +17.05, hits +64.97 |
-| without it, alone | 9 / not loaded | 39.97, 44.67 (+4.70) | 122.80, 133.91 (+11.11) | WAL +17.05, hits +64.97 |
+| with `pg_stat_statements`, alone | 9 / 14 | 39.97, 44.67 (+4.70); `pg_stat_statements` 42.90, 47.56 (+4.67) | 122.80, 133.91 (+11.11); `pg_stat_statements` 136.76, 147.81 (+11.05) | WAL +17.05, blocks +64.97 |
+| without it, alone | 9 / not loaded | 39.97, 44.67 (+4.70) | 122.80, 133.91 (+11.11) | WAL +17.05, blocks +64.97 |
 | with `pg_stat_statements`, suite | 9 / 14 | 39.64, 43.90 (+4.26); `pg_stat_statements` 42.44, 46.69 (+4.24) | 114.99, 127.27 (+12.28); `pg_stat_statements` 128.89, 140.47 (+11.59) | WAL +15.71 |
-| without it, suite | 9 / not loaded | 39.96, 44.71 (+4.74) | 220.65, 231.83 (+11.18) | WAL +17.05, hits +205.22 |
+| without it, suite | 9 / not loaded | 39.96, 44.71 (+4.74) | 220.65, 231.83 (+11.18) | WAL +17.05, blocks +205.22 |
 
-Bounds: statements equal, WAL records at most +6, buffer hits at most +40 per
-Ack. The seeded RED is a planted statement, derived from the shipped one, that
-writes three more rows per Ack. Wall time, reported and not gated: the on/off
-ratio of the mean Ack per round was 1.162 (SD 0.546), 1.292 (SD 0.123), 0.998
-(SD 0.358) and 1.140 (SD 0.116) in the four runs, at load1 21-51 (runs alone) and 33-43 (suite runs) on 16 CPUs.
+Bounds: statements equal, WAL records at most +6, relation blocks at most +40
+per Ack. The seeded RED is a planted statement, derived from the shipped one,
+that writes three more rows per Ack. Wall time, reported and not gated: the
+on/off ratio of the mean Ack per round was 1.162 (SD 0.546), 1.292 (SD 0.123),
+0.998 (SD 0.358) and 1.140 (SD 0.116) in the four runs, at load1 21-51 (runs
+alone) and 33-43 (suite runs) on 16 CPUs.
 No quiet-host wall gate was run (rule PD).
+
+Cache-invariance proof for the block metric
+(`TestProjectorAckJournalCostCacheImbalance`, #8617): the Ack's fixture
+relations and their indexes are evicted with `pg_buffercache_evict_relation`
+before every journal-off Ack, so the off batch reads from disk while the on
+batch hits cache. The old hit-only on-off delta is +44.80 per Ack (falsely
+over the +40 bound) while the block delta is +19.90 per Ack (within bound),
+with 930 buffers evicted and 205892 read bytes per off Ack in both modes;
+`pg_stat_statements` blocks move +10.50 per Ack when preloaded. Reproof of the
+balanced gate under the block metric (pinned CI image, GOCACHE-isolated runs
+21:44Z and 21:47Z): with `pg_stat_statements` preloaded, client 9 = 9, calls
+14 = 14, backend WAL +5.22, `pg_stat_statements` WAL +5.20, backend blocks
++11.41, `pg_stat_statements` blocks +12.28; without preload, client 9 = 9,
+backend WAL +5.19, backend blocks +11.38. The seeded RED fails the verdict
+overall via WAL in both modes (disabled +15.80; preloaded backend +15.78 and
+`pg_stat_statements` +15.16) with the corrected block value reported
+alongside (disabled planted block delta +53.78; preloaded backend +33.30 and
+planted 153.80 vs off 121.19). The planted-vs-first-off-batch block delta
+moves with table growth between runs (one disabled run stayed within bound,
+which the pre-amendment must-fire assertion wrongly fataled on), so per the
+amended ruling (`ack-block-teeth-verdict.md`) acceptance is overall RED with
+the block predicate evaluated and reported, not a required block trip.
 
 ## Not checked
 
@@ -177,8 +205,8 @@ go test ./cmd/ingester/ ./cmd/bootstrap-index/ ./cmd/reducer/ -count=1
 ```
 
 Performance Evidence: the deterministic cost gate above (statements per Ack
-equal at 9 client and 14 `pg_stat_statements`, WAL +4.26 to +4.74 and buffer
-hits +11.11 to +12.28 per Ack over four runs against bounds of +6 and +40,
+equal at 9 client and 14 `pg_stat_statements`, WAL +4.26 to +4.74 and relation
+blocks +11.11 to +12.28 per Ack over four runs against bounds of +6 and +40,
 seeded RED caught each time), the
 contention run (480 Acks, 16 workers, 24 scopes, 0 deadlocks and 0
 commit-order violations), and unchanged flag-off statements. The read path is

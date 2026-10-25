@@ -63,13 +63,15 @@ class FanInTest(unittest.TestCase):
     def test_selection_wiring(self) -> None:
         """Skip runner allocation only for a legitimate idle selection."""
         source = WORKFLOW.read_text()
-        predicate = "${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}"
+        selected = "github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-backend-shards')"
+        queued = "github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')"
+        predicate = "${{ (" + selected + ") && (" + queued + ") }}"
         matrix = source.split("  live-backend-shards:\n", 1)[1].split("  live-backend:\n", 1)[0]
         aggregate = source.split("  live-backend:\n", 1)[1]
         self.assertIn("    if: " + predicate + "\n", matrix)
-        self.assertIn("    if: ${{ always() }}\n", aggregate)
+        self.assertIn("    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-backend')) && (always()) }}\n", aggregate)
         self.assertIn("    needs: [queue-selection, live-backend-shards]\n", aggregate)
-        self.assertIn("          RUN_LIVE: " + predicate + "\n", aggregate)
+        self.assertIn("          RUN_LIVE: ${{ " + queued + " }}\n", aggregate)
 
     def test_selected_and_idle_outcomes_fail_closed(self) -> None:
         """Execute the actual aggregate gate for every outcome combination."""

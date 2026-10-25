@@ -126,6 +126,8 @@ fi
 
 # --- (d) trigger coverage: every checked source surface wakes the gate ---
 workflow="${repo_root}/.github/workflows/payload-usage-manifest.yml"
+fragment="${repo_root}/specs/ci-pr-workflows.d/payload-usage-manifest.yml"
+caller="${repo_root}/.github/workflows/test.yml"
 registry="${tmp_root}/ci-gates.flat.yaml"
 . "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
 ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry}" "${repo_root}"
@@ -140,7 +142,7 @@ for watched_path in \
   'sdk/go/factschema/**' \
   'go/internal/payloadusage/**' \
   'go/cmd/payload-usage-manifest/**'; do
-  if ! rg -F -q "\"${watched_path}\"" "$workflow"; then
+  if ! rg -F -q -- "- ${watched_path}" "$fragment"; then
     printf 'missing workflow trigger: %s\n' "$watched_path" >&2
     triggers_ok=1
   fi
@@ -149,6 +151,12 @@ for watched_path in \
     triggers_ok=1
   fi
 done
+if ! rg -q '^  synchronize: true$' "$fragment" ||
+  ! rg -q 'call-payload-usage-manifest:.*uses: ./\.github/workflows/payload-usage-manifest.yml' "$caller" ||
+  ! rg -q "if: .*contains\(fromJSON\(inputs.plan_jobs || '\[\]'\), 'test-mirror'\)" "$workflow"; then
+  printf 'payload-usage planned PR route is incomplete\n' >&2
+  triggers_ok=1
+fi
 check "workflow and ci-gate registry watch every payload-usage surface" "$triggers_ok"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

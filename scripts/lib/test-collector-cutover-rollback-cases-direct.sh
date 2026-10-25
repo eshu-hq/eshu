@@ -30,6 +30,16 @@ direct_args() {
 	ARGS=("${swapped[@]}")
 }
 
+# in_tree_read_pattern appears in the logged kubectl call that reads the direct
+# Deployment replica counts and in no other call, whatever Deployment name it
+# carries. A default-mode run that logs it read the Deployment.
+in_tree_read_pattern='jsonpath={.spec.replicas}{"|"}{.status.replicas}'
+# in_tree_read_call is the whole logged read: the namespace first, the request
+# timeout last.
+in_tree_read_call() { # request-timeout
+	printf 'kubectl -n eso get deployment/jira-collector -o %s --request-timeout=%s' "${in_tree_read_pattern}" "$1"
+}
+
 # --- option rules ----------------------------------------------------------------
 
 new_state direct-usage
@@ -54,6 +64,14 @@ expect_out "the refusal says the list is required" "--in-tree-instance is requir
 direct_args
 run_script plan "${ARGS[@]}"
 expect_rc "--in-tree-direct plans without --in-tree-instance" 0
+# Steps 4 and 6 run the authority check, so the plan lists its Deployment read twice.
+plan_reads="$(printf '%s\n' "${out}" | awk 'index($0, "kubectl -n eso get deployment/jira-collector -o jsonpath=") { n++ } END { print n + 0 }')"
+if [[ "${plan_reads}" == 2 ]]; then pass "a direct plan lists the Deployment read in steps 4 and 6"; else
+	fail "a direct plan lists the Deployment read ${plan_reads} time(s), want 2"
+fi
+if [[ "${plan_out}" != *"get deployment/jira-collector"* ]]; then pass "the default plan lists no read of the in-tree Deployment"; else
+	fail "the default plan lists a read of the in-tree Deployment"
+fi
 run_script plan "${ARGS[@]}" --in-tree-instance tree-1
 expect_rc "--in-tree-direct and --in-tree-instance are mutually exclusive" 2
 expect_out "the exclusion names both options" "--in-tree-direct excludes --in-tree-instance"
@@ -143,19 +161,156 @@ direct_args
 printf 'jira|tree-1|claimed|active\n' >"${FAKE_STATE}/claims"
 expect_refused "an instance named like the default in-tree one is still external in direct mode" 4 3 -- "revoke-grant"
 
-# The restored direct collector writes no claim of its own, so a claim that exists
-# after the restore belongs to the external producer running beside it: dual
-# authority. Before the restore the same claim is only a refusal.
+# The restored direct collector writes no claim of its own, so the Deployment's
+# replica counts stand in for it. A claim beside a running Deployment is dual
+# authority; the same claim with the Deployment at zero is the external producer
+# alone, which is only a refusal. verify reads the Deployment, so it needs its name.
 new_clear_state direct-dual-verify
 direct_args
-verify_direct=(--collector-kind jira --external-instance ext-1 --in-tree-direct)
+verify_direct=(--collector-kind jira --external-instance ext-1 --in-tree-direct
+	--namespace eso --in-tree-deployment jira-collector)
 printf 'jira|ext-1|claimed|active\n' >"${FAKE_STATE}/claims"
 run_script verify "${verify_direct[@]}" --baseline "${FAKE_STATE}/baseline"
-expect_rc "verify in direct mode fails with exit 7 when an external claim exists beside the restored producer" 7
+expect_rc "verify in direct mode fails with exit 7 when an external claim exists beside the running producer" 7
 expect_out "the failure says dual authority" "DUAL AUTHORITY"
+expect_out "the failure names both live producers" "external claims=1; direct Deployment running=yes"
+expect_call "verify reads the Deployment replica counts in the namespace with the request timeout" "$(in_tree_read_call 30s)"
 : >"${FAKE_STATE}/claims"
 run_script verify "${verify_direct[@]}" --baseline "${FAKE_STATE}/baseline"
 expect_rc "verify in direct mode passes with no claim of the kind" 0
+
+# The reported bug: before the restore the Deployment is at zero and only the
+# external producer exists, so a claim is a refusal, never dual authority.
+new_clear_state direct-verify-prerestore
+printf '0\n' >"${FAKE_STATE}/intree_replicas"
+printf 'jira|ext-1|claimed|active\n' >"${FAKE_STATE}/claims"
+run_script verify "${verify_direct[@]}" --baseline "${FAKE_STATE}/baseline"
+expect_rc "verify before the restore refuses an external claim and is not dual authority" 4
+expect_no_out "the pre-restore claim is not labelled dual authority" "DUAL AUTHORITY"
+expect_out "the pre-restore read reports the Deployment as not running" "in_tree_direct_running=no"
+expect_out "the refusal names the external claim" "an external instance still holds 1 claimed work item(s)"
+: >"${FAKE_STATE}/claims"
+run_script verify "${verify_direct[@]}" --baseline "${FAKE_STATE}/baseline"
+expect_rc "verify before the restore with no claim passes the authority check" 0
+expect_out "the pre-restore pass reports the Deployment as not running" "in_tree_direct_running=no"
+
+# A pod that is still terminating after a scale to zero can still produce.
+new_clear_state direct-verify-terminating
+printf '0\n' >"${FAKE_STATE}/intree_replicas"
+printf 'jira|ext-1|claimed|active\n' >"${FAKE_STATE}/claims"
+printf '1\n' >"${FAKE_STATE}/intree_status_pods"
+run_script verify "${verify_direct[@]}" --baseline "${FAKE_STATE}/baseline"
+expect_rc "a Deployment at zero desired replicas with a live pod still counts as running" 7
+
+# A Deployment just scaled up has desired replicas before it has any pod.
+new_clear_state direct-verify-scaling-up
+printf '1\n' >"${FAKE_STATE}/intree_replicas"
+printf '0\n' >"${FAKE_STATE}/intree_status_pods"
+printf 'jira|ext-1|claimed|active\n' >"${FAKE_STATE}/claims"
+run_script verify "${verify_direct[@]}" --baseline "${FAKE_STATE}/baseline"
+expect_rc "a Deployment with desired replicas and no pod yet counts as running" 7
+
+# An unreadable rollout fails closed: it counts as running and says so.
+for unreadable in kubectl_fail_get_deploy intree_get_missing intree_get_garbage kubectl_cmd_missing; do
+	new_clear_state "direct-verify-${unreadable}"
+	printf '0\n' >"${FAKE_STATE}/intree_replicas"
+	touch "${FAKE_STATE}/${unreadable}"
+	printf 'jira|ext-1|claimed|active\n' >"${FAKE_STATE}/claims"
+	run_script verify "${verify_direct[@]}" --baseline "${FAKE_STATE}/baseline"
+	expect_rc "an unreadable Deployment (${unreadable}) beside an external claim fails closed with exit 7" 7
+	expect_out "the failure says the read failed (${unreadable})" "could not be read"
+	expect_out "the failure says the Deployment is treated as running (${unreadable})" "it is treated as running"
+	: >"${FAKE_STATE}/claims"
+	run_script verify "${verify_direct[@]}" --baseline "${FAKE_STATE}/baseline"
+	expect_out "an unreadable Deployment with no claim still says so (${unreadable})" "in_tree_direct_running=unknown"
+	expect_out "the passing evidence line names the read error and its exit code (${unreadable})" \
+		"overlapping_claim_pairs=0 The direct Deployment deployment/jira-collector could not be read (exit "
+done
+
+# The read carries the request timeout of the environment, not a fixed one.
+new_clear_state direct-verify-timeout
+: >"${FAKE_STATE}/claims"
+ROLLBACK_KUBECTL_REQUEST_TIMEOUT=7s run_script verify "${verify_direct[@]}" --baseline "${FAKE_STATE}/baseline"
+expect_call "the Deployment read uses ROLLBACK_KUBECTL_REQUEST_TIMEOUT" "$(in_tree_read_call 7s)"
+
+# The complete table of the Dual authority section on the direct runbook page:
+# every combination of external claims and Deployment state. The page check
+# needs the docs tree, which the mutant runner's scratch copy lacks.
+direct_doc="${repo_root}/docs/public/operate/collector-cutover-rollback-direct.md"
+doc_result() { # claims-cell deployment-cell -> the result cell of that row
+	awk -F'|' -v claims="$1" -v deployment="$2" '
+		function trim(v) { gsub(/^ +| +$/, "", v); return v }
+		trim($2) == claims && trim($3) == deployment { print trim($4); exit }' "${direct_doc}"
+}
+matrix_case() { # claims(1|0) deployment(running|stopped|unreadable) want-exit page-prefix
+	local claims="$1" state="$2" want="$3" prefix="$4" claims_cell deployment_cell cell
+	new_clear_state "direct-matrix-${claims}-${state}"
+	case "${state}" in
+	running)
+		printf '1\n' >"${FAKE_STATE}/intree_replicas"
+		deployment_cell="Running"
+		;;
+	stopped)
+		printf '0\n' >"${FAKE_STATE}/intree_replicas"
+		deployment_cell="Not running"
+		;;
+	unreadable)
+		printf '0\n' >"${FAKE_STATE}/intree_replicas"
+		touch "${FAKE_STATE}/intree_get_missing"
+		deployment_cell="Unreadable or missing"
+		;;
+	esac
+	claims_cell="None"
+	: >"${FAKE_STATE}/claims"
+	if [[ "${claims}" == 1 ]]; then
+		claims_cell="1 or more"
+		printf 'jira|ext-1|claimed|active\n' >"${FAKE_STATE}/claims"
+	fi
+	run_script verify "${verify_direct[@]}" --baseline "${FAKE_STATE}/baseline"
+	expect_rc "authority matrix: claims=${claims}, Deployment ${state}" "${want}"
+	if [[ ! -d "${repo_root}/docs" ]]; then return 0; fi
+	cell="$(doc_result "${claims_cell}" "${deployment_cell}")"
+	if [[ "${cell}" == "${prefix}"* ]]; then pass "the direct page row (${claims_cell} / ${deployment_cell}) starts with: ${prefix}"; else
+		fail "the direct page row (${claims_cell} / ${deployment_cell}) has result '${cell}', want it to start with: ${prefix}"
+	fi
+}
+matrix_case 1 running 7 "Exit 7"
+matrix_case 1 stopped 4 "Exit 4"
+matrix_case 1 unreadable 7 "Exit 7"
+matrix_case 0 running 0 "Passes"
+matrix_case 0 stopped 0 "Passes"
+matrix_case 0 unreadable 0 "Passes"
+
+# verify cannot read a Deployment it was not told about.
+new_clear_state direct-verify-needs-deployment
+run_script verify --collector-kind jira --external-instance ext-1 --in-tree-direct --namespace eso \
+	--baseline "${FAKE_STATE}/baseline"
+expect_rc "verify in direct mode without --in-tree-deployment is a usage error" 2
+expect_out "the usage error says why" "verify --in-tree-direct needs --in-tree-deployment"
+expect_no_call "the usage error runs no tool" "kubectl"
+run_script verify --collector-kind jira --external-instance ext-1 --in-tree-direct --in-tree-deployment jira-collector \
+	--baseline "${FAKE_STATE}/baseline"
+expect_rc "verify in direct mode without --namespace is a usage error" 2
+expect_out "the usage error names the namespace" "verify --in-tree-direct needs --namespace"
+run_script verify --collector-kind jira --external-instance ext-1 --in-tree-direct --namespace eso \
+	--in-tree-deployment 'jira;rm' --baseline "${FAKE_STATE}/baseline"
+expect_rc "verify rejects an unsafe Deployment name in direct mode" 2
+run_script verify --collector-kind jira --external-instance ext-1 --in-tree-direct --capture "${FAKE_STATE}/captured"
+expect_rc "capture in direct mode still needs no Deployment" 0
+
+# The default mode never reads the in-tree Deployment and never needs its name.
+new_clear_state default-verify-no-deployment
+printf 'jira|ext-1|claimed|active\n' >"${FAKE_STATE}/claims"
+run_script verify --collector-kind jira --external-instance ext-1 --in-tree-instance tree-1 --baseline "${FAKE_STATE}/baseline"
+expect_rc "the default mode still refuses an external claim with exit 4" 4
+expect_no_call "the default mode does not read the in-tree Deployment" "${in_tree_read_pattern}"
+expect_out "the default mode keeps its authority line" "in_tree_claimed="
+# The same, with the Deployment named: naming it must not make the default mode read it.
+: >"${FAKE_STATE}/claims"
+run_script verify --collector-kind jira --external-instance ext-1 --in-tree-instance tree-1 \
+	--namespace eso --in-tree-deployment jira-collector --baseline "${FAKE_STATE}/baseline"
+expect_rc "the default mode passes when the Deployment is named and no claim is held" 0
+expect_no_call "the default mode ignores a named in-tree Deployment" "${in_tree_read_pattern}"
 
 new_clear_state direct-dual-resume
 direct_args

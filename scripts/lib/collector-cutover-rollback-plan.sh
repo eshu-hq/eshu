@@ -11,6 +11,15 @@ plan_psql_line() { # sql-name description
 		"$ROLLBACK_PSQL_BIN" "$collector_kind" "$(sql_file "$1")" "$2"
 }
 
+# plan_direct_replicas prints the read that the authority check makes in direct
+# mode: the claim table cannot show a direct collector, so its Deployment does.
+plan_direct_replicas() {
+	[[ "$in_tree_direct" == "true" ]] || return 0
+	build_in_tree_replicas
+	show_cmd
+	printf '  (direct mode: the Deployment replica counts stand in for the in-tree claim; an unreadable answer counts as running)\n'
+}
+
 print_plan() {
 	local instance kind
 	printf 'Rollback plan for collector kind %s\n' "$collector_kind"
@@ -67,6 +76,7 @@ print_plan() {
 	printf 'STEP 4 restore the in-tree producer (refuses unless steps 1 to 3 still hold)\n'
 	plan_psql_line drain "re-check the drain gate immediately before restoring"
 	plan_psql_line dual "re-check that no overlap exists, which catches a restore applied too early"
+	plan_direct_replicas
 	if [[ "$restore_by_gitops" == "true" ]]; then
 		printf '  (restore values were applied through GitOps after step 3; the script only scales and waits)\n'
 	else
@@ -104,6 +114,7 @@ print_plan() {
 
 	printf 'STEP 6 verify exact truth against the baseline captured just before step 1\n'
 	plan_psql_line dual "dual-authority check: external claims, in-tree claims, overlapping claim intervals"
+	plan_direct_replicas
 	plan_psql_line truth "per fact kind: count, stable-key set digest, payload set digest over active generations"
 	printf '  Gate: no dual authority, and every fact kind equals the baseline file.\n'
 	printf '  On a mismatch, "verify --report-drift" names the keys that moved.\n'

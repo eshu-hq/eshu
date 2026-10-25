@@ -4,10 +4,46 @@
 package cigates
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"testing"
 )
+
+func TestPostgresScheduledOwnedPathsSelectAllFullJobs(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	fragment, err := os.ReadFile(filepath.Join(root, "specs/ci-pr-workflows.d/postgres-scheduled-live.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defs, err := ParsePRPlanFragment(fragment)
+	if err != nil || len(defs) != 1 {
+		t.Fatalf("PostgreSQL fragment: definitions=%d error=%v", len(defs), err)
+	}
+	workflow, err := os.ReadFile(filepath.Join(root, ".github/workflows/postgres-scheduled-live.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	def, err := ValidateCallablePRWorkflow(defs[0], workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{
+		".github/actions/postgres-scheduled-bulk/action.yml",
+		"specs/ci-pr-workflows.d/postgres-scheduled-live.yml",
+	} {
+		t.Run(path, func(t *testing.T) {
+			jobs, err := PlanPRWorkflows([]PRWorkflowDefinition{def}, []string{path}, false, "main", "full", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(jobs[def.File], def.Jobs) || len(jobs[def.File]) != 7 {
+				t.Fatalf("full PostgreSQL jobs = %v; want all seven %v", jobs[def.File], def.Jobs)
+			}
+		})
+	}
+}
 
 func TestPlanPRWorkflowsPreservesSynchronizeFilters(t *testing.T) {
 	t.Parallel()

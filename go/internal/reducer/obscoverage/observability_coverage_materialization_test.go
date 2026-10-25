@@ -160,7 +160,10 @@ func TestObservabilityCoverageMaterializationDefersWhileEC2NodePhasePending(t *t
 	// other four edges around the missing one. This is the live leaf's first
 	// fault-shard shape (4/5 edges, alarm missing) turned into a unit pin:
 	// the durable claim gate opens on the AWS phase alone, so this second
-	// in-handler lookup is the only thing holding the partial write.
+	// in-handler lookup is the only thing holding the partial write. The
+	// posture fact is what enqueues the EC2 node domain, as in the live
+	// cassette; without it the phase never publishes and the hold must not
+	// apply (#9055, TestObservabilityCoverageMaterializationProceedsWithoutPostureFacts).
 	lookup := func(key gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
 		if strings.Contains(string(key.AcceptanceUnitID), "ec2_instance_node_materialization:") {
 			return false, false // EC2 node phase not yet published
@@ -169,7 +172,7 @@ func TestObservabilityCoverageMaterializationDefersWhileEC2NodePhasePending(t *t
 	}
 	writer := &recordingObservabilityCoverageEdgeWriter{}
 	handler := ObservabilityCoverageMaterializationHandler{
-		FactLoader:      &stubFactLoader{envelopes: ec2AlarmCoverageFixture()},
+		FactLoader:      &stubFactLoader{envelopes: append(ec2AlarmCoverageFixture(), ec2InstancePostureFact("fact-posture", "i-0123456789abcdef0"))},
 		EdgeWriter:      writer,
 		ReadinessLookup: lookup,
 	}

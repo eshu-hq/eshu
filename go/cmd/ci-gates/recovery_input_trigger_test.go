@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
-	"gopkg.in/yaml.v3"
 )
 
 // TestRecoveryInputTriggers checks single-file edits to executable recovery
@@ -41,25 +40,19 @@ func TestRecoveryInputTriggers(t *testing.T) {
 					triggers = gate.Triggers
 				}
 			}
-			raw, err := os.ReadFile(filepath.Join(root, ".github/workflows", tt.workflow))
+			raw, err := os.ReadFile(filepath.Join(root, "specs/ci-pr-workflows.d", tt.workflow))
 			if err != nil {
 				t.Fatal(err)
 			}
-			var workflow struct {
-				On struct {
-					PullRequest struct {
-						Paths []string `yaml:"paths"`
-					} `yaml:"pull_request"`
-				} `yaml:"on"`
-			}
-			if err := yaml.Unmarshal(raw, &workflow); err != nil {
+			definitions, err := cigates.ParsePRPlanFragment(raw)
+			if err != nil || len(definitions) != 1 || definitions[0].File != tt.workflow {
 				t.Fatal(err)
 			}
 			for _, path := range tt.paths {
 				if !recoveryPathMatches(triggers, path) {
 					t.Errorf("registry gate omits single-file change %s", path)
 				}
-				if !recoveryPathMatches(workflow.On.PullRequest.Paths, path) {
+				if !recoveryPathMatches(definitions[0].Paths, path) {
 					t.Errorf("hosted workflow omits single-file change %s", path)
 				}
 			}

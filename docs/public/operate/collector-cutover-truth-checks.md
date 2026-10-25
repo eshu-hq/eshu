@@ -25,8 +25,8 @@ read-only SQL in `scripts/lib/collector-cutover-rollback-dual.sql` and
   `--external-instance` IDs you typed, so a mistyped ID cannot hide a claim.
 - With `--in-tree-direct` (the documentation collector, which has no instance and
   writes no work items) the in-tree set is empty, so every claim of the kind
-  counts as external. After the restore, any such claim means dual authority
-  (exit 7), because the restored Deployment runs beside it. The
+  counts as external. While the Deployment is running (the script reads its
+  replica counts), any such claim means dual authority (exit 7). The
   [direct producer page](collector-cutover-rollback-direct.md) has the details.
 - The external and in-tree instances never held claims on the same `scope_id`
   during overlapping time spans. A finished claim ends at the earlier of its

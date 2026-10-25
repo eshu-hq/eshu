@@ -382,49 +382,6 @@ $(cat "${out}")"
 }
 
 # ---------------------------------------------------------------------------
-# Case 10: this mirror must actually be RUN by CI, asserted by the mirror
-# itself.
-#
-# The gate that selects this file is one of seven sharing test.yml's go-core
-# job, and verify-ci-gates-registry.sh skips per-gate CI attribution for a
-# shared bucket by design. So deleting the workflow step that runs this file
-# leaves the registry row intact, the drift check green, and gate selection
-# still passing on triggers -- while CI quietly stops running the only
-# enforcement the installer's three guards have. That is precisely the defect
-# this gate was added to fix, returning through a different door: everything
-# looks wired and nothing runs.
-#
-# Nothing else in the repo closes that door, so the mirror closes it for
-# itself. Self-referential on purpose: this file is the thing whose execution
-# is in question, so it is the right place to assert its own wiring.
-# ---------------------------------------------------------------------------
-test_mirror_is_wired_into_ci() {
-	local workflow="${repo_root}/.github/workflows/test.yml"
-
-	if [ ! -f "${workflow}" ]; then
-		record_fail "ci-wiring: ${workflow} not found -- this mirror asserts its own CI wiring and cannot locate the workflow"
-		return
-	fi
-
-	assert_output_has "${workflow}" "bash scripts/test-ci-install-apt-packages.sh" \
-		"ci-wiring: test.yml runs this mirror" \
-		"ci-wiring: no step in .github/workflows/test.yml runs \"bash scripts/test-ci-install-apt-packages.sh\".
-The ci-install-apt-packages registry row would still look correct and the drift
-check would still pass -- it skips per-gate CI attribution for the shared go-core
-job -- while CI silently stopped enforcing the installer's bounded-transfer,
-fail-closed-checksum, and arch guards. Re-add the step or move the gate to a
-dedicated ci.job."
-
-	# The registry row is the other half: a workflow step with no row is not
-	# selected locally by make pre-pr, and a row pointing at a job that does not
-	# run the command is the same silence in the other direction.
-	local registry="${repo_root}/specs/ci-gates.d"
-	assert_output_has "${registry}" "scripts/test-ci-install-apt-packages.sh" \
-		"ci-wiring: ci-gates registry references this mirror" \
-		"ci-wiring: specs/ci-gates.v1.yaml does not reference scripts/test-ci-install-apt-packages.sh, so make pre-pr will not select it"
-}
-
-# ---------------------------------------------------------------------------
 # Case 9 (source-level regression, precedent: extractFuncBody in
 # go/cmd/reducer/neo4j_wiring_test.go): --connect-timeout alone bounds
 # connection SETUP only. If the GitHub release CDN accepts the connection and

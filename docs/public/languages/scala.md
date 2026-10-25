@@ -30,6 +30,144 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Exact Play/http4s route entries | `play-http4s-literal-route-truth` | supported | `framework_semantics.{play,http4s}.route_entries` | `method, path, handler` | `relationship:HANDLES_ROUTE` when the reducer resolves one exact handler | `go/internal/parser/scala/scala_route_entries_test.go::TestDefaultEngineParsePathScalaEmitsExactPlayRouteEntries`, `go/internal/parser/scala/scala_route_entries_test.go::TestDefaultEngineParsePathScalaEmitsExactHttp4sRouteEntries`, `go/internal/reducer/code/call/materialization/routes_scala_test.go::TestBuildHandlesRouteIntentRowsEmitsScalaPlayRouteMatches`, `go/internal/query/content_reader_framework_routes_scala_test.go::TestParseFrameworkSemanticsExtractsScalaRoutes` | Golden corpus gate | Exact Play `conf/routes` and `.routes` rows plus literal http4s `HttpRoutes.of` cases emit route entries. Reducer projection stays exact-only and skips unresolved or ambiguous handlers. |
 | Dead-code roots | `dead-code-roots` | supported | `dead_code_root_kinds` | parser metadata | `code_quality.dead_code` exclusion metadata | `go/internal/parser/scala/scala_dead_code_roots_test.go` | Fixture-backed dead-code validation | Derived roots for main, `App`, traits, overrides, Play, Akka, JUnit, ScalaTest, and lifecycle callbacks |
 
+## Build Manifest (`build.sbt`)
+
+`build.sbt` is admitted at the structured level (`DefaultEngine (sbt)`,
+`go/internal/parser/sbt/`). The parser reads literal `libraryDependencies`
+coordinates (`+=`, `++=`, `:=`; `%`, `%%`, `%%%`; an optional configuration such
+as `% Test`) and the literal `scalaVersion`, and emits them as dependency rows
+in the same shape the Gradle and Maven parsers use, with `package_manager`
+`sbt`. A `%%` row also carries `sbt_binary_artifact` (for example
+`org.typelevel:cats-core_2.13`) when the file holds exactly one distinct
+literal `scalaVersion` and no other `scalaVersion` assignment.
+A `scalaVersion` literal is read only where a
+`libraryDependencies` statement would resolve (a column-0 statement or a
+project's `.settings(...)` argument), from `ThisBuild / scalaVersion` whose
+axis starts such a statement, or from `scalaVersion in ThisBuild` there. A
+literal anywhere else (`inThisBuild(...)`, a wrapper, a call argument, a block,
+a settings `val` or `def`, a lambda, another axis such as `in Test`) is
+counted in `sbt_state.unresolved_declaration_count`, never recorded, and
+clears `scala_version` and the hint for the whole file: the parser does not
+track which projects it reaches. In the places a literal is read, any other
+`scalaVersion` statement (a non-literal value such as `sys.env("SV")`, `~=`,
+`<<=`, `.set(...)`, `.transform(...)`, `.withRank(...) :=`, `.:=(...)`, also
+behind `ThisBuild /`) is counted and clears them too, whatever its order. A
+read (`scalaVersion.value`) changes nothing. Two distinct literals also leave `scala_version` empty, with
+`scala_version_count` 2: sbt applies the last assignment of a scope, and the
+parser does not decide that order across scopes.
+
+A row is `resolved` only when its whole statement matches a closed grammar
+(the full EBNF is in `go/internal/parser/sbt/README.md`): a bare
+`libraryDependencies` key at the top level of the file (a line that starts at
+column 0) or as an argument of a project's `.settings(...)`, then `+=` with one element or `++=`/`:=` with a
+`Seq(...)`, `List(...)` or `Vector(...)` of elements. An element is
+`"org" %% "name" % "1.0"` (or `%`, `%%%`; the revision may be a top-level string
+`val`), at most one `% config`, and infix calls from a short allowlist of
+ModuleID methods that change neither coordinates nor configurations.
+
+| Form | Row |
+|---|---|
+| `libraryDependencies += "a" %% "b" % "1" % Test` | `test`, resolved |
+| `++= Seq("a" % "b" % "1", "c" % "d" % "2" % "provided")` | `compile` and `provided`, resolved |
+| `% "it,test"`, `% Runtime`, `% Optional` | `test`, `runtime`, `compile` (optional), resolved |
+| infix `exclude("o", "n")`, `excludeAll(...)`, `classifier "c"`, `intransitive()`, `withSources()`, `withJavadoc()`, `cross CrossVersion.full`, `force()`, `changing()` | scope unchanged, resolved |
+| `lazy val core = project.settings(libraryDependencies += ...)` | resolved |
+| a non-literal revision (`Versions.cats`, `s"${v}"`) | `unresolved`; siblings stay resolved |
+| `Test /`, `ThisBuild /`, `Global /`, `core /`, `in Test`, `.in(Test)` | partial |
+| `inConfig(...)`, `inThisBuild(...)`, any `in<Name>(...)`, a brace block, a settings `val` | partial |
+| `.map(_ % Test)`, `.flatMap`, `.distinct`, `.filterNot`, `++ Seq(...)`, a lambda | partial |
+| `("a" % "b" % "1") % Test`, a dotted call, `withConfigurations`, `withRevision`, `withName`, an unknown call | partial |
+| a repeated `% config`, `% ""`, `% Custom`, `% "e2e"`, a compiler-tool configuration | partial |
+| `% Test` leading the next line in the bare file | partial (inside `(` it is read) |
+| an indented line at depth zero: a Scala 3 `if`/`then`/`else`, `def` or `val` body, `match` case, or `for`/`while` `do` body | partial |
+| `% "Test"`, `% "Compile"` (configuration strings are case sensitive) | partial; `% "test"` and `% Test` are `test` |
+| a string holding a backslash, triple-quoted too | opaque: no literal coordinate |
+| `.transform(...)`, `.set(...)`, `.remove1(...)`, `.removeN(...)` anywhere (a `val` body, after an operator, an `if` branch), sbt 0.13's `<<=` | supersedes earlier rows, like `~=`; outside a grammar context, every row |
+| `.withRank(...)` then `:=`, `~=`, `-=`, `--=`, `<<=` | supersedes earlier rows |
+| `.withRank(...)` then `+=`, `++=`, `<+=`, `<++=` | partial; earlier rows unchanged |
+| `.append1(...)`, `.appendN(...)`, `<+=`, `<++=`, any other assignment operator | partial; earlier rows unchanged |
+| `.map(...)`, `.filter(...)` or any other member that returns no Setting and is no read | denied: supersedes every row, counted once |
+| any other `libraryDependencies` occurrence: `(libraryDependencies) := Nil` at any depth, `(Compile / libraryDependencies) := Nil`, `libraryDependencies in Compile in Test := Nil`, `libraryDependencies set (x, pos)`, `libraryDependencies withRank r := Nil`, a bare key | denied: supersedes every row, counted |
+| a read: `.value`, `.in(Test).value`, `(libraryDependencies in Test).value` | not a declaration, not counted |
+
+A partial row keeps the coordinates read literally, carries a placeholder
+`compile` scope, and is counted in `sbt_state.unresolved_declaration_count`; it
+is never a resolved `compile`. A row whose revision stays unresolved (an unknown
+`val`, a chained or opaque expression) is counted there too. sbt accepts one
+configuration per module: `%`
+requires a module with no configuration yet, and `% ""` fails sbt's non-empty
+check, so a repeated or empty configuration is a load error, not a replacement.
+A list resolves to `compile` when any part is `compile`, to `runtime` when it
+has `runtime` and no `compile` (a runtime dependency is also on the test
+classpath), to `provided` for `provided` with `test`, and otherwise to the one
+scope its parts share. `:=`, `~=`, `-=` and `--=` supersede the earlier rows of
+the same project (a bare-file one supersedes every project row, and one in a
+settings `val` or wrapper supersedes every row), which become partial.
+
+sbt build files are Scala, so the parser never evaluates them. Versions held in
+top-level string vals resolve in the same file; a val whose literal continues
+on the next line (`.concat(...)`, `+ "x"`) does not. Ivy dynamic revisions and
+ranges (`1.+`, `latest.release`, `[1.0,2.0)`, `]1.0,2.0]`) are partial.
+Variables, `.value` settings, interpolated strings, helper objects, and
+conditional or block-bodied collections are reported as `unresolved` rows or
+partial rows, both counted in `sbt_state.unresolved_declaration_count`.
+`plugins.sbt`, the other `project/*.sbt` files, and `Build.scala` are not read.
+The registry binds `build.sbt` by its base name, so `project/build.sbt`, sbt's
+meta-build, is parsed: its `sbt_state.meta_build` is `true` and every row from
+it is partial, because those dependencies are on the build definition's
+classpath, not the project's. Package-registry correlation for sbt rows is not
+wired yet: `sbt` is not a recognised package-manager alias, so these rows do not
+join registry identities until [#8961](https://github.com/eshu-hq/eshu/issues/8961)
+lands, and they keep the line-keyed entity id
+([#8962](https://github.com/eshu-hq/eshu/issues/8962)).
+
+Known limits of the sbt reading:
+
+- `sbt_binary_artifact` is a file-wide hint, not sbt's resolved value. A single
+  literal `scalaVersion` inside one project's settings also drives the `%%`
+  rows of every other project in the file, `crossScalaVersions` is ignored, a
+  suffixed version such as `2.13.0-M5` gets no hint, and a Scala before 2.10
+  gets no hint because sbt cross-built those with the full version.
+- sbt 2.x reads `build.sbt` as Scala 3, where a braceless block is an indented
+  region at bracket depth zero. Only column-0 lines are read as top-level
+  statements or version `val`s, so a top-level statement written indented, or
+  with a comment before the key on its line, is partial. A closer that ends a
+  bracket opened on an indented line keeps the rest of its line indented, so
+  `}; libraryDependencies += ...` after it is partial too. A braceless project
+  whose `.settings(` list continues on indented lines still resolves.
+- A `val` declared inside a block is not tracked; a reference that shares its
+  name with a top-level `val` resolves to the top-level value.
+- A settings value from outside the file (`.settings(Common.settings)`) applied
+  after a row can supersede it unseen, and so can an extension method defined
+  outside the file that returns a Setting: only the members sbt's SettingKey
+  API defines are judged.
+- `scalaVersion` inside `inThisBuild(...)`, a settings `val` or `def`, or any
+  other nested position is not read and clears `scala_version`, so a build
+  that sets it there gets no `sbt_binary_artifact` hint, even with a top-level
+  literal beside it. Both keys are default-deny: any occurrence that is no
+  recognised statement and no read (`.value`, `.in(Test).value`,
+  `(scalaVersion in Test).value`) clears `scala_version` or supersedes every
+  `libraryDependencies` row, so a build that only reads a key through
+  another member (`libraryDependencies.map(f)`) or shadows it loses rows it
+  could have kept.
+- A key named as a plain element of a key-list setting (`buildInfoKeys`,
+  `excludeLintKeys`, `includeLintKeys`) is a read when the list ends the
+  statement: `buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)`
+  and `Global / excludeLintKeys += libraryDependencies` keep the version, the
+  hint and every row. A key named as a value anywhere else, or in a key list
+  followed by `.map(...)`, `++`, `:+` or an assignment, is denied. A read
+  with axes or closers inside a dependency, such as
+  `% (ThisBuild / scalaVersion).value`, is a read.
+- `scala_version` fails closed: a `ThisBuild` literal plus a different
+  project override, or two literals in one scope, report no version, even
+  where sbt's last assignment would name one.
+- `meta_build` flags any `build.sbt` whose parent directory, relative to the
+  repository root, is named `project`, so a subproject directory with that
+  name is flagged too. The directory a repository is cloned into never
+  counts.
+- `ThisBuild /` and `Global /` keys are partial even where sbt delegation
+  would read them, because the grammar keeps only the forms it can prove.
+
 ## Known Limitations
 - Implicit conversions and given/using clauses (Scala 3) are not separately tracked
 - Pattern matching extractors are not modeled as function calls

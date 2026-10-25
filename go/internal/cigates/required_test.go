@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -93,13 +94,17 @@ func TestRequiredGates_SelectsReplayTierForReducerReplayProof(t *testing.T) {
 	for _, gate := range required {
 		for _, id := range gate.GateIDs {
 			if id == "replay-tier" {
-				workflowPath := filepath.Join("..", "..", "..", ".github", "workflows", "verify-replay-tier.yml")
+				workflowPath := filepath.Join("..", "..", "..", "specs", "ci-pr-workflows.d", "verify-replay-tier.yml")
 				workflow, readErr := os.ReadFile(workflowPath)
 				if readErr != nil {
 					t.Fatalf("ReadFile(%q): %v", workflowPath, readErr)
 				}
-				if !strings.Contains(string(workflow), "      - 'go/internal/reducer/**'") {
-					t.Fatal("verify-replay-tier workflow does not watch go/internal/reducer/**")
+				definitions, parseErr := cigates.ParsePRPlanFragment(workflow)
+				if parseErr != nil || len(definitions) != 1 || definitions[0].File != "verify-replay-tier.yml" {
+					t.Fatalf("invalid replay-tier PR inventory: %v", parseErr)
+				}
+				if !slices.Contains(definitions[0].Paths, "go/internal/reducer/**") {
+					t.Fatal("verify-replay-tier PR inventory does not watch go/internal/reducer/**")
 				}
 				return
 			}

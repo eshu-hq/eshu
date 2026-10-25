@@ -1,0 +1,13 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: static-contract-gates.yml
+  name: Static Contract Gates
+  synchronize: true
+  jobs:
+  - changes
+  - gate
+  - queue-selection
+  job_names:
+    changes: Detect changed gate paths
+    gate: ${{ matrix.display }}

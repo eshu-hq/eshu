@@ -25,6 +25,16 @@ tlcap_check_workflow_job() {
 			selected = "containsfromJSONneeds.queue-selection.outputs.jobs||" quote "[]" quote "," quote "scripts-file-cap" quote
 			return value == event "||" selected || value == selected "||" event
 		}
+		function plan_if(line, value, quote, expected) {
+			value = normalize_if(line)
+			quote = sprintf("%c", 39)
+			expected = "github.event_name==" quote "merge_group" quote "||" \
+				"github.event_name!=" quote "pull_request" quote "||" \
+				"needs.pr-plan.result==" quote "success" quote "&&" \
+				"containsfromJSONneeds.pr-plan.outputs.jobs||" quote "{}" quote \
+				"[" quote "test.yml" quote "]," quote "scripts-file-cap" quote
+			return value == expected
+		}
 		function selector_failure_if(line, value, quote) {
 			value = normalize_if(line)
 			quote = sprintf("%c", 39)
@@ -44,10 +54,14 @@ tlcap_check_workflow_job() {
 			value=$0
 			sub(/^[[:space:]]+(-[[:space:]]+)?needs:[[:space:]]*/, "", value)
 			gsub(/[[:space:]]/, "", value)
-			if ($0 !~ /^    needs:/ || (value != "queue-selection" && value != "[queue-selection]")) guarded=1
+			if ($0 !~ /^    needs:/ || (value != "queue-selection" && value != "[queue-selection]" && value != "[queue-selection,pr-plan]")) guarded=1
+			if (value == "[queue-selection,pr-plan]") planned=1
 		}
 		/^[[:space:]]+(-[[:space:]]+)?if:/ {
-			if (!queue_only_if($0) && !(step_name == "Require queue selection to succeed" && selector_failure_if($0))) guarded=1
+			if ($0 ~ /^    if:/) {
+				if (plan_if($0)) plan_guard=1
+				else if (!queue_only_if($0)) guarded=1
+			} else if (!queue_only_if($0) && !(step_name == "Require queue selection to succeed" && selector_failure_if($0))) guarded=1
 		}
 		/^[[:space:]]+(run:[[:space:]]+)?(bash[[:space:]]+)?scripts\/test-verify-tooling-line-cap\.sh[[:space:]]*$/ {
 			if (step_name == "Require queue selection to succeed") guarded=1
@@ -59,6 +73,7 @@ tlcap_check_workflow_job() {
 		}
 		END {
 			if (!found) print "tooling workflow: missing scripts-file-cap job"
+			if (planned && !plan_guard) guarded=1
 			if (guarded) print "tooling workflow: scripts-file-cap has a non-queue guard"
 			if (!selftest) print "tooling workflow: missing real cap selftest command"
 			if (!scan) print "tooling workflow: missing real cap --all command with TOOLING_LINE_CAP_REQUIRE_BASE=1"
@@ -106,7 +121,7 @@ test_workflow_job_is_wired() {
 	cmp -s "${job}" "${dir}/renamed-guard.yml" && record_fail "renamed-guard mutation changed nothing" ""
 	tlcap_assert_workflow_exit "renaming the job in the merge-queue guard is rejected" 1 "${dir}/renamed-guard.yml"
 
-	sed 's/^    needs: queue-selection$/    needs: [queue-selection, changes]/' "${job}" >"${dir}/other-needs.yml"
+	sed 's/^    needs: \[queue-selection, pr-plan\]$/    needs: [queue-selection, pr-plan, changes]/' "${job}" >"${dir}/other-needs.yml"
 	cmp -s "${job}" "${dir}/other-needs.yml" && record_fail "other-needs mutation changed nothing" ""
 	tlcap_assert_workflow_exit "a second needs entry is rejected" 1 "${dir}/other-needs.yml"
 

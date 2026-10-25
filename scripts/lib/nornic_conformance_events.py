@@ -54,10 +54,6 @@ go test ./internal/backendconformance -run '^TestLiveBackendConformance$' -count
 WORKFLOW = Path(".github/workflows/e2e-tests.yml")
 STATIC_WORKFLOW = Path(".github/workflows/live-backend-tests.yml")
 REGISTRY = Path("specs/ci-gates.d/gates-09.yaml")
-# The nine proofs span the cypher root and the cloud/resource leaf since the
-# #6694 cloud-writers slice nested the heterogeneous-batch proof. Every enrolled
-# package runs in the single `go test` invocation the runner performs, and the
-# event stream must show exactly one package pass per enrolled package.
 PACKAGES = frozenset({
     "github.com/eshu-hq/eshu/go/internal/storage/cypher",
     "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/resource",
@@ -132,32 +128,40 @@ def _paths(lines: list[tuple[int, str]], depth: int) -> set[str]:
     return paths
 
 
-def _workflow_paths(source: str, static: bool) -> set[str]:
-    """Read effective PR paths after checking the event and root controls."""
-    lines = _active_lines(source)
-    root = [content.split(":", 1)[0] for depth, content in lines if depth == 0]
-    expected_root = (["name", "on", "concurrency", "permissions", "env", "jobs"]
-                     if static else
-                     ["name", "on", "permissions", "concurrency", "env", "jobs"])
+def _workflow_paths(source: str, static: bool, fragment: str) -> set[str]:
+    """Read callable events and frozen synchronize paths together."""
+    root = [content.split(":", 1)[0] for depth, content in _active_lines(source) if depth == 0]
+    expected_root = ["name", "on", "concurrency", "permissions", "env", "jobs"] if static else ["name", "on", "permissions", "concurrency", "env", "jobs"]
     if root != expected_root:
         raise ValueError("unsupported workflow root controls")
-    events = _block(lines, "on", 0)
-    event_keys = [content for depth, content in events if depth == 2]
-    expected_events = ["merge_group:", "push:", "pull_request:"]
+    events = _block(_active_lines(source), "on", 0)
+    expected = ["workflow_call:", "merge_group:", "push:"]
     if static:
-        expected_events.append("workflow_dispatch:")
-    if event_keys != expected_events:
+        expected.append("workflow_dispatch:")
+    if [content for depth, content in events if depth == 2] != expected:
         raise ValueError("unsupported hosted workflow events")
     if _block(events, "merge_group", 2) != [(4, "types: [checks_requested]")]:
         raise ValueError("merge-group event changed")
     if _block(events, "push", 2) != [(4, "branches: [ main ]")]:
         raise ValueError("main push event changed")
-    pull = _block(events, "pull_request", 2)
-    if [content for depth, content in pull if depth == 4] != [
-        "branches: [ main ]", "paths:"
-    ]:
-        raise ValueError("main PR event or paths changed")
-    return _paths(_block(pull, "paths", 4), 6)
+    inputs = _block(_block(events, "workflow_call", 2), "inputs", 4)
+    if [content for depth, content in inputs if depth == 6] != ["plan_jobs:", "plan_gates:", "plan_mode:"]:
+        raise ValueError("callable planner inputs changed")
+    rows = [content for depth, content in _active_lines(fragment) if depth <= 2]
+    filename = "live-backend-tests.yml" if static else "e2e-tests.yml"
+    name = "Live Backend Tests" if static else "End-to-end Tests"
+    prefix = ["schema_version: 1", "workflows:", f"- file: {filename}", f"name: {name}", "synchronize: true", "branches:", "- main", "paths:"]
+    suffix = ["jobs:", "- live-backend", "- live-backend-shards", "- queue-selection", "- static-mirror", "job_names:"] if static else ["jobs:", "- queue-selection", "- test", "job_names:"]
+    if rows[:8] != prefix or "jobs:" not in rows:
+        raise ValueError("unsupported hosted workflow fragment")
+    end = rows.index("jobs:")
+    if rows[end:] != suffix:
+        raise ValueError("unsupported hosted workflow fragment jobs")
+    paths = rows[8:end]
+    if (not paths or any(re.fullmatch(r"- [A-Za-z0-9_./*?-]+", row) is None for row in paths)
+            or len(set(paths)) != len(paths)):
+        raise ValueError("unsupported active path sequence")
+    return {row[2:] for row in paths}
 
 
 def _registry_paths(source: str) -> set[str]:
@@ -201,8 +205,10 @@ def _static_step(source: str) -> None:
     jobs = _block(_active_lines(source), "jobs", 0)
     job = _block(jobs, "static-mirror", 2)
     headers = [content.split(":", 1)[0] for depth, content in job if depth == 4]
-    if headers != ["needs", "name", "runs-on", "timeout-minutes", "steps"]:
+    if headers != ["if", "needs", "name", "runs-on", "timeout-minutes", "steps"]:
         raise ValueError("static mirror job controls changed")
+    if (4, "if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}") not in job:
+        raise ValueError("static mirror planner selection changed")
     steps = _block(job, "steps", 4)
     starts = [index for index, (depth, content) in enumerate(steps)
               if depth == 6 and content == "- name: Test Nornic conformance enrollment"]
@@ -218,10 +224,16 @@ def _static_step(source: str) -> None:
         raise ValueError("Nornic static mirror step is inactive or suppressed")
 
 
-def verify_routing_text(e2e: str, live: str, registry: str) -> None:
+def verify_routing_text(e2e: str, live: str, registry: str,
+                        e2e_fragment: str | None = None,
+                        live_fragment: str | None = None) -> None:
     """Require edits to select the hosted proof and its blocking static guard."""
-    e2e_paths = _workflow_paths(e2e, static=False)
-    live_paths = _workflow_paths(live, static=True)
+    if e2e_fragment is None:
+        e2e_fragment = (ROOT / "specs/ci-pr-workflows.d/e2e-tests.yml").read_text()
+    if live_fragment is None:
+        live_fragment = (ROOT / "specs/ci-pr-workflows.d/live-backend-tests.yml").read_text()
+    e2e_paths = _workflow_paths(e2e, static=False, fragment=e2e_fragment)
+    live_paths = _workflow_paths(live, static=True, fragment=live_fragment)
     gate_paths = _registry_paths(registry)
     _static_step(live)
     for label, paths in (("e2e", e2e_paths), ("static workflow", live_paths),
@@ -312,9 +324,11 @@ def verify_runner_text(text: str, inventory: dict[str, list[str]]) -> None:
         raise ValueError("Nornic runner preamble, CORE, activation, or tail drift")
 
 
-def verify_workflow_text(text: str) -> None:
+def verify_workflow_text(text: str, fragment: str | None = None) -> None:
     """Require the active failing conformance step in the hosted owner job."""
-    if "go/**" not in _workflow_paths(text, static=False):
+    if fragment is None:
+        fragment = (ROOT / "specs/ci-pr-workflows.d/e2e-tests.yml").read_text()
+    if "go/**" not in _workflow_paths(text, static=False, fragment=fragment):
         raise ValueError("hosted workflow no longer selects Go source changes")
     jobs = _block(_active_lines(text), "jobs", 0)
     test_job = _block(jobs, "test", 2)
@@ -346,8 +360,8 @@ def verify_workflow_text(text: str) -> None:
         "            database: nornic\n"
     )
     if (
-        text.count("jobs:\n") != 1
-        or text.count("  pull_request:\n") != 1
+        text.count("\njobs:\n") != 1
+        or text.count("  workflow_call:\n") != 1
         or text.count("  merge_group:\n") != 1
         or job.count(nornic_matrix) != 1
     ):
@@ -357,10 +371,11 @@ def verify_workflow_text(text: str) -> None:
                and line.strip() and not line.lstrip().startswith("#")]
     keys = [re.fullmatch(r"    ([a-z][a-z-]*):(?: .*)?", line) for line in headers]
     if any(key is None for key in keys) or [key.group(1) for key in keys if key] != [
-        "needs", "name", "runs-on", "timeout-minutes", "strategy", "steps"
+        "if", "needs", "name", "runs-on", "timeout-minutes", "strategy", "steps"
     ]:
         raise ValueError("noncanonical hosted conformance job properties")
-    if re.search(r"(?m)^    (?:if|continue-on-error)\s*:", job):
+    condition = "    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'test') }}"
+    if headers.count(condition) != 1 or re.search(r"(?m)^    continue-on-error\s*:", job):
         raise ValueError("hosted conformance job can be disabled")
     step = job.split("      - name: Run live backend conformance\n", 1)[1].split("\n      - name:", 1)[0]
     top = [line for line in step.splitlines() if line.startswith("        ") and not line.startswith("         ")]
@@ -393,11 +408,14 @@ def verify_source_and_runner(root: Path, inventory: dict[str, list[str]]) -> Non
     verify_source(root, inventory)
     verify_ledger(inventory, read_ledger_rows(root))
     verify_runner_text((root / RUNNER).read_text(encoding="utf-8"), inventory)
-    verify_workflow_text((root / WORKFLOW).read_text(encoding="utf-8"))
+    verify_workflow_text((root / WORKFLOW).read_text(encoding="utf-8"),
+                         (root / "specs/ci-pr-workflows.d/e2e-tests.yml").read_text())
     verify_routing_text(
         (root / WORKFLOW).read_text(encoding="utf-8"),
         (root / STATIC_WORKFLOW).read_text(encoding="utf-8"),
         (root / REGISTRY).read_text(encoding="utf-8"),
+        (root / "specs/ci-pr-workflows.d/e2e-tests.yml").read_text(),
+        (root / "specs/ci-pr-workflows.d/live-backend-tests.yml").read_text(),
     )
 
 

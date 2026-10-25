@@ -29,12 +29,12 @@
 - A commit message in this repository must not contain a line that starts with
   the trailer key unless it is a real waiver; the gate reads every message in
   the range.
-- The CI `dirgate` job must stay a dedicated job that needs only `queue-selection`,
-  and go-dir-gate must keep its `"**"` trigger. Unlike the path-scoped
-  `scripts-file-cap` and `markdown-file-cap`, this gate's input includes commit
-  messages, which do not depend on paths, so it must run and be required on every
-  pull request. A code-path guard skips docs-only pull requests, where a stray
-  trailer would inflate `W` unchecked. `workflow_test.go` pins the job shape.
+- The CI `dirgate` job must stay dedicated and depend on both `queue-selection`
+  and the trusted `pr-plan`. Keep the go-dir-gate `"**"` trigger so the gate is
+  required for every pull request, including docs-only changes. The job runs
+  when the trusted plan selects it; only validated reuse may omit it. This gate
+  reads commit messages, so a code-path guard could let a stray trailer inflate
+  `W` unchecked. `workflow_test.go` pins the job and planner wiring.
 - Flags go before the mode. Only `pre-commit` takes arguments after it.
 - The invariant is not airtight, and the slack is permanent: `W` sums every
   reachable commit and nothing subtracts from it, so a stray trailer on main counts

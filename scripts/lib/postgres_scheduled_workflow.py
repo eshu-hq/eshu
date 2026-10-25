@@ -4,7 +4,7 @@
 import re
 
 ROOT_KEYS = frozenset({"name", "on", "permissions", "concurrency", "jobs"})
-JOB_KEYS = frozenset({"runs-on", "timeout-minutes", "services", "steps", "needs"})
+JOB_KEYS = frozenset({"if", "runs-on", "timeout-minutes", "services", "steps", "needs"})
 STEP_KEYS = frozenset({"uses", "with", "run", "env", "working-directory", "if"})
 
 JOB_ORDER = (
@@ -151,7 +151,7 @@ def named_step(steps: list[str], name: str) -> tuple[int, str]:
 
 def job_blocks(workflow: str) -> dict[str, str]:
     """Split the jobs mapping into one text block per reviewed job id."""
-    jobs = workflow.split("jobs:\n", 1)[1]
+    jobs = workflow.split("\njobs:\n", 1)[1]
     blocks: dict[str, str] = {}
     current: str | None = None
     for line in jobs.splitlines(keepends=True):
@@ -185,7 +185,7 @@ def verify_canonical_workflow(workflow: str) -> None:
             concurrency.group(1), 2, concurrency_keys
         ) != {
             "group": "  group: postgres-scheduled-live-${{ github.event_name }}-${{ github.ref }}",
-            "cancel-in-progress": "  cancel-in-progress: false",
+            "cancel-in-progress": "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
         }):
         raise ValueError("non-fail-closed workflow PR concurrency")
     blocks = job_blocks(workflow)
@@ -193,13 +193,17 @@ def verify_canonical_workflow(workflow: str) -> None:
         raise ValueError("non-fail-closed workflow job header")
     for job, block in blocks.items():
         keys = canonical_keys(block, 4, JOB_KEYS)
+        condition = ("    if: ${{ github.event_name != 'pull_request' || "
+                     f"contains(fromJSON(inputs.plan_jobs || '[]'), '{job}') }}}}")
+        if keys.get("if") != condition:
+            raise ValueError(f"conditional scheduled live job: {job}")
         if job in SERVICE_JOBS:
-            if set(keys) != {"runs-on", "timeout-minutes", "services", "steps"}:
+            if set(keys) != {"if", "runs-on", "timeout-minutes", "services", "steps"}:
                 raise ValueError(f"non-fail-closed workflow job: {job}")
             if block.count("    services:\n") != 1:
                 raise ValueError(f"non-fail-closed workflow services: {job}")
         elif job == "scheduled-aggregate":
-            if set(keys) != {"runs-on", "timeout-minutes", "steps", "needs"}:
+            if set(keys) != {"if", "runs-on", "timeout-minutes", "steps", "needs"}:
                 raise ValueError(f"non-fail-closed workflow job: {job}")
             if AGGREGATE_NEEDS not in block.splitlines():
                 raise ValueError("non-fail-closed aggregate fan-in")
@@ -227,36 +231,37 @@ def verify_canonical_workflow(workflow: str) -> None:
                     raise ValueError(f"non-fail-closed conditional workflow step: {name}")
 
 
-def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]], pr_paths: set[str]) -> None:
-    """Keep the same daily job enrolled for narrowly selected PR changes."""
+def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]],
+                   pr_paths: set[str], fragment: str) -> None:
+    """Keep the daily jobs and frozen PR applicability enrolled together."""
     match = re.search(r"(?ms)^on:\n(.*?)(?=^permissions:)", workflow)
     if not match:
         raise ValueError("scheduled workflow event block missing")
     events = re.findall(r"(?m)^  ([a-z_]+):", match.group(1))
-    if len(events) != 3 or set(events) != {"schedule", "workflow_dispatch", "pull_request"}:
+    if len(events) != 3 or set(events) != {"schedule", "workflow_dispatch", "workflow_call"}:
         raise ValueError("scheduled workflow PR events changed")
     if not re.search(r"(?m)^    - cron: '35 4 \* \* \*'$", match.group(1)):
         raise ValueError("scheduled workflow cadence missing")
-    pr = re.search(
-        r"(?ms)^  pull_request:\n(.*?)(?=^  [a-z_]+:|\Z)",
-        match.group(1),
-    )
-    if not pr:
-        raise ValueError("scheduled workflow PR path filter missing")
+    if not re.search(r"(?ms)^  workflow_call:\n    inputs:\n", match.group(1)):
+        raise ValueError("scheduled workflow callable inputs missing")
+    active = [line for line in fragment.splitlines()
+              if line.strip() and not line.lstrip().startswith("#")]
     paths = sorted(pr_paths | set(inventory))
-    expected = "    branches:\n      - main\n    paths:\n" + "".join(
-        f"      - '{path}'\n" for path in paths
-    )
-    if pr.group(1).rstrip("\n") + "\n" != expected:
+    expected = ["schema_version: 1", "workflows:",
+                "- file: postgres-scheduled-live.yml",
+                "  name: Scheduled PostgreSQL Live Proofs", "  synchronize: true",
+                "  branches:", "  - main", "  paths:",
+                *(f"  - {path}" for path in paths), "  jobs:",
+                *(f"  - {job}" for job in sorted(JOB_ORDER)), "  job_names: {}"]
+    if active != expected:
         raise ValueError("scheduled workflow PR paths or branches differ from exact enrollment")
     group = "  group: postgres-scheduled-live-${{ github.event_name }}-${{ github.ref }}"
+    cancel = "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}"
     if (len(re.findall("(?m)^" + re.escape(group) + "$", workflow)) != 1
-            or not re.search(r"(?m)^  cancel-in-progress: false$", workflow)):
+            or len(re.findall("(?m)^" + re.escape(cancel) + "$", workflow)) != 1):
         raise ValueError("scheduled workflow PR concurrency is not separate")
     jobs = workflow.split("\njobs:\n", 1)
     if len(jobs) != 2 or re.findall(r"(?m)^  ([A-Za-z0-9_-]+):", jobs[1]) != list(JOB_ORDER):
         raise ValueError("scheduled workflow needs the same live job")
-    if re.search(r"(?m)^    if:", jobs[1]):
-        raise ValueError("conditional scheduled live job")
     if re.search(r"(?m)^\s*continue-on-error:", jobs[1]):
         raise ValueError("scheduled live job cannot use continue-on-error")

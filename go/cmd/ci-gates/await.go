@@ -92,7 +92,7 @@ func runAwait(args []string) error {
 		for _, check := range reg.RequiredStatusChecks {
 			contexts = append(contexts, check.Context)
 		}
-		evidence, smokeErr := probeSmokeEvidence(ctx, runner, *repo, *pr, *headSHA, paths, contexts)
+		evidence, smokeErr := probeSmokeEvidence(ctx, runner, *repo, *pr, *headSHA, paths, truncated, contexts)
 		if smokeErr != nil {
 			_, _ = fmt.Fprintf(os.Stdout, "required-gates: smoke probe failed (%v); awaiting full selection\n", smokeErr)
 		} else if evidence.Applied {

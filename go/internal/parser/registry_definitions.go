@@ -265,6 +265,13 @@ func defaultDefinitions() []Definition {
 			Extensions: []string{".sc", ".scala", ".routes"},
 		},
 		{
+			ParserKey:  "sbt",
+			Language:   "sbt",
+			Ecosystem:  "scala",
+			Admission:  AdmissionStructuredFact,
+			ExactNames: []string{"build.sbt"},
+		},
+		{
 			ParserKey:  "sql",
 			Language:   "sql",
 			Ecosystem:  "sql",

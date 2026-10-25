@@ -16,25 +16,23 @@ name: Benchmarks
 # service is needed.
 
 on:
-  pull_request:
-    # Path-filtered (#4218): benchmarks only need to run when Go code or the
-    # benchmark harness changes. main runs unconditionally below as the backstop.
-    paths:
-      - "go/**"
-      - "scripts/run-go-benchmarks.sh"
-      - "scripts/verify-bench-regression.sh"
-      - "scripts/refresh-bench-baseline.sh"
-      - "scripts/ci/install-apt-packages.sh"
-      - "scripts/ci/go-mod-download-retry.sh"
-      - "scripts/ci/go-install-retry.sh"
-      - "testdata/benchmarks/**"
-      - ".github/workflows/bench.yml"
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   push:
     branches:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ci-leaf-bench-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -42,6 +40,7 @@ permissions:
 
 jobs:
   test-mirror:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'test-mirror') }}
     name: bench script contract
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -84,6 +83,7 @@ jobs:
         run: scripts/test-verify-reducer-perf-gate.sh
 
   benchmarks:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'benchmarks') }}
     name: go benchmarks
     needs: test-mirror
     runs-on: ubuntu-latest
@@ -127,6 +127,7 @@ jobs:
           if-no-files-found: error
 
   bench-regression:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'bench-regression') }}
     name: bench regression (benchstat vs baseline)
     needs: test-mirror
     runs-on: ubuntu-latest
@@ -181,6 +182,7 @@ jobs:
           if-no-files-found: ignore
 
   reducer-perf-gate:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'reducer-perf-gate') }}
     # B-9 (#3802): per-materialization-handler latency gate. Asserts each
     # credential-free reducer handler benchmark stays under its absolute ns/op
     # ceiling (testdata/benchmarks/reducer-handler-budgets.txt). Complementary to

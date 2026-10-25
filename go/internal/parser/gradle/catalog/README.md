@@ -110,7 +110,9 @@ Outside the grammar, each construct adds one to `unsupported_count` and emits
 no row: a root-level key, a `[libraries.alias]` sub-table, a `[[array]]` table,
 an unknown table such as `[metadata]`, a dotted alias, an alias over 256 bytes,
 an unknown key in an inline table, `module` together with `group`/`name`, a
-non-string value, a string notation with the wrong part count. A sub-table,
+non-string value (a `version.ref` or `version = { ref = ... }` that is not a
+string included, the same as `version = 123`), a string notation with the wrong
+part count. A sub-table,
 array table, dotted or over-long alias in a catalog table still collides with
 the other spellings of its alias (see Aliases).
 

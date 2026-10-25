@@ -49,16 +49,38 @@ def verify_routes(root: Path) -> None:
         OSError: A required workflow or registry fragment cannot be read.
     """
     workflow = (root / ".github/workflows/golden-corpus-gate.yml").read_text()
-    activation = ("  merge_group:\n    types: [checks_requested]\n"
-                  "  push:\n    branches: [ main ]\n"
-                  "  pull_request:\n    branches: [ main ]\n    paths:\n")
+    activation = ("  workflow_call:\n    inputs:\n"
+                  "      plan_jobs:\n        required: true\n        type: string\n"
+                  "      plan_gates:\n        required: true\n        type: string\n"
+                  "      plan_mode:\n        required: true\n        type: string\n"
+                  "  merge_group:\n    types: [checks_requested]\n"
+                  "  push:\n    branches: [ main ]\n")
     uncommented = "\n".join(line for line in workflow.splitlines()
                               if not line.lstrip().startswith("#")) + "\n"
-    if "on:\n" + activation not in uncommented:
+    if "on:\n" + activation not in uncommented or "  pull_request:" in uncommented:
         raise ValueError("B-7 identity workflow activation changed")
-    pr_paths = uncommented.split("    paths:\n", 1)[1].split("concurrency:\n", 1)[0]
+    fragment = (root / "specs/ci-pr-workflows.d/golden-corpus-gate.yml").read_text()
+    active = [line for line in fragment.splitlines()
+              if line.strip() and not line.lstrip().startswith("#")]
+    prefix = ["schema_version: 1", "workflows:",
+              "- file: golden-corpus-gate.yml", "  name: Golden Corpus Gate",
+              "  synchronize: true", "  branches:", "  - main", "  paths:"]
+    if active[:len(prefix)] != prefix or active.count("  paths:") != 1:
+        raise ValueError("B-7 identity fragment activation changed")
+    end = active.index("  jobs:") if "  jobs:" in active else -1
+    if end < len(prefix) or active[end + 1:] != [
+            "  - corpus-gate", "  - differential", "  - differential-capture",
+            "  - queue-selection", "  - static-mirror", "  job_names:",
+            "    corpus-gate: corpus-gate (${{ matrix.graph_backend }})",
+            "    differential: differential nornicdb vs neo4j",
+            "    differential-capture: differential capture (pair ${{ matrix.pair }}, ${{ matrix.graph_backend }})",
+            "    static-mirror: static mirror"]:
+        raise ValueError("B-7 identity fragment jobs changed")
+    pr_paths = active[len(prefix):end]
+    if any(not line.startswith("  - ") for line in pr_paths):
+        raise ValueError("B-7 identity fragment paths changed")
     for path in INPUTS:
-        if pr_paths.splitlines().count(f"      - '{path}'") != 1:
+        if pr_paths.count(f"  - {path}") != 1:
             raise ValueError(f"B-7 identity workflow input unselected: {path}")
     for job, step, command, extra in (
         ("static-mirror", "Validate orchestrator contract",
@@ -72,8 +94,11 @@ def verify_routes(root: Path) -> None:
         if body is None:
             raise ValueError(f"B-7 identity owner job missing: {job}")
         header = body.group(1).split("    steps:\n", 1)[0]
+        condition = ("    if: ${{ github.event_name != 'pull_request' || "
+                     f"contains(fromJSON(inputs.plan_jobs || '[]'), '{job}') }}}}")
         if (header.splitlines().count("    needs: queue-selection") != 1
-                or re.search(r"(?m)^    (?:if|continue-on-error):", header)):
+                or re.findall(r"(?m)^    if:.*$", header) != [condition]
+                or re.search(r"(?m)^    continue-on-error:", header)):
             raise ValueError(f"B-7 identity owner job inactive: {job}")
         selection = "static mirror" if job == "static-mirror" else "corpus-gate"
         expected = (f"      - name: {step}\n"

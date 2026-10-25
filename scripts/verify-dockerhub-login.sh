@@ -270,6 +270,8 @@ source "${repo_root}/scripts/lib/dockerhub-login-shadow.sh"
 source "${repo_root}/scripts/lib/dockerhub-login-queue.sh"
 # shellcheck source=lib/dockerhub-login-matrix.sh disable=SC2034
 source "${repo_root}/scripts/lib/dockerhub-login-matrix.sh"
+# shellcheck source=lib/dockerhub-login-composite.sh
+source "${repo_root}/scripts/lib/dockerhub-login-composite.sh"
 
 # check_job <workflow> <job> <workflow env> <queue 0|1>: evaluates one job. A job
 # of a queue-path workflow must not reach Docker Hub (a login is not judged here);
@@ -335,18 +337,8 @@ check_job() {
         act="${uses#./}"; act="${act%/}"
         for af in "${act}/action.yml" "${act}/action.yaml"; do
           [[ -f "${root}/${af}" ]] || continue
-          file_kind "${af}"
-          [[ "${KIND}" == none ]] || why="local action ${uses} invokes docker"
-          [[ -z "${why}" ]] || continue
-          # A composite action's run steps may call a repository script (the run
-          # text is in ${tmp}/action-run.txt, written by file_kind).
-          while IFS= read -r aref; do
-            [[ -n "${aref}" ]] || continue
-            resolve_token "${aref}" "${act}"
-            [[ -n "${RESOLVED}" ]] || continue
-            closure "${RESOLVED}"
-            [[ "${closure_kind}" == none ]] || why="local action ${uses} runs ${RESOLVED}, which reaches docker (${closure_chain})"
-          done < <(LC_ALL=C awk -v bare=1 -f "${refs_awk}" "${tmp}/action-run.txt")
+          composite_hub_why "${af}" "${act}" "${env64}" "${job}" "${seq}"
+          [[ -z "${HUBWHY}" ]] || why="local action ${uses} reaches Docker Hub: ${HUBWHY}"
         done ;;
       "")
         runf="${tmp}/runs/${seq}"

@@ -1,0 +1,123 @@
+name: Verify CI contracts
+description: Run selected contract checks without broad smoke commands.
+inputs:
+  mode:
+    description: PR plan mode, or full for non-PR events.
+    required: true
+  gates:
+    description: JSON array of selected registry gate IDs.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Verify CodeQL setup model
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-verify-codeql-setup.sh
+        scripts/verify-codeql-setup.sh
+    - name: Verify Markdown file cap during registry rollout
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-verify-markdown-line-cap.sh
+        MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
+    - name: Verify security-scan tee-status helper
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: scripts/test-security-scan-tee-status.sh
+    - name: Verify hot-path evidence
+      if: ${{ inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'perf-evidence') }}
+      env:
+        ESHU_PERFORMANCE_EVIDENCE_BASE: ${{ github.event.pull_request.base.sha }}
+      shell: bash
+      run: |
+        scripts/test-verify-performance-evidence.sh
+        scripts/verify-performance-evidence.sh
+    - name: Set up Python for query methodology hook proof
+      if: ${{ inputs.mode != 'smoke' }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Install query methodology hook runner
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: python -m pip install pre-commit==4.6.2
+    - name: Verify query methodology static contract in smoke
+      if: ${{ inputs.mode == 'smoke' && contains(fromJSON(inputs.gates), 'query-methodology-static') }}
+      shell: bash
+      run: bash scripts/verify-query-methodology.sh --static
+    - name: Verify query-plan regression gate
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        git fetch --no-tags origin main:refs/remotes/origin/main
+        python3 scripts/test-query-methodology-comparison-identity.py
+        python3 scripts/test-verify-query-methodology-live-contract.py
+        scripts/test-verify-query-methodology.sh
+        scripts/test-verify-query-plan-regression.sh
+        scripts/verify-query-plan-regression.sh
+    - name: Archive query methodology evidence
+      if: ${{ always() && inputs.mode != 'smoke' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: query-methodology-${{ github.sha }}
+        path: .proof-artifacts/query-methodology/*.json
+        if-no-files-found: error
+    - name: Verify scale corpus suite
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-verify-scale-corpus-suite.sh
+        scripts/verify-scale-corpus-suite.sh
+    - name: Verify scale benchmark artifact
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-verify-scale-benchmark-artifact.sh
+        scripts/verify-scale-benchmark-artifact.sh
+    - name: Verify capability budget proof
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-verify-capability-budget-proof.sh
+        scripts/verify-capability-budget-proof.sh
+    - name: Verify package docs
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-verify-package-docs.sh
+        scripts/verify-package-docs.sh
+    - name: Verify shipped migration immutability
+      if: ${{ inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'migration-immutability') }}
+      shell: bash
+      run: |
+        scripts/test-verify-migration-immutability.sh
+        scripts/verify-migration-immutability.sh
+    - name: Verify Go license headers
+      if: ${{ inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'license-header') }}
+      shell: bash
+      run: |
+        scripts/test-verify-license-header.sh
+        scripts/verify-license-header.sh
+    - name: Verify generated collector entrypoints
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-verify-collector-entrypoints-generated.sh
+        scripts/verify-collector-entrypoints-generated.sh
+    - name: Verify vulnerability parity fixtures
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: scripts/verify_vulnerability_parity_fixtures.sh
+    - name: Verify accuracy golden gate
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: scripts/verify_accuracy_golden_gate.sh
+    - name: Verify golden-corpus filter exhaustiveness
+      if: ${{ inputs.mode != 'smoke' }}
+      shell: bash
+      run: |
+        scripts/test-verify-golden-corpus-filter-exhaustive.sh
+        scripts/verify-golden-corpus-filter-exhaustive.sh
