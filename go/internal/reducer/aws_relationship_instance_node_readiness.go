@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // relationshipTypeEC2InstanceUsesAMI is the one AWS relationship whose SOURCE

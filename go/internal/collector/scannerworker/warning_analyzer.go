@@ -7,10 +7,10 @@ import (
 	"context"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	scannerworkerv1 "github.com/eshu-hq/eshu-sdk/factschema/scannerworker/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	scannerworkerv1 "github.com/eshu-hq/eshu/sdk/go/factschema/scannerworker/v1"
 )
 
 // WarningAnalyzer emits an explicit scanner-worker warning fact. It is safe for

@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	incidentv1 "github.com/eshu-hq/eshu-sdk/factschema/incident/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
 type recordingIncidentRoutingEvidenceWriter struct {

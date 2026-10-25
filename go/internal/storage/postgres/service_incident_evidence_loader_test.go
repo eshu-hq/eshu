@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	incidentv1 "github.com/eshu-hq/eshu-sdk/factschema/incident/v1"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
-	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
 func TestServiceIncidentEvidenceLoaderMapsExactProviderServiceToCatalogService(t *testing.T) {

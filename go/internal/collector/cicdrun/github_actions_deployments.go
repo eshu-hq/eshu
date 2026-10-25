@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	cicdrunv1 "github.com/eshu-hq/eshu-sdk/factschema/cicdrun/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/go/internal/urlredact"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 )
 
 // deploymentProvider is the Provider segment ci.deployment_event facts carry.

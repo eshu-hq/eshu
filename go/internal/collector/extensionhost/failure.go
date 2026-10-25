@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 )
 
 const (

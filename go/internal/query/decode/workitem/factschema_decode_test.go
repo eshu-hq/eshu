@@ -7,8 +7,8 @@ import (
 	"errors"
 	"testing"
 
+	workitemv1 "github.com/eshu-hq/eshu-sdk/factschema/workitem/v1"
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
-	workitemv1 "github.com/eshu-hq/eshu/sdk/go/factschema/workitem/v1"
 )
 
 // TestDecodeWrappersDecodeValidRows pins the shared decode contract: every

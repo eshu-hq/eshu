@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // postgresFactDecodeError wraps a classified factschema decode failure for

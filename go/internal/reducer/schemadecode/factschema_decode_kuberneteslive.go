@@ -4,10 +4,10 @@
 package schemadecode
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	kuberneteslivev1 "github.com/eshu-hq/eshu-sdk/factschema/kuberneteslive/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 )
 
 // DecodeKubernetesLivePodTemplate decodes one kubernetes_live.pod_template

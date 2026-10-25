@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
-	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	iamv1 "github.com/eshu-hq/eshu-sdk/factschema/iam/v1"
+	secretsiamv1 "github.com/eshu-hq/eshu-sdk/factschema/secretsiam/v1"
 )
 
 func principalPayload(

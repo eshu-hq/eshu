@@ -45,7 +45,7 @@ func writeFixtureTree(t *testing.T, constantsSrc string, services map[string]str
 
 const fixtureConstants = `package awscloud
 
-import awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+import awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 
 const (
 	ResourceTypeEC2VPC = "aws_ec2_vpc"

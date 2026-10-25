@@ -6,11 +6,11 @@ package ifa
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	codegraphv1 "github.com/eshu-hq/eshu-sdk/factschema/codegraph/v1"
+	submodulev1 "github.com/eshu-hq/eshu-sdk/factschema/submodule/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
-	submodulev1 "github.com/eshu-hq/eshu/sdk/go/factschema/submodule/v1"
 )
 
 const (

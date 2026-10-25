@@ -14,6 +14,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
@@ -22,7 +23,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // Run with:

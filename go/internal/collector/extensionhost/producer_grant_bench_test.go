@@ -12,10 +12,10 @@ import (
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // BenchmarkGrantCoverageRecheck measures the per-emission producer-grant

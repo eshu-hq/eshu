@@ -8,9 +8,9 @@ import (
 	"errors"
 	"strings"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu-sdk/factschema/fixturepack"
 	"github.com/eshu-hq/eshu/go/internal/component"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
-	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 func sdkContract(manifest component.Manifest) (sdkcollector.Contract, error) {

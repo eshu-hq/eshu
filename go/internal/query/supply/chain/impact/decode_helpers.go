@@ -6,11 +6,11 @@ package impact
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	packageregistryv1 "github.com/eshu-hq/eshu-sdk/factschema/packageregistry/v1"
+	sbomv1 "github.com/eshu-hq/eshu-sdk/factschema/sbom/v1"
+	servicecatalogv1 "github.com/eshu-hq/eshu-sdk/factschema/servicecatalog/v1"
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
-	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
-	servicecatalogv1 "github.com/eshu-hq/eshu/sdk/go/factschema/servicecatalog/v1"
 )
 
 func boolPointerVal(payload map[string]any, key string) *bool {

@@ -4,10 +4,10 @@
 package schemadecode
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	reducerderivedv1 "github.com/eshu-hq/eshu-sdk/factschema/reducerderived/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 )
 
 // DecodeReducerPackageOwnershipCorrelation decodes one persisted

@@ -80,8 +80,8 @@ package factenvelope
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu-sdk/factschema"
 )
 
 // DefaultSchemaMajorVersion is the schema version assumed for version-less

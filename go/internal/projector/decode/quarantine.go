@@ -12,11 +12,11 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // This file is the GENERIC, family-neutral projector-side counterpart to the

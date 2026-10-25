@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 
-	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerabilitysuppression/v1"
+	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu-sdk/factschema/vulnerabilitysuppression/v1"
 )
 
 type recordingVulnerabilitySuppressionMutationStore struct {

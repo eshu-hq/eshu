@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // TestGomodStateRoundTripThroughTypedContract proves the factschema

@@ -7,8 +7,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // TestWarningAnalyzerFactDecodesThroughTypedContract locks the second producer

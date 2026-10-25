@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	azurev1 "github.com/eshu-hq/eshu-sdk/factschema/azure/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
 // Relationship support states classify how completely the provider described an

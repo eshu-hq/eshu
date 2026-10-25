@@ -11,9 +11,9 @@ import (
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // BenchmarkNextClaimedRetryableUnrecorded measures one retryable claim result

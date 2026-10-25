@@ -4,10 +4,10 @@
 package semantic
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	semanticv1 "github.com/eshu-hq/eshu-sdk/factschema/semantic/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/facts/encode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	semanticv1 "github.com/eshu-hq/eshu/sdk/go/factschema/semantic/v1"
 )
 
 // EncodeSemanticDocumentationObservation maps the internal semantic

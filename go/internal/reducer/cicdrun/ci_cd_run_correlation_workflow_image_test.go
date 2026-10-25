@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	cicdrunv1 "github.com/eshu-hq/eshu-sdk/factschema/cicdrun/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 )
 
 // classifyCICDWorkflowImageEvidence is the SECOND caller of

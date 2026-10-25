@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	secretsiamv1 "github.com/eshu-hq/eshu-sdk/factschema/secretsiam/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
-	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 )
 
 // NewPrincipalEnvelope builds the durable aws_iam_principal source fact for one

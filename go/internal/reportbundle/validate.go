@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/sdk/go/collector"
+	"github.com/eshu-hq/eshu-sdk/collector"
 )
 
 // ValidateOptions controls the strictness Validate applies. RequirePublic

@@ -7,12 +7,12 @@ import (
 	"context"
 	"strings"
 
+	cicdrunv1 "github.com/eshu-hq/eshu-sdk/factschema/cicdrun/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
-	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 )
 
 // activeContainerImageCIFactLoader is the #5810 cross-scope bridge for ci.run

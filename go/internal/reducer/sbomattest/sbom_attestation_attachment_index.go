@@ -4,13 +4,13 @@
 package sbomattest
 
 import (
+	sbomv1 "github.com/eshu-hq/eshu-sdk/factschema/sbom/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
-	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 type sbomAttachmentDocument struct {

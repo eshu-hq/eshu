@@ -9,8 +9,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	codegraphv1 "github.com/eshu-hq/eshu-sdk/factschema/codegraph/v1"
 )
 
 // importIdentity is the identity of one File-[:IMPORTS]->Module edge: its two

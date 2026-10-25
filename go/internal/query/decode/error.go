@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	"github.com/eshu-hq/eshu-sdk/factschema"
 )
 
 // Error wraps a classified *factschema.DecodeError so a query-layer

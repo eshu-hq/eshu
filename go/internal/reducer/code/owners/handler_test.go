@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	codeownersv1 "github.com/eshu-hq/eshu-sdk/factschema/codeowners/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	codeownersv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codeowners/v1"
 )
 
 // stubFactLoader is a minimal factload.FactLoader double, following the

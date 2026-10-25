@@ -6,9 +6,9 @@ package familyodu
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	codegraphv1 "github.com/eshu-hq/eshu-sdk/factschema/codegraph/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
 // The semantic_entity_containment family Odù (#8359, split out of #6228).

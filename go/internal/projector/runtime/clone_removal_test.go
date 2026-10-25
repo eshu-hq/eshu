@@ -12,11 +12,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorentity "github.com/eshu-hq/eshu/go/internal/projector/semantic/entity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // mixedProjectorFixture builds one inputFacts slice that exercises every

@@ -4,9 +4,9 @@
 package registry
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	reducerderivedv1 "github.com/eshu-hq/eshu-sdk/factschema/reducerderived/v1"
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 )
 
 // This file holds query-side decode wrappers for the reducer-owned package

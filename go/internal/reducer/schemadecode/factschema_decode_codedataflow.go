@@ -4,10 +4,10 @@
 package schemadecode
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	codedataflowv1 "github.com/eshu-hq/eshu-sdk/factschema/codedataflow/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	codedataflowv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codedataflow/v1"
 )
 
 // DecodeCodeDataflowScanned decodes one "code_dataflow_scanned" envelope into

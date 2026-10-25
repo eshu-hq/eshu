@@ -7,9 +7,9 @@ import (
 	"context"
 	"fmt"
 
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // canonicalPhaseEC2Instance names the EC2 instance CloudResource node

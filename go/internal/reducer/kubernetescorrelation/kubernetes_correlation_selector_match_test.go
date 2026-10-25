@@ -6,10 +6,10 @@ package kubernetescorrelation
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	kuberneteslivev1 "github.com/eshu-hq/eshu-sdk/factschema/kuberneteslive/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 )
 
 // TestBuildKubernetesCorrelationDecisionsSelectorMatchFromRealCollectorFact is

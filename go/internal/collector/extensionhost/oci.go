@@ -14,7 +14,7 @@ import (
 	"regexp"
 	"strings"
 
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 )
 
 const (

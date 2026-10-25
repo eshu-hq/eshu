@@ -6,8 +6,8 @@ package runtime
 import (
 	"testing"
 
+	sbomv1 "github.com/eshu-hq/eshu-sdk/factschema/sbom/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
-	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 // baseSLSATarget returns a TargetConfig for an in-toto attestation statement

@@ -4,10 +4,10 @@
 package schemadecode
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	securityalertv1 "github.com/eshu-hq/eshu-sdk/factschema/securityalert/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 )
 
 // DecodeSecurityAlertRepositoryAlert decodes one security_alert.repository_alert

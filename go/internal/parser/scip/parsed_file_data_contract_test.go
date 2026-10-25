@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	scippb "github.com/scip-code/scip/bindings/go/scip"
 )
 

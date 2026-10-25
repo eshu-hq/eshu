@@ -19,7 +19,7 @@ import (
 // the last binding of the shared name.
 const fixtureTrustChainAnchorCalls = `package postgres
 
-import "github.com/eshu-hq/eshu/sdk/go/factschema"
+import "github.com/eshu-hq/eshu-sdk/factschema"
 
 func anchorAWS(schemaEnv factschema.Envelope, factKind string) {
 	switch factKind {

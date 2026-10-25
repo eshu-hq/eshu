@@ -8,10 +8,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	iamv1 "github.com/eshu-hq/eshu-sdk/factschema/iam/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
 // wildcardAction is the IAM action wildcard that grants every action. A

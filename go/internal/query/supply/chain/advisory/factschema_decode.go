@@ -4,9 +4,9 @@
 package advisory
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	vulnerabilityv1 "github.com/eshu-hq/eshu-sdk/factschema/vulnerability/v1"
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 )
 
 // This file holds query-side decode wrappers for the source-fact kinds that

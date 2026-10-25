@@ -8,12 +8,12 @@ import (
 	"net/http"
 	"testing"
 
+	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu-sdk/factschema/vulnerabilitysuppression/v1"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/failure"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerabilitysuppression/v1"
 )
 
 const (

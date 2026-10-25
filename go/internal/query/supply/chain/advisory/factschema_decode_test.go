@@ -7,8 +7,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // TestAdvisoryDecodeWrappersClassifyMissingRequiredField proves the same

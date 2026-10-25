@@ -8,9 +8,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // TestKubernetesCorrelationMaterializationQuarantinesMalformedFact proves the

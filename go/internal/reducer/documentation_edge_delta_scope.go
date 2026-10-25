@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	documentationv1 "github.com/eshu-hq/eshu-sdk/factschema/documentation/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -16,7 +17,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
-	documentationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/documentation/v1"
 )
 
 type documentationDeltaScope struct {

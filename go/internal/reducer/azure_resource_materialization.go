@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	azurev1 "github.com/eshu-hq/eshu-sdk/factschema/azure/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
@@ -21,7 +22,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
-	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
 func azureResourceMaterializationDomainDefinition() DomainDefinition {

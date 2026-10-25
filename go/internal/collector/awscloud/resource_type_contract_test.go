@@ -6,8 +6,8 @@ package awscloud
 import (
 	"testing"
 
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 func TestAWSCloudResourceTypeConstantsMatchFactSchema(t *testing.T) {

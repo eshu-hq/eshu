@@ -11,10 +11,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 func TestBuildCanonicalMaterializationExtractsPackageRegistryRows(t *testing.T) {

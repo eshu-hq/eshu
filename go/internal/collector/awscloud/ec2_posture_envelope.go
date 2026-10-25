@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // NewEC2InstancePostureEnvelope builds the durable ec2_instance_posture fact for

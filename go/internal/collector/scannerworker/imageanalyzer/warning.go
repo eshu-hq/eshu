@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	scannerworkerv1 "github.com/eshu-hq/eshu-sdk/factschema/scannerworker/v1"
 	"github.com/eshu-hq/eshu/go/internal/collector/ospackagevulnerability"
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	scannerworkerv1 "github.com/eshu-hq/eshu/sdk/go/factschema/scannerworker/v1"
 )
 
 func newUnsupportedWarning(

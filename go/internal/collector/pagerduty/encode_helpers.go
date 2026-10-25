@@ -6,7 +6,7 @@ package pagerduty
 import (
 	"strings"
 
-	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
+	incidentv1 "github.com/eshu-hq/eshu-sdk/factschema/incident/v1"
 )
 
 func mergeContractPayload(payload map[string]any, encode func() (map[string]any, error)) error {

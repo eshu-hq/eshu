@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	gcpv1 "github.com/eshu-hq/eshu-sdk/factschema/gcp/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
 // BenchmarkDiscoverGCPCloudRelationshipEvidence measures the reducer-called

@@ -6,8 +6,8 @@ package reducer
 import (
 	"testing"
 
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 func TestReducerAWSResourceTypeConstantsMatchFactSchema(t *testing.T) {

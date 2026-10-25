@@ -10,8 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 func TestBuildCanonicalMaterializationQuarantinesMissingCodegraphRepositoryID(t *testing.T) {

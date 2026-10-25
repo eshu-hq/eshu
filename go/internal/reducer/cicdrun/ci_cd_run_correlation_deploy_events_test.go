@@ -7,9 +7,9 @@ import (
 	"context"
 	"testing"
 
+	cicdrunv1 "github.com/eshu-hq/eshu-sdk/factschema/cicdrun/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 )
 
 // strPtr returns a pointer to s, for constructing the optional (pointer)

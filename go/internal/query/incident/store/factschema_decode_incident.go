@@ -7,11 +7,11 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	incidentv1 "github.com/eshu-hq/eshu-sdk/factschema/incident/v1"
+	servicecatalogv1 "github.com/eshu-hq/eshu-sdk/factschema/servicecatalog/v1"
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	workitemdecode "github.com/eshu-hq/eshu/go/internal/query/decode/workitem"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
-	servicecatalogv1 "github.com/eshu-hq/eshu/sdk/go/factschema/servicecatalog/v1"
 )
 
 // This file holds the query-side decode wrappers for the incident-context

@@ -9,13 +9,13 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 var factSchemaWireKindCases = []struct {

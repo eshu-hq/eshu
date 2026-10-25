@@ -3,7 +3,7 @@
 
 package catalog
 
-import awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+import awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 
 // Compute-category constants consolidated from constants_ec2.go (#6696).
 

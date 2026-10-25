@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 type fieldRole string

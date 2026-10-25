@@ -7,8 +7,8 @@ import (
 	"context"
 	"strings"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 func (s *Source) recordStatuses(ctx context.Context, item workflow.WorkItem, result sdkcollector.Result) error {

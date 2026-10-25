@@ -8,7 +8,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/eshu-hq/eshu/sdk/go/collector"
+	"github.com/eshu-hq/eshu-sdk/collector"
 )
 
 // TestRedact_SensitiveKeyNamesUseCollectorRules proves redactValue DROPS every

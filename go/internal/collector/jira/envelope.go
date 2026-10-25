@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	workitemv1 "github.com/eshu-hq/eshu-sdk/factschema/workitem/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	workitemv1 "github.com/eshu-hq/eshu/sdk/go/factschema/workitem/v1"
 )
 
 const redactionPolicyVersion = "jira_work_item_v1"

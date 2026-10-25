@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	reducerderivedv1 "github.com/eshu-hq/eshu-sdk/factschema/reducerderived/v1"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
-	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 )
 
 // Module-resolution-confidence outcome tests (issue #5572). Split from

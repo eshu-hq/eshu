@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 )
 
 func TestRunFixtureModeAcceptsDeclaredFacts(t *testing.T) {

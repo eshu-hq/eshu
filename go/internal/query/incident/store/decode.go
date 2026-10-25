@@ -6,10 +6,10 @@ package store
 import (
 	"time"
 
+	incidentv1 "github.com/eshu-hq/eshu-sdk/factschema/incident/v1"
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
 // decodeIncidentContextIncident decodes one incident.record fact row into the

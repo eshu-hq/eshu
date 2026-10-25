@@ -6,10 +6,10 @@ package ifa
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	codegraphv1 "github.com/eshu-hq/eshu-sdk/factschema/codegraph/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
 // The workload_dependency family Odù (#6003, under the #5543 umbrella).

@@ -4,10 +4,10 @@
 package schemadecode
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	incidentv1 "github.com/eshu-hq/eshu-sdk/factschema/incident/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
 // DecodeIncidentRecord decodes one incident.record envelope into the typed

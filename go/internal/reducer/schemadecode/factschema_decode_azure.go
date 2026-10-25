@@ -4,10 +4,10 @@
 package schemadecode
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	azurev1 "github.com/eshu-hq/eshu-sdk/factschema/azure/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
 // DecodeAzureCloudResource decodes one azure_cloud_resource envelope into the

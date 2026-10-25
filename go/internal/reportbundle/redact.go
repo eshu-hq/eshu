@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/urlredact"
-	"github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // inlineContentKeys names JSON object keys that carry verbatim inline content

@@ -6,7 +6,7 @@ package declaration
 import (
 	"testing"
 
-	runtimedeclarationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/runtimedeclaration/v1"
+	runtimedeclarationv1 "github.com/eshu-hq/eshu-sdk/factschema/runtimedeclaration/v1"
 )
 
 // wantSpec is the end-to-end shape of one emitted fact for the operator tests:

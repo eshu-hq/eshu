@@ -6,10 +6,10 @@ package familyodu
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // The observability_coverage family Odù (#6228, under the #6181

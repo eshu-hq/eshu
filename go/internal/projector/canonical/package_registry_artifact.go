@@ -9,8 +9,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // PackageRegistryArtifactRow carries one published package-version artifact

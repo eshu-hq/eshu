@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu-sdk/factschema/vulnerabilitysuppression/v1"
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
@@ -19,7 +20,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerabilitysuppression/v1"
 	"go.opentelemetry.io/otel/attribute"
 )
 

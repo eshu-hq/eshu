@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strconv"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 func (s *Source) requestForWorkItem(item workflow.WorkItem) Request {

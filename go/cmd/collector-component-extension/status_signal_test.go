@@ -16,13 +16,13 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/trace/noop"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry/contract"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // helperProcessEnv switches this test binary into the fake extension role.

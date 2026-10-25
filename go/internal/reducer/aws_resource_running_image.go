@@ -4,8 +4,8 @@
 package reducer
 
 import (
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // ecsRunningTaskResourceTypes and lambdaFunctionResourceTypes are the closed,

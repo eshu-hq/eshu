@@ -4,12 +4,12 @@
 package schemadecode
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
+	azurev1 "github.com/eshu-hq/eshu-sdk/factschema/azure/v1"
+	gcpv1 "github.com/eshu-hq/eshu-sdk/factschema/gcp/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
-	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
-	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
 // This file holds the reducer-side decode wrappers for the cross-provider

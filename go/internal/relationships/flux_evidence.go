@@ -7,10 +7,10 @@ import (
 	"encoding/hex"
 	"strings"
 
+	codegraphv1 "github.com/eshu-hq/eshu-sdk/factschema/codegraph/v1"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
-	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	"github.com/eshu-hq/eshu-sdk/factschema"
 )
 
 // Flux cross-repo URL resolution outcomes (issue #5483 C2). This is the

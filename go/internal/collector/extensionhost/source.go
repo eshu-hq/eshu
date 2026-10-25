@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	sdkconformance "github.com/eshu-hq/eshu-sdk/collector/conformance"
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
-	sdkconformance "github.com/eshu-hq/eshu/sdk/go/collector/conformance"
 )
 
 // NewSource validates component host configuration and builds a claimed source.

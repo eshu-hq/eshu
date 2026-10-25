@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // TestNewSourceAcceptsGrantedCoreFactKind is the #6709 slice-2 TDD red test:

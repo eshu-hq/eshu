@@ -4,9 +4,9 @@
 package decode
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	tfstatev1 "github.com/eshu-hq/eshu-sdk/factschema/terraformstate/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
 // This file holds the projector-side decode wrappers for the terraform_state

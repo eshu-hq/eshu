@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu-sdk/factschema/vulnerabilitysuppression/v1"
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerabilitysuppression/v1"
 )
 
 // BuildVulnerabilitySuppressions decodes vulnerability.suppression fact

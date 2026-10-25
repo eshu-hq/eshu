@@ -223,7 +223,7 @@ func TestScanDecodeUsageRecognizesQualifiedCallThroughFactschema(t *testing.T) {
 	dir := writeFixtureDir(t, map[string]string{
 		"secrets_iam_trust_chain_anchor_decode.go": `package postgres
 
-import "github.com/eshu-hq/eshu/sdk/go/factschema"
+import "github.com/eshu-hq/eshu-sdk/factschema"
 
 func addAWSEnvelope(schemaEnv factschema.Envelope) {
 	principal, err := factschema.DecodeAWSIAMPrincipal(schemaEnv)

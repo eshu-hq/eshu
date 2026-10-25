@@ -4,7 +4,7 @@
 package relationships
 
 import (
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	"github.com/eshu-hq/eshu-sdk/factschema"
 )
 
 // discoverStructuredKustomizeEvidence extracts DEPLOYS_FROM evidence from the

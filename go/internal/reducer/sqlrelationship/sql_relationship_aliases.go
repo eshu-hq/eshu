@@ -6,13 +6,13 @@ package sqlrelationship
 import (
 	"context"
 
+	codegraphv1 "github.com/eshu-hq/eshu-sdk/factschema/codegraph/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
-	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
 // FactLoader loads fact envelopes for one scope generation. Alias for

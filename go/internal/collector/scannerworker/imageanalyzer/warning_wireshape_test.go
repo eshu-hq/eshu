@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // TestUnsupportedWarningKeepsImageKeysPresentWhenImageIdentityBlank locks the

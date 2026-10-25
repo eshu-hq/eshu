@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"strings"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu-sdk/collector/conformance"
+	"github.com/eshu-hq/eshu-sdk/factschema/fixturepack"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
-	"github.com/eshu-hq/eshu/sdk/go/collector/conformance"
-	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 // ValidateOduPayloads validates odu's facts against the SDK's payload-schema

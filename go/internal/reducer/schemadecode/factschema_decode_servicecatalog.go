@@ -8,9 +8,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	servicecatalogv1 "github.com/eshu-hq/eshu-sdk/factschema/servicecatalog/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	servicecatalogv1 "github.com/eshu-hq/eshu/sdk/go/factschema/servicecatalog/v1"
 )
 
 // DecodeServiceCatalogEntity decodes one service_catalog.entity envelope into

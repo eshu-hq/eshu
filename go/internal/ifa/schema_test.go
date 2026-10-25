@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema/fixturepack"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
-	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 func schemaBackedRegistry() map[string]facts.FactKindRegistryEntry {

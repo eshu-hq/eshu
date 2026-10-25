@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu-sdk/factschema/vulnerabilitysuppression/v1"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerabilitysuppression/v1"
 )
 
 // VulnerabilitySuppressionMutationResult identifies the durable generation

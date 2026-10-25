@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 const projectorPersistedVersionlessSchemaVersion = factenvelope.PersistedVersionlessSchemaVersion

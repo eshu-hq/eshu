@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	reducerderivedv1 "github.com/eshu-hq/eshu-sdk/factschema/reducerderived/v1"
 	"github.com/eshu-hq/eshu/go/internal/query/codedivergence"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 )
 
 // driftedFindingPayloadJSON encodes one admitted pair through the production

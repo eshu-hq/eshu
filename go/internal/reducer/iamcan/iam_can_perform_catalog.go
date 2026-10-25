@@ -6,7 +6,7 @@ package iamcan
 import (
 	"sort"
 
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 )
 
 // CAN_PERFORM target resource_type tokens the catalog maps actions to. They
