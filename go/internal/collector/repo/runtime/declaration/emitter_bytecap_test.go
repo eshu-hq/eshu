@@ -82,7 +82,7 @@ func TestEmitFileSkipsAFileOverTheByteCapBeforeParsing(t *testing.T) {
 
 	body := hostileToolVersions(10 << 20)
 	got, skip := EmitFile(testContext(".tool-versions"), "repo-1", ".tool-versions", body)
-	want := Skip{Reason: SkipReasonByteCap, ByteSize: len(body)}
+	want := Skip{Reason: SkipReasonByteCap, ByteSize: len(body), ByteCap: MaxBytesPerFile}
 	if len(got) != 0 || skip != want {
 		t.Fatalf("10 MB file: %d envelopes, skip %+v; want 0, %+v", len(got), skip, want)
 	}

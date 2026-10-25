@@ -251,6 +251,18 @@ import paths. Edges from a graph written before the mapping existed cannot be
 placed and close nothing; they are counted in
 `coverage.cycle_go_edges_missing_package`.
 
+## Runtime Version Declarations
+
+The git collector also emits `runtime_declaration.version` facts from a
+`go.mod`: the `go` directive (`source_kind` `go_mod_go`) and the `toolchain`
+directive (`go_mod_toolchain`), runtime `go`. `go 1.22` is `partial`,
+`go 1.22.1` and `toolchain go1.22.3` are `exact`. `toolchain default`,
+`toolchain local`, `go1.22.3+auto` and any other form stay `alias` as written.
+`require`, `replace`, `exclude`, `retract`, `godebug` and `tool` lines never
+emit, and a repeated `go` or `toolchain` directive emits neither. A `go.mod`
+under `vendor` or `node_modules` emits nothing.
+
 ## Known Limitations
+- Runtime version declaration facts are emitted but nothing reads them yet (graph projection #8816, query tool #8817).
 - Generic type constraints may not be fully captured
 - Channel types not separately tracked

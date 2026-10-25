@@ -29,8 +29,9 @@ const (
 // docs/internal/design/contract-system-v1.md, issue #8815, epic #8807).
 //
 // One Version fact is one runtime version a repository declares in one file:
-// a version-pin file such as ".nvmrc" or ".tool-versions" today, and later
-// package.json, go.mod, Dockerfile and CI setup inputs. A line that lists
+// a version-pin file such as ".nvmrc" or ".tool-versions", the engines, volta
+// and packageManager sections of a package.json, the go and toolchain
+// directives of a go.mod, and later Dockerfile and CI setup inputs. A line that lists
 // several versions (".tool-versions": "nodejs 20.1.0 18.0.0") is one fact per
 // token, told apart by OrderIndex.
 //
@@ -68,13 +69,20 @@ type Version struct {
 	// Required.
 	LineNumber int `json:"line_number"`
 
-	// OrderIndex is the 0-based position of the token on its line, so
-	// "nodejs 20.1.0 18.0.0" is two facts on the same line. Required.
+	// OrderIndex is the 0-based position of the declaration on its line, so
+	// "nodejs 20.1.0 18.0.0" is two facts on the same line, and a one-line
+	// package.json that declares engines.node and volta.node gives them
+	// different indexes. Required.
 	OrderIndex int `json:"order_index"`
 
-	// SourceKind names the kind of source the declaration came from, for
-	// example "nvmrc" or "tool_versions". One value per file name, snake
-	// case, open set. Required.
+	// SourceKind names the declaring source, for example "nvmrc" or
+	// "tool_versions". Snake case, open set, one value per declaring source. A
+	// version-pin file is one source, so it has one value even when the file
+	// has two spellings ("rust-toolchain" and "rust-toolchain.toml" are both
+	// "rust_toolchain"). A manifest with several declaring sections has one
+	// value per section, named <file>_<section>: "package_json_engines",
+	// "package_json_volta", "package_json_package_manager", "go_mod_go",
+	// "go_mod_toolchain". A value is never renamed once emitted. Required.
 	SourceKind string `json:"source_kind"`
 
 	// Runtime is the canonical runtime name: node, go, python, ruby, java,
