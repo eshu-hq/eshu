@@ -24,6 +24,12 @@ type DeferredPoolOptions struct {
 	// Open opens the deferred-writer pool, whose connect hook takes (5318,2)
 	// shared and may refuse a session born after the run lock session died.
 	Open func(context.Context) (*sql.DB, error)
+	// Fence is the run fence the Open pool's connect hook is built from, when the
+	// composition has one. The caller must hand this same object to the run lock
+	// (LockOptions.Fence): a different fence leaves the birth fence unarmed.
+	// BootstrapDeferredPoolOptions sets it; OpenDeferredWriterPool does not read
+	// it, it exists so a test can tie the hook's fence to the lock's.
+	Fence *RunFence
 	// Wait bounds how long the probe waits for a reducer rebuild to release
 	// (5318,2). bootstrap-index passes the schema ownership wait
 	// (ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT). Zero takes 3 minutes.

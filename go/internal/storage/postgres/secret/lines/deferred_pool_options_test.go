@@ -77,6 +77,12 @@ func TestBootstrapDeferredPoolOptionsWiresPlainProbeAndFencedWriterPool(t *testi
 	if len(opener.sessionSQL) != 1 || opener.sessionSQL[0] != DeferredSessionSQL {
 		t.Fatalf("writer pool session SQL = %q, want DeferredSessionSQL", opener.sessionSQL)
 	}
+	// The hook above is fence.Hook(), so the fence the options expose must be
+	// that same object. A different or nil-armed fence here would leave the
+	// birth fence unarmed by the lock the caller builds from it (#8833 F18).
+	if options.Fence != fence {
+		t.Fatalf("options.Fence = %p, want the fence the builder was given (%p)", options.Fence, fence)
+	}
 	if options.Wait != 7*time.Second {
 		t.Fatalf("Wait = %v, want the ownership wait passed in", options.Wait)
 	}

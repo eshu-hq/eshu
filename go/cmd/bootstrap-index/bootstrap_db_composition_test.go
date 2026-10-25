@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"io"
 	"log/slog"
@@ -88,5 +89,43 @@ func TestOpenBootstrapDBComposesAPlainProbeAndAFencedWriterPool(t *testing.T) {
 	}
 	if len(opener.sessionSQL) != 1 || opener.sessionSQL[0] != secretlines.DeferredSessionSQL {
 		t.Fatalf("writer pool session SQL = %q, want DeferredSessionSQL", opener.sessionSQL)
+	}
+}
+
+// stubConnector lets sql.OpenDB return a pool without dialing: openBootstrapDB
+// only wraps it, and the test never runs a query.
+type stubConnector struct{}
+
+func (stubConnector) Connect(context.Context) (driver.Conn, error) { return nil, errRecordedOpen }
+func (stubConnector) Driver() driver.Driver                        { return nil }
+
+// The fence the writer pool's hook is built from (captured.Fence) must be the
+// fence the run lock arms (LockOptions.Fence from secretLinesLockInputs). Two
+// different fences stay green everywhere else and leave the birth fence
+// silently unarmed (#8833 F18).
+func TestOpenBootstrapDBHandsTheLockTheFenceTheWriterPoolHookUses(t *testing.T) {
+	var captured secretlines.DeferredPoolOptions
+	prevOpener, prevOpen := bootstrapPostgresOpener, openDeferredWriterPool
+	t.Cleanup(func() { bootstrapPostgresOpener, openDeferredWriterPool = prevOpener, prevOpen })
+	bootstrapPostgresOpener = &recordingPostgresOpener{}
+	openDeferredWriterPool = func(_ context.Context, options secretlines.DeferredPoolOptions) (*sql.DB, error) {
+		captured = options
+		return sql.OpenDB(stubConnector{}), nil
+	}
+
+	database, err := openBootstrapDB(context.Background(), func(string) string { return "" }, slog.New(slog.NewTextHandler(io.Discard, nil)), time.Second)
+	if err != nil {
+		t.Fatalf("openBootstrapDB err = %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	if captured.Fence == nil {
+		t.Fatal("openBootstrapDB handed OpenDeferredWriterPool no Fence: the hook's fence cannot be tied to the lock's")
+	}
+	_, lockOptions, err := secretLinesLockInputs(database, nil, time.Second)
+	if err != nil {
+		t.Fatalf("secretLinesLockInputs err = %v", err)
+	}
+	if lockOptions.Fence != captured.Fence {
+		t.Fatalf("lock fence = %p, writer pool hook fence = %p: the birth fence would never arm", lockOptions.Fence, captured.Fence)
 	}
 }

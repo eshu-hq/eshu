@@ -50,6 +50,9 @@ func (RuntimePostgresOpener) OpenWithSessionHooks(ctx context.Context, getenv fu
 // (5318,2) shared lock and the birth fence) plus DeferredSessionSQL. Dropping
 // the hook reopens F1: pool sessions would take no (5318,2) and get no fence.
 //
+// Fence on the returned options is the fence the hook is built from; the
+// caller hands that same object to the run lock (#8833 F18).
+//
 // Poll and LogEvery stay zero (their defaults); a test may set them on the
 // returned options.
 func BootstrapDeferredPoolOptions(opener PostgresOpener, getenv func(string) string, fence *RunFence, wait time.Duration, logger *slog.Logger) DeferredPoolOptions {
@@ -66,6 +69,7 @@ func BootstrapDeferredPoolOptions(opener PostgresOpener, getenv func(string) str
 			return opener.OpenWithSessionHooks(ctx, getenv,
 				[]inventory.ConnectHook{fence.Hook()}, DeferredSessionSQL)
 		},
+		Fence:  fence,
 		Wait:   wait,
 		Logger: logger,
 	}
