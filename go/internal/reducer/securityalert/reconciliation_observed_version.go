@@ -124,8 +124,9 @@ func securityAlertConsumptionEvidenceKind(consumption SecurityAlertConsumption) 
 // exactManifestDependencyVersion forwards to payloadcore, which owns the
 // shared rule. nonVersionDependencyPrefix is
 // byte-identical to the root original. exactConsumptionDependencyVersion is
-// not: it takes only the three SecurityAlertConsumption fields the logic
-// actually reads (lockfile, installedVersion, dependencyRange) instead of the
+// not: it takes only the four SecurityAlertConsumption fields the logic
+// actually reads (dependencyResolutionState, lockfile, installedVersion,
+// dependencyRange) instead of the
 // full supplychainmodel.PackageConsumption value type, and inlines the root's
 // one-line normalizedSupplyChainVersionEcosystem. The behaviour is equivalent;
 // the body is not the same text.
