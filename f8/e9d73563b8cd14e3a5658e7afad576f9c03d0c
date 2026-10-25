@@ -1,0 +1,14 @@
+docs/public/reference/relationship-mapping-evidence.md
+  h_78a442cba0b3e6 283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f8e9d73563b8cd14e3a5658e7afad576f9c03d0c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
