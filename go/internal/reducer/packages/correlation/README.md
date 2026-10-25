@@ -36,6 +36,9 @@ read the durable facts; they never import this package.
 ## Seams other families use
 
 - Manifest evidence: `ExtractPackageManifestDependencies`,
+  `PackageManifestDependency.ConsumptionKeys` (the one place a dependency row
+  becomes registry keys; an sbt row joins only the Maven artifact it publishes,
+  #8961),
   `PackageConsumptionKeys`, `PackageConsumptionNameCandidates`,
   `ExtractPackageRegistryIdentities`, `PackageManifestDependency`,
   `PackageRegistryIdentity`, `PackageManifestDependencyFactFilter`.

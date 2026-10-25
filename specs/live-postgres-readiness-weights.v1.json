@@ -210,6 +210,7 @@
     "./internal/storage/postgres|TestIdentityPageQueryPlanRidesOrderedIndexLive": 15.2, "./internal/storage/postgres|TestIdentityPageQueryServesOnlyActiveGenerationsLive": 1.3,
     "./internal/storage/postgres|TestIdentitylessStreamDropIsMarkedLive": 1.3, "./internal/storage/postgres|TestIngestionStoreCommitScopeGenerationPersistsFluxEvidenceNatively": 2.6,
     "./internal/storage/postgres|TestInvalidateDeployableUnitReopenFingerprintsForReposLive": 1.2, "./internal/storage/postgres|TestKeyWritersReplaceOrphanFactKeysLive": 1.2,
+    "./internal/storage/postgres|TestListActivePackageManifestDependencyFactsReachesGradleAndSBTLive": 1.8,
     "./internal/storage/postgres|TestListAllDeployableUnitAdmittedAnchorReposBreaksDecidedAtTiesLive": 1.3, "./internal/storage/postgres|TestListAllDeployableUnitAdmittedAnchorReposConvergesAfterSupersedingDecisionLive": 1.5,
     "./internal/storage/postgres|TestListAllDeployableUnitAdmittedAnchorReposLive": 1.4, "./internal/storage/postgres|TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode": 1.6,
     "./internal/storage/postgres|TestMarkProjectionWriteStartedFenceSync": 0.1, "./internal/storage/postgres|TestMarkProjectionWriteStartedMissingFenceRefuses": 0.0,

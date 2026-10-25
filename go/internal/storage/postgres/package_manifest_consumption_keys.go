@@ -39,10 +39,12 @@ func packageManifestConsumptionKeyRows(envelopes []facts.Envelope) []packageMani
 			continue
 		}
 		payload := envelope.Payload
-		keys := packageidentity.ConsumptionKeys(
-			packageManifestMetadataString(payload, "package_manager"),
-			packageManifestDependencyNames(payload)...,
-		)
+		keys := packageidentity.ManifestConsumptionKeys(packageidentity.ManifestKeyInput{
+			PackageManager:    packageManifestMetadataString(payload, "package_manager"),
+			Names:             packageManifestDependencyNames(payload),
+			SBTCrossVersion:   packageManifestMetadataString(payload, "sbt_cross_version"),
+			SBTBinaryArtifact: packageManifestMetadataString(payload, "sbt_binary_artifact"),
+		})
 		for _, key := range keys {
 			rows = append(rows, packageManifestConsumptionKeyRow{
 				FactID:       envelope.FactID,

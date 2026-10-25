@@ -87,13 +87,15 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 		return nil, nil
 	}
 
+	packageManagers, query := activePackageManifestDependencyQuery(ecosystems)
 	var loaded []facts.Envelope
 	var cursorObservedAt *time.Time
 	var cursorFactID string
 	for {
 		page, err := s.listActivePackageManifestDependencyFactsPage(
 			ctx,
-			ecosystems,
+			query,
+			packageManagers,
 			packageNames,
 			cursorObservedAt,
 			cursorFactID,
@@ -115,7 +117,8 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 
 func (s FactStore) listActivePackageManifestDependencyFactsPage(
 	ctx context.Context,
-	ecosystems []string,
+	query string,
+	packageManagers []string,
 	packageNames []string,
 	cursorObservedAt *time.Time,
 	cursorFactID string,
@@ -127,8 +130,8 @@ func (s FactStore) listActivePackageManifestDependencyFactsPage(
 
 	rows, err := s.database.QueryContext(
 		ctx,
-		listActivePackageManifestDependencyFactsQuery,
-		ecosystems,
+		query,
+		packageManagers,
 		packageNames,
 		cursor,
 		cursorFactID,

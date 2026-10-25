@@ -20,6 +20,11 @@
 - Package IDs identify package identity, not installed versions. Versioned
   identity belongs in PURL, BOMRef, or the caller's version-specific fact ID.
 - Unknown ecosystem aliases must fail closed instead of guessing.
+- `sbt` is not an ecosystem alias. A `%%` row's name is the unsuffixed
+  `organization:name`, which is not a published artifact, so sbt rows resolve
+  only through `ManifestConsumptionKeys` from `sbt_cross_version` and
+  `sbt_binary_artifact`. Add a case there with a positive, a negative, and an
+  ambiguous test; never add `sbt` to `NormalizeEcosystem`.
 
 ## Common Changes
 

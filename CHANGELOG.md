@@ -9,6 +9,20 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Supply chain: sbt dependencies join their Maven package
+
+- **An sbt `%%` dependency now reaches the registry package it publishes**
+  ([#8961](https://github.com/eshu-hq/eshu/issues/8961)). A Scala dependency
+  declared in `build.sbt` used to carry no registry identity, so it never
+  matched a package version or a security alert. A `%` row now joins its exact
+  Maven coordinate, and a `%%` row joins only `organization:name_<binary>`
+  (`_2.13`, `_3`) when one Scala binary version is known. The unsuffixed name
+  never matches, and `%%%`, a custom `cross`, a pre-release, and a row with no
+  known binary version join nothing. The active-dependency read for a Maven
+  ecosystem now also reaches Gradle and sbt rows. Rows already stored gain
+  their keys when their repository is next re-collected; the git collector
+  content version does not change.
+
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
 
 - **A 403 saying Dependabot alerts are disabled classifies as `not_found`**
