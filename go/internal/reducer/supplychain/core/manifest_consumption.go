@@ -27,7 +27,7 @@ func addManifestDependencySupplyChainConsumption(
 		return
 	}
 	for _, dependency := range dependencies {
-		dependencyKeys := stringSet(correlation.PackageConsumptionKeys(dependency.PackageManager, dependency.DependencyName))
+		dependencyKeys := stringSet(dependency.ConsumptionKeys(dependency.DependencyName))
 		if len(dependencyKeys) == 0 {
 			continue
 		}

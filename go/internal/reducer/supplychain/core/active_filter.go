@@ -264,7 +264,7 @@ func supplyChainImpactParserFileRepositoryIDs(envelopes []facts.Envelope) []stri
 		if dependency.RepositoryID == "" {
 			continue
 		}
-		dependencyKeys := stringSet(correlation.PackageConsumptionKeys(dependency.PackageManager, dependency.DependencyName))
+		dependencyKeys := stringSet(dependency.ConsumptionKeys(dependency.DependencyName))
 		if len(dependencyKeys) == 0 {
 			continue
 		}

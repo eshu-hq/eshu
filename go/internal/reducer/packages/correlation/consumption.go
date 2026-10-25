@@ -123,6 +123,10 @@ type PackageManifestDependency struct {
 	DirectDependency          *bool
 	Lockfile                  bool
 	SourceAmbiguous           bool
+	// SBTCrossVersion is the sbt_cross_version label; SBTBinaryArtifact is the
+	// derived organization:name_<binary> artifact. Both are sbt-only.
+	SBTCrossVersion   string
+	SBTBinaryArtifact string
 }
 
 // BuildPackageConsumptionDecisions matches package registry identities to Git
@@ -314,6 +318,8 @@ func ExtractPackageManifestDependencies(envelopes []facts.Envelope) []PackageMan
 			DirectDependency:          packageManifestMetadataBool(envelope.Payload, "direct_dependency"),
 			Lockfile:                  lockfile,
 			SourceAmbiguous:           packageManifestMetadataBoolValue(envelope.Payload, "source_ambiguous"),
+			SBTCrossVersion:           packageManifestMetadataString(envelope.Payload, "sbt_cross_version"),
+			SBTBinaryArtifact:         packageManifestMetadataString(envelope.Payload, "sbt_binary_artifact"),
 		}
 		if dependency.DependencyName == "" || dependency.PackageManager == "" {
 			continue
@@ -417,7 +423,7 @@ func packageConsumptionIdentityForDependency(
 	if dependency.PackageNamespace != "" {
 		names = append(names, strings.TrimSpace(dependency.PackageNamespace)+"/"+dependency.DependencyName)
 	}
-	for _, key := range PackageConsumptionKeys(dependency.PackageManager, names...) {
+	for _, key := range dependency.ConsumptionKeys(names...) {
 		match, ok := identityByKey[key]
 		if ok && !match.Ambiguous {
 			return match.Identity, true
