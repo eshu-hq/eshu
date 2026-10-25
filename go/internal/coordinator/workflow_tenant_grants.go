@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -115,7 +117,7 @@ func (s Service) authorizeWorkflowWorkItems(
 	filtered := make([]workflow.WorkItem, 0, len(items))
 	denied := 0
 	for _, item := range items {
-		policyRevision, ok := allowed[strings.TrimSpace(item.ScopeID)]
+		policyRevision, ok := allowed[workflowTenantGrantScopeID(item)]
 		if !ok || policyRevision != boundary.PolicyRevisionHash {
 			denied++
 			continue
@@ -129,10 +131,28 @@ func (s Service) authorizeWorkflowWorkItems(
 	return filtered, denied, nil
 }
 
+// workflowTenantGrantScopeID is the scope id whose grant authorizes item. A
+// security-alert org shard scope (#9019) is generated from its target's base
+// scope_id and collects a subset of that target's repositories, and an
+// operator never grants a shard by id (validation refuses a configured
+// scope_id with the shard marker), so a shard item, or the retirement of one,
+// is authorized by its base scope's grant. Every other item uses its own
+// scope id.
+func workflowTenantGrantScopeID(item workflow.WorkItem) string {
+	scopeID := strings.TrimSpace(item.ScopeID)
+	if item.CollectorKind != scope.CollectorSecurityAlert {
+		return scopeID
+	}
+	if base, _, ok := shard.ParseScopeID(scopeID); ok {
+		return base
+	}
+	return scopeID
+}
+
 func workflowTenantScopeIDs(items []workflow.WorkItem) []string {
 	seen := make(map[string]struct{}, len(items))
 	for _, item := range items {
-		scopeID := strings.TrimSpace(item.ScopeID)
+		scopeID := workflowTenantGrantScopeID(item)
 		if scopeID != "" {
 			seen[scopeID] = struct{}{}
 		}

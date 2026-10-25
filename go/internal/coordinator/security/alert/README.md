@@ -2,9 +2,25 @@
 
 ## Purpose
 
-`alert` plans one workflow work item per configured provider security
-alert target. It validates target configuration and builds deterministic run,
+`alert` plans the workflow work items of configured provider security alert
+targets. It validates target configuration and builds deterministic run,
 generation, and work-item identities without opening a provider connection.
+
+A repository target is one work item. An org target is one work item per shard
+of its partition (`internal/scope/org/shard`, #9019): the operator's
+`scope_id` when the target holds at most 100 distinct same-org repositories,
+otherwise `<scope_id>#shard-<bits>` scopes of at most 100 each.
+
+The planner also retires what it no longer plans. Through `ShardScopeReader`
+(`internal/storage/postgres/security/alerts/retirement` in production) it reads
+the scopes of each org target, the base scope and every shard whose parent is
+the base, that still hold an active generation that is not already a
+retirement. Each one outside the current shard set gets one retirement work
+item: same scope, `acceptance_unit_id = <scope_id>#retire`, a generation id
+hashed with `retire`. The collector answers it with an empty generation
+committed with `TrustedDeletion` and a read state with `repositories_total = 0`,
+which the reader then skips. A split retires the leaf's old name (or the base)
+and a merge retires both leaves; the merged parent is collected again.
 
 ## Ownership boundary
 
@@ -19,7 +35,10 @@ methods use the shared `Service` type.
 
 - `PlanRequest` carries the collector instance, observation time, and plan key.
 - `WorkPlanner` implements the parent package's `SecurityAlertPlanner`
-  interface.
+  interface. Its `ShardScopes` field is required for an org target; `Logger`
+  is optional.
+- `ShardScopeReader` is the store port for retirement candidates.
+- `MaxRetirementCandidates` (1024) bounds retirements per instance per scan.
 
 See `doc.go` for the godoc contract.
 
@@ -29,18 +48,29 @@ See `doc.go` for the godoc contract.
 - `internal/facts` builds stable generation identities.
 - `internal/scope` and `internal/workflow` provide collector and durable
   workflow contracts.
+- `internal/scope/org/shard` provides the org-target partition, the shard id
+  format, and the retirement marker.
 
 The package does not import the parent coordinator package.
 
 ## Telemetry
 
-None. Planning runs inline during the parent coordinator's reconcile pass and
+Planning runs inline during the parent coordinator's reconcile pass and
 inherits its reconcile metrics, workflow rows, claim status, duplicate-skip
-logs, and `/api/v0/index-status` surface.
+logs, and `/api/v0/index-status` surface. Two logs are its own (#9019), with
+counts only, never a scope id or repository name:
 
-No-Observability-Change: this move adds or renames no metric, span, log field,
-status field, queue, worker, lease, or runtime setting. Provider request and
-fact-emission signals remain in the security-alert collector runtime.
+- Info `security alert planner retiring unplanned org target scopes` with
+  `collector_instance_id`, `org_target_count`, `planned_shard_scope_count`,
+  and `retired_scope_count`, once per scan that retires anything.
+- Warn `security alert planner reached the per-scan retirement bound` with
+  `retirement_bound`, when one scan hits `MaxRetirementCandidates`; the rest
+  retire on later scans.
+
+The retirement read runs through the coordinator's `InstrumentedDB` with
+store name `security_alert_shard_scopes`, so its duration and errors show on
+the Postgres store metrics and spans. A failed read fails the instance's plan
+and surfaces as the coordinator's `plan security alert work` error.
 
 ## Gotchas / invariants
 
@@ -49,6 +79,13 @@ fact-emission signals remain in the security-alert collector runtime.
 - Run and work-item identities depend on the collector instance, plan key, and
   target scope. Replaying the same request returns the same identities.
 - Duplicate target scope IDs are rejected before any workflow row is returned.
+- A collection item keeps `acceptance_unit_id == scope_id` and its prior
+  generation identity, so a target that does not shard plans exactly what it
+  planned before #9019.
+- The shard set is a pure function of the configuration: replaying a
+  reconciliation yields the same shard ids, retirement ids, and generation ids.
+- Retirement covers merged-away shards and the base of a split target. A
+  target removed from the configuration is not retired here (#9071).
 - The plan key is validated but not normalized.
 
 No-Regression Evidence: the focused child test calls the production planner.

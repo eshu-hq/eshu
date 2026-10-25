@@ -60,7 +60,7 @@ func shardTestConfig(t *testing.T, allowed []string) string {
 func planShardScopeIDs(t *testing.T, allowed []string) []string {
 	t.Helper()
 	observedAt := time.Date(2026, time.October, 25, 6, 0, 0, 0, time.UTC)
-	_, items, err := (WorkPlanner{}).PlanSecurityAlertWork(t.Context(), PlanRequest{
+	_, items, err := (WorkPlanner{ShardScopes: &fakeShardScopes{}}).PlanSecurityAlertWork(t.Context(), PlanRequest{
 		Instance: workflow.CollectorInstance{
 			InstanceID:     "security-alert-primary",
 			CollectorKind:  scope.CollectorSecurityAlert,
@@ -178,6 +178,10 @@ func TestPlannerKeepsOneScopeWhenNoAllowlistedRepositoryIsSameOrg(t *testing.T) 
 	}
 }
 
+// TestPlannerShardAddingOneRepositoryKeepsEveryExistingShard is amended by
+// the #9019 ruling (F2): one add may retire the leaf that splits and add its
+// two children, so at most one shard leaves the plan and at most two join it;
+// every other shard is unchanged.
 func TestPlannerShardAddingOneRepositoryKeepsEveryExistingShard(t *testing.T) {
 	t.Parallel()
 
@@ -185,13 +189,19 @@ func TestPlannerShardAddingOneRepositoryKeepsEveryExistingShard(t *testing.T) {
 	before := planShardScopeIDs(t, allowed)
 	for i := range 20 {
 		after := planShardScopeIDs(t, append(slices.Clone(allowed), fmt.Sprintf("%s/added-%02d", shardTestOrg, i)))
+		var dropped, joined []string
 		for _, id := range before {
 			if !slices.Contains(after, id) {
-				t.Fatalf("adding one repository dropped shard %q: before %v, after %v", id, before, after)
+				dropped = append(dropped, id)
 			}
 		}
-		if len(after) > len(before)+1 {
-			t.Fatalf("adding one repository added %d shards, want at most 1", len(after)-len(before))
+		for _, id := range after {
+			if !slices.Contains(before, id) {
+				joined = append(joined, id)
+			}
+		}
+		if len(dropped) > 1 || len(joined) > 2 {
+			t.Fatalf("adding one repository dropped %v and added %v: want at most 1 and 2 (before %v, after %v)", dropped, joined, before, after)
 		}
 	}
 }
