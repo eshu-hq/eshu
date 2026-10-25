@@ -37,13 +37,22 @@ var hostedFixtureClasses = map[string]string{
 // terminal-failure reads use, including the nullable acknowledged_at pointer
 // the shared status fake cannot scan.
 type stubRows struct {
-	rows [][]any
-	i    int
+	rows   [][]any
+	i      int
+	open   *int
+	closed bool
 }
 
 func (r *stubRows) Next() bool { return r.i < len(r.rows) }
 func (r *stubRows) Err() error { return nil }
+
+// Close releases the rows once; routedQueryer counts the rows still open so a
+// query issued before a Close is caught.
 func (r *stubRows) Close() error {
+	if !r.closed {
+		r.closed = true
+		*r.open--
+	}
 	return nil
 }
 
@@ -82,11 +91,20 @@ func (r *stubRows) Scan(dest ...any) error {
 
 // routedQueryer answers each store read by its SQL text, so a test controls
 // the instance registry and the failure rows independently and records the
-// order of reads.
+// order of reads. It fails a query issued while an earlier read's rows are
+// still open: a single-connection pool cannot serve one, so the store must
+// close rows before it reads again.
 type routedQueryer struct {
 	instances [][]any
 	failures  [][]any
 	reads     []string
+	open      int
+}
+
+// rows opens a stubRows over data and counts it as open until closed.
+func (q *routedQueryer) rows(data [][]any) *stubRows {
+	q.open++
+	return &stubRows{rows: data, open: &q.open}
 }
 
 func (q *routedQueryer) ExecContext(context.Context, string, ...any) (sql.Result, error) {
@@ -94,19 +112,22 @@ func (q *routedQueryer) ExecContext(context.Context, string, ...any) (sql.Result
 }
 
 func (q *routedQueryer) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+	if q.open > 0 {
+		return nil, fmt.Errorf("query issued while %d earlier read(s) still hold open rows", q.open)
+	}
 	switch query {
 	case workflowCoordinatorCollectorInstancesQuery:
 		q.reads = append(q.reads, "instances")
-		return &stubRows{rows: q.instances}, nil
+		return q.rows(q.instances), nil
 	case terminalFailureListQuery:
 		q.reads = append(q.reads, "list")
-		return &stubRows{rows: q.failures}, nil
+		return q.rows(q.failures), nil
 	case terminalFailureAckTargetQuery:
 		q.reads = append(q.reads, "target")
-		return &stubRows{rows: q.failures}, nil
+		return q.rows(q.failures), nil
 	case terminalFailureAckListQuery:
 		q.reads = append(q.reads, "acks")
-		return &stubRows{rows: q.failures}, nil
+		return q.rows(q.failures), nil
 	}
 	return nil, fmt.Errorf("unexpected query %q", query)
 }

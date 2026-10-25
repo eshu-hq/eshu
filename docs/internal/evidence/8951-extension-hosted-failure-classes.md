@@ -52,8 +52,9 @@ registry, so passing the matched instance's `ExtensionHosted` flag adds no
 query. `ListTerminalFailureAcks` reads stored records across instances, so a
 non-empty listing now makes one more registry read (the same query the status
 snapshot runs, bounded by operator configuration), after the record rows are
-closed; an empty listing makes none. A record whose instance is gone reads the
-kind-only form. Operators see these reads in the existing Postgres query spans
+closed; an empty listing makes none. A record reads its instance's current
+configuration, so a reconfiguration (hosted to `{}`) changes how old records
+read, and a record whose instance is gone reads the kind-only form. Operators see these reads in the existing Postgres query spans
 and `eshu_dp_postgres_query_duration_seconds`; there is no new metric or log
 key. No live PostgreSQL timing was taken.
 

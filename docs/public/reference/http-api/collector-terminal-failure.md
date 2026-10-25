@@ -62,9 +62,12 @@ state; it adds no field to the payload and no label value to the gauge.
 Every surface that reports a `failure_class` for an instance bounds it by that
 instance, so they agree: collector status and readiness, the failed-scope list,
 the acknowledge response, and the stored acknowledgement records. A stored
-acknowledgement record whose instance is no longer registered has no
-configuration to read, so it reads the kind-only form (`unknown` for a class
-only an extension defines).
+acknowledgement record reads its instance's current configuration, not the
+configuration at acknowledgement time, so reconfiguring an instance (for
+example from a component activation to `{}`) changes how its old records
+read. A record whose instance is no longer registered has no configuration to
+read, so it reads the kind-only form (`unknown` for a class only an extension
+defines).
 
 Known limit, reading `unknown` rather than leaking text:
 
