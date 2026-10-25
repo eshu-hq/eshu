@@ -63,7 +63,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}
     needs: queue-selection
     name: static-mirror (ledger and runner probes)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Require queue selection to succeed
@@ -114,7 +114,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       # CI runners are isolated: no sibling worktree contends for the
@@ -168,7 +168,7 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-backend')) && (always()) }}
     name: live-backend (nornicdb and neo4j)
     needs: [queue-selection, live-backend-shards]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Require selection and every shard to succeed

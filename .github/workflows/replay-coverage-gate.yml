@@ -50,7 +50,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}
     needs: queue-selection
     name: static mirror
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require queue selection to succeed
@@ -71,7 +71,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'coverage-gate') }}
     needs: queue-selection
     name: coverage-gate (blocking)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Require queue selection to succeed

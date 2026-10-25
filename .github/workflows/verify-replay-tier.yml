@@ -51,7 +51,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier') }}
     needs: queue-selection
     name: Offline replay tier vs real NornicDB
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Require queue selection to succeed

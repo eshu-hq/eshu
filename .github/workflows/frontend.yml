@@ -41,7 +41,7 @@ jobs:
     needs: queue-selection
     name: Marketing site (root Vite)
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -73,7 +73,7 @@ jobs:
     needs: queue-selection
     name: Console (apps/console)
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -122,7 +122,7 @@ jobs:
     needs: queue-selection
     name: SSO auth E2E (browser, fresh stack)
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -176,7 +176,7 @@ jobs:
     needs: queue-selection
     name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -228,7 +228,7 @@ jobs:
     needs: queue-selection
     name: Console a11y audit (axe-core)
     timeout-minutes: 60
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -257,7 +257,7 @@ jobs:
     needs: queue-selection
     name: "ESLint flat config (issue #3763)"
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -287,7 +287,7 @@ jobs:
     name: "Prettier format check (issue #3763)"
     continue-on-error: true
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -316,7 +316,7 @@ jobs:
     needs: queue-selection
     name: npm audit (fail on high/critical)
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}

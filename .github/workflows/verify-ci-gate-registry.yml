@@ -40,7 +40,7 @@ jobs:
     needs: queue-selection
     name: Verify ci-gate registry test mirror
     timeout-minutes: 15
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -88,7 +88,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify') }}
     name: Verify ci-gate registry + drift
     timeout-minutes: 15
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [queue-selection, test-verify]
     steps:
       - name: Require queue selection to succeed

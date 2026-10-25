@@ -1,6 +1,6 @@
 name: Bench Baseline Refresh
 
-# B-2 (#3795): recapture testdata/benchmarks/baseline.txt weekly on ubuntu-latest so the
+# B-2 (#3795): recapture testdata/benchmarks/baseline.txt weekly on ubuntu-24.04 so the
 # committed baseline stays a like-for-like comparison target for the per-PR
 # benchstat regression gate (a baseline captured on a different runner class is
 # not a valid benchstat comparison). Opens a PR rather than pushing to main, so
@@ -22,7 +22,7 @@ permissions:
 jobs:
   refresh:
     name: refresh baseline
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Checkout repository
@@ -65,5 +65,5 @@ jobs:
           git push -f origin "${branch}"
           gh pr create --base main --head "${branch}" \
             --title "chore(bench): weekly baseline refresh" \
-            --body "Automated weekly recapture of \`testdata/benchmarks/baseline.txt\` on ubuntu-latest (B-2, #3795). Review the benchstat diff before merging; this keeps the per-PR regression gate's baseline like-for-like." \
+            --body "Automated weekly recapture of \`testdata/benchmarks/baseline.txt\` on ubuntu-24.04 (B-2, #3795). Review the benchstat diff before merging; this keeps the per-PR regression gate's baseline like-for-like." \
             || gh pr edit "${branch}" --body "Automated weekly recapture of testdata/benchmarks/baseline.txt (updated $(date -u +%Y-%m-%d))."

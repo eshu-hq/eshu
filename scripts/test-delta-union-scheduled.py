@@ -38,7 +38,7 @@ class DeltaUnionScheduledTest(unittest.TestCase):
             "missing_internal_dependency_route": workflow.replace(
                 "      - 'go/internal/**'\n", "", 1),
             "missing_root": workflow.replace("  schedule:\n", "  inactive_schedule:\n", 1),
-            "disabled_job": workflow.replace("    runs-on: ubuntu-latest", "    if: false\n    runs-on: ubuntu-latest", 1),
+            "disabled_job": workflow.replace("    runs-on: ubuntu-24.04", "    if: false\n    runs-on: ubuntu-24.04", 1),
             "root_shell_override": workflow.replace(
                 "\npermissions:\n", "\ndefaults:\n  run:\n    shell: echo {0}\n\npermissions:\n", 1),
             "job_shell_override": workflow.replace(
