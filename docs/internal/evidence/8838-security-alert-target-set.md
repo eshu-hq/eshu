@@ -19,6 +19,28 @@ skipped the generation as unchanged. No generation would ever record the new
 repository. `TestSecurityAlertTargetSetAllowlistChangeLive` proves the skip:
 an equal-hint commit with a new set leaves one generation row.
 
+## Finding against arbiter-secalert2 Q2
+
+Q2 put the target set in the generation payload and did not touch the
+freshness digest. Payload-only cannot close the window: the ingestion store
+decides whether to store a generation from the hint alone, before the payload
+is written, so an allowlist change that leaves the provider answer unchanged
+never reaches the payload. This change adds the set's hash to the digest to
+carry out Q2's intent. The coordinator accepted it as implementing Q2, with no
+new ruling.
+
+`TestTargetSetDrivesTheUnchangedGenerationDecision` feeds collected generations
+through `backfill.DecideUnchangedGeneration`:
+
+- An unchanged allowlist still skips every cycle, so there is no churn.
+- Adding or removing a repository with no alerts stores a new generation.
+- `TestRepositoryTargetScopeIDReuseStoresANewGeneration` covers a reused
+  repository `scope_id`.
+- `TestTargetSetMovesTheHintOnceAtUpgrade` pins the one extra generation per
+  target after the upgrade.
+
+With the set removed from the digest, every store case returns skip.
+
 ## Change
 
 - `scope.SecurityAlertTargetSet` is the sorted, deduplicated slug set, kept as
@@ -39,7 +61,8 @@ an equal-hint commit with a new set leaves one generation row.
 ## Performance Evidence
 
 Performance Evidence: an `EXPLAIN (ANALYZE, BUFFERS)` shim on PostgreSQL 18.6
-(the CI image) with all migrations applied. The data was 1,024 security-alert
+(the CI image) with origin/main's migrations applied (through 232, without the
+#8840 index). The data was 1,024 security-alert
 targets with 2,000 committed generations each, plus 3 pending or failed
 generations at the head of every fourth target, plus 20,000 git scopes with 50
 generations each: 3,048,769 `scope_generations` rows, vacuumed and analyzed.
@@ -48,12 +71,15 @@ It removes at most 3 rows by filter and stops at the first committed row.
 
 | Read | Before (EXISTS) | After (lateral) |
 | --- | --- | --- |
-| 1 target, warm | 18 buffers, 0.092 ms | 21 buffers, 0.125 ms |
-| 1,024 targets, warm | 10,581 buffers, 14.963 ms | 12,362 buffers, 17.011 ms |
-| 1,024 targets, cold | 10,581 buffers (1,868 read), 95.185 ms | 12,362 buffers (2,697 read), 142.722 ms |
+| 1 target, warm | 18 buffers, 0.160 ms | 21 buffers, 0.105 ms |
+| 1,024 targets, warm | 10,741 buffers, 19.032 ms | 12,522 buffers, 20.168 ms |
 
-The added cost is about 1.7 buffers per target: one heap fetch of the
-committed row's payload. It does not grow with generation history. With a
+The added cost is 1,781 buffers for 1,024 targets, about 1.7 per target: one
+heap fetch of the committed row's payload. It does not grow with generation
+history. The first cold run of each query is not comparable, because the
+earlier query warmed the shared work-item and scope pages for the later one.
+With migration 233 (#9051) also applied, the same delta held: 10,581 to 12,362
+buffers. With a
 5,000-repository target set, the payload is 150,077 bytes as text and 22,660
 bytes stored (TOAST-compressed). The one-target read is 25 buffers and 0.34 ms
 warm, and it returns the right membership.

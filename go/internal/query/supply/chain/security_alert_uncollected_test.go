@@ -70,6 +70,13 @@ func TestSecurityAlertEmptyAnswerReportsARepositoryAddedAfterTheLatestGeneration
 			want:       coverageWant{"target_incomplete", []string{"terminal_fetch_failure:auth_denied"}, "fallback", "unavailable", cause, ""},
 		},
 		{
+			name:       "negative: allowlist removed the repository the latest generation still holds",
+			configs:    []string{coverageTestOrgTargetBefore},
+			states:     map[string]SecurityAlertTargetState{"sa-target-org-covering": committed},
+			targetSets: map[string][]string{"sa-target-org-covering": {"example-org/example-repo", "example-org/other-repo"}},
+			want:       coverageWant{"not_configured", []string{"repository_outside_target_set"}, "fallback", "unavailable", cause, ""},
+		},
+		{
 			name:    "legacy: a generation committed before the set was recorded",
 			configs: []string{coverageTestCoveringOrgTarget},
 			states:  map[string]SecurityAlertTargetState{"sa-target-org-covering": committed},

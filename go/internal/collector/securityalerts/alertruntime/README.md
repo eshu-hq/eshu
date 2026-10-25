@@ -124,7 +124,8 @@ is part of the freshness digest. Without it, an allowlist entry for a
 repository with no alerts (or a `scope_id` reused for another repository)
 would leave the digest unchanged, the commit would be skipped, and no
 generation would ever record the repository. Every target, repository or org,
-commits one extra generation after the upgrade.
+commits one extra generation after the upgrade; an unchanged set skips as
+before (`TestTargetSetDrivesTheUnchangedGenerationDecision`).
 
 Performance Evidence: one org claim sends at most
 `max_pages` x (1 + min(allowlisted org repositories, 100)) alert-page requests
