@@ -7,12 +7,19 @@ Keep outward-facing comments and review requests within user authorization.
 
 - Rebase open PRs on `main`; resolve conflicts immediately (PRs merge fast).
   During CI/review waiting, check `gh pr view <n> --json mergeable,headRefOid`
-  about every 60 seconds. If `mergeable` becomes `CONFLICTING` or `UNKNOWN`
-  for more than one poll, fetch, rebase on `origin/main`, rerun affected focused
-  proof, and repeat the entrypoint promotion sequence before pushing
-  with `--force-with-lease` and restarting the poll. A rebase never permits a
-  direct push. Active agents merge constantly; a green check snapshot can
-  become stale while the PR is waiting.
+  about every 60 seconds; do not wait for the gates to finish before looking.
+  If `mergeable` becomes `CONFLICTING` or `UNKNOWN` for more than one poll,
+  fetch, rebase on `origin/main`, and take the row the Rebase Waiver table in
+  `eshu-code-review` gives. A mechanical conflict (row 4a, including every
+  [conflict recipe](../../eshu-code-review/references/conflict-recipes.md)
+  file) needs only its file-type checks and a PR comment before the
+  `--force-with-lease` push; other rows repeat the promotion sequence. Restart
+  the poll after the push. Active agents merge constantly; a green check
+  snapshot can become stale while the PR is waiting.
+- `scripts/dev/pre-enqueue-check.sh` is stricter than the merge rule until
+  #9094 lands: it still requires `required-gates-complete` and fails on any
+  pending check. Wait it out or rerun the stranded gate; do not bypass the
+  script by hand and do not merge on a red arm.
 - CI is done only after **two consecutive stable reads of the full check set**
   (`gh pr checks <n> --json bucket` shows `pending == 0` AND the total count is
   unchanged across two polls). GitHub registers large check sets in waves, so a
@@ -29,10 +36,9 @@ Keep outward-facing comments and review requests within user authorization.
   [Orchestration, PR, And CI Discipline](../../../../AGENTS.md)).
 - **Cancelled is not failed, but a cancelled BLOCKING gate is not self-healing.**
   A cancelled job does not re-run itself — only a new push or an explicit rerun
-  restarts one; a cancelled required gate strands
-  `required-gates-complete` once every other check finishes, and nothing
-  re-triggers it. Re-run those explicitly (`gh run rerun <run-id>`) and confirm
-  the aggregate re-fires. An aggregate failure whose only cause is cancelled
+  restarts one, and nothing else re-triggers it. Re-run a cancelled blocking
+  gate explicitly (`gh run rerun <run-id>`) and read its result: a gate left
+  unrun is not a pass ([When a PR may merge](../../../../docs/internal/agent-git-hygiene.md#when-a-pr-may-merge)). An aggregate failure whose only cause is cancelled
   children says nothing about the diff: read the failing job's steps before
   concluding, since a hung setup step — a package install stalling until the
   runner kills it — presents identically to a real failure.
@@ -135,7 +141,7 @@ Keep outward-facing comments and review requests within user authorization.
   threads instead of staring only at the check watcher. If the rollup is stale
   or empty after a push, poll the underlying workflow runs for the head SHA
   before treating CI as absent. A clean PR *diff* can still inherit pre-existing
-  red: this repo has no required-status-check enforcement, so whole-module Lint
+  red: the ruleset requires only `go-core-complete` and `go-race-complete`, so whole-module Lint
   Go / Go tests that an earlier sequential gate masked (e.g. a failing "Verify
   hot-path evidence" step that aborts the job before Lint Go) surface only on
   the first PR to pass those earlier gates. Fix inherited blocking debt when it fits the authorized scope; otherwise

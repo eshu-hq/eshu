@@ -103,9 +103,9 @@ gates (slow ones deferred to CI with a printed reason), and
 docs-contradiction. `make pre-pr` and `make pre-pr-full` are recommended, not
 required, for higher-risk changes — queue, lease, or claim code; schema DDL;
 hot-path Cypher or graph writes; reducer projection or materialization; and
-package moves (use `pre-pr-full` for moves). CI's `required-gates-complete`
-(plus `go-core-complete` and `go-race-complete`) is the blocking authority and
-covers every Ifá/Odù, contract, performance, and end-to-end gate; when CI
+package moves (use `pre-pr-full` for moves). CI decides the merge ([When a PR
+may merge](../../../docs/internal/agent-git-hygiene.md#when-a-pr-may-merge)): a
+red Ifá/Odù, contract, performance, or end-to-end gate is a finding; when CI
 fails, reproduce only that failing gate locally.
 
 - Go code changes require the repo lint entrypoint unless the user narrows

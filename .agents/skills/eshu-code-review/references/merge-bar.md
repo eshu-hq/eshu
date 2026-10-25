@@ -39,7 +39,8 @@ A P2 **blocks** when either is true:
    this bar bounds the loop, it does not license deferral.
 
 A wrong derivable figure meets neither criterion. See
-[Derivable figures](#derivable-figures).
+[Derivable figures](#derivable-figures). A prose-form finding meets neither
+criterion either. See [Prose form](#prose-form).
 
 A P2 **does not block** when it is genuinely orthogonal to the PR's claims,
 needs its own proof or a design decision, or would only be reachable by widening
@@ -155,6 +156,26 @@ the verdict's P3 list and post that list as a PR comment. A comment is not a
 body edit. Do not post it as an inline review thread, because an
 open thread blocks the merge. If it is already an inline thread, resolve it
 with "P3, no action".
+
+## Prose form
+
+A **prose-form** finding is about how Markdown or a code comment reads, where
+no gate reads the text: wording, style, heading phrasing, list shape,
+punctuation, and enumeration style. It is P3 in any file and on any lane. It
+goes in the verdict's P3 list, posted as a PR comment, and the author fixes it
+at their discretion or the next time they touch the file. The owner set this on
+2026-10-25 (#9093) after a CHANGELOG "colon enumeration" note blocked a
+two-file conflict fix as P2. The writing standard governs how we write; a
+reviewer's taste is not a merge authority.
+
+Prose **correctness** keeps its grade everywhere: a wrong fact or claim, a lost
+or duplicated entry, a broken reference to a real target, syntax a renderer or
+gate rejects, and any text a gate reads (environment names, the Markdown cap,
+citations, the docs build). If CI would go red on it, it is at least P2.
+
+A reviewer who files prose form as P2 has misclassified it. The author
+reclassifies it in a one-line reply instead of fixing it and asking for another
+review round.
 
 ## Findings introduced by review fixes
 

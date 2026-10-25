@@ -152,9 +152,9 @@ like an edit to a verdict.
 
 ## Scoped Rebase Verdict
 
-A rebase that adds a commit or resolves a conflict (rows 3 and 4 of the
-"Rebase Waiver" table in [SKILL.md](../SKILL.md#rebase-waiver)) has a scoped
-review. The waiver note cannot carry that review: it has no finding counts and
+A rebase that adds a commit or resolves a non-mechanical conflict (rows 3 and
+4b of the "Rebase Waiver" table in [SKILL.md](../SKILL.md#rebase-waiver)) has
+a scoped review. A row 4a resolution and a tier S commit have no verdict file. The waiver note cannot carry that review: it has no finding counts and
 MUST NOT claim a review. The scoped rebase verdict is a third shape. It is a
 review verdict for the receipt, and it carries the rebase evidence of the
 waiver note. Pass it as `--verdict` to `ci-gates review-attest capture`.

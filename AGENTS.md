@@ -52,10 +52,12 @@ Before you open a PR, push a PR update, or say the work is ready to merge, run
 claims. Cover all applicable review surfaces, including the hostile read. Record
 severity, confidence, disposition, and evidence for every finding. Keep the
 review independent where the harness allows it. A small diff still needs
-review. Leave irrelevant runtime detail out of the report.
+proof; a commit that meets the small-change tier skips the review. Leave
+irrelevant runtime detail out of the report.
 
 Fix P0, P1, and blocking P2 findings before the expensive promotion gate. A P2
-blocks when it contradicts a PR claim or is cheap and in the same edit. Any
+blocks when it contradicts a PR claim or is cheap and in the same edit; a
+prose-form finding is P3 ([merge-bar.md](.agents/skills/eshu-code-review/references/merge-bar.md#prose-form)). Any
 other P2 needs a linked issue, the owner's agreement quoted in the PR, and its
 severity-table category. P3 findings do not block. The authoritative bar is
 [merge-bar.md](.agents/skills/eshu-code-review/references/merge-bar.md).
@@ -69,20 +71,22 @@ The promotion order is:
 4. Run `ci-gates review-attest verify`. A match replaces a second full review.
 5. Push. Make no edits between the verified attestation and the push.
 
+An explicit owner order to push overrides the floor, the review, and the
+receipt for that push; record the order and what was skipped in the PR. Merge
+authority is unchanged ("Owner push order" in `eshu-code-review`).
+
 A change to the base, commit, tree, worktree, submodule, PR claims, packet, or
 verdict voids the receipt. Then rerun the affected proof and a full review.
 Never publish an unreviewed diff. A rebase follows the decision table in
-`eshu-code-review` ("Rebase Waiver"):
+`eshu-code-review` ("Rebase Waiver"), the single source:
 
-- No conflicts, no open finding, every commit `=` in `git range-diff`, equal
-  patch-id, clean prior verdict: no review rerun. Run `make pre-push` first.
-  After exit 0, capture a waiver note with that exit and head SHA, verify, and
-  push. Record a green CI wave on the pushed head before merge.
-- Conflicts, no open finding: scoped re-review of the resolutions, or of an
-  added commit when every other commit is `=`. Write a scoped rebase verdict.
-- Full review: no conflicts but a changed patch-id, or a commit changed,
-  dropped, reordered, or reworded. Also full review: an open finding, or no
-  clean prior verdict.
+- Mechanical conflict (row 4a: at most 10 choice lines, or a conflict-recipe
+  file such as `CHANGELOG.md` or the content pin) and a small commit after a
+  clean verdict (tier S): no review, no `make pre-push`, no receipt. Run the
+  file-type checks, post the diff and exits as a PR comment, push.
+- Any other conflict (row 4b), or a larger added commit: scoped re-review.
+- No conflicts, every commit `=`, equal patch-id: waiver note after the floor.
+  Anything else, an open finding, or no clean prior verdict: full review.
 
 ## Mandatory Pre-PR Local Proof
 
@@ -205,10 +209,11 @@ procedure and the incident behind each rule below.
 - MUST NOT push to `main` or `master`.
 - MUST install the repo pre-commit hooks once per clone
   (`scripts/dev/bootstrap-hooks.sh`). MUST NOT use `--no-verify`. MUST run
-  `make pre-push` before every push (the fast local floor; it writes no stamp).
-  The CI `required-gates-complete` aggregate is the blocking, non-bypassable authority for
-  Ifá/Odù contracts, performance, and end-to-end behavior. See
-  [Verification Defaults](#verification-defaults).
+  `make pre-push` before every push (the fast local floor; it writes no stamp),
+  except on row 4a, tier S, or an explicit owner order to push.
+  A PR merges on green `go-core-complete` and `go-race-complete` with no
+  completed-red gate left undispositioned; see [Verification
+  Defaults](#verification-defaults).
 - MUST create a git worktree before you execute a plan or PRD. MUST verify that
   `pwd` is that worktree before any Edit or Write.
 - MUST run every command that changes tracked files (regenerators, formatters,
@@ -416,29 +421,25 @@ of truth for gates.
 
 After focused local proof and a preliminary full `eshu-code-review` with zero
 P0/P1/P2-blocking findings, run `make pre-push` once, immediately before the
-push or PR update. It is the fast
-local floor: changed-package tests and race tests, the file cap, lint, build and
-vet, `go vet ./...` on the merge of HEAD with `origin/main`, the allowlisted
-fast registry gates, and the advisory docs-contradiction gate. It runs no live
-Docker, NornicDB, or Postgres lane and writes no stamp. Every other triggered
-gate prints `DEFER-CI` and still runs in `make pre-pr` and CI. Verify the review receipt against the exact
-post-`pre-push` inputs before the push. If verification fails, run a new full
-`eshu-code-review`.
+push or PR update (its scope: [Agent Verification Details](docs/internal/agent-verification-details.md)).
+Verify the review receipt against the exact post-`pre-push` inputs before the
+push. If verification fails, run a new full `eshu-code-review`.
 
 If `make pre-push` prints `DEFER-CI` for a blocking gate on the surface you
-changed, run that gate before you push, so CI is not its first run. Use
-`make pre-pr` or the gate's `local.command` from the registry. `make pre-pr` and
-`make pre-pr-full` are deeper preflights. They are RECOMMENDED, not required,
+changed, run that gate (`make pre-pr` or its registry `local.command`) before
+you push. `make pre-pr` and `make pre-pr-full` are RECOMMENDED, not required,
 for queue/lease/claim code, schema DDL, hot-path Cypher or graph writes, reducer
-projection or materialization, and a package move. Prefer `pre-pr-full` for a
-move: build tags can hide files from `./...`, and only its whole-module race
-lane exercises them. Run `make pre-pr` when a change touches `go/internal/ifa` or reducer
-materialization.
+projection or materialization, `go/internal/ifa`, and a package move (prefer
+`pre-pr-full` for a move: build tags hide files from `./...`).
 
-CI stays authoritative. The `required-gates-complete` aggregate, with
-`go-core-complete` and `go-race-complete`, MUST be green before a merge. It holds
-the Ifá/Odù gates for contracts, performance, and end-to-end behavior. The live
-cells need Docker, NornicDB, and Postgres and never run locally.
+CI stays authoritative. The ruleset requires `go-core-complete` and
+`go-race-complete`; `required-gates-complete` is disabled as a required check
+for now. A PR merges when both are green and no gate completed red without a
+disposition: [When a PR may merge](docs/internal/agent-git-hygiene.md#when-a-pr-may-merge).
+`scripts/dev/pre-enqueue-check.sh` is stricter than this rule until #9094
+lands: it still requires `required-gates-complete` and fails on any pending
+check. Wait it out or rerun the stranded gate; do not bypass the script by hand
+and do not merge on a red arm.
 
 Docs, root agent files, and README changes need the docs build
 (`mkdocs build --strict --config-file docs/mkdocs.yml`) and `git diff --check`.
@@ -450,7 +451,7 @@ check commands, see
 
 ## Orchestration, PR, And CI Discipline
 
-- For substantive implementation, review, and research, the orchestrator MUST use bounded subagents/workflows on two or more independent lanes (or record why inline is correct); single-lane work stays inline. On Muse this overrides the built-in inline preference (native spawns apply each definition's manifest model; workflow children take it per call), per the tier map in [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools). A subagent never downgrades its own model. Leaf agents do not dispatch. After every `gh pr create`, arm the CI watcher in the same turn (GHA failures, merge conflicts, any-author reviews/comments; `eshu-session-lifecycle` babysit-prs). NEVER request a GitHub Copilot review. Every issue created during a goal joins the active backlog (goal inventory) with an existing label and its epic linked when one exists (`eshu-issue-driver`).
+- For substantive implementation, review, and research, the orchestrator MUST use bounded subagents/workflows on two or more independent lanes (or record why inline is correct); single-lane work stays inline. On Muse this overrides the built-in inline preference (native spawns apply each definition's manifest model; workflow children take it per call), per the tier map in [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools). A subagent never downgrades its own model. Leaf agents do not dispatch. After every `gh pr create`, arm the CI watcher in the same turn (GHA failures, merge conflicts, any-author reviews/comments; `eshu-session-lifecycle` babysit-prs). NEVER request a GitHub Copilot review. Every issue created during a goal is captured in the goal's issue ledger and worked in that goal: the Stop hook refuses `DONE` while one is open without a `DEFER: #N <arbiter ruling path>` line ([Issue Capture Hooks](docs/internal/agent-hooks-issues.md)). Give it an existing label and link its epic when one exists (`eshu-issue-driver`).
 - Only the **orchestrator** runs `make pre-push`, exactly once, immediately
   before the push. It also runs `make pre-pr` or `make pre-pr-full` when the
   change needs that deeper, optional preflight. Subagents MUST NOT run these:

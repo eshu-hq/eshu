@@ -33,7 +33,7 @@ advisory docs-contradiction gate. No live lane, no push stamp (removed —
 see [agent-git-hygiene.md](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md)). Push-hook bounds and bypass policy: [push stalls and bounds](local-testing/pre-commit-hooks.md#push-stalls-and-bounds).
 The gate step is an allowlist: only gates registered `local.pre_push: floor`
 in `specs/ci-gates.v1.yaml` run (lint, caps, package-docs, perf-evidence, telemetry, changed-package gosec, measurement citations, docs build, contract-registry, and repo-wide sweep gates).
-Every other triggered gate prints `DEFER-CI <gate>: <reason>`, never silently, and still runs in `make pre-pr` and blocks merge in CI through `required-gates-complete`.
+Every other triggered gate prints `DEFER-CI <gate>: <reason>`, never silently, and still runs in `make pre-pr` and in CI, where a red result is a finding that must be fixed or dispositioned before merge.
 `make` and the entrypoints export `CGO_CFLAGS` with `-std=gnu17`, so a cold Go cache builds on GCC 15 with glibc 2.43. On an affected host, set it once for direct `go` runs too; see [Cgo C Dialect Flag](local-testing/cgo-cflags.md).
 Measured on a one-line `go/internal/query` change on a shared host: about 370s before the merge-vet and race steps, 416s with them at matched load (+45s, see [pre-push merge](local-testing/pre-push-merge.md)). `make pre-pr`/`pre-pr-full` remain RECOMMENDED (optional) deeper
 preflights for queue/lease/claim, schema DDL, hot-Cypher/graph-write, or
@@ -53,10 +53,10 @@ the whole-module `go test ./... -race`, CI the authoritative full gate.
 
 **Where Ifá/Odù protection lives:** neither `make pre-push` nor a bare
 `make pre-pr` runs a live Ifá/Odù cell (Docker/NornicDB/Postgres-only, CI or
-explicit local request). CI's `required-gates-complete` aggregate (alongside
-`go-core-complete`/`go-race-complete`) is the blocking authority, collecting
+explicit local request). CI's `required-gates-complete` aggregate collects
 every Ifá/Odù gate plus every other `blocking: true` row the changed paths
-select; a merge requires it green.
+select. It is disabled as a required check for now; a red gate under it is
+still a finding to fix or link before merge ([merge rule](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md#when-a-pr-may-merge)).
 
 ### Local and hosted ownership
 
@@ -69,7 +69,7 @@ The local and hosted layers have different jobs; do not remove one because the o
 | Advisory analysis | Outside the default promotion path; run with `make pre-pr-full` or its focused command when useful | May publish evidence but does not block the local promotion floor |
 | Frontend and security-heavy checks | Run the matching preflight when those surfaces change | Blocking path-selected jobs remain authoritative |
 | OS-, credential-, service-, or artifact-dependent checks | Run locally or on the dedicated remote validation host when the change contract requires that proof | Mandatory hosted owner; a local or remote pass does not create a GitHub required status |
-| Required merge decision | No local command can satisfy it | `go-core-complete`, `go-race-complete`, and `required-gates-complete` must pass |
+| Required merge decision | No local command can satisfy it | `go-core-complete` and `go-race-complete` must pass; no gate may be left completed red without a disposition |
 
 Deduplicate within a layer: one local invocation should not execute the same
 command twice for registry rows owned by the same hosted job, and one hosted job

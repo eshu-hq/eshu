@@ -344,14 +344,14 @@ gate MUST own the host: pause other gates, hold load1 under half the CPU count
 (start, end, in-run max), run a control canary, derive bounds from measured
 spread, and keep `t.Context()` out of `t.Cleanup` teardown I/O ([rules](timing-proof-rules.md)).
 
-CI's `required-gates-complete` aggregate is the blocking, non-bypassable
-authority for every Ifá/Odù, contract, performance, and end-to-end gate the
-registry marks `blocking: true` — alongside `go-core-complete` and
-`go-race-complete`. The live Ifá/Odù cells need Docker/NornicDB/Postgres and
-never ran locally; the hermetic Ifá rows (load saturation, contract-layer,
-materialized-edge coverage) run in `make pre-pr` and are deferred by
-`make pre-push`. Run `make pre-pr` for changes under `go/internal/ifa` or
-reducer materialization. A merge still requires `required-gates-complete` green.
+The ruleset requires `go-core-complete` and `go-race-complete`;
+`required-gates-complete` is disabled as a required check for now. A gate under
+it that completes red (Ifá/Odù, contract, performance, end-to-end) is still a
+finding to fix or link: see [When a PR may merge](agent-git-hygiene.md#when-a-pr-may-merge).
+The live Ifá/Odù cells need Docker/NornicDB/Postgres and never ran locally; the
+hermetic Ifá rows (load saturation, contract-layer, materialized-edge coverage)
+run in `make pre-pr` and are deferred by `make pre-push`. Run `make pre-pr` for
+changes under `go/internal/ifa` or reducer materialization.
 
 ### Duplicate-Work And Formatter-Drift Guards
 

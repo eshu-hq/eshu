@@ -12,8 +12,9 @@ PR head, and no `merge_group` run fires.
 
 ## Measured bottleneck
 
-The active main ruleset requires `go-core-complete`, `go-race-complete`, and
-`required-gates-complete`. The last status aggregates registry-selected blocking
+When this was measured, the main ruleset required `go-core-complete`,
+`go-race-complete`, and `required-gates-complete` (disabled as a required check
+on 2026-10-25). The last status aggregates registry-selected blocking
 gates. The retired queue built up to three entries and had a 90-minute response timeout.
 All 23 source workflows currently start for each merge group; most jobs started
 within seconds to one minute in the inspected sample (400 runs, 18 group heads).

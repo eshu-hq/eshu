@@ -24,9 +24,12 @@ that another live agent holds is not yours; see
    Work against `$NEW_BASE` until the run ends. If `main` moves again, report the
    new tip and do not chase it.
 
-2. **Rebase onto the pin.** Run `git rebase "$NEW_BASE"`, not `git pull`. If it
-   conflicts, stop and report each conflicting file. Do not resolve a semantic
-   conflict by guessing. Never `git stash`.
+2. **Rebase onto the pin.** Run `git rebase "$NEW_BASE"`, not `git pull`. A
+   conflict that meets [row 4a](../../eshu-code-review/SKILL.md#row-4a-mechanical-conflict),
+   including every [recipe](../../eshu-code-review/references/conflict-recipes.md)
+   file, is resolved now and shipped on that row. For any other conflict, stop
+   and report each conflicting file: do not resolve a semantic conflict by
+   guessing. Never `git stash`.
 
 3. **Prove the content did not change.** Run the content tests that
    [eshu-code-review](../../eshu-code-review/SKILL.md#rebase-waiver) defines:

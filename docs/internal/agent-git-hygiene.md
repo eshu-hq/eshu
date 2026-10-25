@@ -47,29 +47,44 @@ now, and no `merge_group` run tests the combined tree.
 The merge path is the `main` ruleset (check it with
 `gh api repos/eshu-hq/eshu/rules/branches/main`): `pull_request`,
 `required_status_checks`, `non_fast_forward`, and `deletion`. The required
-contexts are `required-gates-complete`, `go-core-complete`, and
-`go-race-complete`, and strict mode (`strict_required_status_checks_policy`) is
-off. A PR merges once those pass on its own head, and the ruleset allows merge,
+contexts are `go-core-complete` and `go-race-complete`, and strict mode
+(`strict_required_status_checks_policy`) is off. On 2026-10-25 the owner
+disabled `required-gates-complete` as a required check, for now, because its CI
+failures were holding up every merge; whether the check is still needed is an
+open question. It still runs and still publishes. The ruleset allows merge,
 squash, and rebase merges. Strict mode is off, so a branch need not be rebased
 just because `main` moved. Nothing tests two green PRs together, so the
 [pre-push merge step](../public/reference/local-testing/pre-push-merge.md)
 is the local guard against a red `main`.
 A red `main` is reported by the Main Health watcher: one pinned `main is red @<sha>` issue and a `main-health` commit status (see [Main Health Watcher](../public/reference/local-testing/main-health-watcher.md)).
 
-This does **not** weaken the Ifá/Odù protection for contracts, performance, or
-end-to-end behavior. That protection was never fully local to begin with: the
-live Ifá/Odù cells (fault injection, determinism and dead-letter matrices,
-golden-corpus, e2e) need Docker/NornicDB/Postgres and only ever ran in CI, or
-locally on explicit request. The hermetic Ifá rows (load saturation,
-contract-layer, materialized-edge coverage) run in `make pre-pr`; `make
-pre-push` defers them, so run `make pre-pr` for changes under `go/internal/ifa`
-or reducer materialization.
-The blocking, non-bypassable authority for all of it is CI's
-`required-gates-complete` aggregate (alongside `go-core-complete` and
-`go-race-complete`), which `.github/workflows/required-gates.yml` computes from
-every Ifá/Odù, contract, performance, and end-to-end gate the registry marks
-`blocking: true`. A merge still requires it green; dropping the local stamp
-only changes when a developer or agent *pushes*, not what *merges*.
+### When a PR may merge
+
+This is the single statement of the merge rule; other files point here.
+
+A PR merges when `go-core-complete` and `go-race-complete` are green on the
+pushed head AND no gate on that head has completed red without a disposition.
+The `required-gates-complete` status is not itself a merge input: it only
+summarizes the registry's `blocking: true` gates
+(`.github/workflows/required-gates.yml`), and its own red is often the
+false-failure publisher stamp described in
+[babysit-prs](../../.agents/skills/eshu-session-lifecycle/references/babysit-prs.md).
+Read the gates under it. A gate that completed red (an Ifá/Odù cell, a
+contract, performance, or end-to-end gate) is a finding: fix it, or link an
+issue that the active goal works. A cancelled gate is not red: rerun it. A
+pending check that the ruleset does not require does not block the merge; name
+every still-pending check in the merge report. Main Health is the backstop: if
+`main` goes red on a gate a PR merged past, the fix-forward belongs to that
+PR's goal.
+`scripts/dev/pre-enqueue-check.sh` still waits for the aggregate until it is
+updated to this rule, so its only difference is extra waiting.
+
+The Ifá/Odù protection was never fully local: the live cells (fault injection,
+determinism and dead-letter matrices, golden-corpus, e2e) need
+Docker/NornicDB/Postgres and run in CI, or locally on explicit request. The
+hermetic Ifá rows (load saturation, contract-layer, materialized-edge coverage)
+run in `make pre-pr`; `make pre-push` defers them, so run `make pre-pr` for
+changes under `go/internal/ifa` or reducer materialization.
 
 `make pre-pr` and `make pre-pr-full` still exist as deeper, optional
 preflights. They are recommended, not required, before pushing a change to
