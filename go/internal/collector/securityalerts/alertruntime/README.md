@@ -131,6 +131,31 @@ Signals, counts only: the `security_alert.observe` span of an org claim carries
 each retirement logs `security_alert.scope_retired` with `scope_id`,
 `parent_scope_id`, `generation_id`, and `shard_count`.
 
+Performance Evidence (#9019): baseline is origin/main b46fe6aa1d, where one
+claim of an org target read at most 100 of its allowlisted repositories, so a
+larger target never read the rest. After: over HTTP with the real provider
+client (`TestShardedOrgTargetReadsEveryRepositoryOncePerScan`), one scan of a
+250-repository target in K = 4 shards reads each repository exactly once and
+sends 254 requests at `max_pages` 1 and 508 at 2, equal to
+`max_pages` x (K + N). On PostgreSQL 18.6 (`TestShardSplitMergeLive`, `-race`)
+an allowlist of 100, then 101, then 100 repositories returns exactly 100, 101,
+and 100 rows from list, count, and inventory, with zero rows from retired
+scopes, and two collector replicas commit one target's shards concurrently.
+The coordinator's retirement read (`TestShardRetirementLive`) is a BitmapOr of
+`ingestion_scopes_parent_idx` and the primary key plus a read-state
+primary-key probe, 0.198 ms on 14,401 scopes. Planning 50 instances takes
+11.2 ms against 0.56 ms for one item per target (`TestShardPlannerScanCostLive`,
+median of 15). A retirement claim makes no provider call.
+
+Observability Evidence (#9019): `security_alert.observe` carries
+`eshu.security_alert.shard.count`, `.shard.repositories`, and
+`eshu.security_alert.retirement`; the logs `security_alert.org_target_sharded`,
+`security_alert.scope_retired`, and `security_alert.target_sharded_coordinator_skew`
+carry counts and scope ids, never a repository name, and the existing
+`eshu_dp_security_alert_*` provider, fan-out, and fact counters keep counting
+every shard claim (span attributes asserted in
+`TestShardAndRetirementClaimsCarryShardSpanAttributes`).
+
 ## Org read state (#8943)
 
 A fact exists only for a repository that has an alert, so a repository the
