@@ -28,7 +28,7 @@
 scripts/dev/precommit-go.sh	522
 scripts/lib/golden-corpus-lock-cases.sh	503
 scripts/lib/live-gate-lock.sh	503
-scripts/test-agent-hooks.sh	750
+scripts/test-agent-hooks.sh	745
 scripts/test-context-stories-doc-split.sh	566
 scripts/test-verify-docs-build-changed.sh	638
 scripts/test-verify-filename-stutter.sh	638

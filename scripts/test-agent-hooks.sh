@@ -385,13 +385,11 @@ fi
 # gate: a typo in the lsof flags or pgrep -x becoming pgrep -f would silently
 # disable detection, and every pass-through case above would still be green.
 
-# pgrep branch: a process whose name is literally ci-gates. `sleep` symlinked
-# under that name satisfies `pgrep -x` without running anything.
+# pgrep branch: a process whose name is literally ci-gates, made by a script
+# (see the helper for why it is not a sleep symlink).
+. "$repo_root/scripts/lib/agent-hooks-fake-gate.sh"
 sid=$((sid + 1))
-fakebin="$(mktemp -d)"
-ln -s "$(command -v sleep)" "$fakebin/ci-gates" 2>/dev/null
-"$fakebin/ci-gates" 30 &
-fake_pid=$!
+start_fake_gate
 sleep 0.3
 out=$(printf '{"cwd":"%s","tool_input":{"command":"make pre-pr"}}' "$repo_root" \
   | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
@@ -410,10 +408,7 @@ fi
 # A running gate blocks even with a full port override: the second run still
 # contends for CPU, and an earlier revision let any override skip this check.
 sid=$((sid + 1))
-fakebin="$(mktemp -d)"
-ln -s "$(command -v sleep)" "$fakebin/ci-gates" 2>/dev/null
-"$fakebin/ci-gates" 30 &
-fake_pid=$!
+start_fake_gate
 sleep 0.3
 out=$(printf '{"cwd":"%s","tool_input":{"command":"ESHU_POSTGRES_PORT=15532 NEO4J_BOLT_PORT=7788 make pre-pr"}}' "$repo_root" \
   | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
