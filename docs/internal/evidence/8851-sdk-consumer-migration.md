@@ -3,12 +3,14 @@
 Mechanical migration of all in-repo importers from
 `github.com/eshu-hq/eshu/sdk/go/{collector,factschema}` to the standalone
 `github.com/eshu-hq/eshu-sdk/{collector,factschema}` modules. Branch
-`drive/8851-sdk-consumer-migration`, base `e39c3bb949` (rebased; prior base `8a66731df3`).
+`drive/8851-sdk-consumer-migration`, base `1510ce66ad` (rebased twice; original base `8a66731df3`).
 
 No-Regression Evidence (#8851): the migration diff is import-path-only.
-`git diff e39c3bb949..HEAD -- go/` holds 1264 added/removed content lines (identical count after the rebase);
-1254 swap the old module path for the new one and nothing else. The other 10
-are the planned scaffold-template updates (`component_init_test.go` drops the
+`git diff <base>..HEAD -- go/` holds 1268 added/removed content lines;
+1258 swap the old module path for the new one and nothing else. The absorbed
+main-side `manifest_declaration_emission_test.go` contributes 2 removed + 2
+added import lines (same mechanical swap, alias preserved).
+The other 10 are the planned scaffold-template updates (`component_init_test.go` drops the
 directory replace, `scaffold_templates.go` pins the new path and proxy
 resolution) plus blank lines from import regrouping. No assertion, branch,
 query, schema, or wire byte changes. The factschema sources linked at rc.4
