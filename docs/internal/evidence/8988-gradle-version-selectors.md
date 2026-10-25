@@ -8,7 +8,9 @@ version were marked `resolved`: `1.+`, `latest.release`, `[1.0,2.0)`, `1.0!!`,
 The parser now calls `selector.Exact` (`go/internal/parser/gradle/selector`)
 after same-file interpolation. A selector row is `unresolved` and keeps the
 text as written. The reducer backstop `payloadcore.ExactManifestDependencyVersion`
-rejects a trailing `+`, a `latest.` prefix, `!!` and `@`. Security-alert
+rejects a trailing `+`, a `latest.` prefix, `!!`, `@`, and any `:`
+(a colon means a classifier or other notation text leaked into the version).
+Security-alert
 reconciliation forwards to that function. The git collector content version
 moves from `git-collector.v10` to `git-collector.v11`, so each stored
 repository re-collects once and its stale `resolved` rows are replaced.
