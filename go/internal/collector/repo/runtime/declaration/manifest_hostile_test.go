@@ -5,14 +5,26 @@ package declaration
 
 import (
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
+
+var warmEncoder sync.Once
+
+// margin is the allocation slack a comparison against a tiny file allows. It is
+// far below the body size, so any cost proportional to the body fails.
+const margin = 128 << 10
 
 // emitManifest runs EmitFile and returns the envelope count, the skip and the
 // bytes allocated. The tests assert allocation ceilings and a generous wall
 // time bound, never a speed claim.
 func emitManifest(path, body string) (int, Skip, uint64) {
+	warmEncoder.Do(func() {
+		// The payload encoder builds one-time caches on its first call; warm
+		// them so no test pays them against its allocation ceiling.
+		EmitFile(testContext("package.json"), "repo-1", "package.json", `{"engines":{"node":"18"}}`)
+	})
 	var envelopes int
 	var skip Skip
 	alloc := totalAllocDelta(func() {
@@ -42,6 +54,7 @@ func TestEmitPackageJSONAtTheByteCapReadsFlatMemory(t *testing.T) {
 	if len(body) > MaxManifestBytesPerFile {
 		t.Fatalf("test body is %d bytes, over the cap", len(body))
 	}
+	const tiny = `{"engines":{"node":">=18"},"volta":{"node":"20.11.1"}}`
 	start := time.Now()
 	n, skip, alloc := emitManifest("package.json", body)
 	if n != 2 || skip.Skipped() {
@@ -50,9 +63,9 @@ func TestEmitPackageJSONAtTheByteCapReadsFlatMemory(t *testing.T) {
 	// Flat in the body: the same declarations in a tiny file cost about the
 	// same. The difference is the scan itself, which allocates for no skipped
 	// value.
-	_, _, small := emitManifest("package.json", `{"engines":{"node":">=18"},"volta":{"node":"20.11.1"}}`)
-	if alloc > small+16<<10 {
-		t.Fatalf("reading a %d byte package.json allocated %d bytes against %d for a tiny one, want within 16 KiB", len(body), alloc, small)
+	_, _, small := emitManifest("package.json", tiny)
+	if alloc > small+margin {
+		t.Fatalf("reading a %d byte package.json allocated %d bytes against %d for a tiny one, want within %d", len(body), alloc, small, margin)
 	}
 	if elapsed := time.Since(start); elapsed > 2*time.Second {
 		t.Fatalf("reading a %d byte package.json took %s", len(body), elapsed)
@@ -115,8 +128,14 @@ func TestEmitPackageJSONRepeatedKeysDoNotAmplifyAllocation(t *testing.T) {
 	if n != 2 || skip.Skipped() {
 		t.Fatalf("emitted %d envelopes, skip %+v, want engines.node and packageManager (last occurrence)", n, skip)
 	}
-	if alloc > 64<<10 {
-		t.Fatalf("%d repeated keys allocated %d bytes, want <= 64 KiB (no per-repeat allocation)", b.Len()/60, alloc)
+	// The same two declarations without the repeats: the difference is what
+	// the repeats cost, and it must not scale with their count.
+	_, _, base := emitManifest("package.json", `{"engines":{"node":"20"},"packageManager":"npm@10.0.0"}`)
+	// The margin absorbs the encoder's pooled buffers, which a GC between the
+	// runs empties (measured jitter about 40 KiB). One allocation per repeat
+	// would add more than 500 KiB for these 17,475 repeats.
+	if alloc > base+margin {
+		t.Fatalf("%d repeated keys allocated %d bytes against %d without them, want within %d (no per-repeat allocation)", b.Len()/60, alloc, base, margin)
 	}
 }
 
@@ -124,7 +143,7 @@ func TestEmitPackageJSONEscapedKeyFloodStaysBounded(t *testing.T) {
 	var b strings.Builder
 	b.WriteString("{")
 	for b.Len() < MaxManifestBytesPerFile-64 {
-		b.WriteString(`"engines":{"node":"18"},`)
+		b.WriteString(`"eng` + bs + `u0069nes":{"no` + bs + `u0064e":"18"},`)
 	}
 	b.WriteString(`"engines":{"node":"20"}}`)
 	n, skip, alloc := emitManifest("package.json", b.String())
@@ -139,8 +158,14 @@ func TestEmitPackageJSONEscapedKeyFloodStaysBounded(t *testing.T) {
 }
 
 func TestEmitPackageJSONLongEscapedStringsAreNotDecoded(t *testing.T) {
-	longKey := strings.Repeat(`A`, 40)
-	longValue := strings.Repeat(`1`, 200)
+	// Escaped text over the decode bounds is not decoded. 50 pairs of "1."
+	// decode to a 100-byte value the guard would accept, so only the bound can
+	// reject it: 600 raw bytes against maxEscapedValueBytes.
+	longKey := strings.Repeat(bs+`u0041`, 40)
+	longValue := strings.Repeat(bs+`u0031`+bs+`u002e`, 50)
+	if len(longValue) <= maxEscapedValueBytes {
+		t.Fatalf("test value is %d raw bytes, want over %d", len(longValue), maxEscapedValueBytes)
+	}
 	body := `{"` + longKey + `":1,"engines":{"node":"` + longValue + `","npm":"10"}}`
 	envelopes, skip := EmitFile(testContext("package.json"), "repo-1", "package.json", body)
 	if len(envelopes) != 1 || skip.Reason != SkipReasonValueRejected || skip.Rejected != 1 {
