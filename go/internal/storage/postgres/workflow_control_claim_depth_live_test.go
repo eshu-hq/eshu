@@ -102,14 +102,15 @@ func TestWorkflowClaimDepthFairRotationServesSmallKeysEarly(t *testing.T) {
 	first := claimDepthFirstByKey(result.Records)
 	assertClaimDepthMinGrantsPerOwner(t, result, claimDepthClaimers, 10)
 	// The anti-serialization gate from the claim-pacing design: a fairness
-	// change that fixes the tail by throttling the burst lowers aggregate
-	// throughput and fails here. The bound is load-insensitive (#8725 P1
-	// disposition, same root cause as the pacing floor: an absolute
-	// claims/s floor flakes on hosted runner noise): a same-run
-	// single-claimer calibration drain of the same backlog shape cancels
-	// host speed out of the ratio, so throttled or serialized grants
-	// collapse the speedup below half the enrolled parallelism (a uniform
-	// slowdown preserves the ratio and stays trend-logged, not gated).
+	// change that fixes the tail by throttling the burst lowers concurrent
+	// grants and fails the overlap gate below. The gate is load-insensitive
+	// (#8725 P1 disposition, same root cause as the pacing floor: an
+	// absolute claims/s floor flakes on hosted runner noise): it counts
+	// simultaneously in-flight grants over [AttemptElapsed, DoneElapsed],
+	// so host speed cancels out. A same-run single-claimer calibration
+	// drain of the same backlog shape still runs for trend work only: its
+	// speedup ratio is logged, never gated (a uniform slowdown preserves
+	// the ratio and stays trend-logged).
 	calKeys := []claimDepthKeyBacklog{{FairnessKey: "claim-depth-skew-cal:large", Count: largeCount}}
 	for _, small := range smallKeys {
 		calKeys = append(calKeys, claimDepthKeyBacklog{FairnessKey: "claim-depth-skew-cal:" + small, Count: 20, CreatedOffset: time.Second})
