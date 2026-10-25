@@ -85,8 +85,8 @@ flowchart LR
   `skipped_locked`, event `secret_lines.repair_skipped` with `reason=locked`
   or `reason=deferred_writers`, `lock=` and `holder=`) while a bootstrap-index
   run holds either lock, and backs off after a failure. A cancelled context
-  (shutdown) is `outcome=cancelled` with a Warn `secret_lines.repair_cancelled`,
-  not a failure. It also logs `_started`, `_complete`, and `_failed`, and counts
+  (shutdown) is `outcome=cancelled` with a Warn `secret_lines.repair_cancelled`
+  that carries the `error` text, not a failure. It also logs `_started`, `_complete`, and `_failed`, and counts
   `eshu_dp_secret_lines_repair_runs_total{outcome}`. On 150,000 files in 677
   repositories it published in about 42 s with no concurrent writer. Rerunning
   `bootstrap-index` also repairs it; both paths are idempotent.

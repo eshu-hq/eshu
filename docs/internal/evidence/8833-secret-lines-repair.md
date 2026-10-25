@@ -93,8 +93,10 @@ sequenceDiagram
   (`Tick = failed, context deadline exceeded` in the review repro). The lock
   therefore comes from a dedicated one-connection pool
   (`SetMaxOpenConns(1)`, `SetMaxIdleConns(0)`), which removes that edge. The
-  cost is one connection per reducer while a rebuild runs: the reducer opens up
-  to `ESHU_POSTGRES_MAX_OPEN_CONNS` + 1.
+  cost is one connection per reducer: the reducer opens up
+  to `ESHU_POSTGRES_MAX_OPEN_CONNS` + 1. The lock pool opens it for the startup
+  ping, for each poll that finds the state not ready (the try, which may skip),
+  and for a whole rebuild.
 - **Session liveness.** The pinned session sends `SELECT 1` every 30 s, because
   `idle_session_timeout` ends a session that waits for a client query. A failed
   ping logs ERROR `secret_lines.bulk_load_lock_lost` once. A session whose try,
@@ -220,7 +222,7 @@ Observability Evidence:
     bootstrap-index sessions hold `(5318,2)`), with `lock=` and the holder's
     pid, application name, connection age, lock, and mode. Test (c) asserts the
     holder; the lost-lock test asserts `deferred_writers`.
-  - `secret_lines.repair_cancelled` (Warn): shutdown during a poll.
+  - `secret_lines.repair_cancelled` (Warn, with `error`): shutdown during a poll.
   - `secret_lines.bulk_load_lock_lost`, `secret_lines.deferred_session_refused`,
     `secret_lines.finalize_lost_epoch` (ERROR, `failure_class=
     secret_lines_bulk_load_lock_lost`) and `secret_lines.finalize_superseded`

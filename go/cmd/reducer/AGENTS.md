@@ -92,7 +92,9 @@ before touching any file in this directory.
   `ESHU_POSTGRES_MAX_OPEN_CONNS` + 1 connections during a rebuild. Do not make it
   default-off or call `Finalize` from a migration. Its wait function and the
   lock pool's close must run, in that order, in the shutdown defer after `stop()`
-  and before the database closes (`TestRunWiresTheSecretLinesRepairIntoTheShutdownOrder`).
+  and before the database closes (`TestRunWiresTheSecretLinesRepairIntoTheShutdownOrder`). The Repairer's Conner
+  must be that pool; `TestRunGivesTheRepairerItsDedicatedLockPool` fails on the
+  shared `db`.
 - **Prior-config depth defaults to 10; invalid input WARNs and falls back** —
   `PriorConfigDepth` is set from `parsePriorConfigDepth` in
   `buildReducerDriftHandlers` (`wiring_handlers.go`).

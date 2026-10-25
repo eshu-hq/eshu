@@ -32,8 +32,8 @@ The reducer repairs a state that is not `ready` (#8833). Each poll is counted in
 `skipped_locked` means another session holds the run lock `(5318,1)` (a
 bootstrap-index run or another reducer replica) or live bootstrap-index sessions
 hold the deferred-writer lock `(5318,2)`; `cancelled` is a shutdown during a poll
-(Warn `secret_lines.repair_cancelled`, the state stays `failed`, the next start
-heals it); `superseded` means the epoch moved during
+(Warn `secret_lines.repair_cancelled` with the `error` text, the state stays
+`failed`, the next start heals it); `superseded` means the epoch moved during
 the rebuild and the next poll takes the new one. The log events are
 `secret_lines.repair_skipped` (`reason=ready|locked|deferred_writers`, `lock=bulk_load|deferred_writers`, `holder`),
 `secret_lines.repair_started` (`epoch`, `state`, `policy_version` once migration

@@ -42,13 +42,9 @@ type secretLinesLifecycle struct {
 func productionSecretLines() secretLinesLifecycle {
 	return secretLinesLifecycle{
 		lock: func(ctx context.Context, database bootstrapDB, logger *slog.Logger, wait time.Duration) (func(context.Context) error, error) {
-			conner, ok := database.(secretlines.Conner)
-			if !ok {
-				return nil, errors.New("bootstrap database cannot pin a connection for the secret lines bulk load lock")
-			}
-			options := secretlines.LockOptions{Wait: wait, Logger: logger}
-			if fenced, ok := database.(interface{ RunFence() *secretlines.RunFence }); ok {
-				options.Fence = fenced.RunFence()
+			conner, options, err := secretLinesLockInputs(database, logger, wait)
+			if err != nil {
+				return nil, err
 			}
 			held, err := secretlines.AcquireBulkLoadLock(ctx, conner, options)
 			if err != nil {
@@ -77,6 +73,24 @@ func productionSecretLines() secretLinesLifecycle {
 			return nil
 		},
 	}
+}
+
+// secretLinesLockInputs resolves what secretlines.AcquireBulkLoadLock needs
+// from the bootstrap database: a connection pinner and the deferred-writer
+// fence. Missing either is an error, never a fallback: without the fence the
+// pool's connect hook cannot refuse a session born after the pinned lock
+// session died, and the Repairer could then publish ready over a live load
+// (#8833 ruling-4 Decision 1b).
+func secretLinesLockInputs(database bootstrapDB, logger *slog.Logger, wait time.Duration) (secretlines.Conner, secretlines.LockOptions, error) {
+	conner, ok := database.(secretlines.Conner)
+	if !ok {
+		return nil, secretlines.LockOptions{}, errors.New("bootstrap database cannot pin a connection for the secret lines bulk load lock")
+	}
+	fenced, ok := database.(interface{ RunFence() *secretlines.RunFence })
+	if !ok || fenced.RunFence() == nil {
+		return nil, secretlines.LockOptions{}, errors.New("bootstrap database has no deferred-writer run fence: refusing to run the deferred writers unfenced")
+	}
+	return conner, secretlines.LockOptions{Wait: wait, Logger: logger, Fence: fenced.RunFence()}, nil
 }
 
 // secretLinesDatabase adapts the bootstrap database to secretlines.Database.

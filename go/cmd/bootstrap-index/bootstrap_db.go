@@ -35,6 +35,10 @@ func (b *bootstrapSQLDB) Close() error { return b.raw.Close() }
 
 var _ secretlines.Conner = (*bootstrapSQLDB)(nil)
 
+// productionSecretLines refuses a database without this method (#8833 F10), so
+// the pool type must keep it.
+var _ interface{ RunFence() *secretlines.RunFence } = (*bootstrapSQLDB)(nil)
+
 // Conn pins one connection for the secret-lines bulk-load run lock
 // (secretlines.Conner). The connection keeps its session for the whole run;
 // database/sql never closes an in-use connection for ConnMaxLifetime.

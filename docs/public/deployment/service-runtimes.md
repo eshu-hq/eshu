@@ -17,7 +17,7 @@ choices, use [Docker Compose](../run-locally/docker-compose.md).
 | Ingester | Repository sync, workspace PVC, parsing, fact emission. | `StatefulSet` | [Core runtimes](service-runtimes-core.md) |
 | Webhook Listener | Verified Git and AWS freshness trigger intake. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
 | Workflow Coordinator | Collector instance reconciliation, claim creation, expired-claim reaping. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
-| Resolution Engine | Durable queue drain, projection, retry, replay, recovery, bounded superseded-generation cleanup, and package-consumption sidecar repair. | `Deployment` | [Resolution engine](../services/resolution-engine.md) |
+| Resolution Engine | Durable queue drain, projection, retry, replay, recovery, bounded superseded-generation cleanup, package-consumption sidecar repair, and hardcoded-secret side-table rebuild (#8833). | `Deployment` | [Resolution engine](../services/resolution-engine.md) |
 | Hosted Collectors | Confluence, OCI registry, Terraform-state, AWS cloud, package-registry, SBOM, attestation, provider security-alert, PagerDuty incident-context, and Jira work-item fact intake. | optional `Deployment` | [Collector runtimes](service-runtimes-collectors.md) |
 | Scanner Worker | Claim-driven CPU-heavy and memory-heavy security analyzers that emit source facts only. | optional `Deployment` | [Security Intelligence](../reference/security-intelligence.md#scanner-worker-boundary) |
 | Bootstrap Index | One-shot initial indexing. | operator-run helper, not chart steady state | [Bootstrap runtimes](service-runtimes-bootstrap.md) |
@@ -198,6 +198,18 @@ configuration.
   to one interval plus one read; if they keep failing, the gauges stop
   reporting once the snapshot is three intervals old. Watch `eshu_dp_gauge_snapshot_age_seconds` and
   `eshu_dp_gauge_snapshot_refreshes_total{outcome}` for staleness.
+- The reducer rebuilds the hardcoded-secret side table (`content_file_secret_lines`)
+  whenever its state is not `ready` (#8833): after a migration that changes the
+  derivation function, or a failed or abandoned bootstrap-index finalize. It
+  polls the state every `ESHU_SECRET_LINES_REPAIR_POLL_INTERVAL` (default `30s`),
+  takes the two bulk-load advisory locks without waiting, and skips while a
+  bootstrap-index connection is alive. Its lock session comes from a dedicated
+  one-connection pool, so the reducer opens up to `ESHU_POSTGRES_MAX_OPEN_CONNS`
+  + 1 connections while a secret-lines rebuild runs (see
+  [Postgres tuning](../reference/postgres-tuning.md)). It is on by default;
+  `ESHU_SECRET_LINES_REPAIR_ENABLED=false` is for diagnostics only. Until the
+  state is `ready`, `investigate_hardcoded_secrets` reads use the legacy content
+  scan. Every replica runs the loop and the locks let one rebuild at a time.
 - The reducer owns the status summary writer (#7009), off by default
   (`ESHU_STATUS_SUMMARY_WRITER_ENABLED=false`). When enabled, every reducer
   replica runs the loop, but a transaction advisory lock lets exactly one

@@ -61,8 +61,12 @@ notes that raising it increases allocated resources, including shared memory:
 The reducer is the one exception: while its secret-lines repair rebuilds the
 hardcoded-secret side table (#8833), it holds one extra connection from a
 dedicated one-connection pool for the rebuild's advisory lock, so it opens up to
-`ESHU_POSTGRES_MAX_OPEN_CONNS` + 1. The extra one exists only while a rebuild
-runs (about 42 s per 150,000 files), and the check below counts it.
+`ESHU_POSTGRES_MAX_OPEN_CONNS` + 1. The extra connection is open while the
+repair holds the lock (a rebuild, about 42 s per 150,000 files) and briefly each
+time it tries it: once at startup for the ping, and once per poll
+(`ESHU_SECRET_LINES_REPAIR_POLL_INTERVAL`, default 30 s) while the side table is
+not ready, which the pool closes right after. A ready side table opens no
+connection on the poll. The check below counts the extra one.
 
 Use this sizing check before raising pools:
 

@@ -74,8 +74,10 @@ runtime opener, then `SetMaxOpenConns(1)`, `SetMaxIdleConns(0)`), never the
 shared one. A rebuild pins a connection for its whole length while `Finalize`
 needs the shared pool, so with `ESHU_POSTGRES_MAX_OPEN_CONNS=1` taking the lock
 from the shared pool left `Finalize` waiting for the connection the lock held.
-The cost is one extra connection only while a rebuild runs: the reducer opens up
-to `ESHU_POSTGRES_MAX_OPEN_CONNS` + 1. A pinned session sends `SELECT 1` every
+The cost is one extra connection: the reducer opens up
+to `ESHU_POSTGRES_MAX_OPEN_CONNS` + 1. The lock pool opens it for the startup
+ping, for each poll that finds the side table not ready (a try that may skip),
+and for the whole rebuild; a ready side table opens none. A pinned session sends `SELECT 1` every
 30 s so an `idle_session_timeout` does not end it. A failed poll backs off,
 doubling up to 1 h; a poll cut short by shutdown counts `outcome=cancelled` and
 logs a Warn. The loop is on by default; `ESHU_SECRET_LINES_REPAIR_ENABLED=false`

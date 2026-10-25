@@ -329,7 +329,8 @@ func startSecretLinesRepair(ctx context.Context, config secretLinesRepairConfig,
 // capacity, so taking the lock from the shared pool would starve Finalize when
 // ESHU_POSTGRES_MAX_OPEN_CONNS is 1 (the pool-of-one deadlock). The cost is
 // that the reducer opens up to ESHU_POSTGRES_MAX_OPEN_CONNS + 1 connections
-// while a rebuild runs; the extra one exists only for that time. It returns nil
+// while a rebuild runs; the pool opens its one connection for the startup ping,
+// for each not-ready poll's lock try, and for the rebuild. It returns nil
 // when the repair is disabled.
 func openSecretLinesLockPool(ctx context.Context, config secretLinesRepairConfig, getenv func(string) string) (*sql.DB, error) {
 	if !config.Enabled {

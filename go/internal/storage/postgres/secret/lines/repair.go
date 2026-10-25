@@ -163,11 +163,13 @@ func backoff(poll, limit time.Duration, failures int) time.Duration {
 func (r *Repairer) Tick(ctx context.Context) (RepairOutcome, error) {
 	outcome, err := r.tick(ctx)
 	if err != nil && ctx.Err() != nil {
+		cancelledErr := err
 		// Shutdown cancelled the poll. The state stays failed (or untouched)
 		// and the next start heals it; this is not a repair failure.
 		outcome, err = RepairCancelled, nil
 		r.options.Logger.WarnContext(ctx, "secret lines repair cancelled by shutdown",
-			telemetry.EventAttr("secret_lines.repair_cancelled"))
+			telemetry.EventAttr("secret_lines.repair_cancelled"),
+			"error", cancelledErr.Error())
 	}
 	if r.options.Instruments != nil && r.options.Instruments.SecretLinesRepairRuns != nil {
 		r.options.Instruments.SecretLinesRepairRuns.Add(ctx, 1,
