@@ -18,14 +18,18 @@ func TestRedactMarkerFailsClosedOnYAMLIndirection(t *testing.T) {
 	t.Parallel()
 
 	for name, body := range map[string]string{
-		"alias value":            "base: &tok Zq1SeedAAAAAAAAA\nnpmAuthToken: *tok\n",
-		"alias to a mapping":     "creds: &c\n  t: Zq14SeedAAAAAAAA\nnpmScopes:\n  acme:\n    npmAuthToken: *c\n",
-		"alias under a registry": "x: &a Zq15SeedAAAAAAAA\nnpmRegistries:\n  \"//r\":\n    npmAuthIdent: *a\n",
-		"alias in a flow map":    "a: &s Zq16SeedAAAAAAAA\nnpmScopes: {acme: {npmAuthToken: *s}}\n",
-		"explicit key":           "? npmAuthToken\n: Zq6SeedAAAAAAAAA\n",
-		"explicit key in a list": "npmScopes:\n  - ? npmAuthToken\n    : Zq7SeedAAAAAAAA\n",
+		"alias value":                "base: &tok Zq1SeedAAAAAAAAA\nnpmAuthToken: *tok\n",
+		"alias to a mapping":         "creds: &c\n  t: Zq14SeedAAAAAAAA\nnpmScopes:\n  acme:\n    npmAuthToken: *c\n",
+		"alias under a registry":     "x: &a Zq15SeedAAAAAAAA\nnpmRegistries:\n  \"//r\":\n    npmAuthIdent: *a\n",
+		"alias in a flow map":        "a: &s Zq16SeedAAAAAAAA\nnpmScopes: {acme: {npmAuthToken: *s}}\n",
+		"explicit key":               "? npmAuthToken\n: Zq6SeedAAAAAAAAA\n",
+		"explicit key in a list":     "npmScopes:\n  - ? npmAuthToken\n    : Zq7SeedAAAAAAAA\n",
+		"explicit key in a flow":     "npmScopes: {acme: {? npmAuthToken\n  : Zq9SeedAAAAAAAA}}\n",
+		"explicit key after a comma": "npmScopes: {a: 1, ? npmAuthIdent : Zq10SeedAAAAAAA}\n",
+		"bare value line":            "npmAuthToken\n: Zq11SeedAAAAAAA\n",
+		"URL key alias":              "u: &u https://Zq12tok@registry.example.com/\nnpmRegistryServer: *u\n",
 	} {
-		_, _, err := redactMarker(body, yarnrcCredentialKeys)
+		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
 		if !errors.Is(err, errYAMLIndirection) {
 			t.Errorf("%s: err = %v, want errYAMLIndirection", name, err)
 		}

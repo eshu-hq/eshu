@@ -89,15 +89,15 @@ func redactMarkerWithURLKeys(body string, keys, urlKeys []string) (string, int, 
 	if err != nil {
 		return "", 0, err
 	}
-	if err := checkYAMLIndirection(body, keyPattern); err != nil {
-		return "", 0, err
-	}
 	state := markerState{keyPattern: keyPattern, lowerKeys: lowerKeys(keys)}
 	if len(urlKeys) > 0 {
 		if state.urlKeyPattern, err = credentialKeyPattern(urlKeys); err != nil {
 			return "", 0, err
 		}
 		state.lowerURLKeys = lowerKeys(urlKeys)
+	}
+	if err := checkYAMLIndirection(body, keyPattern, state.urlKeyPattern); err != nil {
+		return "", 0, err
 	}
 	lines := strings.Split(body, "\n")
 	for i, line := range lines {
