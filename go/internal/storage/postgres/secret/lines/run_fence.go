@@ -89,7 +89,7 @@ func (f *RunFence) Hook() func(ctx context.Context, conn *pgx.Conn) error {
 			return nil
 		}
 		var held bool
-		if err := conn.QueryRow(ctx, runLockHeldSQL, BulkLoadLockClass, BulkLoadLockID, int32(pid)).Scan(&held); err != nil {
+		if err := conn.QueryRow(ctx, runLockHeldSQL, BulkLoadLockClass, BulkLoadLockID, pid).Scan(&held); err != nil {
 			return fmt.Errorf("check secret lines run lock session: %w", err)
 		}
 		if held {
