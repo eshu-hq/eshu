@@ -35,11 +35,18 @@ type Config struct {
 	// MaxPolls stops the watcher after this many polls; zero means run until
 	// every PR is merged or closed.
 	MaxPolls int
-	// Environ is the parent environment handed to child processes, minus any
-	// ambient GitHub token.
+	// Environ is the parent environment. Each child gets a different shape of
+	// it: gh gets it with any ambient GH_TOKEN or GITHUB_TOKEN removed and the
+	// pinned account token added (ghEnv); git gets it unchanged plus
+	// GIT_TERMINAL_PROMPT=0 (gitEnv); the go child that reads the gate registry
+	// gets it without GOROOT (withoutEnv).
 	Environ []string
-	// RED stubs.
-	Required              []string
+	// Required are the merge-rule check contexts, read from the gate registry
+	// once at start. GREEN needs every one present and successful.
+	Required []string
+	// GHTimeout and GitTimeout bound every gh and git child process, process
+	// group included. A call that exceeds its bound is killed and reported as
+	// an error.
 	GHTimeout, GitTimeout time.Duration
 }
 

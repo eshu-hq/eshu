@@ -27,12 +27,15 @@ Scoped rules for editing the PR watcher. Load `golang-engineering`.
   read, and no pending check. A change to GREEN needs a test where the pre-wave
   set of always-on checks stays silent. `Run` refuses to start with no
   required contexts.
-- **Every child process has a deadline and git never prompts.** New calls go
+- **Every child process has a deadline, dies with its whole process group, and git
+  never prompts.** New calls go
   through `Watcher.gh` or `Watcher.git`; do not call `w.exec` directly.
 - **PR data reaches git only after `validateRefs`, and after `--`.**
 - **Read-only toward GitHub.** No pushes, replies, thread resolution, or
   merges. The only local side effect is `git fetch` for a test merge.
-- **Conflict labels follow `conflict-recipes.md`, exactly.** `recipeFiles` and
+- **Conflict labels follow
+  [conflict-recipes.md](../../../.agents/skills/eshu-code-review/references/conflict-recipes.md),
+  exactly.** `recipeFiles` and
   `agentRuleFile` in `conflict.go` name only paths that file names; add no
   globs it does not name. The generated list is read from the checkout, never
   copied. Changing a label means updating `doc.go`, `README.md`, and

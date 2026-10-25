@@ -63,7 +63,8 @@ unchanged state.
     context is present and succeeded; and the head and the total check count
     did not change. The merge-rule contexts come from the gate registry
     (`ci-gates contexts --ruleset-only`, today go-core-complete and
-    go-race-complete), read once at start, or from -required. If they cannot be
+    go-race-complete), read once at start (restart the watcher if the
+    registry's ruleset contexts change), or from -required. If they cannot be
     read, or the list is empty, the watcher exits with a WATCH line. They are
     required because a fresh PR shows only its always-on external checks, all
     green, for minutes before the Actions wave registers; two stable reads of
@@ -85,8 +86,9 @@ guess.
 # Safety
 
 Every gh and git child process has a deadline (-gh-timeout 60s, -git-timeout
-120s). A call that exceeds it is cancelled and reported as an ERROR (or as the
-reason of a CONFLICT test merge) naming the command; the poll goes on. git
+120s). A call that exceeds it is killed, with its whole process group on unix
+so no grandchild keeps running, and reported as an ERROR (or as the reason of
+a CONFLICT test merge) naming the command; the poll goes on. git
 children run with GIT_TERMINAL_PROMPT=0.
 
 The branch name and SHAs read from GitHub reach git only after validation: the

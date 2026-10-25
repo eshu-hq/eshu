@@ -25,8 +25,17 @@ func TestMain(m *testing.M) {
 	if dir := os.Getenv(fakeGHEnv); dir != "" {
 		os.Exit(fakeGH(dir, os.Args[1:]))
 	}
+	for _, helper := range helperModes {
+		if code, ran := helper(); ran {
+			os.Exit(code)
+		}
+	}
 	os.Exit(m.Run())
 }
+
+// helperModes are extra roles the test binary can play as a child process.
+// Platform-specific test files register theirs from init.
+var helperModes []func() (exitCode int, ran bool)
 
 // fakeGH serves seeded GraphQL polls and job logs from dir. It refuses any call
 // that does not carry the pinned token, which proves the watcher pins the

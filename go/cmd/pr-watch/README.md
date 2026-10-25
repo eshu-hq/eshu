@@ -30,9 +30,10 @@ Events, flags, and account rules are in `doc.go`. In short:
 
 ## Conflict recipes
 
-The labels follow `.agents/skills/eshu-code-review/references/conflict-recipes.md`
-and "Row 4a" in `eshu-code-review/SKILL.md`. The watcher only names files; it
-never counts choice lines.
+The labels follow [conflict-recipes.md](../../../.agents/skills/eshu-code-review/references/conflict-recipes.md)
+and [Row 4a](../../../.agents/skills/eshu-code-review/SKILL.md#row-4a-mechanical-conflict)
+in `eshu-code-review`. The watcher only names files; it never counts choice
+lines.
 
 - **`4a`.** Every conflicted file is a recipe file: `CHANGELOG.md`,
   `go/internal/collector/repo/git/testdata/content_version_pin.json` (and
@@ -58,6 +59,8 @@ come from `go -C go run ./cmd/ci-gates contexts --registry ../specs/ci-gates.v1.
 (today `go-core-complete` and `go-race-complete`), run once at start from `-dir`,
 which must be the repository root. If that read fails or returns nothing, the
 watcher exits with a `WATCH state=exit` line. `-required a,b` overrides it.
+The list is read once at start, so restart the watcher if the registry's ruleset
+contexts change.
 
 Why the contexts matter: a fresh PR sits with only its always-on external checks
 (about five, all green) for minutes before the Actions wave registers, and two
@@ -73,8 +76,8 @@ Each poll costs one GraphQL call per PR (about one point). A set above 100
 checks (live PRs run 120 to 130) adds a lean follow-up page per extra 100, which
 reads only checks and the head SHA. `BEHIND` fires again each time the base
 advances, because the event key includes the base SHA; each time costs one
-fetch, one `merge-tree`, and one line. Every child process has a deadline and
-git never prompts. Branch names and SHAs from GitHub are validated before they
+fetch, one `merge-tree`, and one line. Every child process has a deadline, a timed-out call is killed with its whole
+process group, and git never prompts. Branch names and SHAs from GitHub are validated before they
 reach git.
 
 ## Design notes

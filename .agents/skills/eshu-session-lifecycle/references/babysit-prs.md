@@ -36,7 +36,7 @@ Triggers: a PR you created is open; review bots are running; CI is in flight;
    | Event | What to do |
    |---|---|
    | `CI-FAIL job=… tail=…` | Reproduce that gate locally, fix, push. Includes a cancelled blocking gate. |
-   | `CONFLICT state=… recipe=…` | `4a`: every conflicted file is a named recipe file; follow `.agents/skills/eshu-code-review/references/conflict-recipes.md` and run its check. `count-choice-lines`: some conflicted file is not a recipe file; count your choice lines (row 4a at 10 or fewer in 2 or fewer files, else 4b). `agent_rule_files=N` means run `bash scripts/verify-docs-contradiction.sh`. `rebase`: clean test merge; follow [rebase-verify.md](rebase-verify.md). `unknown`: the test merge could not run; read the conflict yourself. |
+   | `CONFLICT state=… recipe=…` | `4a`: every conflicted file is a named recipe file; follow [conflict-recipes.md](../../eshu-code-review/references/conflict-recipes.md) and run its check. `count-choice-lines`: some conflicted file is not a recipe file; count your choice lines (row 4a at 10 or fewer in 2 or fewer files, else 4b). `agent_rule_files=N` means run `bash scripts/verify-docs-contradiction.sh`. `rebase`: clean test merge; follow [rebase-verify.md](rebase-verify.md). `unknown`: the test merge could not run; read the conflict yourself. |
    | `NEW-THREAD`, `NEW-REVIEW`, `NEW-COMMENT` | Any author, including this account and bots that commented unrequested. Read the body and fix first (steps 5–6). |
    | `HEAD-MOVED … source=foreign` | Someone else pushed. Fetch and rebase onto the remote head before you push; never force. `source=local` is your own push. |
    | `MERGED` / `CLOSED` | Stop pushing to the branch. A follow-up is a new branch and PR. |
@@ -111,21 +111,23 @@ Triggers: a PR you created is open; review bots are running; CI is in flight;
    what changed. Never reply announcing an intention. A derivable-figure P3 is
    the exception (see `resolve-review-threads`).
 
-7. **Merge only on the real bar.** Zero failing checks, and every thread from
-   every reviewer addressed and resolved by you. Advisory lanes still pending is
-   acceptable; an unread thread is not. If a PR merges with a comment
-   unacknowledged, open a fresh branch and PR to address it.
+7. **Merge only on the real bar.** The CI half is the
+   [merge rule](../../../../docs/internal/agent-git-hygiene.md#when-a-pr-may-merge):
+   `go-core-complete` and `go-race-complete` green on the pushed head and no
+   gate on it completed red without a disposition. The other half: every thread
+   from every reviewer addressed and resolved by you. A pending check the
+   ruleset does not require does not block; name it in the report. An unread
+   thread does. If a PR merges with a comment unacknowledged, open a fresh
+   branch and PR to address it.
 
-## Two failures that look like problems and are not
+## A red or missing aggregate is not a merge input
 
-- **`required-gates-complete` red with no other failing check.** That is the
-  `cancel-in-progress` and `if: always()` publisher stamping a false failure in
-  `required-gates.yml`, not a real gate failure. Confirm no other check is red
-  before chasing it.
-- **`required-gates-complete` absent entirely, and `mergeable` stuck.** `main`
-  is guarded by a ruleset rather than branch protection, `--admin` cannot bypass
-  it, and concurrent PRs starve the aggregator. The fix is to stop the churn and
-  let it settle, not to force anything.
+`required-gates-complete` is not required by the ruleset, so its red, its
+absence, or a long wait on it does not decide a merge (see the
+[merge rule](../../../../docs/internal/agent-git-hygiene.md#when-a-pr-may-merge)).
+Its red is often the `cancel-in-progress` and `if: always()` publisher stamping
+a false failure in `required-gates.yml`. Do not wait on it and do not chase it:
+read the gates under it, and treat a gate that completed red as a finding.
 
 ## Reply
 

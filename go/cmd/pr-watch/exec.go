@@ -105,6 +105,7 @@ func osExec(ctx context.Context, c Command) ([]byte, error) {
 	cmd.Dir = c.Dir
 	cmd.Env = c.Env
 	cmd.WaitDelay = killGrace
+	confineChild(cmd)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
