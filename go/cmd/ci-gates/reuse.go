@@ -80,11 +80,31 @@ func runReuse(args []string) error {
 // probeReuseForAwait adapts the registry to the probe's context list for
 // the await path, sharing runReuse's single source of truth.
 func probeReuseForAwait(ctx context.Context, runner ghRunner, reg *cigates.Registry, repo string, pr int, headSHA string) (reuseVerdict, error) {
+	return probeReuse(ctx, runner, repo, pr, headSHA, transferProofContexts(reg))
+}
+
+// probeSmokeForAwait adapts the registry to the smoke probe's context list for
+// await and pr-plan, so both judge a candidate against the same list as reuse.
+func probeSmokeForAwait(ctx context.Context, runner ghRunner, reg *cigates.Registry, repo string, pr int, headSHA string, changedPaths []string, truncated bool) (smokeEvidence, error) {
+	return probeSmokeEvidence(ctx, runner, repo, pr, headSHA, changedPaths, truncated, transferProofContexts(reg))
+}
+
+// transferProofContexts lists the contexts a previous head must show green
+// before its verdict transfers to a new head (reuse, smoke tier, pr-plan).
+//
+// It deliberately returns EVERY manifest context, including entries with
+// ruleset_required: false (#9094). The live ruleset stopped requiring
+// required-gates-complete to merge, but this is a different question: the
+// transfer paths judge a PREVIOUS head, and the aggregate's terminal status
+// description is the proof they transfer (fullBackedSource). Dropping it would
+// let a head with a red or proof-less aggregate donate its verdict. Merge-time
+// consumers read the ruleset subset instead (ci-gates contexts --ruleset-only).
+func transferProofContexts(reg *cigates.Registry) []string {
 	contexts := make([]string, 0, len(reg.RequiredStatusChecks))
 	for _, check := range reg.RequiredStatusChecks {
 		contexts = append(contexts, check.Context)
 	}
-	return probeReuse(ctx, runner, repo, pr, headSHA, contexts)
+	return contexts
 }
 
 var repoNamePattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)

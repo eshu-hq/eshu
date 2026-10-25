@@ -59,12 +59,13 @@
 # exercises them).
 #
 # The Ifá/Odù contract, performance, and end-to-end protection this floor does
-# NOT reproduce lives in CI's required-gates-complete aggregate (test.yml's
-# go-core-complete and go-race-complete plus every Ifá/Odù and golden-corpus
-# gate required-gates.yml aggregates) — see
-# docs/public/reference/local-testing.md. A merge still requires
-# required-gates-complete green; this script is a fast local floor underneath
-# that authority, not a replacement for it.
+# NOT reproduce lives in CI (test.yml's go-core-complete and go-race-complete,
+# plus every Ifá/Odù and golden-corpus gate required-gates.yml aggregates into
+# required-gates-complete) — see docs/public/reference/local-testing.md. A merge
+# requires go-core-complete and go-race-complete green on the head and no
+# completed red gate left undispositioned; the ruleset does not require
+# required-gates-complete itself (#9089). This script is a fast local floor
+# underneath that bar, not a replacement for it.
 #
 # Every step runs even if an earlier one fails (accumulate), so you see all
 # problems at once. Exit status is non-zero if any step failed.
@@ -266,6 +267,6 @@ if [[ ${overall} -ne 0 ]]; then
 	printf '\n\033[31mpre-push: failures above — fix before pushing.\033[0m\n'
 else
 	printf '\n\033[32mpre-push: all local gates passed.\033[0m\n'
-	printf 'CI required-gates remain the blocking proof for Ifá/Odù contracts, performance, and end-to-end behavior (required-gates-complete must still be green to merge).\n'
+	printf 'CI remains the blocking proof for Ifá/Odù contracts, performance, and end-to-end behavior: go-core-complete and go-race-complete must be green to merge, and no completed red gate may be left undispositioned.\n'
 fi
 exit ${overall}

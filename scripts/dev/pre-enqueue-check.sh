@@ -27,7 +27,7 @@ export LC_ALL=C
 usage() {
 	# shellcheck disable=SC2016 # literal $(...) in the usage text.
 	printf '%s\n' \
-		'usage: scripts/dev/pre-enqueue-check.sh <pr-number> <expected-head-sha>' \
+		'usage: scripts/dev/pre-enqueue-check.sh [--dispositioned <context>=<issue-or-reason>]... <pr-number> <expected-head-sha>' \
 		'' \
 		'Read-only, fail-closed pre-enqueue check. Arms (each prints PASS or FAIL):' \
 		'  pr-state        PR is OPEN, not draft, headRefOid == <expected-head-sha>' \
@@ -39,11 +39,14 @@ usage() {
 		'                  PR; an empty or absent queue (main has none) passes with' \
 		'                  "queue empty"' \
 		'  checks          check runs for the head, read with gh api (REST) because gh' \
-		'                  2.46.0 has no gh pr checks --json: every run completed, none' \
-		'                  failure/cancelled/timed_out/action_required (skipped and' \
-		'                  neutral allowed), at least one row; go-core-complete,' \
-		'                  go-race-complete and required-gates-complete (check run or' \
-		'                  commit status) == success; mergeStateStatus == CLEAN; a PR' \
+		'                  2.46.0 has no gh pr checks --json. The merge rule: every' \
+		'                  context in `ci-gates contexts --ruleset-only` (check run or' \
+		'                  commit status) == success; a check the ruleset does not' \
+		'                  require (the required-gates-complete aggregate included) is' \
+		'                  a note while pending or absent and a FAIL when completed' \
+		'                  failure/cancelled/timed_out/action_required, unless' \
+		'                  --dispositioned names it; unclassified conclusions fail' \
+		'                  closed; at least one row; mergeStateStatus == CLEAN; a PR' \
 		'                  already in the merge queue is labeled IN-GROUP and accepts' \
 		'                  UNKNOWN (GitHub reports it for a queued PR) or CLEAN' \
 		'  threads         unresolved review threads == 0' \
@@ -60,7 +63,11 @@ usage() {
 		'completion stays with the caller'\''s watcher: run it only after that watcher' \
 		'has seen the full check set stable twice.' \
 		'' \
-		'Exit: 0 all arms PASS; 1 any arm FAIL; 2 usage or missing tool.' \
+		'--dispositioned <context>=<issue-or-reason> accepts one completed-red check the' \
+		'ruleset does not require; repeat it per check. Each use is printed in the' \
+		'checks arm as applied, unused (not red) or ignored (ruleset-required).' \
+		'' \
+		'Exit: 0 all arms PASS; 1 any arm FAIL; 2 usage, missing tool, or ci-gates unreadable.' \
 		'' \
 		'Environment:' \
 		'  GH_TOKEN            gh auth; callers on a machine whose active gh account cannot' \
@@ -68,6 +75,8 @@ usage() {
 		'                      GH_TOKEN=$(gh auth token --user <account>) scripts/dev/pre-enqueue-check.sh ...' \
 		'  PRE_ENQUEUE_REPO    owner/name override (default: gh repo view)' \
 		'  PRE_ENQUEUE_REMOTE  git remote to fetch from (default: origin)' \
+		'  PRE_ENQUEUE_CI_GATES  ci-gates command (default: go -C <repo>/go run ./cmd/ci-gates)' \
+		'  PRE_ENQUEUE_REGISTRY  registry path (default: <repo>/specs/ci-gates.v1.yaml)' \
 		'  GH, GIT             command overrides for testing (default: gh, git)'
 }
 
@@ -75,11 +84,48 @@ usage() {
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/ai-attribution-pattern.sh"
 # shellcheck source=scripts/lib/private-identifier-pattern.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/private-identifier-pattern.sh"
+# shellcheck source=scripts/lib/pre-enqueue-check-contexts.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/pre-enqueue-check-contexts.sh"
+# shellcheck source=scripts/lib/pre-enqueue-check-checks.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/pre-enqueue-check-checks.sh"
 
 GH="${GH:-gh}"
 GIT="${GIT:-git}"
 REMOTE="${PRE_ENQUEUE_REMOTE:-origin}"
 
+# Options come before or between the two positionals. --dispositioned repeats.
+positional=()
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--dispositioned | --dispositioned=*)
+		if [[ "$1" == --dispositioned ]]; then
+			[[ $# -ge 2 ]] || {
+				usage >&2
+				exit 2
+			}
+			disposition_value="$2"
+			shift 2
+		else
+			disposition_value="${1#--dispositioned=}"
+			shift
+		fi
+		if ! add_disposition "${disposition_value}"; then
+			echo "pre-enqueue-check: --dispositioned wants <context>=<issue-or-reason>, got '${disposition_value}'" >&2
+			usage >&2
+			exit 2
+		fi
+		;;
+	-*)
+		usage >&2
+		exit 2
+		;;
+	*)
+		positional+=("$1")
+		shift
+		;;
+	esac
+done
+set -- ${positional[@]+"${positional[@]}"}
 if [[ $# -ne 2 ]]; then
 	usage >&2
 	exit 2
@@ -119,6 +165,14 @@ if [[ -z "${repo}" || "${repo}" != */* ]]; then
 fi
 owner="${repo%%/*}"
 name="${repo#*/}"
+
+# The ruleset-required set comes from the gate registry (#9094), never a list here.
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+contexts_error=""
+if ! load_contexts "${repo_root}"; then
+	echo "pre-enqueue-check: cannot read the ruleset-required contexts (${contexts_error}); set PRE_ENQUEUE_CI_GATES or run from a checkout with Go" >&2
+	exit 2
+fi
 
 # ensure_commit <sha>: make <sha> present locally, fetching it by SHA from the
 # remote when missing. GitHub serves any reachable SHA (PR heads via
@@ -238,124 +292,9 @@ else
 fi
 
 # --- arm 4: checks -----------------------------------------------------------
-# Check rows come from the REST check-runs endpoint, not `gh pr checks --json`:
-# gh 2.46.0 has no --json there (#8381). --paginate with --jq emits one compact
-# row per check run across every page. REST, not GraphQL: a wide GraphQL check
-# query times out on this repository. The endpoint's default filter=latest
-# returns the latest run per name within each check suite; a re-triggered
-# workflow on the same SHA adds a second suite, and every suite's rows count
-# except for the three required contexts, where the newest suite wins (older
-# suites' rows of those names leave the tally, see tally_json). Never
-# filter=all, and never collapse by name: one job name defined by 13 workflows
-# is 13 distinct checks, and a newer pass must not hide an older failure. A run
-# is judged by its status and conclusion, never by its name, because check NAMES
-# can contain words like "fail" or "pending". A zero-row read is an error, never
-# "pending".
-runs_err="$(mktemp)"
-trap 'rm -f "${runs_err}"' EXIT
-checks_bad=()
-runs_raw="$("${GH}" api --paginate "repos/${repo}/commits/${want}/check-runs?per_page=100" \
-	--jq '.check_runs[] | {id,name,status,conclusion,suite:(.check_suite.id // 0)}' 2>"${runs_err}")"
-runs_rc=$?
-checks_json='[]'
-if [[ "${runs_rc}" -ne 0 ]]; then
-	checks_bad+=("gh api check-runs read failed (exit ${runs_rc}): $(head -n1 "${runs_err}" | cut -c1-160)")
-elif ! checks_json="$(jq -s 'if all(.[]; type == "object") then . else error("not rows") end' <<<"${runs_raw}" 2>/dev/null)"; then
-	checks_json='[]'
-	checks_bad+=("gh api check-runs returned unparseable rows")
-elif [[ "$(jq 'length' <<<"${checks_json}")" -eq 0 ]]; then
-	checks_bad+=("no check rows reported for ${want}")
-else
-	# completed + success/skipped/neutral is fine; completed + failure,
-	# cancelled, timed_out or action_required fails; not completed is pending;
-	# any other conclusion (stale, null, ...) is unclassified and fails closed.
-	# All rows count here, across every suite: fail-closed. The one exception is
-	# the three required contexts (pinned to one workflow and job each, see the
-	# required-context loop below): only their newest suite's rows are tallied,
-	# so a stale failure in an older suite does not keep the arm red. Suite 0 is
-	# a row with no check_suite: it is never superseded and always tallied.
-	tally_json="$(jq -c '
-		["go-core-complete", "go-race-complete", "required-gates-complete"] as $req
-		| (reduce .[] as $r ({}; if $r.suite == 0 then . else .[$r.name] = ([(.[$r.name] // 0), $r.suite] | max) end)) as $top
-		| [.[] | select(((.name | IN($req[])) | not) or .suite == 0 or .suite == $top[.name])]' <<<"${checks_json}")"
-	total="$(jq 'length' <<<"${checks_json}")"
-	failing_sel='select(.status == "completed" and (.conclusion | IN("failure","cancelled","timed_out","action_required")))'
-	pending_sel='select(.status != "completed")'
-	pending="$(jq "[.[] | ${pending_sel}] | length" <<<"${tally_json}")"
-	failing="$(jq "[.[] | ${failing_sel}] | length" <<<"${tally_json}")"
-	unknown="$(jq '[.[] | select(.status == "completed" and (.conclusion | IN("success","skipped","neutral","failure","cancelled","timed_out","action_required") | not))] | length' <<<"${tally_json}")"
-	note checks "rows=${total} pending=${pending} fail=${failing} unknown=${unknown}"
-	# A name with rows in more than one suite has no GitHub-defined winner.
-	while IFS= read -r multi_line; do
-		[[ -z "${multi_line}" ]] || note checks "multi-suite: ${multi_line}"
-	done < <(jq -r '[group_by(.name)[] | (map(.suite) | unique) as $s | select(($s | length) > 1)
-		| "\(.[0].name) (\($s | length) suites: \($s | map(tostring) | join(", ")))"] | .[]' <<<"${checks_json}")
-	multi_names="$(jq -c '[group_by(.name)[] | select((map(.suite) | unique | length) > 1) | .[0].name]' <<<"${checks_json}")"
-	orphan_hint=" -- older run on the same SHA still counted; GitHub defines no winner across suites; wait for or cancel the orphan (gh run list --commit ${want})"
-	# bad_entry <label> <count> <selector>: one checks_bad entry for the rows a
-	# selector picks; the orphan hint is appended when a picked name is multi-suite.
-	bad_entry() {
-		local names hits hint=""
-		names="$(jq -r "[.[] | $3 | .name] | unique | join(\", \")" <<<"${tally_json}")"
-		hits="$(jq --argjson m "${multi_names}" "[.[] | $3 | .name | select(IN(\$m[]))] | length" <<<"${tally_json}")"
-		[[ "${hits}" -eq 0 ]] || hint="${orphan_hint}"
-		checks_bad+=("$1=$2: ${names}${hint}")
-	}
-	[[ "${pending}" -eq 0 ]] || bad_entry pending "${pending}" "${pending_sel}"
-	[[ "${failing}" -eq 0 ]] || bad_entry fail "${failing}" "${failing_sel}"
-	[[ "${unknown}" -eq 0 ]] || checks_bad+=("unclassified=${unknown}")
-fi
-status_json="$("${GH}" api "repos/${repo}/commits/${want}/status?per_page=100" 2>/dev/null)"
-# The three ruleset-required contexts must each be success. go-core-complete and
-# go-race-complete publish as check runs, required-gates-complete as a commit
-# status. A check run of that name wins; the status is the fallback. Each is
-# pinned to exactly one workflow and job (specs/ci-gates.v1.yaml,
-# required_status_checks), so two suites on one SHA are two runs of the same
-# workflow, and only the NEWEST suite (max suite id, then all its rows) decides
-# the context. GitHub: "Using the same job name in multiple workflows can cause
-# ambiguous status check results" (About protected branches). A superseded
-# suite is named in a note and its rows are excluded from the tally above.
-for ctx in go-core-complete go-race-complete required-gates-complete; do
-	ctx_state="$(jq -r --arg c "${ctx}" '
-		[.[] | select(.name == $c)] as $all
-		| if ($all | length) == 0 then "absent"
-		  else ($all | map(.suite) | max) as $top
-		  | [$all[] | select(.suite == $top or .suite == 0)] as $r
-		  | if all($r[]; .status == "completed" and .conclusion == "success") then "success"
-		    elif any($r[]; .status != "completed") then "pending"
-		    else ([$r[] | select(.conclusion != "success") | .conclusion] | first // "unknown") end end' <<<"${checks_json}" 2>/dev/null)"
-	superseded="$(jq -r --arg c "${ctx}" '
-		[.[] | select(.name == $c)] as $all
-		| ($all | map(.suite) | max) as $top
-		| [$all[] | select(.suite != $top and .suite != 0 and (.status != "completed" or .conclusion != "success")) | .suite]
-		| unique | map(tostring) | join(", ")' <<<"${checks_json}" 2>/dev/null)"
-	if [[ -n "${superseded}" ]]; then
-		note checks "${ctx}: newest suite $(jq -r --arg c "${ctx}" '[.[] | select(.name == $c) | .suite] | max' <<<"${checks_json}") wins; superseded suite(s): ${superseded}"
-	fi
-	if [[ "${ctx_state}" == absent ]]; then
-		ctx_state="$(jq -r --arg c "${ctx}" '[.statuses[]? | select(.context == $c) | .state] | first // "absent"' <<<"${status_json}" 2>/dev/null)"
-		[[ -n "${ctx_state}" ]] || ctx_state="unreadable"
-	fi
-	[[ "${ctx_state}" == success ]] || checks_bad+=("${ctx}=${ctx_state}")
-done
-mss="$(jq -r '.mergeStateStatus // "?"' <<<"${pr_json}")"
-# A PR already in a merge group reads mergeStateStatus UNKNOWN (PR #8000,
-# rulings a9-135.2, a9-139.2): the row is labeled IN-GROUP and accepts only
-# UNKNOWN or CLEAN; any other value fails. Any other PR still needs CLEAN.
-group_label=""
-if [[ "${in_group}" -eq 1 ]]; then
-	group_label="IN-GROUP: "
-	[[ "${mss}" == UNKNOWN || "${mss}" == CLEAN ]] || checks_bad+=("mergeStateStatus=${mss}")
-else
-	[[ "${mss}" == CLEAN ]] || checks_bad+=("mergeStateStatus=${mss}")
-fi
-if [[ ${#checks_bad[@]} -eq 0 && -n "${group_label}" ]]; then
-	pass checks "${group_label}complete; required-gates-complete=success; mergeStateStatus=${mss} (PR is in a merge group)"
-elif [[ ${#checks_bad[@]} -eq 0 ]]; then
-	pass checks "complete; required-gates-complete=success; mergeStateStatus=CLEAN"
-else
-	fail checks "${group_label}$(printf '%s; ' "${checks_bad[@]}")"
-fi
+# The merge rule, not "every row green" (#9094): see
+# scripts/lib/pre-enqueue-check-checks.sh. The required set comes from ci-gates.
+run_checks_arm
 
 # --- arm 5: threads ----------------------------------------------------------
 # shellcheck disable=SC2016 # GraphQL variables, not shell expansions.

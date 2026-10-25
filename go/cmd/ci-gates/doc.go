@@ -58,7 +58,10 @@
 // group's fixed base SHA (parsed from --merge-group-branch, validated against
 // --base-ref), and check rows from that commit's merge_group runs only.
 // Contexts exposes the repository-owned required-status manifest,
-// including pinned GitHub App integration IDs for live ruleset verification.
+// including pinned GitHub App integration IDs for live ruleset verification;
+// --ruleset-only narrows it to the contexts the live ruleset requires. The
+// reuse, smoke and pr-plan transfer paths keep the full list (#9094): they
+// judge a previous head, whose aggregate status carries the transferred proof.
 //
 // # select
 //

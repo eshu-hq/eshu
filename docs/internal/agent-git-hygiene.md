@@ -77,8 +77,10 @@ pending check that the ruleset does not require does not block the merge; name
 every still-pending check in the merge report. Main Health is the backstop: if
 `main` goes red on a gate a PR merged past, the fix-forward belongs to that
 PR's goal.
-`scripts/dev/pre-enqueue-check.sh` still waits for the aggregate until it is
-updated to this rule, so its only difference is extra waiting.
+`scripts/dev/pre-enqueue-check.sh` checks this rule. It fails on a required
+check that is not green and on a completed red not named with
+`--dispositioned '<check>=<reason>'`, and it only notes a pending or absent
+check that the ruleset does not require.
 
 The Ifá/Odù protection was never fully local: the live cells (fault injection,
 determinism and dead-letter matrices, golden-corpus, e2e) need

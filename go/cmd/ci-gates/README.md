@@ -399,9 +399,8 @@ selects only; it does not run or await jobs.
 ci-gates contexts --registry specs/ci-gates.v1.yaml [--json] [--ruleset-only]
 ```
 
-Prints the required-status manifest. JSON adds each context's pinned GitHub App
-integration ID and `ruleset_required`; `--ruleset-only` drops entries with
-`ruleset_required: false`, as the live-rules verifier does (`await`/`reuse` do not).
+Prints the required-status manifest. JSON adds each context's pinned GitHub App integration ID and `ruleset_required`; `--ruleset-only` drops entries with `ruleset_required: false`, as the live-rules verifier and `scripts/dev/pre-enqueue-check.sh` do.
+`await`, `reuse` and `pr-plan` keep the full list on purpose (#9094): they judge a previous head, and the aggregate's status description is the proof they transfer (`transferProofContexts`).
 
 ### validate
 

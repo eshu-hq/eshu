@@ -386,8 +386,8 @@ else
 	# self-imposed). main has no merge queue (turned off 2026-10-16, #8288)
 	# and strict status checks are off, so branches need not be up to date.
 	# scripts/dev/pre-push.sh is the fast local floor every push now runs
-	# instead; CI's required-gates-complete aggregate stays the blocking
-	# authority for everything this local run cannot reach.
+	# instead; CI's go-core-complete and go-race-complete stay the blocking
+	# gates to merge for everything this local run cannot reach.
 	printf '\n\033[32mpre-pr: all local gates passed'
 	[[ ${#live_deferred[@]} -gt 0 ]] && printf ' (deferred to CI: %s)' "${live_deferred[*]}"
 	[[ ${#fast_path_skipped[@]} -gt 0 ]] && printf ' (fast-path skipped: %s)' "${fast_path_skipped[*]}"

@@ -93,12 +93,15 @@ add_rows "$(run_row 100 'queue-selection / select' completed '"success"' 1)"
 for n in $(seq 2 14); do
 	add_rows "$(run_row $((100 + n)) 'queue-selection / select' queued null "${n}")"
 done
-expect_red "13 suites each queue the same job name" checks
+run
 ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
 rg -q 'checks +rows=20 pending=13 ' <<<"${OUT}" || ok=1
-rg -q "^FAIL checks +pending=13: queue-selection / select -- ${hint}" <<<"${OUT}" || ok=1
+rg -q "^     checks +pending=13: queue-selection / select -- ${hint}" <<<"${OUT}" || ok=1
 rg -q '^     checks +multi-suite: queue-selection / select \(14 suites: ' <<<"${OUT}" || ok=1
-check "RED pending=13 is counted per suite and named multi-suite" "${ok}"
+rg -q '^PASS checks ' <<<"${OUT}" || ok=1
+check "GREEN pending=13 is counted per suite, named multi-suite, and is a note (#9094)" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
 
 # S5: the request never asks for filter=all, and a fixture never repeats a
 # (name, suite) pair, so a duplicate row cannot appear from the same suite.
