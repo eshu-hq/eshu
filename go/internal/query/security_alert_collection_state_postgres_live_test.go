@@ -273,7 +273,7 @@ func securityAlertTargetStatesWithoutIndex(f *collectionStateLiveFixture, scopeI
 		f.t.Fatalf("drop index inside differential transaction: %v", err)
 	}
 	var plan strings.Builder
-	planRows, err := tx.QueryContext(f.ctx, "EXPLAIN "+securityAlertTargetStatesQuery, array.Of(scopeIDs), array.Of([]string(nil)))
+	planRows, err := tx.QueryContext(f.ctx, "EXPLAIN "+securityAlertTargetStatesQuery, array.Of(scopeIDs), array.Of([]string(nil)), shard.RetirementFreshnessHint)
 	if err != nil {
 		f.t.Fatalf("EXPLAIN pre-#8840 plan: %v", err)
 	}
