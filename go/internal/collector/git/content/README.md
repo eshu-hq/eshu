@@ -116,9 +116,11 @@ number, the trailing newline, and `\r` line endings.
   with its indent kept and no trailing comma.
 - **State across lines:** a PEM `BEGIN` header with no `END` after it redacts
   every line through the footer, or to the end of the file; an unclosed heredoc
-  redacts to the end of the file. A heredoc opened at the end of any line
-  (`key = <<EOF`, `keys = [<<EOF`) redacts its body; when its opener line was
-  redacted, its closer is redacted too, which keeps the fixed point. A `/*`
+  redacts to the end of the file. A heredoc opened at the end of a line
+  that ends in code (`key = <<EOF`, `keys = [<<EOF`) redacts its body; when its
+  opener line was redacted, its closer is redacted too, which keeps the fixed
+  point. A `<<EOF` inside a `#` or `//` comment or an unterminated string is
+  text and opens nothing. A `/*`
   outside a string or line comment with no `*/` after it redacts every line
   through its `*/`, whether it starts the line or follows a value.
 - **Fixed point:** an exact marker, as a value or a whole line, is kept, so a

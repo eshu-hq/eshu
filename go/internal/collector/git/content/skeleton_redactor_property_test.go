@@ -296,6 +296,12 @@ func FuzzRedactSkeleton(f *testing.F) {
 		"/* c */ y = 2 /* d\nPassw0rdHunter2: 1\n*/\n", "/* a\n*/ x = 1 /* b\nPassw0rdHunter2: 1\n*/\n",
 		"x = 1 /* see <<EOF\nEOF\nPassw0rdHunter2: 1\n*/\n",
 		"/* c */ x = <<EOF\nPassw0rdHunter2: 1\nEOF\n", "/* a\n*/ x = <<EOF\nPassw0rdHunter2: 1\nEOF\n",
+		// The rev-8833 H1 family: <<ID in a line comment or a string is text.
+		"x = 1 # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\n", "x = 1 // <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\n",
+		"x = 1 # <<-EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\n", "x = 1 # <<~EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\n",
+		"x = \"a\" # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\n", "x = \"a # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\n",
+		"x = 1 # <<EOF\n/* c */ y = 2 /* d\nEOF\nPassw0rdHunter2: 1\n*/\n",
+		"x = \"${\"#\"}\" /* c\nPassw0rdHunter2: 1\n*/\n", "x = \"${\"//\"}\" <<EOF\nPassw0rdHunter2: 1\nEOF\n",
 	} {
 		f.Add(s)
 	}
@@ -322,6 +328,11 @@ func FuzzRedactSkeleton(f *testing.F) {
 			in + "\nx = 1 /* see <<QqZzEnd\nQqZzEnd\nQqZzSeed9988: 1\n*/\n",
 			in + "\n/* c */ x = <<EOF\nQqZzSeed9988: 1\nEOF\n",
 			in + "\n/* a\n*/ k = 1 /* b\nQqZzSeed9988: 1\n*/\n",
+			// A <<ID in a line comment or a string opens no heredoc (rev-8833 H1).
+			in + "\nk = 1 # <<QqZzEnd\n/* c\nQqZzEnd\nQqZzSeed9988: 1\n*/\n",
+			in + "\nk = 1 // <<-QqZzEnd\n/* c\nQqZzEnd\nQqZzSeed9988: 1\n*/\n",
+			in + "\nk = \"a # <<QqZzEnd\n/* c\nQqZzEnd\nQqZzSeed9988: 1\n*/\n",
+			in + "\nk = \"${\"#\"}\" /* c\nQqZzSeed9988: 1\n*/\n",
 		} {
 			out, _, err := redactSkeleton(planted)
 			if err == nil && strings.Contains(out, "QqZzSeed9988") {

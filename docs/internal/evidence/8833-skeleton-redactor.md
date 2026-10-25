@@ -86,7 +86,10 @@ line, so a clean body costs several times the marker's prefiltered clean
 body. Governed bodies are capped at `MaxGovernedBodyBytes` (4 MiB). The worst
 case is therefore about 0.5 s per pass at the dense rate, run twice per
 collection. tfvars files are small configuration files: a typical one costs
-about 11 µs. Neither redactor runs until part 2 binds a definition.
+about 11 µs. The round-3 single-pass scanner did not move these rows: 4 runs
+each before and after gave 11.19 to 11.22 µs and 11.08 to 11.30 µs (typical),
+51.9 to 52.4 ms and 51.9 to 54.8 ms (clean), and 121.6 to 122.3 ms and 121.1 to
+123.5 ms (dense). Neither redactor runs until part 2 binds a definition.
 
 ## Observability Evidence
 
@@ -122,5 +125,16 @@ from a real `telemetry.Instruments` and asserts the log holds no credential.
   changes nothing, that every stored line fits a grammar the test writes itself,
   and that every raw finding keeps `REDACTED_<kind>` while no other line gains a
   kind marker.
+- `TestRedactSkeletonScanProperty` (round-3 H1) composes 20000 random bodies
+  from comment, string, `${ }`, and heredoc tokens (`#`, `//`, `/*`, `*/`, `"`,
+  `<<EOF`, `<<-EOF`, `<<~EOF`, `EOF`, `${`, a seeded value secret). It checks
+  them against a line-by-line reference model written in the test, which lexes
+  by recursive descent where the redactor uses one pass over a frame stack. A
+  standalone `Passw0rdHunter2: 1` line must be kept verbatim where HCL reads
+  code and replaced where HCL reads a comment or heredoc body; the value secret
+  must survive nowhere; the line count and the fixed point hold. All cross-line
+  state comes from one scan (`scanLineEnd`), so a `<<ID` in a `#` or `//`
+  comment or a string opens no heredoc. Eight mutations of that scan and of the
+  two state decisions in `advance` each fail this test or the fuzz seeds.
 - `FuzzRedactSkeleton` and `FuzzRedactMarkerURLKeys` run the same invariants.
   The 40 to 60 s local runs passed.

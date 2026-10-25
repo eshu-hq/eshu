@@ -60,9 +60,11 @@ const versionConstraint = ` *(~>|>=|<=|!=|=|>|<)? *v?[0-9]+(\.[0-9]+){1,3}(-(alp
 //     the base64 padding of a bare TOKEN==) becomes REDACTED_<finding_kind>
 //     when the raw line is a finding and REDACTED_value otherwise, so it keeps
 //     its finding;
-//   - a heredoc opened at the end of any line (key = <<EOF, keys = [<<EOF) and
-//     a block comment opened anywhere outside a string or line comment redact
-//     every line to their close.
+//   - a heredoc opened at the end of a line that ends in code (key = <<EOF,
+//     keys = [<<EOF) and a block comment opened anywhere outside a string or
+//     line comment redact every line to their close. A <<ID inside a # or //
+//     comment or an unterminated string is text and opens nothing. One scan
+//     (scanLineEnd) decides both.
 //
 // A finding is what migration 138 reports for the raw line: the detector line
 // gate matches and the CASE names a kind. A gate match with no kind (an
@@ -136,96 +138,42 @@ func (s *skeletonState) classify(line string) string {
 		}
 		return s.wholeLine(line)
 	}
-	if s.inBlockComment {
-		// The comment closes at the first */, and the rest of the line may open
-		// another comment (*/ x = 1 /* b) or a heredoc (*/ x = <<EOF).
-		s.afterWholeLineComment(line, trimmed, true)
-		return s.wholeLine(line)
-	}
-	if trimmed == "" || skeletonMarkerValue.MatchString(trimmed) || isSkeletonStructural(trimmed) {
-		return line
-	}
-	if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "//") {
-		return s.wholeLine(line)
-	}
-	if strings.HasPrefix(trimmed, "/*") {
-		// A comment that starts the line runs to its */; a later /* on the same
-		// line can open another (/* c */ y = 2 /* d), and a heredoc can follow it.
-		s.afterWholeLineComment(line, trimmed, false)
-		return s.wholeLine(line)
-	}
-	out := s.keyValue(line)
-	// A heredoc or block comment opened after other text still swallows the
-	// lines below it, so its body is classified whole, never as key = value.
-	s.trackOpeners(line, trimmed)
+	out := s.place(line, trimmed)
+	s.advance(line, trimmed)
 	return out
 }
 
-// afterWholeLineComment sets the cross-line state after a line that is redacted
-// whole because it starts, or sits inside, a block comment. inComment says the
-// line began inside one.
-func (s *skeletonState) afterWholeLineComment(line, trimmed string, inComment bool) {
-	s.inBlockComment = blockCommentOpenAfter(line, inComment)
-	if !s.inBlockComment {
-		s.trackHeredocTail(trimmed)
+// place stores one line that is not inside a PEM block or a heredoc.
+func (s *skeletonState) place(line, trimmed string) string {
+	switch {
+	case s.inBlockComment:
+		return s.wholeLine(line)
+	case trimmed == "" || skeletonMarkerValue.MatchString(trimmed) || isSkeletonStructural(trimmed):
+		return line
+	case strings.HasPrefix(trimmed, "#"), strings.HasPrefix(trimmed, "//"), strings.HasPrefix(trimmed, "/*"):
+		return s.wholeLine(line)
 	}
+	return s.keyValue(line)
 }
 
-// trackOpeners records a heredoc or block comment a key = value line leaves
-// open. The comment is checked first: inside an open /*, <<EOF is comment text,
-// and an EOF line must not close anything.
-func (s *skeletonState) trackOpeners(line, trimmed string) {
-	if blockCommentOpenAfter(line, false) {
-		s.inBlockComment = true
-		return
-	}
-	s.trackHeredocTail(trimmed)
-}
-
-// trackHeredocTail opens a heredoc for a line that ends with <<ID. It is called
-// only when no block comment is open at the end of the line, so the <<ID is
-// code, not comment text.
-func (s *skeletonState) trackHeredocTail(trimmed string) {
-	if s.heredoc != "" {
+// advance sets the cross-line state a line leaves behind. It reads one thing,
+// the state the line ends in (scanLineEnd), so a heredoc opener and a block
+// comment can never disagree about whether the end of the line is code:
+//
+//   - a /* still open: the next lines are comment text. Inside an open /*, <<EOF
+//     is comment text too, and an EOF line closes nothing;
+//   - a line that ends in code with a trailing <<ID: a heredoc opens;
+//   - a line that ends in a # or // comment, or inside a string: nothing opens,
+//     since a <<ID there is text.
+func (s *skeletonState) advance(line, trimmed string) {
+	end := scanLineEnd(line, s.inBlockComment)
+	s.inBlockComment = end == endBlockComment
+	if end != endCode || s.heredoc != "" || !strings.Contains(trimmed, "<<") {
 		return
 	}
 	if tail := skeletonHeredocTail.FindStringSubmatch(trimmed); tail != nil {
 		s.heredoc, s.heredocCloserGoes = tail[1], true
 	}
-}
-
-// blockCommentOpenAfter reports whether a block comment is still open at the
-// end of line. open says the line begins inside one. A /* inside a
-// double-quoted string or after a line comment (# or //) opens nothing; the
-// whole line is scanned, so a comment that closes can be followed by another.
-func blockCommentOpenAfter(line string, open bool) bool {
-	inString := false
-	for i := 0; i < len(line); i++ {
-		if open {
-			end := strings.Index(line[i:], "*/")
-			if end < 0 {
-				return true
-			}
-			// Leave i on the closing slash; the loop step moves past it.
-			i += end + 1
-			open = false
-			continue
-		}
-		switch c := line[i]; {
-		case inString && c == '\\':
-			i++
-		case c == '"':
-			inString = !inString
-		case inString:
-		case c == '#', c == '/' && strings.HasPrefix(line[i:], "//"):
-			return false
-		case c == '/' && strings.HasPrefix(line[i:], "/*"):
-			open = true
-			// Skip the star so /*/ is not a complete comment.
-			i++
-		}
-	}
-	return open
 }
 
 // keyValue handles a line that may be key = value; anything it cannot place

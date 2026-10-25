@@ -292,6 +292,60 @@ func TestRedactSkeletonFailsClosedAcrossLines(t *testing.T) {
 		{"block comment closed on its line", "x = 1 /* a */\nm = 2\n", "x = REDACTED_value\nm = 2\n"},
 		{"slash star in a line comment opens nothing", "n = 1 # see /* here\nm = 2\n", "n = REDACTED_value\nm = 2\n"},
 		{"bare token after a comment", "# rotated\ndGhpc2lzYXNlY3JldHRva2Vu==\n", "REDACTED_value\nREDACTED_value\n"},
+		// A <<ID in a line comment or an unterminated string is text, not a
+		// heredoc opener, so a block comment below it still opens (rev-8833
+		// round 3, H1).
+		{
+			"heredoc marker in a # comment", "x = 1 # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"heredoc marker in a // comment", "x = 1 // <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"dash heredoc marker in a # comment", "x = 1 # <<-EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"squiggly marker is no heredoc", "x = 1 # <<~EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"heredoc marker after a closed string and a comment", "x = \"a\" # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"heredoc marker in an unterminated string", "x = \"a # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"block comment opener after the fake heredoc", "x = 1 # <<EOF\n/* c */ y = 2 /* d\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"heredoc marker in a line-start comment", "# a <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		// A <<ID after a closed string is code and does open a heredoc.
+		{
+			"heredoc after a string holding a hash", "x = \"#\" <<EOF\nPassw0rdHunter2: 1\nEOF\nn = 2\n",
+			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		// Quotes inside ${ } nest: the # below sits in a string inside the
+		// interpolation, so the real /* after the outer string still opens.
+		{
+			"comment after a template with a nested string", "x = \"${\"#\"}\" /* c\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"heredoc after a template with a nested string", "x = \"${\"//\"}\" <<EOF\nPassw0rdHunter2: 1\nEOF\nn = 2\n",
+			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"escaped template opener is plain text", "x = \"$${\" /* c\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
 	}
 	for _, tc := range cases {
 		if got := skeletonForTest(t, tc.in); got != tc.want {
