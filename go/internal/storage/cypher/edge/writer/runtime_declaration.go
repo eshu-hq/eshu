@@ -74,10 +74,12 @@ DETACH DELETE d`
 // ".nvmrc" is identical in every repository, so a flattened repo-list x
 // path-list filter could not express "this repo's paths only" once a batch
 // held more than one repository (the cross-repo over-retraction #5419 P1
-// fixed for CODEOWNERS).
-const RetractRuntimeDeclarationsByPathCypher = `UNWIND $scopes AS scope
-MATCH (repo:Repository {id: scope.repo_id})-[:DECLARES_RUNTIME]->(d:RuntimeDeclaration)
-WHERE d.relative_path IN scope.relative_paths
+// fixed for CODEOWNERS). The scope row binds as row, the write-path UNWIND
+// convention the golden gate's unresolved_row_tokens check relies on
+// (goldengate TestOnlyRowBindingWritesMapValues).
+const RetractRuntimeDeclarationsByPathCypher = `UNWIND $scopes AS row
+MATCH (repo:Repository {id: row.repo_id})-[:DECLARES_RUNTIME]->(d:RuntimeDeclaration)
+WHERE d.relative_path IN row.relative_paths
   AND d.evidence_source = $evidence_source
 DETACH DELETE d`
 

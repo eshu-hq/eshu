@@ -187,9 +187,9 @@ func TestRuntimeDeclarationPathRetractPairsEachRepoWithItsOwnPaths(t *testing.T)
 		t.Fatalf("Cypher = %q, want the path-scoped retract", call.Cypher)
 	}
 	for _, fragment := range []string{
-		"UNWIND $scopes AS scope",
-		"MATCH (repo:Repository {id: scope.repo_id})-[:DECLARES_RUNTIME]->(d:RuntimeDeclaration)",
-		"d.relative_path IN scope.relative_paths",
+		"UNWIND $scopes AS row",
+		"MATCH (repo:Repository {id: row.repo_id})-[:DECLARES_RUNTIME]->(d:RuntimeDeclaration)",
+		"d.relative_path IN row.relative_paths",
 		"d.evidence_source = $evidence_source",
 		"DETACH DELETE d",
 	} {

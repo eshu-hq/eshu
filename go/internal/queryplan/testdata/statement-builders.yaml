@@ -498,7 +498,7 @@ builders:
           count: 1
           operation: sourcecypher.OperationCanonicalRetract
           variants:
-            - template: 'UNWIND $scopes AS scope MATCH (repo:Repository {id: scope.repo_id})-[:DECLARES_RUNTIME]->(d:RuntimeDeclaration) WHERE d.relative_path IN scope.relative_paths AND d.evidence_source = $evidence_source DETACH DELETE d'
+            - template: 'UNWIND $scopes AS row MATCH (repo:Repository {id: row.repo_id})-[:DECLARES_RUNTIME]->(d:RuntimeDeclaration) WHERE d.relative_path IN row.relative_paths AND d.evidence_source = $evidence_source DETACH DELETE d'
           source_sha256: 8a02305dd01dd741afe391bfe59cdd84450614cf3905f5d9bc29302ed38fad48
           exempt: B-7 replays each corpus repository as its first generation, so the prior-generation check skips this retract and the differential captures hold zero executions; the retract path is pinned by the leaf unit tests and runtime_declaration_live_test.go on Neo4j
     - file: internal/storage/cypher/edge/writer/shell_exec.go
