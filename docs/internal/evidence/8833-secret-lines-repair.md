@@ -1,11 +1,11 @@
 # #8833 part 2b: the reducer's secret-lines repair
 
-Part of #8807. The design is ruling-3 (arb-8833b) on #8833. Migration 234
+Part of #8807. The design is ruling-3 (arb-8833b) on #8833. Migration 235
 (part 2a) replaces the hardcoded-secret derivation function and moves
 `content_file_secret_lines_state` to `not_built` with a new epoch. Before this
 change, only bootstrap-index ever finalized the side table. Without a
 steady-state finalizer, every deployment would stay on the legacy scan after
-234 until an operator reran bootstrap-index. This part adds that finalizer and
+235 until an operator reran bootstrap-index. This part adds that finalizer and
 lands first. While the state is `ready` it is inert, and it already heals a
 `failed` bootstrap state.
 
@@ -215,7 +215,7 @@ which is the previous batching.
 
 While the state is `ready`, each poll costs one primary-key read of the
 singleton row every 30 s. The rebuild under concurrent bulk writers and the
-legacy-scan latency during the window are measured with migration 234 in
+legacy-scan latency during the window are measured with migration 235 in
 part 2a.
 
 ## Observability Evidence
@@ -241,7 +241,7 @@ Observability Evidence:
     `lock=deferred_writers`, and `secret_lines.deferred_writer_probe_release_failed`
     (Warn): the bootstrap-index probe (ruling-6).
   - `secret_lines.repair_started`: epoch, state, and `policy_version` once
-    migration 233 adds it.
+    migration 234 adds it.
   - `secret_lines.repair_complete`: outcome, files, rows, and duration.
   - `secret_lines.repair_failed`: `failure_class=secret_lines_backfill_failure`
     and `next_retry_seconds`.
@@ -254,7 +254,7 @@ Observability Evidence:
 ## NOT_CHECKED
 
 - The rebuild under the 7125 writer harness, and the legacy-scan latency during
-  the window. Both are part 2a's time-to-ready measurements with migration 234.
+  the window. Both are part 2a's time-to-ready measurements with migration 235.
 - Default Helm reducer lane count, and whether lanes share one database. The
   lock is per database, so lanes on one database single-flight correctly.
 - A deployment with API or MCP but no reducer. There, the window ends only on a

@@ -56,7 +56,7 @@
   (`store`, `metadata`, `redact`) is applied by the git collector at the write
   boundary (`go/internal/collector/git/content`). `.npmrc` already binds
   `metadata` (#8978). No production definition may bind `redact` until #8833
-  lands the detector's marker arm (migration 233); the `.yarnrc.yml` and
+  lands the detector's marker arm (migration 235); the `.yarnrc.yml` and
   `*.tfvars` bindings ship with it. A `redact` definition needs a redactor
   mode, which `NewRegistry` validates: `marker` (closed schema) needs a credential-key list and may add a disjoint
   `URLUserinfoKeys` list (URL-valued keys that lose only their userinfo);

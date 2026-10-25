@@ -51,7 +51,7 @@ const (
 )
 
 // readRepairStateSQL reads the singleton state row. policy_version arrives with
-// migration 233 (#8833 ruling-3). to_jsonb yields it when the column exists and
+// migration 234 (#8833 ruling-3). to_jsonb yields it when the column exists and
 // NULL before, so the Repairer runs on either schema.
 const readRepairStateSQL = `
 SELECT s.state, s.epoch, (to_jsonb(s) ->> 'policy_version')::bigint

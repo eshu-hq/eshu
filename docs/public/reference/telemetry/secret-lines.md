@@ -37,7 +37,7 @@ hold the deferred-writer lock `(5318,2)`; `cancelled` is a shutdown during a pol
 the rebuild and the next poll takes the new one. The log events are
 `secret_lines.repair_skipped` (`reason=ready|locked|deferred_writers`, `lock=bulk_load|deferred_writers`, `holder`),
 `secret_lines.repair_started` (`epoch`, `state`, `policy_version` once migration
-233 adds it), `secret_lines.repair_complete` (`outcome`, `files`, `rows`,
+234 adds it), `secret_lines.repair_complete` (`outcome`, `files`, `rows`,
 `duration_seconds`), and `secret_lines.repair_failed`
 (`failure_class=secret_lines_backfill_failure`, `next_retry_seconds`); the
 rebuild itself emits the `secret_lines.finalize_*` events and backfill counters
