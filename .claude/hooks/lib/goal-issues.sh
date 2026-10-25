@@ -17,6 +17,8 @@
 GI_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GI_PY="${GI_LIB_DIR}/goal-issues.py"
 export GI_LIB_DIR GI_PY
+# shellcheck source=.claude/hooks/lib/goal-progress.sh
+. "${GI_LIB_DIR}/goal-progress.sh" || return 1
 
 # A RETIRED candidate must not shadow an active one. `/goal done` leaves a DONE
 # tombstone at the per-session path, and an existence-only lookup then selects
@@ -209,13 +211,35 @@ gi_capture_ledger() { # sid cwd
 # filed during the goal is still open; nothing otherwise, and NOT_CHECKED on
 # stderr when gh could not answer. It never reads or writes the goal's
 # no-progress counter: that budget would otherwise release open issues silently.
-gi_done_gate() { # goal_file cwd
+#
+# The refusal is unbounded, so it has to be loud. The consecutive-refusal count
+# lives in its own file, `claude-goal-issue-refusals-<session>` in TMPDIR (not the
+# nudge counter's name, and not beside the ledger, where a `active-goal.*` file
+# would read as a goal): "<count> <transcript offset>". Tool calls since the
+# previous refusal reset it; a missing transcript is no progress. From the third
+# consecutive refusal the block reason tells the agent to escalate. Python owns
+# the count; this side supplies the progress signal.
+gi_done_gate() { # goal_file cwd session_id transcript
 	[ -n "${1:-}" ] || return 0
-	local ledger
+	local ledger sid_safe state prior=0 offset=0 progress=0 new_offset=0 second
 	ledger="$(gi_sidecar "$1")"
 	[ -s "${ledger}" ] || return 0
 	command -v python3 >/dev/null 2>&1 || return 0
-	python3 "${GI_PY}" gate "${ledger}" --cwd "${2:--}" --goal-file "$1" || true
+	sid_safe="$(printf '%s' "${3:-unknown}" | tr -c 'A-Za-z0-9._-' '-')"
+	state="${TMPDIR:-/tmp}/claude-goal-issue-refusals-${sid_safe}"
+	if [ -f "${state}" ]; then
+		read -r prior second <"${state}" 2>/dev/null || true
+		offset="${second:-0}"
+	fi
+	case "${prior}" in '' | *[!0-9]*) prior=0 ;; esac
+	{
+		read -r progress
+		read -r new_offset
+	} < <(gp_tool_use_since "${4:-}" "${offset}")
+	case "${progress}" in '' | *[!0-9]*) progress=0 ;; esac
+	python3 "${GI_PY}" gate "${ledger}" --cwd "${2:--}" --goal-file "$1" \
+		--state "${state}" --prior "${prior}" --progress "${progress}" \
+		--offset "${new_offset}" || true
 }
 
 # The refresher's per-turn text for the goal it restates: folds any orphan

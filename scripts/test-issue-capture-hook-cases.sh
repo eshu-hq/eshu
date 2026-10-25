@@ -11,12 +11,15 @@
 
 # shellcheck disable=SC2154,SC2034 # variables come from the sourcing suite; the sentinel is read there
 
-stop_payload() { # sid cwd prompt_id
-	SID="$1" CWD="$2" PID_="$3" python3 -c '
+stop_payload() { # sid cwd prompt_id [transcript]
+	SID="$1" CWD="$2" PID_="$3" TX="${4:-}" python3 -c '
 import json, os
-print(json.dumps({"session_id": os.environ["SID"], "prompt_id": os.environ["PID_"],
-                  "stop_hook_active": False, "cwd": os.environ["CWD"],
-                  "hook_event_name": "Stop"}))
+d = {"session_id": os.environ["SID"], "prompt_id": os.environ["PID_"],
+     "stop_hook_active": False, "cwd": os.environ["CWD"],
+     "hook_event_name": "Stop"}
+if os.environ["TX"]:
+    d["transcript_path"] = os.environ["TX"]
+print(json.dumps(d))
 '
 }
 
@@ -279,6 +282,94 @@ run_capture "$(post_payload "obs-${run_tag}" "${R}" 'gh issue create -R eshu-hq/
 rf_out="$(refresh_payload lead-a "${R}" | bash "${REFRESH}" 2>/dev/null)"
 rg -q '#9401' <<<"$(ctx_of "${rf_out}")" && has_line "${R}/.claude/active-goal.lead-a.issues" '^eshu-hq/eshu#9401 ' &&
 	ok "capture -> orphan -> lead refresh restates the issue" || no "capture -> orphan -> lead refresh restates the issue"
+
+# ── 12. the refusal is loud: issues, count, escalation, DEFER echo ───────────
+# Unbounded by design (a capped valve would release open issues silently), so the
+# cost of a stuck agent has to show: every refusal names the open issues and the
+# consecutive count on stderr, and from the third no-progress refusal the block
+# reason tells the agent to escalate. The counter has its own state file, never
+# the goal's nudge counter.
+ESCALATE='Escalate to arbiter-eshu for the DEFER ruling now.'
+sloud="sl-${run_tag}"
+fx_reset
+R="$(mk_repo loud)"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${sloud}" >"${R}/.claude/active-goal.${sloud}"
+seed "$(ledger_of "${R}/.claude/active-goal.${sloud}")" "${OPEN9101}" 'eshu-hq/eshu#9102 2026-10-25T00:00:00Z open'
+before_counters="$(nudge_counters)"
+run_stop "$(stop_payload "${sloud}" "${R}" p-loud)"
+rg -q 'eshu-hq/eshu#9101' <<<"${stop_err}" && rg -q 'eshu-hq/eshu#9102' <<<"${stop_err}" && rg -q 'consecutive refusal 1\b' <<<"${stop_err}" &&
+	ok "refusal 1: stderr names the open issues and count 1" || no "refusal 1: stderr names the open issues and count 1 (err=${stop_err:0:160})"
+! rg -qF "${ESCALATE}" <<<"$(reason_of "${stop_out}")" && ok "refusal 1: no escalation sentence yet" || no "refusal 1: no escalation sentence yet"
+run_stop "$(stop_payload "${sloud}" "${R}" p-loud)"
+rg -q 'consecutive refusal 2\b' <<<"${stop_err}" && ok "refusal 2: stderr count is 2" || no "refusal 2: stderr count is 2 (err=${stop_err:0:160})"
+! rg -qF "${ESCALATE}" <<<"$(reason_of "${stop_out}")" && ok "refusal 2: no escalation sentence yet" || no "refusal 2: no escalation sentence yet"
+run_stop "$(stop_payload "${sloud}" "${R}" p-loud)"
+rg -q 'consecutive refusal 3\b' <<<"${stop_err}" && rg -qF "${ESCALATE}" <<<"$(reason_of "${stop_out}")" &&
+	ok "refusal 3 with no tool calls and no transcript: the reason adds the escalation sentence" ||
+	no "refusal 3 with no tool calls and no transcript: the reason adds the escalation sentence"
+run_stop "$(stop_payload "${sloud}" "${R}" p-loud-new)"
+[[ "$(verdict_of "${stop_out}")" == block ]] && rg -qF "${ESCALATE}" <<<"$(reason_of "${stop_out}")" &&
+	ok "refusal 4 (new prompt_id): still refused, still escalating; the count is the session's" ||
+	no "refusal 4 (new prompt_id): still refused, still escalating"
+[[ "$(nudge_counters)" == "${before_counters}" ]] &&
+	ok "the refusal count lives in its own state file, never the goal's nudge counter" ||
+	no "the refusal count lives in its own state file, never the goal's nudge counter"
+
+# Tool calls since the last refusal reset the consecutive count.
+fx_reset
+R="$(mk_repo loud-progress)"
+sprog="sp-${run_tag}"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${sprog}" >"${R}/.claude/active-goal.${sprog}"
+seed "$(ledger_of "${R}/.claude/active-goal.${sprog}")" "${OPEN9101}"
+txl="${work}/loud-transcript.jsonl"
+printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{}}]}}' >"${txl}"
+for _ in 1 2 3; do run_stop "$(stop_payload "${sprog}" "${R}" p-prog "${txl}")"; done
+rg -q 'consecutive refusal 3\b' <<<"${stop_err}" && rg -qF "${ESCALATE}" <<<"$(reason_of "${stop_out}")" &&
+	ok "transcript present, no new tool calls: the third refusal escalates" || no "transcript present, no new tool calls: the third refusal escalates"
+printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{}}]}}' >>"${txl}"
+run_stop "$(stop_payload "${sprog}" "${R}" p-prog "${txl}")"
+rg -q 'consecutive refusal 1\b' <<<"${stop_err}" && ! rg -qF "${ESCALATE}" <<<"$(reason_of "${stop_out}")" &&
+	ok "a stop after tool calls resets the count to 1 and drops the escalation" || no "a stop after tool calls resets the count to 1 and drops the escalation (err=${stop_err:0:160})"
+run_stop "$(stop_payload "${sprog}" "${R}" p-prog "${txl}")"
+rg -q 'consecutive refusal 2\b' <<<"${stop_err}" && ok "the count climbs again from the reset" || no "the count climbs again from the reset"
+
+# Closing the issues ends the run: the next refusal starts at 1.
+fx_state 9101 CLOSED
+run_stop "$(stop_payload "${sprog}" "${R}" p-prog "${txl}")"
+[[ "$(verdict_of "${stop_out}")" == allow ]] && ok "issue closed: the stop is allowed" || no "issue closed: the stop is allowed"
+fx_state 9101 OPEN
+seed "$(ledger_of "${R}/.claude/active-goal.${sprog}")" 'eshu-hq/eshu#9105 2026-10-25T00:00:00Z open'
+run_stop "$(stop_payload "${sprog}" "${R}" p-prog "${txl}")"
+rg -q 'consecutive refusal 1\b' <<<"${stop_err}" &&
+	ok "after the issues cleared, a later refusal starts again at 1" || no "after the issues cleared, a later refusal starts again at 1 (err=${stop_err:0:160})"
+
+# A transcript path that does not exist (Muse exec mode) is no progress.
+fx_reset
+R="$(mk_repo loud-missing)"
+smis="sm-${run_tag}"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${smis}" >"${R}/.claude/active-goal.${smis}"
+seed "$(ledger_of "${R}/.claude/active-goal.${smis}")" "${OPEN9101}"
+for _ in 1 2 3; do run_stop "$(stop_payload "${smis}" "${R}" p-mis "${work}/no-such-transcript.jsonl")"; done
+rg -qF "${ESCALATE}" <<<"$(reason_of "${stop_out}")" &&
+	ok "a missing transcript counts as no progress: the third refusal escalates" || no "a missing transcript counts as no progress: the third refusal escalates"
+
+# An honoured DEFER is echoed with its path, the way CONSENT is.
+fx_reset
+R="$(mk_repo defer-echo)"
+sdef="sf-${run_tag}"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${sdef}" >"${R}/.claude/active-goal.${sdef}"
+mkdir -p "${R}/docs"
+printf 'Ruling: #9101 is deferred.\n' >"${R}/docs/ruling.md"
+seed "$(ledger_of "${R}/.claude/active-goal.${sdef}")" "${OPEN9101}" "DEFER: #9101 docs/ruling.md"
+run_stop "$(stop_payload "${sdef}" "${R}" p-defer-echo)"
+rg -q 'DEFER honoured.*eshu-hq/eshu#9101.*docs/ruling.md' <<<"${stop_err}" &&
+	ok "an honoured DEFER is echoed to stderr with its path" || no "an honoured DEFER is echoed to stderr with its path (err=${stop_err:0:160})"
+fx_reset
+R="$(mk_repo defer-echo-refused)"
+printf 'DONE\nSESSION: %s\nFinish.\n' "${sdef}" >"${R}/.claude/active-goal.${sdef}"
+seed "$(ledger_of "${R}/.claude/active-goal.${sdef}")" "${OPEN9101}" "DEFER: #9101 docs/missing.md"
+run_stop "$(stop_payload "${sdef}" "${R}" p-defer-echo2)"
+! rg -q 'DEFER honoured' <<<"${stop_err}" && ok "a refused DEFER is not echoed as honoured" || no "a refused DEFER is not echoed as honoured"
 
 # LAST line on purpose -- the parent suite asserts the companion ran to here.
 issue_capture_cases_loaded=1

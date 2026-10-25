@@ -16,9 +16,10 @@ Payload extraction (what a Bash call created) lives in goal-issues-extract.py.
 Subcommands (argv[1]); every one is fail-open and exits 0:
 
     capture LEDGER REF...   Confirm each ref is new via gh, then append it.
-    gate LEDGER --cwd DIR --goal-file FILE
+    gate LEDGER --cwd DIR --goal-file FILE [--state F --prior N --progress N --offset N]
                             The DONE check. Prints a Stop-hook block on stdout
-                            when an issue is still open.
+                            when an issue is still open. The --state options carry
+                            the consecutive-refusal count (see cmd_gate).
     list LEDGER             Prints the per-turn restatement, or nothing.
     merge SRC DEST          Fold the orphan ledger SRC into DEST, then drop SRC.
 
@@ -257,6 +258,10 @@ def apply_defers(ledger, cwd):
                 else:
                     lines[j] = entry_line(r, n, created, "deferred", path)
                     entries[j] = parse_entry(lines[j])
+                    # Echoed the way CONSENT is: the path is agent-writable, so
+                    # the owner reads the exact words on stderr.
+                    sys.stderr.write("goal-continue: DEFER honoured for %s: %s\n"
+                                     % (ref_of(r, n), path))
             if not problem:
                 drop.add(i)
         kept = [ln for i, ln in enumerate(lines) if i not in drop]
@@ -265,8 +270,45 @@ def apply_defers(ledger, cwd):
     return refused
 
 
-def cmd_gate(ledger, cwd, goal_file):
+ESCALATE_AFTER = 3
+ESCALATE_TEXT = "Escalate to arbiter-eshu for the DEFER ruling now."
+
+
+def forget_state(state):
+    """Ends a run of refusals: the issues are cleared, so the count starts over."""
+    if state:
+        with contextlib.suppress(OSError):
+            os.unlink(state)
+
+
+def record_refusal(state, prior, progress, offset):
+    """Returns this refusal's consecutive count and stores it in `state`.
+
+    Tool calls since the previous refusal mean the agent is working, so the run
+    starts over at 1. The file is the refusal's own: the goal's nudge counter is
+    never touched, because that budget releases the stop and this refusal must
+    never release open issues.
+    """
+    count = 1 if progress > 0 else prior + 1
+    if state:
+        with contextlib.suppress(OSError):
+            with open(state, "w", encoding="utf-8") as fh:
+                fh.write("%d %d" % (count, offset))
+    return count
+
+
+def int_opt(opts, key):
+    """Returns a non-negative integer option, or 0 when absent or malformed."""
+    try:
+        return max(int(opts.get(key, 0)), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def cmd_gate(ledger, cwd, goal_file, opts=None):
     """The DONE check: block while a ledger issue is open; fail open on gh."""
+    opts = opts or {}
+    refusal_state = opts.get("--state", "")
     if not os.path.isfile(ledger):
         return
     refused = apply_defers(ledger, cwd)
@@ -276,6 +318,7 @@ def cmd_gate(ledger, cwd, goal_file):
         if e and e[4] == "open":
             pending.append(e)
     if not pending:
+        forget_state(refusal_state)
         return
     start = time.monotonic()
     still_open, unchecked, closed = [], [], []
@@ -301,7 +344,11 @@ def cmd_gate(ledger, cwd, goal_file):
         sys.stderr.write("goal-continue: NOT_CHECKED issues: %s (gh unreachable or over the %gs cap; the ledger still lists them)\n"
                          % (", ".join(unchecked), TOTAL_TIMEOUT))
     if not still_open:
+        if not unchecked:
+            forget_state(refusal_state)
         return
+    count = record_refusal(refusal_state, int_opt(opts, "--prior"), int_opt(opts, "--progress"),
+                           int_opt(opts, "--offset"))
     numbers = ", ".join("#" + split_ref(r)[1] for r in still_open)
     first = "#" + split_ref(still_open[0])[1]
     lines = [
@@ -319,8 +366,14 @@ def cmd_gate(ledger, cwd, goal_file):
         "",
         "Open: %s. Then end the turn again." % numbers,
     ]
+    if count >= ESCALATE_AFTER:
+        lines += [
+            "",
+            "This is consecutive refusal %d with no tool calls in between. %s" % (count, ESCALATE_TEXT),
+        ]
     print(json.dumps({"decision": "block", "reason": "\n".join(lines)}))
-    sys.stderr.write("goal-continue: DONE refused, open issues: %s\n" % ", ".join(still_open))
+    sys.stderr.write("goal-continue: DONE refused (consecutive refusal %d); open issues: %s\n"
+                     % (count, ", ".join(still_open)))
 
 
 def cmd_list(ledger):
@@ -374,7 +427,7 @@ def main(argv):
         cmd_capture(args[0], args[1:])
     elif cmd == "gate" and args:
         opts = dict(zip(args[1::2], args[2::2]))
-        cmd_gate(args[0], opts.get("--cwd", ""), opts.get("--goal-file", ""))
+        cmd_gate(args[0], opts.get("--cwd", ""), opts.get("--goal-file", ""), opts)
     elif cmd == "list" and args:
         cmd_list(args[0])
     elif cmd == "merge" and len(args) == 2:

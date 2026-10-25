@@ -261,6 +261,17 @@ run_capture "$(post_payload "observer-${run_tag}" "${R}" 'gh issue create -R esh
 [[ "${cap_rc}" -eq 0 && -z "${cap_out}" && ! -f "${R}/.claude/active-goal.orphan.issues" ]] &&
 	ok "zero live goals (a retired goal is not a lead): silent, no orphan written" ||
 	no "zero live goals (a retired goal is not a lead): silent, no orphan written"
+# Silent on stdout, but not mute: one stderr line per issue so the owner can see
+# the issue was seen and deliberately not ledgered.
+fx_reset
+R="$(mk_repo zero-goal-line)"
+run_capture "$(post_payload "observer-${run_tag}" "${R}" 'bash scripts/file-followups.sh' $'https://github.com/eshu-hq/eshu/issues/9118\nhttps://github.com/eshu-hq/eshu/issues/9119')"
+[[ "$(rg -c '^issue-capture: no live goal in ' <<<"${cap_err}")" == 2 ]] &&
+	rg -qF "issue-capture: no live goal in ${R}; eshu-hq/eshu#9118 not ledgered" <<<"${cap_err}" &&
+	rg -qF "issue-capture: no live goal in ${R}; eshu-hq/eshu#9119 not ledgered" <<<"${cap_err}" &&
+	[[ -z "${cap_out}" && ! -f "${R}/.claude/active-goal.orphan.issues" ]] &&
+	ok "zero live goals: exactly one stderr line per issue, still no ledger" ||
+	no "zero live goals: exactly one stderr line per issue, still no ledger (err=${cap_err:0:200})"
 
 # A shared goal headed for another session is that session's live goal: this
 # session does not own it, but it is the ONE lead in the checkout.

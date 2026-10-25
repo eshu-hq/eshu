@@ -15,11 +15,12 @@
 #            has `output`. Both recorded live (scripts/testdata/issue-capture/).
 #   stdout : {"hookSpecificOutput":{"hookEventName":"PostToolUse",
 #             "additionalContext":"..."}} when an issue was captured, else nothing
-#   stderr : one line per captured issue, so the owner can see it
+#   stderr : one line per captured issue, so the owner can see it; with no live
+#            goal, one `no live goal ... not ledgered` line per issue instead
 #   exit 0 : always. A capture must never be the reason a session breaks.
 #
 # Acts only inside an Eshu checkout, and only when there is a goal to attach the
-# issue to. Which ledger, and why, is lib/goal-issues.sh (gi_capture_ledger);
+# issue to (otherwise it says so on stderr and writes nothing). Which ledger, and why, is lib/goal-issues.sh (gi_capture_ledger);
 # what counts as "created an issue" is lib/goal-issues-extract.py.
 
 set -uo pipefail
@@ -49,7 +50,17 @@ refs="$(printf '%s\n' "${extracted}" | tail -n +3)"
 
 # Only an Eshu checkout has goals worth attaching to; anywhere else stay silent.
 eshu_root_path "${cwd}" >/dev/null || exit 0
-gi_capture_ledger "${session_id}" "${cwd}" || exit 0
+# No live goal: nothing to hold the issue to, and an orphan nobody claims would
+# be adopted by the next unrelated goal. Not silent, though -- one stderr line
+# per issue, so the owner can tell it was seen and deliberately not ledgered.
+if ! gi_capture_ledger "${session_id}" "${cwd}"; then
+	worktree="$(eshu_root_path "${cwd}")"
+	while IFS= read -r ref; do
+		[ -n "${ref}" ] || continue
+		printf 'issue-capture: no live goal in %s; %s not ledgered\n' "${worktree}" "${ref}" >&2
+	done <<<"${refs}"
+	exit 0
+fi
 
 # shellcheck disable=SC2086 # refs are owner/repo#N tokens, one per line
 added="$(python3 "${GI_PY}" capture "${GI_LEDGER}" ${refs} 2>/dev/null)" || exit 0

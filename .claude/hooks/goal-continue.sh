@@ -135,7 +135,7 @@ for candidate in \
 done
 # Nothing active. If this session's own goal was just retired, the DONE check on
 # its issue ledger still has to run: the lookup above skips retired files.
-[ -n "${goal_file}" ] || { gi_done_gate "$(gi_retired_goal_file "${session_id}" "${cwd}")" "${cwd}"; exit 0; }
+[ -n "${goal_file}" ] || { gi_done_gate "$(gi_retired_goal_file "${session_id}" "${cwd}")" "${cwd}" "${session_id}" "${transcript:-}"; exit 0; }
 
 goal="$(sed -e 's/[[:space:]]*$//' "${goal_file}" 2>/dev/null)"
 [ -n "${goal}" ] || exit 0
@@ -144,7 +144,7 @@ goal="$(sed -e 's/[[:space:]]*$//' "${goal_file}" 2>/dev/null)"
 # before the budget so a finished goal never costs a nudge.
 first_line="$(printf '%s\n' "${goal}" | head -1)"
 case "${first_line}" in
-	DONE*|done*) gi_done_gate "${goal_file}" "${cwd}"; exit 0 ;;
+	DONE*|done*) gi_done_gate "${goal_file}" "${cwd}" "${session_id}" "${transcript:-}"; exit 0 ;;
 esac
 
 # A goal belongs to the session that set it. goal-refresh.sh writes a
@@ -178,7 +178,7 @@ apply_session_header() {
 			;;
 	esac
 	case "${first_line}" in
-		DONE*|done*) gi_done_gate "${goal_file}" "${cwd}"; return 1 ;;
+		DONE*|done*) gi_done_gate "${goal_file}" "${cwd}" "${session_id}" "${transcript:-}"; return 1 ;;
 	esac
 	return 0
 }
@@ -334,35 +334,15 @@ fi
 # behaviourally a no-op (the count is already 0 on a fresh counter), so it buys
 # nothing; it is left alone because seeding the offset from the file size would
 # make work done BEFORE the first nudge of a message invisible to it.
+# The scan is lib/goal-progress.sh, shared with the issue-ledger DONE refusal.
 progress=0
 new_offset="${offset}"
-if [ -n "${transcript:-}" ] && [ "${transcript}" != "-" ] && [ -f "${transcript}" ]; then
-	{
-		read -r progress
-		read -r new_offset
-	} < <(TX="${transcript}" OFF="${offset}" python3 -c '
-import os, re, sys
-path = os.environ["TX"]
-try:
-    off = int(os.environ.get("OFF") or 0)
-    size = os.path.getsize(path)
-    if off > size:  # transcript replaced or truncated: rescan from the start
-        off = 0
-    with open(path, "rb") as fh:
-        fh.seek(off)
-        tail = fh.read()
-    # Tolerate whitespace from the transcript writer. Pinning the exact
-    # compact spelling meant one space after a colon silently restored the
-    # pre-change behaviour: real work invisible, the agent released by
-    # exhaustion, the mirror still green.
-    print(len(re.findall(rb"\"type\"\s*:\s*\"tool_use\"", tail)))
-    print(size)
-except Exception:
-    print(0); print(os.environ.get("OFF") or 0)
-' 2>/dev/null)
-	case "${progress}" in ''|*[!0-9]*) progress=0 ;; esac
-	case "${new_offset}" in ''|*[!0-9]*) new_offset="${offset}" ;; esac
-fi
+{
+	read -r progress
+	read -r new_offset
+} < <(gp_tool_use_since "${transcript:-}" "${offset}")
+case "${progress}" in '' | *[!0-9]*) progress=0 ;; esac
+case "${new_offset}" in '' | *[!0-9]*) new_offset="${offset}" ;; esac
 
 if [ "${progress}" -gt 0 ]; then
 	# Real work since the last nudge clears the budget outright. Only stops

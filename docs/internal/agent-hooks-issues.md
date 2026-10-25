@@ -73,7 +73,11 @@ there is nothing to attach the issue to.
 | The session has a goal (its own file, or the shared one it is held to) | that goal's sidecar | The lookup is the hooks' own, in `gi_resolve_goal_file`. |
 | The session has none, and exactly one goal is live in the checkout | that goal's sidecar | A Muse observer or another session filed it for the one lead. |
 | The session has none, and two or more goals are live | `.claude/active-goal.orphan.issues` | Guessing would pin the issue on the wrong lead. |
-| No goal is live | nothing written | An orphan nobody claims would be adopted by the next unrelated goal. |
+| No goal is live | nothing written; one stderr line per issue | An orphan nobody claims would be adopted by the next unrelated goal. |
+
+With no live goal the hook is not silent. For each issue it prints one line on
+stderr, `issue-capture: no live goal in <worktree>; <owner/repo#N> not ledgered`,
+so the owner can tell the issue was seen and deliberately held out of any ledger.
 
 A "live goal" is a non-retired `active-goal.<x>` file (never a sidecar, lock, or
 temp file), plus the shared `active-goal` when it is headed for a session. An
@@ -85,17 +89,23 @@ orphans; with two leads that can be the wrong one, which the ledger cannot tell
 apart. Only a session that holds an active goal merges, so an idle session never
 swallows them.
 
+**Orphan hand-off.** A lead whose restatement shows a claimed orphan that belongs
+to another live goal moves that line, by hand, into the other goal's sidecar
+(`<goal file>.issues`). The other goal's DONE check then refuses on it. The lead
+says so in its PR or goal note. There is no code for the move: the lead is the only
+party that knows which goal the issue belongs to.
+
 ### Recorded, not assumed
 
-Two payload shapes were recorded live for this change and are kept as fixtures in
+Two payload facts were recorded live for this change and are kept as fixtures in
 `scripts/testdata/issue-capture/`:
 
-- **Claude Code subagents share the lead's `session_id`.** A subagent's Bash
+- **Recorded: Claude Code subagents share the lead's `session_id`.** A subagent's Bash
   PostToolUse carries the same `session_id` as the lead, plus `agent_id` and
   `agent_type`. So a Claude subagent resolves the lead's goal directly and never
   needs the fallback. The fallback exists for Muse observers and other sessions,
   which do have their own ids.
-- **Muse sends `tool_response` as a JSON-encoded string.** Its object has
+- **Recorded: Muse sends `tool_response` as a JSON-encoded string.** Its object has
   `output` and `exit_code`, where Claude sends an object with `stdout`. The
   extractor reads a string, an object, `stdout`, or `output`.
 
@@ -126,27 +136,60 @@ slip, the same trap `BLOCKED:` fell into before it required a live `WATCH=<pid>`
 above `.claude/`. A `DEFER` that fails the check is refused, and the refusal names the path
 and the reason.
 
-### Timeouts and the budget
+### Timeouts
 
-Each `gh` call gets 5 seconds and the whole check 30
-(`CLAUDE_GOAL_ISSUE_CALL_TIMEOUT`, `CLAUDE_GOAL_ISSUE_TOTAL_TIMEOUT`). The Claude
-Stop hook timeout in `.claude/settings.json` is 45 seconds to cover that plus
-interpreter start-up. Muse has no setting for it in this repo; a probe hook that
-slept 75 seconds was not cut off, so the 30-second cap fits under Muse's default.
+The hook caps its own `gh` calls, because the harness will not: a probe hook that
+slept 75 seconds under Muse was not cut off.
+
+| Scope | Cap |
+|---|---|
+| One `gh` call (DONE check or capture) | 5 s |
+| One DONE check, all issues together | 30 s |
+| One capture, all candidate issues together | 10 s |
+
+The overrides are `CLAUDE_GOAL_ISSUE_CALL_TIMEOUT` and
+`CLAUDE_GOAL_ISSUE_TOTAL_TIMEOUT` (the capture cap is the smaller of 10 s and the
+total). **They do not survive Muse:** Muse clears the hook environment, so under
+Muse the defaults always apply. The Claude Stop hook timeout in
+`.claude/settings.json` is 45 seconds, enough for the 30-second cap plus
+interpreter start-up. Muse has no setting for it in this repo, and 30 seconds fits
+under the default.
+
+### The refusal is unbounded, so it is loud
 
 The refusal never reads or writes the goal's no-progress nudge counter. That
 counter exists to release an agent that is stuck; if the issue refusal shared it,
 three refusals would exhaust it and the fourth stop would release open issues
-with no message, which reads exactly like a clean finish. The cost is that the
-issue refusal has no ceiling of its own: its two exits are always available to a
-working agent, and `CLAUDE_GOAL_OFF=1` stays the owner's override.
+with no message, which reads exactly like a clean finish. So the refusal has no
+ceiling of its own. Every exit is a file or GitHub state the agent can reach:
+close the issue, write a valid `DEFER`, or (under Muse, where the file is the
+control plane) the owner edits the ledger. `CLAUDE_GOAL_OFF=1` stays the owner's
+override.
+
+What replaces a ceiling is noise the owner can read:
+
+- **Every refusal** prints the open issues and the consecutive-refusal count on
+  stderr: `goal-continue: DONE refused (consecutive refusal N); open issues: ...`.
+- **From the 3rd consecutive refusal with no tool calls since the previous one**,
+  the block reason adds "Escalate to arbiter-eshu for the DEFER ruling now." A stop
+  with tool calls since the last refusal resets the count to 1. A missing
+  transcript (Muse exec mode) counts as no progress. The progress signal is the
+  same tool-call scan the goal's budget uses (`lib/goal-progress.sh`).
+- **Every honoured `DEFER:`** is echoed to stderr with its path
+  (`goal-continue: DEFER honoured for <issue>: <path>`), the way `CONSENT:` is. The
+  path is agent-writable, so the echo is how the owner reads the exact words.
+
+The count is the session's, kept in its own file
+(`$TMPDIR/claude-goal-issue-refusals-<session>`, holding the count and a transcript
+offset), never the nudge counter's file. It is removed when no issue is left open.
 
 ## Fail-open
 
 | Condition | Result |
 |---|---|
 | Payload is empty, malformed, or has no `cwd` or command | capture exits 0, silent |
-| Not an Eshu checkout, or no goal to attach to | capture exits 0, silent |
+| Not an Eshu checkout | capture exits 0, silent |
+| An Eshu checkout with no live goal | capture exits 0, one `not ledgered` line per issue on stderr |
 | `gh` missing, failing, or slow during capture | issue captured without the age check |
 | `gh` missing, failing, or slow during the DONE check | stop allowed, `NOT_CHECKED` on stderr |
 | Ledger holds garbage lines | ignored; the stop is not blocked by them |
