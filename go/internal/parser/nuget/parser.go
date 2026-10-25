@@ -51,10 +51,14 @@ type nugetProjectProperty struct {
 	ambiguous bool
 }
 
-// Parse decodes one MSBuild C# project file (.csproj, the only extension the
-// parent registry routes here) and returns the parent parser payload with a
+// Parse decodes one MSBuild file the parent registry routes here: a C#
+// project file (.csproj), or a Directory.Packages.props or Directory.Build.props
+// file, which goes to the fail-closed props scanner (parseCentralProps, see
+// README.md). For a .csproj it returns the parent parser payload with a
 // content_entity-shaped "variables" bucket carrying one row per
-// <PackageReference>. Every row is stamped
+// <PackageReference> whose Include (or Update) names one package as written; a
+// spec holding a %XX escape is skipped, because MSBuild unescapes it before
+// matching and the escaped text is not the package identity. Every row is stamped
 // package_manager "nuget" and lang "nuget_project" so the supply-chain reducer
 // can match it against NuGet package-registry identity.
 //
@@ -63,12 +67,18 @@ type nugetProjectProperty struct {
 // the properties it can prove from the same file's <PropertyGroup> elements;
 // a property declared twice with different values, or not declared at all,
 // leaves the raw text in value and marks the row partial_evidence rather than
-// inventing a version. Parse never invokes MSBuild, evaluates Conditions, or
-// reads Directory.Build.props or any other sibling file.
+// inventing a version. A version holding a %XX escape, as declared or after
+// substitution, stays unresolved the same way. Parse never invokes MSBuild,
+// evaluates Conditions, or reads a sibling file: a props file is parsed only
+// when it is itself the file under parse, never to complete a .csproj.
 func Parse(path string, isDependency bool, options shared.Options) (map[string]any, error) {
 	source, err := shared.ReadSource(path)
 	if err != nil {
 		return nil, err
+	}
+
+	if isCentralPropsPath(path) {
+		return parseCentralProps(path, source, isDependency, options)
 	}
 
 	var project nugetProjectFile
@@ -91,7 +101,9 @@ func nugetProjectDependencyRows(project nugetProjectFile) []map[string]any {
 	for _, group := range project.ItemGroups {
 		for _, reference := range group.PackageReferences {
 			name := strings.TrimSpace(firstNonEmpty(reference.Include, reference.Update))
-			if name == "" {
+			// An escaped spec is not the identity MSBuild matches (#8994):
+			// skip it, as the props scanner's literalPackageName does.
+			if name == "" || hasMSBuildEscape(name) {
 				continue
 			}
 			row := nugetProjectDependencyRow(name, reference, group.Condition, properties, len(rows)+1)
@@ -192,6 +204,11 @@ func resolveNuGetVersion(raw string, properties map[string]nugetProjectProperty)
 		metadata["partial_evidence"] = true
 		return "", metadata
 	}
+	// MSBuild unescapes %XX before it uses a version, so escaped text is not
+	// the version as written (#8994); keep it unresolved.
+	if hasMSBuildEscape(raw) {
+		return unresolvedPropsVersion(raw, metadata, nil)
+	}
 	matches := msbuildPropertyReferencePattern.FindAllStringSubmatch(raw, -1)
 	if len(matches) > 0 {
 		resolved := raw
@@ -228,6 +245,11 @@ func resolveNuGetVersion(raw string, properties map[string]nugetProjectProperty)
 			metadata["version_evidence"] = "unresolved_msbuild_property"
 			metadata["partial_evidence"] = true
 			return raw, metadata
+		}
+		// A substituted property value can carry an escape the declared
+		// text did not (#8994); the result is then not a proven version.
+		if hasMSBuildEscape(resolved) {
+			return unresolvedPropsVersion(raw, metadata, nil)
 		}
 		metadata["version_evidence"] = "project_property"
 		return resolved, metadata

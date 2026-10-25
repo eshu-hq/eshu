@@ -441,6 +441,7 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			Notes:                   "Pub lockfiles emit exact hosted pub.dev versions with direct/transitive and runtime/dev scope evidence; git, private hosted, and mismatched package rows remain non-evidence.",
 		},
 	}
+	entries = append(entries, nugetCentralCoverage()...)
 
 	sort.SliceStable(entries, func(i, j int) bool {
 		if entries[i].Ecosystem != entries[j].Ecosystem {

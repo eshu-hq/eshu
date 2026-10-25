@@ -53,7 +53,7 @@ a line there.
 | `maven` | java | L2 structured fact | store |  | `pom.xml` |  |
 | `node_lockfile` | javascript | L2 structured fact | store |  | `pnpm-lock.yaml`, `pnpm-lock.yml`, `yarn.lock` |  |
 | `npmrc` | javascript | L2 structured fact | metadata |  | `.npmrc` |  |
-| `nuget_project` | csharp | L2 structured fact | store | `.csproj` |  |  |
+| `nuget_project` | csharp | L2 structured fact | store | `.csproj` | `Directory.Build.props`, `Directory.Packages.props` |  |
 | `perl` | perl | L2 structured fact | store | `.pl`, `.pm` |  |  |
 | `php` | php | L2 structured fact | store | `.php` |  |  |
 | `python` | python | L2 structured fact | store | `.ipynb`, `.py`, `.pyi`, `.pyw` |  |  |

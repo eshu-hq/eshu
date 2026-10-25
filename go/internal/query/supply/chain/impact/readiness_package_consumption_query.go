@@ -3,6 +3,17 @@
 
 package impact
 
+import storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+
+// listSupplyChainImpactReadinessPackageManifestQuery counts package.consumption
+// evidence in two arms. The repository-anchored arm (NOT $20) reads
+// package_manifest_active and drops central version pins with
+// storagepostgres.NotCentralVersionDeclarationSQL: a pin, such as a NuGet
+// PackageVersion in Directory.Packages.props, does not prove any project
+// references the package, so a repository with only pins must not read as
+// owning packages (#8824). The filter applies to rows the LATERAL index probe
+// already fetched, so it changes no index use. The package-anchored arm ($20)
+// reads package_manifest_consumption_keys, which never holds a pin.
 const listSupplyChainImpactReadinessPackageManifestQuery = `
 package_manifest_dependency AS (
     SELECT
@@ -19,6 +30,7 @@ package_manifest_dependency AS (
         FROM package_manifest_active
         WHERE NOT $20
           AND ($11 = '' OR payload->>'repo_id' = $11)
+          AND ` + storagepostgres.NotCentralVersionDeclarationSQL + `
         UNION ALL
         SELECT fact.fact_id, fact.observed_at
         FROM package_manifest_consumption_keys AS consumption

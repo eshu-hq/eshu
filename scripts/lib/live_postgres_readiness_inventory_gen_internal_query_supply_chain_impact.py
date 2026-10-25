@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query/supply/chain/impact": {
+        "go/internal/query/supply/chain/impact/readiness_central_pin_live_test.go": (
+            "TestReadinessExcludesCentralVersionPinsLive",
+        ),
         "go/internal/query/supply/chain/impact/readiness_container_identity_live_test.go": (
             "TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive",
         ),

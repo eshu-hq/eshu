@@ -271,6 +271,9 @@ func ExtractPackageManifestDependencies(envelopes []facts.Envelope) []PackageMan
 		if packageManifestMetadataString(envelope.Payload, "config_kind") != "dependency" {
 			continue
 		}
+		if isCentralVersionDeclaration(envelope.Payload) {
+			continue
+		}
 		repositoryID := payloadcore.PayloadStr(envelope.Payload, "repo_id")
 		if repositoryID == "" {
 			continue
@@ -326,6 +329,27 @@ func ExtractPackageManifestDependencies(envelopes []facts.Envelope) []PackageMan
 	}
 	joinRubyGemsLockfileManifestRanges(out)
 	return out
+}
+
+// isCentralVersionDeclaration reports whether a dependency row is a central
+// version pin, such as a NuGet PackageVersion in Directory.Packages.props
+// (#8824). A pin sets the version a project gets if it references the
+// package; it does not prove any project does, and NuGet never warns about an
+// unused pin. Such a row keeps config_kind "dependency" (its content identity
+// in go/internal/content/dependency_identity.go is section-keyed), so every
+// consumption reader goes through this one exclusion: no consumption decision,
+// no DEPENDS_ON intent, and no security-alert or supply-chain evidence.
+//
+// The flag is read the way the Postgres sidecar (IsCentralVersionDeclaration)
+// and the readiness SQL (NotCentralVersionDeclarationSQL) read it, so all three
+// readers agree on every payload shape; see centralFlagText.
+func isCentralVersionDeclaration(payload map[string]any) bool {
+	text := centralFlagText(payload, "central_version_declaration")
+	if text == "" {
+		metadata, _ := payload["entity_metadata"].(map[string]any)
+		text = centralFlagText(metadata, "central_version_declaration")
+	}
+	return strings.EqualFold(text, "true")
 }
 
 func packageSourceRepositoriesByID(repositories []packageSourceRepository) map[string]packageSourceRepository {
