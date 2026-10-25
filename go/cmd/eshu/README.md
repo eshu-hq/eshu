@@ -128,8 +128,13 @@ artifact wrapper, and the share-safe scope rules live in
     planning for install and enable. The `inventory` and `diagnostics`
     subcommands are API-backed readbacks for hosted component-extension
     inventory and policy diagnostics (cobra wiring in `component.go` and
-    `component_api.go`; the command bodies live in
-    `internal/cli/component`)
+    `component_api.go`, trust flags and the policy builder in
+    `component_trust.go`; the command bodies live in
+    `internal/cli/component`). The trust policy reads the same
+    `ESHU_COMPONENT_*` variables the services do, including
+    `ESHU_COMPONENT_CORE_VERSION` (or `--core-version`): a main-branch image
+    reports its commit SHA as its build version, so a component with a
+    `compatibleCore` range installs only when that override is set (#9090)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
     `logs`, `upgrade` (`graph.go`; the status,
     stop, logs, and upgrade logic lives in
@@ -222,6 +227,25 @@ No-Observability-Change: component index verification runs the offline
 `componentindex` verifier over a local YAML or JSON index only.
 
 No-Regression Evidence: component index verification CLI behavior is covered by `go test ./cmd/eshu -run 'TestComponentCommandTreeIncludesIndexVerify|TestComponentIndexVerify' -count=1`.
+
+No-Regression Evidence (#9090): the component trust policy now takes its core
+version from `--core-version`, then `ESHU_COMPONENT_CORE_VERSION`, then the
+build version, and the chart passes `componentExtensionCollector.coreVersion`
+to each activation `reconcile-*` init container. Before the fix a main-branch
+build (version = commit SHA) refused every install with `compatibleCore`; with
+neither the flag nor the variable set it still does. Proof:
+`go test ./cmd/eshu -run TestComponentInstallHonorsCoreVersionOverride -count=1`
+(five cases: override inside and outside the range, no override, flag over
+variable) and `go test ./internal/runtime -run
+TestHelmComponentActivationReconcilePassesCoreVersion -count=1`. `helm template`
+of the default values is byte-identical before and after (checked with `cmp`),
+because the variable renders only when `coreVersion` is set and the
+`values.yaml` change is a comment.
+
+No-Observability-Change (#9090): no metric, span, log key, or status field
+changes. A refused install still prints `component verification failed` with
+the version it checked, in the CLI output and the `reconcile-<instanceId>` init
+container log.
 
 No-Observability-Change: answer-quality scorecard evaluation scores already
 captured and redacted evidence offline. It starts no runtime or datastore.
