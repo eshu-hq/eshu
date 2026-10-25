@@ -105,7 +105,10 @@ type skeletonState struct {
 	// no opener, gives the same body and the redactor stays a fixed point.
 	heredocCloserGoes bool
 	inBlockComment    bool
-	replaced          int
+	// template is the ${ } interpolation a line leaves open. Lines inside it are
+	// redacted whole, like lines inside a block comment.
+	template scanStack
+	replaced int
 }
 
 func (s *skeletonState) line(line string) string {
@@ -146,7 +149,7 @@ func (s *skeletonState) classify(line string) string {
 // place stores one line that is not inside a PEM block or a heredoc.
 func (s *skeletonState) place(line, trimmed string) string {
 	switch {
-	case s.inBlockComment:
+	case s.inBlockComment, s.template.depth > 0:
 		return s.wholeLine(line)
 	case trimmed == "" || skeletonMarkerValue.MatchString(trimmed) || isSkeletonStructural(trimmed):
 		return line
@@ -162,13 +165,15 @@ func (s *skeletonState) place(line, trimmed string) string {
 //
 //   - a /* still open: the next lines are comment text. Inside an open /*, <<EOF
 //     is comment text too, and an EOF line closes nothing;
-//   - a line that ends in code with a trailing <<ID: a heredoc opens;
+//   - a line that ends in code, or in the code of an open ${ }, with a trailing
+//     <<ID: a heredoc opens;
+//   - a ${ } left open: the next lines are inside it and are redacted whole;
 //   - a line that ends in a # or // comment, or inside a string: nothing opens,
 //     since a <<ID there is text.
 func (s *skeletonState) advance(line, trimmed string) {
-	end := scanLineEnd(line, s.inBlockComment)
+	end := scanLineEnd(line, s.inBlockComment, &s.template)
 	s.inBlockComment = end == endBlockComment
-	if end != endCode || s.heredoc != "" || !strings.Contains(trimmed, "<<") {
+	if (end != endCode && end != endTemplate) || s.heredoc != "" || !strings.Contains(trimmed, "<<") {
 		return
 	}
 	if tail := skeletonHeredocTail.FindStringSubmatch(trimmed); tail != nil {

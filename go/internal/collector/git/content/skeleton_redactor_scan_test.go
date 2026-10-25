@@ -81,28 +81,12 @@ func TestRedactSkeletonScanProperty(t *testing.T) {
 	}
 }
 
-// referenceHidden says, per line, whether HCL reads the line as comment or
-// heredoc body, so the redactor must replace it whole.
+// referenceHidden says, per line, whether HCL reads the line as comment,
+// interpolation, or heredoc body, so the redactor must replace it whole.
 func referenceHidden(lines []string) []bool {
-	hidden := make([]bool, len(lines))
-	inComment, heredoc := false, ""
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if heredoc != "" {
-			hidden[i] = true
-			if trimmed == heredoc {
-				heredoc = ""
-			}
-			continue
-		}
-		hidden[i] = inComment
-		end := (&refLexer{text: line}).lineEnd(inComment)
-		inComment = end == "block"
-		if end == "code" {
-			heredoc = refHeredocID(trimmed)
-		}
-	}
-	return hidden
+	b := &refBody{lines: lines, hidden: make([]bool, len(lines)), eolOK: true}
+	b.code(false)
+	return b.hidden
 }
 
 // refHeredocID returns the delimiter when the text ends in <<ID or <<-ID.
@@ -123,85 +107,120 @@ func refHeredocID(text string) string {
 	return id
 }
 
-// refLexer reads one line. Each method returns what it stopped on: "code" and
-// "string" for the end of the line, "line" and "block" for a comment that runs
-// past it, "close" for the } that ends an interpolation or object.
-type refLexer struct {
-	text string
-	pos  int
+// refBody lexes a whole body by recursive descent, so an interpolation, a
+// block comment, and a heredoc carry across lines on the Go call stack. Its
+// methods return what they stopped on: "eof" at the end of the body, "close"
+// for the } that ends an interpolation or object, "closed" for the quote that
+// ends a string, and "string" for a string cut short by the end of its line.
+type refBody struct {
+	lines  []string
+	hidden []bool
+	row    int
+	col    int
+	// eolOK says the current line still ends in code, so a trailing <<ID opens
+	// a heredoc. A line comment, a comment left open, or a string cut short by
+	// the end of the line clears it.
+	eolOK bool
 }
 
-func (l *refLexer) lineEnd(inComment bool) string {
-	if inComment && !l.skipBlock() {
-		return "block"
+// next ends the current line and enters the next one, which starts hidden when
+// hide is set. A heredoc the ended line opened swallows its body first.
+func (b *refBody) next(hide bool) bool {
+	id := ""
+	if b.eolOK {
+		id = refHeredocID(strings.TrimSpace(b.lines[b.row]))
 	}
-	return l.code(false)
-}
-
-// skipBlock moves past the next */ and reports whether there was one.
-func (l *refLexer) skipBlock() bool {
-	end := strings.Index(l.text[l.pos:], "*/")
-	if end < 0 {
+	b.row, b.col, b.eolOK = b.row+1, 0, true
+	for id != "" && b.row < len(b.lines) {
+		b.hidden[b.row] = true
+		closer := strings.TrimSpace(b.lines[b.row]) == id
+		b.row++
+		if closer {
+			break
+		}
+	}
+	if b.row >= len(b.lines) {
 		return false
 	}
-	l.pos += end + 2
+	b.hidden[b.row] = hide
 	return true
 }
 
-func (l *refLexer) code(nested bool) string {
-	for l.pos < len(l.text) {
-		rest := l.text[l.pos:]
+func (b *refBody) code(nested bool) string {
+	for {
+		line := b.lines[b.row]
+		if b.col >= len(line) {
+			if !b.next(nested) {
+				return "eof"
+			}
+			continue
+		}
+		rest := line[b.col:]
 		switch {
 		case strings.HasPrefix(rest, "//"), strings.HasPrefix(rest, "#"):
-			return "line"
+			b.col, b.eolOK = len(line), false
 		case strings.HasPrefix(rest, "/*"):
-			l.pos += 2
-			if !l.skipBlock() {
-				return "block"
+			b.col += 2
+			if !b.block() {
+				return "eof"
 			}
 		case strings.HasPrefix(rest, `"`):
-			l.pos++
-			if end := l.str(); end != "closed" {
-				return end
+			b.col++
+			if b.str() == "eof" {
+				return "eof"
 			}
 		case nested && strings.HasPrefix(rest, "{"):
-			l.pos++
-			if end := l.code(true); end != "close" {
+			b.col++
+			if end := b.code(true); end != "close" {
 				return end
 			}
 		case nested && strings.HasPrefix(rest, "}"):
-			l.pos++
+			b.col++
 			return "close"
 		default:
-			l.pos++
+			b.col++
 		}
 	}
-	if nested {
-		return "string"
-	}
-	return "code"
 }
 
-// str reads a quoted template up to its closing quote.
-func (l *refLexer) str() string {
-	for l.pos < len(l.text) {
-		rest := l.text[l.pos:]
+// block moves past the next */, over as many lines as it takes.
+func (b *refBody) block() bool {
+	for {
+		if end := strings.Index(b.lines[b.row][b.col:], "*/"); end >= 0 {
+			b.col += end + 2
+			return true
+		}
+		b.eolOK = false
+		if !b.next(true) {
+			return false
+		}
+	}
+}
+
+// str reads a quoted template up to its closing quote or the end of its line.
+func (b *refBody) str() string {
+	for {
+		line := b.lines[b.row]
+		if b.col >= len(line) {
+			b.eolOK = false
+			return "string"
+		}
+		rest := line[b.col:]
 		switch {
 		case strings.HasPrefix(rest, `\`):
-			l.pos += 2
+			b.col += 2
 		case strings.HasPrefix(rest, `"`):
-			l.pos++
+			b.col++
 			return "closed"
 		case strings.HasPrefix(rest, "$${"), strings.HasPrefix(rest, "%%{"):
-			l.pos += 3
+			b.col += 3
 		case strings.HasPrefix(rest, "${"), strings.HasPrefix(rest, "%{"):
-			l.pos += 2
-			if end := l.code(true); end != "close" {
+			b.col += 2
+			if end := b.code(true); end != "close" {
 				return end
 			}
 		default:
-			l.pos++
+			b.col++
 		}
 	}
-	return "string"
 }

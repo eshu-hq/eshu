@@ -342,6 +342,29 @@ func TestRedactSkeletonFailsClosedAcrossLines(t *testing.T) {
 			"heredoc after a template with a nested string", "x = \"${\"//\"}\" <<EOF\nPassw0rdHunter2: 1\nEOF\nn = 2\n",
 			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
 		},
+		// An interpolation left open at the end of a line carries to the next
+		// line: its lines are redacted whole, a heredoc opened in it redacts its
+		// body, and a comment opened after it closes still opens.
+		{
+			"heredoc opened inside an interpolation", "x = \"${<<EOF\nPassw0rdHunter2: 1\nEOF\n}\"\nn = 2\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"comment opened after a multi-line interpolation", "x = \"${\n}\" /* c\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"line inside a multi-line interpolation", "x = \"${\n  Passw0rdHunter2: 1\n}\"\nn = 2\n",
+			"REDACTED_value\n  REDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"closed interpolation carries nothing", "x = \"${var.a}\"\nPassw0rdHunter2: 1\n",
+			"x = REDACTED_value\nPassw0rdHunter2: 1\n",
+		},
+		{
+			"unterminated string carries nothing", "x = \"a\nPassw0rdHunter2: 1\n",
+			"REDACTED_value\nPassw0rdHunter2: 1\n",
+		},
 		{
 			"escaped template opener is plain text", "x = \"$${\" /* c\nPassw0rdHunter2: 1\n*/\nn = 2\n",
 			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",

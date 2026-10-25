@@ -13,8 +13,12 @@ type lineEnd uint8
 const (
 	// endCode: the line ends in code, so a trailing <<ID opens a heredoc.
 	endCode lineEnd = iota
-	// endString: the line ends inside a quoted string or a ${ } interpolation.
-	// HCL strings do not span lines, so nothing opens from here.
+	// endTemplate: the line ends in the code of a ${ } interpolation that is
+	// still open. Like endCode, a trailing <<ID opens a heredoc (the safe
+	// direction), and the interpolation carries to the next line.
+	endTemplate
+	// endString: the line ends inside a quoted string. HCL strings do not span
+	// lines, so the string ends here and nothing opens.
 	endString
 	// endLineComment: a # or // comment runs to the end of the line, so a <<ID
 	// or /* after it is comment text.
@@ -28,8 +32,30 @@ const (
 // whole lines until a */ and never keeps one.
 const maxScanDepth = 32
 
+// scanStack is the interpolation nesting that crosses a line boundary. Each
+// frame is 's' (inside a string), 'i' (inside a ${ } or %{ }), or 'b' (inside a
+// brace within one). Code is an empty stack or an i/b top. A string never
+// outlives its line, so a stack carried to the next line ends in 'i' or 'b'.
+type scanStack struct {
+	frames [maxScanDepth]byte
+	depth  int
+}
+
+func (st *scanStack) push(frame byte) bool {
+	if st.depth == maxScanDepth {
+		return false
+	}
+	st.frames[st.depth] = frame
+	st.depth++
+	return true
+}
+
+func (st *scanStack) inString() bool { return st.depth > 0 && st.frames[st.depth-1] == 's' }
+
 // scanLineEnd lexes one line in a single pass and returns the state it ends in.
-// inBlock says the line begins inside a block comment. The lexer knows four
+// inBlock says the line begins inside a block comment, and st holds the
+// interpolation the line begins inside; both carry from the line before, and st
+// is left holding what the next line begins inside. The lexer knows four
 // things, and each decision reads only the state it ends in:
 //
 //   - a double-quoted string, with \ escapes and ${ } or %{ } interpolations
@@ -38,19 +64,7 @@ const maxScanDepth = 32
 //   - a /* block comment, closed by the first */, after which the line is
 //     code again, so another comment or a heredoc can follow;
 //   - everything else is code.
-func scanLineEnd(line string, inBlock bool) lineEnd {
-	// Each frame is 's' (inside a string), 'i' (inside an interpolation), or
-	// 'b' (inside a brace within one). Code is the empty stack or an i/b top.
-	var frames [maxScanDepth]byte
-	depth := 0
-	push := func(frame byte) bool {
-		if depth == maxScanDepth {
-			return false
-		}
-		frames[depth] = frame
-		depth++
-		return true
-	}
+func scanLineEnd(line string, inBlock bool, st *scanStack) lineEnd {
 	for i := 0; i < len(line); i++ {
 		if inBlock {
 			end := strings.Index(line[i:], "*/")
@@ -63,17 +77,17 @@ func scanLineEnd(line string, inBlock bool) lineEnd {
 			continue
 		}
 		c := line[i]
-		if depth > 0 && frames[depth-1] == 's' {
+		if st.inString() {
 			switch {
 			case c == '\\':
 				i++
 			case c == '"':
-				depth--
+				st.depth--
 			case (c == '$' || c == '%') && i+1 < len(line):
 				switch {
 				case line[i+1] == '{':
-					if !push('i') {
-						return endBlockComment
+					if !st.push('i') {
+						return failScan(st)
 					}
 					i++
 				case line[i+1] == c && strings.HasPrefix(line[i+2:], "{"):
@@ -85,15 +99,15 @@ func scanLineEnd(line string, inBlock bool) lineEnd {
 		}
 		switch {
 		case c == '"':
-			if !push('s') {
-				return endBlockComment
+			if !st.push('s') {
+				return failScan(st)
 			}
-		case c == '{' && depth > 0:
-			if !push('b') {
-				return endBlockComment
+		case c == '{' && st.depth > 0:
+			if !st.push('b') {
+				return failScan(st)
 			}
-		case c == '}' && depth > 0:
-			depth--
+		case c == '}' && st.depth > 0:
+			st.depth--
 		case c == '#', c == '/' && strings.HasPrefix(line[i:], "//"):
 			return endLineComment
 		case c == '/' && strings.HasPrefix(line[i:], "/*"):
@@ -105,8 +119,19 @@ func scanLineEnd(line string, inBlock bool) lineEnd {
 	switch {
 	case inBlock:
 		return endBlockComment
-	case depth > 0:
+	case st.inString():
+		// The string ends with the line; an interpolation below it stays open.
+		st.depth--
 		return endString
+	case st.depth > 0:
+		return endTemplate
 	}
 	return endCode
+}
+
+// failScan is the answer for nesting past maxScanDepth: forget the stack and
+// fail closed as an open block comment.
+func failScan(st *scanStack) lineEnd {
+	st.depth = 0
+	return endBlockComment
 }

@@ -301,6 +301,7 @@ func FuzzRedactSkeleton(f *testing.F) {
 		"x = 1 # <<-EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\n", "x = 1 # <<~EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\n",
 		"x = \"a\" # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\n", "x = \"a # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\n",
 		"x = 1 # <<EOF\n/* c */ y = 2 /* d\nEOF\nPassw0rdHunter2: 1\n*/\n",
+		"x = \"${<<EOF\nPassw0rdHunter2: 1\nEOF\n}\"\n", "x = \"${\n}\" /* c\nPassw0rdHunter2: 1\n*/\n", "x = \"${\nPassw0rdHunter2: 1\n}\"\n",
 		"x = \"${\"#\"}\" /* c\nPassw0rdHunter2: 1\n*/\n", "x = \"${\"//\"}\" <<EOF\nPassw0rdHunter2: 1\nEOF\n",
 	} {
 		f.Add(s)
@@ -333,6 +334,10 @@ func FuzzRedactSkeleton(f *testing.F) {
 			in + "\nk = 1 // <<-QqZzEnd\n/* c\nQqZzEnd\nQqZzSeed9988: 1\n*/\n",
 			in + "\nk = \"a # <<QqZzEnd\n/* c\nQqZzEnd\nQqZzSeed9988: 1\n*/\n",
 			in + "\nk = \"${\"#\"}\" /* c\nQqZzSeed9988: 1\n*/\n",
+			// An interpolation left open at the end of a line carries over.
+			in + "\nk = \"${<<QqZzEnd\nQqZzSeed9988: 1\nQqZzEnd\n}\"\n",
+			in + "\nk = \"${\n}\" /* c\nQqZzSeed9988: 1\n*/\n",
+			in + "\nk = \"${\nQqZzSeed9988: 1\n}\"\n",
 		} {
 			out, _, err := redactSkeleton(planted)
 			if err == nil && strings.Contains(out, "QqZzSeed9988") {

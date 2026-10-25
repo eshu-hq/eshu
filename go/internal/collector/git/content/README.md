@@ -120,7 +120,9 @@ number, the trailing newline, and `\r` line endings.
   that ends in code (`key = <<EOF`, `keys = [<<EOF`) redacts its body; when its
   opener line was redacted, its closer is redacted too, which keeps the fixed
   point. A `<<EOF` inside a `#` or `//` comment or an unterminated string is
-  text and opens nothing. A `/*`
+  text and opens nothing. A `${` or `%{` left open at the end of a line carries
+  over: every line inside it is redacted whole until its `}`, so an unclosed `${`
+  (a literal one in a JSON string, say) redacts to the end of the file. A `/*`
   outside a string or line comment with no `*/` after it redacts every line
   through its `*/`, whether it starts the line or follows a value.
 - **Fixed point:** an exact marker, as a value or a whole line, is kept, so a
