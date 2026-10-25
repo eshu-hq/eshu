@@ -356,6 +356,73 @@ recent shipped work grouped by feature area.
   log. See the [3 AM runbook](docs/public/operate/3am-operator-runbook.md) and
   [Security Alert Reconciliation Impact Wait](docs/public/reference/telemetry/security-alert-reconciliation-impact-wait.md).
 
+### Scala build.sbt is parsed for dependencies
+
+- **`build.sbt` is admitted and parsed**
+  ([#8938](https://github.com/eshu-hq/eshu/issues/8938)). The Scala manifest
+  named by the language ledger was not admitted, so Scala dependency
+  declarations never became facts. `build.sbt` now binds to a bounded sbt
+  scanner that reads literal `libraryDependencies` coordinates (`+=`, `++=`,
+  `:=`; `%`, `%%`, `%%%`; optional configuration such as `Test`) and the literal
+  `scalaVersion`, and emits them as the same dependency rows Gradle and Maven
+  use, with `package_manager` `sbt`. Non-literal forms are reported as
+  `unresolved` or counted in `sbt_state.unresolved_declaration_count`, and that
+  count includes a row whose revision stays unresolved; sbt is
+  never evaluated. A row is `resolved` only when its whole statement matches a
+  closed grammar: a bare key at the file top level or in a project's
+  `.settings(...)`, `+=` with one element or `++=`/`:=` with a `Seq`, `List` or
+  `Vector`, at most one `% config` (`Test`, `"it,test"`, `Provided`), and
+  allowlisted infix ModuleID calls (`exclude`, `classifier`, `intransitive`,
+  `withSources`, `cross`, and the like). Every other statement falls back:
+  its literal coordinates are emitted `partial` and counted, never a resolved
+  `compile`. That covers any axis (`Test /`, `ThisBuild /`), `inConfig(...)`, a
+  brace block, `.map(_ % Test)`, `++`, a parenthesised or dotted call,
+  `withConfigurations`, `withRevision`, a repeated `% config` (a load error in
+  sbt, not a replacement) and an empty one. Because sbt 2.x reads `build.sbt`
+  as Scala 3, an indented line at depth zero (a braceless `if`, `def`, `val`,
+  `match`, `for` or `while` body) is partial too, as is the rest of a line
+  after a closer that ends a bracket opened on an indented line, and only a
+  column-0 `val` resolves a version. Configuration strings match case exactly (`"Test"` is
+  not `test`), and a string holding a backslash is opaque. `:=`, `~=`, `-=`,
+  `--=`, sbt 0.13's `<<=`, and the members sbt's SettingKey API defines to
+  rewrite the key (`.transform`, `.set`, `.remove1`, `.removeN`, and
+  `.withRank` before `:=`, `~=`, `-=`, `--=` or `<<=`) make the rows they
+  supersede partial, wherever the member appears (a `val` body, after an
+  operator, an `if` branch). Both keys are default-deny: any other occurrence
+  of `libraryDependencies` (a parenthesized key at any depth, chained `in`
+  axes, an infix `set` or `withRank`, a member that returns no Setting such as
+  `.map`, a bare key) supersedes every row and is counted, and any other
+  `scalaVersion` occurrence poisons the envelope; only reads (`.value`,
+  `.in(Test).value`, `(k in Test).value`, and the same reads with axes or
+  closers inside a dependency, such as `% (ThisBuild / scalaVersion).value`)
+  are left alone, and one statement is counted once. A key named as a plain
+  element of `buildInfoKeys`, `excludeLintKeys` or `includeLintKeys` is a
+  read when the list ends the statement
+  (`buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)`,
+  `Global / excludeLintKeys += libraryDependencies`); a key named as a value
+  anywhere else, or in a key list followed by `.map(...)` or an assignment,
+  is denied. This also covers
+  [#9007](https://github.com/eshu-hq/eshu/issues/9007). `<+=`, `<++=`,
+  `.append1`, `.appendN`, `.withRank(...) +=` and any other assignment
+  operator fall back with partial rows. `scalaVersion` is read only where
+  `libraryDependencies` would resolve; an unreadable `scalaVersion` statement
+  there (`sys.env(...)`, `~=`, `.set`, `.withRank(...) :=`, `.:=(...)`), any
+  `scalaVersion` assignment outside one (a settings `val`, `inThisBuild(...)`,
+  `in Test`), or two distinct literals leave `scala_version` empty and drop
+  the hint. `project/build.sbt` (sbt's
+  meta-build, admitted by its base name) is parsed with
+  `sbt_state.meta_build` true and every row partial; the check runs on the
+  path relative to the repository root, so a clone inside a directory named
+  `project` is not flagged (this also covers
+  [#8997](https://github.com/eshu-hq/eshu/issues/8997)).
+  A runtime-plus-test list is `runtime`,
+  compiler-tool configurations are undetermined, Ivy ranges are partial, and a
+  configuration string over 256 bytes is never split or stored. Package-registry correlation for sbt rows
+  ([#8961](https://github.com/eshu-hq/eshu/issues/8961)) and the line-keyed
+  entity id ([#8962](https://github.com/eshu-hq/eshu/issues/8962)) stay open.
+  The registry fingerprint moves with the new exact name, so every repository
+  re-collects once; the `git-collector` content version constant is unchanged.
+
 ### Service story defaults to a bounded handles view over MCP
 
 - **`get_service_story` defaults to a bounded `handles` view**

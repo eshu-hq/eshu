@@ -443,8 +443,8 @@ func (e *Engine) parseDefinition(
 		return e.parseGoModule(resolvedPath, isDependency, options)
 	case "hcl":
 		return e.parseHCL(resolvedPath, isDependency, options)
-	case "gradle":
-		return e.parseGradle(resolvedPath, isDependency, options)
+	case "gradle", "sbt":
+		return e.parseJVMBuild(definition.Language, repoRoot, resolvedPath, isDependency, options)
 	case "groovy":
 		return e.parseGroovy(resolvedPath, isDependency, options)
 	case "maven":

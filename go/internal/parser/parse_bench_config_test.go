@@ -50,6 +50,7 @@ var configBenchCases = []configBenchCase{
 	{language: "node_lockfile", parserKey: "node_lockfile", fileName: "yarn.lock", build: buildYarnLock},
 	{language: "npmrc", parserKey: "npmrc", fileName: ".npmrc", build: buildNpmrc},
 	{language: "nuget_project", parserKey: "nuget_project", fileName: "project.csproj", build: buildCsproj},
+	{language: "sbt", parserKey: "sbt", fileName: "build.sbt", build: buildSbt},
 	{language: "python_requirements", parserKey: "python_requirements", fileName: "requirements.txt", build: buildRequirements},
 	{language: "python_toml", parserKey: "python_toml", fileName: "pyproject.toml", build: buildPyproject},
 	{language: "yaml", parserKey: "yaml", fileName: "values.yaml", build: buildYAMLValues},
@@ -175,6 +176,20 @@ func buildGradle(minLOC int) []byte {
 		i++
 	}
 	b.WriteString("}\n")
+	return b.Bytes()
+}
+
+// buildSbt returns a build.sbt of >= minLOC lines: a scalaVersion setting
+// followed by one literal libraryDependencies line per synthetic module, which
+// is the form the sbt scanner reads on its hot path.
+func buildSbt(minLOC int) []byte {
+	var b bytes.Buffer
+	b.WriteString("ThisBuild / scalaVersion := \"2.13.12\"\n\nname := \"bench\"\n\n")
+	i := 0
+	for bytes.Count(b.Bytes(), []byte("\n")) < minLOC {
+		fmt.Fprintf(&b, "libraryDependencies += \"com.example.group%04d\" %%%% \"artifact-%04d\" %% \"1.%d.0\"\n", i, i, i%10)
+		i++
+	}
 	return b.Bytes()
 }
 
