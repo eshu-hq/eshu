@@ -24,9 +24,10 @@ recent shipped work grouped by feature area.
   removes its declarations. The graph schema gains the
   `runtime_declaration_identity` constraint and a `(runtime, version_major)`
   index for the coming version-threshold query (#8817). The extra follow-up
-  fact moves `gitGenerationContentVersion` to `git-collector.v14`, so each
+  fact moves `gitGenerationContentVersion` to `git-collector.v15`, so each
   repository re-collects once. Evidence:
   `docs/internal/evidence/8816-runtime-declaration-graph.md`.
+
 ### Parser reads: one per-file read cap
 
 - **A parser file over 64 MiB is skipped instead of read whole**

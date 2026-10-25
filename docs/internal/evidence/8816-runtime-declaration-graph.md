@@ -117,8 +117,8 @@ and an `assert-edges` endpoint rule for the keyless `RuntimeDeclaration` label.
 
 No-Regression Evidence: the change adds a domain and touches no existing
 write path. The only shared effect is one more `shared_followup` fact per
-repository generation, which moves the content-version pin from 342 to 343
-facts and the content version to `git-collector.v14`.
+repository generation, which moves the content-version pin from 351 to 352
+facts and the content version to `git-collector.v15`.
 
 Observability Evidence: the domain runs as a standard reducer execution
 (`eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`),
