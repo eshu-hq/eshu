@@ -15,7 +15,8 @@
 #
 # Escape hatches, in order of precedence:
 #   - no goal file, or an empty one              -> stop allowed
-#   - goal file whose first line starts DONE     -> stop allowed
+#   - goal file whose first line starts DONE     -> stop allowed unless the issue ledger
+#                                                   holds an open issue (lib/goal-issues.sh)
 #   - first line `BLOCKED: ... WATCH=<live pid>` -> stop allowed (see below)
 #   - first line `BLOCKED: <reason>`, no WATCH   -> stop REFUSED, escalate
 #   - first line `BLOCKED: ... WATCH=<dead pid>` -> stop REFUSED

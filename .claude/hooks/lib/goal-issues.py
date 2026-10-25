@@ -198,11 +198,29 @@ def cmd_capture(ledger, refs):
         print(r)
 
 
-def defer_problem(path, number, cwd, ledger):
+def is_control_file(real, ledger, goal_file):
+    """Reports whether a resolved path is the ledger, a goal file, or their scratch.
+
+    Every ledger record contains `owner/repo#N`, and a goal file can name the
+    issue too, so either would satisfy "names the issue" for free. Both are
+    written by the agent, which makes them a self-issued permission slip.
+    """
+    ledger_real = os.path.realpath(ledger)
+    if real == ledger_real or real == ledger_real + ".lock" or real.startswith(ledger_real + ".tmp."):
+        return True
+    if goal_file and real == os.path.realpath(goal_file):
+        return True
+    return (os.path.basename(os.path.dirname(real)) == ".claude"
+            and os.path.basename(real).startswith("active-goal"))
+
+
+def defer_problem(path, number, cwd, ledger, goal_file=""):
     """Returns why a DEFER path is not acceptable, or "" when it is.
 
     The agent writes the ledger, so a bare DEFER would be a self-issued
-    permission slip. The path must exist, be non-empty, and name the issue.
+    permission slip. The path must exist, be non-empty, name the issue, and not
+    be the ledger or a goal file (compared by realpath, so a symlink or `..`
+    does not get around it).
     """
     roots = [cwd] if cwd and cwd != "-" else []
     ledger_dir = os.path.dirname(os.path.abspath(ledger))
@@ -213,6 +231,9 @@ def defer_problem(path, number, cwd, ledger):
     why = "no such file"
     for cand in candidates:
         if not os.path.isfile(cand):
+            continue
+        if is_control_file(os.path.realpath(cand), ledger, goal_file):
+            why = "the ledger or a goal file is not a ruling"
             continue
         try:
             with open(cand, encoding="utf-8", errors="replace") as fh:
@@ -229,7 +250,7 @@ def defer_problem(path, number, cwd, ledger):
     return why
 
 
-def apply_defers(ledger, cwd):
+def apply_defers(ledger, cwd, goal_file=""):
     """Settles every DEFER line. Returns {ref: reason} for the refused ones."""
     refused = {}
     with locked(ledger):
@@ -250,7 +271,7 @@ def apply_defers(ledger, cwd):
                        if e[2] == number and (repo is None or e[1] == repo) and e[4] == "open"]
             if not targets:
                 continue
-            problem = defer_problem(path, number, cwd, ledger)
+            problem = defer_problem(path, number, cwd, ledger, goal_file)
             for j in targets:
                 _, r, n, created, _, _ = entries[j]
                 if problem:
@@ -311,7 +332,7 @@ def cmd_gate(ledger, cwd, goal_file, opts=None):
     refusal_state = opts.get("--state", "")
     if not os.path.isfile(ledger):
         return
-    refused = apply_defers(ledger, cwd)
+    refused = apply_defers(ledger, cwd, goal_file)
     pending = []
     for line in read_lines(ledger):
         e = parse_entry(line)

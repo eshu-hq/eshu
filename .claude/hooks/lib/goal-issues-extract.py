@@ -28,8 +28,10 @@ API_RE = re.compile(r"\bgh\s+api\b")
 API_ISSUES_ENDPOINT_RE = re.compile(
     r"""(?:^|[\s"'])/?repos/[^\s"']+/issues(?=$|[\s"'?])"""
 )
+# `--input` is a write: gh sends a POST whenever it has a request body (checked
+# with GH_DEBUG=api), and it is the usual REST fallback when GraphQL fails.
 API_WRITE_RE = re.compile(
-    r"(?:(?:-X|--method)\s*=?\s*POST\b|(?:-f|-F|--field|--raw-field)\s*=?\s*title=)",
+    r"(?:(?:-X|--method)\s*=?\s*POST\b|(?:-f|-F|--field|--raw-field)\s*=?\s*title=|--input\b)",
     re.IGNORECASE,
 )
 API_MUTATES_RE = re.compile(

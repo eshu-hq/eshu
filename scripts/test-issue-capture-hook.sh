@@ -144,6 +144,15 @@ run_capture "$(post_payload "${lead}" "${R}" 'gh api repos/eshu-hq/eshu/issues -
 has_line "$(ledger_of "${R}/.claude/active-goal.${lead}")" '^eshu-hq/eshu#9104 ' &&
 	ok "gh api POST /issues: html_url captured" || no "gh api POST /issues: html_url captured"
 
+# `--input` makes gh send a POST (verified with GH_DEBUG=api); REST --input is the
+# usual fallback when gh's GraphQL path fails, and the body comes back compact.
+fx_reset
+R="$(mk_repo api-input)"
+printf 'SESSION: %s\nGoal.\n' "${lead}" >"${R}/.claude/active-goal.${lead}"
+run_capture "$(post_payload "${lead}" "${R}" 'gh api repos/o/r/issues --input body.json' '{"number":9120,"html_url":"https://github.com/o/r/issues/9120","state":"open"}')"
+has_line "$(ledger_of "${R}/.claude/active-goal.${lead}")" '^o/r#9120 ' &&
+	ok "gh api POST via --input (compact JSON html_url): captured" || no "gh api POST via --input (compact JSON html_url): captured"
+
 fx_reset
 R="$(mk_repo api-comment)"
 printf 'SESSION: %s\nGoal.\n' "${lead}" >"${R}/.claude/active-goal.${lead}"
