@@ -12,7 +12,7 @@ rejects a trailing `+`, a `latest.` prefix, `!!`, `@`, and any `:`
 (a colon means a classifier or other notation text leaked into the version).
 Security-alert
 reconciliation forwards to that function. The git collector content version
-moves from `git-collector.v10` to `git-collector.v11`, so each stored
+moves to `git-collector.v12`, so each stored
 repository re-collects once and its stale `resolved` rows are replaced.
 
 The same string-notation reader stored a classifier as part of the version:

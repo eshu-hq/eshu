@@ -71,9 +71,8 @@ recent shipped work grouped by feature area.
   notation classifier no longer leaks into the version: `g:a:1.0:jdk8` now
   resolves to `1.0`, not `1.0:jdk8`, and text past the classifier
   (`g:a:1.0:jdk8:extra`, which Gradle rejects) emits no row. The git
-  collector content version moves from `git-collector.v10` to
-  `git-collector.v11`, so each repository re-collects once and stale
-  `resolved` selector rows are replaced.
+  collector content version moves to `git-collector.v12`, so each repository
+  re-collects once and stale `resolved` selector rows are replaced.
 
 
 ### Security alerts: disabled Dependabot alerts no longer read as a credential failure
