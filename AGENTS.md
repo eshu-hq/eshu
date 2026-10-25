@@ -83,8 +83,9 @@ on their checks. A rebase follows the decision table in `eshu-code-review`
 
 - Mechanical conflict (row 4a: at most 10 choice lines, or a conflict-recipe
   file such as `CHANGELOG.md` or the content pin) and a small commit after a
-  clean verdict (tier S): no review, no `make pre-push`, no receipt. Run the
-  file-type checks, post the diff and exits as a PR comment, push.
+  clean verdict (tier S, which excludes agent-rule files and test-assertion
+  edits): no review, no `make pre-push`, no receipt. Run the file-type checks,
+  post the diff and exits as a PR comment, push.
 - Any other conflict (row 4b), or a larger added commit: scoped re-review.
 - No conflicts, every commit `=`, equal patch-id: waiver note after the floor.
   Anything else, an open finding, or no clean prior verdict: full review.

@@ -95,7 +95,8 @@ liveness misjudgement.
    requires affected proof and a new full review/receipt before promotion.
    The one exception is a rebase. The decision table in `eshu-code-review`
    ("Rebase Waiver") sends it to row 4a or tier S (no review, no
-   `make pre-push`, no receipt: run the file-type checks, comment, push), a
+   `make pre-push`, no receipt: run the file-type checks, comment, push; tier S
+   excludes agent-rule files and test-assertion edits), a
    waiver note, a scoped re-review with a scoped rebase verdict, or the full
    review. A `CHANGELOG.md` union or a regenerated pin is row 4a; do not wait
    on a floor for it.

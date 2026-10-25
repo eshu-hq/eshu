@@ -75,10 +75,21 @@ bash scripts/verify-live-postgres-readiness-drift.sh
 
 The drift script must exit 0.
 
+## Agent-rule files
+
+`AGENTS.md`, `.agents/skills/**`, `.claude/rules/**`, `.claude/settings.json`,
+`.muse/hooks.json`, `.codex/**`, `docs/internal/agent-*.md`, and
+`docs/internal/writing-for-agents.md` are the rules this review regime runs on.
+A conflict there is row 4a only as a keep-both union of distinct bullets, rows,
+or sections. Run `bash scripts/verify-docs-contradiction.sh`, post its output,
+and treat any contradiction it reports as row 4b (a scoped re-review). A
+resolution that rewrites or drops a rule is 4b regardless.
+
 ## Other append-only files
 
 For registry rows, ledgers, and other append-only lists, keep both entries,
 then run the file's own validator: `bash scripts/verify-ci-gates-registry.sh
---drift` for the gate registry, or the drift or verify script named in the
+--drift` for the gate registry (a keep-both union of trigger entries is a recipe
+case here, with the drift gate as the proof), or the drift or verify script named in the
 file's header. When a file has no validator, its entry lines must deduplicate to
 nothing (`sort | uniq -d`).

@@ -121,13 +121,15 @@ the goal is DONE: the first-line DONE, the DONE beneath the `SESSION:` header, a
 the lookup that finds nothing because `/goal done` retired this session's file.
 That last one matters most, since `/goal done` is how an owner retires a goal.
 
-The check does **not** run for an unheaded, owner-written `.claude/active-goal` or
-`~/.claude/active-goal` marked `DONE`. Capture still writes that goal's sidecar
-(the resolver treats an unheaded shared goal as every session's goal), but a DONE
-there is the owner's, not a session's: the Stop hook never gates on a goal it does
-not hold the session to, the same rule that lets a foreign `SESSION:` header allow
-the stop. The parity suite treats this as intended. Whether an unheaded DONE should
-gate is a design call for the arbiter and may change.
+An unheaded `DONE` is gated too, at the per-session, shared, and per-user paths. The
+agent writes its goal file, so exempting an unheaded DONE would be an escape: rewrite
+the file without the `SESSION:` header, put `DONE` first, and the check never runs
+while capture keeps filling the sidecar. Only a `DONE` headed for **another**
+session is skipped; it is that session's.
+
+For a hand-written goal the owner has two exits: `CLAUDE_GOAL_OFF=1` on Claude, and,
+on both harnesses, editing the sidecar to mark the record `closed` or `deferred`.
+Under Muse the environment is cleared, so the sidecar is the exit there.
 
 The check applies `DEFER` lines, then asks `gh issue view N -R owner/repo --json
 state` for each record still open:
@@ -169,6 +171,9 @@ Muse the defaults always apply. The Claude Stop hook timeout in
 `.claude/settings.json` is 45 seconds, enough for the 30-second cap plus
 interpreter start-up. Muse has no setting for it in this repo, and 30 seconds fits
 under the default.
+
+`gh` authenticates from its keyring through `HOME`, which Muse keeps. With no `HOME`,
+`gh` exits 4 ("gh auth login"), every check is NOT_CHECKED, and the stop is allowed.
 
 ### The refusal is unbounded, so it is loud
 
@@ -220,9 +225,9 @@ unchecked issue in front of the agent afterwards.
   owed. Close them or `DEFER` them.
 - A `/goal done` typed by the owner is checked the same way as one the agent
   writes.
-- An unheaded, owner-written `.claude/active-goal` or `~/.claude/active-goal` set to
-  `DONE` ends the goal without the DONE check, even when its sidecar holds an open
-  issue. See "The DONE check".
+- A hand-written (unheaded) goal marked `DONE` is gated like any other. A stale
+  `~/.claude/active-goal` with an open record in its sidecar therefore refuses DONE
+  in every checkout until the record is closed or deferred. See "The DONE check".
 - Capture misses an issue created through `gh api graphql` (a `createIssue`
   mutation). Its output has no bare issue URL and no `repos/.../issues` endpoint in
   the command, so neither path fires.

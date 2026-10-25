@@ -127,7 +127,13 @@ named generator; taking main's side on a hunk the PR never meant to change; and
 dropping a commit `git cherry` shows upstream. Row 4a holds when there are at most
 10 choice lines in at most 2 files, every touched file is Markdown, shell,
 JSON/YAML data, `_test.go`, or fixtures, and none is gate or hook logic (the
-test is in [Small-change tier](#small-change-tier)). Non-test Go, SQL,
+test is in [Small-change tier](#small-change-tier)). An edit to an existing
+expected value, digest, count, or pin in a test, fixture, or golden file is an
+assertion edit and leaves 4a, except through a recipe that regenerates it. In
+the agent-rule files listed in tier S criterion 4, row 4a covers only a keep-both
+union of distinct bullets, rows, or sections, checked with
+`bash scripts/verify-docs-contradiction.sh` (post its output); any contradiction
+it reports makes the conflict row 4b. Non-test Go, SQL,
 migrations, Cypher, queue/lease/claim code, and any line neither side had are
 row 4b. Hand-resolve no generated file or golden digest: regenerate it. The hot
 spots have [conflict recipes](references/conflict-recipes.md); a recipe case is
@@ -244,14 +250,26 @@ branch, so ten small commits cannot stack an unreviewed large change:
    10 changed lines, added plus deleted.
 3. Every file is Markdown, shell, JSON/YAML data, `_test.go`, `testdata/`, or
    a fixture. No non-test Go, SQL, Cypher, migration, or queue/lease/claim code.
-4. No file is gate or hook logic. A path is gate or hook logic when
-   `rg -l "<path>" specs/ci-gates.d/ .github/workflows/` is non-empty, when it
-   is under `.claude/hooks/`, `.muse/hooks/`, or `scripts/dev/pre-*`, when it
-   is a `scripts/lib/` file such a script sources, or when it is a gate's
-   `test_command` file. In `specs/ci-gates.d/*.yaml`, only added `triggers` or
-   `self_test_triggers` entries are data; any other field is logic.
-5. A `_test.go` change only adds lines or regenerates testdata. It deletes or
-   edits no existing assertion.
+4. No file is gate, hook, or agent-rule logic. A path is gate or hook logic
+   when `rg -l "<path>" specs/ci-gates.d/ .github/workflows/` is non-empty (that
+   test wins), when it is under `.claude/hooks/`, `.muse/hooks/`, or
+   `scripts/dev/pre-*`, when it is a `scripts/lib/` file such a script sources,
+   when it is a gate's `test_command` file, or when it is any file in
+   `specs/ci-gates.d/` (all of it, trigger additions included). The `rg` test
+   cannot see agent-rule logic, so these paths are excluded by name:
+   `AGENTS.md` (root and scoped), `.agents/skills/**`, `.claude/rules/**`,
+   `.claude/settings.json`, `.muse/hooks.json`, `.codex/**`,
+   `docs/internal/agent-*.md`, and `docs/internal/writing-for-agents.md`. A rule
+   edit there takes row 3's scoped review.
+5. A change to a test or check only adds files or cases, or regenerates a file
+   with a named generator whose command you record in the PR comment. This holds
+   for `_test.go`, `testdata/`, fixtures, golden files, and shell tests alike.
+   Editing an existing expected value, digest, count, or pin is an assertion
+   edit. So is any added or changed line that skips, disables, narrows, or
+   short-circuits a test or check: `t.Skip*`, an early `return`, a `//go:build`
+   tag, a narrowed `-run` or `-skip`, `|| true`, `set +e`, `exit 0` before the
+   assertion, a commented-out case, or a shrunk seeded-violation list. An
+   assertion edit leaves tier S.
 6. The PR title and body claims are unchanged.
 
 Proof: the [row 4a checks](#row-4a-mechanical-conflict) on HEAD, then a PR
