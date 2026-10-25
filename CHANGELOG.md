@@ -462,6 +462,31 @@ recent shipped work grouped by feature area.
 
 ### Declared runtime versions become typed facts
 
+- **`package.json` and `go.mod` now emit `runtime_declaration.version` facts**
+  ([#8815](https://github.com/eshu-hq/eshu/issues/8815), part of
+  [#8807](https://github.com/eshu-hq/eshu/issues/8807)). The git collector
+  reads `engines.node`, `.npm`, `.yarn` and `.pnpm`, `volta.node`, `.npm`,
+  `.yarn` and `.pnpm`, and `packageManager` from every `package.json`, and the
+  `go` and `toolchain` directives from every `go.mod`, at any depth. A monorepo
+  gets one set of facts per package directory. The `source_kind` names the
+  section (`package_json_engines`, `package_json_volta`,
+  `package_json_package_manager`, `go_mod_go`, `go_mod_toolchain`). A range,
+  `lts/*`, `workspace:*`, `catalog:`, `toolchain default`, `toolchain local`
+  and `${X}` are kept as written and never resolved. `packageManager`
+  `pnpm@9.1.0+sha512.…` is runtime `pnpm`, `raw_spec` `9.1.0`: the integrity
+  suffix is cut. `require`, `replace` and every other `go.mod` line never emit,
+  and a copy under `node_modules` or `vendor` emits nothing.
+- **A value that is not a version never reaches a fact.** The two files are
+  stored with the `store` policy, so a manifest value must be at most 128 bytes
+  of version grammar with no long opaque token and no URL; anything else is
+  dropped and counted, never truncated, and the file's other declarations still
+  emit. The collector logs WARN `git_runtime_declaration_values_rejected` with
+  `rejected_count`. A `package.json` that is not readable JSON, or is over 1 MiB,
+  emits nothing and logs `git_runtime_declaration_file_skipped` with reason
+  `manifest_unparseable` or `byte_cap_exceeded`. `gitGenerationContentVersion`
+  moves from `git-collector.v12` to `git-collector.v13`, so each repository
+  re-collects once when its reconciliation sweep next comes due. The fact kind
+  and schema are unchanged.
 - **Version-pin files now emit `runtime_declaration.version` facts**
   ([#8815](https://github.com/eshu-hq/eshu/issues/8815), part of
   [#8807](https://github.com/eshu-hq/eshu/issues/8807)). The git collector reads
@@ -489,8 +514,8 @@ recent shipped work grouped by feature area.
   allocation (1.87 GB before).
 - **Contract only, nothing reads it yet.** The kind is registered additively as
   schema 1.0.0 and disclosed unconsumed; the graph projection (#8816), the
-  query tool (#8817) and the `package.json`, `go.mod`, Dockerfile and CI sources
-  (#8818) are separate changes. Existing repositories pick the facts up at their
+  query tool (#8817) and the Dockerfile and CI sources (#8818) are separate
+  changes. Existing repositories pick the facts up at their
   next reconciliation sweep, because adding a fact kind moves the fact-schema
   digest in `GenerationContentVersion`.
 

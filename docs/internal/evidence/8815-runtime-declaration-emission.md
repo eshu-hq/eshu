@@ -139,3 +139,139 @@ hostile file costs about 0.1 ms more. Its 28 KB extra is the larger
 declaration slice. That slice is still bounded by the token cap, not by the
 file. Allocation counts are unchanged, and the allocation-ceiling tests still
 pass.
+
+## Manifest sources: package.json and go.mod (second PR of #8815)
+
+The git collector now reads the `engines`, `volta` and `packageManager`
+sections of every `package.json` and the `go` and `toolchain` directives of
+every `go.mod`, at any depth outside a dependency directory. This section
+records the cost, the bounds and why no new operator metric is added.
+
+No-Regression Evidence:
+
+- **Baseline:** before this change the content walk paid one base-name lookup
+  per file for the pin names and nothing for `package.json` or `go.mod`
+  (`NoteRuntimeDeclarationCandidate`). The parser registry already admits both
+  files, so no body is read that was not already read.
+- **What is added per file:** one switch on the base name for every content
+  file, and for a `package.json` or `go.mod` one bounded scan of the body held
+  in memory. The scan allocates for no value it skips. A manifest is parsed
+  when the walk meets it and the walk keeps only its declarations (a few
+  hundred bytes), never the body, so the retained state does not grow with the
+  size of the manifests.
+- **Backend and hardware:** no database or graph backend is touched. Go 1.26.10
+  on linux/arm64, 16 cores, `go test -bench`, load average 4 to 5 during the
+  runs. Base is the branch parent (`b46fe6aa1d`), run from a second worktree
+  with the same benchmark file, interleaved with the after runs, three rounds.
+- **Corpus:** 2,104 real files: 1,371 `package.json` (dependency manifests from
+  installed plugin trees and repository fixtures; 376 declare `engines`, 1
+  `volta`, 7 `packageManager`; average 858 bytes, largest 23,931) and 733
+  `go.mod` (the host Go module cache; 723 have a `go` directive, 27 a
+  `toolchain`). Average body 714 bytes. The corpus is a host directory, so the
+  benchmark skips unless `ESHU_DECLARATION_CORPUS_DIR` points at one.
+
+  | Benchmark | Base (3 rounds) | After (3 rounds) |
+  |---|---|---|
+  | `BenchmarkNoteRuntimeDeclarationCandidateCorpus`, whole hook over the corpus | 11.2 to 11.7 ns/file, 0 B, 0 allocs | 1,690 to 1,713 ns/file, 393 B/file, 1.25 allocs/file |
+  | `BenchmarkNoteRuntimeDeclarationCandidateNonPin`, a non-pin, non-manifest path | 13.1 to 13.5 ns/op, 0 allocs | 14.5 to 19.9 ns/op, 0 allocs (one noisy round; 14.5 twice) |
+  | `BenchmarkEmitToolVersions` (pin path) | 73.6 to 74.2 us/op, 866 allocs | 73.7 to 74.1 us/op, 866 allocs |
+  | `BenchmarkEmitAtTokenCap` (pin path) | 10.6 to 11.1 ms/op, about 6.9 MB, 120,140 to 120,154 allocs | 10.7 ms/op, about 6.9 MB, 120,140 to 120,151 allocs |
+
+  For scale, the parser that already runs on the same files costs 37.8 to
+  38.7 us/file on this corpus (`json.Parse` and `gomod.Parse`, including the file
+  read, `go test -bench` with a scratch benchmark that is not committed). The
+  added hook is about 4.4 percent of that, and it reads no file. A repository
+  pays it once per `package.json` or `go.mod`; a typical repository holds
+  between one and a few hundred.
+- **Per-file figures** (`emitter_bench_test.go`, `-count=3`):
+
+  | Benchmark | Input | Result |
+  |---|---|---|
+  | `BenchmarkExtractPackageJSONNoDeclaration` | the common package.json: no section | 421 ns/op, 0 B/op, 0 allocs/op |
+  | `BenchmarkEmitPackageJSON` | engines (2), volta (2), packageManager: 5 facts | 54.2 us/op, 37 KB/op, 610 allocs/op |
+  | `BenchmarkEmitGoMod` | go and toolchain beside require and replace | 20.0 to 20.4 us/op, 13.3 KB/op, 229 allocs/op |
+  | `BenchmarkEmitGoModLarge` | 400 require lines, 2 facts | 38.7 to 39.2 us/op, 13.3 KB/op, 229 allocs/op (544 MB/s) |
+  | `BenchmarkEmitPackageJSONAtByteCap` | valid package.json of about 1,047,600 bytes, 2 facts | 1.82 ms/op, 13.3 KB/op, 237 allocs/op (575 MB/s) |
+
+  The cost of emitting is the envelope build, about 10 us per fact (the same as
+  the pin files); the scan is 0.4 us for a manifest with no section and flat in
+  the body size. B/op at 1 MiB (13.3 KB for two facts) equals the 13.3 KB of
+  `BenchmarkEmitGoMod`, which also emits two facts from a few hundred bytes.
+- **Hostile input** (`manifest_hostile_test.go`, ceilings on allocation and a
+  generous wall bound, never a speed claim):
+
+  | Input | Result |
+  |---|---|
+  | 10 MiB body | skipped before parsing, at most 16 KiB allocated |
+  | 500,000 nested `[`, 100,000 nested `{"a":`, deep mixed | unparseable at depth 64, at most 32 KiB allocated, no fact |
+  | 1 MiB of repeated `"engines"` and `"packageManager"` keys | last one wins, at most 64 KiB allocated |
+  | 1 MiB of escaped-key repeats | at most 24 MiB transient (each escaped key decodes into a short string, linear in the body, nothing retained) |
+  | `go.mod` with 100,000 `go` lines, 50,000 `toolchain` lines, 100,000 `require (` openers, quote soup, NUL bytes | at most 4 MiB allocated, at most 2 facts, under 2 s |
+
+  The repeated-directive case first allocated 43.7 MB (a `go` line repeated
+  100,000 times appended a declaration each); the extractor now keeps the first
+  and a count. A first draft held `declaration.sourceKind` as a string and grew
+  the pin-file token-cap allocation from 199 KB to 328 KB, tripping
+  `TestEmitOverTheTokenCapUnderTheByteCapCountsWithoutStoring`; the section is a
+  byte in the struct's padding, so the pin path is unchanged (table above).
+- **RED to GREEN:** the 19 package.json and go.mod tests in
+  `packagejson_test.go` and `gomod_test.go` fail on the base commit with only
+  the new constants stubbed to compile (for example `TestEmitPackageJSONReadsEnginesVoltaAndPackageManager`: "emitted 0 facts, want 5"). Four stream tests in
+  `git/manifest_declaration_emission_test.go` fail with the manifest branch of
+  `NoteRuntimeDeclarationCandidate` disabled. `FuzzEmitManifestInvariants` ran 4.1
+  million executions in 40 seconds with no finding.
+- **Terminal counts:** the conformance fixture
+  (`TestSnapshotRepositoryRuntimeDeclarationConformanceFixture`) runs the real
+  discovery, parser registry and fact stream over a monorepo and asserts the
+  exact 14-fact list across 7 source kinds and 5 `scope_dir` values, with
+  `FactCount` equal to the envelopes drained. The content-version fixture
+  moves from 350 to 351 facts and `gitGenerationContentVersion` from
+  `git-collector.v12` to `git-collector.v13`.
+- **Why it is safe:** the work is pure parsing over a body already in memory:
+  no file read, query, lock, queue write or graph write. Emission order is path
+  order, so the stream stays deterministic. A delta generation re-emits only
+  the manifests it changed.
+
+Observability Evidence: the facts flow through the shared fact stream writer, so
+the existing per-generation fact count covers them. Two log events answer the
+3 AM question "why does this `package.json` or `go.mod` have no fact":
+WARN `git_runtime_declaration_file_skipped` now also carries `reason`
+`manifest_unparseable` (malformed or too deeply nested JSON) and
+`byte_cap_exceeded` with `byte_cap` 1,048,576 for a manifest, and WARN
+`git_runtime_declaration_values_rejected` with `rejected_count` says values were
+dropped by the credential guard while the file's other facts still emitted. Both
+carry `repository_id`, `scope_id`, `generation_id`, `relative_path` and
+`byte_size`, never file content or the rejected value
+(`TestStreamFactsNeverCarriesAManifestCredentialIntoAFactOrALog` plants a
+credential-shaped value and checks the facts and the log). A file with no
+section, a field this contract does not read, or a non-string value emits
+nothing and logs nothing, because it declared nothing. No metric, label or
+closed-reason enum changes. The reducer and query signals land with #8816 and
+#8817.
+
+Contract Evidence: no schema change. `source_kind` is an open-set string, so
+the five new values need no registry, JSON schema or fixture-pack change; the
+only edits under `sdk/go/factschema` are doc comments and the README, which
+say that `package.json` and `go.mod` name the section rather than the file and
+that `order_index` counts declarations on a line.
+
+## Credential guard (manifest values)
+
+`package.json` and `go.mod` are `store`-policy files (#8819), so their bodies
+reach the content store as written. The facts add no new exposure only if a
+value that is not a version cannot ride into `raw_spec`. The guard
+(`safeSpec`, `manifest.go`) admits a value only when it is 1 to 128 bytes of
+ASCII from the version and range grammar (letters, digits, space and
+`. + * ^ ~ < > = | , - / : @ $ { } _`), holds no run of 16 or more letters,
+digits or underscores, and does not contain `://`. The `packageManager` name is
+an allowlist (`npm`, `pnpm`, `yarn`, `bun`), and the integrity suffix after `+`
+is cut before the check, so the hash never reaches a fact. The seeded cases
+(built by concatenation) are a GitHub-style token, an AWS-style key, a
+Slack-style token, a JWT, a URL with a password and a version with a token
+tail, each in `engines`, `volta`, `packageManager` and the `go` and `toolchain`
+directives. A rejected value is dropped and counted, never truncated or masked.
+
+The guard is a heuristic, not a secret scanner, and the documentation says so:
+a short word in an alias position (`hunter2`) passes, because an alias is kept
+as written and a short word cannot be told from a tag name. It bounds what a
+fact can carry; the body stays under the content-store policy.
