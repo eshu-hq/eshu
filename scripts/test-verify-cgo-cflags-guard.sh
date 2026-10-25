@@ -159,7 +159,9 @@ else
 	check_guard "guard: compliant fixture passes" 0 "$t"
 
 	t="$(new_tree)"
-	good_workflow | sed '/^env:/,/^jobs:/{/^env:/d;/CGO_CFLAGS/d}' >"${t}/.github/workflows/bad.yml"
+	# Drop the workflow-level env stanza. awk, not sed: a one-line sed range
+	# with braces is rejected by BSD sed on macOS.
+	good_workflow | awk '/^env:/{drop=1; next} /^jobs:/{drop=0} !drop' >"${t}/.github/workflows/bad.yml"
 	check_guard "guard: workflow compiling Go without the flag FAILS" 1 "$t" "bad.yml"
 
 	t="$(new_tree)"
