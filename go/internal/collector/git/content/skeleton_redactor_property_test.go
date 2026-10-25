@@ -317,7 +317,9 @@ func FuzzRedactSkeleton(f *testing.F) {
 			in + "\nk = [<<EOF\nQqZzSeed9988: true\nEOF\n]\n",
 			in + "\nk = 1 /* c\nQqZzSeed9988: true\n*/\n",
 			in + "\n/* c */ y = 2 /* d\nQqZzSeed9988: 1\n*/\n",
-			in + "\nx = 1 /* see <<EOF\nEOF\nQqZzSeed9988: 1\n*/\n",
+			// The delimiter is private: an EOF line here could close a heredoc the
+			// fuzzed input left open, and the seed would then sit in plain code.
+			in + "\nx = 1 /* see <<QqZzEnd\nQqZzEnd\nQqZzSeed9988: 1\n*/\n",
 			in + "\n/* c */ x = <<EOF\nQqZzSeed9988: 1\nEOF\n",
 			in + "\n/* a\n*/ k = 1 /* b\nQqZzSeed9988: 1\n*/\n",
 		} {
