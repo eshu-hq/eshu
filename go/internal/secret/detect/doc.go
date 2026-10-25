@@ -3,7 +3,7 @@
 
 // Package detect holds the hardcoded-secret detector that
 // content_file_secret_lines is derived from (the eshu_secret_line_findings
-// function of migration 234, #8833, over the table and triggers of migration
+// function of migration 235, #8833, over the table and triggers of migration
 // 138), as Go values both the query layer and the content-store redactors bind
 // to.
 //

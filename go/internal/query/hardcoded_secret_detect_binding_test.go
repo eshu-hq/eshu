@@ -16,7 +16,11 @@ func detectArms() []secretLineCaseArm {
 	sources := detect.ArmSources()
 	arms := make([]secretLineCaseArm, 0, len(sources))
 	for _, source := range sources {
-		arms = append(arms, secretLineCaseArm{regex: source.Regex, kind: source.Kind})
+		op := "~*"
+		if source.CaseSensitive {
+			op = "~"
+		}
+		arms = append(arms, secretLineCaseArm{op: op, regex: source.Regex, kind: source.Kind})
 	}
 	return arms
 }
@@ -57,6 +61,11 @@ func TestHardcodedSecretDetectBindingFailsOnDetectOnlyEdits(t *testing.T) {
 	reordered[0], reordered[1] = reordered[1], reordered[0]
 	if err := verifyHardcodedSecretMigrationBinding(migrationSQL, detect.SQLPattern, predicate, reordered); err == nil {
 		t.Fatal("binding accepted a reordered CASE arm list")
+	}
+	insensitive := slices.Clone(arms)
+	insensitive[0].op = "~*"
+	if err := verifyHardcodedSecretMigrationBinding(migrationSQL, detect.SQLPattern, predicate, insensitive); err == nil {
+		t.Fatal("binding accepted a case-insensitive marker arm")
 	}
 	widened := slices.Clone(arms)
 	widened[len(widened)-1].regex += "|bearer"

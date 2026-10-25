@@ -11,7 +11,7 @@ import (
 
 // The detector pattern is written once, as parts, so the SQL form and the RE2
 // forms below cannot drift. The parts keep the POSIX bracket classes that
-// Postgres ARE and Go RE2 both accept. Migration 234 (#8833) extends migration
+// Postgres ARE and Go RE2 both accept. Migration 235 (#8833) extends migration
 // 138 with npmAuthIdent, JSON-quoted keys, URL userinfo, and HCL block openers.
 const (
 	// keyPrefixPattern matches a credential-named key, an optional closing
@@ -34,7 +34,7 @@ const (
 	blockOpenerPattern = `(password|passwd|pwd|api[_-]?key|apikey|token|secret|credential)s?[[:space:]]*=[[:space:]]*[{][ \t]*\r?(\n|$)`
 )
 
-// SQLPattern is the case-insensitive Postgres ARE pattern migration 234 applies
+// SQLPattern is the case-insensitive Postgres ARE pattern migration 235 applies
 // twice in eshu_secret_line_findings (file prefilter and line filter), each
 // time OR'd with a MarkerPrefix substring test. The query package's
 // hardcodedSecretSQLPattern is this constant.
@@ -50,7 +50,7 @@ const BlockOpenerPattern = blockOpenerPattern
 const MarkerPattern = MarkerPrefix + `(aws_access_key|private_key|slack_token|api_token|password_literal|secret_literal)`
 
 // MarkerPrefix opens every REDACTED_<finding_kind> marker the content-store
-// redactors write. Migration 234 gates a line on a case-sensitive substring
+// redactors write. Migration 235 gates a line on a case-sensitive substring
 // test for it, OR'd with SQLPattern, instead of a regex alternative: the
 // case-insensitive alternative inside the ARE gate cost 66% more derivation
 // time than the substring test (#8833 measurement).
@@ -81,35 +81,48 @@ type kindArm struct {
 	kind  string
 }
 
-// kindArmSources lists the CASE arms in migration 234 order. The marker arm
+// kindArmSources lists the CASE arms in migration 235 order. The marker arm
 // comes first, one arm per kind, so a redacted line keeps the kind its raw line
 // had; REDACTED_value matches none of them. The migration 138 arms follow
 // unchanged, so every line 138 classified keeps its kind. The extras' arms come
 // last.
-var kindArmSources = []struct{ Regex, Kind string }{
-	{MarkerPrefix + `aws_access_key`, "aws_access_key"},
-	{MarkerPrefix + `private_key`, "private_key"},
-	{MarkerPrefix + `slack_token`, "slack_token"},
-	{MarkerPrefix + `api_token`, "api_token"},
-	{MarkerPrefix + `password_literal`, "password_literal"},
-	{MarkerPrefix + `secret_literal`, "secret_literal"},
-	{`AKIA[0-9A-Z]{16}`, "aws_access_key"},
-	{`-----BEGIN [A-Z ]*PRIVATE KEY-----`, "private_key"},
-	{`xox[baprs]-[A-Za-z0-9-]{10,}`, "slack_token"},
-	{`(api[_-]?key|apikey|token)[[:space:]]*[:=]`, "api_token"},
-	{`(password|passwd|pwd)[[:space:]]*[:=]`, "password_literal"},
-	{`(secret|client[_-]?secret|private[_-]?key|authorization)[[:space:]]*[:=]`, "secret_literal"},
-	{`(api[_-]?key|apikey|token)s?['"]?[[:space:]]*[:=]`, "api_token"},
-	{`(password|passwd|pwd)s?['"]?[[:space:]]*[:=]`, "password_literal"},
-	{`(secret|client[_-]?secret|private[_-]?key|authorization|npm[_-]?auth[_-]?ident|credential)s?['"]?[[:space:]]*[:=]`, "secret_literal"},
-	{userinfoPattern, "password_literal"},
+var kindArmSources = []ArmSource{
+	{MarkerPrefix + `aws_access_key`, "aws_access_key", true},
+	{MarkerPrefix + `private_key`, "private_key", true},
+	{MarkerPrefix + `slack_token`, "slack_token", true},
+	{MarkerPrefix + `api_token`, "api_token", true},
+	{MarkerPrefix + `password_literal`, "password_literal", true},
+	{MarkerPrefix + `secret_literal`, "secret_literal", true},
+	{`AKIA[0-9A-Z]{16}`, "aws_access_key", false},
+	{`-----BEGIN [A-Z ]*PRIVATE KEY-----`, "private_key", false},
+	{`xox[baprs]-[A-Za-z0-9-]{10,}`, "slack_token", false},
+	{`(api[_-]?key|apikey|token)[[:space:]]*[:=]`, "api_token", false},
+	{`(password|passwd|pwd)[[:space:]]*[:=]`, "password_literal", false},
+	{`(secret|client[_-]?secret|private[_-]?key|authorization)[[:space:]]*[:=]`, "secret_literal", false},
+	{`(api[_-]?key|apikey|token)s?['"]?[[:space:]]*[:=]`, "api_token", false},
+	{`(password|passwd|pwd)s?['"]?[[:space:]]*[:=]`, "password_literal", false},
+	{`(secret|client[_-]?secret|private[_-]?key|authorization|npm[_-]?auth[_-]?ident|credential)s?['"]?[[:space:]]*[:=]`, "secret_literal", false},
+	{userinfoPattern, "password_literal", false},
+}
+
+// ArmSource is one WHEN arm of the derivation CASE: its regular expression in
+// Postgres syntax, the kind it names, and whether the migration applies it
+// with the case-sensitive ~ (the marker arms, ruling-2 on #8833) instead of ~*.
+type ArmSource struct {
+	Regex         string
+	Kind          string
+	CaseSensitive bool
 }
 
 var (
 	kindArms = func() []kindArm {
 		arms := make([]kindArm, 0, len(kindArmSources))
 		for _, source := range kindArmSources {
-			arms = append(arms, kindArm{regex: regexp.MustCompile(goPattern(source.Regex)), kind: source.Kind})
+			pattern := goPattern(source.Regex)
+			if source.CaseSensitive {
+				pattern = source.Regex
+			}
+			arms = append(arms, kindArm{regex: regexp.MustCompile(pattern), kind: source.Kind})
 		}
 		return arms
 	}()
@@ -119,10 +132,10 @@ var (
 	spanPattern = regexp.MustCompile(goPattern(keyPrefixPattern + "(" + valuePattern + ")|" + shapePattern + "|" + userinfoPattern + "|" + blockOpenerPattern))
 )
 
-// ArmSources returns the migration 138 CASE arms as (regex, kind) pairs in
-// order, so a test can compare them with the migration text.
-func ArmSources() []struct{ Regex, Kind string } {
-	out := make([]struct{ Regex, Kind string }, len(kindArmSources))
+// ArmSources returns the derivation CASE arms in order, so a test can compare
+// them with the migration text and the legacy scan can render them.
+func ArmSources() []ArmSource {
+	out := make([]ArmSource, len(kindArmSources))
 	copy(out, kindArmSources)
 	return out
 }
@@ -138,7 +151,7 @@ func Kinds() []string {
 	return kinds
 }
 
-// Finding returns the finding kind migration 234 stores for one line, or ""
+// Finding returns the finding kind migration 235 stores for one line, or ""
 // when the line is no finding: the line gate (a MarkerPrefix substring or an
 // SQLPattern match) must pass and the CASE must name a kind.
 func Finding(line string) string {
@@ -148,7 +161,7 @@ func Finding(line string) string {
 	return Classify(line)
 }
 
-// Classify returns the finding kind migration 234 gives one line, or "" when no
+// Classify returns the finding kind migration 235 gives one line, or "" when no
 // arm matches. It is the CASE only: the line gate is Finding.
 func Classify(line string) string {
 	for _, arm := range kindArms {

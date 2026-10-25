@@ -12,6 +12,16 @@ tests:
     class: verified_scheduled
     reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 2 storage tests in 1 file, 40.885s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
     runner: postgres-scheduled
+  - file: go/internal/storage/postgres/content_file_secret_lines_policy_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "#8833 ruling-3 migration proof in the postgres-scheduled runner's disposable_storage group; disposable template0 database"
+    runner: postgres-scheduled
+  - file: go/internal/storage/postgres/content_file_secret_lines_policy_writers_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "#8833 ruling-3 migration proof in the postgres-scheduled runner's disposable_storage group; disposable template0 database"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/content_file_secret_lines_writebench_live_test.go
     tag: ~
     class: scheduled

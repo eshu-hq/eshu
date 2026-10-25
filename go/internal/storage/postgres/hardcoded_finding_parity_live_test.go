@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8833 engine-parity proof that migration 234's eshu_secret_line_findings (Postgres ARE) and go/internal/secret/detect.Finding (Go RE2) report the same (line_number, finding_kind) for every line of the gap-table, six-kind marker, extras, and multi-line corpus, with the known Go-superset Unicode lines asserted explicitly; isolated bootstrapped schema per test
+//eshu:readiness:reason #8833 engine-parity proof that migration 235's eshu_secret_line_findings (Postgres ARE) and go/internal/secret/detect.Finding (Go RE2) report the same (line_number, finding_kind) for every line of the gap-table, six-kind marker, extras, and multi-line corpus, with the known Go-superset Unicode lines asserted explicitly; isolated bootstrapped schema per test
 //eshu:readiness:env ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN
 
 import (

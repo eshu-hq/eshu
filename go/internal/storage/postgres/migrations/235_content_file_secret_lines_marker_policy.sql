@@ -4,13 +4,17 @@
 -- Hardcoded-secret detector: marker arm and the #8813 extras (#8833).
 --
 -- Replaces eshu_secret_line_findings from migration 138, which is never
--- edited. The content-store redactors (#8812, #8833) store a credential line as
+-- edited, and takes the side table's readiness away in the same transaction so
+-- the reducer's repair rebuilds it under the new policy (#8833 ruling-3). The
+-- content-store redactors (#8812, #8833) store a credential line as
 -- REDACTED_<finding_kind>; under 138 a marked aws_access_key, slack_token, or
 -- private_key line lost its finding because the CASE read the value shape
--- first. This version:
+-- first. The new function:
 --
--- * puts a marker arm first in the CASE, one arm per kind, so a marked line
---   keeps the kind its raw line had. REDACTED_value matches none of them;
+-- * puts a marker arm first in the CASE, one arm per kind, matched with the
+--   case-sensitive ~, so a marked line keeps the kind its raw line had and a
+--   user line that spells a marker in another case keeps its own kind.
+--   REDACTED_value matches none of them;
 -- * gates a line on a case-sensitive strpos(..., 'REDACTED_') OR the regex,
 --   at file and line level. The substring test is the marker arm's place in
 --   the gate: a case-insensitive REDACTED_ alternative inside the ARE cost 66%
@@ -31,9 +35,15 @@
 -- go/internal/query/hardcoded_secret_migration_binding_test.go; changing any
 -- of them needs a new migration.
 --
--- This file replaces the function only: CREATE OR REPLACE FUNCTION takes no
--- table lock, so content writes keep running. The triggers from 138 call the
--- function by name, so every write after this commits derives with it.
+-- Neither statement locks content_files, so content writes keep running. The
+-- triggers from 138 call the function by name, so every write after this
+-- commits derives with it. The UPDATE moves the state row to not_built with a
+-- new epoch only while policy_version (migration 234) is below 235, so the
+-- local supervisor, which re-applies every migration at each start, changes
+-- nothing on a second apply. Until the reducer's repair publishes ready for
+-- the new epoch, investigate_hardcoded_secrets reads use the legacy content
+-- scan, whose CASE says what this function says. Both statements run as one
+-- transaction, so no reader sees the new function with the old readiness.
 CREATE OR REPLACE FUNCTION eshu_secret_line_findings(file_content TEXT)
 RETURNS TABLE (line_number INTEGER, line_text TEXT, finding_kind TEXT)
 LANGUAGE sql
@@ -46,12 +56,12 @@ AS $fn$
             lines.line_number::int AS line_number,
             lines.line_text,
             CASE
-                WHEN lines.line_text ~* 'REDACTED_aws_access_key' THEN 'aws_access_key'
-                WHEN lines.line_text ~* 'REDACTED_private_key' THEN 'private_key'
-                WHEN lines.line_text ~* 'REDACTED_slack_token' THEN 'slack_token'
-                WHEN lines.line_text ~* 'REDACTED_api_token' THEN 'api_token'
-                WHEN lines.line_text ~* 'REDACTED_password_literal' THEN 'password_literal'
-                WHEN lines.line_text ~* 'REDACTED_secret_literal' THEN 'secret_literal'
+                WHEN lines.line_text ~ 'REDACTED_aws_access_key' THEN 'aws_access_key'
+                WHEN lines.line_text ~ 'REDACTED_private_key' THEN 'private_key'
+                WHEN lines.line_text ~ 'REDACTED_slack_token' THEN 'slack_token'
+                WHEN lines.line_text ~ 'REDACTED_api_token' THEN 'api_token'
+                WHEN lines.line_text ~ 'REDACTED_password_literal' THEN 'password_literal'
+                WHEN lines.line_text ~ 'REDACTED_secret_literal' THEN 'secret_literal'
                 WHEN lines.line_text ~* 'AKIA[0-9A-Z]{16}' THEN 'aws_access_key'
                 WHEN lines.line_text ~* '-----BEGIN [A-Z ]*PRIVATE KEY-----' THEN 'private_key'
                 WHEN lines.line_text ~* 'xox[baprs]-[A-Za-z0-9-]{10,}' THEN 'slack_token'
@@ -70,3 +80,15 @@ AS $fn$
     ) AS d
     WHERE d.finding_kind <> ''
 $fn$;
+
+UPDATE content_file_secret_lines_state
+SET state = 'not_built',
+    epoch = epoch + 1,
+    policy_version = 235,
+    build_started_at = NULL,
+    build_completed_at = NULL,
+    failed_at = NULL,
+    failure_class = '',
+    updated_at = clock_timestamp()
+WHERE singleton = TRUE
+  AND policy_version < 235;

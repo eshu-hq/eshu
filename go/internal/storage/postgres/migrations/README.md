@@ -92,6 +92,14 @@ the idempotent seed or backfill in migration N+1. Do not write a plain
 `CREATE TABLE` to earn the exemption below. It is not re-runnable and fails on
 the second local start.
 
+234 and 235 (#8833 ruling-3) are the split form for a derivation change. 234
+adds `policy_version` to the one-row `content_file_secret_lines_state` (an
+ALTER alone). 235 replaces `eshu_secret_line_findings` and, in the same
+message, moves that row to `not_built` with a new epoch only
+`WHERE policy_version < 235`, so a re-apply changes nothing. Neither touches
+`content_files`; the reducer's `lines.Repairer` rebuilds the side table outside
+the migration, and reads use the legacy scan until it publishes.
+
 The `migration-immutability` gate checks every added file
 (`scripts/lib/migration_lock_shape.py`). It is a static check:
 

@@ -136,15 +136,17 @@ import (
 // partial latest-work-item-per-scope index for the security-alert collection
 // read; the full-index 230 draft was renumbered off main's 230-232,
 // and the comment figures re-aligned with the measurements).
-// #8833 adds 234_content_file_secret_lines_marker_arm.sql (the detector's
-// marker arm and extras; a CREATE OR REPLACE FUNCTION only).
-const goldenBootstrapDefinitionsDigest = "329b9d0375fef0fd60d2b6fbc757ec2006795fdd66ba040c84b0b22976f558be"
+// #8833 adds 234_content_file_secret_lines_policy_version.sql (one ALTER TABLE
+// on the one-row state table) and 235_content_file_secret_lines_marker_policy.sql
+// (the detector's marker arm and extras, plus a conditional one-row state
+// UPDATE; ruling-3).
+const goldenBootstrapDefinitionsDigest = "49ed5e26c852aeaf59df89979d105b407af91ed45ad04f772158ad923699b369"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 252
+const goldenBootstrapDefinitionsCount = 253
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

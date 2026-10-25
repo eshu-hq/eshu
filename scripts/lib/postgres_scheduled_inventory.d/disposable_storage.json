@@ -7,6 +7,21 @@
       "TestContentFileSecretLinesRetentionPruneCascadesLive"
     ]
   },
+  "go/internal/storage/postgres/content_file_secret_lines_policy_live_test.go": {
+    "group": "disposable_storage",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSecretLinesPolicyMigrationFlipsReadinessOnceLive",
+      "TestSecretLinesPolicyMigrationIsOneTransactionLive"
+    ]
+  },
+  "go/internal/storage/postgres/content_file_secret_lines_policy_writers_live_test.go": {
+    "group": "disposable_storage",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestSecretLinesPolicyMigrationUnderWritersLive"
+    ]
+  },
   "go/internal/storage/postgres/supply_chain_runtime_filter_index_restart_live_test.go": {
     "group": "disposable_storage",
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",

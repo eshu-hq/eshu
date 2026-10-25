@@ -12,15 +12,19 @@ Go source of truth for the hardcoded-secret detector behind
 
 ## Contract
 
-- `SQLPattern` is the case-insensitive Postgres ARE pattern of migration 234
+- `SQLPattern` is the case-insensitive Postgres ARE pattern of migration 235
   (#8833). It concatenates the key-prefix, value, shape, URL-userinfo, and
   HCL block-opener parts, so the RE2 forms here cannot drift from it.
-- `MarkerPrefix` (`REDACTED_`) is the substring migration 234 OR's with
+- `MarkerPrefix` (`REDACTED_`) is the substring migration 235 OR's with
   `SQLPattern` at file and line level: the marker arm's place in the gate.
 - `ArmSources` lists the CASE arms in migration order: one marker arm per
   kind first (so a `REDACTED_<kind>` line keeps its kind; `REDACTED_value`
   matches none), then the six migration 138 arms unchanged, then the extras'
-  arms. `Kinds` returns the six kinds in order of first appearance.
+  arms. Each `ArmSource` says whether the migration applies it with the
+  case-sensitive `~`: only the marker arms, so a user line that spells a
+  marker in another case (`redacted_slack_token = ...`) keeps the kind its own
+  key gives it (ruling-2 on #8833). `Kinds` returns the six kinds in order of
+  first appearance.
 - `Classify` returns the CASE kind of one line or `""`.
 - `Finding` is the stored finding: the gate (marker prefix or a `Spans` match)
   and then `Classify`. The redactors and the differential tests use it.
@@ -31,6 +35,6 @@ Go source of truth for the hardcoded-secret detector behind
 
 Migration 138 did not detect `npmAuthIdent`, `user:pass@` userinfo, JSON-quoted
 keys, or secret-named block openers, and it lost a redacted
-`aws_access_key`, `slack_token`, or `private_key` line. Migration 234 adds all
+`aws_access_key`, `slack_token`, or `private_key` line. Migration 235 adds all
 of them; the engine-parity live test compares this package with the migration
 over the gap-table corpus.

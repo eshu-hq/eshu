@@ -382,12 +382,17 @@ recent shipped work grouped by feature area.
   registry and proxy URLs replaced. Parser facts, path search, the tree, and the
   counts are unchanged. The registry fingerprint moves, so each repository
   re-collects once at its next forced snapshot.
-- **Migration 234: marker arm and detector extras.** `eshu_secret_line_findings`
-  now keeps a `REDACTED_<kind>` line's raw kind, and detects `npmAuthIdent`,
-  JSON-quoted keys, `user:pass@` URL userinfo, and HCL blocks that name a secret.
-  It is a function replace with no table lock. On a 150k-file corpus it adds
-  7,947 findings to 16,403 (none lost) and costs 24 to 33% more per derived
-  file; see `docs/internal/evidence/8833-detector-migration.md`.
+- **Migrations 234 and 235: marker arm and detector extras.**
+  `eshu_secret_line_findings` now keeps a `REDACTED_<kind>` line's raw kind
+  (a case-sensitive marker arm), and detects `npmAuthIdent`, JSON-quoted keys,
+  `user:pass@` URL userinfo, and HCL blocks that name a secret. 234 adds
+  `policy_version` to the side table's state row. 235 replaces the function
+  and, in the same transaction, moves the state to `not_built`; the reducer's
+  repair then rebuilds the side table, and until it publishes, investigation
+  reads use the legacy scan, which applies the same policy. Neither migration
+  locks `content_files`. On a 150k-file corpus the new function adds 7,947
+  findings to 16,403 (none lost) and costs 24 to 33% more per derived file;
+  see `docs/internal/evidence/8833-detector-migration.md`.
 - **`eshu_dp_content_policy_raw_rows`** counts raw credential lines still
   stored on governed paths; it is the exit signal of the #8813 cleanup runbook.
 

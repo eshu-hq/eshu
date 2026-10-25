@@ -5,6 +5,7 @@ package detect_test
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/secret/detect"
@@ -120,5 +121,30 @@ func TestMarkerPatternNamesTheSixKinds(t *testing.T) {
 	}
 	if !regexp.MustCompile("(?i)" + detect.BlockOpenerPattern).MatchString("app_secrets = {") {
 		t.Error("BlockOpenerPattern misses app_secrets = {")
+	}
+}
+
+// TestMarkerArmIsCaseSensitive pins ruling-2 on #8833: the marker arm matches
+// the exact REDACTED_<kind> the redactors write and nothing else, so a user
+// line that happens to spell a marker in another case keeps the kind its own
+// key or shape gives it.
+func TestMarkerArmIsCaseSensitive(t *testing.T) {
+	t.Parallel()
+
+	for line, want := range map[string]string{
+		"redacted_slack_token = abcdefghij":    "api_token",
+		"password: redacted_aws_access_key":    "password_literal",
+		"secret = Redacted_Private_Key_backup": "secret_literal",
+		"x = REDACTED_slack_token":             "slack_token",
+	} {
+		if got := detect.Finding(line); got != want {
+			t.Errorf("Finding(%q) = %q, want %q", line, got, want)
+		}
+	}
+	for _, arm := range detect.ArmSources() {
+		marker := strings.HasPrefix(arm.Regex, detect.MarkerPrefix)
+		if arm.CaseSensitive != marker {
+			t.Errorf("arm %q CaseSensitive = %v, want %v (only the marker arms are case-sensitive)", arm.Regex, arm.CaseSensitive, marker)
+		}
 	}
 }

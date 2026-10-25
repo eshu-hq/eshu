@@ -60,7 +60,7 @@ func TestSQLPatternIsTheComposedKeyAndShapeBranches(t *testing.T) {
 		`|//[^/?#@[:space:]:]+:[^/?#@[:space:]]+@` +
 		`|(password|passwd|pwd|api[_-]?key|apikey|token|secret|credential)s?[[:space:]]*=[[:space:]]*[{][ \t]*\r?(\n|$)`
 	if detect.SQLPattern != want {
-		t.Fatalf("SQLPattern = %q, want the migration 234 pattern", detect.SQLPattern)
+		t.Fatalf("SQLPattern = %q, want the migration 235 pattern", detect.SQLPattern)
 	}
 	if detect.MarkerPrefix != "REDACTED_" {
 		t.Fatalf("MarkerPrefix = %q", detect.MarkerPrefix)

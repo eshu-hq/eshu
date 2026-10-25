@@ -14,7 +14,7 @@ import (
 // builder, kept as a test-only golden. It was lifted mechanically from
 // InvestigateHardcodedSecrets at b7a0d0e367 (git show of
 // content_reader_security_secrets.go) with only the function shell and the
-// filter helper renamed, then given migration 234's marker-prefix gate and CASE
+// filter helper renamed, then given migration 235's marker-prefix gate and CASE
 // arms (#8833), written out here so the generated production CASE is checked
 // against a frozen copy; it still interpolates the production
 // hardcodedSecretSQLPattern and hardcodedSecretSQLSuppressionPredicate.
@@ -49,12 +49,12 @@ func legacyHardcodedSecretInvestigationQuery(
 		    lines.line_number::int AS line_number,
 		    lines.line_text,
 		    CASE
-		      WHEN lines.line_text ~* 'REDACTED_aws_access_key' THEN 'aws_access_key'
-		      WHEN lines.line_text ~* 'REDACTED_private_key' THEN 'private_key'
-		      WHEN lines.line_text ~* 'REDACTED_slack_token' THEN 'slack_token'
-		      WHEN lines.line_text ~* 'REDACTED_api_token' THEN 'api_token'
-		      WHEN lines.line_text ~* 'REDACTED_password_literal' THEN 'password_literal'
-		      WHEN lines.line_text ~* 'REDACTED_secret_literal' THEN 'secret_literal'
+		      WHEN lines.line_text ~ 'REDACTED_aws_access_key' THEN 'aws_access_key'
+		      WHEN lines.line_text ~ 'REDACTED_private_key' THEN 'private_key'
+		      WHEN lines.line_text ~ 'REDACTED_slack_token' THEN 'slack_token'
+		      WHEN lines.line_text ~ 'REDACTED_api_token' THEN 'api_token'
+		      WHEN lines.line_text ~ 'REDACTED_password_literal' THEN 'password_literal'
+		      WHEN lines.line_text ~ 'REDACTED_secret_literal' THEN 'secret_literal'
 		      WHEN lines.line_text ~* 'AKIA[0-9A-Z]{16}' THEN 'aws_access_key'
 		      WHEN lines.line_text ~* '-----BEGIN [A-Z ]*PRIVATE KEY-----' THEN 'private_key'
 		      WHEN lines.line_text ~* 'xox[baprs]-[A-Za-z0-9-]{10,}' THEN 'slack_token'

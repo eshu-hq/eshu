@@ -42,7 +42,7 @@ body. Rules that keep it safe:
   writes it.
 - The redactor binds to `go/internal/secret/detect`; do not copy its pattern.
   `TestRedactMarkerPerKindKeepsKindUnderMarkerArm` pins that every marked line
-  keeps its raw kind under the migration 234 marker arm (it pinned the measured
+  keeps its raw kind under the migration 235 marker arm (it pinned the measured
   migration 138 losses before #8833); do not loosen it.
 - Keep `redactMarker` fail-closed for YAML value shapes. A new key shape needs a
   seeded-violation test in `marker_redactor_test.go`.

@@ -3,7 +3,7 @@
 ## Read first
 
 1. `README.md` — the contract and the gaps owned by #8833
-2. `go/internal/storage/postgres/migrations/234_content_file_secret_lines_marker_arm.sql` —
+2. `go/internal/storage/postgres/migrations/235_content_file_secret_lines_marker_policy.sql` —
    the function this package mirrors (138 holds the table and triggers)
 3. `go/internal/query/hardcoded_secret_migration_binding_test.go` — the binding
    test that pins this package to the migration
@@ -11,7 +11,7 @@
 ## Invariants
 
 - Never edit a value here without a new migration that replaces
-  `eshu_secret_line_findings` and re-derives the table. Migrations 138 and 234
+  `eshu_secret_line_findings` and re-derives the table. Migrations 138 and 235
   are never edited after they ship.
 - Keep the marker arm first and keep `REDACTED_value` out of it; the
   content-store redactors depend on both.

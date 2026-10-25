@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8833 disposable PostgreSQL proof that a seeded .yarnrc.yml and terraform.tfvars, stored through the default registry's marker and skeleton policies and the production content writer, keep every raw hardcoded-secret finding at its original line with its raw kind in content_file_secret_lines (the side table investigate_hardcoded_secrets reads) under migration 233, and that no seeded credential reaches content, content_lower, or line_text; isolated bootstrapped schema per test
+//eshu:readiness:reason #8833 disposable PostgreSQL proof that a seeded .yarnrc.yml and terraform.tfvars, stored through the default registry's marker and skeleton policies and the production content writer, keep every raw hardcoded-secret finding at its original line with its raw kind in content_file_secret_lines (the side table investigate_hardcoded_secrets reads) under migration 235, and that no seeded credential reaches content, content_lower, or line_text; isolated bootstrapped schema per test
 //eshu:readiness:env ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN
 
 import (

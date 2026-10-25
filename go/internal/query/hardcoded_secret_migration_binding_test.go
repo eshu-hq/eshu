@@ -24,7 +24,7 @@ var secretLinesFunctionPattern = regexp.MustCompile(`(?s)CREATE OR REPLACE FUNCT
 // secretLinesMigrationSQL returns the effective schema of the hardcoded-secret
 // side table: migration 138 (the table, its suppressed column, the triggers,
 // and readiness) with its eshu_secret_line_findings replaced by the latest
-// migration that redefines the function (234, #8833). Bootstrap applies every
+// migration that redefines the function (235, #8833). Bootstrap applies every
 // file in path order, so the latest definition is the one that runs.
 func secretLinesMigrationSQL(t testing.TB) string {
 	t.Helper()
@@ -47,20 +47,22 @@ func secretLinesMigrationSQL(t testing.TB) string {
 }
 
 var (
-	secretLinesCaseArmPattern   = regexp.MustCompile(`WHEN\s+lines\.line_text\s+~\*\s+'((?:[^']|'')*)'\s+THEN\s+'([a-z_]+)'`)
+	secretLinesCaseArmPattern   = regexp.MustCompile(`WHEN\s+lines\.line_text\s+(~\*?)\s+'((?:[^']|'')*)'\s+THEN\s+'([a-z_]+)'`)
 	secretLinesGeneratedPattern = regexp.MustCompile(`(?s)GENERATED\s+ALWAYS\s+AS\s*\((.*?)\)\s*STORED`)
 )
 
-// secretLineCaseArm is one WHEN regex THEN kind arm of the classification CASE.
-type secretLineCaseArm struct{ regex, kind string }
+// secretLineCaseArm is one WHEN regex THEN kind arm of the classification CASE;
+// op is ~ (case-sensitive, the marker arms) or ~*.
+type secretLineCaseArm struct{ op, regex, kind string }
 
 func secretLineCaseArms(sqlText string) []secretLineCaseArm {
 	matches := secretLinesCaseArmPattern.FindAllStringSubmatch(sqlText, -1)
 	arms := make([]secretLineCaseArm, 0, len(matches))
 	for _, match := range matches {
 		arms = append(arms, secretLineCaseArm{
-			regex: strings.ReplaceAll(match[1], "''", "'"),
-			kind:  match[2],
+			op:    match[1],
+			regex: strings.ReplaceAll(match[2], "''", "'"),
+			kind:  match[3],
 		})
 	}
 	return arms

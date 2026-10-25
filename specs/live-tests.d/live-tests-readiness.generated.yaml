@@ -662,7 +662,7 @@ tests:
   - file: go/internal/storage/postgres/content_policy_findings_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8833 disposable PostgreSQL proof that a seeded .yarnrc.yml and terraform.tfvars, stored through the default registry's marker and skeleton policies and the production content writer, keep every raw hardcoded-secret finding at its original line with its raw kind in content_file_secret_lines (the side table investigate_hardcoded_secrets reads) under migration 233, and that no seeded credential reaches content, content_lower, or line_text; isolated bootstrapped schema per test"
+    reason: "#8833 disposable PostgreSQL proof that a seeded .yarnrc.yml and terraform.tfvars, stored through the default registry's marker and skeleton policies and the production content writer, keep every raw hardcoded-secret finding at its original line with its raw kind in content_file_secret_lines (the side table investigate_hardcoded_secrets reads) under migration 235, and that no seeded credential reaches content, content_lower, or line_text; isolated bootstrapped schema per test"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/content_policy_raw_rows_live_test.go
     tag: ~
@@ -842,7 +842,7 @@ tests:
   - file: go/internal/storage/postgres/hardcoded_finding_parity_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8833 engine-parity proof that migration 234's eshu_secret_line_findings (Postgres ARE) and go/internal/secret/detect.Finding (Go RE2) report the same (line_number, finding_kind) for every line of the gap-table, six-kind marker, extras, and multi-line corpus, with the known Go-superset Unicode lines asserted explicitly; isolated bootstrapped schema per test"
+    reason: "#8833 engine-parity proof that migration 235's eshu_secret_line_findings (Postgres ARE) and go/internal/secret/detect.Finding (Go RE2) report the same (line_number, finding_kind) for every line of the gap-table, six-kind marker, extras, and multi-line corpus, with the known Go-superset Unicode lines asserted explicitly; isolated bootstrapped schema per test"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/identity_epoch_active_set_live_test.go
     tag: ~

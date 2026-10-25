@@ -246,7 +246,7 @@ func hardcodedSecretFilters(req codequery.HardcodedSecretInvestigationRequest) (
 // hardcodedSecretLegacyScanQuery builds the corpus-scan read that served the
 // investigation before migration 138 (#7125) and now serves it while
 // content_file_secret_lines is not published ready. It classifies as the side
-// table's derivation function does (migration 234, #8833): the marker-prefix
+// table's derivation function does (migration 235, #8833): the marker-prefix
 // substring gate OR'd with hardcodedSecretSQLPattern, and the CASE arms from
 // go/internal/secret/detect. hardcoded_secret_legacy_golden_test.go keeps a
 // frozen copy and a guard requires this query to equal it byte for byte for
@@ -307,7 +307,11 @@ func hardcodedSecretLegacyScanQuery(
 func hardcodedSecretSQLCaseArms() string {
 	var b strings.Builder
 	for _, arm := range detect.ArmSources() {
-		fmt.Fprintf(&b, "\t\t      WHEN lines.line_text ~* '%s' THEN '%s'\n", strings.ReplaceAll(arm.Regex, "'", "''"), arm.Kind)
+		op := "~*"
+		if arm.CaseSensitive {
+			op = "~"
+		}
+		fmt.Fprintf(&b, "\t\t      WHEN lines.line_text %s '%s' THEN '%s'\n", op, strings.ReplaceAll(arm.Regex, "'", "''"), arm.Kind)
 	}
 	return b.String()
 }
