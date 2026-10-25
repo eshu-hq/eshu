@@ -54,10 +54,14 @@
 
 - **Content-store policy binds only through a definition** — `Definition.ContentStore`
   (`store`, `metadata`, `redact`) is applied by the git collector at the write
-  boundary (`go/internal/collector/git/content`). No production definition may
-  bind `metadata` or `redact` until #8833 lands the detector's marker arm; a
-  `redact` definition needs a redactor mode and a credential-key list, which
-  `NewRegistry` validates. See `registry_content_store.go`.
+  boundary (`go/internal/collector/git/content`). `.npmrc` already binds
+  `metadata` (#8978). No production definition may bind `redact` until #8833
+  lands the detector's marker arm (migration 233); the `.yarnrc.yml` and
+  `*.tfvars` bindings ship with it. A `redact` definition needs a redactor
+  mode, which `NewRegistry` validates: `marker` (closed schema) needs a credential-key list and may add a disjoint
+  `URLUserinfoKeys` list (URL-valued keys that lose only their userinfo);
+  `skeleton` (open schema, #8833) is an allowlist and takes no key list. See
+  `registry_content_store.go`.
 
 - **Admission labels are metadata** — every `defaultDefinitions` entry carries
   `Ecosystem` and `Admission`. Neither feeds lookup or `Registry.Fingerprint`
