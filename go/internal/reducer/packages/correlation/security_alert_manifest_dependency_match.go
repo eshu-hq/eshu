@@ -67,6 +67,8 @@ func ExtractSecurityAlertManifestConsumptions(
 				DirectDependency: payloadcore.CloneBoolPointer(dependency.DirectDependency),
 				DependencyScope:  dependency.DependencyScope,
 				Lockfile:         dependency.Lockfile,
+
+				DependencyResolutionState: dependency.DependencyResolutionState,
 			})
 		}
 	}

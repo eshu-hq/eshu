@@ -42,6 +42,9 @@ func securityAlertObservedVersion(
 	if observedVersion := strings.TrimSpace(consumption.ObservedVersion); observedVersion != "" {
 		return observedVersion
 	}
+	if strings.EqualFold(strings.TrimSpace(consumption.DependencyResolutionState), "unresolved") {
+		return ""
+	}
 	if manifestVersion, ok := exactConsumptionDependencyVersion(
 		alert.Ecosystem,
 		consumption.Lockfile,

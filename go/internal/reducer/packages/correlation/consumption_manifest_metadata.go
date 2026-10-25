@@ -23,8 +23,24 @@ func packageManifestMetadataString(payload map[string]any, key string) string {
 	return payloadcore.PayloadStr(raw, key)
 }
 
+// dependencyResolutionStateUnresolved is the state the Gradle, Maven, and sbt
+// parsers give a row whose version they could not read as one exact version.
+const dependencyResolutionStateUnresolved = "unresolved"
+
+// packageManifestObservedVersion returns the exact version a manifest or
+// lockfile row observed, or "" when it observed none. A row a parser marked
+// dependency_resolution_state=unresolved never observes a version: the parser
+// kept its text as written (a Gradle map-form "1.0:jdk8", a "1.0!" the Gradle
+// rule rejects, an sbt identifier it could not resolve), and the exact-version
+// check below is a cross-ecosystem backstop that accepts some of those. A
+// partial row keeps the backstop's answer, because an sbt row whose scope is a
+// placeholder still carries its exact literal. Ecosystems that emit no state
+// are unaffected.
 func packageManifestObservedVersion(payload map[string]any, packageManager string, lockfile bool) string {
 	if !packageManifestCanObserveExactVersion(packageManager, lockfile) {
+		return ""
+	}
+	if strings.EqualFold(strings.TrimSpace(packageManifestMetadataString(payload, "dependency_resolution_state")), dependencyResolutionStateUnresolved) {
 		return ""
 	}
 	for _, key := range []string{"resolved_version", "value"} {
