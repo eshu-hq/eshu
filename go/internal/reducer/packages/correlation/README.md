@@ -66,6 +66,29 @@ One-way imports only: this package reads the shared tier (`contract`,
 parent reducer package. The parent references it only through
 `correlation`-qualified names.
 
+## Evidence
+
+No-Regression Evidence: the unresolved-row observed-version fix (issue
+#9101) adds one string equality check on `dependency_resolution_state`
+before the existing syntactic gate in `packageManifestObservedVersion` —
+constant time, no allocations, no new branches downstream. Baseline is the
+suite green before the change; after measurement is the same suites green
+after it, plus the two new red-first regression tests:
+
+```bash
+go test -count=1 ./internal/reducer/packages/correlation/ ./internal/reducer/ \
+  ./internal/reducer/payloadcore/ ./internal/reducer/securityalert/
+```
+
+Input shape is manifest payload maps carrying `dependency_resolution_state`
+`unresolved` with exact-looking literals (`1.0!`, `1.0.0+build.1`); resolved
+and key-absent rows take the byte-identical old path, proven by the
+unchanged suites. No backend, storage, queue, or graph write is involved —
+the predicate runs in memory during projection.
+
+No-Observability-Change: no metric, span, log line, or status field changes;
+the existing decision fields already surface the row state.
+
 ## Evidence (#8961)
 
 Performance Evidence: `go test -run '^$' -bench BenchmarkManifestConsumptionKeys

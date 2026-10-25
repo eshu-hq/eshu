@@ -6,9 +6,7 @@ package parser
 import (
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/content"
@@ -96,14 +94,14 @@ func (e *Engine) ParsePath(
 
 // PreScanPaths returns the import-map contract used by the collector prescan path.
 func (e *Engine) PreScanPaths(paths []string) (map[string][]string, error) {
-	importsMap, _, err := e.preScanPathsWithRoot("", paths, 1)
+	importsMap, _, _, err := e.preScanPathsWithRoot("", paths, 1, false)
 	return importsMap, err
 }
 
 // PreScanRepositoryPaths returns the import-map contract used by collectors
 // that already know the repository root and want prescan logic bounded to it.
 func (e *Engine) PreScanRepositoryPaths(repoRoot string, paths []string) (map[string][]string, error) {
-	importsMap, _, err := e.preScanPathsWithRoot(repoRoot, paths, 1)
+	importsMap, _, _, err := e.preScanPathsWithRoot(repoRoot, paths, 1, false)
 	return importsMap, err
 }
 
@@ -112,7 +110,7 @@ func (e *Engine) PreScanRepositoryPaths(repoRoot string, paths []string) (map[st
 // so callers keep deterministic output ordering while large repositories avoid
 // a single serial parser bottleneck before the normal parse stage.
 func (e *Engine) PreScanRepositoryPathsWithWorkers(repoRoot string, paths []string, workers int) (map[string][]string, error) {
-	importsMap, _, err := e.preScanPathsWithRoot(repoRoot, paths, workers)
+	importsMap, _, _, err := e.preScanPathsWithRoot(repoRoot, paths, workers, false)
 	return importsMap, err
 }
 
@@ -138,127 +136,26 @@ type PreScanFileStat struct {
 func (e *Engine) PreScanRepositoryPathsWithWorkersStats(
 	repoRoot string, paths []string, workers int,
 ) (map[string][]string, []PreScanFileStat, error) {
-	return e.preScanPathsWithRoot(repoRoot, paths, workers)
+	importsMap, stats, _, err := e.preScanPathsWithRoot(repoRoot, paths, workers, false)
+	return importsMap, stats, err
 }
 
-func (e *Engine) preScanPathsWithRoot(repoRoot string, paths []string, workers int) (map[string][]string, []PreScanFileStat, error) {
+func (e *Engine) preScanPathsWithRoot(
+	repoRoot string, paths []string, workers int, tolerateOversize bool,
+) (map[string][]string, []PreScanFileStat, []PreScanSkip, error) {
 	resolvedRepoRoot := strings.TrimSpace(repoRoot)
 	if resolvedRepoRoot != "" {
 		absRepoRoot, err := filepath.Abs(resolvedRepoRoot)
 		if err != nil {
-			return nil, nil, fmt.Errorf("resolve prescan repo root %q: %w", repoRoot, err)
+			return nil, nil, nil, fmt.Errorf("resolve prescan repo root %q: %w", repoRoot, err)
 		}
 		resolvedRepoRoot = absRepoRoot
 	}
 
 	if workers <= 1 || len(paths) <= 1 {
-		return e.preScanPathsSequential(resolvedRepoRoot, paths)
+		return e.preScanPathsSequential(resolvedRepoRoot, paths, tolerateOversize)
 	}
-	return e.preScanPathsConcurrent(resolvedRepoRoot, paths, workers)
-}
-
-// preScanPathsSequential preserves the historical first-error behavior for
-// callers that do not opt into the worker-aware repository pre-scan path.
-func (e *Engine) preScanPathsSequential(resolvedRepoRoot string, paths []string) (map[string][]string, []PreScanFileStat, error) {
-	results := make(map[string][]string)
-	stats := make([]PreScanFileStat, 0, len(paths))
-	for _, rawPath := range paths {
-		scanned, err := e.preScanOnePath(resolvedRepoRoot, rawPath)
-		if err != nil {
-			return nil, nil, err
-		}
-		mergePreScanPathResult(results, scanned)
-		if stat, ok := scanned.stat(); ok {
-			stats = append(stats, stat)
-		}
-	}
-	sortPreScanResults(results)
-	return results, stats, nil
-}
-
-// preScanPathResult carries one file's resolved path and discovered names so
-// concurrent workers can merge results after sorting by original input order.
-type preScanPathResult struct {
-	index           int
-	path            string
-	names           []string
-	language        string
-	durationSeconds float64
-	dispatched      bool
-	err             error
-}
-
-// stat converts a preScanPathResult into a PreScanFileStat when the file
-// actually dispatched to a language pre-scanner (dispatched is false for
-// unregistered files and languages without pre-scan support, so those never
-// appear as a spurious zero-duration language sample).
-func (r preScanPathResult) stat() (PreScanFileStat, bool) {
-	if !r.dispatched {
-		return PreScanFileStat{}, false
-	}
-	return PreScanFileStat{
-		Path:            r.path,
-		Language:        r.language,
-		DurationSeconds: r.durationSeconds,
-	}, true
-}
-
-// preScanPathsConcurrent scans files in parallel, then returns the first input
-// order error and sorted per-name path lists to keep output deterministic.
-func (e *Engine) preScanPathsConcurrent(resolvedRepoRoot string, paths []string, workers int) (map[string][]string, []PreScanFileStat, error) {
-	type preScanJob struct {
-		index int
-		path  string
-	}
-
-	jobs := make(chan preScanJob, len(paths))
-	results := make(chan preScanPathResult, len(paths))
-	var wg sync.WaitGroup
-
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for job := range jobs {
-				scanned, err := e.preScanOnePath(resolvedRepoRoot, job.path)
-				scanned.index = job.index
-				scanned.err = err
-				results <- scanned
-			}
-		}()
-	}
-
-	for i, path := range paths {
-		jobs <- preScanJob{index: i, path: path}
-	}
-	close(jobs)
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	resultSlice := make([]preScanPathResult, 0, len(paths))
-	for result := range results {
-		resultSlice = append(resultSlice, result)
-	}
-	slices.SortFunc(resultSlice, func(left, right preScanPathResult) int {
-		return left.index - right.index
-	})
-
-	merged := make(map[string][]string)
-	stats := make([]PreScanFileStat, 0, len(resultSlice))
-	for _, result := range resultSlice {
-		if result.err != nil {
-			return nil, nil, result.err
-		}
-		mergePreScanPathResult(merged, result)
-		if stat, ok := result.stat(); ok {
-			stats = append(stats, stat)
-		}
-	}
-	sortPreScanResults(merged)
-	return merged, stats, nil
+	return e.preScanPathsConcurrent(resolvedRepoRoot, paths, workers, tolerateOversize)
 }
 
 // preScanOnePath dispatches one file to the language-specific import-map
@@ -359,24 +256,6 @@ func (e *Engine) preScanOnePath(resolvedRepoRoot string, rawPath string) (preSca
 		durationSeconds: time.Since(startedAt).Seconds(),
 		dispatched:      true,
 	}, nil
-}
-
-// mergePreScanPathResult appends one file's names into the shared import map.
-func mergePreScanPathResult(results map[string][]string, result preScanPathResult) {
-	if result.path == "" {
-		return
-	}
-	for _, name := range result.names {
-		results[name] = append(results[name], result.path)
-	}
-}
-
-// sortPreScanResults keeps import-map paths stable across sequential and
-// worker-aware execution.
-func sortPreScanResults(results map[string][]string) {
-	for _, paths := range results {
-		slices.Sort(paths)
-	}
 }
 
 func (e *Engine) parseDefinition(

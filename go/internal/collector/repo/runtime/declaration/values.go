@@ -24,7 +24,8 @@ import "strings"
 //
 // The same check applies to a .sdkmanrc value so one text gets one spec in
 // every pin file. Classify keeps its hyphen-range and disjunction grammar for
-// source kinds whose tools define it (package.json engines, a later change).
+// source kinds whose tools define it (package.json engines, which the manifest
+// readers pass to Classify whole).
 
 // operatorBytes holds every byte a comparator or operator-only token is made
 // of. A line without any of them needs no value-shape scan.

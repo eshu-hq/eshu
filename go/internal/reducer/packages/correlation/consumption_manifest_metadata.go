@@ -23,8 +23,16 @@ func packageManifestMetadataString(payload map[string]any, key string) string {
 	return payloadcore.PayloadStr(raw, key)
 }
 
+// packageManifestObservedVersion returns the observed version only for rows
+// the parser left resolved. An unresolved row keeps its literal text as the
+// value, so even exact-looking text (a single '!', semver build metadata) is
+// a requested range, not an observation (issue #9101). Rows that predate the
+// resolution-state key keep the syntactic behavior below.
 func packageManifestObservedVersion(payload map[string]any, packageManager string, lockfile bool) string {
 	if !packageManifestCanObserveExactVersion(packageManager, lockfile) {
+		return ""
+	}
+	if packageManifestMetadataString(payload, "dependency_resolution_state") == "unresolved" {
 		return ""
 	}
 	for _, key := range []string{"resolved_version", "value"} {

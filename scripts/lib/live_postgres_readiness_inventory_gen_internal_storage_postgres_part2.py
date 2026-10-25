@@ -7,6 +7,15 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/projector_queue_zombie_heal_live_test.go": (
+            "TestProjectorRefusalHealsMarkedSupersededGeneration",
+            "TestProjectorRepeatedRefusalsOpenOneActiveRow",
+            "TestProjectorConcurrentHealsOpenOneActiveRow",
+            "TestProjectorRefusalSkipsHealWithoutWriteMarker",
+            "TestProjectorSupersededByNewerSkipsHeal",
+            "TestProjectorRefusalSkipsHealWithoutActiveGeneration",
+            "TestProjectorRefusalSkipsHealWhenActiveRowInFlight",
+        ),
         "go/internal/storage/postgres/pruned_generation_lock_order_live_test.go": (
             "TestRetentionCascadeHeldRowRaceLive",
             "TestRetentionCascadeDeletesRowChangedBeforeItsLockLive",
@@ -151,6 +160,9 @@ TABLE = {
             "TestWorkflowClaimDepthFairRotationServesSmallKeysEarly",
             "TestClaimDepthAnalysisHelpers",
         ),
+        "go/internal/storage/postgres/workflow_control_claim_forced_serial_live_test.go": (
+            "TestWorkflowClaimPacingForcedSerialTripsOverlapGate",
+        ),
         "go/internal/storage/postgres/workflow_control_claim_order_plan_live_test.go": (
             "TestWorkflowClaimCandidateUsesFairClaimIndex",
         ),
@@ -168,7 +180,7 @@ TABLE = {
             "TestWorkflowClaimPacingFailsOpenOnDepthQueryFailure",
             "TestWorkflowClaimPacingStuckSignal",
             "TestWorkflowClaimPacingGlobalCeiling",
-            "TestWorkflowClaimPacingIdleDrainHoldsFloor",
+            "TestWorkflowClaimPacingIdleDrainHoldsGrantOverlap",
             "TestWorkflowClaimPacingEngagedDrainCompletesExactlyOnce",
             "TestWorkflowClaimPacingSwitchPreservesEngagedAt",
             "TestWorkflowClaimPacingDepthCacheReuse",

@@ -118,6 +118,28 @@ func newTracedFanoutSource(
 	if err != nil {
 		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
 	}
+	return depthCappedLeaf(source)
+}
+
+// depthCappedLeaf reshapes a source whose org target sharded (#9019) into the
+// single over-cap leaf shard.Partition returns when more than 100 allowlisted
+// repositories share a 32-bit hash prefix: the base scope_id with the whole
+// allowlist. That is the only shape in which one claim still sees more than
+// maxOrganizationFanoutRepositories, so the per-claim cap backstop tests run on
+// it. It is a no-op for a target that did not shard.
+func depthCappedLeaf(source *ClaimedSource) *ClaimedSource {
+	for base, org := range source.orgTargets {
+		if !org.sharded() {
+			continue
+		}
+		client := source.targets[org.scopeIDs[0]].client
+		for _, scopeID := range org.scopeIDs {
+			delete(source.targets, scopeID)
+		}
+		source.targets[base] = targetRuntime{config: org.config, client: client}
+		org.scopeIDs = []string{base}
+		source.orgTargets[base] = org
+	}
 	return source
 }
 

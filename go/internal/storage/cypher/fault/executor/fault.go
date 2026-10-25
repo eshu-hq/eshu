@@ -126,7 +126,11 @@ type FaultingExecutor struct {
 	sentinelPath       string
 
 	// hold-statement-before-delegation state (see hold.go).
-	holdMatch     string // "" => no such fault scripted.
+	holdMatch string // "" => no such fault scripted.
+	// holdEngaged is the one-winner CAS gate; holdFired is published only
+	// after the marker write returns, so HoldFired() == true implies the
+	// marker attempt finished.
+	holdEngaged   atomic.Bool
 	holdFired     atomic.Bool
 	holdFiredPath string
 

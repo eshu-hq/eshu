@@ -64,7 +64,7 @@ WITH security_alert_current AS (
       COALESCE(cardinality($11::text[]), 0) = 0
       OR fact.payload->>'repository_id' = ANY($11::text[])
       OR fact.payload->>'provider_repository_id' = ANY($11::text[])
-      OR fact.payload->>'scope_id' = ANY($11::text[])
+      OR fact.payload->>'scope_id' = ANY($11::text[])` + shardGrantMatch11 + `
     )
 )
 SELECT current_fact.fact_id, current_fact.source_confidence, current_fact.payload

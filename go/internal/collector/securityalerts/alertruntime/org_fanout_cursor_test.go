@@ -122,7 +122,7 @@ func newCursorSourceWith(
 	if err != nil {
 		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
 	}
-	return source
+	return depthCappedLeaf(source)
 }
 
 // claimOnce runs one claim and returns its per-repository reads, freshness

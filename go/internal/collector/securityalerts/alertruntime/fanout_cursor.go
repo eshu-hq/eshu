@@ -150,7 +150,7 @@ func warnOversizedTargets(logger *slog.Logger, targets map[string]targetRuntime)
 			continue
 		}
 		logger.Warn(
-			"security alert org target exceeds the per-claim fan-out cap; it reads only the first repositories up to the cap on every claim, split it into org targets of at most the cap, see #9019",
+			"security alert org shard exceeds the per-claim fan-out cap at the shard depth cap (more than the cap of its repositories share a 32-bit hash prefix); it reads only the first repositories up to the cap on every claim",
 			telemetry.EventAttr("security_alert.org_fanout_over_cap"),
 			slog.String(telemetry.LogKeyScopeID, scopeID),
 			slog.Int("repositories", repositories),

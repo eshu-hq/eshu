@@ -4,11 +4,11 @@
 package javascript
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -92,7 +92,7 @@ func (p *javaScriptSiblingParser) parseFile(path string) (*tree_sitter.Node, *tr
 	if !ok {
 		return nil, nil, nil
 	}
-	source, err := os.ReadFile(path) // #nosec G304 -- reads a sibling source file at a path derived from the scan target repo tree
+	source, err := shared.ReadFileCapped(path) // #nosec G304 -- reads a sibling source file at a path derived from the scan target repo tree; capped at shared.SourceReadCap (#8986)
 	if err != nil || len(source) == 0 {
 		return nil, nil, nil
 	}

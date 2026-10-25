@@ -165,6 +165,12 @@ Two rules the split had to obey, and both will apply to the next family move:
 
 ## Invariants this package enforces
 
+- **Shard grants follow the base** — `workflowTenantGrantScopeID` maps a
+  security-alert shard id to its base scope for the tenant-grant lookup
+  (#9019). Keep it limited to `CollectorSecurityAlert` and to ids
+  `shard.ParseScopeID` accepts; an ungranted base must still deny its shards
+  and retirements (`workflow_tenant_grants_shard_test.go`). The rule is written
+  up in `security/alert/README.md`; the coordinator README is at its line cap.
 - **Dark by default** — `deploymentModeDark` is the fallback in `withDefaults`.
   Do not change the default mode without a documented deployment decision.
 - **Active mode gate** — `Config.Validate` returns an error if

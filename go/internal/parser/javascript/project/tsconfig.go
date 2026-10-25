@@ -122,7 +122,7 @@ func nearestTSConfig(repoRoot string, path string) (string, bool) {
 }
 
 func tsConfigCompilerOptions(path string) tsConfigOptions {
-	raw, err := os.ReadFile(path) // #nosec G304 -- reads a tsconfig/jsconfig file at a path derived from the scan target repo tree
+	raw, err := shared.ReadFileCapped(path) // #nosec G304 -- reads a tsconfig/jsconfig file at a path derived from the scan target repo tree; capped at shared.SourceReadCap (#8986)
 	if err != nil {
 		return tsConfigOptions{}
 	}

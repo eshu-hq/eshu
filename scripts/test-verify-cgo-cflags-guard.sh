@@ -23,6 +23,8 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 guard="${script_dir}/verify-cgo-cflags-guard.sh"
+# shellcheck source=lib/cgo-cflags-guard-evasion-cases.sh
+source "${script_dir}/lib/cgo-cflags-guard-evasion-cases.sh"
 failures=0
 tmp_list="$(mktemp)"
 trap 'while IFS= read -r d; do [ -n "$d" ] && rm -rf "$d"; done <"$tmp_list"; rm -f "$tmp_list"' EXIT
@@ -172,6 +174,8 @@ else
 	{ good_workflow; printf '      - run: go test ./...\n        env:\n          CGO_CFLAGS: -O2\n'; } >"${t}/.github/workflows/step.yml"
 	check_guard "guard: step-level CGO_CFLAGS clobber FAILS" 1 "$t" "step.yml"
 
+	run_evasion_cases
+
 	t="$(new_tree)"
 	cat >"${t}/.github/workflows/container.yml" <<'EOF'
 name: Fixture
@@ -274,6 +278,14 @@ EOF
 	t="$(new_tree)"
 	printf '# export CGO_CFLAGS := -O2 -g -std=gnu17\n' >"${t}/Makefile"
 	check_guard "guard: Makefile with the export only in a comment FAILS" 1 "$t" "Makefile"
+
+	t="$(new_tree)"
+	printf 'X := -std=gnu17\nexport CGO_CFLAGS := -O2 -g\n' >"${t}/Makefile"
+	check_guard "guard: Makefile with -std=gnu17 on a different line than the export FAILS" 1 "$t" "Makefile"
+
+	t="$(new_tree)"
+	printf 'export CGO_CFLAGS := -O2 -g # -std=gnu17 kept for docs\n' >"${t}/Makefile"
+	check_guard "guard: Makefile with -std=gnu17 only in a trailing comment FAILS" 1 "$t" "Makefile"
 
 	t="$(new_tree)"
 	printf '#!/usr/bin/env bash\n# see cgo-cflags.sh\nCGO_ENABLED=1 go -C go build ./cmd/api\n' >"${t}/scripts/build-z.sh"

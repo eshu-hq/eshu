@@ -6,7 +6,6 @@ package image
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/discovery"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	workflowimage "github.com/eshu-hq/eshu/go/internal/workflowimage"
 )
 
@@ -33,6 +33,13 @@ func CurrentWorkflowImageFileMetas(
 // CurrentWorkflowImageFileMetasWithReadFailures is
 // CurrentWorkflowImageFileMetas that also returns how many workflow files it
 // skipped because their digest could not be read (#7978 review F7-1).
+//
+// A workflow file whose discovered size is over shared.SourceReadCap is left
+// out without counting a read failure (#8986): a full snapshot never parses it,
+// so a delta must not carry it either, and counting it would degrade every
+// delta of a repository that holds one. The digest read is capped too, so a
+// file that grew past the cap after discovery counts as a read failure without
+// being read whole.
 func CurrentWorkflowImageFileMetasWithReadFailures(
 	repoPath string,
 	narrowed []discovery.FileWithSize,
@@ -52,6 +59,9 @@ func CurrentWorkflowImageFileMetasWithReadFailures(
 		if _, targeted := narrowedPaths[filepath.Clean(file.Path)]; targeted {
 			continue
 		}
+		if file.Size > shared.SourceReadCap() {
+			continue
+		}
 		digest, ok := workflowImageDigestForFile(file.Path)
 		if !ok {
 			readFailures++
@@ -68,7 +78,7 @@ func CurrentWorkflowImageFileMetasWithReadFailures(
 }
 
 func workflowImageDigestForFile(filePath string) (string, bool) {
-	body, err := os.ReadFile(filePath) // #nosec G304 -- reads an admitted workflow path from repository discovery
+	body, err := shared.ReadFileCapped(filePath) // #nosec G304 -- reads an admitted workflow path from repository discovery; capped at shared.SourceReadCap (#8986)
 	if err != nil {
 		return "", false
 	}

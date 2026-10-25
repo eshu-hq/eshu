@@ -24,6 +24,12 @@
 - Keep deterministic identities stable for the same instance, plan key, and
   target scope.
 - Keep credential environment names out of durable requested-scope metadata.
+- Compute org shards only through `shard.Partition`; never mirror it here.
+- Mark a retirement item only with `shard.RetirementAcceptanceUnitID`, and never
+  change a collection item's identity: it stays `acceptance_unit_id ==
+  scope_id` with the pre-#9019 generation hash.
+- A failed `ShardScopeReader` read fails the plan; never plan collection while
+  silently skipping retirement.
 
 ## Common changes
 

@@ -21,7 +21,9 @@ both sides need lives in `go/internal/collector/repo/git/model`.
 - `CurrentWorkflowImageFileMetas` — workflow files worth reading this run;
   `CurrentWorkflowImageFileMetasWithReadFailures` also counts the files whose
   digest could not be read, so the git snapshot can mark itself degraded
-  (#7978 review F7-1).
+  (#7978 review F7-1). A workflow whose discovered size is over
+  `shared.SourceReadCap` is left out without a read failure, as a full
+  snapshot leaves it out, and the digest read is capped (#8986).
 - `EmitWorkflowImageEvidenceFactsForContentFile` — emission through the shared
   writer.
 

@@ -336,7 +336,7 @@
     "./internal/storage/postgres|TestWorkflowClaimPacingDepthCacheReuse": 4.4, "./internal/storage/postgres|TestWorkflowClaimPacingEngagedDrainCompletesExactlyOnce": 2.6,
     "./internal/storage/postgres|TestWorkflowClaimPacingEngagesOnDomainDepth": 1.1, "./internal/storage/postgres|TestWorkflowClaimPacingFailsOpenOnDepthQueryFailure": 1.2,
     "./internal/storage/postgres|TestWorkflowClaimPacingFailsOpenOnLatchQueryFailure": 1.2, "./internal/storage/postgres|TestWorkflowClaimPacingGlobalCeiling": 1.2,
-    "./internal/storage/postgres|TestWorkflowClaimPacingHysteresisRelease": 1.2, "./internal/storage/postgres|TestWorkflowClaimPacingIdleDrainHoldsFloor": 4.0,
+    "./internal/storage/postgres|TestWorkflowClaimPacingHysteresisRelease": 1.2, "./internal/storage/postgres|TestWorkflowClaimPacingIdleDrainHoldsGrantOverlap": 4.0,
     "./internal/storage/postgres|TestWorkflowClaimPacingRecordsDepthPendingGauge": 1.1, "./internal/storage/postgres|TestWorkflowClaimPacingStuckEmitsOperatorSignals": 1.2,
     "./internal/storage/postgres|TestWorkflowClaimPacingStuckHoldsMidBandAndReleasesBelowWatermark": 1.4, "./internal/storage/postgres|TestWorkflowClaimPacingStuckSignal": 1.5,
     "./internal/storage/postgres|TestWorkflowClaimPacingSwitchPreservesEngagedAt": 1.3, "./internal/storage/postgres|TestWorkflowFairClaimLotteryMatchesSimulatedDraw": 1.5,

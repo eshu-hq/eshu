@@ -52,13 +52,34 @@ names on the generation's read state row (`fanout_start_repository`,
 `fanout_next_repository`, `fanout_lap_repository`; NULL means the top and no
 lap), which is where an operator reads them: a lap in progress is
 `fanout_next_repository IS NULL AND fanout_lap_repository IS NOT NULL` on the
-newest generation's row. `skipped_cap` on the fan-out counter that is non-zero
-on every claim of one target means the target has more than 100 same-org
-allowlisted repositories and always reads the same first 100; the collector
-also logs one `security_alert.org_fanout_over_cap` warning at startup with the
-repository count, the cap, and the `scope_id`. Split such a target into org
-targets of at most 100 same-org repositories (see the parity reference; #9019
-tracks doing it automatically).
+newest generation's row. A target with more than 100 same-org allowlisted repositories is collected as
+shards of at most 100 (#9019), so `skipped_cap` that is non-zero on every claim
+of one scope now means a shard at the depth cap (more than 100 repositories
+sharing a 32-bit hash prefix) that always reads the same first 100; the
+collector logs one `security_alert.org_fanout_over_cap` warning at startup
+with the repository count, the cap, and the `scope_id`.
+
+Shard signals carry counts only. Each org claim's `security_alert.observe`
+span has `eshu.security_alert.shard.count` (shards of its target, 1 when not
+sharded), `eshu.security_alert.shard.repositories` (repositories of this
+shard, 0 on a retirement), and `eshu.security_alert.retirement`. The
+collector logs `security_alert.org_target_sharded` (INFO, once per sharded
+target at startup: `shard_count`, `smallest_shard_repositories`,
+`largest_shard_repositories`), `security_alert.scope_retired` (INFO, per
+retirement claim: `scope_id`, `parent_scope_id`, `generation_id`), and
+`security_alert.target_sharded_coordinator_skew` (WARN: a coordinator that
+is older than the collector, or reads a different configuration during a
+rolling restart, still plans a sharded target's base scope; it clears once
+both run the same version and configuration). The coordinator logs `security alert planner retiring unplanned
+org target scopes` (INFO, `retired_scope_count`) and, when one scan reaches
+1,024 retirements, `security alert planner reached the per-scan retirement
+bound` (WARN); its candidate read is Postgres store
+`security_alert_shard_scopes`. To see which scopes a target has:
+`SELECT scope_id, active_generation_id FROM ingestion_scopes WHERE scope_id =
+'<scope_id>' OR parent_scope_id = '<scope_id>'`; a retired scope's active
+generation carries `scope_generations.freshness_hint =
+'security_alert_retired:v1'`. A zero `repositories_total` alone does not mark
+a retirement.
 
 `eshu_dp_security_alert_fetch_duration_seconds` records the org read as one
 `success` sample taken when that read finishes, before the fan-out. Each
