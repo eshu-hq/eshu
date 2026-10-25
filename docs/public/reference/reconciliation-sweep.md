@@ -309,18 +309,19 @@ sync never visits is not covered (#7625).
 ### Content-version gate coverage
 
 The content-version gate is three checks. The pin test fails when the facts
-emitted for the git collector's content-version fixture move without a bump
-to `gitGenerationContentVersion`. The coverage guard fails when a registered
-parser has no fixture file. The parser-set fingerprint folds every parser key,
-language, extension, and file name into the content version, so a registration
-change mints one new generation per git scope with no hand edit.
+emitted for any content-version fixture file differ from the per-file ledger
+`go/internal/collector/repo/git/epoch/ledger.tsv` (#9097); its re-pin advances
+the folded epoch only when a file's output moved on unchanged input, so a
+fixture-only change keeps every hint (see that package's README). The coverage
+guard fails when a registered parser has no fixture file. The parser-set
+fingerprint folds every parser key, language, extension, and file name into
+the content version, so a registration change needs no re-pin to move it.
 
-The gate does not see a parser logic or dialect change whose bindings are
-unchanged and whose output shift shows only on inputs outside the fixture.
-The hardcoded path-dispatch rules (java metadata, Scala routes,
-`.tfvars.json`) are outside the bindings too. Either case still needs a hand
-bump, and an explicit reindex is the remedy when the bump was missed. Fixture growth in the same edit as a parser change reads as
-an output change: bump only when existing output really changed.
+The gate does not see a parser logic or dialect change whose output shift
+shows only on inputs outside the fixture, the hardcoded path-dispatch rules
+(java metadata, Scala routes, `.tfvars.json`), or a fixture edit made with its
+output change. These need `-advance-content-epoch` on the re-pin; an explicit
+reindex is the remedy when the advance was missed.
 
 No-Regression Evidence (#7986): the fold runs once per process inside the
 existing content-version cache, adding one SHA-256 over about 35 small

@@ -99,8 +99,8 @@
   `engine_test.go`, and the re-pinned collector fixture
   digest (`go test ./internal/collector/repo/git/ -run
   TestGenerationContentVersionPinsCollectorOutput -update-content-version-pin`).
-  A row field change for unchanged input also needs a
-  `gitGenerationContentVersion` bump.
+  The re-pin advances the content epoch on its own when a row field changes
+  for unchanged fixture input (#9097).
 
 ## Mutation checks
 

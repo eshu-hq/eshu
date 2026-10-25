@@ -57,10 +57,16 @@ inside the per-cycle budget, and `decideGraphDirty` shares `throttle` with
 `decide` (never the fresh check). A graph_dirty scope must go through the
 forced-reconcile path so the reason reaches `ScopeGeneration.ReconcileReason`;
 the store then re-projects a matching active generation (#7978). Never blank
-the hint: bump `gitGenerationContentVersion` when emitted facts change for
-unchanged input without a parser-binding or schema change
-(`TestGenerationContentVersionPinsCollectorOutput` fails until you do, then
-re-pin), or the store drops the new output as a duplicate. A fixture under
+the hint. When emitted facts change for unchanged input,
+`TestGenerationContentVersionPinsCollectorOutput` fails until you re-pin the
+content epoch ledger (`epoch/ledger.tsv`, #9097) with
+`-update-content-version-pin`; the re-pin advances the epoch when a fixture
+file's output moved on unchanged bytes, or the store drops the new output as a
+duplicate. Never hand-edit the ledger. A fixture-only change keeps the epoch,
+so a change that edits a fixture file and its output together, or adds a path
+rule outside the registry fingerprint, also passes `-advance-content-epoch`.
+On a ledger merge conflict, take `origin/main`'s copy and re-pin; a hand-merged
+ledger fails its seal check. A fixture under
 `testdata/content_version` must sit in a directory discovery admits:
 `TestContentVersionFixtureFilesReachDiscovery` fails on a parsed file under
 `deps`, `vendor`, `build` or another `defaultIgnoredDirs` entry (#8905),

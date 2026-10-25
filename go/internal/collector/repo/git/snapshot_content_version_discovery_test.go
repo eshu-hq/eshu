@@ -71,14 +71,14 @@ func contentVersionDiscoveryGaps(t *testing.T, root string) []string {
 
 // TestContentVersionFixtureFilesReachDiscovery fails when a fixture file a
 // parser handles sits where discovery skips it (#8905). Fix a failure by
-// moving the file to a directory the collector does not prune, then bump
-// gitGenerationContentVersion and re-pin.
+// moving the file to a directory the collector does not prune, then re-pin
+// the content epoch ledger.
 func TestContentVersionFixtureFilesReachDiscovery(t *testing.T) {
 	t.Parallel()
 	if gaps := contentVersionDiscoveryGaps(t, "testdata/content_version"); len(gaps) > 0 {
 		t.Fatalf("testdata/content_version files discovery skips, so the digest never sees them: %v: "+
-			"move them out of ignored directories (see defaultIgnoredDirs), then bump "+
-			"gitGenerationContentVersion and re-pin with -update-content-version-pin", gaps)
+			"move them out of ignored directories (see defaultIgnoredDirs), then re-pin "+
+			"with -update-content-version-pin", gaps)
 	}
 }
 

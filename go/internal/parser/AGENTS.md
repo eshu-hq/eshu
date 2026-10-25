@@ -97,8 +97,9 @@
   extension and would downgrade it from structured YAML to plain text.
   `.mvn/extensions.xml` is a path rule (`isMavenExtensionsPath`) because
   `extensions.xml` is too generic to bind by name. Path rules sit outside
-  `Registry.Fingerprint`, so adding one needs a bump of
-  `gitGenerationContentVersion` and a re-pin. The pip constraints family
+  `Registry.Fingerprint`, so adding one needs a content epoch advance: re-pin
+  with `-update-content-version-pin -advance-content-epoch` (#9097), because the
+  fixture file the rule claims is new and a new file alone keeps the epoch. The pip constraints family
   (`constraints.txt`, `constraints-*.txt`, `constraints_*.txt`, #8821) is a path
   rule (`isPipConstraintsName`) because a `PrefixNames` entry matches before
   the extension index and would take `constraints-*.yaml` policy files from the

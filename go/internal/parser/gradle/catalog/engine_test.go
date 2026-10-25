@@ -13,8 +13,8 @@ import (
 
 // TestDefaultRegistryBindsGradleVersionCatalogByBaseName pins the #8822 name:
 // the catalog binds by exact base name to the existing gradle definition, in
-// any directory and any letter case, so no path rule and no
-// gitGenerationContentVersion bump is needed. A catalog under another file name
+// any directory and any letter case, so no path rule and no forced content
+// epoch advance is needed. A catalog under another file name
 // is not claimed.
 func TestDefaultRegistryBindsGradleVersionCatalogByBaseName(t *testing.T) {
 	t.Parallel()

@@ -26,9 +26,9 @@ git/                     selection + snapshot + source (the tangled core)
   workflow/image/        CI workflow container image evidence
   membership/            githubOrg repository selection observations (#7625)
   deadline/              per-command git deadlines for the sync loop (#8052)
-  resolve/          per-host curloptResolve address cache (#8092)
+  resolve/               per-host curloptResolve address cache (#8092)
+  epoch/                 content epoch ledger folded into every freshness hint (#9097)
 ```
-
 Imports run one way: `git -> leaf -> model`. No leaf imports `git`.
 
 ## Why the core is one package

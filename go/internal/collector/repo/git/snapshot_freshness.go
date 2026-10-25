@@ -9,33 +9,41 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/epoch"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
-// gitGenerationContentVersion names the git collector and parser output
-// contract (#7978). It is folded into every freshness hint, so a release that
-// changes what the collector or parser emits for unchanged source yields a new
-// hint and a new generation, while a release that does not change the output
-// keeps every hint and stores nothing. Bump it in the same change that alters
-// emitted facts for unchanged input without changing the parser registry
-// bindings or the fact schema (a parser logic fix, a new fact field, a changed
-// stable key): those two already move the version on their own (#7986).
-// TestGenerationContentVersionPinsCollectorOutput enforces it: it pins a
-// digest of the facts emitted for testdata/content_version to this value and
-// fails when the output moves without a bump (ruling a9-117 d6). Do not derive
-// it from the build version: that would store a duplicate generation of every
-// repository on every release.
-const gitGenerationContentVersion = "git-collector.v15"
+// gitContentVersionPrefix names the git collector and parser output contract
+// in the folded version identity. The value after it is the content epoch of
+// the committed ledger (epoch/ledger.tsv, #9097): every freshness hint folds
+// it, so a change that alters emitted facts for unchanged source yields a new
+// hint and a new generation, while a change that does not keeps every hint and
+// stores nothing. Nobody types the epoch:
+// TestGenerationContentVersionPinsCollectorOutput fails when the facts emitted
+// for testdata/content_version move (ruling a9-117 d6), and its
+// -update-content-version-pin re-pin advances the epoch when some fixture
+// file's output moved on unchanged input. Parser-binding and fact-schema
+// changes move the version on their own (#7986). Do not derive it from the
+// build version: that would store a duplicate generation of every repository
+// on every release.
+const gitContentVersionPrefix = "git-collector."
 
 // GenerationReconcileReasonUnspecified is the reconcile reason a generation
 // carries when its snapshot was forced to reconcile without a decision reason,
 // so the ingestion store still treats it as a reconciliation.
 const GenerationReconcileReasonUnspecified = "unspecified"
 
-// generationContentVersion caches GenerationContentVersion: the fact-schema
-// registry and the parser registry are fixed for the life of the process.
+// generationContentVersion caches GenerationContentVersion: the embedded
+// ledger, the fact-schema registry, and the parser registry are fixed for the
+// life of the process.
 var generationContentVersion = sync.OnceValue(func() string {
+	return contentVersionForEpoch(epoch.Current())
+})
+
+// contentVersionForEpoch folds a content epoch, the parser registry
+// fingerprint, and the fact-schema registry digest into one version identity.
+func contentVersionForEpoch(contentEpoch string) string {
 	registry := facts.SupportedSchemaVersions()
 	kinds := make([]string, 0, len(registry))
 	for kind := range registry {
@@ -46,13 +54,13 @@ var generationContentVersion = sync.OnceValue(func() string {
 	for _, kind := range kinds {
 		writeFreshnessHashf(h, "%s=%s\n", kind, registry[kind])
 	}
-	return fmt.Sprintf("%s;parsers=%s;schema=%x",
-		gitGenerationContentVersion, parser.DefaultRegistry().Fingerprint(), h.Sum(nil)[:8])
-})
+	return fmt.Sprintf("%s%s;parsers=%s;schema=%x",
+		gitContentVersionPrefix, contentEpoch, parser.DefaultRegistry().Fingerprint(), h.Sum(nil)[:8])
+}
 
 // GenerationContentVersion returns the version identity a git freshness hint
-// folds in (#7978): the collector and parser output contract
-// (gitGenerationContentVersion), a fingerprint of the parser registry, and a
+// folds in (#7978): the collector and parser output contract (the content
+// epoch of the committed ledger, #9097), a fingerprint of the parser registry, and a
 // digest of the supported fact-schema registry. Two snapshots of the same
 // content produce the same hint only when this identity is also the same.
 //
