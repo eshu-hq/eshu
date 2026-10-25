@@ -13,4 +13,6 @@
 //
 // Core responsibility: never leak prompts, provider response bodies, or
 // credentials in errors or logs. Adapters redact at ingestion.
+// Credential-bearing fields are redacted at ingestion, so logs and errors
+// carry only shapes, never secrets.
 package provider
