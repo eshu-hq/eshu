@@ -55,6 +55,11 @@
   and writes metadata keys `source_cache_truncated`, `source_cache_original_bytes`,
   `source_cache_limit_bytes`. Do not raise the cap without confirming the
   Postgres `source_cache` column can hold the new maximum.
+- **Parser-withheld snippets** — `entitySourceCache` returns `""` when
+  `Entity.Metadata["source_cache_withheld"]` is boolean `true`
+  (`sourceCacheWithheld`, #8821). Do not read the key as a string, and do not
+  drop the key from the metadata: a reader uses it to see why the snippet is
+  empty. The file body is a separate content record and is not covered.
 - **UTF-8 safety** — `truncateUTF8ByBytes` must not split a multi-byte rune.
   Any change that truncates `source_cache` must go through this helper.
 - **No storage dependency** — this package must not import `database/sql`,

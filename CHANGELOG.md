@@ -229,6 +229,27 @@ recent shipped work grouped by feature area.
   is not yet checked. Evidence:
   `docs/internal/evidence/8930-readiness-weights-refresh.md`.
 
+### Parser: pip constraints files
+
+- **`constraints.txt` and `constraints-*.txt` now give Python version-policy rows**
+  ([#8821](https://github.com/eshu-hq/eshu/issues/8821)). The pip requirements
+  parser reads `constraints.txt`, `constraints-*.txt`, and `constraints_*.txt`.
+  A constraint limits the version a package gets if something else installs
+  it, so each row carries `central_version_declaration` (the flag a NuGet
+  central `PackageVersion` uses), so no consumption, alert, or `DEPENDS_ON`
+  evidence or edge results from it. Registry target planning still picks the
+  rows as collection targets, as it does for NuGet pins, and no match or edge
+  follows. A row never stores the raw line, a line with a direct source (URL,
+  VCS, path) keeps only its kind, and a pin whose marker holds URL-shaped text reads as a
+  malformed row. The entity `source_cache` is withheld for these rows. The file body
+  keeps the whole file, credentials included, until the
+  [#8812](https://github.com/eshu-hq/eshu/issues/8812) content-store policy
+  covers this parser. The family needs the `.txt` extension, so a
+  `constraints-*.yaml` policy file keeps its YAML parser. These files were
+  documents before; they are no longer emitted as documents. The git
+  collector content version moves to `git-collector.v11`, so each repository
+  stores one new generation on its next sync.
+
 ### Parser: uv.lock dependency rows
 
 - **`uv.lock` now gives exact-version Python dependency rows**
@@ -247,7 +268,7 @@ recent shipped work grouped by feature area.
   the entries after it are still read. A members list is trusted only when it
   follows the array grammar, holds at most 4,096 names, and each member path
   stays inside the workspace. Dev or
-  runtime scope is not captured. `constraints*.txt` is not part of this change.
+  runtime scope is not captured.
   The raw lock body, including direct-URL credentials `uv` persists, is stored
   verbatim in the content store until the
   [#8812](https://github.com/eshu-hq/eshu/issues/8812) policy gates land.

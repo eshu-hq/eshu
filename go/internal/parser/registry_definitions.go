@@ -403,7 +403,28 @@ func PathDispatches() []PathDispatch {
 			ParserKey: "hcl",
 			Examples:  []string{"prod.tfvars.json", "env/stage.auto.tfvars.json"},
 		},
+		{
+			Patterns:  []string{"constraints.txt", "constraints-*.txt", "constraints_*.txt"},
+			ParserKey: "python_requirements",
+			Examples:  []string{"constraints.txt", "services/api/constraints-dev.txt", "Constraints_Prod.TXT"},
+		},
 	}
+}
+
+// isPipConstraintsName reports whether a lower-cased base name is a pip
+// constraints file: constraints.txt, constraints-*.txt, or constraints_*.txt
+// (#8821). It is a path rule, not a PrefixNames entry, because a prefix
+// matches before the extension index and would take constraints-*.yaml
+// policy files (Gatekeeper constraints, for one) away from the YAML parser.
+// The .txt suffix keeps the family to pip input.
+func isPipConstraintsName(base string) bool {
+	stem, ok := strings.CutSuffix(base, ".txt")
+	if !ok {
+		return false
+	}
+	return stem == "constraints" ||
+		strings.HasPrefix(stem, "constraints-") ||
+		strings.HasPrefix(stem, "constraints_")
 }
 
 func isScalaPlayRoutesPath(path string) bool {

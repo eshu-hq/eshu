@@ -7,6 +7,9 @@ correlate PyPI vulnerability advisories against repository dependency truth.
 ## Responsibility
 
 - Parse pip `requirements.txt` (plus `requirements-*.txt` / `requirements_*.txt`).
+- Parse pip `constraints.txt` (plus `constraints-*.txt` / `constraints_*.txt`) as
+  version policy, not declarations; see
+  [Constraints files](#constraints-files).
 - Parse `pyproject.toml` PEP 621 `[project]` + `[project.optional-dependencies]`
   tables, Poetry `[tool.poetry.dependencies]`, Poetry group dependencies, and
   Hatch `[tool.hatch.envs.*.dependencies]`.
@@ -41,6 +44,50 @@ Every row mirrors the npm / composer rows emitted from `go/internal/parser/json`
 - `extras`, `marker`, `lockfile`, `source_kind`, `source_url`, `source_ref`,
   `malformed`, `raw` — optional fields populated when applicable.
 
+## Constraints files
+
+`ParseRequirements` also reads a pip constraints file (`constraints.txt`,
+`constraints-*.txt`, `constraints_*.txt`; `.txt` only, case-insensitive). pip
+applies a constraint only when something else installs the package, so a
+constraint never declares a dependency:
+
+- Every row carries `central_version_declaration: true`, the flag a NuGet
+  central `PackageVersion` uses. The consumption extractor, the Postgres
+  consumption sidecar, and the readiness SQL all drop a flagged row, so a
+  constraint produces no `package.consumption`, alert, or `DEPENDS_ON`
+  evidence or edge. Registry target planning (`owned_package_targets.go`) does
+  not read the flag and still picks the rows as collection targets, as it does
+  for NuGet pins; no match or edge follows. A registry pin keeps `config_kind=dependency` so its content
+  identity matches a requirements row. `direct_dependency` is never set.
+- `section` and `dev_dependency` follow the file name the way `requirements-*`
+  names do (`constraints-dev.txt` is `section=constraints-dev`, dev scope).
+- `-c`, `-r`, and index options (`--index-url https://user:secret@host/...`)
+  start with `-`, so they are skipped and never stored in a row.
+- A row with a direct source (URL, VCS, path, editable) or an unparsed line
+  keeps its `config_kind` and `source_kind` but loses `value`, `source_url`,
+  `source_ref`, `marker`, and any name that holds `@` or `://`. A password may
+  hold a slash or an at sign, so source text cannot be cleaned reliably. A
+  registry pin whose specifier holds `@` or `://` is demoted to
+  `malformed_dependency` the same way.
+- No constraints row stores `raw`, and every row carries
+  `source_cache_withheld: true`, which makes the content shaper drop the
+  entity's `source_cache`. That snippet is the file's raw line range, so
+  without the flag a comment or marker the row scrubbed would still reach the
+  fact stream. A marker is kept only when every character is in the allowlist:
+  letters, digits, space, tab, and ``. _ - ~ ' " < > = ! ( ) , *``. A pin
+  whose marker has any other character (`@`, `:`, `/`, `#`, `+`, `%`, `;`,
+  braces, non-ASCII) is demoted to
+  `malformed_dependency` with no name or value, not just stripped of its
+  marker: two lines that differ only in such markers would otherwise share one
+  content identity and the content writer would keep one.
+- Limit: the file body (`content` fact) keeps the whole file, credentials
+  included, until the content-store policy (#8812) covers this parser. The
+  `requirements*.txt` path has the same limit.
+- Limit: a non-registry constraint row still reaches the readiness
+  unsupported-source gap check, which does not read the flag.
+- `requirements*.txt` rows are unchanged. They still keep the source text of a
+  direct reference, userinfo included.
+
 ## Safety rules
 
 - VCS, path, URL, editable, and malformed entries always reach the payload
@@ -58,6 +105,8 @@ Every row mirrors the npm / composer rows emitted from `go/internal/parser/json`
 
 ## Tests
 
+- `constraints_test.go` covers the policy flag, filename scope, the
+  requirements negative control, and credential-bearing source lines.
 - `requirements_test.go` covers pinned, range, extras, markers, dev-scope
   filename derivation, PEP 508 direct references, VCS, path, URL, editable,
   and malformed entries plus the empty-file safety case.
