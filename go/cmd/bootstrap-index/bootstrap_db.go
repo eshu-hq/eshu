@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel/trace"
@@ -44,19 +45,36 @@ var _ interface{ RunFence() *secretlines.RunFence } = (*bootstrapSQLDB)(nil)
 // database/sql never closes an in-use connection for ConnMaxLifetime.
 func (b *bootstrapSQLDB) Conn(ctx context.Context) (*sql.Conn, error) { return b.raw.Conn(ctx) }
 
-func openBootstrapDB(ctx context.Context, getenv func(string) string) (bootstrapDB, error) {
+func openBootstrapDB(ctx context.Context, getenv func(string) string, logger *slog.Logger, ownershipWait time.Duration) (bootstrapDB, error) {
 	// Every bootstrap connection is a deferred-derivation session: content_files
 	// triggers skip its writes and the finalizer rebuilds the hardcoded-secret
 	// side table after collection (#7125).
 	//
 	// Each connection also takes the deferred-writer lock (5318,2) shared and,
 	// once the run lock is held, refuses to be born when the run's pinned lock
-	// session is gone (secretlines.RunFence). Opening the pool while a reducer
-	// rebuild holds that lock waits for the rebuild, bounded by the startup
-	// ping's ESHU_POSTGRES_PING_TIMEOUT.
+	// session is gone (secretlines.RunFence). A reducer rebuild holds (5318,2)
+	// exclusive, and the connect hook waits for it inside the startup ping, which
+	// ESHU_POSTGRES_PING_TIMEOUT cuts off. OpenDeferredWriterPool therefore takes
+	// (5318,2) shared on a probe session first, waiting up to ownershipWait
+	// (ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT) and failing naming the holder (#8833
+	// ruling-6); an unreachable database still fails within the ping timeout.
 	fence := secretlines.NewRunFence(nil)
-	db, err := runtimecfg.OpenPostgresWithSessionHooks(ctx, getenv,
-		[]inventory.ConnectHook{fence.Hook()}, secretlines.DeferredSessionSQL)
+	db, err := secretlines.OpenDeferredWriterPool(ctx, secretlines.DeferredPoolOptions{
+		Probe: func(ctx context.Context) (*sql.DB, error) {
+			pool, err := runtimecfg.OpenPostgres(ctx, getenv)
+			if err != nil {
+				return nil, err
+			}
+			pool.SetMaxOpenConns(1)
+			return pool, nil
+		},
+		Open: func(ctx context.Context) (*sql.DB, error) {
+			return runtimecfg.OpenPostgresWithSessionHooks(ctx, getenv,
+				[]inventory.ConnectHook{fence.Hook()}, secretlines.DeferredSessionSQL)
+		},
+		Wait:   ownershipWait,
+		Logger: logger,
+	})
 	if err != nil {
 		return nil, err
 	}

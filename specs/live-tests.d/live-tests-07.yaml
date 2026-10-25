@@ -158,6 +158,11 @@ tests:
     class: verified_scheduled
     reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
     runner: postgres-scheduled
+  - file: go/internal/storage/postgres/secret/lines/deferred_pool_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "#8833 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/secret/lines/finalize_live_test.go
     tag: ~
     class: verified_scheduled

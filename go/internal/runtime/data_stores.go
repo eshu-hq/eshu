@@ -191,9 +191,11 @@ func OpenPostgresWithSession(ctx context.Context, getenv func(string) string, ex
 // OpenPostgresWithSessionHooks is OpenPostgresWithSession that also runs each
 // connect hook after the extra session statements. bootstrap-index passes the
 // secret-lines deferred-writer lock and birth fence through it (#8833). A hook
-// that blocks (the deferred-writer lock waits behind a reducer rebuild) is
-// bounded by the context of the call that opens the connection, which for the
-// startup ping is ESHU_POSTGRES_PING_TIMEOUT.
+// that blocks is bounded by the context of the call that opens the connection,
+// which for the startup ping is ESHU_POSTGRES_PING_TIMEOUT. The deferred-writer
+// lock can block behind a reducer rebuild, so bootstrap-index takes that lock
+// on a probe session first (secretlines.OpenDeferredWriterPool) and the hook
+// never waits.
 func OpenPostgresWithSessionHooks(ctx context.Context, getenv func(string) string, hooks []inventory.ConnectHook, extraSessionSQL ...string) (*sql.DB, error) {
 	cfg, err := LoadPostgresConfig(getenv)
 	if err != nil {

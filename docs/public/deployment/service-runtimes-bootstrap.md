@@ -439,17 +439,19 @@ indexes: a bulk-load regime with a finalizer, gated by a state row.
   `idle_session_timeout` does not end it mid-run.
   A second bootstrap-index run waits for `(5318,1)`, bounded by
   `ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` (default 3 m, the same knob as the
-  schema wait; the two waits run in sequence, each with its own full bound, so
-  the worst case before work starts is twice the value, 6 m by default),
+  schema wait; the waits run in sequence, each with its own full bound, so
+  the worst case before work starts is three times the value, 9 m by default),
   logging `bootstrap.postgres.ownership.waiting` with `lock=bulk_load`, then
   fails naming the holder (pid, application name, connection age, lock, mode).
   The holder can be a reducer rebuild. It is not an orphan: it holds both locks
   exclusive, carries the reducer's application name, and ends when the rebuild
   publishes (about 42 s per 150,000 files with no writers). A bootstrap-index
-  that starts during a rebuild first waits while its first connection opens
-  (that connection waits on `(5318,2)`, bounded by `ESHU_POSTGRES_PING_TIMEOUT`,
-  10 s by default; a longer rebuild makes the run exit with a ping timeout, so
-  rerun it afterwards), then for `(5318,1)` as above. Each lock dies with its
+  that starts during a rebuild first waits for `(5318,2)` on a short-lived probe
+  connection, logging `bootstrap.postgres.ownership.waiting` with
+  `lock=deferred_writers`, up to the same ownership wait, and fails naming the
+  holder when it is spent; it does not wait on the 10 s startup ping, which
+  still reports an unreachable database. Then it waits for `(5318,1)` as above,
+  and the schema apply waits last. Each lock dies with its
   backend, so a killed pod frees both at once; after a node death without a TCP
   close they linger until keepalive. Find the holders with
   `SELECT l.pid, l.objid, l.mode, a.application_name, a.backend_start FROM pg_locks l JOIN pg_stat_activity a USING (pid) WHERE l.locktype='advisory' AND l.classid=5318 AND l.objid IN (1,2) AND l.granted;`

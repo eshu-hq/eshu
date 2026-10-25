@@ -75,7 +75,9 @@ func TestRunBeginsSecretLinesDeferralBeforeWritesAndFinalizesAfterThePipeline(t 
 	err := run(
 		context.Background(),
 		func(string) string { return "" },
-		func(context.Context, func(string) string) (bootstrapDB, error) { return &fakeBootstrapDB{}, nil },
+		func(context.Context, func(string) string, *slog.Logger, time.Duration) (bootstrapDB, error) {
+			return &fakeBootstrapDB{}, nil
+		},
 		func(context.Context, bootstrapDB, *slog.Logger) error {
 			record("schema")
 			return nil

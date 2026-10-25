@@ -109,7 +109,7 @@ type projectorDeps struct {
 }
 
 type (
-	openBootstrapDBFn              func(context.Context, func(string) string) (bootstrapDB, error)
+	openBootstrapDBFn              func(context.Context, func(string) string, *slog.Logger, time.Duration) (bootstrapDB, error)
 	applyBootstrapFn               func(context.Context, bootstrapDB, *slog.Logger) error
 	finalizeContentSearchIndexesFn func(context.Context, bootstrapDB) error
 	openGraphFn                    func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error)
@@ -224,7 +224,14 @@ func run(
 		}()
 	}
 
-	database, err := openBootstrapDatabaseWithPoolBudget(ctx, getenv, openDBFn)
+	// The schema ownership wait bounds three sequential waits before any work
+	// starts: the deferred-writer probe (a reducer rebuild), the run lock, and
+	// the schema apply.
+	schemaOptions, err := schemaOptionsFromEnv(getenv, logger)
+	if err != nil {
+		return err
+	}
+	database, err := openBootstrapDatabaseWithPoolBudget(ctx, getenv, logger, schemaOptions.OwnershipWait, openDBFn)
 	if err != nil {
 		return err
 	}
@@ -242,10 +249,6 @@ func run(
 	// cannot stop an earlier finalizer from publishing ready over a concurrent
 	// load's underived rows, so a second run waits (bounded), then fails naming
 	// the holder (#7125).
-	schemaOptions, err := schemaOptionsFromEnv(getenv, logger)
-	if err != nil {
-		return err
-	}
 	releaseBulkLoad, err := secretLines.lock(ctx, database, logger, schemaOptions.OwnershipWait)
 	if err != nil {
 		logger.ErrorContext(ctx, "secret lines bulk load lock refused",

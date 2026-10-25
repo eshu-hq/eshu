@@ -54,3 +54,8 @@ run's lock session is gone, and the write that needed it fails;
 claimed nothing for its own epoch; `secret_lines.finalize_superseded` (Warn) when
 it claimed nothing because a newer epoch exists. `secret_lines.bulk_load_lock_acquired`
 carries `connection=pool|dedicated`: `dedicated` is the reducer's lock pool.
+A bootstrap-index that starts during a reducer rebuild waits for `(5318,2)` on a probe
+session and logs `bootstrap.postgres.ownership.waiting` and `.acquired` with
+`lock=deferred_writers`; `secret_lines.deferred_writer_probe_release_failed` (Warn,
+`error`) means the probe's unlock failed after the pool opened, which does not
+affect the run.

@@ -30,8 +30,9 @@ const secretLinesFinalizationTimeout = 30 * time.Minute
 // finalize, so two bootstrap-index runs never overlap between begin and
 // finalize: the epoch fence alone cannot stop the first finalizer from
 // publishing ready over rows the second run is still writing without
-// derivation. Its wait is the schema ownership wait, and the schema apply then
-// waits again with the same bound, so the worst case is twice that value.
+// derivation. Its wait is the schema ownership wait. The deferred-writer probe
+// before it and the schema apply after it wait with the same bound, so the
+// worst case before work starts is three times that value.
 type secretLinesLifecycle struct {
 	lock     func(context.Context, bootstrapDB, *slog.Logger, time.Duration) (func(context.Context) error, error)
 	begin    func(context.Context, bootstrapDB) (int64, error)

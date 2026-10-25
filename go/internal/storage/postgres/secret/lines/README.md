@@ -112,9 +112,11 @@ flowchart LR
   `ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` (default 3 m), then fails naming the
   holder's pid, application name, connection age, lock and mode. The holder can
   be a reducer rebuild, which is not an orphan: it ends when the rebuild
-  publishes. The schema-bootstrap
-  ownership wait that follows uses the same bound, so the worst case before
-  work starts is twice the value. The epoch fence covers the
+  publishes. A bootstrap-index that starts during a rebuild first waits for
+  `(5318,2)` the same way, on a probe session (`OpenDeferredWriterPool`, logged
+  `lock=deferred_writers`), and the schema-bootstrap ownership wait uses the
+  same bound too, so the worst case before work starts is three times the
+  value. The epoch fence covers the
   remaining ordering: a finalizer that outlives its epoch after a crash and a
   rerun cannot publish over the newer load. Without the lock, two overlapping
   loads could publish `ready` over rows the second was still writing without

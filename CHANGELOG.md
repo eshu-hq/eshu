@@ -634,8 +634,12 @@ recent shipped work grouped by feature area.
   bootstrap's pinned lock connection died. `bootstrap-index` also refuses to
   open a connection once its lock connection is gone, keeps that connection
   alive against `idle_session_timeout`, and fails loudly if its own finalize
-  claims nothing for its epoch. While a rebuild runs the reducer opens up to
-  `ESHU_POSTGRES_MAX_OPEN_CONNS` + 1 connections. Finalizer batches (the reducer's
+  claims nothing for its epoch. A `bootstrap-index` that starts during a rebuild
+  waits for it, up to `ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT`, and fails naming
+  the holder if it is still running (the worst case before work starts is now
+  three of those waits). The reducer opens up to
+  `ESHU_POSTGRES_MAX_OPEN_CONNS` + 1 connections: the extra one is open for the
+  startup ping, each poll that finds the table not ready, and a rebuild. Finalizer batches (the reducer's
   and `bootstrap-index`'s) are now also bounded by 4 MiB of content, so a live
   write waits about half a second behind a batch instead of up to 11 s. It is
   on by default (`ESHU_SECRET_LINES_REPAIR_ENABLED`). Watch

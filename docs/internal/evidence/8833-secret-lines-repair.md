@@ -106,12 +106,19 @@ sequenceDiagram
   A failed poll backs off: 2x the poll interval, then 4x, up to 1 h. The next
   poll claims a `failed` state again. A poll cut short by shutdown is
   `outcome=cancelled` with a Warn, not a failure.
-- **Bootstrap start during a rebuild.** The first connection of a new
-  bootstrap-index pool waits on `(5318,2)` behind the rebuild. That wait is
-  bounded by the startup ping (`ESHU_POSTGRES_PING_TIMEOUT`, 10 s), so a rebuild
-  longer than that makes the run exit with a ping error (proven by
-  `TestOpenBootstrapDBHoldsTheDeferredWriterLockSharedLive`). Connections opened
-  later wait on their caller's context.
+- **Bootstrap start during a rebuild (ruling-6).** The pool's connect hook
+  waits on `(5318,2)` in its blocking form, and the first connection is born
+  inside the startup ping, which `ESHU_POSTGRES_PING_TIMEOUT` (10 s) cuts off: a
+  rebuild longer than that made the run exit with a ping error and nothing
+  restarts it under compose. `OpenDeferredWriterPool` now takes `(5318,2)` shared
+  on a probe session first (one try-lock per second, up to
+  `ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT`, logged as `ownership.waiting` with
+  `lock=deferred_writers`), opens the pool while it holds the probe, and
+  releases it. While the probe holds the lock no Repairer can go exclusive, so
+  the hook never waits. A holder past the wait fails the run naming the holder.
+  An unreachable database still fails inside the ping timeout, before the probe
+  (`TestDeferredPoolUnreachableDatabaseFailsWithinThePingTimeoutLive`). Worst
+  case before work starts: three ownership waits (probe, run lock, schema).
 - **Not done.** No migration, no heartbeat or TTL column (a timestamp cannot
   prove a writer is dead, and a TTL would delay every repair), no change to the
   138 triggers, and no `Workers=1` or startup refusal for a pool of one.
@@ -133,7 +140,9 @@ sequenceDiagram
 | D: a pool opened during a rebuild waits for `(5318,2)`, proceeds after, and `AcquireBulkLoadLock` then succeeds | `TestBootstrapStartsDuringARebuildWaitsThenProceedsLive` | PASS. Mutations RED: drop the shared lock, release `(5318,2)` before `Finalize` |
 | E: an uncertain lock session is discarded, not pooled (the next connection is another backend) | `TestUncertainLockSessionNeverReturnsToThePoolLive` | PASS. Discard removed: RED, same backend pid |
 | a clean shutdown mid-rebuild is `cancelled`, a Warn, no `repair_failed`, state `failed` | `TestRepairerCountsShutdownAsCancelledLive` | PASS |
-| bootstrap pool: every connection holds `(5318,2)` shared; a pool opened under an exclusive holder fails the ping | `TestOpenBootstrapDBHoldsTheDeferredWriterLockSharedLive` | PASS |
+| bootstrap pool: every connection holds `(5318,2)` shared; a pool opened under an exclusive holder waits the ownership wait, then fails naming the holder (not a ping error) | `TestOpenBootstrapDBHoldsTheDeferredWriterLockSharedLive`, `TestDeferredPoolFailsNamingTheHolderLive` | PASS |
+| bootstrap start during a rebuild longer than the ping budget opens once it ends; `ownership.waiting lock=deferred_writers` logged | `TestDeferredPoolWaitsForARebuildLongerThanThePingLive`, `TestOpenBootstrapDBWaitsForARebuildLongerThanThePingLive` | PASS. Probe removed: RED, ping error after the ping budget |
+| the probe is released when opening fails, and discarded when its unlock is uncertain; the Repairer skips `deferred_writers` while it holds | `TestDeferredPoolReleasesTheProbeWhenOpeningFailsLive`, `TestDeferredProbeUncertainUnlockIsDiscardedLive`, `TestRepairerSkipsWhileTheProbeHoldsThenBootstrapProceedsLive` | PASS. Release dropped on the error path: RED. Discard removed: RED |
 | bootstrap Finalize that claims nothing: newer epoch is superseded, same epoch errors | `TestUnclaimedFinalizeIsSupersededOnlyWhenTheEpochMovedOn` | PASS. `>=` instead of `>`: RED |
 | reducer wiring: `run` starts the repair, and the shutdown defer waits for it before closing the lock pool | `TestRunWiresTheSecretLinesRepairIntoTheShutdownOrder`, `TestLoadSecretLinesRepairConfig`, `TestStartSecretLinesRepair*` | PASS. Start call replaced by a no-op closure: RED. Pool closed before the wait: RED |
 | finalizer batches are bounded by bytes: twelve 101 KB files and one 807 KB file under a 320 KB budget make 5 batches, 13 files, parity 0/0 | `TestFinalizeBoundsABatchByContentBytesLive`, `TestFinalizeBatchByteBudgetDefaultsToFourMiB` | PASS. Byte cut removed: RED (1 batch). Termination on "window not full" alone: RED (3 files, 1 batch) |
@@ -227,6 +236,9 @@ Observability Evidence:
     `secret_lines.finalize_lost_epoch` (ERROR, `failure_class=
     secret_lines_bulk_load_lock_lost`) and `secret_lines.finalize_superseded`
     (Warn): the lock-loss signals.
+  - `bootstrap.postgres.ownership.waiting` and `.acquired` with
+    `lock=deferred_writers`, and `secret_lines.deferred_writer_probe_release_failed`
+    (Warn): the bootstrap-index probe (ruling-6).
   - `secret_lines.repair_started`: epoch, state, and `policy_version` once
     migration 233 adds it.
   - `secret_lines.repair_complete`: outcome, files, rows, and duration.

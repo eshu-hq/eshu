@@ -42,8 +42,9 @@ type Conner interface {
 type LockOptions struct {
 	// Wait bounds how long a second run waits for the holder before failing.
 	// bootstrap-index passes the schema ownership wait
-	// (ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT) so one knob sets both bounds. The
-	// two waits run in sequence, so the worst case is twice that value.
+	// (ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT) so one knob sets every bound. The
+	// deferred-writer probe, this wait, and the schema apply run in sequence, so
+	// the worst case is three times that value.
 	Wait time.Duration
 	// Poll is the pg_try_advisory_lock cadence.
 	Poll time.Duration
