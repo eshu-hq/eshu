@@ -313,6 +313,20 @@ returns the same rows, only slower; a missing 229 costs the most. Steps and
 progress signals: `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md`
 (Deployment).
 
+## Migration 233: security-alert latest work item index (#8840)
+
+This file adds `workflow_work_items_collector_scope_updated_idx` on
+`(collector_kind, scope_id, updated_at DESC, work_item_id ASC)` as the only
+statement, built `CONCURRENTLY`, so claims and completions keep writing during
+the upgrade. The security-alert collection-state read uses it to find each
+target's newest work item with a one-entry probe. It replaces a scan and sort
+of the target's whole history. On the 561,120-row fixture the build took
+0.5 s and the index is 36 MB. Each work-item insert and update adds one more
+B-tree entry, measured at about 10% more WAL per insert, claim, and complete
+cycle. If the index is missing or invalid, the read returns the same rows,
+only slower, and past its 1 s deadline it fails closed. Evidence:
+`docs/internal/evidence/8840-security-alert-latest-work-item-index.md`.
+
 ## Verification
 
 ```bash
