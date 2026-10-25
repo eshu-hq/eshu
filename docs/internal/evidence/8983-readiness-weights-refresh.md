@@ -48,7 +48,7 @@ Run 40197054198 (push, head 4ab321ac, first green wave containing the refit)
 measured 1079, 1119, 1052, and 1150 s for shards 1 to 4. Its shard composition
 (74, 225, 82, and 246 tests) matches the refit cut exactly, confirming the cut
 took effect. All shards held under the cap with margin to spare. Its errors
-(+18% to +28%, all over-predictions) sit inside the stated band.
+(+10.4% to +20.1%, all over-predictions) sit inside the stated band.
 
 ## Commands
 
