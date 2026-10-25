@@ -4,6 +4,7 @@
 package correlation
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -100,5 +101,31 @@ func TestSecurityAlertManifestConsumptionCarriesTheResolutionState(t *testing.T)
 	}
 	if got := consumptions[0].ObservedVersion; got != "" {
 		t.Fatalf("ObservedVersion = %q, want none for an unresolved row", got)
+	}
+}
+
+// TestTypedPackageConsumptionPayloadCarriesTheResolutionState (#8988): the
+// consumption writer persists dependency_resolution_state when the decision has
+// one and omits the key otherwise, so a fact for an ecosystem that emits no
+// state, and a fact written before the field existed, look the same.
+func TestTypedPackageConsumptionPayloadCarriesTheResolutionState(t *testing.T) {
+	t.Parallel()
+
+	for _, state := range []string{"unresolved", "partial", "resolved", "", "  "} {
+		payload, err := typedPackageConsumptionPayload(PackageWrite{}, PackageConsumptionDecision{
+			PackageID:                 "pkg:maven/g/a",
+			DependencyRange:           "1.0:jdk8",
+			DependencyResolutionState: state,
+		})
+		if err != nil {
+			t.Fatalf("typedPackageConsumptionPayload() error = %v", err)
+		}
+		got, present := payload["dependency_resolution_state"]
+		switch want := strings.TrimSpace(state); {
+		case want == "" && present:
+			t.Fatalf("state %q: payload carries dependency_resolution_state %v, want the key omitted", state, got)
+		case want != "" && got != want:
+			t.Fatalf("state %q: dependency_resolution_state = %v, want %q", state, got, want)
+		}
 	}
 }

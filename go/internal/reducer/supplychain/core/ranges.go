@@ -239,6 +239,11 @@ func exactConsumptionDependencyVersion(
 	ecosystem string,
 	consumption supplychainmodel.PackageConsumption,
 ) (string, bool) {
+	if strings.EqualFold(strings.TrimSpace(consumption.DependencyResolutionState), "unresolved") {
+		// The parser left the version text as written; it is not a version
+		// (issue #8988). The same rule gates securityalert.
+		return "", false
+	}
 	switch normalizedSupplyChainVersionEcosystem(ecosystem) {
 	case string(packageidentity.EcosystemCargo), string(packageidentity.EcosystemNuGet):
 		if !consumption.Lockfile {

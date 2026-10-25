@@ -30,9 +30,17 @@ and became `ObservedVersion`. An `unresolved` row now observes no version. The
 manifest security-alert bridge carries the state on `SecurityAlertConsumption`
 and skips the text fallback for an unresolved row. A `partial` row keeps its
 answer: an sbt row whose scope is a placeholder is `partial` with an exact
-literal. The persisted `reducer_package_consumption_correlation` fact carries
-no resolution state, so the security-alert path that reads that fact keeps the
-text fallback; closing it needs a payload field and a contract decision.
+literal. The persisted `reducer_package_consumption_correlation` fact now
+carries the state in an additive optional `dependency_resolution_state` field
+(`reducerderived/v1`, a minor change). The consumption writer sets it when the
+parser gave one. Both readers of the persisted fact, security-alert
+reconciliation and supply-chain impact, pass it to their
+`exactConsumptionDependencyVersion`, which refuses an `unresolved` row, so the
+observed-version rule is one rule on every path. A fact written before the
+field has no state and keeps the text fallback, so an old fact that already
+carries `1.0:jdk8` stays wrong until the repository is re-materialized. No
+migration. The golden snapshot holds no `reducer_package_consumption_correlation`
+fact, so it does not change.
 
 State-gate proof (a throwaway generated corpus, deleted after the run, compared
 the old reader with a gate on `unresolved` and with a gate on every

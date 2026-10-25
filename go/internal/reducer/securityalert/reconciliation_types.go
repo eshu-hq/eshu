@@ -56,10 +56,11 @@ type SecurityAlertConsumption struct {
 	DependencyScope  string
 	Lockfile         bool
 	// DependencyResolutionState is the state the parser gave the manifest row
-	// ("resolved", "partial", "unresolved"), or empty when its ecosystem emits
-	// none or the consumption comes from a persisted fact, which does not carry
-	// it. An unresolved row never falls back to its text as the observed
-	// version (issue #8988).
+	// ("resolved", "partial", "unresolved"), read from the manifest evidence or
+	// from the persisted fact's dependency_resolution_state. It is empty when
+	// the ecosystem emits none and for a fact written before the field existed.
+	// An unresolved row never falls back to its text as the observed version
+	// (issue #8988).
 	DependencyResolutionState string
 }
 

@@ -3,7 +3,11 @@
 
 package securityalert
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
 
 // TestSecurityAlertObservedVersionHonorsAnUnresolvedState (#8988): a manifest
 // consumption whose parser marked the row unresolved never falls back to its
@@ -42,6 +46,52 @@ func TestSecurityAlertObservedVersionHonorsAnUnresolvedState(t *testing.T) {
 			)
 			if got != tc.want {
 				t.Fatalf("securityAlertObservedVersion() = %q, want %q (state %q, range %q)", got, tc.want, tc.state, tc.rng)
+			}
+		})
+	}
+}
+
+// TestExtractSecurityAlertConsumptionsCarriesThePersistedResolutionState
+// (#8988): a persisted reducer_package_consumption_correlation fact carries the
+// parser's resolution state, and the observed version read through
+// ExtractSecurityAlertConsumptions honors it. A fact written before the field
+// existed has no state and keeps the text fallback.
+func TestExtractSecurityAlertConsumptionsCarriesThePersistedResolutionState(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		rng   string
+		state string
+		want  string
+	}{
+		{"colon unresolved", "1.0:jdk8", "unresolved", ""},
+		{"single bang unresolved", "1.0!", "unresolved", ""},
+		{"sbt identifier unresolved", "someIdent", "unresolved", ""},
+		{"exact partial", "2.3.4-RC1", "partial", "2.3.4-RC1"},
+		{"exact resolved", "2.3.4-RC1", "resolved", "2.3.4-RC1"},
+		{"fact written before the field", "2.3.4-RC1", "", "2.3.4-RC1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			envelope := packageConsumptionCorrelationEnvelope("consume-1", "repo-1", "pkg:maven/org.example/lib", "build.gradle")
+			envelope.Payload["dependency_range"] = tc.rng
+			if tc.state != "" {
+				envelope.Payload["dependency_resolution_state"] = tc.state
+			}
+			consumptions := ExtractSecurityAlertConsumptions([]facts.Envelope{envelope})
+			if len(consumptions) != 1 {
+				t.Fatalf("consumptions = %d, want 1", len(consumptions))
+			}
+			if got := consumptions[0].DependencyResolutionState; got != tc.state {
+				t.Fatalf("DependencyResolutionState = %q, want %q", got, tc.state)
+			}
+			got := securityAlertObservedVersion(
+				ProviderSecurityAlert{SecurityAlertReconciliationDecision: SecurityAlertReconciliationDecision{Ecosystem: "maven"}},
+				consumptions[0],
+			)
+			if got != tc.want {
+				t.Fatalf("securityAlertObservedVersion() = %q, want %q", got, tc.want)
 			}
 		})
 	}
