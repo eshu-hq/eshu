@@ -223,6 +223,18 @@ EOF
 	check_guard "guard: -std=gnu17 only in CGO_CPPFLAGS on the same line FAILS" 1 "$t" "cppflags.yml"
 
 	t="$(new_tree)"
+	good_workflow | awk '{ print } /^  CGO_CFLAGS:/ { print "  CGO_CPPFLAGS: \"-std=gnu23\"" }' >"${t}/.github/workflows/cppflags-key.yml"
+	check_guard "guard: a separate CGO_CPPFLAGS key with -std= FAILS" 1 "$t" "cppflags-key.yml"
+
+	t="$(new_tree)"
+	{ good_workflow; printf '      - run: export CGO_CFLAGS+=" -std=gnu23"\n'; } >"${t}/.github/workflows/append-std.yml"
+	check_guard "guard: CGO_CFLAGS+= that adds a later -std= FAILS" 1 "$t" "append-std.yml"
+
+	t="$(new_tree)"
+	{ good_workflow; printf '      - run: export CGO_CFLAGS+=" -Wall"\n'; } >"${t}/.github/workflows/append-ok.yml"
+	check_guard "guard: CGO_CFLAGS+= that keeps the workflow flag passes" 0 "$t"
+
+	t="$(new_tree)"
 	good_workflow | sed "s/CGO_CFLAGS: \"-O2 -g -std=gnu17\"/CGO_CFLAGS: \${{ vars.CFLAGS || '-std=gnu17' }}/" >"${t}/.github/workflows/expr.yml"
 	check_guard "guard: a \${{ }} value that names the flag as text FAILS" 1 "$t" "expr.yml"
 

@@ -16,8 +16,9 @@
 #   2. No CGO_CFLAGS assignment anywhere in a workflow drops -std=gnu17, so a
 #      later job or step cannot clobber the flag. The value must hold exactly
 #      -std=gnu17 (no second -std=, no "${{ }}" expression) before any trailing
-#      " #" comment, so comment text never counts as the flag. "unset
-#      CGO_CFLAGS" and "env -u CGO_CFLAGS" also fail.
+#      " #" comment, so comment text never counts as the flag. A "+=" append
+#      must not add a -std=, any CGO_CPPFLAGS value with -std= fails, and
+#      "unset CGO_CFLAGS" and "env -u CGO_CFLAGS" also fail.
 #   3. Every script under scripts/ that runs `CGO_ENABLED=1 go ...` sources
 #      scripts/lib/cgo-cflags.sh and calls eshu_export_cgo_cflags.
 #   4. The developer entrypoints (--list-entrypoints) do the same, and the
@@ -150,14 +151,16 @@ require_lib_use() {
 	fi
 }
 
-# cgo_cflags_assignments FILE prints one tab-separated record per CGO_CFLAGS
-# assignment or unset in a workflow: OK or BAD, "env" when it is a workflow-level
+# cgo_cflags_assignments FILE prints one tab-separated record per CGO_CFLAGS or
+# CGO_CPPFLAGS assignment, append, or unset in a workflow: OK or BAD, "env" when it is a workflow-level
 # env key (else "-"), and the line. Whole-line comments are dropped first. A
 # trailing YAML comment starts at whitespace plus "#", but a "#" inside a quoted
 # shell string looks the same, so the comment cut is applied to the VALUE only:
 # an assignment is OK when the text between it and the comment start (or the
 # next ";", "&", "|", or CGO_* assignment) holds -std=gnu17, no other -std=, and
-# no "${{" expression. An assignment after a comment start has no checkable
+# no "${{" expression. A "+=" append keeps the earlier value, so it is OK unless
+# it adds a -std=. Any CGO_CPPFLAGS value with -std= is BAD, because cgo passes
+# those flags to the C compiler as well. An assignment after a comment start has no checkable
 # value, so it is BAD. "unset CGO_CFLAGS" and "-u CGO_CFLAGS" are BAD. Every
 # error here turns a pass into a FAIL, never the reverse.
 cgo_cflags_assignments() {
@@ -165,7 +168,7 @@ cgo_cflags_assignments() {
 		function value_of(s,   e) {
 			e = length(s) + 1
 			if (match(s, /[;&|]/) && RSTART < e) e = RSTART
-			if (match(s, /[[:space:]]CGO_[A-Z_]+[:=]/) && RSTART < e) e = RSTART
+			if (match(s, /[[:space:]]CGO_[A-Z_]+\+?[:=]/) && RSTART < e) e = RSTART
 			return substr(s, 1, e - 1)
 		}
 		/^env:[[:space:]]*$/ { inenv = 1; next }
@@ -178,16 +181,25 @@ cgo_cflags_assignments() {
 				printf "BAD\t-\t%s\n", line
 			scan = line
 			off = 0
-			while (match(scan, /CGO_CFLAGS[:=]/)) {
+			while (match(scan, /CGO_(CFLAGS|CPPFLAGS)\+?[:=]/)) {
 				rs = RSTART; rl = RLENGTH
+				name = substr(scan, rs, rl)
 				start = off + rs + rl
 				val = ""
 				if (off + rs < cstart && cstart > start) val = value_of(substr(line, start, cstart - start))
 				rest = val
-				ok = (val ~ /-std=gnu17/) && (val !~ /\$\{\{/)
 				gsub(/-std=gnu17/, "", rest)
-				if (rest ~ /-std=/) ok = 0
-				kind = (inenv && line ~ /^[[:space:]]+CGO_CFLAGS:/ && off == 0) ? "env" : "-"
+				if (name ~ /CPPFLAGS/) {
+					# cgo passes CGO_CPPFLAGS to the C compiler too: no -std= here.
+					ok = (val !~ /-std=/)
+				} else if (name ~ /\+/) {
+					# An append keeps the earlier value, so it may add anything but
+					# a later -std= (a repeated -std=gnu17 is harmless).
+					ok = (rest !~ /-std=/) && (val !~ /\$\{\{/)
+				} else {
+					ok = (val ~ /-std=gnu17/) && (val !~ /\$\{\{/) && (rest !~ /-std=/)
+				}
+				kind = (inenv && name == "CGO_CFLAGS:" && line ~ /^[[:space:]]+CGO_CFLAGS:/ && off == 0) ? "env" : "-"
 				printf "%s\t%s\t%s\n", ok ? "OK" : "BAD", kind, line
 				off = off + rs + rl - 1
 				scan = substr(scan, rs + rl)

@@ -93,7 +93,8 @@ when:
 
 - a workflow that compiles Go has no workflow-level `CGO_CFLAGS` with
   `-std=gnu17`, or any `CGO_CFLAGS` assignment drops the flag, adds a second
-  `-std=`, uses a `${{ }}` expression, or unsets the variable. A whole-line or
+  `-std=`, uses a `${{ }}` expression, appends a later `-std=` with `+=`, or
+  unsets the variable, or any `CGO_CPPFLAGS` value holds `-std=`. A whole-line or
   trailing `#` comment that names `-std=gnu17` does not count as the flag;
 - a script under `scripts/` that runs `CGO_ENABLED=1 go`, or a developer
   entrypoint, lacks a non-comment line that sources `scripts/lib/cgo-cflags.sh`
