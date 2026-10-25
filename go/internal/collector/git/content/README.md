@@ -87,7 +87,9 @@ updated in the same change.
   value is taken to reach every line from the line after the key to the line
   before the next node starts, plus the text before that node on its own line.
   The text that could be value on those lines must be nothing (blank, a comment,
-  flow brackets and commas, a `---` or `...` marker), or lie inside the one span
+  flow brackets and commas, a `---` or `...` marker; on a line inside a quoted
+  scalar, found by reading the source for the closing quote, only white space
+  is nothing, so a line that starts with `#` there is text), or lie inside the one span
   the redactor replaced with a `REDACTED_<kind>` marker on that line (found by
   matching the unchanged text before and after the marker against the source),
   or be exactly a marker or `${NAME}` reference an earlier pass kept. Marker
@@ -97,13 +99,25 @@ updated in the same change.
   value spills only onto more-indented lines the redactor replaces whole. A
   comment line at or below the key's indent does not end the continuation.
   yaml.v3 rejects a tab as flow indentation and a bare document after `...`,
-  which Yarn's js-yaml reads; for a body it cannot parse, the lines after a line
-  a listed key matches are held to the same text rule up to the first
-  bracket-only line or entry line. A line check runs for every body: an
+  which Yarn's js-yaml reads; for a body it cannot parse, the lines after the
+  separator of a line a listed key matches are followed with a lexical bracket
+  and quote count. While a bracket or quote the value opened is open, every
+  line is value and is held to the same text rule (a leading closer or comma
+  does not end it). Once both are closed, a bracket-only line or an entry line
+  ends it. A line check runs for every body: an
   explicit-key indicator (also in a flow collection or with CRLF endings) or
   value line, and a listed key whose value starts with an alias. The path then
   becomes a metadata row with reason `yaml_indirection`. A body with none of
   the five bytes skips the parse.
+- **What the YAML check guarantees.** For a body yaml.v3 parses, no byte a
+  listed key's decoded value occupies after the key's own line is stored in the
+  clear: the line rule replaces the key's line from the separator to the end of
+  the line, and the text rule above covers every later line the value can reach.
+  That is the whole class the check claims, and the tests sweep it against
+  yaml.v3, js-yaml, and PyYAML. For a body yaml.v3 rejects, the lexical rule is
+  a heuristic: swept the same way, not proven. A shape found there joins
+  `flowHostileSeeds`. A value under a key the definition does not list is the
+  denylist limit below.
 - **Known limits (denylist).** Marker mode redacts the values of the listed
   keys and the lines the detector matches. It does not see a listed key spelled
   with a homoglyph, or split across lines inside quotes in a body that is not

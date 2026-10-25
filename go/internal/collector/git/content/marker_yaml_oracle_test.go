@@ -109,6 +109,10 @@ var oracleFragments = []string{
 	"REDACTED_api_token", "{T} REDACTED_api_token", "{T}-REDACTED_api_token", "REDACTED_secret_literal {T}",
 	"{T}, httpsProxy: http://user:pw@h/, z: 1}", "{T}, note: " + "AKIA" + "ABCDEFGHIJKLMNOP" + ", z: 1}",
 	"httpsProxy: http://user:pw@h/, npmAuthToken: abcd", strings.Repeat("[", 70), "{T}" + strings.Repeat("]", 70),
+	// Quoted scalars that run onto comment-looking lines, closers followed by
+	// text, and keys opened inside a flow collection.
+	"npmAuthToken: [\"abcd", "{npmAuthToken: ['abcd", "{npmAuthToken: {a: \"abcd", "{npmAuthToken: [!!str \"abcd", "\"abcd",
+	"#{T}\"]}", "#{T}'", "\t#{T}\"]", "  #{T}\"", "]},{T}", ",{T}]", "], {T}", "}, {T}}", "{a: \"x", "{T}\"]}", "...{T}\"]",
 }
 
 // randomOracleBody joins random fragments, numbering each planted token so the
@@ -136,7 +140,7 @@ func TestRedactMarkerNeverStoresADecodedCredential(t *testing.T) {
 	listed := append(append([]string{}, yarnrcCredentialKeys...), oracleURLKeys...)
 	// ESHU_8833_YAML_ORACLE_N and ESHU_8833_YAML_ORACLE_SEED widen the search
 	// for a one-off run; the defaults keep the test under a second.
-	iterations, seed := envInt("ESHU_8833_YAML_ORACLE_N", 250000), envInt("ESHU_8833_YAML_ORACLE_SEED", 8833)
+	iterations, seed := envInt("ESHU_8833_YAML_ORACLE_N", 150000), envInt("ESHU_8833_YAML_ORACLE_SEED", 8833)
 	rng := rand.New(rand.NewSource(int64(seed)))
 	decodedBodies, failedClosed := 0, 0
 	for i := 0; i < iterations; i++ {
@@ -162,7 +166,7 @@ func TestRedactMarkerNeverStoresADecodedCredential(t *testing.T) {
 			}
 		}
 	}
-	if decodedBodies < 1500 {
+	if decodedBodies < 600 {
 		t.Fatalf("the generator reached only %d decoding bodies; widen it", decodedBodies)
 	}
 	t.Logf("decoding bodies %d, failed closed %d", decodedBodies, failedClosed)

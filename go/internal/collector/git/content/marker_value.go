@@ -3,7 +3,10 @@
 
 package gitcontent
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 // keepsVerbatim reports whether the whole remainder of the line, after the
 // separator, is exactly an environment reference or an earlier marker,
@@ -86,4 +89,95 @@ func quoteEnd(text string, quote byte) int {
 
 func closesQuote(line string, quote byte) bool {
 	return quoteEnd(line, quote) >= 0
+}
+
+// entryLine matches a line that starts a mapping entry or a sequence item after
+// any flow openers and commas: a quoted or plain key, then ":" and a space or
+// the end of the line. A URL such as "https://user:pw@host" has no space after
+// its colon and is not an entry.
+var entryLine = regexp.MustCompile(`^(?:-[ \t]+)*(?:"[^"]*"|'[^']*'|[^\s"'#,:{}\[\]][^#,:{}\[\]]*?)[ \t]*:(?:[ \t]|$)`)
+
+// flowScan follows flow brackets and quotes across lines, enough to know when a
+// listed key's flow value is still open. It is lexical on purpose: it serves
+// only a body yaml.v3 cannot parse, and it errs toward staying open.
+type flowScan struct {
+	depth int
+	quote byte
+}
+
+// scan advances the state over one line.
+func (f *flowScan) scan(text string) {
+	for i := 0; i < len(text); i++ {
+		c := text[i]
+		if f.quote != 0 {
+			switch {
+			case f.quote == '"' && c == '\\':
+				i++
+			case c == f.quote && f.quote == '\'' && i+1 < len(text) && text[i+1] == '\'':
+				i++
+			case c == f.quote:
+				f.quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			f.quote = c
+		case '{', '[':
+			f.depth++
+		case '}', ']':
+			f.depth--
+		case '#':
+			if i == 0 || text[i-1] == ' ' || text[i-1] == '\t' {
+				return
+			}
+		}
+	}
+}
+
+// lexicalValueGap is valueReachesUnreplacedText for a body yaml.v3 cannot
+// parse, where no node positions exist. After the separator of each line a
+// listed key matches, it follows the flow brackets and quotes the value opens
+// and reads the lines after it. Outside a quote a blank or comment line is
+// skipped. While a bracket the value opened is still open, or a quote is, every
+// other line is value. Once both are closed, a line of only flow brackets and
+// commas, a document marker, or a line that starts another entry ends the value.
+// Every value line must hold no text the redactor left in the clear; inside a
+// quote a leading "#" is text.
+func (c *yamlCheck) lexicalValueGap() bool {
+	for k, line := range c.lines {
+		after := -1
+		for _, pattern := range c.keyPatterns {
+			if pattern == nil {
+				continue
+			}
+			if loc := pattern.FindStringIndex(line); loc != nil && (after < 0 || loc[1] < after) {
+				after = loc[1]
+			}
+		}
+		if after < 0 {
+			continue
+		}
+		var state flowScan
+		state.scan(line[after:])
+		for j := k + 1; j < len(c.lines); j++ {
+			text := c.lines[j]
+			trimmed := strings.TrimSpace(text)
+			inQuote := state.quote != 0
+			if !inQuote {
+				if trimmed == "" || trimmed[0] == '#' {
+					continue
+				}
+				if first, _ := contentBounds(trimmed); state.depth <= 0 &&
+					(first < 0 || trimmed == "..." || entryLine.MatchString(strings.TrimLeft(trimmed, "{[, \t"))) {
+					break
+				}
+			}
+			if !c.textHandled(j+1, len(text), inQuote) {
+				return true
+			}
+			state.scan(text)
+		}
+	}
+	return false
 }

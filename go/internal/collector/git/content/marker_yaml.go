@@ -261,7 +261,7 @@ func opensEntry(before string) bool {
 // the text on a whole line, the text before the node on the last) must be:
 //
 //   - nothing: blank, a comment, flow brackets and commas, or a document
-//     marker, or
+//     marker (on a line inside a quoted scalar only white space), or
 //   - inside the one span the redactor replaced with a marker on that line, or
 //   - already exactly a marker or an environment reference an earlier pass kept.
 //
@@ -271,32 +271,91 @@ func opensEntry(before string) bool {
 // lines the redactor replaces whole.
 func (c *yamlCheck) valueReachesUnreplacedText(key, value *yaml.Node) bool {
 	last := lastNodeLine(value, key.Line)
+	// A line inside a quoted scalar is value text even when it starts with "#"
+	// or reads "...": the shortcuts for comments and markers do not apply.
+	quoted := c.quotedContinuationLines(value)
 	for line := key.Line + 1; line <= len(c.lines); line++ {
 		text := c.lines[line-1]
 		if line > last {
 			if column := c.firstColumn[line-1]; column != 0 {
 				// The next node starts here. Text before it on this line is the
 				// tail of the value; the node itself is another entry.
-				return !c.textHandled(line, runeOffset(text, column-1))
+				return !c.textHandled(line, runeOffset(text, column-1), quoted[line])
 			}
 		}
-		if !c.textHandled(line, len(text)) {
+		if !c.textHandled(line, len(text), quoted[line]) {
 			return true
 		}
 	}
 	return false
 }
 
-// textHandled reports whether the first limit bytes of source line n (1-based)
-// hold no credential text the redactor left in the clear.
-func (c *yamlCheck) textHandled(n, limit int) bool {
-	src := c.lines[n-1]
-	if strings.HasPrefix(strings.TrimSpace(src), "#") || strings.TrimSpace(src) == "..." {
-		return true
+// quotedContinuationLines returns the source lines, after a scalar's first, that
+// a quoted scalar in the subtree of node runs onto. yaml.v3 reports where a
+// scalar starts, so its closing quote is found by reading the source.
+func (c *yamlCheck) quotedContinuationLines(node *yaml.Node) map[int]bool {
+	var lines map[int]bool
+	stack := []*yaml.Node{node}
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		stack = append(stack, n.Content...)
+		quote := byte(0)
+		switch {
+		case n.Kind != yaml.ScalarNode || n.Line < 1 || n.Line > len(c.lines):
+			continue
+		case n.Style&yaml.DoubleQuotedStyle != 0:
+			quote = '"'
+		case n.Style&yaml.SingleQuotedStyle != 0:
+			quote = '\''
+		default:
+			continue
+		}
+		first := c.lines[n.Line-1]
+		open := strings.IndexByte(first[runeOffset(first, n.Column-1):], quote)
+		if open < 0 {
+			continue
+		}
+		rest := first[runeOffset(first, n.Column-1)+open+1:]
+		for end := n.Line; end <= len(c.lines); end++ {
+			if end > n.Line {
+				rest = c.lines[end-1]
+			}
+			if quoteEnd(rest, quote) >= 0 {
+				for line := n.Line + 1; line <= end; line++ {
+					if lines == nil {
+						lines = map[int]bool{}
+					}
+					lines[line] = true
+				}
+				break
+			}
+		}
 	}
-	first, end := contentBounds(src[:limit])
-	if first < 0 {
-		return true
+	return lines
+}
+
+// textHandled reports whether the first limit bytes of source line n (1-based)
+// hold no credential text the redactor left in the clear. strict is true for a
+// line inside a quoted scalar: there a leading "#" or a "..." line is text, and
+// only white space is nothing.
+func (c *yamlCheck) textHandled(n, limit int, strict bool) bool {
+	src := c.lines[n-1]
+	first, end := 0, 0
+	if strict {
+		text := src[:limit]
+		first = len(text) - len(strings.TrimLeft(text, " \t"))
+		end = len(strings.TrimRight(text, " \t"))
+		if first >= end {
+			return true
+		}
+	} else {
+		if trimmed := strings.TrimSpace(src); strings.HasPrefix(trimmed, "#") || trimmed == "..." {
+			return true
+		}
+		if first, end = contentBounds(src[:limit]); first < 0 {
+			return true
+		}
 	}
 	out := c.redacted[n-1]
 	if out == src {
@@ -389,48 +448,3 @@ func runeOffset(text string, count int) int {
 // markerAnywhere matches a marker anywhere in a line. It finds the span the
 // redactor wrote; it never makes a line safe by itself (textHandled).
 var markerAnywhere = regexp.MustCompile(markerPrefix + `(?:` + strings.Join(detect.Kinds(), "|") + `)`)
-
-// entryLine matches a line that starts a mapping entry or a sequence item after
-// any flow openers and commas: a quoted or plain key, then ":" and a space or
-// the end of the line. A URL such as "https://user:pw@host" has no space after
-// its colon and is not an entry.
-var entryLine = regexp.MustCompile(`^(?:-[ \t]+)*(?:"[^"]*"|'[^']*'|[^\s"'#,:{}\[\]][^#,:{}\[\]]*?)[ \t]*:(?:[ \t]|$)`)
-
-// lexicalValueGap is valueReachesUnreplacedText for a body yaml.v3 cannot
-// parse, where no node positions exist. After each line a listed key matches,
-// it reads the following lines: a blank or comment line is skipped, a line of
-// flow brackets, commas, or a document marker or a line that starts another
-// entry ends the value, as does a line that starts with a flow closer or comma,
-// and any other line must hold no text the redactor left in the clear.
-func (c *yamlCheck) lexicalValueGap() bool {
-	for k, line := range c.lines {
-		if !matchesAnyKey(line, c.keyPatterns) {
-			continue
-		}
-		for j := k + 1; j < len(c.lines); j++ {
-			trimmed := strings.TrimSpace(c.lines[j])
-			if trimmed == "" || trimmed[0] == '#' {
-				continue
-			}
-			// A flow indicator at the start of a line ends a plain scalar, so
-			// what follows belongs to other nodes; so does an entry.
-			if first, _ := contentBounds(trimmed); first < 0 || trimmed == "..." || strings.ContainsRune("]},", rune(trimmed[0])) ||
-				entryLine.MatchString(strings.TrimLeft(trimmed, "{[, \t")) {
-				break
-			}
-			if !c.textHandled(j+1, len(c.lines[j])) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func matchesAnyKey(line string, keyPatterns []*regexp.Regexp) bool {
-	for _, pattern := range keyPatterns {
-		if pattern != nil && pattern.MatchString(line) {
-			return true
-		}
-	}
-	return false
-}

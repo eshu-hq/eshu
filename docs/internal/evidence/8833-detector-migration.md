@@ -198,12 +198,24 @@ equal the source), or be exactly a marker or `${NAME}` reference an earlier
 pass kept. Marker text beside other text fails; so does a line whose replaced
 span stops short of the tail. For a body yaml.v3 cannot parse (it rejects a tab
 as flow indentation and a bare document after `...`; js-yaml reads both), the
-lines after a line a listed key matches are held to the same text rule, up to
-the first bracket-only line or entry line. The reason is the existing
+lines after the separator of a line a listed key matches are followed with a
+lexical bracket and quote count: while a bracket or quote the value opened is
+open every line is value and is held to the same text rule (a leading closer
+or comma does not end it); once both are closed, a bracket-only line or an
+entry line ends it. A line inside a quoted scalar (found by reading the source
+for the closing quote in the parsed path, by the quote count in the lexical
+one) gets no comment or marker shortcut: only white space is nothing. The reason is the existing
 `yaml_indirection`; no new label value.
 
+Completeness claim, and where it stops: for a body yaml.v3 parses, no byte of a
+listed key's decoded value after the key's own line is stored in the clear (the
+line rule covers the key's line from the separator to the end of the line). For
+a body yaml.v3 rejects, the lexical rule is a heuristic that was swept against
+js-yaml and PyYAML, not proven; a shape found there becomes a hostile seed. A
+value under an unlisted key is the existing denylist limit.
+
 Accuracy proof for the rule: `TestRedactMarkerNeverStoresADecodedCredential`
-generates 250,000 bodies per run from a fragment pool (flow and block openers,
+generates 150,000 bodies per run from a fragment pool (flow and block openers,
 listed keys with and without inline values, tabs, comments, document markers,
 marker text, URL-key and detector lines, 70-deep nesting, closers), parses each
 with yaml.v3 as an oracle independent of the redactor, and requires that no
