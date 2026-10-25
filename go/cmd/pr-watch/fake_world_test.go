@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -65,7 +66,7 @@ type fx struct {
 func openPR(num int, head string) fx {
 	return fx{
 		num: num, state: "OPEN", head: head, headRef: "drive/branch", base: "main",
-		baseOID: "base0001", mergeable: "MERGEABLE", mergeState: "CLEAN",
+		baseOID: "ba5e0001", mergeable: "MERGEABLE", mergeState: "CLEAN",
 		rollup: "PENDING", title: "a commit", author: "linuxdynasty",
 	}
 }
@@ -157,6 +158,7 @@ type world struct {
 	localRef  string
 	localSHA  string
 	readErr   map[int]error
+	hangPR    map[int]bool // graphql reads for these PRs block until the context ends
 	calls     []Command
 	fetches   []string
 }
@@ -169,7 +171,7 @@ type mergeTreeResult struct {
 func newWorld() *world {
 	return &world{
 		script: map[int][]fx{}, reads: map[int]int{}, pages: map[string]fx{},
-		logs: map[string]string{}, mergeTree: map[string]mergeTreeResult{}, readErr: map[int]error{},
+		logs: map[string]string{}, mergeTree: map[string]mergeTreeResult{}, readErr: map[int]error{}, hangPR: map[int]bool{},
 	}
 }
 
@@ -185,7 +187,17 @@ func argValue(args []string, key string) string {
 }
 
 // Exec implements Exec for the fake world.
-func (w *world) Exec(_ context.Context, c Command) ([]byte, error) {
+func (w *world) Exec(ctx context.Context, c Command) ([]byte, error) {
+	if c.Name == "gh" && len(c.Args) > 1 && c.Args[1] == "graphql" {
+		if n, _ := strconv.Atoi(argValue(c.Args, "number")); w.hangPR[n] {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(3 * time.Second):
+				return nil, errors.New("fake gh hung for 3s: the watcher applied no timeout")
+			}
+		}
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.calls = append(w.calls, c)
@@ -252,6 +264,11 @@ func (w *world) git(c Command) ([]byte, error) {
 			return []byte(r.out), &ExitError{Code: r.code}
 		}
 		return []byte(r.out), nil
+	case "check-ref-format":
+		if strings.Contains(a[len(a)-1], "bad-ref") {
+			return nil, &ExitError{Code: 1}
+		}
+		return nil, nil
 	case "symbolic-ref":
 		return []byte(w.localRef + "\n"), nil
 	case "rev-parse":
@@ -274,7 +291,8 @@ func newHarness(t *testing.T, prs []int, w *world) *harness {
 	cfg := Config{
 		Repo: "eshu-hq/eshu", Dir: "/work/tree", Account: "acct", GH: "gh", Git: "git",
 		PRs: prs, StableReads: 2, LogLines: 3,
-		Environ: []string{"PATH=/bin", "GH_TOKEN=ambient-wrong", "GITHUB_TOKEN=ambient-wrong"},
+		Required: []string{"go-core-complete", "go-race-complete"},
+		Environ:  []string{"PATH=/bin", "GH_TOKEN=ambient-wrong", "GITHUB_TOKEN=ambient-wrong"},
 	}
 	now := func() time.Time { return time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC) }
 	return &harness{t: t, w: w, out: out, wt: NewWatcher(cfg, w.Exec, out, now)}
@@ -290,6 +308,16 @@ func (h *harness) poll() []string {
 		return nil
 	}
 	return strings.Split(strings.TrimRight(added, "\n"), "\n")
+}
+
+// wantSilent polls n more times and fails if any poll prints a line.
+func (h *harness) wantSilent(n int, why string) {
+	h.t.Helper()
+	for i := 0; i < n; i++ {
+		if got := h.poll(); got != nil {
+			h.t.Fatalf("%s: poll %d printed %v", why, i+1, got)
+		}
+	}
 }
 
 // event is a parsed output line.

@@ -26,7 +26,7 @@ func TestConflictReadsTheGeneratedListFromTheCheckout(t *testing.T) {
 	}
 	w := newWorld()
 	w.seed(1, conflictedPR())
-	w.mergeTree["base0001..aaaa1111"] = mergeTreeResult{out: "tree\nspecs/live-tests.v1.yaml\n", code: 1}
+	w.mergeTree["ba5e0001..aaaa1111"] = mergeTreeResult{out: "tree\nspecs/live-tests.v1.yaml\n", code: 1}
 	h := newHarness(t, []int{1}, w)
 	h.wt.cfg.Dir = dir
 
@@ -40,7 +40,7 @@ func TestConflictReadsTheGeneratedListFromTheCheckout(t *testing.T) {
 func TestConflictWithoutTheGeneratedListDoesNotClaimTheRecipe(t *testing.T) {
 	w := newWorld()
 	w.seed(1, conflictedPR())
-	w.mergeTree["base0001..aaaa1111"] = mergeTreeResult{out: "tree\nspecs/live-tests.v1.yaml\n", code: 1}
+	w.mergeTree["ba5e0001..aaaa1111"] = mergeTreeResult{out: "tree\nspecs/live-tests.v1.yaml\n", code: 1}
 	h := newHarness(t, []int{1}, w) // Dir does not exist: no list can be read
 
 	got := h.poll()
@@ -52,7 +52,7 @@ func TestConflictWithoutTheGeneratedListDoesNotClaimTheRecipe(t *testing.T) {
 func TestConflictInAnAgentRuleFileIsCalledOut(t *testing.T) {
 	w := newWorld()
 	w.seed(1, conflictedPR())
-	w.mergeTree["base0001..aaaa1111"] = mergeTreeResult{out: "tree\nAGENTS.md\nCHANGELOG.md\ngo/cmd/x/AGENTS.md\n", code: 1}
+	w.mergeTree["ba5e0001..aaaa1111"] = mergeTreeResult{out: "tree\nAGENTS.md\nCHANGELOG.md\ngo/cmd/x/AGENTS.md\n", code: 1}
 	h := newHarness(t, []int{1}, w)
 
 	e := parseEvent(t, h.poll()[1])

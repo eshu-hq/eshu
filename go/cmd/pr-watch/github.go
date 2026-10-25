@@ -15,10 +15,18 @@ import (
 // loop forever. 30 pages of 100 is far above any real check set.
 const maxCheckPages = 30
 
+// contextsSelection is the checks connection read by both queries. It is
+// contexts(first:100, after:$after): the first page alone hides a pending or
+// failed check past the hundredth, so the caller follows the cursor.
+const contextsSelection = `statusCheckRollup{state contexts(first:100,after:$after){
+          totalCount pageInfo{hasNextPage endCursor}
+          nodes{__typename
+            ... on CheckRun{databaseId name status conclusion detailsUrl}
+            ... on StatusContext{context state targetUrl}}}}`
+
 // pullRequestQuery reads everything one poll needs in a single GraphQL call.
 // Threads, reviews, and comments use last:100 so a burst always includes the
-// newest items. Checks page through contexts(first:100, after:$after): the
-// first page alone hides a pending or failed check past the hundredth.
+// newest items.
 const pullRequestQuery = `query($owner:String!,$repo:String!,$number:Int!,$after:String){
   repository(owner:$owner,name:$repo){
     pullRequest(number:$number){
@@ -30,11 +38,21 @@ const pullRequestQuery = `query($owner:String!,$repo:String!,$number:Int!,$after
       comments(last:100){nodes{id author{login} body url}}
       commits(last:1){nodes{commit{
         oid messageHeadline author{user{login}}
-        statusCheckRollup{state contexts(first:100,after:$after){
-          totalCount pageInfo{hasNextPage endCursor}
-          nodes{__typename
-            ... on CheckRun{databaseId name status conclusion detailsUrl}
-            ... on StatusContext{context state targetUrl}}}}
+        ` + contextsSelection + `
+      }}}
+    }
+  }
+}`
+
+// checksPageQuery reads only the next page of checks, plus the head SHA so the
+// caller can tell that a push landed mid-read. A set of more than 100 checks
+// otherwise costs a second full read of threads, reviews, and comments.
+const checksPageQuery = `query($owner:String!,$repo:String!,$number:Int!,$after:String){
+  repository(owner:$owner,name:$repo){
+    pullRequest(number:$number){
+      headRefOid
+      commits(last:1){nodes{commit{
+        ` + contextsSelection + `
       }}}
     }
   }
@@ -94,8 +112,12 @@ func (w *Watcher) fetchSnapshot(ctx context.Context, token string, number int) (
 	var snap Snapshot
 	after := ""
 	for page := 0; page < maxCheckPages; page++ {
+		query := pullRequestQuery
+		if page > 0 {
+			query = checksPageQuery
+		}
 		args := []string{
-			"api", "graphql", "-f", "query=" + pullRequestQuery,
+			"api", "graphql", "-f", "query=" + query,
 			"-f", "owner=" + owner, "-f", "repo=" + repo, "-F", "number=" + strconv.Itoa(number),
 		}
 		if after != "" {
@@ -117,11 +139,14 @@ func (w *Watcher) fetchSnapshot(ctx context.Context, token string, number int) (
 			after = next.EndCursor
 			continue
 		}
-		more, next, perr := parseChecksPage(raw)
+		more, next, perr := parseResponse(raw)
 		if perr != nil {
 			return Snapshot{}, fmt.Errorf("read pr %d checks page %d: %w", number, page+1, perr)
 		}
-		snap.Checks = append(snap.Checks, more...)
+		if more.Head != snap.Head {
+			return Snapshot{}, fmt.Errorf("read pr %d: head moved while reading checks (%s -> %s); retrying next poll", number, short(snap.Head), short(more.Head))
+		}
+		snap.Checks = append(snap.Checks, more.Checks...)
 		if !next.HasNextPage {
 			return snap, nil
 		}

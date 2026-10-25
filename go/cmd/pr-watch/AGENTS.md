@@ -21,6 +21,15 @@ Scoped rules for editing the PR watcher. Load `golang-engineering`.
   which strips ambient tokens. A new gh call goes through `Watcher.gh`.
 - **Rollup state plus totalCount decides green and pending**, never the first
   page of contexts. Checks are paged to find failures past the hundredth.
+- **GREEN needs the merge-rule contexts.** `observeGreen` requires every
+  context in `Config.Required` (read from the gate registry by
+  `resolveRequired`, never a hardcoded list) present and SUCCESS, every check
+  read, and no pending check. A change to GREEN needs a test where the pre-wave
+  set of always-on checks stays silent. `Run` refuses to start with no
+  required contexts.
+- **Every child process has a deadline and git never prompts.** New calls go
+  through `Watcher.gh` or `Watcher.git`; do not call `w.exec` directly.
+- **PR data reaches git only after `validateRefs`, and after `--`.**
 - **Read-only toward GitHub.** No pushes, replies, thread resolution, or
   merges. The only local side effect is `git fetch` for a test merge.
 - **Conflict labels follow `conflict-recipes.md`, exactly.** `recipeFiles` and

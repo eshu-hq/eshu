@@ -118,15 +118,22 @@ func conflictingRepo(t *testing.T) (clone, headSHA, baseSHA string) {
 	headSHA = gitRun(t, clone, "rev-parse", "HEAD")
 	gitRun(t, clone, "push", "origin", "feature:refs/pull/7/head")
 	gitRun(t, clone, "checkout", "main")
-	write("main change\n")
-	gitRun(t, clone, "commit", "-am", "main moves")
-	baseSHA = gitRun(t, clone, "rev-parse", "HEAD")
-	gitRun(t, clone, "push", "origin", "main")
+	// main moves on origin from a second clone, so the first clone's
+	// refs/remotes/origin/main stays stale unless something fetches into it.
+	other := filepath.Join(root, "other")
+	gitRun(t, root, "clone", origin, other)
+	if err := os.WriteFile(filepath.Join(other, "CHANGELOG.md"), []byte("main change\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, other, "commit", "-am", "main moves")
+	baseSHA = gitRun(t, other, "rev-parse", "HEAD")
+	gitRun(t, other, "push", "origin", "main")
 	return clone, headSHA, baseSHA
 }
 
 func TestEndToEndAgainstFakeGHAndRealGit(t *testing.T) {
 	clone, head, base := conflictingRepo(t)
+	trackingBefore := gitRun(t, clone, "rev-parse", "refs/remotes/origin/main")
 	scenario := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(scenario, "pr-7"), 0o700); err != nil {
 		t.Fatal(err)
@@ -166,7 +173,7 @@ func TestEndToEndAgainstFakeGHAndRealGit(t *testing.T) {
 	defer cancel()
 	code := run(ctx, []string{
 		"-gh", self, "-dir", clone, "-account", "acct", "-repo", "eshu-hq/eshu",
-		"-interval", "10ms", "-log-lines", "2", "7",
+		"-interval", "10ms", "-log-lines", "2", "-required", "go-core-complete,go-race-complete", "7",
 	}, &stdout, &stderr, os.Environ(), t.TempDir(), osExec)
 	if code != 0 {
 		t.Fatalf("run exit = %d\nstdout:\n%s\nstderr:\n%s", code, stdout.String(), stderr.String())
@@ -180,6 +187,12 @@ func TestEndToEndAgainstFakeGHAndRealGit(t *testing.T) {
 	}
 	if tail := parseEvent(t, lines[4]).kv["tail"]; tail != "--- FAIL: TestBoom | ##[error]exit 1" {
 		t.Fatalf("log tail = %q", tail)
+	}
+	if after := gitRun(t, clone, "rev-parse", "refs/remotes/origin/main"); after != trackingBefore || after == base {
+		t.Fatalf("the test-merge fetch must not move origin/main: before %s, after %s, remote tip %s", trackingBefore, after, base)
+	}
+	if _, err := os.Stat(filepath.Join(clone, ".git", "FETCH_HEAD")); err == nil {
+		t.Fatalf("the test-merge fetch must not write FETCH_HEAD")
 	}
 	if last := parseEvent(t, lines[len(lines)-1]); last.kv["state"] != "done" {
 		t.Fatalf("watcher must end with a done line, got %s", lines[len(lines)-1])
@@ -208,7 +221,7 @@ func TestRunStopsOnInterruptWithAWatchLine(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	done := make(chan int, 1)
 	go func() {
-		done <- run(ctx, []string{"-account", "acct", "-interval", "20ms", "3"}, &stdout, &stderr, nil, "/h", w.Exec)
+		done <- run(ctx, []string{"-account", "acct", "-interval", "20ms", "-required", "go-core-complete", "3"}, &stdout, &stderr, nil, "/h", w.Exec)
 	}()
 	time.Sleep(100 * time.Millisecond)
 	cancel()
@@ -222,5 +235,32 @@ func TestRunStopsOnInterruptWithAWatchLine(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "WATCH state=stopped reason=interrupted") {
 		t.Fatalf("interrupt must leave a WATCH line, got %q", stdout.String())
+	}
+}
+
+// TestResolveRequiredAgainstTheRealRegistry runs the real ci-gates command from
+// this repository's root, so a rename of the subcommand or flags breaks here and
+// not in a background watcher.
+func TestResolveRequiredAgainstTheRealRegistry(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs go run ./cmd/ci-gates")
+	}
+	top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		t.Skipf("not in a git checkout: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	list, err := resolveRequired(ctx, osExec, "go", strings.TrimSpace(string(top)), os.Environ(), "")
+	if err != nil {
+		t.Fatalf("resolveRequired against the real registry: %v", err)
+	}
+	if len(list) == 0 {
+		t.Fatalf("the registry must list at least one ruleset-required context")
+	}
+	for _, name := range list {
+		if strings.ContainsAny(name, " \t") {
+			t.Fatalf("context %q looks malformed", name)
+		}
 	}
 }

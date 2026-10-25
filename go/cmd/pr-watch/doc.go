@@ -10,7 +10,8 @@ action.
 # Usage
 
 	pr-watch [-repo owner/name] [-dir checkout] [-account login] [-interval 60s]
-	         [-stable-reads 2] [-log-lines 12] [-max-polls N | -once] <pr>...
+	         [-stable-reads 2] [-log-lines 12] [-max-polls N | -once]
+	         [-required a,b] [-go go] [-gh-timeout 60s] [-git-timeout 120s] <pr>...
 
 Run it in the background, once, over all open PRs the session owns, and
 restart it with the full set whenever a new PR is created.
@@ -55,10 +56,21 @@ unchanged state.
   - MERGED, CLOSED: the PR ended. The watcher stops polling it, and the agent
     stops pushing to its branch. When every PR has ended the watcher prints
     WATCH state=done and exits.
-  - GREEN: the head's rollup state is SUCCESS, no check is pending, and the
-    head and total check count were identical on -stable-reads consecutive
-    polls. It uses the rollup state plus its totalCount, not the first page of
-    contexts, because contexts(first:100) hides a pending check past 100.
+  - GREEN: CI is finished and stable. All of these hold on StableReads (default
+    2) consecutive polls: the head's rollup state is SUCCESS and no check is
+    pending; every check was read (the nodes match the rollup's own totalCount,
+    which is why the checks are paged past the first 100); every merge-rule
+    context is present and succeeded; and the head and the total check count
+    did not change. The merge-rule contexts come from the gate registry
+    (`ci-gates contexts --ruleset-only`, today go-core-complete and
+    go-race-complete), read once at start, or from -required. If they cannot be
+    read, or the list is empty, the watcher exits with a WATCH line. They are
+    required because a fresh PR shows only its always-on external checks, all
+    green, for minutes before the Actions wave registers; two stable reads of
+    that set are not a finished CI. GREEN does not mean mergeable: it says
+    nothing about review threads or mergeability (the line prints the merge
+    state and the unresolved count), and a completed red anywhere, required or
+    not, is already a CI-FAIL event.
   - ERROR: a read failed. It prints once per distinct message; the watcher
     keeps polling.
 
@@ -70,10 +82,24 @@ login is -account, or linuxdynasty when -dir is under ~/personal-repos. Any
 other path needs -account; the watcher exits with a WATCH line rather than
 guess.
 
+# Safety
+
+Every gh and git child process has a deadline (-gh-timeout 60s, -git-timeout
+120s). A call that exceeds it is cancelled and reported as an ERROR (or as the
+reason of a CONFLICT test merge) naming the command; the poll goes on. git
+children run with GIT_TERMINAL_PROMPT=0.
+
+The branch name and SHAs read from GitHub reach git only after validation: the
+SHAs must be hex, the base branch must not start with "-" and must pass
+`git check-ref-format`, and the refs follow "--" in the git call. A refused
+test merge is reported as test_merge=unavailable with reason=refused.
+
 # What it does not do
 
 It is read-only toward GitHub. Its only local side effect is `git fetch` of the
-base branch and refs/pull/N/head when a conflict needs a test merge. It never
-pushes, resolves a thread, replies, or merges.
+base branch and refs/pull/N/head when a conflict needs a test merge, and that
+fetch writes neither FETCH_HEAD nor a remote-tracking ref. It never pushes,
+resolves a thread, replies, or merges. Threads, reviews, and comments read the
+newest 100 of each per poll.
 */
 package main

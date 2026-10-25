@@ -89,17 +89,11 @@ func (w *Watcher) observeHead(ctx context.Context, st *prState, snap Snapshot) {
 // headSource says whether the local checkout holds the new head. A head that
 // the checkout's branch does not hold was pushed by someone else.
 func (w *Watcher) headSource(ctx context.Context, snap Snapshot) string {
-	branch, err := w.exec(ctx, Command{
-		Name: w.cfg.Git, Dir: w.cfg.Dir, Env: w.cfg.Environ,
-		Args: []string{"symbolic-ref", "--short", "-q", "HEAD"},
-	})
+	branch, err := w.git(ctx, "symbolic-ref", "--short", "-q", "HEAD")
 	if err != nil || strings.TrimSpace(string(branch)) != snap.HeadRef {
 		return "unknown"
 	}
-	sha, err := w.exec(ctx, Command{
-		Name: w.cfg.Git, Dir: w.cfg.Dir, Env: w.cfg.Environ,
-		Args: []string{"rev-parse", "HEAD"},
-	})
+	sha, err := w.git(ctx, "rev-parse", "HEAD")
 	if err != nil {
 		return "unknown"
 	}
@@ -208,14 +202,28 @@ func (w *Watcher) observeConflict(ctx context.Context, st *prState, snap Snapsho
 	w.emit("CONFLICT", snap.Number, kv...)
 }
 
-// observeGreen reports GREEN once the full check set has been read complete,
-// successful, and unchanged (same head, same total) on StableReads polls in a
-// row. The rollup state and total count come from the head commit's rollup, so
-// a pending check past the first page of 100 still blocks green.
+// observeGreen reports GREEN once the whole check set has been read complete
+// and unchanged on StableReads polls in a row. "Complete" means all of:
+//
+//   - the head's rollup state is SUCCESS and no check is pending;
+//   - every check was read (the nodes match the rollup's own total count);
+//   - every merge-rule context (cfg.Required) is present and succeeded.
+//
+// The last rule is what stops a false green on the pre-wave set: a fresh PR
+// shows only its always-on external checks, all green, for minutes before the
+// Actions wave registers. "Unchanged" means the same head and the same total
+// across the reads. GREEN does not mean the PR is mergeable: it says nothing
+// about review threads or mergeability (the line prints both), and a completed
+// red anywhere is already a CI-FAIL event.
 func (w *Watcher) observeGreen(st *prState, snap Snapshot) {
-	complete := snap.RollupState == "SUCCESS" && snap.TotalChecks > 0
+	complete := snap.RollupState == "SUCCESS" && snap.TotalChecks > 0 && len(snap.Checks) == snap.TotalChecks
 	for _, c := range snap.Checks {
 		if c.Pending() {
+			complete = false
+		}
+	}
+	for _, name := range w.cfg.Required {
+		if !requiredContextSucceeded(snap.Checks, name) {
 			complete = false
 		}
 	}
@@ -240,5 +248,22 @@ func (w *Watcher) observeGreen(st *prState, snap Snapshot) {
 		}
 	}
 	w.emit("GREEN", snap.Number, "head", short(snap.Head), "checks", strconv.Itoa(snap.TotalChecks),
-		"reads", strconv.Itoa(st.stableReads), "merge", snap.MergeState, "unresolved", strconv.Itoa(unresolved))
+		"required", strings.Join(w.cfg.Required, ","), "reads", strconv.Itoa(st.stableReads),
+		"merge", snap.MergeState, "unresolved", strconv.Itoa(unresolved))
+}
+
+// requiredContextSucceeded reports whether at least one check carries the name
+// and every check with that name finished with SUCCESS.
+func requiredContextSucceeded(checks []Check, name string) bool {
+	found := false
+	for _, c := range checks {
+		if c.Name != name {
+			continue
+		}
+		found = true
+		if c.Result != "SUCCESS" || (c.Status != "" && c.Status != "COMPLETED") {
+			return false
+		}
+	}
+	return found
 }

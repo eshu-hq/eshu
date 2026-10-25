@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strconv"
 	"strings"
@@ -37,6 +38,9 @@ type Config struct {
 	// Environ is the parent environment handed to child processes, minus any
 	// ambient GitHub token.
 	Environ []string
+	// RED stubs.
+	Required              []string
+	GHTimeout, GitTimeout time.Duration
 }
 
 // prState is what the watcher remembers about one PR between polls. It holds
@@ -74,7 +78,13 @@ func NewWatcher(cfg Config, exec Exec, out io.Writer, now func() time.Time) *Wat
 	if cfg.LogLines < 1 {
 		cfg.LogLines = 12
 	}
-	w := &Watcher{cfg: cfg, exec: exec, out: out, now: now, state: map[int]*prState{}}
+	if cfg.GHTimeout <= 0 {
+		cfg.GHTimeout = defaultGHTimeout
+	}
+	if cfg.GitTimeout <= 0 {
+		cfg.GitTimeout = defaultGitTimeout
+	}
+	w := &Watcher{cfg: cfg, exec: withTimeouts(exec, cfg), out: out, now: now, state: map[int]*prState{}}
 	for _, n := range cfg.PRs {
 		w.state[n] = &prState{notified: map[string]bool{}, openThreads: map[string]bool{}}
 	}
@@ -134,6 +144,10 @@ func (w *Watcher) reportError(pr int, err error) {
 // cancelled. It always prints a WATCH line before returning, so a Monitor never
 // sees the watcher end without a reason.
 func (w *Watcher) Run(ctx context.Context) error {
+	if len(w.cfg.Required) == 0 {
+		w.emit("WATCH", 0, "state", "exit", "reason", "no required check contexts: GREEN would have nothing to prove")
+		return errors.New("no required check contexts")
+	}
 	prs := make([]string, len(w.cfg.PRs))
 	for i, n := range w.cfg.PRs {
 		prs[i] = strconv.Itoa(n)

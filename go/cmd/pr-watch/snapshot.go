@@ -252,16 +252,6 @@ func parseResponse(raw []byte) (Snapshot, pageInfo, error) {
 	return snap, next, nil
 }
 
-// parseChecksPage decodes a follow-up page and returns only its checks and
-// cursor; the rest of the response repeats the first page and is ignored.
-func parseChecksPage(raw []byte) ([]Check, pageInfo, error) {
-	snap, next, err := parseResponse(raw)
-	if err != nil {
-		return nil, pageInfo{}, err
-	}
-	return snap.Checks, next, nil
-}
-
 func convertChecks(nodes []wireContext) []Check {
 	checks := make([]Check, 0, len(nodes))
 	for _, n := range nodes {

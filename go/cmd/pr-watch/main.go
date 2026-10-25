@@ -47,6 +47,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, environ [
 	once := fs.Bool("once", false, "poll once and exit (same as -max-polls 1)")
 	ghBin := fs.String("gh", "gh", "gh executable")
 	gitBin := fs.String("git", "git", "git executable")
+	goBin := fs.String("go", "go", "go executable, used once at start to read the required contexts from the gate registry")
+	required := fs.String("required", "", "comma-separated merge-rule check contexts GREEN must see succeed; empty reads them from the gate registry")
+	ghTimeout := fs.Duration("gh-timeout", defaultGHTimeout, "bound for each gh call")
+	gitTimeout := fs.Duration("git-timeout", defaultGitTimeout, "bound for each git call")
 	fs.Usage = func() {
 		_, _ = fmt.Fprintln(stderr, "usage: pr-watch [flags] <pr-number>...")
 		fs.PrintDefaults()
@@ -58,6 +62,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, environ [
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "pr-watch: %v\n", err)
 		fs.Usage()
+		return 2
+	}
+	if *ghTimeout <= 0 || *gitTimeout <= 0 {
+		_, _ = fmt.Fprintln(stderr, "pr-watch: -gh-timeout and -git-timeout must be positive")
 		return 2
 	}
 	if *interval <= 0 || *stable < 1 || *logLines < 1 || *maxPolls < 0 {
@@ -73,9 +81,16 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, environ [
 		_, _ = fmt.Fprintf(stderr, "pr-watch: %v\n", err)
 		return 1
 	}
+	contexts, err := resolveRequired(ctx, exec, *goBin, *dir, environ, *required)
+	if err != nil {
+		_, _ = fmt.Fprintf(stdout, "%s WATCH state=exit code=1 reason=%s\n", time.Now().UTC().Format("2006-01-02T15:04:05Z"), formatValue(clip(err.Error())))
+		_, _ = fmt.Fprintf(stderr, "pr-watch: %v\n", err)
+		return 1
+	}
 	cfg := Config{
 		Repo: *repo, Dir: *dir, Account: login, GH: *ghBin, Git: *gitBin, PRs: prs,
 		Interval: *interval, StableReads: *stable, LogLines: *logLines, MaxPolls: *maxPolls, Environ: environ,
+		Required: contexts, GHTimeout: *ghTimeout, GitTimeout: *gitTimeout,
 	}
 	w := NewWatcher(cfg, exec, stdout, time.Now)
 	if err := w.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {

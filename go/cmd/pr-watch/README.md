@@ -14,7 +14,7 @@ output line wakes the agent:
 
 ```bash
 cd go && go build -o /tmp/pr-watch ./cmd/pr-watch
-/tmp/pr-watch -dir /path/to/worktree 9101 9102
+/tmp/pr-watch -dir /path/to/worktree 9101 9102   # -dir must be the repo root
 ```
 
 Events, flags, and account rules are in `doc.go`. In short:
@@ -26,7 +26,7 @@ Events, flags, and account rules are in `doc.go`. In short:
 | `NEW-THREAD` / `NEW-REVIEW` / `NEW-COMMENT` | Feedback from any author | Fix first, then reply and resolve |
 | `HEAD-MOVED` | The head SHA changed | `source=foreign` means someone else pushed: fetch before you push |
 | `MERGED` / `CLOSED` | The PR ended | Stop pushing to the branch |
-| `GREEN` | Complete and unchanged on two reads of the full check set | Judge threads and merge bar |
+| `GREEN` | Rollup SUCCESS, nothing pending, every check read, every merge-rule context present and successful, head and total unchanged on two reads | Judge threads and the merge bar; GREEN is not "mergeable" |
 
 ## Conflict recipes
 
@@ -48,6 +48,34 @@ never counts choice lines.
   and follow `rebase-verify.md`.
 - **`unknown`.** The test merge could not run (see `reason=`); read the
   conflict yourself.
+
+## What GREEN means
+
+`GREEN` needs all of: rollup state `SUCCESS`; no pending check; every check read
+(nodes equal the rollup total); every merge-rule context present and `SUCCESS`;
+and the same head and total on two consecutive polls. The merge-rule contexts
+come from `go -C go run ./cmd/ci-gates contexts --registry ../specs/ci-gates.v1.yaml --ruleset-only`
+(today `go-core-complete` and `go-race-complete`), run once at start from `-dir`,
+which must be the repository root. If that read fails or returns nothing, the
+watcher exits with a `WATCH state=exit` line. `-required a,b` overrides it.
+
+Why the contexts matter: a fresh PR sits with only its always-on external checks
+(about five, all green) for minutes before the Actions wave registers, and two
+stable reads of that set would otherwise read as done.
+
+GREEN does not prove the PR is mergeable or that threads are resolved (the line
+prints `merge=` and `unresolved=`). It does not need to prove "no red": any
+completed red check, required or not, is already a `CI-FAIL` event.
+
+## Cost and noise
+
+Each poll costs one GraphQL call per PR (about one point). A set above 100
+checks (live PRs run 120 to 130) adds a lean follow-up page per extra 100, which
+reads only checks and the head SHA. `BEHIND` fires again each time the base
+advances, because the event key includes the base SHA; each time costs one
+fetch, one `merge-tree`, and one line. Every child process has a deadline and
+git never prompts. Branch names and SHAs from GitHub are validated before they
+reach git.
 
 ## Design notes
 

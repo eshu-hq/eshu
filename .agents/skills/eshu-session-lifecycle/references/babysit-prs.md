@@ -14,7 +14,7 @@ Triggers: a PR you created is open; review bots are running; CI is in flight;
 
    ```bash
    cd go && go build -o "$TMPDIR/pr-watch" ./cmd/pr-watch
-   "$TMPDIR/pr-watch" -dir "$WORKTREE" 9101 9102      # run_in_background / Monitor
+   "$TMPDIR/pr-watch" -dir "$WORKTREE" 9101 9102      # -dir = repo root; run_in_background / Monitor
    ```
 
    On Muse Code, run it under the Monitor tool; each output line is one event.
@@ -40,7 +40,7 @@ Triggers: a PR you created is open; review bots are running; CI is in flight;
    | `NEW-THREAD`, `NEW-REVIEW`, `NEW-COMMENT` | Any author, including this account and bots that commented unrequested. Read the body and fix first (steps 5–6). |
    | `HEAD-MOVED … source=foreign` | Someone else pushed. Fetch and rebase onto the remote head before you push; never force. `source=local` is your own push. |
    | `MERGED` / `CLOSED` | Stop pushing to the branch. A follow-up is a new branch and PR. |
-   | `GREEN` | CI is complete on two stable reads of the full check set (step 4). Judge threads and the merge bar (step 7). |
+   | `GREEN` | Rollup SUCCESS, nothing pending, every check read, every merge-rule context from the gate registry present and successful, head and total unchanged on two reads (step 4). It does not mean mergeable: judge threads and the merge bar (step 7). A red anywhere already came as `CI-FAIL`. |
    | `ERROR` | A read failed; it keeps polling. A repeating error needs a look. |
 
    Tell every subagent/workflow you dispatch that owns a PR to arm the same
@@ -76,8 +76,11 @@ Triggers: a PR you created is open; review bots are running; CI is in flight;
    only the obvious ones reports `failing: 0` over a red check set and lets the
    merge step below treat it as clean.
 
-4. **CI is complete only after two consecutive stable reads.** The watcher's
-   `GREEN` event is this rule. Both
+4. **CI is complete only after two consecutive stable reads, with the merge-rule
+   contexts present.** The watcher's `GREEN` event is this rule: it also needs
+   the registry's ruleset-required contexts (`go-core-complete`,
+   `go-race-complete` today) to exist and succeed, because a fresh PR shows only
+   its always-on external checks for minutes before the Actions wave. Both
    `pending == 0` and an unchanged `total` across two reads. Check sets on this
    repo run to well over eighty entries and register in waves, so a single
    zero-pending read lands in the gap between waves and is a false done. State

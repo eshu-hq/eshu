@@ -48,7 +48,7 @@ func TestUnchangedStateEmitsNothing(t *testing.T) {
 	f.threads = []thr{{id: "T1", path: "a.go", line: 1, author: "codex", body: "x"}}
 	w.seed(1, f)
 	w.logs["777"] = "step output\n##[error]Process completed with exit code 1.\n"
-	w.mergeTree["base0001..aaaa1111"] = mergeTreeResult{out: "treeoid\nCHANGELOG.md\n", code: 1}
+	w.mergeTree["ba5e0001..aaaa1111"] = mergeTreeResult{out: "treeoid\nCHANGELOG.md\n", code: 1}
 	h := newHarness(t, []int{1}, w)
 
 	first := h.poll()
@@ -199,12 +199,12 @@ func TestConflictBehindAndRecovery(t *testing.T) {
 	conflict := clean
 	conflict.mergeable, conflict.mergeState = "CONFLICTING", "DIRTY"
 	movedBase := conflict
-	movedBase.baseOID = "base0002"
+	movedBase.baseOID = "ba5e0002"
 	behind := clean
 	behind.mergeState = "BEHIND"
 	w.seed(1, clean, conflict, conflict, clean, conflict, movedBase, behind)
-	w.mergeTree["base0001..aaaa1111"] = mergeTreeResult{out: "tree\nCHANGELOG.md\nspecs/live-postgres-readiness-weights.v1.json\n", code: 1}
-	w.mergeTree["base0002..aaaa1111"] = mergeTreeResult{out: "tree\ngo/internal/reducer/x.go\nCHANGELOG.md\n", code: 1}
+	w.mergeTree["ba5e0001..aaaa1111"] = mergeTreeResult{out: "tree\nCHANGELOG.md\nspecs/live-postgres-readiness-weights.v1.json\n", code: 1}
+	w.mergeTree["ba5e0002..aaaa1111"] = mergeTreeResult{out: "tree\ngo/internal/reducer/x.go\nCHANGELOG.md\n", code: 1}
 	h := newHarness(t, []int{1}, w)
 
 	wantKinds(t, h.poll(), "BASELINE")
@@ -231,7 +231,7 @@ func TestConflictBehindAndRecovery(t *testing.T) {
 		t.Fatalf("a source-file conflict is not a recipe case, got %q", r)
 	}
 	// BEHIND with a clean merge: the same base and head now merge cleanly.
-	w.mergeTree["base0001..aaaa1111"] = mergeTreeResult{out: "tree\n"}
+	w.mergeTree["ba5e0001..aaaa1111"] = mergeTreeResult{out: "tree\n"}
 	got = h.poll()
 	wantKinds(t, got, "CONFLICT")
 	b := parseEvent(t, got[0])
@@ -260,7 +260,7 @@ func TestUnknownMergeabilityNeedsTwoPolls(t *testing.T) {
 	unknown := openPR(1, "aaaa1111")
 	unknown.mergeable, unknown.mergeState = "UNKNOWN", "UNKNOWN"
 	w.seed(1, unknown, unknown, unknown)
-	w.mergeTree["base0001..aaaa1111"] = mergeTreeResult{out: "tree\nCHANGELOG.md\n", code: 1}
+	w.mergeTree["ba5e0001..aaaa1111"] = mergeTreeResult{out: "tree\nCHANGELOG.md\n", code: 1}
 	h := newHarness(t, []int{1}, w)
 
 	wantKinds(t, h.poll(), "BASELINE")
@@ -327,7 +327,8 @@ func TestGreenAfterTwoStableReadsOfTheFullCheckSet(t *testing.T) {
 	mk := func(rollup string, total int) fx {
 		f := openPR(1, "aaaa1111")
 		f.rollup, f.total = rollup, total
-		for i := 0; i < total && i < 100; i++ {
+		f.checks = append(f.checks, requiredChecks()...)
+		for i := len(f.checks); i < total && i < 100; i++ {
 			f.checks = append(f.checks, ck{run: int64(i + 1), name: "c", status: "COMPLETED", result: "SUCCESS"})
 		}
 		return f

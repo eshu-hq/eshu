@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -44,19 +45,49 @@ type mergeTest struct {
 	Reason      string
 }
 
+var hexSHA = regexp.MustCompile(`^[0-9a-f]{7,64}$`)
+
+// git runs one git command in the checkout with prompts disabled.
+func (w *Watcher) git(ctx context.Context, args ...string) ([]byte, error) {
+	return w.exec(ctx, Command{Name: w.cfg.Git, Args: args, Dir: w.cfg.Dir, Env: gitEnv(w.cfg.Environ)})
+}
+
+// refuse builds the test-merge result for PR data that git must not see.
+func refuse(format string, args ...any) mergeTest {
+	return mergeTest{Unavailable: true, Reason: "refused: " + fmt.Sprintf(format, args...)}
+}
+
+// validateRefs checks the branch name and SHAs read from GitHub before any of
+// them reaches a git argument list. A branch name that starts with "-" is a
+// valid ref name, and git would take it for an option (--upload-pack runs a
+// program), so it is refused here as well as separated with "--" at the call.
+func (w *Watcher) validateRefs(ctx context.Context, snap Snapshot) (mergeTest, bool) {
+	if !hexSHA.MatchString(snap.Head) || !hexSHA.MatchString(snap.BaseOID) {
+		return refuse("head or base is not a hex commit id"), false
+	}
+	if snap.BaseRef == "" || strings.HasPrefix(snap.BaseRef, "-") || strings.ContainsAny(snap.BaseRef, " \t\r\n") {
+		return refuse("base branch name %q is not safe to pass to git", clip(snap.BaseRef)), false
+	}
+	if _, err := w.git(ctx, "check-ref-format", "refs/heads/"+snap.BaseRef); err != nil {
+		return refuse("git rejects the base branch name %q", clip(snap.BaseRef)), false
+	}
+	return mergeTest{}, true
+}
+
 // testMerge fetches the pull head and the base branch and runs a read-only
 // `git merge-tree` of the exact SHAs the poll saw. It never touches the
-// working tree or index. A failure to fetch is tolerated when the objects are
-// already local; it only matters if merge-tree then cannot find them.
+// working tree or index, and the fetch writes neither FETCH_HEAD nor a
+// remote-tracking ref (--refmap= turns off the opportunistic update that would
+// otherwise move origin/<base> under a pinned-base attestation). A failure to
+// fetch is tolerated when the objects are already local; it only matters if
+// merge-tree then cannot find them.
 func (w *Watcher) testMerge(ctx context.Context, snap Snapshot) mergeTest {
-	_, fetchErr := w.exec(ctx, Command{
-		Name: w.cfg.Git, Dir: w.cfg.Dir, Env: w.cfg.Environ,
-		Args: []string{"fetch", "--quiet", "origin", snap.BaseRef, "refs/pull/" + strconv.Itoa(snap.Number) + "/head"},
-	})
-	out, err := w.exec(ctx, Command{
-		Name: w.cfg.Git, Dir: w.cfg.Dir, Env: w.cfg.Environ,
-		Args: []string{"merge-tree", "--write-tree", "--name-only", "--no-messages", snap.BaseOID, snap.Head},
-	})
+	if refused, ok := w.validateRefs(ctx, snap); !ok {
+		return refused
+	}
+	_, fetchErr := w.git(ctx, "fetch", "--quiet", "--no-write-fetch-head", "--no-tags", "--refmap=", "--",
+		"origin", snap.BaseRef, "refs/pull/"+strconv.Itoa(snap.Number)+"/head")
+	out, err := w.git(ctx, "merge-tree", "--write-tree", "--name-only", "--no-messages", "--", snap.BaseOID, snap.Head)
 	var exit *ExitError
 	switch {
 	case err == nil:
