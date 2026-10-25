@@ -51,7 +51,7 @@ all_blocked AS (
     UNION ALL
     SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM readiness_blocked
 ),
-blockage_rows AS (
+blockage_groups AS (
     SELECT domain,
            conflict_domain,
            conflict_key,
@@ -60,6 +60,29 @@ blockage_rows AS (
     FROM all_blocked
     GROUP BY domain, conflict_domain, conflict_key
 ),
+holder_map AS MATERIALIZED (
+    -- One row mapping each live lease's (conflict_domain, conflict_key), as a
+    -- JSON array rendered to text so no key can collide, to the domain holding
+    -- it. fact_work_items_reducer_live_lease_uniq allows one live lease per key.
+    SELECT COALESCE(
+        jsonb_object_agg(jsonb_build_array(conflict_domain, conflict_key)::text, domain),
+        '{}'::jsonb) AS by_key
+    FROM inflight_leases
+),
+blockage_rows AS (
+    -- Name the domain that holds each fence (#8954). holder_map is one row, so
+    -- no join method is left to choose and the lease set is read once whatever
+    -- the statistics say. A readiness row has no lease and reports an empty
+    -- holder.
+    SELECT blockage_groups.domain,
+           blockage_groups.conflict_domain,
+           blockage_groups.conflict_key,
+           COALESCE(holder_map.by_key ->> jsonb_build_array(blockage_groups.conflict_domain, blockage_groups.conflict_key)::text, '') AS holder_domain,
+           blockage_groups.blocked_count,
+           blockage_groups.oldest_blocked_age_seconds
+    FROM blockage_groups
+    CROSS JOIN holder_map
+),
 domain_blocked AS (
     SELECT domain,
            COUNT(DISTINCT work_item_id) AS domain_blocked_count
@@ -67,11 +90,13 @@ domain_blocked AS (
     GROUP BY domain
 )`
 
-// reducerConflictBlockageSelect reports blocked rows per domain and conflict key.
+// reducerConflictBlockageSelect reports blocked rows per domain and conflict key,
+// with the domain that holds the fence (holder_domain, empty for readiness gates).
 const reducerConflictBlockageSelect = `SELECT 'reducer' AS stage,
        domain,
        conflict_domain,
        conflict_key,
+       holder_domain,
        domain_blocked_count AS blocked_count,
        oldest_blocked_age_seconds
 FROM blockage_rows
@@ -96,6 +121,7 @@ const reducerConflictBlockageLimit = 10
 // inlined.
 const reducerConflictInflightLeasesCTE = `inflight_leases AS MATERIALIZED (
     SELECT work_item_id,
+           domain,
            conflict_domain,
            COALESCE(conflict_key, scope_id) AS conflict_key
     FROM fact_work_items

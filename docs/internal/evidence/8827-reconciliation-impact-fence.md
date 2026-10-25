@@ -75,9 +75,11 @@ pending producer row).
   `EXPLAIN (ANALYZE, BUFFERS)`: execution 0.054, 0.042, 0.042 ms; planning
   0.151, 0.146, 0.157 ms; 4 buffer touches. The run was on a shared host and
   is not a throughput claim.
-- It runs once per reconciliation pass that has a decision waiting on impact
-  evidence, never for a pass with nothing to wait for
-  (`TestSecurityAlertReconciliationSkipsTheProbeWhenNothingIsPending`).
+- Below the attempt cap it runs once per reconciliation pass that has a decision
+  waiting on impact evidence, never for a pass with nothing to wait for
+  (`TestSecurityAlertReconciliationSkipsTheProbeWhenNothingIsPending`). On the
+  cap attempt of an impact-producing intent it runs once before the evidence
+  load even when nothing waits (#8956, `probeImpactProducerBeforeLoad`).
 
 No-Regression Evidence: the only claim-path change is one more
 `work.failure_class = '...'` term in the `attempt_count` CASE of the claim
@@ -97,10 +99,9 @@ and the 3 AM runbook section.
 
 ## Not covered
 
-- The status blockage row does not name the holder's domain. A reconciliation
-  fenced behind a claimed producer shows under the scope's conflict key; the
-  holder is the `supply_chain_impact` row on that scope id. Naming it in the
-  status payload changes the status JSON, OpenAPI, and MCP contract.
+- The status blockage row named no holder domain when this change landed. #8954
+  adds `holder_domain` to each `queue_blockages` row; see
+  `docs/internal/evidence/8954-status-blockage-holder-domain.md`.
 - Impact evidence written by another scope's `supply_chain_impact` run is not
   waited on; the probe is keyed on the intent's own scope generation.
 - A deployed run with a real pending-impact wait.

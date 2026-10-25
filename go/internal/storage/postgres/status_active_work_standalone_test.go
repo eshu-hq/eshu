@@ -215,6 +215,7 @@ func listReducerConflictBlockages(
 		var domain string
 		var conflictDomain string
 		var conflictKey string
+		var holderDomain string
 		var blockedCount int64
 		var oldestBlockedAgeSeconds float64
 		if scanErr := rows.Scan(
@@ -222,6 +223,7 @@ func listReducerConflictBlockages(
 			&domain,
 			&conflictDomain,
 			&conflictKey,
+			&holderDomain,
 			&blockedCount,
 			&oldestBlockedAgeSeconds,
 		); scanErr != nil {
@@ -232,6 +234,7 @@ func listReducerConflictBlockages(
 			Domain:         domain,
 			ConflictDomain: conflictDomain,
 			ConflictKey:    conflictKey,
+			HolderDomain:   holderDomain,
 			Blocked:        int(blockedCount),
 			OldestAge:      scalars.DurationFromSeconds(oldestBlockedAgeSeconds),
 		})

@@ -106,6 +106,12 @@ type SecurityAlertReconciliationRow struct {
 	EvidenceFactIDs      []string                       `json:"evidence_fact_ids,omitempty"`
 	SourceFreshness      string                         `json:"source_freshness,omitempty"`
 	SourceConfidence     string                         `json:"source_confidence,omitempty"`
+	// ImpactWaitOutcome names why an unmatched row was written without impact
+	// evidence after the reducer stopped waiting for it (#8956):
+	// gave_up_unmatched or gave_up_bound_exceeded. It is empty for a genuine
+	// no-match (the impact producer succeeded and found nothing) and for every
+	// other status.
+	ImpactWaitOutcome string `json:"impact_wait_outcome,omitempty"`
 }
 
 // SecurityAlertReconciliationResult is the public API row shape.

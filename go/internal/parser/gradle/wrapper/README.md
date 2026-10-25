@@ -9,18 +9,22 @@ property; its archive name carries the version, for example
 
 ## Status
 
-The package is built and tested but **not registered**: no registry entry binds
-`gradle-wrapper.properties` to it, and `go/internal/parser/gradle_language.go`
-does not route to it. Admitting the file name stores the raw file body in the
-content store, and a `distributionUrl` can carry `user:password@` userinfo.
-The content store has no write-time redaction, so the admission waits on the
-policy in #8812. Wiring it later is one registry name, one dispatch case, and
-the re-pinned collector fixture.
+The package is registered (#8822). The default registry binds the exact name
+`gradle-wrapper.properties` to its own `gradle_wrapper` definition, never to
+the `gradle` build-script definition, and that definition uses the `metadata`
+content-store policy of #8812. A `distributionUrl` can carry `user:password@`
+userinfo, so the content store keeps an empty-body row with the path and the
+source digest and never the file. `Engine.parseGradleWrapper` in
+`go/internal/parser/gradle_language.go` routes the definition here. The policy
+does not govern parser output, so this package, not the policy, keeps the
+credential out of facts. The `TestGradleWrapperSeededCredentialReachesNoFact*`
+test in `go/internal/collector/repo/git` scans every emitted fact for a seeded
+credential under the production binding.
 
 ## Ownership boundary
 
-The package owns the properties reading only. The parent parser package would
-own registry dispatch and the engine hook. The row is not a package
+The package owns the properties reading only. The parent parser package owns
+registry dispatch and the engine hook. The row is not a package
 dependency and the package reducer ignores it (`config_kind` is
 `gradle_distribution`, not `dependency`). It is also not a
 `runtime_declaration.version` fact: that contract (#8815) is not merged.
@@ -62,7 +66,7 @@ payload, with and without `IndexSource`.
 
 The row carries `name` (`gradle`), `value` (the version), `line_number`,
 `section` (`distribution`), `config_kind` (`gradle_distribution`), `lang`
-(`gradle`) and `distribution_type` (`bin` or `all`). The payload also carries
+(`gradle_wrapper`) and `distribution_type` (`bin` or `all`). The payload also carries
 a `gradle_wrapper_state` envelope with `state` and `unsupported_count`.
 
 ## Telemetry
@@ -73,10 +77,14 @@ operator a file that held a `distributionUrl` the grammar could not read.
 
 ## Performance
 
-No-Regression Evidence: the package is not registered, so no existing path
-runs it. Work is one linear pass over at most 64 KiB; the tests assert that a
-10 MB line allocates nothing and that 60 KiB inputs of continuations, escapes
-and backslash runs allocate under 16 KiB.
+No-Regression Evidence: registering the name adds one exact-name lookup entry
+and no per-file work for other files (the default registry was already governed
+by the `.npmrc` binding, so the policy lookup is not new). Work for a wrapper
+file is one linear pass over at most 64 KiB; the tests assert that a 10 MB line
+allocates nothing and that 60 KiB inputs of continuations, escapes and
+backslash runs allocate under 16 KiB. `BenchmarkParseConfig/gradle_wrapper`
+parses a 10,000-line file (about 35 KB) in 0.17 to 0.66 ms across runs on a
+shared arm64 host, at about 126 KB and 41 allocations per parse.
 
 ## Verification
 

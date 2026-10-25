@@ -69,7 +69,7 @@ func TestApplyContentStoreRedactMarkerRedactsAndCounts(t *testing.T) {
 func TestApplyContentStoreFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	failing := func(string, []string) (string, int, error) {
+	failing := func(string, parser.ContentStore) (string, int, error) {
 		return seededCredential, 1, errors.New("injected redactor failure")
 	}
 	cases := map[string]StoreResult{
@@ -77,7 +77,7 @@ func TestApplyContentStoreFailsClosed(t *testing.T) {
 		"non-UTF-8":      ApplyContentStore(markerStore(), "npmAuthToken: "+seededCredential+"\xff\n"),
 		"unknown policy": ApplyContentStore(parser.ContentStore{Policy: "unheard-of"}, seededCredential),
 		"unknown mode": ApplyContentStore(
-			parser.ContentStore{Policy: parser.ContentStoreRedact, Redactor: "skeleton", CredentialKeys: []string{"k"}},
+			parser.ContentStore{Policy: parser.ContentStoreRedact, Redactor: "bogus", CredentialKeys: []string{"k"}},
 			seededCredential),
 	}
 	for name, got := range cases {
@@ -95,8 +95,10 @@ func TestApplyContentStoreFailsClosed(t *testing.T) {
 func TestApplyContentStoreNamesTheFailureReason(t *testing.T) {
 	t.Parallel()
 
-	failing := func(string, []string) (string, int, error) { return "", 0, errors.New("boom " + seededCredential) }
-	panicking := func(string, []string) (string, int, error) { panic("boom " + seededCredential) }
+	failing := func(string, parser.ContentStore) (string, int, error) {
+		return "", 0, errors.New("boom " + seededCredential)
+	}
+	panicking := func(string, parser.ContentStore) (string, int, error) { panic("boom " + seededCredential) }
 	cases := map[string]struct {
 		got  StoreResult
 		want FailureReason
@@ -108,7 +110,7 @@ func TestApplyContentStoreNamesTheFailureReason(t *testing.T) {
 		"redactor panic": {applyContentStore(markerStore(), "x", panicking), FailureRedactorPanic},
 		"unknown policy": {ApplyContentStore(parser.ContentStore{Policy: "other"}, "x"), FailureUnknownPolicy},
 		"unknown mode": {ApplyContentStore(parser.ContentStore{
-			Policy: parser.ContentStoreRedact, Redactor: "skeleton", CredentialKeys: []string{"k"},
+			Policy: parser.ContentStoreRedact, Redactor: "bogus", CredentialKeys: []string{"k"},
 		}, "x"), FailureUnknownMode},
 	}
 	for name, tc := range cases {
@@ -121,5 +123,41 @@ func TestApplyContentStoreNamesTheFailureReason(t *testing.T) {
 	}
 	if ok := ApplyContentStore(markerStore(), "x: y\n"); ok.Reason != "" {
 		t.Errorf("a successful result carries reason %q", ok.Reason)
+	}
+}
+
+func skeletonStore() parser.ContentStore {
+	return parser.ContentStore{Policy: parser.ContentStoreRedact, Redactor: parser.RedactorSkeleton}
+}
+
+// TestApplyContentStoreRedactSkeleton routes the skeleton mode to the skeleton
+// redactor (#8833) and fails closed on non-text input like the marker mode.
+func TestApplyContentStoreRedactSkeleton(t *testing.T) {
+	t.Parallel()
+
+	got := ApplyContentStore(skeletonStore(), "db_password = \""+seededCredential+"\"\nreplicas = 2\n")
+	if got.Body != "db_password = REDACTED_password_literal\nreplicas = 2\n" || got.Outcome != StoreOutcomeRedacted || got.Replaced != 1 {
+		t.Fatalf("got %+v", got)
+	}
+	clean := ApplyContentStore(skeletonStore(), "replicas = 2\n")
+	if clean.Body != "replicas = 2\n" || clean.Outcome != StoreOutcomeClean {
+		t.Fatalf("clean body: %+v", clean)
+	}
+	failed := ApplyContentStore(skeletonStore(), "a = \""+seededCredential+"\xff\"\n")
+	if failed.Body != "" || failed.Outcome != StoreOutcomeRedactorFailed || failed.Reason != FailureInvalidUTF8 {
+		t.Fatalf("non-UTF-8 skeleton body: %+v", failed)
+	}
+}
+
+// TestApplyContentStorePassesURLKeysToTheMarker checks the definition's URL
+// key list reaches the marker redactor.
+func TestApplyContentStorePassesURLKeysToTheMarker(t *testing.T) {
+	t.Parallel()
+
+	store := markerStore()
+	store.URLUserinfoKeys = []string{"npmRegistryServer"}
+	got := ApplyContentStore(store, "npmRegistryServer: \"https://u:"+seededCredential+"@npm.example.com/\"\n")
+	if got.Body != "npmRegistryServer: \"https://REDACTED_secret_literal@npm.example.com/\"\n" || got.Outcome != StoreOutcomeRedacted {
+		t.Fatalf("got %+v", got)
 	}
 }

@@ -30,6 +30,7 @@ func TestReadCoordinatorSnapshotHandlesNullableDeactivatedAtAndCreatedAtBacklogF
 						now.Add(-5 * time.Second),
 						nil,
 						nil,
+						`{}`,
 					},
 				},
 			},

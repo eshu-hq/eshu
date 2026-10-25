@@ -122,5 +122,8 @@
 // a reconciliation waiting on impact evidence defers with the non-counting
 // ImpactNotReadyFailureClass instead of spending an attempt, bounded by elapsed
 // time (#8827). At the handler's own attempt cap it writes unmatched decisions
-// and says so: a counter outcome, a WARN log, and a sub signal.
+// and says so: a counter outcome, a WARN log, a sub signal, and (#8956) the
+// closed impact_wait_outcome on each waiting row. When every impact work item
+// of the generation succeeded the cap write is a genuine no-match instead: the
+// producer_settled outcome at INFO and no impact_wait_outcome on the rows.
 package securityalert

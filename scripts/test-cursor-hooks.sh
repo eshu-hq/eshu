@@ -179,13 +179,10 @@ check "per-call CLAUDE_HOOK_ALLOW=1 override still waives the guard" '[[ ${rc} -
 run beforeShellExecution .claude/hooks/guard-live-gate.sh "$(shell_in 'make pre-pr' "${work}")"
 check "guard stays silent outside an Eshu checkout" '[[ "$(jget permission)" == allow ]]'
 
-# Seed the busy state the way test-agent-hooks.sh does: `sleep` under the name
-# ci-gates satisfies `pgrep -x ci-gates` without running anything.
-fakebin="${work}/fakebin"
-mkdir -p "${fakebin}"
-ln -s "$(command -v sleep)" "${fakebin}/ci-gates"
-"${fakebin}/ci-gates" 30 &
-fake_pid=$!
+# Seed the busy state the way test-agent-hooks.sh does: a script named ci-gates
+# satisfies `pgrep -x ci-gates` without running a gate.
+. "${repo_root}/scripts/lib/agent-hooks-fake-gate.sh"
+start_fake_gate
 sleep 0.3
 c_out="$(printf '{"cwd":"%s","tool_name":"Bash","tool_input":{"command":"make pre-pr"}}' "${repo_root}" \
   | bash "${CH}/guard-live-gate.sh" 2>&1)"
@@ -193,6 +190,7 @@ c_rc=$?
 run beforeShellExecution .claude/hooks/guard-live-gate.sh "$(shell_in 'make pre-pr')"
 kill "${fake_pid}" 2>/dev/null
 wait "${fake_pid}" 2>/dev/null
+rm -rf "${fakebin}"
 [[ ${c_rc} -eq 2 ]] && ok "control: the Claude hook itself refuses make pre-pr while ci-gates runs" \
   || no "control: Claude hook should exit 2 (rc=${c_rc} out=${c_out})"
 check "Cursor payload is denied while ci-gates runs" '[[ ${rc} -eq 0 && "$(jget permission)" == deny ]] && one_json'

@@ -546,6 +546,7 @@ components:
         - domain
         - conflict_domain
         - conflict_key
+        - holder_domain
         - blocked
         - oldest_age
         - oldest_age_seconds
@@ -558,6 +559,12 @@ components:
           type: string
         conflict_key:
           type: string
+        holder_domain:
+          type: string
+          description: >-
+            Reducer domain of the live claimed or running row that holds this
+            row's conflict fence. Empty when no lease holds it, as for a row
+            gated by a missing readiness requirement.
         blocked:
           type: integer
         oldest_age:

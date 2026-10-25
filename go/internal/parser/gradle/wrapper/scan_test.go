@@ -31,7 +31,7 @@ func TestScanGeneratedWrapperEmitsOneDistributionRow(t *testing.T) {
 	row := result.Rows[0]
 	want := map[string]any{
 		"name": "gradle", "value": "8.5", "section": "distribution", "config_kind": "gradle_distribution",
-		"lang": "gradle", "line_number": 3, "distribution_type": "bin",
+		"lang": "gradle_wrapper", "line_number": 3, "distribution_type": "bin",
 	}
 	for key, value := range want {
 		if row[key] != value {

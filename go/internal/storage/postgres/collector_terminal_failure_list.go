@@ -143,11 +143,11 @@ func (s *TerminalFailureAckStore) ListTerminalFailures(ctx context.Context, filt
 		return TerminalFailureListPage{}, err
 	}
 	var scanInterval time.Duration
-	found := false
+	var extensionHosted, found bool
 	for _, instance := range instances {
 		if instance.InstanceID == instanceID && instance.CollectorKind == kind &&
 			instance.Enabled && instance.DeactivatedAt.IsZero() {
-			scanInterval, found = instance.ScanInterval, true
+			scanInterval, extensionHosted, found = instance.ScanInterval, instance.ExtensionHosted, true
 			break
 		}
 	}
@@ -183,7 +183,7 @@ func (s *TerminalFailureAckStore) ListTerminalFailures(ctx context.Context, filt
 			page.Truncated = true
 			continue
 		}
-		item.FailureClass = collector.BoundedFailureClassForKind(kind, rawClass)
+		item.FailureClass = collector.BoundedFailureClassForInstance(kind, rawClass, extensionHosted)
 		item.FailureOperation = collector.BoundedFailureOperation(operation)
 		item.FailedAt = item.FailedAt.UTC()
 		if acknowledgedAt != nil {

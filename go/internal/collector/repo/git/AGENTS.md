@@ -214,6 +214,10 @@ such a name is enforced. `TestEveryBodyReadingEmitterSeesTheStoredBody` and
 `TestDeltaOnlyBodyReadersApplyThePolicy` scan every emitted fact payload for a
 seeded credential.
 
+`eshu_dp_collector_content_store_files_total` carries `policy`, `redactor`
+(`marker`, `skeleton`, or `none`), and `outcome`; the stream log carries one
+count per key (`metadata_metadata`, `redact_<redactor>_<outcome>`).
+
 Rules: the digest stays computed on the SOURCE bytes (`shapeFileFromParsed`), so
 the freshness hint is policy-independent and the registry fingerprint carries a
 policy change; the content record is always emitted (empty body for `metadata`)

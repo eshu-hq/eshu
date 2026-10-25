@@ -45,13 +45,15 @@ coordinator registration, vulnerability-source evidence, and fact evidence.
   stale, gated, disabled, permission_hidden, unsupported) and its blockers
 - `TerminalFailure` (with the operator acknowledgement flag, #8830),
   `AcknowledgedFailure` (the distinct sub-record an acknowledged failure leaves
-  on `RuntimeStatus` and `PromotionProof`), `BoundedFailureClassForKind`, `BoundedFailureClasses`,
+  on `RuntimeStatus` and `PromotionProof`), `BoundedFailureClassForKind`,
+  `BoundedFailureClassForInstance`, `BoundedFailureClasses`,
   `FailureClassesForKind`, `ExtensionDefinedFailureToken`,
   `BoundedFailureOperation` — the
   newest unresolved terminal work-item failure per instance and the
   per-kind allowlist that bounds its class (the nine common classes, the four
   extension host classes every kind admits, each first-party kind's own, and
-  one token for extension-defined classes on kinds that are not first-party) and
+  one token for extension-defined classes on kinds that are not first-party or
+  on an extension-hosted instance, `InstanceSummary.ExtensionHosted`, #8951) and
   operation tokens; `RuntimeStatus` and
   `PromotionProof` carry the result as `LastFailure*` fields (#8803)
 - `VulnerabilitySourceState` — one durable vulnerability-intelligence source

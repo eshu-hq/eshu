@@ -221,6 +221,7 @@ func TestRenderTextIncludesOperatorSummary(t *testing.T) {
 					Domain:         "semantic_entity_materialization",
 					ConflictDomain: "code_graph",
 					ConflictKey:    "scope-1:gen-1:code",
+					HolderDomain:   "code_call_materialization",
 					Blocked:        2,
 					OldestAge:      75 * time.Second,
 				},
@@ -240,7 +241,7 @@ func TestRenderTextIncludesOperatorSummary(t *testing.T) {
 		"Latest queue failure: stage=reducer domain=code_call_materialization status=retrying class=graph_write_timeout",
 		"message=\"neo4j execute group timed out after 2s\" details=\"phase=semantic label=Variable rows=500\"",
 		"Blocked queue work:",
-		"reducer domain=semantic_entity_materialization conflict_domain=code_graph conflict_key=scope-1:gen-1:code blocked=2 oldest=1m15s",
+		"reducer domain=semantic_entity_materialization conflict_domain=code_graph conflict_key=scope-1:gen-1:code holder_domain=code_call_materialization blocked=2 oldest=1m15s",
 		"projector pending=0 claimed=0 running=1 retrying=1 succeeded=0 dead_letter=0 failed=0",
 		"repository outstanding=2 in_flight=0 retrying=1 dead_letter=0 failed=0 oldest=1m30s",
 	} {
@@ -418,6 +419,14 @@ func TestRenderJSONIncludesFlowSummaries(t *testing.T) {
 			Queue: status.QueueSnapshot{
 				Outstanding: 1,
 			},
+			QueueBlockages: []queue.Blockage{{
+				Stage:          "reducer",
+				Domain:         "security_alert_reconciliation",
+				ConflictDomain: "scope",
+				ConflictKey:    "scope-1",
+				HolderDomain:   "code_call_materialization",
+				Blocked:        1,
+			}},
 			LatestQueueFailure: &queue.FailureSnapshot{
 				Stage:          "reducer",
 				Domain:         "workload_materialization",
@@ -448,6 +457,9 @@ func TestRenderJSONIncludesFlowSummaries(t *testing.T) {
 	}
 	if !strings.Contains(string(payload), "\"queue_blockages\"") {
 		t.Fatalf("RenderJSON() = %s, want queue blockage diagnostics", payload)
+	}
+	if !strings.Contains(string(payload), "\"holder_domain\": \"code_call_materialization\"") {
+		t.Fatalf("RenderJSON() = %s, want the queue blockage fence holder domain", payload)
 	}
 	if !strings.Contains(string(payload), "\"failure_class\": \"graph_write_timeout\"") {
 		t.Fatalf("RenderJSON() = %s, want latest failure class", payload)

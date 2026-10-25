@@ -54,10 +54,14 @@
 
 - **Content-store policy binds only through a definition** — `Definition.ContentStore`
   (`store`, `metadata`, `redact`) is applied by the git collector at the write
-  boundary (`go/internal/collector/git/content`). No production definition may
-  bind `metadata` or `redact` until #8833 lands the detector's marker arm; a
-  `redact` definition needs a redactor mode and a credential-key list, which
-  `NewRegistry` validates. See `registry_content_store.go`.
+  boundary (`go/internal/collector/git/content`). `.npmrc` already binds
+  `metadata` (#8978). No production definition may bind `redact` until #8833
+  lands the detector's marker arm (migration 233); the `.yarnrc.yml` and
+  `*.tfvars` bindings ship with it. A `redact` definition needs a redactor
+  mode, which `NewRegistry` validates: `marker` (closed schema) needs a credential-key list and may add a disjoint
+  `URLUserinfoKeys` list (URL-valued keys that lose only their userinfo);
+  `skeleton` (open schema, #8833) is an allowlist and takes no key list. See
+  `registry_content_store.go`.
 
 - **Admission labels are metadata** — every `defaultDefinitions` entry carries
   `Ecosystem` and `Admission`. Neither feeds lookup or `Registry.Fingerprint`
@@ -84,14 +88,21 @@
   store has no write-time redaction. `phpunit.xml`, `.mvn/jvm.config`,
   `.mvn/maven.config`, `.env` and `settings.xml` are kept out for
   that reason, and `TestDefaultRegistryKeepsCredentialBearingConfigNamesUnadmitted`
-  pins them. `.npmrc` (#8978) is the one admitted credential-bearing name: its own
-  `npmrc` definition, bound to the `metadata` content-store policy, whose parser
-  emits only credential-free registry URLs (`npmrc/AGENTS.md`). Do not register `Taskfile.yml`: an exact name beats the `.yml`
+  pins them. `.npmrc` (#8978) and `gradle-wrapper.properties` (#8822) are the
+  admitted credential-bearing names: each is its own definition (`npmrc`,
+  `gradle_wrapper`), bound to the `metadata` content-store policy, whose parser
+  emits only credential-free output (`npmrc/AGENTS.md`,
+  `gradle/wrapper/AGENTS.md`). Never bind the wrapper name to the `gradle`
+  definition: it stores the body. Do not register `Taskfile.yml`: an exact name beats the `.yml`
   extension and would downgrade it from structured YAML to plain text.
   `.mvn/extensions.xml` is a path rule (`isMavenExtensionsPath`) because
   `extensions.xml` is too generic to bind by name. Path rules sit outside
   `Registry.Fingerprint`, so adding one needs a bump of
-  `gitGenerationContentVersion` and a re-pin.
+  `gitGenerationContentVersion` and a re-pin. The pip constraints family
+  (`constraints.txt`, `constraints-*.txt`, `constraints_*.txt`, #8821) is a path
+  rule (`isPipConstraintsName`) because a `PrefixNames` entry matches before
+  the extension index and would take `constraints-*.yaml` policy files from the
+  YAML parser.
 - **Ecosystem gate (#8825)** — each ledger row declares `ecosystem`,
   `manifest_files` (admitted at L2), and `pin_files` (admitted at L1 or better).
   `registry_ecosystem_gate_test.go` fails on a name the registry does not admit.
@@ -139,6 +150,7 @@ grammar.
 | Maven | `encoding/xml` | `maven/parser.go` | `pom.xml` is XML; the standard XML decoder is canonical. |
 | NuGet project | `encoding/xml` | `nuget/parser.go` (dispatched from `nuget_project_language.go`) | `.csproj` is an MSBuild XML manifest, not C# source. |
 | Gradle dependency DSL | bounded regex/string scanner over Groovy/Kotlin DSL (no execution) | `gradle/scanner.go`, `gradle/parser.go` | The parser extracts proven dependency coordinates from build-script text without executing Gradle or resolving source sets; unresolved interpolations surface as partial/unresolved evidence rather than fabricated versions. A code grammar would not evaluate the DSL anyway. |
+| Gradle wrapper properties | bounded Java-properties line reader, no URL parsing | `gradle/wrapper/scan.go` | `gradle-wrapper.properties` is a Java properties file whose `distributionUrl` can carry userinfo; the reader takes the version from the archive name and keeps nothing else, so no URL grammar is needed. |
 | Gradle version catalog | `go-toml/v2/unstable` event parser plus a documented fail-closed grammar, behind a nesting guard | `gradle/catalog/scan.go`, `gradle/catalog/depth.go` | `libs.versions.toml` is a TOML data file. The unstable parser gives syntax and byte offsets without building a map of the whole document; the package applies the README grammar and counts what it does not cover. It checks nesting first because the TOML parser has no depth bound. |
 | CloudFormation / SAM | bounded structural evaluation over the already-decoded YAML/JSON document | `cloudformation/parser.go` (invoked from `yaml/language.go`, `json/language.go`) | CloudFormation is declarative data; it is decoded by the YAML/JSON libraries above, then evaluated for bounded resource/parameter/output/condition buckets. |
 | dbt SQL (`dbtsql`) | bounded regex SQL-lineage scanner over compiled dbt SQL | `dbtsql/lineage.go`, `dbtsql/expressions.go` | Extracts bounded column lineage (select projections, CTEs, relation aliases) from compiled model SQL; unsupported shapes go on the unresolved path. This is lineage extraction, not source-grammar parsing. |

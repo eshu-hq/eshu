@@ -25,6 +25,7 @@ func TestDependencyCoverageCoveredJSONFilesEmitDependencyRows(t *testing.T) {
 	fixtures := dependencyCoverageCoveredFixtures()
 	nonJSONCovered := map[string]bool{
 		"requirements.txt": true,
+		"constraints.txt":  true,
 		"pyproject.toml":   true,
 		"pipfile":          true,
 		"poetry.lock":      true,

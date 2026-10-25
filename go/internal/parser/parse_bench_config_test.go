@@ -44,6 +44,7 @@ var configBenchCases = []configBenchCase{
 	{language: "gomod", parserKey: "gomod", fileName: "go.mod", build: buildGoMod},
 	{language: "gradle", parserKey: "gradle", fileName: "build.gradle", build: buildGradle},
 	{language: "gradle_catalog", parserKey: "gradle", fileName: "libs.versions.toml", build: buildGradleCatalog},
+	{language: "gradle_wrapper", parserKey: "gradle_wrapper", fileName: "gradle-wrapper.properties", build: buildGradleWrapper},
 	{language: "hcl", parserKey: "hcl", fileName: "main.tf", build: buildHCL},
 	{language: "json", parserKey: "json", fileName: "config.json", build: buildJSON},
 	{language: "maven", parserKey: "maven", fileName: "pom.xml", build: buildMavenPOM},
