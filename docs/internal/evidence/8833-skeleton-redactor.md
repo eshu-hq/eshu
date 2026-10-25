@@ -86,10 +86,27 @@ line, so a clean body costs several times the marker's prefiltered clean
 body. Governed bodies are capped at `MaxGovernedBodyBytes` (4 MiB). The worst
 case is therefore about 0.5 s per pass at the dense rate, run twice per
 collection. tfvars files are small configuration files: a typical one costs
-about 11 µs. The round-3 single-pass scanner did not move these rows: 4 runs
-each before and after gave 11.19 to 11.22 µs and 10.89 to 11.16 µs (typical),
-51.9 to 52.4 ms and 50.7 to 51.1 ms (clean), and 121.6 to 122.3 ms and 119.5 to
-125.4 ms (dense). Neither redactor runs until part 2 binds a definition.
+about 11 µs.
+
+The round-4 lexical stack was measured against `0fd28d6fff` with the same
+benchmark file, 6 interleaved runs each (`-benchtime=200ms`, one host, two test
+binaries run alternately), ns/op range:
+
+| Benchmark | before (`0fd28d6fff`) | after |
+| --- | --- | --- |
+| `typical` | 10.78 to 11.53 µs | 10.79 to 11.31 µs |
+| `clean_1MiB` | 50.5 to 53.8 ms | 50.0 to 50.2 ms |
+| `dense_1MiB` | 118.6 to 120.3 ms | 118.6 to 125.5 ms |
+| `nested_interp_1MiB_open` (349,525 `"${`; the sticky path) | 1.31 to 1.45 ms, 1 alloc | 1.31 to 1.37 ms, 1 alloc |
+| `heredoc_4MiB` (an unclosed 4 MiB heredoc) | 26.2 to 26.8 ms, 4.09 MB | 27.7 to 29.1 ms, 4.09 MB |
+
+B/op and allocs match on every row. The first three rows and the sticky path
+sit inside the run-to-run spread. The heredoc row grows by about 1.5 ms (5 %)
+on a 4 MiB body of 131,000 lines: heredoc text is now scanned for `${`, which is
+what keeps `${ <<INNER` nested heredocs right (mutation m5), and the scan is two
+vectorized byte searches per line plus one `TrimSpace`. A CPU profile of that
+row puts the cost in the detector and the byte searches, not in a byte loop.
+Neither redactor runs until part 2 binds a definition.
 
 ## Observability Evidence
 

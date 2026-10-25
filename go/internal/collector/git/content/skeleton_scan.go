@@ -3,135 +3,265 @@
 
 package gitcontent
 
-import "strings"
-
-// lineEnd is the lexical state a line of HCL ends in. The skeleton redactor
-// decides every cross-line state from it, so a heredoc and a block comment can
-// never disagree about what the end of a line is.
-type lineEnd uint8
-
-const (
-	// endCode: the line ends in code, so a trailing <<ID opens a heredoc.
-	endCode lineEnd = iota
-	// endTemplate: the line ends in the code of a ${ } interpolation that is
-	// still open. Like endCode, a trailing <<ID opens a heredoc (the safe
-	// direction), and the interpolation carries to the next line.
-	endTemplate
-	// endString: the line ends inside a quoted string. HCL strings do not span
-	// lines, so the string ends here and nothing opens.
-	endString
-	// endLineComment: a # or // comment runs to the end of the line, so a <<ID
-	// or /* after it is comment text.
-	endLineComment
-	// endBlockComment: a /* is still open, so the next lines are comment text.
-	endBlockComment
+import (
+	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
-// maxScanDepth bounds the string and interpolation nesting scanLineEnd tracks.
-// A line nested deeper fails closed as an open block comment, which redacts
-// whole lines until a */ and never keeps one.
+// maxScanDepth bounds the lexical nesting scanState tracks. A push past it
+// fails the scan closed (see scanState.failed); it never errors.
 const maxScanDepth = 32
 
-// scanStack is the interpolation nesting that crosses a line boundary. Each
-// frame is 's' (inside a string), 'i' (inside a ${ } or %{ }), or 'b' (inside a
-// brace within one). Code is an empty stack or an i/b top. A string never
-// outlives its line, so a stack carried to the next line ends in 'i' or 'b'.
-type scanStack struct {
-	frames [maxScanDepth]byte
-	depth  int
+type frameKind uint8
+
+const (
+	// frameString is a double-quoted template: "..." with \ escapes.
+	frameString frameKind = iota + 1
+	// frameHeredoc is a heredoc template: text up to its marker line.
+	frameHeredoc
+	// frameInterp is the code of a ${ } interpolation or a %{ } directive.
+	frameInterp
+	// frameBrace is a { } inside an interpolation.
+	frameBrace
+)
+
+// frame is one open lexical context. marker, startOfLine, and closerGoes are
+// set on a frameHeredoc only.
+type frame struct {
+	kind frameKind
+	// startOfLine says the next literal run begins a line, so it may be the
+	// closing marker. An interpolation clears it for the rest of its line, as
+	// hclsyntax does (scan_tokens.rl, heredocLiteralEOL).
+	startOfLine bool
+	// closerGoes says the closing line is redacted. It is false only for a
+	// top-level key = <<ID whose opener line was kept, so the closer stays.
+	closerGoes bool
+	marker     string
 }
 
-func (st *scanStack) push(frame byte) bool {
+// scanState is the lexical state that crosses a line boundary. It follows
+// HashiCorp's lexer (hclsyntax scan_tokens.rl): a stack of quoted templates,
+// heredoc templates, interpolations, and braces, plus an open block comment.
+// It is a value in skeletonState and allocates nothing.
+//
+// A line that begins with anything open is redacted whole. The redactor never
+// parses an interpolation; it only needs to know where the text of a template
+// or a comment ends so that a later line is read as code or as text correctly.
+type scanState struct {
+	frames  [maxScanDepth]frame
+	depth   int
+	inBlock bool
+	// failed is sticky. It is set when nesting passes maxScanDepth or a line
+	// ends inside a quoted template (HCL's TokenQuotedNewline, invalid HCL).
+	// Every later line is then redacted whole; nothing clears it. The body is
+	// still returned, with its line count and its findings.
+	failed bool
+}
+
+// inside reports whether the next line begins inside a template, an
+// interpolation, a block comment, or a failed scan, so it is redacted whole.
+func (st *scanState) inside() bool { return st.failed || st.inBlock || st.depth > 0 }
+
+func (st *scanState) top() *frame { return &st.frames[st.depth-1] }
+
+func (st *scanState) push(f frame) bool {
 	if st.depth == maxScanDepth {
+		st.failed = true
 		return false
 	}
-	st.frames[st.depth] = frame
+	st.frames[st.depth] = f
 	st.depth++
 	return true
 }
 
-func (st *scanStack) inString() bool { return st.depth > 0 && st.frames[st.depth-1] == 's' }
-
-// scanLineEnd lexes one line in a single pass and returns the state it ends in.
-// inBlock says the line begins inside a block comment, and st holds the
-// interpolation the line begins inside; both carry from the line before, and st
-// is left holding what the next line begins inside. The lexer knows four
-// things, and each decision reads only the state it ends in:
-//
-//   - a double-quoted string, with \ escapes and ${ } or %{ } interpolations
-//     that nest strings and braces of their own; $${ and %%{ are plain text;
-//   - a # or // line comment, which ends the scan;
-//   - a /* block comment, closed by the first */, after which the line is
-//     code again, so another comment or a heredoc can follow;
-//   - everything else is code.
-func scanLineEnd(line string, inBlock bool, st *scanStack) lineEnd {
-	for i := 0; i < len(line); i++ {
-		if inBlock {
+// line scans one line (its \r already trimmed) and updates the state.
+// keepOpener says a heredoc this line opens at the top level has its opener
+// line kept, so its closer is kept too. It returns true when the line closed
+// such a heredoc.
+func (st *scanState) line(line string, keepOpener bool) (closerKept bool) {
+	if st.failed {
+		return false
+	}
+	// The text a closing marker may be is the part of the line after the last
+	// interpolation that ended on it.
+	segStart := 0
+	lineComment := false
+	for i := 0; i < len(line); {
+		switch {
+		case st.inBlock:
 			end := strings.Index(line[i:], "*/")
 			if end < 0 {
-				return endBlockComment
+				return false
 			}
-			// Leave i on the closing slash; the loop step moves past it.
-			i += end + 1
-			inBlock = false
-			continue
+			i += end + 2
+			st.inBlock = false
+		case st.depth > 0 && st.top().kind == frameString:
+			i = st.scanString(line, i)
+		case st.depth > 0 && st.top().kind == frameHeredoc:
+			i = st.scanHeredoc(line, i)
+		default:
+			i, lineComment = st.scanCode(line, i, &segStart)
 		}
-		c := line[i]
-		if st.inString() {
-			switch {
-			case c == '\\':
-				i++
-			case c == '"':
-				st.depth--
-			case (c == '$' || c == '%') && i+1 < len(line):
-				switch {
-				case line[i+1] == '{':
-					if !st.push('i') {
-						return failScan(st)
-					}
-					i++
-				case line[i+1] == c && strings.HasPrefix(line[i+2:], "{"):
-					// $${ and %%{ are literal text.
-					i += 2
-				}
-			}
-			continue
-		}
-		switch {
-		case c == '"':
-			if !st.push('s') {
-				return failScan(st)
-			}
-		case c == '{' && st.depth > 0:
-			if !st.push('b') {
-				return failScan(st)
-			}
-		case c == '}' && st.depth > 0:
-			st.depth--
-		case c == '#', c == '/' && strings.HasPrefix(line[i:], "//"):
-			return endLineComment
-		case c == '/' && strings.HasPrefix(line[i:], "/*"):
-			inBlock = true
-			// Skip the star so /*/ is not a complete comment.
-			i++
+		if st.failed {
+			return false
 		}
 	}
 	switch {
-	case inBlock:
-		return endBlockComment
-	case st.inString():
-		// The string ends with the line; an interpolation below it stays open.
-		st.depth--
-		return endString
-	case st.depth > 0:
-		return endTemplate
+	case st.inBlock:
+		return false
+	case st.depth == 0 || st.top().kind == frameInterp || st.top().kind == frameBrace:
+		if !lineComment {
+			st.openHeredoc(line, keepOpener)
+		}
+		return false
+	case st.top().kind == frameString:
+		// HCL strings do not span lines; the lexer reports TokenQuotedNewline.
+		st.failed = true
+		return false
 	}
-	return endCode
+	return st.endHeredocLine(line, segStart)
 }
 
-// failScan is the answer for nesting past maxScanDepth: forget the stack and
-// fail closed as an open block comment.
-func failScan(st *scanStack) lineEnd {
-	st.depth = 0
-	return endBlockComment
+// endHeredocLine ends a line that finished in heredoc text. The line closes the
+// heredoc when it starts a line and its last run of text is the marker. It
+// returns true when it closed a heredoc whose closer line is kept.
+func (st *scanState) endHeredocLine(line string, segStart int) bool {
+	top := st.top()
+	if top.startOfLine && strings.TrimSpace(line[segStart:]) == top.marker {
+		kept := !top.closerGoes
+		st.depth--
+		return kept
+	}
+	top.startOfLine = true
+	return false
+}
+
+// scanString reads quoted-template text from i. It stops when the template
+// closes or an interpolation opens, and returns the next index.
+func (st *scanState) scanString(line string, i int) int {
+	for ; i < len(line); i++ {
+		switch c := line[i]; c {
+		case '\\':
+			i++
+		case '"':
+			st.depth--
+			return i + 1
+		case '$', '%':
+			switch {
+			case i+1 < len(line) && line[i+1] == '{':
+				st.push(frame{kind: frameInterp})
+				return i + 2
+			case i+2 < len(line) && line[i+1] == c && line[i+2] == '{':
+				// $${ and %%{ are literal text.
+				i += 2
+			}
+		}
+	}
+	return len(line)
+}
+
+// scanHeredoc reads heredoc text from i. Heredoc text has no escapes. It stops
+// when an interpolation opens, and returns the next index.
+func (st *scanState) scanHeredoc(line string, i int) int {
+	// Most heredoc text holds neither opener byte; two vectorized searches skip
+	// it without a byte loop.
+	if strings.IndexByte(line[i:], '$') < 0 && strings.IndexByte(line[i:], '%') < 0 {
+		return len(line)
+	}
+	for ; i < len(line); i++ {
+		if c := line[i]; c == '$' || c == '%' {
+			switch {
+			case i+1 < len(line) && line[i+1] == '{':
+				st.top().startOfLine = false
+				st.push(frame{kind: frameInterp})
+				return i + 2
+			case i+2 < len(line) && line[i+1] == c && line[i+2] == '{':
+				i += 2
+			}
+		}
+	}
+	return len(line)
+}
+
+// scanCode reads code from i: the top level or the inside of an interpolation.
+// It stops when a template opens, a template resumes, a block comment opens,
+// or the line ends in a line comment, and returns the next index. segStart
+// moves to just after the } that returns to heredoc text.
+func (st *scanState) scanCode(line string, i int, segStart *int) (next int, lineComment bool) {
+	for ; i < len(line); i++ {
+		switch c := line[i]; {
+		case c == '"':
+			st.push(frame{kind: frameString})
+			return i + 1, false
+		case c == '{' && st.depth > 0:
+			if !st.push(frame{kind: frameBrace}) {
+				return i, false
+			}
+		case c == '}' && st.depth > 0:
+			st.depth--
+			if st.depth > 0 && st.top().kind == frameHeredoc {
+				*segStart = i + 1
+				return i + 1, false
+			}
+			if st.depth > 0 && st.top().kind == frameString {
+				return i + 1, false
+			}
+		case c == '#':
+			return len(line), true
+		case c == '/' && i+1 < len(line) && line[i+1] == '/':
+			return len(line), true
+		case c == '/' && i+1 < len(line) && line[i+1] == '*':
+			// Step over the star so /*/ is not a complete comment.
+			st.inBlock = true
+			return i + 2, false
+		}
+	}
+	return len(line), false
+}
+
+// openHeredoc pushes a heredoc when the line, still in code, ends in <<ID or
+// <<-ID. HCL needs the marker to end the line, so a trailing space opens
+// nothing.
+func (st *scanState) openHeredoc(line string, keepOpener bool) {
+	marker, ok := heredocMarker(line)
+	if !ok {
+		return
+	}
+	st.push(frame{
+		kind: frameHeredoc, marker: marker, startOfLine: true,
+		closerGoes: !keepOpener || st.depth != 0,
+	})
+}
+
+// heredocMarker returns the delimiter when line ends in <<ID or <<-ID.
+func heredocMarker(line string) (string, bool) {
+	at := strings.LastIndex(line, "<<")
+	if at < 0 {
+		return "", false
+	}
+	id := strings.TrimPrefix(line[at+2:], "-")
+	if id == "" || !isIdent(id) {
+		return "", false
+	}
+	return id, true
+}
+
+// isIdent reports whether text is an HCL Ident: a letter or _, then letters,
+// digits, marks, connectors, _, and -. It follows hclsyntax's ID_Start and
+// ID_Continue closely enough that the oracle test finds no difference.
+func isIdent(text string) bool {
+	for i, r := range text {
+		switch {
+		case r == '_', r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
+		case i > 0 && (r == '-' || r >= '0' && r <= '9'):
+		case r < utf8.RuneSelf:
+			return false
+		case unicode.In(r, unicode.L, unicode.Nl):
+		case i > 0 && unicode.In(r, unicode.Mn, unicode.Mc, unicode.Nd, unicode.Pc):
+		default:
+			return false
+		}
+	}
+	return text != ""
 }

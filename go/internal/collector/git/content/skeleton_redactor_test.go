@@ -249,7 +249,9 @@ func TestRedactSkeletonFailsClosedAcrossLines(t *testing.T) {
 	cases := []struct{ name, in, want string }{
 		{"unclosed heredoc", "x = <<EOT\nenabled = true\nsecretish\n", "x = <<EOT\nREDACTED_value\nREDACTED_value\n"},
 		{"unclosed pem", "# -----BEGIN PRIVATE KEY-----\nk = 1\nabc = true\n", "REDACTED_private_key\nREDACTED_value\nREDACTED_value\n"},
-		{"pem in value", "k = \"-----BEGIN PRIVATE KEY-----\nAAAA = 1\n-----END PRIVATE KEY-----\"\nn = 2\n", "REDACTED_private_key\nREDACTED_value\nREDACTED_value\nn = 2\n"},
+		// A quoted string that spans lines is invalid HCL (TokenQuotedNewline), so
+		// the scan fails closed and every later line goes whole.
+		{"pem in value", "k = \"-----BEGIN PRIVATE KEY-----\nAAAA = 1\n-----END PRIVATE KEY-----\"\nn = 2\n", "REDACTED_private_key\nREDACTED_value\nREDACTED_value\nREDACTED_value\n"},
 		{"block comment", "/* header\n enabled = true\n*/\nn = 2\n", "REDACTED_value\n REDACTED_value\nREDACTED_value\nn = 2\n"},
 		{"one-line block comment", "/* note */\nn = 2\n", "REDACTED_value\nn = 2\n"},
 		{"slash star in a value does not open a comment", "p = \"/api/*\"\nn = 2\n", "p = REDACTED_value\nn = 2\n"},
@@ -317,7 +319,7 @@ func TestRedactSkeletonFailsClosedAcrossLines(t *testing.T) {
 		},
 		{
 			"heredoc marker in an unterminated string", "x = \"a # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
-			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\n",
 		},
 		{
 			"block comment opener after the fake heredoc", "x = 1 # <<EOF\n/* c */ y = 2 /* d\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
@@ -361,9 +363,52 @@ func TestRedactSkeletonFailsClosedAcrossLines(t *testing.T) {
 			"closed interpolation carries nothing", "x = \"${var.a}\"\nPassw0rdHunter2: 1\n",
 			"x = REDACTED_value\nPassw0rdHunter2: 1\n",
 		},
+		// Round 4 (I1-I3): the lexical stack carries across lines and fails
+		// closed. HCL: hclsyntax scan_tokens.rl.
 		{
-			"unterminated string carries nothing", "x = \"a\nPassw0rdHunter2: 1\n",
-			"REDACTED_value\nPassw0rdHunter2: 1\n",
+			"I1a heredoc in an interpolation", "x = \"${ <<EOF\nPassw0rdHunter2: 1\nEOF\n}\"\nn = 2\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"I1b comment after a multi-line interpolation", "x = \"${ a\n}\" /* c\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"I3 heredoc nested in a heredoc interpolation", "x = <<EOF\n${ <<INNER\nEOF\nPassw0rdHunter2: 1\nINNER\n}\nEOF\nn = 2\n",
+			"x = <<EOF\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nEOF\nn = 2\n",
+		},
+		{
+			"marker after an interpolation is text", "x = <<EOF\n${a}EOF\nPassw0rdHunter2: 1\nEOF\nn = 2\n",
+			"x = <<EOF\nREDACTED_value\nREDACTED_value\nEOF\nn = 2\n",
+		},
+		{
+			"escaped openers in a heredoc are text", "x = <<EOF\n$${ a\n%%{ b\nEOF\nPassw0rdHunter2: 1\n",
+			"x = <<EOF\nREDACTED_value\nREDACTED_value\nEOF\nPassw0rdHunter2: 1\n",
+		},
+		{
+			"line comment in an interpolation keeps the stack", "x = \"${ # c\n}\" /* d\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"directive opens an interpolation", "x = \"%{ if a\n}\" /* c\nPassw0rdHunter2: 1\n*/\nn = 2\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+		},
+		{
+			"CRLF heredoc", "x = <<EOF\r\nPassw0rdHunter2: 1\r\nEOF\r\nn = 2\r\n",
+			"x = <<EOF\r\nREDACTED_value\r\nEOF\r\nn = 2\r\n",
+		},
+		// An unterminated quoted literal is sticky: nothing later clears it.
+		{
+			"unterminated literal fails the rest closed", "x = \"abc\nPassw0rdHunter2: 1\ny = \"z\"\nw = 1\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\n",
+		},
+		{
+			"a comment close does not clear a failure", "x = \"abc\n*/\nPassw0rdHunter2: 1\nn = 2\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\n",
+		},
+		{
+			"a heredoc close does not clear a failure", "x = \"abc\ny = <<EOF\nEOF\nPassw0rdHunter2: 1\n",
+			"REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\n",
 		},
 		{
 			"escaped template opener is plain text", "x = \"$${\" /* c\nPassw0rdHunter2: 1\n*/\nn = 2\n",
@@ -387,6 +432,30 @@ func TestRedactSkeletonRejectsNonText(t *testing.T) {
 	} {
 		if out, _, err := redactSkeleton(in); err == nil {
 			t.Errorf("%s: accepted, returned %d bytes", name, len(out))
+		}
+	}
+}
+
+// TestRedactSkeletonNestingDepth checks the depth bound: 16 nested "${ levels
+// (32 frames) lex, one more passes maxScanDepth and fails the rest of the body
+// closed (rev-8833 round 4, I2).
+func TestRedactSkeletonNestingDepth(t *testing.T) {
+	t.Parallel()
+
+	nested := func(levels int) string {
+		return "x = " + strings.Repeat(`"${`, levels) + "a" + strings.Repeat(`}"`, levels) +
+			"\n/* c\nPassw0rdHunter2: 1\n*/\nn = 2\n"
+	}
+	for _, tc := range []struct {
+		name   string
+		levels int
+		want   string
+	}{
+		{"16 levels", 16, "x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n"},
+		{"17 levels", 17, "x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\n"},
+	} {
+		if got := skeletonForTest(t, nested(tc.levels)); got != tc.want {
+			t.Errorf("%s:\n got  %q\n want %q", tc.name, got, tc.want)
 		}
 	}
 }

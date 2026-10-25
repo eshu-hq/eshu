@@ -52,6 +52,13 @@ body. Rules that keep it safe:
   cannot carry a credential, with a seeded case in
   `skeleton_redactor_property_test.go`, and keep the rule that a raw finding
   line keeps its `REDACTED_<finding_kind>` (the property test checks it).
+- The lexical state (`skeleton_scan.go`) is hand written on purpose: it needs
+  O(line) memory, where `hclsyntax` allocates 16 to 600 times the body. Never
+  import `hclsyntax` in a non-test file here. Any change to the scanner must keep
+  `TestRedactSkeletonOracle` green; that test compares it with `hclsyntax` on
+  generated bodies, and `-skeleton-oracle-bodies=200000` runs the large form. A
+  lexing failure (nesting past 32, a line that ends inside a quoted string) is
+  sticky and redacts the rest of the body whole; do not add a way out of it.
 
 ## Verification
 

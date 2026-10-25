@@ -16,7 +16,16 @@ func BenchmarkRedactSkeleton(b *testing.B) {
 	typical := "region = \"us-east-1\"\ninstance_count = 3\nenabled = true\nengine_version = \"14.7\"\ndb_password = \"abcdef0123456789\"\ntags = {\n  Name = \"web\"\n}\n"
 	clean := strings.Repeat("instance_count = 3\nenabled = true\n", 1<<20/34)
 	dense := strings.Repeat("a = 1\nb = true\nc = var.x\nd = \"1.2.3\"\ndb_password = \"abcdef0123456789\"\n", 1<<20/72)
-	for name, body := range map[string]string{"typical": typical, "clean_1MiB": clean, "dense_1MiB": dense} {
+	// nested_interp_1MiB_open is the sticky-failure path: 349,525 `"${` opens
+	// pass maxScanDepth on the first line and every later byte is skipped.
+	// heredoc_4MiB is an unclosed heredoc at MaxGovernedBodyBytes, whose lines
+	// are scanned as template text and stored whole.
+	nested := strings.Repeat(`"${`, 1<<20/3)
+	heredoc := "x = <<EOF\n" + strings.Repeat("some heredoc text, a line of it\n", MaxGovernedBodyBytes/32-1)
+	for name, body := range map[string]string{
+		"typical": typical, "clean_1MiB": clean, "dense_1MiB": dense,
+		"nested_interp_1MiB_open": nested, "heredoc_4MiB": heredoc,
+	} {
 		b.Run(name, func(b *testing.B) {
 			b.SetBytes(int64(len(body)))
 			b.ReportAllocs()

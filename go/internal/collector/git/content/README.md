@@ -115,16 +115,30 @@ number, the trailing newline, and `\r` line endings.
   becomes `REDACTED_<finding_kind>` when it is a finding, else `REDACTED_value`,
   with its indent kept and no trailing comma.
 - **State across lines:** a PEM `BEGIN` header with no `END` after it redacts
-  every line through the footer, or to the end of the file; an unclosed heredoc
-  redacts to the end of the file. A heredoc opened at the end of a line
-  that ends in code (`key = <<EOF`, `keys = [<<EOF`) redacts its body; when its
-  opener line was redacted, its closer is redacted too, which keeps the fixed
-  point. A `<<EOF` inside a `#` or `//` comment or an unterminated string is
-  text and opens nothing. A `${` or `%{` left open at the end of a line carries
-  over: every line inside it is redacted whole until its `}`, so an unclosed `${`
-  (a literal one in a JSON string, say) redacts to the end of the file. A `/*`
-  outside a string or line comment with no `*/` after it redacts every line
-  through its `*/`, whether it starts the line or follows a value.
+  every line through the footer, or to the end of the file. Everything else
+  comes from one lexical stack (`scanState`, `skeleton_scan.go`) that follows
+  HashiCorp's HCL lexer: quoted templates, heredoc templates, `${ }` and `%{ }`
+  interpolations, and braces inside them, plus an open `/* */` comment. A line
+  that begins inside any of them is redacted whole.
+  - A heredoc opens at the end of a line that ends in code, with `<<ID` or
+    `<<-ID` and nothing after it (`key = <<EOF`, `keys = [<<EOF`, or inside an
+    interpolation). It closes on a line whose text, after its last
+    interpolation, is the marker. A heredoc nests: `${ <<INNER` inside a
+    heredoc body opens a second one, and only the innermost marker closes.
+    `<<~EOF` and `<<"EOF"` are not HCL heredocs and open nothing.
+  - A `<<EOF` inside a `#` or `//` comment, a string, or a heredoc body is text.
+    `$${` and `%%{` are text in strings and heredocs. A comment inside an
+    interpolation does not end it.
+  - When the opener line was redacted, its closer is redacted too, which keeps
+    the fixed point. When a top-level `key = <<ID` line is kept, its closer is
+    kept.
+  - Lexing failure is sticky. Nesting past 32 levels, or a line that ends
+    inside a quoted template (HCL's `TokenQuotedNewline`, invalid HCL), redacts
+    every later line whole. Nothing clears it. The body is still stored with
+    its line count and its findings; what is lost is the key names and the kept
+    values after the first failure, so an unclosed `${` in a JSON string value
+    costs the rest of that file. An unterminated `/*` that never closes redacts
+    to the end of the file.
 - **Fixed point:** an exact marker, as a value or a whole line, is kept, so a
   second pass changes nothing.
 - **Keys are kept when they are names** (8813 record): an identifier or a quoted

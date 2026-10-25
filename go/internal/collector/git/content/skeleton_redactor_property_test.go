@@ -302,6 +302,12 @@ func FuzzRedactSkeleton(f *testing.F) {
 		"x = \"a\" # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\n", "x = \"a # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\n",
 		"x = 1 # <<EOF\n/* c */ y = 2 /* d\nEOF\nPassw0rdHunter2: 1\n*/\n",
 		"x = \"${<<EOF\nPassw0rdHunter2: 1\nEOF\n}\"\n", "x = \"${\n}\" /* c\nPassw0rdHunter2: 1\n*/\n", "x = \"${\nPassw0rdHunter2: 1\n}\"\n",
+		// The rev-8833 round-4 shapes: a heredoc stack, a sticky failure, and
+		// the escaped openers.
+		"x = <<EOF\n${ <<INNER\nEOF\nPassw0rdHunter2: 1\nINNER\n}\nEOF\nn = 2\n", "x = <<EOF\n${a}EOF\nPassw0rdHunter2: 1\nEOF\n",
+		"x = \"abc\nPassw0rdHunter2: 1\n*/\n", "x = <<EOF\n$${ a\n%%{ b\nEOF\nPassw0rdHunter2: 1\n",
+		"x = \"${ # c\n}\" /* d\nPassw0rdHunter2: 1\n*/\n", "x = <<EOF\r\nPassw0rdHunter2: 1\r\nEOF\r\n",
+		strings.Repeat(`"${`, 17) + "\nPassw0rdHunter2: 1\n",
 		"x = \"${\"#\"}\" /* c\nPassw0rdHunter2: 1\n*/\n", "x = \"${\"//\"}\" <<EOF\nPassw0rdHunter2: 1\nEOF\n",
 	} {
 		f.Add(s)
@@ -314,6 +320,8 @@ func FuzzRedactSkeleton(f *testing.F) {
 			return
 		}
 		checkSkeletonProperties(t, in)
+		var counts oracleCounts
+		checkSkeletonOracle(t, in, &counts)
 		for _, planted := range []string{
 			in + "\npw = \"QqZzSeed9988\"\n",
 			in + "\n# QqZzSeed9988\n",
@@ -338,6 +346,8 @@ func FuzzRedactSkeleton(f *testing.F) {
 			in + "\nk = \"${<<QqZzEnd\nQqZzSeed9988: 1\nQqZzEnd\n}\"\n",
 			in + "\nk = \"${\n}\" /* c\nQqZzSeed9988: 1\n*/\n",
 			in + "\nk = \"${\nQqZzSeed9988: 1\n}\"\n",
+			in + "\nk = <<QqZzEnd\n${ <<QqZzIn\nQqZzEnd\nQqZzSeed9988: 1\nQqZzIn\n}\nQqZzEnd\n",
+			in + "\nk = <<QqZzEnd\n${a}QqZzEnd\nQqZzSeed9988: 1\nQqZzEnd\n",
 		} {
 			out, _, err := redactSkeleton(planted)
 			if err == nil && strings.Contains(out, "QqZzSeed9988") {

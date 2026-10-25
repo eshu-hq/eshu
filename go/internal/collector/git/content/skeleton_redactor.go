@@ -24,11 +24,8 @@ var (
 	// URL with userinfo, a password with symbols, a CIDR, an ARN) is free text
 	// that could be a credential, so the line is not placed and goes whole.
 	skeletonKeyValue = regexp.MustCompile(`^([ \t]*)([A-Za-z_][A-Za-z0-9_-]*|"[A-Za-z0-9_][A-Za-z0-9_.-]*")([ \t]*[=:][ \t]*)(.*)$`)
-	// skeletonHeredoc is a heredoc opener value; group 1 is its delimiter.
+	// skeletonHeredoc is a heredoc opener value; a key = <<ID line is kept.
 	skeletonHeredoc = regexp.MustCompile(`^<<-?([A-Za-z_][A-Za-z0-9_]*)$`)
-	// skeletonHeredocTail is a heredoc opened at the end of a line, after other
-	// text (keys = [<<EOF, jsonencode(<<EOT); group 1 is its delimiter.
-	skeletonHeredocTail = regexp.MustCompile(`<<-?([A-Za-z_][A-Za-z0-9_]*)$`)
 	// The allowlist: shapes that cannot carry a credential.
 	skeletonLiteral   = regexp.MustCompile(`^(true|false|null)$`)
 	skeletonNumber    = regexp.MustCompile(`^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$`)
@@ -60,11 +57,15 @@ const versionConstraint = ` *(~>|>=|<=|!=|=|>|<)? *v?[0-9]+(\.[0-9]+){1,3}(-(alp
 //     the base64 padding of a bare TOKEN==) becomes REDACTED_<finding_kind>
 //     when the raw line is a finding and REDACTED_value otherwise, so it keeps
 //     its finding;
-//   - a heredoc opened at the end of a line that ends in code (key = <<EOF,
-//     keys = [<<EOF) and a block comment opened anywhere outside a string or
-//     line comment redact every line to their close. A <<ID inside a # or //
-//     comment or an unterminated string is text and opens nothing. One scan
-//     (scanLineEnd) decides both.
+//   - the text of a heredoc, a quoted template that holds an interpolation, and
+//     a block comment redacts every line to its close, however they nest: a
+//     heredoc opens at the end of a line that ends in code (key = <<EOF,
+//     keys = [<<EOF, or inside a ${ }), and a <<ID in a # or // comment or a
+//     string is text. One lexical stack (scanState, after hclsyntax's lexer)
+//     decides all of it;
+//   - lexing failure is sticky: nesting deeper than maxScanDepth, or a line
+//     that ends inside a quoted template, redacts every later line whole. The
+//     body is still returned, with its line count and its findings.
 //
 // A finding is what migration 138 reports for the raw line: the detector line
 // gate matches and the CASE names a kind. A gate match with no kind (an
@@ -95,20 +96,15 @@ func redactSkeleton(body string) (string, int, error) {
 	return strings.Join(lines, "\n"), state.replaced, nil
 }
 
-// skeletonState carries what crosses line boundaries: an open PEM block, an
-// open heredoc, and an open block comment.
+// skeletonState carries what crosses line boundaries: an open PEM block and the
+// lexical state of the template, heredoc, and comment stack (scanState).
 type skeletonState struct {
-	inPEM   bool
-	heredoc string
-	// heredocCloserGoes is set for a heredoc whose opener line was redacted
-	// (keys = [<<EOF). Its closer is redacted too, so a second pass, which sees
-	// no opener, gives the same body and the redactor stays a fixed point.
-	heredocCloserGoes bool
-	inBlockComment    bool
-	// template is the ${ } interpolation a line leaves open. Lines inside it are
-	// redacted whole, like lines inside a block comment.
-	template scanStack
-	replaced int
+	inPEM bool
+	scan  scanState
+	// keptOpener is set by keyValue for a key = <<ID line it keeps, so the
+	// scan marks that heredoc's closer to be kept too.
+	keptOpener bool
+	replaced   int
 }
 
 func (s *skeletonState) line(line string) string {
@@ -122,63 +118,42 @@ func (s *skeletonState) line(line string) string {
 	return out
 }
 
+// classify stores one line. A line that begins inside a template, a comment, a
+// PEM block, or a failed scan is redacted whole; the scan still reads it so the
+// state after it is right.
 func (s *skeletonState) classify(line string) string {
 	trimmed := strings.TrimSpace(line)
-	if s.inPEM {
+	inside, wasPEM := s.scan.inside(), s.inPEM
+	var out string
+	switch {
+	case wasPEM:
 		if pemEnd.MatchString(line) {
 			s.inPEM = false
 		}
-		return s.wholeLine(line)
+		out = s.wholeLine(line)
+	case !inside:
+		out = s.place(line, trimmed)
 	}
-	if s.heredoc != "" {
-		if trimmed == s.heredoc {
-			s.heredoc = ""
-			if s.heredocCloserGoes {
-				s.heredocCloserGoes = false
-				return s.wholeLine(line)
-			}
+	closerKept := s.scan.line(line, s.keptOpener)
+	s.keptOpener = false
+	if inside && !wasPEM {
+		if closerKept {
 			return line
 		}
-		return s.wholeLine(line)
+		out = s.wholeLine(line)
 	}
-	out := s.place(line, trimmed)
-	s.advance(line, trimmed)
 	return out
 }
 
-// place stores one line that is not inside a PEM block or a heredoc.
+// place stores one line that begins in code.
 func (s *skeletonState) place(line, trimmed string) string {
 	switch {
-	case s.inBlockComment, s.template.depth > 0:
-		return s.wholeLine(line)
 	case trimmed == "" || skeletonMarkerValue.MatchString(trimmed) || isSkeletonStructural(trimmed):
 		return line
 	case strings.HasPrefix(trimmed, "#"), strings.HasPrefix(trimmed, "//"), strings.HasPrefix(trimmed, "/*"):
 		return s.wholeLine(line)
 	}
 	return s.keyValue(line)
-}
-
-// advance sets the cross-line state a line leaves behind. It reads one thing,
-// the state the line ends in (scanLineEnd), so a heredoc opener and a block
-// comment can never disagree about whether the end of the line is code:
-//
-//   - a /* still open: the next lines are comment text. Inside an open /*, <<EOF
-//     is comment text too, and an EOF line closes nothing;
-//   - a line that ends in code, or in the code of an open ${ }, with a trailing
-//     <<ID: a heredoc opens;
-//   - a ${ } left open: the next lines are inside it and are redacted whole;
-//   - a line that ends in a # or // comment, or inside a string: nothing opens,
-//     since a <<ID there is text.
-func (s *skeletonState) advance(line, trimmed string) {
-	end := scanLineEnd(line, s.inBlockComment, &s.template)
-	s.inBlockComment = end == endBlockComment
-	if (end != endCode && end != endTemplate) || s.heredoc != "" || !strings.Contains(trimmed, "<<") {
-		return
-	}
-	if tail := skeletonHeredocTail.FindStringSubmatch(trimmed); tail != nil {
-		s.heredoc, s.heredocCloserGoes = tail[1], true
-	}
 }
 
 // keyValue handles a line that may be key = value; anything it cannot place
@@ -209,8 +184,8 @@ func (s *skeletonState) keyValue(line string) string {
 	if value == "{" || value == "[" || value == "{}" || value == "[]" || skeletonMarkerValue.MatchString(value) {
 		return line
 	}
-	if heredoc := skeletonHeredoc.FindStringSubmatch(value); heredoc != nil {
-		s.heredoc = heredoc[1]
+	if skeletonHeredoc.MatchString(value) && !strings.HasSuffix(line, " ") && !strings.HasSuffix(line, "\t") {
+		s.keptOpener = true
 		return line
 	}
 	if strings.HasPrefix(value, `"`) && quoteEnd(value[1:], '"') < 0 {

@@ -137,7 +137,10 @@ line, an unterminated string, a credential inside the key itself, or a value
 that starts with `=` or `:`, such as a bare base64 `TOKEN==`) becomes the
 whole-line `REDACTED_<finding_kind>` when it is a finding and `REDACTED_value`
 otherwise. A heredoc or block comment opened after other text on a line
-(`keys = [<<EOF`, `x = 1 /* old`) redacts every line to its close. A detector
+(`keys = [<<EOF`, `x = 1 /* old`) redacts every line to its close, however heredocs,
+interpolations, and comments nest. A quoted string that ends at a line break, or
+nesting deeper than 32 levels, is a lexing failure: every later line is redacted
+whole. A detector
 match blocks the allowlist even without a finding kind, so a token inside a
 reference is not kept. The stored body is not parseable HCL or JSON. Keys are kept when
 they are names: an identifier, or a quoted key of letters, digits, `_`, `.`,
