@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	reducerderivedv1 "github.com/eshu-hq/eshu-sdk/factschema/reducerderived/v1"
 )
 
 // TestAWSCloudRuntimeDriftFindingStoreRoundTripsRealEncodedPayload is the

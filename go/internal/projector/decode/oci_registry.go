@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	ociregistryv1 "github.com/eshu-hq/eshu-sdk/factschema/ociregistry/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
 
 // This file holds the projector-side decode wrappers for the oci_registry fact

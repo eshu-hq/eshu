@@ -13,9 +13,9 @@ const fixtureDecodeFile = `package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
-	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
+	iamv1 "github.com/eshu-hq/eshu-sdk/factschema/iam/v1"
 )
 
 func decodeAWSResource(env facts.Envelope) (awsv1.Resource, error) {
@@ -119,8 +119,8 @@ const fixtureAzureDecodeFile = `package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	azurev1 "github.com/eshu-hq/eshu-sdk/factschema/azure/v1"
 )
 
 func decodeAzureCloudResource(env facts.Envelope) (azurev1.CloudResource, error) {

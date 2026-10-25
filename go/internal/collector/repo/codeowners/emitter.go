@@ -4,9 +4,9 @@
 package codeowners
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	codeownersv1 "github.com/eshu-hq/eshu-sdk/factschema/codeowners/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	codeownersv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codeowners/v1"
 )
 
 // Emit parses one resolved CODEOWNERS file body and returns one

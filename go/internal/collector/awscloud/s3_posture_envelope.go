@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // S3BucketPostureObservation describes the derived security posture of one S3

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	runtimedeclarationv1 "github.com/eshu-hq/eshu-sdk/factschema/runtimedeclaration/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	runtimedeclarationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/runtimedeclaration/v1"
 )
 
 func testContext(path string) FixtureContext {

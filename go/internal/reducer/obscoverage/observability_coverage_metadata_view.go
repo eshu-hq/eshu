@@ -3,7 +3,7 @@
 
 package obscoverage
 
-import observabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/observability/v1"
+import observabilityv1 "github.com/eshu-hq/eshu-sdk/factschema/observability/v1"
 
 // The viewFrom<Kind> converters map one decoded typed observability struct into
 // the flat observabilityMetadataView the coverage-metadata classifier reads.

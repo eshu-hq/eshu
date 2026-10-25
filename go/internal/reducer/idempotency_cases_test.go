@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	codeownersv1 "github.com/eshu-hq/eshu-sdk/factschema/codeowners/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
@@ -22,8 +24,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	codeownersv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codeowners/v1"
 )
 
 // replayRecordingCodeownersOwnershipEdgeWriter is a local copy of the

@@ -9,9 +9,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // The #6541 directory language query decides grant membership from the

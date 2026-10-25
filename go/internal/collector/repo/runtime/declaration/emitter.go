@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	runtimedeclarationv1 "github.com/eshu-hq/eshu-sdk/factschema/runtimedeclaration/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	runtimedeclarationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/runtimedeclaration/v1"
 )
 
 // runtimeVersionPrefix is the label some tools write before a version in a pin

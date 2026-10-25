@@ -117,7 +117,25 @@ class DeltaUnionScheduledTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue((ROOT / path).is_file(), path)
                 if path.startswith("sdk/"):
-                    self.assertIn(replacement, module)
+                    # Post-#8851 the main module pins the standalone SDK
+                    # releases and carries no workspace replaces (C4); keep
+                    # demanding the replace only while a main-module file
+                    # still imports the retired in-tree path.
+                    old_module = "github.com/eshu-hq/eshu/" + replacement[3:]
+                    try:
+                        still_imported = subprocess.check_output(
+                            ["git", "-C", str(ROOT), "grep", "-l", "-F",
+                             old_module, "--", "go/"],
+                            text=True,
+                        ).strip()
+                    except subprocess.CalledProcessError as exc:
+                        # Exit 1 means "no matches": the clean case. Any
+                        # other git failure must stay loud, never clean.
+                        if exc.returncode != 1:
+                            raise
+                        still_imported = ""
+                    if still_imported:
+                        self.assertIn(replacement, module)
                 self.assertTrue(any(fnmatch.fnmatchcase(path, pattern) for pattern in paths), path)
                 self.assertTrue(any(fnmatch.fnmatchcase(path, pattern) for pattern in triggers), path)
 

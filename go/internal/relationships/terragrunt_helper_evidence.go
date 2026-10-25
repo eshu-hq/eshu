@@ -4,9 +4,9 @@
 package relationships
 
 import (
-	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
+	codegraphv1 "github.com/eshu-hq/eshu-sdk/factschema/codegraph/v1"
 
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	"github.com/eshu-hq/eshu-sdk/factschema"
 )
 
 type terragruntConfigAssetSpec struct {

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	ociregistryv1 "github.com/eshu-hq/eshu-sdk/factschema/ociregistry/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
-	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
 
 func TestWarningEnvelopeRedactsURLsAndCredentials(t *testing.T) {

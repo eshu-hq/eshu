@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	runtimedeclarationv1 "github.com/eshu-hq/eshu-sdk/factschema/runtimedeclaration/v1"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/collector/repo/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	runtimedeclarationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/runtimedeclaration/v1"
 )
 
 func decodeRuntimeDeclarations(t *testing.T, envelopes []facts.Envelope) map[string]runtimedeclarationv1.Version {

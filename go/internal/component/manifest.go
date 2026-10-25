@@ -16,8 +16,8 @@ import (
 	"golang.org/x/mod/semver"
 	"gopkg.in/yaml.v3"
 
+	"github.com/eshu-hq/eshu-sdk/factschema/fixturepack"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 const (

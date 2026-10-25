@@ -6,12 +6,12 @@ package familyodu
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	codedataflowv1 "github.com/eshu-hq/eshu-sdk/factschema/codedataflow/v1"
+	codegraphv1 "github.com/eshu-hq/eshu-sdk/factschema/codegraph/v1"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/code"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	codedataflowv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codedataflow/v1"
-	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
 // The code_taint_evidence family Odù (#6228, under the #6181

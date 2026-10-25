@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	gcpv1 "github.com/eshu-hq/eshu-sdk/factschema/gcp/v1"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
 // syntheticLocations is the bounded set of GCP region/zone strings assigned

@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	"github.com/eshu-hq/eshu-sdk/factschema"
 )
 
 // terraformPattern describes one regex-based Terraform evidence extractor.

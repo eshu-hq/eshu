@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
+	iamv1 "github.com/eshu-hq/eshu-sdk/factschema/iam/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
-	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
 // The iam_can_assume family Odù (#6228, under the #6181

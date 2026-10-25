@@ -11,9 +11,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // PackageRegistryPackageRow carries one stable package identity for canonical

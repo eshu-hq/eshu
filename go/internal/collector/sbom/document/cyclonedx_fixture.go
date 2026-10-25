@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	sbomv1 "github.com/eshu-hq/eshu-sdk/factschema/sbom/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 // CycloneDXFixtureEnvelopes normalizes one CycloneDX JSON document into

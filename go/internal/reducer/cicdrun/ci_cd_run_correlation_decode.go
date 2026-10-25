@@ -7,12 +7,12 @@ import (
 	"sort"
 	"strings"
 
+	cicdrunv1 "github.com/eshu-hq/eshu-sdk/factschema/cicdrun/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
-	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 )
 
 // trimmedCICDField trims a required (non-pointer) ci_cd_run identity/anchor

@@ -6,10 +6,10 @@ package familyodu
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	kuberneteslivev1 "github.com/eshu-hq/eshu-sdk/factschema/kuberneteslive/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 )
 
 // The kubernetes_namespace_environment family Odù (#6228, under the #6181

@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // FactDecodeError wraps a classified *factschema.DecodeError so the reducer's

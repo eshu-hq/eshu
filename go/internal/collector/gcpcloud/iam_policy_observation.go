@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	gcpv1 "github.com/eshu-hq/eshu-sdk/factschema/gcp/v1"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
 // The IAM observation bounds and redaction reasons live in the catalog leaf

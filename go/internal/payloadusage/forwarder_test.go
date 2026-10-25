@@ -77,7 +77,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 
-	factschema "github.com/eshu-hq/eshu/sdk/go/factschema"
+	factschema "github.com/eshu-hq/eshu-sdk/factschema"
 )
 
 func factschemaEnvelope(env facts.Envelope) factschema.Envelope {

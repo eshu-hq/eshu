@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	iamv1 "github.com/eshu-hq/eshu-sdk/factschema/iam/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
@@ -14,7 +15,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
-	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
 type iamCanPerformResourcePolicyDenyKey struct {

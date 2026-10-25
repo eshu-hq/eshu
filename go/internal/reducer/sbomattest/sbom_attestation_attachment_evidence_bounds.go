@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"sort"
 
+	sbomv1 "github.com/eshu-hq/eshu-sdk/factschema/sbom/v1"
 	"github.com/eshu-hq/eshu/go/internal/boundedset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
-	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 // derefString forwards to [payloadcore.DerefString]. Declared once here

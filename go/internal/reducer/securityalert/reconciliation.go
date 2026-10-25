@@ -8,10 +8,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // SecurityAlertReconciliationDecision is one reducer-owned comparison between

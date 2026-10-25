@@ -11,9 +11,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // extractRepository builds a RepositoryRow from the first RepositoryObserved

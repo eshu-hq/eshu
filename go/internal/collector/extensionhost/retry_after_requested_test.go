@@ -11,9 +11,9 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // TestResultRecordRetryAfterIsTheRequestNotTheAppliedDelay pins the operator

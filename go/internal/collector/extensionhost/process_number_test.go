@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	factschema "github.com/eshu-hq/eshu-sdk/factschema"
+	"github.com/eshu-hq/eshu-sdk/factschema/fixturepack"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
-	factschema "github.com/eshu-hq/eshu/sdk/go/factschema"
-	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 func TestProcessResultNumbersSurviveClaimedSource(t *testing.T) {

@@ -4,10 +4,10 @@
 package schemadecode
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	observabilityv1 "github.com/eshu-hq/eshu-sdk/factschema/observability/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	observabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/observability/v1"
 )
 
 // This file is the reducer-side decode seam for the observability fact family

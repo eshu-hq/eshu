@@ -6,10 +6,10 @@ package familyodu
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	runtimedeclarationv1 "github.com/eshu-hq/eshu-sdk/factschema/runtimedeclaration/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	runtimedeclarationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/runtimedeclaration/v1"
 )
 
 const (

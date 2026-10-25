@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	observabilityv1 "github.com/eshu-hq/eshu-sdk/factschema/observability/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	observabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/observability/v1"
 )
 
 // NewSourceInstanceEnvelope converts one live Grafana target snapshot into a

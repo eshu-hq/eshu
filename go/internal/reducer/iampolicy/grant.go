@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
-	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
+	iamv1 "github.com/eshu-hq/eshu-sdk/factschema/iam/v1"
 )
 
 // IAM CloudResource resource_type tokens the target resolvers require a matched

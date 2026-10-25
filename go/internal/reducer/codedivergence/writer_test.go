@@ -9,10 +9,10 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 func driftedAdmittedPair() AdmittedPair {

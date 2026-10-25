@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // TestParseGoWorkListsMembersReplacesAndGoVersion is the positive go.work

@@ -8,7 +8,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/eshu-hq/eshu/sdk/go/collector"
+	"github.com/eshu-hq/eshu-sdk/collector"
 )
 
 // This file owns the FREE-TEXT walk: the scan that finds a credential written

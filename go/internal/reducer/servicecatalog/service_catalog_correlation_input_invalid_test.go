@@ -10,8 +10,8 @@ import (
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // TestServiceCatalogCorrelationQuarantinesEntityMissingEntityRef is the

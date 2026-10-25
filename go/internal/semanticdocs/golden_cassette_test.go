@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 func TestGoldenCassetteMatchesEmitterAndReplays(t *testing.T) {

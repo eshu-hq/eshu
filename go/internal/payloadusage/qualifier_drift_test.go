@@ -31,7 +31,7 @@ import (
 // selector apart from an unrelated package whose member happens to share a
 // seam's name (#6382 review finding 3).
 var decodePackageImports = map[string]string{
-	"github.com/eshu-hq/eshu/sdk/go/factschema":                "factschema",
+	"github.com/eshu-hq/eshu-sdk/factschema":                   "factschema",
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode": "schemadecode",
 	// Shared work-item decode leaf (#6623); every importer aliases it
 	// workitemdecode so the manifest attributes its qualified seams.

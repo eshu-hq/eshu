@@ -9,12 +9,12 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	collectorsubmodule "github.com/eshu-hq/eshu/go/internal/collector/repo/submodule"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // TestSubmodulePinFamilyCassetteSurvivesProductionFactOrder proves the

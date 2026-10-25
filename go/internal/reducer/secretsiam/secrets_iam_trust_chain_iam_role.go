@@ -4,9 +4,9 @@
 package secretsiam
 
 import (
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // iamRoleCloudResourceType is the CloudResource resource_type the AWS resource

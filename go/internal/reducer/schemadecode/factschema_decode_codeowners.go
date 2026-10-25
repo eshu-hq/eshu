@@ -4,10 +4,10 @@
 package schemadecode
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	codeownersv1 "github.com/eshu-hq/eshu-sdk/factschema/codeowners/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	codeownersv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codeowners/v1"
 )
 
 // DecodeCodeownersOwnership decodes one codeowners.ownership envelope into the

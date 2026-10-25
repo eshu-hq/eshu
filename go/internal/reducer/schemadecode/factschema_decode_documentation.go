@@ -4,10 +4,10 @@
 package schemadecode
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	documentationv1 "github.com/eshu-hq/eshu-sdk/factschema/documentation/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	documentationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/documentation/v1"
 )
 
 // DecodeDocumentationDocument decodes one documentation_document envelope

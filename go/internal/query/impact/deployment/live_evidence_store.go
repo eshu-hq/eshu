@@ -11,8 +11,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // argoCDTrackingIDAnnotationKey is the ArgoCD annotation key

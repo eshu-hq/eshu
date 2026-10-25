@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query"
-	"github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // This file holds the redaction canaries: the acceptance-criterion tests that

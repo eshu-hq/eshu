@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // testCassette returns a small two-fact gcp_cloud_resource cassette used by

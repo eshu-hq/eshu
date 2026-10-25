@@ -7,9 +7,9 @@ import (
 	"context"
 	"log/slog"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/telemetry/contract"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // StatusTelemetry is the production StatusRecorder and ResultRecorder for the

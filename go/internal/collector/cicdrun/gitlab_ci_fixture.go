@@ -8,9 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	cicdrunv1 "github.com/eshu-hq/eshu-sdk/factschema/cicdrun/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 )
 
 // GitLabCIFixtureEnvelopes normalizes one fixture-shaped GitLab CI/CD

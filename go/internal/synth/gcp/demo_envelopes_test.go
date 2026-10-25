@@ -6,7 +6,7 @@ package gcp
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	"github.com/eshu-hq/eshu-sdk/factschema"
 )
 
 // TestDemoOrgFactEnvelopesRepliesThroughProductionSeam proves

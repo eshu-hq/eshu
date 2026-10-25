@@ -8,9 +8,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // TestGenerateIsByteIdenticalForSameSeed proves the seeded generator produces

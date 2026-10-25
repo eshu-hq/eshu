@@ -6,9 +6,9 @@ package sbomattest
 import (
 	"strings"
 
+	sbomv1 "github.com/eshu-hq/eshu-sdk/factschema/sbom/v1"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
-	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 func classifySBOMAttachmentDocument(

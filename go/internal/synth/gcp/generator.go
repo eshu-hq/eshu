@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	gcpv1 "github.com/eshu-hq/eshu-sdk/factschema/gcp/v1"
 	"github.com/eshu-hq/eshu/go/internal/replay"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
 // Options configures one seeded synthetic-corpus generation run.

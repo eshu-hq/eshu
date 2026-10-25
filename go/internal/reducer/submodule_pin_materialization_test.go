@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	submodulev1 "github.com/eshu-hq/eshu-sdk/factschema/submodule/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	submodulev1 "github.com/eshu-hq/eshu/sdk/go/factschema/submodule/v1"
 )
 
 // recordingSubmodulePinEdgeWriter is a sharedintent.EdgeWriter fake that

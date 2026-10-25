@@ -6,9 +6,9 @@ package reducer
 import (
 	"testing"
 
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 func TestExtractCloudResourceNodeRowsSurfacesECSRunningTaskImage(t *testing.T) {

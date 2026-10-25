@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	conformance "github.com/eshu-hq/eshu-sdk/collector/conformance"
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
-	conformance "github.com/eshu-hq/eshu/sdk/go/collector/conformance"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // emitterConformanceCase names one internal fact emitter and builds a REAL

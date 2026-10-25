@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 )
 
 // TestCollectedGenerationForwardsTrustedDeletion proves the host does not

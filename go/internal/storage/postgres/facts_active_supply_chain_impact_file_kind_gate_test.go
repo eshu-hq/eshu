@@ -12,15 +12,15 @@ import (
 	"strings"
 	"testing"
 
+	codegraphv1 "github.com/eshu-hq/eshu-sdk/factschema/codegraph/v1"
+	ociregistryv1 "github.com/eshu-hq/eshu-sdk/factschema/ociregistry/v1"
+	packageregistryv1 "github.com/eshu-hq/eshu-sdk/factschema/packageregistry/v1"
+	reducerderivedv1 "github.com/eshu-hq/eshu-sdk/factschema/reducerderived/v1"
+	sbomv1 "github.com/eshu-hq/eshu-sdk/factschema/sbom/v1"
+	securityalertv1 "github.com/eshu-hq/eshu-sdk/factschema/securityalert/v1"
+	vulnerabilityv1 "github.com/eshu-hq/eshu-sdk/factschema/vulnerability/v1"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	factimpact "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact"
-	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
-	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
-	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
-	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
-	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
-	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
-	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 )
 
 // supplyChainImpactUngatedIdentityPayloadKeys are the payload keys the

@@ -6,11 +6,11 @@ package ifa
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/go/internal/replay"
 	"github.com/eshu-hq/eshu/go/internal/synth/gcp"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // gcpRoundTripFunc decodes a factschema envelope into its kind's typed

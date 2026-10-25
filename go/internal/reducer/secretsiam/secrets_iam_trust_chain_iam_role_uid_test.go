@@ -6,11 +6,11 @@ package secretsiam
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // iamRoleUIDChainEnvelopes builds an exact IRSA chain whose IAM principal fact

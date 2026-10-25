@@ -6,10 +6,10 @@ package familyodu
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	incidentv1 "github.com/eshu-hq/eshu-sdk/factschema/incident/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	factsincident "github.com/eshu-hq/eshu/go/internal/facts/incident"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
 // The incident_routing_evidence family Odù (#6228, under the #6181

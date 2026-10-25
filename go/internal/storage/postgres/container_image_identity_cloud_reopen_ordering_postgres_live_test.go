@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
+	ociregistryv1 "github.com/eshu-hq/eshu-sdk/factschema/ociregistry/v1"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
-	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
 
 const cloudReopenOrderingAccountID = "123456789012"

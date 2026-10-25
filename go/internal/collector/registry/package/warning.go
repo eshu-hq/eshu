@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	packageregistryv1 "github.com/eshu-hq/eshu-sdk/factschema/packageregistry/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 )
 
 // NewWarningEnvelope builds the durable warning fact for one non-fatal

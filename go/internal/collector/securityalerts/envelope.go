@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	securityalertv1 "github.com/eshu-hq/eshu-sdk/factschema/securityalert/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/urlredact"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 )
 
 const githubDependabotProvider = "github_dependabot"

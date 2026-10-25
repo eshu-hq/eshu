@@ -4,9 +4,9 @@
 package workitem
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	workitemv1 "github.com/eshu-hq/eshu-sdk/factschema/workitem/v1"
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	workitemv1 "github.com/eshu-hq/eshu/sdk/go/factschema/workitem/v1"
 )
 
 // This file holds the decode wrappers for the work_item fact family — the

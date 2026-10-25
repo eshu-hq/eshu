@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // decisionRecorder captures grant decisions observed by the host.

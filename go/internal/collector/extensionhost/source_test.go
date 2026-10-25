@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu-sdk/factschema/fixturepack"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
-	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 func TestSourceRunsExtensionWithBoundedClaimConfigAndDeadline(t *testing.T) {

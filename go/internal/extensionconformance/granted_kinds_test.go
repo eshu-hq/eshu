@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/component"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 const (

@@ -6,7 +6,7 @@ package oci
 import (
 	"strings"
 
-	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
+	ociregistryv1 "github.com/eshu-hq/eshu-sdk/factschema/ociregistry/v1"
 )
 
 func typedDescriptors(descriptors []Descriptor) []ociregistryv1.Descriptor {

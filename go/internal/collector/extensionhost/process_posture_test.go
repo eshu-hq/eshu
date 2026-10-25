@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 )
 
 func TestProcessRunnerAzureTagMarkersReachValidator(t *testing.T) {

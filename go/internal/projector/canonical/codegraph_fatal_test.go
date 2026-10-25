@@ -20,8 +20,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 func fatalDecodeFileFact(factID, schemaVersion string) facts.Envelope {

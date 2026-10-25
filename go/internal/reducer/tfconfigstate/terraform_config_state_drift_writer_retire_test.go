@@ -12,9 +12,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
+	reducerderivedv1 "github.com/eshu-hq/eshu-sdk/factschema/reducerderived/v1"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
-	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 )
 
 // fakeTerraformDriftFactStore is a faithful (not merely call-recording)

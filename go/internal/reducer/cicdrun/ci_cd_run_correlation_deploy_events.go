@@ -6,9 +6,9 @@ package cicdrun
 import (
 	"strings"
 
+	cicdrunv1 "github.com/eshu-hq/eshu-sdk/factschema/cicdrun/v1"
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 )
 
 // decodedCICDDeploymentEvent pairs a ci.deployment_event envelope with its

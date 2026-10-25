@@ -75,7 +75,7 @@ From an Eshu source checkout, point the scaffold at the local SDK while the SDK
 module is under active development:
 
 ` + "```bash" + `
-ESHU_COLLECTOR_SDK_REPLACE=/path/to/eshu/sdk/go/collector ./scripts/verify-local.sh
+ESHU_COLLECTOR_SDK_REPLACE=/path/to/eshu-sdk/collector ./scripts/verify-local.sh
 ` + "```" + `
 
 The tests fail if the manifest fact kind, schema version, source confidence, SDK
@@ -143,10 +143,10 @@ const componentInitGoModTemplate = `module {{.ModulePath}}
 
 go 1.26.0
 
-require github.com/eshu-hq/eshu/sdk/go/collector v0.1.0
+require github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3
 
 // For local SDK development from an Eshu checkout, run:
-// go mod edit -replace github.com/eshu-hq/eshu/sdk/go/collector=/path/to/eshu/sdk/go/collector
+// go mod edit -replace github.com/eshu-hq/eshu-sdk/collector=/path/to/eshu-sdk/collector
 `
 
 const componentInitCollectorGoTemplate = `package {{.PackageName}}
@@ -154,7 +154,7 @@ const componentInitCollectorGoTemplate = `package {{.PackageName}}
 import (
 	"time"
 
-	"github.com/eshu-hq/eshu/sdk/go/collector"
+	"github.com/eshu-hq/eshu-sdk/collector"
 )
 
 const (
@@ -230,7 +230,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/sdk/go/collector"
+	"github.com/eshu-hq/eshu-sdk/collector"
 )
 
 func TestManifestDeclaresCollectorContract(t *testing.T) {
@@ -302,7 +302,7 @@ const componentInitVerifyScriptTemplate = `#!/usr/bin/env sh
 set -eu
 
 if [ -n "${ESHU_COLLECTOR_SDK_REPLACE:-}" ]; then
-  go mod edit -replace "github.com/eshu-hq/eshu/sdk/go/collector=${ESHU_COLLECTOR_SDK_REPLACE}"
+  go mod edit -replace "github.com/eshu-hq/eshu-sdk/collector=${ESHU_COLLECTOR_SDK_REPLACE}"
 fi
 
 go mod tidy

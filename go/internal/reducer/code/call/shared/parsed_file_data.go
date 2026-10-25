@@ -3,7 +3,7 @@
 
 package shared
 
-import "github.com/eshu-hq/eshu/sdk/go/factschema"
+import "github.com/eshu-hq/eshu-sdk/factschema"
 
 // This file holds the reducer-side typed readers for the closed-shape,
 // single-producer inner keys of a File fact's parsed_file_data map (issue #4750

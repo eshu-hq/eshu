@@ -10,11 +10,11 @@ import (
 	"os"
 	"strings"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	conformance "github.com/eshu-hq/eshu-sdk/collector/conformance"
+	"github.com/eshu-hq/eshu-sdk/factschema/fixturepack"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
-	conformance "github.com/eshu-hq/eshu/sdk/go/collector/conformance"
-	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 // The host wrapper re-exports the public collector conformance report contract

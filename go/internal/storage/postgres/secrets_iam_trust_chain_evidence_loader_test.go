@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 func TestFactStoreLoadSecretsIAMTrustChainEvidenceExpandsActiveAnchors(t *testing.T) {

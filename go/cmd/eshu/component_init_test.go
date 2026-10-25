@@ -71,11 +71,9 @@ func TestComponentInitCollectorScaffoldsValidPackage(t *testing.T) {
 		"source confidence",
 	)
 
-	sdkPath, err := filepath.Abs("../../../sdk/go/collector")
-	if err != nil {
-		t.Fatalf("filepath.Abs() error = %v, want nil", err)
-	}
-	runCommand(t, outDir, "go", "mod", "edit", "-replace", "github.com/eshu-hq/eshu/sdk/go/collector="+sdkPath)
+	// The scaffold pins the published SDK (github.com/eshu-hq/eshu-sdk/collector);
+	// no local replace is wired so the scaffold resolves from the module proxy
+	// exactly as an external consumer would.
 	runCommand(t, outDir, "go", "mod", "tidy")
 	runCommand(t, outDir, "go", "test", "./...")
 }

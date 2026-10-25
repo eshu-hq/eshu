@@ -7,8 +7,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // TestGenerateMultiScopeIsByteIdenticalForSameInputs proves the multi-scope

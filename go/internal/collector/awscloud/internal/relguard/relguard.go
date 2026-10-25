@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
 )
 
 // resourceTypeConstPrefix is the identifier prefix every shared AWS resource

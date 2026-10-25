@@ -6,10 +6,10 @@ package summary
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	codedataflowv1 "github.com/eshu-hq/eshu-sdk/factschema/codedataflow/v1"
 	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	codedataflowv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codedataflow/v1"
 )
 
 // This file holds this family's decode wrappers for the code_function_summary

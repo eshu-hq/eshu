@@ -7,14 +7,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	awsv1 "github.com/eshu-hq/eshu-sdk/factschema/aws/v1"
+	iamv1 "github.com/eshu-hq/eshu-sdk/factschema/iam/v1"
+	kuberneteslivev1 "github.com/eshu-hq/eshu-sdk/factschema/kuberneteslive/v1"
+	secretsiamv1 "github.com/eshu-hq/eshu-sdk/factschema/secretsiam/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
-	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
-	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
-	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 )
 
 // The authenticates_vault_role family Odù (#6228 slice A, under the #6181

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
-	conformance "github.com/eshu-hq/eshu/sdk/go/collector/conformance"
-	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	conformance "github.com/eshu-hq/eshu-sdk/collector/conformance"
+	"github.com/eshu-hq/eshu-sdk/factschema/fixturepack"
 )
 
 // TestConformanceValidatesEveryFixturePackSchemaConstruct is the fail-closed

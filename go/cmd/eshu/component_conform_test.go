@@ -13,7 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 )
 
 func TestComponentCommandTreeIncludesConform(t *testing.T) {

@@ -4,9 +4,9 @@
 package postgres
 
 import (
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
-	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	azurev1 "github.com/eshu-hq/eshu-sdk/factschema/azure/v1"
+	gcpv1 "github.com/eshu-hq/eshu-sdk/factschema/gcp/v1"
 )
 
 // decodeAzureTagObservation decodes one azure_tag_observation envelope into

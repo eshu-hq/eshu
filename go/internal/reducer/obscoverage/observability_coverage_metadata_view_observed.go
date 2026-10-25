@@ -3,7 +3,7 @@
 
 package obscoverage
 
-import observabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/observability/v1"
+import observabilityv1 "github.com/eshu-hq/eshu-sdk/factschema/observability/v1"
 
 // Observed/applied-signal and coverage-warning lane converters for the
 // observability metadata view. See observability_coverage_metadata_view.go for

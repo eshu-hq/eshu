@@ -6,10 +6,10 @@ package perform
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	iamv1 "github.com/eshu-hq/eshu-sdk/factschema/iam/v1"
 	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
 // This file holds this family's decode wrappers for the aws_iam_permission and

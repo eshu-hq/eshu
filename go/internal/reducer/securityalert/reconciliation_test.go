@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 func TestBuildSecurityAlertReconciliationsClassifiesProviderAlertStates(t *testing.T) {

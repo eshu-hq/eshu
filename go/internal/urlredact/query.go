@@ -6,7 +6,7 @@ package urlredact
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/sdk/go/collector"
+	"github.com/eshu-hq/eshu-sdk/collector"
 )
 
 // PairSeparators are the characters that end one key=value pair inside

@@ -4,9 +4,9 @@
 package decode
 
 import (
+	"github.com/eshu-hq/eshu-sdk/factschema"
+	packageregistryv1 "github.com/eshu-hq/eshu-sdk/factschema/packageregistry/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
-	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 )
 
 // This file holds the projector-side decode wrappers for the package_registry

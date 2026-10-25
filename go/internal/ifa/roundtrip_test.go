@@ -9,9 +9,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
-	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // TestRoundTripTypedPayloadsDemoOrgOduIsBaselineGreen proves the honest-green
