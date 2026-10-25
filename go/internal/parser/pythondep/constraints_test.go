@@ -239,8 +239,13 @@ func TestParseRequirementsConstraintsKeepsNoRawLineOrUnsafeMarker(t *testing.T) 
 		}
 	}
 	byName := rowsByName(rows)
-	if _, has := byName["marked"]["marker"]; has {
-		t.Errorf("marked keeps a marker with URL-shaped text: %#v", byName["marked"]["marker"])
+	for _, row := range rows {
+		if _, has := row["marker"]; has && row["marker"] != "python_version >= '3.9'" {
+			t.Errorf("row %v keeps marker %#v with URL-shaped text", row["name"], row["marker"])
+		}
+	}
+	if row := rows[1]; row["config_kind"] != "malformed_dependency" || row["name"] != "" || row["value"] != "" {
+		t.Errorf("pin with an unsafe marker = %#v, want a malformed row with no name or value", row)
 	}
 	if got := byName["plain"]["marker"]; got != "python_version >= '3.9'" {
 		t.Errorf("plain marker = %#v, want the PEP 508 marker kept", got)

@@ -225,8 +225,8 @@ recent shipped work grouped by feature area.
   evidence or edge results from it. Registry target planning still picks the
   rows as collection targets, as it does for NuGet pins, and no match or edge
   follows. A row never stores the raw line, a line with a direct source (URL,
-  VCS, path) keeps only its kind, and a marker holding URL-shaped text is
-  dropped. The entity `source_cache` is withheld for these rows. The file body
+  VCS, path) keeps only its kind, and a pin whose marker holds URL-shaped text reads as a
+  malformed row. The entity `source_cache` is withheld for these rows. The file body
   keeps the whole file, credentials included, until the
   [#8812](https://github.com/eshu-hq/eshu/issues/8812) content-store policy
   covers this parser. The family needs the `.txt` extension, so a

@@ -74,7 +74,10 @@ constraint never declares a dependency:
   entity's `source_cache`. That snippet is the file's raw line range, so
   without the flag a comment or marker the row scrubbed would still reach the
   fact stream. A marker is kept only when it uses the characters a PEP 508
-  marker needs; a marker with `@`, `:` or `/` is dropped.
+  marker needs. A pin whose marker has `@`, `:` or `/` is demoted to
+  `malformed_dependency` with no name or value, not just stripped of its
+  marker: two lines that differ only in such markers would otherwise share one
+  content identity and the content writer would keep one.
 - Limit: the file body (`content` fact) keeps the whole file, credentials
   included, until the content-store policy (#8812) covers this parser. The
   `requirements*.txt` path has the same limit.

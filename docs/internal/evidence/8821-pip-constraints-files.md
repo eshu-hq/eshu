@@ -11,7 +11,10 @@ A pip constraint limits the version a package gets if something else installs
 it; it does not install it. The rows therefore reuse the NuGet central-pin
 contract (#8824): `config_kind=dependency` with `central_version_declaration`
 true, which the consumption extractor, the Postgres sidecar and the readiness
-SQL already drop. No fact kind, payload key or reader changes.
+consumption arm already drop. The readiness unsupported-source arm does not
+read it (#9073). There is no new fact kind. The change adds one row key,
+`source_cache_withheld`, and one reader change in `content/shape`
+(`entitySourceCache`), described under Credential scope.
 
 ## Credential scope
 

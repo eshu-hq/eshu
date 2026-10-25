@@ -52,8 +52,9 @@ follow when editing this package.
   in the fact stream. `TestPipConstraintsCredentialsStayOutOfEntityFacts` in
   `go/internal/collector/repo/git` drives that production path.
 - A constraints row with a direct source or an unparsed line MUST also lose
-  its value, source URL, ref, and marker. A marker is kept only when
-  `safeMarker` accepts it. Do not add URL cleaning there: a password can hold
+  its value, source URL, ref, and marker. A pin whose marker `safeMarker`
+  rejects is demoted to malformed, never left with the marker merely cleared
+  (the pypi entity identity folds the marker). Do not add URL cleaning there: a password can hold
   `/` or `@`, which no cleaner here handles safely.
 - The file body is a separate content fact and keeps the whole file until the
   content-store policy (#8812) covers this parser.

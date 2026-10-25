@@ -86,3 +86,42 @@ func TestPipConstraintsCredentialsStayOutOfEntityFacts(t *testing.T) {
 		t.Errorf("content facts holding the file body = %d, want 1: the body keeps the text until #8812 binds a policy", bodyFacts)
 	}
 }
+
+// TestPipConstraintsUnsafeMarkersKeepDistinctEntities proves two constraint
+// lines for the same package and specifier, whose markers differ and are both
+// unreadable as markers, still become two entities. The pypi entity identity
+// folds the marker; a dropped marker would otherwise leave both rows with the
+// same identity and the content writer would keep only one.
+func TestPipConstraintsUnsafeMarkersKeepDistinctEntities(t *testing.T) {
+	t.Parallel()
+
+	body := "dup==1.0 ; platform_node == 'https://a.example/x'\n" +
+		"dup==1.0 ; platform_node == 'https://b.example/y'\n"
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("resolve temp root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "constraints.txt"), []byte(body), 0o600); err != nil {
+		t.Fatalf("write constraints.txt: %v", err)
+	}
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine: %v", err)
+	}
+	snapshot, err := (NativeRepositorySnapshotter{Engine: engine}).SnapshotRepository(context.Background(), SelectedRepository{RepoPath: root})
+	if err != nil {
+		t.Fatalf("SnapshotRepository: %v", err)
+	}
+	collected := buildStreamingGeneration(root, testCollectorRepositoryMetadata(root), "run-pip-constraints-dup",
+		time.Date(2026, 10, 25, 0, 0, 0, 0, time.UTC), snapshot, false, "")
+	ids := map[string]bool{}
+	for _, envelope := range drainFactChannel(collected.Facts) {
+		if envelope.FactKind == "content_entity" {
+			id, _ := envelope.Payload["entity_id"].(string)
+			ids[id] = true
+		}
+	}
+	if len(ids) != 2 {
+		t.Fatalf("distinct content_entity ids = %d (%v), want 2: the two lines must stay two entities", len(ids), ids)
+	}
+}

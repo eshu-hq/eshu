@@ -38,8 +38,10 @@ func isConstraintsFile(path string) bool {
 // sign or a scheme separator. A registry pin is kept unless its specifier holds
 // an at sign or a scheme separator, which no version specifier contains; that
 // row is demoted to malformed with its name dropped. A marker is kept only when
-// it uses the characters a PEP 508 marker needs, so URL-shaped text in a
-// marker never reaches a row.
+// it uses the characters a PEP 508 marker needs; a pin whose marker fails that
+// test is demoted to malformed too. Dropping only the marker would leave two
+// lines that differ only in their markers with one content identity, and the
+// content writer would keep one of them.
 //
 // The file body is a separate content fact and keeps the whole file until the
 // content-store policy (#8812) covers this parser.
@@ -53,10 +55,13 @@ func (b *rowBuilder) applyConstraintPolicy() {
 		b.ConfigKind = configKindMalformed
 		b.Malformed = true
 	}
+	if b.ConfigKind == configKindDependency && !safeMarker(b.Marker) {
+		b.Name = ""
+		b.Value = ""
+		b.ConfigKind = configKindMalformed
+		b.Malformed = true
+	}
 	if b.ConfigKind == configKindDependency {
-		if !safeMarker(b.Marker) {
-			b.Marker = ""
-		}
 		return
 	}
 	b.Value = ""
