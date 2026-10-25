@@ -49,7 +49,7 @@ scripts/collector-cutover-rollback.sh plan \
 | 2 | Every claim of the kind counts as external, because the in-tree set is empty. The drain waits for all of them. |
 | 3 | No change. |
 | 4 | The restore scales `--in-tree-deployment` and waits for its rollout. The plan prints that command. The coordinator is not restarted a second time, because it does not plan a direct collector. The replay window starts at the exact database clock, with no skew margin. |
-| 5 | Passes only when a scope generation of the kind was observed at or after the window start and has been activated. |
+| 5 | Re-runs the step 1 to 4 gates first, so the authority check reads the Deployment again. Then passes only when a scope generation of the kind was observed at or after the window start and has been activated. |
 | 6 | No change. Fact truth must equal the baseline. |
 
 ### Dual authority
@@ -72,6 +72,11 @@ authority line prints `in_tree_direct_running=yes`, `no`, or `unknown`.
 
 Every step uses this one read, so `run` and `verify` agree. A standalone
 `verify` before the restore, with the Deployment at zero, is not dual authority.
+
+The restore wait in step 4, and the restore gate that steps 5 and 6 re-run, do
+use `kubectl rollout status`, which passes with no replicas. The scripted restore always scales to a positive
+`--in-tree-replicas`, so the gate can pass vacuously only after a manual scale-down.
+Issue #9056 tracks the fix.
 
 ### The step 5 signal
 

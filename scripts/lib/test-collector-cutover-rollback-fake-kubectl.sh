@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fake `kubectl` for test-collector-cutover-rollback.sh. State lives in
-# $FAKE_STATE: worker_pods (count), worker_replicas (count), intree_replicas
-# (count). Marker files make a scenario fail:
+# $FAKE_STATE: worker_name (the worker Deployment name, exact match), worker_pods
+# (count), worker_replicas (count), intree_replicas (count). Marker files make a scenario fail:
 #   worker_stuck           the worker never scales down (pods and replicas stay)
 #   worker_absent          the worker Deployment does not exist (NotFound)
 #   scale_fail_worker      scaling the worker fails with a Forbidden error
@@ -23,6 +23,8 @@ if [[ "${1:-}" == "-n" ]]; then
 	shift 2
 fi
 
+worker_name="$(cat "${state}/worker_name")"
+
 not_found() {
 	printf 'Error from server (NotFound): deployments.apps "%s" not found\n' "$1" >&2
 	exit 1
@@ -33,7 +35,7 @@ scale)
 	target="${2#deployment/}"
 	replicas="${3#--replicas=}"
 	case "${target}" in
-	*worker*)
+	"${worker_name}")
 		[[ ! -e "${state}/worker_absent" ]] || not_found "${target}"
 		if [[ -e "${state}/scale_fail_worker" ]]; then
 			printf 'Error from server (Forbidden): deployments.apps "%s" is forbidden\n' "${target}" >&2
@@ -84,7 +86,7 @@ get)
 		;;
 	deployment/*)
 		target="${2#deployment/}"
-		if [[ "${target}" == *worker* ]]; then
+		if [[ "${target}" == "${worker_name}" ]]; then
 			[[ ! -e "${state}/worker_absent" ]] || not_found "${target}"
 		else
 			[[ ! -e "${state}/intree_get_missing" ]] || not_found "${target}"
@@ -97,7 +99,7 @@ get)
 			printf 'Error from server (InternalError): etcdserver: request timed out\n' >&2
 			exit 1
 		fi
-		if [[ "${target}" == *worker* ]]; then
+		if [[ "${target}" == "${worker_name}" ]]; then
 			cat "${state}/worker_replicas"
 		elif [[ -e "${state}/intree_get_garbage" ]]; then
 			printf 'not-a-replica-count\n'

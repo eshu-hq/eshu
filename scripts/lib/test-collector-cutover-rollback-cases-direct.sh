@@ -64,11 +64,25 @@ expect_out "the refusal says the list is required" "--in-tree-instance is requir
 direct_args
 run_script plan "${ARGS[@]}"
 expect_rc "--in-tree-direct plans without --in-tree-instance" 0
-# Steps 4 and 6 run the authority check, so the plan lists its Deployment read twice.
-plan_reads="$(printf '%s\n' "${out}" | awk 'index($0, "kubectl -n eso get deployment/jira-collector -o jsonpath=") { n++ } END { print n + 0 }')"
-if [[ "${plan_reads}" == 2 ]]; then pass "a direct plan lists the Deployment read in steps 4 and 6"; else
-	fail "a direct plan lists the Deployment read ${plan_reads} time(s), want 2"
-fi
+# Steps 4, 5, and 6 run the authority check, so the plan lists its Deployment read in each.
+plan_step_reads() { # <step number> <plan text> -> count of Deployment reads under that STEP block
+	printf '%s\n' "$2" | awk -v step="$1" '
+		/^STEP [0-9]/ { cur = $2 }
+		cur == step && index($0, "kubectl -n eso get deployment/jira-collector -o jsonpath=") { n++ }
+		END { print n + 0 }'
+}
+for step in 4 5 6; do
+	plan_reads="$(plan_step_reads "${step}" "${out}")"
+	if [[ "${plan_reads}" == 1 ]]; then pass "a direct plan lists the Deployment read once under step ${step}"; else
+		fail "a direct plan lists the Deployment read ${plan_reads} time(s) under step ${step}, want 1"
+	fi
+done
+for step in 1 2 3; do
+	plan_reads="$(plan_step_reads "${step}" "${out}")"
+	if [[ "${plan_reads}" == 0 ]]; then pass "a direct plan lists no Deployment read under step ${step}"; else
+		fail "a direct plan lists the Deployment read ${plan_reads} time(s) under step ${step}, want 0"
+	fi
+done
 if [[ "${plan_out}" != *"get deployment/jira-collector"* ]]; then pass "the default plan lists no read of the in-tree Deployment"; else
 	fail "the default plan lists a read of the in-tree Deployment"
 fi

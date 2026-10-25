@@ -100,6 +100,7 @@ print_plan() {
 
 	printf 'STEP 5 replay from the last committed generation\n'
 	if [[ "$in_tree_direct" == "true" ]]; then
+		plan_direct_replicas
 		plan_psql_line direct-commit "scope generations of the kind observed and activated since the restore start"
 		printf '  Gate: at least one generation was observed and activated after the window start. A source that did not\n'
 		printf '  change mints none, so the step times out (exit 5) until the source changes.\n'

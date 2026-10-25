@@ -107,6 +107,7 @@
 #   M90 truth  the passing evidence line drops the unreadable-Deployment note
 #   M91 gates  the unreadable-Deployment note drops the kubectl exit code
 #   M92 plan   plan omits the Deployment read in direct mode
+#   M93 plan   plan omits the Deployment read from step 5, which run performs
 
 # The single-quoted anchors are literal source text to find, not expansions.
 # shellcheck disable=SC2016
@@ -259,6 +260,7 @@ define_mutants() {
 	add M90 truth "$(pairs 'overlapping_claim_pairs=0${direct_note}"' 'overlapping_claim_pairs=0"')"
 	add M91 gates "$(pairs 'could not be read (exit ${XRC}): ' 'could not be read: ')"
 	add M92 plan "$(pairs "${T}[[ \"\$in_tree_direct\" == \"true\" ]] || return 0${NL}${T}build_in_tree_replicas" "${T}return 0${NL}${T}build_in_tree_replicas")"
+	add M93 plan "$(pairs "${T}${T}plan_direct_replicas${NL}${T}${T}plan_psql_line direct-commit" "${T}${T}plan_psql_line direct-commit")"
 	add M64 main "$(pairs '"${TMPDIR:-/tmp}/eshu-rollback.XXXXXX"' '"/tmp/eshu-rollback.XXXXXX"')"
 }
 
