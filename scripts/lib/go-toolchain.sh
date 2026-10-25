@@ -27,14 +27,15 @@
 
 # eshu_go_toolchain prints the toolchain name go/go.mod selects, e.g. go1.26.10,
 # or nothing when go/go.mod is missing or declares neither a toolchain line nor
-# a go directive. A `toolchain` line wins over the `go` directive, as it does
-# for the go command.
+# a go directive with a patch version. A `toolchain` line wins over the `go`
+# directive, as it does for the go command. A two-part directive such as
+# `go 1.22` is a language version, not a toolchain name, so it is not pinned.
 eshu_go_toolchain() {
 	local mod="${1}/go/go.mod" version
 	[ -f "${mod}" ] || return 0
 	version="$(awk '$1 == "toolchain" && $2 ~ /^go[0-9]/ { print $2; exit }' "${mod}")"
 	if [ -z "${version}" ]; then
-		version="$(awk '$1 == "go" && $2 ~ /^[0-9]/ { print "go" $2; exit }' "${mod}")"
+		version="$(awk '$1 == "go" && $2 ~ /^[0-9]+\.[0-9]+\.[0-9]+/ { print "go" $2; exit }' "${mod}")"
 	fi
 	[ -n "${version}" ] && printf '%s' "${version}"
 	return 0

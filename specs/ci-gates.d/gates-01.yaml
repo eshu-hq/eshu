@@ -10,6 +10,8 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/go-toolchain.sh"
+      - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
     local:
@@ -34,6 +36,8 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/go-toolchain.sh"
+      - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
     local:
@@ -97,6 +101,8 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/go-toolchain.sh"
+      - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/test-precommit-go-filecap.sh"
@@ -112,6 +118,8 @@ gates:
       - "tools/golangci-lint-filelength/**"
     self_test_triggers:
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/go-toolchain.sh"
+      - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/test-precommit-go-filecap.sh"
       - "scripts/lib/test-precommit-go-filecap-cases.sh"
       - "tools/golangci-lint-filelength/**"
@@ -161,10 +169,14 @@ gates:
       - "**"
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/go-toolchain.sh"
+      - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/verify-dirgate.sh"
       - "go/cmd/dirgate/**"
     self_test_triggers:
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/go-toolchain.sh"
+      - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/verify-dirgate.sh"
       - "go/cmd/dirgate/**"
     local:
@@ -414,6 +426,8 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/gates-01.yaml"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/go-toolchain.sh"
+      - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/precommit-go-gosec.sh"
     local:

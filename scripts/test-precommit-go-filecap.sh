@@ -67,8 +67,9 @@ new_repo() {
 	local script_src="${1:-${helper}}"
 	scratch_seq=$((scratch_seq + 1))
 	local repo_dir="${tmp_root}/repo-${scratch_seq}"
-	mkdir -p "${repo_dir}/scripts/dev" "${repo_dir}/.github/workflows"
+	mkdir -p "${repo_dir}/scripts/dev" "${repo_dir}/scripts/lib" "${repo_dir}/.github/workflows"
 	cp "${script_src}" "${repo_dir}/scripts/dev/precommit-go.sh"
+	cp "${repo_root}/scripts/lib/precommit-go-filecap.sh" "${repo_root}/scripts/lib/go-toolchain.sh" "${repo_dir}/scripts/lib/"
 	chmod +x "${repo_dir}/scripts/dev/precommit-go.sh"
 	printf 'run: scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2\n' \
 		>"${repo_dir}/.github/workflows/test.yml"

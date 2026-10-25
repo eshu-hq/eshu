@@ -105,6 +105,8 @@ gates:
       - "scripts/test-verify-measurement-citations.sh"
       - "scripts/test-verify-measurement-citations-wrapper.sh"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/go-toolchain.sh"
+      - "scripts/lib/precommit-go-filecap.sh"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"
@@ -114,6 +116,8 @@ gates:
       - "scripts/test-verify-measurement-citations.sh"
       - "scripts/test-verify-measurement-citations-wrapper.sh"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/go-toolchain.sh"
+      - "scripts/lib/precommit-go-filecap.sh"
     local:
       command: "bash scripts/verify-measurement-citations.sh"
       pre_push: floor

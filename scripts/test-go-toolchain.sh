@@ -85,6 +85,15 @@ got="$(run_lib "$root" GOTOOLCHAIN=local GOROOT=/keep)"
   && ok "no go/go.mod leaves GOTOOLCHAIN and GOROOT untouched" \
   || no "no go.mod: got [$got]"
 
+# 6b. a two-part go directive (go 1.22) is a language version, not a toolchain
+# name; pinning it makes the go command fail with "invalid toolchain", so leave
+# the environment alone.
+root="$(fixture langonly $'module example.com/m\n\ngo 1.22\n')"
+got="$(run_lib "$root" GOTOOLCHAIN=local GOROOT=/keep)"
+[ "$got" = "GOTOOLCHAIN=local GOROOT=/keep" ] \
+  && ok "a two-part go directive is not pinned" \
+  || no "language-only go directive: got [$got]"
+
 # 7. the real go.mod yields a pin that equals its go directive.
 want="go$(awk '$1=="go"{print $2; exit}' "$repo_root/go/go.mod")"
 got="$(run_lib "$repo_root")"
