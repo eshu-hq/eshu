@@ -17,10 +17,14 @@ Every figure below was produced on this branch.
   `ApplyContentStore`.
 - A `redactor` label on `eshu_dp_collector_content_store_files_total`.
 - `contentStoreTally.storedBody` and `storedBytes` return before the map lookup
-  when no definition is governed.
+  when the policy map is empty. That covers an all-`store` registry and, on the
+  default registry, every repository with no `.npmrc` (see the governed-default
+  rows below).
 
-No production definition binds a non-store policy, so no stored body, registry
-fingerprint, or freshness hint changes.
+Neither new mode is bound by any definition, so this part changes no stored
+body, registry fingerprint, or freshness hint. The one production non-store
+binding on this base is `.npmrc` under `metadata` (#8978). It is unchanged. The
+only visible change is that its counter series gains `redactor="none"`.
 
 ## Performance Evidence
 
@@ -51,6 +55,21 @@ interleaved run, which confirms it. #8812's own note recorded 1.82 ns for this
 stage, so the 8.30 ns base cost was already on main before this branch. The
 guard brings it back.
 
+On the current base (#8978 binds `.npmrc`, so the default registry is governed
+and a repository with no `.npmrc` yields an empty, non-nil map) the guard covers
+the common case too. Measured at this head against the same tree with the two
+guards replaced by `if false`, 3 interleaved rounds of 3 runs each,
+`-benchtime=200ms`, same host:
+
+| Benchmark | Without guard | With guard |
+| --- | --- | --- |
+| `BenchmarkContentStoreGovernedDefault/emit_stage_per_file_empty_map` | 8.04 to 8.08 ns | 2.34 ns |
+| `BenchmarkContentStoreUngoverned/emit_stage_per_file` | 9.81 to 10.00 ns | 1.83 ns |
+
+So a repository with no `.npmrc` goes from about 8.1 ns to 2.35 ns per emitted
+file. A repository with an `.npmrc` has a non-empty map and takes the lookup as
+before.
+
 Performance Evidence: new code, measured on the head only, means of 6 runs:
 
 | Benchmark | ns/op | MB/s | allocs |
@@ -72,7 +91,12 @@ about 10 µs. Neither redactor runs until part 2 binds a definition.
 Observability Evidence: no new metric. `eshu_dp_collector_content_store_files_total`
 gains a `redactor` label (`marker`, `skeleton`, or `none` for `metadata`). The
 stream log's per-key counts become `metadata_metadata` and
-`redact_<redactor>_<outcome>`. At 3 AM, a non-zero
+`redact_<redactor>_<outcome>`. The label lands on a live series:
+`{policy="metadata",outcome="metadata"}` is already emitted for every repository
+with an `.npmrc` (#8978), and it now carries `redactor="none"`. A `sum by`
+query is unaffected; a query that matches the exact label set must add the
+label. The two `redactor="marker"` and `redactor="skeleton"` series stay empty
+until part 2 binds a definition. At 3 AM, a non-zero
 `{policy="redact",redactor="skeleton",outcome="redactor_failed"}` means a tfvars
 body fell back to a metadata row, and the WARN log names the paths and the
 bounded reason. `TestContentStoreCounterSplitsByRedactorMode` reads the counter
@@ -89,7 +113,9 @@ from a real `telemetry.Instruments` and asserts the log holds no credential.
   shapes include the review's three bypasses: a flagged token wrapped as a
   `var.`/`module.`/`data.` reference, a bare token with `==` padding, and a
   heredoc or block comment opened after other text. Reverting any one of the
-  four fixes fails this test and the fuzz seed corpus. It checks
+  three skeleton fixes (F1 to F3) fails this test and the fuzz seed corpus; the
+  fourth fix (F4, the key-list check) is pinned by
+  `TestNewRegistryRejectsInvalidModeFields`. The test checks
   that no planted token survives, that the line count holds, that a second pass
   changes nothing, that every stored line fits a grammar the test writes itself,
   and that every raw finding keeps `REDACTED_<kind>` while no other line gains a
