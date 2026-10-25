@@ -30,7 +30,11 @@ Sources: the Gradle user manual pages "Declaring Versions and Ranges" and
 (`go/internal/parser/gradle`) runs every row through Groovy string, Groovy map,
 Kotlin string, Kotlin named-argument, `kotlin()` helper, `platform()`, and
 same-file interpolation notations. The version-catalog parser adopts the same
-call and table. A reader that disagrees with the table is the bug.
+call and table. A reader that disagrees with the table is the bug. The
+catalog applies its own printable-ASCII floor and MaxFieldBytes cap around
+the call (exactVersionText in catalog/entries.go) and proves agreement with
+catalog/shared_version_table_test.go, so it is stricter than the table,
+never looser.
 
 Gradle itself treats only a trailing `+` as a prefix selector. `Exact`
 rejects every `+`, so `1.0.0+build.1` also stays unresolved. That costs an
