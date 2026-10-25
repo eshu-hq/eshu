@@ -125,8 +125,8 @@ batch by file count only, and 25 batches took over 500 ms; the worst were 500
 files holding 72 MB in 11.3 s. A writer that touches any row of such a batch
 waits for its whole derivation. A shim on that repository's first window
 derived 2 MiB in 0.15 s, 4 MiB in 0.47 s, 8 MiB in 1.04 s, and the full 72 MB
-in 8.9 s. A byte bound on each batch is proposed to the coordinator; it is not
-in this change.
+in 8.9 s. The coordinator assigned a byte bound on each batch to part 2b (the
+reducer repair); it is not in this change.
 
 No-Regression Evidence: the per-file policy lookup that every repository now
 pays (the default registry binds two definitions), measured with
