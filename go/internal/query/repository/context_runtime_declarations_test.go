@@ -36,6 +36,18 @@ func runtimeDeclarationsContextReader(sectionRows []map[string]any, captured *se
 				}
 				return sectionRows, nil
 			}
+			// The fixtures list every runtime, so the section total is the
+			// listed sum here; truncation has its own test in the declaration
+			// package.
+			if strings.Contains(cypher, "AS declaration_total") {
+				var total int64
+				for _, row := range sectionRows {
+					if count, ok := row["declaration_count"].(int64); ok {
+						total += count
+					}
+				}
+				return []map[string]any{{"declaration_total": total}}, nil
+			}
 			if strings.Contains(cypher, "RETURN count(") {
 				return []map[string]any{{"count": int64(0)}}, nil
 			}

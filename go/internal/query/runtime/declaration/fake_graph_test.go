@@ -25,17 +25,19 @@ type graphCall struct {
 // spec_kind, the name statement reads Repository.name, and anything else is the
 // page statement.
 type fakeGraph struct {
-	mu           sync.Mutex
-	pageRows     []map[string]any
-	excludedRows []map[string]any
-	nameRows     []map[string]any
-	pageErr      error
-	excludedErr  error
-	nameErr      error
-	sectionRows  []map[string]any
-	sectionErr   error
-	calls        []graphCall
-	sawDeadline  bool
+	mu               sync.Mutex
+	pageRows         []map[string]any
+	excludedRows     []map[string]any
+	nameRows         []map[string]any
+	pageErr          error
+	excludedErr      error
+	nameErr          error
+	sectionRows      []map[string]any
+	sectionErr       error
+	sectionTotalRows []map[string]any
+	sectionTotalErr  error
+	calls            []graphCall
+	sawDeadline      bool
 }
 
 func (g *fakeGraph) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -50,6 +52,8 @@ func (g *fakeGraph) Run(ctx context.Context, cypher string, params map[string]an
 		return g.excludedRows, g.excludedErr
 	case strings.Contains(cypher, "AS repo_name"):
 		return g.nameRows, g.nameErr
+	case strings.Contains(cypher, "AS declaration_total"):
+		return g.sectionTotalRows, g.sectionTotalErr
 	case strings.Contains(cypher, "AS lowest_resolved_major"):
 		return g.sectionRows, g.sectionErr
 	default:

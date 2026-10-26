@@ -109,8 +109,8 @@ verdict answers `503` or `504`.
 ## Repository context
 
 `GET /api/v0/repositories/{repo_id}/context` gains `runtime_declarations`:
-`count` (declarations across the listed runtimes; when `truncated` is set the
-unlisted runtimes are not counted), `runtimes` (the distinct declared
+`count` (all declarations of the repository, including runtimes omitted from
+`runtimes` when `truncated` is set), `runtimes` (the distinct declared
 runtimes in name order, each with `declaration_count`, `resolved_count` and
 `lowest_resolved_major`, `null` when nothing of that runtime resolves to a
 major) and `truncated`. A failed read adds `runtime_declarations_read_degraded`

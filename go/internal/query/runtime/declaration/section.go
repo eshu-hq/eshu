@@ -28,11 +28,20 @@ RETURN d.runtime AS runtime, count(d) AS declaration_count,
 ORDER BY runtime
 LIMIT $limit`
 
+// sectionCountCypher totals one repository's declarations across every
+// runtime, listed or not. The list query above stops at maxSectionRuntimes, so
+// summing its rows would undercount past the cap; the count lives in its own
+// statement so Count stays truthful when Runtimes is truncated. It answers one
+// bounded number for one repository id, never the label.
+const sectionCountCypher = `MATCH (repo:Repository {id: $repo_id})-[:DECLARES_RUNTIME]->(d:RuntimeDeclaration)
+RETURN count(d) AS declaration_total`
+
 // Section is the runtime_declarations block of the repository context
 // response: how many runtime versions the repository declares and, per runtime,
 // the lowest resolved major.
 type Section struct {
-	// Count is the number of declarations across the listed runtimes.
+	// Count is the total declarations of the repository across every runtime,
+	// including runtimes Runtimes omits when Truncated is set.
 	Count int `json:"count"`
 	// Runtimes lists the distinct declared runtimes in name order.
 	Runtimes []RuntimeSummary `json:"runtimes"`
@@ -78,14 +87,24 @@ func LoadSection(
 			section.Truncated = true
 			break
 		}
-		summary := RuntimeSummary{
+		section.Runtimes = append(section.Runtimes, RuntimeSummary{
 			Runtime:             querycontract.StringVal(row, "runtime"),
 			DeclarationCount:    querycontract.IntVal(row, "declaration_count"),
 			ResolvedCount:       querycontract.IntVal(row, "resolved_count"),
 			LowestResolvedMajor: nullableInt(row, "lowest_resolved_major"),
-		}
-		section.Count += summary.DeclarationCount
-		section.Runtimes = append(section.Runtimes, summary)
+		})
+	}
+	started = time.Now()
+	totalRows, err := graph.Run(ctx, sectionCountCypher, map[string]any{"repo_id": repoID})
+	recordRead(ctx, inst, telemetry.RuntimeDeclarationOperationContextSection, started, err)
+	if err != nil {
+		// Without the total, Count would fall back to the listed sum and lie
+		// past the cap. Degrade the whole section instead: the caller renders
+		// an empty section with a named partial reason.
+		return Section{Runtimes: []RuntimeSummary{}}, err
+	}
+	if len(totalRows) > 0 {
+		section.Count = querycontract.IntVal(totalRows[0], "declaration_total")
 	}
 	return section, nil
 }

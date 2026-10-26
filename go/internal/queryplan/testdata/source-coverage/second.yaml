@@ -331,7 +331,7 @@ source_coverage:
       - {symbol: "(*Handler).readExcluded", count: 1, non_hot: {class: label_inventory, source_sha256: 8ba556d244127961e9e330e544587d5eb00f67977995a6353ea35b89e888a333, label: RuntimeDeclaration, max_results: 8}}
   - file: runtime/declaration/section.go
     calls:
-      - {symbol: "LoadSection", count: 1, non_hot: {class: keyed_support, source_sha256: 900d144aca74be7ddd086cdf150a7dbbf5174e146cdfcccd751c412ec04a59c9, key_bound: single_key, max_results: 51}}
+      - {symbol: "LoadSection", count: 2, non_hot: {class: keyed_support, source_sha256: a14d801bf540833f97192e8d598743b27a7311e8ee32ca937da09437cea4644d, key_bound: single_key, max_results: 51}}
   - file: selector/selector.go
     calls:
       - {symbol: "ResolveExactForAccess", count: 2, non_hot: {class: keyed_support, source_sha256: 93d5fbf09ee7beb3b55d6ee55f3edd12b718d53b9cd2551c374d1206c8177ae9, key_bound: single_key, max_results: 51}}
