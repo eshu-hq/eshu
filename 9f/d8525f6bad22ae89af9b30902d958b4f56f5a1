@@ -1,0 +1,18 @@
+go/internal/collector/pagerduty/EXTRACTION_PREP.md
+  h_78a442cba0b3e6 68-69
+go/internal/collector/pagerduty/PRODUCER_GRANT_DRAFT.md
+  h_78a442cba0b3e6 14-15
+go/internal/collector/pagerduty/SHIM_MAP.md
+  h_78a442cba0b3e6 50-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9fd8525f6bad22ae89af9b30902d958b4f56f5a1",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
