@@ -1,0 +1,22 @@
+go/internal/collector/claimed_service_deadline_test.go
+  h_78a442cba0b3e6 16-19,133-219
+go/internal/collector/evidence-9205-dispatch-lease.md
+  h_78a442cba0b3e6 15-25,35-55
+go/internal/storage/postgres/workflow_control.go
+  h_78a442cba0b3e6 26-30
+go/internal/workflow/claim_rejection.go
+  h_78a442cba0b3e6 1-16
+go/internal/collector/claimed_service_failures.go
+  h_78a442cba0b3e6 1-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4dfb2bf7ded42e704ec624234d0e6f1729082508",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
