@@ -4,6 +4,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -33,6 +34,9 @@ const (
 	envCollectorClaimLeaseTTL     = "ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL"
 	envCollectorHeartbeatInterval = "ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL"
 	envCollectorScopeKind         = "ESHU_COMPONENT_COLLECTOR_SCOPE_KIND"
+	envGitHubAppID                = "ESHU_GITHUB_APP_ID"
+	envGitHubAppPrivateKey        = "ESHU_GITHUB_APP_PRIVATE_KEY"
+	envGitHubAppInstallations     = "ESHU_GITHUB_APP_INSTALLATIONS"
 )
 
 type runtimeConfig struct {
@@ -340,6 +344,38 @@ func desiredInstance(candidate activationCandidate) workflow.DesiredCollectorIns
 		ClaimsEnabled: true,
 		DisplayName:   strings.TrimSpace(candidate.manifest.Metadata.Name),
 	}
+}
+
+// tokenProviderFromEnv builds the extension host's per-claim GitHub App
+// token provider from operator-supplied App credentials. All three variables
+// must be non-empty: the App ID, the App PEM private key (single-line
+// secret-environment bodies are re-wrapped at mint time by the provider), and
+// a JSON object mapping claimed scope IDs to the installation that serves
+// them. When any variable is empty the host keeps the static config path and
+// returns a nil provider with no error. Malformed installations JSON, an empty
+// installation map, or blank scope/installation entries fail closed with a startup
+// error that names only the variable, never its value. PEM validity itself is proven
+// at mint time: an unusable key fails per claim as terminal auth_denied.
+func tokenProviderFromEnv(getenv func(string) string) (extensionhost.TokenProvider, error) {
+	appID := strings.TrimSpace(getenv(envGitHubAppID))
+	privateKey := strings.TrimSpace(getenv(envGitHubAppPrivateKey))
+	rawInstallations := strings.TrimSpace(getenv(envGitHubAppInstallations))
+	if appID == "" || privateKey == "" || rawInstallations == "" {
+		return nil, nil
+	}
+	var installations map[string]string
+	if err := json.Unmarshal([]byte(rawInstallations), &installations); err != nil {
+		return nil, fmt.Errorf("invalid %s: %w", envGitHubAppInstallations, err)
+	}
+	provider, err := extensionhost.NewAppTokenProvider(extensionhost.AppTokenProviderConfig{
+		AppID:         appID,
+		PrivateKey:    privateKey,
+		Installations: installations,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build github app token provider from %s: %w", envGitHubAppInstallations, err)
+	}
+	return provider, nil
 }
 
 func componentPolicyFromEnv(getenv func(string) string) component.Policy {
