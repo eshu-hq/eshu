@@ -24,6 +24,11 @@ tags = {
   name  = "web"
   owner = "platform"
 }
+notif = {
+  pagerduty_service_name           = "web"
+  pagerduty_acknowledgement_timeout = 1800
+  pagerduty_enable_slack_connection = true
+}
 `)
 	jsonPath := writeHCLTestFile(t, "vars.tfvars.json", `{
   "region": "us-east-1",
@@ -32,6 +37,11 @@ tags = {
   "tags": {
     "name": "web",
     "owner": "platform"
+  },
+  "notif": {
+    "pagerduty_service_name": "web",
+    "pagerduty_acknowledgement_timeout": 1800,
+    "pagerduty_enable_slack_connection": true
   }
 }
 `)
@@ -46,6 +56,7 @@ tags = {
 	}
 
 	normalizePayloadPaths(got, jsonPath, hclPath)
+	normalizePayloadPaths(want, hclPath, hclPath)
 	wantJSON, err := json.Marshal(want)
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v, want nil", err)
@@ -81,6 +92,8 @@ func TestTFVarsJSONRejectsNonObjectBody(t *testing.T) {
 
 // normalizePayloadPaths rewrites every path value from one file to another so
 // payloads from different fixture files compare by content, not identity.
+// It also zeroes line numbers: synthesized *.tfvars.json expressions carry
+// no source ranges, so only values (not lines) pin parity here.
 func normalizePayloadPaths(value any, from, to string) {
 	switch typed := value.(type) {
 	case map[string]any:
@@ -89,6 +102,10 @@ func normalizePayloadPaths(value any, from, to string) {
 				if path, ok := item.(string); ok {
 					typed[key] = strings.ReplaceAll(path, from, to)
 				}
+				continue
+			}
+			if key == "line_number" {
+				typed[key] = 0
 				continue
 			}
 			normalizePayloadPaths(item, from, to)

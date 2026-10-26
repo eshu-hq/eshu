@@ -62,7 +62,9 @@ func parseTFVarsJSONBody(parser *hclparse.Parser, source []byte, path string) (*
 // literals stay literal, objects become object constructors with literal keys,
 // and lists become tuple constructors. The constructors carry no source ranges
 // (sourceRange reads a zero range as empty), so rows derived from them keep
-// their names, values, and outcomes, with only line numbers unset.
+// their names, values, and outcomes, with only line numbers unset: string
+// leaves read from their values, and non-string scalar leaves render through
+// tfVarsJSONScalarText where the readers find no source text.
 func tfVarsJSONExpression(value cty.Value) hclsyntax.Expression {
 	if !value.IsKnown() {
 		return &hclsyntax.LiteralValueExpr{Val: cty.NullVal(cty.DynamicPseudoType)}
@@ -90,6 +92,34 @@ func tfVarsJSONExpression(value cty.Value) hclsyntax.Expression {
 		return &hclsyntax.TupleConsExpr{Exprs: expressions}
 	}
 	return &hclsyntax.LiteralValueExpr{Val: value}
+}
+
+// tfVarsJSONScalarText renders a synthesized *.tfvars.json scalar leaf from
+// its value, without source text. The declaration readers call it only when
+// the expression carries no source range, which native parsing never
+// produces, so native rendering is unchanged. Numbers and booleans render in
+// the spelling the native reader takes from source bytes ("1800", "true");
+// null renders as the native source spelling "null".
+func tfVarsJSONScalarText(value cty.Value) string {
+	if !value.IsKnown() {
+		return ""
+	}
+	if value.IsNull() {
+		return "null"
+	}
+	switch value.Type() {
+	case cty.String:
+		return value.AsString()
+	case cty.Bool:
+		if value.True() {
+			return "true"
+		}
+		return "false"
+	case cty.Number:
+		return value.AsBigFloat().Text('f', -1)
+	default:
+		return ""
+	}
 }
 
 // tfVarsJSONKey renders a synthesized object key for ordering. Keys are always

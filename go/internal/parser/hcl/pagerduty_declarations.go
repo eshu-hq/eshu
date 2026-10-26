@@ -313,8 +313,17 @@ func pagerDutyExpressionResolution(expr hclsyntax.Expression, source []byte) str
 }
 
 func pagerDutyExpressionValue(expr hclsyntax.Expression, source []byte) string {
-	if literal, ok := expr.(*hclsyntax.LiteralValueExpr); ok && literal.Val.Type() == cty.String {
-		return literal.Val.AsString()
+	if literal, ok := expr.(*hclsyntax.LiteralValueExpr); ok {
+		if literal.Val.Type() == cty.String {
+			return literal.Val.AsString()
+		}
+		if text := strings.Trim(strings.TrimSpace(sourceRange(source, expr.Range())), `"`); text != "" {
+			return text
+		}
+		// Range-less synthesized *.tfvars.json leaves reach here; render the
+		// known scalar from its value. Native literals always carry source
+		// text, so this fallback never changes native rendering.
+		return tfVarsJSONScalarText(literal.Val)
 	}
 	return strings.Trim(strings.TrimSpace(sourceRange(source, expr.Range())), `"`)
 }
