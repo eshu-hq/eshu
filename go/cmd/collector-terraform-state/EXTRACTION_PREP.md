@@ -249,12 +249,16 @@ API, MCP, or workflow handles.
 ## 7. Migration stage
 
 `planned` moving toward `ready_for_cutover`: SHIM_MAP plus producer-grant
-and rollback drafts exist in-tree; remaining gates are the §8
-prerequisites, the parity pack, the activation template (`#6710`,
-`#8894`), producer delegation (`#6709`), and the per-collector cutover
-gate (`#4047`). Roadmap owners: `#6707` inventory, `#6708`
-SDK/fact-schema, `#6709` producer delegation, `#6710` template and
-compatibility harness, `#4047` per-collector cutover gate.
+and rollback drafts exist in-tree, and the in-tree parity pack landed
+(`source_parity_8868_test.go`, `source_parity_8868_hostile_test.go`,
+`testdata/8868-parity-tfstate.json` in
+`go/internal/collector/terraformstate/`); remaining gates are the §8
+prerequisites, the external `#4047` comparison on that pack, the
+activation template (`#6710`, `#8894`), producer delegation (`#6709`),
+and the per-collector cutover gate (`#4047`). Roadmap owners: `#6707`
+inventory, `#6708` SDK/fact-schema, `#6709` producer delegation,
+`#6710` template and compatibility harness, `#4047` per-collector
+cutover gate.
 
 ## 8. Prerequisites for cutover
 
@@ -265,11 +269,13 @@ compatibility harness, `#4047` per-collector cutover gate.
    `incident_routing.*` kinds (§2 shared-kind note); the draft and the
    rollback revocation loop omit them today.
 3. Parity proof on representative + hostile inputs via a fixture pack and
-   `source_parity` test (AC3, in-tree side) — **open**: no parity test
-   or `testdata/*parity*` pack exists yet (siblings: `cicd-run`
-   `extraction_prep_parity_test.go`, `sbom`
-   `runtime/source_parity_8865_test.go`). Fixture seed available:
-   `go/internal/collector/terraformstate/testdata/cloudinit_config_part.tfstate.json`.
+   `source_parity` test (AC3, in-tree side) — **in-tree side landed**:
+   `go/internal/collector/terraformstate/source_parity_8868_test.go`,
+   `source_parity_8868_hostile_test.go`, and
+   `testdata/8868-parity-tfstate.json` (focused proof:
+   `go test ./internal/collector/terraformstate/
+   ./internal/collector/tfstateruntime/ -count=1` PASS). The `#4047`
+   external comparison on that pack stays open.
 4. Activation entry from the `#6710`/`#8894` template with the
    compatibility harness matrix (newest collector × oldest core and
    reverse), including redaction-bundle + schema-bundle provisioning

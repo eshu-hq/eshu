@@ -11,8 +11,10 @@ authorizes emission only.
 
 - Producer: `dev.eshu.collector.terraform-state`
 - Version: `0.1.0` (collector artifact version at cutover; NOT a
-  published SDK pin — `go/go.mod` holds `sdk/go/*` at `v0.0.0` with
-  local replaces, so no published version is claimed here)
+  published SDK pin — `go/go.mod` holds
+  `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3` and
+  `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.5`, so no published
+  version is claimed here)
 - Scope: the `terraform_state` collector-instance scope
 - Kinds (`1.0.0` each, the `TerraformStateFactKinds()` list in
   `go/internal/facts/cloud/terraform_state.go:54-74` minus the git-owned
