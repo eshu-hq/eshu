@@ -10,7 +10,8 @@
 # Contract (verified against a real captured Stop payload, not guessed):
 #   stdin  : {session_id, prompt_id, cwd, transcript_path, stop_hook_active,
 #             last_assistant_message, hook_event_name:"Stop", ...}
-#   stdout : {"decision":"block","reason":"..."} to refuse the stop, or nothing
+#   stdout : block JSON to refuse the stop; Codex also receives a systemMessage
+#            when its no-progress budget expires, otherwise an allowed stop is empty
 #   exit 0 : always. This hook must never be the reason a session breaks.
 #
 # Escape hatches, in order of precedence:
@@ -336,12 +337,14 @@ fi
 # nothing; it is left alone because seeding the offset from the file size would
 # make work done BEFORE the first nudge of a message invisible to it.
 # The scan is lib/goal-progress.sh, shared with the issue-ledger DONE refusal.
+# It recognizes Claude `tool_use` and Codex `function_call`/`custom_tool_call`
+# records so work from either harness resets this no-progress budget.
 progress=0
 new_offset="${offset}"
 {
 	read -r progress
 	read -r new_offset
-} < <(gp_tool_use_since "${transcript:-}" "${offset}")
+} < <(gp_tool_calls_since "${transcript:-}" "${offset}")
 case "${progress}" in '' | *[!0-9]*) progress=0 ;; esac
 case "${new_offset}" in '' | *[!0-9]*) new_offset="${offset}" ;; esac
 
@@ -359,6 +362,9 @@ if [ "${count}" -ge "${MAX_NUDGES}" ]; then
 		"${count}" >&2
 	printf 'goal-continue: if the work is finished, put DONE on the first line of %s. If it is waiting on something outside this machine, arm a watcher and put BLOCKED: <reason> WATCH=<pid> there instead. Either would have ended the turn cleanly without an interruption.\n' \
 		"${goal_file}" >&2
+	if [ "${GOAL_CONTINUE_CODEX_EXHAUSTION_SYSTEM_MESSAGE:-0}" = "1" ]; then
+		printf '%s\n' '{"systemMessage":"The active goal remains unfinished. Automatic continuation has ended because the no-progress budget was exhausted. Resume it in a new user turn after a permitted recovery step or changed external condition; real tool progress resets this budget."}'
+	fi
 	printf '%s %s' "${count}" "${new_offset}" >"${counter}" 2>/dev/null || true
 	exit 0
 fi
@@ -404,7 +410,22 @@ OWNER CONSENT ALREADY GRANTED for: ${consent}
 Do those yourself now. Stopping to ask again for something on that list is not a valid stop -- the owner already answered."
 fi
 
+stop_context_note=""
+case "${GOAL_CONTINUE_STOP_CATEGORY:-}" in
+	model-capacity)
+		stop_context_note="Codex stopped with a model-capacity error. Retry or select another available model if the current one remains unavailable, then continue the active goal."
+		;;
+	security-policy)
+		stop_context_note="Codex stopped with a security or policy denial. Diagnose the rejection, do not repeat a denied action unchanged, and continue the active goal through an allowed path."
+		;;
+	reported-error)
+		stop_context_note="Codex stopped after reporting an error. Diagnose and recover from it, then continue the active goal."
+		;;
+esac
+
 reason="${reason_head}
+
+${stop_context_note}
 
 ACTIVE GOAL (${goal_file}):
 ${goal}${consent_note}

@@ -274,7 +274,12 @@ def drift_errors(drift: Drift) -> list[str]:
     errors = []
     if len(drift.defaulted_tests) > MAX_DEFAULTED_TESTS:
         errors.append(f"{len(drift.defaulted_tests)} planned tests have no weight "
-                      f"(limit {MAX_DEFAULTED_TESTS}); refresh the weights file")
+                      f"(limit {MAX_DEFAULTED_TESTS}): new tests run on "
+                      f"default_test_seconds, so feature PRs must not edit "
+                      f"specs/live-postgres-readiness-weights.v1.json; a standalone "
+                      f"refit PR refreshes it "
+                      f"(docs/public/reference/local-testing/"
+                      f"live-postgres-readiness-shards.md)")
     if len(drift.defaulted_packages) > MAX_DEFAULTED_PACKAGES:
         errors.append(f"{len(drift.defaulted_packages)} planned packages have no cost "
                       f"(limit {MAX_DEFAULTED_PACKAGES}): {list(drift.defaulted_packages)}")

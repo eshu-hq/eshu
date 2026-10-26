@@ -374,18 +374,23 @@ func (c HTTPClient) do(
 	result *CollectionResult,
 	resourceClass string,
 ) (bool, error) {
+	var retryStatus func(int) bool
+	if endpoint == rulesEndpoint {
+		retryStatus = rulesRetryStatus
+	}
 	err := sdk.DoJSON(ctx, sdk.JSONRequest{
-		Provider:   "loki",
-		Method:     http.MethodGet,
-		BaseURL:    c.baseURL,
-		PathPrefix: target.PathPrefix,
-		Endpoint:   endpoint,
-		Operation:  lokiOperationForEndpoint(endpoint),
-		Query:      query,
-		Out:        out,
-		Client:     c.httpClient,
-		MaxRetries: maxHTTPRetries,
-		Decode:     decode,
+		Provider:    "loki",
+		Method:      http.MethodGet,
+		BaseURL:     c.baseURL,
+		PathPrefix:  target.PathPrefix,
+		Endpoint:    endpoint,
+		Operation:   lokiOperationForEndpoint(endpoint),
+		Query:       query,
+		Out:         out,
+		Client:      c.httpClient,
+		MaxRetries:  maxHTTPRetries,
+		RetryStatus: retryStatus,
+		Decode:      decode,
 		Headers: func(req *http.Request) {
 			req.Header.Set("Accept", "application/json, application/yaml")
 			if token := strings.TrimSpace(target.Token); token != "" {
@@ -402,7 +407,7 @@ func (c HTTPClient) do(
 			}
 		},
 		StatusError: func(resp *http.Response) error {
-			ok, err := handleStatus(resp, result, resourceClass)
+			ok, err := handleStatus(resp, result, resourceClass, endpoint)
 			if err != nil {
 				return err
 			}
@@ -421,7 +426,30 @@ func (c HTTPClient) do(
 	return true, nil
 }
 
-func handleStatus(resp *http.Response, result *CollectionResult, resourceClass string) (bool, error) {
+// rulesRetryStatus suppresses wasted retries for the ruler-backed rules
+// endpoint: a 502 there means the deployment has no ruler behind the
+// gateway, which no retry will fix. This also covers transient gateway 502s
+// on the rules endpoint: they degrade without retry by design (the arbiter
+// ruling for #8860 mandates single-attempt), and the collection self-heals
+// on the next poll with Partial coverage plus the unsupported-rule warning
+// as the signal. Every other status keeps the default retry policy, and
+// every other endpoint keeps it entirely.
+func rulesRetryStatus(statusCode int) bool {
+	if statusCode == http.StatusBadGateway {
+		return false
+	}
+	return sdk.ShouldRetryStatus(statusCode)
+}
+
+// handleStatus maps a non-2xx response to partial-coverage degradation or a
+// bounded provider failure. A 502 degrades ONLY for the ruler-backed rules
+// endpoint (deployments without a ruler have no backend behind the gateway
+// route, so the 502 is a deterministic capability absence, reported as
+// unsupported exactly like 404/405 with no PagesFetched increment). A 502
+// from labels, series, or label-values still fails hard, so the endpoint
+// gate must stay: moving this case into the shared switch ungated would
+// silently swallow real gateway failures on the data path.
+func handleStatus(resp *http.Response, result *CollectionResult, resourceClass string, endpoint string) (bool, error) {
 	warning := Warning{ResourceClass: resourceClass, Reason: WarningPartial}
 	switch resp.StatusCode {
 	case http.StatusForbidden, http.StatusUnauthorized:
@@ -431,6 +459,11 @@ func handleStatus(resp *http.Response, result *CollectionResult, resourceClass s
 	case http.StatusTooManyRequests:
 		warning.Reason = WarningRateLimited
 		result.Stats.RateLimits++
+	case http.StatusBadGateway:
+		if endpoint != rulesEndpoint {
+			return false, ProviderHTTPError{Provider: "loki", StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
+		}
+		warning.Reason = WarningUnsupported
 	default:
 		return false, ProviderHTTPError{Provider: "loki", StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
 	}

@@ -3,6 +3,8 @@
 
 All output is LC_ALL=C byte order and idempotent; every emitted Python
 module stays under the 500-line file cap or rendering fails closed.
+Over-cap packages shard by the committed SHARD_BOUNDARIES name table
+(#9149); a shard over budget fails closed naming the boundary to add.
 """
 
 import pathlib
@@ -27,9 +29,18 @@ DSN_VALUE = ("postgres://postgres:local-proof-only@127.0.0.1:15432"
 READER_VALUE = ("postgres://postgres:local-proof-only@127.0.0.1:15433"
                 "/postgres?sslmode=disable")
 MAX_GENERATED_LINES = 500
-# Lines reserved below the cap per shard so later enrollments grow the last
-# shard instead of flipping the shard count on every addition.
+# Lines reserved below the cap per shard so later enrollments grow a shard
+# instead of tripping the budget on every addition.
 SHARD_HEADROOM_LINES = 20
+# Committed per-package name boundaries (#9149). A file's shard depends only
+# on its own base name and this table, never on sibling sizes: the shard
+# index is the count of boundaries the base name sorts at or after
+# (LC_ALL=C order), so enrolling one file changes exactly one generated
+# module. A shard that would pass the budget fails closed naming the
+# boundary to add here.
+SHARD_BOUNDARIES: dict[str, list[str]] = {
+    "./internal/storage/postgres": ["m"],
+}
 WORKFLOW_BEGIN = ("# BEGIN GENERATED READINESS ENV "
                   "(scripts/generate-live-postgres-readiness.py; "
                   "do not hand-edit)")
@@ -252,36 +263,53 @@ def check_line_cap(rel: str, content: str) -> None:
         raise fail(f"generated {rel} has {count} lines; split it first")
 
 
+def shard_index(package: str, basename: str) -> int:
+    """Return the shard index for one file name under its package boundary.
+
+    The index is the count of committed boundaries the base name sorts at
+    or after, so it depends only on the file's own name and the table.
+    """
+    index = 0
+    for bound in SHARD_BOUNDARIES.get(package, []):
+        if basename >= bound:
+            index += 1
+        else:
+            break
+    return index
+
+
 def shard_package(module: str, package: str, files: dict,
                     taken: set[str]) -> list[tuple[str, dict]]:
-    """Split an over-cap package into sequential _partN shards.
+    """Split a package into _partN shards by its committed name boundary.
 
-    Single-shard output is byte-identical to render_pkg_module: sharding
-    only engages when one module would exceed the cap. Files stay in
-    LC_ALL=C order across shards so later enrollments append to the last
-    shard instead of reshuffling. Shard names that collide with a real
-    package module fail closed like package slug collisions.
+    Files stay in LC_ALL=C order inside each shard; shard names are fixed
+    per index so later enrollments land in exactly one shard instead of
+    reshuffling. A package with no boundary entry renders as one module
+    byte-identical to render_pkg_module, and fails closed when that module
+    would pass the budget. Shard names that collide with a real package
+    module fail closed like package slug collisions.
     """
-    names = sorted(files)
-    sizes = {rel: 2 + len(files[rel]) for rel in names}
-    shards: list[list[str]] = [[]]
-    used = 0
-    limit = MAX_GENERATED_LINES - SHARD_HEADROOM_LINES
-    for rel in names:
-        if shards[0] and used + sizes[rel] > limit:
-            shards.append([])
-            used = 0
-        shards[-1].append(rel)
-        used += sizes[rel]
-    if len(shards) == 1:
+    bounds = SHARD_BOUNDARIES.get(package, [])
+    if sorted(bounds) != bounds or len(set(bounds)) != len(bounds):
+        raise fail(f"shard boundaries for {package} must be sorted unique: "
+                   f"{bounds}")
+    if any(not bound for bound in bounds):
+        raise fail(f"shard boundaries for {package} must be non-empty: "
+                   f"{bounds}")
+    if not bounds:
         return [(module, files)]
+    shards: dict[int, dict] = {}
+    for rel in sorted(files):
+        basename = rel.rsplit("/", 1)[-1]
+        shards.setdefault(shard_index(package, basename), {})[rel] = (
+            files[rel])
     out = []
-    for index, chunk in enumerate(shards, start=1):
-        name = f"{module}_part{index}"
+    for index in sorted(shards):
+        name = f"{module}_part{index + 1}"
         if name in taken:
             raise fail(f"module shard collision: {name}")
         taken.add(name)
-        out.append((name, {rel: files[rel] for rel in chunk}))
+        out.append((name, shards[index]))
     return out
 
 
@@ -294,15 +322,27 @@ def generated_outputs(root: pathlib.Path, enrolled: dict, bindings: dict,
                     render_fragment(enrolled, bindings)))
     modules = []
     packages = packages_of(enrolled)
+    stale = sorted(set(SHARD_BOUNDARIES) - set(packages))
+    if stale:
+        raise fail(f"shard boundaries name unenrolled packages: {stale}; "
+                   f"drop them from SHARD_BOUNDARIES")
     taken = {f"live_postgres_readiness_inventory_gen_{slug(p)}"
              for p in packages}
+    limit = MAX_GENERATED_LINES - SHARD_HEADROOM_LINES
     for package in sorted(packages):
         module = f"live_postgres_readiness_inventory_gen_{slug(package)}"
         for shard, subset in shard_package(module, package,
                                            packages[package], taken):
+            content = render_pkg_module(package, subset)
+            lines = len(content.splitlines())
+            if lines > limit:
+                raise fail(
+                    f"generated {shard} for {package} has {lines} lines, "
+                    f"over the {limit}-line shard budget; add a name "
+                    f"boundary to SHARD_BOUNDARIES[{package!r}] (now: "
+                    f"{SHARD_BOUNDARIES.get(package, [])}) and regenerate")
             modules.append(shard)
-            outputs.append((f"scripts/lib/{shard}.py",
-                            render_pkg_module(package, subset)))
+            outputs.append((f"scripts/lib/{shard}.py", content))
     outputs.append(("scripts/lib/live_postgres_readiness_inventory_generated.py",
                     render_assembler(modules)))
     outputs.append(("scripts/lib/live_postgres_readiness_inventory_helpers.py",

@@ -643,7 +643,7 @@ hygiene_wf="$repo_root/.github/workflows/verify-agent-hygiene.yml"
 for suite in \
   test-verify-agent-hygiene.sh \
   test-agent-hooks.sh \
-  test-goal-continue-hook.sh \
+  test-goal-continue-hook.sh test-codex-goal-continue-hook.sh \
   test-goal-refresh-hook.sh; do
   if rg -Fq -- "scripts/$suite" "$hygiene_wf" 2>/dev/null; then
     printf 'ok - verify-agent-hygiene.yml runs %s\n' "$suite"

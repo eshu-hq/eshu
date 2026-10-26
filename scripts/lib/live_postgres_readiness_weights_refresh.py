@@ -134,7 +134,12 @@ def build_weights(samples: list[Sample], plan: list[str], source_runs: list[str]
 
 
 def render(document: dict[str, object]) -> str:
-    """Render at most two table entries per line to bound the weights file."""
+    """Render one sorted table entry per line so a one-key change is one hunk.
+
+    No line cap applies in specs/: feature PRs must not edit the weights
+    file, and a standalone refit PR touches only it, so concurrent edits
+    merge as local hunks instead of whole-file rewrites (#9148).
+    """
     lines = ["{"]
     scalars = [key for key in document if not isinstance(document[key], dict)]
     for key in scalars:
@@ -144,10 +149,10 @@ def render(document: dict[str, object]) -> str:
         table = document[key]
         lines.append(f"  {json.dumps(key)}: {{")
         entries = [f"{json.dumps(name)}: {json.dumps(value)}"
-                   for name, value in table.items()]  # type: ignore[union-attr]
-        lines.append(",\n".join(
-            "    " + ", ".join(entries[start:start + 2])
-            for start in range(0, len(entries), 2)))
+                   for name, value in sorted(table.items())]  # type: ignore[union-attr,attr-defined]
+        for position, entry in enumerate(entries):
+            lines.append("    " + entry
+                         + ("," if position < len(entries) - 1 else ""))
         lines.append("  }" + ("," if index < len(tables) - 1 else ""))
     lines.append("}")
     return "\n".join(lines) + "\n"
