@@ -254,3 +254,66 @@ class V2ReportTest(unittest.TestCase):
         self.assertNotEqual(self.invoke(
             "verify", "--head", self.head, "--plan", str(self.plan),
             *(str(path) for path in reports)).returncode, 0)
+
+
+class ActiveDefaultTest(unittest.TestCase):
+    """Prove the installed model's matrix and reports use one shard count."""
+
+    def invoke(self, *arguments: str, input_text: str | None = None
+               ) -> subprocess.CompletedProcess[str]:
+        """Run the public CLI with its committed default model."""
+        script = Path(__file__).with_name("live_postgres_readiness_shards.py")
+        return subprocess.run([sys.executable, str(script), *arguments],
+                              input=input_text, capture_output=True, text=True,
+                              check=False)
+
+    def test_default_matrix_plan_reports_and_aggregate_agree(self) -> None:
+        """The four- or five-shard activation covers the inventory exactly."""
+        matrix = self.invoke("matrix")
+        self.assertEqual(matrix.returncode, 0, matrix.stderr)
+        include = json.loads(matrix.stdout)["include"]
+        count = len(include)
+        self.assertIn(count, (4, 5))
+        self.assertEqual(include, [{"shard": index, "total": count}
+                                   for index in range(1, count + 1)])
+        inventory = subprocess.run(
+            [sys.executable, str(Path(__file__).with_name(
+                "live_postgres_readiness_results.py")), "list-packages"],
+            capture_output=True, text=True, check=True,
+            cwd=Path(__file__).parents[1]).stdout
+        import live_postgres_readiness_shards as shards
+        full_runs = shards.expand_tsv(inventory.splitlines())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan_path = root / "plan.tsv"
+            plan_path.write_text(inventory, encoding="utf-8")
+            reports: list[Path] = []
+            assigned: list[str] = []
+            for cell in include:
+                shard = f"{cell['shard']}/{cell['total']}"
+                plan = self.invoke("plan", "--shard", shard, input_text=inventory)
+                self.assertEqual(plan.returncode, 0, plan.stderr)
+                rows = plan.stdout.splitlines()
+                assigned.extend(
+                    f"{row.split(chr(9))[0]}|{test}"
+                    for row in rows for test in row.split(chr(9))[2].split(" "))
+                manifest = root / f"manifest-{cell['shard']}.tsv"
+                manifest.write_text("".join(
+                    f"{row.split(chr(9))[0]}|0|{row.split(chr(9))[2].replace(' ', ',')}\n"
+                    for row in rows), encoding="utf-8")
+                report = root / f"report-{cell['shard']}.json"
+                result = self.invoke("report", "--head", "a" * 40, "--shard", shard,
+                                     "--plan", str(plan_path), "--manifest", str(manifest),
+                                     "--output", str(report))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(json.loads(report.read_text(encoding="utf-8"))["ok"])
+                reports.append(report)
+            self.assertEqual(assigned, full_runs)
+            verify_args = ["verify", "--head", "a" * 40, "--plan", str(plan_path)]
+            self.assertEqual(self.invoke(*verify_args, *(str(path) for path in reports)
+                                         ).returncode, 0)
+            self.assertNotEqual(self.invoke(*verify_args, *(str(path) for path in reports[:-1])
+                                            ).returncode, 0)
+            wrong = f"1/{4 if count == 5 else 5}"
+            self.assertNotEqual(self.invoke("plan", "--shard", wrong,
+                                            input_text=inventory).returncode, 0)
