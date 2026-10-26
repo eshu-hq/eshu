@@ -10,7 +10,8 @@
 # Contract (verified against a real captured Stop payload, not guessed):
 #   stdin  : {session_id, prompt_id, cwd, transcript_path, stop_hook_active,
 #             last_assistant_message, hook_event_name:"Stop", ...}
-#   stdout : {"decision":"block","reason":"..."} to refuse the stop, or nothing
+#   stdout : block JSON to refuse the stop; Codex also receives a systemMessage
+#            when its no-progress budget expires, otherwise an allowed stop is empty
 #   exit 0 : always. This hook must never be the reason a session breaks.
 #
 # Escape hatches, in order of precedence:

@@ -269,9 +269,10 @@ so a working stop still spent a nudge.
 making tool calls — not "a pathological one-call-per-turn agent" but *any*
 progressing session, of which a looping one is a member. A deliberate trade of
 a certain harm for an uncertain one: being cut off mid-goal was measured
-happening, repeatedly, and cost more. If it ever bites, `stop_hook_active` is
-parsed from the payload and used nowhere — the harness saying "I already
-blocked once this turn", discarded — and that is the first place to look.
+happening, repeatedly, and cost more. In the Claude hook, `stop_hook_active` is
+parsed from the payload and intentionally unused — repeating the same block
+does not add a new signal. The Codex adapter uses that field to carry the
+no-progress budget across Stop callbacks for one user turn.
 
 When the budget releases a turn, the hook reports why and names the two goal
 file escapes. The final continuation warns the agent to mark `DONE` or add a
