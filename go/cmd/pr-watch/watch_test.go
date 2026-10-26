@@ -93,6 +93,27 @@ func TestNewThreadReviewAndCommentAreReportedOnceFromAnyAuthor(t *testing.T) {
 	}
 }
 
+func TestPendingDraftAtBaselineIsReportedWhenSubmitted(t *testing.T) {
+	w := newWorld()
+	p1 := openPR(1, "aaaa1111")
+	p1.reviews = []note{{id: "R9", author: "codex", state: "PENDING", body: "draft"}}
+	p2 := p1
+	p2.reviews = []note{{id: "R9", author: "codex", state: "COMMENTED", body: "submitted findings"}}
+	w.seed(1, p1, p2, p2)
+	h := newHarness(t, []int{1}, w)
+
+	wantKinds(t, h.poll(), "BASELINE")
+	got := h.poll()
+	wantKinds(t, got, "NEW-REVIEW")
+	rev := parseEvent(t, got[0])
+	if rev.kv["review"] != "R9" || rev.kv["state"] != "COMMENTED" {
+		t.Fatalf("submitted draft not reported: %v", got)
+	}
+	if h.poll() != nil {
+		t.Fatalf("repeat poll must stay silent")
+	}
+}
+
 func TestResolvedThenReopenedThreadIsReportedAgain(t *testing.T) {
 	w := newWorld()
 	open := openPR(1, "aaaa1111")

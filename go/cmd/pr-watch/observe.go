@@ -65,9 +65,12 @@ func (w *Watcher) observeHead(ctx context.Context, st *prState, snap Snapshot) {
 		}
 		reviews, comments := 0, 0
 		for _, r := range snap.Reviews {
-			if countsReview(r) {
-				reviews++
+			if !countsReview(r) {
+				// A pending draft is unsent; leave it unmarked so its
+				// later submission flows through observeReviews.
+				continue
 			}
+			reviews++
 			st.notified["review:"+r.ID] = true
 		}
 		for _, c := range snap.Comments {
