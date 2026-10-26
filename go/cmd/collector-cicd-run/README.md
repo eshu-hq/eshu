@@ -81,3 +81,18 @@ Observability Evidence: `go test ./internal/collector/cicdrun/ghactionsruntime
 ./internal/telemetry ./internal/storage/postgres -count=1` covers CI/CD run
 provider metrics, spans, partial-generation metrics, rate-limit metrics, and
 fact-backed central collector status evidence.
+
+No-Regression Evidence (#9186): `go test ./cmd/collector-cicd-run
+./internal/collector/cicdrun/... -count=1` is green at HEAD (Go 1.26.6)
+against baseline origin/main d1f56dc14b with synthetic unit targets and no
+live provider calls. The change is startup-only target mapping plus an
+AuthMode label: the token_env mapping statements are verbatim, both modes
+share the one wire bearer path (`Authorization: Bearer <Token>`), and the
+fetch, pagination, and watermark hot path is untouched, so request volume
+and timings cannot shift. No queue, lease, Cypher, or storage path is
+touched, so there are no terminal queue or row counts to compare.
+
+No-Observability-Change (#9186): no new metrics, spans, logs, or status
+fields; both modes emit the existing fetch, rate-limit, and
+partial-generation signals identically. AuthMode rides on TargetConfig for
+future labeling but is not emitted yet.
