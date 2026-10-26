@@ -131,6 +131,11 @@ var oracleFragments = []string{
 	// this class, so this fragment is its coverage: the js-yaml/PyYAML oracle
 	// reads what it composes.
 	"%YAML 1.2",
+	// BOM-prefixed, tab-indented, and unspaced directive variants: js-yaml
+	// 4.1.1 reads each as a directive (PyYAML 6.0.3 reads the BOM-prefixed
+	// one too) while yaml.v3 rejects all three, so they compose the same
+	// fail-closed shape through the widened directive arm.
+	"\uFEFF%YAML 1.2", "\t%YAML 1.2", "%YAML1.2",
 }
 
 // randomOracleBody joins random fragments, numbering each planted token so the

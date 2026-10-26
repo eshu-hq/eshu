@@ -23,6 +23,9 @@ const flowSeedToken = "Zq19FlowSeedAAAAAAAA"
 // yaml.v3 and PyYAML 6.0.3 reject the bare document after "...". The
 // "%YAML 1.2"-prefixed fallback bodies decode it in js-yaml 4.1.1 and PyYAML
 // 6.0.3; yaml.v3 rejects the 1.2+ version (found incompatible YAML document).
+// The BOM-prefixed, tab-indented, and unspaced ("%YAML1.2") directive
+// variants decode it in js-yaml 4.1.1 only (PyYAML reads the BOM-prefixed
+// one too); yaml.v3 rejects each, so only the lexical fallback covers them.
 // The anchor-with-quoted-value-on-the-next-line bodies decode it in all
 // three; yaml.v3 reports the scalar at the anchor, so only the forward
 // placement covers a "#" tail. The anchor-on-the-value and tag-on-the-value
@@ -101,6 +104,12 @@ var flowHostileSeeds = map[string]string{
 	"document-end-prefixed single-quoted continuation, closed low":           "...\nnpmAuthToken:\n  'abcd\n{T}'\n",
 	"version-directive-prefixed double-quoted continuation, closed low":      "%YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
 	"version-directive-prefixed single-quoted continuation, closed low":      "%YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"BOM-prefixed directive double-quoted continuation, closed low":          "\uFEFF%YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"BOM-prefixed directive single-quoted continuation, closed low":          "\uFEFF%YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"tab-indented directive double-quoted continuation, closed low":          "\t%YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"tab-indented directive single-quoted continuation, closed low":          "\t%YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"unspaced directive double-quoted continuation, closed low":              "%YAML1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"unspaced directive single-quoted continuation, closed low":              "%YAML1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
 	"JSON key, quoted value folded":                                          "{\n  \"npmAuthToken\": \"ab\n{T}\"\n}\n",
 	"quoted scalar opened on the next line, closed at the key indent":        "npmAuthToken:\n  \"abcd\n{T}\"\n",
 	"single-quoted scalar opened on the next line, closed at the key indent": "npmAuthToken:\n  'abcd\n{T}'\n",
@@ -168,6 +177,12 @@ func TestRedactMarkerFlowShapesFailClosed(t *testing.T) {
 		"document-end-prefixed single-quoted continuation, closed low",
 		"version-directive-prefixed double-quoted continuation, closed low",
 		"version-directive-prefixed single-quoted continuation, closed low",
+		"BOM-prefixed directive double-quoted continuation, closed low",
+		"BOM-prefixed directive single-quoted continuation, closed low",
+		"tab-indented directive double-quoted continuation, closed low",
+		"tab-indented directive single-quoted continuation, closed low",
+		"unspaced directive double-quoted continuation, closed low",
+		"unspaced directive single-quoted continuation, closed low",
 		"nested quoted scalar opened on the next line, closed low",
 		"URL key quoted scalar opened on the next line, closed low",
 		"anchor with double-quoted value on the next line, hash tail",
@@ -247,6 +262,35 @@ func TestRedactMarkerVersionDirectiveQuotedContinuationFailsClosed(t *testing.T)
 	for name, body := range map[string]string{
 		"version-directive double-quoted": "%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
 		"version-directive single-quoted": "%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+	} {
+		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
+		if !errors.Is(err, errYAMLIndirection) {
+			t.Errorf("%s: err = %v, want errYAMLIndirection", name, err)
+		}
+		if got := failureReason(err); got != FailureYAMLIndirection {
+			t.Errorf("%s: failure reason = %q, want %q", name, got, FailureYAMLIndirection)
+		}
+	}
+}
+
+// TestRedactMarkerVersionDirectiveVariantQuotedContinuationFailsClosed is the
+// #8833 follow-up regression: three "%YAML"-directive spellings outside the
+// original column-zero matcher are rejected by yaml.v3 (the parsed walk is
+// silent) yet read by js-yaml 4.1.1 — a BOM-prefixed directive (PyYAML 6.0.3
+// reads it too), a tab-indented directive, and "%YAML1.2" with no space — so a
+// quoted scalar opened after a bare listed key and closed at the key's indent
+// stored its tail in the clear until the directive arm widened to them. Each
+// of the three shapes must fail closed in both quote styles.
+func TestRedactMarkerVersionDirectiveVariantQuotedContinuationFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"BOM-prefixed double-quoted": "\uFEFF%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"BOM-prefixed single-quoted": "\uFEFF%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"tab-indented double-quoted": "\t%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"tab-indented single-quoted": "\t%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"unspaced double-quoted":     "%YAML1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"unspaced single-quoted":     "%YAML1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
 	} {
 		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
 		if !errors.Is(err, errYAMLIndirection) {
