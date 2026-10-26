@@ -1,0 +1,102 @@
+{
+  "issue": 8860,
+  "collector_kind": "loki",
+  "schema_version": "1.0.0",
+  "note": "Cutover comparison input for #8860 (#4047 gate, in-tree side). Each scope binds one claim to fixed generations and recorded kind counts. The #6710 compatibility harness reuses this pack: the live side is the oracle, the recorded expectation is the cutover comparison. ObservedAt stays fixed so every identity-bearing field is deterministic.",
+  "observed_at": "2026-10-01T12:00:00Z",
+  "scopes": [
+    {
+      "name": "tenant-prod",
+      "scope_id": "loki:tenant:prod",
+      "instance_id": "loki-prod",
+      "generation_id": "loki:generation-7",
+      "fencing_token": 7,
+      "tenant_configured": true,
+      "source_instance_id": "loki-prod",
+      "signals": [
+        {
+          "provider_object_id": "labelset:app",
+          "signal_kind": "label_set",
+          "label_keys": ["app", "namespace"],
+          "label_value_counts": {"app": 12},
+          "label_value_hashes": {"app": ["sha256:recorded"]},
+          "freshness_state": "current",
+          "outcome": "observed"
+        },
+        {
+          "provider_object_id": "series:app:checkout",
+          "signal_kind": "series",
+          "label_keys": ["app"],
+          "series_fingerprint": "sha256:recorded-series",
+          "freshness_state": "current",
+          "outcome": "observed"
+        }
+      ],
+      "rules": [
+        {
+          "provider_object_id": "prod/checkout.rules:HighLogErrors",
+          "namespace": "prod",
+          "group_name": "checkout.rules",
+          "rule_name": "HighLogErrors",
+          "rule_type": "alerting",
+          "query": "sum(rate({app=\"checkout\"} |= \"payment failed\" [5m])) > 0",
+          "label_keys": ["severity"],
+          "annotation_keys": ["summary"],
+          "freshness_state": "current",
+          "outcome": "observed"
+        }
+      ],
+      "warnings": [
+        {
+          "resource_class": "log_signal",
+          "resource_id": "label:trace_id",
+          "reason": "high_cardinality_rejected"
+        },
+        {
+          "resource_class": "rule",
+          "resource_id": "",
+          "reason": "partial"
+        }
+      ],
+      "expected_kinds": {
+        "observability.source_instance": 1,
+        "observability.observed_log_signal": 2,
+        "observability.observed_rule": 1,
+        "observability.coverage_warning": 2
+      }
+    },
+    {
+      "name": "edge-noauth",
+      "scope_id": "loki:edge:noauth",
+      "instance_id": "loki-edge",
+      "generation_id": "loki:generation-8",
+      "fencing_token": 3,
+      "tenant_configured": false,
+      "source_instance_id": "loki-edge",
+      "signals": [
+        {
+          "provider_object_id": "labelset:job",
+          "signal_kind": "label_set",
+          "label_keys": ["job"],
+          "label_value_counts": {"job": 4},
+          "freshness_state": "current",
+          "outcome": "observed"
+        }
+      ],
+      "rules": [],
+      "warnings": [
+        {
+          "resource_class": "log_signal",
+          "resource_id": "",
+          "reason": "truncated"
+        }
+      ],
+      "expected_kinds": {
+        "observability.source_instance": 1,
+        "observability.observed_log_signal": 1,
+        "observability.observed_rule": 0,
+        "observability.coverage_warning": 1
+      }
+    }
+  ]
+}
