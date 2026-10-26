@@ -77,6 +77,11 @@ consecutive scrapes:
   may keep legacy rows, as above), and zero in `raw_entity_rows`,
   `raw_reference_rows`, `raw_search_documents`, and `raw_search_fact_payloads`.
 
+The entities statement and census 3 both take the file row's generation: an
+entity row that still holds a raw `source_cache` under a file row rebuilt at
+or after `W` is neither blanked nor counted, on either run, so it escapes
+this exit signal. That stale-cache row is tracked in #9167.
+
 `files`, `repos`, `reference_rows`, `search_documents`, and
 `search_fact_payloads` size the work and never reach zero: a redacted row keeps
 a non-empty body.
