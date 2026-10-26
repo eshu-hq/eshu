@@ -285,6 +285,13 @@ func (f *fakeExecQueryer) QueryContext(
 			// queryResponses entry instead.
 			return &queueFakeRows{rows: fakeAcceptedFactIDRows(args)}, nil
 		}
+		if query == updateSingleMetadataOnlyContentFileQuery {
+			// Default: no stored row matches the incoming record, so the
+			// metadata-only UPDATE touches nothing and the row falls through
+			// to the guarded upsert. Tests simulating a lineage-only rewrite
+			// stage an explicit queryResponses entry with the updated key.
+			return &queueFakeRows{}, nil
+		}
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
 
