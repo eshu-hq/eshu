@@ -102,6 +102,7 @@ build_fixture() {
 	cp "${script}" "${fixture}/scripts/dev/pre-push.sh"
 	cp "${repo_root}"/scripts/lib/pre-pr-*.sh "${fixture}/scripts/lib/"
 	cp "${repo_root}/scripts/lib/cgo-cflags.sh" "${fixture}/scripts/lib/"
+	cp "${repo_root}/scripts/lib/go-toolchain.sh" "${fixture}/scripts/lib/"
 	cp "${repo_root}"/scripts/lib/pre-push-*.sh "${fixture}/scripts/lib/" 2>/dev/null || true
 	printf '#!/bin/sh\nexit 0\n' > "${fixture}/bin/go"
 	chmod +x "${fixture}/bin/go"
@@ -115,6 +116,7 @@ PRECOMMIT
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$@" >> "${DRIVER_ARGS_LOG}"
+printf 'toolchain-env GOTOOLCHAIN=%s GOROOT=%s\n' "${GOTOOLCHAIN-unset}" "${GOROOT-unset}" >> "${DRIVER_ARGS_LOG}"
 exit "${DRIVER_GATE_STATUS}"
 GATE
 	chmod +x "${fixture}/scripts/dev/run-selected-gates.sh"
@@ -125,6 +127,7 @@ printf 'docs-contradiction ran\n' >> "${DRIVER_ARGS_LOG}"
 exit 0
 DOCS
 	chmod +x "${fixture}/scripts/verify-docs-contradiction.sh"
+	printf 'module example.invalid/fixture\n\ngo 1.26.10\n' > "${fixture}/go/go.mod"
 	printf 'baseline\n' > "${fixture}/README.md"
 	git -C "${fixture}" init -q
 	git -C "${fixture}" -c core.hooksPath=/dev/null add .
@@ -163,6 +166,19 @@ status="$(run_fixture "${fixture}" 23)"
 [[ "${status}" != "0" ]] || fail "case B: expected a non-zero exit when a gate fails, got 0"
 [[ ! -e "${fixture}/.git/eshu-prepr-stamp" ]] || fail "case B: a failed run must never write a stamp directory"
 
+# ── Case B2: the floor pins the toolchain from go/go.mod (#9098). A host whose
+# go is newer than the module makes golangci-lint and gosec fail on export data;
+# the caller here starts from GOTOOLCHAIN=local and a stale GOROOT, exactly the
+# failing starting point, and the gates must see go1.26.10 with GOROOT unset.
+fixture="$(build_fixture case-b2)"
+status=0
+: > "${fixture}.args"
+GOTOOLCHAIN=local GOROOT=/nonexistent/goroot DRIVER_ARGS_LOG="${fixture}.args" DRIVER_GATE_STATUS=0 \
+	PATH="${fixture}/bin:${PATH}" bash "${fixture}/scripts/dev/pre-push.sh" > "${fixture}.log" 2>&1 || status=$?
+[[ "${status}" == "0" ]] || { cat "${fixture}.log" >&2; fail "case B2: expected exit 0, got ${status}"; }
+rg -q -- '^toolchain-env GOTOOLCHAIN=go1\.26\.10 GOROOT=unset$' "${fixture}.args" \
+	|| { cat "${fixture}.args" >&2; fail "case B2: gates did not see the go.mod toolchain pin with GOROOT unset"; }
+
 # ── Case C: an unresolvable ESHU_PRE_PUSH_BASE fails instead of narrowing ──
 # Silently falling back to HEAD~1 would check only the last commit's paths and
 # still report success.
@@ -188,6 +204,7 @@ build_fixture_deleted_package() {
 	cp "${script}" "${fixture}/scripts/dev/pre-push.sh"
 	cp "${repo_root}"/scripts/lib/pre-pr-*.sh "${fixture}/scripts/lib/"
 	cp "${repo_root}/scripts/lib/cgo-cflags.sh" "${fixture}/scripts/lib/"
+	cp "${repo_root}/scripts/lib/go-toolchain.sh" "${fixture}/scripts/lib/"
 	cp "${repo_root}"/scripts/lib/pre-push-*.sh "${fixture}/scripts/lib/" 2>/dev/null || true
 	printf '#!/bin/sh\nexit 0\n' > "${fixture}/bin/go"
 	chmod +x "${fixture}/bin/go"

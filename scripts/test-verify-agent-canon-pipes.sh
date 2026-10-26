@@ -37,6 +37,8 @@ canon_scripts=(
   "scripts/lib/test-private-identifier-path-cases.sh"
   "scripts/test-agent-hooks.sh"
   "scripts/lib/agent-hooks-fake-gate.sh"
+  "scripts/test-agent-hooks-fake-gate.sh"
+  "scripts/lib/test-agent-hooks-gate-process-cases.sh"
   "scripts/test-goal-continue-hook.sh"
   "scripts/test-goal-continue-hook-cases.sh"
   "scripts/test-goal-continue-hook-budget-cases.sh"

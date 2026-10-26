@@ -45,6 +45,9 @@ gates:
       - "scripts/test-agent-hooks.sh"
       - "scripts/test-goal-*cases*.sh"
       - "scripts/lib/agent-hooks-fake-gate.sh"
+      - "scripts/lib/agent-hooks-fake-gate.go"
+      - "scripts/lib/test-agent-hooks-gate-process-cases.sh"
+      - "scripts/test-agent-hooks-fake-gate.sh"
       - "scripts/test-goal-continue-hook.sh"
       # The Stop-hook mirror's later suites live in a sourced companion file,
       # so it is a trigger path in its own right -- otherwise deleting a case
@@ -131,6 +134,9 @@ gates:
       - "scripts/test-agent-hooks.sh"
       - "scripts/test-goal-*cases*.sh"
       - "scripts/lib/agent-hooks-fake-gate.sh"
+      - "scripts/lib/agent-hooks-fake-gate.go"
+      - "scripts/lib/test-agent-hooks-gate-process-cases.sh"
+      - "scripts/test-agent-hooks-fake-gate.sh"
       - "scripts/test-goal-continue-hook.sh"
       - "scripts/test-goal-continue-hook-cases.sh"
       - "scripts/test-goal-continue-hook-budget-cases.sh"
@@ -161,7 +167,7 @@ gates:
       # change selects it -- but running only the canon mirror would skip the
       # behavioural hook suite, and an exit-code or routing regression would
       # first appear in Actions despite being credential-free.
-      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && python3 scripts/test-codex-spawn-guard.py && python3 scripts/test-goal-role-router.py && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-issue-capture-hook.sh && bash scripts/test-muse-hooks.sh && bash scripts/test-cursor-hooks.sh && bash scripts/test-verify-agent-canon-pipes.sh"
+      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && python3 scripts/test-codex-spawn-guard.py && python3 scripts/test-goal-role-router.py && bash scripts/test-agent-hooks.sh && bash scripts/test-agent-hooks-fake-gate.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-issue-capture-hook.sh && bash scripts/test-muse-hooks.sh && bash scripts/test-cursor-hooks.sh && bash scripts/test-verify-agent-canon-pipes.sh"
     ci:
       workflow: verify-agent-hygiene.yml
       job: "Agent hygiene gate"

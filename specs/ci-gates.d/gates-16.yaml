@@ -71,6 +71,8 @@ gates:
       - "scripts/dev/pre-pr.sh"
       - "scripts/dev/prove.sh"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/go-toolchain.sh"
+      - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/dev/run-selected-gates.sh"
       - "scripts/install-local-binaries.sh"
       - "scripts/lib/golden-corpus-host-helpers.sh"

@@ -179,23 +179,30 @@ check "per-call CLAUDE_HOOK_ALLOW=1 override still waives the guard" '[[ ${rc} -
 run beforeShellExecution .claude/hooks/guard-live-gate.sh "$(shell_in 'make pre-pr' "${work}")"
 check "guard stays silent outside an Eshu checkout" '[[ "$(jget permission)" == allow ]]'
 
-# Seed the busy state the way test-agent-hooks.sh does: a script named ci-gates
-# satisfies `pgrep -x ci-gates` without running a gate.
+# Seed the busy state the way test-agent-hooks.sh does: a process named
+# ci-gates satisfies `pgrep -x ci-gates` without running a gate. It is a
+# compiled binary because macOS names a script process after its interpreter
+# (#9098). A host that cannot build it prints a HOST-GAP line and the four
+# cases count as skipped, not failed.
 . "${repo_root}/scripts/lib/agent-hooks-fake-gate.sh"
-start_fake_gate
-sleep 0.3
-c_out="$(printf '{"cwd":"%s","tool_name":"Bash","tool_input":{"command":"make pre-pr"}}' "${repo_root}" \
-  | bash "${CH}/guard-live-gate.sh" 2>&1)"
-c_rc=$?
-run beforeShellExecution .claude/hooks/guard-live-gate.sh "$(shell_in 'make pre-pr')"
-kill "${fake_pid}" 2>/dev/null
-wait "${fake_pid}" 2>/dev/null
-rm -rf "${fakebin}"
-[[ ${c_rc} -eq 2 ]] && ok "control: the Claude hook itself refuses make pre-pr while ci-gates runs" \
-  || no "control: Claude hook should exit 2 (rc=${c_rc} out=${c_out})"
-check "Cursor payload is denied while ci-gates runs" '[[ ${rc} -eq 0 && "$(jget permission)" == deny ]] && one_json'
-check "deny carries the Claude BLOCKED text to the user" '[[ "$(jget user_message)" == *"ci-gates run is already in flight"* ]]'
-check "deny carries the same text to the agent" '[[ "$(jget agent_message)" == "${c_out}"* ]]'
+if start_fake_gate; then
+  sleep 0.3
+  c_out="$(printf '{"cwd":"%s","tool_name":"Bash","tool_input":{"command":"make pre-pr"}}' "${repo_root}" \
+    | bash "${CH}/guard-live-gate.sh" 2>&1)"
+  c_rc=$?
+  run beforeShellExecution .claude/hooks/guard-live-gate.sh "$(shell_in 'make pre-pr')"
+  kill "${fake_pid}" 2>/dev/null
+  wait "${fake_pid}" 2>/dev/null
+  rm -rf "${fakebin}"
+  [[ ${c_rc} -eq 2 ]] && ok "control: the Claude hook itself refuses make pre-pr while ci-gates runs" \
+    || no "control: Claude hook should exit 2 (rc=${c_rc} out=${c_out})"
+  check "Cursor payload is denied while ci-gates runs" '[[ ${rc} -eq 0 && "$(jget permission)" == deny ]] && one_json'
+  check "deny carries the Claude BLOCKED text to the user" '[[ "$(jget user_message)" == *"ci-gates run is already in flight"* ]]'
+  check "deny carries the same text to the agent" '[[ "$(jget agent_message)" == "${c_out}"* ]]'
+else
+  printf 'skip - Cursor guard-live-gate deny cases (4): HOST-GAP, no fake ci-gates here\n'
+  skipped=$((skipped + 4))
+fi
 
 # ── C. fail closed for guards, fail open for advisory hooks ───────────────────
 

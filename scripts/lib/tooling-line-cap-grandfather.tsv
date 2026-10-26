@@ -25,10 +25,9 @@
 # A file below it passes with a NOTE asking for a re-pin. A row is STALE, and
 # the gate hard-fails on it, once its file no longer exists or is at or under
 # 500 lines; the list only shrinks.
-scripts/dev/precommit-go.sh	522
 scripts/lib/golden-corpus-lock-cases.sh	503
 scripts/lib/live-gate-lock.sh	503
-scripts/test-agent-hooks.sh	745
+scripts/test-agent-hooks.sh	706
 scripts/test-context-stories-doc-split.sh	566
 scripts/test-verify-docs-build-changed.sh	638
 scripts/test-verify-filename-stutter.sh	638

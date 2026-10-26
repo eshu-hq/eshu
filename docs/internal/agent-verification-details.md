@@ -79,6 +79,36 @@ the cause.
 A different message, `go: cannot find GOROOT directory`, means the shell exports
 a `GOROOT` that no longer exists. Unset it.
 
+A host `go` that is newer than `go/go.mod` causes the opposite failure.
+`GOTOOLCHAIN=auto` never switches down, so a 1.27.x host builds a 1.26.10 module
+with the newer compiler, and `golangci-lint` reports `typecheck` errors on
+packages that are fine (`GOTOOLCHAIN=local` shows the same result). The floor
+(`make pre-push`) therefore pins `GOTOOLCHAIN` to the `toolchain` or `go` line of
+`go/go.mod` and unsets `GOROOT`; its lint, gosec and registry gates inherit both
+(`scripts/lib/go-toolchain.sh`, tested by `scripts/test-go-toolchain.sh`). For a
+command you run by hand, use `env -u GOROOT GOTOOLCHAIN=go1.26.10 ...` with the
+version from `go/go.mod`. The first run with a toolchain that is not cached
+downloads it, so it needs network access that once; offline and uncached, `go`
+fails with "toolchain not available". CI is unaffected, because `setup-go`
+installs the `go.mod` version. `scripts/lib/go-toolchain.sh` pins only a
+`toolchain` line or a three-part `go` line; a language version such as
+`go 1.22` is left alone.
+
+## Hook test mirrors on macOS
+
+`scripts/test-agent-hooks.sh` and `scripts/test-cursor-hooks.sh` block a second
+live gate with a fake running gate: a process that `pgrep -x ci-gates` lists. A
+script cannot be that process on macOS, because the system names a script
+process after its interpreter. The fake is a small compiled Go program
+(`scripts/lib/agent-hooks-fake-gate.go`) built into a temp dir as `ci-gates`.
+`scripts/test-agent-hooks-fake-gate.sh` checks that `pgrep -x ci-gates` lists
+the fake by its own pid, so a real gate running on the host cannot hide a broken
+fake. A host with no Go toolchain prints a named `HOST-GAP` line and counts the
+cases as skipped. Linux falls back to a shell fake and still runs them. Where Go
+is installed, the same mirror asserts that the compiled fake is the one in use,
+so CI cannot pass on the shell fake by accident, and that the shell fake returns
+promptly when a caller captures it in a command substitution.
+
 ## The custom lint plugins
 
 The bare `golangci-lint run ./...` above needs the repo's custom `filelength`

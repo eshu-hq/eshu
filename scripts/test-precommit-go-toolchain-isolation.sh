@@ -180,7 +180,7 @@ exit 0'
 # make_mini_repo builds a throwaway git repo with just the files
 # precommit-go.sh reads, so the script derives every cache path inside it.
 make_mini_repo() {
-	local mini="${tmp_root}/mini"
+	local mini="${tmp_root}/${1:-mini}"
 	mkdir -p "${mini}/go" "${mini}/scripts/dev" "${mini}/.github/workflows"
 	git -C "${mini}" init -q 2>/dev/null || git init -q "${mini}"
 	printf 'module mini\n\ngo 1.26.6\n' >"${mini}/go/go.mod"
@@ -333,6 +333,42 @@ if [ "${call_sites}" -ne 4 ]; then
 	fail "expected 4 go_install_tool call sites (golangci-lint, gosec, govulncheck, nancy), found ${call_sites} — if a tool was added or removed, update this count AND add a behavioural case above"
 else
 	pass "all 4 ensure_* install sites route through go_install_tool"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 6 -- the toolchain pin (#9098).
+#
+# A host go newer than go/go.mod (GOTOOLCHAIN=local, or auto, which never
+# switches down) makes golangci-lint and gosec load packages with the wrong
+# compiler. precommit-go.sh must hand every scanner GOTOOLCHAIN=go<go.mod
+# version> and no GOROOT, whatever the caller had. A fresh mini repo keeps the
+# tool cache empty, so the recording golangci-lint stub below is the one that
+# gets installed.
+# ---------------------------------------------------------------------------
+write_stub golangci-lint 'printf "toolchain=%s goroot=%s\n" "${GOTOOLCHAIN-unset}" "${GOROOT-unset}" >>"${ENV_LOG}"; exit 0'
+pin_repo="$(make_mini_repo pin)"
+env_log="${tmp_root}/pin-env.log"
+: >"${env_log}"
+: >"${go_log}"
+: >"${tool_log}"
+set +e
+( cd "${pin_repo}" && \
+	PATH="${fake_bin}:${PATH}" \
+	GOTOOLCHAIN=local \
+	GOROOT="${leaked_goroot}" \
+	FAKE_GO_LOG="${go_log}" \
+	FAKE_GO_STUBS="${stub_src}" \
+	TOOL_LOG="${tool_log}" \
+	ENV_LOG="${env_log}" \
+	bash "${script}" lint-all ) >"${tmp_root}/pin.out" 2>&1
+pin_rc=$?
+set -e
+if [ "${pin_rc}" -ne 0 ]; then
+	fail "toolchain pin: lint-all exit ${pin_rc}, want 0 (output: $(tail -n 3 "${tmp_root}/pin.out" | tr '\n' ' '))"
+elif ! rg --quiet --line-regexp --fixed-strings -- 'toolchain=go1.26.6 goroot=unset' "${env_log}"; then
+	fail "toolchain pin: the scanner saw [$(tr '\n' ';' <"${env_log}")], want toolchain=go1.26.6 goroot=unset from a caller with GOTOOLCHAIN=local and a leaked GOROOT"
+else
+	pass "toolchain pin: the scanner ran with GOTOOLCHAIN=go1.26.6 and no GOROOT despite GOTOOLCHAIN=local"
 fi
 
 # ---------------------------------------------------------------------------

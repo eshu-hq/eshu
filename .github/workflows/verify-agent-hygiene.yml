@@ -110,6 +110,13 @@ jobs:
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
         run: scripts/test-agent-hooks.sh
 
+      # The fake running gate the hook mirrors rely on must be visible to
+      # `pgrep -x ci-gates` as its own pid (#9098); a real gate on the host
+      # would otherwise hide a broken fake.
+      - name: Run agent hooks fake-gate test mirror
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        run: scripts/test-agent-hooks-fake-gate.sh
+
       # These two were chained in the ci-gates registry's test_command but had
       # no step here, so they ran in local promotion and NOWHERE in Actions --
       # the registry and the workflow disagreeing is the two-layer false-green
