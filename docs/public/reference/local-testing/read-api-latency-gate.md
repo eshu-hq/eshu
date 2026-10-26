@@ -311,8 +311,8 @@ ceiling before it.
 **Work budgets** (`testdata/benchmarks/read-api-route-work-budgets.txt`) are the
 regression-sensitive check. For every exercised route the gate resets
 `pg_stat_statements` after the warmup requests, sends the counted requests, and
-reads statements (`calls`), `rows`, and buffer blocks (`blks`: shared, local and
-temp, read and hit) per request. A route breaches when any of the three exceeds
+reads statements (`calls`), `rows`, and buffer blocks (`blks`: shared and local
+hits/reads plus temp reads/writes) per request. A route breaches when any of the three exceeds
 its budget, and the report prints all three next to the route's p95. For
 the serial `MCP search_entity_content` pilot, the work report also retains up
 to 10,000 numeric `pg_stat_statements` rows under `statement_diagnostics`
@@ -320,10 +320,11 @@ to 10,000 numeric `pg_stat_statements` rows under `statement_diagnostics`
 folded into the same official work totals used by the budget. The capture
 checks its reset timestamp before and after reading the rows and requires zero
 statement deallocations; a changed epoch, incomplete read, or overflow fails
-the gate. The captured IDs and counters cover the whole database during the
-counted request interval. They do not identify which request issued each SQL
-statement or detect every selective reset, so the fixture must own resets
-exclusively. Query IDs should only be compared within a compatible database,
+the gate. Captured rows include only tracked statements in the current
+database that pass the existing work-meter filter; entries with unavailable
+query text or query text containing `pg_stat_statements` are excluded. They do
+not identify which request issued each SQL statement or detect every selective
+reset, so the fixture must own resets exclusively. Query IDs should only be compared within a compatible database,
 catalog, platform, and PostgreSQL version. Buffers
 separate the pre- and post-fix status routes by 10.7x to 12.7x while the
 statement count moves only 29.1 to 26.0, and they do not depend on runner CPU
