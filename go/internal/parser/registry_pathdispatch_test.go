@@ -89,13 +89,14 @@ func literalByKeyLookups(t *testing.T, src, funcName string) (keys, nonLiteral [
 	return keys, nonLiteral
 }
 
-// unlistedPathDispatchKeys returns the parser keys that LookupByPath in src
-// binds through a literal byKey lookup but that dispatches does not list, and
-// the keys dispatches lists that LookupByPath no longer binds that way.
+// unlistedPathDispatchKeys returns the parser keys that lookupPath (the
+// resolver LookupByPath wraps) in src binds through a literal byKey lookup but
+// that dispatches does not list, and the keys dispatches lists that lookupPath
+// no longer binds that way.
 func unlistedPathDispatchKeys(t *testing.T, src string, dispatches []PathDispatch) (missing, stale []string) {
 	t.Helper()
 
-	bound, nonLiteral := literalByKeyLookups(t, src, "LookupByPath")
+	bound, nonLiteral := literalByKeyLookups(t, src, "lookupPath")
 	for _, position := range nonLiteral {
 		t.Errorf("LookupByPath indexes byKey with a non-literal at %s; the PathDispatches guard cannot check it", position)
 	}
@@ -137,11 +138,11 @@ func TestPathDispatchesKeysMatchLookupByPath(t *testing.T) {
 	}
 }
 
-// pathDispatchSeed is a LookupByPath with one listed branch (hcl) and one
+// pathDispatchSeed is a lookupPath with one listed branch (hcl) and one
 // unlisted branch (seeded_unlisted) used to prove the guard reports a gap.
 const pathDispatchSeed = `package parser
 
-func (r Registry) LookupByPath(path string) (Definition, bool) {
+func (r Registry) lookupPath(path string) (Definition, bool) {
 	if isListed(path) {
 		d, ok := r.byKey["hcl"]
 		return d, ok

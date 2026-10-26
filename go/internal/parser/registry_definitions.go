@@ -103,7 +103,21 @@ func defaultDefinitions() []Definition {
 			Language:   "hcl",
 			Ecosystem:  "terraform",
 			Admission:  AdmissionStructuredFact,
-			Extensions: []string{".hcl", ".tf", ".tfvars"},
+			Extensions: []string{".hcl", ".tf"},
+		},
+		// tfvars binds *.tfvars (and, by path dispatch, *.tfvars.json) apart
+		// from hcl so a content-store policy on variable-value files never
+		// governs every .tf and .hcl body (#8833). It parses with the hcl engine
+		// and keeps the hcl language.
+		{
+			ParserKey:  "tfvars",
+			Language:   "hcl",
+			Ecosystem:  "terraform",
+			Admission:  AdmissionStructuredFact,
+			Extensions: []string{".tfvars"},
+			// Open schema: whether a variable is secret is declared in
+			// variables.tf, so only an allowlist skeleton is safe (8813 record).
+			ContentStore: ContentStore{Policy: ContentStoreRedact, Redactor: RedactorSkeleton},
 		},
 		{
 			ParserKey:  "java",
@@ -348,6 +362,27 @@ func defaultDefinitions() []Definition {
 			Extensions: []string{".yaml", ".yml"},
 			ExactNames: []string{"pubspec.lock"},
 		},
+		// yarnrc binds .yarnrc.yml apart from yaml so a content-store policy on
+		// Yarn's credential-bearing settings file never governs every .yaml and
+		// .yml body (#8833). It parses with the yaml engine and keeps the yaml
+		// language.
+		{
+			ParserKey:  "yarnrc",
+			Language:   "yaml",
+			Ecosystem:  "javascript",
+			Admission:  AdmissionStructuredFact,
+			ExactNames: []string{".yarnrc.yml"},
+			// Closed schema (Yarn rejects unknown settings in strict mode): the
+			// credential settings are npmAuthToken and npmAuthIdent, matched at
+			// any nesting (top level, npmScopes.*, npmRegistries.*), and the
+			// userinfo of the four URL settings (arbiter ruling, 2026-10-24).
+			ContentStore: ContentStore{
+				Policy:          ContentStoreRedact,
+				Redactor:        RedactorMarker,
+				CredentialKeys:  []string{"npmAuthToken", "npmAuthIdent"},
+				URLUserinfoKeys: []string{"npmRegistryServer", "npmPublishRegistry", "httpProxy", "httpsProxy"},
+			},
+		},
 	}
 }
 
@@ -399,9 +434,9 @@ func PathDispatches() []PathDispatch {
 			Examples:  []string{".mvn/extensions.xml", "module/.mvn/extensions.xml"},
 		},
 		{
-			Patterns:  []string{"*.tfvars.json"},
-			ParserKey: "hcl",
-			Examples:  []string{"prod.tfvars.json", "env/stage.auto.tfvars.json"},
+			Patterns:  []string{"*.tfvars.json", "*.tfvars"},
+			ParserKey: "tfvars",
+			Examples:  []string{"prod.tfvars.json", "env/stage.auto.tfvars.json", "Dockerfile.tfvars", "META-INF/services/x.tfvars"},
 		},
 		{
 			Patterns:  []string{"constraints.txt", "constraints-*.txt", "constraints_*.txt"},

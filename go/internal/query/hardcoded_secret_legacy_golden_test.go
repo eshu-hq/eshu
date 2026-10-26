@@ -14,9 +14,10 @@ import (
 // builder, kept as a test-only golden. It was lifted mechanically from
 // InvestigateHardcodedSecrets at b7a0d0e367 (git show of
 // content_reader_security_secrets.go) with only the function shell and the
-// filter helper renamed; it still interpolates the production
-// hardcodedSecretSQLPattern and hardcodedSecretSQLSuppressionPredicate, so it
-// tracks the Go sources of truth instead of a hand-copied frozen pattern.
+// filter helper renamed, then given migration 235's marker-prefix gate and CASE
+// arms (#8833), written out here so the generated production CASE is checked
+// against a frozen copy; it still interpolates the production
+// hardcodedSecretSQLPattern and hardcodedSecretSQLSuppressionPredicate.
 // The differential proof in content_reader_security_secrets_live_test.go runs
 // this query and the side-table reader over the same content_files data and
 // requires identical rows in identical order.
@@ -37,7 +38,7 @@ func legacyHardcodedSecretInvestigationQuery(
 		WITH candidate_files AS (
 		  SELECT repo_id, relative_path, coalesce(language, '') AS language, content
 		  FROM content_files
-		  WHERE content ~* $%d
+		  WHERE (strpos(content, 'REDACTED_') > 0 OR content ~* $%d)
 		  %s
 		),
 		candidate_lines AS (
@@ -48,19 +49,29 @@ func legacyHardcodedSecretInvestigationQuery(
 		    lines.line_number::int AS line_number,
 		    lines.line_text,
 		    CASE
+		      WHEN lines.line_text ~ 'REDACTED_aws_access_key' THEN 'aws_access_key'
+		      WHEN lines.line_text ~ 'REDACTED_private_key' THEN 'private_key'
+		      WHEN lines.line_text ~ 'REDACTED_slack_token' THEN 'slack_token'
+		      WHEN lines.line_text ~ 'REDACTED_api_token' THEN 'api_token'
+		      WHEN lines.line_text ~ 'REDACTED_password_literal' THEN 'password_literal'
+		      WHEN lines.line_text ~ 'REDACTED_secret_literal' THEN 'secret_literal'
 		      WHEN lines.line_text ~* 'AKIA[0-9A-Z]{16}' THEN 'aws_access_key'
 		      WHEN lines.line_text ~* '-----BEGIN [A-Z ]*PRIVATE KEY-----' THEN 'private_key'
 		      WHEN lines.line_text ~* 'xox[baprs]-[A-Za-z0-9-]{10,}' THEN 'slack_token'
 		      WHEN lines.line_text ~* '(api[_-]?key|apikey|token)[[:space:]]*[:=]' THEN 'api_token'
 		      WHEN lines.line_text ~* '(password|passwd|pwd)[[:space:]]*[:=]' THEN 'password_literal'
 		      WHEN lines.line_text ~* '(secret|client[_-]?secret|private[_-]?key|authorization)[[:space:]]*[:=]' THEN 'secret_literal'
+		      WHEN lines.line_text ~* '(api[_-]?key|apikey|token)s?[''"]?[[:space:]]*[:=]' THEN 'api_token'
+		      WHEN lines.line_text ~* '(password|passwd|pwd)s?[''"]?[[:space:]]*[:=]' THEN 'password_literal'
+		      WHEN lines.line_text ~* '(secret|client[_-]?secret|private[_-]?key|authorization|npm[_-]?auth[_-]?ident|credential)s?[''"]?[[:space:]]*[:=]' THEN 'secret_literal'
+		      WHEN lines.line_text ~* '//[^/?#@[:space:]:]+:[^/?#@[:space:]]+@' THEN 'password_literal'
 		      ELSE ''
 		    END AS finding_kind,
 		    (%s) AS suppressed
 		  FROM candidate_files f
 		  CROSS JOIN LATERAL regexp_split_to_table(f.content, E'\n')
 		    WITH ORDINALITY AS lines(line_text, line_number)
-		  WHERE lines.line_text ~* $%d
+		  WHERE (strpos(lines.line_text, 'REDACTED_') > 0 OR lines.line_text ~* $%d)
 		)
 		SELECT repo_id, relative_path, language, line_number, line_text, finding_kind
 		FROM candidate_lines

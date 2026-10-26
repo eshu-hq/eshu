@@ -38,17 +38,22 @@ func TestDeferredSessionWritesDeriveNothingLive(t *testing.T) {
 }
 
 // TestBeginDeferralTakesReadinessAndBumpsEpochLive proves the state machine
-// entry: a fresh schema is ready, BeginDeferral turns readiness off durably and
-// every call bumps the epoch.
+// entry: a fresh schema is not_built at epoch 2 (138 seeds ready at 1, and
+// migration 235 flips it for the new derivation, #8833 ruling-3), the
+// reducer's Repairer publishes it, BeginDeferral turns readiness off durably,
+// and every call bumps the epoch.
 func TestBeginDeferralTakesReadinessAndBumpsEpochLive(t *testing.T) {
 	ctx, db, _ := openDatabase(t)
 	sqlDB := postgres.SQLDB{DB: db}
 
-	if state, epoch := stateRow(ctx, t, db); state != StateReady || epoch != 1 {
-		t.Fatalf("fresh schema state = %q epoch %d, want ready epoch 1", state, epoch)
+	if state, epoch := stateRow(ctx, t, db); state != StateNotBuilt || epoch != 2 {
+		t.Fatalf("fresh schema state = %q epoch %d, want not_built epoch 2", state, epoch)
+	}
+	if outcome, err := NewRepairer(sqlDB, db, RepairOptions{}).Tick(ctx); err != nil || outcome != RepairPublished {
+		t.Fatalf("repair of a fresh schema = %s, %v, want published", outcome, err)
 	}
 	if ready, err := Ready(ctx, db); err != nil || !ready {
-		t.Fatalf("Ready() on a fresh schema = %v, %v, want true", ready, err)
+		t.Fatalf("Ready() after the repair = %v, %v, want true", ready, err)
 	}
 	first, err := BeginDeferral(ctx, sqlDB)
 	if err != nil {

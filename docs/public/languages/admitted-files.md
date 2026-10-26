@@ -45,7 +45,7 @@ a line there.
 | `gradle_wrapper` | java | L2 structured fact | metadata |  | `gradle-wrapper.properties` |  |
 | `groovy` | groovy | L2 structured fact | store | `.groovy` |  |  |
 | `haskell` | haskell | L2 structured fact | store | `.hs` |  |  |
-| `hcl` | terraform | L2 structured fact | store | `.hcl`, `.tf`, `.tfvars` |  |  |
+| `hcl` | terraform | L2 structured fact | store | `.hcl`, `.tf` |  |  |
 | `java` | java | L2 structured fact | store | `.java` |  |  |
 | `java_metadata` | java | L2 structured fact | store |  |  |  |
 | `javascript` | javascript | L2 structured fact | store | `.cjs`, `.js`, `.jsx`, `.mjs` |  |  |
@@ -67,9 +67,11 @@ a line there.
 | `scala` | scala | L2 structured fact | store | `.routes`, `.sc`, `.scala` |  |  |
 | `sql` | sql | L2 structured fact | store | `.sql` |  |  |
 | `swift` | swift | L2 structured fact | store | `.swift` |  |  |
+| `tfvars` | terraform | L2 structured fact | redact (skeleton) | `.tfvars` |  |  |
 | `tsx` | typescriptjsx | L2 structured fact | store | `.tsx` |  |  |
 | `typescript` | typescript | L2 structured fact | store | `.cts`, `.mts`, `.ts` |  |  |
 | `yaml` | yaml | L2 structured fact | store | `.yaml`, `.yml` | `pubspec.lock` |  |
+| `yarnrc` | javascript | L2 structured fact | redact (marker) |  | `.yarnrc.yml` |  |
 
 Path-dispatched bindings admit these paths through `Registry.LookupByPath` rules
 that the columns above do not list. A row can look empty and still admit files.
@@ -78,7 +80,7 @@ Paths are matched case-insensitively:
 - `META-INF/services/<service>`, `META-INF/spring.factories`, `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` bind to `java_metadata`.
 - `conf/routes`, `*.routes` bind to `scala`.
 - `.mvn/extensions.xml` bind to `raw_text`.
-- `*.tfvars.json` bind to `hcl`.
+- `*.tfvars.json`, `*.tfvars` bind to `tfvars`.
 - `constraints.txt`, `constraints-*.txt`, `constraints_*.txt` bind to `python_requirements`.
 <!-- parser-admission-table:end -->
 
@@ -108,7 +110,14 @@ end of the line. Every line inside a PEM `BEGIN` to `END` block is
 replaced, and so are the continuation lines of a listed key's block scalar or
 multi-line quoted value. The marker keeps the finding kind so
 `investigate_hardcoded_secrets` can keep reporting the line. `[redacted]` and
-`***` are not used: the detector cannot see them.
+`***` are not used: the detector cannot see them. A YAML alias anywhere in the body,
+a listed key the YAML parser finds on a line the key match cannot read (an
+explicit `? npmAuthToken` entry, an escaped spelling), or a listed key whose
+value, in YAML flow style, continues on a line that neither the redactor
+replaced nor holds only a comment, brackets, or a document marker (for
+example `{`, then `npmAuthToken:` and its value on the next lines at the same
+indent), could leave a secret on a line no key reads, so each stores the
+metadata row instead (reason `yaml_indirection`).
 
 A `marker` definition can also list URL-valued keys, such as `npmRegistryServer`
 and `httpsProxy` in `.yarnrc.yml`. For those keys only the URL userinfo is
@@ -144,7 +153,26 @@ interpolations, and comments nest. A quoted string that ends at a line break, or
 nesting deeper than 32 levels, is a lexing failure: every later line is redacted
 whole. A detector
 match blocks the allowlist even without a finding kind, so a token inside a
-reference is not kept. The stored body is not parseable HCL or JSON. Keys are kept when
+reference is not kept. A stored line is never a finding its raw line is not: a key-named
+variable whose value is under the detector's six-character floor
+(`api_token = "abc"`) becomes the whole-line `REDACTED_value`, because
+`api_token = REDACTED_value` would match the detector.
+
+Three Terraform evidence shapes are kept so relationship discovery still reads
+them (the #8833 differential measured the loss without them):
+
+- an `app_repo` or `app_name` value that is a name, `owner/name`, or a plain
+  `https://host/path` URL with no userinfo, query, or fragment;
+- a github.com URL, stored as `"https://github.com/<owner>/<repo>[/path]"` with
+  its userinfo, query, and fragment dropped, as a value, a list element, or the
+  only thing a comment keeps (`# https://github.com/...`); other comment text
+  and other trailing text go;
+- a GitHub Actions OIDC subject, `"repo:<owner>/<name>:<claim>"`.
+
+A detector match on the line, with or without a finding kind, comes before
+every evidence shape.
+
+The stored body is not parseable HCL or JSON. Keys are kept when
 they are names: an identifier, or a quoted key of letters, digits, `_`, `.`,
 and `-` (`"us-east-1"`, `"app.example.com"`). A quoted key holding anything
 else (a URL, a CIDR, an ARN, a password with symbols) takes the whole line. A
@@ -202,18 +230,23 @@ they are. A registry that binds no non-store policy keeps today's fingerprint.
 
 ### Which files use each policy
 
-Every definition uses `store` except `.npmrc` (#8978) and `gradle-wrapper.properties` (#8822), which use `metadata`. The
-other bindings follow once the detector gains the key shapes that file formats
-need (#8833). The bindings, recorded in the
-[credential-file design record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8813-credential-file-exposure.md):
+Four definitions bind a policy other than `store`, recorded in the
+[credential-file design record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8813-credential-file-exposure.md).
+Each credential file has its own parser definition, so the policy never reaches
+other `.tf`, `.hcl`, `.yaml`, `.yml`, or `.ini` files. Every other definition
+uses `store`.
 
-| File | Policy | Mode |
-| --- | --- | --- |
-| `.yarnrc.yml` | `redact` | `marker` |
-| `*.tfvars`, `*.tfvars.json` | `redact` | `skeleton`, bound in #8833 |
-| `.npmrc` | `metadata` | none, shipped in #8978 |
-| `gradle-wrapper.properties` | `metadata` | none, shipped in #8822 |
-| `gradle.properties`, `nuget.config` | `metadata`, if a later record admits them | none |
+| File | Definition | Policy | Mode |
+| --- | --- | --- | --- |
+| `.yarnrc.yml` | `yarnrc` (yaml engine) | `redact` | `marker`: credential keys `npmAuthToken` and `npmAuthIdent` at any nesting (top level, `npmScopes.*`, `npmRegistries.*`), URL userinfo keys `npmRegistryServer`, `npmPublishRegistry`, `httpProxy`, `httpsProxy` (#8833) |
+| `*.tfvars`, `*.tfvars.json` | `tfvars` (hcl engine) | `redact` | `skeleton` (#8833) |
+| `.npmrc` | `npmrc` | `metadata` | none (#8978) |
+| `gradle-wrapper.properties` | `gradle_wrapper` | `metadata` | none (#8822) |
+| `gradle.properties`, `nuget.config` | none | `metadata`, if a later record admits them | none |
+
+The hcl engine cannot parse a `.tfvars.json` body, before and after #8833, so
+the collector stores no row for one today (#9048). If it learns to, the skeleton
+policy already applies.
 
 `.eshuignore` stays the per-repository override and drops the file's parser
 facts as well.

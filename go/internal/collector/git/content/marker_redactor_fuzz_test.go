@@ -4,6 +4,9 @@
 package gitcontent
 
 import (
+	"errors"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -25,11 +28,18 @@ func FuzzRedactMarker(f *testing.F) {
 	} {
 		f.Add(s)
 	}
+	// The #8833 P1 shapes: a listed key's value on a line the redactor's
+	// continuation does not cover.
+	for _, name := range slices.Sorted(maps.Keys(flowHostileSeeds)) {
+		f.Add(flowSeedBody(flowHostileSeeds[name]))
+	}
 	keys := []string{"npmAuthToken", "npmAuthIdent"}
 	f.Fuzz(func(t *testing.T, in string) {
 		out, _, err := redactMarker(in, keys)
 		if err != nil {
-			if utf8.ValidString(in) && !strings.Contains(in, "\x00") {
+			// errYAMLIndirection is the fail-closed answer for a body that
+			// could hide a credential off its key's line (#8833).
+			if utf8.ValidString(in) && !strings.Contains(in, "\x00") && !errors.Is(err, errYAMLIndirection) {
 				t.Fatalf("unexpected err %v", err)
 			}
 			return
@@ -40,8 +50,10 @@ func FuzzRedactMarker(f *testing.F) {
 		if strings.Count(out, "\n") != strings.Count(in, "\n") {
 			t.Fatalf("line count changed %q -> %q", in, out)
 		}
-		out2, _, _ := redactMarker(out, keys)
-		if out2 != out {
+		// The output is not the source: redaction can cut a flow collection,
+		// and a lexical re-read then fails closed. That is the safe direction,
+		// so it is not a fixed-point failure.
+		if out2, _, err2 := redactMarker(out, keys); !errors.Is(err2, errYAMLIndirection) && out2 != out {
 			t.Fatalf("not fixed point:\n in  %q\n out %q\n out2 %q", in, out, out2)
 		}
 		for _, planted := range []string{

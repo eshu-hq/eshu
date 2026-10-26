@@ -625,6 +625,9 @@ type Instruments struct {
 	// rows, with the same labels as ContentFileUpsertUnclassifiedRows: reason,
 	// snapshot and batch_class (#8950).
 	ContentFileUpsertUnclassifiedBodyBytes metric.Int64Counter
+	// ContentPolicyRawRows is eshu_dp_content_policy_raw_rows (#8833): raw
+	// credential lines still stored on content-store governed paths.
+	ContentPolicyRawRows metric.Int64ObservableGauge
 	// ReconcileParseSkipPersistentDrops counts forced reconciles that skipped
 	// the parse while carrying the active generation's recorded stream drops
 	// (#8185): every recorded path still failed to open, so the skip replays

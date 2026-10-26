@@ -246,7 +246,7 @@ runs:
         test -z "$effective_config"
         proof_status="$(git -C .. status --porcelain --untracked-files=all)"
         test -z "$proof_status"
-        go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestContentFileSecretLinesMigrationBackfillsAndReappliesLive|TestContentFileSecretLinesRetentionPruneCascadesLive|TestSupplyChainRuntimeFallbackIndexRestartSafetyLive)$' | tee "${RUNNER_TEMP}/disposable_storage.jsonl"
+        go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestContentFileSecretLinesMigrationBackfillsAndReappliesLive|TestContentFileSecretLinesRetentionPruneCascadesLive|TestSecretLinesPolicyMigrationFlipsReadinessOnceLive|TestSecretLinesPolicyMigrationIsOneTransactionLive|TestSecretLinesPolicyMigrationUnderWritersLive|TestSupplyChainRuntimeFallbackIndexRestartSafetyLive)$' | tee "${RUNNER_TEMP}/disposable_storage.jsonl"
         python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/disposable_storage.jsonl" --group disposable_storage
         effective_config="$(go env GOFLAGS GOWORK)"
         test -z "$effective_config"

@@ -113,6 +113,13 @@ TABLE = {
         "go/internal/storage/postgres/content_files_language_covering_index_replay_live_test.go": (
             "TestContentFilesLanguageCoveringIndexReplayConvergesLive",
         ),
+        "go/internal/storage/postgres/content_policy_findings_live_test.go": (
+            "TestContentPolicyKeepsEveryRawFindingLive",
+        ),
+        "go/internal/storage/postgres/content_policy_raw_rows_live_test.go": (
+            "TestContentPolicyRawRowsHealsAfterTheNextGeneration",
+            "TestContentPolicyRawRowsIsZeroWithoutAPolicy",
+        ),
         "go/internal/storage/postgres/content_store_policy_upgrade_live_test.go": (
             "TestContentStorePolicyHealsStoredRowsOnTheNextGeneration",
         ),
@@ -255,6 +262,9 @@ TABLE = {
         ),
         "go/internal/storage/postgres/generation_retention_uncovered_writer_live_test.go": (
             "TestGenerationRetentionKeepsUncoveredWritersLive",
+        ),
+        "go/internal/storage/postgres/hardcoded_finding_parity_live_test.go": (
+            "TestSecretDetectorEngineParity",
         ),
         "go/internal/storage/postgres/identity_epoch_active_set_live_test.go": (
             "TestIdentityEpochIgnoresSupersededGenerationRowsLive",
@@ -473,19 +483,6 @@ TABLE = {
         ),
         "go/internal/storage/postgres/projector_queue_claim_marked_guard_interleave_live_test.go": (
             "TestProjectorClaimRetryAgainstNewerInterleave",
-        ),
-        "go/internal/storage/postgres/projector_queue_claim_marked_guard_live_test.go": (
-            "TestProjectorClaimHoldsNewerBehindInvisibleMarkedRetry",
-            "TestProjectorClaimRunsVisibleMarkedRetryBeforeNewer",
-            "TestProjectorClaimStillSupersedesUnmarkedStaleGeneration",
-            "TestProjectorClaimClaimsNewerBehindTerminalMarkedGeneration",
-            "TestProjectorAckKeepsMarkedObsoleteGeneration",
-            "TestProjectorAckStillSupersedesUnmarkedObsoleteGeneration",
-        ),
-        "go/internal/storage/postgres/projector_queue_claim_marked_guard_plan_live_test.go": (
-            "TestProjectorClaimMarkedGuardPlanShape",
-            "TestProjectorClaimMarkedGuardPlanShapeAtScale",
-            "TestProjectorClaimMarkedGuardLockSet",
         ),
     },
 }

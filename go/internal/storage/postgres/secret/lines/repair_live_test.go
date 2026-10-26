@@ -26,7 +26,7 @@ import (
 
 // repairFixture is a database with a derived corpus whose side table was made
 // stale (half its rows deleted) and whose state was moved to not_built, the
-// shape migration 234 leaves (#8833 ruling-3).
+// shape migration 235 leaves (#8833 ruling-3).
 type repairFixture struct {
 	t      *testing.T
 	ctx    context.Context

@@ -78,11 +78,14 @@ func (r Registry) ContentStoreForPath(path string) ContentStore {
 	if !r.governed {
 		return ContentStore{Policy: ContentStoreStore}
 	}
-	definition, ok := r.LookupByPath(path)
+	// lookupPath skips the full definition clone (one allocation per file on
+	// every repository once a definition is governed); only the policy's key
+	// slices are copied.
+	definition, ok := r.lookupPath(path)
 	if !ok {
 		return ContentStore{Policy: ContentStoreStore}
 	}
-	return definition.ContentStore
+	return cloneContentStore(definition.ContentStore)
 }
 
 // HasContentStorePolicy reports whether any definition binds a non-store

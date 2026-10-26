@@ -57,6 +57,8 @@ workflows:
   - go/internal/storage/postgres/container_image_identity_failure_fencing_live_test.go
   - go/internal/storage/postgres/container_image_identity_legacy_cleanup_live_test.go
   - go/internal/storage/postgres/content_file_secret_lines_live_test.go
+  - go/internal/storage/postgres/content_file_secret_lines_policy_live_test.go
+  - go/internal/storage/postgres/content_file_secret_lines_policy_writers_live_test.go
   - go/internal/storage/postgres/cross_scope_completion_ack_atomic_postgres_live_test.go
   - go/internal/storage/postgres/cross_scope_completion_ack_horizon_postgres_live_test.go
   - go/internal/storage/postgres/cross_scope_completion_concurrency_postgres_live_test.go

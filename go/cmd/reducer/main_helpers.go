@@ -191,6 +191,9 @@ func registerReducerObservableGauges(
 	if err != nil {
 		return nil, nil, err
 	}
+	if err := registerContentPolicyRawRowsGauge(postgresRefresher, instruments, meter, contentPolicyRawRowsObserverFor(database)); err != nil {
+		return nil, nil, err
+	}
 
 	graphRefresher, err = registerGraphBackedGauges(instruments, meter, graphReader, graphOrphanObserver, getenv, logger)
 	if err != nil {

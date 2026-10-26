@@ -85,6 +85,10 @@ var preservedHiddenFilesystemFileNames = map[string]struct{}{
 	".sdkmanrc":          {},
 	".terraform-version": {},
 	".swift-version":     {},
+
+	// Yarn settings (#8833). The yarnrc definition stores it marker-redacted,
+	// so the filesystem copy keeps it like the git-sourced mode does.
+	".yarnrc.yml": {},
 }
 
 // preserveFilesystemHiddenPath reports whether the managed-workspace copy keeps

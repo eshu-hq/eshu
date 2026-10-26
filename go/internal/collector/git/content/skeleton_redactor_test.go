@@ -28,6 +28,9 @@ func TestRedactSkeletonLineRules(t *testing.T) {
 		{"close brace comma", "  },", "  },"},
 		{"close bracket", "]", "]"},
 		{"object opener", "tags = {", "tags = {"},
+		// A secret-named opener is a finding (block-opener extra) and keeps its
+		// structure: the line holds no value.
+		{"secret-named opener", "app_secrets = {", "app_secrets = {"},
 		{"list opener", "  zones = [", "  zones = ["},
 		{"json object opener", "  \"tags\": {", "  \"tags\": {"},
 		{"empty object", "labels = {}", "labels = {}"},
@@ -58,8 +61,9 @@ func TestRedactSkeletonLineRules(t *testing.T) {
 		{"interpolation", "name = \"${var.prefix}-db\"", "name = REDACTED_value"},
 		{"inline object", "tags = { Name = \"x\" }", "tags = REDACTED_value"},
 		{"inline list", "zones = [\"a\", \"b\"]", "zones = REDACTED_value"},
-		{"trailing comment", "count = 3 # three", "count = REDACTED_value"},
-		{"url userinfo", "endpoint = \"https://admin:hunter2@db.example.com/x\"", "endpoint = REDACTED_value"},
+		{"trailing comment", "count = 3 # three", "count = 3"},
+		{"string with trailing comment", "region = \"us-east-1\" # main", "region = REDACTED_value"},
+		{"url userinfo", "endpoint = \"https://admin:hunter2@db.example.com/x\"", "endpoint = REDACTED_password_literal"},
 		{"uppercase reference is not a reference", "x = VAR.thing", "x = REDACTED_value"},
 		// A detector-flagged key is checked first and keeps its finding kind.
 		{"password literal", "db_password = \"hunter2hunter2\"", "db_password = REDACTED_password_literal"},
@@ -90,13 +94,17 @@ func TestRedactSkeletonLineRules(t *testing.T) {
 		{"no value", "orphan =", "REDACTED_value"},
 		{"unterminated string fails closed", "name = \"abc", "REDACTED_value"},
 		{"unterminated flagged string", "password = \"abcdefghijk", "REDACTED_password_literal"},
+		// A key-named variable with a value under the six-character floor is no
+		// finding, and key = REDACTED_value would be one, so the line goes whole.
+		{"short value under a key word", "api_token = \"abc\"", "REDACTED_value"},
+		{"spaced value under a key word", "db_password = \"two words\"", "REDACTED_value"},
 		// A credential in the key itself never survives.
 		{"aws key as map key", "  \"AKIAABCDEFGHIJKLMNOP\" = \"prod\"", "  REDACTED_aws_access_key"},
 		{"stripe as map key", "  \"sk_live_abcdefgh12345678\" = 1", "  REDACTED_value"},
 		{"key value inside a quoted key", "  \"client_secret = abcdefghij\": 1,", "  REDACTED_secret_literal"},
 		// A quoted key is kept only when it reads as a name; free text in a key
 		// (URL userinfo, a password with symbols, a CIDR, an ARN) takes the line.
-		{"url userinfo as a key", "  \"https://u:hunter2@h.example.com\" = true", "  REDACTED_value"},
+		{"url userinfo as a key", "  \"https://u:hunter2@h.example.com\" = true", "  REDACTED_password_literal"},
 		{"symbols in a key", "  \"P@ss!w0rd\": 1,", "  REDACTED_value"},
 		{"cidr key", "  \"10.0.0.0/16\" = \"office\"", "  REDACTED_value"},
 		{"spaced key", "  \"my key\" = 1", "  REDACTED_value"},
@@ -158,7 +166,7 @@ EOF
 REDACTED_private_key
 REDACTED_value
 REDACTED_value
-endpoint = REDACTED_value
+endpoint = REDACTED_password_literal
 enabled  = true
 `
 
@@ -200,25 +208,23 @@ const skeletonTfvarsJSON = `{
 const skeletonTfvarsJSONWant = `{
   "region": REDACTED_value,
   "replicas": 2,
-  "db_password": REDACTED_value,
+  "db_password": REDACTED_password_literal,
   "nested": {
-    "client_secret": REDACTED_value,
+    "client_secret": REDACTED_secret_literal,
     "zones": [
       REDACTED_value
       REDACTED_value
     ]
   },
-  "endpoint": REDACTED_value
+  "endpoint": REDACTED_password_literal
 }
 `
 
 // TestRedactSkeletonTfvarsJSONBody covers the "key": value form. A value
 // replacement keeps its trailing comma; a whole-line marker (a bare list
-// element) does not, so every whole-line marker has one shape. Migration 138
-// cannot see a JSON-quoted key (the closing quote sits between the key word and
-// the colon), so db_password is no finding today and becomes REDACTED_value;
-// #8833's detector migration adds JSON-quoted keys, and the redactor then marks
-// the same lines with their kind through the shared detector.
+// element) does not, so every whole-line marker has one shape. The detector
+// migration reads JSON-quoted keys and URL userinfo, so those lines keep their
+// finding kind.
 func TestRedactSkeletonTfvarsJSONBody(t *testing.T) {
 	t.Parallel()
 
@@ -292,26 +298,26 @@ func TestRedactSkeletonFailsClosedAcrossLines(t *testing.T) {
 		{"heredoc after a comment closing line", "/* a\n*/ x = <<EOF\nPassw0rdHunter2: 1\nEOF\nn = 2\n", "REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n"},
 		{"comment closing line stays closed", "/* a\n*/ x = 1 /* b */\nn = 2\n", "REDACTED_value\nREDACTED_value\nn = 2\n"},
 		{"block comment closed on its line", "x = 1 /* a */\nm = 2\n", "x = REDACTED_value\nm = 2\n"},
-		{"slash star in a line comment opens nothing", "n = 1 # see /* here\nm = 2\n", "n = REDACTED_value\nm = 2\n"},
+		{"slash star in a line comment opens nothing", "n = 1 # see /* here\nm = 2\n", "n = 1\nm = 2\n"},
 		{"bare token after a comment", "# rotated\ndGhpc2lzYXNlY3JldHRva2Vu==\n", "REDACTED_value\nREDACTED_value\n"},
 		// A <<ID in a line comment or an unterminated string is text, not a
 		// heredoc opener, so a block comment below it still opens (rev-8833
 		// round 3, H1).
 		{
 			"heredoc marker in a # comment", "x = 1 # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
-			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+			"x = 1\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
 		},
 		{
 			"heredoc marker in a // comment", "x = 1 // <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
-			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+			"x = 1\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
 		},
 		{
 			"dash heredoc marker in a # comment", "x = 1 # <<-EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
-			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+			"x = 1\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
 		},
 		{
 			"squiggly marker is no heredoc", "x = 1 # <<~EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
-			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+			"x = 1\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
 		},
 		{
 			"heredoc marker after a closed string and a comment", "x = \"a\" # <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
@@ -323,7 +329,7 @@ func TestRedactSkeletonFailsClosedAcrossLines(t *testing.T) {
 		},
 		{
 			"block comment opener after the fake heredoc", "x = 1 # <<EOF\n/* c */ y = 2 /* d\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",
-			"x = REDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
+			"x = 1\nREDACTED_value\nREDACTED_value\nREDACTED_value\nREDACTED_value\nn = 2\n",
 		},
 		{
 			"heredoc marker in a line-start comment", "# a <<EOF\n/* c\nEOF\nPassw0rdHunter2: 1\n*/\nn = 2\n",

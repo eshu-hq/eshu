@@ -29,6 +29,12 @@ var benchExemptParsers = map[string]string{
 	"raw_text": "raw_text is an opaque passthrough: parseRawText captures content_body " +
 		"verbatim for downstream relationship extraction without invoking any grammar. " +
 		"Its cost is a single os.ReadFile, so an ns/op figure would track I/O, not parse work.",
+	"tfvars": "tfvars is a routing-only definition (#8833): parseDefinition sends it to " +
+		"parseHCL, which the hcl benchmark already measures, so a separate figure would " +
+		"duplicate that number.",
+	"yarnrc": "yarnrc is a routing-only definition (#8833): parseDefinition sends it to " +
+		"parseYAML, which the yaml benchmark already measures, so a separate figure would " +
+		"duplicate that number.",
 }
 
 // registeredParserKeys returns every parser key in the default registry in

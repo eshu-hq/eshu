@@ -8,9 +8,11 @@ import (
 	"testing"
 )
 
-// BenchmarkRedactMarker measures the marker redactor on three body shapes: a
-// typical .yarnrc.yml, a 1 MiB body with no credential, and a 1 MiB body where
-// every fifth line holds a credential. The redactor runs once per governed
+// BenchmarkRedactMarker measures the marker redactor on five body shapes: a
+// typical .yarnrc.yml, a 1 MiB body with no credential, a 1 MiB body where
+// every fifth line holds a credential, and the two flow-style shapes that take
+// the YAML parse (a typical .yarnrc.yml with a flow scope and a 1 MiB list of
+// flow entries; #8833). The redactor runs once per governed
 // file per collection (snapshot and emit), so its cost scales with governed
 // file bytes, not repository size.
 func BenchmarkRedactMarker(b *testing.B) {
@@ -18,7 +20,11 @@ func BenchmarkRedactMarker(b *testing.B) {
 	typical := "nodeLinker: node-modules\nnpmRegistryServer: \"https://registry.example.com/\"\nnpmAuthToken: abcdef0123456789\nenableTelemetry: false\n"
 	clean := strings.Repeat("compressionLevel: mixed\nenableGlobalCache: false\n", 1<<20/50)
 	dense := strings.Repeat("a: 1\nb: 2\nc: 3\nd: 4\nnpmAuthToken: abcdef0123456789\n", 1<<20/60)
-	for name, body := range map[string]string{"typical": typical, "clean_1MiB": clean, "dense_1MiB": dense} {
+	flowTypical := typical + "npmScopes:\n  acme: {npmRegistryServer: \"https://r.example.com/\", npmAuthToken: abcdef0123456789}\n"
+	flow := "npmScopes:\n" + strings.Repeat("  - {name: a, npmAuthToken: abcdef0123456789}\n", 1<<20/46)
+	for name, body := range map[string]string{
+		"typical": typical, "clean_1MiB": clean, "dense_1MiB": dense, "flow_typical": flowTypical, "flow_1MiB": flow,
+	} {
 		b.Run(name, func(b *testing.B) {
 			b.SetBytes(int64(len(body)))
 			b.ReportAllocs()

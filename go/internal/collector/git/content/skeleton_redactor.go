@@ -5,6 +5,7 @@ package gitcontent
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -150,25 +151,64 @@ func (s *skeletonState) place(line, trimmed string) string {
 	switch {
 	case trimmed == "" || skeletonMarkerValue.MatchString(trimmed) || isSkeletonStructural(trimmed):
 		return line
-	case strings.HasPrefix(trimmed, "#"), strings.HasPrefix(trimmed, "//"), strings.HasPrefix(trimmed, "/*"):
+	case strings.HasPrefix(trimmed, "#"), strings.HasPrefix(trimmed, "//"):
+		return s.lineComment(line, trimmed)
+	case strings.HasPrefix(trimmed, "/*"):
 		return s.wholeLine(line)
 	}
 	return s.keyValue(line)
 }
 
+// lineComment stores a # or // comment line. It keeps only the github.com URLs
+// the comment names (the raw Terraform evidence reads them there); its text
+// goes. A finding comes first.
+func (s *skeletonState) lineComment(line, trimmed string) string {
+	if findingKind(line) == "" {
+		if urls := githubURLsIn(trimmed); len(urls) > 0 {
+			opener := "#"
+			if strings.HasPrefix(trimmed, "//") {
+				opener = "//"
+			}
+			kept := opener + " " + strings.Join(urls, " ")
+			if kept != trimmed {
+				s.replaced++
+			}
+			return leadingWhitespace(line) + kept
+		}
+	}
+	return s.wholeLine(line)
+}
+
 // keyValue handles a line that may be key = value; anything it cannot place
-// becomes a whole-line marker.
+// becomes a whole-line marker. A stored line must never be a finding its raw
+// line is not: api_token = "abc" is no finding (the value is under the
+// detector's six-character floor), but api_token = REDACTED_value would be,
+// so such a line becomes the whole-line REDACTED_value instead.
 func (s *skeletonState) keyValue(line string) string {
+	replaced := s.replaced
+	keptOpener := s.keptOpener
+	out := s.placeKeyValue(line)
+	if out != line && findingKind(out) != "" && findingKind(line) == "" {
+		s.replaced = replaced
+		s.keptOpener = keptOpener
+		return s.wholeLine(line)
+	}
+	return out
+}
+
+// placeKeyValue is keyValue before the no-new-finding check.
+func (s *skeletonState) placeKeyValue(line string) string {
 	parts := skeletonKeyValue.FindStringSubmatch(line)
 	if parts == nil {
-		return s.wholeLine(line)
+		return s.bareElement(line)
 	}
 	indent, key, separator, rest := parts[1], parts[2], parts[3], strings.TrimRight(parts[4], " \t")
 	valueStart := len(indent) + len(key) + len(separator)
 	// A detector match that starts inside the key or separator is a credential
-	// in the key itself, so the key cannot be kept.
+	// in the key itself, so the key cannot be kept. A block-opener match
+	// (app_secrets = {) reads the key name by design and holds no value.
 	for _, span := range detect.Spans(line) {
-		if span.Start < valueStart {
+		if span.Start < valueStart && !strings.HasSuffix(strings.TrimRight(line[span.Start:span.End], " \t"), "{") {
 			return s.wholeLine(line)
 		}
 	}
@@ -198,12 +238,82 @@ func (s *skeletonState) keyValue(line string) string {
 		return head + markerPrefix + kind + comma
 	}
 	// A detector match with no kind is no finding, but the value holds a
-	// token-shaped string, so no allowlist shape (var.sk_live_...) keeps it.
-	if len(detect.Spans(line)) == 0 && skeletonAllowed(value) {
+	// token-shaped string, so no allowlist or evidence shape (var.sk_live_...)
+	// keeps it and no text from the line survives.
+	if len(detect.Spans(line)) > 0 {
+		s.replaced++
+		return head + skeletonValueMarker + comma
+	}
+	if kept, ok := skeletonEvidence(key, value); ok {
+		if kept == value {
+			return line
+		}
+		s.replaced++
+		return head + kept + comma
+	}
+	if skeletonAllowed(value) {
 		return line
 	}
-	s.replaced++
-	return head + skeletonValueMarker + comma
+	return s.valueWithText(line, head, key, value, comma)
+}
+
+// valueWithText stores a value the allowlist does not keep whole: a value with
+// a trailing comment, or a string with free text. The value part is kept when
+// it is an allowlist or evidence shape (or an earlier marker) and becomes
+// REDACTED_value otherwise. The github.com URLs the comment, or the replaced
+// value, names survive as a "# https://github.com/<path>" comment; all other
+// text goes.
+func (s *skeletonState) valueWithText(line, head, key, value, comma string) string {
+	valuePart, comment, hasComment := splitTrailingComment(value)
+	if !hasComment {
+		valuePart = value
+	}
+	stored := skeletonValueMarker
+	if kept, ok := skeletonEvidence(key, valuePart); ok {
+		stored = kept
+	} else if skeletonAllowed(valuePart) || skeletonMarkerValue.MatchString(valuePart) {
+		stored = valuePart
+	}
+	var urls []string
+	if stored == skeletonValueMarker {
+		urls = githubURLsIn(valuePart)
+	}
+	for _, url := range githubURLsIn(comment) {
+		if !slices.Contains(urls, url) {
+			urls = append(urls, url)
+		}
+	}
+	out := head + stored
+	if len(urls) > 0 {
+		out += " # " + strings.Join(urls, " ")
+	}
+	out += comma
+	if out != line {
+		s.replaced++
+	}
+	return out
+}
+
+// bareElement keeps a list element that is exactly a github.com URL or an OIDC
+// subject (skeletonEvidenceValue), unless the line is a finding; every other
+// line it cannot place becomes a whole-line marker.
+func (s *skeletonState) bareElement(line string) string {
+	trimmed := strings.TrimSpace(line)
+	value, comma := trimmed, ""
+	if strings.HasSuffix(value, ",") {
+		value, comma = strings.TrimRight(strings.TrimSuffix(value, ","), " \t"), ","
+	}
+	// Any detector match, with or without a kind, takes the line.
+	if len(detect.Spans(line)) == 0 {
+		if kept, ok := skeletonEvidenceValue(value); ok {
+			if kept == value {
+				return line
+			}
+			s.replaced++
+			return leadingWhitespace(line) + kept + comma
+		}
+	}
+	return s.wholeLine(line)
 }
 
 // wholeLine replaces a line it cannot keep, preserving its indent.
@@ -221,14 +331,10 @@ func (s *skeletonState) wholeLine(line string) string {
 	return leadingWhitespace(line) + markerPrefix + kind
 }
 
-// findingKind returns the kind migration 138 reports for one raw line, or ""
-// when the line is no finding: the line gate must match and the CASE must name
-// a kind.
+// findingKind returns the kind the detector migration stores for one raw line,
+// or "" when the line is no finding (detect.Finding).
 func findingKind(line string) string {
-	if len(detect.Spans(line)) == 0 {
-		return ""
-	}
-	return detect.Classify(line)
+	return detect.Finding(line)
 }
 
 func skeletonAllowed(value string) bool {

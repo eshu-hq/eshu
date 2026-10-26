@@ -320,7 +320,7 @@ func (e *Engine) parseDefinition(
 		return e.parseGo(resolvedPath, isDependency, options)
 	case "gomod":
 		return e.parseGoModule(resolvedPath, isDependency, options)
-	case "hcl":
+	case "hcl", "tfvars":
 		return e.parseHCL(resolvedPath, isDependency, options)
 	case "gradle", "gradle_wrapper", "sbt":
 		return e.parseJVMBuild(definition.Language, repoRoot, resolvedPath, isDependency, options)
@@ -342,7 +342,7 @@ func (e *Engine) parseDefinition(
 		return parseRawText(resolvedPath, isDependency), nil
 	case "node_lockfile":
 		return e.parseNodeLockfile(resolvedPath, isDependency, options)
-	case "yaml":
+	case "yaml", "yarnrc":
 		return e.parseYAML(resolvedPath, isDependency, options)
 	default:
 		return nil, fmt.Errorf(

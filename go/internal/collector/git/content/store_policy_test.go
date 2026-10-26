@@ -157,7 +157,7 @@ func TestApplyContentStorePassesURLKeysToTheMarker(t *testing.T) {
 	store := markerStore()
 	store.URLUserinfoKeys = []string{"npmRegistryServer"}
 	got := ApplyContentStore(store, "npmRegistryServer: \"https://u:"+seededCredential+"@npm.example.com/\"\n")
-	if got.Body != "npmRegistryServer: \"https://REDACTED_secret_literal@npm.example.com/\"\n" || got.Outcome != StoreOutcomeRedacted {
+	if got.Body != "npmRegistryServer: \"https://REDACTED_password_literal@npm.example.com/\"\n" || got.Outcome != StoreOutcomeRedacted {
 		t.Fatalf("got %+v", got)
 	}
 }

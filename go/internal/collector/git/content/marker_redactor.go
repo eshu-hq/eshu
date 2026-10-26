@@ -39,9 +39,13 @@ var (
 	// errTooLarge marks a body over MaxGovernedBodyBytes.
 	errTooLarge = errors.New("content body exceeds the governed size cap")
 
-	// envReference is the only value a listed key may keep: an exact ${NAME}.
-	// A ${NAME:-literal} default carries a literal and is redacted.
-	envReference = regexp.MustCompile(`^\$\{[A-Za-z_][A-Za-z0-9_]*\}$`)
+	// envReference is the only value a listed key may keep: an exact ${NAME},
+	// or ${NAME-} / ${NAME:-} whose empty default holds no literal. A
+	// ${NAME:-literal} default carries a literal and is redacted.
+	envReference = regexp.MustCompile(`^\$\{[A-Za-z_][A-Za-z0-9_]*(:?-)?\}$`)
+	// envDefault is ${NAME-default} or ${NAME:-default}; group 1 is everything
+	// up to the default, group 2 the default.
+	envDefault = regexp.MustCompile(`^(\$\{[A-Za-z_][A-Za-z0-9_]*:?-)(.+)\}$`)
 	// existingMarker is a value an earlier pass already replaced, which keeps
 	// the redactor a fixed point.
 	existingMarker = regexp.MustCompile(`^` + markerPrefix + `(` + strings.Join(detect.Kinds(), "|") + `)$`)
@@ -95,6 +99,12 @@ func redactMarkerWithURLKeys(body string, keys, urlKeys []string) (string, int, 
 	lines := strings.Split(body, "\n")
 	for i, line := range lines {
 		lines[i] = state.redactLine(line)
+	}
+	// The YAML check reads the redacted lines: a listed key's value that leaves
+	// the key's line is safe only where the redactor replaced it (#8833).
+	listed := append(append([]string{}, keys...), urlKeys...)
+	if err := checkYAMLIndirection(body, lines, listed, keyPattern, state.urlKeyPattern); err != nil {
+		return "", 0, err
 	}
 	return strings.Join(lines, "\n"), state.replaced, nil
 }
@@ -311,7 +321,12 @@ func (s *markerState) redactInState(line string) (string, bool) {
 			s.replaced++
 			return indent + markerPrefix + defaultMarkerKind, true
 		}
-		s.continuationOpen = false
+		// A comment line at or below the key's indent is not the value and does
+		// not end it: `key:` newline `# note` newline `  value` is one entry.
+		// The ordinary pass still reads the comment for a detector match.
+		if trimmed[0] != '#' {
+			s.continuationOpen = false
+		}
 	}
 	return line, false
 }
@@ -327,8 +342,10 @@ func pemLeftOpen(line string) bool {
 	return pemEnd.FindStringIndex(line[last[1]:]) == nil
 }
 
+// isSequenceItem reports whether trimmed opens a block sequence entry: a dash
+// alone or followed by a space or a tab.
 func isSequenceItem(trimmed string) bool {
-	return trimmed == "-" || strings.HasPrefix(trimmed, "- ")
+	return trimmed == "-" || strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "-\t")
 }
 
 // redactListedKey replaces the value of the first listed key on the line and

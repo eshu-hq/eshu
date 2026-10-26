@@ -659,6 +659,16 @@ tests:
     class: postgres_ci
     reason: "#7728 disposable PostgreSQL 18 proof that the guarded language-index swap converges (fresh and upgrade) and that tracked plus untracked replays leave the index untouched, enrolled in the live-postgres-readiness runner; bridges the family ESHU_CONTENT_FILES_LANGUAGE_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN. local run passed fresh+upgrade in 4.16s wall on postgres:18.6 on 2026-10-12"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_policy_findings_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 disposable PostgreSQL proof that a seeded .yarnrc.yml and terraform.tfvars, stored through the default registry's marker and skeleton policies and the production content writer, keep every raw hardcoded-secret finding at its original line with its raw kind in content_file_secret_lines (the side table investigate_hardcoded_secrets reads) under migration 235, and that no seeded credential reaches content, content_lower, or line_text; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_policy_raw_rows_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 disposable PostgreSQL proof that eshu_dp_content_policy_raw_rows (ContentPolicyRawRowsStore) counts the verbatim credential lines of .yarnrc.yml and tfvars rows written before the content-store binding, and reads zero after the next generation stores the same files through the default registry's marker and skeleton policies; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/content_store_policy_upgrade_live_test.go
     tag: ~
     class: postgres_ci
@@ -828,6 +838,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#7472 disposable PostgreSQL 18 proof that retention keeps an uncovered superseded writer (reconcile-probe evidence) at any age while still pruning a covered writer, enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed in 1.30s wall with the full 188-migration setup on postgres:18 on 2026-10-10"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/hardcoded_finding_parity_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 engine-parity proof that migration 235's eshu_secret_line_findings (Postgres ARE) and go/internal/secret/detect.Finding (Go RE2) report the same (line_number, finding_kind) for every line of the gap-table, six-kind marker, extras, and multi-line corpus, with the known Go-superset Unicode lines asserted explicitly; isolated bootstrapped schema per test"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/identity_epoch_active_set_live_test.go
     tag: ~

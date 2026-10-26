@@ -47,6 +47,11 @@ const (
 	FailureNotText FailureReason = "not_text"
 	// FailureTooLarge means the body exceeded MaxGovernedBodyBytes.
 	FailureTooLarge FailureReason = "too_large"
+	// FailureYAMLIndirection means a listed credential key's value is a YAML
+	// alias, the body holds an explicit "? key" entry, or a listed key's value
+	// reaches a line the redactor left alone (flow style): marker mode cannot
+	// reach the value, so the path is stored as a metadata row (#8833).
+	FailureYAMLIndirection FailureReason = "yaml_indirection"
 	// FailureRedactorError means the redactor returned an unclassified error.
 	FailureRedactorError FailureReason = "redactor_error"
 	// FailureRedactorPanic means the redactor panicked.
@@ -161,6 +166,8 @@ func failureReason(err error) FailureReason {
 		return FailureNotText
 	case errors.Is(err, errTooLarge):
 		return FailureTooLarge
+	case errors.Is(err, errYAMLIndirection):
+		return FailureYAMLIndirection
 	default:
 		return FailureRedactorError
 	}

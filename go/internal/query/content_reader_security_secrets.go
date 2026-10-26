@@ -245,13 +245,13 @@ func hardcodedSecretFilters(req codequery.HardcodedSecretInvestigationRequest) (
 
 // hardcodedSecretLegacyScanQuery builds the corpus-scan read that served the
 // investigation before migration 138 (#7125) and now serves it while
-// content_file_secret_lines is not published ready. It is the pre-change
-// builder, unchanged: hardcoded_secret_legacy_golden_test.go keeps a frozen
-// copy and a guard requires this query to equal it byte for byte for every
-// request shape, and the live differential requires identical rows in identical
-// order to the side-table read. It interpolates hardcodedSecretSQLPattern and
-// hardcodedSecretSQLSuppressionPredicate, so it tracks the same Go sources of
-// truth as the migration.
+// content_file_secret_lines is not published ready. It classifies as the side
+// table's derivation function does (migration 235, #8833): the marker-prefix
+// substring gate OR'd with hardcodedSecretSQLPattern, and the CASE arms from
+// go/internal/secret/detect. hardcoded_secret_legacy_golden_test.go keeps a
+// frozen copy and a guard requires this query to equal it byte for byte for
+// every request shape, and the live differential requires identical rows in
+// identical order to the side-table read.
 func hardcodedSecretLegacyScanQuery(
 	req codequery.HardcodedSecretInvestigationRequest,
 ) (string, []any) {
@@ -269,7 +269,7 @@ func hardcodedSecretLegacyScanQuery(
 		WITH candidate_files AS (
 		  SELECT repo_id, relative_path, coalesce(language, '') AS language, content
 		  FROM content_files
-		  WHERE content ~* $%d
+		  WHERE (strpos(content, '%s') > 0 OR content ~* $%d)
 		  %s
 		),
 		candidate_lines AS (
@@ -280,19 +280,13 @@ func hardcodedSecretLegacyScanQuery(
 		    lines.line_number::int AS line_number,
 		    lines.line_text,
 		    CASE
-		      WHEN lines.line_text ~* 'AKIA[0-9A-Z]{16}' THEN 'aws_access_key'
-		      WHEN lines.line_text ~* '-----BEGIN [A-Z ]*PRIVATE KEY-----' THEN 'private_key'
-		      WHEN lines.line_text ~* 'xox[baprs]-[A-Za-z0-9-]{10,}' THEN 'slack_token'
-		      WHEN lines.line_text ~* '(api[_-]?key|apikey|token)[[:space:]]*[:=]' THEN 'api_token'
-		      WHEN lines.line_text ~* '(password|passwd|pwd)[[:space:]]*[:=]' THEN 'password_literal'
-		      WHEN lines.line_text ~* '(secret|client[_-]?secret|private[_-]?key|authorization)[[:space:]]*[:=]' THEN 'secret_literal'
-		      ELSE ''
+%s		      ELSE ''
 		    END AS finding_kind,
 		    (%s) AS suppressed
 		  FROM candidate_files f
 		  CROSS JOIN LATERAL regexp_split_to_table(f.content, E'\n')
 		    WITH ORDINALITY AS lines(line_text, line_number)
-		  WHERE lines.line_text ~* $%d
+		  WHERE (strpos(lines.line_text, '%s') > 0 OR lines.line_text ~* $%d)
 		)
 		SELECT repo_id, relative_path, language, line_number, line_text, finding_kind
 		FROM candidate_lines
@@ -301,9 +295,25 @@ func hardcodedSecretLegacyScanQuery(
 		  AND ($%d OR NOT suppressed)
 		ORDER BY repo_id, relative_path, line_number, finding_kind
 		LIMIT $%d OFFSET $%d
-	`, nextArg, where, hardcodedSecretSQLSuppressionPredicate(), nextArg, kindFilterArg, kindFilterArg, includeSuppressedArg, limitArg, offsetArg)
+	`, detect.MarkerPrefix, nextArg, where, hardcodedSecretSQLCaseArms(), hardcodedSecretSQLSuppressionPredicate(),
+		detect.MarkerPrefix, nextArg, kindFilterArg, kindFilterArg, includeSuppressedArg, limitArg, offsetArg)
 	args = append(args, hardcodedSecretSQLPattern, strings.Join(req.FindingKinds, "\x1f"), req.IncludeSuppressed, req.Limit, req.Offset)
 	return query, args
+}
+
+// hardcodedSecretSQLCaseArms renders the classification CASE arms from
+// go/internal/secret/detect, in migration order, so the legacy scan classifies
+// exactly as the side table's derivation function does.
+func hardcodedSecretSQLCaseArms() string {
+	var b strings.Builder
+	for _, arm := range detect.ArmSources() {
+		op := "~*"
+		if arm.CaseSensitive {
+			op = "~"
+		}
+		fmt.Fprintf(&b, "\t\t      WHEN lines.line_text %s '%s' THEN '%s'\n", op, strings.ReplaceAll(arm.Regex, "'", "''"), arm.Kind)
+	}
+	return b.String()
 }
 
 func hardcodedSecretLegacyScanFilters(req codequery.HardcodedSecretInvestigationRequest) ([]string, []any, int) {

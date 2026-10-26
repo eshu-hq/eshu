@@ -371,6 +371,32 @@ recent shipped work grouped by feature area.
   gauge and `eshu_dp_collector_terminal_failure_acknowledgements_total` counter
   cover the rest. The 3 AM runbook says when to acknowledge and when not to.
 
+### Collector: .yarnrc.yml and *.tfvars are stored redacted
+
+- **Credential-bearing files bound to the content-store policy**
+  ([#8833](https://github.com/eshu-hq/eshu/issues/8833)). `*.tfvars` and
+  `*.tfvars.json` now bind through a dedicated `tfvars` definition (hcl engine)
+  stored as an allowlist skeleton, and `.yarnrc.yml` through a dedicated
+  `yarnrc` definition (yaml engine) stored with `npmAuthToken` and
+  `npmAuthIdent` values replaced at any nesting and only the userinfo of its
+  registry and proxy URLs replaced. Parser facts, path search, the tree, and the
+  counts are unchanged. The registry fingerprint moves, so each repository
+  re-collects once at its next forced snapshot.
+- **Migrations 234 and 235: marker arm and detector extras.**
+  `eshu_secret_line_findings` now keeps a `REDACTED_<kind>` line's raw kind
+  (a case-sensitive marker arm), and detects `npmAuthIdent`, JSON-quoted keys,
+  `user:pass@` URL userinfo, and HCL blocks that name a secret. 234 adds
+  `policy_version` to the side table's state row. 235 replaces the function
+  and, in the same transaction, moves the state to `not_built`; the reducer's
+  repair then rebuilds the side table, and until it publishes, investigation
+  reads use the legacy scan, which applies the same policy. Neither migration
+  locks `content_files`. On a 150k-file corpus the shipped function adds 7,956
+  findings to 16,403 (none lost) and costs 24 to 33% more per derived file;
+  see `docs/internal/evidence/8833-detector-migration.md`.
+- **`eshu_dp_content_policy_raw_rows`** counts raw credential lines still
+  stored on governed paths; it is the exit signal of the #8813 cleanup runbook.
+
+
 ### Collector: skeleton redactor and URL userinfo rule for the content-store policy
 
 - **Allowlist-skeleton redactor and URL-userinfo keys, not yet bound**
