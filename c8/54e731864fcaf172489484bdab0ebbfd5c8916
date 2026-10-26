@@ -1,0 +1,20 @@
+go/internal/collector/observability/loki/SHIM_MAP.md
+  h_78a442cba0b3e6 77-79,86-87
+go/cmd/collector-loki/extraction_prep_mirror_test.go
+  h_78a442cba0b3e6 13-17,81-93
+go/internal/collector/observability/loki/source_parity_8860_test.go
+  h_78a442cba0b3e6 35,52-59,148,303-337
+go/internal/collector/observability/loki/EXTRACTION_PREP.md
+  h_78a442cba0b3e6 28-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c854e731864fcaf172489484bdab0ebbfd5c8916",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
