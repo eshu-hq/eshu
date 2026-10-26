@@ -75,18 +75,33 @@ job and fails when:
   the cut itself and does not change when tests are enrolled, so an unrelated
   enrollment cannot trip it. If the live-plan bound trips, refresh the weights;
 - more than 40 planned tests, or more than 2 planned packages, have no measured
-  weight;
+  weight. New tests run on `default_test_seconds` / `default_package_seconds`,
+  so a feature PR must not edit `specs/live-postgres-readiness-weights.v1.json`:
+  the gate stays green while the defaulted count is at or under the cap, and
+  review — not the gate — flags a weights edit inside a feature PR. Only a
+  standalone refit PR (see below) touches the file;
 - the shard job's `timeout-minutes` stops matching the 1800 s cap the gate
   uses;
 - a weights file is malformed, has duplicate keys, or a non-finite or negative
   number;
 - a shard report cut under other weights passes the aggregate.
 
-## Refresh the weights
+## Refit the weights
 
-Refresh after a batch of new tests, when the gate fails, or when a shard job
-runs near its cap. Take two or more green full runs of the workflow, download
-each shard job's log, put each run's four logs in its own directory, and run:
+A refit is a standalone bot-or-owner PR that touches only
+`specs/live-postgres-readiness-weights.v1.json`. It is built from green `main`
+shard logs — never from a feature branch, and never bundled with a feature
+change — so it cannot conflict with feature work, because no feature PR
+touches the file. One entry per line keeps the diff a local hunk instead of a
+whole-file rewrite.
+
+Trigger a refit when the drift count passes 20 defaulted tests (half the
+40-test gate cap), when the gate fails, when a shard job runs near its cap, or
+on a regular schedule. Either trigger shape is acceptable; the choice is the
+reviewer's call on the refit PR.
+
+Take two or more green full runs of the workflow on `main`, download each
+shard job's log, put each run's four logs in its own directory, and run:
 
 ```bash
 gh api repos/eshu-hq/eshu/actions/jobs/<JOB_ID>/logs > <RUN_DIR>/shard<N>.log   # per shard job
@@ -101,35 +116,29 @@ readiness proofs" step duration. Read both from
 `gh api repos/eshu-hq/eshu/actions/runs/<RUN_ID>/jobs`: the job's
 `completed_at - started_at`, and the matching entry under `steps`. The refresher keeps only tests in the current
 inventory, so a test missing from every log uses the default until the next
-refresh. Commit the regenerated file with the change that needed it, then run
-the shard contract test again.
+refit. Commit only the regenerated weights file in the refit PR, then run
+the shard contract test again on it.
 
 Keep the earlier runs as extra `--sample` arguments, each in its own directory,
 and pass `--fixed-job-seconds` as the mean over every shard job of every
 sample. The refresh after the first wave on the weighted cut used runs
 40047410741, 40049588589, and 40071537963 (12 shard jobs, mean 85.75 s). The
 shard job logs of a run stay downloadable for the retention window of
-GitHub Actions logs, so refresh before they expire.
+GitHub Actions logs, so refit before they expire. Use only runs whose four
+shard jobs all passed, since a failed shard log misses its package groups
+and the refresher fails closed.
 
-### A PR that enrolls more than 40 unweighted tests
+### A feature PR that trips the drift gate
 
-The hermetic job fails the drift check, and no green full run has logs for the
-new tests. The shard jobs do not wait on the hermetic job and run with
-`fail-fast: false`, so they still finish on the PR head with default prices for
-the new tests. Take the logs from that run:
-
-```bash
-gh api repos/eshu-hq/eshu/actions/runs/<RUN_ID>/jobs \
-  --jq '.jobs[] | select(.name | test("shard")) | [.id, .name] | @tsv'
-gh api repos/eshu-hq/eshu/actions/jobs/<JOB_ID>/logs > <RUN_DIR>/shard<N>.log   # per shard job
-python3 scripts/lib/live_postgres_readiness_weights_refresh.py \
-  --out specs/live-postgres-readiness-weights.v1.json \
-  --fixed-job-seconds <SECONDS> --sample <RUN_ID>=<RUN_DIR>
-```
-
-Use this run only when all four shard jobs passed, since a failed shard log
-misses its package groups and the refresher fails closed. Add it as an extra
-`--sample` next to the earlier runs, then commit the regenerated file and push.
+The hermetic job fails the drift check, and the shard jobs do not wait on the
+hermetic job: they run with `fail-fast: false`, so they still finish on the PR
+head with default prices for the new tests. Do not commit a regenerated
+weights file to the feature PR — review flags that edit, and the gate cannot
+tell who made it. Instead, land the tests first in batches that keep the total
+defaulted count at or under 40, then open the standalone refit above from
+green `main` logs. The feature run's shard logs still prove the new tests
+pass; they just cannot feed the refit, because the refit reads only green
+`main` runs.
 
 ## When a shard is still too slow
 

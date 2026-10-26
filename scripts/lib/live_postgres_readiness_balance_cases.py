@@ -158,6 +158,24 @@ class BalanceContractTest(unittest.TestCase):
         package_drift = wt.drift_report([*self.plan, *newpkgs], self.weights)
         self.assertTrue(wt.drift_errors(package_drift))
 
+    def test_drift_message_states_the_no_feature_edit_rule(self) -> None:
+        """The drift gate tells feature PRs to leave the weights file alone (#9148)."""
+        drift = wt.Drift(
+            defaulted_tests=tuple(
+                f"./internal/newpkg|TestNoWeight{index}Live"
+                for index in range(wt.MAX_DEFAULTED_TESTS + 1)),
+            defaulted_packages=(), stale_tests=())
+        errors = wt.drift_errors(drift)
+        self.assertTrue(errors)
+        self.assertIn("must not edit", errors[0])
+        self.assertIn("default_test_seconds", errors[0])
+
+    def test_single_unweighted_test_runs_on_default_without_tripping_gate(self) -> None:
+        """One hand-added key is review's call, not the gate's: the cap stays 40 (#9148)."""
+        drift = wt.Drift(defaulted_tests=("./internal/newpkg|TestHandAddedLive",),
+                         defaulted_packages=(), stale_tests=())
+        self.assertEqual(wt.drift_errors(drift), [])
+
     def test_seeded_slow_tests_overflow_a_count_split_but_not_the_weighted_one(self) -> None:
         position = 70  # inside shard 1/4's range under the retired count split
         # The fleet got faster (weighted shards predict ~1260 s, naive worst
@@ -348,15 +366,33 @@ class RefreshTest(unittest.TestCase):
         sample = refresh.parse_sample([self.SHARD_ONE, self.SHARD_TWO])
         return refresh.build_weights([sample], self.PLAN, ["1"], 82.0)
 
-    def test_large_weights_render_within_file_cap_without_data_loss(self) -> None:
-        """Keep a realistic large plan under the file cap with exact JSON data."""
+    def test_weights_render_one_entry_per_line_sorted_without_data_loss(self) -> None:
+        """One sorted entry per line, so a one-key change stays a local hunk (#9148).
+
+        No line cap applies in specs/: a realistic plan renders past 500
+        lines, and that is the point — concurrent refits merge cleanly.
+        """
         document = self.build()
         document["test_seconds"] = {
             f"./internal/p1|TestProof{index}Live": 0.1 for index in range(600)
         }
         rendered = refresh.render(document)
-        self.assertLessEqual(len(rendered.splitlines()), 500)
         self.assertEqual(json.loads(rendered), document)
+        entry_lines = [line for line in rendered.splitlines()
+                       if line.startswith('    "')]
+        total_entries = (len(document["package_seconds"])  # type: ignore[arg-type]
+                         + len(document["test_seconds"]))  # type: ignore[arg-type]
+        self.assertEqual(len(entry_lines), total_entries)
+        for line in entry_lines:
+            self.assertEqual(line.count('": '), 1, line)
+        ordered: dict[str, object] = json.loads(
+            rendered, object_pairs_hook=lambda pairs: dict(pairs))
+        for key in ("package_seconds", "test_seconds"):
+            table = ordered[key]
+            assert isinstance(table, dict)
+            names = list(table)
+            self.assertEqual(names, sorted(names))
+        self.assertEqual(refresh.render(json.loads(rendered)), rendered)
 
     def test_per_test_seconds_package_cost_and_cold_constant(self) -> None:
         built = self.build()
