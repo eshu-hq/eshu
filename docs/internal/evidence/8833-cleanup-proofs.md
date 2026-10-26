@@ -46,7 +46,7 @@ psql variables are bound the way `psql -v` binds them.
 | Census before | every exit column is above 0, and so is `eshu_dp_content_policy_raw_rows` |
 | Statement L | lists both repositories |
 | First pass | each of refs, entities, files, A, and B touches rows |
-| Census after | every exit column is 0, and so is the gauge |
+| Census after | the `yarnrc_yml`/`tfvars` exit columns read 0 while the legacy `.npmrc` row survives (`npmrc.raw_files` = 1 with its finding), and the gauge reads the attributed remainder (`gaugeAfter` = `attributed`, non-zero) |
 | Second pass | 0 rows everywhere |
 | Survivors | non-matching paths keep their bodies; the post-watermark repository and the superseded generation keep their documents |
 | Active-document read | `ListActiveDocuments` serves no seeded context text for a matched path |
