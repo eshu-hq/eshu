@@ -101,6 +101,22 @@ adds no new metric labels, queue domains, graph writes, or API/MCP routes. Opera
 through existing collector `/admin/status`, workflow claim rows, failure
 classes, commit counters, and the service metrics endpoint.
 
+No-Regression Evidence (#9185): wiring `tokenProviderFromEnv` into
+`buildClaimedService` adds one startup env read plus one nil check per claim;
+the mint/inject path it enables is covered by the owning `extensionhost`
+suite. Baseline and after both run `go test -count=1
+./cmd/collector-component-extension/... ./internal/collector/extensionhost/...`
+green with `go vet` and `gofmt` clean; the input shape is three operator env
+vars with no queue, lease, batching, Cypher, or graph-write surface, so the
+claim hot path is unchanged when the vars are absent (nil-provider early
+return) and adds one bounded mint call per claim when set.
+
+No-Observability-Change (#9185): the wiring adds no new metric, span, log
+line, or status field; startup misconfiguration fails with an error naming
+only the variable, and per-claim mint faults reuse the existing bounded
+terminal/retryable failure classes, so operators keep diagnosing through the
+existing claim rows, failure classes, and service metrics endpoint.
+
 ## Related docs
 
 - `docs/public/extend/community-extension-authoring.md`
