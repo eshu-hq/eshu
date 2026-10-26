@@ -10,19 +10,25 @@ three line shapes the runner already prints:
 * ``<Test>: PASS elapsed=<s>s`` carries one test's seconds,
 * ``live-postgres-readiness: <package> <n>/<n> PASS`` closes a package.
 
-A package's wall time is the gap between its closing line and the previous
-closing line (the step start for the first package). Wall time minus the sum of
-its tests' seconds is the package overhead (compile and link). The overhead of
-a package that is not first in its shard becomes the package cost; the extra
-overhead of a first package over that cost is the cold-cache constant.
+In the legacy v1 model, a package's wall time is the gap between closing
+lines (the step start for the first package). Its residual after reported test
+seconds is averaged as one package price. V2 separates first use from repeats.
 
 Usage:
     live_postgres_readiness_weights_refresh.py \\
         --out specs/live-postgres-readiness-weights.v1.json --fixed-job-seconds 82 \\
         --sample 40049588589=DIR_A --sample 40047410741=DIR_B
 
-Each DIR holds that run's shard logs as ``*.log``. Only tests in the current
-inventory are kept; inventory tests absent from every log get the default.
+Each v1 DIR holds shard ``*.log`` files, and v1 keeps only tests in the
+current inventory. V2 requires each numeric-ID directory to hold ``run.json``,
+``jobs.json``, and every ``shardN.log``. It validates every PASS against the
+source SHA's committed inventory:
+
+    live_postgres_readiness_weights_refresh.py --schema-version 2 \
+        --out /tmp/weights.v2.json \
+        --sample 40363406628=/data/40363406628 \
+        --sample 40363532093=/data/40363532093
+
 """
 
 from __future__ import annotations
@@ -163,9 +169,33 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", required=True)
-    parser.add_argument("--fixed-job-seconds", type=float, required=True)
+    parser.add_argument("--schema-version", type=int, choices=(1, 2), default=1)
+    parser.add_argument("--fixed-job-seconds", type=float)
     parser.add_argument("--sample", action="append", required=True, metavar="RUNID=DIR")
     args = parser.parse_args()
+    if args.schema_version == 2:
+        import live_postgres_readiness_refresh_v2 as v2_refresh  # noqa: E402
+        if args.fixed_job_seconds is not None:
+            parser.error("--fixed-job-seconds is inferred from source jobs for v2")
+        try:
+            sources = []
+            for item in args.sample:
+                run, separator, directory = item.partition("=")
+                if (not separator or not run.isascii() or not run.isdigit()
+                        or Path(directory).name != run):
+                    raise ValueError(f"v2 --sample needs RUNID=DIR named by run ID: {item!r}")
+                sources.append(Path(directory))
+            document = v2_refresh.build_document(sources, Path(__file__).resolve().parents[2])
+            output = render(document)
+            Path(args.out).write_text(output, encoding="utf-8")
+        except (ValueError, OSError) as error:
+            print(f"weights refresh v2: {error}", file=sys.stderr)
+            return 1
+        print(f"weights refresh v2: {len(document['test_seconds'])} tests "
+              f"from runs {document['source_runs']}")
+        return 0
+    if args.fixed_job_seconds is None:
+        parser.error("--fixed-job-seconds is required for v1")
     from live_postgres_readiness_records import package_records  # noqa: E402
     plan = [f"{package}|{test}" for package, tests in package_records() for test in tests]
     runs: list[str] = []
