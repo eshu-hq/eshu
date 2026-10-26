@@ -70,6 +70,10 @@ func TestResultRecordRetryAfterIsTheRequestNotTheAppliedDelay(t *testing.T) {
 			t.Parallel()
 
 			item := testWorkItem()
+			// Live grant: the service re-stamps the dispatch deadline from its
+			// heartbeat, so the fixture must carry the granted lease for the
+			// canned satellite echo to validate (eshu-hq/eshu#9205).
+			item.LeaseExpiresAt = testObservedAt().Add(time.Minute)
 			if tc.attemptCount > 0 {
 				item.AttemptCount = tc.attemptCount
 			}
