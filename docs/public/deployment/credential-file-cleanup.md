@@ -62,12 +62,17 @@ The cleanup is done when all of these hold, the two readings on two
 consecutive scrapes:
 
 - The API and MCP server replicas restarted after the last run.
-- `eshu_dp_content_policy_raw_rows` reads zero. It counts unsuppressed
-  hardcoded-secret lines on a governed path that carry no
-  `REDACTED_<finding_kind>` marker.
-- The census below reads zero in `raw_files`, `files_with_raw_finding`,
-  `raw_entity_rows`, `raw_reference_rows`, `raw_search_documents`, and
-  `raw_search_fact_payloads`.
+- `eshu_dp_content_policy_raw_rows` reads zero, or every remaining row sits on
+  a metadata-policy path. The purge never touches `.npmrc` or
+  `gradle-wrapper.properties` — the metadata policy stores an empty body going
+  forward — so a legacy row on those paths keeps its raw body and its finding
+  lines until generation retention prunes the generation, and the gauge keeps
+  counting them. The census below attributes the remainder: `raw_files` reads
+  zero for the `yarnrc_yml` and `tfvars` kinds.
+- The census below reads zero in `raw_files` and `files_with_raw_finding` for
+  the `yarnrc_yml` and `tfvars` kinds (the `npmrc` and `gradle_wrapper` kinds
+  may keep legacy rows, as above), and zero in `raw_entity_rows`,
+  `raw_reference_rows`, `raw_search_documents`, and `raw_search_fact_payloads`.
 
 `files`, `repos`, `reference_rows`, `search_documents`, and
 `search_fact_payloads` size the work and never reach zero: a redacted row keeps
@@ -76,16 +81,24 @@ a non-empty body.
 ## Census
 
 Read-only, and it returns counts, never values. Findings mean something only
-while `content_file_secret_lines_state.state` is `ready`. The path predicate is
-`(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$` on the lowercased path. Keep single
-backslashes in `psql`: a doubled backslash matches no path and reads a false
-zero.
+while `content_file_secret_lines_state.state` is `ready`. Census 2 counts all
+four governed kinds on the lowercased path — `(^|/)\.yarnrc\.yml$`,
+`\.tfvars(\.json)?$`, `(^|/)\.npmrc$`, and
+`(^|/)gradle-wrapper\.properties$` — so a remaining gauge row is attributable
+to a metadata-policy legacy row when `raw_files` reads zero for `yarnrc_yml`
+and `tfvars`. The purge statements keep the narrower predicate
+`(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$`: they never touch `.npmrc` or
+`gradle-wrapper.properties`. Keep single backslashes in `psql`: a doubled
+backslash matches no path and reads a false zero.
 
 ```sql
 -- census 1: is the side table current? Zero findings only mean something when ready.
 SELECT state FROM content_file_secret_lines_state;
 
 -- census 2: files per file type. Exit columns: raw_files, files_with_raw_finding.
+-- The npmrc and gradle_wrapper rows are exit-scoped, not exit-zero: the purge
+-- never touches metadata-policy paths, so a legacy row there keeps its raw
+-- body (see Exit criterion).
 -- With no reindex requested yet, the watermark is now(), so every copy counts raw.
 -- The watermark is never cleared: after an earlier reindex this census undercounts
 -- until the reindex request of step 2 moves it, so read it after step 2.
@@ -94,6 +107,8 @@ WITH w AS (SELECT COALESCE((SELECT reindex_request_requested_at
                             WHERE ingester = 'repository'), now()) AS at)
 SELECT
   CASE WHEN lower(f.relative_path) ~ '(^|/)\.yarnrc\.yml$' THEN 'yarnrc_yml'
+       WHEN lower(f.relative_path) ~ '(^|/)\.npmrc$' THEN 'npmrc'
+       WHEN lower(f.relative_path) ~ '(^|/)gradle-wrapper\.properties$' THEN 'gradle_wrapper'
        ELSE 'tfvars' END                                   AS file_kind,
   max(w.at)                                                AS watermark,
   count(*)                                                 AS files,  -- sizing, not an exit column
@@ -108,7 +123,7 @@ SELECT
                                                            AS files_with_raw_finding
 FROM w, content_files f
 LEFT JOIN scope_generations g ON g.generation_id = f.generation_id
-WHERE lower(f.relative_path) ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$'
+WHERE lower(f.relative_path) ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$|(^|/)\.npmrc$|(^|/)gradle-wrapper\.properties$'
 GROUP BY 1;
 
 -- census 3: derived copies. Exit columns: the raw_* columns. Counts only.

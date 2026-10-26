@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8833 disposable PostgreSQL proof of the operator cleanup on docs/public/deployment/credential-file-cleanup.md, run from the page's SQL fences: the census counts every pre-watermark raw copy (files, entities, references, active search documents and fact payloads, orphans, a NULL-generation row), statement L lists the repositories, one guarded pass zeroes every exit column and the raw-rows gauge, a second pass touches nothing, post-watermark rows, superseded generations, and non-matching paths survive, and the production active-document read returns no seeded context text; isolated bootstrapped schema per test
+//eshu:readiness:reason #8833 disposable PostgreSQL proof of the operator cleanup on docs/public/deployment/credential-file-cleanup.md, run from the page's SQL fences: the census counts every pre-watermark raw copy (files, entities, references, active search documents and fact payloads, orphans, a NULL-generation row), including a seeded legacy .npmrc row the purge predicate does not cover, statement L lists the repositories, one guarded pass zeroes the yarnrc_yml/tfvars exit columns while the .npmrc row survives so the exit is reached scoped with every remaining gauge row attributed to that metadata-policy path, a second pass touches nothing, post-watermark rows, superseded generations, and non-matching paths survive, and the production active-document read returns no seeded context text; isolated bootstrapped schema per test
 //eshu:readiness:env ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN
 
 import (
@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/secret/detect"
 )
 
 const cleanupSeed = "CleanupSeed0123456789"
@@ -140,6 +141,18 @@ func TestCredentialCleanupPurgeFromThePageLive(t *testing.T) {
 	r1Scope, r1Gen := f.scope("r1", f.w.Add(-time.Hour))
 	f.content("r1", r1Scope, r1Gen, append(append([]string{}, cleanupPolicyPaths...), cleanupOtherPaths...), raw)
 	f.content("r1", r1Scope, r1Gen, []string{"nullgen.tfvars"}, raw)
+	// r1 legacy metadata-policy row: a pre-watermark .npmrc the purge
+	// predicate does not cover and the gauge counts. Content row only, no
+	// entities or search copies: the gap under test is gauge-vs-purge
+	// coverage for metadata-policy paths, and census 3 is already covered by
+	// the pred-matching paths above.
+	npmrcBody := "//registry.internal.acme.io/:_authToken=" + cleanupSeed + "\npassword = \"" + cleanupSeed + "\"\n"
+	if _, err := f.writer.Write(f.ctx, content.Materialization{
+		RepoID: "r1", ScopeID: r1Scope, GenerationID: r1Gen,
+		Records: []content.Record{{Path: "sub/.npmrc", Body: npmrcBody}},
+	}); err != nil {
+		f.t.Fatalf("write legacy .npmrc: %v", err)
+	}
 	f.exec(`UPDATE content_files SET generation_id = NULL WHERE repo_id = 'r1' AND relative_path = 'nullgen.tfvars'`)
 	f.exec(`INSERT INTO content_entities (entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line,
     language, source_cache, indexed_at) VALUES ('ghost', 'r1', 'ghost.tfvars', 'Variable', 'v', 1, 2, '', $1, now())`, raw)
@@ -164,6 +177,14 @@ VALUES ('repository', 'requested', $1)`, f.w)
 		if before[column] == 0 {
 			t.Errorf("census before the purge: %s = 0, want raw copies (the proof would pass on an empty database)", column)
 		}
+	}
+	// The legacy .npmrc seed must be detector-visible before the purge, or the
+	// scoped exit below would pass on an unattributed gauge.
+	if before["npmrc.raw_files"] != 1 {
+		t.Errorf("census before the purge: npmrc.raw_files = %d, want 1 (the legacy .npmrc seed)", before["npmrc.raw_files"])
+	}
+	if before["npmrc.files_with_raw_finding"] != 1 {
+		t.Errorf("census before the purge: npmrc.files_with_raw_finding = %d, want 1 (the seed must be detector-visible)", before["npmrc.files_with_raw_finding"])
 	}
 	gauge := NewContentPolicyRawRowsStore(SQLDB{DB: f.db}, parser.DefaultRegistry().ContentStorePathPattern())
 	if n, err := gauge.ContentPolicyRawRows(f.ctx); err != nil || n == 0 {
@@ -215,8 +236,30 @@ VALUES ('repository', 'requested', $1)`, f.w)
 			t.Errorf("census after the purge: %s = %d, want 0", column, after[column])
 		}
 	}
-	if n, err := gauge.ContentPolicyRawRows(f.ctx); err != nil || n != 0 {
-		t.Errorf("raw-rows gauge after = %d (%v), want 0", n, err)
+	// Scoped exit (see Exit criterion): the purge never touches the legacy
+	// .npmrc row, so the gauge stays non-zero and every remaining row must sit
+	// on that metadata-policy path.
+	if after["npmrc.raw_files"] != 1 {
+		t.Errorf("census after the purge: npmrc.raw_files = %d, want 1 (the legacy .npmrc row survives the purge)", after["npmrc.raw_files"])
+	}
+	if after["npmrc.files_with_raw_finding"] != 1 {
+		t.Errorf("census after the purge: npmrc.files_with_raw_finding = %d, want 1 (the legacy finding survives the purge)", after["npmrc.files_with_raw_finding"])
+	}
+	gaugeAfter, err := gauge.ContentPolicyRawRows(f.ctx)
+	if err != nil || gaugeAfter == 0 {
+		t.Fatalf("raw-rows gauge after = %d (%v), want the legacy .npmrc rows", gaugeAfter, err)
+	}
+	var attributed int64
+	if err := f.db.QueryRowContext(f.ctx, `SELECT count(*) FROM content_file_secret_lines
+		WHERE repo_id = 'r1' AND relative_path = 'sub/.npmrc' AND NOT suppressed
+		AND line_text !~ $1 AND line_text !~* $2`, detect.MarkerPattern, detect.BlockOpenerPattern).Scan(&attributed); err != nil {
+		t.Fatalf("attribute gauge remainder: %v", err)
+	}
+	if attributed == 0 {
+		t.Fatalf("legacy .npmrc row holds no gauge-counted line; the scoped exit would pass on an unattributed gauge")
+	}
+	if gaugeAfter != attributed {
+		t.Errorf("raw-rows gauge after = %d, want %d (every remaining row on the legacy .npmrc path)", gaugeAfter, attributed)
 	}
 	if second := pass(); len(second) != 5 || second["refs"]+second["entities"]+second["files"]+second["A"]+second["B"] != 0 {
 		t.Errorf("second pass touched %v, want 0 rows everywhere", second)
@@ -228,6 +271,9 @@ VALUES ('repository', 'requested', $1)`, f.w)
 		if n := f.count(`SELECT count(*) FROM content_files WHERE repo_id = 'r1' AND relative_path = $1 AND strpos(content, $2) > 0`, path, cleanupSeed); n != 1 {
 			t.Errorf("non-matching %s lost its body", path)
 		}
+	}
+	if n := f.count(`SELECT count(*) FROM content_files WHERE repo_id = 'r1' AND relative_path = 'sub/.npmrc' AND strpos(content, $1) > 0`, cleanupSeed); n != 1 {
+		t.Errorf("legacy .npmrc row lost its body; the purge never touches metadata-policy paths")
 	}
 	if n := f.count(`SELECT count(*) FROM content_files WHERE repo_id = 'r2' AND content <> ''`); n != 1 {
 		t.Errorf("post-watermark r2 file was blanked")

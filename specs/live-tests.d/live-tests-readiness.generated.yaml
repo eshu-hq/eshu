@@ -697,7 +697,7 @@ tests:
   - file: go/internal/storage/postgres/credential_cleanup_purge_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8833 disposable PostgreSQL proof of the operator cleanup on docs/public/deployment/credential-file-cleanup.md, run from the page's SQL fences: the census counts every pre-watermark raw copy (files, entities, references, active search documents and fact payloads, orphans, a NULL-generation row), statement L lists the repositories, one guarded pass zeroes every exit column and the raw-rows gauge, a second pass touches nothing, post-watermark rows, superseded generations, and non-matching paths survive, and the production active-document read returns no seeded context text; isolated bootstrapped schema per test"
+    reason: "#8833 disposable PostgreSQL proof of the operator cleanup on docs/public/deployment/credential-file-cleanup.md, run from the page's SQL fences: the census counts every pre-watermark raw copy (files, entities, references, active search documents and fact payloads, orphans, a NULL-generation row), including a seeded legacy .npmrc row the purge predicate does not cover, statement L lists the repositories, one guarded pass zeroes the yarnrc_yml/tfvars exit columns while the .npmrc row survives so the exit is reached scoped with every remaining gauge row attributed to that metadata-policy path, a second pass touches nothing, post-watermark rows, superseded generations, and non-matching paths survive, and the production active-document read returns no seeded context text; isolated bootstrapped schema per test"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/credential_cleanup_race_live_test.go
     tag: ~
