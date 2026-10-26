@@ -19,7 +19,7 @@ retraction; this grant authorizes emission only.
   `aws_resource`, `aws_relationship`, `aws_tag_observation`,
   `aws_dns_record`, `aws_image_reference`, `aws_security_group_rule`,
   `aws_iam_permission`, `aws_resource_policy_permission`, `aws_warning`
-  (`go/internal/facts/cloud/aws.go:138`);
+  (`aws.go:138` in `facts/cloud`);
   `ec2_instance_posture` (`ec2_instance_posture.go:75`);
   `rds_instance_posture` (`rds_posture.go:70`);
   `s3_bucket_posture` (`s3_bucket_posture.go:71`);

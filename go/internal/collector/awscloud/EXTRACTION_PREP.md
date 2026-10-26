@@ -111,7 +111,8 @@ the service-kind canonicalization guard
 
 - `checkpoint/types.go:23,35,42,52,61` — claim-fenced pagination resume:
   `Scope`, `Key`, `Checkpoint`, `Store`, `ScopeFromBoundary`.
-  Postgres owner: `go/internal/storage/postgres/cloud/aws/pagination_checkpoint.go:114,122`
+  Postgres owner: `pagination_checkpoint.go:114,122`
+  in `storage/postgres/cloud/aws`
   (`AWSPaginationCheckpointStore`, `NewAWSPaginationCheckpointStore`).
 - `freshness/types.go:19,26,41,53,81,157` — EventBridge trigger contract:
   `EventKind`, `TriggerStatus`, `Trigger`, `StoredTrigger`, `Validate`,
@@ -169,17 +170,17 @@ authority; see [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md).
 
 ## 3. Consumers (must agree at cutover)
 
-- Canonical projection: `go/internal/reducer/aws_resource_materialization.go:39`
-  (`aws_resource_materialization`), `go/internal/reducer/ec2instance/`
-  (`ec2_instance_node_materialization`), `go/internal/reducer/registry_additive_domains.go:325`
+- Canonical projection: `aws_resource_materialization.go:39` in `reducer`
+  (`aws_resource_materialization`), `reducer/ec2instance/`
+  (`ec2_instance_node_materialization`), `registry_additive_domains.go:325` in `reducer`
   (`aws_cloud_runtime_drift`), `go/internal/reducer/s3_external_principal_grant_domain.go`.
 - Query/read: `GET /api/v0/cloud/inventory`, `GET /api/v0/cloud/resources`,
   `GET /api/v0/secrets-iam/posture-summary` (fact-registry `ReadSurface`s).
-- Coordinator: `go/internal/coordinator/aws_scheduled_service.go:16`
+- Coordinator: `aws_scheduled_service.go:16` in `coordinator`
   `scheduleAWSScheduledWork` and
-  `go/internal/coordinator/service_aws_freshness.go:77`
+  `service_aws_freshness.go:77` in `coordinator`
   `scheduleAWSFreshnessWork` plan claim rows per active instance via
-  `go/internal/coordinator/planner/aws/scheduled/planner.go:43`
+  `planner.go:43` in `coordinator/planner/aws/scheduled`
   `PlanAWSScheduledWork`; stays core-owned.
 - Entrypoint contract: **gap** — `go/internal/collector/entrypoints/collector_entrypoints.yaml`
   covers only `collector-pagerduty` and `collector-jira`; no
