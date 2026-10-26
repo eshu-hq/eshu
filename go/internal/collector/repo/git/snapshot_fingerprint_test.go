@@ -36,6 +36,14 @@ func TestBuildCollectedGenerationDerivesStableFreshnessHintForEquivalentSnapshot
 	}
 	factsA := drainFactChannel(collectedA.Facts)
 	factsB := drainFactChannel(collectedB.Facts)
+	// One repository, file, content, and entity fact, plus 14 follow-ups.
+	const wantFacts = 18
+	if got := len(factsA); got != wantFacts {
+		t.Fatalf("First streamed fact count = %d, want %d", got, wantFacts)
+	}
+	if got := len(factsB); got != wantFacts {
+		t.Fatalf("Second streamed fact count = %d, want %d", got, wantFacts)
+	}
 	if got, want := collectedA.FactCount(), len(factsA); got != want {
 		t.Fatalf("First fact count = %d, want %d streamed facts", got, want)
 	}

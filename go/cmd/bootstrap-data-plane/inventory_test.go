@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -28,7 +29,12 @@ type inventoryFixture struct {
 	} `json:"migrations"`
 }
 
-func bootstrapProcess(t *testing.T, args ...string) ([]byte, error) {
+type bootstrapOutput struct {
+	stdout []byte
+	stderr []byte
+}
+
+func bootstrapProcess(t *testing.T, args ...string) (bootstrapOutput, error) {
 	t.Helper()
 	self, err := os.Executable()
 	require.NoError(t, err)
@@ -39,7 +45,11 @@ func bootstrapProcess(t *testing.T, args ...string) ([]byte, error) {
 		"ESHU_GRAPH_BACKEND=invalid-backend",
 		"OTEL_EXPORTER_OTLP_ENDPOINT=://invalid",
 	)
-	return cmd.CombinedOutput()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	return bootstrapOutput{stdout: stdout.Bytes(), stderr: stderr.Bytes()}, err
 }
 
 func TestInventoryCommandProcess(t *testing.T) {
@@ -58,13 +68,15 @@ func TestInventoryCommandProcess(t *testing.T) {
 
 func TestPostgresMigrationInventoryCommand(t *testing.T) {
 	first, err := bootstrapProcess(t, "--postgres-migration-inventory")
-	require.NoError(t, err, string(first))
+	require.NoError(t, err, string(first.stderr))
+	require.Empty(t, first.stderr)
 	second, err := bootstrapProcess(t, "--postgres-migration-inventory")
-	require.NoError(t, err, string(second))
-	require.Equal(t, first, second)
+	require.NoError(t, err, string(second.stderr))
+	require.Empty(t, second.stderr)
+	require.Equal(t, first.stdout, second.stdout)
 
 	var inventory inventoryFixture
-	require.NoError(t, json.Unmarshal(first, &inventory), string(first))
+	require.NoError(t, json.Unmarshal(first.stdout, &inventory), string(first.stdout))
 	require.Equal(t, 1, inventory.FormatVersion)
 	require.Equal(t, "full", inventory.DefaultVariant)
 	full := postgres.BootstrapDefinitions()
@@ -127,20 +139,23 @@ func TestInventoryInvalidArgumentsFailBeforeBootstrap(t *testing.T) {
 		{"unrelated"},
 	} {
 		out, err := bootstrapProcess(t, args...)
-		require.Error(t, err, "%v: %s", args, out)
-		require.Contains(t, string(out), "--postgres-migration-inventory")
-		require.NotContains(t, string(out), "runtime.startup.failed")
-		require.NotContains(t, string(out), "invalid ESHU_GRAPH_BACKEND")
+		require.Error(t, err, "%v: %s", args, out.stderr)
+		require.Empty(t, out.stdout)
+		require.Contains(t, string(out.stderr), "--postgres-migration-inventory")
+		require.NotContains(t, string(out.stderr), "runtime.startup.failed")
+		require.NotContains(t, string(out.stderr), "invalid ESHU_GRAPH_BACKEND")
 	}
 }
 
 func TestInventoryFlagPreservesVersionAndDefaultStartup(t *testing.T) {
 	for _, arg := range []string{"--version", "-v"} {
 		out, err := bootstrapProcess(t, arg)
-		require.NoError(t, err, string(out))
-		require.Contains(t, string(out), "eshu-bootstrap-data-plane ")
+		require.NoError(t, err, string(out.stderr))
+		require.Empty(t, out.stderr)
+		require.Contains(t, string(out.stdout), "eshu-bootstrap-data-plane ")
 	}
 	out, err := bootstrapProcess(t)
 	require.Error(t, err)
-	require.NotContains(t, string(out), "\"format_version\"")
+	require.Empty(t, out.stdout)
+	require.NotContains(t, string(out.stderr), "\"format_version\"")
 }
