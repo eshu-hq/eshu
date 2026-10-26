@@ -34,3 +34,13 @@ tests:
     class: ci
     reason: "#8816 seeded Neo4j retract edge cases for the runtime_declaration_projection handler and RuntimeDeclarationWriter: a delta that shrinks a pin file, a renamed pin file, a full generation after the last pin file is deleted (a foreign evidence_source node survives), and one path retract over two repositories with crossed path lists (run-unique repository ids, cleanup on pass and fail); Neo4j-only for the same reason as runtime_declaration_live_test.go; local -race run of all five runtime declaration live tests took 3.06 s package wall"
     backends: neo4j
+  - file: go/internal/query/runtime/declaration/live_correctness_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#8817 seeded Neo4j proof of the list route over the production upsert and schema: major_below lists only placeable declarations and names aliases and unresolved rows in partial_reasons, version_below compares minor and patch and names imprecise partials, scope_dir rows with composed filters, gapless keyset paging, scoped-grant isolation, and the one-repository section summary (run-unique repository ids, cleanup on pass and fail); Neo4j-only because Neo4j is the supported backend and the proof relies on its composite uniqueness constraint; local run of the six tests took 5.1 s package wall"
+    backends: neo4j
+  - file: go/internal/query/runtime/declaration/live_perf_test.go
+    tag: live_nornicdb_answer_truth
+    class: scheduled
+    reason: "#8817 p95 proof for the list route and the context section at 50,000 declarations across 5,000 repositories on the pinned Neo4j; slow by nature (seeds the corpus, then measures ten list scenarios plus the section at 100 iterations after warm-up; local run took 50.7 s package wall), so it runs in the scheduled live lane, not blocking"
+    backends: neo4j
