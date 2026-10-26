@@ -19,6 +19,7 @@ required_domains=(
 	"work_item"
 	"service"
 	"status"
+	"runtime"
 )
 
 forbidden_keys='["repository","repositories","repository_name","repository_id","repo","repo_name","repo_id","package","packages","package_name","package_id","provider_url","alert_url","installation","provider_repository","url","host","hostname","ip","path","file","token","payload","description","cve_description","transcript","stdout","stderr","request","response","body","account_id","account"]'

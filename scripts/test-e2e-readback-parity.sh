@@ -52,7 +52,8 @@ write_valid_input() {
 				check("incident"; "context"; 1; false; 0; 0; 0; "ready"),
 				check("work_item"; "context"; 1; false; 0; 0; 0; "ready"),
 				check("service"; "ambiguous"; 0; false; 0; 0; 1; "ambiguous"),
-				check("status"; "index"; 1; false; 0; 0; 0; "ready")
+				check("status"; "index"; 1; false; 0; 0; 0; "ready"),
+				check("runtime"; "declarations"; 1; false; 0; 0; 0; "ready")
 			]
 		}
 	' >"${path}"
@@ -87,7 +88,7 @@ valid="${tmp_dir}/valid.json"
 write_valid_input "${valid}"
 proof="$(expect_pass valid "${valid}")"
 jq -e '
-	.surfaces.api.checked == 11 and
+	.surfaces.api.checked == 12 and
 	.surfaces.api.truncated == 1 and
 	.surfaces.api.missing_evidence == 1 and
 	.surfaces.api.unsupported == 1 and
@@ -108,6 +109,10 @@ jq -e '
 	.readback_proof.surfaces.cli.ambiguous == 1
 ' "${gate_dir}/evidence.json" >/dev/null \
 	|| { printf 'release gate did not preserve extended readback counters\n' >&2; exit 1; }
+
+missing_runtime="${tmp_dir}/missing-runtime.json"
+jq '.checks |= map(select(.domain != "runtime"))' "${valid}" >"${missing_runtime}"
+expect_fail missing_runtime "${missing_runtime}" "missing required readback domain: runtime"
 
 missing_mcp="${tmp_dir}/missing-mcp.json"
 jq 'del(.checks[0].surfaces.mcp)' "${valid}" >"${missing_mcp}"
