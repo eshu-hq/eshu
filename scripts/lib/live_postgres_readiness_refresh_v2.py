@@ -44,7 +44,8 @@ def _profile(log: str) -> tuple[str, ...]:
     return tuple(profile)
 
 
-def _parse_shard(log: str, number: int, total: int) -> tuple[list[str], list[tuple[str, str, float]], tuple[str, ...]]:
+def _parse_shard(log: str, number: int, total: int) -> tuple[
+        list[str], list[tuple[str, str, float]], tuple[str, ...], list[frozenset[str]]]:
     """Return ordered tests and classified row residuals from one proof step."""
     profile = _profile(log)
     previous: dt.datetime | None = None
@@ -52,6 +53,7 @@ def _parse_shard(log: str, number: int, total: int) -> tuple[list[str], list[tup
     seen_packages: set[str] = set()
     observed: list[str] = []
     rows: list[tuple[str, str, float]] = []
+    row_members: list[frozenset[str]] = []
     summary = False
     for line in log.splitlines():
         if previous is None:
@@ -78,10 +80,11 @@ def _parse_shard(log: str, number: int, total: int) -> tuple[list[str], list[tup
             if residual < 0:
                 raise ValueError("source has negative row residual")
             kind = "first_row" if not rows else ("repeat" if package in seen_packages else "first_later")
-            rows.append((package, kind, residual))
-            observed.extend(f"{package}|{test}" for test, _ in block)
             if kind == "repeat" and rows[-1][0] != package:
                 raise ValueError("source package rows are noncontiguous")
+            rows.append((package, kind, residual))
+            row_members.append(frozenset(f"{package}|{test}" for test, _ in block))
+            observed.extend(f"{package}|{test}" for test, _ in block)
             seen_packages.add(package)
             previous, block = now, []
         elif match := SUMMARY_RE.fullmatch(line):
@@ -94,7 +97,7 @@ def _parse_shard(log: str, number: int, total: int) -> tuple[list[str], list[tup
             raise ValueError("source has unsupported failed or skipped proof row")
     if previous is None or not summary or block or not rows:
         raise ValueError("source shard proof is partial")
-    return observed, rows, profile
+    return observed, rows, profile, row_members
 
 
 def _mean_tenth(values: list[float], label: str, positive: bool = False) -> float:
@@ -130,7 +133,8 @@ def build_document(sources: list[Path], root: Path) -> dict[str, object]:
     test_values: dict[str, list[float]] = defaultdict(list)
     categories: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
     for source in sources:
-        run_id, plan, logs, overhead = provenance.read_source(source, root)
+        run_id, sha, plan, logs, overhead = provenance.read_source(source, root)
+        expected_rows = provenance.source_rows(root, sha, plan, len(logs))
         if run_id in source_runs:
             raise ValueError("v2 source run IDs must be distinct")
         if expected_plan is not None and plan != expected_plan:
@@ -142,7 +146,9 @@ def build_document(sources: list[Path], root: Path) -> dict[str, object]:
         observed: list[str] = []
         row_packages: list[str] = []
         for number, log in sorted(logs.items()):
-            tests, rows, profile = _parse_shard(log, number, len(logs))
+            tests, rows, profile, row_members = _parse_shard(log, number, len(logs))
+            if row_members != expected_rows[number]:
+                raise ValueError(f"source shard {number} row selected test set differs from source weights")
             if expected_profile is not None and profile != expected_profile:
                 raise ValueError("source image, Go, or Postgres profile differs")
             expected_profile = profile

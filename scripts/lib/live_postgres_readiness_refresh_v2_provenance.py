@@ -68,6 +68,35 @@ def source_inventory(root: Path, sha: str) -> list[str]:
     return runs
 
 
+def source_rows(root: Path, sha: str, plan: list[str],
+                count: int) -> dict[int, list[frozenset[str]]]:
+    """Rebuild each source-SHA runner row without executing historical code.
+
+    The current planner and splitter interpret the source commit's validated
+    weights. A behavior change that cannot reproduce old rows fails closed.
+    """
+    import live_postgres_readiness_shards as shards
+    path = f"specs/live-postgres-readiness-weights.v{2 if count == 5 else 1}.json"
+    parsed = json.loads(_source_text(root, sha, path),
+                        object_pairs_hook=weights._unique_object,
+                        parse_constant=weights._reject_constant)
+    if count == 5:
+        import live_postgres_readiness_v2 as v2
+        model = v2.weights_from_json(parsed)
+    else:
+        model = weights.weights_from_json(parsed)
+    selected: dict[int, list[frozenset[str]]] = {}
+    for number in range(1, count + 1):
+        selected[number] = []
+        for row in shards.subset_tsv(plan, f"{number}/{count}", model):
+            package, _, names = row.split("\t")
+            runs = [f"{package}|{name}" for name in names.split(" ")]
+            if len(set(runs)) != len(runs):
+                raise ValueError("source planner emitted duplicate row tests")
+            selected[number].append(frozenset(runs))
+    return selected
+
+
 def source_shard_count(root: Path, sha: str) -> int:
     """Bind historical four or activated five shards to the source tree."""
     _source_text(root, sha, WORKFLOW)
@@ -112,7 +141,7 @@ def _seconds(value: object) -> float:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
 
 
-def read_source(directory: Path, root: Path) -> tuple[str, list[str], dict[int, str], list[float]]:
+def read_source(directory: Path, root: Path) -> tuple[str, str, list[str], dict[int, str], list[float]]:
     """Validate a complete successful main run and return its raw shard logs."""
     try:
         run = json.loads((directory / "run.json").read_text(encoding="utf-8"))
@@ -177,4 +206,4 @@ def read_source(directory: Path, root: Path) -> tuple[str, list[str], dict[int, 
         if job_name not in log or artifact not in log:
             raise ValueError(f"source shard {number} log does not match run and job")
         logs[number] = log
-    return str(run_id), plan, logs, fixed
+    return str(run_id), sha, plan, logs, fixed

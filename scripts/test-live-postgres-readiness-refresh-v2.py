@@ -96,10 +96,39 @@ class RefreshV2Cases(unittest.TestCase):
         topology = mock.patch.object(refresh.provenance, "source_shard_count", return_value=4)
         topology.start()
         self.addCleanup(topology.stop)
+        self.expected_rows = {
+            1: [frozenset([PLAN[0]])],
+            2: [frozenset([PLAN[1]]), frozenset([PLAN[2]]), frozenset([PLAN[3]])],
+            3: [frozenset([PLAN[4]])],
+            4: [frozenset([PLAN[5]])],
+        }
+        self.real_source_rows = refresh.provenance.source_rows
+        rows = mock.patch.object(refresh.provenance, "source_rows",
+                                 side_effect=lambda _root, _sha, _plan, _count: self.expected_rows)
+        rows.start()
+        self.addCleanup(rows.stop)
 
     def fit(self) -> dict[str, object]:
         """Fit the two complete synthetic workflows."""
         return refresh.build_document(self.sources, self.root)
+
+    def test_source_rows_support_five_shard_v2(self) -> None:
+        plan = [f"./a|Test{number}" for number in range(1, 6)]
+        document = {
+            "schema_version": 2, "source_runs": ["100", "101"], "shard_count": 5,
+            "fixed_job_seconds": 1.0, "cold_cache_seconds": 1.0,
+            "default_test_seconds": 1.0, "default_package_first_seconds": 1.0,
+            "default_package_repeat_seconds": 1.0,
+            "package_first_seconds": {"./a": 1.0},
+            "package_repeat_seconds": {"./a": 1.0},
+            "test_seconds": {run: 1.0 for run in plan},
+        }
+        with mock.patch.object(refresh.provenance, "_source_text",
+                               return_value=json.dumps(document)):
+            rows = self.real_source_rows(self.root, SHA, plan, 5)
+        self.assertEqual(list(rows), [1, 2, 3, 4, 5])
+        self.assertEqual([next(iter(rows[index])) for index in rows],
+                         [frozenset([run]) for run in plan])
 
     def test_measured_first_repeat_and_cold_fit(self) -> None:
         result = self.fit()
@@ -125,7 +154,7 @@ class RefreshV2Cases(unittest.TestCase):
         path = self.sources[0] / "shard4.log"
         original = path.read_text()
         path.write_text(original.replace("TestFour: PASS", "TestThree: PASS"))
-        with self.assertRaisesRegex(ValueError, "inventory|duplicate|coverage"):
+        with self.assertRaisesRegex(ValueError, "inventory|duplicate|coverage|row.*source"):
             self.fit()
 
     def test_rejects_unidentified_repeat(self) -> None:
@@ -135,12 +164,29 @@ class RefreshV2Cases(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.fit()
 
+    def test_rejects_swapped_same_package_row_membership(self) -> None:
+        for source in self.sources:
+            (source / "shard2.log").write_text(_log(2, [
+                ("a", "TestTwo", 8), ("b", "TestTwo", 5),
+                ("b", "TestOne", 2)], int(source.name)))
+        with self.assertRaisesRegex(ValueError, "row.*source"):
+            self.fit()
+
+    def test_rejects_source_shard_boundary_drift(self) -> None:
+        self.expected_rows[1] = [frozenset([PLAN[1]])]
+        self.expected_rows[2][0] = frozenset([PLAN[0]])
+        with self.assertRaisesRegex(ValueError, "row.*source"):
+            self.fit()
+
     def test_rejects_no_identifiable_cold(self) -> None:
         for source in self.sources:
             (source / "shard2.log").write_text(_log(2, [("a", "TestTwo", 8)], int(source.name)))
             (source / "shard3.log").write_text(_log(3, [
                 ("b", "TestOne", 8), ("b", "TestTwo", 2),
                 ("b", "TestThree", 8)], int(source.name)))
+        self.expected_rows[2] = [frozenset([PLAN[1]])]
+        self.expected_rows[3] = [frozenset([PLAN[2]]), frozenset([PLAN[3]]),
+                                 frozenset([PLAN[4]])]
         with self.assertRaisesRegex(ValueError, "cold"):
             self.fit()
 
@@ -154,6 +200,7 @@ class RefreshV2Cases(unittest.TestCase):
                 "2026-10-26T00:00:15Z live-postgres-readiness: ./b 2/2 PASS")
             log = log.replace("2/2 passing runs", "3/3 passing runs")
             path.write_text(log)
+        self.expected_rows[2] = [frozenset([PLAN[1]]), frozenset([PLAN[2], PLAN[3]])]
         with self.assertRaisesRegex(ValueError, "repeat"):
             self.fit()
 
@@ -211,6 +258,8 @@ class RefreshV2Cases(unittest.TestCase):
         for source in self.sources:
             (source / "shard1.log").write_text(_log(1, [("b", "TestFour", 8)], int(source.name)))
             (source / "shard4.log").write_text(_log(4, [("a", "TestOne", 8)], int(source.name)))
+        self.expected_rows[1] = [frozenset([PLAN[5]])]
+        self.expected_rows[4] = [frozenset([PLAN[0]])]
         with self.assertRaisesRegex(ValueError, "order"):
             self.fit()
 
