@@ -1,0 +1,34 @@
+docs/public/reference/component-package-manager.md
+  h_78a442cba0b3e6 473-480
+go/internal/component/fact_kind_registry.go
+  h_78a442cba0b3e6 10,18-19,25,57-59,66,74-76,90,135,143,149,158-171,174-190
+go/internal/component/producer_grant_test.go
+  h_78a442cba0b3e6 148-153,182-183
+go/internal/component/registry.go
+  h_78a442cba0b3e6 91,180,200
+go/internal/component/registry_fact_kind_test.go
+  h_78a442cba0b3e6 170-411
+go/internal/facts/observability.go
+  h_78a442cba0b3e6 165,167
+specs/fact-kind-registry-contracts.d/families/observability.md
+  h_78a442cba0b3e6 15,17,26,38,41
+specs/fact-kind-registry-contracts.d/families/observability.yaml
+  h_78a442cba0b3e6 47,49-50,67,69
+specs/fact-kind-registry-contracts.d/kinds/observability/observability.coverage_warning.yaml
+  h_78a442cba0b3e6 9,11
+specs/fact-kind-registry-contracts.d/kinds/observability/observability.observed_rule.yaml
+  h_78a442cba0b3e6 9
+specs/fact-kind-registry-contracts.d/kinds/observability/observability.source_instance.yaml
+  h_78a442cba0b3e6 9,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3d19369d5f30aff99f9b1f98da04b9109927f356",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
