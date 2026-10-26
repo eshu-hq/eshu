@@ -244,9 +244,9 @@ uses `store`.
 | `gradle-wrapper.properties` | `gradle_wrapper` | `metadata` | none (#8822) |
 | `gradle.properties`, `nuget.config` | none | `metadata`, if a later record admits them | none |
 
-The hcl engine cannot parse a `.tfvars.json` body, before and after #8833, so
-the collector stores no row for one today (#9048). If it learns to, the skeleton
-policy already applies.
+The hcl engine parses a `.tfvars.json` body via `ParseJSON` since #9048,
+projecting it onto the same body shape as the equivalent `.tfvars` file (line
+numbers stay 0 by design); the skeleton policy applies as it does for `.tfvars`.
 
 `.eshuignore` stays the per-repository override and drops the file's parser
 facts as well.
