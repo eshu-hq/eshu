@@ -1,0 +1,28 @@
+go/cmd/collector-tempo/CUTOVER_CHECKLIST.DRAFT.md
+  h_78a442cba0b3e6 1-71
+go/cmd/collector-tempo/EXTRACTION_PREP.md
+  h_78a442cba0b3e6 1-148
+go/cmd/collector-tempo/extraction_prep_mirror_test.go
+  h_78a442cba0b3e6 1-150
+go/cmd/collector-tempo/producer-grant.manifest.DRAFT.yaml
+  h_78a442cba0b3e6 1-54
+go/cmd/collector-tempo/version-matrix.sh
+  h_78a442cba0b3e6 1-65
+go/internal/collector/observability/tempo/extraction_prep_mirror_test.go
+  h_78a442cba0b3e6 1-258
+go/internal/collector/observability/tempo/source_parity_8867_test.go
+  h_78a442cba0b3e6 1-215
+go/internal/collector/observability/tempo/testdata/8867-parity-tempo.json
+  h_78a442cba0b3e6 1-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3c56b7cc8b3e0e78a79515e117ef5b4ddfc4bd5d",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
