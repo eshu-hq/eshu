@@ -4,6 +4,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -96,6 +97,61 @@ func TestExtractionPrepClaimBoundaryRequiresClaimCapableInstance(t *testing.T) {
 	}
 	if selected.Instance.InstanceID != "security-alert-secondary" {
 		t.Errorf("InstanceID = %q, want security-alert-secondary", selected.Instance.InstanceID)
+	}
+
+	// The boundary the test name promises: instances that are not
+	// claim-capable fail closed instead of collecting.
+	base := extractionPrepInstancesJSON()
+	rejections := []struct {
+		name string
+		json string
+		want string
+	}{
+		{
+			name: "claims disabled",
+			json: strings.Replace(base, `"claims_enabled":true`, `"claims_enabled":false`, 1),
+			want: "claim-enabled",
+		},
+		{
+			name: "instance disabled",
+			json: strings.Replace(base, `"enabled":true`, `"enabled":false`, 1),
+			want: "enabled",
+		},
+		{
+			name: "wrong collector kind",
+			json: strings.Replace(base, `"collector_kind":"security_alert"`, `"collector_kind":"package_registry"`, 1),
+			want: "no security alert collector instance configured",
+		},
+	}
+	for _, tc := range rejections {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := loadClaimedRuntimeConfig(extractionPrepGetenv(map[string]string{
+				envCollectorInstances: tc.json,
+			}))
+			if err == nil {
+				t.Fatalf("loadClaimedRuntimeConfig(%s) = nil, want rejection", tc.name)
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("loadClaimedRuntimeConfig(%s) error = %q, want substring %q", tc.name, err, tc.want)
+			}
+		})
+	}
+
+	// Credential non-propagation (PREP section 1): the resolved token lives
+	// only in the runtime source config, never in the desired instance
+	// output, and never leaks into rejection errors.
+	rawInstance, err := json.Marshal(config.Instance)
+	if err != nil {
+		t.Fatalf("json.Marshal(instance) error = %v, want nil", err)
+	}
+	if strings.Contains(string(rawInstance), "resolved-token") {
+		t.Error("desired collector instance output contains the resolved credential")
+	}
+	if _, err := loadClaimedRuntimeConfig(extractionPrepGetenv(map[string]string{
+		envCollectorInstances: doubled,
+	})); err == nil || strings.Contains(err.Error(), "resolved-token") {
+		t.Errorf("ambiguity rejection = %v, want closed rejection without the credential", err)
 	}
 }
 
