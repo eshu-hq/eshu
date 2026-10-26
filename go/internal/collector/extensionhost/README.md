@@ -190,6 +190,25 @@ claim failure classes, workflow claim rows, collector fact evidence, and
 `/admin/status` collector runtime derivation. It adds no graph writes, queue
 domains, API routes, or MCP tools.
 
+Host Token Provider No-Regression Evidence (#9182 lane A):
+`go test ./internal/collector/extensionhost -count=1` and the same package
+with `-race` both pass at this HEAD, covering per-claim mint injection, the
+terminal `auth_denied` denial mapping (including an unbounded-error canary),
+retryable backoff propagation, construction-time reserved-key rejection, and
+byte-identical `token_env` passthrough with no provider. Baseline is the
+`origin/main` claim path: with no provider the change adds one nil check per
+claim and no allocations on the nil-recorder path. With a provider the mint
+runs once per claim before the satellite launches; a real claim launches a
+process or container (milliseconds), so one map insert and one bounded mint
+call are not a measurable share, and no storage backend is touched.
+
+Host Token Provider No-Observability-Change: the provider adds no metric,
+span, or log line. Mint outcomes surface only through the existing host-verdict
+`ResultRecord` (classes `auth_denied`, `retryable`, `rate_limited`,
+`server_error`, or a bounded transport class) and the existing
+`ClaimedService` failure-class path; the minted token appears in no record,
+label, or error string.
+
 Number Fidelity No-Regression Evidence: `go test
 ./internal/collector/extensionhost -run
 '^TestProcessResultNumbersSurviveClaimedSource$' -count=1` failed on baseline
