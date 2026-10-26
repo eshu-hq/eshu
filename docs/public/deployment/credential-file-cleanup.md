@@ -40,8 +40,11 @@ reach the repository. The SQL below covers what the re-collection does not:
      50). Do not set it to `0`: that removes the cap, and every due repository
      is forced in one cycle.
 3. Run the purge statements below for every repository statement L returns,
-   with `w = W`. Each statement only touches copies written by a generation
-   ingested before `W`, so it can run while the reindex rebuilds.
+   with `w = W`. The files, entities, and references statements lock the batch
+   first and re-test the "ingested before `W`" guard in the same transaction,
+   so those three can run while the reindex rebuilds. Statements A and B carry
+   the guard only in the batch select, with no lock and no re-check, so until
+   #9166 lands this page claims no concurrent-rebuild safety for them.
 4. Watch `eshu_dp_collector_reconciliation_due_unvisited`. When it reads zero
    for every reason, run the statements again. The second run catches rows
    that an old binary wrote during the rollout, and repositories no sweep
