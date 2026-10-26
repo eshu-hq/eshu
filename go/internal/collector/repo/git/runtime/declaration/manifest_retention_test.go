@@ -46,19 +46,56 @@ func nearCapGoMod() string {
 	return b.String()
 }
 
-// noteNearCapManifests notes count near-cap package.json and go.mod files at
-// distinct paths and returns the total body bytes. Every body is local to this
-// call, so the caller holds no reference to one once it returns.
+// nearCapDockerfile builds a Dockerfile just under the manifest byte cap with
+// one versioned FROM at the front and comment padding after it.
+func nearCapDockerfile() string {
+	var b strings.Builder
+	size := runtimedeclaration.MaxManifestBytesPerFile - 1024
+	b.Grow(size + 256)
+	b.WriteString("FROM node:20.11.1\n")
+	for i := 0; b.Len() < size; i++ {
+		b.WriteString("# padding ")
+		b.WriteString(strings.Repeat("x", i%11))
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// nearCapWorkflow builds a workflow just under the manifest byte cap with one
+// setup-node version input at the front and comment padding after it.
+func nearCapWorkflow() string {
+	var b strings.Builder
+	size := runtimedeclaration.MaxManifestBytesPerFile - 1024
+	b.Grow(size + 256)
+	b.WriteString("jobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 20\n")
+	for i := 0; b.Len() < size; i++ {
+		b.WriteString("# padding ")
+		b.WriteString(strings.Repeat("x", i%11))
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// noteNearCapManifests notes count near-cap manifest files at distinct paths
+// and returns the total body bytes. Every body is local to this call, so the
+// caller holds no reference to one once it returns.
 //
 //go:noinline
 func noteNearCapManifests(candidates map[string]Candidate, count int) (bodyBytes int) {
 	for i := 0; i < count; i++ {
-		body, name := nearCapPackageJSON(), "package.json"
-		if i%2 == 1 {
-			body, name = nearCapGoMod(), "go.mod"
+		body, name := nearCapPackageJSON(), fmt.Sprintf("m%d/package.json", i)
+		switch i % 4 {
+		case 1:
+			body, name = nearCapGoMod(), fmt.Sprintf("m%d/go.mod", i)
+		case 2:
+			body, name = nearCapDockerfile(), fmt.Sprintf("m%d/Dockerfile", i)
+		case 3:
+			// The workflow gate admits only .github/workflows/<name>.yml,
+			// so the rotation varies the file name, not the directory.
+			body, name = nearCapWorkflow(), fmt.Sprintf(".github/workflows/ci-%d.yml", i)
 		}
 		bodyBytes += len(body)
-		NoteRuntimeDeclarationCandidate(candidates, fmt.Sprintf("m%d/%s", i, name), body)
+		NoteRuntimeDeclarationCandidate(candidates, name, body)
 	}
 	return bodyBytes
 }

@@ -24,6 +24,10 @@ func TestManifestsAreAdmittedWithTheStorePolicy(t *testing.T) {
 		"packages/web/package.json":          "json",
 		"go.mod":                             "gomod",
 		"services/api/internal/tools/go.mod": "gomod",
+		"Dockerfile":                         "__dockerfile__",
+		"services/api/Dockerfile.prod":       "__dockerfile__",
+		".github/workflows/ci.yml":           "yaml",
+		".github/workflows/ci.yaml":          "yaml",
 	} {
 		definition, ok := registry.LookupByPath(path)
 		if !ok || definition.ParserKey != wantParser {
@@ -56,6 +60,33 @@ func TestClassifyPathMatchesTheSourceTables(t *testing.T) {
 	for _, name := range []string{".npmrc", ".yarnrc.yml", ".pypirc", ".netrc", "mise.toml", "package-lock.json", "go.sum", "go.work", "composer.json"} {
 		if got := ClassifyPath("a/" + name); got != FileNotAdmitted {
 			t.Errorf("ClassifyPath(%q) = %v, want FileNotAdmitted", name, got)
+		}
+	}
+}
+
+// TestClassifyPathAdmitsDockerfileAndWorkflowFiles pins the #8818 admission:
+// Dockerfiles (exact and suffixed, any case, outside dependency directories)
+// and GitHub Actions workflow files read as manifests. Anything else,
+// including composite action files and nested workflow directories, does not.
+func TestClassifyPathAdmitsDockerfileAndWorkflowFiles(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{
+		"Dockerfile", "dockerfile", "services/api/Dockerfile", "Dockerfile.prod",
+		".github/workflows/ci.yml", ".github/workflows/ci.yaml",
+	} {
+		if got := ClassifyPath(path); got != FileManifest {
+			t.Errorf("ClassifyPath(%q) = %v, want FileManifest", path, got)
+		}
+	}
+	for _, path := range []string{
+		"vendor/acme/Dockerfile", "node_modules/dep/Dockerfile",
+		".github/actions/setup/action.yml", ".github/workflows/team/ci.yml",
+		"examples/.github/workflows/ci.yml", "docker-compose.yml",
+		"Dockerfile2", "MyDockerfile",
+	} {
+		if got := ClassifyPath(path); got != FileNotAdmitted {
+			t.Errorf("ClassifyPath(%q) = %v, want FileNotAdmitted", path, got)
 		}
 	}
 }

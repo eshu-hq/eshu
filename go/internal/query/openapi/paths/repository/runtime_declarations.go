@@ -26,7 +26,7 @@ const RuntimeDeclarations = `
                   "runtime": {"type": "string", "maxLength": 128, "description": "Exact runtime name, such as node, python or go. At most 128 characters."},
                   "major_below": {"type": "integer", "minimum": 0, "description": "Return declarations whose resolved major is below this value. Requires runtime. Mutually exclusive with version_below."},
                   "version_below": {"type": "string", "pattern": "^[0-9]{1,9}(\\.[0-9]{1,9}){0,2}$", "description": "Return declarations whose resolved version is below major, major.minor or major.minor.patch. Requires runtime. Mutually exclusive with major_below."},
-                  "source_kind": {"type": "string", "maxLength": 128, "description": "Exact declaring source, such as nvmrc, tool_versions, rust_toolchain, package_json_engines, package_json_volta, package_json_package_manager, go_mod_go or go_mod_toolchain. At most 128 characters."},
+                  "source_kind": {"type": "string", "maxLength": 128, "description": "Exact declaring source, such as nvmrc, tool_versions, rust_toolchain, package_json_engines, package_json_volta, package_json_package_manager, go_mod_go, go_mod_toolchain, dockerfile_from or workflow_setup_version. At most 128 characters."},
                   "repo_ids": {"type": "array", "maxItems": 100, "items": {"type": "string", "maxLength": 512}, "description": "Restrict to these repository ids (at most 100, each at most 512 characters)."},
                   "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50, "description": "Maximum declarations to return."},
                   "cursor": {"type": "string", "description": "Opaque next_cursor from a prior page."}

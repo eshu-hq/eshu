@@ -12,16 +12,18 @@ needs the authoritative graph and answers `501` on the lightweight profile.
 
 One declaration is one runtime version one file declares: a version-pin file
 (`.nvmrc`, `.tool-versions`, `rust-toolchain`), the `engines`, `volta` and
-`packageManager` sections of `package.json`, or the `go` and `toolchain`
-directives of `go.mod`. A pin-file line that lists several versions is one row
-per token. There is no effective-version view in v1: a repository with a root
+`packageManager` sections of `package.json`, the `go` and `toolchain`
+directives of `go.mod`, the `FROM` base-image tag of a `Dockerfile`, or the
+`with.*-version` inputs of a GitHub Actions workflow step. A pin-file line
+that lists several versions is one row per token. There is no effective-version view in v1: a repository with a root
 `.nvmrc` and a `services/web/.nvmrc` returns both rows, each with its
 `scope_dir` (`.` at the repository root).
 
 `source_kind` names the declaring source, one value per pin file (`nvmrc`,
-`tool_versions`, `rust_toolchain`) and one per manifest section
+`tool_versions`, `rust_toolchain`), one per manifest section
 (`package_json_engines`, `package_json_volta`, `package_json_package_manager`,
-`go_mod_go`, `go_mod_toolchain`). The filter is an exact match on an open set.
+`go_mod_go`, `go_mod_toolchain`), and one per new reader (`dockerfile_from`,
+`workflow_setup_version`). The filter is an exact match on an open set.
 
 ## Request
 

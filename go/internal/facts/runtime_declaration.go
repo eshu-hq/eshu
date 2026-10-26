@@ -13,8 +13,9 @@ const (
 	// RuntimeDeclarationVersionFactKind identifies one runtime version a
 	// repository declares in one file: a version-pin file such as .nvmrc or
 	// .tool-versions, the engines, volta and packageManager sections of
-	// package.json, or the go and toolchain directives of go.mod, with
-	// Dockerfile and CI setup sources following. A line that lists several
+	// package.json, the go and toolchain directives of go.mod, the FROM
+	// base-image tag of a Dockerfile, or a setup with: version input of a
+	// GitHub Actions workflow. A line that lists several
 	// versions is one fact per token. Issue #8815 defines the contract and
 	// the emission; the runtime_declaration_projection reducer domain (#8816)
 	// projects it to Repository-[:DECLARES_RUNTIME]->RuntimeDeclaration; the

@@ -49,7 +49,7 @@ func listTool() toolcontract.ToolDefinition {
 				},
 				"source_kind": map[string]any{
 					"type":        "string",
-					"description": "Exact declaring source: nvmrc, tool_versions, rust_toolchain, package_json_engines, package_json_volta, package_json_package_manager, go_mod_go or go_mod_toolchain. At most 128 characters.",
+					"description": "Exact declaring source: nvmrc, tool_versions, rust_toolchain, package_json_engines, package_json_volta, package_json_package_manager, go_mod_go, go_mod_toolchain, dockerfile_from or workflow_setup_version. At most 128 characters.",
 				},
 				"repo_ids": map[string]any{
 					"type":        "array",
