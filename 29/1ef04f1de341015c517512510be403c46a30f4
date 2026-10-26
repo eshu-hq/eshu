@@ -1,0 +1,20 @@
+scripts/lib/live_postgres_readiness_row_split.py
+  h_78a442cba0b3e6 1-67
+scripts/lib/live_postgres_readiness_shards.py
+  h_78a442cba0b3e6 28,130-137,141-147
+scripts/run-live-postgres-readiness-tests.sh
+  h_78a442cba0b3e6 183-185
+scripts/test-live-postgres-readiness-shards.py
+  h_78a442cba0b3e6 32-33,192-265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "291ef04f1de341015c517512510be403c46a30f4",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
