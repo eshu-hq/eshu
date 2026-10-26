@@ -484,18 +484,5 @@ TABLE = {
         "go/internal/storage/postgres/projector_queue_claim_marked_guard_interleave_live_test.go": (
             "TestProjectorClaimRetryAgainstNewerInterleave",
         ),
-        "go/internal/storage/postgres/projector_queue_claim_marked_guard_live_test.go": (
-            "TestProjectorClaimHoldsNewerBehindInvisibleMarkedRetry",
-            "TestProjectorClaimRunsVisibleMarkedRetryBeforeNewer",
-            "TestProjectorClaimStillSupersedesUnmarkedStaleGeneration",
-            "TestProjectorClaimClaimsNewerBehindTerminalMarkedGeneration",
-            "TestProjectorAckKeepsMarkedObsoleteGeneration",
-            "TestProjectorAckStillSupersedesUnmarkedObsoleteGeneration",
-        ),
-        "go/internal/storage/postgres/projector_queue_claim_marked_guard_plan_live_test.go": (
-            "TestProjectorClaimMarkedGuardPlanShape",
-            "TestProjectorClaimMarkedGuardPlanShapeAtScale",
-            "TestProjectorClaimMarkedGuardLockSet",
-        ),
     },
 }
