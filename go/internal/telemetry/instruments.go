@@ -2744,6 +2744,16 @@ type Instruments struct {
 	// volume to a pipeline phase.
 	WorkflowClaimFactsEmitted metric.Int64Counter
 
+	// WorkflowClaimDispatchLeaseRemaining records the granted lease seconds
+	// remaining when a claimed-service run dispatches its satellite, labeled
+	// by collector_kind and source_system. It is the early-warning signal for
+	// eshu-hq/eshu#9205: values approaching zero mean the satellite launches
+	// with a nearly-expired deadline and will fail closed. A dispatch whose
+	// incoming snapshot lease was already past also logs a warning with the
+	// stale skew so the frozen-snapshot recurrence is diagnosable without a
+	// database dive.
+	WorkflowClaimDispatchLeaseRemaining metric.Float64Histogram
+
 	// ProducerGrantDecisions counts producer-grant allow/deny decisions for
 	// core-owned fact kinds (#6726), labeled by decision, stage, reason, and
 	// fact_kind. Every label is closed or registry-bounded; the producer id is
@@ -7167,6 +7177,19 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WorkflowClaimFactsEmitted counter: %w", err)
+	}
+
+	// projector-ack-wait-seconds: shared with the ack-wait signal; remaining
+	// lease is also a time-until-forced-expiry measure on the same scale.
+	dispatchLeaseBuckets := []float64{1, 2.5, 5, 10, 30, 60, 120, 180, 300, 600}
+	inst.WorkflowClaimDispatchLeaseRemaining, err = meter.Float64Histogram(
+		"eshu_dp_workflow_claim_dispatch_lease_remaining_seconds",
+		metric.WithDescription("Granted lease seconds remaining when a claimed-service run dispatches its satellite, labeled by collector_kind and source_system. Values near zero precede fail-closed deadline expiry (eshu-hq/eshu#9205)."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(dispatchLeaseBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimDispatchLeaseRemaining histogram: %w", err)
 	}
 
 	inst.ProducerGrantDecisions, err = meter.Int64Counter(

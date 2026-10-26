@@ -72,3 +72,39 @@ func (s ClaimedService) recordClaimFactsEmitted(
 		telemetry.AttrSourceSystem(item.SourceSystem),
 	))
 }
+
+// recordClaimDispatchLease records the granted lease seconds remaining when a
+// claimed-service run dispatches its satellite (eshu-hq/eshu#9205), labeled by
+// collector_kind and source_system. The granted value is the dispatch
+// heartbeat's ObservedAt plus the mutation lease duration: the exact DB lease
+// the store just wrote. When the incoming snapshot lease was already past,
+// the satellite would have failed closed on it, so that detection logs at
+// warn with the stale skew in seconds for 3 AM diagnosis.
+//
+// Concurrency safety: metric.Float64Histogram.Record is safe for concurrent
+// callers; all inputs are call-local.
+func (s ClaimedService) recordClaimDispatchLease(
+	ctx context.Context,
+	item workflow.WorkItem,
+	granted time.Time,
+) {
+	now := s.now()
+	if stale := now.Sub(item.LeaseExpiresAt).Seconds(); stale > 0 && s.Logger != nil {
+		s.Logger.WarnContext(ctx, "claim dispatch re-stamped stale lease",
+			"collector_kind", string(s.CollectorKind),
+			"source_system", item.SourceSystem,
+			"stale_skew_seconds", stale,
+		)
+	}
+	if s.Instruments == nil || s.Instruments.WorkflowClaimDispatchLeaseRemaining == nil {
+		return
+	}
+	remaining := granted.Sub(now).Seconds()
+	if remaining < 0 {
+		remaining = 0
+	}
+	s.Instruments.WorkflowClaimDispatchLeaseRemaining.Record(ctx, remaining, metric.WithAttributes(
+		telemetry.AttrCollectorKind(string(s.CollectorKind)),
+		telemetry.AttrSourceSystem(item.SourceSystem),
+	))
+}

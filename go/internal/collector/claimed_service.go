@@ -241,6 +241,14 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	heartbeatErr := s.startHeartbeatLoop(heartbeatCtx, mutation, item)
 	defer stopHeartbeat()
 
+	dispatchMutation, grantedLease, err := s.grantDispatchLease(ctx, item, claim)
+	if err != nil {
+		runOutcome = telemetry.CollectorRunOutcomeFailRetryable
+		return s.failRetryable(ctx, dispatchMutation, item, "collect_failure", err)
+	}
+	s.recordClaimDispatchLease(ctx, item, grantedLease)
+	item.LeaseExpiresAt = grantedLease
+
 	collected, ok, err := s.Source.NextClaimed(ctx, item)
 	if err != nil {
 		if isTerminalFailure(err) {

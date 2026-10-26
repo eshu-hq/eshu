@@ -102,6 +102,10 @@ func TestClaimedServiceRoutesExtensionResultsThroughWorkflowMutations(t *testing
 			t.Parallel()
 
 			item := testWorkItem()
+			// Live grant: the service re-stamps the dispatch deadline from its
+			// heartbeat, so the fixture must carry the granted lease for the
+			// canned satellite echo to validate (eshu-hq/eshu#9205).
+			item.LeaseExpiresAt = testObservedAt().Add(time.Minute)
 			ctx, cancel := context.WithCancel(context.Background())
 			store := &serviceClaimStore{
 				item:   item,
