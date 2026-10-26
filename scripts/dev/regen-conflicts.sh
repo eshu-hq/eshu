@@ -182,12 +182,27 @@ while IFS= read -r cmd; do
 	(cd "${repo_root}" && bash -c "${cmd}")
 done <<<"${commands}"
 
+# Reset-style entries (their command takes the base copy first) need human
+# review before the staging below: re-apply any hand-owned content the
+# conflict carried, and for the content pin decide -advance-content-epoch by
+# hand when fixtures and output changed together. Announce every one loudly
+# so the reset is never silent.
+printf '%s' "${covered}" | while IFS= read -r path; do
+	[[ -n "${path}" ]] || continue
+	cmd="$(match_command "${path}" "${regen_map}")"
+	case "${cmd}" in
+	*ESHU_REGEN_BASE*)
+		printf 'regen-conflicts: review %s: reset to the base copy before regenerating; re-apply hand-owned content the conflict carried (content pin: combined fixture-plus-output changes need a human -advance-content-epoch call; see the conflict recipes)\n' "${path}"
+		;;
+	esac
+done
+
 # Never stage conflict markers: a regen command that did not rewrite a file
 # (a typo'd entry, a generator that refused) must fail loudly here instead of
 # looking resolved.
 marked="$(printf '%s' "${covered}" | while IFS= read -r path; do
 	[[ -n "${path}" ]] || continue
-	if rg -q '^<{7} |^={7}$|^>{7} ' "${repo_root}/${path}" 2>/dev/null; then
+	if rg -q '^<{7} |^={7}$|^>{7} |^\|{7} ' "${repo_root}/${path}" 2>/dev/null; then
 		printf '%s\n' "${path}"
 	fi
 done || true)"

@@ -83,6 +83,10 @@ gates:
     # A ledger conflict takes the base's copy first, then re-pins: keeping
     # both sides' bucket lines under one epoch would ship new facts under an
     # old hint. No -advance-content-epoch here; that flag stays a human call.
+    # After the helper re-pins, a change touching fixture files and collector
+    # output together still needs a human -advance-content-epoch decision: the
+    # re-pinned ledger passes its gate either way, so no gate catches the
+    # stale-epoch variant. See the conflict recipe for the pin.
     regenerate:
       "go/internal/collector/repo/git/epoch/ledger.tsv": "git show ${ESHU_REGEN_BASE:?set_ESHU_REGEN_BASE}:go/internal/collector/repo/git/epoch/ledger.tsv > go/internal/collector/repo/git/epoch/ledger.tsv && (cd go && go test ./internal/collector/repo/git -run '^TestGenerationContentVersionPinsCollectorOutput$' -count=1 -update-content-version-pin) && (cd go && go test ./internal/collector/repo/git -run '^TestGenerationContentVersionPinsCollectorOutput$' -count=1)"
   - id: delta-union-scheduled

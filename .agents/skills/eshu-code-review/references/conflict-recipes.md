@@ -60,7 +60,10 @@ take main's copy, then re-pin:
    It advances the epoch past main's when the PR's output moved on unchanged
    input, and keeps main's epoch for a fixture-only change. Add
    `-advance-content-epoch` only when the PR's own description says it edits a
-   fixture file and that file's output together.
+   fixture file and that file's output together. This applies after the
+   helper re-pins too: a combined change re-pinned without the flag ships a
+   stale epoch with every gate green, so confirm the decision even when the
+   helper announces the re-pin as routine.
 3. Run the same test again without the flag. It must pass.
 
 Do not keep both sides' bucket lines under one side's `epoch` line: the re-pin

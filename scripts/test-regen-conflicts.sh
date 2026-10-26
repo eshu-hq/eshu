@@ -113,6 +113,7 @@ printf '%s\n' 'version: v1' 'gates:' \
 	'  - id: doc-gate' '    name: Doc' '    category: hygiene' '    tier: pre-pr' \
 	'    blocking: true' '    triggers:' '      - "gen/out.md"' '    regenerate:' \
 	'      "gen/out.md": "bash scripts/gen-out.sh"' \
+	'      "gen/stubborn.md": "true"' \
 	>"${stage}/specs/ci-gates.d/a.yaml"
 printf '%s\n' '#!/usr/bin/env bash' \
 	'printf "regen-base=%s run=%s\\n" "${ESHU_REGEN_BASE:?unset}" "$(cat scripts/runcount 2>/dev/null || echo 0)" > gen/out.md' \
@@ -186,7 +187,35 @@ else
 fi
 git -C "${stage}" merge --abort >/dev/null 2>&1 || true
 
-# Case 8: no regenerate value in the live registry needs a YAML escape. The
+# Case 8: diff3 ancestor markers are refused, not staged. A covered entry
+# whose command does not rewrite the file keeps whatever markers the merge
+# left, including the ||||||| ancestor section of diff3 style.
+sa_tip="$(git -C "${stage}" rev-parse side-a)"
+git -C "${stage}" checkout -qb d3a
+printf 'stubborn a\n' >"${stage}/gen/stubborn.md"
+git -C "${stage}" add gen/stubborn.md
+git -C "${stage}" commit -qm d3a
+git -C "${stage}" checkout -qb d3b "${sa_tip}"
+mkdir -p "${stage}/gen"
+printf 'stubborn b\n' >"${stage}/gen/stubborn.md"
+git -C "${stage}" add gen/stubborn.md
+git -C "${stage}" commit -qm d3b
+git -C "${stage}" checkout -q d3a
+git -C "${stage}" merge d3b >/dev/null 2>&1 || true
+printf '<<<<<<< HEAD\nstubborn a\n||||||| base\nstubborn base\n=======\nstubborn b\n>>>>>>> d3b\n' \
+	>"${stage}/gen/stubborn.md"
+if REPO_ROOT="${stage}" "${helper}" >"${tmp_root}/run4.log" 2>&1; then
+	record_fail "helper staged a file with surviving diff3 markers"
+elif git -C "${stage}" diff --name-only --diff-filter=U | rg -qx 'gen/stubborn.md' \
+	&& rg -q 'markers remain' "${tmp_root}/run4.log" \
+	&& rg -q 'gen/stubborn.md' "${tmp_root}/run4.log"; then
+	record_pass "diff3 ancestor markers are refused and named"
+else
+	record_fail "diff3 markers were staged or not reported"
+fi
+git -C "${stage}" merge --abort >/dev/null 2>&1 || true
+
+# Case 9: no regenerate value in the live registry needs a YAML escape. The
 # helper parses raw fragment text while Go's Load sees the decoded value, so
 # a backslash escape would run one command locally and validate another.
 escape_hits="$(awk '/^    regenerate:/{in_regen=1; next} /^    [a-z_]+:/{in_regen=0; next} in_regen && /\\/{print FILENAME ":" $0}' "${repo_root}"/specs/ci-gates.d/*.yaml || true)"

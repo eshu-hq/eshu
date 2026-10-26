@@ -4,6 +4,9 @@
 package cigates_test
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -77,6 +80,129 @@ func TestValidate_RegenerateCommandScriptMissing(t *testing.T) {
 	errs := reg.Validate(root)
 	if got := errorNaming(errs, "gen-doc", "generate-thing-doc-missing.sh"); got == "" {
 		t.Fatalf("Validate() errors = %v, want one naming the gate and the missing regenerate script", errs)
+	}
+}
+
+// TestValidate_RegenerateGlobCommandScriptMissing is the glob half of
+// TestValidate_RegenerateCommandScriptMissing: the scripts/ existence check
+// runs before the glob/literal split, so a typo'd generator behind a glob
+// key fails here rather than at the next rebase conflict.
+func TestValidate_RegenerateGlobCommandScriptMissing(t *testing.T) {
+	t.Parallel()
+	root := buildHermeticRepo(
+		t,
+		[]string{"scripts/generate-thing-doc.sh"},
+		[]string{"static-contract-gates.yml"},
+	)
+	writeTracked(t, root, "docs/public/reference/pages/a.md")
+	yaml := strings.Replace(regenerateGateYAML,
+		`      "docs/public/reference/thing.md": "bash scripts/generate-thing-doc.sh"`,
+		`      "docs/public/reference/pages/*.md": "bash scripts/generate-missing-doc.sh"`, 1)
+	path := writeYAML(t, yaml)
+	reg, err := cigates.Load(path)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+
+	errs := reg.Validate(root)
+	if got := errorNaming(errs, "gen-doc", "generate-missing-doc.sh"); got == "" {
+		t.Fatalf("Validate() errors = %v, want one naming the gate and the missing regenerate script behind a glob key", errs)
+	}
+}
+
+// TestValidate_RegenerateCommandQuoteOrBackslashFails pins the raw-text
+// parity rule: the helper parses fragment text while Load sees the decoded
+// value, so a regenerate command carrying a double quote or backslash would
+// run one thing locally and validate another.
+func TestValidate_RegenerateCommandQuoteOrBackslashFails(t *testing.T) {
+	t.Parallel()
+	for _, command := range []string{
+		`bash scripts/generate-thing-doc.sh --title "thing"`,
+		`bash scripts/generate-thing-doc.sh --out docs\\thing.md`,
+	} {
+		root := buildHermeticRepo(
+			t,
+			[]string{"scripts/generate-thing-doc.sh"},
+			[]string{"static-contract-gates.yml"},
+		)
+		writeTracked(t, root, "docs/public/reference/thing.md")
+		path := writeYAML(t, regenerateGateYAML)
+		reg, err := cigates.Load(path)
+		if err != nil {
+			t.Fatalf("Load returned error: %v", err)
+		}
+		reg.Gates[0].Regenerate["docs/public/reference/thing.md"] = command
+
+		errs := reg.Validate(root)
+		if got := errorNaming(errs, "gen-doc", "misread"); got == "" {
+			t.Fatalf("Validate() errors = %v, want a misread refusal for command %q", errs, command)
+		}
+	}
+}
+
+// TestRegenerateEntriesMatchHelperShape scans the committed fragments'
+// raw text and asserts every regenerate: block holds only lines the
+// helper's awk parser accepts (`      "path": "command"` with no quotes
+// or backslashes). Load sees decoded values, so only a raw-text scan can
+// catch a shape the decoder accepts but the helper misreads — a
+// single-quoted entry, a flow-form map, or a backslash escape. At least
+// one entry must exist, so a wholesale shape drift cannot pass vacuously.
+func TestRegenerateEntriesMatchHelperShape(t *testing.T) {
+	t.Parallel()
+	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
+	registryPath := filepath.Join(repoRoot, "specs", "ci-gates.v1.yaml")
+	raw, err := os.ReadFile(registryPath)
+	if err != nil {
+		t.Fatalf("read registry: %v", err)
+	}
+	var fragments []string
+	inList := false
+	for _, line := range strings.Split(string(raw), "\n") {
+		switch {
+		case line == "gate_fragments:":
+			inList = true
+		case inList && strings.HasPrefix(line, "  - "):
+			fragments = append(fragments, strings.TrimPrefix(line, "  - "))
+		case inList && line != "" && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "#"):
+			inList = false
+		}
+	}
+	if len(fragments) == 0 {
+		t.Fatal("no gate fragments listed in the committed registry")
+	}
+	entryLine := regexp.MustCompile(`^      "[^"]+": "[^"]*"$`)
+	found := 0
+	for _, ref := range fragments {
+		body, err := os.ReadFile(filepath.Join(repoRoot, "specs", ref))
+		if err != nil {
+			t.Fatalf("read fragment %s: %v", ref, err)
+		}
+		inRegen := false
+		for i, line := range strings.Split(string(body), "\n") {
+			switch {
+			case line == "    regenerate:":
+				inRegen = true
+			case strings.HasPrefix(line, "    regenerate: ") || strings.HasPrefix(line, "    regenerate:\t"):
+				t.Errorf("fragment %s line %d: flow-form regenerate value the helper cannot parse: %q", ref, i+1, line)
+				inRegen = false
+			case inRegen && (line == "" || strings.HasPrefix(line, "      #")):
+				// Blank lines and comments do not close the block,
+				// mirroring the helper's awk state machine.
+			case inRegen && strings.HasPrefix(line, "      "):
+				if !entryLine.MatchString(line) || strings.Contains(line, "\\") {
+					t.Errorf("fragment %s line %d: not a helper-shaped entry: %q", ref, i+1, line)
+				} else {
+					found++
+				}
+			case inRegen:
+				// Any dedent (next gate, next key, section comment)
+				// closes the block.
+				inRegen = false
+			}
+		}
+	}
+	if found == 0 {
+		t.Error("no helper-shaped regenerate entries in the committed registry; the scan is vacuous")
 	}
 }
 

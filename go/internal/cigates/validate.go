@@ -349,11 +349,33 @@ func checkRegeneratePathsExist(repoRoot string, g Gate, tracked *trackedPaths, o
 			errs = append(errs, fmt.Errorf("gate %q: regenerate %q has a blank command — a conflicted generated file with no regen command stays conflicted", g.ID, regenPath))
 			continue
 		}
+		// The helper parses the raw fragment text while Load sees the
+		// decoded value, so a regenerate key or command carrying a double
+		// quote or backslash would run one thing locally and validate
+		// another. Reject both characters outright: shell single quotes
+		// cover every legitimate quoting need here.
+		if strings.ContainsAny(regenPath, "\"\\") {
+			errs = append(errs, fmt.Errorf("gate %q: regenerate path %q carries a quote or backslash the helper's raw-text parse would misread", g.ID, regenPath))
+			continue
+		}
+		if strings.ContainsAny(command, "\"\\") {
+			errs = append(errs, fmt.Errorf("gate %q: regenerate %q carries a quote or backslash the helper's raw-text parse would misread", g.ID, regenPath))
+			continue
+		}
 		if owner, dup := owners[regenPath]; dup {
 			errs = append(errs, fmt.Errorf("gate %q: regenerate %q is already claimed by gate %q — one generated path takes one regen command", g.ID, regenPath, owner))
 			continue
 		}
 		owners[regenPath] = g.ID
+		// The scripts/ existence check runs for glob and literal keys
+		// alike: a typo'd generator behind a glob key must fail here, not
+		// at the next rebase conflict.
+		for _, script := range extractScriptPaths(command) {
+			scriptFull := filepath.Join(repoRoot, script)
+			if _, err := os.Stat(scriptFull); os.IsNotExist(err) {
+				errs = append(errs, fmt.Errorf("gate %q: regenerate %q names missing script %q (derived from command %q)", g.ID, regenPath, scriptFull, command))
+			}
+		}
 		if !isLiteralTrigger(regenPath) {
 			if tracked == nil || !tracked.matchesAny(regenPath) {
 				errs = append(errs, fmt.Errorf("gate %q: regenerate %q matches no tracked file", g.ID, regenPath))
@@ -373,12 +395,6 @@ func checkRegeneratePathsExist(repoRoot string, g Gate, tracked *trackedPaths, o
 		if err == nil && info.IsDir() {
 			errs = append(errs, fmt.Errorf("gate %q: regenerate %q names the directory %q — regen commands rewrite files", g.ID, regenPath, full))
 			continue
-		}
-		for _, script := range extractScriptPaths(command) {
-			scriptFull := filepath.Join(repoRoot, script)
-			if _, err := os.Stat(scriptFull); os.IsNotExist(err) {
-				errs = append(errs, fmt.Errorf("gate %q: regenerate %q names missing script %q (derived from command %q)", g.ID, regenPath, scriptFull, command))
-			}
 		}
 	}
 	return errs
