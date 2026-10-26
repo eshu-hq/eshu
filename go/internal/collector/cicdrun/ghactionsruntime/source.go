@@ -60,11 +60,26 @@ type SourceConfig struct {
 	Watermarks runwatermark.Store
 }
 
+// AuthModeTokenEnv authenticates with a static Bearer token resolved once
+// at process startup. It is the default when auth mode is unset.
+const AuthModeTokenEnv = "token_env"
+
+// AuthModeHostMinted authenticates with a host-minted GitHub App
+// installation token (#9182): the host mints per claim cycle and keeps the
+// named variable fresh, the satellite only spends the bearer, and the App
+// private key never appears in satellite config, image, logs, or telemetry.
+const AuthModeHostMinted = "host_minted"
+
 // TargetConfig bounds one GitHub Actions repository target.
 type TargetConfig struct {
-	ScopeID             string
-	Repository          string
-	Token               string
+	ScopeID    string
+	Repository string
+	Token      string
+	// AuthMode selects the credential shape: AuthModeTokenEnv (the default)
+	// spends the static Token, while AuthModeHostMinted spends the
+	// host-minted installation token resolved into Token at startup. The
+	// bearer on the wire is identical either way.
+	AuthMode            string
 	AllowedRepositories []string
 	APIBaseURL          string
 	SourceURI           string

@@ -48,7 +48,10 @@ status class, fact kind, and partial reason.
   claim-capable `ci_cd_run` instance unless
   `ESHU_CICD_RUN_COLLECTOR_INSTANCE_ID` selects it.
 - Target credentials come from `token_env`; token values are never stored in
-  collector JSON, facts, logs, metrics, or status.
+  collector JSON, facts, logs, metrics, or status. A `github_actions` target
+  with `auth_mode: "host_minted"` instead spends the host-minted GitHub App
+  installation token resolved from `host_token_env` (#9186); the two shapes
+  never mix on one target, and `gitlab_ci` targets ignore both fields.
 - `allowed_repositories`, `max_runs`, `max_jobs`, and `max_artifacts` bound the
   provider read shape.
 - Heartbeat interval must be shorter than the claim lease TTL.

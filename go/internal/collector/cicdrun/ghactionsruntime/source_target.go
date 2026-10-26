@@ -15,6 +15,15 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	target.ScopeID = strings.TrimSpace(target.ScopeID)
 	target.Repository = normalizeRepository(target.Repository)
 	target.Token = strings.TrimSpace(target.Token)
+	target.AuthMode = strings.ToLower(strings.TrimSpace(target.AuthMode))
+	if target.AuthMode == "" {
+		target.AuthMode = AuthModeTokenEnv
+	}
+	switch target.AuthMode {
+	case AuthModeTokenEnv, AuthModeHostMinted:
+	default:
+		return TargetConfig{}, fmt.Errorf("unsupported github actions auth_mode %q", target.AuthMode)
+	}
 	target.APIBaseURL = strings.TrimSpace(target.APIBaseURL)
 	target.SourceURI = strings.TrimSpace(target.SourceURI)
 	if target.APIBaseURL == "" {
