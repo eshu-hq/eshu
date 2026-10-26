@@ -17,3 +17,15 @@ go.sum merge=union
 # The extractor-version guard pins a digest of these bytes (#8155); keep
 # them byte-exact on every OS.
 go/internal/content/artifacts/testdata/guard/*.jsonl -text
+
+# CHANGELOG.md gets one new entry per PR, all under "## Unreleased", so parallel PRs
+# touch the same lines and every rebase hit a keep-both conflict (#9096). merge=union
+# keeps both sides. scripts/verify-changelog-unreleased.sh then fails a duplicate
+# entry or heading, a second Unreleased heading, or a leftover conflict marker.
+# Two branches that edit the same existing entry still merge to a file that
+# passes it, so read such a merge. The pattern is anchored to the repository
+# root: sdk/go/collector/CHANGELOG.md and sdk/go/factschema/CHANGELOG.md are
+# versioned release documents that the gate does not read, so they keep conflicts.
+# The attribute works in local git (rebase, merge, cherry-pick). Whether GitHub's
+# server-side merge honors it is unverified, so rebase locally before merging.
+/CHANGELOG.md merge=union

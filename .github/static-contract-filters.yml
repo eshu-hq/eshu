@@ -285,6 +285,16 @@ parserrelationship:
   - 'scripts/lib/test-verify-parser-relationship-kit-*'
   - 'scripts/test-verify-parser-relationship-kit.sh'
   - 'scripts/verify-parser-relationship-kit.sh'
+changelogunreleased:
+  - '.github/workflows/static-contract-gates.yml'
+  - 'specs/ci-gates.v1.yaml'
+  - 'specs/ci-gates.d/**'
+  - '.github/static-contract-filters.yml'
+  - 'CHANGELOG.md'
+  - '.gitattributes'
+  - 'scripts/verify-changelog-unreleased.sh'
+  - 'scripts/test-verify-changelog-unreleased.sh'
+  - 'scripts/test-changelog-union-merge.sh'
 docsrefs:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'
