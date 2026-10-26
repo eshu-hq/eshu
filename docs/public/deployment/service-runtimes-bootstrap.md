@@ -156,7 +156,7 @@ server.
 
 Compose runs `db-migrate` with `/usr/local/bin/eshu-bootstrap-data-plane` after
 Postgres and the graph backend are healthy. Steady-state services depend on
-that one-shot service completing successfully.
+that one-shot service completing successfully; on Kubernetes it runs as the chart's schema-bootstrap Job (see [Argo CD and GitOps](../deploy/kubernetes/argocd.md#schema-bootstrap-presync-hook) for the PreSync hook variant, deadline sizing, and break-glass render).
 
 Graph-writing runtimes (`eshu-bootstrap-index`, ingester/projector, standalone
 projector, and resolution engine) read the latest Postgres

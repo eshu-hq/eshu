@@ -1,3 +1,13 @@
+schemaBootstrap:
+  # Measured-builds floor for environment overlays (#9201): the 600s chart
+  # default only bounds the bootstrap client pod, and a CREATE INDEX
+  # CONCURRENTLY build behind a long transaction outlasts it while the
+  # Postgres backend keeps building unattended. 3600s keeps the Job's status
+  # honest on databases with large target tables or routinely long-running
+  # transactions; a deadline kill still leaves the schema safe for the next
+  # run to resume. The PreSync hook itself stays QA-only until proven.
+  activeDeadlineSeconds: 3600
+
 serviceAccount:
   annotations:
     eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu

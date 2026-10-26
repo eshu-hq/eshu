@@ -82,6 +82,17 @@ require_output "${pass_output}" 'postgres=configured' "Postgres dependency summa
 require_output "${pass_output}" 'graph=configured' "graph dependency summary"
 reject_output "${pass_output}" 'postgresql://|Bearer' "secret-bearing output"
 
+# The angle-bracket placeholder check must still catch a real bracketed token
+# (#7791 xmin-precheck SQL narrowed the pattern, not the intent).
+bracket_values="${tmp_root}/bracket-values.yaml"
+cat >"${bracket_values}" <<'YAML'
+contentStore:
+  dsn: postgresql://eshu:<db-password>@postgres.platform.svc.cluster.local:5432/eshu
+YAML
+bracket_output="${tmp_root}/bracket.out"
+expect_fail "${bracket_output}" --values "${valid_values}" --values "${bracket_values}"
+require_output "${bracket_output}" 'placeholder value rendered: angle-bracket placeholder' "bracket placeholder failure"
+
 base_output="${tmp_root}/base.out"
 expect_fail "${base_output}" --overlay deploy/argocd/base
 require_output "${base_output}" 'placeholder value rendered: replace-me' "placeholder failure"

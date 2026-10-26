@@ -128,7 +128,11 @@ fail_if_rendered 'replace-me' 'placeholder value rendered: replace-me'
 fail_if_rendered 'your-[a-z0-9-]+' 'placeholder value rendered: your-*'
 fail_if_rendered 'example\.com' 'placeholder value rendered: example.com'
 fail_if_rendered '123456789012' 'placeholder value rendered: example account id'
-fail_if_rendered '<[^>]+>' 'placeholder value rendered: angle-bracket placeholder'
+# Angle-bracket placeholders look like <password>: one bracketed token with no
+# spaces or nested brackets. The schema-bootstrap xmin-precheck SQL compares
+# `< now() - interval ...` (#7791), which the old `<[^>]+>` shape matched as
+# a false positive; the token shape still catches <password>/<ACCOUNT_ID>.
+fail_if_rendered '<[^<>[:space:]]+>' 'placeholder value rendered: angle-bracket placeholder'
 
 if rg -q 'image: .+:(latest|main|master|dev)(@|["[:space:]]*$)' "${rendered}"; then
 	if rg -q 'image: .+:latest(@|["[:space:]]*$)' "${rendered}"; then

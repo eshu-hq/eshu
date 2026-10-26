@@ -36,6 +36,45 @@ with your platform values.
 
 For the chart values, use [Helm Values](helm-values.md).
 
+## Schema bootstrap PreSync hook
+
+Direct `helm install/upgrade` keeps the schema-bootstrap Helm
+pre-install/pre-upgrade hooks. An ArgoCD Application instead sets
+`schemaBootstrap.useHelmHooks=false` and enables
+`schemaBootstrap.argocdPreSync` (off by default; the QA overlay enables it
+first so the hook proves green before any production rollout). The same Job
+then runs as an ArgoCD PreSync hook at negative sync wave with
+`BeforeHookCreation` deletion: a sync with pending migrations runs the hook
+to completion before workloads roll, a sync with a clean schema passes in
+seconds, and a planted failing migration halts the sync with the hook Job's
+logs as the cause. The Job runs the release image bootstrap command with its
+xmin-precheck init container; there is no second migrations image. Do not
+enable both hook families at once — ArgoCD also processes `helm.sh/hook`
+annotations, so the chart fails the render as mutually exclusive.
+
+Size the deadline from measured builds: the chart default
+`activeDeadlineSeconds: 600` only bounds the bootstrap client pod while the
+Postgres backend keeps building unattended, and a `CREATE INDEX CONCURRENTLY`
+build behind a long transaction outlasts it. Environment overlays use at
+least 3600 s. A deadline kill still leaves the schema safe for the next run
+to resume through migration receipts, the advisory-lock wait, and the
+invalid-index cleanup. If the xmin-precheck refuses to start, clear the
+holder per the [park-holder runbook](../../operate/park-holder-runbook.md)
+and re-sync.
+
+Break-glass without ArgoCD: render the Job by hand and apply it as an
+unmanaged one-shot, then wait on the component label:
+
+```bash
+helm template eshu ./deploy/helm/eshu \
+  -f deploy/argocd/base/values.yaml \
+  -f deploy/argocd/overlays/qa/values.yaml \
+  --show-only templates/job-schema-bootstrap.yaml | kubectl apply -f -
+kubectl wait --for=condition=complete job \
+  -l app.kubernetes.io/component=schema-bootstrap --timeout=3600s \
+  --namespace eshu
+```
+
 ## Rendered-Diff Preflight
 
 Run the GitOps preflight before a controller applies an overlay:
