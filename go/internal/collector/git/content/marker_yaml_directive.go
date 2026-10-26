@@ -23,9 +23,13 @@ import "strings"
 // and PyYAML 6.0.3 reject it); a space-indented one and a bare "%YAML" are
 // matched conservatively though every probed parser rejects them there. A
 // directive split from its name across NEL, LS, or PS ("%"+break+"YAML 1.2"
-// on one "\n"-line) is matched: js-yaml's directive scanner does not honor
-// those breaks as a name terminator and reads on, while yaml.v3 rejects the
-// split (could not find expected directive name). A "%" split from its name
+// on one "\n"-line) is matched, as are its neighbors: a space or tab after
+// the break ("%"+break+" YAML 1.2"), a trailing break with no name on the
+// line ("%"+break), and a multi-break run ("%"+NEL+NEL+"YAML 1.2").
+// js-yaml's directive scanner stops a name only at space, tab, LF, or CR, so
+// the break byte itself joins the name and each neighbor reads on, while
+// yaml.v3 rejects each (could not find expected directive name) and PyYAML
+// 6.0.3 rejects each while scanning a directive. A "%" split from its name
 // across "\r" or "\n" stays unmatched: every probed parser rejects that
 // shape. A break-prefixed directive ("\r", NEL, LS, or PS before "%", or a
 // directive on a later break-separated segment) is matched because a
@@ -51,11 +55,14 @@ func hasYAMLVersionDirective(lines []string) bool {
 			if len(rest) >= 2 && rest[0] == '%' && rest[1] != ' ' && rest[1] != '\t' {
 				return true
 			}
-			// A lone "%" joined to its name across NEL, LS, or PS is the
-			// split-directive hole above. The "\r" separator is excluded:
-			// "%"+"\r"+name is rejected by every probed parser.
-			if rest == "%" && i+1 < len(segments) && breaks[i] != '\r' &&
-				len(segments[i+1]) > 0 && segments[i+1][0] != ' ' && segments[i+1][0] != '\t' {
+			// A lone "%" followed by NEL, LS, or PS on the same "\n"-line is the
+			// split-directive hole above with its neighbors: the break byte
+			// itself joins js-yaml's directive name, so what follows on the
+			// line is irrelevant — empty, space- or tab-leading, or further
+			// breaks. Only a "\r" first separator stays unmatched:
+			// "%"+"\r"+name is rejected by every probed parser, as is
+			// "%"+"\n"+name.
+			if rest == "%" && i+1 < len(segments) && breaks[i] != '\r' {
 				return true
 			}
 		}

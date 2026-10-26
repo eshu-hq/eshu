@@ -78,7 +78,13 @@ func envInt(name string, fallback int) int {
 
 // TestRedactMarkerFlowHostileSeedsDecodeTheToken keeps the seed table honest:
 // every body yaml.v3 can parse must hold the token under a listed key, so a seed
-// cannot pass for being no leak at all.
+// cannot pass for being no leak at all. It asserts nothing for a seed yaml.v3
+// rejects (parsed=false): every NEL/LS/PS-split, break-prefixed, and
+// residual-neighbor directive seed passes here vacuously, so their coverage
+// lives in TestRedactMarkerFlowShapesFailClosed,
+// TestRedactMarkerVersionDirectiveVariantQuotedContinuationFailsClosed, and the
+// js-yaml/PyYAML oracle instead. That gap is noted rather than papered over:
+// no honest yaml.v3-based assertion can see a class yaml.v3 rejects.
 func TestRedactMarkerFlowHostileSeedsDecodeTheToken(t *testing.T) {
 	t.Parallel()
 
@@ -146,6 +152,20 @@ var oracleFragments = []string{
 	// each, so they compose the same fail-closed shape through the
 	// any-directive arm.
 	"%YAMLx", "%FOO",
+	// NEL-split and leading-NEL directive fragments: yaml.v3 rejects each, so
+	// the in-process oracle is blind to them and only the lexical fallback
+	// covers them; the js-yaml/PyYAML oracle reads what they compose. A
+	// leading-break fragment joined after another fragment also composes the
+	// late-break shape. LS and PS share the pre-tail scanner path, so NEL
+	// stands for the three breaks here; the seed and variant tables cover all
+	// three explicitly.
+	"%\u0085YAML 1.2", "\u0085%YAML 1.2",
+	// Residual split-neighbor fragments: a space or tab between the break and
+	// the name, a trailing break with no name on the line (which joins with
+	// "---" into the trailing-break shape), and a multi-break run. js-yaml
+	// 4.1.1 decodes each while yaml.v3 and PyYAML 6.0.3 reject each, so only
+	// the widened lone-"%" arm covers them.
+	"%\u0085 YAML 1.2", "%\u0085\tYAML 1.2", "%\u0085", "%\u0085\u0085YAML 1.2",
 }
 
 // randomOracleBody joins random fragments, numbering each planted token so the
@@ -175,8 +195,10 @@ func TestRedactMarkerNeverStoresADecodedCredential(t *testing.T) {
 	// for a one-off run; the defaults keep the test around a second. N grows
 	// with the fragment table: each directive-line fragment breaks yaml.v3
 	// parsing in the bodies it joins, so a wider table needs more draws to
-	// keep the 600-decoding-body floor with margin.
-	iterations, seed := envInt("ESHU_8833_YAML_ORACLE_N", 180000), envInt("ESHU_8833_YAML_ORACLE_SEED", 8833)
+	// keep the 600-decoding-body floor with margin. The thirteen
+	// directive-line fragments (seven before, six NEL-split/break/neighbor
+	// ones) set N at 230000 for ~750 decoding bodies against the 600 floor.
+	iterations, seed := envInt("ESHU_8833_YAML_ORACLE_N", 230000), envInt("ESHU_8833_YAML_ORACLE_SEED", 8833)
 	rng := rand.New(rand.NewSource(int64(seed)))
 	decodedBodies, failedClosed := 0, 0
 	for i := 0; i < iterations; i++ {

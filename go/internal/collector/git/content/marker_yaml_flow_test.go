@@ -26,18 +26,26 @@ const flowSeedToken = "Zq19FlowSeedAAAAAAAA"
 // The BOM-prefixed, tab-indented, and unspaced ("%YAML1.2") directive
 // variants decode it in js-yaml 4.1.1 only (PyYAML reads the BOM-prefixed
 // one too); yaml.v3 rejects each, so only the lexical fallback covers them.
-// The CR-prefixed ("%YAML 1.2" after "\r") variant stands for the
-// break-prefixed class (CR, NEL, LS, PS, and late CR-, NEL-, LS-, and
-// PS-separated directives): a "\n"-only split misses each while a downstream
-// parser still decodes the token and yaml.v3 rejects each, so the same
-// fallback covers them (CR-prefixed reads as a directive line in both
+// The CR-prefixed ("%YAML 1.2" after "\r") seed covers the CR member of the
+// break-prefixed class; the NEL-, LS-, and PS-split seeds and the late NEL-,
+// LS-, and PS-separated seeds below cover those members: a "\n"-only split
+// misses each while a downstream parser still decodes the token and yaml.v3
+// rejects each, so the same fallback covers them (CR-prefixed reads as a
+// directive line in both
 // downstream parsers; leading NEL/LS/PS leaves js-yaml with a scalar first
 // document, directive not consumed, that still decodes the token, while
 // PyYAML reads each as a directive; late shapes read in PyYAML while js-yaml
-// rejects them). The split-directive variants ("%"
-// joined to its name across NEL, LS, or PS on the same "\n"-line) are the
-// narrower hole js-yaml reads while yaml.v3 rejects: only the
-// separator-aware arm of the gate covers them.
+// rejects them). The leading NEL-, LS-, and PS-prefixed shapes and the late
+// CR-separated shape live only in
+// TestRedactMarkerVersionDirectiveVariantQuotedContinuationFailsClosed, not in
+// this table: they exercise the same arms through the variant regression. The
+// split-directive seeds ("%" joined to its name across NEL, LS, or PS on the
+// same "\n"-line) are the narrower hole js-yaml reads while yaml.v3 rejects:
+// only the separator-aware arm of the gate covers them. The residual
+// split-neighbor seeds (a space or tab between the break and the name, a
+// trailing break with no name on the line, and multi-break runs) cover the
+// widened lone-"%" arm: js-yaml 4.1.1 decodes each while yaml.v3 and PyYAML
+// 6.0.3 reject each.
 // The letter-suffixed ("%YAMLx", "%YAMLé", "%YAMLL") and reserved ("%FOO",
 // "%YAM", "%ABC", "%x", "%%YAML") directive variants decode it in js-yaml
 // 4.1.1 (PyYAML reads a subset) while yaml.v3 rejects each, so the same
@@ -134,6 +142,28 @@ var flowHostileSeeds = map[string]string{
 	"LS-split directive single-quoted continuation, closed low":              "%\u2028YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
 	"PS-split directive double-quoted continuation, closed low":              "%\u2029YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
 	"PS-split directive single-quoted continuation, closed low":              "%\u2029YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"NEL-split-space directive double-quoted continuation, closed low":       "%\u0085 YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"NEL-split-space directive single-quoted continuation, closed low":       "%\u0085 YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"NEL-split-tab directive double-quoted continuation, closed low":         "%\u0085\tYAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"NEL-split-tab directive single-quoted continuation, closed low":         "%\u0085\tYAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"LS-split-space directive double-quoted continuation, closed low":        "%\u2028 YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"LS-split-space directive single-quoted continuation, closed low":        "%\u2028 YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"LS-split-tab directive double-quoted continuation, closed low":          "%\u2028\tYAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"LS-split-tab directive single-quoted continuation, closed low":          "%\u2028\tYAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"PS-split-space directive double-quoted continuation, closed low":        "%\u2029 YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"PS-split-space directive single-quoted continuation, closed low":        "%\u2029 YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"PS-split-tab directive double-quoted continuation, closed low":          "%\u2029\tYAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"PS-split-tab directive single-quoted continuation, closed low":          "%\u2029\tYAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"NEL-trailing directive double-quoted continuation, closed low":          "%\u0085\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"NEL-trailing directive single-quoted continuation, closed low":          "%\u0085\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"LS-trailing directive double-quoted continuation, closed low":           "%\u2028\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"LS-trailing directive single-quoted continuation, closed low":           "%\u2028\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"PS-trailing directive double-quoted continuation, closed low":           "%\u2029\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"PS-trailing directive single-quoted continuation, closed low":           "%\u2029\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"NEL-NEL-split directive double-quoted continuation, closed low":         "%\u0085\u0085YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"NEL-NEL-split directive single-quoted continuation, closed low":         "%\u0085\u0085YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"NEL-LS-split directive double-quoted continuation, closed low":          "%\u0085\u2028YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"NEL-LS-split directive single-quoted continuation, closed low":          "%\u0085\u2028YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
 	"late NEL directive double-quoted continuation, closed low":              "a: b\n\u0085%YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
 	"late NEL directive single-quoted continuation, closed low":              "a: b\n\u0085%YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
 	"late LS directive double-quoted continuation, closed low":               "a: b\n\u2028%YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
@@ -225,6 +255,28 @@ func TestRedactMarkerFlowShapesFailClosed(t *testing.T) {
 		"LS-split directive single-quoted continuation, closed low",
 		"PS-split directive double-quoted continuation, closed low",
 		"PS-split directive single-quoted continuation, closed low",
+		"NEL-split-space directive double-quoted continuation, closed low",
+		"NEL-split-space directive single-quoted continuation, closed low",
+		"NEL-split-tab directive double-quoted continuation, closed low",
+		"NEL-split-tab directive single-quoted continuation, closed low",
+		"LS-split-space directive double-quoted continuation, closed low",
+		"LS-split-space directive single-quoted continuation, closed low",
+		"LS-split-tab directive double-quoted continuation, closed low",
+		"LS-split-tab directive single-quoted continuation, closed low",
+		"PS-split-space directive double-quoted continuation, closed low",
+		"PS-split-space directive single-quoted continuation, closed low",
+		"PS-split-tab directive double-quoted continuation, closed low",
+		"PS-split-tab directive single-quoted continuation, closed low",
+		"NEL-trailing directive double-quoted continuation, closed low",
+		"NEL-trailing directive single-quoted continuation, closed low",
+		"LS-trailing directive double-quoted continuation, closed low",
+		"LS-trailing directive single-quoted continuation, closed low",
+		"PS-trailing directive double-quoted continuation, closed low",
+		"PS-trailing directive single-quoted continuation, closed low",
+		"NEL-NEL-split directive double-quoted continuation, closed low",
+		"NEL-NEL-split directive single-quoted continuation, closed low",
+		"NEL-LS-split directive double-quoted continuation, closed low",
+		"NEL-LS-split directive single-quoted continuation, closed low",
 		"late NEL directive double-quoted continuation, closed low",
 		"late NEL directive single-quoted continuation, closed low",
 		"late LS directive double-quoted continuation, closed low",
@@ -347,8 +399,12 @@ func TestRedactMarkerVersionDirectiveQuotedContinuationFailsClosed(t *testing.T)
 // PyYAML while js-yaml rejects them. The split-directive follow-up adds "%"
 // joined to its name across NEL, LS, or PS on one "\n"-line, which js-yaml
 // reads (its directive scanner does not honor those breaks as a name
-// terminator) while yaml.v3 rejects it. Each of all shapes must fail closed
-// in both quote styles.
+// terminator) while yaml.v3 rejects it. The residual split-neighbor follow-up
+// adds the shapes around it that js-yaml 4.1.1 likewise decodes while yaml.v3
+// and PyYAML 6.0.3 reject: a space or tab between the break and the name,
+// a trailing break with no name on the line, and multi-break runs
+// ("%"+NEL+NEL+"YAML 1.2", "%"+NEL+LS+"YAML 1.2"). Each of all shapes must
+// fail closed in both quote styles.
 func TestRedactMarkerVersionDirectiveVariantQuotedContinuationFailsClosed(t *testing.T) {
 	t.Parallel()
 
@@ -391,6 +447,28 @@ func TestRedactMarkerVersionDirectiveVariantQuotedContinuationFailsClosed(t *tes
 		"LS-split single-quoted":              "%\u2028YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
 		"PS-split double-quoted":              "%\u2029YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
 		"PS-split single-quoted":              "%\u2029YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"NEL-split-space double-quoted":       "%\u0085 YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"NEL-split-space single-quoted":       "%\u0085 YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"NEL-split-tab double-quoted":         "%\u0085\tYAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"NEL-split-tab single-quoted":         "%\u0085\tYAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"LS-split-space double-quoted":        "%\u2028 YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"LS-split-space single-quoted":        "%\u2028 YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"LS-split-tab double-quoted":          "%\u2028\tYAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"LS-split-tab single-quoted":          "%\u2028\tYAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"PS-split-space double-quoted":        "%\u2029 YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"PS-split-space single-quoted":        "%\u2029 YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"PS-split-tab double-quoted":          "%\u2029\tYAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"PS-split-tab single-quoted":          "%\u2029\tYAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"NEL-trailing double-quoted":          "%\u0085\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"NEL-trailing single-quoted":          "%\u0085\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"LS-trailing double-quoted":           "%\u2028\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"LS-trailing single-quoted":           "%\u2028\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"PS-trailing double-quoted":           "%\u2029\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"PS-trailing single-quoted":           "%\u2029\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"NEL-NEL-split double-quoted":         "%\u0085\u0085YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"NEL-NEL-split single-quoted":         "%\u0085\u0085YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"NEL-LS-split double-quoted":          "%\u0085\u2028YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"NEL-LS-split single-quoted":          "%\u0085\u2028YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
 		"late NEL directive double-quoted":    "a: b\n\u0085%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
 		"late NEL directive single-quoted":    "a: b\n\u0085%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
 		"late LS directive double-quoted":     "a: b\n\u2028%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
