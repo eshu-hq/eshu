@@ -1,4 +1,4 @@
-# #8820 research: end-of-life enrichment for declared runtime versions
+# 8820 research: end-of-life enrichment for declared runtime versions
 
 Recommendation: vendor an offline endoflife.date snapshot for the eight
 mapped runtimes, answer with its age on every read, and report
@@ -56,7 +56,7 @@ out of scope for declared-version questions.
 - `unknown` covers: unmapped runtime, missing product file, missing
   cycle, unparseable spec (alias/range/unresolved stay as they are).
 
-## Licence
+## License
 
 The dataset repository is MIT licensed:
 
