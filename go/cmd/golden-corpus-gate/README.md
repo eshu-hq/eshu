@@ -232,6 +232,9 @@ of treating the human text summary as a successful payload. Expected tool
 refusals match `structuredContent.error.message` when structured content is
 present; only text-only errors use the legacy summary. Malformed structured
 errors and transport/protocol failures cannot satisfy an expected tool refusal.
+When `-mcp-result-shape=structured` is explicit, every result must carry object
+`structuredContent` without an embedded resource before success or refusal
+assertions run. Only dual or unspecified shapes retain the legacy fallbacks.
 
 The documentation packet and freshness shapes use a one-claim public Markdown
 fixture. `eshu docs verify --persist` commits the verifier's finding and packet

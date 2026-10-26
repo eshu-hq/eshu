@@ -138,6 +138,20 @@ func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]a
 	if rpc.Result == nil {
 		return nil, fmt.Errorf("tools/call %s: response carried no result", name)
 	}
+	// An explicit structured run must prove the requested wire contract before
+	// any payload or expected-refusal fallback can satisfy a required check.
+	// Empty/default and dual runs retain their legacy resource/text readers.
+	if c.shape == "structured" {
+		var object map[string]json.RawMessage
+		if err := json.Unmarshal(rpc.Result.StructuredContent, &object); err != nil || object == nil {
+			return nil, fmt.Errorf("tools/call %s: requested structured shape requires object structuredContent", name)
+		}
+		for _, entry := range rpc.Result.Content {
+			if entry.Type == "resource" || entry.Resource != nil {
+				return nil, fmt.Errorf("tools/call %s: requested structured shape forbids embedded resources", name)
+			}
+		}
+	}
 	if rpc.Result.IsError {
 		diagnostic, valid := toolErrorDiagnostic(rpc.Result)
 		if !valid {

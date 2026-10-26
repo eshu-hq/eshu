@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -252,5 +253,60 @@ func TestCheckMCPQueryErrorResourceBeforeText(t *testing.T) {
 				t.Fatalf("resource finding=%+v, want pass=%v", finding, tc.pass)
 			}
 		})
+	}
+}
+
+// TestCheckMCPQueryEnforcesRequestedStructuredShape seeds wrong transport
+// shapes in the actual required-check consumer, including matching refusals.
+func TestCheckMCPQueryEnforcesRequestedStructuredShape(t *testing.T) {
+	t.Parallel()
+	const diagnostic = "entity not found"
+	for _, isError := range []bool{false, true} {
+		for _, mode := range []string{"structured", "dual", ""} {
+			for _, form := range []string{"text", "resource", "canonical", "duplicate", "null", "array"} {
+				t.Run(mode+"/"+form+"/error="+fmt.Sprint(isError), func(t *testing.T) {
+					t.Parallel()
+					payload := `{"count":1}`
+					text := payload
+					if isError {
+						payload = `{"data":null,"truth":null,"error":{"code":"not_found","message":"entity not found"}}`
+						text = diagnostic
+					}
+					content := []any{map[string]any{"type": "text", "text": text}}
+					result := map[string]any{"isError": isError, "content": content}
+					if form == "resource" || form == "duplicate" {
+						result["content"] = append(content, map[string]any{"type": "resource", "resource": map[string]string{"mimeType": "application/json", "text": payload}})
+					}
+					switch form {
+					case "canonical", "duplicate":
+						result["structuredContent"] = json.RawMessage(payload)
+					case "null":
+						result["structuredContent"] = nil
+					case "array":
+						result["structuredContent"] = []any{}
+					}
+					wire, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "result": result})
+					if err != nil {
+						t.Fatal(err)
+					}
+					client := mcpClientWithDoer(&fakeMCPDoer{byTool: map[string]string{"fixture": string(wire)}})
+					client.shape = mode
+					shape := QueryShape{RequiredResponseFields: []string{"count"}}
+					if isError {
+						shape = QueryShape{ExpectedErrorContains: diagnostic}
+					}
+					snap := Snapshot{QueryShapes: QueryShapes{MCP: map[string]QueryShape{"fixture": shape}}}
+					var report Report
+					if err := checkMCPQuery(context.Background(), client, snap, &report); err != nil {
+						t.Fatal(err)
+					}
+					finding, present := findingByCheck(report, "mcp:fixture")
+					want := form == "canonical" || (mode != "structured" && (form == "text" || form == "resource" || form == "duplicate"))
+					if !present || finding.OK != want || !finding.Required {
+						t.Fatalf("required finding=%+v, present=%v, want pass=%v", finding, present, want)
+					}
+				})
+			}
+		}
 	}
 }

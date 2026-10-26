@@ -1,8 +1,11 @@
 # Structured MCP result contract proof (#8800)
 
 The structured Neo4j golden-corpus run passed 629 checks with zero required
-failures. This proves the local pipeline and query contract for the runtime
-source below; it does not establish hosted token savings or a default flip.
+failures. This records the local pipeline and query assertions for the runtime source
+below. Review subsequently found that the reader could accept legacy fallback
+results despite requesting structured mode; a stricter reader and fresh run are
+required before claiming the requested wire contract. It does not establish
+hosted token savings or a default flip.
 
 ## Run identity
 
@@ -27,8 +30,11 @@ GATE_MCP_RESULT_SHAPE=structured ESHU_GRAPH_BACKEND=neo4j   bash scripts/verify-
 ```
 
 The wrapper exited 0. Cleanup left no containers belonging to its compose
-project. The evidence-recording commit changes documentation only; the tested
-Go tree, gate scripts, corpus, snapshots and specifications remain unchanged.
+project. The original evidence-recording commit changed documentation only. The later
+reader correction requires object `structuredContent` and rejects embedded
+resources on explicitly structured runs before checking either successes or
+refusals. The actual-consumer regression failed before this correction. Fresh
+strict-reader corpus proof is pending; the run below remains historical evidence.
 
 ## Required and advisory findings
 
