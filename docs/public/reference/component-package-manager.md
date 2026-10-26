@@ -470,14 +470,14 @@ old stored rows and system fallback data; component manifests cannot declare it
 as normal emitted output.
 
 Each `emittedFacts.kind` must be namespaced with a collision-resistant prefix.
-Core-owned fact kinds from `go/internal/facts` are reserved and cannot be
-claimed by optional components. During install and activation planning, the
-local registry compares the manifest against installed component manifests. A
-different component ID cannot claim a fact kind that is already installed. The
-same component ID can install another version with the same fact kind only when
-the declared schema-version major set is compatible; otherwise the registry
-returns `fact_kind_collision` with the candidate owner, existing owner, fact
-kind, and the operator action needed to proceed. Uninstalling an inactive
+Core-owned fact kinds from `go/internal/facts` are reserved: an optional component may
+declare one only with a live core-issued producer grant covering every declared schema
+version, scoped to the manifest's collector kinds. During install and activation planning,
+the local registry compares the manifest against installed component manifests. A different
+component ID cannot claim an installed fact kind, unless the kind is core-owned, both hold
+live grants, and their schema-version major sets agree. The same component ID can install
+another version with the same fact kind only when the declared schema-version major set is
+compatible; otherwise the registry returns `fact_kind_collision`. Uninstalling an inactive
 component version releases its local fact-kind ownership claim.
 
 An `emittedFacts[].payloadSchemaRef` value is optional. When present, it must

@@ -44,7 +44,10 @@ producers:
       planned_repository: eshu-hq/eshu-collector-loki
       authority_mode: core_issued_grant
       kinds:
+        - observability.coverage_warning
         - observability.observed_log_signal
+        - observability.observed_rule
+        - observability.source_instance
     - id: collector-prometheus-mimir
       repository: eshu-hq/eshu
       path: go/internal/collector/observability/prometheus
@@ -61,7 +64,9 @@ producers:
       planned_repository: eshu-hq/eshu-collector-tempo
       authority_mode: core_issued_grant
       kinds:
+        - observability.coverage_warning
         - observability.observed_trace_signal
+        - observability.source_instance
     - id: git-core
       repository: eshu-hq/eshu
       path: go/internal/collector/repo
