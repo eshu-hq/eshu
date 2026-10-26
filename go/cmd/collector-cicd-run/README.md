@@ -50,8 +50,15 @@ status class, fact kind, and partial reason.
 - Target credentials come from `token_env`; token values are never stored in
   collector JSON, facts, logs, metrics, or status. A `github_actions` target
   with `auth_mode: "host_minted"` instead spends the host-minted GitHub App
-  installation token resolved from `host_token_env` (#9186); the two shapes
-  never mix on one target, and `gitlab_ci` targets ignore both fields.
+  installation token resolved per claim from `host_token_file` (#9186,
+  arbiter file channel): the file holds `{"token", "scope_id"}`, the host
+  refreshes it by atomic replace on a cadence below the 1-hour token TTL,
+  and the satellite keeps no frozen copy. The two shapes never mix on one
+  target, and `gitlab_ci` targets ignore both fields. Startup fails closed
+  when the file is unresolvable; a missing, empty, malformed, or
+  scope-mismatched file fails the claim as bounded terminal `auth_denied`,
+  and a provider-refused value (expired installation token) classifies the
+  same way instead of burning the claim's attempt budget.
 - `allowed_repositories`, `max_runs`, `max_jobs`, and `max_artifacts` bound the
   provider read shape.
 - Heartbeat interval must be shorter than the claim lease TTL.
@@ -83,16 +90,22 @@ provider metrics, spans, partial-generation metrics, rate-limit metrics, and
 fact-backed central collector status evidence.
 
 No-Regression Evidence (#9186): `go test ./cmd/collector-cicd-run
-./internal/collector/cicdrun/... -count=1` is green at HEAD (Go 1.26.6)
-against baseline origin/main d1f56dc14b with synthetic unit targets and no
-live provider calls. The change is startup-only target mapping plus an
-AuthMode label: the token_env mapping statements are verbatim, both modes
-share the one wire bearer path (`Authorization: Bearer <Token>`), and the
-fetch, pagination, and watermark hot path is untouched, so request volume
-and timings cannot shift. No queue, lease, Cypher, or storage path is
-touched, so there are no terminal queue or row counts to compare.
+./internal/collector/cicdrun/... ./internal/workflow -count=1` is green at
+HEAD (Go 1.26.6) against baseline origin/main d1f56dc14b with synthetic
+unit targets and no live provider calls. The token_env mapping statements
+are verbatim and its fetch-error propagation is untouched, so existing
+static-token activations behave byte-identically (pinned by
+TestMapTargetTokenEnvByteIdentical). host_minted adds per-claim file
+resolution (a local disk read, no provider volume change) and classifies a
+refused host value as terminal `auth_denied`; the fetch, pagination, and
+watermark hot path is otherwise untouched, so request volume and timings
+cannot shift. No queue, lease, Cypher, or storage path is touched, so there
+are no terminal queue or row counts to compare.
 
-No-Observability-Change (#9186): no new metrics, spans, logs, or status
-fields; both modes emit the existing fetch, rate-limit, and
-partial-generation signals identically. AuthMode rides on TargetConfig for
-future labeling but is not emitted yet.
+Observability Evidence (#9186): no new metrics, spans, logs, or status
+fields. The existing fetch dimensions carry one new bounded value:
+resolution and refusal failures record under `status_class="auth_denied"`,
+distinguishable from provider `"error"`, with the token value excluded from
+every label (pinned by
+TestClaimedSourceHostMintedRecordsAuthDeniedTelemetry and the lane startup
+tests).

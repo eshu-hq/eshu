@@ -28,6 +28,8 @@ type cicdRunTargetConfiguration struct {
 	ScopeID             string   `json:"scope_id"`
 	Repository          string   `json:"repository"`
 	TokenEnv            string   `json:"token_env"`
+	AuthMode            string   `json:"auth_mode"`
+	HostTokenFile       string   `json:"host_token_file"`
 	AllowedRepositories []string `json:"allowed_repositories"`
 	APIBaseURL          string   `json:"api_base_url"`
 	MaxRuns             int      `json:"max_runs"`
@@ -77,6 +79,18 @@ const (
 	cicdRunProviderGitLabCI      = "gitlab_ci"
 )
 
+// cicdRunAuthModeTokenEnv and cicdRunAuthModeHostMinted mirror
+// go/internal/collector/cicdrun/ghactionsruntime.AuthModeTokenEnv/AuthModeHostMinted
+// as plain strings, for the same dependency-direction reason as the provider
+// constants above: the lane in go/cmd/collector-cicd-run pins the sync
+// behaviorally (its unknown-mode and never-mix tests fail against either
+// side drifting), so a typo here fails loudly instead of silently changing
+// which credential shape a target selects.
+const (
+	cicdRunAuthModeTokenEnv   = "token_env"
+	cicdRunAuthModeHostMinted = "host_minted"
+)
+
 func validateCICDRunTargetConfiguration(target cicdRunTargetConfiguration) error {
 	if strings.TrimSpace(target.ScopeID) == "" {
 		return fmt.Errorf("scope_id is required")
@@ -106,8 +120,8 @@ func validateCICDRunTargetConfiguration(target cicdRunTargetConfiguration) error
 		}
 		return fmt.Errorf("repository must be owner/name")
 	}
-	if strings.TrimSpace(target.TokenEnv) == "" {
-		return fmt.Errorf("token_env is required")
+	if err := validateCICDRunTargetAuth(target, provider); err != nil {
+		return err
 	}
 	if len(cleanCICDRepositories(target.AllowedRepositories)) == 0 {
 		return fmt.Errorf("allowed_repositories is required")
@@ -147,6 +161,43 @@ func validateCICDRunTargetConfiguration(target cicdRunTargetConfiguration) error
 		return err
 	}
 	return validateCICDURL("source_uri", target.SourceURI, false)
+}
+
+// validateCICDRunTargetAuth checks the per-target credential shape (#9186):
+// a github_actions target selects exactly one of the two shapes --
+// auth_mode "token_env" (the default when omitted) resolves a static bearer
+// from token_env at startup, while auth_mode "host_minted" resolves the
+// host-minted installation token per claim from host_token_file -- and the
+// two never mix on one target. A gitlab_ci target ignores both fields
+// (mirroring the MaxArtifacts precedent) and keeps its existing token_env
+// requirement.
+func validateCICDRunTargetAuth(target cicdRunTargetConfiguration, provider string) error {
+	if provider == cicdRunProviderGitLabCI {
+		if strings.TrimSpace(target.TokenEnv) == "" {
+			return fmt.Errorf("token_env is required")
+		}
+		return nil
+	}
+	switch authMode := strings.ToLower(strings.TrimSpace(target.AuthMode)); authMode {
+	case "", cicdRunAuthModeTokenEnv:
+		if strings.TrimSpace(target.TokenEnv) == "" {
+			return fmt.Errorf("token_env is required")
+		}
+		if strings.TrimSpace(target.HostTokenFile) != "" {
+			return fmt.Errorf("auth_mode %q must not set host_token_file %q: the two credential shapes never mix", target.AuthMode, target.HostTokenFile)
+		}
+		return nil
+	case cicdRunAuthModeHostMinted:
+		if strings.TrimSpace(target.HostTokenFile) == "" {
+			return fmt.Errorf("host_token_file is required")
+		}
+		if strings.TrimSpace(target.TokenEnv) != "" {
+			return fmt.Errorf("auth_mode %q must not set token_env %q: the two credential shapes never mix", target.AuthMode, target.TokenEnv)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported ci/cd run auth_mode %q", target.AuthMode)
+	}
 }
 
 func validateCICDURL(field, raw string, requireHTTPS bool) error {

@@ -166,3 +166,65 @@ func TestCICDRunCollectorInstanceValidationUsesCICDRunConfig(t *testing.T) {
 		t.Fatalf("CollectorInstance.Validate() error = %v, want nil", err)
 	}
 }
+
+// TestValidateCICDRunCollectorConfigurationAcceptsHostMintedFileTarget pins
+// the #9186 validator channel: a github_actions target with
+// auth_mode host_minted carries host_token_file instead of token_env.
+func TestValidateCICDRunCollectorConfigurationAcceptsHostMintedFileTarget(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"targets":[{"provider":"github_actions","scope_id":"ci-cd:github-actions:example/repo","repository":"example/repo","auth_mode":"host_minted","host_token_file":"/var/run/secrets/github/token.json","allowed_repositories":["example/repo"],"max_runs":1,"max_jobs":10,"max_artifacts":10}]}`
+	if err := ValidateCICDRunCollectorConfiguration(raw); err != nil {
+		t.Fatalf("ValidateCICDRunCollectorConfiguration() error = %v, want nil", err)
+	}
+}
+
+func TestValidateCICDRunCollectorConfigurationRejectsAuthModeMixing(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		raw     string
+		wantErr string
+	}{
+		"host_minted without host_token_file": {
+			raw:     `{"targets":[{"provider":"github_actions","scope_id":"ci-cd:github-actions:example/repo","repository":"example/repo","auth_mode":"host_minted","allowed_repositories":["example/repo"],"max_runs":1,"max_jobs":10,"max_artifacts":10}]}`,
+			wantErr: "host_token_file is required",
+		},
+		"host_minted with token_env": {
+			raw:     `{"targets":[{"provider":"github_actions","scope_id":"ci-cd:github-actions:example/repo","repository":"example/repo","auth_mode":"host_minted","token_env":"GITHUB_TOKEN","host_token_file":"/var/run/secrets/github/token.json","allowed_repositories":["example/repo"],"max_runs":1,"max_jobs":10,"max_artifacts":10}]}`,
+			wantErr: "token_env",
+		},
+		"token_env with host_token_file": {
+			raw:     `{"targets":[{"provider":"github_actions","scope_id":"ci-cd:github-actions:example/repo","repository":"example/repo","token_env":"GITHUB_TOKEN","host_token_file":"/var/run/secrets/github/token.json","allowed_repositories":["example/repo"],"max_runs":1,"max_jobs":10,"max_artifacts":10}]}`,
+			wantErr: "host_token_file",
+		},
+		"unknown auth_mode": {
+			raw:     `{"targets":[{"provider":"github_actions","scope_id":"ci-cd:github-actions:example/repo","repository":"example/repo","auth_mode":"magic","token_env":"GITHUB_TOKEN","allowed_repositories":["example/repo"],"max_runs":1,"max_jobs":10,"max_artifacts":10}]}`,
+			wantErr: "magic",
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateCICDRunCollectorConfiguration(tc.raw)
+			if err == nil {
+				t.Fatal("ValidateCICDRunCollectorConfiguration() error = nil, want non-nil")
+			}
+			if got := err.Error(); !strings.Contains(got, tc.wantErr) {
+				t.Fatalf("ValidateCICDRunCollectorConfiguration() error = %q, want substring %q", got, tc.wantErr)
+			}
+		})
+	}
+}
+
+// TestValidateCICDRunCollectorConfigurationGitLabIgnoresAuthModeFields pins
+// that gitlab_ci targets accept (and ignore) the github_actions auth fields,
+// mirroring the MaxArtifacts precedent: token_env still authenticates.
+func TestValidateCICDRunCollectorConfigurationGitLabIgnoresAuthModeFields(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"targets":[{"provider":"gitlab_ci","scope_id":"gitlab-ci://gitlab.com/eshu-hq/demo","repository":"eshu-hq/demo","auth_mode":"host_minted","token_env":"GITLAB_TOKEN","host_token_file":"/var/run/secrets/github/token.json","allowed_repositories":["eshu-hq/demo"],"max_runs":1,"max_jobs":10}]}`
+	if err := ValidateCICDRunCollectorConfiguration(raw); err != nil {
+		t.Fatalf("ValidateCICDRunCollectorConfiguration() error = %v, want nil", err)
+	}
+}

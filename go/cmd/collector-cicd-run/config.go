@@ -63,15 +63,18 @@ type targetJSON struct {
 	TokenEnv   string `json:"token_env"`
 	// AuthMode selects the github_actions credential shape (#9186):
 	// "token_env" (the default when omitted) resolves a static bearer once
-	// at startup from TokenEnv, while "host_minted" resolves the
-	// host-minted GitHub App installation token from HostTokenEnv. The two
+	// at startup from TokenEnv, while "host_minted" resolves the host-minted
+	// GitHub App installation token per claim from HostTokenFile. The two
 	// shapes never mix on one target. gitlab_ci targets ignore both
 	// fields, mirroring MaxArtifacts.
 	AuthMode string `json:"auth_mode"`
-	// HostTokenEnv names the environment variable carrying the host-minted
-	// token. The host keeps it fresh across satellite restarts; the
-	// satellite only spends the bearer and never holds the App private key.
-	HostTokenEnv        string   `json:"host_token_env"`
+	// HostTokenFile names the host-maintained file holding the
+	// {"token", "scope_id"} arbiter object for a host_minted target. The
+	// host refreshes it on a cadence below the 1-hour installation-token
+	// TTL by atomic replace; the satellite resolves the value per claim
+	// and never holds the App private key. Startup fails closed when the
+	// file is unresolvable.
+	HostTokenFile       string   `json:"host_token_file"`
 	AllowedRepositories []string `json:"allowed_repositories"`
 	APIBaseURL          string   `json:"api_base_url"`
 	MaxRuns             int      `json:"max_runs"`
@@ -231,23 +234,25 @@ func mapTarget(target targetJSON, getenv func(string) string) (ghactionsruntime.
 		return ghactionsruntime.TargetConfig{}, fmt.Errorf("unsupported ci/cd run auth_mode %q", target.AuthMode)
 	}
 	tokenEnv := strings.TrimSpace(target.TokenEnv)
-	hostTokenEnv := strings.TrimSpace(target.HostTokenEnv)
+	hostTokenFile := strings.TrimSpace(target.HostTokenFile)
 	if authMode == ghactionsruntime.AuthModeHostMinted {
 		if tokenEnv != "" {
 			return ghactionsruntime.TargetConfig{}, fmt.Errorf("auth_mode %q must not set token_env %q: the two credential shapes never mix", authMode, tokenEnv)
 		}
-		if hostTokenEnv == "" {
-			return ghactionsruntime.TargetConfig{}, fmt.Errorf("auth_mode %q requires host_token_env", authMode)
+		if hostTokenFile == "" {
+			return ghactionsruntime.TargetConfig{}, fmt.Errorf("auth_mode %q requires host_token_file", authMode)
 		}
-		token := strings.TrimSpace(getenv(hostTokenEnv))
-		if token == "" {
-			return ghactionsruntime.TargetConfig{}, fmt.Errorf("host_token_env %s did not resolve a credential", hostTokenEnv)
+		// Fail closed at startup when the file is unresolvable. The
+		// resolved value is discarded here and re-read per claim in
+		// NextClaimed, so no startup copy can shadow a host refresh.
+		if _, err := ghactionsruntime.ResolveHostTokenFile(hostTokenFile, strings.TrimSpace(target.ScopeID)); err != nil {
+			return ghactionsruntime.TargetConfig{}, fmt.Errorf("auth_mode %q host token file %q is not resolvable: %w", authMode, hostTokenFile, err)
 		}
 		return ghactionsruntime.TargetConfig{
 			ScopeID:             strings.TrimSpace(target.ScopeID),
 			Repository:          strings.Trim(target.Repository, "/"),
-			Token:               token,
 			AuthMode:            authMode,
+			HostTokenFile:       hostTokenFile,
 			AllowedRepositories: cleanConfigStrings(target.AllowedRepositories),
 			APIBaseURL:          strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
 			SourceURI:           strings.TrimSpace(firstNonBlank(target.SourceURI, "https://github.com/"+strings.Trim(target.Repository, "/"))),
@@ -256,8 +261,8 @@ func mapTarget(target targetJSON, getenv func(string) string) (ghactionsruntime.
 			MaxArtifacts:        target.MaxArtifacts,
 		}, nil
 	}
-	if hostTokenEnv != "" {
-		return ghactionsruntime.TargetConfig{}, fmt.Errorf("auth_mode %q must not set host_token_env %q: the two credential shapes never mix", authMode, hostTokenEnv)
+	if hostTokenFile != "" {
+		return ghactionsruntime.TargetConfig{}, fmt.Errorf("auth_mode %q must not set host_token_file %q: the two credential shapes never mix", authMode, hostTokenFile)
 	}
 	token := ""
 	if tokenEnv != "" {
