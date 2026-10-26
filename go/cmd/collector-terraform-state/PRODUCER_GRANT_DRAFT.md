@@ -18,7 +18,7 @@ authorizes emission only.
 - Scope: the `terraform_state` collector-instance scope
 - Kinds (`1.0.0` each): the seven `terraform_state_*` kinds in
   [SHIM_MAP](SHIM_MAP.md) §2 (the `TerraformStateFactKinds()` list in
-  `go/internal/facts/cloud/terraform_state.go:54-74` minus the git-owned
+  `facts/cloud/terraform_state.go:54-74` minus the git-owned
   candidate) **plus** the 3 co-emitted `incident_routing` kinds at
   `1.0.0` (`applied_pagerduty_resource`, `applied_alert_route`,
   `coverage_warning` — arbiter ruling on #9195: extend, no remaining
@@ -57,7 +57,7 @@ Grant-first-then-install: authorize before activating the replacement,
 which is the order cutover needs.
 
 Explicit exclusion: `terraform_state_candidate` is family-declared but
-git-collector-owned (`go/internal/facts/cloud/terraform_state.go:117`,
+git-collector-owned (`terraform_state.go:117` in `facts/cloud`,
 authority `core_owned`). It is NOT in this grant; the extracted
 `terraform-state` producer must never declare or emit it. A trial
 emission of an excluded kind fails closed under core admission.

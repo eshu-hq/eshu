@@ -84,7 +84,7 @@ a claim it did not `.Claim()` as foreign and never write for it.
 ## 2. The `terraform_state_*` kinds at `1.0.0` → SDK `FactDeclaration`
 
 One declaration per emitted kind, each `schema_versions: ["1.0.0"]`
-(`go/internal/facts/cloud/terraform_state.go:54-74`,
+(`terraform_state.go:54-74` in `facts/cloud`,
 `TerraformStateFactKinds()`, eight family kinds):
 
 ```json

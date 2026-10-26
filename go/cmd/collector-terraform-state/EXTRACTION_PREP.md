@@ -108,8 +108,7 @@ counter.
 ## 2. Fact kinds and versions
 
 All 8 `terraform_state` kinds are `1.0.0`
-(`TerraformState*SchemaVersion` in
-`go/internal/facts/cloud/terraform_state.go:34-51`):
+(`TerraformState*SchemaVersion` in `facts/cloud/terraform_state.go`):
 
 | Kind | Constructor | Producer record |
 | --- | --- | --- |
@@ -137,7 +136,7 @@ at `1.0.0` from allowlisted applied resources (`pagerduty_applied.go`):
 `incident_routing.applied_alert_route` (`:231`),
 `incident_routing.coverage_warning` (`:240`, unsupported `pagerduty_*`
 types). The producer record binds them to this collector
-(`go/internal/facts/incident/routing.go:88`, same
+(`routing.go:88` in `facts/incident`, same
 `core_issued_grant`/`eshu-hq/eshu-collector-terraform-state`). The staged
 grant draft covers only the 7 `terraform_state_*` kinds — the 3
 `incident_routing.*` kinds are decided **extend** (arbiter ruling on
@@ -162,8 +161,8 @@ intentionally unconsumed (family `Disposition: unconsumed`).
 - Query/read: `GET /api/v0/iac/resources`
   (`go/internal/query/iac/resources.go`, handler in `handler.go:54`).
 - Reducer domain: `config_state_drift`
-  (`go/internal/reducer/contract/domain.go:56`; handler
-  `go/internal/reducer/tfconfigstate/terraform_config_state_drift.go`).
+  (`domain.go:56` in `reducer/contract`; handler
+  `reducer/tfconfigstate/terraform_config_state_drift.go`).
   Drift ownership resolves through the `ScopeLocatorHash` join
   (`identity.go:137`); a formula change silently rejects every intent
   (`ErrNoConfigRepoOwnsBackend`, identity.go doc).
