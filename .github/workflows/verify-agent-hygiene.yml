@@ -125,6 +125,10 @@ jobs:
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
         run: scripts/test-goal-continue-hook.sh
 
+      - name: Run Codex goal-continue hook test mirror
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        run: scripts/test-codex-goal-continue-hook.sh
+
       - name: Run goal-refresh hook test mirror
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
         run: scripts/test-goal-refresh-hook.sh

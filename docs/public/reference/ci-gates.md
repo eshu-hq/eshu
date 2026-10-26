@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (58 gates)
+### Hygiene: Is the change well-formed? (59 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -99,6 +99,7 @@ results are derived from the inputs rather than written by hand. See
 - `helm-package` (blocking): Lints and packages the Helm chart to make sure it builds cleanly before publishing.
 - `root-cause-evidence` (advisory): Checks that any documented root-cause claim also records the observation that established it.
 - `tagged-builds` (blocking): Compiles every build-tag combination that ordinary go build/vet/test skip, so dead tagged code can't silently rot.
+- `codex-goal-continuation` (blocking): Exercises Codex Stop-hook error continuation and per-session goal progress handling.
 
 ### Unit: Does the code do what its tests say? (7 gates)
 
@@ -382,6 +383,7 @@ results are derived from the inputs rather than written by hand. See
 | `replay-tier` | Replay tier (offline cassette replay) | exactness | ci-heavy | true | `bash scripts/verify-replay-tier.sh`<br>then self-test: `bash scripts/test-verify-replay-tier.sh` | verify-replay-tier.yml / Offline replay tier vs real NornicDB | 28 path(s): scripts/lib/ci-gates-resolved-fixtures.sh, go/cmd/ingester/**, go/cmd/projector/**, … |
 | `go-test-race` | Go tests with race detector | race | pre-pr | true | `cd go && go test -race -count=1 -timeout 300s ./internal/replay/inputtape/... ./internal/replay/schedulereplay/... ./internal/replay/crashreplay/... ./internal/replay/concurrentreplay/... ./internal/replay/costcounting/...` | test.yml / go-race-complete | 6 path(s): go/internal/replay/inputtape/**, go/internal/replay/schedulereplay/**, go/internal/replay/crashreplay/**, … |
 | `ci-gate-registry` | CI gate registry + drift | hygiene | pre-pr | true | `bash scripts/verify-ci-gates-registry.sh --drift`<br>then self-test: `bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-pre-push.sh && bash scripts/test-go-toolchain.sh && bash scripts/test-no-prepr-stamp-references.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-verify-live-required-status-checks.sh && bash scripts/test-resolve-required-gates-pr.sh && (cd go && go test ./internal/cigates -count=1)` | verify-ci-gate-registry.yml / Verify ci-gate registry + drift | 58 path(s): scripts/lib/cgo-cflags.sh, specs/ci-gates.v1.yaml, specs/ci-gates.d/**, … |
+| `codex-goal-continuation` | Codex goal continuation hook behavior | hygiene | pre-pr | true | `bash scripts/test-codex-goal-continue-hook.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 10 path(s): .codex/hooks.json, .codex/hooks/**, .claude/hooks/goal-continue.sh, … |
 | `codex-spawn-guard` | *(alias — pre-commit mirror of the agent-canon Codex spawn guard test, also run locally and in CI)* | — | — | — | — | — | — |
 | `goal-role-routing` | *(alias — pre-commit mirror of agent-canon goal router behavior, also run in the local test command and CI hygiene workflow)* | — | — | — | — | — | — |
 | `no-ai-attribution-message` | *(alias — commit-msg-stage variant of the no-ai-attribution gate (same check, different stage))* | — | — | — | — | — | — |

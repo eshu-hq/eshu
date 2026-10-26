@@ -3,15 +3,12 @@
 Harness hooks that reach the failures CI structurally cannot. Detail for the
 hook files under `.claude/hooks/` and `.codex/hooks/`.
 
-Two of them block and the rest only speak. The tier column below says which,
-and it is set by the exit code — do not assume a hook stops anything without
-checking it there.
+Some of them block and the rest only speak. The tier column says which; check
+the exit code before assuming a hook stops anything.
 
-CI fires on a diff. These fire on an action, before the diff exists. That is the
-whole reason they are here rather than in a workflow, and it matches the canon
-rule in [Agent Orchestration Model](agent-orchestration.md): inline only the
-boundaries whose ambiguity can mutate state before CI runs, and let CI enforce
-everything else.
+CI runs on diffs; hooks run on actions before diffs exist. This matches the
+[Agent Orchestration Model](agent-orchestration.md): inline only boundaries
+where ambiguity can mutate state, and let CI enforce the rest.
 
 ## Layout
 
@@ -30,6 +27,7 @@ rebuilding the whole snapshot, which only works for a hook that needs no path.
 | `guard-live-gate.sh` | Claude | PreToolUse on Bash | **blocking** | Blocks a second live gate on the default ports |
 | `on-compact.sh` | Claude | SessionStart, compact or resume | advisory | Points a re-grounded session at `eshu-session-lifecycle` |
 | `goal-continue.sh` | Claude | Stop | **blocking** | Refuses to end the turn while this session's goal file (`.claude/active-goal.<session_id>`, else the shared `.claude/active-goal`) names unfinished work, and hands the goal back. |
+| `goal-continue.sh` | Codex | Stop | **blocking** | Applies the same active-goal rule; includes only an allowlisted capacity, policy, or error category. |
 | `goal-refresh.sh` | Claude | UserPromptSubmit | side effect | Sets a goal from `/goal <text>`, and re-injects the active goal into context on every prompt so it cannot go stale. |
 | `issue-capture.sh` | Claude, Muse | PostToolUse on Bash | side effect | Records an issue filed during a goal in the goal's ledger; `goal-continue.sh` then refuses DONE while one is open. |
 
@@ -91,8 +89,10 @@ pre-tool and session-start behavior to Codex still needs the `apply_patch`
 payload shape and event equivalents pinned. Do not write adapters against guessed payloads.
 
 The Codex `UserPromptSubmit` goal router has a live probe on `codex-cli
-0.156.1`. See [Codex Goal Hook](agent-hooks-codex-goal.md) for its payload,
-trust steps, and the 0.158.0 spawn guard matcher probe.
+0.156.1`. The Codex `Stop` adapter is registered separately and routes the
+event through the shared goal continuation policy. See
+[Codex Goal Hook](agent-hooks-codex-goal.md) for payload and trust details,
+including the 0.158.0 spawn guard matcher probe.
 
 ## The nudge table rots, so a gate watches it
 
@@ -269,15 +269,15 @@ so a working stop still spent a nudge.
 making tool calls — not "a pathological one-call-per-turn agent" but *any*
 progressing session, of which a looping one is a member. A deliberate trade of
 a certain harm for an uncertain one: being cut off mid-goal was measured
-happening, repeatedly, and cost more. If it ever bites, `stop_hook_active` is
-parsed from the payload and used nowhere — the harness saying "I already
-blocked once this turn", discarded — and that is the first place to look.
+happening, repeatedly, and cost more. In the Claude hook, `stop_hook_active` is
+parsed from the payload and intentionally unused — repeating the same block
+does not add a new signal. The Codex adapter uses that field to carry the
+no-progress budget across Stop callbacks for one user turn.
 
-When the budget does release a turn, the owner is about to be interrupted, so
-the hook says why on stderr and names the two escapes that would have avoided
-it. The last continuation warns as well, giving the agent one chance to write
-`DONE` or `BLOCKED: <reason> WATCH=<pid>` itself. Most releases happen because an agent
-that is finished, or waiting, never says so — and the owner pays for that.
+When the budget releases a turn, the hook reports why and names the two goal
+file escapes. The final continuation warns the agent to mark `DONE` or add a
+verified watcher. Codex also returns a visible `systemMessage` that the goal
+remains unfinished and can be resumed in a new user turn. Retries stay bounded.
 
 ### The two hooks must decide alike
 
