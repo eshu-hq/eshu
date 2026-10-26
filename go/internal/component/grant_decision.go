@@ -188,11 +188,12 @@ func (m Manifest) ObserveManifestGrants(ctx context.Context, observer GrantObser
 }
 
 // observeEnableGrants reports the activation-stage grant decisions for the
-// candidate component being enabled, and only for it: the collision checks
-// that follow reload other installed manifests without observation, so an
-// enable never re-reports a neighbor's decision. It only observes: a manifest
-// that cannot be loaded is reported by the fail-closed enable checks that run
-// next, so this never changes the enable outcome.
+// candidate component being enabled, and only for it: it never reports a
+// neighbor's manifest-load decision. A neighbor's sharing-allow decision is
+// reported separately by the collision check that follows when grants admit
+// the overlap. It only observes: a manifest that cannot be loaded is reported
+// by the fail-closed enable checks that run next, so this never changes the
+// enable outcome.
 func (r Registry) observeEnableGrants(candidate InstalledComponent, state registryState) {
 	if r.observer == nil {
 		return
