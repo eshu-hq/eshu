@@ -1,0 +1,20 @@
+go/internal/collector/pagerduty/EXTRACTION_PREP.md
+  h_78a442cba0b3e6 52-56
+go/internal/collector/pagerduty/SHIM_MAP.md
+  h_78a442cba0b3e6 19-20,22,24
+go/internal/collector/pagerduty/source_parity_8863_test.go
+  h_78a442cba0b3e6 68-110,113-124,219-220,243-245,283-284,320-449,454-456,462,464-471,473-474,476-480,487,490-495
+go/internal/collector/pagerduty/testdata/8863-parity-pagerduty.json
+  h_78a442cba0b3e6 42-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ec511d920f38c5ad0028b40f6696c7f5caa16da",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
