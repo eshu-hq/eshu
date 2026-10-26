@@ -109,19 +109,25 @@ func checkYAMLStructure(body string, lines, redacted, listed []string, keyPatter
 		}
 	}
 	// yaml.v3 is stricter than Yarn's js-yaml in places that matter here: it
-	// rejects a tab as flow indentation and a bare document after "...", both of
-	// which js-yaml reads. A body it cannot parse still has a value gap when a
-	// line after a listed key is neither replaced nor another entry. The lexical
-	// fallback below runs for the flow, alias, explicit-key, and escape
-	// vehicles, and for a quote-only body that holds a "..." document marker:
-	// a bare document after "..." is the shape yaml.v3 rejects while js-yaml
-	// reads it as a further document, so a quoted scalar opened after a bare
-	// listed key still decodes its tail under that key. A quote-only body
-	// without "..." is an ordinary non-YAML file the redactor covers
-	// line-wise (a tab-indented or low-indent plain continuation is rejected by
-	// every parser probed), so the fallback skips it.
+	// rejects a tab as flow indentation, a bare document after "...", and a
+	// 1.2+ "%YAML" version directive, each of which js-yaml reads (PyYAML
+	// reads the directive shape too). A body it cannot parse still has a
+	// value gap when a line after a listed key is neither replaced nor
+	// another entry. The lexical fallback below runs for the flow, alias,
+	// explicit-key, and escape vehicles, for a quote-only body that holds a
+	// "..." document marker, and for a quote-only body that holds a "%YAML"
+	// version-directive line: a bare document after "..." is the shape yaml.v3
+	// rejects while js-yaml reads it as a further document, and a 1.2+
+	// directive is the shape yaml.v3 rejects with "found incompatible YAML
+	// document" while js-yaml reads on, so in both a quoted scalar opened
+	// after a bare listed key still decodes its tail under that key. A
+	// quote-only body without "..." and without a "%YAML" line is an ordinary
+	// non-YAML file the redactor covers line-wise (a tab-indented or
+	// low-indent plain continuation is rejected by every parser probed), so
+	// the fallback skips it.
 	if parseFailed && (holdsAnyByte(body, '*', '?', '\\', '{', '[') ||
-		(strings.Contains(body, "...") && holdsAnyByte(body, '"', '\''))) && check.lexicalValueGap() {
+		(strings.Contains(body, "...") && holdsAnyByte(body, '"', '\'')) ||
+		(holdsAnyByte(body, '"', '\'') && hasYAMLVersionDirective(lines))) && check.lexicalValueGap() {
 		return errYAMLIndirection
 	}
 	return nil
@@ -306,7 +312,11 @@ func (c *yamlCheck) valueReachesUnreplacedText(key, value *yaml.Node) bool {
 
 // quotedContinuationLines returns the source lines, after a scalar's first, that
 // a quoted scalar in the subtree of node runs onto. yaml.v3 reports where a
-// scalar starts, so its closing quote is found by reading the source.
+// scalar starts, so its closing quote is found by reading the source. An
+// anchor alone on the key's line carries the scalar's reported position: with
+// nothing after "&a" yaml.v3 reports the scalar where the anchor is, so the
+// opening quote is found by scanning the later lines instead; without that
+// the tail is never marked value text and a "#" tail reads as a comment.
 func (c *yamlCheck) quotedContinuationLines(node *yaml.Node) map[int]bool {
 	var lines map[int]bool
 	stack := []*yaml.Node{node}
@@ -326,13 +336,31 @@ func (c *yamlCheck) quotedContinuationLines(node *yaml.Node) map[int]bool {
 			continue
 		}
 		first := c.lines[n.Line-1]
-		open := strings.IndexByte(first[runeOffset(first, n.Column-1):], quote)
-		if open < 0 {
-			continue
+		start := n.Line
+		rest := ""
+		if open := strings.IndexByte(first[runeOffset(first, n.Column-1):], quote); open >= 0 {
+			rest = first[runeOffset(first, n.Column-1)+open+1:]
+		} else {
+			// The quote is not where the scalar reports: an anchor holds
+			// that position and the scalar opens on a later line, so the
+			// first quote on the later lines is taken as its opener.
+			// Compared with giving up, this only ever marks more lines
+			// value text, so it only ever fails more bodies closed,
+			// never fewer.
+			start = -1
+			for line := n.Line + 1; line <= len(c.lines); line++ {
+				if idx := strings.IndexByte(c.lines[line-1], quote); idx >= 0 {
+					start = line
+					rest = c.lines[line-1][idx+1:]
+					break
+				}
+			}
+			if start < 0 {
+				continue
+			}
 		}
-		rest := first[runeOffset(first, n.Column-1)+open+1:]
-		for end := n.Line; end <= len(c.lines); end++ {
-			if end > n.Line {
+		for end := start; end <= len(c.lines); end++ {
+			if end > start {
 				rest = c.lines[end-1]
 			}
 			if quoteEnd(rest, quote) >= 0 {

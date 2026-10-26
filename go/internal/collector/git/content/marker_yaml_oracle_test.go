@@ -124,6 +124,13 @@ var oracleFragments = []string{
 	// "..."-prefixed quoted-continuation shape, which only the lexical fallback
 	// covers.
 	"abcd{T}\"", "abcd{T}'",
+	// A "%YAML 1.2" version-directive line: with a "---" fragment, a bare key,
+	// and an opener and tail above it composes the residual-P1
+	// directive-prefixed quoted-continuation shape, which yaml.v3 rejects and
+	// only the lexical fallback covers. yamlTokensUnderListedKey cannot see
+	// this class, so this fragment is its coverage: the js-yaml/PyYAML oracle
+	// reads what it composes.
+	"%YAML 1.2",
 }
 
 // randomOracleBody joins random fragments, numbering each planted token so the

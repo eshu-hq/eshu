@@ -21,9 +21,14 @@ const flowSeedToken = "Zq19FlowSeedAAAAAAAA"
 // with outcome clean. Parser coverage differs by shape. The "..."-prefixed
 // fallback bodies decode the token under a listed key only in js-yaml 4.1.1;
 // yaml.v3 and PyYAML 6.0.3 reject the bare document after "...". The
-// anchor-on-the-value and tag-on-the-value bodies decode in yaml.v3 and PyYAML
-// but error in js-yaml. The tab-after-dash bodies likewise decode only in
-// js-yaml, and the tab-indented flow value errors only in PyYAML. The
+// "%YAML 1.2"-prefixed fallback bodies decode it in js-yaml 4.1.1 and PyYAML
+// 6.0.3; yaml.v3 rejects the 1.2+ version (found incompatible YAML document).
+// The anchor-with-quoted-value-on-the-next-line bodies decode it in all
+// three; yaml.v3 reports the scalar at the anchor, so only the forward
+// placement covers a "#" tail. The anchor-on-the-value and tag-on-the-value
+// bodies decode in yaml.v3 and PyYAML but error in js-yaml. The
+// tab-after-dash bodies likewise decode only in js-yaml, and the
+// tab-indented flow value errors only in PyYAML. The
 // comment-looking line in a quoted key errors in all three (a multi-line
 // quoted simple key): it is an invalid-in-all-parsers fail-closed shape, not a
 // decoded-token shape. {T} is replaced with flowSeedToken.
@@ -94,11 +99,15 @@ var flowHostileSeeds = map[string]string{
 	"single quoted, closes on a later line":                                  "{\nnpmAuthToken: 'abcd\n{T}'\n}\n",
 	"document-end-prefixed double-quoted continuation, closed low":           "...\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
 	"document-end-prefixed single-quoted continuation, closed low":           "...\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"version-directive-prefixed double-quoted continuation, closed low":      "%YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"version-directive-prefixed single-quoted continuation, closed low":      "%YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
 	"JSON key, quoted value folded":                                          "{\n  \"npmAuthToken\": \"ab\n{T}\"\n}\n",
 	"quoted scalar opened on the next line, closed at the key indent":        "npmAuthToken:\n  \"abcd\n{T}\"\n",
 	"single-quoted scalar opened on the next line, closed at the key indent": "npmAuthToken:\n  'abcd\n{T}'\n",
 	"nested quoted scalar opened on the next line, closed low":               "npmScopes:\n  acme:\n    npmAuthToken:\n      \"abcd\n{T}\"\n",
 	"URL key quoted scalar opened on the next line, closed low":              "npmRegistryServer:\n  \"https://user:abcd\n{T}@registry.example.com/\"\n",
+	"anchor with double-quoted value on the next line, hash tail":            "npmAuthToken: &a\n  \"abcd\n#{T}\"\n",
+	"anchor with single-quoted value on the next line, hash tail":            "npmAuthToken: &a\n  'abcd\n#{T}'\n",
 }
 
 func flowSeedBody(template string) string {
@@ -157,8 +166,12 @@ func TestRedactMarkerFlowShapesFailClosed(t *testing.T) {
 		"single-quoted scalar opened on the next line, closed at the key indent",
 		"document-end-prefixed double-quoted continuation, closed low",
 		"document-end-prefixed single-quoted continuation, closed low",
+		"version-directive-prefixed double-quoted continuation, closed low",
+		"version-directive-prefixed single-quoted continuation, closed low",
 		"nested quoted scalar opened on the next line, closed low",
 		"URL key quoted scalar opened on the next line, closed low",
+		"anchor with double-quoted value on the next line, hash tail",
+		"anchor with single-quoted value on the next line, hash tail",
 	} {
 		body := flowSeedBody(flowHostileSeeds[name])
 		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
@@ -209,6 +222,31 @@ func TestRedactMarkerDocumentEndQuotedContinuationFailsClosed(t *testing.T) {
 	for name, body := range map[string]string{
 		"document-end double-quoted": "...\nnpmAuthToken:\n  \"abc\ndef\"\n",
 		"document-end single-quoted": "...\nnpmAuthToken:\n  'abc\ndef'\n",
+	} {
+		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
+		if !errors.Is(err, errYAMLIndirection) {
+			t.Errorf("%s: err = %v, want errYAMLIndirection", name, err)
+		}
+		if got := failureReason(err); got != FailureYAMLIndirection {
+			t.Errorf("%s: failure reason = %q, want %q", name, got, FailureYAMLIndirection)
+		}
+	}
+}
+
+// TestRedactMarkerVersionDirectiveQuotedContinuationFailsClosed is the #8833
+// residual-P1 regression: a "%YAML 1.2"-prefixed body whose quoted scalar opens
+// on the line after a bare listed key and closes at the key's indent. yaml.v3
+// rejects the 1.2+ version (found incompatible YAML document), so the parsed
+// walk sees nothing and only the lexical fallback can cover it; js-yaml 4.1.1
+// and PyYAML 6.0.3 decode the token under the listed key. Before the directive
+// arm joined the fallback trigger, both shapes were stored with the tail in
+// the clear.
+func TestRedactMarkerVersionDirectiveQuotedContinuationFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"version-directive double-quoted": "%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"version-directive single-quoted": "%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
 	} {
 		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
 		if !errors.Is(err, errYAMLIndirection) {

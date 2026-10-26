@@ -101,13 +101,17 @@ updated in the same change.
   only onto more-indented lines the redactor replaces whole. A quoted scalar
   that closes at or below the key's indent fails closed instead. A
   comment line at or below the key's indent does not end the continuation.
-  yaml.v3 rejects a tab as flow indentation and a bare document after `...`,
-  which Yarn's js-yaml reads; for a body it cannot parse, the lines after the
-  separator of a line a listed key matches are followed with a lexical bracket
-  and quote count when the body holds `*`, `?`, a backslash, `{`, or `[`, or
-  when a quote-only body holds a `...` document marker (a bare document after
-  `...` is what yaml.v3 rejects while js-yaml reads). A quote-only body
-  without `...` is an ordinary non-YAML file the redactor covers line-wise.
+  yaml.v3 rejects a tab as flow indentation, a bare document after `...`, and
+  a 1.2+ `%YAML` version directive, each of which Yarn's js-yaml reads (PyYAML
+  reads the directive shape too); for a body it cannot parse, the lines after
+  the separator of a line a listed key matches are followed with a lexical
+  bracket and quote count when the body holds `*`, `?`, a backslash, `{`, or
+  `[`, when a quote-only body holds a `...` document marker (a bare document
+  after `...` is what yaml.v3 rejects while js-yaml reads), or when a
+  quote-only body holds a `%YAML` version-directive line (a 1.2+ version is
+  what yaml.v3 rejects while js-yaml reads on). A quote-only body without
+  `...` and without a `%YAML` line is an ordinary non-YAML file the redactor
+  covers line-wise.
   A quote opens a scalar only where YAML starts one (the
   start of the value, after a flow opener, comma, `: `, `? `, `- `, or a tag or
   anchor), so `a"b` and `it's` are plain text. Because the count cannot place
