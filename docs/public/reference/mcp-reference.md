@@ -319,9 +319,10 @@ where it ran:
   `docs/internal/design/7206-mcp-response-budget-fallback.md`.
 - A manual run on the other documented clients.
 - One week with no over-budget increase on a hosted deployment.
-- The [pre-change structured golden run](https://github.com/eshu-hq/eshu/issues/8800#issuecomment-6408683313) at
-  `d41890a745afa25404932166cee70516bb09fcae` passed 629 cases. It must run again on the final wrapper head. Run it with
-  `GATE_MCP_RESULT_SHAPE=structured ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`.
+- The [structured result-contract proof](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/8800-structured-result-contract.md)
+  at `635a19daadba81ed6f72f0a9bf8f2d1ea6dc5c03` passed 629 checks with zero
+  required failures and two advisory timing warnings. Its evidence note records
+  the exact code, substrate and remaining limits.
 - The four proof-script readers now prefer `structuredContent` and retain the
   absent-only resource fallback ([#9158](https://github.com/eshu-hq/eshu/pull/9158)).
   Their parser fixtures cover both shapes and invalid responses.

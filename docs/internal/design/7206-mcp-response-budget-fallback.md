@@ -116,10 +116,10 @@ resource. This note records how that interacts with the budget.
 - The token saving was measured only on the pre-change doubling. The
   post-change two-client re-measurement is pending, so no saving is claimed for
   the `structured` shape.
-- The [pre-change structured golden run](https://github.com/eshu-hq/eshu/issues/8800#issuecomment-6408683313) at
-  `d41890a745afa25404932166cee70516bb09fcae` passed 629 cases. It must run again on the final non-object wrapper
-  head before that result is evidence for this behavior. Run it with
-  `GATE_MCP_RESULT_SHAPE=structured ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`.
+- The [structured result-contract proof](../evidence/8800-structured-result-contract.md)
+  at `635a19daadba81ed6f72f0a9bf8f2d1ea6dc5c03` passed 629 checks with zero
+  required failures and two advisory timing warnings. Runtime code and gate
+  inputs are unchanged by its documentation-only evidence record.
 - The four proof-script readers now prefer `structuredContent` and retain the
   absent-only resource fallback ([#9158](https://github.com/eshu-hq/eshu/pull/9158)).
   Their parser fixtures cover both shapes and invalid responses.
