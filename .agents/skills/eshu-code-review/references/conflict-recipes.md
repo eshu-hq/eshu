@@ -50,7 +50,9 @@ is P3 ([merge-bar](merge-bar.md#prose-form)).
 `go/internal/collector/repo/git/epoch/ledger.tsv` is generated and never
 hand-merged (#9097). Two PRs that both move collector output conflict on its
 `epoch` line; two that touch the same fixture file conflict on that bucket
-line. Take main's copy, then re-pin:
+line. The shortcut is `bash scripts/dev/regen-conflicts.sh` (#9150), which
+does the take-main's-copy plus re-pin below and stages the result. By hand,
+take main's copy, then re-pin:
 
 1. `git checkout origin/main -- go/internal/collector/repo/git/epoch/ledger.tsv`
 2. From `go/`, run
@@ -81,8 +83,9 @@ to a default weight. Check: `python3 scripts/test-live-postgres-readiness-shards
 Every path in the `GENERATED` list of
 `scripts/verify-live-postgres-readiness-drift.sh` is generated, including
 `scripts/lib/live_postgres_readiness_inventory_gen_*.py` and
-`.github/workflows/live-postgres-readiness.yml`. Never hand-resolve them. Take
-either side, then run:
+`.github/workflows/live-postgres-readiness.yml`. Never hand-resolve them. The
+shortcut is `bash scripts/dev/regen-conflicts.sh` (#9150), which regenerates
+and stages them. By hand, take either side, then run:
 
 ```bash
 python3 scripts/generate-live-postgres-readiness.py
@@ -90,6 +93,16 @@ bash scripts/verify-live-postgres-readiness-drift.sh
 ```
 
 The drift script must exit 0.
+
+## Generated docs (`ci-gates.md`, env registry)
+
+`docs/public/reference/ci-gates.md` and the env registry pages
+(`docs/public/reference/env-registry.md` plus `env-registry/*.md`) are
+generated and never hand-merged: resolve a conflict there with
+`bash scripts/dev/regen-conflicts.sh` (#9150), which reruns the owning
+generator and stages the result, then run the artifact's own drift gate
+(`bash scripts/verify-ci-gates-registry.sh --drift` for the former,
+`bash scripts/verify-env-registry-doc.sh` for the latter).
 
 ## Agent-rule files
 

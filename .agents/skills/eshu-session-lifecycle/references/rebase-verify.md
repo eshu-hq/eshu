@@ -27,9 +27,19 @@ that another live agent holds is not yours; see
 2. **Rebase onto the pin.** Run `git rebase "$NEW_BASE"`, not `git pull`. A
    conflict that meets [row 4a](../../eshu-code-review/SKILL.md#row-4a-mechanical-conflict),
    including every [recipe](../../eshu-code-review/references/conflict-recipes.md)
-   file, is resolved now and shipped on that row. For any other conflict, stop
-   and report each conflicting file: do not resolve a semantic conflict by
-   guessing. Never `git stash`.
+   file, is resolved now and shipped on that row. Before hand-resolving
+   anything, run the regenerate-on-conflict helper for the generated
+   conflicts — it reads the registry's `regenerate:` map, reruns the owning
+   generator per conflicted generated path, and stages the result:
+
+   ```bash
+   bash scripts/dev/regen-conflicts.sh --base "$NEW_BASE"
+   ```
+
+   It exits 0 only when no conflict remains; otherwise it names the files
+   outside its map, which follow the row 4a rules above. For any other
+   conflict, stop and report each conflicting file: do not resolve a semantic
+   conflict by guessing. Never `git stash`.
 
 3. **Prove the content did not change.** Run the content tests that
    [eshu-code-review](../../eshu-code-review/SKILL.md#rebase-waiver) defines:

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -33,7 +34,7 @@ func (r *Registry) Validate(repoRoot string) []error {
 	// the per-trigger glob checks that could no longer be trusted — the run
 	// still fails, on the enumeration error rather than on 500 derived ones.
 	var tracked *trackedPaths
-	if r.hasGlobTrigger() {
+	if r.hasGlobTrigger() || r.hasRegenerateGlob() {
 		loaded, err := loadTrackedPaths(repoRoot)
 		if err != nil {
 			errs = append(errs, fmt.Errorf(
@@ -43,6 +44,7 @@ func (r *Registry) Validate(repoRoot string) []error {
 		}
 		tracked = loaded
 	}
+	regenerateOwners := make(map[string]string)
 	for _, g := range r.Gates {
 		if g.Local != nil {
 			if err := checkScript(repoRoot, g.ID, g.Local.Command); err != nil {
@@ -61,6 +63,7 @@ func (r *Registry) Validate(repoRoot string) []error {
 			}
 		}
 		errs = append(errs, checkTriggerPathsExist(repoRoot, g, tracked)...)
+		errs = append(errs, checkRegeneratePathsExist(repoRoot, g, tracked, regenerateOwners)...)
 	}
 	for _, check := range r.RequiredStatusChecks {
 		if check.Workflow == "" {
@@ -305,4 +308,78 @@ func extractScriptPath(command string) string {
 		return ""
 	}
 	return paths[0]
+}
+
+// hasRegenerateGlob reports whether any gate carries a glob-shaped regenerate
+// key. Validate resolves glob keys against the tracked path universe, which
+// is enumerated once per run; this decides whether that enumeration is needed
+// for the regenerate half when no glob trigger needs it.
+func (r *Registry) hasRegenerateGlob() bool {
+	for _, g := range r.Gates {
+		for regenPath := range g.Regenerate {
+			if !isLiteralTrigger(regenPath) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// checkRegeneratePathsExist validates gate g's regenerate: map, the
+// path-to-command entries scripts/dev/regen-conflicts.sh reads to resolve
+// rebase conflicts on generated files. Keys iterate in sorted order so the
+// errors are deterministic despite Go's randomised map iteration. owners maps
+// each claimed path to the first gate that claimed it, enforcing single
+// ownership registry-wide: two regen commands for one conflicted path would
+// fight over the same working-tree file.
+func checkRegeneratePathsExist(repoRoot string, g Gate, tracked *trackedPaths, owners map[string]string) []error {
+	paths := make([]string, 0, len(g.Regenerate))
+	for regenPath := range g.Regenerate {
+		paths = append(paths, regenPath)
+	}
+	sort.Strings(paths)
+	var errs []error
+	for _, regenPath := range paths {
+		command := strings.TrimSpace(g.Regenerate[regenPath])
+		if strings.TrimSpace(regenPath) == "" {
+			errs = append(errs, fmt.Errorf("gate %q: regenerate map has a blank path", g.ID))
+			continue
+		}
+		if command == "" {
+			errs = append(errs, fmt.Errorf("gate %q: regenerate %q has a blank command — a conflicted generated file with no regen command stays conflicted", g.ID, regenPath))
+			continue
+		}
+		if owner, dup := owners[regenPath]; dup {
+			errs = append(errs, fmt.Errorf("gate %q: regenerate %q is already claimed by gate %q — one generated path takes one regen command", g.ID, regenPath, owner))
+			continue
+		}
+		owners[regenPath] = g.ID
+		if !isLiteralTrigger(regenPath) {
+			if tracked == nil || !tracked.matchesAny(regenPath) {
+				errs = append(errs, fmt.Errorf("gate %q: regenerate %q matches no tracked file", g.ID, regenPath))
+			}
+			continue
+		}
+		full := filepath.Join(repoRoot, filepath.FromSlash(regenPath))
+		if !isWithinRoot(repoRoot, full) {
+			errs = append(errs, fmt.Errorf("gate %q: regenerate %q escapes the repository root", g.ID, regenPath))
+			continue
+		}
+		info, err := os.Stat(full)
+		if os.IsNotExist(err) {
+			errs = append(errs, fmt.Errorf("gate %q: regenerate %q names %q, which does not exist — a stale key reads as coverage", g.ID, regenPath, full))
+			continue
+		}
+		if err == nil && info.IsDir() {
+			errs = append(errs, fmt.Errorf("gate %q: regenerate %q names the directory %q — regen commands rewrite files", g.ID, regenPath, full))
+			continue
+		}
+		for _, script := range extractScriptPaths(command) {
+			scriptFull := filepath.Join(repoRoot, script)
+			if _, err := os.Stat(scriptFull); os.IsNotExist(err) {
+				errs = append(errs, fmt.Errorf("gate %q: regenerate %q names missing script %q (derived from command %q)", g.ID, regenPath, scriptFull, command))
+			}
+		}
+	}
+	return errs
 }
