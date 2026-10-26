@@ -232,9 +232,9 @@ Constraints from the source research:
   notice. Exploit-DB's repository is GPL v2, while the website terms forbid
   copying. No formal EPSS license or attribution text was found
   (NOT_CHECKED).
-- **Origin of the cadence text.** The quoted cadence comes from cve.now, a
-  closed aggregator launched 2026-10-22. Its intervals are its own choice, not
-  upstream guidance.
+- **Origin of the cadence text.** The starting cadences in plan §4.5 came from
+  cve.now, a closed aggregator launched 2026-10-22. Its intervals are its own
+  choice, not upstream guidance.
 - **GHSA.** Unreviewed advisories are published automatically from the NVD
   feed with no validity check, per GitHub's advisory-database docs. REST
   allows 60 requests per hour unauthenticated and 5,000 with a token.

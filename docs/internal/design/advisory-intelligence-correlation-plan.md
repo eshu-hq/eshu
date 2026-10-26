@@ -238,8 +238,10 @@ they fall under the §4.7 ADR gate.
 
 ### 4.5 Cadence per source
 
-cve.now chose the cadences quoted in the request, and some of them go against
-upstream guidance. Proposed cadences:
+The starting cadences for this plan came from cve.now, a closed aggregator.
+The origin is in "Origin of the cadence text" in the evidence appendix. Those
+cadences are cve.now's own choice, and some of them go against upstream
+guidance. Proposed cadences:
 
 | Source | Cadence | Mechanism |
 | --- | --- | --- |
