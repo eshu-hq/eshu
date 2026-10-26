@@ -43,6 +43,8 @@ a temporary Git project: Codex's initial response stopped, the hook returned
 the active goal, and Codex continued and marked the probe goal DONE. The probe
 used `--dangerously-bypass-hook-trust`; it proves the event and response path,
 not persisted trust in the interactive project.
+The probe used an ordinary assistant response, not a provider-side error; it
+does not establish that every capacity or security failure emits `Stop`.
 
 When `last_assistant_message` contains capacity, security, blocked, denied,
 error, or failed language, the adapter passes only a fixed diagnostic category
