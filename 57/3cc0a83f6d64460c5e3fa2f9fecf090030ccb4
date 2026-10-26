@@ -1,0 +1,32 @@
+go/internal/collector/extensionhost/retry_after_requested_test.go
+  h_78a442cba0b3e6 73-76
+go/internal/collector/claimed_service_dispatch.go
+  h_78a442cba0b3e6 1-34
+go/internal/telemetry/instruments.go
+  h_78a442cba0b3e6 2743-2752,7175-7187
+docs/public/observability/telemetry-coverage.md
+  h_78a442cba0b3e6 488
+go/internal/collector/claimed_service_deadline_test.go
+  h_78a442cba0b3e6 1-128
+go/internal/collector/extensionhost/claimed_service_test.go
+  h_78a442cba0b3e6 105-108
+go/internal/collector/extensionhost/retry_after_test.go
+  h_78a442cba0b3e6 68-71
+go/internal/collector/claimed_service.go
+  h_78a442cba0b3e6 244-251
+go/internal/collector/claimed_service_run_metrics.go
+  h_78a442cba0b3e6 75-110
+go/internal/collector/evidence-9205-dispatch-lease.md
+  h_78a442cba0b3e6 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "573cc0a83f6d64460c5e3fa2f9fecf090030ccb4",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
