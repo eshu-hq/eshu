@@ -82,7 +82,10 @@ wiring end to end through the real process runner.
   `ESHU_GITHUB_APP_INSTALLATIONS` (a JSON object mapping scope IDs to
   installation IDs) are all set; otherwise the static config path applies.
   Malformed installations JSON fails startup closed. The App private key never
-  crosses the extension stdio boundary.
+  crosses the extension stdio boundary. An activation must not define the
+  `host_github_app_token` key itself while the provider is set: the host
+  rejects that combination at startup, so the minted per-claim token is the
+  only credential a host_minted target can spend.
 - The worker supports `spec.runtime.adapter: process` and
   `spec.runtime.adapter: oci`. The OCI image is read only from the component's
   verified manifest artifact (digest-pinned and platform-matched); the
@@ -116,6 +119,17 @@ line, or status field; startup misconfiguration fails with an error naming
 only the variable, and per-claim mint faults reuse the existing bounded
 terminal/retryable failure classes, so operators keep diagnosing through the
 existing claim rows, failure classes, and service metrics endpoint.
+
+No-Regression Evidence (#9185 follow-up): moving the three entries between
+registry blocks changes only documentation grouping (the coverage gate keys
+on variable names, not subsystems) and the static-key conflict pin adds one
+startup-rejection unit test; no runtime path changes. The regenerated
+reference docs move the same three rows between tables and are otherwise
+byte-identical.
+
+No-Observability-Change (#9185 follow-up): the follow-up adds no metric,
+span, log line, or status field; the new test asserts the existing
+fail-closed startup error, so operator signals are unchanged.
 
 ## Related docs
 

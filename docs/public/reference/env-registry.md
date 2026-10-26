@@ -24,11 +24,11 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [`api`](env-registry/api-and-auth.md#api) | 35 | API, auth, and MCP |
 | [`auth`](env-registry/api-and-auth.md#auth) | 7 | API, auth, and MCP |
 | [`backend-conformance`](env-registry/runtime-and-storage.md#backend-conformance) | 8 | Runtime and storage |
-| [`collector`](env-registry/collectors-platform.md#collector) | 25 | Ingester and collector framework |
+| [`collector`](env-registry/collectors-platform.md#collector) | 22 | Ingester and collector framework |
 | [`collector-aws-cloud`](env-registry/collectors-infrastructure.md#collector-aws-cloud) | 7 | Infrastructure and registry collectors |
 | [`collector-azure-cloud`](env-registry/collectors-infrastructure.md#collector-azure-cloud) | 8 | Infrastructure and registry collectors |
 | [`collector-cicd-run`](env-registry/collectors-signals.md#collector-cicd-run) | 5 | Observability, delivery, and security collectors |
-| [`collector-component-extension`](env-registry/collectors-platform.md#collector-component-extension) | 6 | Ingester and collector framework |
+| [`collector-component-extension`](env-registry/collectors-platform.md#collector-component-extension) | 9 | Ingester and collector framework |
 | [`collector-gcp-cloud`](env-registry/collectors-infrastructure.md#collector-gcp-cloud) | 6 | Infrastructure and registry collectors |
 | [`collector-grafana`](env-registry/collectors-signals.md#collector-grafana) | 5 | Observability, delivery, and security collectors |
 | [`collector-jira`](env-registry/collectors-signals.md#collector-jira) | 5 | Observability, delivery, and security collectors |

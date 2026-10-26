@@ -8,9 +8,6 @@ The ingester's git collector, the component package manager, and the component-e
 
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `ESHU_GITHUB_APP_ID` | string | — | GitHub App ID the component-extension host mints installation tokens with (#9185). Read once at worker startup together with ESHU_GITHUB_APP_PRIVATE_KEY and ESHU_GITHUB_APP_INSTALLATIONS; any of the three empty keeps the static config path with no provider. Never crosses the extension stdio boundary. |
-| `ESHU_GITHUB_APP_INSTALLATIONS` | string | — | JSON object mapping claimed scope IDs to the GitHub App installation that serves them for host-minted tokens (#9185). Malformed JSON, an empty map, or blank scope/installation entries fail worker startup closed naming only the variable. |
-| `ESHU_GITHUB_APP_PRIVATE_KEY` | string | — | GitHub App PEM private key the component-extension host mints installation tokens with (#9185). Single-line secret-environment bodies are re-wrapped at mint time; the key never crosses the extension stdio boundary, only the minted token does. |
 | `ESHU_GITLAB_GROUP` | string | — | GitLab group full path (acme/platform, subgroups included) or numeric ID for the gitlabGroup repository source mode (#7765). Required when ESHU_REPO_SOURCE_MODE=gitlabGroup; ignored by every other mode. An empty value fails collector startup in gitlabGroup mode. |
 | `ESHU_GITLAB_HOST` | string | `gitlab.com` | GitLab provider host for gitlab/ repository IDs (#7764). Unset keeps gitlab.com. Set it to a self-managed bare hostname (no scheme, port, userinfo, or path) so explicit-mode clone, fetch, SSH, and token-auth URLs use that host; an invalid value fails collector startup. |
 | `ESHU_GIT_CLONE_TIMEOUT_SECONDS` | int | `600` | Per-command deadline in seconds for the initial git clone of one repository (#8052). It is the longest deadline because a large clone that is still making progress is not a stall, and a short deadline would make that repository fail on every cycle. Same behavior at the deadline (one attempt of the bounded retry, ESHU_GIT_RETRY_ATTEMPTS) and same validation as ESHU_GIT_RESOLVE_TIMEOUT_SECONDS. Unset keeps 600. |
@@ -44,6 +41,9 @@ The ingester's git collector, the component package manager, and the component-e
 | `ESHU_COMPONENT_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
 | `ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering component activations. |
 | `ESHU_COMPONENT_COLLECTOR_SCOPE_KIND` | string | — | Scope kind for component activations (e.g. organization, team). |
+| `ESHU_GITHUB_APP_ID` | string | — | GitHub App ID the component-extension host mints installation tokens with (#9185). Read once at worker startup together with ESHU_GITHUB_APP_PRIVATE_KEY and ESHU_GITHUB_APP_INSTALLATIONS; any of the three empty keeps the static config path with no provider. Never crosses the extension stdio boundary. |
+| `ESHU_GITHUB_APP_INSTALLATIONS` | string | — | JSON object mapping claimed scope IDs to the GitHub App installation that serves them for host-minted tokens (#9185). Malformed JSON, an empty map, or blank scope/installation entries fail worker startup closed naming only the variable. |
+| `ESHU_GITHUB_APP_PRIVATE_KEY` | string | — | GitHub App PEM private key the component-extension host mints installation tokens with (#9185). Single-line secret-environment bodies are re-wrapped at mint time; the key never crosses the extension stdio boundary, only the minted token does. |
 
 ## component
 
