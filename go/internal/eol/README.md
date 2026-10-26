@@ -56,16 +56,17 @@ and `support-ending` the day after its support date.
 
 No-Regression Evidence: this package is new, so there is no prior baseline;
 the after measurement below is the initial cost record. Backend: linux/arm64,
-go1.26.6, `go test -bench` in the package (2026-10-26): BenchmarkResolve
-768 ns/op against the embedded snapshot (one linear scan over at most the
-71 rust cycles per declared version, no I/O), BenchmarkLoadSnapshot 321
-us/op one-time at startup for 8 products / 196 cycles. Input shape: an
-in-memory Snapshot plus (runtime, major, minor) ints. No queue, row, graph,
-or storage counts change: no caller wires the join into a read path yet, so
+go1.26.6, `go test -bench` in the package (2026-10-26, two runs, shared
+host so figures are bounds not exact): BenchmarkResolve under 1 us/op
+against the embedded snapshot (one linear scan over at most the 71 rust
+cycles per declared version, no I/O), BenchmarkLoadSnapshot under 1 ms
+one-time at startup for 8 products / 196 cycles. Input shape: an in-memory
+Snapshot plus (runtime, major, minor) ints. No queue, row, graph, or
+storage counts change: no caller wires the join into a read path yet, so
 terminal counts are identical before and after; the focused package tests
-(17 cases, `go test ./internal/eol/`) pass. Safe
-because Resolve allocates only its Answer value, touches no shared state,
-and never reads missing data as supported (unknown by construction).
+(17 cases, `go test ./internal/eol/`) pass. Safe because Resolve allocates
+only its Answer value, touches no shared state, and never reads missing
+data as supported (unknown by construction).
 
 No-Observability-Change: the package performs no projection, queue write,
 retry, storage call, graph work, or network I/O and emits no metric, span,
