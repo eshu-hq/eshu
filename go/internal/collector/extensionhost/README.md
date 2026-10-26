@@ -23,6 +23,15 @@ It does not receive or pass Postgres, graph, reducer, API, or MCP handles to an
 extension. Claim mutation, stale-fence handling, retry budgets, and final commit
 remain owned by `collector.ClaimedService` and its claim-aware committer.
 
+Host-minted GitHub App tokens (#9182 lane A, wire shape per arbiter):
+`Config.TokenProvider`, when set, mints one installation token per claim
+host-side and injects it into the per-claim request config under the
+`host_github_app_token` key as an object `{token, scope_id}`; the App private
+key never crosses the stdio boundary (see `TokenProvider` for the contract).
+A mint denial fails the claim terminal with class `auth_denied` before the
+satellite launches; a transient mint fault stays retryable. With no provider
+the config passes through byte-identically (the `token_env` escape hatch).
+
 The in-tree SDK's [validation contract](../../../../sdk/go/collector/README.md#validation)
 admits only the documented Kubernetes posture values in their exact fact
 contexts. `ProcessRunner` preserves those values through JSON transport. That

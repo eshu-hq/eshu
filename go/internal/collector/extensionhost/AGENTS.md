@@ -28,6 +28,12 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
 - A retryable result's delay comes only from `status.retry_after_seconds`,
   clamped to `MaxRetryAfterDelay`; keep the clamp in seconds before the
   multiply so no value overflows `time.Duration`.
+- `Config.TokenProvider` mints once per claim and only the minted token
+  reaches `Request.Config` under `HostMintedGitHubTokenKey`; static config
+  must not define that key (`NewSource` rejects it). Provider errors stay
+  bounded: only `github/app` faults keep their chain, everything else maps to
+  a terminal `auth_denied` denial, and no token, key, or credential may appear
+  in any error, record, or telemetry value.
 - `ResultRecord.RetryAfter`, the retry-after gauge, and the
   `extension_status.retry_after_seconds` log key are the extension's capped
   request, recorded before `ClaimedService` decides. Never document them as the
