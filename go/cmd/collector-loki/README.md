@@ -16,9 +16,18 @@ flowchart LR
 
 `token_env` is optional because some Loki endpoints are unauthenticated. When
 configured, it must resolve to a non-empty secret. `tenant_id_env` is also
-optional and overrides `tenant_id` when set. Source-controlled IaC/GitOps
-evidence remains preferred when current; live Loki facts are fallback and
-validation evidence.
+optional and overrides `tenant_id` when set. Deployments with Loki
+`auth_enabled: true` must set `tenant_id_env` to a secret-backed variable;
+without an `X-Scope-OrgID` Loki answers 401 and every phase degrades to
+permission-hidden. Never hardcode `tenant_id` in stored config.
+Source-controlled IaC/GitOps evidence remains preferred when current; live
+Loki facts are fallback and validation evidence.
+
+Deployments without a ruler answer `GET /loki/api/v1/rules` with 502. That
+single case degrades to an unsupported-rule warning (partial coverage, no
+retry); a 502 from labels, series, or label values still fails hard.
+Transient gateway 502s on the rules endpoint degrade the same way, and the
+signal self-heals on the next poll.
 
 ## Environment
 
