@@ -36,12 +36,13 @@ import (
 //
 // indexed_at is deliberately not moved: it sits in the language covering
 // index's INCLUDE, and moving it costs the HOT update. A metadata-only row
-// keeps its old indexed_at, extending the #8915 meaning ("when this row was
-// last written with a change to its content, commit, generation, or another
-// stored column") to a generation-only replay. The language rollup's
-// MAX(indexed_at) therefore no longer advances on a pure replay; that is a
-// semantic change whose rollout needs an arbiter ruling, recorded in the
-// prototype evidence note. The statement-level triggers still fire (with an
+// keeps its old indexed_at, which now means "when this row was last written
+// with a change beyond commit_sha/generation_id lineage" (#8950, replacing the
+// #8915 wording rather than extending it: a commit/generation-only rewrite is
+// no longer a content write for indexed_at purposes). The language rollup's
+// MAX(indexed_at) therefore no longer advances on a pure replay; that
+// semantic change rolled out under the arbiter ruling for #8950, recorded in
+// the evidence note. The statement-level triggers still fire (with an
 // empty transition table when every row falls through): the secret-lines
 // derive diffs old against new content and derives nothing for identical
 // rows, and the config-artifact version fence stages every repository the
