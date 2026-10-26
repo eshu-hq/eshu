@@ -202,6 +202,7 @@ decision.
 
 ## Related
 
+- [QA drill window](qa-drill-window.md)
 - [Collector cutover rollback](collector-cutover-rollback.md)
 - [Collector Repository Migration Policy](../reference/collector-extraction-policy.md)
 - [HTTP API reference](../reference/http-api.md)

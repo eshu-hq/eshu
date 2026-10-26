@@ -212,6 +212,7 @@ read-truth queries to compare before and after.
 
 ## Related
 
+- [QA drill window](qa-drill-window.md)
 - [Collector cutover truth checks](collector-cutover-truth-checks.md)
 - [Collector Repository Migration Policy](../reference/collector-extraction-policy.md)
 - [Component producer grants](../reference/component-producer-grants.md)
