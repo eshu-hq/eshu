@@ -45,4 +45,6 @@
 // The sandbox supports two query dialects: Cypher (for property graph queries
 // against NornicDB) and SQL (for schema queries against the relational fact
 // store). Each dialect has its own authorization and execution policy.
+// Denied queries fail closed with a bounded reason; allowed queries carry an
+// empty Reason.
 package sandbox
