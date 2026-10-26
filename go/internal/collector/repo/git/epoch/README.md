@@ -59,6 +59,9 @@ span, or log key names it.
 - Add `-advance-content-epoch` when one change edits a fixture file and its
   output together, or adds a parser path rule outside the registry
   fingerprint. The ledger reads both as fixture-only changes.
+- A fixture file emitting its first attributed fact also reads as a new
+  bucket and keeps the epoch; pass `-advance-content-epoch` when that first
+  emission reflects a real output change.
 - The advanced epoch is the first 16 hex characters of
   `sha256(parent + "\n" + sorted output digests joined by "\n")`. Two branches
   that advance from one parent with different outputs land on different epochs
