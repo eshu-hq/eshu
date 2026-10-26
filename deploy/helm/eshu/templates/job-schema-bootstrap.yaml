@@ -2,6 +2,12 @@
 {{- if and .Values.schemaBootstrap.useHelmHooks .Values.nornicdb.enabled }}
 {{- fail "schemaBootstrap.useHelmHooks=true requires the graph backend to exist before Helm pre-install hooks run; set nornicdb.enabled=false or deploy bundled NornicDB separately before enabling the schema bootstrap hook" }}
 {{- end }}
+{{- if and .Values.schemaBootstrap.argocdPreSync.enabled .Values.nornicdb.enabled }}
+{{- fail "schemaBootstrap.argocdPreSync.enabled=true requires the graph backend to exist before the ArgoCD PreSync hook runs; set nornicdb.enabled=false or deploy bundled NornicDB separately before enabling the schema bootstrap hook" }}
+{{- end }}
+{{- if and .Values.schemaBootstrap.useHelmHooks .Values.schemaBootstrap.argocdPreSync.enabled }}
+{{- fail "schemaBootstrap.useHelmHooks and schemaBootstrap.argocdPreSync.enabled are mutually exclusive; set useHelmHooks=false when ArgoCD owns the sync because ArgoCD also processes helm.sh/hook annotations" }}
+{{- end }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -9,12 +15,17 @@ metadata:
   labels:
     {{- include "eshu.labels" . | nindent 4 }}
     app.kubernetes.io/component: schema-bootstrap
-  {{- if or .Values.schemaBootstrap.useHelmHooks .Values.schemaBootstrap.annotations }}
+  {{- if or .Values.schemaBootstrap.useHelmHooks .Values.schemaBootstrap.argocdPreSync.enabled .Values.schemaBootstrap.annotations }}
   annotations:
     {{- if .Values.schemaBootstrap.useHelmHooks }}
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "-10"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    {{- end }}
+    {{- if .Values.schemaBootstrap.argocdPreSync.enabled }}
+    "argocd.argoproj.io/hook": PreSync
+    "argocd.argoproj.io/sync-wave": {{ .Values.schemaBootstrap.argocdPreSync.syncWave | quote }}
+    "argocd.argoproj.io/hook-delete-policy": {{ .Values.schemaBootstrap.argocdPreSync.hookDeletePolicy | quote }}
     {{- end }}
     {{- with .Values.schemaBootstrap.annotations }}
     {{- toYaml . | nindent 4 }}

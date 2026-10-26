@@ -40,6 +40,21 @@ initContainerSecurityContext:
 schemaBootstrap:
   enabled: true
   useHelmHooks: true
+  # ArgoCD PreSync hook for the same Job. Default off so direct `helm
+  # install/upgrade` behavior is unchanged: that path keeps the Helm
+  # pre-install/pre-upgrade hooks above. An ArgoCD Application enables this
+  # block (and sets useHelmHooks=false: the two hook families are mutually
+  # exclusive because ArgoCD also processes helm.sh/hook annotations) so a
+  # sync cannot roll workloads before pending migrations complete. The QA
+  # overlay enables this first; production follows only after the QA hook
+  # proves green. syncWave is a negative string so the hook orders before
+  # wave>=0 workloads; hookDeletePolicy recreates the Job on every sync via
+  # BeforeHookCreation. No second migrations image: the Job runs the release
+  # image bootstrap command with its xmin-precheck init container.
+  argocdPreSync:
+    enabled: false
+    syncWave: "-10"
+    hookDeletePolicy: BeforeHookCreation
   backoffLimit: 1
   # A CREATE/DROP INDEX CONCURRENTLY migration statement is exempt from the
   # schema lock_timeout and waits out a conflicting lock or older
