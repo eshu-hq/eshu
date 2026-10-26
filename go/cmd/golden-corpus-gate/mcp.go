@@ -7,12 +7,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // mcpClient invokes MCP tools over the JSON-RPC endpoint POST /mcp/message, which
@@ -136,7 +139,11 @@ func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]a
 		return nil, fmt.Errorf("tools/call %s: response carried no result", name)
 	}
 	if rpc.Result.IsError {
-		return nil, fmt.Errorf("tools/call %s: tool reported isError; content=%q", name, firstText(rpc.Result.Content))
+		diagnostic, valid := toolErrorDiagnostic(rpc.Result)
+		if !valid {
+			return nil, fmt.Errorf("tools/call %s: invalid machine-readable error diagnostic", name)
+		}
+		return nil, &mcpToolRefusal{tool: name, message: diagnostic}
 	}
 	if len(rpc.Result.StructuredContent) > 0 {
 		return maybeUnwrapTruthEnvelope(rpc.Result.StructuredContent, preserveEnvelope), nil
@@ -151,6 +158,49 @@ func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]a
 		return maybeUnwrapTruthEnvelope([]byte(t), preserveEnvelope), nil
 	}
 	return nil, fmt.Errorf("tools/call %s: result carried no structuredContent, JSON resource, or text content", name)
+}
+
+// mcpToolRefusal separates tool diagnostics from transport and protocol failures.
+type mcpToolRefusal struct {
+	tool    string
+	message string
+}
+
+func (e *mcpToolRefusal) Error() string {
+	return fmt.Sprintf("tools/call %s: tool reported isError; content=%q", e.tool, e.message)
+}
+
+// toolErrorDiagnostic reads the authoritative structured error before a human
+// summary. An explicitly present malformed error must not match an expected
+// refusal through stale text content. Without structured content, a JSON
+// resource precedes the legacy text-only dual error fallback.
+func toolErrorDiagnostic(result *mcpToolCallResult) (string, bool) {
+	raw := result.StructuredContent
+	if len(raw) == 0 {
+		resource, found, err := firstJSONResource(result.Content)
+		if err != nil {
+			return "", false
+		}
+		if !found {
+			return firstText(result.Content), true
+		}
+		raw = resource
+	}
+	var envelope struct {
+		Data  json.RawMessage              `json:"data"`
+		Truth json.RawMessage              `json:"truth"`
+		Error *querycontract.ErrorEnvelope `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil ||
+		len(envelope.Data) == 0 || len(envelope.Truth) == 0 || envelope.Error == nil ||
+		strings.TrimSpace(string(envelope.Error.Code)) == "" || strings.TrimSpace(envelope.Error.Message) == "" {
+		return "", false
+	}
+	var truth *querycontract.TruthEnvelope
+	if err := json.Unmarshal(envelope.Truth, &truth); err != nil {
+		return "", false
+	}
+	return envelope.Error.Message, true
 }
 
 // firstJSONResource reads the evidence-bearing resource instead of a human
@@ -249,7 +299,9 @@ func checkMCPQuery(ctx context.Context, c *mcpClient, snap Snapshot, r *Report) 
 		shape := snap.QueryShapes.MCP[key]
 		body, err := c.callTool(ctx, mcpToolName(key), shape.Arguments, shape.Envelope)
 		if err != nil {
-			if shape.ExpectedErrorContains != "" && strings.Contains(err.Error(), shape.ExpectedErrorContains) {
+			var refusal *mcpToolRefusal
+			if shape.ExpectedErrorContains != "" && errors.As(err, &refusal) &&
+				strings.Contains(refusal.message, shape.ExpectedErrorContains) {
 				r.AddCheck("query", "mcp:"+key, true, true,
 					fmt.Sprintf("expected MCP refusal contained %q", shape.ExpectedErrorContains))
 				continue

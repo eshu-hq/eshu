@@ -231,9 +231,11 @@ Non-JSON UTF-8 text becomes `{"value": "<text>"}`. Result-level `_meta` sets
 points to `structuredContent.value`; no resource is sent. The JSON value keeps
 its numeric precision. A plain object with a `value` key stays unwrapped and
 unmarked. `dual` keeps its previous bytes, including omitted `structuredContent`
-for JSON `null`. Generic dispatch failures under `structured` carry a canonical
-`{data:null,truth:null,error}` envelope with `error.code=mcp_dispatch_error`;
-the full diagnostic is in `error.message`, and the bounded text points to it.
+for JSON `null`. Generic dispatch failures under `structured` that fit the response budget carry
+a canonical `{data:null,truth:null,error}` envelope with
+`error.code=mcp_dispatch_error`; the full diagnostic is in `error.message`, and
+the bounded text points to it. Oversized failures use the existing
+`mcp_response_over_budget` envelope.
 `dual` keeps these failures as text only. Timeouts and cancellations keep their
 existing structured detail. Under `dual`, a client reads the resource's JSON
 `text` when the

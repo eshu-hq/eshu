@@ -157,3 +157,100 @@ func TestParseFlagsMCPResultShapeTrimsPadding(t *testing.T) {
 		t.Fatal("padded unknown shape accepted, want rejection")
 	}
 }
+
+func TestCheckMCPQueryStructuredErrorDiagnostic(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, payload, summary, expected string
+		pass                             bool
+	}{
+		{"infra refusal", `{"data":null,"truth":null,"error":{"code":"mcp_dispatch_error","message":"HTTP 404: entity not found"}}`, "MCP dispatch failed; details in structuredContent.error", "entity not found", true},
+		{"divergence refusal", `{"data":null,"truth":null,"error":{"code":"mcp_dispatch_error","message":"HTTP 404: divergence finding not found"}}`, "MCP dispatch failed; details in structuredContent.error", "divergence finding not found", true},
+		{"unexpected refusal", `{"data":null,"truth":null,"error":{"code":"mcp_dispatch_error","message":"HTTP 500: backend unavailable"}}`, "entity not found", "entity not found", false},
+		{"malformed structured error", `{"error":{"message":7}}`, "entity not found", "entity not found", false},
+		{"malformed diagnostic is not a refusal", `{"error":{"message":7}}`, "bounded summary", "invalid structured error diagnostic", false},
+		{"truth array", `{"data":null,"truth":[],"error":{"code":"mcp_dispatch_error","message":"entity not found"}}`, "bounded summary", "entity not found", false},
+		{"truth string", `{"data":null,"truth":"exact","error":{"code":"mcp_dispatch_error","message":"entity not found"}}`, "bounded summary", "entity not found", false},
+		{"missing data", `{"truth":null,"error":{"code":"mcp_dispatch_error","message":"entity not found"}}`, "bounded summary", "entity not found", false},
+		{"missing truth", `{"data":null,"error":{"code":"mcp_dispatch_error","message":"entity not found"}}`, "bounded summary", "entity not found", false},
+		{"missing code", `{"data":null,"truth":null,"error":{"message":"entity not found"}}`, "bounded summary", "entity not found", false},
+		{"empty code", `{"data":null,"truth":null,"error":{"code":"","message":"entity not found"}}`, "bounded summary", "entity not found", false},
+		{"null structured error", `null`, "entity not found", "entity not found", false},
+		{"error text in data", `{"data":{"message":"entity not found"},"truth":null,"error":null}`, "bounded summary", "entity not found", false},
+		{"unrequested error", `{"data":null,"truth":null,"error":{"message":"entity not found"}}`, "bounded summary", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			wire, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "result": map[string]any{"isError": true, "content": []any{map[string]any{"type": "text", "text": tc.summary}}, "structuredContent": json.RawMessage(tc.payload)}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			doer := &fakeMCPDoer{byTool: map[string]string{"fixture": string(wire)}}
+			snap := Snapshot{QueryShapes: QueryShapes{MCP: map[string]QueryShape{"fixture": {ExpectedErrorContains: tc.expected}}}}
+			var report Report
+			if err := checkMCPQuery(context.Background(), mcpClientWithDoer(doer), snap, &report); err != nil {
+				t.Fatal(err)
+			}
+			finding, ok := findingByCheck(report, "mcp:fixture")
+			if !ok || finding.OK != tc.pass || !finding.Required {
+				t.Fatalf("finding=%+v, present=%v, want pass=%v required", finding, ok, tc.pass)
+			}
+		})
+	}
+}
+
+func TestCheckMCPQueryTransportErrorsCannotMatchExpectedRefusal(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, wire, expected string
+		status               int
+	}{
+		{"HTTP", `{}`, "HTTP 500", 500},
+		{"RPC", `{"error":{"code":-32603,"message":"backend unavailable"}}`, "backend unavailable", 200},
+		{"invalid JSON", `{`, "decode tools/call", 200},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doer := &fakeMCPDoer{status: tc.status, byTool: map[string]string{"fixture": tc.wire}}
+			snap := Snapshot{QueryShapes: QueryShapes{MCP: map[string]QueryShape{"fixture": {ExpectedErrorContains: tc.expected}}}}
+			var report Report
+			if err := checkMCPQuery(context.Background(), mcpClientWithDoer(doer), snap, &report); err != nil {
+				t.Fatal(err)
+			}
+			finding, ok := findingByCheck(report, "mcp:fixture")
+			if !ok || finding.OK || !finding.Required {
+				t.Fatalf("transport/protocol error matched tool refusal: %+v", finding)
+			}
+		})
+	}
+}
+
+func TestCheckMCPQueryErrorResourceBeforeText(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, payload, summary string
+		pass                   bool
+	}{
+		{"canonical resource", `{"data":null,"truth":null,"error":{"code":"not_found","message":"entity not found"}}`, "bounded summary", true},
+		{"malformed resource", `{`, "entity not found", false},
+		{"noncanonical resource", `{"error":{"code":"not_found","message":"entity not found"}}`, "entity not found", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			wire, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "result": map[string]any{"isError": true, "content": []any{map[string]any{"type": "text", "text": tc.summary}, map[string]any{"type": "resource", "resource": map[string]string{"mimeType": "application/eshu.envelope+json", "text": tc.payload}}}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			doer := &fakeMCPDoer{byTool: map[string]string{"fixture": string(wire)}}
+			snap := Snapshot{QueryShapes: QueryShapes{MCP: map[string]QueryShape{"fixture": {ExpectedErrorContains: "entity not found"}}}}
+			var report Report
+			if err := checkMCPQuery(context.Background(), mcpClientWithDoer(doer), snap, &report); err != nil {
+				t.Fatal(err)
+			}
+			finding, ok := findingByCheck(report, "mcp:fixture")
+			if !ok || finding.OK != tc.pass || !finding.Required {
+				t.Fatalf("resource finding=%+v, want pass=%v", finding, tc.pass)
+			}
+		})
+	}
+}

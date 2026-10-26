@@ -13,8 +13,9 @@ carries a connection's choice through a request context.
   non-object values are wrapped as `structuredContent.value` with result-level
   `_meta.eshu/nonObjectEncoding` (`json` or `text`); plain objects and
   canonical envelopes stay unwrapped. Generic dispatch failures carry a
-  canonical `mcp_dispatch_error` envelope with unavailable data and truth,
-  subject to the same response budget.
+  canonical `mcp_dispatch_error` envelope with unavailable data and truth
+  when it fits the response budget; oversized failures use
+  `mcp_response_over_budget`.
 
 ## Ownership boundary
 
