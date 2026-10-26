@@ -152,6 +152,8 @@ services:
     profiles:
       - loki
     restart: on-failure
+    # The loki binary ships in the eshu-collector-loki satellite image, not the
+    # in-tree product image: this service's image must provide it.
     command: ["/usr/local/bin/eshu-collector-loki"]
     ports:
       - "${ESHU_COLLECTOR_LOKI_METRICS_PORT:-19484}:9464"

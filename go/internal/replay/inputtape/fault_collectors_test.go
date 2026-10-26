@@ -44,7 +44,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/grafana"
-	"github.com/eshu-hq/eshu/go/internal/collector/observability/loki"
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/prometheus"
 	"github.com/eshu-hq/eshu/go/internal/collector/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/distribution"
@@ -117,27 +116,6 @@ func collectorFaultCases() []collectorFaultCase {
 					InstanceID:    "grafana-prod",
 					BaseURL:       "https://grafana.invalid",
 					Token:         "grafana-token",
-					ResourceLimit: 50,
-				})
-				return err
-			},
-		},
-		{
-			surface: "collector:loki",
-			collect: func() error {
-				client, err := loki.NewHTTPClient(loki.HTTPClientConfig{
-					BaseURL: "https://loki.invalid",
-					Client:  timeoutFaultClient(),
-				})
-				if err != nil {
-					return err
-				}
-				_, err = client.CollectObservedMetadata(context.Background(), loki.TargetConfig{
-					ScopeID:       "loki:tenant:prod",
-					InstanceID:    "loki-prod",
-					BaseURL:       "https://loki.invalid",
-					Token:         "loki-token",
-					TenantID:      "tenant-prod",
 					ResourceLimit: 50,
 				})
 				return err

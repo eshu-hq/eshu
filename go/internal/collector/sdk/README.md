@@ -331,7 +331,7 @@ admin-status surfaces.
 
 Fleet closeout marker (#2392): after the collector migration slices through
 #2387, `rg --files go/internal/collector go/cmd | rg
-'(^|/)(failure|http_client|retry)\.go$'` returns only the SDK files plus seven
+'(^|/)(failure|http_client|retry)\.go$'` returns only the SDK files plus six
 intentional owner-boundary files:
 
 - `go/internal/collector/failure.go` remains the root registry workflow failure
@@ -352,9 +352,9 @@ intentional owner-boundary files:
   in the extracted satellite (`eshu-hq/eshu-collector-confluence`, #8855).
   SDK helpers still own base URL validation, bounded HTTP errors, default
   clients, and `Retry-After` parsing.
-- `go/internal/collector/observability/loki/http_client.go` remains the Loki endpoint
-  traversal wrapper. Request execution and bounded status failures use
-  `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
+- Loki endpoint traversal now lives in the extracted satellite
+  (eshu-hq/eshu-collector-loki). Request execution and bounded status failures
+  there still use `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
 - `go/internal/collector/observability/prometheus/http_client.go` remains
   the Prometheus/Mimir endpoint traversal wrapper. Request execution and
   bounded status failures use `sdk.DefaultHTTPClient` and `sdk.DoJSON`.

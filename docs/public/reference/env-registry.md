@@ -15,7 +15,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 92 |
 | [Ingester and collector framework](env-registry/collectors-platform.md) | The ingester's git collector, the component package manager, and the component-extension collector. | 38 |
 | [Infrastructure and registry collectors](env-registry/collectors-infrastructure.md) | Cloud, Kubernetes, Vault, Terraform state, OCI registry, and package registry collectors. | 54 |
-| [Observability, delivery, and security collectors](env-registry/collectors-signals.md) | Grafana, Loki, Prometheus/Mimir, PagerDuty, CI/CD run, security alert, SBOM, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). | 40 |
+| [Observability, delivery, and security collectors](env-registry/collectors-signals.md) | Grafana, Prometheus/Mimir, PagerDuty, CI/CD run, security alert, SBOM, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). | 35 |
 
 ## Subsystems
 
@@ -32,7 +32,6 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [`collector-gcp-cloud`](env-registry/collectors-infrastructure.md#collector-gcp-cloud) | 6 | Infrastructure and registry collectors |
 | [`collector-grafana`](env-registry/collectors-signals.md#collector-grafana) | 5 | Observability, delivery, and security collectors |
 | [`collector-kubernetes-live`](env-registry/collectors-infrastructure.md#collector-kubernetes-live) | 3 | Infrastructure and registry collectors |
-| [`collector-loki`](env-registry/collectors-signals.md#collector-loki) | 5 | Observability, delivery, and security collectors |
 | [`collector-oci-registry`](env-registry/collectors-infrastructure.md#collector-oci-registry) | 7 | Infrastructure and registry collectors |
 | [`collector-package-registry`](env-registry/collectors-infrastructure.md#collector-package-registry) | 5 | Infrastructure and registry collectors |
 | [`collector-pagerduty`](env-registry/collectors-signals.md#collector-pagerduty) | 5 | Observability, delivery, and security collectors |

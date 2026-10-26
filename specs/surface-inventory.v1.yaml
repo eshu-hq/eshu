@@ -211,16 +211,21 @@ surfaces:
       truth_profile: provider_gated
   - category: collector
     name: loki
-    readiness: implemented
-    owner: internal/collector/observability/loki
-    proof: reference/collector-reducer-readiness.md#promotion-proof
+    readiness: partial
+    owner: eshu-hq/eshu-collector-loki
     docs: [reference/collector-reducer-readiness.md]
+    notes: >-
+      Extracted to the eshu-collector-loki satellite
+      (eshu-hq/eshu-collector-loki): the in-tree command, observer package,
+      and image build are gone, so the implemented lane (built in-tree,
+      charted, replay-proven) is unmet. Fact kinds, reducer projection, and
+      read surfaces stay core-owned and covered.
     collector_contract:
       fact_kinds: *observability_fact_kinds
       projection_surfaces: [observability_coverage_correlation]
       read_surfaces: [GET /api/v0/observability/coverage/correlations, list_observability_coverage]
-      proof_gates: [cd go && go test ./cmd/collector-loki ./internal/collector/observability/loki ./internal/reducer ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/observability/loki/testdata, docs/public/reference/observability-evidence.md]
+      proof_gates: [cd go && go test ./internal/reducer ./internal/query ./internal/mcp -count=1, scripts/verify-fact-kind-registry.sh]
+      fixture_refs: [testdata/cassettes/loki, docs/public/reference/observability-evidence.md]
       truth_profile: provider_gated
   - category: collector
     name: prometheus_mimir

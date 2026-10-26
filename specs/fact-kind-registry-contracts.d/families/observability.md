@@ -12,7 +12,7 @@
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
 | `collector-grafana` | `eshu-hq/eshu` | `go/internal/collector/observability/grafana` | `eshu-hq/eshu-collector-grafana` | `core_issued_grant` | `observability.observed_dashboard` |
-| `collector-loki` | `eshu-hq/eshu` | `go/internal/collector/observability/loki` | `eshu-hq/eshu-collector-loki` | `core_issued_grant` | `observability.coverage_warning, observability.observed_log_signal, observability.observed_rule, observability.source_instance` |
+| `collector-loki` | `eshu-hq/eshu-collector-loki` | `.` | `` | `core_issued_grant` | `observability.coverage_warning, observability.observed_log_signal, observability.observed_rule, observability.source_instance` |
 | `collector-prometheus-mimir` | `eshu-hq/eshu` | `go/internal/collector/observability/prometheus` | `eshu-hq/eshu-collector-prometheus-mimir` | `core_issued_grant` | `observability.coverage_warning, observability.observed_rule, observability.observed_target, observability.source_instance` |
 | `collector-tempo` | `eshu-hq/eshu-collector-tempo` | `.` | `` | `core_issued_grant` | `observability.coverage_warning, observability.observed_trace_signal, observability.source_instance` |
 | `git-core` | `eshu-hq/eshu` | `go/internal/collector/repo` | `` | `core_owned` | `observability.applied_resource, observability.applied_sync_state, observability.declared_alert_rule, observability.declared_dashboard, observability.declared_datasource, observability.declared_folder, observability.declared_log_route, observability.declared_metric_route, observability.declared_metric_rule, observability.declared_scrape_config, observability.declared_trace_route` |
