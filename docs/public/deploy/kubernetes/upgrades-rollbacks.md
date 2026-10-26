@@ -244,3 +244,9 @@ projection from facts or source systems.
 Before relying on a rollback plan, run the rollout proof in rollback mode with a
 declaration that separately names the Helm rollback command, Postgres restore
 decision point, graph rebuild plan, and operator decision boundary.
+
+## Related
+
+- [QA drill window](../../operate/qa-drill-window.md) — rehearses this
+  checklist on a QA environment before the real cutover.
+- [Collector cutover rollback](../../operate/collector-cutover-rollback.md)
