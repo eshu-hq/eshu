@@ -368,3 +368,17 @@ DELETE FROM fact_records f USING batch b WHERE f.fact_id = b.fact_id;
   with their generation, under the retention policy above.
 - **Backups.** Base backups and archived WAL taken before the cleanup keep the
   verbatim files until they expire under your backup retention.
+- **Derived copies on metadata-policy paths.** The purge predicate and census 3
+  cover only `(^|/)\.yarnrc\.yml$` and `\.tfvars(\.json)?$`, so a legacy
+  `.npmrc` or `gradle-wrapper.properties` row written before its metadata
+  policy keeps its derived copies after both runs: `content_entities` rows
+  (the npmrc parser emits `registry_url` entities and the wrapper parser a
+  `gradle` entity, and under the old store policy their `source_cache` holds
+  raw slices), `content_file_references` rows (references derive from any file
+  body with no path filter, and a registry or `distributionUrl` line yields
+  `hostname` rows), and search index documents and
+  `reducer_eshu_search_document` facts (projection excludes no path, and the
+  sensitive-context gate only skips bodies holding a listed keyword, so a
+  keyword-free legacy body still projects raw `ContextText`). They leave with
+  their generation under the retention policy above. The purge predicate stays
+  scoped: widening it is out of scope for this cleanup.
