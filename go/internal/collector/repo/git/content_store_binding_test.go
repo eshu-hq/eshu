@@ -83,16 +83,9 @@ func TestBoundCredentialFilesLeakNoSeedInAnyFact(t *testing.T) {
 				t.Errorf("%s: seed %q reached fact kinds %v", tc.path, seed, kinds)
 			}
 		}
-		if strings.HasSuffix(tc.path, ".tfvars.json") {
-			// The hcl engine cannot parse a JSON body, before and after #8833
-			// (TestDedicatedCredentialDefinitionsParseLikeTheirEngines pins the
-			// equal error), so the collector stores no row for the path at all.
-			// When the engine learns JSON, the skeleton policy already covers it.
-			if hasFact(envelopes, "content", tc.path) || hasFact(envelopes, "file", tc.path) {
-				t.Errorf("%s: a .tfvars.json body now emits facts; extend this test to check the skeleton body", tc.path)
-			}
-			continue
-		}
+		// A .tfvars.json body parses with HCL's JSON syntax (#9048), so the
+		// skeleton policy covers it like any other tfvars body: the stored
+		// body keeps its line count and the file fact survives the policy.
 		body := asString(contentFact(t, envelopes, tc.path).Payload["content_body"])
 		if strings.Count(body, "\n") != strings.Count(tc.body, "\n") {
 			t.Errorf("%s: stored body has %d lines, source %d", tc.path, strings.Count(body, "\n"), strings.Count(tc.body, "\n"))

@@ -28,14 +28,24 @@ func Parse(
 	}
 
 	parser := hclparse.NewParser()
-	file, diags := parser.ParseHCL(source, path)
-	if diags.HasErrors() {
-		return nil, fmt.Errorf("parse hcl file %q: %s", path, diags.Error())
-	}
+	var body *hclsyntax.Body
+	if isTFVarsJSONPath(path) {
+		tfVarsBody, err := parseTFVarsJSONBody(parser, source, path)
+		if err != nil {
+			return nil, err
+		}
+		body = tfVarsBody
+	} else {
+		file, diags := parser.ParseHCL(source, path)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("parse hcl file %q: %s", path, diags.Error())
+		}
 
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		return nil, fmt.Errorf("parse hcl file %q: unsupported body type %T", path, file.Body)
+		parsed, ok := file.Body.(*hclsyntax.Body)
+		if !ok {
+			return nil, fmt.Errorf("parse hcl file %q: unsupported body type %T", path, file.Body)
+		}
+		body = parsed
 	}
 
 	payload := hclBasePayload(path, isDependency)

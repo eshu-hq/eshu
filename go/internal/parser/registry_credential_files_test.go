@@ -76,8 +76,9 @@ func TestDedicatedCredentialDefinitionsParseLikeTheirEngines(t *testing.T) {
 		if !ok {
 			t.Fatalf("no %s definition", engineKey)
 		}
-		// Both payload and error must match: the hcl engine cannot read a
-		// .tfvars.json body today, and the move must not change that either.
+		// Both payload and error must match: the hcl engine reads a
+		// .tfvars.json body with HCL's JSON syntax (#9048), and the move
+		// must not change that either.
 		got, gotErr := engine.parseDefinition(repoRoot, dedicated, path, false, Options{})
 		want, wantErr := engine.parseDefinition(repoRoot, original, path, false, Options{})
 		if fmt.Sprint(gotErr) != fmt.Sprint(wantErr) {
