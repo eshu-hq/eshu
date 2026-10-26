@@ -114,6 +114,12 @@ type Config struct {
 	Runner              Runner
 	StatusRecorder      StatusRecorder
 	Clock               func() time.Time
+	// TokenProvider, when set, mints one GitHub App installation token per
+	// claim and injects it into the request config under
+	// HostMintedGitHubTokenKey. The App private key stays host-side: only
+	// the minted token crosses the stdio boundary. Nil preserves the
+	// static config byte-identically (the token_env escape hatch).
+	TokenProvider TokenProvider
 	// Grants carries core-issued producer authorizations consulted when
 	// the manifest declares core-owned fact kinds. Nil grants deny: a
 	// core-owned declaration without a live grant fails Source construction
@@ -144,6 +150,9 @@ type Source struct {
 	payloadSchemas      map[string]json.RawMessage
 	runner              Runner
 	statusRecorder      StatusRecorder
+	// tokenProvider mints the per-claim host token; nil keeps the static
+	// config path.
+	tokenProvider TokenProvider
 	// resultRecorder is statusRecorder when it also implements
 	// ResultRecorder, resolved once at construction; nil otherwise.
 	resultRecorder ResultRecorder

@@ -47,6 +47,14 @@ func NewSource(config Config) (*Source, error) {
 	if config.Runner == nil {
 		return nil, errors.New("extension runner is required")
 	}
+	if config.TokenProvider != nil {
+		// A static value under the host-minted key would be silently
+		// overwritten per claim; fail closed at activation instead. The
+		// message names only the key, never the configured value.
+		if _, reserved := config.Config[HostMintedGitHubTokenKey]; reserved {
+			return nil, fmt.Errorf("extension config must not define %q when a host token provider is set", HostMintedGitHubTokenKey)
+		}
+	}
 	contract, err := sdkContract(config.Manifest)
 	if err != nil {
 		return nil, err
@@ -76,6 +84,7 @@ func NewSource(config Config) (*Source, error) {
 		payloadSchemas:      payloadSchemasForManifest(config.Manifest),
 		runner:              config.Runner,
 		statusRecorder:      config.StatusRecorder,
+		tokenProvider:       config.TokenProvider,
 		resultRecorder:      resultRecorder,
 		clock:               clock,
 		collectorKinds:      collectorKinds,
@@ -110,6 +119,19 @@ func (s *Source) nextClaimed(
 		}
 	}
 	request := s.requestForWorkItem(item)
+	if s.tokenProvider != nil {
+		// Mint before launch: a denial fails the claim terminal without
+		// ever starting the satellite, and the key never leaves the host.
+		token, err := s.mintHostToken(ctx, item)
+		if err != nil {
+			return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, err
+		}
+		injected, err := injectHostToken(request.Config, token, item.ScopeID)
+		if err != nil {
+			return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, err
+		}
+		request.Config = injected
+	}
 	runCtx, cancel := context.WithDeadline(ctx, request.Claim.Deadline)
 	defer cancel()
 
