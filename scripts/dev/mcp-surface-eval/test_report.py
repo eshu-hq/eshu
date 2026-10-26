@@ -158,6 +158,31 @@ class InputShapeTest(unittest.TestCase):
 class ResultRowBoundaryTest(unittest.TestCase):
     """Malformed result rows fail before any report table is printed."""
 
+    def test_finite_large_values_keep_finite_aggregates(self) -> None:
+        fields = (
+            ("cost_usd", 1e308),
+            ("tool_calls", 10 ** 308),
+            ("input_tokens", 10 ** 308),
+            ("output_tokens", 10 ** 308),
+            ("wall_seconds", 1e308),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "large.json"
+            for field, value in fields:
+                with self.subTest(field=field):
+                    rows = [dict(_row("router", "code-lookup-001", True),
+                                 **{field: value}) for _ in range(2)]
+                    path.write_text(json.dumps({
+                        "meta": {"client": "claude"}, "results": rows}))
+                    output = io.StringIO()
+                    with contextlib.redirect_stdout(output):
+                        self.assertEqual(report.main([str(path)]), 0)
+                    self.assertNotIn("inf", output.getvalue().lower())
+                    if field == "cost_usd":
+                        self.assertIn(f"| {value:.3f} |", output.getvalue())
+                    if field == "wall_seconds":
+                        self.assertIn(f"| {value:.1f} |", output.getvalue())
+
     def test_rejects_unusable_rows_without_partial_stdout(self) -> None:
         valid = _row("router", "code-lookup-001", True)
         cases = [

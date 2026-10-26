@@ -372,25 +372,32 @@ def summarize(scores: Iterable[Score]) -> dict[str, float]:
     rows = list(scores)
     n = len(rows)
     domain = sum(r.domain_calls for r in rows)
+    wall = sorted(r.wall_seconds for r in rows)
+    median_wall = 0.0
+    if n:
+        middle = n // 2
+        median_wall = (wall[middle] if n % 2 else
+                       statistics.mean(wall[middle - 1:middle + 1]))
     return {
         "tasks": n,
-        "mean_tool_calls": (sum(r.tool_calls for r in rows) / n) if n else 0.0,
+        "mean_tool_calls": statistics.mean(r.tool_calls for r in rows)
+        if n else 0.0,
         "wrong_tool_rate": (sum(r.wrong_tool_calls for r in rows) / domain)
         if domain else 0.0,
         "success_rate": (sum(r.success for r in rows) / n) if n else 0.0,
         "first_try_rate": (sum(r.first_domain_call_correct for r in rows) / n)
         if n else 0.0,
-        "median_wall_seconds": statistics.median(
-            r.wall_seconds for r in rows) if n else 0.0,
+        "median_wall_seconds": median_wall,
         "helper_rate": (sum(r.helper_calls for r in rows) / domain)
         if domain else 0.0,
         "genuine_wrong_rate": (sum(r.sibling_wrong_calls
                                    + r.off_family_wrong_calls for r in rows)
                                / domain) if domain else 0.0,
         "overflowed_calls": sum(r.overflowed_calls for r in rows),
-        "mean_cost_usd": (sum(r.cost_usd for r in rows) / n) if n else 0.0,
-        "mean_input_tokens": (sum(r.input_tokens for r in rows) / n)
+        "mean_cost_usd": statistics.mean(r.cost_usd for r in rows)
         if n else 0.0,
-        "mean_output_tokens": (sum(r.output_tokens for r in rows) / n)
+        "mean_input_tokens": statistics.mean(r.input_tokens for r in rows)
+        if n else 0.0,
+        "mean_output_tokens": statistics.mean(r.output_tokens for r in rows)
         if n else 0.0,
     }
