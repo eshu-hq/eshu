@@ -1,0 +1,57 @@
+# eol
+
+## Purpose
+
+`go/internal/collector/repo/runtime/eol` vendors an endoflife.date snapshot
+and joins it against declared runtime versions, so a read path can report
+whether a repository's runtime is still supported without any network access
+(issue #9163, research in
+`docs/internal/evidence/8820-eol-snapshot-research.md`).
+
+One fact is one answer: a declared runtime plus major/minor version resolves
+to `supported`, `eol`, `support-ending`, or `unknown`, and every answer
+carries the snapshot date, its age in days, and whether the snapshot is past
+its refresh window. Missing data is never read as supported.
+
+## Where this fits
+
+```text
+refresh job -> snapshots/*.json + snapshot_date -> go:embed -> Resolve
+                                                          (read path)
+```
+
+`Resolve` is a pure function of the snapshot, the declared runtime and
+version, and the query clock. The declaration package
+(`go/internal/collector/repo/runtime/declaration`) stays the producer of
+`runtime_declaration.version` facts; this package owns the EOL side of the
+join and has no collector, reducer, or query imports.
+
+## Exported surface
+
+- `Resolve` — one declared version to an `Answer` (`supported`, `eol`,
+  `support-ending`, `unknown`) with snapshot age and staleness.
+- `ParseSnapshot` — vendored files plus date to a `Snapshot`; fails on
+  malformed input rather than vendoring data the join would misread.
+- `LoadSnapshot` — the embedded snapshot; the read path calls it once.
+- `RefreshWindowDays` (30) — the freshness window behind `Answer.Stale`.
+
+## Contract rules
+
+| Input | Result |
+| --- | --- |
+| `node` 22, `go` 1.24, rolling `eol: false` | `supported` |
+| Past `eol` day | `eol` |
+| Past `support`, before `eol` | `support-ending` (no `support` field: `supported` until `eol`) |
+| `java`, `swift`, unmapped token, missing cycle | `unknown` |
+| Bare major that spans cycles (`python` 3) | `unknown` (ambiguous, never guessed) |
+| Range, alias, unresolved specs | `unknown` (callers do not pass version parts for these) |
+
+Dates are inclusive last days: a cycle is `eol` the day after its eol date,
+and `support-ending` the day after its support date.
+
+## Snapshot refresh
+
+`scripts/refresh-eol-snapshot.sh` re-fetches the eight product files, writes
+`snapshot_date`, and prints the size for the PR description. The refresh
+opens as a normal PR so review sees the data diff. Query code reads only the
+vendored files, so offline deployments behave identically modulo staleness.
