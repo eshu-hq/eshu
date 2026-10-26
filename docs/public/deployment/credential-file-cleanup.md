@@ -43,9 +43,12 @@ reach the repository. The SQL below covers what the re-collection does not:
    with `w = W`. The files, entities, and references statements lock the batch
    first and re-test the "ingested before `W`" guard in the same transaction,
    so those three can run while the reindex rebuilds. Statements A and B carry
-   the guard in the batch select and the generation-keyed safety argument,
-   proven beside the writer by
-   TestCredentialCleanupPurgeABRacesTheSearchDocumentWriterLive;
+   the guard in the batch select and the generation-keyed safety argument:
+   TestCredentialCleanupPurgeABRacesTheSearchDocumentWriterLive runs the two
+   orders alternating and serialized with client-observed non-overlapping
+   intervals with 250ms forced separation, failing loudly on any overlap,
+   and overlap beyond the harness is covered by single-statement snapshot
+   atomicity plus the generation-keyed batch;
    files/entities/references additionally lock the batch and re-check the
    guard in the same transaction.
 4. Watch `eshu_dp_collector_reconciliation_due_unvisited`. When it reads zero

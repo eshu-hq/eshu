@@ -107,7 +107,11 @@ VALUES ($1, $2, 'snapshot', $3, $3, 'pending')`, postGen, scopeID, f.w.Add(time.
 
 // searchRebuiltCopies seeds the rebuilt (post-watermark) search copies for one
 // path the way the reindex rebuild writes them: an index document, its term,
-// and its reducer fact, all carrying redacted context text. It returns the
+// and its reducer fact, all carrying redacted context text. The row shapes
+// mimic the production projector writer PostgresEshuSearchDocumentWriter
+// (go/internal/reducer/eshusearch/eshu_search_document_writer.go); the
+// test's guard depends only on scope_generations.ingested_at plus the
+// active-generation flip, not on the writer's other columns. It returns the
 // first write error instead of failing the test so race goroutines can report
 // it with Errorf; sequential callers fail on the returned error.
 func (f *cleanupFixture) searchRebuiltCopies(repo, scopeID, generation, path string) error {
@@ -153,8 +157,14 @@ VALUES ($1, $2, 'snapshot', $3, $3, 'pending')`, postGen, scopeID, f.w.Add(time.
 		vars := map[string]string{"pred": credentialCleanupPred, "w": f.w.Format(time.RFC3339), "repo": repo}
 
 		// Even iterations bias purge-first (the writer sleeps past the
-		// purge); odd iterations bias writer-first. The bias is verified
-		// below from commit timestamps, not assumed from the sleeps.
+		// purge); odd iterations bias writer-first. The order is read as
+		// client-observed non-overlapping intervals with 250ms forced
+		// separation, not from DB commit timestamps and not assumed from
+		// the sleeps: the harness runs the two orders alternating and
+		// serialized, and any overlap fails loudly by construction.
+		// Overlap beyond the harness is covered by the structural
+		// argument: single-statement snapshot atomicity plus the
+		// generation-keyed batch.
 		purgeDelay := time.Duration(rng.IntN(4)) * time.Millisecond
 		writerDelay := time.Duration(rng.IntN(4)) * time.Millisecond
 		if iteration%2 == 0 {
