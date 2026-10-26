@@ -12,11 +12,14 @@ CI runs and committed as ``specs/live-postgres-readiness-weights.v1.json``:
 * the fixed per-job overhead (containers, checkout, toolchain setup).
 
 Planner, shard report, and aggregate verification all call
-``weighted_bounds`` with the same weights file, so every proof lands in exactly
-one shard and a weights change cannot silently move a proof out of the union.
-All arithmetic uses integer tenths of a second, so the cut is identical on
-every machine. Two gates keep the file honest: ``budget_errors`` fails when a
-shard's predicted job seconds pass 80% of the job cap, and ``drift_errors``
+``weighted_bounds`` with the same selected weights file, so every proof
+lands in exactly one shard and a weights change cannot silently move a proof
+out of the union.
+A present v2 file switches to a separate row-aware five-shard model; the
+v1 path and its four-shard behavior remain unchanged when v2 is absent.
+All arithmetic uses integer tenths of a second. Two gates keep the file
+honest: ``budget_errors`` fails when a shard's predicted job seconds pass
+80% of the job cap, and ``drift_errors``
 fails when too many plan entries have no measured weight.
 """
 
@@ -27,7 +30,10 @@ import json
 import math
 from pathlib import Path
 import re
-from typing import Mapping
+from typing import Mapping, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from live_postgres_readiness_v2 import WeightsV2
 
 WEIGHTS_PATH = (Path(__file__).resolve().parents[2] / "specs"
                  / "live-postgres-readiness-weights.v1.json")
@@ -79,6 +85,7 @@ class Drift:
     defaulted_tests: tuple[str, ...]
     defaulted_packages: tuple[str, ...]
     stale_tests: tuple[str, ...]
+    schema_version: int = 1
 
 
 def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -138,9 +145,13 @@ def weights_from_json(value: object) -> Weights:
         test=_table(value["test_seconds"], "test_seconds", RUN_RE))
 
 
-def load_weights(path: Path | None = None) -> Weights:
-    """Read the committed weights file, failing closed on any defect."""
+def load_weights(path: Path | None = None) -> Weights | WeightsV2:
+    """Prefer a present v2 sibling, failing closed on malformed v2 content."""
     target = path or WEIGHTS_PATH
+    if target.name.endswith(".v1.json"):
+        candidate = target.with_name(target.name[:-8] + ".v2.json")
+        if candidate.exists():
+            target = candidate
     try:
         text = target.read_text(encoding="utf-8")
         parsed = json.loads(text, object_pairs_hook=_unique_object,
@@ -149,6 +160,12 @@ def load_weights(path: Path | None = None) -> Weights:
         raise ValueError(f"weights unavailable: {error}")
     except json.JSONDecodeError as error:
         raise ValueError(f"weights are not valid JSON: {error}")
+    version = parsed.get("schema_version") if isinstance(parsed, dict) else None
+    if target.name.endswith(".v2.json") and version != 2:
+        raise ValueError("present v2 weights have unsupported schema_version")
+    if version == 2:
+        import live_postgres_readiness_v2 as v2
+        return v2.weights_from_json(parsed)
     return weights_from_json(parsed)
 
 
@@ -180,17 +197,49 @@ def _segment_cost(runs: list[str], weights: Weights,
     return cost
 
 
-def weighted_bounds(runs: list[str], weights: Weights,
-                    shard_count: int = SHARD_COUNT) -> list[int]:
+def weighted_bounds(runs: list[str], weights: Weights | WeightsV2,
+                    shard_count: int | None = None) -> list[int]:
     """Cut the plan into ``shard_count`` contiguous shards by predicted seconds.
 
-    Minimises the largest shard first, then the sum of squared shard costs
-    among cuts that keep the largest shard at that minimum, so the remaining
-    shards are balanced too. Returns ``shard_count + 1`` boundaries.
+    V1 minimizes the largest shard, then squared costs at that limit.
+    V2 maximizes the smallest guarded job, minimizes the largest, then
+    minimizes squared costs. Returns ``shard_count + 1`` boundaries.
 
     Raises:
         ValueError: There are fewer runs than shards.
     """
+    import live_postgres_readiness_v2 as v2
+    if isinstance(weights, v2.WeightsV2):
+        from live_postgres_readiness_v2_planner import exact_bounds
+        if shard_count is None:
+            shard_count = weights.shard_count
+        if shard_count != weights.shard_count:
+            raise ValueError("v2 planner requires five shards")
+        key = (weights.fingerprint(), tuple(runs), shard_count)
+        cached = _BOUNDS_CACHE.get(key)
+        if cached is not None:
+            return list(cached)
+        scorer = v2.Scorer(runs, weights)
+        bounds = exact_bounds(len(runs), shard_count, BUDGET_SECONDS * UNIT,
+                              scorer.cost)
+        jobs = [scorer.cost(low, high) for low, high in zip(bounds, bounds[1:])]
+        mean_sum = sum(jobs)
+        if mean_sum == 0 or max(abs(job * shard_count - mean_sum)
+                                for job in jobs) * 100 > 15 * mean_sum:
+            raise ValueError("v2 predicted job spread exceeds 15% of mean")
+        for low, high in zip(bounds, bounds[1:]):
+            rows = v2.split_rows(runs[low:high], weights)
+            if [run for row in rows for run in row] != runs[low:high]:
+                raise ValueError("v2 row union differs from shard plan")
+            if any(v2.row_cost_tenths(row, weights) > v2.ROW_BUDGET
+                   for row in rows):
+                raise ValueError("v2 runner row exceeds 720 s budget")
+        if len(_BOUNDS_CACHE) > 64:
+            _BOUNDS_CACHE.clear()
+        _BOUNDS_CACHE[key] = list(bounds)
+        return bounds
+    if shard_count is None:
+        shard_count = SHARD_COUNT
     count = len(runs)
     if count < shard_count:
         raise ValueError(f"plan has {count} runs, fewer than {shard_count} shards")
@@ -243,15 +292,27 @@ def weighted_bounds(runs: list[str], weights: Weights,
     return bounds
 
 
-def shard_job_seconds(runs: list[str], weights: Weights, bounds: list[int]) -> list[float]:
+def shard_job_seconds(runs: list[str], weights: Weights | WeightsV2,
+                      bounds: list[int]) -> list[float]:
     """Predicted wall seconds of each shard job, fixed overhead included."""
+    import live_postgres_readiness_v2 as v2
+    if isinstance(weights, v2.WeightsV2):
+        scorer = v2.Scorer(runs, weights)
+        return [scorer.cost(low, high) / UNIT for low, high in zip(bounds, bounds[1:])]
     prefix = _costs(runs, weights)
     return [(_segment_cost(runs, weights, prefix, low, high) + weights.fixed) / UNIT
             for low, high in zip(bounds, bounds[1:])]
 
 
-def budget_errors(runs: list[str], weights: Weights) -> list[str]:
+def budget_errors(runs: list[str], weights: Weights | WeightsV2) -> list[str]:
     """List shards whose predicted job seconds pass the budget share of the cap."""
+    import live_postgres_readiness_v2 as v2
+    if isinstance(weights, v2.WeightsV2):
+        try:
+            weighted_bounds(runs, weights, weights.shard_count)
+        except ValueError as error:
+            return [str(error)]
+        return []
     jobs = shard_job_seconds(runs, weights, weighted_bounds(runs, weights))
     return [f"shard {index}/{SHARD_COUNT} predicted {seconds:.0f} s exceeds "
             f"{BUDGET_PERCENT}% of the {JOB_CAP_SECONDS} s cap ({BUDGET_SECONDS} s); "
@@ -259,8 +320,18 @@ def budget_errors(runs: list[str], weights: Weights) -> list[str]:
             for index, seconds in enumerate(jobs, start=1) if seconds > BUDGET_SECONDS]
 
 
-def drift_report(runs: list[str], weights: Weights) -> Drift:
+def drift_report(runs: list[str], weights: Weights | WeightsV2) -> Drift:
     """Compare the plan with the measured weights."""
+    import live_postgres_readiness_v2 as v2
+    if isinstance(weights, v2.WeightsV2):
+        bounds = weighted_bounds(runs, weights, weights.shard_count)
+        rows_by_shard = [v2.split_rows(runs[low:high], weights)
+                         for low, high in zip(bounds, bounds[1:])]
+        return Drift(
+            defaulted_tests=tuple(line for line in runs if line not in weights.test),
+            defaulted_packages=v2.defaulted_packages(runs, weights, rows_by_shard),
+            stale_tests=tuple(sorted(set(weights.test) - set(runs))),
+            schema_version=2)
     planned = set(runs)
     packages = {line.split("|")[0] for line in runs}
     return Drift(
@@ -272,11 +343,12 @@ def drift_report(runs: list[str], weights: Weights) -> Drift:
 def drift_errors(drift: Drift) -> list[str]:
     """Fail when too many plan entries fall into the documented defaults."""
     errors = []
+    version = "v2" if drift.schema_version == 2 else "v1"
     if len(drift.defaulted_tests) > MAX_DEFAULTED_TESTS:
         errors.append(f"{len(drift.defaulted_tests)} planned tests have no weight "
                       f"(limit {MAX_DEFAULTED_TESTS}): new tests run on "
                       f"default_test_seconds, so feature PRs must not edit "
-                      f"specs/live-postgres-readiness-weights.v1.json; a standalone "
+                      f"specs/live-postgres-readiness-weights.{version}.json; a standalone "
                       f"refit PR refreshes it "
                       f"(docs/public/reference/local-testing/"
                       f"live-postgres-readiness-shards.md)")

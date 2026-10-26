@@ -29,6 +29,7 @@ SPEC.loader.exec_module(shards)
 sys.path.insert(0, str(LIB))
 from live_postgres_readiness_balance_cases import (  # noqa: E402,F401
     BalanceContractTest, RefreshTest)
+from live_postgres_readiness_v2_cases import V2ModelTest, V2ReportTest  # noqa: E402,F401
 import live_postgres_readiness_row_split as row_split  # noqa: E402
 import live_postgres_readiness_weights as wt  # noqa: E402
 

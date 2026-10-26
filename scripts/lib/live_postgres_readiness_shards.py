@@ -8,8 +8,8 @@ canonical inventory order, so newly enrolled tests stay covered without a
 rebalance edit. The cut points come from predicted seconds
 (``live_postgres_readiness_weights``), not test counts (#8930), and every
 caller derives them from the same committed weights file. Each shard report is
-checked against that same canonical input, and the aggregate requires the four
-reports' exact union to be the full plan.
+checked against that same canonical input, and the aggregate requires the active
+model's reports to cover the full plan in canonical order.
 """
 
 from __future__ import annotations
@@ -22,6 +22,10 @@ from pathlib import Path
 import re
 import sys
 import tempfile
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from live_postgres_readiness_v2 import WeightsV2
 
 sys.path.insert(0, str(Path(__file__).parent))
 from live_postgres_readiness_records import package_records  # noqa: E402
@@ -30,7 +34,6 @@ import live_postgres_readiness_weights as wt  # noqa: E402
 
 
 SHARDS = ("1/4", "2/4", "3/4", "4/4")
-ARTIFACT_RE = re.compile(r"^readiness-shard-\d+-(\d+)-[1-4]$")
 TEST_RE = re.compile(r"^Test[A-Za-z0-9_]+$")
 RUN_RE = re.compile(r"^\./[A-Za-z0-9_./-]+\|Test[A-Za-z0-9_]+$")
 HEAD_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -98,13 +101,13 @@ def expand_tsv(rows: list[str]) -> list[str]:
 
 
 def partition_runs(runs: list[str], shard: str,
-                   weights: wt.Weights | None = None) -> list[str]:
+                   weights: wt.Weights | WeightsV2 | None = None) -> list[str]:
     """Select a time-weighted contiguous shard, preserving canonical order.
 
     Args:
         runs: Full flat ``package|test`` plan lines.
-        shard: ``all`` or one of four exact shard identifiers.
-        weights: Cost model; the committed weights file when omitted.
+        shard: ``all`` or one identifier from the loaded model's count.
+        weights: Cost model; the committed default model when omitted.
 
     Returns:
         The selected plan lines.
@@ -115,10 +118,14 @@ def partition_runs(runs: list[str], shard: str,
     _validate_plan(runs)
     if shard == "all":
         return list(runs)
-    if shard not in SHARDS:
+    resolved = weights or wt.load_weights()
+    import live_postgres_readiness_v2 as v2
+    count = resolved.shard_count if isinstance(resolved, v2.WeightsV2) else len(SHARDS)
+    allowed = tuple(f"{number}/{count}" for number in range(1, count + 1))
+    if shard not in allowed:
         raise ValueError(f"invalid shard: {shard!r}")
-    bounds = wt.weighted_bounds(runs, weights or wt.load_weights(), len(SHARDS))
-    index = SHARDS.index(shard)
+    bounds = wt.weighted_bounds(runs, resolved, count)
+    index = allowed.index(shard)
     selected = runs[bounds[index]:bounds[index + 1]]
     if not selected:
         raise ValueError(f"shard {shard} has no planned runs")
@@ -126,7 +133,7 @@ def partition_runs(runs: list[str], shard: str,
 
 
 def subset_tsv(runs: list[str], shard: str,
-               weights: wt.Weights | None = None) -> list[str]:
+               weights: wt.Weights | WeightsV2 | None = None) -> list[str]:
     """Render the shard's runner TSV rows grouped by package.
 
     Package rows predicted past the row budget split into sequential
@@ -140,7 +147,12 @@ def subset_tsv(runs: list[str], shard: str,
         package, test = line.split("|")
         by_package.setdefault(package, []).append(line)
     rows = []
-    for lines in row_split.split_rows(list(by_package.values()), resolved):
+    import live_postgres_readiness_v2 as v2
+    if isinstance(resolved, v2.WeightsV2):
+        split = v2.split_rows(selected, resolved)
+    else:
+        split = row_split.split_rows(list(by_package.values()), resolved)
+    for lines in split:
         package = lines[0].split("|")[0]
         tests = [line.split("|", 1)[1] for line in lines]
         rows.append(f"{package}\t^({'|'.join(tests)})$\t{' '.join(tests)}")
@@ -247,183 +259,11 @@ def _atomic_json(path: Path, value: dict[str, object]) -> None:
             os.unlink(temporary)
 
 
-def _report(head: str, shard: str, plan: Path, manifest_path: Path,
-            output: Path, weights_path: Path | None = None) -> bool:
-    """Emit one parseable report even when the manifest is incomplete."""
-    expected: list[str] = []
-    entries: list[dict[str, object]] = []
-    errors: list[str] = []
-    try:
-        _validate_head(head)
-        expected = partition_runs(_read_plan(plan), shard,
-                                  wt.load_weights(weights_path))
-    except ValueError as error:
-        errors.append(f"invalid report input: {error}")
-    manifest_entries, manifest_errors = _read_manifest(manifest_path)
-    entries.extend(manifest_entries)
-    errors.extend(manifest_errors)
-    runs: list[dict[str, object]] = []
-    if expected:
-        runs, account_errors = _account(expected, entries)
-        errors.extend(account_errors)
-    report: dict[str, object] = {
-        "schema_version": 1, "head": head, "shard": shard,
-        "ok": not errors, "expected_count": len(expected),
-        "observed_count": sum(1 for run in runs if run["status"] == 0),
-        "expected_runs": expected, "runs": runs, "errors": errors,
-    }
-    _atomic_json(output, report)
-    for error in errors:
-        print(f"readiness shard {shard}: {error}", file=sys.stderr)
-    print(f"readiness shard {shard}: {report['observed_count']}/{len(expected)} "
-          f"passing runs, ok={not errors}")
-    return not errors
-
-
-def _validate_report(value: object, plan: list[str], head: str,
-                     seen_shards: set[str],
-                     weights: wt.Weights | None = None) -> tuple[list[str], str]:
-    """Require one fresh matching report and return its assigned runs."""
-    if not isinstance(value, dict) or set(value) != REPORT_KEYS:
-        raise ValueError("report schema mismatch")
-    shard = value["shard"]
-    if shard not in SHARDS or shard in seen_shards:
-        raise ValueError(f"invalid or duplicate shard: {shard!r}")
-    seen_shards.add(shard)
-    expected = partition_runs(plan, shard, weights)  # type: ignore[arg-type]
-    if (type(value["schema_version"]) is not int
-            or value["schema_version"] != 1
-            or value["head"] != head):
-        raise ValueError(f"stale metadata for {shard}")
-    if (value["expected_runs"] != expected
-            or type(value["expected_count"]) is not int
-            or value["expected_count"] != len(expected)):
-        raise ValueError(f"plan mismatch for {shard}")
-    raw_runs = value["runs"]
-    if not isinstance(raw_runs, list):
-        raise ValueError(f"invalid runs for {shard}")
-    for entry in raw_runs:
-        if (not isinstance(entry, dict) or set(entry) != {"run", "status"}
-                or entry["run"] not in expected
-                or entry["status"] not in (0, 1)):
-            raise ValueError(f"invalid run entry for {shard}: {entry!r}")
-    if (type(value["observed_count"]) is not int
-            or type(value["ok"]) is not bool
-            or not isinstance(value["errors"], list)
-            or any(not isinstance(error, str) for error in value["errors"])):
-        raise ValueError(f"invalid accounting for {shard}")
-    ok_runs = [entry["run"] for entry in raw_runs if entry["status"] == 0]
-    if sorted(ok_runs) != sorted(expected):
-        raise ValueError(f"failed or incomplete shard {shard}: {value['errors']}")
-    if value["observed_count"] != len(ok_runs):
-        raise ValueError(f"miscounted shard {shard}: observed {value['observed_count']}")
-    if not value["ok"] or value["errors"]:
-        raise ValueError(f"failed or incomplete shard {shard}: {value['errors']}")
-    return expected, shard  # type: ignore[return-value]
-
-
-def _verify(head: str, plan_path: Path, report_paths: list[Path],
-            weights: wt.Weights | None = None) -> bool:
-    """Require four valid reports whose exact union is the canonical plan."""
-    _validate_head(head)
-    plan = _read_plan(plan_path)
-    if len(report_paths) != 4:
-        paths = sorted(str(path) for path in report_paths)
-        raise ValueError(f"expected exactly four shard reports, got {len(report_paths)}: {paths}")
-    seen_shards: set[str] = set()
-    assigned: list[str] = []
-    errors: list[str] = []
-    for path in report_paths:
-        try:
-            assigned.extend(_validate_report(
-                _parse_json(path.read_text(encoding="utf-8")), plan, head,
-                seen_shards, weights)[0])
-        except (OSError, ValueError, TypeError) as error:
-            errors.append(f"{path}: {error}")
-    if seen_shards != set(SHARDS):
-        errors.append(f"missing shards: {sorted(set(SHARDS) - seen_shards)}")
-    if Counter(assigned) != Counter(plan):
-        errors.append("shard union differs from canonical full plan")
-    for error in errors:
-        print(f"readiness aggregate: {error}", file=sys.stderr)
-    print(f"readiness aggregate: {len(assigned)}/{len(plan)} planned runs, "
-          f"shards={len(seen_shards)}/4, ok={not errors}")
-    return not errors
-
-
-def _candidate_order(path: Path) -> tuple[int, int, str]:
-    """Order rerun candidates newest first for one shard's report.
-
-    A failed-job rerun uploads under a newer attempt while earlier
-    attempts' reports stay downloadable, so recency comes from the
-    artifact directory name before filesystem timestamps. Unparseable
-    layouts sort oldest; the path breaks remaining ties deterministically.
-    """
-    attempt = 0
-    match = ARTIFACT_RE.fullmatch(path.parent.name)
-    if match:
-        attempt = int(match.group(1))
-    try:
-        stamp = path.stat().st_mtime_ns
-    except OSError:
-        stamp = 0
-    return (attempt, stamp, str(path))
-
-
-def _select(head: str, plan_path: Path, report_paths: list[Path],
-            output_dir: Path, weights: wt.Weights | None = None) -> bool:
-    """Copy the newest valid report per shard for a rerun-proof aggregate.
-
-    Every candidate still passes the same head and plan validation as
-    ``verify``; a rejected older attempt is only a diagnostic. A shard
-    whose candidates are all stale or failed keeps the aggregate red, and
-    a genuinely missing shard is still an error. Only the four winners
-    reach ``verify``, which keeps its exact-four rule.
-    """
-    _validate_head(head)
-    plan = _read_plan(plan_path)
-    contenders: dict[str, list[tuple[tuple[int, int, str], Path]]] = {}
-    attempted: set[str] = set()
-    for path in report_paths:
-        claimed: object = None
-        try:
-            value = _parse_json(path.read_text(encoding="utf-8"))
-            claimed = value.get("shard") if isinstance(value, dict) else None
-            _, shard = _validate_report(value, plan, head, set(), weights)
-        except (OSError, ValueError, TypeError, AttributeError) as error:
-            print(f"readiness select: rejected {path}: {error}", file=sys.stderr)
-            if isinstance(claimed, str) and claimed in SHARDS:
-                attempted.add(claimed)
-            continue
-        attempted.add(shard)
-        contenders.setdefault(shard, []).append((_candidate_order(path), path))
-    errors = []
-    if missing := sorted(set(SHARDS) - attempted):
-        errors.append(f"missing shards: {missing}")
-    errors.extend(f"no valid report for shard {shard}"
-                  for shard in sorted(attempted - set(contenders)))
-    for error in errors:
-        print(f"readiness select: {error}", file=sys.stderr)
-    if errors:
-        return False
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for shard in SHARDS:
-        _, winner = max(contenders[shard])
-        target = output_dir / f"readiness-shard-{shard[0]}-report.json"
-        try:
-            target.write_bytes(winner.read_bytes())
-        except OSError as error:
-            print(f"readiness select: {target}: {error}", file=sys.stderr)
-            return False
-        print(f"readiness select: {shard} <- {winner}")
-    print(f"readiness select: {len(SHARDS)}/4 shards selected, ok=True")
-    return True
-
-
 def main() -> int:
-    """Dispatch planner, shard reporter, selector, or aggregate gate."""
+    """Dispatch matrix, planner, shard reporter, selector, or aggregate gate."""
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    matrix = commands.add_parser("matrix")
     plan = commands.add_parser("plan")
     plan.add_argument("--shard", required=True)
     report = commands.add_parser("report")
@@ -438,16 +278,24 @@ def main() -> int:
     verify.add_argument("--head", required=True)
     verify.add_argument("--plan", required=True)
     verify.add_argument("reports", nargs="*")
-    for command in (plan, report, select, verify):
+    for command in (matrix, plan, report, select, verify):
         command.add_argument("--weights", help="weights file (default: committed)")
     args = parser.parse_args()
+    import live_postgres_readiness_reports as reports
+    import live_postgres_readiness_v2 as v2
     try:
         weights_path = Path(args.weights) if args.weights else None
         if args.command == "report":
-            return 0 if _report(args.head, args.shard, Path(args.plan),
+            return 0 if reports._report(args.head, args.shard, Path(args.plan),
                                 Path(args.manifest), Path(args.output),
                                 weights_path) else 1
         weights = wt.load_weights(weights_path)
+        if args.command == "matrix":
+            count = weights.shard_count if isinstance(weights, v2.WeightsV2) else wt.SHARD_COUNT
+            print(json.dumps({"include": [{"shard": index, "total": count}
+                                          for index in range(1, count + 1)]},
+                             separators=(",", ":")))
+            return 0
         if args.command == "plan":
             rows = sys.stdin.read().splitlines()
             if any(not row.strip() for row in rows):
@@ -456,10 +304,10 @@ def main() -> int:
                 print(line)
             return 0
         if args.command == "select":
-            return 0 if _select(args.head, Path(args.plan),
+            return 0 if reports._select(args.head, Path(args.plan),
                                 [Path(path) for path in args.reports],
                                 Path(args.output_dir), weights) else 1
-        return 0 if _verify(args.head, Path(args.plan),
+        return 0 if reports._verify(args.head, Path(args.plan),
                             [Path(path) for path in args.reports], weights) else 1
     except (ValueError, OSError, TypeError, json.JSONDecodeError) as error:
         print(f"readiness shards: {error}", file=sys.stderr)
