@@ -1,0 +1,98 @@
+{
+  "cutover_issue": 8852,
+  "description": "Representative AWS provider inputs for the #8852 in-tree vs external parity comparison. The extracted producer must emit the same kind, stable key, payload, scope, and generation for these inputs; FactID values change by construction (host-built envelope).",
+  "scope_id": "aws:123456789012:us-east-1",
+  "generation_id": "aws:123456789012:us-east-1:parity:1",
+  "collector_instance_id": "aws-parity-8852",
+  "resource": {
+    "arn": "arn:aws:iam::123456789012:role/parity-runtime",
+    "resource_id": "AROAPARITY1234567890",
+    "resource_type": "AWS::IAM::Role",
+    "name": "parity-runtime",
+    "state": "active",
+    "tags": {
+      "Environment": "parity",
+      "CostCenter": "parity-42"
+    },
+    "attributes": {
+      "path": "/parity/"
+    },
+    "correlation_anchors": ["arn:aws:iam::123456789012:role/parity-runtime"]
+  },
+  "relationship": {
+    "relationship_type": "IAM_ROLE_ATTACHED_POLICY",
+    "source_resource_id": "AROAPARITY1234567890",
+    "source_arn": "arn:aws:iam::123456789012:role/parity-runtime",
+    "target_resource_id": "arn:aws:iam::aws:policy/ReadOnlyAccess",
+    "target_arn": "arn:aws:iam::aws:policy/ReadOnlyAccess",
+    "target_type": "AWS::IAM::ManagedPolicy"
+  },
+  "dns_record": {
+    "hosted_zone_id": "/hostedzone/ZPARITY1",
+    "hosted_zone_name": "parity.example.com.",
+    "hosted_zone_private": false,
+    "record_name": "api.parity.example.com.",
+    "record_type": "a",
+    "ttl": 300,
+    "values": ["192.0.2.10"],
+    "alias_target": {
+      "dns_name": "dualstack.api-parity-123.us-east-1.elb.amazonaws.com.",
+      "hosted_zone_id": "Z35SXDOTRQ7X7K",
+      "evaluate_target_health": true
+    },
+    "routing_policy": {
+      "health_check_id": "hc-parity-1"
+    }
+  },
+  "s3_posture": {
+    "bucket_arn": "arn:aws:s3:::parity-artifacts",
+    "bucket_name": "parity-artifacts",
+    "versioning_status": "Enabled",
+    "versioning_enabled": true,
+    "sse_kms_key_arn": "arn:aws:kms:us-east-1:123456789012:key/parity",
+    "logging_target_bucket": "parity-logs"
+  },
+  "iam_permission": {
+    "principal_arn": "arn:aws:iam::123456789012:role/parity-runtime",
+    "principal_type": "AWS::IAM::Role",
+    "policy_source": "inline",
+    "policy_name": "parity-escalate",
+    "statement_sid": "AllowPassRole",
+    "effect": "Allow",
+    "actions": ["iam:passrole", "iam:PassRole", "  sts:AssumeRole  "],
+    "resources": ["arn:aws:iam::123456789012:role/*"],
+    "condition_keys": ["aws:SourceIp"],
+    "condition_operators": ["StringEquals"],
+    "condition_values_must_not_appear": ["203.0.113.7"]
+  },
+  "warnings": {
+    "assumerole_failed": {
+      "warning_kind": "assumerole_failed",
+      "error_class": "credential_acquisition_failed",
+      "message": "could not assume role for scan"
+    },
+    "throttle_sustained": {
+      "warning_kind": "throttle_sustained",
+      "error_class": "throttled",
+      "message": "API stayed throttled past the retry budget; optional metadata omitted"
+    },
+    "budget_exhausted": {
+      "warning_kind": "budget_exhausted",
+      "error_class": "collect_failure",
+      "message": "yielded before completing the configured API budget; scan is resumable from the checkpoint"
+    }
+  },
+  "redaction": {
+    "secret_output_key": "DatabasePassword",
+    "secret_output_value": "hunter2-parity-secret",
+    "plain_output_key": "ServiceEndpoint",
+    "plain_output_value": "https://api.parity.example.com",
+    "status_message_with_secrets": "AccessDenied for arn:aws:iam::123456789012:role/parity-runtime request AKIAIOSFODNN7EXAMPLE id 123e4567-e89b-12d3-a456-426614174000 in account 123456789012"
+  },
+  "hostile": {
+    "blank_arn": "",
+    "blank_resource_id": "",
+    "blank_record_name": "",
+    "blank_principal_arn": ""
+  }
+}
