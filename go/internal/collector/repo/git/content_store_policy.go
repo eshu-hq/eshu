@@ -118,6 +118,10 @@ func addContentStoresForMetas(registry parser.Registry, snapshot *RepositorySnap
 // collection, not one per file.
 type contentStoreTally struct {
 	counts map[contentStoreKey]int64
+	// lookup re-checks the snapshot registry when the ContentStores map misses
+	// a path. It is nil when the snapshot carries no registry, and the map is
+	// then the whole contract.
+	lookup func(path string) (parser.ContentStore, bool)
 	// replaced counts the credential values a redact policy replaced.
 	replaced int64
 	// failedPaths holds the first maxLoggedFailedPaths repo-relative paths whose
@@ -158,13 +162,46 @@ func (k contentStoreKey) logKey() string {
 	return string(k.policy) + "_" + string(k.redactor) + "_" + string(k.outcome)
 }
 
+// contentStoreFallback returns the emit-time re-check for a snapshot built
+// with registry: the definition's non-store policy for path, or ungoverned
+// when the definition stores verbatim. It returns nil for a registry that
+// binds no non-store policy, including the zero registry a hand-built
+// snapshot carries when it names none.
+func contentStoreFallback(registry parser.Registry) func(string) (parser.ContentStore, bool) {
+	if !registry.HasContentStorePolicy() {
+		return nil
+	}
+	return func(path string) (parser.ContentStore, bool) {
+		store := registry.ContentStoreForPath(path)
+		if store.Policy == parser.ContentStoreStore || store.Policy == "" {
+			return parser.ContentStore{}, false
+		}
+		return store, true
+	}
+}
+
+// resolve returns the path's non-store content-store policy: the snapshot map
+// entry, or the registry fallback when the map misses a governed path, so the
+// stream applies the definition's policy instead of emitting the raw body.
+func (t *contentStoreTally) resolve(stores map[string]parser.ContentStore, path string) (parser.ContentStore, bool) {
+	if store, governed := stores[path]; governed {
+		return store, true
+	}
+	if t.lookup != nil {
+		return t.lookup(path)
+	}
+	return parser.ContentStore{}, false
+}
+
 // storedBody applies the path's policy to a source body read at emit time and
 // tallies the outcome. A path with no non-store policy returns body unchanged.
 func (t *contentStoreTally) storedBody(stores map[string]parser.ContentStore, path, body string) string {
-	if len(stores) == 0 {
+	// An ungoverned registry passes a nil map and no fallback; returning
+	// before the lookup skips copying the zero ContentStore on every file.
+	if len(stores) == 0 && t.lookup == nil {
 		return body
 	}
-	store, governed := stores[path]
+	store, governed := t.resolve(stores, path)
 	if !governed {
 		return body
 	}
@@ -190,12 +227,12 @@ func (t *contentStoreTally) storedBody(stores map[string]parser.ContentStore, pa
 // with no copy, for a path that stores verbatim, and copies nothing for a
 // metadata path.
 func (t *contentStoreTally) storedBytes(stores map[string]parser.ContentStore, path string, body []byte) []byte {
-	// An ungoverned registry passes a nil map; returning before the lookup
-	// skips copying the zero ContentStore on every emitted file.
-	if len(stores) == 0 {
+	// An ungoverned registry passes a nil map and no fallback; returning
+	// before the lookup skips copying the zero ContentStore on every file.
+	if len(stores) == 0 && t.lookup == nil {
 		return body
 	}
-	store, governed := stores[path]
+	store, governed := t.resolve(stores, path)
 	if !governed {
 		return body
 	}

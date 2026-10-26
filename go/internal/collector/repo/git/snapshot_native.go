@@ -206,6 +206,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		submodule.GitmodulesFileMetasForPaths(repoPath, gitmodulesCandidateRelativePaths, commitSHA), codeownersMetas...)
 	if len(fileSet.Files) == 0 {
 		addContentStoresForMetas(registry, &snapshot)
+		snapshot.ContentStoreFallbackRegistry = registry
 		snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 			repoPath,
 			s.now(),
@@ -398,6 +399,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	shapeFiles = nil
 	//nolint:ineffassign
 	materialization = content.Materialization{}
+	snapshot.ContentStoreFallbackRegistry = registry
 
 	return snapshot, nil
 }
