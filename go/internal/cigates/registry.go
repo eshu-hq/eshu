@@ -185,6 +185,16 @@ type Gate struct {
 	// HookID is the .pre-commit-config.yaml hook id that this gate corresponds to.
 	// Empty when the gate has no direct local hook equivalent.
 	HookID string
+	// Regenerate maps a generated path this gate owns to the shell command
+	// that regenerates it. scripts/dev/regen-conflicts.sh reads the same map
+	// from the YAML to resolve rebase conflicts on generated files without
+	// hand-editing them. Keys may carry shell glob metacharacters (the
+	// readiness inventory's per-package modules); the helper matches them
+	// with shell case patterns. Commands must need no YAML double-quote
+	// escapes (no embedded double quotes or backslashes): the helper parses
+	// the raw fragment text, so an escape would read differently there than
+	// the decoded value here. Empty when the gate owns no generated file.
+	Regenerate map[string]string
 }
 
 // HygieneHook declares a .pre-commit-config.yaml local hook id that is
@@ -275,6 +285,16 @@ var validRequirements = map[Requirement]struct{}{
 	ReqNetwork:      {},
 	ReqCredentials:  {},
 	ReqReleaseToken: {},
+}
+
+// trimRegenerateMap copies a gate file's regenerate: map with surrounding
+// whitespace trimmed, so Load stores the canonical form Validate checks.
+func trimRegenerateMap(in map[string]string) map[string]string {
+	out := make(map[string]string, len(in))
+	for regenPath, regenCommand := range in {
+		out[strings.TrimSpace(regenPath)] = strings.TrimSpace(regenCommand)
+	}
+	return out
 }
 
 // Load reads and structurally validates the ci-gates registry at path.
@@ -393,6 +413,7 @@ func Load(path string) (*Registry, error) {
 			CIOnlyReason:    ciOnlyReason,
 			LocalOnlyReason: localOnlyReason,
 			HookID:          strings.TrimSpace(gf.HookID),
+			Regenerate:      trimRegenerateMap(gf.Regenerate),
 		})
 	}
 

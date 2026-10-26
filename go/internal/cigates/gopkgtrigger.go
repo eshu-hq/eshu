@@ -76,7 +76,7 @@ var goPackageSubcommands = map[string]struct{}{
 // #8756 raised this from 28 to 29: mcp-router-eval runs `go test` on
 // ./internal/mcp/router/eval/, and carries go/internal/mcp/** (which holds that
 // package) as a trigger.
-const goPackageGateCount = 29
+const goPackageGateCount = 30
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.

@@ -16,21 +16,22 @@ type registryFile struct {
 }
 
 type gateFile struct {
-	ID               string     `yaml:"id"`
-	Name             string     `yaml:"name"`
-	Category         string     `yaml:"category"`
-	Layer            string     `yaml:"layer"`
-	Purpose          string     `yaml:"purpose"`
-	Tier             string     `yaml:"tier"`
-	Blocking         bool       `yaml:"blocking"`
-	Triggers         []string   `yaml:"triggers"`
-	SelfTestTriggers *[]string  `yaml:"self_test_triggers"`
-	Local            *localFile `yaml:"local"`
-	CI               ciFile     `yaml:"ci"`
-	Requirements     []string   `yaml:"requirements"`
-	CIOnlyReason     string     `yaml:"ci_only_reason"`
-	LocalOnlyReason  string     `yaml:"local_only_reason"`
-	HookID           string     `yaml:"hook_id"`
+	ID               string            `yaml:"id"`
+	Name             string            `yaml:"name"`
+	Category         string            `yaml:"category"`
+	Layer            string            `yaml:"layer"`
+	Purpose          string            `yaml:"purpose"`
+	Tier             string            `yaml:"tier"`
+	Blocking         bool              `yaml:"blocking"`
+	Triggers         []string          `yaml:"triggers"`
+	SelfTestTriggers *[]string         `yaml:"self_test_triggers"`
+	Local            *localFile        `yaml:"local"`
+	CI               ciFile            `yaml:"ci"`
+	Requirements     []string          `yaml:"requirements"`
+	CIOnlyReason     string            `yaml:"ci_only_reason"`
+	LocalOnlyReason  string            `yaml:"local_only_reason"`
+	HookID           string            `yaml:"hook_id"`
+	Regenerate       map[string]string `yaml:"regenerate"`
 }
 
 type localFile struct {

@@ -102,6 +102,9 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    regenerate:
+      "docs/public/reference/env-registry.md": "bash scripts/generate-env-registry-doc.sh"
+      "docs/public/reference/env-registry/*.md": "bash scripts/generate-env-registry-doc.sh"
 
   # ─── RACE ──────────────────────────────────────────────────────────────────
 
