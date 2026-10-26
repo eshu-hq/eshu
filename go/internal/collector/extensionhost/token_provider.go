@@ -6,6 +6,7 @@ package extensionhost
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
@@ -41,6 +42,60 @@ const HostMintedGitHubTokenKey = "host_github_app_token"
 // reaches logs or status records. Implementations must not return the token,
 // key, or credential in the error.
 type TokenProvider func(ctx context.Context, item workflow.WorkItem) (string, error)
+
+// AppTokenProviderConfig configures NewAppTokenProvider. AppID and PrivateKey
+// are the host-owned GitHub App credentials; they never cross the stdio
+// boundary. Installations maps a claimed scope ID to the installation that
+// serves it, so one provider covers every planned caller without one Source
+// per installation. BaseURL overrides the GitHub REST base (empty means the
+// production default); HTTPClient overrides the mint transport (nil means a
+// 15-second client) and exists as a test seam.
+type AppTokenProviderConfig struct {
+	AppID         string
+	PrivateKey    string
+	Installations map[string]string
+	BaseURL       string
+	HTTPClient    *http.Client
+}
+
+// NewAppTokenProvider builds the production TokenProvider: per claim it
+// selects the installation for the claimed scope ID and mints one short-lived
+// installation token with app.MintInstallationToken. An unknown scope fails
+// closed with a bounded *app.ConfigError (terminal auth_denied downstream);
+// the App key stays host-side and only the minted token crosses to the
+// satellite.
+func NewAppTokenProvider(cfg AppTokenProviderConfig) (TokenProvider, error) {
+	appID := strings.TrimSpace(cfg.AppID)
+	privateKey := strings.TrimSpace(cfg.PrivateKey)
+	if appID == "" || privateKey == "" {
+		return nil, app.NewConfigError("github app token provider requires an app id and a private key")
+	}
+	if len(cfg.Installations) == 0 {
+		return nil, app.NewConfigError("github app token provider requires at least one installation")
+	}
+	installations := make(map[string]string, len(cfg.Installations))
+	for scopeID, installationID := range cfg.Installations {
+		scopeID = strings.TrimSpace(scopeID)
+		installationID = strings.TrimSpace(installationID)
+		if scopeID == "" || installationID == "" {
+			return nil, app.NewConfigError("github app token provider requires non-blank scope and installation ids")
+		}
+		installations[scopeID] = installationID
+	}
+	return func(ctx context.Context, item workflow.WorkItem) (string, error) {
+		installationID, ok := installations[strings.TrimSpace(item.ScopeID)]
+		if !ok {
+			return "", app.NewConfigError("no github app installation for this claim scope")
+		}
+		return app.MintInstallationToken(ctx, app.Config{
+			BaseURL:        cfg.BaseURL,
+			AppID:          appID,
+			InstallationID: installationID,
+			PrivateKey:     privateKey,
+			HTTPClient:     cfg.HTTPClient,
+		})
+	}, nil
+}
 
 // mintHostToken runs the Source's provider for one claim. A nil provider
 // returns "" with no error, leaving the static config untouched.
