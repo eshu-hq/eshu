@@ -479,3 +479,18 @@ gates:
     # Postgres, no NornicDB, no Docker, no network.
     requirements: []
     ci_only_reason: ""
+    # The keys mirror the GENERATED list in
+    # scripts/verify-live-postgres-readiness-drift.sh; the helper's test
+    # mirror asserts the two lists stay identical. The ledger and the workflow
+    # are mutate-in-place surfaces (hand prose around a generated block), so
+    # their commands take the base's copy first: regenerating over conflict
+    # markers would preserve the markers with the prose. Review the staged
+    # diff and re-apply any hand-owned prose the reset dropped.
+    regenerate:
+      "specs/live-tests.v1.yaml": "git show ${ESHU_REGEN_BASE:?set_ESHU_REGEN_BASE}:specs/live-tests.v1.yaml > specs/live-tests.v1.yaml && python3 scripts/generate-live-postgres-readiness.py"
+      "specs/live-tests.d/live-tests-readiness.generated.yaml": "python3 scripts/generate-live-postgres-readiness.py"
+      "scripts/lib/live_postgres_readiness_inventory_generated.py": "python3 scripts/generate-live-postgres-readiness.py"
+      "scripts/lib/live_postgres_readiness_inventory_gen_*.py": "python3 scripts/generate-live-postgres-readiness.py"
+      "scripts/lib/live_postgres_readiness_inventory_helpers.py": "python3 scripts/generate-live-postgres-readiness.py"
+      "scripts/lib/live_postgres_readiness_env.sh": "python3 scripts/generate-live-postgres-readiness.py"
+      ".github/workflows/live-postgres-readiness.yml": "git show ${ESHU_REGEN_BASE:?set_ESHU_REGEN_BASE}:.github/workflows/live-postgres-readiness.yml > .github/workflows/live-postgres-readiness.yml && python3 scripts/generate-live-postgres-readiness.py"

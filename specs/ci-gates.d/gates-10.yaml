@@ -54,6 +54,37 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+  - id: collector-content-pin
+    name: Collector content pin matches collector output
+    category: exactness
+    layer: contract
+    purpose: "Fails when the committed content-epoch ledger drifts from what the git collector emits for its fixture."
+    tier: pre-pr
+    blocking: true
+    # CI runs this package inside go-core's go test ./...; this row selects
+    # the pin test locally from its real inputs, per the pattern above.
+    triggers:
+      - "go/internal/collector/repo/git/**"
+      - "go/internal/collector/repo/git/epoch/ledger.tsv"
+      - "go/internal/collector/repo/git/snapshot_content_version_gate_test.go"
+      - "go/internal/collector/repo/git/testdata/content_version/**"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+    local:
+      command: "cd go && go test ./internal/collector/repo/git -run '^TestGenerationContentVersionPinsCollectorOutput$' -count=1"
+      test_command: "cd go && go test ./internal/collector/repo/git -run '^TestContentVersionFixtureDigestIsDeterministic$' -count=1"
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements:
+      - go
+    ci_only_reason: ""
+    # A ledger conflict takes the base's copy first, then re-pins: keeping
+    # both sides' bucket lines under one epoch would ship new facts under an
+    # old hint. No -advance-content-epoch here; that flag stays a human call.
+    regenerate:
+      "go/internal/collector/repo/git/epoch/ledger.tsv": "git show ${ESHU_REGEN_BASE:?set_ESHU_REGEN_BASE}:go/internal/collector/repo/git/epoch/ledger.tsv > go/internal/collector/repo/git/epoch/ledger.tsv && (cd go && go test ./internal/collector/repo/git -run '^TestGenerationContentVersionPinsCollectorOutput$' -count=1 -update-content-version-pin) && (cd go && go test ./internal/collector/repo/git -run '^TestGenerationContentVersionPinsCollectorOutput$' -count=1)"
   - id: delta-union-scheduled
     name: Delta union scheduled proof enrollment (#8785)
     category: exactness
