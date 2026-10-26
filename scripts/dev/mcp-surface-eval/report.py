@@ -21,18 +21,17 @@ from typing import Any
 
 import score
 
-SURFACES = ("full", "router", "core_router")
+SURFACES = score.SURFACES
 _FIELDS = ("task_id", "family", "tool_calls", "domain_calls", "wrong_tool_calls",
-           "first_domain_call_correct", "success", "wall_seconds", "cost_usd",
-           "input_tokens", "output_tokens")
-_OPTIONAL = ("helper_calls", "sibling_wrong_calls", "off_family_wrong_calls",
-             "overflowed_calls")
+           "first_domain_call_correct", "success", "wall_seconds")
+_OPTIONAL = ("cost_usd", "input_tokens", "output_tokens", "helper_calls",
+             "sibling_wrong_calls", "off_family_wrong_calls", "overflowed_calls")
 
 
 def _scores(rows: list[dict[str, Any]]) -> list[score.Score]:
     """Converts stored result rows back into Score objects."""
     return [score.Score(**{k: r[k] for k in _FIELDS},
-                        **{k: r.get(k, 0) for k in _OPTIONAL}) for r in rows]
+                        **{k: r[k] for k in _OPTIONAL if k in r}) for r in rows]
 
 
 def _by_surface(data: dict[str, Any], client: str) -> dict[str, list[dict]]:
@@ -156,6 +155,8 @@ def load_results(path: pathlib.Path) -> dict[str, Any]:
         raise SystemExit(f"invalid results shape in {path}")
     if not isinstance(loaded.get("results"), list):
         raise SystemExit(f"invalid results envelope in {path}")
+    if not all(score.valid_result_row(row) for row in loaded["results"]):
+        raise SystemExit(f"invalid results row in {path}")
     return loaded
 
 

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import statistics
 from typing import Any, Iterable
 
@@ -53,6 +54,8 @@ HELPERS = frozenset({
     "get_repo_summary", "get_repo_context", "get_repo_story",
     "get_repository_stats", "list_repository_files",
 })
+
+SURFACES = ("full", "router", "core_router")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -144,6 +147,53 @@ class Score:
     sibling_wrong_calls: int = 0
     off_family_wrong_calls: int = 0
     overflowed_calls: int = 0
+
+
+def _finite_nonnegative(value: object) -> bool:
+    """Checks a JSON number used in score arithmetic, excluding booleans."""
+    if type(value) not in (int, float):
+        return False
+    try:
+        return value >= 0 and math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def valid_result_row(row: object) -> bool:
+    """Checks fields consumed when a stored result is grouped and scored.
+
+    Optional Score fields may be absent in older files. Extra fields are
+    ignored so newer runners remain readable by this report.
+
+    Args:
+        row: Decoded JSON value from a result file's ``results`` list.
+
+    Returns:
+        Whether the fields needed by both consumers have usable types.
+    """
+    if not isinstance(row, dict) or row.get("surface") not in SURFACES:
+        return False
+    for key in ("task_id", "family"):
+        value = row.get(key)
+        if not isinstance(value, str) or not value.strip():
+            return False
+    for key in ("tool_calls", "domain_calls", "wrong_tool_calls"):
+        value = row.get(key)
+        if type(value) is not int or value < 0:
+            return False
+    for key in ("helper_calls", "sibling_wrong_calls",
+                "off_family_wrong_calls", "overflowed_calls",
+                "input_tokens", "output_tokens"):
+        if key in row and (type(row[key]) is not int or row[key] < 0):
+            return False
+    for key in ("first_domain_call_correct", "success"):
+        if type(row.get(key)) is not bool:
+            return False
+    if not _finite_nonnegative(row.get("wall_seconds")):
+        return False
+    if "cost_usd" in row and not _finite_nonnegative(row["cost_usd"]):
+        return False
+    return True
 
 
 def parse_claude(stream: str) -> Run:

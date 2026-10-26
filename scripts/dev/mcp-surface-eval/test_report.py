@@ -155,5 +155,55 @@ class InputShapeTest(unittest.TestCase):
             self.assertIn(str(path), str(ctx.exception))
 
 
+class ResultRowBoundaryTest(unittest.TestCase):
+    """Malformed result rows fail before any report table is printed."""
+
+    def test_rejects_unusable_rows_without_partial_stdout(self) -> None:
+        valid = _row("router", "code-lookup-001", True)
+        cases = [
+            {}, [],
+            {key: value for key, value in valid.items() if key != "surface"},
+            dict(valid, surface="unknown"),
+            {key: value for key, value in valid.items() if key != "tool_calls"},
+            dict(valid, tool_calls=True),
+            dict(valid, wrong_tool_calls=-1),
+            dict(valid, input_tokens=True),
+            dict(valid, first_domain_call_correct="yes"),
+            dict(valid, success="yes"),
+            dict(valid, task_id=[]),
+            dict(valid, family=[]),
+            dict(valid, wall_seconds=float("nan")),
+            dict(valid, cost_usd=float("inf")),
+            dict(valid, helper_calls=True),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "rows.json"
+            for row in cases:
+                with self.subTest(row=row):
+                    path.write_text(json.dumps({
+                        "meta": {"client": "claude"}, "results": [row]}))
+                    output = io.StringIO()
+                    with self.assertRaises(SystemExit) as ctx:
+                        with contextlib.redirect_stdout(output):
+                            report.main([str(path)])
+                    self.assertIn(str(path), str(ctx.exception))
+                    self.assertEqual(output.getvalue(), "")
+
+    def test_accepts_legacy_optional_defaults_and_extra_fields(self) -> None:
+        row = _row("router", "code-lookup-001", True)
+        for key in ("cost_usd", "input_tokens", "output_tokens"):
+            del row[key]
+        row["future_field"] = "ignored"
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "legacy.json"
+            path.write_text(json.dumps({
+                "meta": {"client": "claude"}, "results": [row]}))
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(report.main([str(path)]), 0)
+            self.assertIn("| claude | server_default |", output.getvalue())
+            self.assertIn("| claude | router | 1 |", output.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -44,7 +44,7 @@ from typing import Any
 
 import score
 
-SURFACES = ("full", "router", "core_router")
+SURFACES = score.SURFACES
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _CORPUS = _REPO_ROOT / "go/internal/mcp/router/eval/testdata/corpus.json"
 _TASKS = pathlib.Path(__file__).with_name("tasks.json")
@@ -248,6 +248,8 @@ def existing_result_shape(path: pathlib.Path, client: str) -> str:
         raise SystemExit(f"invalid results metadata in {path}")
     if not isinstance(previous.get("results"), list):
         raise SystemExit(f"invalid results envelope in {path}")
+    if not all(score.valid_result_row(row) for row in previous["results"]):
+        raise SystemExit(f"invalid results row in {path}")
     shape = meta.get("shape", "server_default")
     if shape not in ("server_default", "dual", "structured"):
         raise SystemExit(f"invalid results shape in {path}")

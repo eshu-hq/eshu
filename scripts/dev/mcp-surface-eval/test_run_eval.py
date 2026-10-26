@@ -190,6 +190,54 @@ class ShapeSelectionTest(unittest.TestCase):
             self.assertIn(str(result), str(ctx.exception))
             client.assert_not_called()
 
+    def test_unusable_existing_rows_fail_before_client_call(self) -> None:
+        valid = dict(score.Score("test-id", "code_lookup", 1, 1, 0,
+                                 True, True, 1.0).__dict__, surface="router")
+        cases = [
+            {}, [],
+            {key: value for key, value in valid.items() if key != "surface"},
+            dict(valid, surface="unknown"),
+            {key: value for key, value in valid.items() if key != "success"},
+            dict(valid, tool_calls=True),
+            dict(valid, wall_seconds=float("nan")),
+        ]
+        with tempfile.TemporaryDirectory() as out:
+            result = pathlib.Path(out) / "results_claude.json"
+            for row in cases:
+                with self.subTest(row=row):
+                    original = json.dumps({
+                        "meta": {"client": "claude"}, "results": [row]})
+                    result.write_text(original)
+                    env = {"ESHU_MCP_BASE_URL": "https://h",
+                           "ESHU_MCP_KEY": "test"}
+                    with mock.patch.dict(os.environ, env), \
+                            mock.patch.object(run_eval, "run_claude") as client:
+                        with self.assertRaises(SystemExit) as ctx:
+                            run_eval.main(["--out", out])
+                    self.assertIn(str(result), str(ctx.exception))
+                    self.assertEqual(result.read_text(), original)
+                    client.assert_not_called()
+
+    def test_legacy_nonempty_results_allow_same_shape_run(self) -> None:
+        row = dict(score.Score("test-id", "code_lookup", 1, 1, 0,
+                               True, True, 1.0).__dict__, surface="router")
+        for key in ("cost_usd", "input_tokens", "output_tokens"):
+            del row[key]
+        row["future_field"] = "ignored"
+        with tempfile.TemporaryDirectory() as out:
+            result = pathlib.Path(out) / "results_claude.json"
+            result.write_text(json.dumps({
+                "meta": {"client": "claude"}, "results": [row]}))
+            with mock.patch.dict(os.environ, {
+                    "ESHU_MCP_BASE_URL": "https://h", "ESHU_MCP_KEY": "test"}), \
+                    mock.patch.object(run_eval, "client_version", return_value="v"), \
+                    mock.patch.object(run_eval, "run_claude") as client:
+                self.assertEqual(run_eval.main([
+                    "--out", out, "--only", "none-such"]), 0)
+            client.assert_not_called()
+            self.assertEqual(json.loads(result.read_text())["meta"]["shape"],
+                             "server_default")
+
 
 if __name__ == "__main__":
     unittest.main()
