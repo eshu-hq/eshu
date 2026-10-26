@@ -1,0 +1,14 @@
+scripts/test-run-live-postgres-readiness-tests.sh
+  h_78a442cba0b3e6 36-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "03ef40ccbe34b8946d2fabae89deba5ad29bfe5a",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
