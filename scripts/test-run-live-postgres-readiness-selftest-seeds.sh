@@ -112,73 +112,8 @@ apply_batch_mutant() {
   cp "${repo_root}/${events_py}" "${tree}/${events_py}"
   cp "${repo_root}/${runner_sh}" "${tree}/${runner_sh}"
   cp "${repo_root}/scripts/${selftest}" "${target}"
-  python3 - "${target}" "${kind}" <<'PY' || fail "batch mutant anchor missing"
-import pathlib
-import sys
-
-path = pathlib.Path(sys.argv[1])
-kind = sys.argv[2]
-source = path.read_text(encoding="utf-8")
-anchor = 'run_runner() { bash "${runner}" 2>&1; }\n'
-wrapper = '''export ESHU_SEED_FIRST_KEY="$(pkg_key "${first_pkg}")"
-export ESHU_SEED_LAST_KEY="$(pkg_key "${last_pkg}")"
-export ESHU_SEED_MIDDLE="${packages[$((${#packages[@]} / 2))]}"
-export ESHU_SEED_REAL_PYTHON="$(command -v python3)"
-cat >"${seed_dir}/bin/python3" <<'PYWRAP'
-#!/usr/bin/env bash
-set -u
-if [[ $# -ge 4 && ${2:-} == verify-results && ${4:-} == "${ESHU_SEED_MIDDLE}" ]] &&
-  rg -qF '"Action":"fail","Package"' "${ESHU_FAKE_DIR}/${ESHU_SEED_FIRST_KEY}.jsonl" &&
-  rg -qF '"Action":"fail","Package"' "${ESHU_FAKE_DIR}/${ESHU_SEED_LAST_KEY}.jsonl"; then
-  output="$("${ESHU_SEED_REAL_PYTHON}" "$@" 2>&1)"
-  status=$?
-  [[ ${SEED_MUTANT_KIND:-} == status ]] && status=0
-  if [[ ${SEED_MUTANT_KIND:-} == diagnostic ]]; then
-    output="$(printf '%s\\n' "${output}" | rg -vF "package terminal (${ESHU_SEED_MIDDLE})" || true)"
-  fi
-  printf '%s\\n' "${output}"
-  exit "${status}"
-fi
-exec "${ESHU_SEED_REAL_PYTHON}" "$@"
-PYWRAP
-chmod +x "${seed_dir}/bin/python3"
-run_runner() { bash "${runner}" 2>&1; }
-'''
-if source.count(anchor) != 1:
-    raise SystemExit(1)
-source = source.replace(anchor, wrapper)
-# Reorder only this disposable mutant copy. All checks remain present, while
-# the targeted batch fault surfaces before the costly isolated proof phase.
-old_order = """check_each_proof
-
-# Both grouped package faults report every package. Their seeded mutants
-# exercise a middle package without changing the isolated per-proof checks.
-check_batched_package_failures
-"""
-new_order = """check_batched_package_failures
-
-# The isolated proof cases remain after the targeted disposable mutation.
-check_each_proof
-"""
-if source.count(old_order) != 1:
-    raise SystemExit(1)
-source = source.replace(old_order, new_order)
-if kind == "callback":
-    old = 'printf \'%s\\n\' "${pkg}" >>"${ESHU_FAKE_DIR}/calls"; declare -A enrolled; matched=0\n'
-    new = '''if [[ "${pkg}" == "${ESHU_SEED_MIDDLE}" ]] &&
-  ! rg -qF '"Test":' "${ESHU_FAKE_DIR}/${ESHU_SEED_FIRST_KEY}.jsonl" &&
-  ! rg -qF '"Test":' "${ESHU_FAKE_DIR}/${ESHU_SEED_LAST_KEY}.jsonl"; then
-  : # Suppress only the middle callback in the all-package zero-test case.
-else
-  printf '%s\\n' "${pkg}" >>"${ESHU_FAKE_DIR}/calls"
-fi
-declare -A enrolled; matched=0
-'''
-    if source.count(old) != 1:
-        raise SystemExit(1)
-    source = source.replace(old, new)
-path.write_text(source, encoding="utf-8")
-PY
+  python3 "${repo_root}/scripts/lib/live_postgres_readiness_batch_mutant.py" \
+    mutate-target "${target}" "${kind}" || fail "batch mutant anchor missing"
 }
 
 apply_batch_mutant status
