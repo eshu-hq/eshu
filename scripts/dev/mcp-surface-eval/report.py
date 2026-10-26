@@ -6,6 +6,9 @@ deployment, so the output is safe to paste into the evidence note.
 
 Usage:
     python3 report.py results_claude.json results_codex.json > tables.md
+
+Pass result files from one shape at a time. Keep dual and structured runs in
+separate private output directories; the report refuses to combine them.
 """
 
 from __future__ import annotations
@@ -114,11 +117,12 @@ def task_table(data: dict[str, Any], expected: dict[str, str]) -> str:
 
 
 def clients_table(data: dict[str, Any]) -> str:
-    """Returns the client name, version, and model table for the evidence note."""
-    lines = ["| Client | Version | Model |", "|---|---|---|"]
+    """Returns the client, shape, version, and model table for the evidence note."""
+    lines = ["| Client | Shape | Version | Model |", "|---|---|---|---|"]
     for client in sorted(data):
         meta = data[client]["meta"]
-        lines.append(f"| {client} | {meta.get('version', '?')} | "
+        lines.append(f"| {client} | {meta.get('shape', 'server_default')} | "
+                     f"{meta.get('version', '?')} | "
                      f"{meta.get('model', '?')} |")
     return "\n".join(lines)
 
@@ -126,9 +130,20 @@ def clients_table(data: dict[str, Any]) -> str:
 def main(argv: list[str]) -> int:
     """Loads result files named on the command line and prints all tables."""
     data: dict[str, Any] = {}
+    shapes: set[str] = set()
     for path in argv:
         loaded = json.loads(pathlib.Path(path).read_text())
-        data[loaded["meta"]["client"]] = loaded
+        client = loaded["meta"]["client"]
+        if client in data:
+            raise SystemExit(
+                f"duplicate {client} result files: report one shape at a time "
+                "from separate private --out directories")
+        shapes.add(loaded["meta"].get("shape", "server_default"))
+        if len(shapes) > 1:
+            raise SystemExit(
+                "result files have different shapes: report one shape at a time "
+                "from separate private --out directories")
+        data[client] = loaded
     corpus = json.loads((pathlib.Path(__file__).resolve().parents[3] /
                          "go/internal/mcp/router/eval/testdata/corpus.json"
                          ).read_text())["questions"]

@@ -1,5 +1,10 @@
 """Tests for the hosted MCP surface-eval report generator (issue #8760)."""
 
+import contextlib
+import io
+import json
+import pathlib
+import tempfile
 import unittest
 
 import report
@@ -72,6 +77,57 @@ class MetaTest(unittest.TestCase):
         text = report.clients_table(DATA)
         self.assertIn("1.2.3", text)
         self.assertIn("| claude |", text)
+
+    def test_lists_explicit_shape(self) -> None:
+        data = {"claude": {"meta": {"client": "claude", "shape": "structured"},
+                           "results": []}}
+        self.assertIn("| claude | structured |", report.clients_table(data))
+
+    def test_legacy_result_is_labeled_server_default(self) -> None:
+        self.assertIn("| claude | server_default |", report.clients_table(DATA))
+
+
+class InputShapeTest(unittest.TestCase):
+    """Report inputs must not hide or combine different shapes."""
+
+    def test_accepts_two_clients_with_same_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = []
+            for client in ("claude", "codex"):
+                path = pathlib.Path(directory) / f"{client}.json"
+                path.write_text(json.dumps({"meta": {"client": client,
+                                                      "shape": "structured"},
+                                            "results": []}))
+                paths.append(str(path))
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(report.main(paths), 0)
+            self.assertIn("| claude | structured |", output.getvalue())
+            self.assertIn("| codex | structured |", output.getvalue())
+
+    def test_rejects_duplicate_client_with_different_shapes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = []
+            for shape in ("dual", "structured"):
+                path = pathlib.Path(directory) / f"{shape}.json"
+                path.write_text(json.dumps({"meta": {"client": "claude", "shape": shape},
+                                            "results": []}))
+                paths.append(str(path))
+            with self.assertRaisesRegex(SystemExit, "shape"):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    report.main(paths)
+
+    def test_rejects_mixed_client_shapes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = []
+            for client, shape in (("claude", "dual"), ("codex", "structured")):
+                path = pathlib.Path(directory) / f"{client}.json"
+                path.write_text(json.dumps({"meta": {"client": client, "shape": shape},
+                                            "results": []}))
+                paths.append(str(path))
+            with self.assertRaisesRegex(SystemExit, "shape"):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    report.main(paths)
 
 
 if __name__ == "__main__":

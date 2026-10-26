@@ -20,6 +20,11 @@ Environment:
 Example:
     ESHU_MCP_BASE_URL=https://host ESHU_MCP_KEY=... python3 run_eval.py \\
         --client claude --out /tmp/run1 --bindings /tmp/bindings.json
+
+To compare result shapes with the same prompts, seed, and deployed build, run
+once with ``--shape dual`` and once with ``--shape structured``. Give each run
+a separate private ``--out`` directory. Omitting ``--shape`` keeps the server's
+default URL behavior; that default is not assumed to be either explicit shape.
 """
 
 from __future__ import annotations
@@ -79,12 +84,19 @@ def load_tasks(bindings: dict[str, str]) -> list[tuple[score.Task, str]]:
     return out
 
 
-def write_mcp_config(directory: pathlib.Path, base_url: str, surface: str) -> str:
+def mcp_url(base_url: str, surface: str, shape: str = "") -> str:
+    """Builds the shared hosted MCP URL for both clients."""
+    url = f"{base_url.rstrip('/')}/mcp/message?surface={surface}"
+    return f"{url}&shape={shape}" if shape else url
+
+
+def write_mcp_config(directory: pathlib.Path, base_url: str, surface: str,
+                     shape: str = "") -> str:
     """Writes a Claude Code MCP config whose header reads the key from the env."""
     path = directory / f"mcp_{surface}.json"
     path.write_text(json.dumps({"mcpServers": {"eshu": {
         "type": "http",
-        "url": f"{base_url.rstrip('/')}/mcp/message?surface={surface}",
+        "url": mcp_url(base_url, surface, shape),
         "headers": {"Authorization": "Bearer ${ESHU_MCP_KEY}"},
     }}}))
     return str(path)
@@ -219,6 +231,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--out", required=True, type=pathlib.Path)
     ap.add_argument("--bindings", type=pathlib.Path)
     ap.add_argument("--surfaces", default=",".join(SURFACES))
+    ap.add_argument("--shape", choices=("dual", "structured"), default="",
+                    help="explicit MCP result shape; omitted uses server default")
     ap.add_argument("--only", default="", help="comma-separated task ids")
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--workers", type=int, default=4)
@@ -231,6 +245,15 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--build", default="",
                     help="deployed Eshu build SHA, recorded in the results")
     args = ap.parse_args(argv)
+    result_path = args.out / f"results_{args.client}.json"
+    if result_path.exists():
+        previous = json.loads(result_path.read_text())
+        previous_shape = previous.get("meta", {}).get("shape", "server_default")
+        requested_shape = args.shape or "server_default"
+        if previous_shape != requested_shape:
+            raise SystemExit(
+                f"{result_path} contains shape {previous_shape}; requested "
+                f"{requested_shape}. Use separate private --out directories")
     base = os.environ.get("ESHU_MCP_BASE_URL", "")
     if not base or not os.environ.get("ESHU_MCP_KEY"):
         raise SystemExit("set ESHU_MCP_BASE_URL and ESHU_MCP_KEY")
@@ -245,8 +268,8 @@ def main(argv: list[str]) -> int:
     random.Random(args.seed).shuffle(jobs)
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="eshu-eval-"))
     try:
-        configs = {s: write_mcp_config(tmp, base, s) for s in surfaces}
-        urls = {s: f"{base.rstrip('/')}/mcp/message?surface={s}" for s in surfaces}
+        configs = {s: write_mcp_config(tmp, base, s, args.shape) for s in surfaces}
+        urls = {s: mcp_url(base, s, args.shape) for s in surfaces}
         codex_home = make_codex_home(tmp) if args.client == "codex" else ""
         cwd = str(tmp / "cwd"); os.makedirs(cwd)
         raw = args.out / "raw" / args.client
@@ -277,8 +300,8 @@ def main(argv: list[str]) -> int:
         model = codex_model(codex_home) if args.client == "codex" else args.model
         meta = {"client": args.client, "version": client_version(args.client),
                 "model": model, "seed": args.seed, "repeat": args.repeat,
-                "build": args.build}
-        (args.out / f"results_{args.client}.json").write_text(
+                "build": args.build, "shape": args.shape or "server_default"}
+        result_path.write_text(
             json.dumps({"meta": meta, "results": results}, indent=1))
         return 0
     finally:
