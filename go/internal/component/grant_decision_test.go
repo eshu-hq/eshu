@@ -209,6 +209,132 @@ func TestRegistryReadbackAndEnableObserveOncePerDecision(t *testing.T) {
 	}
 }
 
+// TestRegistryInstallObservesSharedGrantedCoreKindAllow proves the
+// sharing-allow path records why two components share one core-owned kind:
+// the candidate load allow plus one allow per side for the shared kind at
+// stage install.
+func TestRegistryInstallObservesSharedGrantedCoreKindAllow(t *testing.T) {
+	t.Parallel()
+
+	recorder := &grantDecisionRecorder{}
+	registry := NewRegistry(t.TempDir()).WithGrantObserver(recorder)
+	loki := componentManifestForGrantedFactKind(
+		"dev.example.collector.loki", "0.1.0", "loki", sharedGrantedCoreKind, []string{"1.0.0"},
+	)
+	tempo := componentManifestForGrantedFactKind(
+		"dev.example.collector.tempo", "0.1.0", "tempo", sharedGrantedCoreKind, []string{"1.0.0"},
+	)
+	if err := registry.RecordGrant(liveGrantFor(
+		"dev.example.collector.loki", "0.1.0", sharedGrantedCoreKind, "loki", []string{"1.0.0"},
+	)); err != nil {
+		t.Fatalf("RecordGrant(loki) error = %v, want nil", err)
+	}
+	if err := registry.RecordGrant(liveGrantFor(
+		"dev.example.collector.tempo", "0.1.0", sharedGrantedCoreKind, "tempo", []string{"1.0.0"},
+	)); err != nil {
+		t.Fatalf("RecordGrant(tempo) error = %v, want nil", err)
+	}
+	installGranted(t, registry, loki, "dev.example.collector.loki", "0.1.0")
+	installGranted(t, registry, tempo, "dev.example.collector.tempo", "0.1.0")
+
+	want := []GrantDecision{
+		{
+			Stage: GrantStageInstall, Allowed: true, Reason: GrantReasonGranted,
+			ProducerID: "dev.example.collector.loki", Version: "0.1.0", Kind: sharedGrantedCoreKind,
+		},
+		{
+			Stage: GrantStageInstall, Allowed: true, Reason: GrantReasonGranted,
+			ProducerID: "dev.example.collector.tempo", Version: "0.1.0", Kind: sharedGrantedCoreKind,
+		},
+		{
+			Stage: GrantStageInstall, Allowed: true, Reason: GrantReasonGranted,
+			ProducerID: "dev.example.collector.tempo", Version: "0.1.0", Kind: sharedGrantedCoreKind,
+		},
+		{
+			Stage: GrantStageInstall, Allowed: true, Reason: GrantReasonGranted,
+			ProducerID: "dev.example.collector.loki", Version: "0.1.0", Kind: sharedGrantedCoreKind,
+		},
+	}
+	got := recorder.snapshot()
+	if len(got) != len(want) {
+		t.Fatalf("decisions = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("decisions[%d] = %+v, want %+v (full sequence %+v)", i, got[i], want[i], got)
+		}
+	}
+}
+
+// TestRegistryEnableObservesSharedGrantedCoreKindAllow proves the enable-time
+// collision check records one sharing allow per side at stage activation, and
+// that the dry-run PlanEnable records the same pair without the candidate
+// manifest-load decision.
+func TestRegistryEnableObservesSharedGrantedCoreKindAllow(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	setup := NewRegistry(home)
+	if err := setup.RecordGrant(liveGrantFor(
+		"dev.example.collector.loki", "0.1.0", sharedGrantedCoreKind, "loki", []string{"1.0.0"},
+	)); err != nil {
+		t.Fatalf("RecordGrant(loki) error = %v, want nil", err)
+	}
+	if err := setup.RecordGrant(liveGrantFor(
+		"dev.example.collector.tempo", "0.1.0", sharedGrantedCoreKind, "tempo", []string{"1.0.0"},
+	)); err != nil {
+		t.Fatalf("RecordGrant(tempo) error = %v, want nil", err)
+	}
+	installGranted(t, setup, componentManifestForGrantedFactKind(
+		"dev.example.collector.loki", "0.1.0", "loki", sharedGrantedCoreKind, []string{"1.0.0"},
+	), "dev.example.collector.loki", "0.1.0")
+	installGranted(t, setup, componentManifestForGrantedFactKind(
+		"dev.example.collector.tempo", "0.1.0", "tempo", sharedGrantedCoreKind, []string{"1.0.0"},
+	), "dev.example.collector.tempo", "0.1.0")
+
+	recorder := &grantDecisionRecorder{}
+	registry := NewRegistry(home).WithGrantObserver(recorder)
+	if _, err := registry.PlanEnable("dev.example.collector.loki", Activation{InstanceID: "loki"}); err != nil {
+		t.Fatalf("PlanEnable(loki) error = %v, want nil", err)
+	}
+	wantPlan := []GrantDecision{
+		{
+			Stage: GrantStageActivation, Allowed: true, Reason: GrantReasonGranted,
+			ProducerID: "dev.example.collector.loki", Version: "0.1.0", Kind: sharedGrantedCoreKind,
+		},
+		{
+			Stage: GrantStageActivation, Allowed: true, Reason: GrantReasonGranted,
+			ProducerID: "dev.example.collector.tempo", Version: "0.1.0", Kind: sharedGrantedCoreKind,
+		},
+	}
+	got := recorder.snapshot()
+	if len(got) != len(wantPlan) {
+		t.Fatalf("PlanEnable decisions = %+v, want %+v", got, wantPlan)
+	}
+	for i := range wantPlan {
+		if got[i] != wantPlan[i] {
+			t.Fatalf("PlanEnable decisions[%d] = %+v, want %+v (full sequence %+v)", i, got[i], wantPlan[i], got)
+		}
+	}
+
+	if _, err := registry.Enable("dev.example.collector.loki", Activation{InstanceID: "loki"}); err != nil {
+		t.Fatalf("Enable(loki) error = %v, want nil", err)
+	}
+	wantEnable := append([]GrantDecision{{
+		Stage: GrantStageActivation, Allowed: true, Reason: GrantReasonGranted,
+		ProducerID: "dev.example.collector.loki", Version: "0.1.0", Kind: sharedGrantedCoreKind,
+	}}, wantPlan...)
+	got = recorder.snapshot()[len(wantPlan):]
+	if len(got) != len(wantEnable) {
+		t.Fatalf("Enable decisions = %+v, want %+v", got, wantEnable)
+	}
+	for i := range wantEnable {
+		if got[i] != wantEnable[i] {
+			t.Fatalf("Enable decisions[%d] = %+v, want %+v (full sequence %+v)", i, got[i], wantEnable[i], got)
+		}
+	}
+}
+
 // TestRegistryReadbackObservesRevokedGrantDeny proves a revoked grant found
 // at readback records a deny (and the entry surfaces the error as before).
 func TestRegistryReadbackObservesRevokedGrantDeny(t *testing.T) {

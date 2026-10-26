@@ -145,11 +145,12 @@ func TestRevokeGrantMissingReportsNotFound(t *testing.T) {
 	}
 }
 
-// TestRegistryInstallFencesReplacedGrantedProducer proves cutover fencing
-// on the grant path: while producer A holds a granted core kind, producer B
-// cannot install the same kind even with its own live grant. Replacement
-// requires uninstalling (fencing) A first, after which B installs cleanly.
-func TestRegistryInstallFencesReplacedGrantedProducer(t *testing.T) {
+// TestRegistryInstallAdmitsReplacedGrantedProducer proves granted cutover
+// sharing on the grant path (issues #9202 and #9172): while producer A holds
+// a granted core kind, producer B installs the same kind when both hold live
+// grants covering one shared schema major, each scoped to its own collector
+// kind. Replacement still converges after uninstalling A.
+func TestRegistryInstallAdmitsReplacedGrantedProducer(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -178,12 +179,8 @@ func TestRegistryInstallFencesReplacedGrantedProducer(t *testing.T) {
 	}
 
 	betaYAML := componentManifestForFactKind(beta, version, kind, []string{"1.0.0"})
-	_, err := registry.Install(writeManifest(t, betaYAML), verificationFor(beta, version))
-	if err == nil {
-		t.Fatal("Install(beta) error = nil, want fact-kind collision while alpha holds the kind")
-	}
-	if got := ErrorCodeOf(err); got != ErrorCodeFactKindCollision {
-		t.Fatalf("Install(beta) code = %q, want %q; err=%v", got, ErrorCodeFactKindCollision, err)
+	if _, err := registry.Install(writeManifest(t, betaYAML), verificationFor(beta, version)); err != nil {
+		t.Fatalf("Install(beta) error = %v, want nil while both grants are live; err=%v", err, err)
 	}
 
 	if err := registry.Uninstall(alpha, version); err != nil {

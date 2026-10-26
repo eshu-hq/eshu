@@ -88,7 +88,7 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 		return InstalledComponent{}, WrapError(ErrorCodeInvalidManifest, "read component manifest", err)
 	}
 	manifestDigest := sha256Hex(raw)
-	if err := r.validateInstallFactKindClaims(manifest, state); err != nil {
+	if err := r.validateInstallFactKindClaims(manifest, state, state.Grants, time.Now().UTC(), r.observer, GrantStageInstall); err != nil {
 		return InstalledComponent{}, err
 	}
 	if existing := state.findVersion(manifest.Metadata.ID, manifest.Metadata.Version); existing != nil &&
@@ -177,7 +177,7 @@ func (r Registry) Enable(componentID string, activation Activation) (Activation,
 		return Activation{}, err
 	}
 	r.observeEnableGrants(*component, state)
-	if err := r.validateEnableFactKindClaims(*component, state); err != nil {
+	if err := r.validateEnableFactKindClaims(*component, state, state.Grants, time.Now().UTC(), r.observer, GrantStageActivation); err != nil {
 		return Activation{}, err
 	}
 	component.upsertActivation(activation)
@@ -197,7 +197,7 @@ func (r Registry) PlanEnable(componentID string, activation Activation) (Activat
 	if err != nil {
 		return Activation{}, err
 	}
-	if err := r.validateEnableFactKindClaims(*component, state); err != nil {
+	if err := r.validateEnableFactKindClaims(*component, state, state.Grants, time.Now().UTC(), r.observer, GrantStageActivation); err != nil {
 		return Activation{}, err
 	}
 	return activation, nil

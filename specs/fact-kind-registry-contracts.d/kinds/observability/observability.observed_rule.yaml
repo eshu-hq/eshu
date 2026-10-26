@@ -6,6 +6,7 @@ read_surface: GET /api/v0/observability/coverage/correlations
 payload_schema: sdk/go/factschema/schema/observability.observed_rule.v1.schema.json
 payload_schema_registered: true
 producers:
+    - collector-loki
     - collector-prometheus-mimir
 reducer_bindings:
     - obscoverage/obscoverage_coverage_correlation_handler

@@ -4,9 +4,11 @@
 package component
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"golang.org/x/mod/semver"
 
@@ -14,12 +16,14 @@ import (
 )
 
 // factKindClaim is the minimal ownership record used to compare component
-// manifest declarations.
+// manifest declarations. collectorKinds scopes grant checks to the claiming
+// component's own declared collector kinds.
 type factKindClaim struct {
 	componentID    string
 	version        string
 	kind           string
 	schemaVersions []string
+	collectorKinds []string
 }
 
 // validateComponentFactKind enforces the component-side namespace boundary.
@@ -51,15 +55,18 @@ func validateComponentFactKind(producerID, kind string, covered, declared []stri
 }
 
 // validateInstallFactKindClaims compares a candidate manifest against durable
-// local ownership state before the registry writes the install.
-func (r Registry) validateInstallFactKindClaims(candidate Manifest, state registryState) error {
+// local ownership state before the registry writes the install. grants carries
+// the durable producer authorizations live at now for shared core-owned kinds.
+// A sharing overlap allowed by grants is reported to observer at stage; deny
+// paths report nothing new.
+func (r Registry) validateInstallFactKindClaims(candidate Manifest, state registryState, grants []ProducerGrant, now time.Time, observer GrantObserver, stage GrantStage) error {
 	candidateClaims := factKindClaims(candidate)
 	for _, installed := range state.Components {
 		installedManifest, err := r.installedManifest(installed)
 		if err != nil {
 			return err
 		}
-		if err := validateClaimSet(candidateClaims, factKindClaims(installedManifest)); err != nil {
+		if err := validateClaimSet(candidateClaims, factKindClaims(installedManifest), grants, now, observer, stage); err != nil {
 			return err
 		}
 	}
@@ -67,8 +74,11 @@ func (r Registry) validateInstallFactKindClaims(candidate Manifest, state regist
 }
 
 // validateEnableFactKindClaims protects old registries that predate install
-// collision checks from enabling an unsafe component.
-func (r Registry) validateEnableFactKindClaims(component InstalledComponent, state registryState) error {
+// collision checks from enabling an unsafe component. grants carries the
+// durable producer authorizations live at now for shared core-owned kinds.
+// A sharing overlap allowed by grants is reported to observer at stage; deny
+// paths report nothing new.
+func (r Registry) validateEnableFactKindClaims(component InstalledComponent, state registryState, grants []ProducerGrant, now time.Time, observer GrantObserver, stage GrantStage) error {
 	candidateManifest, err := r.installedManifest(component)
 	if err != nil {
 		return err
@@ -82,7 +92,7 @@ func (r Registry) validateEnableFactKindClaims(component InstalledComponent, sta
 		if err != nil {
 			return err
 		}
-		if err := validateClaimSet(candidateClaims, factKindClaims(installedManifest)); err != nil {
+		if err := validateClaimSet(candidateClaims, factKindClaims(installedManifest), grants, now, observer, stage); err != nil {
 			return err
 		}
 	}
@@ -127,20 +137,28 @@ func factKindClaims(manifest Manifest) []factKindClaim {
 			version:        manifest.Metadata.Version,
 			kind:           family.Kind,
 			schemaVersions: append([]string(nil), family.SchemaVersions...),
+			collectorKinds: append([]string(nil), manifest.Spec.CollectorKinds...),
 		})
 	}
 	return claims
 }
 
 // validateClaimSet rejects an overlapping fact kind unless shared ownership is
-// explicit and schema-compatible.
-func validateClaimSet(candidates, existing []factKindClaim) error {
+// explicit and schema-compatible. A grant-allowed overlap between distinct
+// components is reported to observer at stage, one allow per side, so an
+// operator can see why two components share one core-owned kind. Same-component
+// lineage allows and deny paths report nothing. A nil observer disables
+// observation without changing admission.
+func validateClaimSet(candidates, existing []factKindClaim, grants []ProducerGrant, now time.Time, observer GrantObserver, stage GrantStage) error {
 	for _, candidate := range candidates {
 		for _, installed := range existing {
 			if candidate.kind != installed.kind {
 				continue
 			}
-			if compatibleSharedFactKindOwner(candidate, installed) {
+			if compatibleSharedFactKindOwner(candidate, installed, grants, now) {
+				if candidate.componentID != installed.componentID && facts.IsCoreFactKind(candidate.kind) {
+					observeSharedGrantAllow(observer, stage, candidate, installed)
+				}
 				continue
 			}
 			return factKindCollisionError(candidate, installed)
@@ -149,13 +167,66 @@ func validateClaimSet(candidates, existing []factKindClaim) error {
 	return nil
 }
 
-// compatibleSharedFactKindOwner allows only same-component version lineage to
-// share a fact kind.
-func compatibleSharedFactKindOwner(candidate, installed factKindClaim) bool {
-	if candidate.componentID != installed.componentID {
+// observeSharedGrantAllow reports one grant allow per side of a shared
+// core-owned fact kind at stage: first the candidate side, then the installed
+// side. Each decision names only its own producer, version, and kind with the
+// granted reason. A nil observer is a no-op.
+func observeSharedGrantAllow(observer GrantObserver, stage GrantStage, candidate, installed factKindClaim) {
+	if observer == nil {
+		return
+	}
+	ctx := context.Background()
+	observer.ObserveGrantDecision(ctx, GrantDecision{
+		Stage:      stage,
+		Allowed:    true,
+		Reason:     GrantReasonGranted,
+		ProducerID: candidate.componentID,
+		Version:    candidate.version,
+		Kind:       candidate.kind,
+	})
+	observer.ObserveGrantDecision(ctx, GrantDecision{
+		Stage:      stage,
+		Allowed:    true,
+		Reason:     GrantReasonGranted,
+		ProducerID: installed.componentID,
+		Version:    installed.version,
+		Kind:       installed.kind,
+	})
+}
+
+// compatibleSharedFactKindOwner allows same-component version lineage to share
+// a fact kind, and additionally allows distinct components to share a
+// core-owned kind when their schema-major sets agree and each side holds a
+// live grant covering its declared schema versions scoped to its own
+// collector kinds. Non-core namespaced kinds keep strict single-owner
+// collision.
+func compatibleSharedFactKindOwner(candidate, installed factKindClaim, grants []ProducerGrant, now time.Time) bool {
+	if candidate.componentID == installed.componentID {
+		return sameSchemaMajorSet(candidate.schemaVersions, installed.schemaVersions)
+	}
+	if !facts.IsCoreFactKind(candidate.kind) {
 		return false
 	}
-	return sameSchemaMajorSet(candidate.schemaVersions, installed.schemaVersions)
+	if !sameSchemaMajorSet(candidate.schemaVersions, installed.schemaVersions) {
+		return false
+	}
+	return grantedClaimCovers(candidate, grants, now) && grantedClaimCovers(installed, grants, now)
+}
+
+// grantedClaimCovers reports whether a live grant names this claim's producer
+// and version, covers every declared schema version of the core-owned kind,
+// and is scoped to one of the claim's own collector kinds.
+func grantedClaimCovers(claim factKindClaim, grants []ProducerGrant, now time.Time) bool {
+	if len(claim.schemaVersions) == 0 {
+		return false
+	}
+	covered := grantedCoreKinds(claim.componentID, claim.version, claim.collectorKinds, grants, now)
+	for _, version := range claim.schemaVersions {
+		if !slices.Contains(covered[claim.kind], version) {
+			return false
+		}
+	}
+	return true
 }
 
 // sameSchemaMajorSet treats a major-version mismatch as incompatible fact-kind

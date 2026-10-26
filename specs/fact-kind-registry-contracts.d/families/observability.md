@@ -12,9 +12,9 @@
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
 | `collector-grafana` | `eshu-hq/eshu` | `go/internal/collector/observability/grafana` | `eshu-hq/eshu-collector-grafana` | `core_issued_grant` | `observability.observed_dashboard` |
-| `collector-loki` | `eshu-hq/eshu` | `go/internal/collector/observability/loki` | `eshu-hq/eshu-collector-loki` | `core_issued_grant` | `observability.observed_log_signal` |
+| `collector-loki` | `eshu-hq/eshu` | `go/internal/collector/observability/loki` | `eshu-hq/eshu-collector-loki` | `core_issued_grant` | `observability.coverage_warning, observability.observed_log_signal, observability.observed_rule, observability.source_instance` |
 | `collector-prometheus-mimir` | `eshu-hq/eshu` | `go/internal/collector/observability/prometheus` | `eshu-hq/eshu-collector-prometheus-mimir` | `core_issued_grant` | `observability.coverage_warning, observability.observed_rule, observability.observed_target, observability.source_instance` |
-| `collector-tempo` | `eshu-hq/eshu` | `go/internal/collector/observability/tempo` | `eshu-hq/eshu-collector-tempo` | `core_issued_grant` | `observability.observed_trace_signal` |
+| `collector-tempo` | `eshu-hq/eshu` | `go/internal/collector/observability/tempo` | `eshu-hq/eshu-collector-tempo` | `core_issued_grant` | `observability.coverage_warning, observability.observed_trace_signal, observability.source_instance` |
 | `git-core` | `eshu-hq/eshu` | `go/internal/collector/repo` | `` | `core_owned` | `observability.applied_resource, observability.applied_sync_state, observability.declared_alert_rule, observability.declared_dashboard, observability.declared_datasource, observability.declared_folder, observability.declared_log_route, observability.declared_metric_route, observability.declared_metric_rule, observability.declared_scrape_config, observability.declared_trace_route` |
 
 ## Kinds
@@ -23,7 +23,7 @@
 | --- | --- | --- | --- | --- |
 | `observability.applied_resource` | `git-core` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.applied_resource.v1.schema.json` |
 | `observability.applied_sync_state` | `git-core` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.applied_sync_state.v1.schema.json` |
-| `observability.coverage_warning` | `collector-prometheus-mimir` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.coverage_warning.v1.schema.json` |
+| `observability.coverage_warning` | `collector-loki, collector-prometheus-mimir, collector-tempo` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.coverage_warning.v1.schema.json` |
 | `observability.declared_alert_rule` | `git-core` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.declared_alert_rule.v1.schema.json` |
 | `observability.declared_dashboard` | `git-core` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.declared_dashboard.v1.schema.json` |
 | `observability.declared_datasource` | `git-core` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.declared_datasource.v1.schema.json` |
@@ -35,7 +35,7 @@
 | `observability.declared_trace_route` | `git-core` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.declared_trace_route.v1.schema.json` |
 | `observability.observed_dashboard` | `collector-grafana` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.observed_dashboard.v1.schema.json` |
 | `observability.observed_log_signal` | `collector-loki` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.observed_log_signal.v1.schema.json` |
-| `observability.observed_rule` | `collector-prometheus-mimir` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.observed_rule.v1.schema.json` |
+| `observability.observed_rule` | `collector-loki, collector-prometheus-mimir` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.observed_rule.v1.schema.json` |
 | `observability.observed_target` | `collector-prometheus-mimir` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.observed_target.v1.schema.json` |
 | `observability.observed_trace_signal` | `collector-tempo` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.observed_trace_signal.v1.schema.json` |
-| `observability.source_instance` | `collector-prometheus-mimir` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.source_instance.v1.schema.json` |
+| `observability.source_instance` | `collector-loki, collector-prometheus-mimir, collector-tempo` | `obscoverage/obscoverage_coverage_correlation_handler` | `GET /api/v0/observability/coverage/correlations` | `sdk/go/factschema/schema/observability.source_instance.v1.schema.json` |
