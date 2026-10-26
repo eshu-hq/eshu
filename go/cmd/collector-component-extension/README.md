@@ -82,7 +82,10 @@ wiring end to end through the real process runner.
   `ESHU_GITHUB_APP_INSTALLATIONS` (a JSON object mapping scope IDs to
   installation IDs) are all set; otherwise the static config path applies.
   Malformed installations JSON fails startup closed. The App private key never
-  crosses the extension stdio boundary.
+  crosses the extension stdio boundary. An activation must not define the
+  `host_github_app_token` key itself while the provider is set: the host
+  rejects that combination at startup, so the minted per-claim token is the
+  only credential a host_minted target can spend.
 - The worker supports `spec.runtime.adapter: process` and
   `spec.runtime.adapter: oci`. The OCI image is read only from the component's
   verified manifest artifact (digest-pinned and platform-matched); the
