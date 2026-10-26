@@ -4,6 +4,7 @@
 package component
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -56,14 +57,16 @@ func validateComponentFactKind(producerID, kind string, covered, declared []stri
 // validateInstallFactKindClaims compares a candidate manifest against durable
 // local ownership state before the registry writes the install. grants carries
 // the durable producer authorizations live at now for shared core-owned kinds.
-func (r Registry) validateInstallFactKindClaims(candidate Manifest, state registryState, grants []ProducerGrant, now time.Time) error {
+// A sharing overlap allowed by grants is reported to observer at stage; deny
+// paths report nothing new.
+func (r Registry) validateInstallFactKindClaims(candidate Manifest, state registryState, grants []ProducerGrant, now time.Time, observer GrantObserver, stage GrantStage) error {
 	candidateClaims := factKindClaims(candidate)
 	for _, installed := range state.Components {
 		installedManifest, err := r.installedManifest(installed)
 		if err != nil {
 			return err
 		}
-		if err := validateClaimSet(candidateClaims, factKindClaims(installedManifest), grants, now); err != nil {
+		if err := validateClaimSet(candidateClaims, factKindClaims(installedManifest), grants, now, observer, stage); err != nil {
 			return err
 		}
 	}
@@ -73,7 +76,9 @@ func (r Registry) validateInstallFactKindClaims(candidate Manifest, state regist
 // validateEnableFactKindClaims protects old registries that predate install
 // collision checks from enabling an unsafe component. grants carries the
 // durable producer authorizations live at now for shared core-owned kinds.
-func (r Registry) validateEnableFactKindClaims(component InstalledComponent, state registryState, grants []ProducerGrant, now time.Time) error {
+// A sharing overlap allowed by grants is reported to observer at stage; deny
+// paths report nothing new.
+func (r Registry) validateEnableFactKindClaims(component InstalledComponent, state registryState, grants []ProducerGrant, now time.Time, observer GrantObserver, stage GrantStage) error {
 	candidateManifest, err := r.installedManifest(component)
 	if err != nil {
 		return err
@@ -87,7 +92,7 @@ func (r Registry) validateEnableFactKindClaims(component InstalledComponent, sta
 		if err != nil {
 			return err
 		}
-		if err := validateClaimSet(candidateClaims, factKindClaims(installedManifest), grants, now); err != nil {
+		if err := validateClaimSet(candidateClaims, factKindClaims(installedManifest), grants, now, observer, stage); err != nil {
 			return err
 		}
 	}
@@ -139,20 +144,54 @@ func factKindClaims(manifest Manifest) []factKindClaim {
 }
 
 // validateClaimSet rejects an overlapping fact kind unless shared ownership is
-// explicit and schema-compatible.
-func validateClaimSet(candidates, existing []factKindClaim, grants []ProducerGrant, now time.Time) error {
+// explicit and schema-compatible. A grant-allowed overlap between distinct
+// components is reported to observer at stage, one allow per side, so an
+// operator can see why two components share one core-owned kind. Same-component
+// lineage allows and deny paths report nothing. A nil observer disables
+// observation without changing admission.
+func validateClaimSet(candidates, existing []factKindClaim, grants []ProducerGrant, now time.Time, observer GrantObserver, stage GrantStage) error {
 	for _, candidate := range candidates {
 		for _, installed := range existing {
 			if candidate.kind != installed.kind {
 				continue
 			}
 			if compatibleSharedFactKindOwner(candidate, installed, grants, now) {
+				if candidate.componentID != installed.componentID && facts.IsCoreFactKind(candidate.kind) {
+					observeSharedGrantAllow(observer, stage, candidate, installed)
+				}
 				continue
 			}
 			return factKindCollisionError(candidate, installed)
 		}
 	}
 	return nil
+}
+
+// observeSharedGrantAllow reports one grant allow per side of a shared
+// core-owned fact kind at stage: first the candidate side, then the installed
+// side. Each decision names only its own producer, version, and kind with the
+// granted reason. A nil observer is a no-op.
+func observeSharedGrantAllow(observer GrantObserver, stage GrantStage, candidate, installed factKindClaim) {
+	if observer == nil {
+		return
+	}
+	ctx := context.Background()
+	observer.ObserveGrantDecision(ctx, GrantDecision{
+		Stage:      stage,
+		Allowed:    true,
+		Reason:     GrantReasonGranted,
+		ProducerID: candidate.componentID,
+		Version:    candidate.version,
+		Kind:       candidate.kind,
+	})
+	observer.ObserveGrantDecision(ctx, GrantDecision{
+		Stage:      stage,
+		Allowed:    true,
+		Reason:     GrantReasonGranted,
+		ProducerID: installed.componentID,
+		Version:    installed.version,
+		Kind:       installed.kind,
+	})
 }
 
 // compatibleSharedFactKindOwner allows same-component version lineage to share
