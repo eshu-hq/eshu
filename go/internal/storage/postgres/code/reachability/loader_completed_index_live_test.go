@@ -117,10 +117,14 @@ WHERE c.relname = $1`, completedIntentsIndexName).Scan(&valid, &ready)
 		t.Fatalf("begin explain transaction: %v", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	// Staged planner: this checks the query predicate is servable by the new
-	// index, not natural planner choice (proven separately at corpus scale).
+	// Staged planner: check index servability, not natural planner choice
+	// (proven separately at corpus scale). A bitmap alternative can otherwise
+	// hide the covering path when old snapshots prevent all-visible pages.
 	if _, err := tx.ExecContext(ctx, `SET LOCAL enable_seqscan = off`); err != nil {
 		t.Fatalf("disable sequential scan for plan proof: %v", err)
+	}
+	if _, err := tx.ExecContext(ctx, `SET LOCAL enable_bitmapscan = off`); err != nil {
+		t.Fatalf("disable bitmap scan for plan proof: %v", err)
 	}
 	rows, err := tx.QueryContext(ctx, `EXPLAIN `+reachabilitystore.ListPendingCodeReachabilityInputsSQL, 100, epoch)
 	if err != nil {

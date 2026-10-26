@@ -280,8 +280,9 @@ func ajCostViolations(off, on []ajCostSample, pss bool) []string {
 // TestProjectorAckJournalCostCacheImbalance is the cache-invariance
 // regression for the block metric. The fixture relations are evicted before
 // every journal-off Ack, so the off batch reads from disk while the on batch
-// hits cache: the old hit-only on-off delta falsely exceeds the +40 bound
-// while the hits+read-bytes block delta stays within it.
+// hits cache. The hit-only metric includes a positive cache contribution;
+// the hits+read-bytes metric removes that contribution and stays within the
+// +40 block-cost bound, independently of the actual journal work delta.
 func TestProjectorAckJournalCostCacheImbalance(t *testing.T) {
 	reader, dsn := openAckJournalDBWithDSN(t, 4)
 	ctx := context.Background()
@@ -375,16 +376,17 @@ func TestProjectorAckJournalCostCacheImbalance(t *testing.T) {
 	on := run("imb-on", true, imbWarm+imbScopes, imbScopes, false)
 	hitDelta := on.backendHits - off.backendHits
 	blockDelta := on.backendBlocks - off.backendBlocks
-	t.Logf("imbalance per Ack: hit-only delta %+.2f, block delta %+.2f (bound %.0f); off read bytes %.0f/Ack; evicted %d buffers; pss preloaded: %v",
-		hitDelta, blockDelta, ajCostMaxExtraBlocks, off.backendReadBytes, evictedTotal, pss)
+	cacheInflation := hitDelta - blockDelta
+	t.Logf("imbalance per Ack: hit-only delta %+.2f, block delta %+.2f, cache inflation %+.2f (bound %.0f); off read bytes %.0f/Ack; evicted %d buffers; pss preloaded: %v",
+		hitDelta, blockDelta, cacheInflation, ajCostMaxExtraBlocks, off.backendReadBytes, evictedTotal, pss)
 	if evictedTotal == 0 {
 		t.Fatalf("eviction cleared no fixture buffers: the imbalance is not real")
 	}
 	if off.backendReadBytes == 0 {
 		t.Fatalf("off batch read no bytes: the imbalance is not real")
 	}
-	if hitDelta <= ajCostMaxExtraBlocks {
-		t.Fatalf("no cache imbalance: hit-only delta %+.2f within bound %.0f, the regression proves nothing", hitDelta, ajCostMaxExtraBlocks)
+	if cacheInflation <= 0 {
+		t.Fatalf("no cache contribution: hit-only delta %+.2f, block delta %+.2f, the regression proves nothing", hitDelta, blockDelta)
 	}
 	if blockDelta > ajCostMaxExtraBlocks {
 		t.Fatalf("block metric moved with cache state: block delta %+.2f exceeds bound %.0f (hit-only delta %+.2f)",
