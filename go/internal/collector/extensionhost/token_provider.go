@@ -26,7 +26,7 @@ import (
 // the top-level config object, not a bare string, so optional fields can be
 // added later without a breaking change. The satellite must reject a missing
 // key, an empty token, or a scope_id mismatch terminal.
-const HostMintedGitHubTokenKey = "host_github_app_token"
+const HostMintedGitHubTokenKey = "host_github_app_token" // #nosec G101 -- names the stdio config key, not a credential value; no secret material here
 
 // TokenProvider mints one GitHub App installation token for a claimed work
 // item. The host owns the App credentials: implementations close over the App
