@@ -59,8 +59,10 @@ status class, fact kind, and partial reason.
   scope-mismatched file fails the claim as bounded terminal `auth_denied`,
   and a provider-refused value (expired installation token) classifies the
   same way instead of burning the claim's attempt budget. A bare 403 with
-  no rate-limit headers is treated as `auth_denied` and eats one claim;
-  the next claim re-resolves and recovers.
+  no rate-limit headers on the runs fetch is treated as `auth_denied` and
+  fails the claim without burning its attempt budget; the next claim
+  re-resolves the file and recovers once the host has refreshed it (a
+  persistent permissions 403 repeats as `auth_denied`).
 - `allowed_repositories`, `max_runs`, `max_jobs`, and `max_artifacts` bound the
   provider read shape.
 - Heartbeat interval must be shorter than the claim lease TTL.
