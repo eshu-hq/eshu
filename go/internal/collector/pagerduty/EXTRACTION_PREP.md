@@ -65,8 +65,8 @@ while `more:true` remained — never on natural exhaustion.
 
 ## 2. Fact kinds and versions
 
-All 6 kinds are `1.0.0` (`IncidentContextSchemaVersionV1`,
-`go/internal/facts/incident/context.go:26`):
+All 6 kinds are `1.0.0` (`IncidentContextSchemaVersionV1` in
+`go/internal/facts/incident/context.go`):
 
 | Kind | Constructor | Producer record |
 | --- | --- | --- |

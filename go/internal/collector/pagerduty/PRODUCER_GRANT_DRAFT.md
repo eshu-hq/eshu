@@ -11,8 +11,8 @@ retraction; this grant authorizes emission only.
 - Producer: `dev.eshu.collector.pagerduty`
 - Version: `0.1.0` (collector artifact version at cutover)
 - Scope: `pagerduty`
-- Kinds (`1.0.0` each, `go/internal/facts/incident/context.go:76` and
-  `routing.go:87`):
+- Kinds (`1.0.0` each; producer records in
+  `go/internal/facts/incident/context.go` and `routing.go`):
   `incident.record`, `incident.lifecycle_event`, `change.record`,
   `incident_routing.coverage_warning`,
   `incident_routing.observed_pagerduty_service`,

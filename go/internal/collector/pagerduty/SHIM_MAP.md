@@ -47,7 +47,8 @@ a claim it did not `.Claim()` as foreign and never write for it.
 ## 2. The 6 `incident` / `incident_routing` kinds at `1.0.0` → SDK `FactDeclaration`
 
 One declaration per kind, each `schema_versions: ["1.0.0"]`
-(`go/internal/facts/incident/context.go:76`, `routing.go:87`):
+(producer records in `go/internal/facts/incident/context.go` and
+`routing.go`):
 
 ```json
 [
