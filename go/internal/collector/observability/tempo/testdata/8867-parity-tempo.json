@@ -1,0 +1,150 @@
+[
+  {
+    "FactID": "d377190aa0edc04eacd4a2f667026d0ae31be1c732a7f95c77f65b16788b9f4e",
+    "ScopeID": "tempo:parity:prod",
+    "GenerationID": "tempo:8867:prod:1",
+    "FactKind": "observability.source_instance",
+    "StableFactKey": "observability.source_instance:tempo:8867:prod:1:bb5bc634e694a23957399a05a508ae1386bec194cefb12d3a64eed308e784d41",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "tempo",
+    "FencingToken": 7,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-10-01T12:00:00Z",
+    "Payload": {
+      "collector_instance_id": "collector-tempo-parity",
+      "freshness_state": "current",
+      "generation_id": "tempo:8867:prod:1",
+      "high_cardinality_rejected": 0,
+      "observed_at": "2026-10-01T12:00:00Z",
+      "outcome": "observed",
+      "pages_fetched": 3,
+      "partial": false,
+      "provenance": {
+        "provider": "tempo",
+        "scope_id": "tempo:parity:prod",
+        "source_instance_id": "tempo-parity"
+      },
+      "provider": "tempo",
+      "redaction_applied": true,
+      "redaction_policy_version": "observability-live-tempo-v1",
+      "redaction_version": "observability-live-tempo-v1",
+      "resource_count": 2,
+      "scope_id": "tempo:parity:prod",
+      "source_class": "observed",
+      "source_instance_id": "tempo-parity",
+      "source_kind": "tempo",
+      "warning_count": 0
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "tempo",
+      "ScopeID": "tempo:parity:prod",
+      "GenerationID": "tempo:8867:prod:1",
+      "FactKey": "observability.source_instance:tempo:8867:prod:1:bb5bc634e694a23957399a05a508ae1386bec194cefb12d3a64eed308e784d41",
+      "SourceURI": "",
+      "SourceRecordID": "tempo-parity"
+    }
+  },
+  {
+    "FactID": "49411917ccb6b2360aa170931676da0316cbcba38292fe7a32077bf071b45dca",
+    "ScopeID": "tempo:parity:prod",
+    "GenerationID": "tempo:8867:prod:1",
+    "FactKind": "observability.observed_trace_signal",
+    "StableFactKey": "observability.observed_trace_signal:tempo:8867:prod:1:bcc39d4aa7007f4a4fa3b3188077afa4be82a73d5dc0c9f60dda965be5e31311",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "tempo",
+    "FencingToken": 7,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-10-01T12:00:00Z",
+    "Payload": {
+      "collector_instance_id": "collector-tempo-parity",
+      "declared_match_state": "not_compared",
+      "freshness_state": "current",
+      "generation_id": "tempo:8867:prod:1",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "outcome": "observed",
+      "provenance": {
+        "provider": "tempo",
+        "scope_id": "tempo:parity:prod",
+        "source_instance_id": "tempo-parity"
+      },
+      "provider": "tempo",
+      "provider_object_uid": "bfa8f4a1e3211244788a9fe7baf45e7500defc1f0c0ac2033618445548bc5f09",
+      "redaction_applied": true,
+      "redaction_policy_version": "observability-live-tempo-v1",
+      "redaction_version": "observability-live-tempo-v1",
+      "resource_class": "trace_signal",
+      "scope_id": "tempo:parity:prod",
+      "signal_kind": "tag_set",
+      "source_class": "observed",
+      "source_instance_id": "tempo-parity",
+      "source_kind": "tempo",
+      "tag_keys": [
+        "resource.service.name",
+        "service.name",
+        "span.http.route"
+      ]
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "tempo",
+      "ScopeID": "tempo:parity:prod",
+      "GenerationID": "tempo:8867:prod:1",
+      "FactKey": "observability.observed_trace_signal:tempo:8867:prod:1:bcc39d4aa7007f4a4fa3b3188077afa4be82a73d5dc0c9f60dda965be5e31311",
+      "SourceURI": "",
+      "SourceRecordID": "bfa8f4a1e3211244788a9fe7baf45e7500defc1f0c0ac2033618445548bc5f09"
+    }
+  },
+  {
+    "FactID": "7fefea88b1b8acc3c0fa9dac1e01150405ca8351e40f6949c72ce48d595ef6e4",
+    "ScopeID": "tempo:parity:prod",
+    "GenerationID": "tempo:8867:prod:1",
+    "FactKind": "observability.observed_trace_signal",
+    "StableFactKey": "observability.observed_trace_signal:tempo:8867:prod:1:4016de034dfe562e0ea2e55165d0af4b82a65603688c21477bf223de83bf0196",
+    "SchemaVersion": "1.0.0",
+    "CollectorKind": "tempo",
+    "FencingToken": 7,
+    "SourceConfidence": "reported",
+    "ObservedAt": "2026-10-01T12:00:00Z",
+    "Payload": {
+      "collector_instance_id": "collector-tempo-parity",
+      "declared_match_state": "not_compared",
+      "freshness_state": "current",
+      "generation_id": "tempo:8867:prod:1",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "outcome": "observed",
+      "provenance": {
+        "provider": "tempo",
+        "scope_id": "tempo:parity:prod",
+        "source_instance_id": "tempo-parity"
+      },
+      "provider": "tempo",
+      "provider_object_uid": "130b0a3e9ff39af9a9581bfb6d0a9bb7f61ab6b4584d090ca706202fb7c2f343",
+      "redaction_applied": true,
+      "redaction_policy_version": "observability-live-tempo-v1",
+      "redaction_version": "observability-live-tempo-v1",
+      "resource_class": "trace_signal",
+      "scope_id": "tempo:parity:prod",
+      "signal_kind": "tag_values",
+      "source_class": "observed",
+      "source_instance_id": "tempo-parity",
+      "source_kind": "tempo",
+      "tag_name": "resource.service.name",
+      "tag_scope": "resource",
+      "tag_value_count": 2,
+      "tag_value_hashes": [
+        "0c95c7ece1ce1a9750275ef1c6d7ad6b278f70d66592207783ffe7d58474cc01",
+        "c7761e58969f7edd498186641b2021e8477e1bcd230de4cf3435242da4a40d14"
+      ]
+    },
+    "IsTombstone": false,
+    "SourceRef": {
+      "SourceSystem": "tempo",
+      "ScopeID": "tempo:parity:prod",
+      "GenerationID": "tempo:8867:prod:1",
+      "FactKey": "observability.observed_trace_signal:tempo:8867:prod:1:4016de034dfe562e0ea2e55165d0af4b82a65603688c21477bf223de83bf0196",
+      "SourceURI": "",
+      "SourceRecordID": "130b0a3e9ff39af9a9581bfb6d0a9bb7f61ab6b4584d090ca706202fb7c2f343"
+    }
+  }
+]
