@@ -1,0 +1,14 @@
+go/internal/component/grant_decision.go
+  h_78a442cba0b3e6 191-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "671cf806f6ab32369da13f4237d09e1c51e402e5",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
