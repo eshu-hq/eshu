@@ -140,13 +140,14 @@ func decidedBelowConditions(n int) []string {
 // The absent-version test is `coalesce(part, -1) = -1`, not a bare
 // `part IS NULL`. Version parts are non-negative or absent by the version
 // parser and fact contract (digits-only, Atoi-or-reject; single producer),
-// so the two forms decide exactly the same rows on canonical Neo4j, while the bare
-// IS NULL form matches nodes whose version part is present on NornicDB
-// (golden-corpus differential 2026-10-26: identical write sets and identical
-// bounded reads, yet the IS NULL excluded count returned a row on NornicDB
-// and zero rows on Neo4j in both pairings). The -1 sentinel keeps the test
-// a pure scalar comparison; the sargable `part = $below_N` conjuncts beside
-// it keep their index seeks.
+// so the two forms are canonically equivalent; the observed divergence
+// reproduces under BOTH forms (golden-corpus differential 2026-10-26:
+// identical write sets and identical bounded reads, yet the excluded count
+// differed by backend in both pairings, with an identical nornicdb digest
+// 7f5e5 across the IS NULL and coalesce forms). Divergence is filed as
+// eshu-hq/eshu#9145. The -1 sentinel keeps the test a pure scalar
+// comparison; the sargable `part = $below_N` conjuncts beside it keep their
+// index seeks.
 func undecidedConditions(n int) []string {
 	conds := []string{"coalesce(d.version_major, -1) = -1"}
 	if n >= 2 {
