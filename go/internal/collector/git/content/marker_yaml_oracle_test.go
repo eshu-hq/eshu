@@ -136,6 +136,11 @@ var oracleFragments = []string{
 	// one too) while yaml.v3 rejects all three, so they compose the same
 	// fail-closed shape through the widened directive arm.
 	"\uFEFF%YAML 1.2", "\t%YAML 1.2", "%YAML1.2",
+	// Letter-suffixed and reserved directive variants: js-yaml 4.1.1 reads
+	// each as a directive (PyYAML 6.0.3 reads a subset) while yaml.v3 rejects
+	// each, so they compose the same fail-closed shape through the
+	// any-directive arm.
+	"%YAMLx", "%FOO",
 }
 
 // randomOracleBody joins random fragments, numbering each planted token so the

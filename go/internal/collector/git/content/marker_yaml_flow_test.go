@@ -26,6 +26,10 @@ const flowSeedToken = "Zq19FlowSeedAAAAAAAA"
 // The BOM-prefixed, tab-indented, and unspaced ("%YAML1.2") directive
 // variants decode it in js-yaml 4.1.1 only (PyYAML reads the BOM-prefixed
 // one too); yaml.v3 rejects each, so only the lexical fallback covers them.
+// The letter-suffixed ("%YAMLx", "%YAMLé", "%YAMLL") and reserved ("%FOO",
+// "%YAM", "%ABC", "%x", "%%YAML") directive variants decode it in js-yaml
+// 4.1.1 (PyYAML reads a subset) while yaml.v3 rejects each, so the same
+// fallback covers them through the any-directive arm.
 // The anchor-with-quoted-value-on-the-next-line bodies decode it in all
 // three; yaml.v3 reports the scalar at the anchor, so only the forward
 // placement covers a "#" tail. The anchor-on-the-value and tag-on-the-value
@@ -110,6 +114,10 @@ var flowHostileSeeds = map[string]string{
 	"tab-indented directive single-quoted continuation, closed low":          "\t%YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
 	"unspaced directive double-quoted continuation, closed low":              "%YAML1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
 	"unspaced directive single-quoted continuation, closed low":              "%YAML1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"letter-suffixed directive double-quoted continuation, closed low":       "%YAMLx\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"letter-suffixed directive single-quoted continuation, closed low":       "%YAMLx\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"reserved directive double-quoted continuation, closed low":              "%FOO\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"reserved directive single-quoted continuation, closed low":              "%FOO\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
 	"JSON key, quoted value folded":                                          "{\n  \"npmAuthToken\": \"ab\n{T}\"\n}\n",
 	"quoted scalar opened on the next line, closed at the key indent":        "npmAuthToken:\n  \"abcd\n{T}\"\n",
 	"single-quoted scalar opened on the next line, closed at the key indent": "npmAuthToken:\n  'abcd\n{T}'\n",
@@ -183,6 +191,10 @@ func TestRedactMarkerFlowShapesFailClosed(t *testing.T) {
 		"tab-indented directive single-quoted continuation, closed low",
 		"unspaced directive double-quoted continuation, closed low",
 		"unspaced directive single-quoted continuation, closed low",
+		"letter-suffixed directive double-quoted continuation, closed low",
+		"letter-suffixed directive single-quoted continuation, closed low",
+		"reserved directive double-quoted continuation, closed low",
+		"reserved directive single-quoted continuation, closed low",
 		"nested quoted scalar opened on the next line, closed low",
 		"URL key quoted scalar opened on the next line, closed low",
 		"anchor with double-quoted value on the next line, hash tail",
@@ -279,18 +291,39 @@ func TestRedactMarkerVersionDirectiveQuotedContinuationFailsClosed(t *testing.T)
 // silent) yet read by js-yaml 4.1.1 — a BOM-prefixed directive (PyYAML 6.0.3
 // reads it too), a tab-indented directive, and "%YAML1.2" with no space — so a
 // quoted scalar opened after a bare listed key and closed at the key's indent
-// stored its tail in the clear until the directive arm widened to them. Each
-// of the three shapes must fail closed in both quote styles.
+// stored its tail in the clear until the directive arm widened to them. The
+// residual P1 adds eight "%"-directive spellings yaml.v3 rejects (unknown
+// directive name / expected directive name) yet js-yaml 4.1.1 reads while
+// PyYAML 6.0.3 reads a subset: a letter-suffixed "%YAML" ("%YAMLx", "%YAMLé",
+// "%YAMLL"), a truncated or generic name ("%YAM", "%FOO", "%ABC", "%x"), and a
+// doubled percent ("%%YAML"). Each of all shapes must fail closed in both
+// quote styles.
 func TestRedactMarkerVersionDirectiveVariantQuotedContinuationFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	for name, body := range map[string]string{
-		"BOM-prefixed double-quoted": "\uFEFF%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
-		"BOM-prefixed single-quoted": "\uFEFF%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
-		"tab-indented double-quoted": "\t%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
-		"tab-indented single-quoted": "\t%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
-		"unspaced double-quoted":     "%YAML1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
-		"unspaced single-quoted":     "%YAML1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"BOM-prefixed double-quoted":          "\uFEFF%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"BOM-prefixed single-quoted":          "\uFEFF%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"tab-indented double-quoted":          "\t%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"tab-indented single-quoted":          "\t%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"unspaced double-quoted":              "%YAML1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"unspaced single-quoted":              "%YAML1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"letter-suffixed YAMLx double-quoted": "%YAMLx\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"letter-suffixed YAMLx single-quoted": "%YAMLx\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"letter-suffixed YAMLé double-quoted": "%YAMLé\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"letter-suffixed YAMLé single-quoted": "%YAMLé\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"reserved FOO double-quoted":          "%FOO\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"reserved FOO single-quoted":          "%FOO\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"truncated YAM double-quoted":         "%YAM\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"truncated YAM single-quoted":         "%YAM\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"long YAMLL double-quoted":            "%YAMLL\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"long YAMLL single-quoted":            "%YAMLL\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"doubled percent double-quoted":       "%%YAML\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"doubled percent single-quoted":       "%%YAML\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"reserved ABC double-quoted":          "%ABC\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"reserved ABC single-quoted":          "%ABC\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"single-letter x double-quoted":       "%x\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"single-letter x single-quoted":       "%x\n---\nnpmAuthToken:\n  'abc\ndef'\n",
 	} {
 		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
 		if !errors.Is(err, errYAMLIndirection) {
