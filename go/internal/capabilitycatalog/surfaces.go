@@ -12,7 +12,8 @@ import (
 // SurfaceCategory classifies one of the six platform surface families the
 // generated surface inventory tracks. Every category is enumerable from live
 // code, specs, or the source tree so the inventory is generated, never
-// hand-maintained.
+// hand-maintained. The inventory is regenerated from those sources, so the
+// tracked set cannot drift from the code.
 type SurfaceCategory string
 
 const (
