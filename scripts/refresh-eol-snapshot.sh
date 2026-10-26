@@ -15,9 +15,14 @@ mkdir -p "${snapshot_dir}"
 command -v curl >/dev/null 2>&1 || { printf 'refresh-eol-snapshot: missing curl\n' >&2; exit 1; }
 
 for slug in nodejs go python ruby php rust terraform dotnet; do
-	curl -sS --max-time 60 "https://endoflife.date/api/${slug}.json" -o "${snapshot_dir}/${slug}.json"
+	curl -sS --fail --max-time 60 "https://endoflife.date/api/${slug}.json" -o "${snapshot_dir}/${slug}.json"
 done
 date -u +%F > "${snapshot_dir}/snapshot_date"
+
+# Validate the fetched snapshot through the same ParseSnapshot seam the read
+# path uses: the package tests load the vendored files, so a bad fetch fails
+# here before it is committed.
+(cd "${repo_root}/go" && go test ./internal/eol/)
 
 printf 'refresh-eol-snapshot: wrote %s (%s, %s total)\n' \
 	"${snapshot_dir}" "$(cat "${snapshot_dir}/snapshot_date")" \

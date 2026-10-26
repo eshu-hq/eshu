@@ -70,13 +70,14 @@ data as supported (unknown by construction).
 
 No-Observability-Change: the package performs no projection, queue write,
 retry, storage call, graph work, or network I/O and emits no metric, span,
-or log of its own; coverage is recorded in
-docs/public/observability/telemetry-coverage.md (eol snapshot join row).
-When a read path wires the join in, that surface owns its signals.
+or log of its own, so no telemetry-coverage.md row covers it: there is no
+stage to enumerate. When a read path wires the join in, that surface owns
+its signals.
 
 ## Snapshot refresh
 
 `scripts/refresh-eol-snapshot.sh` re-fetches the eight product files, writes
-`snapshot_date`, and prints the size for the PR description. The refresh
-opens as a normal PR so review sees the data diff. Query code reads only the
-vendored files, so offline deployments behave identically modulo staleness.
+`snapshot_date`, runs the package tests to validate the fetch, and prints
+the size for the PR description. The refresh opens as a normal PR so review
+sees the data diff. Query code reads only the vendored files, so offline
+deployments behave identically modulo staleness.
