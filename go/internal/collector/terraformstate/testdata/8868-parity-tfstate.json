@@ -1,0 +1,80 @@
+{
+  "cutover_issue": 8868,
+  "description": "Representative Terraform state inputs for the #4047 in-tree vs external parity comparison. The extracted producer must emit the same kinds, stable keys, payload bytes, scope, and generation for these inputs. Retries with the same generation stay byte-identical; FactID values rotate by construction only across generations (host-built envelope).",
+  "parent_scope_id": "repo-scope-123",
+  "backend_kind": "s3",
+  "locator": "s3://tfstate-prod/services/api/terraform.tfstate",
+  "serial": 17,
+  "lineage": "lineage-123",
+  "observed_at": "2026-10-20T13:00:00Z",
+  "fencing_token": 42,
+  "collector_instance_id": "tfstate-primary",
+  "source_warnings": [
+    {
+      "warning_kind": "state_in_vcs",
+      "reason": "approved_local",
+      "source": "git_local_file"
+    }
+  ],
+  "state": {
+    "format_version": "1.0",
+    "terraform_version": "1.9.8",
+    "serial": 17,
+    "lineage": "lineage-123",
+    "outputs": {
+      "db_password": {
+        "sensitive": true,
+        "value": "super-secret-output"
+      },
+      "endpoint": {
+        "sensitive": false,
+        "value": "db.example.local"
+      }
+    },
+    "resources": [
+      {
+        "mode": "managed",
+        "type": "aws_db_instance",
+        "name": "main",
+        "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+        "instances": [
+          {
+            "attributes": {
+              "arn": "arn:aws:rds:us-east-1:123456789012:db:main",
+              "password": "plain-db-password",
+              "tags": {
+                "Name": "main-db",
+                "env": "prod"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "mode": "managed",
+        "type": "aws_subnet",
+        "name": "a",
+        "module": "module.vpc",
+        "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+        "instances": [
+          {
+            "attributes": {
+              "id": "subnet-12345"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "hostile": {
+    "secret_output_value": "super-secret-output",
+    "secret_attribute_value": "plain-db-password",
+    "truncated_body": "{\"resources\":[",
+    "trailing_body": "{\"serial\":17,\"lineage\":\"lineage-123\"} trailing-garbage",
+    "array_root_body": "[]",
+    "wrong_serial": 18,
+    "wrong_lineage": "lineage-999",
+    "blank_locator": "",
+    "unsupported_backend": "gcs"
+  }
+}
