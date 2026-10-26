@@ -699,6 +699,11 @@ tests:
     class: postgres_ci
     reason: "#8833 disposable PostgreSQL proof of the operator cleanup on docs/public/deployment/credential-file-cleanup.md, run from the page's SQL fences: the census counts every pre-watermark raw copy (files, entities, references, active search documents and fact payloads, orphans, a NULL-generation row), statement L lists the repositories, one guarded pass zeroes every exit column and the raw-rows gauge, a second pass touches nothing, post-watermark rows, superseded generations, and non-matching paths survive, and the production active-document read returns no seeded context text; isolated bootstrapped schema per test"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/credential_cleanup_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 disposable PostgreSQL concurrency proof that the operator cleanup's files, entities, and references statements (run from docs/public/deployment/credential-file-cleanup.md) interleaved with the production ContentWriter rewriting the same paths under a post-watermark generation never leave a post-watermark row blank: either the writer commits first and the guard skips the row, or the purge locks first and the writer's later upsert overwrites the blank; 40 randomized iterations, no deadlock; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/dead_letter_recovery_lock_order_live_test.go
     tag: ~
     class: postgres_ci
