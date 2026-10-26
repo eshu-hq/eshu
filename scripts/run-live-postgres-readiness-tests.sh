@@ -180,7 +180,9 @@ while IFS=$'\t' read -r package pattern tests; do
     else
       printf 'live-postgres-readiness: %s: WARNING: debug preservation failed, continuing\n' "${package}" >&2
     fi
-    failed_packages+=("${package}")
+    # A split package occupies several rows, so name it once even when
+    # several of its chunks fail.
+    [[ " ${failed_packages[*]} " == *" ${package} "* ]] || failed_packages+=("${package}")
   fi
   if [[ "${shard}" != "all" ]]; then
     if [[ "${go_status}" -ne 0 || "${results_status}" -ne 0 ]]; then

@@ -20,8 +20,8 @@ fail() { printf 'test-run-live-postgres-readiness-tests: %s\n' "$*" >&2; exit 1;
 
 mkdir -p "${seed_dir}/bin" "${seed_dir}/fake"
 fake="${seed_dir}/fake"
-# The fake go selects its events by package path, checks the -run pattern
-# names every expected test of that package, and checks the opt-in env.
+# The fake go selects its events by package path, emitting only the -run
+# pattern's tests (plus their subtests), and checks the opt-in env.
 cat >"${seed_dir}/bin/go" <<'EOF'
 #!/usr/bin/env bash
 [[ "$*" == *"-json"* ]] || { echo 'missing -json' >&2; exit 9; }
@@ -33,11 +33,10 @@ EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
 while [[ $# -gt 0 ]]; do [[ "$1" == -run ]] && pattern="$2"; shift; done
 [[ -n "${pattern:-}" ]] || { echo 'missing -run' >&2; exit 9; }
-printf '%s\n' "${pkg}" >>"${ESHU_FAKE_DIR}/calls"
-while read -r name; do
-  [[ "${name}" =~ ${pattern} ]] || { echo "pattern misses test ${name}" >&2; exit 9; }
-done <"${ESHU_FAKE_DIR}/${key}.names"
-[[ "TestZzzDecoyNotEnrolled" =~ ${pattern} ]] && { echo 'pattern is not anchored' >&2; exit 9; }
+printf '%s\n' "${pkg}" >>"${ESHU_FAKE_DIR}/calls"; declare -A enrolled; matched=0
+while read -r name; do enrolled[$name]=1; [[ $name =~ $pattern ]] && matched=1; done <"${ESHU_FAKE_DIR}/${key}.names"
+[[ "$matched" -eq 1 ]] || { echo 'pattern matched nothing' >&2; exit 9; }
+[[ "TestZzzDecoyNotEnrolled" =~ $pattern ]] && { echo 'pattern is not anchored' >&2; exit 9; }
 EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
 while read -r var; do
@@ -56,7 +55,8 @@ cat >>"${seed_dir}/bin/go" <<'EOF'
 done <"${ESHU_FAKE_DIR}/envs"
 EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
-cat "${ESHU_FAKE_DIR}/${key}.jsonl"
+while IFS= read -r line; do t="${line#*\"Test\":\"}"; t="${t%%\"*}"
+[[ "$line" == "$t" || "$t" =~ $pattern || "$t" == */* && "${t%%/*}" =~ $pattern || -z "${enrolled[$t]:-}" ]] && printf '%s\n' "$line"; done <"${ESHU_FAKE_DIR}/${key}.jsonl"
 if [[ -f "${ESHU_FAKE_DIR}/${key}.exit" ]]; then exit "$(cat "${ESHU_FAKE_DIR}/${key}.exit")"; fi
 exit 0
 EOF

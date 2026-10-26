@@ -29,6 +29,8 @@ SPEC.loader.exec_module(shards)
 sys.path.insert(0, str(LIB))
 from live_postgres_readiness_balance_cases import (  # noqa: E402,F401
     BalanceContractTest, RefreshTest)
+import live_postgres_readiness_row_split as row_split  # noqa: E402
+import live_postgres_readiness_weights as wt  # noqa: E402
 
 HEAD = "a" * 40
 
@@ -186,6 +188,80 @@ class ShardContractTest(unittest.TestCase):
             self.invoke("plan", "--shard", "0/4", input_text=self.full_tsv_text).returncode, 0)
         self.assertNotEqual(
             self.invoke("plan", "--shard", "1/4", input_text="bad\trow\n").returncode, 0)
+
+    def over_budget_weights(self, runs: list[str], seconds: float) -> "wt.Weights":
+        import live_postgres_readiness_weights as weights_lib
+        return weights_lib.Weights(
+            source_runs=(), fixed=0, cold=0, default_test=10, default_package=0,
+            package={}, test={line: int(seconds * 10) for line in runs})
+
+    def test_over_budget_package_row_splits_with_union_and_order(self) -> None:
+        runs = [run("./internal/storage/postgres", f"TestHeavy{letter}Live")
+                for letter in "ABCD"]
+        weights = self.over_budget_weights(runs, 300.0)
+        rows = shards.subset_tsv(runs, "all", weights)
+        self.assertEqual(len(rows), 2)
+        flat: list[str] = []
+        for row in rows:
+            package, pattern, names = row.split("\t")
+            tests = names.split(" ")
+            self.assertEqual(package, "./internal/storage/postgres")
+            self.assertEqual(pattern, f"^({'|'.join(tests)})$")
+            flat.extend(f"{package}|{test}" for test in tests)
+        self.assertEqual(flat, runs)
+
+    def test_under_budget_package_stays_single_row(self) -> None:
+        runs = [run("./internal/query", f"TestLight{letter}Live") for letter in "ABCD"]
+        weights = self.over_budget_weights(runs, 1.0)
+        rows = shards.subset_tsv(runs, "all", weights)
+        self.assertEqual(len(rows), 1)
+
+    def test_single_over_budget_test_stays_whole(self) -> None:
+        runs = [run("./internal/query", "TestGiantLive")]
+        weights = self.over_budget_weights(runs, 1000.0)
+        rows = shards.subset_tsv(runs, "all", weights)
+        self.assertEqual(len(rows), 1)
+
+    def test_live_shard_three_four_postgres_row_splits(self) -> None:
+        import live_postgres_readiness_weights as weights_lib
+        weights = weights_lib.load_weights()
+        rows = self.invoke("plan", "--shard", "3/4",
+                           input_text=self.full_tsv_text)
+        self.assertEqual(rows.returncode, 0, rows.stderr)
+        postgres = [row for row in rows.stdout.splitlines()
+                    if row.startswith("./internal/storage/postgres\t")]
+        self.assertGreaterEqual(len(postgres), 2)
+        flat = [f"{row.split(chr(9))[0]}|{test}"
+                for row in postgres for test in row.split(chr(9))[2].split(" ")]
+        expected = shards.partition_runs(self.flat, "3/4")
+        self.assertCountEqual(flat, expected)
+        self.assertEqual(flat, expected)
+        for row in postgres:
+            tests = row.split(chr(9))[2].split(" ")
+            lines = [f"./internal/storage/postgres|{test}" for test in tests]
+            self.assertLessEqual(
+                row_split.group_cost_tenths(lines, weights),
+                row_split.ROW_BUDGET_TENTHS)
+
+    def test_report_accepts_split_package_manifest(self) -> None:
+        result = self.invoke("plan", "--shard", "3/4",
+                             input_text=self.full_tsv_text)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = result.stdout.splitlines()
+        self.assertGreater(len(rows), 1)
+        manifest = self.directory / "manifest-split.tsv"
+        manifest.write_text("".join(
+            f"{row.split(chr(9))[0]}|0|{row.split(chr(9))[2].replace(' ', ',')}\n"
+            for row in rows), encoding="utf-8")
+        report_path = self.directory / "split-report.json"
+        result = self.invoke("report", "--head", HEAD, "--shard", "3/4",
+                             "--plan", str(self.write_full_tsv()),
+                             "--manifest", str(manifest),
+                             "--output", str(report_path))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertTrue(report["ok"], report.get("errors"))
+        self.assertEqual(report["observed_count"], report["expected_count"])
 
     def test_report_and_verify_green(self) -> None:
         reports = self.good_reports()
