@@ -70,6 +70,28 @@ The narrow window between the lock statement's snapshot and its row lock is
 not forced here without editing the page's SQL. The #8813 purge page's measured
 `pg_sleep` race covers that window.
 
+`TestCredentialCleanupPurgeABRacesTheSearchDocumentWriterLive` (#9166) runs
+statements A and B while the writer upserts the same paths' search documents,
+terms, and facts under a post-watermark generation and flips the scope's active
+generation to it. It runs 16 iterations with the start order alternating: even
+iterations sleep the writer 250 ms past the purge (purge-first), odd iterations
+sleep the purge past the writer (writer-first). The order is verified from
+commit timestamps, not assumed from the sleeps.
+
+- Both orders occur in every run; the test fails if one order never runs. The
+  measured run split 8 purge-first against 8 writer-first.
+- In every iteration each rebuilt document, term, and fact survives, the
+  scope's active generation is the rebuilt one, and a purge-first pass deletes
+  the pre-watermark documents and facts while a writer-first pass touches
+  nothing. No deadlock occurred.
+
+`TestCredentialCleanupPurgeABGuardRemovalDeletesRebuiltLive` is the RED check
+for that proof: the same writer-first setup run through A and B with the
+`g.ingested_at < w` generation guard stripped deletes the just-rebuilt active
+documents and facts, while the guarded statements spare them and leave the
+inactive pre-watermark copies alone. If the unguarded statements spared the
+rebuilt rows, the race proof above would be vacuous and this test fails.
+
 `TestCredentialCleanupSearchFactKindOwnsNoKeySidecar` pins the premise of
 statement B: `reducer_eshu_search_document` owns no key sidecar rows.
 
