@@ -9,7 +9,10 @@ carries a connection's choice through a request context.
   and `structuredContent`. This is the layout Eshu sent before `Structured`
   existed.
 - `Structured`: one text summary and `structuredContent`. A tool result's
-  payload crosses the wire once and no embedded resource is sent.
+  payload crosses the wire once and no embedded resource is sent. Successful
+  non-object values are wrapped as `structuredContent.value` with result-level
+  `_meta.eshu/nonObjectEncoding` (`json` or `text`); plain objects and
+  canonical envelopes stay unwrapped.
 
 ## Ownership boundary
 

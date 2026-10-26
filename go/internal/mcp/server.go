@@ -75,9 +75,10 @@ type mcpToolCallParams struct {
 }
 
 type mcpToolResult struct {
-	Content           []mcpContent `json:"content"`
-	StructuredContent any          `json:"structuredContent,omitempty"`
-	IsError           bool         `json:"isError,omitempty"`
+	Content           []mcpContent      `json:"content"`
+	StructuredContent any               `json:"structuredContent,omitempty"`
+	IsError           bool              `json:"isError,omitempty"`
+	Meta              map[string]string `json:"_meta,omitempty"`
 }
 
 type mcpContent struct {

@@ -13,10 +13,13 @@ import (
 )
 
 type dispatchResult struct {
-	Value    any
-	Envelope *query.ResponseEnvelope
-	IsError  bool
-	ToolName string
+	Value any
+	// NonObjectEncoding marks a structured-only non-object HTTP success. The
+	// renderer wraps Value in an object without mutating it.
+	NonObjectEncoding string
+	Envelope          *query.ResponseEnvelope
+	IsError           bool
+	ToolName          string
 	// ResourceOnly drops the structured copy of a dual-shape result whose two
 	// copies exceed the response budget. It is never set under the structured
 	// shape, which has no second copy to drop.
@@ -86,6 +89,14 @@ func renderToolResult(toolName string, result *dispatchResult) mcpToolResult {
 				}},
 			},
 			StructuredContent: structuredContent,
+			IsError:           result.IsError,
+		}
+	}
+	if structuredShape && result.NonObjectEncoding != "" {
+		return mcpToolResult{
+			Content:           []mcpContent{{Type: "text", Text: fmt.Sprintf("%s result is in structuredContent.value", toolName)}},
+			StructuredContent: map[string]any{"value": result.Value},
+			Meta:              map[string]string{"eshu/nonObjectEncoding": result.NonObjectEncoding},
 			IsError:           result.IsError,
 		}
 	}

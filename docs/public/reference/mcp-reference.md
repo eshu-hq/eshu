@@ -223,17 +223,18 @@ results (a `call_tool` that cannot route) are built by the router, not by tool
 dispatch. They carry the payload as compact JSON text and again as
 `structuredContent` in both shapes, and the shape does not change them.
 
-Where `structuredContent` is present it carries the same data in both shapes.
-Under `dual` it can be absent: when a result is too large to send both copies,
-the response budget drops `structuredContent` and keeps the resource (see the
-[response budget](telemetry/mcp-response-budget.md)). A client that reads
-`structuredContent` works unchanged on `structured`, where the budget never
-drops it. Two cases carry none under either shape: a tool whose route answers
-with a JSON `null` body, and an error that has only a text item (a non-2xx
-answer that is not an Eshu envelope, an unknown tool, or a route that cannot
-be built). Timeouts and cancellations still carry structured detail. Under
-`dual`, a client must also fall back to the resource's JSON `text` when the
-budget drops `structuredContent`.
+Canonical envelopes and plain JSON objects keep the same `structuredContent`
+in both shapes. In `structured`, a successful non-object JSON value (including
+`null`, arrays, numbers, booleans, and strings) becomes `{"value": <original>}`.
+Non-JSON UTF-8 text becomes `{"value": "<text>"}`. Result-level `_meta` sets
+`eshu/nonObjectEncoding` to `json` or `text` respectively. Its one text item
+points to `structuredContent.value`; no resource is sent. The JSON value keeps
+its numeric precision. A plain object with a `value` key stays unwrapped and
+unmarked. `dual` keeps its previous bytes, including omitted `structuredContent`
+for JSON `null`. Errors with only a text item carry none in either shape;
+timeouts and cancellations still carry structured detail. Under `dual`, a client
+must read the resource's JSON `text` when the
+[response budget](telemetry/mcp-response-budget.md) drops `structuredContent`.
 
 When the underlying HTTP route returns the canonical Eshu envelope, the
 machine-readable copies contain that envelope. The `dual` shape looks like
@@ -313,8 +314,8 @@ where it ran:
   `docs/internal/design/7206-mcp-response-budget-fallback.md`.
 - A manual run on the other documented clients.
 - One week with no over-budget increase on a hosted deployment.
-- The golden-corpus gate in `structured`. That run is pending: it needs a live
-  Docker stack and has not been run for this change. Run it with
+- The [pre-change structured golden run](https://github.com/eshu-hq/eshu/issues/8800#issuecomment-6408683313) at
+  `d41890a745afa25404932166cee70516bb09fcae` passed 629 cases. It must run again on the final wrapper head. Run it with
   `GATE_MCP_RESULT_SHAPE=structured ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`.
 - Four repository scripts that read only the embedded resource and would fail
   against a `structured` server: `scripts/lib/remote_e2e_target_story_common.sh`,
@@ -323,15 +324,9 @@ where it ran:
   `scripts/run-remote-e2e-component-extension.sh`. They run on `dual` today, so
   they are unaffected until a deployment or the default selects `structured`.
   Teach each one to read `structuredContent` first, then flip.
-- A body that is a JSON array or not JSON at all. `structuredContent` then
-  holds that array or a JSON string, but the MCP specification types
-  `structuredContent` as an object. Under `dual` the JSON resource still
-  carries the payload; under `structured` that non-object `structuredContent`
-  is the only machine copy. Decide how a strict client receives these results
-  before the default flips.
 
-When an HTTP route still returns plain JSON instead of the canonical envelope,
-MCP preserves the plain JSON payload in `structuredContent` and in an
+When an HTTP route returns a plain JSON object instead of the canonical
+envelope, MCP preserves that object in `structuredContent`; `dual` also sends an
 `application/json` resource:
 
 ```json

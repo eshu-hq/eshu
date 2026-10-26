@@ -145,29 +145,20 @@ func TestDispatchCallCounterOutcomeIgnoresResultShape(t *testing.T) {
 	}
 }
 
-// TestStructuredShapeOmitsStructuredContentForNullBodyAndTextOnlyErrors pins
-// the cases the docs name as exceptions to "structuredContent is sent": a JSON
-// null body and the errors that carry only a text item.
-func TestStructuredShapeOmitsStructuredContentForNullBodyAndTextOnlyErrors(t *testing.T) {
+// TestStructuredShapeKeepsNullAndTextOnlyErrors distinguishes a successful
+// JSON null from failures that have only a text item.
+func TestStructuredShapeKeepsNullAndTextOnlyErrors(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name    string
-		handler http.Handler
-	}{
-		{"JSON null body", fixedBodyHandler(http.StatusOK, "null")},
-		{"non-envelope HTTP failure", fixedBodyHandler(http.StatusInternalServerError, "boom")},
+	null := callShapedTool(t, fixedBodyHandler(http.StatusOK, "null"), resultshape.Structured)
+	if len(null.Content) != 1 || null.Content[0].Type != "text" || null.StructuredContent == nil {
+		t.Fatalf("null result = %#v, want one text item and structuredContent", null)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result := callShapedTool(t, tc.handler, resultshape.Structured)
-			if len(result.Content) != 1 || result.Content[0].Type != "text" {
-				t.Fatalf("content = %#v, want exactly one text item", result.Content)
-			}
-			if result.StructuredContent != nil {
-				t.Fatalf("StructuredContent = %#v, want none", result.StructuredContent)
-			}
-		})
+	if got := string(marshalForCompare(t, null.StructuredContent)); got != `{"value":null}` {
+		t.Fatalf("null structuredContent = %s, want wrapped null", got)
+	}
+	failed := callShapedTool(t, fixedBodyHandler(http.StatusInternalServerError, "boom"), resultshape.Structured)
+	if len(failed.Content) != 1 || failed.Content[0].Type != "text" || failed.StructuredContent != nil || !failed.IsError {
+		t.Fatalf("non-envelope HTTP failure = %#v, want text-only error", failed)
 	}
 	unknown := NewServer(fixedBodyHandler(http.StatusOK, "{}"), discardDispatchLogger())
 	ctx := resultshape.WithOverride(context.Background(), resultshape.Structured)

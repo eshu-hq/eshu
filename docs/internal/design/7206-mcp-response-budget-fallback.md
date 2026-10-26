@@ -107,14 +107,15 @@ resource. This note records how that interacts with the budget.
   (it needs a two-client re-measurement within 1.1 times the one-copy rate, a
   scoring run that is not worse, a manual run on the other documented clients,
   a week of no over-budget increase on a hosted deployment, the golden-corpus
-  gate run once in `structured`, four scripts taught to read
-  `structuredContent`, and a decision on non-object bodies), and an
+  gate run on the final changed head, and four scripts taught to read
+  `structuredContent`), and an
   `initialize` reply that echoes a requested protocol version.
 - The token saving was measured only on the pre-change doubling. The
   post-change two-client re-measurement is pending, so no saving is claimed for
   the `structured` shape.
-- The golden-corpus gate in `structured` is pending. It needs a live Docker
-  stack, so it is not part of this change's local proof. Run it with
+- The [pre-change structured golden run](https://github.com/eshu-hq/eshu/issues/8800#issuecomment-6408683313) at
+  `d41890a745afa25404932166cee70516bb09fcae` passed 629 cases. It must run again on the final non-object wrapper
+  head before that result is evidence for this behavior. Run it with
   `GATE_MCP_RESULT_SHAPE=structured ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`.
 - Four scripts read only the embedded resource and fail against a `structured`
   server: `scripts/lib/remote_e2e_target_story_common.sh`,
@@ -123,12 +124,14 @@ resource. This note records how that interacts with the budget.
   `scripts/run-remote-e2e-component-extension.sh`. They run on `dual` today.
   Each must read `structuredContent` first before the default flips or a
   deployment sets `ESHU_MCP_RESULT_SHAPE=structured`.
-- A JSON array body or a non-JSON 2xx body becomes a non-object
-  `structuredContent` (an array or a JSON string), while the MCP specification
-  types `structuredContent` as an object. Under `dual` the resource still
-  carries the payload. Under `structured` the non-object `structuredContent` is
-  the only machine copy. Behavior is unchanged here; a decision is needed
-  before the default flips.
+- A successful non-object body under `structured` now uses the object
+  `structuredContent: {"value": ...}` and result-level `_meta` marker
+  `eshu/nonObjectEncoding: "json"` or `"text"`. JSON arrays, scalars, and
+  `null` retain their value, including full number precision; non-JSON UTF-8
+  text is escaped as a JSON string. The single text summary points to
+  `structuredContent.value`. Plain objects and canonical envelopes remain
+  unwrapped; `dual` is byte-compatible. The same renderer measures the wrapper,
+  marker, and summary against 262,144 bytes. The default remains `dual`.
 - `find_tool` results and router error results come from the router, not tool
   dispatch, and carry the payload as text and as `structuredContent` in both
   shapes. "Once on the wire" describes tool results only.

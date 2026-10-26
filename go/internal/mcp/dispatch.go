@@ -153,9 +153,34 @@ func runDispatch(
 		return nil, fmt.Errorf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}
 
+	// The structured MCP field is an object. Preserve non-object JSON as raw
+	// bytes so integers and exponent forms survive the HTTP-to-MCP boundary.
+	// Dual retains its historical decoding and wire layout.
+	if mode == resultshape.Structured {
+		body := bytes.TrimSpace(rec.Body.Bytes())
+		// Object-shaped answers take the existing single unmarshal below.
+		// Validate only non-object candidates before retaining raw JSON.
+		if len(body) == 0 || body[0] != '{' {
+			if !json.Valid(body) {
+				return applyResponseBudget(&dispatchResult{
+					Value: rec.Body.String(), NonObjectEncoding: "text", Shape: mode,
+				}, toolName, options.responseByteBudget, logger), nil
+			}
+			return applyResponseBudget(&dispatchResult{
+				Value: json.RawMessage(bytes.Clone(body)), NonObjectEncoding: "json", Shape: mode,
+			}, toolName, options.responseByteBudget, logger), nil
+		}
+	}
+
 	var result any
 	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
-		return applyResponseBudget(&dispatchResult{Value: rec.Body.String(), Shape: mode}, toolName, options.responseByteBudget, logger), nil
+		encoding := ""
+		if mode == resultshape.Structured {
+			encoding = "text"
+		}
+		return applyResponseBudget(&dispatchResult{
+			Value: rec.Body.String(), NonObjectEncoding: encoding, Shape: mode,
+		}, toolName, options.responseByteBudget, logger), nil
 	}
 	return applyResponseBudget(&dispatchResult{Value: result, Shape: mode}, toolName, options.responseByteBudget, logger), nil
 }
