@@ -147,6 +147,8 @@ TABLE = {
         ),
         "go/internal/storage/postgres/credential_cleanup_race_live_test.go": (
             "TestCredentialCleanupPurgeRacesTheContentWriterLive",
+            "TestCredentialCleanupPurgeABRacesTheSearchDocumentWriterLive",
+            "TestCredentialCleanupPurgeABGuardRemovalDeletesRebuiltLive",
         ),
         "go/internal/storage/postgres/dead_letter_recovery_lock_order_live_test.go": (
             "TestPoisonRecoveryHeldRowRaceLive",
