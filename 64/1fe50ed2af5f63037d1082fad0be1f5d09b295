@@ -1,0 +1,26 @@
+go/cmd/collector-loki/extraction_prep_mirror_test.go
+  h_78a442cba0b3e6 1-126
+go/internal/collector/observability/loki/EXTRACTION_PREP.md
+  h_78a442cba0b3e6 1-172
+go/internal/collector/observability/loki/PRODUCER_GRANT_DRAFT.md
+  h_78a442cba0b3e6 1-70
+go/internal/collector/observability/loki/ROLLBACK_DRAFT.md
+  h_78a442cba0b3e6 1-74
+go/internal/collector/observability/loki/SHIM_MAP.md
+  h_78a442cba0b3e6 1-119
+go/internal/collector/observability/loki/source_parity_8860_test.go
+  h_78a442cba0b3e6 1-359
+go/internal/collector/observability/loki/testdata/8860-parity-loki.json
+  h_78a442cba0b3e6 1-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "641fe50ed2af5f63037d1082fad0be1f5d09b295",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
