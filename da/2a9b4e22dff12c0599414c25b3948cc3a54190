@@ -1,0 +1,16 @@
+scripts/e2e_readback_parity.sh
+  h_78a442cba0b3e6 22
+scripts/test-e2e-readback-parity.sh
+  h_78a442cba0b3e6 55-56,91,113-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "da2a9b4e22dff12c0599414c25b3948cc3a54190",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
