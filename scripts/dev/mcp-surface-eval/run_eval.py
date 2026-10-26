@@ -224,6 +224,36 @@ def check_bindings_path(path: pathlib.Path) -> None:
             "private question text, so keep it outside the checkout")
 
 
+def existing_result_shape(path: pathlib.Path, client: str) -> str:
+    """Reads a prior result's shape without trusting its file or metadata.
+
+    Args:
+        path: Existing result file that the run would overwrite.
+        client: Client expected in that file's metadata.
+
+    Returns:
+        The recorded shape, or ``server_default`` for a legacy result.
+
+    Raises:
+        SystemExit: If the file cannot be read or its envelope is malformed.
+    """
+    try:
+        previous = json.loads(path.read_text())
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"cannot read existing results file {path}") from exc
+    if not isinstance(previous, dict):
+        raise SystemExit(f"invalid results envelope in {path}")
+    meta = previous.get("meta")
+    if not isinstance(meta, dict) or meta.get("client") != client:
+        raise SystemExit(f"invalid results metadata in {path}")
+    if not isinstance(previous.get("results"), list):
+        raise SystemExit(f"invalid results envelope in {path}")
+    shape = meta.get("shape", "server_default")
+    if shape not in ("server_default", "dual", "structured"):
+        raise SystemExit(f"invalid results shape in {path}")
+    return shape
+
+
 def main(argv: list[str]) -> int:
     """Parses flags, runs the matrix, writes raw logs and scores."""
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -247,8 +277,7 @@ def main(argv: list[str]) -> int:
     args = ap.parse_args(argv)
     result_path = args.out / f"results_{args.client}.json"
     if result_path.exists():
-        previous = json.loads(result_path.read_text())
-        previous_shape = previous.get("meta", {}).get("shape", "server_default")
+        previous_shape = existing_result_shape(result_path, args.client)
         requested_shape = args.shape or "server_default"
         if previous_shape != requested_shape:
             raise SystemExit(

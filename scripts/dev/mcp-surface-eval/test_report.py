@@ -129,6 +129,31 @@ class InputShapeTest(unittest.TestCase):
                 with contextlib.redirect_stdout(io.StringIO()):
                     report.main(paths)
 
+    def test_rejects_corrupt_input_with_path(self) -> None:
+        contents_list = (
+            "{broken", "[]", '{"meta": []}', '{"meta": {}}',
+            '{"meta": {"client": []}}',
+            '{"meta": {"client": "  "}, "results": []}',
+            '{"meta": {"client": "claude"}}',
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "corrupt.json"
+            for contents in contents_list:
+                with self.subTest(contents=contents):
+                    path.write_text(contents)
+                    with self.assertRaises(SystemExit) as ctx:
+                        with contextlib.redirect_stdout(io.StringIO()):
+                            report.main([str(path)])
+                    self.assertIn(str(path), str(ctx.exception))
+
+    def test_rejects_unreadable_input_with_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "unreadable.json"
+            path.mkdir()
+            with self.assertRaises(SystemExit) as ctx:
+                report.main([str(path)])
+            self.assertIn(str(path), str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

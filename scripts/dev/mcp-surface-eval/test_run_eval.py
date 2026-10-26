@@ -167,6 +167,29 @@ class ShapeSelectionTest(unittest.TestCase):
                 run_eval.main(["--out", out, "--shape", "structured"])
             self.assertEqual(result.read_text(), original)
 
+    def test_corrupt_existing_results_fail_before_client_call(self) -> None:
+        for contents in ("{broken", "[]", '{"meta": []}', '{}'):
+            with self.subTest(contents=contents), \
+                    tempfile.TemporaryDirectory() as out:
+                result = pathlib.Path(out) / "results_claude.json"
+                result.write_text(contents)
+                with mock.patch.object(run_eval, "run_claude") as client:
+                    with self.assertRaises(SystemExit) as ctx:
+                        run_eval.main(["--out", out])
+                self.assertIn(str(result), str(ctx.exception))
+                self.assertEqual(result.read_text(), contents)
+                client.assert_not_called()
+
+    def test_unreadable_existing_results_fail_before_client_call(self) -> None:
+        with tempfile.TemporaryDirectory() as out:
+            result = pathlib.Path(out) / "results_claude.json"
+            result.mkdir()
+            with mock.patch.object(run_eval, "run_claude") as client:
+                with self.assertRaises(SystemExit) as ctx:
+                    run_eval.main(["--out", out])
+            self.assertIn(str(result), str(ctx.exception))
+            client.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

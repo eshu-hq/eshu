@@ -127,12 +127,44 @@ def clients_table(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def load_results(path: pathlib.Path) -> dict[str, Any]:
+    """Loads a result file and validates the fields used by the report.
+
+    Args:
+        path: Result file to read.
+
+    Returns:
+        The parsed result envelope.
+
+    Raises:
+        SystemExit: If the file is unreadable or its envelope is malformed.
+    """
+    try:
+        loaded = json.loads(path.read_text())
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"cannot read results file {path}") from exc
+    if not isinstance(loaded, dict):
+        raise SystemExit(f"invalid results envelope in {path}")
+    meta = loaded.get("meta")
+    if not isinstance(meta, dict):
+        raise SystemExit(f"invalid results metadata in {path}")
+    client = meta.get("client")
+    if not isinstance(client, str) or not client.strip():
+        raise SystemExit(f"invalid results client in {path}")
+    if meta.get("shape", "server_default") not in (
+            "server_default", "dual", "structured"):
+        raise SystemExit(f"invalid results shape in {path}")
+    if not isinstance(loaded.get("results"), list):
+        raise SystemExit(f"invalid results envelope in {path}")
+    return loaded
+
+
 def main(argv: list[str]) -> int:
     """Loads result files named on the command line and prints all tables."""
     data: dict[str, Any] = {}
     shapes: set[str] = set()
     for path in argv:
-        loaded = json.loads(pathlib.Path(path).read_text())
+        loaded = load_results(pathlib.Path(path))
         client = loaded["meta"]["client"]
         if client in data:
             raise SystemExit(
