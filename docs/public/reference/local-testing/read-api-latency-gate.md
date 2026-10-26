@@ -336,6 +336,28 @@ generated: run the gate on the runner class with `GATE_WORK_REPORT`, then
 the GREEN maximum. The five routes the #6794 fix did not change are guards for
 future regressions; the fix pair cannot prove them RED.
 
+**#8682 bounded statement-capture proof (run `20261026T230946Z`).** A compiled harness
+used PostgreSQL 18.6, 12,000 synthetic entities, and 20 direct
+`ContentReader` search requests per sample. In three valid ABBA rounds, each
+leg had five statement identities and the same database-interval totals: 100
+calls, 1,080 rows, and 3,500 buffer blocks (5, 54, and 175 per request). The
+frozen pilot median spread was 12.31% (limit 20%), with a 0.369318 ms control
+ceiling. The added capture cost had a 0.190402 ms median, ranged from 0.134562
+to 0.212742 ms, and was 0.194% to 0.308% of the corresponding 20-request
+wall time. The legacy capture ranged from 0.124221 to 0.230589 ms; the numeric
+statement capture ranged from 0.337908 to 0.388701 ms. A separate 8,192-ID
+stress arm took 7.210 ms for the legacy read and 90.877 ms for the row capture.
+The stress cardinality is not the representative five-statement workload.
+
+The Go harness passed and produced 22 retained rows. Its first offline check
+failed because Go omitted the zero `dealloc` field; the corrected checker
+accepted the same rows without another measurement. This proof covers the
+Postgres capture on direct search calls. It does not attribute the original
+CI variance, exercise MCP transport or the full gate corpus, or time whole
+report serialization. A unit test covers propagation of statement diagnostics
+on a budget breach; the private harness did not exercise that report path.
+The request count, work denominator, and budgets are unchanged.
+
 **Floor.** No named work row is rendered below the current `default` row (13 calls, 18
 buffers, 14 rows). Routes that read almost nothing would otherwise get a budget
 of 0 rows and 3 buffers, and the meter window sums the whole database, so a

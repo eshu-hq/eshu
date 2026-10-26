@@ -96,6 +96,12 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
   escape the global epoch check. Numeric query IDs only correlate within a
   compatible database, catalog, platform, and PostgreSQL version. Capture
   failures abort the gate rather than falling back to aggregate work.
+  A bounded PostgreSQL 18.6 check for #8682 measured 0.134562–0.212742 ms
+  of added capture time across three valid ABBA rounds over direct
+  `ContentReader` calls. This synthetic search proof does not include full
+  gate or MCP transport time. The
+  [read API latency gate reference](../../../docs/public/reference/local-testing/read-api-latency-gate.md)
+  records its controls and limits.
 - `ParseRouteWorkBudgets`, `EvaluateWorkBudgets`, `UnmeteredExercisedRoutes`,
   `WriteWorkReport` — the work budget table, the breach check (any of calls,
   blks, rows over budget), the guard against an exercised-but-unmetered route,
