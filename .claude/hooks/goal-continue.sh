@@ -336,12 +336,14 @@ fi
 # nothing; it is left alone because seeding the offset from the file size would
 # make work done BEFORE the first nudge of a message invisible to it.
 # The scan is lib/goal-progress.sh, shared with the issue-ledger DONE refusal.
+# It recognizes Claude `tool_use` and Codex `function_call`/`custom_tool_call`
+# records so work from either harness resets this no-progress budget.
 progress=0
 new_offset="${offset}"
 {
 	read -r progress
 	read -r new_offset
-} < <(gp_tool_use_since "${transcript:-}" "${offset}")
+} < <(gp_tool_calls_since "${transcript:-}" "${offset}")
 case "${progress}" in '' | *[!0-9]*) progress=0 ;; esac
 case "${new_offset}" in '' | *[!0-9]*) new_offset="${offset}" ;; esac
 

@@ -35,6 +35,9 @@ continuations that make no tool calls.
 The official [Codex hooks reference](https://developers.openai.com/codex/hooks)
 defines `Stop` inputs with `session_id`, `turn_id`, `stop_hook_active`, and
 `last_assistant_message`, and documents the block response as a continuation.
+It also says `transcript_path` is provided for convenience but its format is
+not a stable hook interface; the progress parser follows the observed JSONL
+record shapes and is covered by fixtures.
 An isolated probe with `codex-cli 0.164.0` exercised the committed hook files in
 a temporary Git project: Codex's initial response stopped, the hook returned
 the active goal, and Codex continued and marked the probe goal DONE. The probe
@@ -49,17 +52,22 @@ current one remains unavailable; the hook does not switch models itself.
 
 Codex supplies `turn_id` rather than `prompt_id`. The adapter keeps one budget
 key across Stop continuations and resets it when a new owner turn starts. The
-shared three-stop no-progress limit still applies. The DONE issue check is
-bounded to one second total, and Codex blocks DONE when the ledger status cannot
-be verified within that limit. The full shared hook is bounded to two seconds;
+shared progress scan parses tool records from Claude and Codex transcripts,
+including Codex `function_call` and `custom_tool_call` events. Quoted tool-like
+text does not count as work, and each session keeps its own budget. The shared
+three-stop no-progress limit still applies. The DONE issue check is bounded to
+one second total, and Codex blocks DONE when the ledger status cannot be verified
+within that limit. The full shared hook is bounded to two seconds;
 if a ledger lock or other check stalls, the adapter kills that process group and
 returns a continuation block. The definition uses Codex's 3-second command-hook
-timeout limit.
+timeout configured in `.codex/hooks.json`; the adapter's internal deadline is
+two seconds.
 
 The hook contract has a hermetic regression suite at
-`scripts/test-codex-goal-continue-hook.sh`. Project hooks only load after the
-project config is trusted; review and trust the Stop hook with `/hooks` in an
-interactive Codex session before relying on it.
+`scripts/test-codex-goal-continue-hook.sh`. The repository files make the hook
+available in each clone; on every machine, trust the project config and review
+the Stop hook with `/hooks` in an interactive Codex session before relying on
+it.
 
 ## Agent spawn probe
 

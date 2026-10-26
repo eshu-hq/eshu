@@ -249,7 +249,7 @@ gi_done_gate() { # goal_file cwd session_id transcript
 	{
 		read -r progress
 		read -r new_offset
-	} < <(gp_tool_use_since "${4:-}" "${offset}")
+	} < <(gp_tool_calls_since "${4:-}" "${offset}")
 	case "${progress}" in '' | *[!0-9]*) progress=0 ;; esac
 	python3 "${GI_PY}" gate "${ledger}" --cwd "${2:--}" --goal-file "$1" \
 		--state "${state}" --prior "${prior}" --progress "${progress}" \

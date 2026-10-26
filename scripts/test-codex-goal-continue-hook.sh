@@ -18,7 +18,7 @@ failed=0
 ok() { printf 'ok - %s\n' "$1"; passed=$((passed + 1)); }
 no() { printf 'not ok - %s\n' "$1" >&2; failed=$((failed + 1)); }
 payload() {
-  python3 - "$1" "$2" "$3" "${4:-false}" "${5:-turn-1}" <<'PY'
+  python3 - "$1" "$2" "$3" "${4:-false}" "${5:-turn-1}" "${6:-}" <<'PY'
 """Build a captured Codex Stop event for the hook regression cases."""
 import json
 import sys
@@ -29,6 +29,7 @@ print(json.dumps({
     "session_id": sys.argv[2],
     "turn_id": sys.argv[5] if len(sys.argv) > 5 else "turn-1",
     "stop_hook_active": len(sys.argv) > 4 and sys.argv[4] == "true",
+    "transcript_path": sys.argv[6] if len(sys.argv) > 6 else "",
     "last_assistant_message": sys.argv[3],
 }))
 PY
@@ -120,11 +121,112 @@ else
   no 'a fresh Codex turn resets the no-progress budget'
 fi
 
+# Codex transcripts record tool work as response_item function/custom calls.
+# Each real call must refresh the shared no-progress budget for this turn.
+codex_transcript="${work}/project/codex-transcript.jsonl"
+: >"${codex_transcript}"
+sid_b="codex-test-secondary"
+goal_b="${work}/project/.claude/active-goal.${sid_b}"
+printf 'Finish the second requested Eshu goal.\n' >"${goal_b}"
+transcript_b="${work}/project/codex-transcript-secondary.jsonl"
+: >"${transcript_b}"
+payload_a="$(payload "${work}/project" "${sid}" '' false turn-work "${codex_transcript}")"
+payload_b="$(payload "${work}/project" "${sid_b}" '' false turn-secondary "${transcript_b}")"
+run "${payload_a}" >"${work}/session-a.out" &
+session_a_pid=$!
+run "${payload_b}" >"${work}/session-b.out" &
+session_b_pid=$!
+wait "${session_a_pid}"
+session_a_status=$?
+wait "${session_b_pid}"
+session_b_status=$?
+if [[ "${session_a_status}" -eq 0 && "${session_b_status}" -eq 0 ]] \
+  && is_blocked "$(cat "${work}/session-a.out")" \
+  && is_blocked "$(cat "${work}/session-b.out")"; then
+  ok 'two concurrent Codex sessions get isolated active-goal continuations'
+else
+  no 'two concurrent Codex sessions get isolated active-goal continuations'
+fi
+tool_index=0
+for tool_type in function_call custom_tool_call function_call custom_tool_call; do
+  tool_index=$((tool_index + 1))
+  printf '{"type":"response_item","payload":{"type":"%s","name":"test_tool"}}\n' "${tool_type}" >>"${codex_transcript}"
+  out="$(run "$(payload "${work}/project" "${sid}" '' true turn-work "${codex_transcript}")")"
+  if is_blocked "${out}"; then
+    ok "Codex ${tool_type} transcript progress keeps the goal active"
+  else
+    no "Codex ${tool_type} transcript progress keeps the goal active"
+  fi
+  if [[ "${tool_index}" -eq 1 || "${tool_index}" -eq 2 ]]; then
+    out="$(run "$(payload "${work}/project" "${sid_b}" '' true turn-secondary "${transcript_b}")")"
+    if is_blocked "${out}"; then
+      ok 'a no-progress second session remains bounded independently'
+    else
+      no 'a no-progress second session remains bounded independently'
+    fi
+  elif [[ "${tool_index}" -eq 3 ]]; then
+    out="$(run "$(payload "${work}/project" "${sid_b}" '' true turn-secondary "${transcript_b}")")"
+    if ! is_blocked "${out}"; then
+      ok 'the second session reaches its no-progress limit independently'
+    else
+      no 'the second session reaches its no-progress limit independently'
+    fi
+  fi
+done
+printf '{"type":"response_item","payload":{"type":"function_call","name":"test_tool"}}\n' >>"${codex_transcript}"
+out="$(run "$(payload "${work}/project" "${sid}" '' true turn-work "${codex_transcript}")")"
+if is_blocked "${out}"; then
+  ok 'one session stopping does not release another session with Codex work'
+else
+  no 'one session stopping does not release another session with Codex work'
+fi
+
+# A partially written JSONL event must be retried from its start next Stop.
+partial_transcript="${work}/project/codex-partial-transcript.jsonl"
+printf '%s' '{"type":"response_item","payload":{"type":"function_call"' >"${partial_transcript}"
+out="$(run "$(payload "${work}/project" "${sid}" '' false turn-partial "${partial_transcript}")")"
+if is_blocked "${out}"; then
+  ok 'an incomplete Codex transcript event does not end the goal'
+else
+  no 'an incomplete Codex transcript event does not end the goal'
+fi
+printf '%s\n' ',"name":"test_tool"}}' >>"${partial_transcript}"
+out="$(run "$(payload "${work}/project" "${sid}" '' true turn-partial "${partial_transcript}")")"
+if is_blocked "${out}"; then
+  ok 'a completed Codex transcript event is counted from its start'
+else
+  no 'a completed Codex transcript event is counted from its start'
+fi
+
+# A JSON-like tool record inside assistant text is not actual tool progress.
+printf '%s\n' '{"type":"response_item","payload":{"type":"message","content":[{"type":"output_text","text":"example {\"type\":\"function_call\"}"}]}}' >"${codex_transcript}"
+out="$(run "$(payload "${work}/project" "${sid}" '' false turn-quoted "${codex_transcript}")")"
+if is_blocked "${out}"; then
+  ok 'a Codex turn with quoted tool-like text still starts active'
+else
+  no 'a Codex turn with quoted tool-like text still starts active'
+fi
+for _ in 1 2 3; do
+  out="$(run "$(payload "${work}/project" "${sid}" '' true turn-quoted "${codex_transcript}")")"
+  if is_blocked "${out}"; then quoted_tool_text_blocked=$(( ${quoted_tool_text_blocked:-0} + 1 )); fi
+done
+if [[ "${quoted_tool_text_blocked:-0}" -eq 2 ]]; then
+  ok 'quoted Codex tool-like text does not spend the no-progress budget'
+else
+  no 'quoted Codex tool-like text does not spend the no-progress budget'
+fi
+out="$(run "$(payload "${work}/project" "${sid}" '' true turn-quoted "${codex_transcript}")")"
+if ! is_blocked "${out}"; then
+  ok 'Codex stops with only quoted tool-like text remain bounded'
+else
+  no 'Codex stops with only quoted tool-like text remain bounded'
+fi
+
 printf 'DONE\n' >"${goal}"
 out="$(run "$(payload "${work}/project" "${sid}" '' false turn-c)")"
 if ! is_blocked "${out}"; then ok 'DONE allows the stop'; else no 'DONE allows the stop'; fi
 
-# Codex can spend at most three seconds in Stop. An unavailable issue status
+# This hook has a three-second command timeout. An unavailable issue status
 # must return a bounded block instead of letting DONE pass on an open ledger.
 issue_bin="${work}/fake-bin"
 mkdir -p "${issue_bin}"
