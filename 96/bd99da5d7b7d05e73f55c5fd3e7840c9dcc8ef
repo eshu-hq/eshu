@@ -1,0 +1,23 @@
+go/internal/collector/observability/loki/http_client.go
+  h_78a442cba0b3e6 377-380,382-393,410,429-431,435-452,462-466
+  h_78a442cba0b3e6 432-434
+go/internal/collector/observability/loki/README.md
+  h_78a442cba0b3e6 107-111,115-128
+  h_78a442cba0b3e6 112-114
+go/cmd/collector-loki/README.md
+  h_78a442cba0b3e6 19-28
+  h_78a442cba0b3e6 29-30
+go/internal/collector/observability/loki/rules_502_test.go
+  h_78a442cba0b3e6 1-316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "96bd99da5d7b7d05e73f55c5fd3e7840c9dcc8ef",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
