@@ -320,13 +320,9 @@ where it ran:
 - The [pre-change structured golden run](https://github.com/eshu-hq/eshu/issues/8800#issuecomment-6408683313) at
   `d41890a745afa25404932166cee70516bb09fcae` passed 629 cases. It must run again on the final wrapper head. Run it with
   `GATE_MCP_RESULT_SHAPE=structured ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`.
-- Four repository scripts that read only the embedded resource and would fail
-  against a `structured` server: `scripts/lib/remote_e2e_target_story_common.sh`,
-  `scripts/verify_local_public_collector_proof.sh`,
-  `scripts/verify_dead_iac_compose.sh`, and
-  `scripts/run-remote-e2e-component-extension.sh`. They run on `dual` today, so
-  they are unaffected until a deployment or the default selects `structured`.
-  Teach each one to read `structuredContent` first, then flip.
+- The four proof-script readers now prefer `structuredContent` and retain the
+  absent-only resource fallback ([#9158](https://github.com/eshu-hq/eshu/pull/9158)).
+  Their parser fixtures cover both shapes and invalid responses.
 
 When an HTTP route returns a plain JSON object instead of the canonical
 envelope, MCP preserves that object in `structuredContent`; `dual` also sends an

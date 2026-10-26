@@ -109,9 +109,9 @@ resource. This note records how that interacts with the budget.
   (it needs a two-client re-measurement within 1.1 times the one-copy rate, a
   scoring run that is not worse, a manual run on the other documented clients,
   a week of no over-budget increase on a hosted deployment, the golden-corpus
-  gate run on the final changed head, and four scripts taught to read
-  `structuredContent`), and an
-  `initialize` reply that echoes a requested protocol version.
+  gate run on the final changed head). Protocol-version negotiation is already
+  implemented ([#8953](https://github.com/eshu-hq/eshu/pull/8953)); the supported
+  revision remains `2024-11-05`.
 - The token saving was measured only on the pre-change doubling. The
   post-change two-client re-measurement is pending, so no saving is claimed for
   the `structured` shape.
@@ -119,13 +119,9 @@ resource. This note records how that interacts with the budget.
   `d41890a745afa25404932166cee70516bb09fcae` passed 629 cases. It must run again on the final non-object wrapper
   head before that result is evidence for this behavior. Run it with
   `GATE_MCP_RESULT_SHAPE=structured ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`.
-- Four scripts read only the embedded resource and fail against a `structured`
-  server: `scripts/lib/remote_e2e_target_story_common.sh`,
-  `scripts/verify_local_public_collector_proof.sh`,
-  `scripts/verify_dead_iac_compose.sh`, and
-  `scripts/run-remote-e2e-component-extension.sh`. They run on `dual` today.
-  Each must read `structuredContent` first before the default flips or a
-  deployment sets `ESHU_MCP_RESULT_SHAPE=structured`.
+- The four proof-script readers now prefer `structuredContent` and retain the
+  absent-only resource fallback ([#9158](https://github.com/eshu-hq/eshu/pull/9158)).
+  Their parser fixtures cover both shapes and invalid responses.
 - A successful non-object body under `structured` now uses the object
   `structuredContent: {"value": ...}` and result-level `_meta` marker
   `eshu/nonObjectEncoding: "json"` or `"text"`. JSON arrays, scalars, and
