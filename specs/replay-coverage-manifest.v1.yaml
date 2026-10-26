@@ -94,6 +94,11 @@ coverage:
   # makes the underlying B-12 query shape non-vacuous (a real .github/CODEOWNERS
   # fixture now backs the go_comprehensive corpus repo).
   - {surface: "read_surface:GET /api/v0/codeowners/ownership", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/codeowners/ownership?repository_id=repository:r_8477a002&limit=50", proof_gate: golden-corpus-gate-neo4j}
+  # runtime_declaration (#8817): the fact-kind registry read_surface moved from
+  # "none" to the live POST /api/v0/runtime-declarations/query route. The B-12
+  # shape is a zero floor (the corpus pins no guaranteed version-pin file); it
+  # proves the route is mounted and answers the declared envelope fields.
+  - {surface: "read_surface:POST /api/v0/runtime-declarations/query", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/runtime-declarations/query", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "read_surface:GET /api/v0/images", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/images", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "read_surface:GET /api/v0/package-registry/packages", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/packages?ecosystem=go&limit=50", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "read_surface:GET /api/v0/package-registry/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50", proof_gate: golden-corpus-gate-neo4j}
@@ -215,6 +220,7 @@ coverage:
   # DECLARES_CODEOWNER correlation the read_surface row above proves, mirroring
   # the dependencies.list -> rc-9 precedent immediately below.
   - {surface: "capability:codeowners.ownership.list", scenario: correlation, scenario_type: baseline, ref: "rc-157", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:runtime_declaration.version.list", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/runtime-declarations/query", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "capability:dependencies.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "capability:kubernetes.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-4", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "capability:package_registry.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate-neo4j}

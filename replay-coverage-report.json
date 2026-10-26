@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 460,
-    "covered": 449,
+    "total": 462,
+    "covered": 451,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 11,
@@ -21,8 +21,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 158,
-      "covered": 158,
+      "total": 159,
+      "covered": 159,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -39,8 +39,8 @@
     },
     {
       "registry": "fact_kind_registry",
-      "total": 26,
-      "covered": 25,
+      "total": 27,
+      "covered": 26,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 243,
-      "covered": 238,
+      "total": 245,
+      "covered": 240,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -1639,6 +1639,16 @@
     },
     {
       "registry": "capability_matrix",
+      "key": "capability:runtime_declaration.version.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "POST /api/v0/runtime-declarations/query",
+      "proof_gate": "golden-corpus-gate-neo4j",
+      "detail": "snapshot HTTP query shape \"POST /api/v0/runtime-declarations/query\""
+    },
+    {
+      "registry": "capability_matrix",
       "key": "capability:secrets_iam.identity_trust_chains.list",
       "scenario_type": "baseline",
       "status": "covered",
@@ -2293,6 +2303,16 @@
       "ref": "POST /api/v0/code/divergence/findings",
       "proof_gate": "golden-corpus-gate-neo4j",
       "detail": "snapshot HTTP query shape \"POST /api/v0/code/divergence/findings\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:POST /api/v0/runtime-declarations/query",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "POST /api/v0/runtime-declarations/query",
+      "proof_gate": "golden-corpus-gate-neo4j",
+      "detail": "snapshot HTTP query shape \"POST /api/v0/runtime-declarations/query\""
     },
     {
       "registry": "fact_kind_registry",

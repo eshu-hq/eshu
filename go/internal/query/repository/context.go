@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/query/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
@@ -292,6 +293,16 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 		fingerprintAttrs = append(fingerprintAttrs, slog.String("failure_class", sourceToolBreakdownReadDegradedReason))
 	}
 	timer.Done(ctx, fingerprintAttrs...)
+
+	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "runtime_declarations")
+	runtimeSection, runtimeErr := runtimedeclaration.LoadSection(ctx, h.Neo4j, h.Instruments, repoID)
+	result["runtime_declarations"] = runtimeSection
+	timer.Done(ctx, degradedReadLogAttrs(runtimeSection.Count, runtimeErr != nil, runtimeDeclarationsReadDegradedReason)...)
+	if runtimeErr != nil {
+		partialReasons = append(partialReasons, runtimeDeclarationsReadDegradedReason)
+	} else if runtimeSection.Truncated {
+		partialReasons = append(partialReasons, runtimeDeclarationsReadTruncatedReason)
+	}
 
 	result["partial_reasons"] = partialReasons
 

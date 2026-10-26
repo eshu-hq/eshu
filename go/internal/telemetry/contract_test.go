@@ -273,6 +273,7 @@ func TestSpanNames(t *testing.T) {
 		"query.dependencies",
 		"query.codeowners_ownership",
 		"query.language_query",
+		"query.runtime_declarations",
 		"query.container_image_tag_history",
 		"scanner_worker.claim.process",
 		"scanner_worker.analyze",

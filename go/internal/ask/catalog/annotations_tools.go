@@ -126,6 +126,7 @@ func askToolAnnotations() map[string]Annotation {
 		"list_cloud_runtime_drift_findings":               {Backend: BackendPostgres, Cost: CostModerate},
 		"list_changed_since_poisoned_links":               {Backend: BackendPostgres, Cost: CostLow},
 		"list_codeowners_ownership":                       {Backend: BackendNornicDB, Cost: CostModerate},
+		"list_runtime_version_declarations":               {Backend: BackendNornicDB, Cost: CostModerate},
 		"list_collector_extraction_readiness":             {Backend: BackendEmbedded, Cost: CostLow},
 		"list_collectors":                                 {Backend: BackendPostgres, Cost: CostLow},
 		"list_component_extensions":                       {Backend: BackendEmbedded, Cost: CostLow},

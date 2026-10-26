@@ -111,6 +111,7 @@ nav:
         - Identity Route Failures: reference/http-api/identity-failures.md
         - Semantic Evidence And Documentation Route Failures: reference/http-api/semantic-and-documentation-failures.md
         - Selector And Read Failures: reference/http-api/selector-and-read-failures.md
+        - Runtime Declarations: reference/http-api/runtime-declarations.md
         - Completed Work Reopen: reference/http-api/status-admin-reopen.md
         - Admin Scope Selector: reference/http-api/status-admin-scope-selector.md
         - Reindex Progress: reference/http-api/status-admin-reindex-progress.md

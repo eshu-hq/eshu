@@ -1244,6 +1244,16 @@
         }
       }
     ],
+    "list_runtime_version_declarations": [
+      {
+        "label": "default",
+        "arguments": {
+          "runtime": "node",
+          "major_below": 20,
+          "limit": 5
+        }
+      }
+    ],
     "list_kubernetes_correlations": [
       {
         "label": "default",

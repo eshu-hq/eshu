@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/kubernetes"
 	"github.com/eshu-hq/eshu/go/internal/query/observability/coverage"
 	"github.com/eshu-hq/eshu/go/internal/query/package/registry"
+	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/query/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/query/secrets"
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
@@ -248,6 +249,14 @@ func newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
 			Correlations: service.NewPostgresServiceCatalogCorrelationStoreWithReadStore(reader),
 			Profile:      queryProfile,
 			Instruments:  instruments,
+		},
+		// RuntimeDeclarations backs the list_runtime_version_declarations MCP
+		// tool (#8817). It must be wired in both binaries or the advertised tool
+		// re-dispatches into a nil handler.
+		RuntimeDeclarations: &runtimedeclaration.Handler{
+			Neo4j:       neo4jReader,
+			Profile:     queryProfile,
+			Instruments: instruments,
 		},
 		CICD: &query.CICDHandler{
 			Content:            contentReader,

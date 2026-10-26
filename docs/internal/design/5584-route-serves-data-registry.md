@@ -105,6 +105,7 @@ The gate's independence from the backing map is tiered, not absolute:
 | GET /api/v0/codeowners/ownership | CodeownersOwnershipHandler.ListOwnership | codeowners_ownership | `(repo:Repository)-[rel:DECLARES_CODEOWNER]->(team:CodeownerTeam)` (query/codeowners/ownership_cypher.go:11-21); writer storage/cypher/canonical_codeowners_edges.go:34-35 |
 | GET /api/v0/iac/resources | IaCHandler.listResources | (none served; MapOnly: config_state_drift) | candidates from `fact_kind = 'content_entity'` CONFIG entities only (query/iac_inventory_postgres.go:64-70), hydrated by `uid IN` those candidates (query/iac_resources.go:167-170,306-320) — the state projection's own uid keyspace (TerraformStateResource, MATCHES_STATE, tf_attr_*; tfstate_canonical_writer.go) is never reached (PR #5641 codex P1) |
 | GET /api/v0/work-items/evidence | workitem.Handler.listWorkItemEvidence | incident_repository_correlation | `fact.fact_kind = ANY($1)` = `facts.WorkItemFactKinds()` (query/workitem/read_kinds.go:26, workitem/sql.go; moved from query/work_item_evidence_read_kinds.go, work_item_evidence_sql.go in #6642); the work_item family declares reducer_domain incident_repository_correlation (specs:540-543) |
+| POST /api/v0/runtime-declarations/query | declaration.Handler.listDeclarations | runtime_declaration_projection | `MATCH (d:RuntimeDeclaration)` page + version-below filter (query/runtime/declaration/cypher.go); `MATCH (repo:Repository)-[:DECLARES_RUNTIME]->(d:RuntimeDeclaration)` section aggregate (query/runtime/declaration/section.go); writer storage/cypher/edge/writer/runtime_declaration.go:37,55 |
 
 ## Disclosures (verified touches that are not served-domain claims)
 
@@ -125,6 +126,7 @@ no telemetry was added, removed, or renamed by this repoint.
 | sbom-attestations/attachments | container_image_identity | `reducer_container_image_identity` appears only in the missing-evidence CTE (sbom_attestation_attachments.go:253) |
 | codeowners/ownership | service_catalog_correlation | effective-owner precedence enrichment via `h.Correlations` (codeowners/ownership.go:175) |
 | codeowners/ownership | code_graph_projection | `repo:Repository` is the Cypher anchor, not served rows |
+| runtime-declarations/query | code_graph_projection | `repo:Repository` is the section Cypher's traversal anchor, not served rows |
 | secrets-iam/posture-summary | ec2_instance_node_materialization, rds_posture_materialization, s3_internet_exposure_materialization | `:CloudResource` is the grant-posture Cypher's traversal anchor (query/secrets/grant_posture.go), not served rows; the label is those domains' shared signature marker |
 
 ## Flagged for architect review (#5584 follow-ups)

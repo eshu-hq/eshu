@@ -334,4 +334,39 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 			},
 		}},
 	},
+
+	// Handler.listDeclarations reads the RuntimeDeclaration nodes the
+	// runtime_declaration_projection reducer domain writes (#8816) two ways:
+	// the page statement matches (d:RuntimeDeclaration) with the
+	// version-below filter (query/runtime/declaration/cypher.go), and the
+	// get_repo_context section expands (repo:Repository)-[:DECLARES_RUNTIME]->
+	// (d:RuntimeDeclaration) (query/runtime/declaration/section.go). The
+	// Repository anchor is a traversal start, not served rows — disclosed,
+	// not served.
+	"POST /api/v0/runtime-declarations/query": {
+		RegistrationFile: "go/internal/query/runtime/declaration/handler.go",
+		HandlerStruct:    "Handler",
+		StructFile:       "go/internal/query/runtime/declaration/handler.go",
+		Method:           "listDeclarations",
+		MethodFile:       "go/internal/query/runtime/declaration/handler.go",
+		ScanFiles: []string{
+			"go/internal/query/runtime/declaration/handler.go",
+			"go/internal/query/runtime/declaration/cypher.go",
+			"go/internal/query/runtime/declaration/section.go",
+		},
+		Served: []routeServedDomain{{
+			Domain: "runtime_declaration_projection",
+			Evidence: []routeReadEvidence{
+				{File: "go/internal/query/runtime/declaration/cypher.go", Marker: ":RuntimeDeclaration"},
+				{File: "go/internal/storage/cypher/edge/writer/runtime_declaration.go", Marker: "DECLARES_RUNTIME"},
+			},
+		}},
+		Disclosed: []routeDisclosure{{
+			Domain: "code_graph_projection",
+			Reason: "anchor only: the section Cypher anchors on the Repository node (repo:Repository {id: $repo_id}) to reach DECLARES_RUNTIME edges; Repository rows themselves are served by GET /api/v0/repositories",
+			Evidence: []routeReadEvidence{
+				{File: "go/internal/query/runtime/declaration/section.go", Marker: ":Repository"},
+			},
+		}},
+	},
 }

@@ -24,7 +24,7 @@ registry.
 | Config-artifact read model | `config_artifacts.derive` (#8155): one span per per-repository derive, a child of the caller's span. Registered by PR3b-2c-1, emitted by PR3b-2c-2 (the Write derive, trigger write only). |
 | Reducer and materialization | `reducer.run`, `reducer.batch_claim`, `reducer.changed_since_link`, `reducer.status_summary.pass`, `reducer.eshu_search_index_write`, `reducer.drift_evidence_load`, `reducer.aws_runtime_drift_evidence_load`, `reducer.cross_repo_resolution`, `reducer.sql_relationship_materialization`, `reducer.inheritance_materialization`, `reducer.s3_external_principal_grant_materialization`, `iac_reachability.materialize`, `shared_acceptance.lookup`, `shared_acceptance.upsert` |
 | MCP router | `mcp.router.find` and `mcp.router.call` (#8757): one span per `find_tool` or `call_tool` request; a routed tool's dispatch runs inside `mcp.router.call`. See [MCP Router Telemetry](mcp-router.md). |
-| Query handlers | `query.*` spans for relationship evidence, documentation, IaC, code investigation, entity map, package registry, CI/CD, image identity, SBOM, and supply-chain reads |
+| Query handlers | `query.*` spans for relationship evidence, documentation, IaC, code investigation, entity map, package registry, CI/CD, image identity, SBOM, declared runtime versions (`query.runtime_declarations`), and supply-chain reads |
 | Source collectors and webhooks | `tfstate.*`, `webhook.handle`, `webhook.store`, `oci_registry.*`, `vulnerability_intelligence.*`, `security_alert.*`, `ci_cd_run.*`, `pagerduty.*`, `jira.*`, `package_registry.*`, `scanner_worker.*`, and `aws.*` |
 | Storage dependencies | `postgres.exec`, `postgres.query`, `neo4j.execute`; read wrappers can also emit `neo4j.query` and `neo4j.query.single` |
 

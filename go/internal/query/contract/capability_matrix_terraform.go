@@ -166,6 +166,7 @@ var canonicalCapabilityOrder = []string{
 	"replatforming.rollups.readiness",
 	"replatforming.selector_inventory",
 	"replatforming.plan.readiness",
+	"runtime_declaration.version.list",
 	"semantic_extraction.status",
 	"semantic_evidence.documentation_observations.list",
 	"semantic_evidence.code_hints.list",

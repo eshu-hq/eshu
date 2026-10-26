@@ -324,6 +324,28 @@ Use these to locate the phase that changed before opening logs or traces:
 `eshu_dp_projector_stage_duration_seconds` uses bounded `stage` values such as
 `build_projection`, `graph_write`, `content_write`, and `intent_enqueue`.
 
+## Runtime Declaration Reads
+
+The declared-runtime read surface (`POST /api/v0/runtime-declarations/query`,
+the `list_runtime_version_declarations` MCP tool, and the `runtime_declarations`
+section of `get_repo_context`, #8817) records two instruments:
+
+- `eshu_dp_runtime_declaration_query_duration_seconds` is the graph read
+  duration, labeled by the closed `operation` (`list`, `excluded_count`,
+  `repository_names`, `context_section`) and `outcome` (`ok`, `error`). Use it
+  to see which of the three reads behind a slow list call is slow; the
+  capability budget it is held to is p95 1,000 ms locally and 1,500 ms in
+  production.
+- `eshu_dp_runtime_declaration_query_excluded_total` counts the declarations a
+  version comparison could not place, labeled by the closed `reason` (`range`,
+  `alias`, `unresolved`, `partial`, `other`), once per response. A rising rate
+  means more declarations are reported in `partial_reasons` instead of
+  compared; it is a data-quality signal, not an error.
+
+Neither carries a repository id or runtime name. Per-request detail is on the
+`query.runtime_declarations` span (`http.route`, `eshu.capability`), whose
+children are the `neo4j.execute` spans of each read.
+
 ## Focused Catalogs
 
 - [Ingestion And Collector Metrics](metrics-ingestion-collectors.md) covers

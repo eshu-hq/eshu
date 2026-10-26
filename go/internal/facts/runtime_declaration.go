@@ -18,7 +18,7 @@ const (
 	// versions is one fact per token. Issue #8815 defines the contract and
 	// the emission; the runtime_declaration_projection reducer domain (#8816)
 	// projects it to Repository-[:DECLARES_RUNTIME]->RuntimeDeclaration; the
-	// query tool (#8817) lands separately.
+	// query tool (#8817) reads it through POST /api/v0/runtime-declarations/query.
 	RuntimeDeclarationVersionFactKind = "runtime_declaration.version"
 
 	// RuntimeDeclarationSchemaVersionV1 is the first runtime_declaration fact
@@ -54,8 +54,7 @@ func RuntimeDeclarationSchemaVersion(factKind string) (string, bool) {
 //
 // The reducer domain runtime_declaration_projection (#8816) consumes the kind
 // and projects Repository-[:DECLARES_RUNTIME]->RuntimeDeclaration. ReadSurface
-// stays "none", the recognized no-claim sentinel, until the query tool (#8817)
-// lands.
+// names the query route (#8817) that serves it.
 var RuntimeDeclarationFamilyDeclaration = contract.Declare(contract.Family{
 	ID:                     "runtime_declaration",
 	FactDir:                "go/internal/facts",
@@ -65,7 +64,7 @@ var RuntimeDeclarationFamilyDeclaration = contract.Declare(contract.Family{
 	ReducerDomain:          "runtime_declaration_projection",
 	ProjectionHook:         "runtime_declaration_projection",
 	AdmissionHook:          "facts.ValidateSchemaVersion",
-	ReadSurface:            "none",
+	ReadSurface:            "POST /api/v0/runtime-declarations/query",
 	TruthProfile:           "deterministic",
 	ProviderKeyIndependent: true,
 	Kinds: []contract.Kind{

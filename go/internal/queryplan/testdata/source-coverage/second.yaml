@@ -285,7 +285,7 @@ source_coverage:
       - {symbol: "QueryRelatedRepositoryArtifactSources", count: 1, non_hot: {class: keyed_support, source_sha256: 6ed7eb6b51b0d9e22b953f9e386f78567b92689747c156a5fee47d9de05e0ea0, key_bound: single_key, max_results: 501}}
   - file: repository/context.go
     calls:
-      - {symbol: "(*Handler).getRepositoryContext", count: 1, non_hot: {class: keyed_support, source_sha256: d188ac0ebf28f9a5a364d57123c45dbef47344061392c145b5fabf7e4b779479, key_bound: single_key, max_results: 1}}
+      - {symbol: "(*Handler).getRepositoryContext", count: 1, non_hot: {class: keyed_support, source_sha256: 5b918be72288ecaac1923e2184811cdf6ed3ba671ca7d364499b9bdcafb0c1f7, key_bound: single_key, max_results: 1}}
   - file: repository/context_counts.go
     calls:
       - {symbol: "queryRepositoryContextCount", count: 1, non_hot: {class: keyed_support, source_sha256: 1c7253963fb117fd9c61496a3404aa36e87703c67ead1d7a91fb4d83f0554df9, key_bound: single_key, max_results: 1}}
@@ -325,6 +325,13 @@ source_coverage:
   - file: repository/readmodel/name_lookup.go
     calls:
       - {symbol: "QueryRepositoryNamesByID", count: 1, non_hot: {class: keyed_support, source_sha256: 96b1fc38b8307772a7b6b848451158dcef14131d5f3838472fb4a845e002686c, key_bound: bounded_key_batch, max_keys: 100, max_results: 100}}
+  - file: runtime/declaration/handler.go
+    calls:
+      - {symbol: "(*Handler).readPage", count: 1, non_hot: {class: label_inventory, source_sha256: 0e82a464c6393e3dd3f804b4515be58bd0ea4f619e6dbfae6968528757f0e915, label: RuntimeDeclaration, max_results: 201}}
+      - {symbol: "(*Handler).readExcluded", count: 1, non_hot: {class: label_inventory, source_sha256: 8ba556d244127961e9e330e544587d5eb00f67977995a6353ea35b89e888a333, label: RuntimeDeclaration, max_results: 8}}
+  - file: runtime/declaration/section.go
+    calls:
+      - {symbol: "LoadSection", count: 2, non_hot: {class: keyed_support, source_sha256: a14d801bf540833f97192e8d598743b27a7311e8ee32ca937da09437cea4644d, key_bound: single_key, max_results: 51}}
   - file: selector/selector.go
     calls:
       - {symbol: "ResolveExactForAccess", count: 2, non_hot: {class: keyed_support, source_sha256: 93d5fbf09ee7beb3b55d6ee55f3edd12b718d53b9cd2551c374d1206c8177ae9, key_bound: single_key, max_results: 51}}

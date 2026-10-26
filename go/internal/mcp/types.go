@@ -25,6 +25,7 @@ import (
 	observabilitycoveragetools "github.com/eshu-hq/eshu/go/internal/mcp/observability/coverage"
 	playbooktools "github.com/eshu-hq/eshu/go/internal/mcp/playbooks"
 	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
+	runtimedeclarationtools "github.com/eshu-hq/eshu/go/internal/mcp/runtime/declaration"
 	semantictools "github.com/eshu-hq/eshu/go/internal/mcp/semantic"
 	servicetools "github.com/eshu-hq/eshu/go/internal/mcp/service"
 	visualizationtools "github.com/eshu-hq/eshu/go/internal/mcp/visualization"
@@ -82,6 +83,9 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, reachabilityTools()...)
 	tools = append(tools, askTools()...)
 	tools = append(tools, []ToolDefinition{relationshipEdgesTool(), repositoryFilesTool()}...)
+	// Appended last so no earlier tool's registration position moves (the
+	// codeowners, kubernetes, service and ask position pins stay valid).
+	tools = append(tools, runtimeDeclarationTools()...)
 	return tools
 }
 
@@ -195,6 +199,12 @@ func deadCodeTools() []ToolDefinition {
 // code/owners package owns the registration definition.
 func codeownersTools() []ToolDefinition {
 	return codeownerstools.Tools()
+}
+
+// runtimeDeclarationTools preserves the root package's constructor naming
+// while the runtime/declaration package owns the registration definition.
+func runtimeDeclarationTools() []ToolDefinition {
+	return runtimedeclarationtools.Tools()
 }
 
 // kubernetesTools preserves the root package's constructor name while the

@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+	runtimedeclarationtools "github.com/eshu-hq/eshu/go/internal/mcp/runtime/declaration"
 )
 
 // repositorySummarySelector resolves the repository selector for
@@ -33,6 +34,14 @@ func repositorySummarySelector(args map[string]any) (string, error) {
 	return selector, nil
 }
 
+// runtimeDeclarationRoute adapts the child package's runtime declaration
+// request into the root dispatcher's transport route (#8817). It lives here,
+// not in a new dispatch_*.go file, to keep the root non-test file count at its
+// dirgate pin.
+func runtimeDeclarationRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
+	return adaptChildRoute(runtimedeclarationtools.Route(toolName, routecontract.Arguments(args)))
+}
+
 func repositoryRoute(toolName string, args map[string]any) (*routecontract.Request, bool, error) {
 	// Families extracted under #6058 answer first. Their tool names are
 	// disjoint from the arms below, so this keeps repositoryRoute's own
@@ -44,6 +53,9 @@ func repositoryRoute(toolName string, args map[string]any) (*routecontract.Reque
 		return route, true, nil
 	}
 	if route, ok := codeownersRoute(toolName, args); ok {
+		return route, true, nil
+	}
+	if route, ok := runtimeDeclarationRoute(toolName, args); ok {
 		return route, true, nil
 	}
 	if route, ok := secretsIAMRoute(toolName, args); ok {

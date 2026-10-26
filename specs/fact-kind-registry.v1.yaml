@@ -216,7 +216,7 @@ families:
         reducer_domain: runtime_declaration_projection
         projection_hook: runtime_declaration_projection
         admission_hook: facts.ValidateSchemaVersion
-        read_surface: "none"
+        read_surface: "POST /api/v0/runtime-declarations/query"
         truth_profile: deterministic
         provider_key_independent: true
         payload_schema_overrides: {runtime_declaration.version: sdk/go/factschema/schema/runtime_declaration.version.v1.schema.json}
