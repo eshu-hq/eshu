@@ -136,21 +136,25 @@ func registerContentStorePolicyInstruments(meter metric.Meter, inst *Instruments
 	return nil
 }
 
-// ContentPolicyRawRowsObserver reports the raw credential copies still stored
-// on paths a content-store policy governs (#8833).
+// ContentPolicyRawRowsObserver reports the detector-visible raw credential
+// lines still stored on paths a content-store policy governs (#8833).
 type ContentPolicyRawRowsObserver interface {
 	// ContentPolicyRawRows returns the count of unsuppressed hardcoded-secret
-	// lines on governed paths that carry no REDACTED_<finding_kind> marker.
+	// lines on governed paths that carry no REDACTED_<finding_kind> marker
+	// and are not value-free HCL block openers.
 	ContentPolicyRawRows(ctx context.Context) (int64, error)
 }
 
 // RegisterContentPolicyRawRowsObservableGauge registers
-// eshu_dp_content_policy_raw_rows (#8833), the exit signal of the #8813
-// cleanup runbook: it reads zero once every governed file (.yarnrc.yml,
-// *.tfvars) has been stored again under its policy. A non-zero value means
-// raw credential lines are still in content_files on a governed path: a
+// eshu_dp_content_policy_raw_rows (#8833), one input to the #8813 cleanup
+// runbook's exit signal: zero means no governed row keeps a detector-visible
+// raw line (an unsuppressed finding with no REDACTED_<finding_kind> marker
+// that is not a value-free HCL block opener). A non-zero value means raw
+// credential lines are still in content_files on a governed path: a
 // repository the reindex has not reached, or an ingester still on an old
-// binary. A nil observer registers nothing.
+// binary. The runbook's census raw_files column, not this gauge, proves every
+// governed file was stored again under its policy. A nil observer registers
+// nothing.
 func RegisterContentPolicyRawRowsObservableGauge(inst *Instruments, meter metric.Meter, observer ContentPolicyRawRowsObserver) error {
 	if inst == nil {
 		return errors.New("instruments are required")
@@ -164,7 +168,7 @@ func RegisterContentPolicyRawRowsObservableGauge(inst *Instruments, meter metric
 	var err error
 	inst.ContentPolicyRawRows, err = meter.Int64ObservableGauge(
 		"eshu_dp_content_policy_raw_rows",
-		metric.WithDescription("Unsuppressed hardcoded-secret lines on content-store governed paths that carry no REDACTED_<finding_kind> marker: raw credential copies still stored (#8833)"),
+		metric.WithDescription("Unsuppressed hardcoded-secret lines on content-store governed paths that carry no REDACTED_<finding_kind> marker and are not value-free HCL block openers: zero means no detector-visible raw line remains on a governed path; the cleanup runbook census raw_files column is the re-storage proof (#8833)"),
 		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
 			count, err := observer.ContentPolicyRawRows(ctx)
 			if err != nil {

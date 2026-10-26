@@ -25,10 +25,14 @@ WHERE NOT suppressed
   AND line_text !~* '` + detect.BlockOpenerPattern + `'
 `
 
-// ContentPolicyRawRowsStore counts the raw credential copies still stored on
-// paths a content-store policy governs. It backs the
-// eshu_dp_content_policy_raw_rows gauge (#8833): the gauge reads zero once
-// every governed file has been stored again under its policy.
+// ContentPolicyRawRowsStore counts the detector-visible raw credential lines
+// still stored on paths a content-store policy governs: unsuppressed findings
+// whose line carries no REDACTED_<finding_kind> marker and is not a value-free
+// HCL block opener. It backs the eshu_dp_content_policy_raw_rows gauge (#8833):
+// zero means no governed row keeps a detector-visible raw line. It does not
+// prove every governed file was stored again under its policy — a
+// marker-redacted row keeps its finding rows by design — so the cleanup
+// runbook's census raw_files column is the re-storage proof.
 type ContentPolicyRawRowsStore struct {
 	db          db.Queryer
 	pathPattern string
