@@ -281,27 +281,29 @@ func (w ContentWriter) WithOutcomeSampling(minRows, every int) ContentWriter {
 
 // preClassify runs the pre-read when obs is active and the sampler admits the
 // batch. It returns the outcomes, or nil and the reason the batch goes
-// unclassified. A pre-read failure is logged, never returned: the classification
-// is observability and must not fail or change the Write.
-func (w ContentWriter) preClassify(ctx context.Context, obs *fileUpsertObservation, batch []preparedFileRow, tag any) ([]fileOutcome, string) {
+// unclassified, plus the seconds the pre-read cost. The caller folds the cost
+// into the tally only for the attempt that succeeds, so a retried batch does
+// not count the pre-read twice. A pre-read failure is logged, never returned:
+// the classification is observability and must not fail or change the Write.
+func (w ContentWriter) preClassify(ctx context.Context, obs *fileUpsertObservation, batch []preparedFileRow, tag any) ([]fileOutcome, string, float64) {
 	if obs == nil {
-		return nil, ""
+		return nil, "", 0
 	}
 	if !w.outcomeSampler.classify(len(batch)) {
-		return nil, telemetry.ContentFileUnclassifiedSampledOut
+		return nil, telemetry.ContentFileUnclassifiedSampledOut, 0
 	}
 	start := time.Now()
 	outcomes, err := w.classifyFileBatch(ctx, batch, tag)
-	obs.tally.classifySeconds += time.Since(start).Seconds()
+	seconds := time.Since(start).Seconds()
 	if err != nil {
 		if w.Logger != nil {
 			w.Logger.WarnContext(ctx, "content file upsert outcome classification failed; batch not counted",
 				"event_name", "content_file_upsert_outcome.classify_failed",
 				"batch_file_count", len(batch), "error", err)
 		}
-		return nil, telemetry.ContentFileUnclassifiedClassifyFailed
+		return nil, telemetry.ContentFileUnclassifiedClassifyFailed, seconds
 	}
-	return outcomes, ""
+	return outcomes, "", seconds
 }
 
 // recordFileUpsertOutcomes folds a successfully upserted batch into the Write's
