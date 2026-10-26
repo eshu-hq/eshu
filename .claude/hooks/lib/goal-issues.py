@@ -17,14 +17,13 @@ Subcommands (argv[1]); every one is fail-open and exits 0:
 
     capture LEDGER REF...   Confirm each ref is new via gh, then append it.
     gate LEDGER --cwd DIR --goal-file FILE [--state F --prior N --progress N --offset N]
-                            The DONE check. Prints a Stop-hook block on stdout
-                            when an issue is still open. The --state options carry
-                            the consecutive-refusal count (see cmd_gate).
+                            Blocks on open issues; --state carries the refusal count.
     list LEDGER             Prints the per-turn restatement, or nothing.
     merge SRC DEST          Fold the orphan ledger SRC into DEST, then drop SRC.
 
-Environment: CLAUDE_GOAL_ISSUE_CALL_TIMEOUT (seconds per gh call, default 5) and
-CLAUDE_GOAL_ISSUE_TOTAL_TIMEOUT (seconds for one whole check, default 30).
+Environment: CLAUDE_GOAL_ISSUE_CALL_TIMEOUT (default 5s),
+CLAUDE_GOAL_ISSUE_TOTAL_TIMEOUT (default 30s), and ESHU_GOAL_ISSUE_FAIL_CLOSED_UNCHECKED=1
+to block DONE when a ledger status is unknown.
 """
 import contextlib
 import datetime
@@ -360,7 +359,7 @@ def int_opt(opts, key):
 
 
 def cmd_gate(ledger, cwd, goal_file, opts=None):
-    """The DONE check: block while a ledger issue is open; fail open on gh."""
+    """The DONE check: block on open issues and optionally unknown statuses."""
     opts = opts or {}
     refusal_state = opts.get("--state", "")
     if not os.path.isfile(ledger):
@@ -397,6 +396,9 @@ def cmd_gate(ledger, cwd, goal_file, opts=None):
     if unchecked:
         sys.stderr.write("goal-continue: NOT_CHECKED issues: %s (gh unreachable or over the %gs cap; the ledger still lists them)\n"
                          % (", ".join(unchecked), TOTAL_TIMEOUT))
+        if os.environ.get("ESHU_GOAL_ISSUE_FAIL_CLOSED_UNCHECKED") == "1":
+            print(json.dumps({"decision": "block", "reason": "Issue status unknown: %s; keep the goal active and retry." % ", ".join(unchecked)}))
+            return
     if not still_open:
         if not unchecked:
             forget_state(refusal_state)

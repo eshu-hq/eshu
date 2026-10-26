@@ -35,13 +35,25 @@ continuations that make no tool calls.
 The official [Codex hooks reference](https://developers.openai.com/codex/hooks)
 defines `Stop` inputs with `session_id`, `turn_id`, `stop_hook_active`, and
 `last_assistant_message`, and documents the block response as a continuation.
-The local regression exercises the adapter payload; a live Stop-event probe has
-not been run on this Codex CLI version.
+An isolated probe with `codex-cli 0.164.0` exercised the committed hook files in
+a temporary Git project: Codex's initial response stopped, the hook returned
+the active goal, and Codex continued and marked the probe goal DONE. The probe
+used `--dangerously-bypass-hook-trust`; it proves the event and response path,
+not persisted trust in the interactive project.
 
 When `last_assistant_message` contains capacity, security, blocked, denied,
-error, or failed language, the adapter includes up to 1,200 characters of it
-in the continuation so the agent can recover from the reported failure. The
-hook does not switch models. The definition uses Codex's 3-second command-hook
+error, or failed language, the adapter passes only a fixed diagnostic category
+to the shared hook. Raw assistant text is never echoed into the continuation.
+Capacity guidance asks Codex to retry or select another available model if the
+current one remains unavailable; the hook does not switch models itself.
+
+Codex supplies `turn_id` rather than `prompt_id`. The adapter keeps one budget
+key across Stop continuations and resets it when a new owner turn starts. The
+shared three-stop no-progress limit still applies. The DONE issue check is
+bounded to one second total, and Codex blocks DONE when the ledger status cannot
+be verified within that limit. The full shared hook is bounded to two seconds;
+if a ledger lock or other check stalls, the adapter kills that process group and
+returns a continuation block. The definition uses Codex's 3-second command-hook
 timeout limit.
 
 The hook contract has a hermetic regression suite at

@@ -27,7 +27,7 @@ rebuilding the whole snapshot, which only works for a hook that needs no path.
 | `guard-live-gate.sh` | Claude | PreToolUse on Bash | **blocking** | Blocks a second live gate on the default ports |
 | `on-compact.sh` | Claude | SessionStart, compact or resume | advisory | Points a re-grounded session at `eshu-session-lifecycle` |
 | `goal-continue.sh` | Claude | Stop | **blocking** | Refuses to end the turn while this session's goal file (`.claude/active-goal.<session_id>`, else the shared `.claude/active-goal`) names unfinished work, and hands the goal back. |
-| `goal-continue.sh` | Codex | Stop | **blocking** | Applies the same active-goal rule; includes a bounded capacity or security error message in the continuation context. |
+| `goal-continue.sh` | Codex | Stop | **blocking** | Applies the same active-goal rule; includes only an allowlisted capacity or security diagnostic category. |
 | `goal-refresh.sh` | Claude | UserPromptSubmit | side effect | Sets a goal from `/goal <text>`, and re-injects the active goal into context on every prompt so it cannot go stale. |
 | `issue-capture.sh` | Claude, Muse | PostToolUse on Bash | side effect | Records an issue filed during a goal in the goal's ledger; `goal-continue.sh` then refuses DONE while one is open. |
 

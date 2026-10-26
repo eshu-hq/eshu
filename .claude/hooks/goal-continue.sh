@@ -404,11 +404,22 @@ OWNER CONSENT ALREADY GRANTED for: ${consent}
 Do those yourself now. Stopping to ask again for something on that list is not a valid stop -- the owner already answered."
 fi
 
+stop_context_note=""
+case "${GOAL_CONTINUE_STOP_CATEGORY:-}" in
+	model-capacity)
+		stop_context_note="Codex stopped with a model-capacity error. Retry or select another available model if the current one remains unavailable, then continue the active goal."
+		;;
+	security-policy)
+		stop_context_note="Codex stopped with a security or policy denial. Diagnose the rejection, do not repeat a denied action unchanged, and continue the active goal through an allowed path."
+		;;
+	reported-error)
+		stop_context_note="Codex stopped after reporting an error. Diagnose and recover from it, then continue the active goal."
+		;;
+esac
+
 reason="${reason_head}
 
-${GOAL_CONTINUE_STOP_CONTEXT:+Codex stopped after reporting this error. Treat it as an obstacle to diagnose and recover from, not a reason to end the goal:
-${GOAL_CONTINUE_STOP_CONTEXT}
-}
+${stop_context_note}
 
 ACTIVE GOAL (${goal_file}):
 ${goal}${consent_note}
