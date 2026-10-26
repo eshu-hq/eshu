@@ -11,8 +11,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Two-statement content_files writer prototype (#8950).
@@ -149,6 +152,11 @@ func (w ContentWriter) retryContentFileWriteConflicts(ctx context.Context, batch
 		}
 		if attempt >= contentFileWriteConflictAttempts {
 			return fmt.Errorf("content_files batch (%d files) conflicts after %d attempts: %w", len(batch), attempt, err)
+		}
+		if w.instruments != nil && w.instruments.ContentFileWriteConflictRetries != nil {
+			w.instruments.ContentFileWriteConflictRetries.Add(ctx, 1, metric.WithAttributes(
+				attribute.String(telemetry.MetricDimensionFailureClass, class),
+			))
 		}
 		if w.Logger != nil {
 			w.Logger.WarnContext(ctx, "content_files batch write conflict; retrying",

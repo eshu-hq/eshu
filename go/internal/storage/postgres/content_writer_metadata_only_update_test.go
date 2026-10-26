@@ -311,3 +311,39 @@ func TestUnobservedBatchKeepsSingleStatement(t *testing.T) {
 		t.Fatalf("unobserved writer issued %d content_files inserts, want 1", inserts)
 	}
 }
+
+// TestObservedBatchConflictRetryEmitsCounter proves the #8950 conflict_retry
+// warning has a counter behind it: a retried deadlock emits
+// eshu_dp_content_file_write_conflict_retries_total once with
+// failure_class=deadlock, alongside the warning log.
+func TestObservedBatchConflictRetryEmitsCounter(t *testing.T) {
+	t.Parallel()
+
+	metaBody := "package meta\n"
+	stored := [][]any{
+		storedFileRow("repo-1", "meta.go", "hm", int64(len(metaBody)), "c1", 1, "go", "g1"),
+	}
+	writer, fake, reader, logs := newOutcomeWriter(t, stored)
+	fake.updateErrs = []error{&pgconn.PgError{Code: "40P01", Message: "deadlock detected"}}
+
+	mat := content.Materialization{
+		RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "g2", FullSnapshot: true,
+		Records: []content.Record{
+			{Path: "meta.go", Body: metaBody, Digest: "hm", Metadata: map[string]string{"commit_sha": "c2", "language": "go"}},
+		},
+	}
+	if _, err := writer.Write(context.Background(), mat); err != nil {
+		t.Fatalf("Write() error = %v, want nil after a retried deadlock", err)
+	}
+	if !strings.Contains(logs.String(), "content_file_write.conflict_retry") {
+		t.Errorf("no conflict_retry warning logged:\n%s", logs.String())
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if got := sumPoints(t, rm, "eshu_dp_content_file_write_conflict_retries_total", map[string]string{"failure_class": "deadlock"}); got != 1 {
+		t.Errorf("conflict retry count = %d, want 1", got)
+	}
+}

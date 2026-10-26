@@ -625,6 +625,14 @@ type Instruments struct {
 	// rows, with the same labels as ContentFileUpsertUnclassifiedRows: reason,
 	// snapshot and batch_class (#8950).
 	ContentFileUpsertUnclassifiedBodyBytes metric.Int64Counter
+	// ContentFileWriteConflictRetries counts content_files batches the
+	// two-statement writer (#8950) retried after a transient deadlock or
+	// serialization failure, by conflict_class (deadlock,
+	// serialization_failure). A rising rate means concurrent writers contend
+	// on shared keys; the retry is bounded, so a sustained nonzero rate with
+	// failing Writes behind it needs the batch's lock order investigated.
+	// Registered by registerContentStorePolicyInstruments.
+	ContentFileWriteConflictRetries metric.Int64Counter
 	// ContentPolicyRawRows is eshu_dp_content_policy_raw_rows (#8833): raw
 	// credential lines still stored on content-store governed paths.
 	ContentPolicyRawRows metric.Int64ObservableGauge

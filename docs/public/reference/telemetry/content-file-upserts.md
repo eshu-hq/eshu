@@ -13,6 +13,7 @@ is Eshu rewriting a file whose content did not change, only its `commit_sha` or
 | `eshu_dp_content_file_upsert_body_bytes_total` | `outcome`, `snapshot`, `batch_class` | Body bytes of those rows. It is the bytes the writer was handed, not the bytes written. |
 | `eshu_dp_content_file_upsert_unclassified_rows_total` | `reason`, `snapshot`, `batch_class` | Rows written but not classified: `sampled_out` (a small batch the writer skipped the pre-read for) or `classify_failed`. The outcome counter plus this one is every row written. |
 | `eshu_dp_content_file_upsert_unclassified_body_bytes_total` | `reason`, `snapshot`, `batch_class` | Body bytes of those rows. The two body-bytes counters together are every body byte written. |
+| `eshu_dp_content_file_write_conflict_retries_total` | `failure_class` | Batches the two-statement writer retried after a transient deadlock (`deadlock`) or serialization failure (`serialization_failure`). One per retried batch; the retry also logs `content_file_write.conflict_retry` (WARN, with attempt, batch size, and class). |
 | `upsert_files` stage log | none | Per `Write`: `snapshot`, `inserted_count`, `unchanged_skipped_count`, `metadata_only_count`, `content_changed_count`, `metadata_only_body_bytes`, `classified_batch_count`, `sampled_out_batch_count`, `classify_failed_batch_count`, `classify_seconds`. |
 
 `outcome` is a closed set, and the labels carry no repository or path:
@@ -21,7 +22,7 @@ is Eshu rewriting a file whose content did not change, only its `commit_sha` or
 | --- | --- |
 | `inserted` | No stored row for the repository and path. |
 | `unchanged_skipped` | Every guarded column, the content digest and the body size match. The upsert guard (#8915) skips the row. |
-| `metadata_only` | The digest and body size match, every other column matches, and only `commit_sha` and/or `generation_id` differ. The row is rewritten with the same content. |
+| `metadata_only` | The digest and body size match, every other column matches, and only `commit_sha` and/or `generation_id` differ. The row is rewritten by the metadata-only UPDATE, which moves only the lineage columns and leaves content and `indexed_at` alone, so the rewrite stays HOT. |
 | `content_changed` | The row is rewritten for any other reason: the digest or size changed, or another stored column (`language`, `line_count`, `artifact_type`, `template_dialect`, `iac_relevant`) changed. |
 
 `snapshot` is `full` when the `Write` carried the repository's complete file set
@@ -154,9 +155,10 @@ policy.
 ### HOT update share of `content_files`
 
 A heap-only tuple (HOT) update rewrites a row without touching its indexes. The
-current writer rewrites a `metadata_only` row as a non-HOT update, so the HOT
-share of `content_files` should sit near zero while `metadata_only` is high. Run
-this on the primary:
+two-statement writer rewrites a `metadata_only` row as a HOT update (same page,
+no new index entries), so the HOT share of `content_files` should track the
+`metadata_only` share: high on full-snapshot replays, low on change-heavy
+writes. Run this on the primary:
 
 ```sql
 SELECT n_tup_upd,
@@ -169,18 +171,31 @@ WHERE relname = 'content_files';
 The counters are cumulative since the last statistics reset. Read them twice and
 subtract to get the share for a window. `n_tup_upd` counts every update of the
 table, including ones that did not come from the content writer, so treat the
-figure as an approximation of the writer's HOT share.
+figure as an approximation of the writer's HOT share. A low HOT share while
+`metadata_only` is high means something other than the two-statement writer is
+rewriting the rows: unobserved or unclassified batches still take the single
+upsert, which moves `indexed_at` and is never HOT.
+
+### Write-conflict retries
+
+The metadata UPDATE and the guarded upsert take row locks over
+snapshot-dependent subsets of the batch, so concurrent writers for the same keys
+can deadlock where the single statement never did. The writer retries the whole
+batch (fresh pre-read, idempotent statements) up to 8 times with jittered
+backoff, then fails the `Write` and the projector retries the generation. Each
+retry emits `eshu_dp_content_file_write_conflict_retries_total` (one per
+retried batch, by `failure_class`) and the `content_file_write.conflict_retry`
+warning (attempt, batch size, class). A sustained nonzero rate with failing
+writes behind it needs the batch lock order investigated.
 
 ## Reading the numbers
 
 - `metadata_only` high on `snapshot="full"` and near zero on `delta`: the cost
   is in full snapshots (first index of a repository, forced reconciliation,
-  reindex). A metadata-only write path would help only those.
+  reindex). Those are the batches the metadata-only writer keeps HOT.
 - `metadata_only` low overall: unchanged-content rewrites are not a material
-  share of writes. #8950 proposes deferring the metadata-only writer if
-  `metadata_only` stays under 20% of upserted rows and under 10% of body bytes.
-  Judge the gate on the scaled estimate; if the lower bound already clears it,
-  the true share does too.
+  share of writes. Judge the share on the scaled estimate; if the lower bound
+  already clears it, the true share does too.
 - `content_changed` dominant: the write cost is real change, not rewrite.
 - `reason="classify_failed"` above zero: the pre-read is failing. Look for the
   `classify_failed` warning, which carries the database error.
