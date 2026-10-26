@@ -5,9 +5,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -23,6 +28,94 @@ type fakeMeter struct {
 	counters WorkCounters
 	resetErr error
 	readErr  error
+}
+
+type fakeSnapshotMeter struct {
+	fakeMeter
+	snapshot WorkSnapshot
+	token    time.Time
+	beginErr error
+	endErr   error
+}
+
+func (m *fakeSnapshotMeter) BeginSnapshot(context.Context) (time.Time, error) {
+	*m.events = append(*m.events, "begin")
+	return m.token, m.beginErr
+}
+
+func (m *fakeSnapshotMeter) EndSnapshot(_ context.Context, token time.Time) (WorkSnapshot, error) {
+	*m.events = append(*m.events, "end")
+	if !token.Equal(m.token) {
+		return WorkSnapshot{}, errors.New("wrong route-local snapshot token")
+	}
+	return m.snapshot, m.endErr
+}
+
+func TestSearchEntityWorkSnapshotSurvivesBudgetBreach(t *testing.T) {
+	var events []string
+	var mu sync.Mutex
+	srv := meteredServer(&events, &mu, http.StatusOK)
+	defer srv.Close()
+	token := time.Date(2026, time.October, 26, 19, 0, 0, 0, time.UTC)
+	meter := &fakeSnapshotMeter{
+		fakeMeter: fakeMeter{events: &events, counters: WorkCounters{Calls: 2}},
+		token:     token,
+		snapshot: WorkSnapshot{
+			Scope:      "database_interval",
+			Counters:   WorkCounters{Calls: 200, Rows: 10, Blks: 300},
+			Statements: []StatementWork{{DBID: 1, UserID: 2, QueryID: "-9223372036854775808", TopLevel: true, StatsSinceUnixMicro: token.UnixMicro(), Calls: 200, Rows: 10, SharedBlksHit: 300}},
+		},
+	}
+	results, err := SweepRoutes(SweepOptions{
+		BaseURL: srv.URL, MCPBaseURL: srv.URL, APIKey: "k",
+		Routes:     []string{"MCP search_entity_content", "GET /other"},
+		Operations: map[string]Operation{"MCP search_entity_content": {Method: http.MethodPost, Path: "/mcp/message", MCP: true}},
+		Iterations: 2, Runs: 2, Timeout: 5 * time.Second, Meter: meter,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEvents := strings.Repeat("req,", warmupRequests) + "begin," + strings.Repeat("req,", 4) + "end," + strings.Repeat("req,", warmupRequests) + "reset," + strings.Repeat("req,", 4) + "read"
+	if got := strings.Join(events, ","); got != wantEvents {
+		t.Fatalf("meter events = %s, want %s", got, wantEvents)
+	}
+	if got := results[0].Work.Calls; got != 50 {
+		t.Fatalf("target calls per request = %g, want 50", got)
+	}
+	if results[1].StatementDiagnostics != nil {
+		t.Fatal("ordinary route acquired targeted statement diagnostics")
+	}
+	path := filepath.Join(t.TempDir(), "work.json")
+	if err := writeWorkReportFile(path, results); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		Routes []struct {
+			Route                string        `json:"route"`
+			StatementDiagnostics *WorkSnapshot `json:"statement_diagnostics"`
+		} `json:"routes"`
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Routes) != 2 || report.Routes[0].StatementDiagnostics != nil || report.Routes[1].StatementDiagnostics == nil {
+		t.Fatalf("report route diagnostics = %+v", report.Routes)
+	}
+	if got := report.Routes[1].StatementDiagnostics.Statements[0].QueryID; got != "-9223372036854775808" {
+		t.Fatalf("queryid = %q, want exact signed decimal string", got)
+	}
+	budgets, err := ParseRouteWorkBudgets(strings.NewReader("default\t100\t1000\t100\nMCP search_entity_content\t40\t1000\t100\tlocal attribution proof\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var verdict strings.Builder
+	if failures := reportWorkResults(&verdict, results, budgets); len(failures) != 1 || !strings.Contains(verdict.String(), "calls 50.0 > 40") {
+		t.Fatalf("work verdict = %v, output %q", failures, verdict.String())
+	}
 }
 
 func (m *fakeMeter) Reset(context.Context) error {
@@ -166,5 +259,117 @@ func TestCheckMeterQuietRefusesANoisyStack(t *testing.T) {
 	}
 	if err := CheckMeterQuiet(2.1); err == nil {
 		t.Error("a stack above 2 statements/s while idle must fail the run")
+	}
+}
+
+func TestSearchEntitySnapshotRequiresDetailedMeter(t *testing.T) {
+	var events []string
+	var mu sync.Mutex
+	srv := meteredServer(&events, &mu, http.StatusOK)
+	defer srv.Close()
+	_, err := SweepRoutes(SweepOptions{
+		BaseURL: srv.URL, MCPBaseURL: srv.URL, APIKey: "k",
+		Routes:     []string{"MCP search_entity_content"},
+		Operations: map[string]Operation{"MCP search_entity_content": {Method: http.MethodPost, Path: "/mcp/message", MCP: true}},
+		Iterations: 1, Timeout: 5 * time.Second, Meter: &fakeMeter{events: &events},
+	})
+	if err == nil || !strings.Contains(err.Error(), "no statement snapshot support") {
+		t.Fatalf("SweepRoutes error = %v, want unsupported meter error", err)
+	}
+	if strings.Contains(strings.Join(events, ","), "reset") {
+		t.Fatalf("target silently fell back to legacy meter: %v", events)
+	}
+}
+
+func TestValidateWorkSnapshotRejectsUntrustworthyRows(t *testing.T) {
+	token := time.Date(2026, time.October, 26, 19, 0, 0, 0, time.UTC)
+	valid := StatementWork{DBID: 1, UserID: 2, QueryID: "-9223372036854775808", StatsSinceUnixMicro: token.UnixMicro(), Calls: 1, Rows: 2, SharedBlksHit: 3}
+	if got, err := validateWorkSnapshot(token, nil); err != nil || got.Counters != (WorkCounters{}) || got.Statements == nil {
+		t.Fatalf("empty snapshot = %+v, %v", got, err)
+	}
+	if got, err := validateWorkSnapshot(token, []StatementWork{valid}); err != nil || got.Counters != (WorkCounters{Calls: 1, Rows: 2, Blks: 3}) {
+		t.Fatalf("valid snapshot = %+v, %v", got, err)
+	}
+	for name, modify := range map[string]func(*StatementWork){
+		"missing-query-id":      func(row *StatementWork) { row.QueryID = "" },
+		"noncanonical-query-id": func(row *StatementWork) { row.QueryID = "+1" },
+		"query-id-overflow":     func(row *StatementWork) { row.QueryID = "9223372036854775808" },
+		"missing-dbid":          func(row *StatementWork) { row.DBID = 0 },
+		"stale-entry-epoch":     func(row *StatementWork) { row.StatsSinceUnixMicro-- },
+		"negative-calls":        func(row *StatementWork) { row.Calls = -1 },
+		"negative-blocks":       func(row *StatementWork) { row.TempBlksWritten = -1 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			row := valid
+			modify(&row)
+			if _, err := validateWorkSnapshot(token, []StatementWork{row}); err == nil {
+				t.Fatalf("accepted invalid %+v", row)
+			}
+		})
+	}
+	if _, err := validateWorkSnapshot(token, []StatementWork{valid, valid}); err == nil {
+		t.Fatal("accepted duplicate identity")
+	}
+	large := valid
+	large.Calls = math.MaxInt64
+	if _, err := validateWorkSnapshot(token, []StatementWork{large, {DBID: 3, UserID: 2, QueryID: "1", StatsSinceUnixMicro: token.UnixMicro(), Calls: 1}}); err == nil {
+		t.Fatal("accepted call counter overflow")
+	}
+	large = valid
+	large.SharedBlksHit = math.MaxInt64
+	if _, err := validateWorkSnapshot(token, []StatementWork{large, {DBID: 3, UserID: 2, QueryID: "1", StatsSinceUnixMicro: token.UnixMicro(), TempBlksRead: 1}}); err == nil {
+		t.Fatal("accepted block counter overflow")
+	}
+	if _, err := validateWorkSnapshot(token, make([]StatementWork, maxSnapshotStatements+1)); err == nil {
+		t.Fatal("accepted snapshot beyond cap")
+	}
+}
+
+func TestSearchEntitySnapshotErrorsAbortTheGate(t *testing.T) {
+	for name, setError := range map[string]func(*fakeSnapshotMeter){
+		"begin": func(m *fakeSnapshotMeter) { m.beginErr = errors.New("reset failed") },
+		"end":   func(m *fakeSnapshotMeter) { m.endErr = errors.New("capture failed") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			var events []string
+			var mu sync.Mutex
+			srv := meteredServer(&events, &mu, http.StatusOK)
+			defer srv.Close()
+			meter := &fakeSnapshotMeter{fakeMeter: fakeMeter{events: &events}, token: time.Date(2026, time.October, 26, 19, 0, 0, 0, time.UTC)}
+			setError(meter)
+			results, err := SweepRoutes(SweepOptions{
+				BaseURL: srv.URL, MCPBaseURL: srv.URL, APIKey: "k",
+				Routes:     []string{"MCP search_entity_content"},
+				Operations: map[string]Operation{"MCP search_entity_content": {Method: http.MethodPost, Path: "/mcp/message", MCP: true}},
+				Iterations: 1, Timeout: 5 * time.Second, Meter: meter,
+			})
+			if err == nil || len(results) != 0 {
+				t.Fatalf("SweepRoutes = %+v, %v, want abort", results, err)
+			}
+		})
+	}
+}
+
+func TestDecodeWorkSnapshotRequiresEveryNumericField(t *testing.T) {
+	token := time.Date(2026, time.October, 26, 19, 0, 0, 0, time.UTC)
+	complete := fmt.Sprintf(`[{"dbid":1,"userid":2,"queryid":"-3","toplevel":false,"stats_since_unix_micro":%d,"calls":1,"rows":2,"shared_blks_hit":3,"shared_blks_read":0,"local_blks_hit":0,"local_blks_read":0,"temp_blks_read":0,"temp_blks_written":0}]`, token.UnixMicro())
+	if _, err := decodeWorkSnapshot(token, []byte(complete)); err != nil {
+		t.Fatalf("complete row rejected: %v", err)
+	}
+	for name, missing := range map[string]string{
+		"missing-calls":         `"calls":1,`,
+		"missing-rows":          `"rows":2,`,
+		"missing-block-counter": `"shared_blks_read":0,`,
+		"missing-toplevel":      `"toplevel":false,`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			incomplete := strings.Replace(complete, missing, "", 1)
+			if _, err := decodeWorkSnapshot(token, []byte(incomplete)); err == nil {
+				t.Fatalf("accepted incomplete captured row: %s", incomplete)
+			}
+		})
+	}
+	if _, err := decodeWorkSnapshot(token, []byte(strings.Replace(complete, `"calls":1`, `"calls":null`, 1))); err == nil {
+		t.Fatal("accepted null calls counter")
 	}
 }

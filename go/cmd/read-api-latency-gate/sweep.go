@@ -159,8 +159,23 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 		}
 	}
 
+	var snapshotMeter WorkSnapshotMeter
+	var snapshotToken time.Time
 	if meter != nil {
-		if err := meter.Reset(ctx); err != nil {
+		if route == "MCP search_entity_content" {
+			var ok bool
+			snapshotMeter, ok = meter.(WorkSnapshotMeter)
+			if !ok {
+				return RouteLatency{}, fmt.Errorf("sweep %s: work meter has no statement snapshot support", route)
+			}
+		}
+		if snapshotMeter != nil {
+			var err error
+			snapshotToken, err = snapshotMeter.BeginSnapshot(ctx)
+			if err != nil {
+				return RouteLatency{}, fmt.Errorf("sweep %s: begin work snapshot: %w", route, err)
+			}
+		} else if err := meter.Reset(ctx); err != nil {
 			return RouteLatency{}, fmt.Errorf("sweep %s: reset work meter: %w", route, err)
 		}
 	}
@@ -223,7 +238,18 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 		WarmRunP95s:    warmRunP95s,
 	}
 	if meter != nil {
-		counters, err := meter.Read(ctx)
+		var counters WorkCounters
+		var err error
+		if snapshotMeter != nil {
+			var snapshot WorkSnapshot
+			snapshot, err = snapshotMeter.EndSnapshot(ctx, snapshotToken)
+			if err == nil {
+				counters = snapshot.Counters
+				result.StatementDiagnostics = &snapshot
+			}
+		} else {
+			counters, err = meter.Read(ctx)
+		}
 		if err != nil {
 			return RouteLatency{}, fmt.Errorf("sweep %s: read work meter: %w", route, err)
 		}

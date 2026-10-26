@@ -52,6 +52,10 @@ type RouteLatency struct {
 	// meaningful only then. See WorkPerRequest.
 	Metered bool
 	Work    WorkPerRequest
+	// StatementDiagnostics contains database-interval numeric counters only
+	// for the serial MCP search_entity_content sweep. It does not attribute
+	// individual statements to HTTP requests.
+	StatementDiagnostics *WorkSnapshot
 	// Samples holds the first pass's counted-iteration sample
 	// durations, in request order. Populated whenever Exercised is true,
 	// regardless of SweepOptions.Runs. P95 is computed from these samples
