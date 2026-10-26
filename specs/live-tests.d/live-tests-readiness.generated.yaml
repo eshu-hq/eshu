@@ -702,7 +702,7 @@ tests:
   - file: go/internal/storage/postgres/credential_cleanup_race_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8833 disposable PostgreSQL concurrency proof that the operator cleanup's files, entities, and references statements (run from docs/public/deployment/credential-file-cleanup.md) interleaved with the production ContentWriter rewriting the same paths under a post-watermark generation never leave a post-watermark row blank: either the writer commits first and the guard skips the row, or the purge locks first and the writer's later upsert overwrites the blank; 40 randomized iterations, no deadlock; isolated bootstrapped schema per test"
+    reason: "#8833 disposable PostgreSQL concurrency proof that the operator cleanup's files, entities, and references statements (run from docs/public/deployment/credential-file-cleanup.md) interleaved with the production ContentWriter rewriting the same paths under a post-watermark generation never leave a post-watermark row blank: either the writer commits first and the guard skips the row, or the purge locks first and the writer's later upsert overwrites the blank; 40 randomized iterations, no deadlock; and that statements A and B interleaved with concurrent search-document upserts plus the activation flip across both lock orders never delete a post-watermark active document or fact, with the generation-guard-removal mutation deleting the rebuilt rows; isolated bootstrapped schema per test"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/dead_letter_recovery_lock_order_live_test.go
     tag: ~
