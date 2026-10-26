@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
@@ -216,5 +217,70 @@ func TestBuildClaimedServiceSucceedsWithGitHubAppEnvConfigured(t *testing.T) {
 		nil,
 	); err != nil {
 		t.Fatalf("buildClaimedService() error = %v, want nil with GitHub App env configured", err)
+	}
+}
+
+// writeComponentExtensionConfigWithStaticHostToken serves the static-key
+// plus provider conflict fixture: the activation config carries a literal
+// host_github_app_token stanza while the operator environment also configures
+// all three GitHub App variables, so the host would both mint and receive.
+func writeComponentExtensionConfigWithStaticHostToken(t *testing.T) string {
+	t.Helper()
+
+	path := t.TempDir() + "/config.yaml"
+	raw := `host:
+  sourceSystem: openssf-scorecard
+  scope:
+    id: github.com/example/widgets
+    kind: repository
+process:
+  command: /usr/local/bin/scorecard-collector
+  args:
+    - --sdk-stdio
+config:
+  host_github_app_token:
+    token: static-token-value
+    scope_id: github.com/example/widgets
+  source:
+    input: /fixtures/scorecard.json
+    sourceURI: https://api.securityscorecards.dev/projects/github.com/example/widgets
+`
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	return path
+}
+
+// TestBuildClaimedServiceRejectsStaticHostTokenWithProvider pins the
+// static-key plus provider conflict at this layer: an activation that
+// defines host_github_app_token while the App environment is fully set
+// must fail worker startup closed, because the host cannot both mint the
+// per-claim token and accept a static one for the same claim.
+func TestBuildClaimedServiceRejectsStaticHostTokenWithProvider(t *testing.T) {
+	t.Parallel()
+
+	componentHome := t.TempDir()
+	installEnabledComponent(t, componentHome, "process", writeComponentExtensionConfigWithStaticHostToken(t))
+
+	values := hostTokenTestEnv(hostTokenTestKey(t), `{"scope-a":"111"}`)
+	values[envComponentHome] = componentHome
+	values[envComponentTrustMode] = component.TrustModeAllowlist
+	values[envComponentAllowIDs] = "dev.eshu.examples.scorecard"
+	values[envComponentAllowPublishers] = "eshu-hq"
+	values[envComponentCoreVersion] = "dev"
+	values[envCollectorOwnerID] = "component-owner-a"
+
+	_, err := buildClaimedService(
+		&fakeExecQueryer{},
+		mapEnv(values),
+		noop.NewTracerProvider().Tracer("test"),
+		nil,
+		nil,
+	)
+	if err == nil {
+		t.Fatal("buildClaimedService() error = nil, want static-key plus provider rejection")
+	}
+	if !strings.Contains(err.Error(), "host_github_app_token") {
+		t.Fatalf("buildClaimedService() error = %q, want it to name the reserved key", err)
 	}
 }

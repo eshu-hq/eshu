@@ -133,8 +133,12 @@ var collectorEntries = func() []Entry {
 	)
 
 	// component-extension collector: the ESHU_COMPONENT_* policy vars are already
-	// in coreEntries; only the collector-framework vars are added here.
+	// in coreEntries; only the collector-framework vars are added here, plus the
+	// GitHub App credential vars the host mints installation tokens with (#9185).
 	add(
+		Entry{Name: "ESHU_GITHUB_APP_ID", Type: VarString, Subsystem: "collector-component-extension", Description: "GitHub App ID the component-extension host mints installation tokens with (#9185). Read once at worker startup together with ESHU_GITHUB_APP_PRIVATE_KEY and ESHU_GITHUB_APP_INSTALLATIONS; any of the three empty keeps the static config path with no provider. Never crosses the extension stdio boundary."},
+		Entry{Name: "ESHU_GITHUB_APP_INSTALLATIONS", Type: VarString, Subsystem: "collector-component-extension", Description: "JSON object mapping claimed scope IDs to the GitHub App installation that serves them for host-minted tokens (#9185). Malformed JSON, an empty map, or blank scope/installation entries fail worker startup closed naming only the variable."},
+		Entry{Name: "ESHU_GITHUB_APP_PRIVATE_KEY", Type: VarString, Subsystem: "collector-component-extension", Description: "GitHub App PEM private key the component-extension host mints installation tokens with (#9185). Single-line secret-environment bodies are re-wrapped at mint time; the key never crosses the extension stdio boundary, only the minted token does."},
 		Entry{Name: "ESHU_COMPONENT_COLLECTOR_INSTANCE_ID", Type: VarString, Subsystem: "collector-component-extension", Description: "Instance ID for the component-extension collector."},
 		Entry{Name: "ESHU_COMPONENT_COLLECTOR_OWNER_ID", Type: VarString, Subsystem: "collector-component-extension", Description: "Lease owner identifier; defaults to the hostname."},
 		Entry{Name: "ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL", Type: VarDuration, Default: "1s", Subsystem: "collector-component-extension", Description: "Poll interval for discovering component activations."},
