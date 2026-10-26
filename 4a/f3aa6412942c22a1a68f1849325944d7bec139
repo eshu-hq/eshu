@@ -1,0 +1,24 @@
+go/cmd/collector-security-alerts/CUTOVER_CHECKLIST.DRAFT.md
+  h_78a442cba0b3e6 1-70
+go/cmd/collector-security-alerts/EXTRACTION_PREP.md
+  h_78a442cba0b3e6 1-157
+go/cmd/collector-security-alerts/extraction_prep_mirror_test.go
+  h_78a442cba0b3e6 1-131
+go/cmd/collector-security-alerts/producer-grant.manifest.DRAFT.yaml
+  h_78a442cba0b3e6 1-50
+go/cmd/collector-security-alerts/version-matrix.sh
+  h_78a442cba0b3e6 1-65
+go/internal/collector/securityalerts/extraction_prep_mirror_test.go
+  h_78a442cba0b3e6 1-226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4af3aa6412942c22a1a68f1849325944d7bec139",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
