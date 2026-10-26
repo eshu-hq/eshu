@@ -64,7 +64,7 @@ one-time at startup for 8 products / 196 cycles. Input shape: an in-memory
 Snapshot plus (runtime, major, minor) ints. No queue, row, graph, or
 storage counts change: no caller wires the join into a read path yet, so
 terminal counts are identical before and after; the focused package tests
-(17 cases, `go test ./internal/eol/`) pass. Safe because Resolve allocates
+(20 cases, `go test ./internal/eol/`) pass. Safe because Resolve allocates
 only its Answer value, touches no shared state, and never reads missing
 data as supported (unknown by construction).
 
