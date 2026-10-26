@@ -77,6 +77,12 @@ wiring end to end through the real process runner.
   workflow planning. It may name `sourceSystem`, `scope.id`, and `scope.kind`
   so the SDK claim matches the external source instead of a synthetic component
   scope.
+- The worker mints one host-owned GitHub App installation token per claim only
+  when `ESHU_GITHUB_APP_ID`, `ESHU_GITHUB_APP_PRIVATE_KEY`, and
+  `ESHU_GITHUB_APP_INSTALLATIONS` (a JSON object mapping scope IDs to
+  installation IDs) are all set; otherwise the static config path applies.
+  Malformed installations JSON fails startup closed. The App private key never
+  crosses the extension stdio boundary.
 - The worker supports `spec.runtime.adapter: process` and
   `spec.runtime.adapter: oci`. The OCI image is read only from the component's
   verified manifest artifact (digest-pinned and platform-matched); the
@@ -94,6 +100,22 @@ No-Observability-Change: beyond the extension status signals above, the worker
 adds no new metric labels, queue domains, graph writes, or API/MCP routes. Operators diagnose progress and failure
 through existing collector `/admin/status`, workflow claim rows, failure
 classes, commit counters, and the service metrics endpoint.
+
+No-Regression Evidence (#9185): wiring `tokenProviderFromEnv` into
+`buildClaimedService` adds one startup env read plus one nil check per claim;
+the mint/inject path it enables is covered by the owning `extensionhost`
+suite. Baseline and after both run `go test -count=1
+./cmd/collector-component-extension/... ./internal/collector/extensionhost/...`
+green with `go vet` and `gofmt` clean; the input shape is three operator env
+vars with no queue, lease, batching, Cypher, or graph-write surface, so the
+claim hot path is unchanged when the vars are absent (nil-provider early
+return) and adds one bounded mint call per claim when set.
+
+No-Observability-Change (#9185): the wiring adds no new metric, span, log
+line, or status field; startup misconfiguration fails with an error naming
+only the variable, and per-claim mint faults reuse the existing bounded
+terminal/retryable failure classes, so operators keep diagnosing through the
+existing claim rows, failure classes, and service metrics endpoint.
 
 ## Related docs
 
