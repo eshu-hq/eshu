@@ -15,6 +15,16 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	target.ScopeID = strings.TrimSpace(target.ScopeID)
 	target.Repository = normalizeRepository(target.Repository)
 	target.Token = strings.TrimSpace(target.Token)
+	target.HostTokenFile = strings.TrimSpace(target.HostTokenFile)
+	target.AuthMode = strings.ToLower(strings.TrimSpace(target.AuthMode))
+	if target.AuthMode == "" {
+		target.AuthMode = AuthModeTokenEnv
+	}
+	switch target.AuthMode {
+	case AuthModeTokenEnv, AuthModeHostMinted:
+	default:
+		return TargetConfig{}, fmt.Errorf("unsupported github actions auth_mode %q", target.AuthMode)
+	}
 	target.APIBaseURL = strings.TrimSpace(target.APIBaseURL)
 	target.SourceURI = strings.TrimSpace(target.SourceURI)
 	if target.APIBaseURL == "" {
@@ -29,8 +39,20 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	if target.Repository == "" {
 		return TargetConfig{}, fmt.Errorf("repository must be owner/name")
 	}
-	if target.Token == "" {
-		return TargetConfig{}, fmt.Errorf("token is required")
+	if target.AuthMode == AuthModeHostMinted {
+		// A host_minted target carries no frozen Token: the bearer
+		// resolves per claim from HostTokenFile in NextClaimed, so a
+		// stale startup copy can never shadow a host refresh.
+		if target.HostTokenFile == "" {
+			return TargetConfig{}, fmt.Errorf("host_token_file is required")
+		}
+	} else {
+		if target.HostTokenFile != "" {
+			return TargetConfig{}, fmt.Errorf("auth_mode %q must not set host_token_file %q: the two credential shapes never mix", target.AuthMode, target.HostTokenFile)
+		}
+		if target.Token == "" {
+			return TargetConfig{}, fmt.Errorf("token is required")
+		}
 	}
 	if !repositoryAllowed(target.Repository, target.AllowedRepositories) {
 		return TargetConfig{}, fmt.Errorf("repository must be listed in allowed_repositories")

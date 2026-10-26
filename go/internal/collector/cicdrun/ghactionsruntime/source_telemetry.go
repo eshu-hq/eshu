@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -40,6 +41,16 @@ func (s ClaimedSource) startFetch(ctx context.Context) (context.Context, trace.S
 func classifyProviderStatus(err error) string {
 	if errors.Is(err, ErrRateLimited) {
 		return "rate_limited"
+	}
+	// A bounded auth_denied (an unreadable host token file, or a provider
+	// refusal of the host-minted bearer) records under its own status
+	// class so an expired or refused host credential stays
+	// distinguishable from a generic provider error. token_env targets
+	// never produce this class: their startup lane fails closed and
+	// their provider errors propagate unclassified.
+	var providerFailure sdk.ProviderFailure
+	if errors.As(err, &providerFailure) && providerFailure.FailureClass() == string(sdk.FailureAuthDenied) {
+		return string(sdk.FailureAuthDenied)
 	}
 	return "error"
 }
