@@ -77,6 +77,12 @@ wiring end to end through the real process runner.
   workflow planning. It may name `sourceSystem`, `scope.id`, and `scope.kind`
   so the SDK claim matches the external source instead of a synthetic component
   scope.
+- The worker mints one host-owned GitHub App installation token per claim only
+  when `ESHU_GITHUB_APP_ID`, `ESHU_GITHUB_APP_PRIVATE_KEY`, and
+  `ESHU_GITHUB_APP_INSTALLATIONS` (a JSON object mapping scope IDs to
+  installation IDs) are all set; otherwise the static config path applies.
+  Malformed installations JSON fails startup closed. The App private key never
+  crosses the extension stdio boundary.
 - The worker supports `spec.runtime.adapter: process` and
   `spec.runtime.adapter: oci`. The OCI image is read only from the component's
   verified manifest artifact (digest-pinned and platform-matched); the

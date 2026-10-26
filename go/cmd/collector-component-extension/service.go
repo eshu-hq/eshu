@@ -41,6 +41,14 @@ func buildClaimedService(
 		return collector.ClaimedService{}, err
 	}
 	grantHome := config.ComponentHome
+	// Host-minted App tokens are optional: when the operator configures all
+	// three GitHub App variables the host mints one installation token per
+	// claim for the security-alerts activation; otherwise the static config
+	// path applies. A malformed mapping fails startup closed here.
+	tokenProvider, err := tokenProviderFromEnv(getenv)
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
 	source, err := extensionhost.NewSource(extensionhost.Config{
 		Manifest:            config.Manifest,
 		CollectorInstanceID: config.Instance.InstanceID,
@@ -54,8 +62,12 @@ func buildClaimedService(
 		// telemetry of its own.
 		StatusRecorder: extensionhost.NewStatusTelemetry(instruments, logger),
 		Clock:          time.Now,
-		Grants:         config.Grants,
-		GrantObserver:  grantObserver,
+		// TokenProvider is nil unless the GitHub App environment is fully
+		// set; only the minted token crosses the stdio boundary, never the
+		// App private key.
+		TokenProvider: tokenProvider,
+		Grants:        config.Grants,
+		GrantObserver: grantObserver,
 		// LiveGrants re-reads the registry on every emission so a
 		// grant revoked during execution fails the next result
 		// closed. A read failure is returned, not swallowed: the host
