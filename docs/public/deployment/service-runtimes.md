@@ -26,6 +26,17 @@ The direct service binaries are the release artifacts and support `--version`
 checks. Helm starts API and MCP through the `eshu` CLI wrapper; most other
 workloads use direct `/usr/local/bin/eshu-*` binaries.
 
+Before the schema Job runs, the release binary's embedded Postgres migration
+inventory can be inspected with
+`eshu-bootstrap-data-plane --postgres-migration-inventory`. This offline JSON
+mode needs no database or graph connection and applies no DDL. It reports
+`format_version: 1`, `default_variant: "full"`, and rows ordered by migration
+path, with `full` before `deferred` for the same path. Each row has `path`,
+`variant`, and `checksum_sha256`; deferred rows also have
+`full_checksum_sha256`. Compare these with the target database's
+`eshu_schema_migrations` receipts. The inventory reports embedded SQL, not
+applied database state.
+
 Deployment binaries connect to external Bolt-compatible graph endpoints.
 Embedded NornicDB is only the local `eshu graph start` path.
 

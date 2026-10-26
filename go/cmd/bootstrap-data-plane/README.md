@@ -28,6 +28,25 @@ other runtimes. This binary does not stay resident.
 - `eshu-bootstrap-data-plane --version` and `eshu-bootstrap-data-plane -v` print
   the build-time version through `buildinfo.PrintVersionFlag` before opening
   Postgres or the graph backend
+- `eshu-bootstrap-data-plane --postgres-migration-inventory` prints one JSON
+  object and exits before telemetry setup, configuration validation, or store
+  access. The flag must be used alone. It reads the SQL embedded in the binary,
+  so it can inspect a release image without starting its schema Job.
+
+Any other command-line argument, including a misspelled inventory flag or a
+combination of flags, exits with an error before normal bootstrap starts.
+
+The inventory has `format_version: 1`, `default_variant: "full"`, and a
+`migrations` array. Each row has the ledger `path`, a `variant` (`full` or
+`deferred`), and `checksum_sha256`. Deferred rows also have
+`full_checksum_sha256`, the checksum of the eventual full SQL. Rows are sorted
+by path, with `full` immediately before `deferred` for a path that has both.
+The array includes every full migration and only definitions that have a
+deferred variant. A deferred variant may have the same SQL checksum as its full
+variant; it remains a separate ledger variant. The output contains no SQL,
+database state, or deployment configuration. Compare it with migration
+receipts before running the Job; the inventory itself does not certify that a
+database is ready or apply any schema.
 
 ## Configuration
 

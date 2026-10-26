@@ -5,7 +5,9 @@
 // Eshu Postgres and graph-backend schema DDL and exits.
 //
 // When invoked with --version or -v, it prints the embedded application
-// version and exits before opening stores. Otherwise the binary opens Postgres
+// version and exits before opening stores. With --postgres-migration-inventory,
+// it prints an offline JSON inventory of embedded Postgres SQL variants and
+// exits before telemetry or store setup. Otherwise the binary opens Postgres
 // through the runtime config helpers, applies unrecorded fact-store, queue,
 // content, and audit migrations via postgres.ApplyBootstrap, then
 // opens the configured graph backend (Neo4j or NornicDB) and applies the
