@@ -34,7 +34,7 @@ Anything both sides need lives in
   `metadata`, `redact`) to a source body at the write boundary (#8812) and
   returns the body the content store may hold plus a `StoreOutcome`. The
   `marker` redactor replaces credential values with `REDACTED_<finding_kind>`,
-  binds to the migration 138 detector in `go/internal/secret/detect`, and fails
+  binds to the migration 235 detector in `go/internal/secret/detect`, and fails
   closed: a redactor error or non-UTF-8 body returns an empty body with
   `StoreOutcomeRedactorFailed`, never the source. The `skeleton` redactor
   (#8833) keeps an allowlist skeleton of an open-schema file such as `*.tfvars`.
@@ -138,7 +138,7 @@ updated in the same change.
   goes. A URL key and a
   credential key on one line (a flow mapping) are both covered by the
   credential rule from the leftmost key.
-- **Parity with migration 138.** The Go detector uses a superset whitespace
+- **Parity with migration 235.** The Go detector uses a superset whitespace
   class (`detect.SpaceClass`) because Postgres `[[:space:]]` matches U+2003 and
   U+3000 and RE2's does not, and Go `(?i)` folds U+017F and U+212A where Postgres
   in a C collation does not. #8833's parity corpus must include both.
@@ -153,7 +153,7 @@ number, the trailing newline, and `\r` line endings.
   `"key": value` value that is a boolean, `null`, a number, a `var.`, `local.`,
   `module.`, or `data.` reference, or a quoted version or constraint whose
   prerelease is a known word (`alpha`, `beta`, `rc`, `pre`, `dev`, `snapshot`).
-- **Finding first:** when the raw line is a migration 138 finding (the line
+- **Finding first:** when the raw line is a migration 235 finding (the line
   gate matches and the `CASE` names a kind), the value becomes
   `REDACTED_<finding_kind>`, even for a reference. A gate match with no kind
   (an `sk_live_` key alone) is no finding, so it becomes `REDACTED_value` and the

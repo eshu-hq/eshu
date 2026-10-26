@@ -15,11 +15,18 @@ import (
 // leaked it through the YAML structure, not through a detector line.
 const flowSeedToken = "Zq19FlowSeedAAAAAAAA"
 
-// flowHostileSeeds are valid .yarnrc.yml bodies where a listed key's value
-// starts or continues on a line the redactor's more-indented continuation does
-// not cover: the independent #8833 review (P1) found them stored verbatim with
-// outcome clean. yaml.v3, PyYAML, and js-yaml 4.1.1 all decode the token from
-// each of them. {T} is replaced with flowSeedToken.
+// flowHostileSeeds are hostile .yarnrc.yml-shaped bodies where a listed key's
+// value starts or continues on a line the redactor's more-indented continuation
+// does not cover: the independent #8833 review (P1) found them stored verbatim
+// with outcome clean. Parser coverage differs by shape. The "..."-prefixed
+// fallback bodies decode the token under a listed key only in js-yaml 4.1.1;
+// yaml.v3 and PyYAML 6.0.3 reject the bare document after "...". The
+// anchor-on-the-value and tag-on-the-value bodies decode in yaml.v3 and PyYAML
+// but error in js-yaml. The tab-after-dash bodies likewise decode only in
+// js-yaml, and the tab-indented flow value errors only in PyYAML. The
+// comment-looking line in a quoted key errors in all three (a multi-line
+// quoted simple key): it is an invalid-in-all-parsers fail-closed shape, not a
+// decoded-token shape. {T} is replaced with flowSeedToken.
 var flowHostileSeeds = map[string]string{
 	"flow map value on the next line":                            "{\nnpmAuthToken:\n{T}\n}\n",
 	"flow map plain scalar second half":                          "{\nnpmAuthToken: abcd\n{T}\n}\n",
