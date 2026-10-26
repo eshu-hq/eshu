@@ -1,0 +1,47 @@
+{
+  "cutover_issue": 8863,
+  "description": "Representative PagerDuty provider inputs for the #4047 in-tree vs external parity comparison. The extracted producer must emit the same kind, stable key, payload, scope, and generation for these inputs; FactID values change by construction (host-built envelope).",
+  "scope_id": "pagerduty:account:ACCT123",
+  "generation_id": "pagerduty:generation-1",
+  "collector_instance_id": "pagerduty-primary",
+  "incident": {
+    "id": "PABC123",
+    "incident_number": 42,
+    "title": "API latency above SLO",
+    "status": "triggered",
+    "urgency": "high",
+    "priority": {"id": "PPL1", "type": "priority", "summary": "P1"},
+    "service": {"id": "SVC1", "type": "service", "summary": "checkout-api"},
+    "escalation": {"id": "ESC1", "type": "escalation_policy", "summary": "checkout-oncall"},
+    "teams": [{"id": "TM1", "type": "team", "summary": "checkout"}],
+    "assignments": [{"id": "U1", "type": "user", "summary": "oncall-dev"}],
+    "created_at": "2026-10-20T12:00:00Z",
+    "updated_at": "2026-10-20T12:30:00Z",
+    "resolved_at": "",
+    "html_url": "https://example.pagerduty.com/incidents/PABC123?token=secret-must-strip"
+  },
+  "lifecycle_event": {
+    "id": "LOG1",
+    "incident_id": "PABC123",
+    "type": "acknowledge",
+    "actor": {"id": "U1", "type": "user", "summary": "oncall-dev"},
+    "channel": "web",
+    "summary": "acknowledged by oncall",
+    "created_at": "2026-10-20T12:05:00Z",
+    "html_url": "https://example.pagerduty.com/incidents/PABC123/log_entries/LOG1"
+  },
+  "change_event": {
+    "id": "CHG1",
+    "summary": "deploy checkout-api v2.4.1",
+    "source": "ci",
+    "services": [{"id": "SVC1", "type": "service", "summary": "checkout-api"}],
+    "links": [{"href": "https://ci.example.local/builds/99", "text": "build 99"}],
+    "timestamp": "2026-10-20T11:55:00Z",
+    "html_url": "https://example.pagerduty.com/change_events/CHG1"
+  },
+  "hostile": {
+    "blank_incident_id": "",
+    "blank_event_id": "",
+    "blank_change_id": ""
+  }
+}
