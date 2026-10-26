@@ -95,6 +95,56 @@ class V2ModelTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "spread"):
             wt.weighted_bounds(runs, balanced_rows)
 
+    def test_repeat_price_cannot_hide_a_row_over_its_timeout(self) -> None:
+        runs = [f"./p{package}|Test{test}Live"
+                for package in range(5) for test in range(2)]
+        model = v2.weights_from_json({
+            **document(), "fixed_job_seconds": 0.0,
+            "cold_cache_seconds": 1.0,
+            "default_package_first_seconds": 1.0,
+            "default_package_repeat_seconds": 500.0,
+            "package_first_seconds": {}, "package_repeat_seconds": {},
+            "test_seconds": {run: 400.0 for run in runs}})
+        self.assertEqual(wt.shard_job_seconds(runs, model, [0, 2, 4, 6, 8, 10]),
+                         [1302.0] * 5)
+        self.assertIn("720", " ".join(wt.budget_errors(runs, model)))
+
+    def test_repeat_price_splits_rows_and_matches_fast_interval_score(self) -> None:
+        runs = [f"./p{package}|Test{test}Live"
+                for package in range(5) for test in range(2)]
+        model = v2.weights_from_json({
+            **document(), "fixed_job_seconds": 0.0,
+            "cold_cache_seconds": 1.0,
+            "default_package_first_seconds": 1.0,
+            "default_package_repeat_seconds": 300.0,
+            "package_first_seconds": {"./p2": 2.0},
+            "package_repeat_seconds": {"./p2": 250.0},
+            "test_seconds": {run: 350.0 for run in runs}})
+        scorer = v2.Scorer(runs, model)
+        for low in range(len(runs)):
+            for high in range(low + 1, len(runs) + 1):
+                interval = runs[low:high]
+                rows = v2.split_rows(interval, model)
+                by_package: dict[str, int] = {}
+                for row in rows:
+                    package = row[0].split("|", 1)[0]
+                    by_package[package] = by_package.get(package, 0) + 1
+                    self.assertLessEqual(v2.row_cost_tenths(row, model),
+                                         v2.ROW_BUDGET)
+                if len(by_package) == 1:
+                    self.assertEqual(scorer.row_count(low, high), len(rows))
+                expected = (model.fixed + model.cold
+                            + sum(model.test[run] for run in interval)
+                            + sum(model.package_first.get(
+                                package, model.default_package_first)
+                                  + (count - 1) * model.package_repeat.get(
+                                      package, model.default_package_repeat)
+                                  for package, count in by_package.items()))
+                self.assertEqual(scorer.cost(low, high), expected)
+        self.assertEqual(v2.split_rows(runs[:2], model),
+                         [[runs[0]], [runs[1]]])
+        self.assertEqual(wt.weighted_bounds(runs, model), [0, 2, 4, 6, 8, 10])
+
     def test_exact_planner_matches_bruteforce_small_instances(self) -> None:
         for costs in ([0, 0, 0, 0, 0, 0], [9, 2, 8, 3, 7, 4],
                       [2, 0, 10, 1, 0, 8]):

@@ -45,7 +45,8 @@ class WeightsV2:
                            self.default_package_first, self.default_package_repeat,
                            sorted(self.package_first.items()),
                            sorted(self.package_repeat.items()), sorted(self.test.items()),
-                           "midpoint-v2-cold-plus-first-every-row"], separators=(",", ":"))
+                           "midpoint-v2-cold-plus-max-first-repeat-every-row"],
+                          separators=(",", ":"))
 
 
 def weights_from_json(value: object) -> WeightsV2:
@@ -80,10 +81,20 @@ def weights_from_json(value: object) -> WeightsV2:
         test=wt._table(value["test_seconds"], "test_seconds", wt.RUN_RE))
 
 
+def _row_package_price(model: WeightsV2, package: str) -> int:
+    """Bound a row by either its first-use or its repeat package price."""
+    return max(model.package_first.get(package, model.default_package_first),
+               model.package_repeat.get(package, model.default_package_repeat))
+
+
 def _row_weights(model: WeightsV2) -> wt.Weights:
-    """Give the production midpoint splitter its conservative admission prices."""
-    return wt.Weights(model.source_runs, model.fixed, model.cold, model.default_test,
-                      model.default_package_first, model.package_first, model.test)
+    """Give the production midpoint splitter conservative admission prices."""
+    packages = model.package_first.keys() | model.package_repeat.keys()
+    return wt.Weights(
+        model.source_runs, model.fixed, model.cold, model.default_test,
+        max(model.default_package_first, model.default_package_repeat),
+        {package: _row_package_price(model, package) for package in packages},
+        model.test)
 
 
 def row_cost_tenths(row: list[str], model: WeightsV2) -> int:
@@ -154,13 +165,13 @@ class Scorer:
         if self.package_at[low] != self.package_at[high - 1]:
             raise ValueError("row interval spans packages")
         package = self.package_names[self.package_at[low]]
-        first = self.model.package_first.get(package, self.model.default_package_first)
+        admission = _row_package_price(self.model, package)
         pending = [(low, high)]
         count = 0
         while pending:
             start, end = pending.pop()
             total = self.test_prefix[end] - self.test_prefix[start]
-            if end - start == 1 or self.model.cold + first + total <= ROW_BUDGET:
+            if end - start == 1 or self.model.cold + admission + total <= ROW_BUDGET:
                 count += 1
                 continue
             half = (total + 1) // 2

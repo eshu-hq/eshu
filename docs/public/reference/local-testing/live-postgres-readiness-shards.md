@@ -39,8 +39,11 @@ Predicted v1 job seconds are the sum of its tests, package costs, cold-cache
 constant, and fixed job overhead. A v2 model distinguishes the first use of a
 package from each later runner row. Its job score adds fixed and cold costs,
 every test price, one first-use price per package, and one repeat price for
-every further row of that package. The runner still splits rows at the 720 s
-admission budget. The model gate keeps each predicted job at or below 1440 s,
+every further row of that package. For the 720 s row admission budget, the
+splitter charges cold cost, test prices, and the greater of first-use and
+repeat cost to every row. This bounds either row kind even when repeat cost
+exceeds first-use cost; the job score still charges the measured price for
+each actual row kind. The model gate keeps each predicted job at or below 1440 s,
 spread within 15%, and defaults within 40 tests and 2 packages. These modeled
 bounds do not guarantee an observed 1800 s wall time.
 
