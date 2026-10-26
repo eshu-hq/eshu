@@ -48,6 +48,10 @@ database state, or deployment configuration. Compare it with migration
 receipts before running the Job; the inventory itself does not certify that a
 database is ready or apply any schema.
 
+No-Observability-Change: Offline inventory exits before telemetry. JSON stdout
+and a nonzero exit with stderr report command outcomes. Normal bootstrap
+telemetry is unchanged.
+
 ## Configuration
 
 Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
