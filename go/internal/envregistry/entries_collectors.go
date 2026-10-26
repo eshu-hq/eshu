@@ -43,9 +43,6 @@ var collectorEntries = func() []Entry {
 	add := func(es ...Entry) { entries = append(entries, es...) }
 
 	// Standard-framework collectors (infix "_COLLECTOR_" on poll/lease/heartbeat).
-	add(collectorFrameworkEntries("collector-tempo",
-		"ESHU_TEMPO_COLLECTOR_INSTANCE_ID", "ESHU_TEMPO_COLLECTOR_OWNER_ID",
-		"ESHU_TEMPO_COLLECTOR_POLL_INTERVAL", "", "ESHU_TEMPO_COLLECTOR_CLAIM_LEASE_TTL", "ESHU_TEMPO_COLLECTOR_HEARTBEAT_INTERVAL")...)
 	add(collectorFrameworkEntries("collector-loki",
 		"ESHU_LOKI_COLLECTOR_INSTANCE_ID", "ESHU_LOKI_COLLECTOR_OWNER_ID",
 		"ESHU_LOKI_COLLECTOR_POLL_INTERVAL", "", "ESHU_LOKI_COLLECTOR_CLAIM_LEASE_TTL", "ESHU_LOKI_COLLECTOR_HEARTBEAT_INTERVAL")...)

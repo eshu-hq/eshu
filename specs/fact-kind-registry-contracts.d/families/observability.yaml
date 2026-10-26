@@ -59,9 +59,8 @@ producers:
         - observability.observed_target
         - observability.source_instance
     - id: collector-tempo
-      repository: eshu-hq/eshu
-      path: go/internal/collector/observability/tempo
-      planned_repository: eshu-hq/eshu-collector-tempo
+      repository: eshu-hq/eshu-collector-tempo
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - observability.coverage_warning
