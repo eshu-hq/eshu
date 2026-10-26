@@ -116,7 +116,7 @@ func TestExcludedStatementSelectsRowsTheComparisonCannotDecide(t *testing.T) {
 	t.Parallel()
 
 	one := normalized(excludedStatement(request{runtime: "node", bounds: []int{20}}, querycontract.RepositoryAccessFilter{AllScopes: true}).cypher)
-	for _, want := range []string{"d.runtime = $runtime", "d.version_major IS NULL", "AS excluded_count"} {
+	for _, want := range []string{"d.runtime = $runtime", "coalesce(d.version_major, -1) = -1", "AS excluded_count"} {
 		if !strings.Contains(one, want) {
 			t.Errorf("excluded cypher missing %q:\n%s", want, one)
 		}
@@ -124,10 +124,16 @@ func TestExcludedStatementSelectsRowsTheComparisonCannotDecide(t *testing.T) {
 	if strings.Contains(one, "version_minor") {
 		t.Errorf("a major-only comparison cannot be undecidable on minor:\n%s", one)
 	}
+	// A bare IS NULL on a version part matches present values on NornicDB
+	// (golden-corpus differential 2026-10-26); the coalesce form above is
+	// load-bearing, so any reintroduction must fail here, not in CI.
+	if strings.Contains(one, "IS NULL") {
+		t.Errorf("excluded cypher must test absent versions with coalesce, not bare IS NULL:\n%s", one)
+	}
 	three := normalized(excludedStatement(request{runtime: "node", bounds: []int{20, 10, 3}}, querycontract.RepositoryAccessFilter{AllScopes: true}).cypher)
 	for _, want := range []string{
-		"(d.version_major = $below_0 AND d.version_minor IS NULL)",
-		"(d.version_major = $below_0 AND d.version_minor = $below_1 AND d.version_patch IS NULL)",
+		"(d.version_major = $below_0 AND coalesce(d.version_minor, -1) = -1)",
+		"(d.version_major = $below_0 AND d.version_minor = $below_1 AND coalesce(d.version_patch, -1) = -1)",
 	} {
 		if !strings.Contains(three, want) {
 			t.Errorf("excluded cypher missing %q:\n%s", want, three)
@@ -135,5 +141,8 @@ func TestExcludedStatementSelectsRowsTheComparisonCannotDecide(t *testing.T) {
 	}
 	if strings.Contains(three, "$cursor_") || strings.Contains(three, "LIMIT") {
 		t.Errorf("excluded count must cover the whole filter, not a page:\n%s", three)
+	}
+	if strings.Contains(three, "IS NULL") {
+		t.Errorf("excluded cypher must test absent versions with coalesce, not bare IS NULL:\n%s", three)
 	}
 }

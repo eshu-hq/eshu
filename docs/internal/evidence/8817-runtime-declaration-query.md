@@ -88,6 +88,45 @@ reads with their bounds.
   suite above are green; `TestLivePerfListScenariosStayUnderTheCapabilityBudget`
   passes with every scenario p95 under the budget.
 
+## Predicate-form change (excluded count)
+
+No-Regression Evidence: the undecided disjuncts moved from bare
+`part IS NULL` to `coalesce(part, -1) = -1` (major, minor, patch). The
+differential leg of the golden corpus showed the bare form matching nodes
+whose version part is present on NornicDB while Neo4j correctly returns zero
+rows (identical write sets, identical bounded reads, both pairings), so the
+bare form cannot stay. Version parts are non-negative or absent by the version parser and fact
+contract (digits-only, Atoi-or-reject; single producer), so the sentinel
+form decides exactly the same rows on canonical Neo4j; the
+live correctness suite (alias 2, range 1, unresolved 1 excluded; versioned
+rows listed, never excluded) is the semantic proof. The sargable
+`part = $below_N` conjuncts are untouched, so the plan shape is unchanged:
+a filter beside index seeks, same as before. Re-ran the full live perf
+suite on the pinned Neo4j after the change (same command as above,
+`eshu-8817-neo4j` container):
+
+| Scenario | p50 | p95 | p99 | max |
+| --- | ---: | ---: | ---: | ---: |
+| node major_below 20, first page of 50 | 30.7 ms | 31.8 ms | 35.3 ms | 38.7 ms |
+| node major_below 20, first page of 200 | 32.7 ms | 33.8 ms | 37.3 ms | 37.9 ms |
+| node major_below 20, page 26 (cursor) | 43.4 ms | 46.7 ms | 48.7 ms | 49.2 ms |
+| node version_below 20.10.1, first page of 50 | 32.7 ms | 34.5 ms | 37.5 ms | 38.5 ms |
+| node + source_kind nvmrc major_below 20 | 24.5 ms | 25.4 ms | 29.5 ms | 31.9 ms |
+| no filters, first page of 50 | 75.3 ms | 78.7 ms | 82.1 ms | 82.1 ms |
+| source_kind only, first page of 50 | 29.3 ms | 32.6 ms | 33.9 ms | 34.1 ms |
+| 100 repo_ids, no runtime | 71.0 ms | 72.5 ms | 75.4 ms | 75.5 ms |
+| 100 repo_ids, node major_below 20 | 33.1 ms | 34.1 ms | 37.0 ms | 37.1 ms |
+| scoped caller (100 granted repos), node major_below 20 | 33.6 ms | 34.7 ms | 37.9 ms | 38.1 ms |
+| repository context section (100 distinct repos) | 300 us | 300 us | 500 us | 600 us |
+
+Worst list p95 is 78.7 ms versus 79.1 ms before, every scenario still an
+order of magnitude under the 1,000 ms budget. The two runs are same-shape
+but different container states, so this is a no-regression reading, not a
+speedup claim: same plan class, same order, budget held.
+
+No-Observability-Change: the predicate rewrite adds no span, metric, or log;
+the `operation` labels and the excluded-reason counter are unchanged.
+
 ## Observability
 
 Observability Evidence: the route opens the `query.runtime_declarations` span (`http.route`,

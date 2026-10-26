@@ -136,13 +136,24 @@ func decidedBelowConditions(n int) []string {
 
 // undecidedConditions renders the disjuncts for a declaration the comparison
 // cannot place, for a bound of n components.
+//
+// The absent-version test is `coalesce(part, -1) = -1`, not a bare
+// `part IS NULL`. Version parts are non-negative or absent by the version
+// parser and fact contract (digits-only, Atoi-or-reject; single producer),
+// so the two forms decide exactly the same rows on canonical Neo4j, while the bare
+// IS NULL form matches nodes whose version part is present on NornicDB
+// (golden-corpus differential 2026-10-26: identical write sets and identical
+// bounded reads, yet the IS NULL excluded count returned a row on NornicDB
+// and zero rows on Neo4j in both pairings). The -1 sentinel keeps the test
+// a pure scalar comparison; the sargable `part = $below_N` conjuncts beside
+// it keep their index seeks.
 func undecidedConditions(n int) []string {
-	conds := []string{"d.version_major IS NULL"}
+	conds := []string{"coalesce(d.version_major, -1) = -1"}
 	if n >= 2 {
-		conds = append(conds, "(d.version_major = $below_0 AND d.version_minor IS NULL)")
+		conds = append(conds, "(d.version_major = $below_0 AND coalesce(d.version_minor, -1) = -1)")
 	}
 	if n >= 3 {
-		conds = append(conds, "(d.version_major = $below_0 AND d.version_minor = $below_1 AND d.version_patch IS NULL)")
+		conds = append(conds, "(d.version_major = $below_0 AND d.version_minor = $below_1 AND coalesce(d.version_patch, -1) = -1)")
 	}
 	return conds
 }
