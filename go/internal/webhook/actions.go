@@ -46,7 +46,7 @@ type ActionsReapResult struct {
 	Exhausted int
 }
 
-// NormalizeGitHubActions extracts a bounded wake-up identity after the listener
+// NormalizeGitHubActions extracts a bounded wake-up identity after its caller
 // has verified GitHub's SHA-256 signature. Unsupported events fail closed.
 func NormalizeGitHubActions(event, deliveryID string, payload []byte) (ActionsTrigger, error) {
 	event = strings.TrimSpace(event)
