@@ -1,0 +1,31 @@
+# QA ArgoCD overlay for Eshu: proves the schema-bootstrap PreSync hook
+# (issue #9201) before any production rollout.
+#
+# Enabling the hook here lets a QA sync create the release-image bootstrap
+# Job with its xmin-precheck init container as a PreSync hook at a negative
+# sync wave, so pending migrations complete before workloads roll. A sync
+# with a clean schema passes in seconds; a failing migration halts the sync
+# with the hook Job's logs as the cause.
+#
+# Break-glass: render the Job by hand and apply it as an unmanaged one-shot:
+#   helm template eshu ./deploy/helm/eshu -f deploy/argocd/base/values.yaml \
+#     -f deploy/argocd/overlays/qa/values.yaml \
+#     --show-only templates/job-schema-bootstrap.yaml | kubectl apply -f -
+# then wait on the component label, not a fixed name suffix:
+#   kubectl wait --for=condition=complete job \
+#     -l app.kubernetes.io/component=schema-bootstrap --timeout=3600s \
+#     --namespace eshu
+schemaBootstrap:
+  useHelmHooks: false
+  argocdPreSync:
+    enabled: true
+    syncWave: "-10"
+    hookDeletePolicy: BeforeHookCreation
+  # Conservative floor for environment overlays: the 600s chart default
+  # only bounds the bootstrap client pod, and a CREATE INDEX CONCURRENTLY
+  # build behind a long transaction outlasts it while the Postgres backend
+  # keeps building unattended. 3600s keeps the Job's status honest on
+  # database sizes with large target tables or routinely long-running
+  # transactions; a deadline kill still leaves the schema safe for the next
+  # run to resume (receipts, advisory-lock waiters, invalid-index cleanup).
+  activeDeadlineSeconds: 3600

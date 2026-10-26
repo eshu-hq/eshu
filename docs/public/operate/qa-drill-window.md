@@ -74,7 +74,10 @@ All must hold, else NO-GO:
    schema-bootstrap Job as an unmanaged one-shot, review it, create it, and
    wait for Succeeded before restarting the rolled writers. Select the Job by
    its component label, not by a fixed name suffix. Confirm the writers report
-   ready with zero restarts and no fingerprint errors in fresh logs.
+   ready with zero restarts and no fingerprint errors in fresh logs. Where the
+   QA overlay pilots the ArgoCD PreSync hook (#9201), the sync creates that
+   Job itself — then this step watches the hook Job to Succeeded instead of
+   creating it, and the manual render path above stays as break-glass.
 4. **Fleet health.** Confirm the application is Synced and Healthy, every
    workload runs the new image digest with no crash-looping pods, claims stay
    bound, and the ingester workspace claim is untouched. Assert nonzero

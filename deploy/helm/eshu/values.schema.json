@@ -254,6 +254,14 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "useHelmHooks": { "type": "boolean" },
+        "argocdPreSync": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "syncWave": { "type": "string", "pattern": "^-?[0-9]+$" },
+            "hookDeletePolicy": { "type": "string", "enum": ["BeforeHookCreation", "HookSucceeded", "HookFailed"] }
+          }
+        },
         "backoffLimit": { "type": "integer", "minimum": 0 },
         "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
         "ttlSecondsAfterFinished": { "type": "integer", "minimum": 0 },
