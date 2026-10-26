@@ -96,18 +96,16 @@ mcp_tool_envelope() {
 	fi
 	chmod 600 "${curl_config}"
 	curl -fsS -K "${curl_config}" --max-time "${API_TIMEOUT_SECONDS}" --data-binary "@${payload_file}" "${MCP_URL}" >"${response_file}"
-	if ! jq -e '(.error == null) and ((.result.isError // false) | not)' "${response_file}" >/dev/null; then
+	if ! jq -e '.jsonrpc == "2.0" and .error == null and (.result | type == "object") and (.result.isError == null or .result.isError == false)' "${response_file}" >/dev/null; then
 		echo "target story MCP tool ${tool_name} failed" >&2
 		return 1
 	fi
-	local envelope_text
-	envelope_text="$(jq -r 'first(.result.content[]? | select(.type == "resource" and .resource.uri == "eshu://tool-result/envelope") | .resource.text) // ""' "${response_file}")"
-	if [[ -z "${envelope_text}" ]]; then
-		echo "target story MCP tool ${tool_name} response missing Eshu envelope resource" >&2
-		return 1
-	fi
-	printf '%s' "${envelope_text}" >"${output_file}"
-	if ! jq -e 'has("data") and has("truth") and (.error == null)' "${output_file}" >/dev/null; then
+	if ! jq -e '
+		(if (.result | has("structuredContent")) then .result.structuredContent
+		 else first(.result.content[]? | select(.type == "resource" and .resource.uri == "eshu://tool-result/envelope") | .resource.text | fromjson)
+		 end)
+		| select(type == "object" and has("data") and has("truth") and has("error") and .error == null)
+	' "${response_file}" >"${output_file}"; then
 		echo "target story MCP tool ${tool_name} envelope is invalid" >&2
 		return 1
 	fi

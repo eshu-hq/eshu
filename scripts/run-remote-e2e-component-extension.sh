@@ -102,13 +102,13 @@ capture_component_mcp() {
 			--data "${CE_PROOF_PAYLOAD}" \
 			http://localhost:8080/mcp/message
 	' >"${response}"
-	jq -e '(.error == null) and ((.result.isError // false) | not)' "${response}" >/dev/null \
+	jq -e '.jsonrpc == "2.0" and .error == null and (.result | type == "object") and (.result.isError == null or .result.isError == false)' "${response}" >/dev/null \
 		|| die "MCP tool failed: ${tool_name}"
-	jq -er '
-		first(.result.content[]?
-			| select(.type == "resource" and .resource.uri == "eshu://tool-result/envelope")
-			| .resource.text)
-		| fromjson
+	jq -e '
+		(if (.result | has("structuredContent")) then .result.structuredContent
+		 else first(.result.content[]? | select(.type == "resource" and .resource.uri == "eshu://tool-result/envelope") | .resource.text | fromjson)
+		 end)
+		| select(type == "object" and has("data") and has("truth") and has("error") and .error == null)
 	' "${response}" >"${output}" || die "MCP tool response missing Eshu envelope: ${tool_name}"
 	rm -f "${response}"
 }
