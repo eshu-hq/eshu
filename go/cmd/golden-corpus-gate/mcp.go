@@ -166,6 +166,7 @@ type mcpToolRefusal struct {
 	message string
 }
 
+// Error keeps the tool context in a finding; refusal matching uses only message.
 func (e *mcpToolRefusal) Error() string {
 	return fmt.Sprintf("tools/call %s: tool reported isError; content=%q", e.tool, e.message)
 }
