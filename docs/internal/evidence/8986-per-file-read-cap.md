@@ -77,7 +77,8 @@ Performance Evidence: baseline is `os.ReadFile` on `origin/main`; after is
 queue, lease, or worker count changes, so there are no terminal queue or row
 counts to compare. Input shape: one regular file of 1 KiB, 64 KiB, or 4 MiB.
 The content-version pin
-(`go/internal/collector/repo/git/testdata/content_version_pin.json`, checked by
+(then `content_version_pin.json` in the git collector's test data, replaced by
+`go/internal/collector/repo/git/epoch/ledger.tsv` in #9097; checked by
 `TestGenerationContentVersionPinsCollectorOutput`) holds 342 facts with digest
 `50c4a5d0...`, and only its version line moved, so collector output for files
 under the cap is unchanged.

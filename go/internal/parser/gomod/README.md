@@ -84,9 +84,10 @@ lookup. Parsing runs only for files named `go.work`, reads that one file, and
 does one `modfile.ParseWork` pass linear in the file size, with no shared state
 or locks. Before this change no tracked fixture or golden-corpus repository
 contained a `go.work`, so their facts do not move; the one `go.work` added to
-the git collector's content-version fixture moves its pinned digest
-(`go/internal/collector/repo/git/testdata/content_version_pin.json`) and is
-re-pinned at the same `gitGenerationContentVersion`: the new output comes
+the git collector's content-version fixture moved its pinned digest (then
+`go/internal/collector/repo/git/testdata/content_version_pin.json`, now the
+per-file ledger `go/internal/collector/repo/git/epoch/ledger.tsv`, #9097) and was
+re-pinned at the same content version: the new output comes
 from a parser registration change, which the folded registry fingerprint
 already covers, so no hand bump is needed. A real repository that has a `go.work` gains a
 file fact plus its `workspace_use` and `dependency_replace` Variable entities.

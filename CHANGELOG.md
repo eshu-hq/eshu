@@ -24,6 +24,21 @@ recent shipped work grouped by feature area.
   pre-upgrade reducer or ingester rewrites during the rollout are repaired at
   the next change of that repository. The repair only adds keys, so readiness
   does not flip. The git collector content version does not change.
+### Git collector: content epoch replaces the hand-bumped version
+
+- **The git content version is now derived from a per-file pin ledger**
+  ([#9097](https://github.com/eshu-hq/eshu/issues/9097)). The hand-typed
+  `gitGenerationContentVersion` (`git-collector.v15`) is gone. The freshness
+  hint now folds `git-collector.<epoch>`, where the epoch comes from the
+  committed ledger `go/internal/collector/repo/git/epoch/ledger.tsv`: one line
+  per content-version fixture file (input digest, fact count, output digest)
+  plus a `_repository` line. The re-pin (`-update-content-version-pin`)
+  advances the epoch only when a file's output moved on unchanged input, and
+  chains it from the previous epoch, so two branches that move output
+  differently cannot land on the same value. A fixture-only change keeps the
+  epoch. This change is itself one advance (from `git-collector.v15` to
+  `git-collector.7609794ecb42af4d`), so each git repository stores one new
+  generation on its next sync, as after any bump.
 
 ### Declared runtime versions reach the graph
 

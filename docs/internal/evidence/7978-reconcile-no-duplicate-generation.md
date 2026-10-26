@@ -220,7 +220,9 @@ intents (0 rows before and after), so it does not cover this part.
 `content_version` fixture directory of the git collector package through the
 production snapshotter and
 fact builder. It pins a digest of the 238 normalized facts next to
-`gitGenerationContentVersion` in `testdata/content_version_pin.json`. When the
+`gitGenerationContentVersion` in the pin file `content_version_pin.json`
+(replaced by the per-file ledger `go/internal/collector/repo/git/epoch/ledger.tsv`
+in #9097). When the
 output moves while the constant stays the same, the test fails and tells the
 author to bump the constant. Seeded violation: appending one Python function to
 the fixture turned it RED, and restoring the file turned it GREEN.

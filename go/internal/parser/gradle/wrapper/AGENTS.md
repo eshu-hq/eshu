@@ -30,9 +30,11 @@
 - A change to the emitted row or the grammar: update the README and the
   scanner tests, and re-pin the collector fixture digest (`go test
   ./internal/collector/repo/git/ -run TestGenerationContentVersionPinsCollectorOutput
-  -update-content-version-pin`). A change that alters facts for unchanged input
-  also needs a `gitGenerationContentVersion` bump first, then the re-pin: the
-  registry fingerprint hashes bindings only, so a logic change with unchanged
-  bindings does not move it. A binding change moves the fingerprint on its own.
+  -update-content-version-pin`). The re-pin advances the content epoch on its
+  own when facts change for unchanged fixture input (#9097). A change that edits
+  the fixture file and the output together needs `-advance-content-epoch` on
+  the re-pin: the registry fingerprint hashes bindings only, so a logic change
+  with unchanged bindings does not move it. A binding change moves the
+  fingerprint on its own.
   Keep the fixture under
   `go/internal/collector/repo/git/testdata/content_version/jvm/gradle/wrapper/`.

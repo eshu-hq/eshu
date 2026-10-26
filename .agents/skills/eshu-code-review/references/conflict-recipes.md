@@ -47,19 +47,25 @@ is P3 ([merge-bar](merge-bar.md#prose-form)).
 
 ## Collector content pin
 
-`go/internal/collector/repo/git/testdata/content_version_pin.json` is never
-hand-merged. Take main's side, then re-pin:
+`go/internal/collector/repo/git/epoch/ledger.tsv` is generated and never
+hand-merged (#9097). Two PRs that both move collector output conflict on its
+`epoch` line; two that touch the same fixture file conflict on that bucket
+line. Take main's copy, then re-pin:
 
-1. Set `gitGenerationContentVersion` in
-   `go/internal/collector/repo/git/snapshot_freshness.go` to one above main's
-   value. Every open PR that changes collector output bumps the same constant,
-   so each later one bumps again after the earlier one merges.
+1. `git checkout origin/main -- go/internal/collector/repo/git/epoch/ledger.tsv`
 2. From `go/`, run
    `go test ./internal/collector/repo/git -run TestGenerationContentVersionPinsCollectorOutput -update-content-version-pin`.
+   It advances the epoch past main's when the PR's output moved on unchanged
+   input, and keeps main's epoch for a fixture-only change. Add
+   `-advance-content-epoch` only when the PR's own description says it edits a
+   fixture file and that file's output together.
 3. Run the same test again without the flag. It must pass.
 
-The constant lives in non-test Go, but the recipe still counts as 4a: the gate
-test is the proof. The global version is a known serialization point (#9097).
+Do not keep both sides' bucket lines under one side's `epoch` line: the re-pin
+would then see no moved output, keep the epoch, and ship new facts under an old
+hint. The `epoch` line carries a seal over the bucket lines, so the gate test
+fails on such a ledger and the re-pin refuses it. No Go source is edited, so
+the recipe is 4a with the gate test as the proof.
 
 ## Live PostgreSQL readiness weights
 

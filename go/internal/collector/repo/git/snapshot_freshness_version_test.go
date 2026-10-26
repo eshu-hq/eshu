@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/epoch"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
@@ -90,12 +91,12 @@ func TestSnapshotFreshnessHintFoldsContentVersion(t *testing.T) {
 }
 
 // TestGenerationContentVersionNamesCollectorParsersAndSchema pins the shape of
-// the version identity: the hand-bumped collector constant, the parser-set
+// the version identity: the content epoch of the committed ledger (#9097), the parser-set
 // fingerprint (#7986), and a digest of the supported fact-schema registry.
 func TestGenerationContentVersionNamesCollectorParsersAndSchema(t *testing.T) {
 	t.Parallel()
 	version := GenerationContentVersion()
-	wantPrefix := gitGenerationContentVersion + ";parsers=" + parser.DefaultRegistry().Fingerprint() + ";schema="
+	wantPrefix := "git-collector." + epoch.Current() + ";parsers=" + parser.DefaultRegistry().Fingerprint() + ";schema="
 	if !strings.HasPrefix(version, wantPrefix) {
 		t.Fatalf("GenerationContentVersion() = %q, want prefix %q", version, wantPrefix)
 	}
