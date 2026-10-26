@@ -210,6 +210,9 @@ VALUES ($1, $2, 'snapshot', $3, $3, 'pending')`, postGen, scopeID, f.w.Add(time.
 			if n := f.count(`SELECT count(*) FROM fact_records WHERE generation_id = $1 AND fact_kind = 'reducer_eshu_search_document'`, preGen); n != 0 {
 				t.Fatalf("iteration %d: %d pre-watermark facts survive a purge-first pass", iteration, n)
 			}
+			if n := f.count(`SELECT count(*) FROM eshu_search_index_terms WHERE generation_id = $1`, preGen); n != 0 {
+				t.Fatalf("iteration %d: %d pre-watermark terms survive a purge-first pass", iteration, n)
+			}
 		case !purgeStart.IsZero() && !flipAt.IsZero() && flipAt.Before(purgeStart):
 			writerFirst++
 			if touched != 0 {
