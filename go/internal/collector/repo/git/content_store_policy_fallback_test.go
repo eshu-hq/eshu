@@ -51,12 +51,28 @@ func TestSnapshotMapMissOnGovernedPathFailsClosed(t *testing.T) {
 		t.Fatalf("control: the content fact does not hold the seed (got %v); the fixture is vacuous", control)
 	}
 
-	missed := factKindsWithSeed(t, runFallbackFixture(t, RepositorySnapshot{
+	missedEnvelopes := runFallbackFixture(t, RepositorySnapshot{
 		ContentFileMetas: []model.ContentFileMeta{{RelativePath: ".npmrc", CommitSHA: "c0ffee"}},
 		// No ContentStores entry for the governed path.
 		ContentStoreFallbackRegistry: parser.DefaultRegistry(),
-	}), fallbackSeed)
-	if len(missed) != 0 {
+	})
+	if missed := factKindsWithSeed(t, missedEnvelopes, fallbackSeed); len(missed) != 0 {
 		t.Errorf("map miss on governed .npmrc emitted the raw body to fact kinds %v", missed)
+	}
+	// Liveness pin: the fallback must still emit the content envelope for
+	// .npmrc with an empty, seed-free body. A dropped envelope would pass the
+	// absence assertion above silently, so the row's presence is asserted here.
+	var found bool
+	for _, envelope := range missedEnvelopes {
+		if envelope.FactKind != "content" || envelope.Payload["content_path"] != ".npmrc" {
+			continue
+		}
+		found = true
+		if body, _ := envelope.Payload["content_body"].(string); body != "" {
+			t.Errorf("map miss on governed .npmrc content_body = %q, want the empty metadata body", body)
+		}
+	}
+	if !found {
+		t.Error("map miss on governed .npmrc emitted no content envelope; the absence assertion above would pass on a dropped row")
 	}
 }
