@@ -135,7 +135,7 @@ func registerContentStorePolicyInstruments(meter metric.Meter, inst *Instruments
 	}
 	if inst.ContentFileWriteConflictRetries, err = meter.Int64Counter(
 		"eshu_dp_content_file_write_conflict_retries_total",
-		metric.WithDescription("content_files batches the two-statement ContentWriter retried after a transient deadlock (40P01) or serialization failure (40001), by conflict_class (deadlock, serialization_failure) (#8950)"),
+		metric.WithDescription("content_files batches the two-statement ContentWriter retried after a transient deadlock (40P01) or serialization failure (40001), by failure_class (deadlock, serialization_failure) (#8950)"),
 	); err != nil {
 		return fmt.Errorf("register ContentFileWriteConflictRetries counter: %w", err)
 	}

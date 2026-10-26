@@ -627,7 +627,7 @@ type Instruments struct {
 	ContentFileUpsertUnclassifiedBodyBytes metric.Int64Counter
 	// ContentFileWriteConflictRetries counts content_files batches the
 	// two-statement writer (#8950) retried after a transient deadlock or
-	// serialization failure, by conflict_class (deadlock,
+	// serialization failure, by failure_class (deadlock,
 	// serialization_failure). A rising rate means concurrent writers contend
 	// on shared keys; the retry is bounded, so a sustained nonzero rate with
 	// failing Writes behind it needs the batch's lock order investigated.

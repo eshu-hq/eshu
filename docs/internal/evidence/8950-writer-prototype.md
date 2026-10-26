@@ -84,11 +84,14 @@ untyped VALUES (42883 on the real database).
 
 - Arbiter ruling needed before rollout: freezing `indexed_at` on
   commit/generation-only rewrites means the language inventory's
-  `last_indexed_at` no longer advances on a pure replay (it already does not
-  advance on identical replays since #8915). State: RULED — the rollout
-  implements the arbiter's ordered meaning ("last written with a change beyond
-  commit_sha/generation_id lineage"), and the PR body states the operator
-  consequence plainly.
+  `last_indexed_at` no longer advances on a pure replay through the converted
+  paths (it already does not advance on identical replays since #8915).
+  Unobserved writers and unclassified batches still take the single upsert,
+  which moves `indexed_at` on a lineage-only replay as before. State:
+  RULED — on the converted paths (classified batches + the single-row
+  `ContentStore` path) the rollout implements the arbiter's ordered meaning
+  ("last written with a change beyond commit_sha/generation_id lineage"),
+  and the PR body states the operator consequence plainly.
 - Storage migration: shipped as migration 236 (`ALTER TABLE content_files SET
   (fillfactor = 50)`, catalog-only, single statement). The rollout bar below
   replaces the `VACUUM FULL` rewrite used here: no page rewrite anywhere in
@@ -209,6 +212,22 @@ Single-row path proof: `TestContentStoreSingleRowMetadataOnlyPreservesIndexedAtL
 seeds and rewrites 6 rows through `ContentStore.UpsertFileBatch` (new
 generation, same bodies, clock advanced): `n_tup_upd`/`n_tup_hot_upd` delta 6/6,
 every `xmin` moved, every `indexed_at` kept, every row on its page.
+
+Single-row UPDATE-miss overhead (P2-2 proof, 2026-10-26): scratch harness
+(`zz_8950_single_row_overhead_scratch_live_test.go`, deleted after the run;
+numbers below), same disposable backend as the prototype proof, 120 rows of
+~8 KiB with secret lines, medians of 5 fresh-repo iterations: insert through
+`UpsertFileBatch` (UPDATE miss + upsert, 2 statements/row) 556.9 ms
+(4,640 µs/row) vs insert through the direct single-row upsert (1
+statement/row) 618.7 ms (5,156 µs/row) — delta −61.8 ms, i.e. noise favoring
+the two-statement arm, not overhead. The miss itself is one PK probe
+(`EXPLAIN ANALYZE`: index scan on `content_files_repo_path_pattern_idx`,
+3 buffer hits, 0.044 ms execution) against ~5 ms/row of trigger and TOAST
+work. Lineage-only rewrite through the store costs 227.1 ms (1,893 µs/row,
+1 statement); content change 800.7 ms (6,673 µs/row). No optimization
+shipped: any absence pre-check would cost its own round-trip, and skipping
+the UPDATE would forfeit the HOT/`indexed_at` behavior the rollout converted
+this path for.
 
 Post-deploy watch: `n_tup_hot_upd`/`n_tup_upd` for `content_files` (the
 reference page's HOT-share query) plus

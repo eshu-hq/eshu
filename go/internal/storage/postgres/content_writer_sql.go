@@ -33,8 +33,9 @@ const (
 //
 // indexed_at is deliberately not compared: it moves on every write, so
 // comparing it would stop the guard from ever skipping. A skipped row keeps
-// its old indexed_at, and a metadata-only rewrite (#8950) keeps it too: it
-// means "when this row was last written with a change beyond
+// its old indexed_at. On the converted paths (#8950: classified batches and
+// the single-row ContentStore path) a metadata-only rewrite keeps it too,
+// so there it means "when this row was last written with a change beyond
 // commit_sha/generation_id lineage", not "when it was last replayed". Only a
 // row the guarded upsert itself writes moves indexed_at; unobserved and
 // unclassified batches still take this statement for every row, so a
