@@ -34,7 +34,7 @@ Eshu canonical runtimes (`go/internal/collector/repo/runtime/declaration/parse.g
 | php | php | 2,664 |
 | rust | rust | 9,101 |
 | terraform | terraform | 2,112 |
-| dotnet (engines) | dotnet | 1,966 |
+| dotnet (open tool token: `.tool-versions`, `.sdkmanrc`) | dotnet | 1,966 |
 
 Total: ~27 KB. Vendor only these eight; the remaining 477 products are
 out of scope for declared-version questions.
