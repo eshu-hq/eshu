@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`go/internal/collector/repo/runtime/eol` vendors an endoflife.date snapshot
+`go/internal/eol` vendors an endoflife.date snapshot
 and joins it against declared runtime versions, so a read path can report
 whether a repository's runtime is still supported without any network access
 (issue #9163, research in
@@ -24,7 +24,10 @@ refresh job -> snapshots/*.json + snapshot_date -> go:embed -> Resolve
 version, and the query clock. The declaration package
 (`go/internal/collector/repo/runtime/declaration`) stays the producer of
 `runtime_declaration.version` facts; this package owns the EOL side of the
-join and has no collector, reducer, or query imports.
+join and has no collector, reducer, or query imports. It lives directly
+under `go/internal` rather than beside the producer because it is a
+dependency-free library, not a pipeline stage: nothing here performs
+collection, projection, queue work, or graph writes.
 
 ## Exported surface
 
@@ -48,6 +51,27 @@ join and has no collector, reducer, or query imports.
 
 Dates are inclusive last days: a cycle is `eol` the day after its eol date,
 and `support-ending` the day after its support date.
+
+## Evidence
+
+No-Regression Evidence: this package is new, so there is no prior baseline;
+the after measurement below is the initial cost record. Backend: linux/arm64,
+go1.26.6, `go test -bench` in the package (2026-10-26): BenchmarkResolve
+768 ns/op against the embedded snapshot (one linear scan over at most the
+71 rust cycles per declared version, no I/O), BenchmarkLoadSnapshot 321
+us/op one-time at startup for 8 products / 196 cycles. Input shape: an
+in-memory Snapshot plus (runtime, major, minor) ints. No queue, row, graph,
+or storage counts change: no caller wires the join into a read path yet, so
+terminal counts are identical before and after; the focused package tests
+(17 cases, `go test ./internal/eol/`) pass. Safe
+because Resolve allocates only its Answer value, touches no shared state,
+and never reads missing data as supported (unknown by construction).
+
+No-Observability-Change: the package performs no projection, queue write,
+retry, storage call, graph work, or network I/O and emits no metric, span,
+or log of its own; coverage is recorded in
+docs/public/observability/telemetry-coverage.md (eol snapshot join row).
+When a read path wires the join in, that surface owns its signals.
 
 ## Snapshot refresh
 

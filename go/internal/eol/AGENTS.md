@@ -1,4 +1,4 @@
-# AGENTS.md — internal/collector/repo/runtime/eol guidance
+# AGENTS.md — internal/eol guidance
 
 ## Read First
 

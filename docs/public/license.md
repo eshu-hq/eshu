@@ -31,7 +31,7 @@ SOFTWARE.
 Eshu vendors a snapshot of [endoflife.date](https://endoflife.date)
 per-product data (snapshots for `nodejs`, `go`, `python`, `ruby`, `php`,
 `rust`, `terraform`, and `dotnet` under
-`go/internal/collector/repo/runtime/eol/snapshots/`, fetched 2026-10-26) to
+`go/internal/eol/snapshots/`, fetched 2026-10-26) to
 answer whether a declared runtime version is still supported. The dataset
 comes from the
 [endoflife-date/endoflife.date](https://github.com/endoflife-date/endoflife.date)
