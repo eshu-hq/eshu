@@ -48,6 +48,7 @@ gate_fragments:
   - ci-gates.d/gates-14.yaml
   - ci-gates.d/gates-16.yaml
   - ci-gates.d/gates-15.yaml
+  - ci-gates.d/gates-17.yaml
 
 # Merge-group slim lane (#7859 P3): the owner-fixed ordered set of blocking
 # gate IDs selected on the merge_group event, ignoring changed paths. Source:

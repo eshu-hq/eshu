@@ -1,0 +1,28 @@
+version: v1
+gates:
+  - id: codex-goal-continuation
+    name: Codex goal continuation hook behavior
+    category: hygiene
+    layer: hygiene
+    purpose: "Exercises Codex Stop-hook error continuation and per-session goal progress handling."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".codex/hooks.json"
+      - ".codex/hooks/**"
+      - ".claude/hooks/goal-continue.sh"
+      - ".claude/hooks/lib/goal-issues.sh"
+      - ".claude/hooks/lib/goal-progress.sh"
+      - "scripts/test-codex-goal-continue-hook.sh"
+      - ".github/workflows/verify-agent-hygiene.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/gates-17.yaml"
+    local:
+      command: "bash scripts/test-codex-goal-continue-hook.sh"
+      test_command: ""
+    ci:
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""
