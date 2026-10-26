@@ -423,9 +423,13 @@ case "${GOAL_CONTINUE_STOP_CATEGORY:-}" in
 		;;
 esac
 
-reason="${reason_head}
+stop_context_suffix=""
+if [ -n "${stop_context_note}" ]; then
+	stop_context_suffix="
 
-${stop_context_note}
+${stop_context_note}"
+fi
+reason="${reason_head}${stop_context_suffix}
 
 ACTIVE GOAL (${goal_file}):
 ${goal}${consent_note}

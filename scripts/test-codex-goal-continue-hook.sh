@@ -37,6 +37,45 @@ PY
 run() { printf '%s' "$1" | bash "${hook}" 2>/dev/null; }
 is_blocked() { printf '%s' "$1" | rg '"decision"[[:space:]]*:[[:space:]]*"block"' >/dev/null; }
 has_system_message() { printf '%s' "$1" | rg '"systemMessage"[[:space:]]*:' >/dev/null; }
+assert_tool_progress_resets_budget() {
+  local tool_type="$1" session_id="$2"
+  local session_goal="${work}/project/.claude/active-goal.${session_id}"
+  local transcript="${work}/project/codex-${session_id}.jsonl"
+  local attempt continued out
+  printf 'Progress must keep this goal active.\n' >"${session_goal}"
+  : >"${transcript}"
+  for attempt in 1 2 3; do
+    continued=false
+    [[ "${attempt}" -eq 1 ]] || continued=true
+    out="$(run "$(payload "${work}/project" "${session_id}" '' "${continued}" "turn-${session_id}" "${transcript}")")"
+    if ! is_blocked "${out}"; then
+      no "${tool_type} baseline reaches the no-progress limit before progress"
+      return
+    fi
+  done
+  printf '{"type":"response_item","payload":{"type":"%s","name":"test_tool"}}\n' \
+    "${tool_type}" >>"${transcript}"
+  out="$(run "$(payload "${work}/project" "${session_id}" '' true "turn-${session_id}" "${transcript}")")"
+  if is_blocked "${out}"; then
+    ok "${tool_type} progress rescues an exhausted no-progress budget"
+  else
+    no "${tool_type} progress rescues an exhausted no-progress budget"
+    return
+  fi
+  for attempt in 1 2 3; do
+    out="$(run "$(payload "${work}/project" "${session_id}" '' true "turn-${session_id}" "${transcript}")")"
+    if ! is_blocked "${out}"; then
+      no "${tool_type} progress restores the full no-progress budget"
+      return
+    fi
+  done
+  out="$(run "$(payload "${work}/project" "${session_id}" '' true "turn-${session_id}" "${transcript}")")"
+  if ! is_blocked "${out}" && has_system_message "${out}"; then
+    ok "${tool_type} progress restores the full no-progress budget"
+  else
+    no "${tool_type} progress restores the full no-progress budget"
+  fi
+}
 assert_error_exhaustion_warning() {
   local label="$1" session_id="$2" error_message="$3"
   local session_goal="${work}/project/.claude/active-goal.${session_id}"
@@ -162,6 +201,11 @@ if is_blocked "${out}"; then
 else
   no 'a fresh Codex turn resets the no-progress budget'
 fi
+
+# Each Codex record shape is tested with an exhausted budget, independently,
+# so one shape cannot provide headroom that masks a missing progress reset.
+assert_tool_progress_resets_budget function_call codex-function-progress
+assert_tool_progress_resets_budget custom_tool_call codex-custom-progress
 
 # Codex transcripts record tool work as response_item function/custom calls.
 # Each real call must refresh the shared no-progress budget for this turn.

@@ -100,6 +100,11 @@ if printf '%s' "${out}" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/
 else
 	no "stdout is valid JSON"
 fi
+if printf '%s' "${out}" | python3 -c 'import json,sys; assert "\n\n\n" not in json.load(sys.stdin)["reason"]' 2>/dev/null; then
+	ok "Claude block reason has no empty Codex-category paragraph"
+else
+	no "Claude block reason has no empty Codex-category paragraph"
+fi
 
 printf 'DONE\nDrive PR 6310 to merged.\n' >"${goal}"
 check "DONE on the first line allows the stop" allow "$(run "$(payload p4)")"
