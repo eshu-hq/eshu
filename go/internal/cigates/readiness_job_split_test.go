@@ -26,6 +26,7 @@ type readinessJob struct {
 	Needs           any                         `yaml:"needs"`
 	Uses            string                      `yaml:"uses"`
 	With            map[string]string           `yaml:"with"`
+	Outputs         map[string]string           `yaml:"outputs"`
 	ContinueOnError string                      `yaml:"continue-on-error"`
 	TimeoutMinutes  int                         `yaml:"timeout-minutes"`
 	Env             map[string]string           `yaml:"env"`
@@ -35,8 +36,8 @@ type readinessJob struct {
 }
 
 type readinessStrategy struct {
-	FailFast *bool            `yaml:"fail-fast"`
-	Matrix   map[string][]int `yaml:"matrix"`
+	FailFast *bool     `yaml:"fail-fast"`
+	Matrix   yaml.Node `yaml:"matrix"`
 }
 
 // readinessSelectedJob extracts the registry job token a queue condition
@@ -99,7 +100,7 @@ const (
 	readinessAggregatePlan      = "${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness')) && (always()) }}"
 
 	readinessShardJob  = "live-postgres-readiness-shards"
-	readinessShardName = "live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/4)"
+	readinessShardName = "live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/${{ matrix.total }})"
 	// Interim 30-minute leg budget (#7864): test walls alone predicted 12.6m,
 	// but real sharded runs showed the cold `go test` build of the giant
 	// storage package costs ~9m on slow runners (leg 2/4: 821s suite for
@@ -108,7 +109,7 @@ const (
 	// need with margin at half the old 60m cap; five green sharded runs plus
 	// a build-cache investigation tighten it in a follow-up.
 	readinessShardTimeout  = 30
-	readinessShardRunner   = `bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/4" --report readiness-shard-report.json`
+	readinessShardRunner   = `bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/${{ matrix.total }}" --report readiness-shard-report.json`
 	readinessShardContract = "python3 scripts/test-live-postgres-readiness-shards.py"
 	// readinessSelfTestSeeds plants verifier and runner defects and requires
 	// the hermetic self-test to catch each one (#8241).
@@ -121,6 +122,7 @@ const (
 
 type readinessStep struct {
 	Name            string            `yaml:"name"`
+	ID              string            `yaml:"id"`
 	Run             string            `yaml:"run"`
 	Uses            string            `yaml:"uses"`
 	If              string            `yaml:"if"`
@@ -143,8 +145,8 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 	}) {
 		return "registry must name both independent checks"
 	}
-	if len(parsed.Jobs) != 4 {
-		return "workflow must have queue selection, hermetic, shards, and aggregate jobs"
+	if len(parsed.Jobs) != 5 {
+		return "workflow must have queue selection, plan, hermetic, shards, and aggregate jobs"
 	}
 	selector := parsed.Jobs["queue-selection"]
 	if selector.Uses != "./.github/workflows/queue-selection.yml" ||
@@ -163,6 +165,7 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 		prPaths[len(pushPaths)] != "specs/ci-pr-workflows.d/live-postgres-readiness.yml" ||
 		!slices.Contains(prPaths, ".github/workflows/live-postgres-readiness.yml") ||
 		!slices.Contains(prPaths, "go/internal/cigates/readiness_job_split_test.go") ||
+		!slices.Contains(prPaths, "go/internal/cigates/readiness_matrix_test.go") ||
 		!slices.Contains(prPaths, "scripts/lib/live_postgres_readiness_shards.py") ||
 		!slices.Contains(prPaths, "scripts/test-live-postgres-readiness-shards.py") ||
 		!slices.Contains(prPaths, "scripts/lib/live_postgres_readiness_events.py") {
@@ -188,21 +191,20 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 		hermetic.If != readinessHermeticPlan || hermetic.ContinueOnError != "" {
 		return "hermetic must wait for queue selection without skipping or waiving"
 	}
-	if !slices.Equal(readinessNeedsList(shards), []string{"queue-selection"}) ||
+	if !slices.Equal(readinessNeedsList(shards), []string{"queue-selection", "readiness-plan"}) ||
 		shards.If != readinessShardPlan || shards.ContinueOnError != "" {
 		return "shards must wait for queue selection without waiving failure"
 	}
 	if !slices.Equal(readinessNeedsList(aggregate),
-		[]string{"queue-selection", readinessShardJob}) ||
+		[]string{"queue-selection", "readiness-plan", readinessShardJob}) ||
 		aggregate.If != readinessAggregatePlan || aggregate.ContinueOnError != "" {
 		return "aggregate must wait for selection and every shard without waiving failure"
 	}
 	if shards.Strategy.FailFast == nil || *shards.Strategy.FailFast {
 		return "a slow shard must not cancel its siblings before they attest"
 	}
-	if !slices.Equal(shards.Strategy.Matrix["shard"], []int{1, 2, 3, 4}) ||
-		len(shards.Strategy.Matrix) != 1 {
-		return "shards must pin exactly four shard legs"
+	if shards.Strategy.Matrix.Value != "${{ fromJSON(needs.readiness-plan.outputs.matrix) }}" {
+		return "shards must use the plan's validated dynamic matrix"
 	}
 	if len(hermetic.Services) != 0 || len(shards.Services) != 2 || len(aggregate.Services) != 0 {
 		return "only the shard legs must start both disposable backends"
@@ -351,7 +353,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		if err := yaml.Unmarshal(workflow, &parsed); err != nil {
 			t.Fatal(err)
 		}
-		for _, jobName := range []string{"hermetic", readinessShardJob, readinessAggregateJob} {
+		for _, jobName := range []string{"hermetic", "readiness-plan", readinessShardJob, readinessAggregateJob} {
 			job := parsed.Jobs[jobName]
 			conditions := map[string]string{}
 			for _, step := range job.Steps {
@@ -416,6 +418,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		const checkoutStep = "        uses: actions/checkout@v5\n" +
 			"        with:\n" +
 			"          persist-credentials: false\n" +
+			"          ref: ${{ github.sha }}\n" +
 			"\n" +
 			"      - name: Set up Go\n"
 		if !strings.Contains(string(workflow), checkoutStep) {
@@ -427,6 +430,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		changed := strings.Replace(string(workflow), checkoutStep, "        uses: actions/checkout@v5\n"+
 			"        with:\n"+
 			"          persist-credentials: false\n"+
+			"          ref: ${{ github.sha }}\n"+
 			loginStep+
 			"      - name: Set up Go\n", 1)
 		if problem := checkReadinessSplit([]byte(changed), *gate, prPaths); problem == "" {
@@ -443,6 +447,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		const checkoutStep = "        uses: actions/checkout@v5\n" +
 			"        with:\n" +
 			"          persist-credentials: false\n" +
+			"          ref: ${{ github.sha }}\n" +
 			"\n" +
 			"      - name: Set up Go\n"
 		if !strings.Contains(string(workflow), checkoutStep) {
@@ -451,6 +456,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		changed := strings.Replace(string(workflow), checkoutStep, "        uses: actions/checkout@v5\n"+
 			"        with:\n"+
 			"          persist-credentials: false\n"+
+			"          ref: ${{ github.sha }}\n"+
 			ghcrLoginStep+
 			"      - name: Set up Go\n", 1)
 		if problem := checkReadinessSplit([]byte(changed), *gate, prPaths); problem != "" {

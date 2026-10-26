@@ -1,28 +1,29 @@
 # Live PostgreSQL readiness shards
 
 The `live-postgres-readiness` workflow runs the enrolled PostgreSQL proofs in
-four parallel jobs. Each job has a 30-minute cap (1800 s). This page explains
-how the plan is cut into four shards, how to keep every shard well under the
-cap, and how to refresh the numbers the cut depends on.
+four parallel jobs while only the v1 weights file is present. A later standalone
+v2 weights file activates five jobs through the same workflow. Each job keeps
+the 30-minute cap (1800 s). This page explains the cut and calibration.
 
 ## How the cut works
 
 The plan is the flat `package|test` list from
 `live_postgres_readiness_results.py list-packages`, in canonical inventory
-order. `scripts/lib/live_postgres_readiness_weights.py` cuts it into four
-contiguous slices so the longest predicted shard is as short as possible, then
-balances the other three. Every proof is in exactly one slice. A new test
+order. `scripts/lib/live_postgres_readiness_weights.py` reads the committed model.
+With v1, it cuts the plan into four contiguous slices using the existing
+longest-leg objective. With v2, it cuts into five contiguous slices using
+measured first-use and repeat-row costs and the guard-constrained objective. Every proof is in exactly one slice. A new test
 enters the plan at its inventory position and the cut moves with it, so no one
 edits a pinned table.
 
 The runner (`plan` and `report`) and the aggregate (`verify` and `select`) all
 call the same cut function with the same weights file from the same checkout.
-The aggregate still requires the four shard reports to be the exact union of
-the plan. A report cut under different weights fails with `plan mismatch`.
+The aggregate requires exactly the active model's four or five reports to
+be the exact union of the plan. A report cut under different weights fails with `plan mismatch`.
 
 ## What the prediction counts
 
-`specs/live-postgres-readiness-weights.v1.json` holds the fitted cost model,
+`specs/live-postgres-readiness-weights.v1.json` holds the current fitted cost model,
 in tenths of a second so the cut is identical on every machine:
 
 | Field | Meaning |
@@ -34,8 +35,14 @@ in tenths of a second so the cut is identical on every machine:
 | `default_test_seconds`, `default_package_seconds` | Used for a test or package with no measured entry (the mean of the measured values). |
 | `source_runs` | The CI run ids the numbers came from. |
 
-Predicted job seconds for a shard are the sum of its tests, the package costs of
-its packages, the cold-cache constant, and the fixed job overhead.
+Predicted v1 job seconds are the sum of its tests, package costs, cold-cache
+constant, and fixed job overhead. A v2 model distinguishes the first use of a
+package from each later runner row. Its job score adds fixed and cold costs,
+every test price, one first-use price per package, and one repeat price for
+every further row of that package. The runner still splits rows at the 720 s
+admission budget. The model gate keeps each predicted job at or below 1440 s,
+spread within 15%, and defaults within 40 tests and 2 packages. These modeled
+bounds do not guarantee an observed 1800 s wall time.
 
 ## Gates
 
@@ -86,7 +93,37 @@ job and fails when:
   number;
 - a shard report cut under other weights passes the aggregate.
 
-## Refit the weights
+## Move to five shards
+
+This infrastructure change keeps `specs/live-postgres-readiness-weights.v2.json`
+absent. The default matrix therefore remains exactly `1/4` through `4/4`; the
+plan job computes it from the same checkout used by the runner and aggregate.
+A malformed present v2 file fails the plan and the selected aggregate; it never
+falls back to v1. A present valid v2 file changes all five check names to `/5`
+and requires five matching reports. The selected aggregate fails if the plan,
+a shard, or report selection fails.
+
+After the final Phase A code and this infrastructure merge, collect at least two
+complete, successful `main` workflow runs with the same inventory, profile,
+image, toolchain, and proof boundaries. Save every shard job's metadata and log.
+Use the v2 refresher with both runs and an output outside the repository:
+
+```bash
+python3 scripts/lib/live_postgres_readiness_weights_refresh.py \
+  --schema-version 2 --out /tmp/readiness-weights.v2.json \
+  --sample RUN_ID_1=RUN_DIR_1 --sample RUN_ID_2=RUN_DIR_2
+```
+
+Review the source run and job IDs, successful terminal states, complete rows,
+first-use/repeat identification, predicted row and job maxima, defaults, and
+exact ordered test coverage. Then add only the sorted
+`specs/live-postgres-readiness-weights.v2.json` file in a standalone PR. Its
+five-way CI run is the first observed wall-time proof; diagnose a timeout or
+spread failure before merging. The five-leg model uses one more SQL runner and may consume more aggregate
+runner seconds; the plan job also adds setup time. No speedup or fixed
+wall-time result is promised.
+
+## Refit the v1 weights
 
 A refit is a standalone bot-or-owner PR that touches only
 `specs/live-postgres-readiness-weights.v1.json`. It is built from green `main`
@@ -142,7 +179,7 @@ pass; they just cannot feed the refit, because the refit reads only green
 
 ## When a shard is still too slow
 
-If the gate fails after a refresh, the plan no longer fits in four shards at
+If the gate fails after a refresh, the plan no longer fits in the active shard count at
 80% of the cap. Reduce the cost instead of raising the cap: split the slowest
 package's proofs, cache the Go build for the storage package, or add a shard.
 Raising `timeout-minutes` only hides a hang.

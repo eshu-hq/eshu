@@ -46,6 +46,7 @@ on:
       - 'go/internal/testutil/postgresproof/**'
       - 'go/internal/reducer/status/**'
       - 'go/internal/cigates/readiness_job_split_test.go'
+      - 'go/internal/cigates/readiness_matrix_test.go'
       - 'go/go.mod'
       - 'go/go.sum'
       - 'specs/live-tests.v1.yaml'
@@ -63,7 +64,15 @@ on:
       - 'scripts/lib/live_postgres_readiness_shards.py'
       - 'scripts/lib/live_postgres_readiness_weights*.py'
       - 'scripts/lib/live_postgres_readiness_balance_cases.py'
+      - 'scripts/lib/live_postgres_readiness_v2.py'
+      - 'scripts/lib/live_postgres_readiness_v2_planner.py'
+      - 'scripts/lib/live_postgres_readiness_v2_cases.py'
+      - 'scripts/lib/live_postgres_readiness_reports.py'
+      - 'scripts/lib/live_postgres_readiness_refresh_v2.py'
+      - 'scripts/lib/live_postgres_readiness_refresh_v2_provenance.py'
+      - 'scripts/test-live-postgres-readiness-refresh-v2.py'
       - 'specs/live-postgres-readiness-weights.v1.json'
+      - 'specs/live-postgres-readiness-weights.v2.json'
       - 'scripts/test-live-postgres-readiness-shards.py'
       - 'scripts/test-live-postgres-readiness-helper.py'
       - 'scripts/lib/live_postgres_readiness_events.py'
@@ -159,6 +168,10 @@ jobs:
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: python3 scripts/test-live-postgres-readiness-shards.py
 
+      - name: Check v2 refresher provenance
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
+        run: python3 scripts/test-live-postgres-readiness-refresh-v2.py
+
       - name: Check job summary classifier
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: bash scripts/ci/test-live-postgres-readiness-job-summary.sh
@@ -176,28 +189,46 @@ jobs:
           fi
           bash "$script" finish || echo "::warning title=hermetic job summary failed::$script finish exited $?"
 
+  readiness-plan:
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'readiness-plan')) && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
+    needs: queue-selection
+    name: live-postgres-readiness plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Produce readiness matrix
+        id: matrix
+        run: |
+          matrix=$(python3 scripts/lib/live_postgres_readiness_shards.py matrix)
+          test -n "$matrix"
+          printf '%s' "$matrix" | python3 -m json.tool > /dev/null
+          printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
+
   live-postgres-readiness-shards:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards')) && (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) }}
-    needs: queue-selection
-    name: live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/4)
+    needs: [queue-selection, readiness-plan]
+    name: live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/${{ matrix.total }})
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
+      matrix: ${{ fromJSON(needs.readiness-plan.outputs.matrix) }}
     # 30-minute leg budget (#7864). The ledger-selected suite grows with
     # enrollment, so each leg runs one contiguous slice of the plan. The cuts
-    # are time-weighted (#8930): scripts/lib/live_postgres_readiness_weights.py
-    # minimises the longest leg from the committed per-test, per-package,
-    # cold-cache, and fixed-overhead seconds in
-    # specs/live-postgres-readiness-weights.v1.json, and the runner and the
-    # aggregate cut with that same file, so every proof lands in exactly one
-    # leg. A count split overflowed the cap: leg 1/4 held the slow storage
-    # tests (the giant storage package costs ~7m of compile per appearance)
-    # and ran 1716 to 1813 s while leg 4/4 ran 477 to 698 s. The shard
-    # contract test fails when any leg is predicted past 80% of this cap, so
-    # a leg approaching the cap means refresh the weights, split further, or
-    # cache the build, never raise the cap to mask a hang.
+    # use the same committed model in plan, runner, and aggregate. With only
+    # v1 weights present, the matrix has four legs; a later standalone v2
+    # weights file activates five row-aware legs. The shard contract fails
+    # above 80% of this cap, so a near-cap leg needs a measured refit.
     timeout-minutes: 30
     services:
       postgres:
@@ -234,6 +265,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
+          ref: ${{ github.sha }}
 
       - name: Set up Go
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
@@ -340,7 +372,7 @@ jobs:
           ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN: postgres://postgres:local-proof-only@127.0.0.1:15433/postgres?sslmode=disable
           ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           # END GENERATED READINESS ENV
-        run: bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/4" --report readiness-shard-report.json
+        run: bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/${{ matrix.total }}" --report readiness-shard-report.json
 
       - name: Upload shard coverage report
         if: ${{ always() && (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) }}
@@ -365,10 +397,10 @@ jobs:
 
   live-postgres-readiness:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness')) && (always()) }}
-    needs: [queue-selection, live-postgres-readiness-shards]
+    needs: [queue-selection, readiness-plan, live-postgres-readiness-shards]
     name: live-postgres-readiness (postgres18)
     runs-on: ubuntu-24.04
-    # The aggregator carries no proof load: it reunites the four shard
+    # The aggregator carries no proof load: it reunites every shard's
     # reports and fails the check when any leg timed out, left no report,
     # or covered less than the full ledger plan.
     timeout-minutes: 10
@@ -376,10 +408,14 @@ jobs:
       - name: Require selection and every shard to succeed
         env:
           SELECTION_RESULT: ${{ needs.queue-selection.result }}
+          PLAN_RESULT: ${{ needs.readiness-plan.result }}
           SHARD_RESULT: ${{ needs.live-postgres-readiness-shards.result }}
           RUN_LIVE: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)') }}
         run: |
           test "$SELECTION_RESULT" = success
+          if [ "$RUN_LIVE" = true ]; then
+            test "$PLAN_RESULT" = success
+          fi
           case "$RUN_LIVE:$SHARD_RESULT" in
             true:success|false:skipped) ;;
             *) exit 1 ;;
