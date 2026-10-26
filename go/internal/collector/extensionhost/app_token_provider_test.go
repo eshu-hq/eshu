@@ -196,6 +196,53 @@ func TestNewAppTokenProviderMintDenialSurfacesBounded(t *testing.T) {
 	}
 }
 
+// TestHostMintRetryableClampedToCap proves the retry-contract fix for the
+// host mint path: a provider backoff past MaxRetryAfterDelay is clamped at
+// classification, and the host verdict record carries the clamped delay plus
+// the requested seconds so the retry-after gauge and requeue math read it.
+func TestHostMintRetryableClampedToCap(t *testing.T) {
+	t.Parallel()
+
+	provider := func(context.Context, workflow.WorkItem) (string, error) {
+		return "", app.NewRetryableError(app.ClassRateLimited, 3, 2*time.Hour, errors.New("mint github app token: status 429"))
+	}
+	item := testWorkItem()
+	runner := &recordingRunner{result: completeResult(item, testSDKFact(item))}
+	recorder := &recordingResultRecorder{}
+	source := mustNewSourceWithProvider(t, runner, recorder, provider, nil)
+
+	_, ok, err := source.NextClaimed(context.Background(), item)
+	if err == nil {
+		t.Fatal("NextClaimed() error = nil, want retryable mint failure")
+	}
+	if ok {
+		t.Fatal("NextClaimed() ok = true, want false on mint failure")
+	}
+	var classified interface{ RetryAfterDelay() time.Duration }
+	if !errors.As(err, &classified) {
+		t.Fatal("mint failure does not expose RetryAfterDelay")
+	}
+	if got := classified.RetryAfterDelay(); got != MaxRetryAfterDelay {
+		t.Fatalf("RetryAfterDelay() = %v, want clamped %v", got, MaxRetryAfterDelay)
+	}
+	if len(runner.requests) != 0 {
+		t.Fatalf("runner requests = %d, want 0", len(runner.requests))
+	}
+	if len(recorder.results) != 1 {
+		t.Fatalf("result records = %d, want exactly 1", len(recorder.results))
+	}
+	record := recorder.results[0]
+	if record.Origin != ResultOriginHost || record.State != sdkcollector.ResultRetryable {
+		t.Fatalf("result record = %+v, want host retryable verdict", record)
+	}
+	if record.RetryAfter != MaxRetryAfterDelay {
+		t.Fatalf("record RetryAfter = %v, want %v", record.RetryAfter, MaxRetryAfterDelay)
+	}
+	if want := int((MaxRetryAfterDelay) / time.Second); record.RetryAfterRequestedSeconds != want {
+		t.Fatalf("record RetryAfterRequestedSeconds = %d, want %d", record.RetryAfterRequestedSeconds, want)
+	}
+}
+
 // e2eMintedToken is the token the stub mint server returns. The stub
 // satellite asserts it arrives through the stdio config channel; the test
 // asserts the satellite's verdict comes back through the real runner.

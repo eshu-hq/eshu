@@ -6,6 +6,7 @@ package extensionhost
 import (
 	"context"
 	"strings"
+	"time"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -70,6 +71,10 @@ func (s *Source) recordResult(
 			record.State = sdkcollector.ResultTerminal
 		}
 		record.FailureClass = failure.class
+		// The host verdict carries the (already clamped) retry request so
+		// the retry-after gauge and requeue math read it like an SDK one.
+		record.RetryAfter = failure.retryAfter
+		record.RetryAfterRequestedSeconds = int(failure.retryAfter / time.Second)
 		s.resultRecorder.RecordExtensionResult(ctx, record)
 		return
 	}

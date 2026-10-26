@@ -160,8 +160,10 @@ func classifyTokenProviderError(err error) extensionFailure {
 			class = string(sdk.FailureRetryable)
 		}
 		return extensionFailure{
-			class:      class,
-			retryAfter: retryable.RetryAfter,
+			class: class,
+			// Clamp to the documented MaxRetryAfterDelay invariant: a
+			// custom provider must not hide a work item past the cap.
+			retryAfter: min(max(retryable.RetryAfter, 0), MaxRetryAfterDelay),
 			cause:      err,
 		}
 	}
