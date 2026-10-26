@@ -33,6 +33,9 @@ flowchart LR
   HMAC-SHA256 signatures with the `v1=` header value.
 - `VerifyJiraSignature` accepts Jira Cloud `X-Hub-Signature` HMAC-SHA256
   signatures.
+- `NormalizeGitHubActions` parses verified `workflow_run` and `workflow_job`
+  payloads into bounded wake-up identities. The coordinator consumes durable
+  entries, while the listener adapter that enqueues them follows separately.
 - `NormalizeGitHub` accepts GitHub push events and merged pull request events
   that target the repository default branch.
 - `NormalizeGitLab` accepts GitLab push events and merged merge request events

@@ -17,7 +17,7 @@ the shared `Service` type.
 
 ## Exported surface
 
-- `PlanRequest` carries the collector instance, observation time, and plan key.
+- `PlanRequest` carries the collector instance, observation time, plan key, optional webhook trigger and exact scope IDs, or a stable scheduled provider group for mixed GitHub Actions and GitLab targets.
 - `WorkPlanner` implements the parent package's `CICDRunPlanner` interface.
 
 See `doc.go` for the godoc contract.
@@ -49,6 +49,12 @@ fact-emission signals remain in the CI/CD run collector runtime.
   target scope. Replaying the same request returns the same identities.
 - Duplicate target scope IDs are rejected before any workflow row is returned.
 - The plan key is validated but not normalized.
+- A webhook plan requires explicit configured GitHub Actions scope IDs.
+  GitLab targets cannot be selected by a GitHub delivery. The same delivery
+  and scope yield the same durable work identity across ACK crash recovery.
+- `ConfiguredGitHubScopes` maps an exact allowlisted repository to every
+  matching configured scope; `ConfiguredGitHubTargetRepositories` supports
+  pending-event priority in scheduled fallback.
 
 No-Regression Evidence: focused child and parent coordinator tests exercise
 the same planner and service paths after the import move. Whole-module build

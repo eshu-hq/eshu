@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"sort"
@@ -352,4 +353,37 @@ func (s *WorkflowControlStore) workflowRunIsTerminal(
 		return false, fmt.Errorf("create guarded workflow run: read terminal run: %w", err)
 	}
 	return terminal, nil
+}
+
+// HasExactCICDWebhookWork reports whether one planned webhook work item was
+// durably admitted before a coordinator crashed prior to delivery ACK. It
+// matches the full stable identity; another open scope cannot satisfy it.
+func (s *WorkflowControlStore) HasExactCICDWebhookWork(ctx context.Context, item workflow.WorkItem) (bool, error) {
+	if s == nil || s.database == nil {
+		return false, errors.New("workflow store database is required")
+	}
+	if item.WorkItemID == "" || item.RunID == "" || item.CollectorInstanceID == "" || item.ScopeID == "" {
+		return false, errors.New("exact webhook work identity is incomplete")
+	}
+	rows, err := s.database.QueryContext(ctx, `SELECT 1 FROM workflow_work_items
+ WHERE work_item_id=$1 AND run_id=$2 AND collector_instance_id=$3 AND scope_id=$4
+ AND generation_id=$5 AND tenant_id=$6 AND workspace_id=$7 AND subject_class=$8
+ AND policy_revision_hash=$9 AND acceptance_unit_id=$10 LIMIT 1`,
+		item.WorkItemID, item.RunID, item.CollectorInstanceID, item.ScopeID, item.GenerationID,
+		item.TenantID, item.WorkspaceID, item.SubjectClass, item.PolicyRevisionHash, item.AcceptanceUnitID)
+	if err != nil {
+		return false, fmt.Errorf("read exact webhook work: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	found := rows.Next()
+	if found {
+		var one int
+		if err = rows.Scan(&one); err != nil {
+			return false, fmt.Errorf("scan exact webhook work: %w", err)
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return false, fmt.Errorf("read exact webhook work: %w", err)
+	}
+	return found, nil
 }

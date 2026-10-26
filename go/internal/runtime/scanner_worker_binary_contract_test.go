@@ -60,7 +60,7 @@ func TestSBOMAttestationCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.
 		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-sbom-attestation\" ./cmd/collector-sbom-attestation",
 		"go/cmd/README.md":                  "`eshu-collector-sbom-attestation`",
 		"docs/public/deployment/service-runtimes-collectors.md":                 "SBOM Attestation Collector",
-		"docs/public/reference/environment-collectors.md":                       "ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID",
+		"docs/public/reference/environment-collectors-supply-chain.md":          "ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID",
 		"deploy/helm/eshu/templates/deployment-sbom-attestation-collector.yaml": "/usr/local/bin/eshu-collector-sbom-attestation",
 	} {
 		content := readRepositoryFile(t, "../../..", file)
@@ -169,7 +169,7 @@ func TestCICDRunCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
 		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-cicd-run\" ./cmd/collector-cicd-run",
 		"go/cmd/README.md":                  "`eshu-collector-cicd-run`",
 		"docs/public/deployment/service-runtimes-collectors.md":         "CI/CD Run Collector",
-		"docs/public/reference/environment-collectors.md":               "ESHU_CICD_RUN_COLLECTOR_INSTANCE_ID",
+		"docs/public/reference/environment-collectors-supply-chain.md":  "ESHU_CICD_RUN_COLLECTOR_INSTANCE_ID",
 		"deploy/helm/eshu/templates/deployment-cicd-run-collector.yaml": "/usr/local/bin/eshu-collector-cicd-run",
 	} {
 		content := readRepositoryFile(t, "../../..", file)

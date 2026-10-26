@@ -57,30 +57,22 @@ type cicdRunRuntimeConfiguration struct {
 // with no separate paginated endpoint; see gitlabciruntime's README.md), so
 // it is silently ignored for a gitlab_ci target rather than rejected.
 type targetJSON struct {
-	Provider   string `json:"provider"`
-	ScopeID    string `json:"scope_id"`
-	Repository string `json:"repository"`
-	TokenEnv   string `json:"token_env"`
-	// AuthMode selects the github_actions credential shape (#9186):
-	// "token_env" (the default when omitted) resolves a static bearer once
-	// at startup from TokenEnv, while "host_minted" resolves the host-minted
-	// GitHub App installation token per claim from HostTokenFile. The two
-	// shapes never mix on one target. gitlab_ci targets ignore both
-	// fields, mirroring MaxArtifacts.
-	AuthMode string `json:"auth_mode"`
-	// HostTokenFile names the host-maintained file holding the
-	// {"token", "scope_id"} arbiter object for a host_minted target. The
-	// host refreshes it on a cadence below the 1-hour installation-token
-	// TTL by atomic replace; the satellite resolves the value per claim
-	// and never holds the App private key. Startup fails closed when the
-	// file is unresolvable.
-	HostTokenFile       string   `json:"host_token_file"`
-	AllowedRepositories []string `json:"allowed_repositories"`
-	APIBaseURL          string   `json:"api_base_url"`
-	MaxRuns             int      `json:"max_runs"`
-	MaxJobs             int      `json:"max_jobs"`
-	MaxArtifacts        int      `json:"max_artifacts"`
-	SourceURI           string   `json:"source_uri"`
+	Provider                   string   `json:"provider"`
+	ScopeID                    string   `json:"scope_id"`
+	Repository                 string   `json:"repository"`
+	TokenEnv                   string   `json:"token_env"`
+	AuthMode                   string   `json:"auth_mode"`
+	HostTokenFile              string   `json:"host_token_file"`
+	GitHubAppIDEnv             string   `json:"github_app_id_env"`
+	GitHubAppInstallationIDEnv string   `json:"github_app_installation_id_env"`
+	GitHubAppPrivateKeyEnv     string   `json:"github_app_private_key_env"`
+	AllowedRepositories        []string `json:"allowed_repositories"`
+	APIBaseURL                 string   `json:"api_base_url"`
+	MaxRuns                    int      `json:"max_runs"`
+	MaxJobs                    int      `json:"max_jobs"`
+	MaxArtifacts               int      `json:"max_artifacts"`
+	MaxDeployments             int      `json:"max_deployments"`
+	SourceURI                  string   `json:"source_uri"`
 }
 
 func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig, error) {
@@ -228,14 +220,12 @@ func mapTarget(target targetJSON, getenv func(string) string) (ghactionsruntime.
 	if authMode == "" {
 		authMode = ghactionsruntime.AuthModeTokenEnv
 	}
-	switch authMode {
-	case ghactionsruntime.AuthModeTokenEnv, ghactionsruntime.AuthModeHostMinted:
-	default:
-		return ghactionsruntime.TargetConfig{}, fmt.Errorf("unsupported ci/cd run auth_mode %q", target.AuthMode)
-	}
 	tokenEnv := strings.TrimSpace(target.TokenEnv)
 	hostTokenFile := strings.TrimSpace(target.HostTokenFile)
 	if authMode == ghactionsruntime.AuthModeHostMinted {
+		if hasAppRefs(target) {
+			return ghactionsruntime.TargetConfig{}, fmt.Errorf("github_app env references must be empty when auth_mode is %q", authMode)
+		}
 		if tokenEnv != "" {
 			return ghactionsruntime.TargetConfig{}, fmt.Errorf("auth_mode %q must not set token_env %q: the two credential shapes never mix", authMode, tokenEnv)
 		}
@@ -259,30 +249,74 @@ func mapTarget(target targetJSON, getenv func(string) string) (ghactionsruntime.
 			MaxRuns:             target.MaxRuns,
 			MaxJobs:             target.MaxJobs,
 			MaxArtifacts:        target.MaxArtifacts,
+			MaxDeployments:      target.MaxDeployments,
 		}, nil
 	}
 	if hostTokenFile != "" {
 		return ghactionsruntime.TargetConfig{}, fmt.Errorf("auth_mode %q must not set host_token_file %q: the two credential shapes never mix", authMode, hostTokenFile)
 	}
 	token := ""
-	if tokenEnv != "" {
+	if authMode != ghactionsruntime.AuthModeTokenEnv && authMode != ghactionsruntime.AuthModeGitHubApp {
+		return ghactionsruntime.TargetConfig{}, fmt.Errorf("unsupported ci/cd run auth_mode %q", target.AuthMode)
+	}
+	if authMode == ghactionsruntime.AuthModeTokenEnv && hasAppRefs(target) {
+		return ghactionsruntime.TargetConfig{}, fmt.Errorf("github_app env references must be empty when auth_mode is %q", authMode)
+	}
+	if authMode == ghactionsruntime.AuthModeGitHubApp && tokenEnv != "" {
+		return ghactionsruntime.TargetConfig{}, fmt.Errorf("token_env must be empty when auth_mode is %q", authMode)
+	}
+	if authMode == ghactionsruntime.AuthModeTokenEnv && tokenEnv != "" {
 		token = strings.TrimSpace(getenv(tokenEnv))
 	}
-	if token == "" {
+	if authMode == ghactionsruntime.AuthModeTokenEnv && token == "" {
 		return ghactionsruntime.TargetConfig{}, fmt.Errorf("token_env %s did not resolve a credential", tokenEnv)
 	}
+	appID, installationID, privateKey := "", "", ""
+	if authMode == ghactionsruntime.AuthModeGitHubApp {
+		var err error
+		if appID, err = resolveAppCredentialEnv(getenv, "github_app_id_env", target.GitHubAppIDEnv); err != nil {
+			return ghactionsruntime.TargetConfig{}, err
+		}
+		if installationID, err = resolveAppCredentialEnv(getenv, "github_app_installation_id_env", target.GitHubAppInstallationIDEnv); err != nil {
+			return ghactionsruntime.TargetConfig{}, err
+		}
+		if privateKey, err = resolveAppCredentialEnv(getenv, "github_app_private_key_env", target.GitHubAppPrivateKeyEnv); err != nil {
+			return ghactionsruntime.TargetConfig{}, err
+		}
+	}
 	return ghactionsruntime.TargetConfig{
-		ScopeID:             strings.TrimSpace(target.ScopeID),
-		Repository:          strings.Trim(target.Repository, "/"),
-		Token:               token,
-		AuthMode:            authMode,
-		AllowedRepositories: cleanConfigStrings(target.AllowedRepositories),
-		APIBaseURL:          strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
-		SourceURI:           strings.TrimSpace(firstNonBlank(target.SourceURI, "https://github.com/"+strings.Trim(target.Repository, "/"))),
-		MaxRuns:             target.MaxRuns,
-		MaxJobs:             target.MaxJobs,
-		MaxArtifacts:        target.MaxArtifacts,
+		ScopeID:                 strings.TrimSpace(target.ScopeID),
+		Repository:              strings.Trim(target.Repository, "/"),
+		Token:                   token,
+		AuthMode:                authMode,
+		GitHubAppID:             appID,
+		GitHubAppInstallationID: installationID,
+		GitHubAppPrivateKey:     privateKey,
+		AllowedRepositories:     cleanConfigStrings(target.AllowedRepositories),
+		APIBaseURL:              strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
+		SourceURI:               strings.TrimSpace(firstNonBlank(target.SourceURI, "https://github.com/"+strings.Trim(target.Repository, "/"))),
+		MaxRuns:                 target.MaxRuns,
+		MaxJobs:                 target.MaxJobs,
+		MaxArtifacts:            target.MaxArtifacts,
+		MaxDeployments:          target.MaxDeployments,
 	}, nil
+}
+
+func hasAppRefs(target targetJSON) bool {
+	return strings.TrimSpace(target.GitHubAppIDEnv) != "" ||
+		strings.TrimSpace(target.GitHubAppInstallationIDEnv) != "" ||
+		strings.TrimSpace(target.GitHubAppPrivateKeyEnv) != ""
+}
+
+func resolveAppCredentialEnv(getenv func(string) string, field, envName string) (string, error) {
+	envName = strings.TrimSpace(envName)
+	if envName == "" {
+		return "", fmt.Errorf("%s is required", field)
+	}
+	if value := strings.TrimSpace(getenv(envName)); value != "" {
+		return value, nil
+	}
+	return "", fmt.Errorf("%s %s did not resolve a credential", field, envName)
 }
 
 // mapGitLabTarget is mapTarget's gitlab_ci counterpart: target.Repository

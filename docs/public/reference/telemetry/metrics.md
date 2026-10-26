@@ -349,6 +349,8 @@ children are the `neo4j.execute` spans of each read.
 
 ## Focused Catalogs
 
+- [CI/CD Run Metrics](metrics-cicd-run.md) covers provider reads, Actions
+  delivery handoffs and reaps, and scheduled fallback.
 - [Ingestion And Collector Metrics](metrics-ingestion-collectors.md) covers
   Git ingestion, discovery pruning, Terraform-state, OCI registry, Package
   Registry, AWS, Confluence, Grafana, Prometheus/Mimir, Loki, Tempo, workflow

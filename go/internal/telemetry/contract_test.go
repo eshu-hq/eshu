@@ -375,6 +375,8 @@ func TestLogKeys(t *testing.T) {
 		"postgres_store.error",
 		"lease_ttl_seconds",
 		"fencing_token",
+		"ci_cd_run.actions_reap_requeued",
+		"ci_cd_run.actions_reap_exhausted",
 		"refresh_skip_reason",
 		"skip_retract",
 		"skip_retract_reason",

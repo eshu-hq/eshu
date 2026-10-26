@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun/runwatermark"
-	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -61,32 +61,28 @@ type SourceConfig struct {
 	Watermarks runwatermark.Store
 }
 
-// AuthModeTokenEnv authenticates with a static Bearer token resolved once
-// at process startup. It is the default when auth mode is unset.
-const AuthModeTokenEnv = "token_env"
-
-// AuthModeHostMinted authenticates with a host-minted GitHub App
-// installation token (#9182, #9186): the host keeps a per-target file
-// holding {"token", "scope_id"} fresh, the satellite resolves the value
-// per claim, and the App private key never appears in satellite config,
-// image, logs, or telemetry.
-const AuthModeHostMinted = "host_minted"
+const (
+	// AuthModeTokenEnv selects a static bearer token resolved at startup.
+	AuthModeTokenEnv = "token_env"
+	// AuthModeHostMinted selects the host token file resolved on each claim.
+	AuthModeHostMinted = "host_minted"
+	// AuthModeGitHubApp selects a fresh installation token per claim.
+	AuthModeGitHubApp = "github_app"
+)
 
 // TargetConfig bounds one GitHub Actions repository target.
 type TargetConfig struct {
-	ScopeID    string
-	Repository string
-	Token      string
-	// AuthMode selects the credential shape: AuthModeTokenEnv (the default)
-	// spends the static Token resolved once at startup, while
-	// AuthModeHostMinted spends the host-minted installation token resolved
-	// per claim from HostTokenFile into a per-claim copy of Token. The
-	// bearer on the wire is identical either way.
-	AuthMode string
-	// HostTokenFile names the host-maintained token file for
-	// AuthModeHostMinted targets. It is empty (and must stay empty) in
-	// AuthModeTokenEnv mode, where Token is the whole credential.
-	HostTokenFile       string
+	ScopeID                 string
+	Repository              string
+	Token                   string
+	AuthMode                string
+	HostTokenFile           string
+	GitHubAppID             string
+	GitHubAppInstallationID string
+	GitHubAppPrivateKey     string
+	// AppHTTPClient is optional test transport for installation-token minting.
+	// Nil uses the shared App helper's bounded default client.
+	AppHTTPClient       *http.Client
 	AllowedRepositories []string
 	APIBaseURL          string
 	SourceURI           string
@@ -196,38 +192,25 @@ func (s ClaimedSource) NextClaimed(
 	if !ok {
 		return collector.CollectedGeneration{}, false, fmt.Errorf("ci/cd run target %q is not configured", item.ScopeID)
 	}
+	appMode := target.AuthMode == AuthModeGitHubApp
 	startedAt := time.Now()
 	observeCtx, observeSpan := s.startObserve(ctx)
 	defer observeSpan.End()
 	fetchCtx, fetchSpan := s.startFetch(observeCtx)
-	if target.AuthMode == AuthModeHostMinted {
-		// Resolve the host-minted bearer per claim, directly into this
-		// claim's target copy: the shared Targets map never holds a
-		// freezable token, so a host refresh between claims is spent on
-		// the very next claim with no restart.
-		token, resolveErr := ResolveHostTokenFile(target.HostTokenFile, target.ScopeID)
-		if resolveErr != nil {
-			statusClass := classifyProviderStatus(resolveErr)
-			s.recordFetch(observeCtx, statusClass, startedAt)
-			recordSpanError(fetchSpan, resolveErr)
-			recordSpanError(observeSpan, resolveErr)
-			fetchSpan.End()
-			return collector.CollectedGeneration{}, false, resolveErr
-		}
-		target.Token = token
+	target, err := resolveClaimCredential(fetchCtx, target)
+	if err != nil {
+		statusClass := classifyProviderStatus(err)
+		s.recordFetch(observeCtx, statusClass, startedAt)
+		s.recordRateLimit(observeCtx, statusClass)
+		recordSpanError(fetchSpan, err)
+		recordSpanError(observeSpan, err)
+		fetchSpan.End()
+		return collector.CollectedGeneration{}, false, err
 	}
 	page, err := s.client.FetchRuns(fetchCtx, target)
 	if err != nil {
-		if target.AuthMode == AuthModeHostMinted {
-			// A provider refusal of the host-minted bearer (an expired
-			// or revoked installation token answers 401/403) is a
-			// bounded terminal auth_denied, not a retryable provider
-			// error: retrying a refused credential only burns the
-			// claim's attempt budget. token_env targets keep their
-			// exact existing propagation.
-			err = sdk.ClassifyProviderFailure(string(cicdrun.ProviderGitHubActions), err, sdk.StatusPolicy{}, sdk.FailureRetryable)
-		}
-		statusClass := classifyProviderStatus(err)
+		err = classifyReadFailure(err, appMode, target.AuthMode == AuthModeHostMinted)
+		statusClass := classifyProviderStatusForMode(err, appMode)
 		s.recordFetch(observeCtx, statusClass, startedAt)
 		s.recordRateLimit(observeCtx, statusClass)
 		recordSpanError(fetchSpan, err)
@@ -253,7 +236,7 @@ func (s ClaimedSource) NextClaimed(
 	}
 	// #5425 STEP 3: deployment facts MUST land in this SAME generation as
 	// the ci.run facts above -- see appendDeploymentEnvelopes' doc comment.
-	envelopes, deploymentsTruncated, err := s.appendDeploymentEnvelopes(observeCtx, observeSpan, item, target, page, envelopes, observedAt)
+	envelopes, deploymentsTruncated, err := s.appendDeploymentEnvelopes(observeCtx, observeSpan, item, target, page, envelopes, observedAt, appMode)
 	if err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}

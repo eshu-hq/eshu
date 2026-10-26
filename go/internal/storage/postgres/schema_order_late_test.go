@@ -334,4 +334,6 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// detector extras and moves the state to not_built in one transaction.
 	"content_file_secret_lines_policy_version",
 	"content_file_secret_lines_marker_policy",
+	// Migration 236 (#9146) stores fenced GitHub Actions webhook wake-ups.
+	"cicd_actions_deliveries",
 }

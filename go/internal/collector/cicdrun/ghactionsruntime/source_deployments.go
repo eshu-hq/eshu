@@ -89,6 +89,7 @@ func (s ClaimedSource) appendDeploymentEnvelopes(
 	runPage RunPage,
 	envelopes []facts.Envelope,
 	observedAt time.Time,
+	appMode bool,
 ) ([]facts.Envelope, bool, error) {
 	fetcher, ok := s.client.(DeploymentFetcher)
 	if !ok {
@@ -106,7 +107,14 @@ func (s ClaimedSource) appendDeploymentEnvelopes(
 	startedAt := time.Now()
 	page, err := fetcher.FetchDeployments(ctx, target)
 	if err != nil {
-		statusClass := classifyProviderStatus(err)
+		// A Deployments-only 403/404 does not prove the bearer is invalid:
+		// this optional permission can be absent while Actions reads succeed.
+		// Classify that outcome before wrapping host read failures as terminal.
+		optionalPermissionDenied := deploymentPermissionDenied(err)
+		if !optionalPermissionDenied {
+			err = classifyReadFailure(err, appMode, target.AuthMode == AuthModeHostMinted)
+		}
+		statusClass := classifyProviderStatusForMode(err, appMode)
 		s.recordFetch(ctx, statusClass, startedAt)
 		s.recordRateLimit(ctx, statusClass)
 		// Deployments read is a SEPARATE GitHub permission from Actions read.
@@ -117,7 +125,7 @@ func (s ClaimedSource) appendDeploymentEnvelopes(
 		// Degrade to explicit partial coverage instead: keep the run facts,
 		// emit a ci.warning naming the missing permission, and let the
 		// generation commit.
-		if deploymentPermissionDenied(err) {
+		if optionalPermissionDenied {
 			warning, warningErr := cicdrun.GitHubActionsDeploymentWarningEnvelope(
 				deploymentCtx,
 				"deployments:permission_denied",

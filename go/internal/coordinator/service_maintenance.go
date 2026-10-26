@@ -82,6 +82,10 @@ func (s Service) runActiveMaintenance(ctx context.Context) error {
 	if err := s.runGCPFreshnessHandoff(ctx); err != nil {
 		return fmt.Errorf("handoff GCP freshness triggers: %w", err)
 	}
+	webhookHandoffErr := s.runCICDRunWebhookHandoff(ctx)
+	if webhookHandoffErr != nil && s.Logger != nil {
+		s.Logger.Warn("ci/cd webhook handoff failed; maintenance continues", "error", webhookHandoffErr)
+	}
 	if err := s.runIncidentFreshnessHandoff(ctx); err != nil {
 		return fmt.Errorf("handoff incident freshness triggers: %w", err)
 	}
@@ -90,6 +94,9 @@ func (s Service) runActiveMaintenance(ctx context.Context) error {
 	}
 	if err := s.runWorkflowReconciliation(ctx); err != nil {
 		return fmt.Errorf("reconcile workflow runs: %w", err)
+	}
+	if webhookHandoffErr != nil {
+		return fmt.Errorf("handoff ci/cd webhook deliveries: %w", webhookHandoffErr)
 	}
 	return nil
 }

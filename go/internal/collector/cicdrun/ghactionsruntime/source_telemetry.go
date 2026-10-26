@@ -6,6 +6,7 @@ package ghactionsruntime
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -16,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/github/app"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -42,17 +44,40 @@ func classifyProviderStatus(err error) string {
 	if errors.Is(err, ErrRateLimited) {
 		return "rate_limited"
 	}
-	// A bounded auth_denied (an unreadable host token file, or a provider
-	// refusal of the host-minted bearer) records under its own status
-	// class so an expired or refused host credential stays
-	// distinguishable from a generic provider error. token_env targets
-	// never produce this class: their startup lane fails closed and
-	// their provider errors propagate unclassified.
 	var providerFailure sdk.ProviderFailure
 	if errors.As(err, &providerFailure) && providerFailure.FailureClass() == string(sdk.FailureAuthDenied) {
 		return string(sdk.FailureAuthDenied)
 	}
+	var retryable *app.RetryableError
+	if errors.As(err, &retryable) && retryable.Class == app.ClassRateLimited {
+		return "rate_limited"
+	}
+	var denied *app.AuthDeniedError
+	var missing *app.NotFoundError
+	var config *app.ConfigError
+	if errors.As(err, &denied) || errors.As(err, &missing) || errors.As(err, &config) {
+		return "auth_error"
+	}
+	var expired appReadExpiredError
+	if errors.As(err, &expired) {
+		return "auth_error"
+	}
 	return "error"
+}
+
+// classifyProviderStatusForMode marks direct-App provider permission failures
+// while preserving the static token path's original generic error class.
+func classifyProviderStatusForMode(err error, appMode bool) string {
+	class := classifyProviderStatus(err)
+	if class != "error" || !appMode {
+		return class
+	}
+	var provider sdk.HTTPError
+	if errors.As(err, &provider) && (provider.StatusCode == http.StatusUnauthorized ||
+		provider.StatusCode == http.StatusForbidden || provider.StatusCode == http.StatusNotFound) {
+		return "auth_error"
+	}
+	return class
 }
 
 func (s ClaimedSource) recordFetch(ctx context.Context, statusClass string, startedAt time.Time) {

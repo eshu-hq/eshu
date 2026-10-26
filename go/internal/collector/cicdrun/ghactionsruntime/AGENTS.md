@@ -36,6 +36,9 @@
 
 ## Invariants
 
+- Mint one GitHub App installation token per claim; reuse it for bounded
+  Actions and deployment reads, and keep the long-lived target free of minted
+  tokens.
 - Keep GitHub Actions provider polling in this runtime package, not in
   `internal/collector/cicdrun`.
 - Fetch every run in the bounded window (`max_runs`, default 10, hard cap

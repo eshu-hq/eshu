@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/semantic"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -105,6 +106,8 @@ type Service struct {
 	ScannerWorkerPlanner              ScannerWorkerPlanner
 	SecurityAlertPlanner              SecurityAlertPlanner
 	CICDRunPlanner                    CICDRunPlanner
+	CICDRunActionsTriggers            CICDRunActionsTriggerStore
+	CICDRunInstruments                *telemetry.Instruments
 	PagerDutyPlanner                  PagerDutyPlanner
 	JiraPlanner                       JiraPlanner
 	PrometheusMimirPlanner            PrometheusMimirPlanner
@@ -266,6 +269,12 @@ func (s Service) runReconcile(ctx context.Context) error {
 	if drift < 0 {
 		drift = -drift
 	}
+	// Give verified Actions deliveries the first claim at this tick. The
+	// scheduled scan remains a bounded backfill when no webhook work is open.
+	webhookHandoffErr := s.runCICDRunWebhookHandoff(ctx)
+	if webhookHandoffErr != nil && s.Logger != nil {
+		s.Logger.Warn("ci/cd webhook handoff failed; scheduled backfill continues", "error", webhookHandoffErr)
+	}
 	for _, scheduler := range reconcileSchedulers() {
 		if err := scheduler.schedule(s, ctx, observedAt, schedulingInstances); err != nil {
 			s.recordReconcile(ctx, ReconcileObservation{
@@ -276,6 +285,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 			})
 			return err
 		}
+	}
+	if webhookHandoffErr != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return fmt.Errorf("handoff ci/cd webhook deliveries: %w", webhookHandoffErr)
 	}
 	s.recordReconcile(ctx, ReconcileObservation{
 		Outcome:      reconcileOutcomeSuccess,

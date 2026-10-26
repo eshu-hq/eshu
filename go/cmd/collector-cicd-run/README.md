@@ -40,29 +40,31 @@ source package. Metrics include
 `eshu_dp_ci_cd_run_rate_limited_total`,
 `eshu_dp_ci_cd_run_facts_emitted_total`, and
 `eshu_dp_ci_cd_run_partial_generations_total`. Labels stay bounded to provider,
-status class, fact kind, and partial reason.
+status class, fact kind, and partial reason. Terminal App mint failures and
+direct-App provider 401/403/404 reads use `status_class="auth_error"`.
+Host-file failures use `auth_denied`; static-token provider failures retain
+`error`. Rate-limited App mints retain the rate-limited class.
 
 ## Gotchas / invariants
 
 - `ESHU_COLLECTOR_INSTANCES_JSON` must contain exactly one matching enabled
   claim-capable `ci_cd_run` instance unless
   `ESHU_CICD_RUN_COLLECTOR_INSTANCE_ID` selects it.
-- Target credentials come from `token_env`; token values are never stored in
-  collector JSON, facts, logs, metrics, or status. A `github_actions` target
-  with `auth_mode: "host_minted"` instead spends the host-minted GitHub App
-  installation token resolved per claim from `host_token_file` (#9186,
-  arbiter file channel): the file holds `{"token", "scope_id"}`, the host
-  refreshes it by atomic replace on a cadence below the 1-hour token TTL,
-  and the satellite keeps no frozen copy. The two shapes never mix on one
-  target, and `gitlab_ci` targets ignore both fields. Startup fails closed
-  when the file is unresolvable; a missing, empty, malformed, or
-  scope-mismatched file fails the claim as bounded terminal `auth_denied`,
-  and a provider-refused value (expired installation token) classifies the
-  same way instead of burning the claim's attempt budget. A bare 403 with
-  no rate-limit headers on the runs fetch is treated as `auth_denied` and
-  fails the claim without burning its attempt budget; the next claim
-  re-resolves the file and recovers once the host has refreshed it (a
-  persistent permissions 403 repeats as `auth_denied`).
+- GitHub Actions targets select one credential shape. `token_env` (the default)
+  resolves a static token at startup. `host_minted` reads a host-managed file
+  containing `token` and `scope_id` on each claim; startup checks the file,
+  and a missing, malformed, scope-mismatched, or Actions-refused token fails
+  terminally as `auth_denied`. A bare 403 without rate-limit headers on the
+  runs fetch uses the same terminal class instead of burning the claim's
+  attempt budget. The next claim re-resolves the file and recovers after the
+  host refreshes it; persistent permission failures repeat as `auth_denied`.
+  The host refreshes by atomic replace below the one-hour token TTL, and the
+  collector keeps no frozen host bearer. A Deployments-only 403/404 keeps run
+  facts with a permission warning. `github_app` resolves three private env
+  references at startup and mints one installation token per claim for bounded
+  Actions and Deployments reads. These shapes cannot mix. GitLab CI still uses
+  `token_env` and ignores GitHub-only fields. Credential values never enter
+  collector JSON, facts, logs, metrics, or status.
 - `allowed_repositories`, `max_runs`, `max_jobs`, and `max_artifacts` bound the
   provider read shape.
 - Heartbeat interval must be shorter than the claim lease TTL.
