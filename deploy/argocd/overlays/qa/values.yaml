@@ -21,7 +21,7 @@ schemaBootstrap:
     enabled: true
     syncWave: "-10"
     hookDeletePolicy: BeforeHookCreation
-  # Measured-builds floor for environment overlays: the 600s chart default
+  # Conservative floor for environment overlays: the 600s chart default
   # only bounds the bootstrap client pod, and a CREATE INDEX CONCURRENTLY
   # build behind a long transaction outlasts it while the Postgres backend
   # keeps building unattended. 3600s keeps the Job's status honest on
