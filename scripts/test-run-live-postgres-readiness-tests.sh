@@ -33,9 +33,9 @@ EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
 while [[ $# -gt 0 ]]; do [[ "$1" == -run ]] && pattern="$2"; shift; done
 [[ -n "${pattern:-}" ]] || { echo 'missing -run' >&2; exit 9; }
-printf '%s\n' "${pkg}" >>"${ESHU_FAKE_DIR}/calls"; declare -A enrolled=(); matched=0
-while read -r name; do enrolled["$name"]=1; [[ "$name" =~ $pattern ]] && matched=1; done <"${ESHU_FAKE_DIR}/${key}.names"
-[[ "$matched" -eq 1 ]] || { echo 'pattern matches no enrolled test' >&2; exit 9; }
+printf '%s\n' "${pkg}" >>"${ESHU_FAKE_DIR}/calls"; declare -A enrolled; matched=0
+while read -r name; do enrolled[$name]=1; [[ $name =~ $pattern ]] && matched=1; done <"${ESHU_FAKE_DIR}/${key}.names"
+[[ "$matched" -eq 1 ]] || { echo 'pattern matched nothing' >&2; exit 9; }
 [[ "TestZzzDecoyNotEnrolled" =~ $pattern ]] && { echo 'pattern is not anchored' >&2; exit 9; }
 EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
