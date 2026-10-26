@@ -139,7 +139,11 @@ A connection picks a result shape (`internal/mcp/result/shape`, #8800; `?shape=`
 Under `structured`, successful non-object JSON or UTF-8 text becomes
 `structuredContent.value`, with result-level `_meta.eshu/nonObjectEncoding`
 (`json` or `text`) and one bounded summary. Raw JSON preserves numeric precision;
-plain objects, canonical envelopes, errors, and all `dual` results keep their layout.
+plain objects, canonical envelopes, typed timeout/cancellation errors, and all
+`dual` results keep their layout. Generic dispatch failures under `structured`
+carry `mcp_dispatch_error` in a `{data:null,truth:null,error}` envelope; the
+bounded summary points to `structuredContent.error`, and the shared budget
+counts the complete result. Unknown names use the bounded `unknown` tool label.
 `dual`, the default, carries a text summary, `structuredContent`, and an embedded resource with the
 complete envelope or plain JSON; when the copies exceed the budget but the resource-only result fits,
 dispatch omits `structuredContent` and returns `isError=false`, so clients parse the resource's JSON

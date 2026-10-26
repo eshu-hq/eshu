@@ -314,7 +314,7 @@ func (s *Server) callTool(ctx context.Context, params mcpToolCallParams, authHea
 	run := func(ctx context.Context, name string, args map[string]any) (any, error) {
 		result, err := dispatchTool(ctx, s.handler, name, args, authHeader, s.logger)
 		if err != nil {
-			return mcpToolErrorResult(mode, err), nil
+			return mcpToolErrorResultForCall(mode, name, err, s.logger, defaultToolResponseByteBudget), nil
 		}
 		return renderToolResult(name, result), nil
 	}

@@ -91,7 +91,9 @@ resource. This note records how that interacts with the budget.
   because `trimToBudgetPage` measures the same rendering) and to
   `mcp_response_over_budget` for every other tool.
 - Error results follow the shape: a text item and `structuredContent`, with no
-  `eshu://tool-error/dispatch` resource.
+  `eshu://tool-error/dispatch` resource. Generic dispatch failures under
+  `structured` use `mcp_dispatch_error` with nil data/truth and one bounded
+  pointer summary; the exact result is budgeted. `dual` keeps text-only bytes.
 - The four budget instruments and three budget log lines gain a bounded `shape`
   attribute (`dual`, `structured`). Metric names are unchanged so dashboards
   keep working; samples recorded before this change are all `dual`.

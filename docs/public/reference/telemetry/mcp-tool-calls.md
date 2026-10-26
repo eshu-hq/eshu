@@ -27,6 +27,11 @@ request counts under its target's name, because the router hands the target to
 the same dispatcher; the `find_tool` and `call_tool` requests themselves are
 counted by [MCP Router Telemetry](mcp-router.md).
 
+Under `structured`, generic dispatch failures are budgeted after this counter
+closes. An oversized error therefore keeps its dispatcher outcome (`error` or
+`unknown_tool`); `eshu_dp_mcp_response_over_budget_total` records the wire
+replacement separately.
+
 `outcome` is a closed set. Each value names one way dispatch ends:
 
 | `outcome` | Dispatch ended with |

@@ -27,6 +27,7 @@ func TestStructuredNonObjectResultsHaveLosslessObjectPayload(t *testing.T) {
 		{name: "false", body: `false`, encoding: "json"},
 		{name: "large integer", body: `9007199254740993`, encoding: "json"},
 		{name: "exponent", body: `1.234567890123456789e+30`, encoding: "json"},
+		{name: "huge exponent", body: `1e+1000`, encoding: "json"},
 		{name: "JSON string", body: `"hello"`, encoding: "json"},
 		{name: "plain text", body: "hello\nworld", encoding: "text"},
 		{name: "plain text escapes", body: "a\t\"b\"\\c\nλ", encoding: "text"},
@@ -106,7 +107,7 @@ func TestStructuredWrapperOnlyOnNonObjectSuccess(t *testing.T) {
 		status int
 		body   string
 	}{
-		{"plain object", 200, `{"value":7}`},
+		{"plain object", 200, `{"value":7,"_meta":{"user":"value"}}`},
 		{"canonical success", 200, shapeFixtureOK},
 		{"canonical error", 500, shapeFixtureBad},
 	} {
@@ -116,8 +117,14 @@ func TestStructuredWrapperOnlyOnNonObjectSuccess(t *testing.T) {
 			if result.Meta != nil {
 				t.Fatalf("unexpected encoding marker: %#v", result.Meta)
 			}
-			if got := string(marshalForCompare(t, result.StructuredContent)); got == `{"value":{"value":7}}` {
-				t.Fatal("plain value object was wrapped again")
+			if tc.name == "plain object" {
+				var want map[string]json.RawMessage
+				if err := json.Unmarshal([]byte(tc.body), &want); err != nil {
+					t.Fatal(err)
+				}
+				if got := string(marshalForCompare(t, result.StructuredContent)); got != string(marshalForCompare(t, want)) {
+					t.Fatalf("plain value object = %s, want unchanged %s", got, marshalForCompare(t, want))
+				}
 			}
 		})
 	}

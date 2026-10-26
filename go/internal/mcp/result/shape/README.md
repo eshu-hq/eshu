@@ -12,7 +12,9 @@ carries a connection's choice through a request context.
   payload crosses the wire once and no embedded resource is sent. Successful
   non-object values are wrapped as `structuredContent.value` with result-level
   `_meta.eshu/nonObjectEncoding` (`json` or `text`); plain objects and
-  canonical envelopes stay unwrapped.
+  canonical envelopes stay unwrapped. Generic dispatch failures carry a
+  canonical `mcp_dispatch_error` envelope with unavailable data and truth,
+  subject to the same response budget.
 
 ## Ownership boundary
 

@@ -231,9 +231,12 @@ Non-JSON UTF-8 text becomes `{"value": "<text>"}`. Result-level `_meta` sets
 points to `structuredContent.value`; no resource is sent. The JSON value keeps
 its numeric precision. A plain object with a `value` key stays unwrapped and
 unmarked. `dual` keeps its previous bytes, including omitted `structuredContent`
-for JSON `null`. Errors with only a text item carry none in either shape;
-timeouts and cancellations still carry structured detail. Under `dual`, a client
-must read the resource's JSON `text` when the
+for JSON `null`. Generic dispatch failures under `structured` carry a canonical
+`{data:null,truth:null,error}` envelope with `error.code=mcp_dispatch_error`;
+the full diagnostic is in `error.message`, and the bounded text points to it.
+`dual` keeps these failures as text only. Timeouts and cancellations keep their
+existing structured detail. Under `dual`, a client reads the resource's JSON
+`text` when the
 [response budget](telemetry/mcp-response-budget.md) drops `structuredContent`.
 
 When the underlying HTTP route returns the canonical Eshu envelope, the

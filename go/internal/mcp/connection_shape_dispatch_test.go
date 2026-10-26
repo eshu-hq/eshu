@@ -145,9 +145,9 @@ func TestDispatchCallCounterOutcomeIgnoresResultShape(t *testing.T) {
 	}
 }
 
-// TestStructuredShapeKeepsNullAndTextOnlyErrors distinguishes a successful
-// JSON null from failures that have only a text item.
-func TestStructuredShapeKeepsNullAndTextOnlyErrors(t *testing.T) {
+// TestStructuredShapeKeepsNullAndGenericErrors distinguishes wrapped null
+// success from generic dispatch failures with structured error detail.
+func TestStructuredShapeKeepsNullAndGenericErrors(t *testing.T) {
 	t.Parallel()
 	null := callShapedTool(t, fixedBodyHandler(http.StatusOK, "null"), resultshape.Structured)
 	if len(null.Content) != 1 || null.Content[0].Type != "text" || null.StructuredContent == nil {
@@ -157,17 +157,20 @@ func TestStructuredShapeKeepsNullAndTextOnlyErrors(t *testing.T) {
 		t.Fatalf("null structuredContent = %s, want wrapped null", got)
 	}
 	failed := callShapedTool(t, fixedBodyHandler(http.StatusInternalServerError, "boom"), resultshape.Structured)
-	if len(failed.Content) != 1 || failed.Content[0].Type != "text" || failed.StructuredContent != nil || !failed.IsError {
-		t.Fatalf("non-envelope HTTP failure = %#v, want text-only error", failed)
+	requireOneTextAndStructured(t, failed)
+	if !failed.IsError {
+		t.Fatal("non-envelope HTTP failure lost isError")
 	}
 	unknown := NewServer(fixedBodyHandler(http.StatusOK, "{}"), discardDispatchLogger())
 	ctx := resultshape.WithOverride(context.Background(), resultshape.Structured)
 	got, ok := unknown.callTool(ctx, mcpToolCallParams{Name: "no_such_tool_a1b2c3", Arguments: map[string]any{}}, "").(mcpToolResult)
-	if !ok || len(got.Content) != 1 || got.StructuredContent != nil || !got.IsError {
-		t.Fatalf("unknown tool result = %#v (ok=%v), want one text item, an error, and no structuredContent", got, ok)
+	if !ok || !got.IsError {
+		t.Fatalf("unknown tool result = %#v (ok=%v), want an error", got, ok)
 	}
+	requireOneTextAndStructured(t, got)
 	plain := mcpToolErrorResult(resultshape.Structured, errPlain("HTTP 404: not found"))
-	if !plain.IsError || len(plain.Content) != 1 || plain.Content[0].Resource != nil || plain.StructuredContent != nil {
-		t.Fatalf("plain dispatch error = %#v, want one text item, isError, and no structuredContent", plain)
+	if !plain.IsError {
+		t.Fatal("plain dispatch error lost isError")
 	}
+	requireOneTextAndStructured(t, plain)
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -17,9 +18,13 @@ type dispatchResult struct {
 	// NonObjectEncoding marks a structured-only non-object HTTP success. The
 	// renderer wraps Value in an object without mutating it.
 	NonObjectEncoding string
-	Envelope          *query.ResponseEnvelope
-	IsError           bool
-	ToolName          string
+	// GenericDispatchError selects the bounded summary for a generic error
+	// synthesized at the MCP transport boundary. The diagnostic lives once in
+	// Envelope.Error.Message, not again in text content.
+	GenericDispatchError bool
+	Envelope             *query.ResponseEnvelope
+	IsError              bool
+	ToolName             string
 	// ResourceOnly drops the structured copy of a dual-shape result whose two
 	// copies exceed the response budget. It is never set under the structured
 	// shape, which has no second copy to drop.
@@ -72,7 +77,11 @@ func renderToolResult(toolName string, result *dispatchResult) mcpToolResult {
 	structuredShape := resultshape.OrDual(result.Shape) == resultshape.Structured
 	var structuredContent any
 	if result.Envelope != nil {
-		summary := mcpContent{Type: "text", Text: summarizeToolText(toolName, result.Envelope)}
+		summaryText := "MCP dispatch failed; details in structuredContent.error"
+		if !structuredShape || !result.GenericDispatchError {
+			summaryText = summarizeToolText(toolName, result.Envelope)
+		}
+		summary := mcpContent{Type: "text", Text: summaryText}
 		if structuredShape {
 			return mcpToolResult{Content: []mcpContent{summary}, StructuredContent: result.Envelope, IsError: result.IsError}
 		}
@@ -121,16 +130,32 @@ func renderToolResult(toolName string, result *dispatchResult) mcpToolResult {
 	}
 }
 
-// mcpToolErrorResult renders a dispatch failure. A failure with structured
-// detail (a timeout or cancellation) carries it as structuredContent in both
-// shapes; the dual shape also repeats it as the eshu://tool-error/dispatch
-// resource.
+// mcpToolErrorResult renders a dispatch failure without a transport budget.
+// Callers that can send a tools/call result use mcpToolErrorResultForCall, so
+// generic structured errors pass through the exact wire-size guard.
 func mcpToolErrorResult(mode resultshape.Mode, err error) mcpToolResult {
+	return mcpToolErrorResultForCall(mode, "", err, nil, 0)
+}
+
+// mcpToolErrorResultForCall renders typed timeout/cancellation detail as before.
+// A generic failure under structured gets an evidence-neutral error envelope,
+// measured by the same renderer that sends it. Dual keeps its original bytes.
+func mcpToolErrorResultForCall(mode resultshape.Mode, toolName string, err error, logger *slog.Logger, budget int) mcpToolResult {
+	structured, ok := dispatchErrorStructuredContent(err)
+	if !ok && resultshape.OrDual(mode) == resultshape.Structured {
+		envelope := &query.ResponseEnvelope{Error: &query.ErrorEnvelope{
+			Code: "mcp_dispatch_error", Message: err.Error(), Capability: "mcp.dispatch",
+		}}
+		result := applyResponseBudget(&dispatchResult{
+			Value: envelope, Envelope: envelope, IsError: true,
+			Shape: resultshape.Structured, GenericDispatchError: true,
+		}, toolName, budget, logger)
+		return renderToolResult(toolName, result)
+	}
 	result := mcpToolResult{
 		Content: []mcpContent{{Type: "text", Text: err.Error()}},
 		IsError: true,
 	}
-	structured, ok := dispatchErrorStructuredContent(err)
 	if !ok {
 		return result
 	}
