@@ -6,6 +6,8 @@ package runtimedeclarationtools
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 )
 
 func TestToolSchemaBoundsMirrorTheHandler(t *testing.T) {
@@ -32,21 +34,22 @@ func TestToolSchemaBoundsMirrorTheHandler(t *testing.T) {
 	if properties["repo_ids"].(map[string]any)["maxItems"] != 100 {
 		t.Errorf("repo_ids maxItems = %v, want 100", properties["repo_ids"].(map[string]any)["maxItems"])
 	}
-	if schema["additionalProperties"] != false {
-		t.Errorf("additionalProperties = %v, want false to match the handler's unknown-field rejection", schema["additionalProperties"])
+	// The schema must use only keywords the router validator implements:
+	// bool additionalProperties and maxLength are not among them (the
+	// validator ignores both), so closed-ness and length caps live in the
+	// HTTP handler (DisallowUnknownFields plus the
+	// maxFilterLength/maxRepoIDLength/maxRepoIDs caps in request.go). This
+	// pins the drift-guard contract locally for this tool.
+	if findings := router.UnsupportedSchemaFeatures(schema); len(findings) != 0 {
+		t.Errorf("tool schema uses features the router validator does not implement: %v", findings)
 	}
 	if properties["version_below"].(map[string]any)["pattern"] != `^[0-9]{1,9}(\.[0-9]{1,9}){0,2}$` {
 		t.Errorf("version_below pattern = %v, want the OpenAPI digit bound", properties["version_below"].(map[string]any)["pattern"])
 	}
-	for _, field := range []string{"runtime", "source_kind"} {
-		if properties[field].(map[string]any)["maxLength"] != 128 {
-			t.Errorf("%s maxLength = %v, want 128", field, properties[field].(map[string]any)["maxLength"])
-		}
-	}
-	items := properties["repo_ids"].(map[string]any)["items"].(map[string]any)
-	if items["maxLength"] != 512 {
-		t.Errorf("repo_ids items maxLength = %v, want 512", items["maxLength"])
-	}
+	// Length caps are handler-enforced (maxFilterLength 128 for runtime and
+	// source_kind, maxRepoIDLength 512 per repo_ids entry); the schema keeps
+	// the "At most N characters" descriptions but no maxLength keyword, which
+	// the validator does not implement.
 }
 
 func TestToolDescriptionTellsTheModelToReadPartialReasons(t *testing.T) {

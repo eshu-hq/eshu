@@ -24,13 +24,17 @@ func listTool() toolcontract.ToolDefinition {
 			"There is no effective-version view: every declaration is returned with its scope_dir (. at the repository root), so a root .nvmrc and a services/web/.nvmrc are separate rows. " +
 			"Rows are ordered by repo_id, relative_path, line_number, runtime and order_index. When truncated is true, pass next_cursor as cursor to continue. " +
 			"Use get_repo_context for one repository's declared-runtime summary.",
+		// The object stays open and length caps stay out of the schema: the
+		// router validator implements neither bool additionalProperties nor
+		// maxLength, and the HTTP handler enforces both (DisallowUnknownFields
+		// plus the maxFilterLength/maxRepoIDLength/maxRepoIDs caps in
+		// go/internal/query/runtime/declaration/request.go). Sibling tools
+		// follow the same descriptions-plus-handler-validation split.
 		InputSchema: map[string]any{
-			"type":                 "object",
-			"additionalProperties": false,
+			"type": "object",
 			"properties": map[string]any{
 				"runtime": map[string]any{
 					"type":        "string",
-					"maxLength":   128,
 					"description": "Exact runtime name, such as node, python, go or rust. At most 128 characters. Required with major_below or version_below.",
 				},
 				"major_below": map[string]any{
@@ -45,12 +49,11 @@ func listTool() toolcontract.ToolDefinition {
 				},
 				"source_kind": map[string]any{
 					"type":        "string",
-					"maxLength":   128,
 					"description": "Exact declaring source: nvmrc, tool_versions, rust_toolchain, package_json_engines, package_json_volta, package_json_package_manager, go_mod_go or go_mod_toolchain. At most 128 characters.",
 				},
 				"repo_ids": map[string]any{
 					"type":        "array",
-					"items":       map[string]any{"type": "string", "maxLength": 512},
+					"items":       map[string]any{"type": "string"},
 					"maxItems":    100,
 					"description": "Restrict to these repository ids (at most 100, each at most 512 characters).",
 				},
