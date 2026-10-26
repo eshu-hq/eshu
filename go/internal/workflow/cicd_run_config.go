@@ -24,19 +24,22 @@ type cicdRunCollectorConfiguration struct {
 }
 
 type cicdRunTargetConfiguration struct {
-	Provider            string   `json:"provider"`
-	ScopeID             string   `json:"scope_id"`
-	Repository          string   `json:"repository"`
-	TokenEnv            string   `json:"token_env"`
-	AuthMode            string   `json:"auth_mode"`
-	HostTokenFile       string   `json:"host_token_file"`
-	AllowedRepositories []string `json:"allowed_repositories"`
-	APIBaseURL          string   `json:"api_base_url"`
-	MaxRuns             int      `json:"max_runs"`
-	MaxJobs             int      `json:"max_jobs"`
-	MaxArtifacts        int      `json:"max_artifacts"`
-	MaxDeployments      int      `json:"max_deployments"`
-	SourceURI           string   `json:"source_uri"`
+	Provider                   string   `json:"provider"`
+	ScopeID                    string   `json:"scope_id"`
+	Repository                 string   `json:"repository"`
+	TokenEnv                   string   `json:"token_env"`
+	AuthMode                   string   `json:"auth_mode"`
+	HostTokenFile              string   `json:"host_token_file"`
+	GitHubAppIDEnv             string   `json:"github_app_id_env"`
+	GitHubAppInstallationIDEnv string   `json:"github_app_installation_id_env"`
+	GitHubAppPrivateKeyEnv     string   `json:"github_app_private_key_env"`
+	AllowedRepositories        []string `json:"allowed_repositories"`
+	APIBaseURL                 string   `json:"api_base_url"`
+	MaxRuns                    int      `json:"max_runs"`
+	MaxJobs                    int      `json:"max_jobs"`
+	MaxArtifacts               int      `json:"max_artifacts"`
+	MaxDeployments             int      `json:"max_deployments"`
+	SourceURI                  string   `json:"source_uri"`
 }
 
 // ValidateCICDRunCollectorConfiguration checks bounded provider CI/CD run
@@ -120,7 +123,7 @@ func validateCICDRunTargetConfiguration(target cicdRunTargetConfiguration) error
 		}
 		return fmt.Errorf("repository must be owner/name")
 	}
-	if err := validateCICDRunTargetAuth(target, provider); err != nil {
+	if err := validateCICDRunAuth(target, provider); err != nil {
 		return err
 	}
 	if len(cleanCICDRepositories(target.AllowedRepositories)) == 0 {
@@ -163,41 +166,64 @@ func validateCICDRunTargetConfiguration(target cicdRunTargetConfiguration) error
 	return validateCICDURL("source_uri", target.SourceURI, false)
 }
 
-// validateCICDRunTargetAuth checks the per-target credential shape (#9186):
-// a github_actions target selects exactly one of the two shapes --
-// auth_mode "token_env" (the default when omitted) resolves a static bearer
-// from token_env at startup, while auth_mode "host_minted" resolves the
-// host-minted installation token per claim from host_token_file -- and the
-// two never mix on one target. A gitlab_ci target ignores both fields
-// (mirroring the MaxArtifacts precedent) and keeps its existing token_env
-// requirement.
-func validateCICDRunTargetAuth(target cicdRunTargetConfiguration, provider string) error {
+// validateCICDRunAuth keeps GitHub's three credential shapes exclusive. GitLab
+// retains its token_env requirement and ignores GitHub-only auth fields.
+func validateCICDRunAuth(target cicdRunTargetConfiguration, provider string) error {
 	if provider == cicdRunProviderGitLabCI {
 		if strings.TrimSpace(target.TokenEnv) == "" {
 			return fmt.Errorf("token_env is required")
 		}
 		return nil
 	}
-	switch authMode := strings.ToLower(strings.TrimSpace(target.AuthMode)); authMode {
-	case "", cicdRunAuthModeTokenEnv:
+	mode := strings.ToLower(strings.TrimSpace(target.AuthMode))
+	if mode == "" {
+		mode = cicdRunAuthModeTokenEnv
+	}
+	hostFile := strings.TrimSpace(target.HostTokenFile)
+	appRefs := strings.TrimSpace(target.GitHubAppIDEnv) != "" ||
+		strings.TrimSpace(target.GitHubAppInstallationIDEnv) != "" ||
+		strings.TrimSpace(target.GitHubAppPrivateKeyEnv) != ""
+	switch mode {
+	case cicdRunAuthModeTokenEnv:
 		if strings.TrimSpace(target.TokenEnv) == "" {
 			return fmt.Errorf("token_env is required")
 		}
-		if strings.TrimSpace(target.HostTokenFile) != "" {
-			return fmt.Errorf("auth_mode %q must not set host_token_file %q: the two credential shapes never mix", target.AuthMode, target.HostTokenFile)
+		if hostFile != "" {
+			return fmt.Errorf("host_token_file must be empty when auth_mode is %q", mode)
 		}
-		return nil
+		if appRefs {
+			return fmt.Errorf("github_app env references must be empty when auth_mode is %q", mode)
+		}
 	case cicdRunAuthModeHostMinted:
-		if strings.TrimSpace(target.HostTokenFile) == "" {
+		if hostFile == "" {
 			return fmt.Errorf("host_token_file is required")
 		}
 		if strings.TrimSpace(target.TokenEnv) != "" {
-			return fmt.Errorf("auth_mode %q must not set token_env %q: the two credential shapes never mix", target.AuthMode, target.TokenEnv)
+			return fmt.Errorf("token_env must be empty when auth_mode is %q", mode)
 		}
-		return nil
+		if appRefs {
+			return fmt.Errorf("github_app env references must be empty when auth_mode is %q", mode)
+		}
+	case "github_app":
+		if strings.TrimSpace(target.TokenEnv) != "" {
+			return fmt.Errorf("token_env must be empty when auth_mode is %q", mode)
+		}
+		if hostFile != "" {
+			return fmt.Errorf("host_token_file must be empty when auth_mode is %q", mode)
+		}
+		if strings.TrimSpace(target.GitHubAppIDEnv) == "" {
+			return fmt.Errorf("github_app_id_env is required when auth_mode is %q", mode)
+		}
+		if strings.TrimSpace(target.GitHubAppInstallationIDEnv) == "" {
+			return fmt.Errorf("github_app_installation_id_env is required when auth_mode is %q", mode)
+		}
+		if strings.TrimSpace(target.GitHubAppPrivateKeyEnv) == "" {
+			return fmt.Errorf("github_app_private_key_env is required when auth_mode is %q", mode)
+		}
 	default:
 		return fmt.Errorf("unsupported ci/cd run auth_mode %q", target.AuthMode)
 	}
+	return nil
 }
 
 func validateCICDURL(field, raw string, requireHTTPS bool) error {

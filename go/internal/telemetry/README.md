@@ -174,6 +174,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `SecurityAlertRateLimited` | `eshu_dp_security_alert_rate_limited_total` |
 | `SecurityAlertTruncatedReads`, `SecurityAlertOrgFanoutRepositories` | `eshu_dp_security_alert_truncated_reads_total`, `eshu_dp_security_alert_org_fanout_repositories_total` (#8805; see `docs/public/reference/telemetry/security-alert-org-fanout.md`) |
 | `CICDRunProviderRequests` | `eshu_dp_ci_cd_run_provider_requests_total` |
+| `CICDRunWebhookHandoffs`, `CICDRunWebhookReaps`, `CICDRunPollFallback` | `eshu_dp_ci_cd_run_webhook_handoffs_total`, `eshu_dp_ci_cd_run_webhook_reaps_total`, `eshu_dp_ci_cd_run_poll_fallback_total` |
 | `CICDRunFactsEmitted` | `eshu_dp_ci_cd_run_facts_emitted_total` |
 | `CICDRunRateLimited` | `eshu_dp_ci_cd_run_rate_limited_total` |
 | `CICDRunPartialGenerations` | `eshu_dp_ci_cd_run_partial_generations_total` |
@@ -321,7 +322,7 @@ module prefixes across generations.
 | `PackageRegistryGenerationLag` | `eshu_dp_package_registry_generation_lag_seconds` | 0.01–60 s |
 | `VulnerabilityIntelligenceFetchDuration` | `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` | 0.01-60 s |
 | `SecurityAlertFetchDuration` | `eshu_dp_security_alert_fetch_duration_seconds` | 0.01–60 s |
-| `CICDRunFetchDuration` | `eshu_dp_ci_cd_run_fetch_duration_seconds` | 0.01-60 s |
+| `CICDRunFetchDuration`, `CICDRunWebhookLag` | `eshu_dp_ci_cd_run_fetch_duration_seconds`, `eshu_dp_ci_cd_run_webhook_lag_seconds` | 0.01–60 s fetch; 0–21600 s webhook lag |
 | `PagerDutyFetchDuration` | `eshu_dp_pagerduty_fetch_duration_seconds` | 0.01-60 s |
 | `PagerDutyGenerationLag` | `eshu_dp_pagerduty_generation_lag_seconds` | 0.01–60 s |
 | `JiraFetchDuration` | `eshu_dp_jira_fetch_duration_seconds` | 0.01–60 s |

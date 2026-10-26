@@ -49,6 +49,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/security/alerts/retirement"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
+	actionsstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook/actions"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -181,6 +182,11 @@ func run(parent context.Context) error {
 		Instruments: instruments,
 		StoreName:   "incident_freshness_triggers",
 	}
+	actionsDB := &postgres.InstrumentedDB{Inner: postgres.SQLDB{DB: db}, Tracer: providers.TracerProvider.Tracer(telemetry.DefaultSignalName), Instruments: instruments, StoreName: "cicd_actions_deliveries"}
+	actionsStore := actionsstore.NewStore(actionsDB)
+	if err := actionsStore.EnsureSchema(parent); err != nil {
+		return err
+	}
 	incidentFreshnessStore := incidentfreshnessstore.NewIncidentFreshnessStore(incidentFreshnessDB)
 	if err := incidentFreshnessStore.EnsureSchema(parent); err != nil {
 		return err
@@ -229,6 +235,8 @@ func run(parent context.Context) error {
 		ScannerWorkerPlanner:              scannerworker.WorkPlanner{},
 		SecurityAlertPlanner:              alert.WorkPlanner{ShardScopes: retirement.NewReader(securityAlertShardScopesDB), Logger: logger},
 		CICDRunPlanner:                    cicdrun.WorkPlanner{},
+		CICDRunActionsTriggers:            actionsStore,
+		CICDRunInstruments:                instruments,
 		PagerDutyPlanner:                  pagerduty.WorkPlanner{},
 		JiraPlanner:                       jira.WorkPlanner{},
 		PrometheusMimirPlanner:            prometheus.WorkPlanner{},

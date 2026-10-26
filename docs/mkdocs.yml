@@ -172,6 +172,7 @@ nav:
       - Postgres Diagnostics: reference/postgres-diagnostics.md
       - Ingestion And Queue Environment: reference/environment-ingestion-queues.md
       - Collector Environment: reference/environment-collectors.md
+      - Supply-chain Collector Environment: reference/environment-collectors-supply-chain.md
       - Compose And Test Environment: reference/environment-compose-tests.md
       - Health And Readiness Probes: reference/health-readiness.md
       - Runtime Admin API: reference/runtime-admin-api.md
@@ -353,6 +354,7 @@ nav:
       - Workflow Work Item Retention: reference/telemetry/workflow-work-item-retention.md
       - Metrics: reference/telemetry/metrics.md
       - Ingestion And Collector Metrics: reference/telemetry/metrics-ingestion-collectors.md
+      - CI/CD Run Telemetry: reference/telemetry/metrics-cicd-run.md
       - Reducer And Storage Metrics: reference/telemetry/metrics-reducer-storage.md
       - Identity Fact Cache Metrics: reference/telemetry/metrics-identity-cache.md
       - Graph-read Safety: reference/telemetry/graph-read-safety.md

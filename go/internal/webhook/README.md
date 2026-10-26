@@ -3,22 +3,23 @@
 This package is the provider-facing normalization layer for the webhook
 listener runtime. It verifies provider authentication inputs, parses GitHub,
 GitLab, Bitbucket, PagerDuty, Jira, Azure DevOps, Jenkins, CircleCI,
-Buildkite, and Drone payloads, and returns a `Trigger` or
-`IncidentFreshnessTrigger` that says whether the event should create refresh
-work.
+Buildkite, and Drone payloads. Repository and incident-source normalizers
+return `Trigger` or `IncidentFreshnessTrigger` refresh decisions. Actions
+normalization returns an identity-only `ActionsTrigger` for a bounded wake-up.
 
-The package does not enqueue work, write graph data, or decide repository
-truth. It only turns a verified provider delivery into an accepted or ignored
-refresh decision.
+The package does not enqueue work, write graph data, or decide provider
+truth. Callers own durable handoff. The Actions listener adapter follows
+separately; the current listener does not invoke that normalizer.
 
 ## Flow
 
 ```mermaid
 flowchart LR
-  Provider["GitHub, GitLab, Bitbucket, PagerDuty, or Jira"] --> Verify["signature or token verification"]
-  Verify --> Normalize["provider normalizer"]
-  Normalize --> Trigger["Trigger or IncidentFreshnessTrigger decision"]
-  Trigger --> Durable["durable refresh trigger store"]
+  Provider["Provider payload"] --> Verify["Caller verifies signature or token"]
+  Verify --> Normalize["Caller invokes provider normalizer"]
+  Normalize --> Repository["Trigger: repository refresh decision"]
+  Normalize --> Incident["IncidentFreshnessTrigger: source refresh decision"]
+  Normalize --> Actions["ActionsTrigger: bounded wake-up identity"]
 ```
 
 ## Exported Surface
@@ -33,6 +34,9 @@ flowchart LR
   HMAC-SHA256 signatures with the `v1=` header value.
 - `VerifyJiraSignature` accepts Jira Cloud `X-Hub-Signature` HMAC-SHA256
   signatures.
+- `NormalizeGitHubActions` parses verified `workflow_run` and `workflow_job`
+  payloads into bounded wake-up identities. The coordinator consumes durable
+  entries, while the listener adapter that enqueues them follows separately.
 - `NormalizeGitHub` accepts GitHub push events and merged pull request events
   that target the repository default branch.
 - `NormalizeGitLab` accepts GitLab push events and merged merge request events
@@ -71,15 +75,16 @@ flowchart LR
 
 ## Invariants
 
-- A webhook is a wake-up signal only. The collector must still fetch git state,
-  create a repository snapshot, emit facts, and let projection update graph and
-  content state.
+- A webhook is a wake-up signal only. Repository-refresh collectors still
+  fetch git state and create a repository snapshot. Actions and incident-source
+  collectors fetch their authoritative provider data. Normal source-fact
+  admission and projection remain required before graph or content changes.
 - Merged GitHub pull-request number, URL, and title fields are provider
   provenance for read-model enrichment. They do not skip repository refresh or
   create graph truth directly.
-- Tag events, non-default branch events, default-branch deletes, and merge
-  events without a provider merge commit are ignored with explicit
-  `DecisionReason` values.
+- Repository-refresh normalizers ignore tag events, non-default branches,
+  default-branch deletes, and merge events without a provider merge commit,
+  using explicit `DecisionReason` values.
 - GitHub and Bitbucket SHA-1 signatures are rejected so the listener cannot
   downgrade authentication.
 - Repository provider ID, repository full name, and default branch are required

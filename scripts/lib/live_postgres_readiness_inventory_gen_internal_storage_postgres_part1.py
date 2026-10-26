@@ -7,6 +7,10 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/actions_work_live_test.go": (
+            "TestCICDActionsAdmissionBeforeACKCrashUsesExactDurableWorkLive",
+            "TestCICDMixedProviderScheduledGroupsShareDurableRunLive",
+        ),
         "go/internal/storage/postgres/active_code_call_symbols_ahead_manifest_live_test.go": (
             "TestReducerContentionGateActiveCodeCallSymbolLoaderAheadManifestKeepsProducer",
             "TestReducerContentionGateActiveCodeCallSymbolLoaderSupersedeThenDeltaHole",

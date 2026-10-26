@@ -67,6 +67,7 @@ PY
 apply_seed() {
   cp "${repo_root}/${events_py}" "${tree}/${events_py}"
   cp "${repo_root}/${runner_sh}" "${tree}/${runner_sh}"
+  cp "${repo_root}/scripts/${selftest}" "${tree}/scripts/${selftest}"
   python3 - "${tree}/$1" "$2" "$3" <<'PY' || fail "seed anchor missing in $1: $2"
 import pathlib
 import sys
@@ -94,6 +95,36 @@ expect_failure() {
   fi
   printf 'seed %s: caught (%s)\n' "${seed}" "${line:0:120}"
 }
+
+# Mutants activate only when all package streams carry the same batched fault.
+# The old one-package-at-a-time checks cannot catch them; the grouped checks
+# must retain the middle package's verifier status, diagnostic, and callback.
+read -r middle_pkg < <(python3 - "${work}/packages.tsv" <<'PY'
+import pathlib
+import sys
+
+packages = [line.split("\t", 1)[0] for line in pathlib.Path(sys.argv[1]).read_text().splitlines()]
+print(packages[len(packages) // 2])
+PY
+)
+apply_batch_mutant() {
+  local kind="$1" target="${tree}/scripts/${selftest}"
+  cp "${repo_root}/${events_py}" "${tree}/${events_py}"
+  cp "${repo_root}/${runner_sh}" "${tree}/${runner_sh}"
+  cp "${repo_root}/scripts/${selftest}" "${target}"
+  python3 "${repo_root}/scripts/lib/live_postgres_readiness_batch_mutant.py" \
+    mutate-target "${target}" "${kind}" || fail "batch mutant anchor missing"
+}
+
+apply_batch_mutant status
+SEED_MUTANT_KIND=status expect_failure batch-status \
+  "batched terminal did not report verifier failure for ${middle_pkg}: " prefix
+apply_batch_mutant diagnostic
+SEED_MUTANT_KIND=diagnostic expect_failure batch-diagnostic \
+  "batched terminal package terminal of ${middle_pkg} not named: " prefix
+apply_batch_mutant callback
+SEED_MUTANT_KIND=callback expect_failure batch-callback \
+  "batched zero callback count for ${middle_pkg}: 0"
 
 apply_seed "${events_py}" '        if action != "pass":
 ' '        if action not in ("pass", "skip"):

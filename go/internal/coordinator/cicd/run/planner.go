@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/contract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/scope/org/shard"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -22,6 +23,13 @@ type PlanRequest struct {
 	Instance   workflow.CollectorInstance
 	ObservedAt time.Time
 	PlanKey    string
+	// TriggerKind selects a webhook wake-up; zero retains scheduled planning.
+	TriggerKind workflow.TriggerKind
+	// ScopeIDs limits webhook planning to configured GitHub Actions targets.
+	ScopeIDs []string
+	// ScheduledProvider isolates one configured provider's scheduled run when
+	// a collector instance has mixed provider targets.
+	ScheduledProvider string
 }
 
 // WorkPlanner plans workflow rows for configured CI/CD run targets
@@ -33,8 +41,9 @@ type cicdRunRuntimeConfiguration struct {
 }
 
 type cicdRunTargetConfiguration struct {
-	Provider string `json:"provider"`
-	ScopeID  string `json:"scope_id"`
+	Provider   string `json:"provider"`
+	ScopeID    string `json:"scope_id"`
+	Repository string `json:"repository"`
 }
 
 // PlanCICDRunWork returns one run and one work item per configured provider
@@ -53,11 +62,31 @@ func (p WorkPlanner) PlanCICDRunWork(
 	if err := validateUniqueCICDRunTargets(targets); err != nil {
 		return workflow.Run{}, nil, err
 	}
+	triggerKind := cicdRunTriggerKind(request.Instance)
+	if request.TriggerKind != "" {
+		triggerKind = request.TriggerKind
+	}
+	if triggerKind == workflow.TriggerKindWebhook {
+		if request.ScheduledProvider != "" {
+			return workflow.Run{}, nil, fmt.Errorf("ci/cd run scheduled_provider cannot select webhook targets")
+		}
+		targets, err = selectWebhookTargets(targets, request.ScopeIDs)
+		if err != nil {
+			return workflow.Run{}, nil, err
+		}
+	} else if len(request.ScopeIDs) != 0 {
+		return workflow.Run{}, nil, fmt.Errorf("ci/cd run scope_ids require webhook trigger")
+	} else if request.ScheduledProvider != "" {
+		targets, err = selectScheduledProviderTargets(targets, request.ScheduledProvider)
+		if err != nil {
+			return workflow.Run{}, nil, err
+		}
+	}
 
 	observedAt := request.ObservedAt.UTC()
 	run := workflow.Run{
-		RunID:              cicdRunRunID(request.Instance, request.PlanKey),
-		TriggerKind:        cicdRunTriggerKind(request.Instance),
+		RunID:              cicdRunRunID(request.Instance, request.PlanKey, triggerKind),
+		TriggerKind:        triggerKind,
 		Status:             workflow.RunStatusCollectionPending,
 		RequestedScopeSet:  cicdRunRequestedScopeSet(request.Instance, targets),
 		RequestedCollector: string(scope.CollectorCICDRun),
@@ -73,6 +102,50 @@ func (p WorkPlanner) PlanCICDRunWork(
 		items = append(items, item)
 	}
 	return run, items, nil
+}
+
+func selectScheduledProviderTargets(targets []cicdRunTargetConfiguration, provider string) ([]cicdRunTargetConfiguration, error) {
+	if provider != "github_actions" && provider != "gitlab_ci" {
+		return nil, fmt.Errorf("ci/cd run scheduled provider %q is unsupported", provider)
+	}
+	selected := make([]cicdRunTargetConfiguration, 0, len(targets))
+	for _, target := range targets {
+		if target.Provider == provider {
+			selected = append(selected, target)
+		}
+	}
+	if len(selected) == 0 {
+		return nil, fmt.Errorf("ci/cd run scheduled provider %q has no configured targets", provider)
+	}
+	return selected, nil
+}
+
+func selectWebhookTargets(targets []cicdRunTargetConfiguration, scopes []string) ([]cicdRunTargetConfiguration, error) {
+	if len(scopes) == 0 {
+		return nil, fmt.Errorf("ci/cd run webhook scope_ids are required")
+	}
+	requested := make(map[string]struct{}, len(scopes))
+	for _, scopeID := range scopes {
+		if strings.TrimSpace(scopeID) == "" {
+			return nil, fmt.Errorf("ci/cd run webhook scope_id is required")
+		}
+		requested[strings.TrimSpace(scopeID)] = struct{}{}
+	}
+	selected := make([]cicdRunTargetConfiguration, 0, len(requested))
+	for _, target := range targets {
+		if _, ok := requested[target.ScopeID]; !ok {
+			continue
+		}
+		if target.Provider != "github_actions" {
+			return nil, fmt.Errorf("ci/cd run webhook scope_id %q requires github_actions provider", target.ScopeID)
+		}
+		selected = append(selected, target)
+		delete(requested, target.ScopeID)
+	}
+	if len(requested) != 0 {
+		return nil, fmt.Errorf("ci/cd run webhook scope_id is not configured")
+	}
+	return selected, nil
 }
 
 func validatePlanRequest(request PlanRequest) error {
@@ -114,6 +187,46 @@ func parseCICDRunRuntimeTargets(raw string) ([]cicdRunTargetConfiguration, error
 	return targets, nil
 }
 
+// ConfiguredGitHubScopes returns every validated target scope that authorizes
+// one exact GitHub repository. A verified webhook never selects GitLab targets.
+func ConfiguredGitHubScopes(configuration, repository string) ([]string, error) {
+	targets, err := parseCICDRunRuntimeTargets(configuration)
+	if err != nil {
+		return nil, err
+	}
+	repository = shard.NormalizeRepository(repository)
+	if repository == "" {
+		return nil, nil
+	}
+	scopes := make([]string, 0)
+	for _, target := range targets {
+		if target.Provider == "github_actions" && shard.NormalizeRepository(target.Repository) == repository {
+			scopes = append(scopes, target.ScopeID)
+		}
+	}
+	sort.Strings(scopes)
+	return scopes, nil
+}
+
+// ConfiguredGitHubTargetRepositories maps every validated GitHub Actions
+// target scope to its configured repository for pending-delivery admission.
+func ConfiguredGitHubTargetRepositories(configuration string) (map[string]string, error) {
+	targets, err := parseCICDRunRuntimeTargets(configuration)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateUniqueCICDRunTargets(targets); err != nil {
+		return nil, err
+	}
+	repositories := make(map[string]string)
+	for _, target := range targets {
+		if target.Provider == "github_actions" {
+			repositories[target.ScopeID] = shard.NormalizeRepository(target.Repository)
+		}
+	}
+	return repositories, nil
+}
+
 func validateUniqueCICDRunTargets(targets []cicdRunTargetConfiguration) error {
 	seen := make(map[string]struct{}, len(targets))
 	for _, target := range targets {
@@ -126,12 +239,12 @@ func validateUniqueCICDRunTargets(targets []cicdRunTargetConfiguration) error {
 	return nil
 }
 
-func cicdRunRunID(instance workflow.CollectorInstance, planKey string) string {
+func cicdRunRunID(instance workflow.CollectorInstance, planKey string, triggerKind workflow.TriggerKind) string {
 	return fmt.Sprintf(
 		"%s:%s:%s:%s",
 		scope.CollectorCICDRun,
 		strings.TrimSpace(instance.InstanceID),
-		cicdRunTriggerKind(instance),
+		triggerKind,
 		strings.TrimSpace(planKey),
 	)
 }

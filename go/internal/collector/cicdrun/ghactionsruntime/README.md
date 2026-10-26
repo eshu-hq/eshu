@@ -83,7 +83,8 @@ The package imports `internal/collector` for `CollectedGeneration`,
 `internal/collector/cicdrun/runwatermark` for the cross-cycle gap-detection
 watermark contract, `internal/collector/sdk` for shared bounded HTTP
 primitives, `internal/scope` for scope identity, and `internal/workflow` for
-claim rows. The only external boundary is Go's `net/http` client.
+claim rows and `internal/github/app` for installation-token minting. The
+external boundary is Go's `net/http` client.
 
 ## Telemetry
 
@@ -93,7 +94,13 @@ fact-emission, and partial-generation metrics when callers provide
 `telemetry.Instruments`. Cross-cycle gap detection (#5429) records the same
 `eshu_dp_ci_cd_run_partial_generations_total` counter with
 `reason="runs_backfill_gap"` -- no new metric name, just a new reason value on
-the existing partial-generation counter.
+the existing partial-generation counter. App mint denials and direct-App provider
+non-rate-limited 401/403/404 reads use the existing provider-request counter with
+`status_class="auth_error"`; throttled provider reads and mints keep `rate_limited`. Host-token
+file failures and Actions-refused host bearers use `auth_denied`. A
+Deployments-only 403/404 keeps the run facts with a permission warning and
+the generic `error` class for host or static credentials. Static-token
+provider failures otherwise keep the generic `error` class.
 
 Metric labels stay bounded to provider, status class, fact kind, and partial
 reason. Repository names, workflow run IDs, artifact names, URLs, token
@@ -102,8 +109,12 @@ labels.
 
 ## Gotchas / invariants
 
-- Targets must be explicitly configured with `scope_id`, `repository`, `token`,
-  and `allowed_repositories`.
+- Targets require `scope_id`, `repository`, `allowed_repositories`, and exactly
+  one credential shape: a static `token`, a scoped host-managed token file,
+  or GitHub App ID, installation ID, and private key. Host mode reads its file
+  for each claim; direct App mode mints one installation token before provider
+  reads. The claim-scoped token is reused for runs, jobs, artifacts, and
+  deployments. No token cache or persisted App credential is introduced.
 - `max_runs`, `max_jobs`, and `max_artifacts` bound provider request shape. An
   omitted or zero `max_runs` resolves to `defaultMaxRuns` (10); the hard cap
   stays 100. A fetched runs page that is full (GitHub's `total_count` exceeds
@@ -348,3 +359,27 @@ query (Load, Save) at ~0.02-0.03ms against 50,000 representative rows; two
 such queries per claim are negligible next to this package's own documented
 worst case of up to 200 additional bounded GitHub HTTP requests per claim
 cycle (`max_runs`=100).
+
+## App authentication cost proof
+
+No-Regression Evidence: `BenchmarkBoundedPATFetch` measures `FetchRuns` entry
+through decoding one run, one job, and one artifact over a reused local TLS
+connection. The same fixture on base `d33bb45932` and the App implementation
+produced five-sample means of 107.120 us/op (SD 0.310) and 107.385 us/op
+(SD 0.307), respectively: a 0.25% difference. Two prior base sample sets set the
+control bound. The 2026-10-26 local run held load1 below 0.65 on 16 CPUs;
+these are fixture measurements, not provider latency or an absolute SLO.
+
+`BenchmarkAppCredentialMint` measures the added per-claim JWT signing and token
+exchange separately: three samples averaged 1.330 ms/op over local TLS. The
+production-path regression checks one mint per claim, token reuse across the
+bounded reads, and a fresh mint on the next claim. Run the benchmarks with
+`go test ./internal/collector/cicdrun/ghactionsruntime -run '^$'
+-bench 'Benchmark(BoundedPATFetch|AppCredentialMint)$' -benchtime=300ms
+-count=5 -benchmem` from `go/` on a quiet host.
+
+Observability Evidence: the source records App failures on
+`eshu_dp_ci_cd_run_provider_requests_total` with bounded `auth_error` or
+`rate_limited` status classes, and on `ci_cd_run.observe` and
+`ci_cd_run.fetch` spans. App mint rate limits preserve workflow retry delays;
+a provider-read 401 retries the fenced claim with a newly minted token.

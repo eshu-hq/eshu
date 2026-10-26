@@ -264,6 +264,8 @@ var logKeys = []string{
 	LogKeyPostgresStoreError,
 	LogKeyLeaseTTLSeconds,
 	LogKeyFencingToken,
+	LogKeyCICDActionsRequeued,
+	LogKeyCICDActionsExhausted,
 	LogKeyRefreshSkipReason,
 	LogKeySkipRetract,
 	LogKeySkipRetractReason,

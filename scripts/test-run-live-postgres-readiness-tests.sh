@@ -153,21 +153,9 @@ done
 # failure, or a missing event for any one of them fails the run.
 check_each_proof
 
-# A stale -run expression must not allow zero matched tests in any package.
-for pkg in "${packages[@]}"; do
-  write_events
-  printf '{"Action":"pass","Package":"github.com/eshu-hq/eshu/go/%s","Elapsed":0.1}\n' "${pkg#./}" >"$(events_of "${pkg}")"
-  out="$(run_runner)" && fail "zero matched tests in ${pkg} passed"
-  [[ "${out}" == *"missing"* ]] || fail "zero-test failure in ${pkg} not named: ${out}"
-done
-
-# A failed package terminal fails the run even when every test passed.
-for pkg in "${packages[@]}"; do
-  write_events
-  sed -i.bak 's/"Action":"pass","Package"/"Action":"fail","Package"/' "$(events_of "${pkg}")"
-  out="$(run_runner)" && fail "failed package terminal of ${pkg} passed"
-  [[ "${out}" == *"package terminal (${pkg})"* ]] || fail "package terminal of ${pkg} not named: ${out}"
-done
+# Both grouped package faults report every package. Their seeded mutants
+# exercise a middle package without changing the isolated per-proof checks.
+check_batched_package_failures
 
 # A package that exits nonzero fails the run and names that package; the
 # other packages still run so one CI run reports every broken proof.

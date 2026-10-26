@@ -163,6 +163,15 @@ func AcceptanceAttrs(scopeID, unitID, sourceRunID, generationID string) []slog.A
 	}
 }
 
+// GitHub Actions reaper diagnostics aggregate bounded transition counts.
+// Neither key carries delivery or repository identity.
+const (
+	// LogKeyCICDActionsRequeued counts expired leases returned to the queue.
+	LogKeyCICDActionsRequeued = "ci_cd_run.actions_reap_requeued"
+	// LogKeyCICDActionsExhausted counts claims failed after the attempt budget.
+	LogKeyCICDActionsExhausted = "ci_cd_run.actions_reap_exhausted"
+)
+
 // File-group diagnostic keys are emitted only by the opt-in NornicDB
 // files-phase probe. IDs and indices correlate attempts within one process;
 // template IDs and outcomes use closed vocabularies. None carries query text,

@@ -20,11 +20,6 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	if target.AuthMode == "" {
 		target.AuthMode = AuthModeTokenEnv
 	}
-	switch target.AuthMode {
-	case AuthModeTokenEnv, AuthModeHostMinted:
-	default:
-		return TargetConfig{}, fmt.Errorf("unsupported github actions auth_mode %q", target.AuthMode)
-	}
 	target.APIBaseURL = strings.TrimSpace(target.APIBaseURL)
 	target.SourceURI = strings.TrimSpace(target.SourceURI)
 	if target.APIBaseURL == "" {
@@ -39,20 +34,8 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	if target.Repository == "" {
 		return TargetConfig{}, fmt.Errorf("repository must be owner/name")
 	}
-	if target.AuthMode == AuthModeHostMinted {
-		// A host_minted target carries no frozen Token: the bearer
-		// resolves per claim from HostTokenFile in NextClaimed, so a
-		// stale startup copy can never shadow a host refresh.
-		if target.HostTokenFile == "" {
-			return TargetConfig{}, fmt.Errorf("host_token_file is required")
-		}
-	} else {
-		if target.HostTokenFile != "" {
-			return TargetConfig{}, fmt.Errorf("auth_mode %q must not set host_token_file %q: the two credential shapes never mix", target.AuthMode, target.HostTokenFile)
-		}
-		if target.Token == "" {
-			return TargetConfig{}, fmt.Errorf("token is required")
-		}
+	if err := validateTargetAuth(target); err != nil {
+		return TargetConfig{}, err
 	}
 	if !repositoryAllowed(target.Repository, target.AllowedRepositories) {
 		return TargetConfig{}, fmt.Errorf("repository must be listed in allowed_repositories")
@@ -83,6 +66,54 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 		return TargetConfig{}, err
 	}
 	return target, nil
+}
+
+func validateTargetAuth(target TargetConfig) error {
+	mode := strings.ToLower(strings.TrimSpace(target.AuthMode))
+	if mode == "" {
+		mode = AuthModeTokenEnv
+	}
+	switch mode {
+	case AuthModeTokenEnv:
+		if target.HostTokenFile != "" {
+			return fmt.Errorf("host_token_file must be empty when auth_mode is %q", mode)
+		}
+		if target.Token == "" {
+			return fmt.Errorf("token is required")
+		}
+		if target.GitHubAppID != "" || target.GitHubAppInstallationID != "" || target.GitHubAppPrivateKey != "" {
+			return fmt.Errorf("github_app credentials must be empty when auth_mode is %q", mode)
+		}
+	case AuthModeHostMinted:
+		if target.HostTokenFile == "" {
+			return fmt.Errorf("host_token_file is required")
+		}
+		if target.Token != "" {
+			return fmt.Errorf("token must be empty when auth_mode is %q", mode)
+		}
+		if target.GitHubAppID != "" || target.GitHubAppInstallationID != "" || target.GitHubAppPrivateKey != "" {
+			return fmt.Errorf("github_app credentials must be empty when auth_mode is %q", mode)
+		}
+	case AuthModeGitHubApp:
+		if target.HostTokenFile != "" {
+			return fmt.Errorf("host_token_file must be empty when auth_mode is %q", mode)
+		}
+		if target.Token != "" {
+			return fmt.Errorf("token must be empty when auth_mode is %q", mode)
+		}
+		if strings.TrimSpace(target.GitHubAppID) == "" {
+			return fmt.Errorf("github_app_id is required")
+		}
+		if strings.TrimSpace(target.GitHubAppInstallationID) == "" {
+			return fmt.Errorf("github_app_installation_id is required")
+		}
+		if strings.TrimSpace(target.GitHubAppPrivateKey) == "" {
+			return fmt.Errorf("github_app_private_key is required")
+		}
+	default:
+		return fmt.Errorf("unsupported auth_mode %q", target.AuthMode)
+	}
+	return nil
 }
 
 func sanitizeArtifacts(artifacts []map[string]any) []map[string]any {

@@ -682,6 +682,9 @@ type Instruments struct {
 	SecurityAlertFactsEmitted             metric.Int64Counter
 	SecurityAlertRateLimited              metric.Int64Counter
 	CICDRunProviderRequests               metric.Int64Counter
+	CICDRunWebhookHandoffs                metric.Int64Counter
+	CICDRunWebhookReaps                   metric.Int64Counter
+	CICDRunPollFallback                   metric.Int64Counter
 	CICDRunFactsEmitted                   metric.Int64Counter
 	CICDRunRateLimited                    metric.Int64Counter
 	CICDRunPartialGenerations             metric.Int64Counter
@@ -1946,6 +1949,7 @@ type Instruments struct {
 	VulnerabilityIntelligenceFetchDuration metric.Float64Histogram
 	SecurityAlertFetchDuration             metric.Float64Histogram
 	CICDRunFetchDuration                   metric.Float64Histogram
+	CICDRunWebhookLag                      metric.Float64Histogram
 	PagerDutyFetchDuration                 metric.Float64Histogram
 	PagerDutyGenerationLag                 metric.Float64Histogram
 	JiraFetchDuration                      metric.Float64Histogram
@@ -6112,6 +6116,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerRepositorySelection(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerCICDRunWebhookInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerSharedProjectionCycle(meter, inst); err != nil {
