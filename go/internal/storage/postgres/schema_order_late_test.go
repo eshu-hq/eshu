@@ -336,4 +336,7 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	"content_file_secret_lines_marker_policy",
 	// Migration 236 (#9146) stores fenced GitHub Actions webhook wake-ups.
 	"cicd_actions_deliveries",
+	// Migration 237 (#8950) sets content_files fillfactor = 50 (catalog-only
+	// ALTER) so the metadata-only rewrite stays HOT on new pages.
+	"content_files_fillfactor",
 }

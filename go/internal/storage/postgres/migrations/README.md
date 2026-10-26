@@ -73,8 +73,14 @@ Migrations 148 (`delta_baseline_commit_sha`, #7319), 149
 by the runner's lock_timeout and retry. Migration 150 sets
 `scope_generations` `fillfactor = 90` (SHARE UPDATE EXCLUSIVE, catalog-only):
 existing pages are not rewritten, and new pages keep the free space that makes
-the #7389 write-start marker a HOT update. Keep each of these a single
-statement; see `docs/internal/evidence/7389-superseded-writer-overlay.md`.
+the #7389 write-start marker a HOT update. Migration 237 sets `content_files`
+`fillfactor = 50` (SHARE UPDATE EXCLUSIVE, catalog-only) for the same reason:
+the #8950 metadata-only rewrite (lineage columns only) stays HOT on the new
+pages. Existing pages turn over as generations rewrite them, so the heap grows
+toward about 2x heap-alone while TOAST and the indexes stay flat. Keep each of
+these a single statement; see
+`docs/internal/evidence/7389-superseded-writer-overlay.md` and
+`docs/internal/evidence/8950-writer-prototype.md`.
 
 ## Keep table-locking DDL and bulk DML in separate files (#7961)
 
