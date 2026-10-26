@@ -39,6 +39,7 @@ func ResolveHostTokenFile(path, scopeID string) (string, error) {
 	if trimmedPath == "" {
 		return "", hostTokenFailure("host token file path is required")
 	}
+	// #nosec G304 -- trimmedPath is operator-configured at startup (host_token_file), never request- or user-derived.
 	raw, err := os.ReadFile(trimmedPath)
 	if err != nil {
 		return "", hostTokenFailure(fmt.Sprintf("host token file %q is not readable", trimmedPath))
