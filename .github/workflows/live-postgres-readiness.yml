@@ -190,7 +190,7 @@ jobs:
           bash "$script" finish || echo "::warning title=hermetic job summary failed::$script finish exited $?"
 
   readiness-plan:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'readiness-plan')) && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
+    if: ${{ (github.event_name != 'pull_request' || (contains(fromJSON(inputs.plan_jobs || '[]'), 'readiness-plan') || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards'))) && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
     needs: queue-selection
     name: live-postgres-readiness plan
     runs-on: ubuntu-24.04

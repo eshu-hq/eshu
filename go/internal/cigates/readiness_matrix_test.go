@@ -5,15 +5,159 @@ package cigates
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
+
+// TestReadinessPlanSelection pins the trusted inventory shipped before the
+// matrix helper existed (b450a2a8), independently of the candidate inventory.
+// It evaluates the workflow's actual job guard against that frozen plan.
+func TestReadinessPlanSelection(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	data, err := os.ReadFile(filepath.Join(root, ".github/workflows/live-postgres-readiness.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow readinessWorkflow
+	if err := yaml.Unmarshal(data, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	legacyFull := []string{"hermetic", "live-postgres-readiness", "live-postgres-readiness-shards", "queue-selection"}
+	futureFull := append(slices.Clone(legacyFull), "readiness-plan")
+	selectedQueue := []string{"live-postgres-readiness (postgres18)"}
+	for _, tc := range []struct {
+		name, event string
+		jobs, queue []string
+		want        bool
+	}{
+		{"legacy full PR", "pull_request", legacyFull, nil, true},
+		{"smoke PR", "pull_request", []string{"hermetic", "queue-selection"}, nil, false},
+		{"empty PR", "pull_request", nil, nil, false},
+		{"unrelated PR", "pull_request", []string{"hermetic", "queue-selection", "live-postgres-readiness"}, nil, false},
+		{"future helper only PR", "pull_request", []string{"readiness-plan"}, nil, true},
+		{"future full PR", "pull_request", futureFull, nil, true},
+		{"selected merge group", "merge_group", nil, selectedQueue, true},
+		{"unselected merge group", "merge_group", nil, nil, false},
+		{"push", "push", nil, nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := evaluateReadinessGuard(t, workflow.Jobs["readiness-plan"].If, tc.event, "full", tc.jobs, tc.queue, nil)
+			if got != tc.want {
+				t.Fatalf("readiness-plan selected = %t, want %t for %s plan %v", got, tc.want, tc.event, tc.jobs)
+			}
+		})
+	}
+
+	// The helper has no plan_mode input in its guard. Reuse must be excluded
+	// by the actual trusted caller, even if a stale job list is nonempty.
+	callerData, err := os.ReadFile(filepath.Join(root, ".github/workflows/test.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var caller struct {
+		Jobs map[string]readinessJob `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(callerData, &caller); err != nil {
+		t.Fatal(err)
+	}
+	call := caller.Jobs["call-live-postgres-readiness"]
+	if call.Uses != "./.github/workflows/live-postgres-readiness.yml" {
+		t.Fatalf("readiness caller changed: %q", call.Uses)
+	}
+	for _, tc := range []struct {
+		mode string
+		want bool
+	}{{"full", true}, {"reuse", false}, {"smoke", true}} {
+		t.Run("caller "+tc.mode, func(t *testing.T) {
+			got := evaluateReadinessGuard(t, call.If, "pull_request", tc.mode, legacyFull, nil, []string{"live-postgres-readiness.yml"})
+			if got != tc.want {
+				t.Fatalf("caller selected in %s mode = %t, want %t", tc.mode, got, tc.want)
+			}
+		})
+	}
+}
+
+// evaluateReadinessGuard accepts only the Boolean terms used by these two
+// workflow guards. Unknown terms or operators fail closed instead of passing
+// an approximation of GitHub's expression language.
+func evaluateReadinessGuard(t *testing.T, condition, event, mode string, jobs, queue, workflows []string) bool {
+	t.Helper()
+	expression := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(condition, "${{"), "}}"))
+	contains := regexp.MustCompile(`contains\(fromJSON\((inputs\.plan_jobs|needs\.queue-selection\.outputs\.jobs|needs\.pr-plan\.outputs\.workflows) \|\| '\[\]'\), '([^']+)'\)`)
+	expression = contains.ReplaceAllStringFunc(expression, func(term string) string {
+		parts := contains.FindStringSubmatch(term)
+		var candidates []string
+		switch parts[1] {
+		case "inputs.plan_jobs":
+			candidates = jobs
+		case "needs.queue-selection.outputs.jobs":
+			candidates = queue
+		case "needs.pr-plan.outputs.workflows":
+			candidates = workflows
+		}
+		return boolLiteral(slices.Contains(candidates, parts[2]))
+	})
+	for _, term := range []struct {
+		text  string
+		value bool
+	}{
+		{"github.event_name != 'pull_request'", event != "pull_request"},
+		{"github.event_name != 'merge_group'", event != "merge_group"},
+		{"github.event_name == 'pull_request'", event == "pull_request"},
+		{"needs.pr-plan.result == 'success'", true},
+		{"needs.pr-plan.outputs.mode != 'reuse'", mode != "reuse"},
+	} {
+		expression = strings.ReplaceAll(expression, term.text, boolLiteral(term.value))
+	}
+	expr, err := parser.ParseExpr(expression)
+	if err != nil {
+		t.Fatalf("unsupported workflow guard %q: %v", expression, err)
+	}
+	return evaluateReadinessBoolean(t, expr)
+}
+
+func boolLiteral(value bool) string {
+	if value {
+		return "true"
+	}
+	return "false"
+}
+
+func evaluateReadinessBoolean(t *testing.T, expression ast.Expr) bool {
+	t.Helper()
+	switch expr := expression.(type) {
+	case *ast.ParenExpr:
+		return evaluateReadinessBoolean(t, expr.X)
+	case *ast.Ident:
+		if expr.Name == "true" {
+			return true
+		}
+		if expr.Name == "false" {
+			return false
+		}
+	case *ast.BinaryExpr:
+		left := evaluateReadinessBoolean(t, expr.X)
+		right := evaluateReadinessBoolean(t, expr.Y)
+		switch expr.Op {
+		case token.LAND:
+			return left && right
+		case token.LOR:
+			return left || right
+		}
+	}
+	t.Fatalf("unsupported workflow guard expression %T: %v", expression, expression)
+	return false
+}
 
 func TestReadinessDynamicMatrixContract(t *testing.T) {
 	root := filepath.Join("..", "..", "..")

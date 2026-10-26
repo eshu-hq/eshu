@@ -7,6 +7,15 @@ the 30-minute cap (1800 s). This page explains the cut and calibration.
 
 ## How the cut works
 
+The trusted PR planner reads the frozen inventory on the default branch.
+During the matrix helper rollout, that inventory can select
+`live-postgres-readiness-shards` without naming the new
+`readiness-plan` helper. The helper therefore runs on a PR when either
+its own job ID or its dependent shard job ID is selected. The caller
+still skips the workflow in reuse mode, and a smoke plan that excludes
+the shards does not start the helper. The aggregate fails if a selected
+plan or shard fails or skips.
+
 The plan is the flat `package|test` list from
 `live_postgres_readiness_results.py list-packages`, in canonical inventory
 order. `scripts/lib/live_postgres_readiness_weights.py` reads the committed model.
