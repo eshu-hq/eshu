@@ -7,6 +7,15 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/projector_queue_claim_marked_guard_epq_live_test.go": (
+            "TestProjectorClaimSweepSkipsGenerationLockedByMarkerTxn",
+            "TestProjectorClaimDropsHolderClaimedAfterSnapshot",
+            "TestProjectorClaimGuardAgreesWithFenceAcrossClocks",
+            "TestProjectorClaimMarkerSweepRace",
+        ),
+        "go/internal/storage/postgres/projector_queue_claim_marked_guard_interleave_live_test.go": (
+            "TestProjectorClaimRetryAgainstNewerInterleave",
+        ),
         "go/internal/storage/postgres/projector_queue_claim_marked_guard_live_test.go": (
             "TestProjectorClaimHoldsNewerBehindInvisibleMarkedRetry",
             "TestProjectorClaimRunsVisibleMarkedRetryBeforeNewer",

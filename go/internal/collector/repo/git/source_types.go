@@ -133,6 +133,14 @@ type RepositorySnapshot struct {
 	// definition binds metadata or redact. streamFacts applies it to the body it
 	// re-reads from disk.
 	ContentStores map[string]parser.ContentStore `json:"content_stores,omitempty"`
+	// ContentStoreFallbackRegistry is the parser registry the snapshot was
+	// built with, carried for emit time and never serialized. streamFacts
+	// consults it when the ContentStores map misses a path, so a governed path
+	// that lost its map entry fails closed under its definition's policy
+	// instead of emitting its raw body (#8833). The zero registry binds no
+	// non-store policy, so snapshots built without it keep the map-only
+	// contract.
+	ContentStoreFallbackRegistry parser.Registry `json:"-"`
 	// Delta marks snapshots that contain only file-scoped changes from a Git
 	// resync rather than a full repository view.
 	Delta bool `json:"delta,omitempty"`

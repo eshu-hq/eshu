@@ -139,6 +139,12 @@ TABLE = {
         "go/internal/storage/postgres/corpus_fence_observer_live_test.go": (
             "TestQueueObserverStoreCorpusFenceCountsRunOnPostgres",
         ),
+        "go/internal/storage/postgres/credential_cleanup_purge_live_test.go": (
+            "TestCredentialCleanupPurgeFromThePageLive",
+        ),
+        "go/internal/storage/postgres/credential_cleanup_race_live_test.go": (
+            "TestCredentialCleanupPurgeRacesTheContentWriterLive",
+        ),
         "go/internal/storage/postgres/dead_letter_recovery_lock_order_live_test.go": (
             "TestPoisonRecoveryHeldRowRaceLive",
             "TestPoisonRecoveryDropsRowChangedBeforeItsLockLive",
@@ -202,6 +208,9 @@ TABLE = {
             "TestGenerationRetentionChunkedDrainLive",
             "TestGenerationRetentionChunkStatementsRollBackLive",
             "TestGenerationRetentionChunkLockMissDropsSilentlyLive",
+        ),
+        "go/internal/storage/postgres/generation_retention_credential_payloads_live_test.go": (
+            "TestGenerationRetentionPrunesCredentialCopiesByDefaultLive",
         ),
         "go/internal/storage/postgres/generation_retention_delta_base_live_test.go": (
             "TestGenerationRetentionDeltaBaseLive",
@@ -474,15 +483,6 @@ TABLE = {
         ),
         "go/internal/storage/postgres/projector_queue_claim_marked_guard_contention_live_test.go": (
             "TestProjectorClaimMarkedGuardContention",
-        ),
-        "go/internal/storage/postgres/projector_queue_claim_marked_guard_epq_live_test.go": (
-            "TestProjectorClaimSweepSkipsGenerationLockedByMarkerTxn",
-            "TestProjectorClaimDropsHolderClaimedAfterSnapshot",
-            "TestProjectorClaimGuardAgreesWithFenceAcrossClocks",
-            "TestProjectorClaimMarkerSweepRace",
-        ),
-        "go/internal/storage/postgres/projector_queue_claim_marked_guard_interleave_live_test.go": (
-            "TestProjectorClaimRetryAgainstNewerInterleave",
         ),
     },
 }

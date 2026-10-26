@@ -482,6 +482,7 @@ nav:
       - Core Services: deployment/service-runtimes-core.md
       - Collector Services: deployment/service-runtimes-collectors.md
       - Bootstrap Services: deployment/service-runtimes-bootstrap.md
+    - Credential File Cleanup: deployment/credential-file-cleanup.md
   - Project:
     - Extend Eshu:
       - Overview: extend/index.md

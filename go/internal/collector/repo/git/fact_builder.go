@@ -240,6 +240,9 @@ func streamFacts(
 	// submodule.IsGitmodulesPath), CODEOWNERS (GitHub honors one file per
 	// repo) and the version-pin files at any depth, each independent.
 	var tally contentStoreTally // content-store policy outcomes (#8812)
+	// A governed path that lost its ContentStores map entry fails closed under
+	// its definition's policy instead of emitting its raw body (#8833).
+	tally.lookup = contentStoreFallback(snapshot.ContentStoreFallbackRegistry)
 	gitmodulesCandidates, codeownersCandidates, runtimeDeclarationCandidates := map[string]string{}, map[string]string{}, map[string]runtimedeclaration.Candidate{}
 	if len(snapshot.ContentFileMetas) > 0 {
 		for i, meta := range snapshot.ContentFileMetas {

@@ -37,96 +37,9 @@ A `redact` row keeps a non-empty, redacted body. So `files`, `repos`,
 `reference_rows`, `search_documents` and `search_fact_payloads` never read zero.
 They size the work and are **not exit columns**.
 
-```sql
--- census 1: is the side table current? Zero findings only mean something when ready.
-SELECT state FROM content_file_secret_lines_state;
-
--- census 2: files per file type. Exit columns: raw_files, files_with_raw_finding.
--- With no reindex requested yet, the watermark is now(), so every copy counts raw.
--- The watermark is never cleared: after an earlier reindex this census undercounts
--- until the reindex request of step 2 moves it, so read it after step 2.
-WITH w AS (SELECT COALESCE((SELECT reindex_request_requested_at
-                            FROM runtime_ingester_control
-                            WHERE ingester = 'repository'), now()) AS at)
-SELECT
-  CASE WHEN lower(f.relative_path) ~ '(^|/)\.yarnrc\.yml$' THEN 'yarnrc_yml'
-       ELSE 'tfvars' END                                   AS file_kind,
-  max(w.at)                                                AS watermark,
-  count(*)                                                 AS files,  -- sizing, not an exit column
-  count(DISTINCT f.repo_id)                                AS repos,  -- sizing, not an exit column
-  count(*) FILTER (WHERE f.content <> ''
-    AND COALESCE(g.ingested_at, '-infinity') < w.at)       AS raw_files,
-  count(*) FILTER (WHERE EXISTS (
-    SELECT 1 FROM content_file_secret_lines s
-    WHERE s.repo_id = f.repo_id AND s.relative_path = f.relative_path
-      AND NOT s.suppressed
-      AND s.line_text !~ 'REDACTED_(aws_access_key|private_key|slack_token|api_token|password_literal|secret_literal)'))
-                                                           AS files_with_raw_finding
-FROM w, content_files f
-LEFT JOIN scope_generations g ON g.generation_id = f.generation_id
-WHERE lower(f.relative_path) ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$'
-GROUP BY 1;
-
--- census 3: derived copies. Exit columns: the raw_* columns. Counts only.
-WITH w AS (SELECT COALESCE((SELECT reindex_request_requested_at
-                            FROM runtime_ingester_control
-                            WHERE ingester = 'repository'), now()) AS at)
-SELECT
-  (SELECT count(*) FROM content_entities e                  -- an entity has no generation:
-    LEFT JOIN content_files f ON f.repo_id = e.repo_id     -- it takes its file's
-                             AND f.relative_path = e.relative_path
-    LEFT JOIN scope_generations g ON g.generation_id = f.generation_id
-    WHERE lower(e.relative_path) ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$'
-      AND e.source_cache <> ''
-      AND COALESCE(g.ingested_at, '-infinity') < (SELECT at FROM w))
-                                                           AS raw_entity_rows,
-  (SELECT count(*) FROM content_file_references r
-    LEFT JOIN content_files f ON f.repo_id = r.repo_id
-                             AND f.relative_path = r.relative_path
-    LEFT JOIN scope_generations g ON g.generation_id = f.generation_id
-    WHERE lower(r.relative_path) ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$'
-      AND COALESCE(g.ingested_at, '-infinity') < (SELECT at FROM w))
-                                                           AS raw_reference_rows,
-  (SELECT count(*) FROM content_file_references
-    WHERE lower(relative_path) ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$')
-                                                           AS reference_rows,  -- sizing
-  -- Search index copy: active-generation documents with non-empty context text.
-  -- Counted from the documents alone, so a document with no fact row still counts.
-  (SELECT count(*) FROM eshu_search_index_documents d
-    JOIN ingestion_scopes sc ON sc.scope_id = d.scope_id
-                            AND sc.active_generation_id = d.generation_id
-    JOIN scope_generations g ON g.generation_id = d.generation_id
-    WHERE d.document->>'ContextText' <> ''
-      AND lower(d.document->>'Path') ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$'
-      AND g.ingested_at < (SELECT at FROM w))              AS raw_search_documents,
-  (SELECT count(*) FROM eshu_search_index_documents d
-    JOIN ingestion_scopes sc ON sc.scope_id = d.scope_id
-                            AND sc.active_generation_id = d.generation_id
-    WHERE d.document->>'ContextText' <> ''
-      AND lower(d.document->>'Path') ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$')
-                                                           AS search_documents,  -- sizing
-  -- Search fact payload copy: active-generation reducer_eshu_search_document
-  -- facts with non-empty context text, served by the semantic and hybrid read
-  -- when embeddings are enabled. The document sits under the lowercase
-  -- `document` key; its fields are Go field names (no JSON tags).
-  (SELECT count(*) FROM fact_records f
-    JOIN ingestion_scopes sc ON sc.scope_id = f.scope_id
-                            AND sc.active_generation_id = f.generation_id
-    JOIN scope_generations g ON g.generation_id = f.generation_id
-    WHERE f.fact_kind = 'reducer_eshu_search_document'
-      AND NOT f.is_tombstone
-      AND f.payload->'document'->>'ContextText' <> ''
-      AND lower(f.payload->'document'->>'Path') ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$'
-      AND g.ingested_at < (SELECT at FROM w))              AS raw_search_fact_payloads,
-  (SELECT count(*) FROM fact_records f
-    JOIN ingestion_scopes sc ON sc.scope_id = f.scope_id
-                            AND sc.active_generation_id = f.generation_id
-    WHERE f.fact_kind = 'reducer_eshu_search_document'
-      AND NOT f.is_tombstone
-      AND f.payload->'document'->>'ContextText' <> ''
-      AND lower(f.payload->'document'->>'Path') ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$')
-                                                           AS search_fact_payloads;  -- sizing
-```
+The census statements are on the operator page
+[Credential File Cleanup](../../public/deployment/credential-file-cleanup.md#census),
+which the #8833 live tests run verbatim.
 
 The document keys are Go field names (`Labels` is read as
 `doc.document->'Labels'` in
@@ -149,18 +62,15 @@ because `searchdocs.Document` has no JSON tags. `ProjectContentFile` and
 `ProjectContentEntity` both set `Path` to the repository-relative path, so one
 predicate covers both document kinds.
 
-The marker names in test (b) are the six detector kinds of migration 138
-(`eshu_secret_line_findings`). The marker writer is the marker redactor in
-`go/internal/collector/git/content` (`marker_redactor.go`, #8812). Its kinds come
-from `go/internal/secret/detect`, which
-`TestHardcodedSecretDetectPackageIsBoundToMigration` binds to migration 138, and
-`TestRedactMarkerPerKindResultUnderMigration138` pins the marked line per kind.
-A review differential, not committed (figures in
-[the #8812 evidence note](../evidence/8812-content-store-policy.md)), ran
-generated lines through the redactor and through migration 138's gate and CASE in
-Postgres: after redaction no flagged line lacked a marker. NOT_CHECKED: the
-production marker arm and the #8833 binding. The migration does not yet
-recognise `REDACTED_<kind>` as a finding, and no definition binds marker mode.
+The marker names in test (b) are the six detector kinds
+(`eshu_secret_line_findings`, migration 233 since #8833). The marker writers
+are the redactors in `go/internal/collector/git/content` (#8812, #8833). Their
+kinds come from `go/internal/secret/detect`, which
+`TestHardcodedSecretDetectPackageIsBoundToMigration` binds to the migration,
+and `TestRedactMarkerPerKindKeepsKindUnderMarkerArm` pins the marked line per
+kind. Migration 233's marker arm makes every marked line keep its raw kind, and
+`TestContentPolicyKeepsEveryRawFindingLive` proves it on the production write
+path. The gauge `eshu_dp_content_policy_raw_rows` (#8833) implements test (b).
 
 ## Operator SQL scope
 
@@ -214,128 +124,9 @@ the first state: it walks terms to `eshu_search_index_documents` and never
 touches `fact_records` (`go/internal/storage/postgres/search/index/store.go`).
 The semantic and hybrid read serves the second.
 
-```sql
--- Statement L: repositories to visit (any copy of the five kinds on a policy path).
-SELECT repo_id FROM content_files WHERE lower(relative_path) ~ :'pred'
-UNION SELECT repo_id FROM content_entities WHERE lower(relative_path) ~ :'pred'
-UNION SELECT repo_id FROM content_file_references WHERE lower(relative_path) ~ :'pred'
-UNION SELECT repo_id FROM eshu_search_index_documents WHERE lower(document->>'Path') ~ :'pred'
-UNION SELECT payload->>'repo_id' FROM fact_records
-  WHERE fact_kind = 'reducer_eshu_search_document'
-    AND lower(payload->'document'->>'Path') ~ :'pred';
-
--- Statement refs: reference rows. A reference row has no body; the row is the copy.
-BEGIN;
-CREATE TEMP TABLE batch ON COMMIT DROP AS
-  SELECT r.repo_id, r.relative_path, r.reference_kind, r.reference_value
-  FROM content_file_references r
-  LEFT JOIN content_files f ON f.repo_id = r.repo_id
-                           AND f.relative_path = r.relative_path
-  LEFT JOIN scope_generations g ON g.generation_id = f.generation_id
-  WHERE r.repo_id = :'repo'
-    AND lower(r.relative_path) ~ :'pred'
-    AND COALESCE(g.ingested_at, '-infinity') < :'w'
-  ORDER BY r.relative_path, r.reference_kind, r.reference_value
-  LIMIT 500
-  FOR UPDATE OF r SKIP LOCKED;
-DELETE FROM content_file_references r USING batch b
-WHERE r.repo_id = b.repo_id AND r.relative_path = b.relative_path
-  AND r.reference_kind = b.reference_kind
-  AND r.reference_value = b.reference_value
-  AND COALESCE((SELECT g.ingested_at FROM content_files f
-                JOIN scope_generations g ON g.generation_id = f.generation_id
-                WHERE f.repo_id = r.repo_id AND f.relative_path = r.relative_path),
-               '-infinity') < :'w';
-COMMIT;
-
--- Statement entities: an entity takes its file row's generation.
-BEGIN;
-CREATE TEMP TABLE batch ON COMMIT DROP AS
-  SELECT e.entity_id
-  FROM content_entities e
-  LEFT JOIN content_files f ON f.repo_id = e.repo_id
-                           AND f.relative_path = e.relative_path
-  LEFT JOIN scope_generations g ON g.generation_id = f.generation_id
-  WHERE e.repo_id = :'repo'
-    AND lower(e.relative_path) ~ :'pred'
-    AND e.source_cache <> ''
-    AND COALESCE(g.ingested_at, '-infinity') < :'w'
-  ORDER BY e.entity_id
-  LIMIT 500
-  FOR UPDATE OF e SKIP LOCKED;
-UPDATE content_entities e SET source_cache = ''
-FROM batch b
-WHERE e.entity_id = b.entity_id
-  AND e.source_cache <> ''
-  AND COALESCE((SELECT g.ingested_at FROM content_files f
-                JOIN scope_generations g ON g.generation_id = f.generation_id
-                WHERE f.repo_id = e.repo_id AND f.relative_path = e.relative_path),
-               '-infinity') < :'w';
-COMMIT;
-
--- Statement files: blank the body. content_lower follows (generated column).
-BEGIN;
-CREATE TEMP TABLE batch ON COMMIT DROP AS
-  SELECT f.repo_id, f.relative_path
-  FROM content_files f
-  LEFT JOIN scope_generations g ON g.generation_id = f.generation_id
-  WHERE f.repo_id = :'repo'
-    AND lower(f.relative_path) ~ :'pred'
-    AND f.content <> ''
-    AND COALESCE(g.ingested_at, '-infinity') < :'w'
-  ORDER BY f.relative_path
-  LIMIT 500
-  FOR UPDATE OF f SKIP LOCKED;
-UPDATE content_files f SET content = ''
-FROM batch b
-WHERE f.repo_id = b.repo_id AND f.relative_path = b.relative_path
-  AND f.content <> ''
-  AND COALESCE((SELECT g.ingested_at FROM scope_generations g
-                WHERE g.generation_id = f.generation_id),
-               '-infinity') < :'w';
-COMMIT;
-
--- Statement A: index documents and terms, keyed on the documents alone.
-WITH batch AS (
-  SELECT d.scope_id, d.generation_id, d.document_id
-  FROM eshu_search_index_documents d
-  JOIN ingestion_scopes sc ON sc.scope_id = d.scope_id
-                          AND sc.active_generation_id = d.generation_id
-  JOIN scope_generations g ON g.generation_id = d.generation_id
-  WHERE d.repo_id = :'repo'
-    AND lower(d.document->>'Path') ~ :'pred'
-    AND d.document->>'ContextText' <> ''
-    AND g.ingested_at < :'w'
-  ORDER BY d.scope_id, d.generation_id, d.document_id
-  LIMIT 500
-  FOR UPDATE OF d SKIP LOCKED
-), gone_terms AS (
-  DELETE FROM eshu_search_index_terms t USING batch b
-  WHERE t.scope_id = b.scope_id AND t.generation_id = b.generation_id
-    AND t.document_id = b.document_id
-)
-DELETE FROM eshu_search_index_documents d USING batch b
-WHERE d.scope_id = b.scope_id AND d.generation_id = b.generation_id
-  AND d.document_id = b.document_id;
-
--- Statement B: fact payloads, keyed on the facts alone.
-WITH batch AS (
-  SELECT f.fact_id
-  FROM fact_records f
-  JOIN ingestion_scopes sc ON sc.scope_id = f.scope_id
-                          AND sc.active_generation_id = f.generation_id
-  JOIN scope_generations g ON g.generation_id = f.generation_id
-  WHERE f.fact_kind = 'reducer_eshu_search_document'
-    AND f.payload->>'repo_id' = :'repo'
-    AND lower(f.payload->'document'->>'Path') ~ :'pred'
-    AND f.payload->'document'->>'ContextText' <> ''
-    AND g.ingested_at < :'w'
-  ORDER BY f.fact_id
-  LIMIT 500
-  FOR UPDATE OF f SKIP LOCKED
-)
-DELETE FROM fact_records f USING batch b WHERE f.fact_id = b.fact_id;
-```
+The purge statements are on the operator page
+[Credential File Cleanup](../../public/deployment/credential-file-cleanup.md#purge),
+which the #8833 live tests run verbatim.
 
 `repo_id` is a top-level payload key (`eshuSearchDocumentPayload` in the writer
 file above). Each statement takes row locks on one table (A also deletes the matching term

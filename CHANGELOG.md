@@ -370,6 +370,18 @@ recent shipped work grouped by feature area.
   `eshu_runtime_coordinator_collector_terminal_failure_acknowledged_instances`
   gauge and `eshu_dp_collector_terminal_failure_acknowledgements_total` counter
   cover the rest. The 3 AM runbook says when to acknowledge and when not to.
+### Operations: credential-file cleanup runbook
+
+- **Operator runbook for rows stored before #8833**
+  ([#8833](https://github.com/eshu-hq/eshu/issues/8833)).
+  `docs/public/deployment/credential-file-cleanup.md` holds the run order,
+  the read-only census, the watermark-guarded purge SQL for `.yarnrc.yml` and
+  `*.tfvars` copies (file bodies, entity caches, references, and the active
+  generation's search documents and fact payloads), the exit criterion, and
+  what the cleanup cannot reach (superseded generations until retention, dead
+  tuples, WAL, and backups). Live tests run the page's SQL verbatim, including
+  against the real content writer, and prove the default retention policy
+  prunes every superseded copy kind.
 
 ### Collector: .yarnrc.yml and *.tfvars are stored redacted
 

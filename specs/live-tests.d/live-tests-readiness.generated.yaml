@@ -694,6 +694,16 @@ tests:
     class: postgres_ci
     reason: "#8247 disposable PostgreSQL proof that the corpus-fence gauge statement counts exactly the fence holders and the active-generation retrying resolution-not-ready consumers with the oldest deferred age, and plans on the fact_work_items stage/domain/status index at 20k filler rows; isolated schema; 3.89s locally on PostgreSQL 16; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/credential_cleanup_purge_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 disposable PostgreSQL proof of the operator cleanup on docs/public/deployment/credential-file-cleanup.md, run from the page's SQL fences: the census counts every pre-watermark raw copy (files, entities, references, active search documents and fact payloads, orphans, a NULL-generation row), including a seeded legacy .npmrc row the purge predicate does not cover, statement L lists the repositories, one guarded pass zeroes the yarnrc_yml/tfvars exit columns while the .npmrc row survives so the exit is reached scoped with every remaining gauge row attributed to that metadata-policy path, a second pass touches nothing, post-watermark rows, superseded generations, and non-matching paths survive, and the production active-document read returns no seeded context text; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/credential_cleanup_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 disposable PostgreSQL concurrency proof that the operator cleanup's files, entities, and references statements (run from docs/public/deployment/credential-file-cleanup.md) interleaved with the production ContentWriter rewriting the same paths under a post-watermark generation never leave a post-watermark row blank: either the writer commits first and the guard skips the row, or the purge locks first and the writer's later upsert overwrites the blank; 40 randomized iterations, no deadlock; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/dead_letter_recovery_lock_order_live_test.go
     tag: ~
     class: postgres_ci
@@ -768,6 +778,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#7981 disposable PostgreSQL 18 proof that an over-limit generation drains one bounded fact chunk per cycle and prunes whole once the remainder fits with no orphan rows, that the chunk statements roll back atomically, and that a lock-held chunk target drops silently (the concurrent-insert proof moved to generation_retention_chunk_insert_wait_live_test.go in #8206), enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the hard-ceiling proof does. local run passed all 4 tests (3 remain here after #8206) in 9.38s wall with the migrated-schema setup on postgres:16 on 2026-10-14"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_credential_payloads_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8833 retention check for the #8813 superseded-payload decision: under DefaultGenerationRetentionPolicy the production prune deletes a superseded generation's content fact, content_entity fact, reducer_eshu_search_document fact, and eshu_search_index_documents and eshu_search_index_terms rows once the generation passes the 90-day ceiling or falls outside the newest-24 / 7-day window, and keeps them inside it; none of the five kinds is exempt; migrated schema per test"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_delta_base_live_test.go
     tag: ~
