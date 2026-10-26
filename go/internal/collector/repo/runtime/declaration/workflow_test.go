@@ -163,6 +163,17 @@ func TestEmitWorkflowSetupVersionFailsClosedOnMalformedYAML(t *testing.T) {
 	}
 }
 
+func TestEmitWorkflowSetupVersionRejectsInnerWhitespaceKey(t *testing.T) {
+	t.Parallel()
+
+	// A key with inner whitespace is not a runtime token: emitting it would
+	// plant a padded junk row no consumer filters on. Fail closed instead.
+	body := "jobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/setup-node@v4\n        with:\n          no de-version: 20\n"
+	if got := emitDecoded(t, ".github/workflows/ci.yml", body); len(got) != 0 {
+		t.Fatalf("emitted %d facts for a whitespace key, want 0", len(got))
+	}
+}
+
 func TestEmitWorkflowSetupVersionAdmitsOnlyWorkflowPaths(t *testing.T) {
 	t.Parallel()
 

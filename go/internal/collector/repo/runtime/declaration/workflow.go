@@ -122,7 +122,7 @@ func extractWorkflowWithInputs(with *yaml.Node, onLine map[int]int) ([]declarati
 			runtime, whole = "node", true
 		} else {
 			prefix, ok := strings.CutSuffix(key, workflowVersionSuffix)
-			if !ok || prefix == "" {
+			if !ok || prefix == "" || strings.ContainsAny(prefix, " \t\r\n\v\f") {
 				continue
 			}
 			runtime, tool = normalizeRuntime(prefix)
