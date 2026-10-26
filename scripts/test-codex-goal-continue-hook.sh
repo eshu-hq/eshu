@@ -199,7 +199,9 @@ else
 fi
 
 # A JSON-like tool record inside assistant text is not actual tool progress.
-printf '%s\n' '{"type":"response_item","payload":{"type":"message","content":[{"type":"output_text","text":"example {\"type\":\"function_call\"}"}]}}' >"${codex_transcript}"
+printf '%s\n' \
+  '{"type":"response_item","payload":{"type":"message","content":[{"type":"output_text","text":"example {\"type\":\"function_call\"}"},{"type":"other","value":{"type":"function_call"}}]}}' \
+  >"${codex_transcript}"
 out="$(run "$(payload "${work}/project" "${sid}" '' false turn-quoted "${codex_transcript}")")"
 if is_blocked "${out}"; then
   ok 'a Codex turn with quoted tool-like text still starts active'

@@ -49,16 +49,24 @@ try:
             complete_tail = tail[:last_newline + 1] if last_newline >= 0 else b""
             next_offset = off + max(last_newline + 1, 0)
 
-    def count_tool_calls(value: Any) -> int:
-        """Count structured tool-call records, not tool-like text values."""
-        if isinstance(value, dict):
-            kind = value.get("type")
-            count = isinstance(kind, str) and kind in {
-                "tool_use", "function_call", "custom_tool_call"
-            }
-            return int(count) + sum(count_tool_calls(item) for item in value.values())
-        if isinstance(value, list):
-            return sum(count_tool_calls(item) for item in value)
+    def count_tool_calls(record: Any) -> int:
+        """Count harness tool events without matching nested tool-like data."""
+        if not isinstance(record, dict):
+            return 0
+        if record.get("type") == "assistant":
+            message = record.get("message")
+            content = message.get("content") if isinstance(message, dict) else None
+            if isinstance(content, list):
+                return sum(
+                    isinstance(item, dict) and item.get("type") == "tool_use"
+                    for item in content
+                )
+        if record.get("type") == "response_item":
+            payload = record.get("payload")
+            if isinstance(payload, dict) and payload.get("type") in {
+                "function_call", "custom_tool_call"
+            }:
+                return 1
         return 0
 
     count = 0
