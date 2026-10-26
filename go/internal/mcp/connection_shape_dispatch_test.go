@@ -145,38 +145,32 @@ func TestDispatchCallCounterOutcomeIgnoresResultShape(t *testing.T) {
 	}
 }
 
-// TestStructuredShapeOmitsStructuredContentForNullBodyAndTextOnlyErrors pins
-// the cases the docs name as exceptions to "structuredContent is sent": a JSON
-// null body and the errors that carry only a text item.
-func TestStructuredShapeOmitsStructuredContentForNullBodyAndTextOnlyErrors(t *testing.T) {
+// TestStructuredShapeKeepsNullAndGenericErrors distinguishes wrapped null
+// success from generic dispatch failures with structured error detail.
+func TestStructuredShapeKeepsNullAndGenericErrors(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name    string
-		handler http.Handler
-	}{
-		{"JSON null body", fixedBodyHandler(http.StatusOK, "null")},
-		{"non-envelope HTTP failure", fixedBodyHandler(http.StatusInternalServerError, "boom")},
+	null := callShapedTool(t, fixedBodyHandler(http.StatusOK, "null"), resultshape.Structured)
+	if len(null.Content) != 1 || null.Content[0].Type != "text" || null.StructuredContent == nil {
+		t.Fatalf("null result = %#v, want one text item and structuredContent", null)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result := callShapedTool(t, tc.handler, resultshape.Structured)
-			if len(result.Content) != 1 || result.Content[0].Type != "text" {
-				t.Fatalf("content = %#v, want exactly one text item", result.Content)
-			}
-			if result.StructuredContent != nil {
-				t.Fatalf("StructuredContent = %#v, want none", result.StructuredContent)
-			}
-		})
+	if got := string(marshalForCompare(t, null.StructuredContent)); got != `{"value":null}` {
+		t.Fatalf("null structuredContent = %s, want wrapped null", got)
+	}
+	failed := callShapedTool(t, fixedBodyHandler(http.StatusInternalServerError, "boom"), resultshape.Structured)
+	requireOneTextAndStructured(t, failed)
+	if !failed.IsError {
+		t.Fatal("non-envelope HTTP failure lost isError")
 	}
 	unknown := NewServer(fixedBodyHandler(http.StatusOK, "{}"), discardDispatchLogger())
 	ctx := resultshape.WithOverride(context.Background(), resultshape.Structured)
 	got, ok := unknown.callTool(ctx, mcpToolCallParams{Name: "no_such_tool_a1b2c3", Arguments: map[string]any{}}, "").(mcpToolResult)
-	if !ok || len(got.Content) != 1 || got.StructuredContent != nil || !got.IsError {
-		t.Fatalf("unknown tool result = %#v (ok=%v), want one text item, an error, and no structuredContent", got, ok)
+	if !ok || !got.IsError {
+		t.Fatalf("unknown tool result = %#v (ok=%v), want an error", got, ok)
 	}
+	requireOneTextAndStructured(t, got)
 	plain := mcpToolErrorResult(resultshape.Structured, errPlain("HTTP 404: not found"))
-	if !plain.IsError || len(plain.Content) != 1 || plain.Content[0].Resource != nil || plain.StructuredContent != nil {
-		t.Fatalf("plain dispatch error = %#v, want one text item, isError, and no structuredContent", plain)
+	if !plain.IsError {
+		t.Fatal("plain dispatch error lost isError")
 	}
+	requireOneTextAndStructured(t, plain)
 }

@@ -72,8 +72,8 @@ type Connection struct {
 	// QuerySummary is the concise first-answer summary, when one returned.
 	QuerySummary string `json:"query_summary,omitempty"`
 	// ToolCount is the number of MCP tools registered in this build. A
-	// deployment advertises fewer when ESHU_MCP_TOOL_SURFACE is router or
-	// core_router.
+	// deployment advertises fewer when ESHU_MCP_TOOL_SURFACE or a ?surface=
+	// parameter selects router or core_router.
 	ToolCount int `json:"tool_count"`
 	// Stages preserves the per-stage outcomes for an operator reading the gap.
 	Stages []Stage `json:"stages"`

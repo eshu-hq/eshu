@@ -117,14 +117,18 @@ type dispatchCall struct {
 	outcome string
 }
 
+// boundedToolLabel returns a registered tool name or the one unknown bucket.
+// It only reads the prebuilt catalog options; it does not count another call.
+func boundedToolLabel(requested string) string {
+	if _, ok := dispatchCallMetrics().options[requested]; ok && requested != unknownToolLabel {
+		return requested
+	}
+	return unknownToolLabel
+}
+
 // startDispatchCall resolves the bounded tool label for requested.
 func startDispatchCall(requested string) dispatchCall {
-	inst := dispatchCallMetrics()
-	label := unknownToolLabel
-	if _, ok := inst.options[requested]; ok && requested != unknownToolLabel {
-		label = requested
-	}
-	return dispatchCall{label: label}
+	return dispatchCall{label: boundedToolLabel(requested)}
 }
 
 // routeRejected records that route resolution refused the call.

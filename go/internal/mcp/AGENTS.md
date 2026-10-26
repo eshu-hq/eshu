@@ -2,8 +2,9 @@
 
 ## Read first
 
-1. `go/internal/mcp/README.md` — pipeline position, tool groups, SSE session
-   model, dispatch model, and exported surface
+1. `go/internal/mcp/README.md` — pipeline position, SSE session model,
+   dispatch model, and exported surface; `go/internal/mcp/tool-groups.md` —
+   registration groups and tool-to-route mappings
 2. `go/internal/mcp/server.go` — `Server`, `NewServer`, `handleMessage`, and
    `RunHTTP`; `go/internal/mcp/server_sse.go` — `handleSSE`,
    `handleHTTPMessage`, and the mutex-guarded `sseSession` (send/shutdown);
@@ -170,7 +171,7 @@
   1. Add a `ToolDefinition` in the matching `tools_*.go` file (or a new file
      named `tools_<group>.go`).
   2. Add a `case` in `resolveRoute` in `dispatch.go`.
-  3. Add the route mapping to the tool-to-route table in `README.md`.
+  3. Add the route mapping to the tool-to-route table in `tool-groups.md`.
   4. Add a test in `dispatch_test.go` asserting the route, method, and body.
   5. Update the `ReadOnlyTools` count test count in `tools_test.go`.
   6. Run `cd go && go test ./internal/mcp/... -count=1`.

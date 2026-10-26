@@ -91,7 +91,10 @@ resource. This note records how that interacts with the budget.
   because `trimToBudgetPage` measures the same rendering) and to
   `mcp_response_over_budget` for every other tool.
 - Error results follow the shape: a text item and `structuredContent`, with no
-  `eshu://tool-error/dispatch` resource.
+  `eshu://tool-error/dispatch` resource. Generic dispatch failures under
+  `structured` use `mcp_dispatch_error` with nil data/truth and one bounded
+  pointer summary when the exact result fits the budget. Oversized failures
+  use `mcp_response_over_budget`. `dual` keeps text-only bytes.
 - The four budget instruments and three budget log lines gain a bounded `shape`
   attribute (`dual`, `structured`). Metric names are unchanged so dashboards
   keep working; samples recorded before this change are all `dual`.
@@ -107,28 +110,27 @@ resource. This note records how that interacts with the budget.
   (it needs a two-client re-measurement within 1.1 times the one-copy rate, a
   scoring run that is not worse, a manual run on the other documented clients,
   a week of no over-budget increase on a hosted deployment, the golden-corpus
-  gate run once in `structured`, four scripts taught to read
-  `structuredContent`, and a decision on non-object bodies), and an
-  `initialize` reply that echoes a requested protocol version.
+  gate run on the final changed head). Protocol-version negotiation is already
+  implemented ([#8953](https://github.com/eshu-hq/eshu/pull/8953)); the supported
+  revision remains `2024-11-05`.
 - The token saving was measured only on the pre-change doubling. The
   post-change two-client re-measurement is pending, so no saving is claimed for
   the `structured` shape.
-- The golden-corpus gate in `structured` is pending. It needs a live Docker
-  stack, so it is not part of this change's local proof. Run it with
-  `GATE_MCP_RESULT_SHAPE=structured ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`.
-- Four scripts read only the embedded resource and fail against a `structured`
-  server: `scripts/lib/remote_e2e_target_story_common.sh`,
-  `scripts/verify_local_public_collector_proof.sh`,
-  `scripts/verify_dead_iac_compose.sh`, and
-  `scripts/run-remote-e2e-component-extension.sh`. They run on `dual` today.
-  Each must read `structuredContent` first before the default flips or a
-  deployment sets `ESHU_MCP_RESULT_SHAPE=structured`.
-- A JSON array body or a non-JSON 2xx body becomes a non-object
-  `structuredContent` (an array or a JSON string), while the MCP specification
-  types `structuredContent` as an object. Under `dual` the resource still
-  carries the payload. Under `structured` the non-object `structuredContent` is
-  the only machine copy. Behavior is unchanged here; a decision is needed
-  before the default flips.
+- The [structured result-contract proof](../evidence/8800-structured-result-contract.md)
+  at `9a43126e3f56aeb2c53814b9e6da913374619b5c` passed 629 checks with zero
+  required failures and two advisory timing warnings. Runtime code and gate
+  inputs are unchanged by its documentation-only evidence record.
+- The four proof-script readers now prefer `structuredContent` and retain the
+  absent-only resource fallback ([#9158](https://github.com/eshu-hq/eshu/pull/9158)).
+  Their parser fixtures cover both shapes and invalid responses.
+- A successful non-object body under `structured` now uses the object
+  `structuredContent: {"value": ...}` and result-level `_meta` marker
+  `eshu/nonObjectEncoding: "json"` or `"text"`. JSON arrays, scalars, and
+  `null` retain their value, including full number precision; non-JSON UTF-8
+  text is escaped as a JSON string. The single text summary points to
+  `structuredContent.value`. Plain objects and canonical envelopes remain
+  unwrapped; `dual` is byte-compatible. The same renderer measures the wrapper,
+  marker, and summary against 262,144 bytes. The default remains `dual`.
 - `find_tool` results and router error results come from the router, not tool
   dispatch, and carry the payload as text and as `structuredContent` in both
   shapes. "Once on the wire" describes tool results only.

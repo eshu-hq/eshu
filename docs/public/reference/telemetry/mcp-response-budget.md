@@ -31,8 +31,11 @@ process default comes from `ESHU_MCP_RESULT_SHAPE` (#8800).
 | `eshu_dp_mcp_response_budget_page_total` | counter | `tool`, `shape` | Over-budget responses answered as a page of whole rows with `truncated=true` and `next_offset` (`find_code`, `search_entity_content`). |
 | `eshu_dp_mcp_response_over_budget_total` | counter | `tool`, `shape` | Responses replaced by the `mcp_response_over_budget` envelope because the result as sent exceeds the budget (under `dual`, even the resource-only result), or a single row alone exceeds it. |
 
-`tool` is a registered MCP tool name, resolved before the guard runs, so its
-cardinality is bounded by the tool catalog. `shape` is `dual` or `structured`,
+`tool` is a registered MCP tool name or the single `unknown` bucket for an
+unregistered request. Structured generic dispatch failures now enter this guard,
+so the response-bytes histogram samples their complete attempted error result
+once; prior text-only failures had no sample. The dispatcher call counter still
+records its original `error` or `unknown_tool` outcome once. `shape` is `dual` or `structured`,
 a closed set, so it at most doubles the series count. The metric names did not
 change, so dashboards keep working; every sample recorded before #8800 is
 `dual`. A query that needs the old meaning of "attempted two-copy size" should

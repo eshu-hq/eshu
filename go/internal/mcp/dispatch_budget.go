@@ -63,8 +63,9 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 	if budget <= 0 {
 		return result
 	}
+	label := boundedToolLabel(toolName)
 	size := estimateResponseBytes(result)
-	recordResponseBytes(toolName, mode, size)
+	recordResponseBytes(label, mode, size)
 	if size <= budget {
 		return result
 	}
@@ -78,10 +79,10 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 		emittedSize = estimateResponseBytes(result)
 	}
 	if !singleCopy && emittedSize > 0 && emittedSize <= budget {
-		recordResponseResourceFallback(toolName, mode)
+		recordResponseResourceFallback(label, mode)
 		if logger != nil {
 			logger.Info("mcp tool response resource fallback",
-				"tool", toolName,
+				"tool", label,
 				"shape", string(mode),
 				"response_bytes", size,
 				"emitted_bytes", emittedSize,
@@ -91,10 +92,10 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 		return result
 	}
 	if page, ok := trimToBudgetPage(result, toolName, budget); ok {
-		recordResponseBudgetPage(toolName, mode)
+		recordResponseBudgetPage(label, mode)
 		if logger != nil {
 			logger.Info("mcp tool response budget page",
-				"tool", toolName,
+				"tool", label,
 				"shape", string(mode),
 				"response_bytes", size,
 				"emitted_bytes", page.bytes,
@@ -105,13 +106,13 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 		}
 		return page.result
 	}
-	recordResponseOverBudget(toolName, mode)
+	recordResponseOverBudget(label, mode)
 	if logger != nil {
 		// resource_bytes is the size of the resource-only copy, so it exists
 		// only where that copy was measured. The structured shape has no such
 		// copy: response_bytes is already the single emitted size.
 		attrs := []any{
-			"tool", toolName,
+			"tool", label,
 			"shape", string(mode),
 			"response_bytes", size,
 		}
@@ -121,7 +122,7 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 		attrs = append(attrs, "budget_bytes", budget)
 		logger.Warn("mcp tool response over budget", attrs...)
 	}
-	overBudget := overBudgetResult(toolName, size, budget)
+	overBudget := overBudgetResult(label, size, budget)
 	overBudget.Shape = mode
 	return overBudget
 }
@@ -213,9 +214,8 @@ func resetDispatchBudgetMetricsForTest() {
 	dispatchBudgetInst = nil
 }
 
-// toolAttr labels a budget sample with the tool name. The name is a registered
-// tool (resolveRoute has already succeeded), so the label set is bounded by the
-// tool catalog.
+// toolAttr labels a budget sample with a name already normalized by
+// boundedToolLabel. Unknown names share one bucket, so cardinality is bounded.
 func toolAttr(toolName string) attribute.KeyValue {
 	return attribute.String("tool", toolName)
 }

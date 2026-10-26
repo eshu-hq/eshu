@@ -27,6 +27,11 @@ request counts under its target's name, because the router hands the target to
 the same dispatcher; the `find_tool` and `call_tool` requests themselves are
 counted by [MCP Router Telemetry](mcp-router.md).
 
+Under `structured`, generic dispatch failures are budgeted after this counter
+closes. An oversized error therefore keeps its dispatcher outcome (`error` or
+`unknown_tool`); `eshu_dp_mcp_response_over_budget_total` records the wire
+replacement separately.
+
 `outcome` is a closed set. Each value names one way dispatch ends:
 
 | `outcome` | Dispatch ended with |
@@ -102,13 +107,17 @@ envelope error code when the question is whether the server is at fault.
 
 ## Against the response-bytes series
 
-[`eshu_dp_mcp_response_bytes`](mcp-response-budget.md) is recorded after a
-successful dispatch and after the budget check, so timeouts, cancellations,
-unknown names, invalid arguments, handler failures without an envelope, panics,
-and every call made with the budget disabled never reach it. The count of
-`eshu_dp_mcp_response_bytes` for a tool is therefore at most that tool's
-`outcome` in (`ok`, `error`, `over_budget`, `partial_timeout`) calls, and the
-gap between the two is the traffic the older series cannot see. Use
+[`eshu_dp_mcp_response_bytes`](mcp-response-budget.md) records the attempted
+serialized result at an enabled budget guard, before fallback, paging or overflow
+replacement. Both shapes include successful answers and canonical handler errors.
+`structured` also includes generic dispatch failures, such as unknown names,
+invalid arguments and handler failures without an envelope; `dual` omits those.
+Typed timeout and cancellation results bypass this guard, except for the
+handler's budgeted deadline-partial result. Panics and other paths that never
+reach an enabled guard have no histogram sample.
+
+The instruments have different populations and record at different points, so
+their gap is not a failure count and changes with shape and build. Use
 `eshu_dp_mcp_tool_calls_total` for call share and failure share; use
 `eshu_dp_mcp_response_bytes` for response size.
 
