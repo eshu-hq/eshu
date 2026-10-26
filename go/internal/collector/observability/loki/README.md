@@ -104,3 +104,25 @@ Retry, rate-limit, fetch-duration, fact-count, stale, high-cardinality, and
 redaction signals keep their existing bounded label sets. Hard provider
 failures now return the partially populated `CollectionResult` so retry counts
 can reach the claimed source telemetry path.
+
+No-Observability-Change (#8860): a 502 from `GET /loki/api/v1/rules` alone
+degrades to an unsupported-rule warning (partial coverage, no retry, no
+`PagesFetched` increment), reusing the existing warning and retry signals. A
+502 from labels, series, or label values still fails hard with `sdk.HTTPError`.
+Transient gateway 502s on the rules endpoint degrade the same way without
+retry; the Partial plus unsupported-warning signal self-heals on the next
+poll, while ruler-less deployments save two wasted retries per collection.
+
+No-Regression Evidence (#8860): baseline is `origin/main` (`97996a4c`), where
+a rules 502 retried twice then failed the whole generation with
+`sdk.HTTPError`. After the change the same fixture (1 label key, 1 series, 1
+rules call against `httptest` doubles) completes with 2 signals retained, 0
+rules, 1 unsupported-rule warning, `Partial=true`, `PagesFetched=2`, and
+`Retries=0`; worst case the rules endpoint now costs 1 request instead of 3.
+Labels, series, and label-values paths are byte-identical: their retry policy
+and status mapping are untouched, pinned by `TestCollectLabels502StillFails`,
+`TestCollectRules500StillFails`, and the pre-existing
+`TestHTTPClientReturnsSDKHTTPErrorForServerFailure`. Safe because the degrade
+is gated on the exact rules endpoint (mutation-proven: ungated or widened
+gates turn the guard tests RED) and adds no new request, goroutine, lock, or
+allocation to the hot path.
