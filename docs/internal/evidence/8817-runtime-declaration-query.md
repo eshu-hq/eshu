@@ -92,14 +92,25 @@ reads with their bounds.
 
 No-Regression Evidence: the undecided disjuncts moved from bare
 `part IS NULL` to `coalesce(part, -1) = -1` (major, minor, patch). The
-differential leg of the golden corpus showed the bare form matching nodes
-whose version part is present on NornicDB while Neo4j correctly returns zero
-rows (identical write sets, identical bounded reads, both pairings), so the
-bare form cannot stay. Version parts are non-negative or absent by the version parser and fact
-contract (digits-only, Atoi-or-reject; single producer), so the sentinel
-form decides exactly the same rows on canonical Neo4j; the
+differential leg of the golden corpus showed the bare form returning one
+excluded-count row on NornicDB (digest
+7f5ea56384b5213c8bd8e6d9feb6a117dc914a6c4faea57587fc836a760c2bf4) while Neo4j
+correctly returns zero rows (empty-set digest
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855), with
+identical bounded reads (digest
+64a3e2d212f5ea295f03427b770b5fad220351521fe59ce07c5d01bd69495865) on both
+backends in both pairings (golden-corpus differential 2026-10-26, run
+40254280683, failed differential job 121359130439), so the bare form cannot
+stay; the divergence is filed as eshu-hq/eshu#9145. Under the coalesce form
+both backends agree (run 40265520080: 1 row, identical digest
+a67d594a283b2269ecd61585d55753ab7483d6cafd3404386880e937a2cd8316 on both
+backends in both pairings). Version parts are non-negative or absent by
+construction of the single git-core producer's digits-only parser
+(classify.go parseVersion: ASCII-digit scan, Atoi-or-reject), so the sentinel
+form decides exactly the same rows on canonical Neo4j; the payload schema
+itself permits negative integers (see eshu-hq/eshu#9147), so the
 live correctness suite (alias 2, range 1, unresolved 1 excluded; versioned
-rows listed, never excluded) is the semantic proof. The sargable
+rows listed, never excluded) is the semantic proof on conforming rows. The sargable
 `part = $below_N` conjuncts are untouched, so the plan shape is unchanged:
 a filter beside index seeks, same as before. Re-ran the full live perf
 suite on the pinned Neo4j after the change (same command as above,

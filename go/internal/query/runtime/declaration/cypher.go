@@ -138,16 +138,22 @@ func decidedBelowConditions(n int) []string {
 // cannot place, for a bound of n components.
 //
 // The absent-version test is `coalesce(part, -1) = -1`, not a bare
-// `part IS NULL`. Version parts are non-negative or absent by the version
-// parser and fact contract (digits-only, Atoi-or-reject; single producer),
-// so the two forms are canonically equivalent; the observed divergence
-// reproduces under BOTH forms (golden-corpus differential 2026-10-26:
-// identical write sets and identical bounded reads, yet the excluded count
-// differed by backend in both pairings, with an identical nornicdb digest
-// 7f5e5 across the IS NULL and coalesce forms). Divergence is filed as
-// eshu-hq/eshu#9145. The -1 sentinel keeps the test a pure scalar
-// comparison; the sargable `part = $below_N` conjuncts beside it keep their
-// index seeks.
+// `part IS NULL`. Version parts are non-negative or absent by construction of
+// the single git-core producer's digits-only parser (classify.go parseVersion:
+// ASCII-digit scan, Atoi-or-reject, so no negative part is emitted), which is
+// what makes the two forms canonically equivalent; the payload schema itself
+// types parts integer-or-null with no minimum, so a second producer or a
+// hand-built fact carrying -1 would be double-counted — see eshu-hq/eshu#9147
+// for the schema-minimum-or-quarantine follow-up. The observed divergence is
+// specific to the bare form (golden-corpus differential 2026-10-26, run
+// 40254280683 failed differential job: identical bounded reads, digest
+// 64a3e2d212f5, on both backends in both pairings, yet the bare-form excluded
+// count read 1 row on NornicDB, digest 7f5ea56384b5, against 0 rows on Neo4j,
+// empty-set digest e3b0c44298fc). Under the coalesce form both backends agree
+// (run 40265520080: 1 row, identical digest a67d594a283b on both backends in
+// both pairings). Divergence is filed as eshu-hq/eshu#9145. The -1 sentinel
+// keeps the test a pure scalar comparison; the sargable `part = $below_N`
+// conjuncts beside it keep their index seeks.
 func undecidedConditions(n int) []string {
 	conds := []string{"coalesce(d.version_major, -1) = -1"}
 	if n >= 2 {
