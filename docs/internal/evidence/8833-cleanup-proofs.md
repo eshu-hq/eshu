@@ -75,8 +75,13 @@ statements A and B while the writer upserts the same paths' search documents,
 terms, and facts under a post-watermark generation and flips the scope's active
 generation to it. It runs 16 iterations with the start order alternating: even
 iterations sleep the writer 250 ms past the purge (purge-first), odd iterations
-sleep the purge past the writer (writer-first). The order is verified from
-commit timestamps, not assumed from the sleeps.
+sleep the purge past the writer (writer-first). The order is read as
+client-observed non-overlapping intervals with 250ms forced separation, not
+from DB commit timestamps and not assumed from the sleeps: the harness runs
+the two orders alternating and serialized, and any overlap fails loudly by
+construction. Overlap beyond the harness is covered by the structural
+argument: single-statement snapshot atomicity plus the generation-keyed
+batch.
 
 - Both orders occur in every run; the test fails if one order never runs. The
   measured run split 8 purge-first against 8 writer-first.
