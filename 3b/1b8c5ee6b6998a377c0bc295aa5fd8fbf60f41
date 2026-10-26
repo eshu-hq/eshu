@@ -1,0 +1,18 @@
+go/internal/component/fact_kind_registry.go
+  h_78a442cba0b3e6 7,60-62,69,79-81,95,147-152,159-161,170-196
+go/internal/component/grant_decision_test.go
+  h_78a442cba0b3e6 212-337
+go/internal/component/registry.go
+  h_78a442cba0b3e6 91,180,200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3b1b8c5ee6b6998a377c0bc295aa5fd8fbf60f41",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
