@@ -159,6 +159,11 @@ tests:
     class: postgres_ci
     reason: "#8943 disposable PostgreSQL proof of the security-alert unread-repository read on the bootstrapped schema: the read follows ingestion_scopes.active_generation_id to the generation's read state and returns unread rows of the requested repositories only, ignores a superseded generation's rows, reports a target with no read state as nothing unread, returns the distinct reasons without any child row on an unanchored read, reports an active retirement generation (#9019) as retired and an older one under a newer collection as not, and plans the child read as primary-key index probes on a seeded set of 50 targets with 4 generations and 2,000 unread repositories each; isolated bootstrapped schema per test; plan timing is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/query/semanticsearch/semantic_search_purge_invalidate_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9049 disposable PostgreSQL proof that the operator credential purge (statement A run verbatim from docs/public/deployment/credential-file-cleanup.md) invalidates the cached semantic/hybrid index: a cached search, then the purge, then the same search on the same process returns no deleted context_text with no restart; isolated rows in a disposable database"
+    runner: live-postgres-readiness
   - file: go/internal/query/status_terraform_selection_live_test.go
     tag: ~
     class: postgres_ci
@@ -713,6 +718,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8833 disposable PostgreSQL proof of the operator cleanup on docs/public/deployment/credential-file-cleanup.md, run from the page's SQL fences: the census counts every pre-watermark raw copy (files, entities, references, active search documents and fact payloads, orphans, a NULL-generation row), including a seeded legacy .npmrc row the purge predicate does not cover, statement L lists the repositories, one guarded pass zeroes the yarnrc_yml/tfvars exit columns while the .npmrc row survives so the exit is reached scoped with every remaining gauge row attributed to that metadata-policy path, a second pass touches nothing, post-watermark rows, superseded generations, and non-matching paths survive, and the production active-document read returns no seeded context text; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/credential_cleanup_purge_revision_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9049 disposable PostgreSQL proof that the operator cleanup's statement A (run from docs/public/deployment/credential-file-cleanup.md) moves the semantic-search cache key: it bumps a ready scope's document projection revision together with the matching vector scope revisions exactly when it deletes documents, leaves the vector build fence alone, ignores scopes with no state rows, and a second pass touches zero rows so the repeat-until-zero loop still ends; isolated bootstrapped schema per test"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/credential_cleanup_race_live_test.go
     tag: ~

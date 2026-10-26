@@ -149,6 +149,9 @@ TABLE = {
         "go/internal/storage/postgres/credential_cleanup_purge_live_test.go": (
             "TestCredentialCleanupPurgeFromThePageLive",
         ),
+        "go/internal/storage/postgres/credential_cleanup_purge_revision_live_test.go": (
+            "TestCredentialCleanupPurgeBumpsSearchRevisionsLive",
+        ),
         "go/internal/storage/postgres/credential_cleanup_race_live_test.go": (
             "TestCredentialCleanupPurgeRacesTheContentWriterLive",
             "TestCredentialCleanupPurgeABRacesTheSearchDocumentWriterLive",
