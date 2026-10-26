@@ -1,3 +1,6 @@
+{{- if and (not .Values.schemaBootstrap.enabled) .Values.schemaBootstrap.argocdPreSync.enabled }}
+{{- fail "schemaBootstrap.argocdPreSync.enabled=true requires schemaBootstrap.enabled=true; the Job is the PreSync hook" }}
+{{- end }}
 {{- if .Values.schemaBootstrap.enabled }}
 {{- if and .Values.schemaBootstrap.useHelmHooks .Values.nornicdb.enabled }}
 {{- fail "schemaBootstrap.useHelmHooks=true requires the graph backend to exist before Helm pre-install hooks run; set nornicdb.enabled=false or deploy bundled NornicDB separately before enabling the schema bootstrap hook" }}

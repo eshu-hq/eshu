@@ -4,6 +4,7 @@
 package runtime
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -95,6 +96,46 @@ func schemaBootstrapInt(raw any) int {
 		return int(value)
 	default:
 		return 0
+	}
+}
+
+func TestHelmSchemaBootstrapQAOverlayPinsHook(t *testing.T) {
+	t.Parallel()
+
+	chartValues := func(name string) string {
+		t.Helper()
+		return filepath.Join(repositoryRoot(t), "deploy", "argocd", name)
+	}
+	manifests := renderHelmChart(t,
+		"-f", chartValues(filepath.Join("base", "values.yaml")),
+		"-f", chartValues(filepath.Join("overlays", "qa", "values.yaml")),
+	)
+	job := requireHelmManifest(t, manifests, "Job", "eshu-schema-bootstrap")
+	annotations := helmMap(helmMap(job["metadata"])["annotations"])
+	if got := helmString(annotations["argocd.argoproj.io/hook"]); got != "PreSync" {
+		t.Fatalf(`qa overlay argocd.argoproj.io/hook = %q, want "PreSync"`, got)
+	}
+	if got := helmString(annotations["argocd.argoproj.io/sync-wave"]); got != "-10" {
+		t.Fatalf(`qa overlay argocd.argoproj.io/sync-wave = %q, want "-10"`, got)
+	}
+	if got := helmString(annotations["argocd.argoproj.io/hook-delete-policy"]); got != "BeforeHookCreation" {
+		t.Fatalf(`qa overlay argocd.argoproj.io/hook-delete-policy = %q, want "BeforeHookCreation"`, got)
+	}
+	if got, want := schemaBootstrapInt(helmMap(job["spec"])["activeDeadlineSeconds"]), 3600; got != want {
+		t.Fatalf("qa overlay activeDeadlineSeconds = %d, want %d", got, want)
+	}
+}
+
+func TestHelmSchemaBootstrapRejectsDisabledJobWithPreSync(t *testing.T) {
+	t.Parallel()
+
+	output := renderHelmChartFailure(t,
+		"--set", "schemaBootstrap.enabled=false",
+		"--set", "schemaBootstrap.useHelmHooks=false",
+		"--set", "schemaBootstrap.argocdPreSync.enabled=true",
+	)
+	if !strings.Contains(output, "requires schemaBootstrap.enabled=true") {
+		t.Fatalf("helm template failure does not name the disabled-Job conflict:\n%s", output)
 	}
 }
 

@@ -9,9 +9,13 @@ deploy/argocd/
 │   ├── kustomization.yaml
 │   └── values.yaml
 └── overlays/
-    └── aws/
+    ├── aws/
+    │   ├── application-patch.yaml
+    │   ├── externalsecret-examples.yaml
+    │   ├── kustomization.yaml
+    │   └── values.yaml
+    └── qa/
         ├── application-patch.yaml
-        ├── externalsecret-examples.yaml
         ├── kustomization.yaml
         └── values.yaml
 ```
