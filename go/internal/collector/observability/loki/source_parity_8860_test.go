@@ -32,6 +32,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -48,13 +49,14 @@ var parityObservedAt = time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 
 // paritySignal mirrors one recorded log-signal observation.
 type paritySignal struct {
-	ProviderObjectID string         `json:"provider_object_id"`
-	SignalKind       string         `json:"signal_kind"`
-	LabelKeys        []string       `json:"label_keys"`
-	LabelValueCounts map[string]int `json:"label_value_counts"`
-	SeriesFinger     string         `json:"series_fingerprint"`
-	FreshnessState   string         `json:"freshness_state"`
-	Outcome          string         `json:"outcome"`
+	ProviderObjectID string              `json:"provider_object_id"`
+	SignalKind       string              `json:"signal_kind"`
+	LabelKeys        []string            `json:"label_keys"`
+	LabelValueCounts map[string]int      `json:"label_value_counts"`
+	LabelValueHashes map[string][]string `json:"label_value_hashes"`
+	SeriesFinger     string              `json:"series_fingerprint"`
+	FreshnessState   string              `json:"freshness_state"`
+	Outcome          string              `json:"outcome"`
 }
 
 // parityRule mirrors one recorded ruler-rule observation.
@@ -143,6 +145,7 @@ func parityCollectionResult(ps parityScope) CollectionResult {
 			SignalKind:        s.SignalKind,
 			LabelKeys:         s.LabelKeys,
 			LabelValueCounts:  s.LabelValueCounts,
+			LabelValueHashes:  s.LabelValueHashes,
 			SeriesFingerprint: s.SeriesFinger,
 			LastSeenAt:        parityObservedAt,
 			FreshnessState:    s.FreshnessState,
@@ -293,6 +296,41 @@ func TestParity8860StableKeysDeterministicAndGenerationBound(t *testing.T) {
 	for _, env := range reboundEnvs {
 		if _, exists := prior[env.StableFactKey]; exists {
 			t.Errorf("rebound generation reused stable key %q", env.StableFactKey)
+		}
+	}
+}
+
+func TestParity8860LabelValueHashesFlowThrough(t *testing.T) {
+	t.Parallel()
+
+	pack := loadParityPack(t)
+	for _, ps := range pack.Scopes {
+		envs := collectParityFacts(t, ps, parityClaimedSource(t, ps, parityCollectionResult(ps)))
+		for _, s := range ps.Signals {
+			if len(s.LabelValueHashes) == 0 {
+				continue
+			}
+			found := false
+			for _, env := range envs {
+				if env.FactKind != facts.ObservabilityObservedLogSignalFactKind {
+					continue
+				}
+				if env.Payload["provider_object_uid"] != s.ProviderObjectID {
+					continue
+				}
+				found = true
+				got, ok := env.Payload["label_value_hashes"].(map[string][]string)
+				if !ok {
+					t.Errorf("scope %s signal %s label_value_hashes missing: %#v", ps.Name, s.ProviderObjectID, env.Payload["label_value_hashes"])
+					continue
+				}
+				if !reflect.DeepEqual(got, s.LabelValueHashes) {
+					t.Errorf("scope %s signal %s label_value_hashes = %#v, want %#v", ps.Name, s.ProviderObjectID, got, s.LabelValueHashes)
+				}
+			}
+			if !found {
+				t.Errorf("scope %s signal %s: no observed_log_signal envelope", ps.Name, s.ProviderObjectID)
+			}
 		}
 	}
 }

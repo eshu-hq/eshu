@@ -74,16 +74,17 @@ payload merged by `mergeContractPayload` (`envelope.go:250`), `redactions`
 `scope_id`, `instance_id`, `base_url`, `path_prefix`, `token_env`,
 `tenant_id`, `tenant_id_env`, `resource_limit`, `label_value_names`,
 `max_label_values_per_label`, `series_matchers`, `series_lookback`,
-`stale_after`, `enabled`, `declared_ids`, `observed_only_hint`. Secrets travel by env
-reference, never inline. Disabled targets are skipped before client
+`stale_after`, `enabled`, `declared_ids`, `observed_only_hint`. The token travels by env reference only
+(`token_env`); tenant identity may travel inline (`tenant_id`) or by env
+reference (`tenant_id_env`). Disabled targets are skipped before client
 construction (`source.go:52`).
 
 ## 4. Telemetry the external producer must preserve
 
 | Signal | Name | Emitted at |
 | --- | --- | --- |
-| span | `loki.observe` (`telemetry/contract/observability/loki.go:10`) | `source.go:279` |
-| span | `loki.fetch` (`telemetry/contract/observability/loki.go:13`) | `source.go:288` |
+| span | `loki.observe` (`telemetry/contract/observability/loki.go:9`) | `source.go:279` |
+| span | `loki.fetch` (`telemetry/contract/observability/loki.go:11`) | `source.go:288` |
 | histogram | `eshu_dp_loki_fetch_duration_seconds` (`instruments.go`) | `metrics.go:26` |
 | counter | `eshu_dp_loki_provider_requests_total` (`instruments.go:706`) | `metrics.go:25` |
 | counter | `eshu_dp_loki_facts_emitted_total` (`instruments.go:707`) | `metrics.go:54` |

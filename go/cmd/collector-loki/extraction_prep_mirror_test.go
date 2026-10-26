@@ -10,9 +10,11 @@ import (
 
 // Extraction PREP mirror (#8860 AC3, in-tree path): the command-surface
 // contracts the extracted collector must preserve — claim-capable instance
-// selection, credential and tenant resolution from the environment only, the
-// heartbeat-under-lease guard, and the loki claim-ID namespace — proved
-// against the current in-tree config path, including hostile inputs.
+// selection, token resolution from the environment only (`token_env`),
+// tenant resolution inline or from the environment (`tenant_id`,
+// `tenant_id_env`), the heartbeat-under-lease guard, and the loki claim-ID
+// namespace — proved against the current in-tree config path, including
+// hostile inputs.
 //
 // No-Observability-Change: existing eshu_dp_loki_* signals cover this
 // binary; this test adds no metric, span, or pipeline stage.
@@ -74,6 +76,19 @@ func TestExtractionPrepClaimBoundaryRequiresClaimCapableInstance(t *testing.T) {
 	}
 	if config.Source.Targets[0].TenantID != "tenant-prod" {
 		t.Error("tenant was not resolved from the environment")
+	}
+
+	// An inline tenant_id is a supported operator shape when no env name is
+	// set; the recorded contract pins it alongside the env path.
+	inlineTenant := strings.Replace(prepLokiInstancesJSON(), `"tenant_id_env":"LOKI_TENANT"`, `"tenant_id":"inline-tenant","tenant_id_env":""`, 1)
+	inline, err := loadClaimedRuntimeConfig(prepLokiGetenv(map[string]string{
+		envCollectorInstances: inlineTenant,
+	}))
+	if err != nil {
+		t.Fatalf("loadClaimedRuntimeConfig(inline tenant) error = %v, want nil", err)
+	}
+	if inline.Source.Targets[0].TenantID != "inline-tenant" {
+		t.Errorf("TenantID = %q, want inline-tenant", inline.Source.Targets[0].TenantID)
 	}
 
 	// A second enabled loki instance without an explicit selector fails

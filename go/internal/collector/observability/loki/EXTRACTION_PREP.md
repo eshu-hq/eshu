@@ -25,10 +25,12 @@ all other collectors, org repos, deployment.
 | `config_test.go` | env/instance selection tests | — |
 
 No unclaimed poll mode exists: the binary only runs claimed-live or
-cassette replay. Target secrets resolve exclusively through `token_env`
-and `tenant_id_env` (`config.go:201-223`); raw tokens and tenant IDs never
-appear in configuration. Disabled targets are skipped before client
-construction (`source.go:52`).
+cassette replay. The auth token resolves exclusively through `token_env`
+(`optionalEnvValue`, `config.go:201-211`); no inline token field exists.
+Tenant identity may appear inline via `tenant_id` or resolve via
+`tenant_id_env` (`optionalEnvOverride`, `config.go:213-223`), so raw
+tenant IDs may appear in configuration. Disabled targets are skipped
+before client construction (`source.go:52`).
 
 ### Library: `go/internal/collector/observability/loki/`
 
