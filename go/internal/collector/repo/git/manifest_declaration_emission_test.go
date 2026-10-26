@@ -40,12 +40,14 @@ func declarationLine(v runtimedeclarationv1.Version) string {
 }
 
 // TestSnapshotRepositoryRuntimeDeclarationConformanceFixture is the
-// conformance fixture for the runtime_declaration source list (#8815). It runs
-// the real discovery, parser registry and fact stream over a monorepo that
-// holds every source kind: version-pin files at the root and in a package, a
-// root package.json and package.json files in three packages (different
-// scope_dir values), go.mod files at the root and in a tool module, and
-// dependency directories that must not emit. The expected list is the fixture.
+// conformance fixture for the runtime_declaration source list (#8815, #8818).
+// It runs the real discovery, parser registry and fact stream over a monorepo
+// that holds every source kind: version-pin files at the root and in a
+// package, a root package.json and package.json files in three packages
+// (different scope_dir values), go.mod files at the root and in a tool
+// module, a root Dockerfile with an ARG-resolved base tag, a CI workflow with
+// a setup-node version input, and dependency directories that must not emit.
+// The expected list is the fixture.
 func TestSnapshotRepositoryRuntimeDeclarationConformanceFixture(t *testing.T) {
 	t.Parallel()
 
@@ -60,6 +62,8 @@ func TestSnapshotRepositoryRuntimeDeclarationConformanceFixture(t *testing.T) {
 		"packages/api/package.json":   "{\n  \"engines\": {\"node\": \"${NODE_VERSION}\"},\n  \"volta\": {\"yarn\": \"4.1.0\"}\n}\n",
 		"packages/lib/package.json":   "{\"name\":\"lib\",\"engines\":{\"vscode\":\"^1.80.0\"},\"dependencies\":{\"left-pad\":\"1.3.0\"}}\n",
 		"services/api/.tool-versions": "nodejs 20.11.1 18.19.0\n",
+		"Dockerfile":                  "ARG NODE_VERSION=20.11.1\nFROM node:${NODE_VERSION} AS base\nFROM base\n",
+		".github/workflows/ci.yml":    "jobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 20\n",
 		// Dependency directories: discovery prunes them, and the emitter refuses
 		// them too.
 		"node_modules/left-pad/package.json":         "{\"engines\":{\"node\":\">=0.4\"}}\n",
@@ -119,6 +123,8 @@ func TestSnapshotRepositoryRuntimeDeclarationConformanceFixture(t *testing.T) {
 		"services/api/.tool-versions|services/api|tool_versions|1.0|node|20.11.1|exact|",
 		"services/api/.tool-versions|services/api|tool_versions|1.1|node|18.19.0|exact|",
 		"tools/go.mod|tools|go_mod_go|3.0|go|1.21|partial|",
+		"Dockerfile|.|dockerfile_from|2.0|node|20.11.1|exact|",
+		".github/workflows/ci.yml|.github/workflows|workflow_setup_version|7.0|node|20|partial|",
 	}
 	sort.Strings(want)
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
@@ -127,6 +133,7 @@ func TestSnapshotRepositoryRuntimeDeclarationConformanceFixture(t *testing.T) {
 	for _, kind := range []string{
 		"nvmrc", "tool_versions", "package_json_engines", "package_json_volta",
 		"package_json_package_manager", "go_mod_go", "go_mod_toolchain",
+		"dockerfile_from", "workflow_setup_version",
 	} {
 		if !sourceKinds[kind] {
 			t.Errorf("fixture emitted no %q declaration", kind)

@@ -44,6 +44,13 @@ func Extract(relativePath, body string) (Extraction, bool) {
 			declarations, rejected := extractGoMod(body)
 			return declarations, rejected, nil
 		}), true
+	case manifestDockerfile:
+		return extractManifest(body, func() ([]declaration, int, error) {
+			declarations, rejected := extractDockerfile(body)
+			return declarations, rejected, nil
+		}), true
+	case manifestWorkflow:
+		return extractManifest(body, func() ([]declaration, int, error) { return extractWorkflow(body) }), true
 	}
 	return Extraction{}, false
 }

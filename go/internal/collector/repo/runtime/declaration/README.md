@@ -4,10 +4,12 @@
 
 `go/internal/collector/repo/runtime/declaration` turns the version-pin files a
 repository commits, the `engines`, `volta` and `packageManager` sections of its
-`package.json` files, and the `go` and `toolchain` directives of its `go.mod`
-files into durable `runtime_declaration.version` facts (issue #8815, epic
-#8807). One fact is one runtime version declared in one file. A line that lists
-several versions is one fact per token.
+`package.json` files, the `go` and `toolchain` directives of its `go.mod`
+files, the `FROM` base-image tags of its Dockerfiles, and the `setup-*`
+`with:` version inputs of its GitHub Actions workflows into durable
+`runtime_declaration.version` facts (issue #8815, epic #8807; Dockerfile and
+workflow sources issue #8818). One fact is one runtime version declared in one
+file. A line that lists several versions is one fact per token.
 
 ## Where this fits
 
@@ -192,6 +194,85 @@ Rules that keep a manifest read bounded and fail closed:
   come out in a fixed order: engines, volta, `packageManager`, each runtime as
   listed in the table.
 - A body over 1 MiB (`MaxManifestBytesPerFile`) is skipped before any parsing.
+
+## Dockerfile and workflow sources
+
+A Dockerfile `FROM` line declares the base image's tag, and a workflow
+`setup-*` step declares its runtime through its `with:` version inputs, so
+both emit through the same contract (issue #8818). `source_kind` names the
+section, as for the manifest sources.
+
+| `source_kind` | Read from | `runtime` |
+| --- | --- | --- |
+| `dockerfile_from` | the tag of each `FROM` line | the image's last path segment (`golang` normalises to `go`) |
+| `workflow_setup_version` | each `with:` key ending in `-version`, plus `node-version-file` | the key prefix (`node-version` to `node`) |
+
+| Input | Result |
+| --- | --- |
+| `FROM node:20.11.1`, `ARG V=20.11.1` + `FROM node:${V}` | `exact` 20.11.1: a global `ARG` default resolves before the `FROM` line is read |
+| `FROM python:3.11-slim`, `FROM golang:1.22` | `partial`, only the components written |
+| `FROM node:latest`, `FROM debian:bookworm-slim` | `alias`, never resolved |
+| `FROM node:${V}`, `FROM node:20-${VARIANT}` | `unresolved`, `raw_spec` the tag as written |
+| `with: {node-version: 20}`, `{python-version: "3.11"}` | `partial` 20, `partial` 3.11 |
+| `with: {go-version: "${{ inputs.go-version }}"}` | `unresolved`, `raw_spec` verbatim |
+| `with: {node-version-file: .nvmrc}` | `alias` `.nvmrc`: the value is a file pointer, recorded as written, never resolved |
+
+Rules that keep both readers bounded and fail closed:
+
+- Admission mirrors the sources that already define the files. A Dockerfile
+  is the exact name or a suffixed variant at any depth, case-insensitively,
+  outside a dependency directory (the parser registry's `Dockerfile` exact
+  and prefix names, which the registry itself matches case-insensitively).
+  Suffixed variants read per that prefix rule, so a `Dockerfile.bak` with
+  valid `FROM` lines reads too. A workflow is exactly
+  `.github/workflows/<name>.yml|yaml`, through the shared
+  `ghactionsref.IsWorkflowPath` gate, so composite action files, nested
+  workflow directories and other YAML never emit.
+- Only `FROM` tags and job-level and step-level `with:` maps are read. A
+  `with:` key that does not end in `-version` (a checkout `repository`, a
+  `distribution`), a trigger `inputs:` definition, `run:` text, `env:` and
+  matrix values never emit. A step is read whatever its `uses:` names: a
+  `*-version` input declares a version regardless of which action reads it.
+- A `FROM` with no tag (`scratch`, a digest pin, a bare image, a local stage
+  name) declares no version and emits nothing. A tag whose image is itself a
+  placeholder (`FROM ${BASE}:20`) has no runtime to attribute it to and is
+  dropped and counted, never guessed. A tagless reference that still holds a
+  placeholder is counted too: a variable is never silently swallowed.
+- An unresolved tag outside the version grammar (`${V:?missing}`,
+  `$(...)`) is dropped and counted like any other guard rejection, never
+  guessed. The same text in `package.json` is dropped the same way: the
+  guard is the contract.
+- A `with:` value is read only as a string or number scalar. A mapping, a
+  sequence, a boolean and null declare nothing and are absent, not rejected,
+  as a non-string `package.json` member is. An empty value declares nothing
+  and is rejected and counted. A repeated key behaves as `JSON.parse` does:
+  the last occurrence wins.
+- A `node-version-file` pointer is one alias fact with the path as written.
+  Any other `*-version-file` key is not read.
+- Every tag and `with:` value passes the same credential guard as a manifest
+  value (`safeSpec`): short ASCII version grammar, no opaque run, no URL. A
+  failing value is dropped and counted, never truncated or masked; the
+  file's other declarations still emit.
+- A Dockerfile or workflow body over 1 MiB (`MaxManifestBytesPerFile`) is
+  skipped whole and reported, never read as a prefix. A workflow that is not
+  readable YAML emits nothing, because the part before the error would pass
+  for the file.
+- Workflow `line_number` is the value's own YAML line, so a block-style
+  value on the next line reports that line. Declarations emit in file order:
+  Dockerfile stages re-sorted from the parser's name order back to line
+  order, workflow jobs and steps in document order. `order_index` counts
+  declarations already placed on the same line.
+
+### Source priority
+
+The `with.*-version` inputs are the lower-priority source: a workflow usually
+restates a version the repository pins elsewhere. The declaration contract
+carries no priority field, and none was added: reads order by the graph key
+(`repo_id`, `relative_path`, `line_number`, `runtime`, `order_index`), and
+the reducer writes one row per fact with no dedup. A `workflow_setup_version`
+fact is therefore an additional row a consumer deprioritises by filtering
+`source_kind`, not a row the pipeline ranks. If a future reader needs ranked
+sources, that is a contract change, not a reader default.
 
 ## Known behaviours
 

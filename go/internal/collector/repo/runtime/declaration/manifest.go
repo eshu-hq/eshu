@@ -6,18 +6,24 @@ package declaration
 import (
 	"path"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
 )
 
 // Source kinds for the manifest files. Unlike a pin file, one manifest holds
 // several declaring sections, and a reader needs the section to tell a
 // constraint (engines) from a pin (volta, packageManager, the go directive), so
-// the source kind names the section rather than the file.
+// the source kind names the section rather than the file. A Dockerfile has one
+// declaring section (its FROM lines) and a workflow has one (its setup with:
+// version inputs), so each has a single kind.
 const (
 	sourceKindPackageJSONEngines = "package_json_engines"
 	sourceKindPackageJSONVolta   = "package_json_volta"
 	sourceKindPackageJSONManager = "package_json_package_manager"
 	sourceKindGoModGo            = "go_mod_go"
 	sourceKindGoModToolchain     = "go_mod_toolchain"
+	sourceKindDockerfileFrom     = "dockerfile_from"
+	sourceKindWorkflowSetup      = "workflow_setup_version"
 )
 
 // section identifies the manifest section a declaration was read from.
@@ -30,6 +36,8 @@ const (
 	sectionPackageJSONManager
 	sectionGoModGo
 	sectionGoModToolchain
+	sectionDockerfileFrom
+	sectionWorkflowSetup
 )
 
 // sectionSourceKinds maps a section to its source kind.
@@ -40,6 +48,8 @@ var sectionSourceKinds = [...]string{
 	sectionPackageJSONManager: sourceKindPackageJSONManager,
 	sectionGoModGo:            sourceKindGoModGo,
 	sectionGoModToolchain:     sourceKindGoModToolchain,
+	sectionDockerfileFrom:     sourceKindDockerfileFrom,
+	sectionWorkflowSetup:      sourceKindWorkflowSetup,
 }
 
 // MaxManifestBytesPerFile bounds one package.json or go.mod body. A manifest
@@ -56,6 +66,8 @@ const (
 	manifestNone manifestKind = iota
 	manifestPackageJSON
 	manifestGoMod
+	manifestDockerfile
+	manifestWorkflow
 )
 
 // dependencyDirs are directory names whose manifests belong to a dependency,
@@ -71,9 +83,11 @@ var dependencyDirs = map[string]struct{}{
 }
 
 // manifestKindForPath returns the manifest kind of a repository-relative path:
-// the exact base name package.json or go.mod at any depth, outside a
-// dependency directory. The match is case-sensitive, as npm and the go tool
-// are.
+// the exact base name package.json or go.mod at any depth, a Dockerfile at
+// any depth, or a GitHub Actions workflow file, each outside a dependency
+// directory. The package.json and go.mod match is case-sensitive, as npm and
+// the go tool are; Dockerfiles match case-insensitively, as the parser
+// registry does.
 func manifestKindForPath(relativePath string) manifestKind {
 	return manifestKindForBase(path.Base(relativePath), relativePath)
 }
@@ -82,11 +96,17 @@ func manifestKindForPath(relativePath string) manifestKind {
 // computed, so a caller that also needs the pin check pays for it once.
 func manifestKindForBase(base, relativePath string) manifestKind {
 	var kind manifestKind
-	switch base {
-	case "package.json":
+	switch {
+	case base == "package.json":
 		kind = manifestPackageJSON
-	case "go.mod":
+	case base == "go.mod":
 		kind = manifestGoMod
+	case isDockerfileName(base):
+		kind = manifestDockerfile
+	case ghactionsref.IsWorkflowPath(relativePath):
+		// The workflow-path shape is exactly .github/workflows/<name>.yml,
+		// so it can never sit under a dependency directory.
+		return manifestWorkflow
 	default:
 		return manifestNone
 	}
@@ -100,6 +120,15 @@ func manifestKindForBase(base, relativePath string) manifestKind {
 	return kind
 }
 
+// isDockerfileName reports whether a base name is a Dockerfile: the exact
+// name or a suffixed variant, case-insensitively. It mirrors the parser
+// registry's Dockerfile exact and prefix names, which the registry itself
+// matches case-insensitively.
+func isDockerfileName(base string) bool {
+	lower := strings.ToLower(base)
+	return lower == "dockerfile" || strings.HasPrefix(lower, "dockerfile.")
+}
+
 // FileClass says how this package reads a repository file.
 type FileClass int
 
@@ -108,8 +137,9 @@ const (
 	FileNotAdmitted FileClass = iota
 	// FilePin is a version-pin file; its body is parsed at emission.
 	FilePin
-	// FileManifest is a package.json or go.mod outside a dependency
-	// directory; the content walk reads it when it meets it.
+	// FileManifest is a package.json, go.mod, Dockerfile or workflow file
+	// outside a dependency directory; the content walk reads it when it meets
+	// it and keeps only its extraction.
 	FileManifest
 )
 

@@ -7,6 +7,8 @@
 3. `parse.go` and `source.go` — the per-file line policy and the admitted names.
    `manifest.go`, `packagejson.go`, `gomod.go` and `jsonscan.go` — the
    `package.json` and `go.mod` readers and the credential guard (`safeSpec`).
+   `dockerfile.go` and `workflow.go` — the `FROM` tag and `with:` version
+   readers (#8818); both read through `safeSpec` and the manifest byte cap.
 4. `extract.go` / `emitter.go` / `envelope.go` — extraction, caps and fact
    envelope construction.
 5. `go/internal/facts/runtime_declaration.go` — the fact-kind constant, schema
@@ -60,10 +62,13 @@
   a row in the stream test (`git/pin_file_emission_test.go`),
   and a row in `docs/public/languages/admitted-files.md` through
   `scripts/generate-parser-admission-doc.sh`.
-- A new `source_kind` family (Dockerfile, CI) is its own change. It emits
-  through the same contract and documents its `source_kind` values. A new
-  `package.json` section or `go.mod` directive adds a `section` constant, its
+- A new `source_kind` family (Dockerfile, CI) emits through the same contract
+  and documents its `source_kind` values (#8818: `dockerfile_from`,
+  `workflow_setup_version`). A new `package.json` section, `go.mod`
+  directive, `FROM` shape or `with:` input adds a `section` constant, its
   `source_kind` and a table-test row, and its raw text goes through `safeSpec`.
+  Never invent a priority field: reads order by the graph key, so a
+  lower-priority source is documented, not ranked.
 - A new value grammar: keep whitespace-split values going through
   `eachValue` (`values.go`) so a spaced operator or range is never cut into
   fragments, and extend the oracle in `emitter_oracle_test.go`.
