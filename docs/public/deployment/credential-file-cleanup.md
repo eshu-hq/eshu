@@ -28,6 +28,10 @@ reach the repository. The SQL below covers what the re-collection does not:
 1. Deploy the release everywhere, and wait until every ingester runs it. A
    repository an old binary re-parses after step 2 counts as fresh and is not
    parsed again, so its raw copy would be written after the watermark.
+   Generations a new-binary ingester collects between this step and step 2 are
+   ingested before `W`, so the census and the purge guards treat their copies
+   as raw; run step 2 immediately after every ingester runs the release to
+   keep that window small.
 2. Send `POST /api/v0/admin/reindex`. Record the response `requested_at` as the
    watermark `W`. It is also stored as
    `runtime_ingester_control.reindex_request_requested_at` for the `repository`
