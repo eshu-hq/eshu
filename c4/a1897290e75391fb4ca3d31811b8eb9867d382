@@ -1,0 +1,14 @@
+docs/public/operate/qa-drill-window.md
+  h_78a442cba0b3e6 95-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c4a1897290e75391fb4ca3d31811b8eb9867d382",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
