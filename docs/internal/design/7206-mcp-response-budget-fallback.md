@@ -106,16 +106,18 @@ resource. This note records how that interacts with the budget.
   `ESHU_MCP_RESULT_SHAPE` for the process default, default `dual`.
   `eshu mcp setup` opts the `claude` and `codex` platforms in. Rollback is
   switching the connection or the process default back to `dual`.
-- Not decided here, and not implemented: flipping the default to `structured`
-  (it needs a two-client re-measurement within 1.1 times the one-copy rate, a
-  scoring run that is not worse, a manual run on the other documented clients,
-  a week of no over-budget increase on a hosted deployment, the golden-corpus
-  gate run on the final changed head). Protocol-version negotiation is already
-  implemented ([#8953](https://github.com/eshu-hq/eshu/pull/8953)); the supported
-  revision remains `2024-11-05`.
-- The token saving was measured only on the pre-change doubling. The
-  post-change two-client re-measurement is pending, so no saving is claimed for
-  the `structured` shape.
+- Not decided here, and not implemented: flipping the default to `structured`.
+  The [hosted result-shape measurement](../evidence/8800-hosted-result-shape-measurement.md)
+  proves the Claude three-size token-slope criterion for its tested
+  configuration and the four requested answer facts for both clients. The
+  Codex token-slope criterion remains unproved after two complete matrices.
+  The remaining #8800 acceptance work is a valid Codex exact-one-copy
+  comparison, manual runs on the other documented clients, and a hosted week
+  with no increase in over-budget responses. Run the applicable golden-corpus
+  and review gates on any final default-changing head. Protocol-version
+  negotiation is already implemented
+  ([#8953](https://github.com/eshu-hq/eshu/pull/8953)); the supported revision
+  remains `2024-11-05`.
 - The [structured result-contract proof](../evidence/8800-structured-result-contract.md)
   at `9a43126e3f56aeb2c53814b9e6da913374619b5c` passed 629 checks with zero
   required failures and two advisory timing warnings. Runtime code and gate
