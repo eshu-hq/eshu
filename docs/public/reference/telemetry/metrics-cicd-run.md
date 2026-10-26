@@ -4,7 +4,7 @@
 
 | Metric | Key labels | Use |
 | --- | --- | --- |
-| `eshu_dp_ci_cd_run_provider_requests_total` | `provider`, `status_class` | Hosted provider attempts. Direct App credential/mint errors and provider-read 401/403/404 use `auth_error`; host-token file or mandatory authentication refusals use `auth_denied`. Static-token errors retain `error`. Credential values are never labels. |
+| `eshu_dp_ci_cd_run_provider_requests_total` | `provider`, `status_class` | Hosted provider attempts. Direct App authentication/configuration failures and non-rate-limited provider-read 401/403/404 use `auth_error`; throttled provider reads or mints use `rate_limited`; host-token file or mandatory authentication refusals use `auth_denied`. Static-token errors retain `error`. Credential values are never labels. |
 | `eshu_dp_ci_cd_run_facts_emitted_total` | `provider`, `fact_kind` | `ci.*` source facts emitted per claimed target. |
 | `eshu_dp_ci_cd_run_rate_limited_total` | `provider` | GitHub Actions rate-limit pressure surfaced to workflow retry handling. |
 | `eshu_dp_ci_cd_run_partial_generations_total` | `provider`, `reason` | Bounded partial evidence such as truncated job pages or provider warnings, including `reason="runs_backfill_gap"`: a claim cycle detected that runs between a prior cycle's watermark and this cycle's fetched window were never fetched by either cycle (#5429). |

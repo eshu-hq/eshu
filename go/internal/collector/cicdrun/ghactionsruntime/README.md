@@ -95,8 +95,8 @@ fact-emission, and partial-generation metrics when callers provide
 `eshu_dp_ci_cd_run_partial_generations_total` counter with
 `reason="runs_backfill_gap"` -- no new metric name, just a new reason value on
 the existing partial-generation counter. App mint denials and direct-App provider
-401/403/404 reads use the existing provider-request counter with
-`status_class="auth_error"`; rate-limited mints keep `rate_limited`. Host-token
+non-rate-limited 401/403/404 reads use the existing provider-request counter with
+`status_class="auth_error"`; throttled provider reads and mints keep `rate_limited`. Host-token
 file failures and Actions-refused host bearers use `auth_denied`. A
 Deployments-only 403/404 keeps the run facts with a permission warning and
 the generic `error` class for host or static credentials. Static-token
@@ -110,9 +110,10 @@ labels.
 ## Gotchas / invariants
 
 - Targets require `scope_id`, `repository`, `allowed_repositories`, and exactly
-  one credential shape: a static `token` or GitHub App ID, installation ID,
-  and private key. A claim mints one installation token before provider reads;
-  that token is reused for the same claim's runs, jobs, artifacts, and
+  one credential shape: a static `token`, a scoped host-managed token file,
+  or GitHub App ID, installation ID, and private key. Host mode reads its file
+  for each claim; direct App mode mints one installation token before provider
+  reads. The claim-scoped token is reused for runs, jobs, artifacts, and
   deployments. No token cache or persisted App credential is introduced.
 - `max_runs`, `max_jobs`, and `max_artifacts` bound provider request shape. An
   omitted or zero `max_runs` resolves to `defaultMaxRuns` (10); the hard cap

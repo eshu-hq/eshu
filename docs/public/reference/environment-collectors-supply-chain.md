@@ -117,6 +117,7 @@ collection cycles that a single `runs_truncated` warning can span.
 | `ESHU_CICD_RUN_HEARTBEAT_INTERVAL` | `20s` | collector-cicd-run | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
 | `ESHU_CICD_RUN_COLLECTOR_OWNER_ID` | host/process-derived | collector-cicd-run | Owner label written into workflow claim rows. |
 
-Tokens and App private keys must come from private environment variables named
-by the target references. Never put resolved values, private repository names,
+Static tokens and App private keys must come from private environment variables
+named by the target references. Host-minted tokens come from the scoped
+`host_token_file` read for each claim. Never put resolved values, private repository names,
 run URLs, artifact names, or copied payloads in public files or metric labels.

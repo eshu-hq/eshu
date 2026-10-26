@@ -94,3 +94,43 @@ check_each_proof() {
   check_proofs_direct
   check_proofs_runner
 }
+
+# Seed every package in two full-run cases. Verify each package's runner
+# verdict and callback, so an earlier failure cannot hide a middle package.
+# The per-proof runner cases above remain isolated for exact test diagnostics.
+check_batched_package_failures() {
+  local scenario pkg out events called count total_calls
+  local -A callbacks
+  for scenario in zero terminal; do
+    write_events
+    for pkg in "${packages[@]}"; do
+      events="$(events_of "${pkg}")"
+      if [[ "${scenario}" == zero ]]; then
+        printf '{"Action":"pass","Package":"github.com/eshu-hq/eshu/go/%s","Elapsed":0.1}\n' \
+          "${pkg#./}" >"${events}"
+      else
+        sed -i.bak 's/"Action":"pass","Package"/"Action":"fail","Package"/' "${events}"
+      fi
+    done
+    : >"${fake}/calls"
+    out="$(LIVE_READINESS_DEBUG_DIR="${seed_dir}/.readiness-debug" run_runner)" &&
+      fail "batched ${scenario} violations passed"
+    callbacks=()
+    while IFS= read -r called; do
+      callbacks["${called}"]=$(( ${callbacks["${called}"]:-0} + 1 ))
+    done <"${fake}/calls"
+    for pkg in "${packages[@]}"; do
+      [[ "${out}" == *"live-postgres-readiness: ${pkg}: expected tests did not all pass"* ]] ||
+        fail "batched ${scenario} did not report verifier failure for ${pkg}: ${out}"
+      if [[ "${scenario}" == terminal ]]; then
+        [[ "${out}" == *"package terminal (${pkg})"* ]] ||
+          fail "batched terminal package terminal of ${pkg} not named: ${out}"
+      fi
+      count="${callbacks["${pkg}"]:-0}"
+      [[ "${count}" -eq 1 ]] || fail "batched ${scenario} callback count for ${pkg}: ${count}"
+    done
+    total_calls="$(wc -l <"${fake}/calls")"
+    [[ "${total_calls}" -eq "${#packages[@]}" ]] ||
+      fail "batched ${scenario} invoked ${total_calls}/${#packages[@]} packages"
+  done
+}

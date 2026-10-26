@@ -41,9 +41,10 @@ source package. Metrics include
 `eshu_dp_ci_cd_run_facts_emitted_total`, and
 `eshu_dp_ci_cd_run_partial_generations_total`. Labels stay bounded to provider,
 status class, fact kind, and partial reason. Terminal App mint failures and
-direct-App provider 401/403/404 reads use `status_class="auth_error"`.
+non-rate-limited direct-App provider 401/403/404 reads use
+`status_class="auth_error"`.
 Host-file failures use `auth_denied`; static-token provider failures retain
-`error`. Rate-limited App mints retain the rate-limited class.
+`error`. Throttled provider reads and App mints use `rate_limited`.
 
 ## Gotchas / invariants
 

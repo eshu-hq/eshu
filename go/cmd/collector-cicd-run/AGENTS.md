@@ -3,8 +3,8 @@
 ## Scope
 
 This command wires the hosted GitHub Actions CI/CD run collector binary. It
-loads workflow collector instance JSON, resolves `token_env` or `github_app_*_env` credential
-references, builds `ghactionsruntime.ClaimedSource`, and commits through
+loads workflow collector instance JSON, resolves `token_env`, `host_token_file`,
+or `github_app_*_env` credential references, builds `ghactionsruntime.ClaimedSource`, and commits through
 `collector.ClaimedService`.
 
 ## Rules
@@ -14,6 +14,6 @@ references, builds `ghactionsruntime.ClaimedSource`, and commits through
   metric labels.
 - The command must use workflow claims and claim fencing; do not write directly
   to Postgres.
-- Configuration must keep credential references (`token_env` or `github_app_*_env`) separate from
-  resolved runtime tokens and private keys.
+- Configuration must keep credential references (`token_env`, `host_token_file`,
+  or `github_app_*_env`) separate from resolved runtime tokens and private keys.
 - Add focused config tests for new environment variables or target shapes.
