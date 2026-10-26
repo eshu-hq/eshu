@@ -1,0 +1,50 @@
+# Producer-grant manifest DRAFT — collector-security-alerts (#8866)
+#
+# DRAFT ONLY. No grant is issued, installed, or revoked by this file.
+# Issuance follows docs/public/reference/component-producer-grants.md (#6709)
+# and the #4047 cutover gate: grant-first-then-install, one record per
+# producer/version/kind/scope key, re-issue replaces, revocation fails
+# closed at install, activation, and every emission.
+#
+# Producer identity (first-party extracted collector):
+producer_id: dev.eshu.collector.security-alerts
+# Planned repository (family declaration, #8866):
+repository: eshu-hq/eshu-collector-security-alerts
+# Draft producer version. Must be semver and match metadata.version at
+# admission; declared manifest versions must stay a subset of covered
+# schema versions for each core-owned kind.
+version: 0.1.0
+# Scope must match the manifest-declared collector kind at admission.
+scope: security_alert
+# Lifetime: positive duration required; no non-expiring grants.
+# Concrete expiry is stamped at issuance (issued_at + expires_in).
+expires_in: 720h
+# Authority: core keeps fact meaning, schemas, stable identities, join
+# keys, durable claim mutation, fencing, and generation commit. The
+# collector receives no database, graph, or reducer handles.
+authority_mode: core_issued_grant
+
+# Covered core-owned fact kinds. Every kind is at schema 1.0.0 today
+# (go/internal/facts/security_alert.go).
+grants:
+  - kind: security_alert.repository_alert
+    schema_versions: ["1.0.0"]
+
+# No-dual-authority transfer note: the kind above is live-observed GitHub
+# Dependabot evidence owned by this producer after cutover. Declared
+# dependency/consumption evidence stays core/GitOps-owned and is NOT covered
+# here; the extracted collector must never emit declared kinds. Conflicting
+# producers cannot own the same scope and generation; cutover fences the
+# replaced producer before the replacement activates (see
+# CUTOVER_CHECKLIST.DRAFT.md).
+#
+# Issuance commands (operator runs at cutover, one per kind):
+#   eshu component grant dev.eshu.collector.security-alerts \
+#     --component-home <home> --version 0.1.0 \
+#     --kind security_alert.repository_alert --schema-version 1.0.0 \
+#     --scope security_alert --expires-in 720h
+# Readback: eshu component grants --component-home <home> \
+#     --producer dev.eshu.collector.security-alerts
+# Revocation (in-tree producer at cutover, replaced authority at rollback):
+#   eshu component revoke-grant <producer> --component-home <home> \
+#     --version <version> --kind <kind> --scope security_alert
