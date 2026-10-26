@@ -262,7 +262,8 @@ cutover gate.
 
 1. First-party producer delegation live (`#6709`); grant draft recorded
    in [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md) for the 7 owned
-   `terraform_state_*` kinds.
+   `terraform_state_*` kinds plus the 3 co-emitted `incident_routing`
+   kinds (see item 2).
 2. Grant-or-drop for the 3 co-emitted `incident_routing.*` kinds —
    **decided extend** (arbiter ruling on #9195); the draft and the
    rollback revocation loop now cover all 3 at `1.0.0`.
