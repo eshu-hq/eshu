@@ -92,7 +92,7 @@ untyped VALUES (42883 on the real database).
   `ContentStore` path) the rollout implements the arbiter's ordered meaning
   ("last written with a change beyond commit_sha/generation_id lineage"),
   and the PR body states the operator consequence plainly.
-- Storage migration: shipped as migration 236 (`ALTER TABLE content_files SET
+- Storage migration: shipped as migration 237 (`ALTER TABLE content_files SET
   (fillfactor = 50)`, catalog-only, single statement). The rollout bar below
   replaces the `VACUUM FULL` rewrite used here: no page rewrite anywhere in
   the migration or automation.
@@ -142,7 +142,7 @@ this aarch64 box, `shared_buffers=1GB`, autovacuum ON (default; verified
 (469 KiB, 491 findings each) — 30,050 rows in one repository, every full replay
 a `FullSnapshot` `Write` through the real `ContentWriter` (61 batches of 500),
 stable per-path sha1 digests so the pre-read classifies honestly. Fresh
-bootstrap applies all 254 migrations including 236 (`reloptions` read back as
+bootstrap applies all 255 migrations including 237 (`reloptions` read back as
 `{fillfactor=50}` — the fresh-install proof), then the control arm RESETs the
 fillfactor to dense packing. Stats deltas use `pg_stat_force_next_flush` and
 are schema-scoped; sizes are `pg_relation_size` heap, TOAST, every index, and
@@ -166,7 +166,7 @@ ff50 pages, old dense pages go dead until vacuum). The three following
 consecutive new-generation full replays are each 100% HOT with no `VACUUM FULL`
 between — the durability bar (>=90% per round) passes. `ALTER ... SET
 (fillfactor = 50)` itself changed no size (total 320,217,088 before and
-after): catalog-only, as migration 236's comment states.
+after): catalog-only, as migration 237's comment states.
 
 Steady-state sizes, ff100 (2 control replays + settle) vs ff50 (turnover + 3
 durable replays + settle), bytes:
