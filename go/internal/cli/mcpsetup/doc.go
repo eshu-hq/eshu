@@ -8,7 +8,8 @@
 // HTTP transport, resolves the auth posture (per-user token, SSO, or the
 // legacy shared key) via RFC 9728 discovery, merges the eshu server entry
 // into an existing client config file, and runs staged reachability
-// verification. It never embeds a raw secret in generated output: hosted
+// verification; reachability runs after the merge, so a written config is
+// always probed before the command reports success. It never embeds a raw secret in generated output: hosted
 // snippets always reference a credential by env-var name, and every
 // credential-bearing type documents which posture it applies to.
 //
