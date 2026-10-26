@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import statistics
 from typing import Any, Iterable
 
@@ -53,6 +54,8 @@ HELPERS = frozenset({
     "get_repo_summary", "get_repo_context", "get_repo_story",
     "get_repository_stats", "list_repository_files",
 })
+
+SURFACES = ("full", "router", "core_router")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -144,6 +147,71 @@ class Score:
     sibling_wrong_calls: int = 0
     off_family_wrong_calls: int = 0
     overflowed_calls: int = 0
+
+
+def _finite_nonnegative(value: object) -> bool:
+    """Checks a JSON number used in score arithmetic, excluding booleans."""
+    if type(value) not in (int, float):
+        return False
+    try:
+        return value >= 0 and math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def valid_result_row(row: object) -> bool:
+    """Checks fields consumed when a stored result is grouped and scored.
+
+    Optional Score fields may be absent in older files. Extra fields are
+    ignored so newer runners remain readable by this report.
+
+    Args:
+        row: Decoded JSON value from a result file's ``results`` list.
+
+    Returns:
+        Whether the fields needed by both consumers have usable types.
+    """
+    if not isinstance(row, dict) or row.get("surface") not in SURFACES:
+        return False
+    for key in ("task_id", "family"):
+        value = row.get(key)
+        if not isinstance(value, str) or not value.strip():
+            return False
+    for key in ("tool_calls", "domain_calls", "wrong_tool_calls"):
+        value = row.get(key)
+        if type(value) is not int or not _finite_nonnegative(value):
+            return False
+    for key in ("helper_calls", "sibling_wrong_calls",
+                "off_family_wrong_calls", "overflowed_calls",
+                "input_tokens", "output_tokens"):
+        if key in row and (type(row[key]) is not int or
+                           not _finite_nonnegative(row[key])):
+            return False
+    for key in ("first_domain_call_correct", "success"):
+        if type(row.get(key)) is not bool:
+            return False
+    tool_calls = row["tool_calls"]
+    domain_calls = row["domain_calls"]
+    wrong_calls = row["wrong_tool_calls"]
+    # score() counts nested subsets, then partitions the wrong calls.
+    if not wrong_calls <= domain_calls <= tool_calls:
+        return False
+    parts = ("helper_calls", "sibling_wrong_calls", "off_family_wrong_calls")
+    classified_wrong = sum(row.get(key, 0) for key in parts)
+    if classified_wrong > wrong_calls:
+        return False
+    if all(key in row for key in parts) and classified_wrong != wrong_calls:
+        return False
+    if row.get("overflowed_calls", 0) > tool_calls:
+        return False
+    if (row["first_domain_call_correct"] or row["success"]) and \
+            wrong_calls == domain_calls:
+        return False
+    if not _finite_nonnegative(row.get("wall_seconds")):
+        return False
+    if "cost_usd" in row and not _finite_nonnegative(row["cost_usd"]):
+        return False
+    return True
 
 
 def parse_claude(stream: str) -> Run:
@@ -321,25 +389,32 @@ def summarize(scores: Iterable[Score]) -> dict[str, float]:
     rows = list(scores)
     n = len(rows)
     domain = sum(r.domain_calls for r in rows)
+    wall = sorted(r.wall_seconds for r in rows)
+    median_wall = 0.0
+    if n:
+        middle = n // 2
+        median_wall = (wall[middle] if n % 2 else
+                       statistics.mean(wall[middle - 1:middle + 1]))
     return {
         "tasks": n,
-        "mean_tool_calls": (sum(r.tool_calls for r in rows) / n) if n else 0.0,
+        "mean_tool_calls": statistics.mean(r.tool_calls for r in rows)
+        if n else 0.0,
         "wrong_tool_rate": (sum(r.wrong_tool_calls for r in rows) / domain)
         if domain else 0.0,
         "success_rate": (sum(r.success for r in rows) / n) if n else 0.0,
         "first_try_rate": (sum(r.first_domain_call_correct for r in rows) / n)
         if n else 0.0,
-        "median_wall_seconds": statistics.median(
-            r.wall_seconds for r in rows) if n else 0.0,
+        "median_wall_seconds": median_wall,
         "helper_rate": (sum(r.helper_calls for r in rows) / domain)
         if domain else 0.0,
         "genuine_wrong_rate": (sum(r.sibling_wrong_calls
                                    + r.off_family_wrong_calls for r in rows)
                                / domain) if domain else 0.0,
         "overflowed_calls": sum(r.overflowed_calls for r in rows),
-        "mean_cost_usd": (sum(r.cost_usd for r in rows) / n) if n else 0.0,
-        "mean_input_tokens": (sum(r.input_tokens for r in rows) / n)
+        "mean_cost_usd": statistics.mean(r.cost_usd for r in rows)
         if n else 0.0,
-        "mean_output_tokens": (sum(r.output_tokens for r in rows) / n)
+        "mean_input_tokens": statistics.mean(r.input_tokens for r in rows)
+        if n else 0.0,
+        "mean_output_tokens": statistics.mean(r.output_tokens for r in rows)
         if n else 0.0,
     }

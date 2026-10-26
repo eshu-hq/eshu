@@ -1,5 +1,10 @@
 """Tests for the hosted MCP surface-eval report generator (issue #8760)."""
 
+import contextlib
+import io
+import json
+import pathlib
+import tempfile
 import unittest
 
 import report
@@ -72,6 +77,257 @@ class MetaTest(unittest.TestCase):
         text = report.clients_table(DATA)
         self.assertIn("1.2.3", text)
         self.assertIn("| claude |", text)
+
+    def test_lists_explicit_shape(self) -> None:
+        data = {"claude": {"meta": {"client": "claude", "shape": "structured"},
+                           "results": []}}
+        self.assertIn("| claude | structured |", report.clients_table(data))
+
+    def test_legacy_result_is_labeled_server_default(self) -> None:
+        self.assertIn("| claude | server_default |", report.clients_table(DATA))
+
+
+class InputShapeTest(unittest.TestCase):
+    """Report inputs must not hide or combine different shapes."""
+
+    def test_accepts_two_clients_with_same_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = []
+            for client in ("claude", "codex"):
+                path = pathlib.Path(directory) / f"{client}.json"
+                path.write_text(json.dumps({"meta": {"client": client,
+                                                      "shape": "structured"},
+                                            "results": []}))
+                paths.append(str(path))
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(report.main(paths), 0)
+            self.assertIn("| claude | structured |", output.getvalue())
+            self.assertIn("| codex | structured |", output.getvalue())
+
+    def test_rejects_duplicate_client_with_different_shapes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = []
+            for shape in ("dual", "structured"):
+                path = pathlib.Path(directory) / f"{shape}.json"
+                path.write_text(json.dumps({"meta": {"client": "claude", "shape": shape},
+                                            "results": []}))
+                paths.append(str(path))
+            with self.assertRaisesRegex(SystemExit, "shape"):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    report.main(paths)
+
+    def test_rejects_mixed_client_shapes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = []
+            for client, shape in (("claude", "dual"), ("codex", "structured")):
+                path = pathlib.Path(directory) / f"{client}.json"
+                path.write_text(json.dumps({"meta": {"client": client, "shape": shape},
+                                            "results": []}))
+                paths.append(str(path))
+            with self.assertRaisesRegex(SystemExit, "shape"):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    report.main(paths)
+
+    def test_rejects_corrupt_input_with_path(self) -> None:
+        contents_list = (
+            "{broken", "[]", '{"meta": []}', '{"meta": {}}',
+            '{"meta": {"client": []}}',
+            '{"meta": {"client": "  "}, "results": []}',
+            '{"meta": {"client": "claude"}}',
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "corrupt.json"
+            for contents in contents_list:
+                with self.subTest(contents=contents):
+                    path.write_text(contents)
+                    with self.assertRaises(SystemExit) as ctx:
+                        with contextlib.redirect_stdout(io.StringIO()):
+                            report.main([str(path)])
+                    self.assertIn(str(path), str(ctx.exception))
+
+    def test_rejects_unreadable_input_with_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "unreadable.json"
+            path.mkdir()
+            with self.assertRaises(SystemExit) as ctx:
+                report.main([str(path)])
+            self.assertIn(str(path), str(ctx.exception))
+
+
+class ResultRowBoundaryTest(unittest.TestCase):
+    """Malformed result rows fail before any report table is printed."""
+
+    def test_rejects_impossible_count_relationships_without_stdout(self) -> None:
+        valid = _row("router", "code-lookup-001", False)
+        invalid_rows = [
+            dict(valid, tool_calls=1, domain_calls=2),
+            dict(valid, domain_calls=0, wrong_tool_calls=1),
+            dict(valid, wrong_tool_calls=0, helper_calls=1),
+            dict(valid, wrong_tool_calls=0, sibling_wrong_calls=1),
+            dict(valid, wrong_tool_calls=0, off_family_wrong_calls=1),
+            dict(valid, wrong_tool_calls=1, helper_calls=1,
+                 sibling_wrong_calls=1),
+            dict(valid, wrong_tool_calls=1, helper_calls=0,
+                 sibling_wrong_calls=0, off_family_wrong_calls=0),
+            dict(valid, overflowed_calls=valid["tool_calls"] + 1),
+            dict(valid, domain_calls=0, first_domain_call_correct=True),
+            dict(valid, domain_calls=0, success=True),
+            dict(valid, wrong_tool_calls=valid["domain_calls"],
+                 first_domain_call_correct=True),
+        ]
+        huge = 10 ** 308
+        invalid_rows.extend([
+            dict(valid, tool_calls=huge, domain_calls=0,
+                 wrong_tool_calls=huge),
+            dict(valid, tool_calls=huge, domain_calls=0,
+                 sibling_wrong_calls=huge),
+        ])
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "impossible.json"
+            for row in invalid_rows:
+                with self.subTest(row=row):
+                    path.write_text(json.dumps({
+                        "meta": {"client": "claude"}, "results": [row]}))
+                    output = io.StringIO()
+                    with self.assertRaises(SystemExit) as ctx:
+                        with contextlib.redirect_stdout(output):
+                            report.main([str(path)])
+                    self.assertIn(str(path), str(ctx.exception))
+                    self.assertEqual(output.getvalue(), "")
+
+    def test_rejects_aggregate_ratio_overflow_before_stdout(self) -> None:
+        huge = 10 ** 308
+        rows = [dict(_row("router", "code-lookup-001", False, calls=2),
+                     tool_calls=huge, domain_calls=0,
+                     wrong_tool_calls=huge) for _ in range(2)]
+        rows.append(dict(_row("router", "code-lookup-001", False, calls=2),
+                         domain_calls=1, wrong_tool_calls=0))
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "ratio.json"
+            path.write_text(json.dumps({
+                "meta": {"client": "claude"}, "results": rows}))
+            output = io.StringIO()
+            with self.assertRaises(SystemExit) as ctx:
+                with contextlib.redirect_stdout(output):
+                    report.main([str(path)])
+            self.assertIn(str(path), str(ctx.exception))
+            self.assertEqual(output.getvalue(), "")
+
+    def test_finite_large_values_keep_finite_aggregates(self) -> None:
+        fields = (
+            ("cost_usd", 1e308),
+            ("tool_calls", 10 ** 308),
+            ("input_tokens", 10 ** 308),
+            ("output_tokens", 10 ** 308),
+            ("wall_seconds", 1e308),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "large.json"
+            for field, value in fields:
+                with self.subTest(field=field):
+                    rows = [dict(_row("router", "code-lookup-001", True),
+                                 **{field: value}) for _ in range(2)]
+                    path.write_text(json.dumps({
+                        "meta": {"client": "claude"}, "results": rows}))
+                    output = io.StringIO()
+                    with contextlib.redirect_stdout(output):
+                        self.assertEqual(report.main([str(path)]), 0)
+                    self.assertNotIn("inf", output.getvalue().lower())
+                    if field == "cost_usd":
+                        self.assertIn(f"| {value:.3f} |", output.getvalue())
+                    if field == "wall_seconds":
+                        self.assertIn(f"| {value:.1f} |", output.getvalue())
+
+    def test_rejects_unusable_rows_without_partial_stdout(self) -> None:
+        valid = _row("router", "code-lookup-001", True)
+        cases = [
+            {}, [],
+            {key: value for key, value in valid.items() if key != "surface"},
+            dict(valid, surface="unknown"),
+            {key: value for key, value in valid.items() if key != "tool_calls"},
+            dict(valid, tool_calls=True),
+            dict(valid, tool_calls=10 ** 400),
+            dict(valid, wrong_tool_calls=-1),
+            dict(valid, input_tokens=True),
+            dict(valid, input_tokens=10 ** 400),
+            dict(valid, first_domain_call_correct="yes"),
+            dict(valid, success="yes"),
+            dict(valid, task_id=[]),
+            dict(valid, family=[]),
+            dict(valid, wall_seconds=float("nan")),
+            dict(valid, cost_usd=float("inf")),
+            dict(valid, helper_calls=True),
+            dict(valid, helper_calls=10 ** 400),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "rows.json"
+            for row in cases:
+                with self.subTest(row=row):
+                    path.write_text(json.dumps({
+                        "meta": {"client": "claude"}, "results": [row]}))
+                    output = io.StringIO()
+                    with self.assertRaises(SystemExit) as ctx:
+                        with contextlib.redirect_stdout(output):
+                            report.main([str(path)])
+                    self.assertIn(str(path), str(ctx.exception))
+                    self.assertEqual(output.getvalue(), "")
+
+    def test_rejects_json_integer_digit_limit_without_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "oversized.json"
+            path.write_text('{"meta": {"client": "claude"}, "results": [' +
+                            "9" * 5000 + "]}")
+            output = io.StringIO()
+            with self.assertRaises(SystemExit) as ctx:
+                with contextlib.redirect_stdout(output):
+                    report.main([str(path)])
+            self.assertIn(str(path), str(ctx.exception))
+            self.assertEqual(output.getvalue(), "")
+
+    def test_accepts_legacy_optional_defaults_and_extra_fields(self) -> None:
+        row = _row("router", "code-lookup-001", False, wrong=1)
+        for key in ("cost_usd", "input_tokens", "output_tokens"):
+            del row[key]
+        row["future_field"] = "ignored"
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "legacy.json"
+            path.write_text(json.dumps({
+                "meta": {"client": "claude"}, "results": [row]}))
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(report.main([str(path)]), 0)
+            self.assertIn("| claude | server_default |", output.getvalue())
+            self.assertIn("| claude | router | 1 |", output.getvalue())
+
+    def test_accepts_complete_wrong_call_partition(self) -> None:
+        row = dict(_row("router", "code-lookup-001", False, wrong=1),
+                   helper_calls=1, sibling_wrong_calls=0,
+                   off_family_wrong_calls=0)
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "partition.json"
+            path.write_text(json.dumps({
+                "meta": {"client": "claude"}, "results": [row]}))
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(report.main([str(path)]), 0)
+            self.assertIn("| claude | router | 1 |", output.getvalue())
+
+    def test_valid_large_genuine_wrong_ratio_stays_finite(self) -> None:
+        huge = 10 ** 308
+        row = dict(_row("router", "code-lookup-001", False),
+                   tool_calls=huge, domain_calls=huge,
+                   wrong_tool_calls=huge, helper_calls=0,
+                   sibling_wrong_calls=huge, off_family_wrong_calls=0)
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "large-ratio.json"
+            path.write_text(json.dumps({
+                "meta": {"client": "claude"}, "results": [row, row]}))
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(report.main([str(path)]), 0)
+            self.assertNotIn("inf", output.getvalue().lower())
+            self.assertIn("100%", output.getvalue())
 
 
 if __name__ == "__main__":

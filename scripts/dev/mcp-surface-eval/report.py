@@ -6,6 +6,9 @@ deployment, so the output is safe to paste into the evidence note.
 
 Usage:
     python3 report.py results_claude.json results_codex.json > tables.md
+
+Pass result files from one shape at a time. Keep dual and structured runs in
+separate private output directories; the report refuses to combine them.
 """
 
 from __future__ import annotations
@@ -18,18 +21,17 @@ from typing import Any
 
 import score
 
-SURFACES = ("full", "router", "core_router")
+SURFACES = score.SURFACES
 _FIELDS = ("task_id", "family", "tool_calls", "domain_calls", "wrong_tool_calls",
-           "first_domain_call_correct", "success", "wall_seconds", "cost_usd",
-           "input_tokens", "output_tokens")
-_OPTIONAL = ("helper_calls", "sibling_wrong_calls", "off_family_wrong_calls",
-             "overflowed_calls")
+           "first_domain_call_correct", "success", "wall_seconds")
+_OPTIONAL = ("cost_usd", "input_tokens", "output_tokens", "helper_calls",
+             "sibling_wrong_calls", "off_family_wrong_calls", "overflowed_calls")
 
 
 def _scores(rows: list[dict[str, Any]]) -> list[score.Score]:
     """Converts stored result rows back into Score objects."""
     return [score.Score(**{k: r[k] for k in _FIELDS},
-                        **{k: r.get(k, 0) for k in _OPTIONAL}) for r in rows]
+                        **{k: r[k] for k in _OPTIONAL if k in r}) for r in rows]
 
 
 def _by_surface(data: dict[str, Any], client: str) -> dict[str, list[dict]]:
@@ -114,21 +116,67 @@ def task_table(data: dict[str, Any], expected: dict[str, str]) -> str:
 
 
 def clients_table(data: dict[str, Any]) -> str:
-    """Returns the client name, version, and model table for the evidence note."""
-    lines = ["| Client | Version | Model |", "|---|---|---|"]
+    """Returns the client, shape, version, and model table for the evidence note."""
+    lines = ["| Client | Shape | Version | Model |", "|---|---|---|---|"]
     for client in sorted(data):
         meta = data[client]["meta"]
-        lines.append(f"| {client} | {meta.get('version', '?')} | "
+        lines.append(f"| {client} | {meta.get('shape', 'server_default')} | "
+                     f"{meta.get('version', '?')} | "
                      f"{meta.get('model', '?')} |")
     return "\n".join(lines)
+
+
+def load_results(path: pathlib.Path) -> dict[str, Any]:
+    """Loads a result file and validates the fields used by the report.
+
+    Args:
+        path: Result file to read.
+
+    Returns:
+        The parsed result envelope.
+
+    Raises:
+        SystemExit: If the file is unreadable or its envelope is malformed.
+    """
+    try:
+        loaded = json.loads(path.read_text())
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f"cannot read results file {path}") from exc
+    if not isinstance(loaded, dict):
+        raise SystemExit(f"invalid results envelope in {path}")
+    meta = loaded.get("meta")
+    if not isinstance(meta, dict):
+        raise SystemExit(f"invalid results metadata in {path}")
+    client = meta.get("client")
+    if not isinstance(client, str) or not client.strip():
+        raise SystemExit(f"invalid results client in {path}")
+    if meta.get("shape", "server_default") not in (
+            "server_default", "dual", "structured"):
+        raise SystemExit(f"invalid results shape in {path}")
+    if not isinstance(loaded.get("results"), list):
+        raise SystemExit(f"invalid results envelope in {path}")
+    if not all(score.valid_result_row(row) for row in loaded["results"]):
+        raise SystemExit(f"invalid results row in {path}")
+    return loaded
 
 
 def main(argv: list[str]) -> int:
     """Loads result files named on the command line and prints all tables."""
     data: dict[str, Any] = {}
+    shapes: set[str] = set()
     for path in argv:
-        loaded = json.loads(pathlib.Path(path).read_text())
-        data[loaded["meta"]["client"]] = loaded
+        loaded = load_results(pathlib.Path(path))
+        client = loaded["meta"]["client"]
+        if client in data:
+            raise SystemExit(
+                f"duplicate {client} result files: report one shape at a time "
+                "from separate private --out directories")
+        shapes.add(loaded["meta"].get("shape", "server_default"))
+        if len(shapes) > 1:
+            raise SystemExit(
+                "result files have different shapes: report one shape at a time "
+                "from separate private --out directories")
+        data[client] = loaded
     corpus = json.loads((pathlib.Path(__file__).resolve().parents[3] /
                          "go/internal/mcp/router/eval/testdata/corpus.json"
                          ).read_text())["questions"]

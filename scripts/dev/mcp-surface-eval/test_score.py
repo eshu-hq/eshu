@@ -312,6 +312,19 @@ class SummarizeTest(unittest.TestCase):
         self.assertEqual(out["mean_input_tokens"], 2000.0)
         self.assertEqual(out["mean_output_tokens"], 200.0)
 
+    def test_finite_large_values_have_finite_means_and_median(self) -> None:
+        row = score.Score(
+            task_id="a", family="f", tool_calls=10 ** 308, domain_calls=1,
+            wrong_tool_calls=0, first_domain_call_correct=True, success=True,
+            wall_seconds=1e308, cost_usd=1e308,
+            input_tokens=10 ** 308, output_tokens=10 ** 308)
+        out = score.summarize([row, row])
+        self.assertEqual(out["mean_tool_calls"], 10 ** 308)
+        self.assertEqual(out["median_wall_seconds"], 1e308)
+        self.assertEqual(out["mean_cost_usd"], 1e308)
+        self.assertEqual(out["mean_input_tokens"], 10 ** 308)
+        self.assertEqual(out["mean_output_tokens"], 10 ** 308)
+
 
 if __name__ == "__main__":
     unittest.main()
