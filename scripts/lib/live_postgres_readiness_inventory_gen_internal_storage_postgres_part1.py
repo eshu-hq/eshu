@@ -116,6 +116,19 @@ TABLE = {
         "go/internal/storage/postgres/content_store_policy_upgrade_live_test.go": (
             "TestContentStorePolicyHealsStoredRowsOnTheNextGeneration",
         ),
+        "go/internal/storage/postgres/content_writer_upsert_outcome_bench_live_test.go": (
+            "TestContentFileUpsertOutcomePreReadCostLive",
+        ),
+        "go/internal/storage/postgres/content_writer_upsert_outcome_live_test.go": (
+            "TestContentFileUpsertOutcomeMatchesRowVersionsLive",
+            "TestContentFileUpsertOutcomeProxyLimitLive",
+            "TestContentFileOutcomePreReadTakesNoLockLive",
+            "TestContentFileUpsertObserversDoNotChangeRowsLive",
+            "TestContentFileUpsertOutcomeConcurrentWritersLive",
+        ),
+        "go/internal/storage/postgres/content_writer_upsert_outcome_write_bench_live_test.go": (
+            "TestContentFileUpsertOutcomeWriteCostLive",
+        ),
         "go/internal/storage/postgres/corpus_fence_observer_live_test.go": (
             "TestQueueObserverStoreCorpusFenceCountsRunOnPostgres",
         ),
@@ -473,16 +486,6 @@ TABLE = {
             "TestProjectorClaimMarkedGuardPlanShape",
             "TestProjectorClaimMarkedGuardPlanShapeAtScale",
             "TestProjectorClaimMarkedGuardLockSet",
-        ),
-        "go/internal/storage/postgres/projector_queue_claim_marker_fence_live_test.go": (
-            "TestMarkProjectionWriteStartedFenceSync",
-            "TestMarkProjectionWriteStartedMissingFenceRefuses",
-        ),
-        "go/internal/storage/postgres/projector_queue_dead_letter_live_test.go": (
-            "TestProjectorDeadLetterGuardCellsLive",
-        ),
-        "go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go": (
-            "TestProjectorZombieHealRestoresCanonicalNodesLive",
         ),
     },
 }

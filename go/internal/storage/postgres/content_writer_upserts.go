@@ -28,21 +28,33 @@ import (
 // loop costs little at repo scale (Kubernetes had ~40 file batches), so
 // the parallel-batch optimization is reserved for the entity path where
 // the K8s gate miss actually lives.
-func (w ContentWriter) upsertContentFileBatches(ctx context.Context, rows []preparedFileRow, indexedAt time.Time, generationID string) error {
+//
+// obs, when non-nil, classifies each batch against the stored rows before the
+// upsert and counts the outcomes after it succeeds (#8950).
+func (w ContentWriter) upsertContentFileBatches(ctx context.Context, rows []preparedFileRow, indexedAt time.Time, generationID string, obs *fileUpsertObservation) error {
 	for i := 0; i < len(rows); i += contentFileBatchSize {
 		end := i + contentFileBatchSize
 		if end > len(rows) {
 			end = len(rows)
 		}
-		if err := w.upsertContentFileBatch(ctx, rows[i:end], indexedAt, generationID); err != nil {
+		if err := w.upsertObservedContentFileBatch(ctx, rows[i:end], indexedAt, generationID, obs); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// upsertContentFileBatch inserts one batch of file records using a multi-row INSERT query.
+// upsertContentFileBatch inserts one batch of file records using a multi-row
+// INSERT query, without outcome classification.
 func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []preparedFileRow, indexedAt time.Time, generationID string) error {
+	return w.upsertObservedContentFileBatch(ctx, batch, indexedAt, generationID, nil)
+}
+
+// upsertObservedContentFileBatch is upsertContentFileBatch plus the #8950
+// outcome counters: with obs non-nil it reads the stored state of the batch
+// before the upsert and counts the classified outcomes once the upsert
+// succeeded.
+func (w ContentWriter) upsertObservedContentFileBatch(ctx context.Context, batch []preparedFileRow, indexedAt time.Time, generationID string, obs *fileUpsertObservation) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -69,6 +81,7 @@ func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []prepa
 
 	// Blank writing generations bind NULL through the shared tag rule.
 	tag := contentFileTagParam(generationID)
+	outcomes, unclassifiedReason := w.preClassify(ctx, obs, batch, tag)
 
 	args := make([]any, 0, len(batch)*columnsPerContentFile)
 	var values strings.Builder
@@ -108,6 +121,7 @@ func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []prepa
 	if _, err := w.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert content_files batch (%d files): %w", len(batch), err)
 	}
+	w.recordFileUpsertOutcomes(ctx, obs, batch, outcomes, unclassifiedReason)
 
 	if err := w.upsertContentReferenceBatch(ctx, batch, indexedAt); err != nil {
 		return err

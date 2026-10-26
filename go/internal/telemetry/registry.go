@@ -95,6 +95,8 @@ var metricDimensionKeys = []string{
 	MetricDimensionTable,
 	MetricDimensionMetadataPath,
 	MetricDimensionCoverageState,
+	MetricDimensionSnapshot,
+	MetricDimensionBatchClass,
 }
 
 var spanNames = []string{
