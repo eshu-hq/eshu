@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
+	"github.com/eshu-hq/eshu/go/internal/github/app"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/telemetry/contract"
@@ -46,6 +47,7 @@ func TestNextClaimedReportsOneResultForEveryFinalState(t *testing.T) {
 		result      func(workflow.WorkItem) sdkcollector.Result
 		runnerErr   error
 		recordErr   error
+		provider    TokenProvider
 		want        ResultRecord
 		wantRecords int
 	}{
@@ -175,6 +177,17 @@ func TestNextClaimedReportsOneResultForEveryFinalState(t *testing.T) {
 			},
 			wantRecords: 1,
 		},
+		{
+			name: "host token mint denial",
+			provider: func(context.Context, workflow.WorkItem) (string, error) {
+				return "", &app.AuthDeniedError{StatusCode: 404}
+			},
+			result: func(item workflow.WorkItem) sdkcollector.Result { return completeResult(item, testSDKFact(item)) },
+			want: ResultRecord{
+				CollectorKind: "repo", Origin: ResultOriginHost, State: sdkcollector.ResultTerminal,
+				FailureClass: "auth_denied",
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -187,6 +200,9 @@ func TestNextClaimedReportsOneResultForEveryFinalState(t *testing.T) {
 			recorder := &recordingResultRecorder{recordingStatusRecorder: recordingStatusRecorder{err: tc.recordErr}}
 			runner := &recordingRunner{result: tc.result(item), err: tc.runnerErr}
 			source := mustNewSource(t, runner, recorder)
+			if tc.provider != nil {
+				source = mustNewSourceWithProvider(t, runner, recorder, tc.provider, nil)
+			}
 			collected, _, _ := source.NextClaimed(context.Background(), item)
 			_ = collectFacts(t, collected)
 

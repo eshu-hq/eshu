@@ -34,4 +34,11 @@
 // bounded log line, never labeling a scope, instance, or URL. A retryable
 // result's classified failure carries the largest status retry_after_seconds,
 // clamped to MaxRetryAfterDelay, as RetryAfterDelay for ClaimedService pacing.
+//
+// When Config.TokenProvider is set, the host mints one GitHub App installation
+// token per claim and injects it into the request config under
+// HostMintedGitHubTokenKey; only the minted token crosses the extension
+// boundary, never the App private key. A mint denial fails the claim terminal
+// with a bounded auth_denied failure before the runner launches, while a
+// transient mint fault stays retryable.
 package extensionhost
