@@ -16,10 +16,13 @@ authorizes emission only.
   `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.5`, so no published
   version is claimed here)
 - Scope: the `terraform_state` collector-instance scope
-- Kinds (`1.0.0` each, the `TerraformStateFactKinds()` list in
+- Kinds (`1.0.0` each): the seven `terraform_state_*` kinds in
+  [SHIM_MAP](SHIM_MAP.md) §2 (the `TerraformStateFactKinds()` list in
   `go/internal/facts/cloud/terraform_state.go:54-74` minus the git-owned
-  candidate): the seven `terraform_state_*` kinds in
-  [SHIM_MAP](SHIM_MAP.md) §2
+  candidate) **plus** the 3 co-emitted `incident_routing` kinds at
+  `1.0.0` (`applied_pagerduty_resource`, `applied_alert_route`,
+  `coverage_warning` — arbiter ruling on #9195: extend, no remaining
+  owner for two of the three)
 - Lifetime: bounded `--expires-in` (rotation expected; no non-expiring
   grants)
 
@@ -33,6 +36,15 @@ for kind in snapshot resource output module provider_binding tag_observation war
     --component-home ~/.eshu/components \
     --version 0.1.0 \
     --kind "terraform_state.${kind}" \
+    --schema-version 1.0.0 \
+    --scope terraform_state \
+    --expires-in 2160h
+done
+for kind in applied_pagerduty_resource applied_alert_route coverage_warning; do
+  eshu component grant dev.eshu.collector.terraform-state \
+    --component-home ~/.eshu/components \
+    --version 0.1.0 \
+    --kind "incident_routing.${kind}" \
     --schema-version 1.0.0 \
     --scope terraform_state \
     --expires-in 2160h

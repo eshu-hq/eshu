@@ -36,6 +36,13 @@ for kind in snapshot resource output module provider_binding tag_observation war
     --kind "terraform_state.${kind}" \
     --scope terraform_state
 done
+for kind in applied_pagerduty_resource applied_alert_route coverage_warning; do
+  eshu component revoke-grant dev.eshu.collector.terraform-state \
+    --component-home ~/.eshu/components \
+    --version 0.1.0 \
+    --kind "incident_routing.${kind}" \
+    --scope terraform_state
+done
 ```
 
 Revocation fails the next external emission closed, so a stray retry

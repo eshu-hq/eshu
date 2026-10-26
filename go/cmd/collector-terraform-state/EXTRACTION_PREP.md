@@ -140,8 +140,9 @@ types). The producer record binds them to this collector
 (`go/internal/facts/incident/routing.go:88`, same
 `core_issued_grant`/`eshu-hq/eshu-collector-terraform-state`). The staged
 grant draft covers only the 7 `terraform_state_*` kinds — the 3
-`incident_routing.*` kinds need an explicit grant-or-drop decision before
-cutover (open gap, §8.2).
+`incident_routing.*` kinds are decided **extend** (arbiter ruling on
+#9195: no remaining owner exists for two of the three, so the grant
+covers all 3 at `1.0.0`; §8.2 records the ruling).
 
 Consumption note: the projector consumes 6 kinds (snapshot, resource,
 module, output, tag_observation, provider_binding — see §3).
@@ -265,9 +266,9 @@ cutover gate.
 1. First-party producer delegation live (`#6709`); grant draft recorded
    in [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md) for the 7 owned
    `terraform_state_*` kinds.
-2. Explicit grant-or-drop decision for the 3 co-emitted
-   `incident_routing.*` kinds (§2 shared-kind note); the draft and the
-   rollback revocation loop omit them today.
+2. Grant-or-drop for the 3 co-emitted `incident_routing.*` kinds —
+   **decided extend** (arbiter ruling on #9195); the draft and the
+   rollback revocation loop now cover all 3 at `1.0.0`.
 3. Parity proof on representative + hostile inputs via a fixture pack and
    `source_parity` test (AC3, in-tree side) — **in-tree side landed**:
    `go/internal/collector/terraformstate/source_parity_8868_test.go`,
