@@ -388,11 +388,15 @@ func checkRegeneratePathsExist(repoRoot string, g Gate, tracked *trackedPaths, o
 			continue
 		}
 		info, err := os.Stat(full)
-		if os.IsNotExist(err) {
-			errs = append(errs, fmt.Errorf("gate %q: regenerate %q names %q, which does not exist — a stale key reads as coverage", g.ID, regenPath, full))
+		if err != nil {
+			if os.IsNotExist(err) {
+				errs = append(errs, fmt.Errorf("gate %q: regenerate %q names %q, which does not exist — a stale key reads as coverage", g.ID, regenPath, full))
+				continue
+			}
+			errs = append(errs, fmt.Errorf("gate %q: regenerate %q names %q, which could not be checked: %w — an unverifiable key must not read as present", g.ID, regenPath, full, err))
 			continue
 		}
-		if err == nil && info.IsDir() {
+		if info.IsDir() {
 			errs = append(errs, fmt.Errorf("gate %q: regenerate %q names the directory %q — regen commands rewrite files", g.ID, regenPath, full))
 			continue
 		}

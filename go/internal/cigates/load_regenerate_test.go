@@ -206,6 +206,50 @@ func TestRegenerateEntriesMatchHelperShape(t *testing.T) {
 	}
 }
 
+// TestValidate_RegenerateUncheckablePathFails pins the fail-closed side for
+// stat errors beyond NotExist: a symlink loop makes os.Stat fail with ELOOP,
+// so a key the check cannot verify must error rather than read as present,
+// mirroring the trigger-side rule for unverifiable paths. The loop lives
+// under a DIFFERENT name from the healthy trigger target on purpose: if the
+// trigger and the regenerate key shared one path, the trigger-side rule
+// would fire first and the test would pass with the regenerate side broken.
+func TestValidate_RegenerateUncheckablePathFails(t *testing.T) {
+	t.Parallel()
+	root := buildHermeticRepo(
+		t,
+		[]string{"scripts/generate-thing-doc.sh"},
+		[]string{"static-contract-gates.yml"},
+	)
+	writeTracked(t, root, "docs/public/reference/thing.md")
+	writeTracked(t, root, "docs/public/reference/loop.md")
+	dir := filepath.Join(root, "docs", "public", "reference")
+	if err := os.Remove(filepath.Join(dir, "loop.md")); err != nil {
+		t.Fatalf("remove fixture file: %v", err)
+	}
+	if err := os.Symlink("loop2", filepath.Join(dir, "loop.md")); err != nil {
+		t.Fatalf("plant symlink loop: %v", err)
+	}
+	if err := os.Symlink("loop.md", filepath.Join(dir, "loop2")); err != nil {
+		t.Fatalf("plant symlink loop: %v", err)
+	}
+	yaml := strings.Replace(
+		regenerateGateYAML,
+		`"docs/public/reference/thing.md": "bash scripts/generate-thing-doc.sh"`,
+		`"docs/public/reference/loop.md": "bash scripts/generate-thing-doc.sh"`,
+		1,
+	)
+	path := writeYAML(t, yaml)
+	reg, err := cigates.Load(path)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+
+	errs := reg.Validate(root)
+	if got := errorNaming(errs, "gen-doc", "could not be checked"); got == "" {
+		t.Fatalf("Validate() errors = %v, want one refusing the unstatable generated path", errs)
+	}
+}
+
 // TestValidate_RegenerateDuplicatePathAcrossGates pins single ownership: two
 // gates claiming the same generated path would let two regen commands fight
 // over one conflict, so Validate must refuse the registry.
