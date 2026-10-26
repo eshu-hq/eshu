@@ -138,10 +138,9 @@ at `1.0.0` from allowlisted applied resources (`pagerduty_applied.go`):
 types). The producer record binds them to this collector
 (`routing.go:88` in `facts/incident`, same
 `core_issued_grant`/`eshu-hq/eshu-collector-terraform-state`). The staged
-grant draft covers only the 7 `terraform_state_*` kinds — the 3
-`incident_routing.*` kinds are decided **extend** (arbiter ruling on
-#9195: no remaining owner exists for two of the three, so the grant
-covers all 3 at `1.0.0`; §8.2 records the ruling).
+grant draft covers the 7 `terraform_state_*` kinds **plus** the 3
+`incident_routing.*` kinds at `1.0.0` (decided **extend** by arbiter ruling on
+#9195: no remaining owner exists for two of the three; §8.2 records the ruling).
 
 Consumption note: the projector consumes 6 kinds (snapshot, resource,
 module, output, tag_observation, provider_binding — see §3).
@@ -239,9 +238,8 @@ API, MCP, or workflow handles.
 - In-tree `go/go.mod` already requires the supported SDK path at the
   exact cutover pins (`github.com/eshu-hq/eshu-sdk/collector
   v0.1.0-rc.3`, `factschema v0.1.0-rc.5`) — no `sdk/go` workspace
-  replaces. (The staged grant draft §"Proposed grant identity" still
-  claims `v0.0.0` with local replaces; that text is stale — open gap,
-  §8.6.)
+  replaces. The staged grant draft §"Proposed grant identity" states
+  the same pins.
 - At cutover: digest-pinned OCI artifact executed via the
   component-extension host `process` runner with the seeded binary and
   manifest. No artifact is built or published by this PREP.
@@ -283,8 +281,6 @@ cutover gate.
    carry-over.
 5. Producer authority single-holder enforcement and rehearsed rollback
    ([ROLLBACK_DRAFT](ROLLBACK_DRAFT.md)).
-6. Stale-draft reconcile: grant-draft SDK-pin text (`v0.0.0` + replaces)
-   contradicts the observed `go/go.mod` pins (§6).
-7. Entrypoint contract: add the `terraform-state` entry to
+6. Entrypoint contract: add the `terraform-state` entry to
    `collector_entrypoints.yaml` (or record why this collector is exempt)
    so the cutover comparison covers the same surface as `#8863`.
