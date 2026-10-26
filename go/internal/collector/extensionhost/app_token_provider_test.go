@@ -11,12 +11,16 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	"github.com/eshu-hq/eshu/go/internal/github/app"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -190,4 +194,108 @@ func TestNewAppTokenProviderMintDenialSurfacesBounded(t *testing.T) {
 	if got := err.Error(); strings.Contains(got, "PRIVATE") {
 		t.Fatalf("denial carries key material: %q", got)
 	}
+}
+
+// e2eMintedToken is the token the stub mint server returns. The stub
+// satellite asserts it arrives through the stdio config channel; the test
+// asserts the satellite's verdict comes back through the real runner.
+const e2eMintedToken = "e2e-minted-token-9182"
+
+// hostMintE2ESatellite is the stub satellite: it runs in a re-executed test
+// binary, reads one Request from stdin, proves the host-minted token arrived
+// as config.host_github_app_token {token, scope_id} with no key material on
+// the wire, and returns a complete SDK result echoing the claim.
+func hostMintE2ESatellite(t *testing.T) {
+	t.Helper()
+
+	raw, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		t.Fatalf("ReadAll(stdin) error = %v, want nil", err)
+	}
+	if strings.Contains(string(raw), "PRIVATE") {
+		t.Fatal("stdio request carries host key material")
+	}
+	var request Request
+	if err := json.Unmarshal(raw, &request); err != nil {
+		t.Fatalf("Unmarshal(stdin) error = %v, want nil", err)
+	}
+	injected, ok := request.Config[HostMintedGitHubTokenKey].(map[string]any)
+	if !ok {
+		t.Fatalf("config[%q] = %v, want object {token, scope_id}", HostMintedGitHubTokenKey, request.Config[HostMintedGitHubTokenKey])
+	}
+	if got := injected["token"]; got != e2eMintedToken {
+		t.Fatalf("injected token = %v, want %q", got, e2eMintedToken)
+	}
+	if got := injected["scope_id"]; got != request.Claim.Scope.ID {
+		t.Fatalf("injected scope_id = %v, want claim scope %q", got, request.Claim.Scope.ID)
+	}
+	result := sdkcollector.Result{
+		ProtocolVersion: request.ProtocolVersion,
+		State:           sdkcollector.ResultComplete,
+		Claim:           request.Claim,
+		Generation: sdkcollector.Generation{
+			ID:         request.Claim.GenerationID,
+			ObservedAt: testObservedAt(),
+		},
+		Statuses: []sdkcollector.Status{{
+			Class:     sdkcollector.StatusComplete,
+			FactCount: 0,
+		}},
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
+		t.Fatalf("Encode(stdout) error = %v, want nil", err)
+	}
+}
+
+// TestHostMintedTokenEndToEndThroughRealSatellite proves the full host wire:
+// the production provider mints per claim, the Source injects the token into
+// the stdio Request, a real subprocess satellite spends it, and the complete
+// verdict flows back. No key material crosses the boundary in either
+// direction.
+func TestHostMintedTokenEndToEndThroughRealSatellite(t *testing.T) {
+	if os.Getenv("ESHU_EXTENSIONHOST_HOST_MINT_E2E") == "satellite" {
+		hostMintE2ESatellite(t)
+		os.Exit(0)
+	}
+	t.Parallel()
+
+	keyPEM := appProviderTestKey(t)
+	mintServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/access_tokens") {
+			http.Error(w, "unexpected request", http.StatusTeapot)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"token": e2eMintedToken})
+	}))
+	t.Cleanup(mintServer.Close)
+	provider, err := NewAppTokenProvider(AppTokenProviderConfig{
+		AppID:         "42",
+		PrivateKey:    keyPEM,
+		Installations: map[string]string{"repo-eshu": "777"},
+		BaseURL:       mintServer.URL,
+		HTTPClient:    mintServer.Client(),
+	})
+	if err != nil {
+		t.Fatalf("NewAppTokenProvider() error = %v, want nil", err)
+	}
+	item := testWorkItem()
+	// A real subprocess needs a live lease: the shared fixture's fixed
+	// LeaseExpiresAt is in the past, which a fake runner ignores but
+	// exec.CommandContext enforces.
+	item.LeaseExpiresAt = time.Now().Add(2 * time.Minute)
+	runner := ProcessRunner{
+		Command: os.Args[0],
+		Args:    []string{"-test.run=TestHostMintedTokenEndToEndThroughRealSatellite"},
+		Env:     []string{"ESHU_EXTENSIONHOST_HOST_MINT_E2E=satellite"},
+	}
+	source := mustNewSourceWithProvider(t, runner, &recordingStatusRecorder{}, provider, nil)
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true for a complete satellite verdict")
+	}
+	_ = collected
 }
