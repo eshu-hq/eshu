@@ -78,10 +78,11 @@ consecutive scrapes:
   may keep legacy rows, as above), and zero in `raw_entity_rows`,
   `raw_reference_rows`, `raw_search_documents`, and `raw_search_fact_payloads`.
 
-The entities statement and census 3 both take the file row's generation: an
-entity row that still holds a raw `source_cache` under a file row rebuilt at
-or after `W` is neither blanked nor counted, on either run, so it escapes
-this exit signal. That stale-cache row is tracked in #9167.
+The entities statement and census 3 take the file row's generation or the
+entity's own `indexed_at`, whichever is older relative to `W`: an entity row
+that still holds a raw `source_cache` under a file row rebuilt at or after
+`W` is still blanked and counted while its own `indexed_at` predates `W`
+(#9167).
 
 `files`, `repos`, `reference_rows`, `search_documents`, and
 `search_fact_payloads` size the work and never reach zero: a redacted row keeps
@@ -140,13 +141,14 @@ WITH w AS (SELECT COALESCE((SELECT reindex_request_requested_at
                             FROM runtime_ingester_control
                             WHERE ingester = 'repository'), now()) AS at)
 SELECT
-  (SELECT count(*) FROM content_entities e                  -- an entity has no generation:
-    LEFT JOIN content_files f ON f.repo_id = e.repo_id     -- it takes its file's
+  (SELECT count(*) FROM content_entities e                  -- an entity has no generation
+    LEFT JOIN content_files f ON f.repo_id = e.repo_id     -- of its own: the guard
                              AND f.relative_path = e.relative_path
     LEFT JOIN scope_generations g ON g.generation_id = f.generation_id
     WHERE lower(e.relative_path) ~ '(^|/)\.yarnrc\.yml$|\.tfvars(\.json)?$'
       AND e.source_cache <> ''
-      AND COALESCE(g.ingested_at, '-infinity') < (SELECT at FROM w))
+      AND (COALESCE(g.ingested_at, '-infinity') < (SELECT at FROM w)
+        OR e.indexed_at < (SELECT at FROM w)))             -- a stale entity under a rebuilt file (#9167)
                                                            AS raw_entity_rows,
   (SELECT count(*) FROM content_file_references r
     LEFT JOIN content_files f ON f.repo_id = r.repo_id
@@ -218,7 +220,9 @@ The statements do the following:
 
 The reindex rebuilds all of them from the redacted rows. Every statement keeps
 the guard "the copy's generation was ingested before `w` and the copy is
-non-empty". The references, entities, and files statements lock the batch first
+non-empty"; the entities statement additionally catches a stale entity whose
+own `indexed_at` predates `w` even when its file row was rebuilt at or after
+`w` (#9167). The references, entities, and files statements lock the batch first
 and test the guard again in a second statement of the same transaction, so a
 row the writer rebuilt after `W` is never blanked.
 
@@ -256,7 +260,8 @@ WHERE r.repo_id = b.repo_id AND r.relative_path = b.relative_path
                '-infinity') < :'w';
 COMMIT;
 
--- Statement entities: an entity takes its file row's generation.
+-- Statement entities: an entity takes its file row's generation, or its own
+-- indexed_at when the file row was rebuilt without it (#9167).
 BEGIN;
 CREATE TEMP TABLE batch ON COMMIT DROP AS
   SELECT e.entity_id
@@ -267,7 +272,8 @@ CREATE TEMP TABLE batch ON COMMIT DROP AS
   WHERE e.repo_id = :'repo'
     AND lower(e.relative_path) ~ :'pred'
     AND e.source_cache <> ''
-    AND COALESCE(g.ingested_at, '-infinity') < :'w'
+    AND (COALESCE(g.ingested_at, '-infinity') < :'w'
+      OR e.indexed_at < :'w')
   ORDER BY e.entity_id
   LIMIT 500
   FOR UPDATE OF e SKIP LOCKED;
@@ -275,10 +281,11 @@ UPDATE content_entities e SET source_cache = ''
 FROM batch b
 WHERE e.entity_id = b.entity_id
   AND e.source_cache <> ''
-  AND COALESCE((SELECT g.ingested_at FROM content_files f
+  AND (COALESCE((SELECT g.ingested_at FROM content_files f
                 JOIN scope_generations g ON g.generation_id = f.generation_id
                 WHERE f.repo_id = e.repo_id AND f.relative_path = e.relative_path),
-               '-infinity') < :'w';
+               '-infinity') < :'w'
+    OR e.indexed_at < :'w');
 COMMIT;
 
 -- Statement files: blank the body. content_lower follows (generated column).

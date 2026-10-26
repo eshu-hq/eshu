@@ -694,6 +694,11 @@ tests:
     class: postgres_ci
     reason: "#8247 disposable PostgreSQL proof that the corpus-fence gauge statement counts exactly the fence holders and the active-generation retrying resolution-not-ready consumers with the oldest deferred age, and plans on the fact_work_items stage/domain/status index at 20k filler rows; isolated schema; 3.89s locally on PostgreSQL 16; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/credential_cleanup_entity_guard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9167 disposable PostgreSQL proof that the operator cleanup's entity census and purge statement key the entity guard on the entity's own indexed_at: a raw-cache entity under a rebuilt post-watermark file row is counted by census 3 and blanked by statement entities; isolated bootstrapped schema per test"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/credential_cleanup_purge_live_test.go
     tag: ~
     class: postgres_ci
