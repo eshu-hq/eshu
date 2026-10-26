@@ -39,6 +39,44 @@
     "timestamp": "2026-10-20T11:55:00Z",
     "html_url": "https://example.pagerduty.com/change_events/CHG1"
   },
+  "config_service": {
+    "id": "SVC1",
+    "summary": "checkout-api",
+    "status": "active",
+    "alert_creation": "create_alerts_and_incidents",
+    "escalation": {"id": "ESC1", "type": "escalation_policy", "summary": "checkout-oncall"},
+    "teams": [{"id": "TM1", "type": "team", "summary": "checkout"}],
+    "created_at": "2026-10-19T09:00:00Z",
+    "updated_at": "2026-10-20T11:00:00Z",
+    "html_url": "https://example.pagerduty.com/services/SVC1?token=secret-must-strip",
+    "disabled": false,
+    "deleted": false,
+    "match_state": "not_compared",
+    "manually_created": false,
+    "drift_reason": ""
+  },
+  "config_integration": {
+    "id": "INT1",
+    "service_id": "SVC1",
+    "summary": "cloudwatch alerts",
+    "type": "events_api_v2_inbound_integration",
+    "vendor_id": "PAGERDUTY_VENDOR",
+    "html_url": "https://example.pagerduty.com/services/SVC1/integrations/INT1?routing_key=secret-must-strip",
+    "created_at": "2026-10-19T09:30:00Z",
+    "updated_at": "2026-10-20T10:30:00Z",
+    "disabled": false,
+    "deleted": false,
+    "match_state": "not_compared",
+    "manually_created": true,
+    "drift_reason": "",
+    "routing_key": "routing-key-must-strip",
+    "routing_key_redacted": true
+  },
+  "config_warning": {
+    "resource_class": "service_integration",
+    "resource_id": "INT9",
+    "reason": "permission_hidden"
+  },
   "hostile": {
     "blank_incident_id": "",
     "blank_event_id": "",

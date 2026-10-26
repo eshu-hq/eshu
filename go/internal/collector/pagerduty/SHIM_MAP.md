@@ -16,12 +16,12 @@ idempotent.
 | In-tree outcome | SDK `ResultState` | Host action |
 | --- | --- | --- |
 | envelopes committed | `complete` | validate facts, complete claim |
-| 401/403 at claim scope → coverage warning + reachable evidence | `partial` + `Status{warning}` + `incident_routing.coverage_warning` facts | commit reachable evidence |
-| 404 on configured resource → coverage warning + reachable evidence | `partial` + `Status{warning}` + `incident_routing.coverage_warning` facts | commit reachable evidence |
+| claim-level list fetch fails (incidents, log entries): 401/403 → auth-denied, 404 → not-found, both `Terminal:true` (`client.go`, `ClassifyStatus`) | `terminal` | terminal-fail claim, no envelopes |
+| claim-level list fetch fails transiently (transport, 5xx, timeout) | `retryable` | release claim, bounded retry |
 | rate-limited request counted, otherwise complete | `complete` with `Stats.RateLimits` surfaced as retry telemetry | complete, note throttling |
+| per-resource fetch fails (related change events via `configWarningFromError`, config resources): 401/403 → `permission_hidden`, 404 → `missing`, other 4xx → `unsupported`, 429 → rate-limited warning | `partial` + `Status{warning}` + `incident_routing.coverage_warning` facts | commit reachable evidence |
 | pagination bound hit while `more:true` → truncated warning | `partial` + `Status{warning}` + truncated `incident_routing.coverage_warning` | commit capped evidence |
-| transient transport / retryable HTTP status | `retryable` | release claim, bounded retry |
-| terminal (auth-denied at claim scope, `bad_data` API status, contract violation) | `terminal` | terminal-fail claim |
+| terminal (`bad_data` API status, contract violation, non-HTTP terminal failure) | `terminal` | terminal-fail claim |
 | cancellation | (no result) | stop, no commit |
 
 Duplicate delivery stays safe: stable keys are deterministic

@@ -49,6 +49,11 @@ cassette replay. Target secrets resolve exclusively through `token_env`
 | `source.go:89` | only emission entry | `(*ClaimedSource).NextClaimed` |
 | `source.go:170` | failure classification | `classifiedProviderFailure` |
 | `source.go:224` | envelope fan-out | `(*ClaimedSource).envelopes` |
+| `source_config.go:17` | claim-path config collection | `(*ClaimedSource).collectConfigEvidence` |
+| `source_config.go:45` | config observation clock | `collectionObservedAt` |
+| `source_config.go:59,77,110` | config telemetry | `recordConfigTelemetry`, `recordObservedConfigResources`, `recordConfigWarnings` |
+| `config_normalize.go:53,65` | service normalization | `normalizeConfigServices`, `normalizeConfigService` |
+| `config_normalize.go:84,102,128` | integration normalization | `normalizeConfigIntegrations`, `normalizeConfigIntegration`, `normalizedConfigMatchState` |
 | `client.go`, `http_config.go` | provider REST client | incident / log-entry / change-event / config reads |
 | `pagination.go` | offset pagination | `paginateOffset` (local offset, never server-echoed) |
 | `normalize.go:90,113,130` | provider JSON normalization | `normalizeIncidents` … `normalizeChangeEvents` |
