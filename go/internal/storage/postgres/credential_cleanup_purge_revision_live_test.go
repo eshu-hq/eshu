@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9049 disposable PostgreSQL proof that the operator cleanup's statement A (run from docs/public/deployment/credential-file-cleanup.md) moves the semantic-search cache key: it bumps a ready scope's document projection revision together with the matching vector scope revisions exactly when it deletes documents, leaves the vector build fence alone, ignores scopes with no state rows, and a second pass touches zero rows so the repeat-until-zero loop still ends; isolated bootstrapped schema per test
+//eshu:readiness:reason #9049 disposable PostgreSQL proof that the operator cleanup's statement A (run from docs/public/deployment/credential-file-cleanup.md) moves the semantic-search cache key: it bumps a ready scope's document projection revision together with the matching vector scope revisions exactly when it deletes documents, leaves the vector build fence alone, skips a building scope's revision while still deleting its documents, ignores scopes with no state rows, and a second pass touches zero rows so the repeat-until-zero loop still ends; isolated bootstrapped schema per test
 //eshu:readiness:env ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN
 
 import (
@@ -19,7 +19,10 @@ func TestCredentialCleanupPurgeBumpsSearchRevisionsLive(t *testing.T) {
 	purge := splitSections(t, purgeFence, statementHeadPattern)
 
 	// r1 carries ready search state; r2 carries documents but no state rows,
-	// so the bump must be a no-op there while the deletes still land.
+	// so the bump must be a no-op there while the deletes still land; r3
+	// carries a building projection with deletable documents, so the deletes
+	// must land while the revision stays put (an in-flight build already
+	// moved the revision, which the ready guard protects).
 	r1Scope, r1Gen := f.scope("rev-r1", f.w.Add(-time.Hour))
 	f.exec(`INSERT INTO eshu_search_document_projection_state
     (scope_id, generation_id, projection_revision, build_fence, state, document_count, updated_at)
@@ -32,11 +35,16 @@ VALUES ($1, $2, 'local', 'search_documents', 'local-hash-v1', 'vector-v1', 5, 2,
 	f.searchCopies("rev-r1", r1Scope, r1Gen, ".yarnrc.yml", true, true)
 	r2Scope, r2Gen := f.scope("rev-r2", f.w.Add(-time.Hour))
 	f.searchCopies("rev-r2", r2Scope, r2Gen, "prod.tfvars", true, true)
+	r3Scope, r3Gen := f.scope("rev-r3", f.w.Add(-time.Hour))
+	f.exec(`INSERT INTO eshu_search_document_projection_state
+    (scope_id, generation_id, projection_revision, build_fence, state, document_count, updated_at)
+VALUES ($1, $2, 5, 5, 'building', 1, $3)`, r3Scope, r3Gen, f.w)
+	f.searchCopies("rev-r3", r3Scope, r3Gen, ".yarnrc.yml", true, true)
 
 	vars := map[string]string{"pred": credentialCleanupPred, "w": f.w.Format(time.RFC3339)}
 	pass := func() map[string]int64 {
 		touched := map[string]int64{}
-		for _, repo := range []string{"rev-r1", "rev-r2"} {
+		for _, repo := range []string{"rev-r1", "rev-r2", "rev-r3"} {
 			vars["repo"] = repo
 			for _, name := range []string{"A", "B"} {
 				for i := 0; ; i++ {
@@ -54,7 +62,7 @@ VALUES ($1, $2, 'local', 'search_documents', 'local-hash-v1', 'vector-v1', 5, 2,
 	if first["A"] == 0 || first["B"] == 0 {
 		t.Fatalf("first pass touched A=%d B=%d, want the seeded copies", first["A"], first["B"])
 	}
-	if n := f.count(`SELECT count(*) FROM eshu_search_index_documents WHERE repo_id IN ('rev-r1','rev-r2')`); n != 0 {
+	if n := f.count(`SELECT count(*) FROM eshu_search_index_documents WHERE repo_id IN ('rev-r1','rev-r2','rev-r3')`); n != 0 {
 		t.Fatalf("%d index documents survive the purge", n)
 	}
 	var docRev, docFence int64
@@ -87,6 +95,28 @@ FROM eshu_search_vector_scope_state WHERE scope_id = $1 AND generation_id = $2
 	}
 	if vecState != "ready" {
 		t.Fatalf("vector state after purge = %q, want ready", vecState)
+	}
+	var bldRev, bldFence int64
+	var bldState string
+	if err := f.db.QueryRowContext(f.ctx, `SELECT projection_revision, build_fence, state
+FROM eshu_search_document_projection_state WHERE scope_id = $1 AND generation_id = $2`,
+		r3Scope, r3Gen).Scan(&bldRev, &bldFence, &bldState); err != nil {
+		t.Fatalf("read building state after purge: %v", err)
+	}
+	if bldRev != 5 {
+		t.Fatalf("building revision after purge = %d, want 5 (the ready guard skips in-flight builds)", bldRev)
+	}
+	if bldFence != 5 {
+		t.Fatalf("building build fence after purge = %d, want 5 (the purge is not a build)", bldFence)
+	}
+	if bldState != "building" {
+		t.Fatalf("building state after purge = %q, want building", bldState)
+	}
+	if n := f.count(`SELECT count(*) FROM eshu_search_index_documents WHERE repo_id = 'rev-r3'`); n != 0 {
+		t.Fatalf("%d building-scope documents survive the purge, want the deletes to land", n)
+	}
+	if n := f.count(`SELECT count(*) FROM fact_records WHERE payload->>'repo_id' = 'rev-r3'`); n != 0 {
+		t.Fatalf("%d building-scope facts survive the purge, want statement B to visit the scope", n)
 	}
 	if n := f.count(`SELECT count(*) FROM eshu_search_document_projection_state WHERE scope_id = $1`, r2Scope); n != 0 {
 		t.Fatalf("the purge created %d projection state rows for a stateless scope", n)
