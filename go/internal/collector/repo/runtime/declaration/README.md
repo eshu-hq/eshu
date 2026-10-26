@@ -198,9 +198,9 @@ Rules that keep a manifest read bounded and fail closed:
 ## Dockerfile and workflow sources
 
 A Dockerfile `FROM` line declares the base image's tag, and a workflow
-`setup-*` step declares its runtime through its `with:` version inputs, so
-both emit through the same contract (issue #8818). `source_kind` names the
-section, as for the manifest sources.
+step declares its runtime through its `with:` version inputs (whatever the
+step's `uses:` names), so both emit through the same contract (issue
+#8818). `source_kind` names the section, as for the manifest sources.
 
 | `source_kind` | Read from | `runtime` |
 | --- | --- | --- |
