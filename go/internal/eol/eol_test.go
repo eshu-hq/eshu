@@ -235,6 +235,56 @@ func TestEmbeddedSnapshotLoadsEightProducts(t *testing.T) {
 	}
 }
 
+// TestResolveEOLDayBoundary pins the eol-day edge: the eol day itself keeps
+// its pre-eol status and only the day after resolves eol, so dropping the
+// +24h grace from the eol comparison must fail here.
+func TestResolveEOLDayBoundary(t *testing.T) {
+	sn := mustParse(t)
+	// Cycle 20 ends 2026-04-30 with support ended 2025-10-01.
+	eolDay := time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
+	if ans := Resolve(sn, "node", 20, 0, false, eolDay); ans.Status != StatusSupportEnding {
+		t.Fatalf("node 20 on eol day = %q, want %q", ans.Status, StatusSupportEnding)
+	}
+	dayAfter := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	if ans := Resolve(sn, "node", 20, 0, false, dayAfter); ans.Status != StatusEOL {
+		t.Fatalf("node 20 day after eol = %q, want %q", ans.Status, StatusEOL)
+	}
+}
+
+// TestResolveSupportDayBoundary pins the support-day edge: the support day
+// itself is still supported and only the day after opens support-ending, so
+// dropping the +24h grace from the support comparison must fail here.
+func TestResolveSupportDayBoundary(t *testing.T) {
+	sn := mustParse(t)
+	// Cycle 21 support ends 2026-04-01, eol 2026-09-01.
+	supportDay := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	if ans := Resolve(sn, "node", 21, 0, false, supportDay); ans.Status != StatusSupported {
+		t.Fatalf("node 21 on support day = %q, want %q", ans.Status, StatusSupported)
+	}
+	dayAfter := time.Date(2026, 4, 2, 12, 0, 0, 0, time.UTC)
+	if ans := Resolve(sn, "node", 21, 0, false, dayAfter); ans.Status != StatusSupportEnding {
+		t.Fatalf("node 21 day after support = %q, want %q", ans.Status, StatusSupportEnding)
+	}
+}
+
+// TestSnapshotAgeBoundaryIsFreshAtThirtyDays pins the refresh-window edge:
+// exactly RefreshWindowDays is still fresh (31 days is stale per
+// TestAnswerCarriesSnapshotAge), so a >= comparison must fail here.
+func TestSnapshotAgeBoundaryIsFreshAtThirtyDays(t *testing.T) {
+	sn, err := ParseSnapshot(fixtureFiles(), "2026-05-02")
+	if err != nil {
+		t.Fatalf("ParseSnapshot: %v", err)
+	}
+	// 2026-05-02 to 2026-06-01 is exactly 30 days.
+	ans := Resolve(sn, "node", 22, 0, false, fixtureNow())
+	if ans.SnapshotAgeDays != 30 {
+		t.Fatalf("SnapshotAgeDays = %d, want 30", ans.SnapshotAgeDays)
+	}
+	if ans.Stale {
+		t.Fatal("30-day-old snapshot must not be stale")
+	}
+}
+
 func TestEmbeddedSnapshotResolvesWithoutNetwork(t *testing.T) {
 	t.Setenv("HTTP_PROXY", "http://127.0.0.1:9")
 	t.Setenv("HTTPS_PROXY", "http://127.0.0.1:9")
