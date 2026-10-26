@@ -104,6 +104,38 @@ python3 "${generator}" --root "${scratch}" >/dev/null ||
 git -C "${scratch}" add -A
 git -C "${scratch}" -c user.email=t@t -c user.name=t commit -qm reseeded >/dev/null
 
+# shard-stable: enrolling one file changes exactly one generated module
+# (#9149: a file's shard comes from its own name and the committed boundary
+# table, never from sibling sizes, so a new file cannot spill a neighbor
+# into another part). The early-sorting three-test seed forces a greedy
+# spill on the old fill; the boundary cut keeps it in part1 alone.
+stable_seed="${seed_dir}/aaa_seed_stable_shard_probe_live_test.go"
+printf '%s\n' \
+  '// SPDX-License-Identifier: MIT' \
+  'package postgres_test' \
+  '' \
+  '//eshu:readiness live-postgres-readiness' \
+  '//eshu:readiness:reason #9149 seeded stable-shard probe: proves one enrollment changes one generated module.' \
+  '//eshu:readiness:env ESHU_POSTGRES_DSN' \
+  'import "testing"' \
+  '' \
+  'func TestAaaStableShardProbeOneLive(t *testing.T) { t.Skip("seed") }' \
+  'func TestAaaStableShardProbeTwoLive(t *testing.T) { t.Skip("seed") }' \
+  'func TestAaaStableShardProbeThreeLive(t *testing.T) { t.Skip("seed") }' >"${stable_seed}"
+python3 "${generator}" --root "${scratch}" >/dev/null ||
+  fail "regeneration after stable-shard seeding failed"
+changed_modules="$(git -C "${scratch}" status --porcelain -- 'scripts/lib/live_postgres_readiness_inventory_gen_*.py')"
+changed_count="$(printf '%s\n' "${changed_modules}" | rg -c . || true)"
+[[ "${changed_count}" == "1" ]] ||
+  fail "stable-shard seed changed ${changed_count} generated modules, want exactly 1:${changed_modules:+$'\n'}${changed_modules}"
+[[ "${changed_modules}" == *"part1"* ]] ||
+  fail "stable-shard seed did not land in part1: ${changed_modules}"
+rm "${stable_seed}"
+python3 "${generator}" --root "${scratch}" >/dev/null ||
+  fail "regeneration after stable-shard seed removal failed"
+[[ "$(scratch_check)" == *"registration current"* ]] ||
+  fail "tree not green after stable-shard seed removal"
+
 # shard-complete: every yaml-enrolled file is present in the assembled
 # runner PACKAGES. Shards of one package must deep-merge: a shallow
 # {**a, **b} assembler lets the last shard's table overwrite the earlier
@@ -173,4 +205,4 @@ out="$(python3 "${generator}" --root "${scratch}" 2>&1)" && fail "quoted reason 
 [[ "${out}" == *"${quote_file##*/}"* ]] || fail "quoted reason not named: ${out}"
 rm "${quote_file}"
 
-printf 'test-generate-live-postgres-readiness: GREEN (clean, idempotent, shard-complete, stale/unregistered/orphan/quote RED)\n'
+printf 'test-generate-live-postgres-readiness: GREEN (clean, idempotent, shard-stable, shard-complete, stale/unregistered/orphan/quote RED)\n'
