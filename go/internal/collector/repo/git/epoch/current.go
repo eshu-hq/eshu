@@ -20,15 +20,27 @@ var embeddedLedger []byte
 // touching the freshness hint would hit; it panics rather than fold a wrong
 // value into every hint.
 var current = sync.OnceValue(func() string {
-	ledger, err := Parse(embeddedLedger)
+	return mustCurrent(embeddedLedger)
+})
+
+// mustCurrent returns the epoch folded into every freshness hint. It panics
+// on a malformed, unshaped, or unsealed ledger rather than fold a wrong epoch:
+// Parse accepts a hand-merged ledger (it does not check the seal) and the
+// epoch shape survives a merge, so only an explicit Sealed check fails the
+// merge closed here instead of shipping new output under an old hint.
+func mustCurrent(data []byte) string {
+	ledger, err := Parse(data)
 	if err != nil {
 		panic(fmt.Sprintf("git content epoch: parse embedded %s: %v", LedgerFile, err))
 	}
 	if !ValidEpoch(ledger.Epoch) {
 		panic(fmt.Sprintf("git content epoch: embedded %s epoch %q is not %d lowercase hex characters", LedgerFile, ledger.Epoch, epochLength))
 	}
+	if !ledger.Sealed() {
+		panic(fmt.Sprintf("git content epoch: embedded %s is not sealed: re-pin, then resolve conflicts with origin/main before re-pinning", LedgerFile))
+	}
 	return ledger.Epoch
-})
+}
 
 // Current returns the content epoch of the ledger embedded in this build. It
 // is deterministic across builds of the same tree, so an unchanged ledger
