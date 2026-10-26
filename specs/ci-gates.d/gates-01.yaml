@@ -250,6 +250,8 @@ gates:
     blocking: true
     triggers:
       - "scripts/**"
+      - "scripts/**/*.md"
+      - "scripts/**/*.json"
       - ".github/workflows/test.yml"
       - ".pre-commit-config.yaml"
       - "specs/ci-gates.v1.yaml"

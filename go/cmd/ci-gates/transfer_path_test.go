@@ -163,8 +163,11 @@ func TestFullCodeApplicabilityUsesTrustedFilter(t *testing.T) {
 	}{
 		{path: "README.md"},
 		{path: "docs/public/guide.md"},
-		{path: "go/cmd/ci-gates/README.md", want: true},
+		{path: "go/cmd/ci-gates/README.md"},
+		{path: "docs/public/reference/code-coverage-shield.json"},
 		{path: "apps/console/src/App.tsx", want: true},
+		{path: "go/cmd/ci-gates/main.go", want: true},
+		{path: "specs/ci-images.v1.json", want: true},
 	} {
 		got, err := fullCodeApplicable(root, []string{tc.path}, false)
 		if err != nil || got != tc.want {

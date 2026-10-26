@@ -21,7 +21,7 @@ func fullCodeApplicable(root string, paths []string, truncated bool) (bool, erro
 		return false, err
 	}
 	patterns := filters["code"]
-	want := []string{"**", "!docs/**", "!*.md", "!mkdocs.yml", "!.github/**/*.md", "!.agents/**"}
+	want := []string{"**", "!docs/**", "!*.md", "!**/*.md", "!*.json", "!docs/**/*.json", "!scripts/**/*.json", "!mkdocs.yml", "!.github/**/*.md", "!.agents/**"}
 	if !every || !slices.Equal(patterns, want) {
 		return false, fmt.Errorf("build test code filter has an unrecognized selection policy")
 	}

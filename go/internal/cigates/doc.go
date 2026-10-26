@@ -31,7 +31,12 @@
 // # Required checks
 //
 // (*Registry).RequiredGates(changed []string) selects every matching blocking
-// CI job regardless of local tier or availability. (*Registry).AllBlockingGates
+// CI job regardless of local tier or availability. A docs-set path (nested
+// markdown, scoped JSON; see IsDocsSetPath) only selects through triggers
+// that can match docs-set paths alone, so a README-only change selects the
+// hygiene and docs gates without pulling in code gates — keeping registry
+// selection, PR-plan workflow selection, and the code filter in agreement.
+// (*Registry).AllBlockingGates
 // selects every blocking CI job without path filtering, for callers whose
 // changed-path listing was truncated (giant PRs past the pull-files endpoint
 // cap): over-selection fails closed in the safe direction. The top-level

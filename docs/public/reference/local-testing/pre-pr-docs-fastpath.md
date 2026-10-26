@@ -231,8 +231,11 @@ banner when any fast-path path is under `go/`.
 The two definitions **overlap; neither contains the other.** CI's docs-only PR
 skip, described under
 [CI workflow shape](../local-testing.md#ci-workflow-shape), is the `code` filter
-in `.github/workflows/test.yml`. It negates `docs/**`, a root-level `*.md`,
-`mkdocs.yml`, `.github/**/*.md`, and `.agents/**`. This local classifier:
+in `.github/workflows/test.yml` (mirrored in `security-scan.yml` and
+`mcp-schema-drift.yml`, with the same ignores in the `build.yml` plan
+fragment). It negates `docs/**`, markdown at any depth (`*.md`, `**/*.md`),
+root/docs/scripts JSON (`*.json`, `docs/**/*.json`, `scripts/**/*.json`),
+`mkdocs.yml`, `.github/**/*.md`, and `.agents/**` (#9200). This local classifier:
 
 - **adds** `specs/capability-matrix.v1.yaml`, `specs/capability-matrix/**`, and
   `go/internal/capabilitycatalog/data/*.generated.json`

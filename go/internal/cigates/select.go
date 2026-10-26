@@ -72,10 +72,22 @@ func selectGate(g Gate, changed []string, requestedTier Tier) Selection {
 		}
 	}
 
-	// Check triggers against changed paths.
+	// A docs-only change never runs code-gated lanes, so the local lane skips
+	// them too and stays consistent with what the PR aggregate will await.
+	if docsSetSkipsGate(g, changed) {
+		return Selection{
+			Gate:     g,
+			Selected: false,
+			Reason:   fmt.Sprintf("CI job %q never runs for docs-only changes — skipped in local lane", g.CI.Job),
+		}
+	}
+
+	// Check triggers against changed paths. A docs-set path only selects
+	// through a trigger that can match docs-set paths alone, so nested
+	// markdown and scoped JSON no longer pull in code gates (#9200).
 	for _, trigger := range g.Triggers {
 		for _, path := range changed {
-			if MatchGlob(trigger, path) {
+			if triggerMatchesChangedPath(trigger, path) {
 				return Selection{
 					Gate:     g,
 					Selected: true,

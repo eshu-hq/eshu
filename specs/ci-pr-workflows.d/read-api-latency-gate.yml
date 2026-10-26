@@ -41,6 +41,10 @@ workflows:
   - docker-compose.read-api-latency-gate.yaml
   - .github/workflows/read-api-latency-gate.yml
   - specs/ci-pr-workflows.d/read-api-latency-gate.yml
+  # Markdown prose is never compiled or executed: a markdown-only change must
+  # not select the latency gate. Appended last so every positive entry above
+  # keeps precedence for non-markdown paths (last match wins).
+  - '!**/*.md'
   jobs:
   - latency-gate
   - methodology-scale

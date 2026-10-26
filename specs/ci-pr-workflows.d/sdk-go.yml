@@ -10,6 +10,10 @@ workflows:
   - scripts/ci/install-apt-packages.sh
   - scripts/ci/go-mod-download-retry.sh
   - specs/ci-pr-workflows.d/sdk-go.yml
+  # Markdown prose is never compiled or executed: a markdown-only change must
+  # not select the SDK suites. Appended last so every positive entry above
+  # keeps precedence for non-markdown paths (last match wins).
+  - '!**/*.md'
   jobs:
   - queue-selection
   - sdk-go-collector

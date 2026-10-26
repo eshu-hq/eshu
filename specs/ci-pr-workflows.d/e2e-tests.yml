@@ -30,6 +30,10 @@ workflows:
   - scripts/ci/go-mod-download-retry.sh
   - .github/workflows/e2e-tests.yml
   - specs/ci-pr-workflows.d/e2e-tests.yml
+  # Markdown prose is never compiled or executed: a markdown-only change must
+  # not select end-to-end tests. Appended last so every positive entry above
+  # keeps precedence for non-markdown paths (last match wins).
+  - '!**/*.md'
   jobs:
   - queue-selection
   - test

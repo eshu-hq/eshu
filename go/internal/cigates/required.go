@@ -80,9 +80,14 @@ func (r *Registry) requiredGates(changed []string, matchAll bool) ([]RequiredGat
 }
 
 func gateMatchesAnyPath(gate Gate, changed []string) bool {
+	// A docs-only PR never runs code-gated lanes: selecting them strands the
+	// aggregate on checks that are never produced.
+	if docsSetSkipsGate(gate, changed) {
+		return false
+	}
 	for _, trigger := range gate.Triggers {
 		for _, path := range changed {
-			if MatchGlob(trigger, path) {
+			if triggerMatchesChangedPath(trigger, path) {
 				return true
 			}
 		}

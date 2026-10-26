@@ -2,15 +2,18 @@
 #
 # verify-docs-only-ci-skip.sh — static mirror for the docs-only CI carve-out.
 #
-# A docs-only PR (docs/**, root markdown, mkdocs config) must skip the heavy Go
-# lanes while the cheap due-diligence gates — and the docs-relevant guards that
-# happen to live inside otherwise-heavy workflows — still run. That behavior
-# lives in .github/workflows YAML and is only exercised by GitHub Actions, so
-# this script is the local guard that the WIRING is intact. It fails closed if a
-# future edit removes a path filter, drops a heavy job's `changes` gate, lets the
-# go-race umbrella reject a legitimately-skipped matrix, or — the subtle one the
-# review caught — silences a docs-relevant guard (Trivy's secret scan, the
-# capability `-mode docs` check) by gating the wrong job.
+# A docs-only PR (docs/**, nested markdown anywhere, root/scoped JSON, mkdocs
+# config) must skip the heavy Go lanes while the cheap due-diligence gates —
+# and the docs-relevant guards that happen to live inside otherwise-heavy
+# workflows — still run. That behavior lives in .github/workflows YAML and is
+# only exercised by GitHub Actions, so this script is the local guard that the
+# WIRING is intact. It fails closed if a future edit removes a path filter,
+# drops a heavy job's `changes` gate, lets the go-race umbrella reject a
+# legitimately-skipped matrix, or — the subtle one the review caught —
+# silences a docs-relevant guard (Trivy's secret scan, the capability
+# `-mode docs` check) by gating the wrong job. go-tree, sdk-tree, tests, and
+# testdata JSON deliberately stays code (unit tests and go:embed consume it),
+# as do specs image pins (they feed the query-plan image contract).
 #
 # It does not re-implement dorny/paths-filter's matcher (CI owns the actual path
 # evaluation); it asserts the structure that makes the skip correct, complete,
@@ -265,6 +268,30 @@ negation_swallows_trigger() {
 		;;
 	esac
 
+	# Leading-recursive + extension-anchored negation "**/*.<ext>" (e.g.
+	# '**/*.md') swallows a trigger only when every path the trigger can match
+	# carries that extension: a literal (glob-free) trigger ending in ".<ext>",
+	# or a trigger that is itself this hybrid shape (the same "**/*.<ext>" or
+	# a "<dir>/**/*.<ext>" tail with the same suffix, since "**/" matches zero
+	# or more segments including none). A "<dir>/**" trigger is NOT swallowed
+	# here — it can match files of any extension.
+	case "${n}" in
+	'**/*.'*)
+		local lsuffix="${n#'**/'}"
+		case "${t}" in
+		'**/'"${lsuffix}")
+			return 0
+			;;
+		*/'**/'"${lsuffix}")
+			return 0
+			;;
+		esac
+		if [[ "${t}" != *[*?]* && "${t}" == *"${lsuffix#\*}" ]]; then
+			return 0
+		fi
+		;;
+	esac
+
 	# Bare root-anchored extension negation (no "/", e.g. "*.md") swallows the
 	# bare pattern itself, or a literal top-level trigger sharing the suffix.
 	if [[ "${n}" != */* && "${n}" == \**.* ]]; then
@@ -364,6 +391,8 @@ fi
 run_merge_group_checks "${t}"
 
 run_docs_planner_checks "${t}" "${wf}/build.yml" "${repo_root}/specs/ci-pr-workflows.d/build.yml" "${repo_root}/scripts/ci/assert-go-complete.sh"
+
+run_docs_set_checks "${t}" "${s}" "${m}" "${repo_root}/specs/ci-pr-workflows.d"
 
 # --- #5818 regression guard 1: the three `code` filter copies must stay
 # byte-identical. #5818 happened because the fix (excluding a nested markdown

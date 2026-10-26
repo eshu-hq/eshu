@@ -241,13 +241,19 @@ to select workflows and gates on the exact head:
   the Go-source security scanners (`govulncheck`/`gosec`/`nancy` in
   `security-scan.yml`), the Go MCP drift jobs (`mcp-tool-count`/`mcp-test-suite`),
   and end-to-end tests all **skip a docs-only PR** — one whose every
-  changed file is under `docs/**`, a root-level `*.md`, `mkdocs.yml`, or
-  `.agents/**`. The trusted plan preserves `build.yml`'s former `paths-ignore`; the mixed
-  workflows (`test.yml`, `security-scan.yml`, `mcp-schema-drift.yml`) skip
-  per-job via a `changes` gate, so their always-on jobs above keep running. The
-  bare `*.md` negation is **root-anchored** (`README.md`, not nested markdown),
-  so `go/**/*.md` still counts as code; `.agents/**` is negated explicitly
-  (#5818). Any PR mixing docs with code runs the full set. `main`, the nightly
+  changed file is `docs/**`, markdown at any depth (`*.md`, `**/*.md`),
+  root/docs/scripts JSON (`*.json`, `docs/**/*.json`, `scripts/**/*.json`),
+  `mkdocs.yml`, `.github/**/*.md`, or `.agents/**`. The trusted plan preserves
+  `build.yml`'s former `paths-ignore` (extended with the same nested-markdown
+  and scoped-JSON ignores); the mixed workflows (`test.yml`,
+  `security-scan.yml`, `mcp-schema-drift.yml`) skip per-job via a `changes`
+  gate, so their always-on jobs above keep running; the `go/**` heavy
+  fragments (bench, e2e, live-backend, read-api-latency, sdk-go) exclude
+  `**/*.md`. `.agents/**` is negated explicitly (#5818). Deliberately still
+  code: `specs/**` JSON (image pins feed the query-plan image contract),
+  `go/**`, `sdk/**`, `tests/**`, and `testdata/**` JSON (unit tests and
+  `go:embed` consume them — #9200). Any PR mixing docs with code runs the full
+  set. `main`, the nightly
   schedule, and tag pushes run everything unconditionally. macOS CI is
   nightly/dispatch-only, non-blocking (`macos-build`). The manifest keeps two
   umbrellas: `go-core-complete` (**compilation gate** — whole-module
