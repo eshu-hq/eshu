@@ -361,6 +361,9 @@ if [ "${count}" -ge "${MAX_NUDGES}" ]; then
 		"${count}" >&2
 	printf 'goal-continue: if the work is finished, put DONE on the first line of %s. If it is waiting on something outside this machine, arm a watcher and put BLOCKED: <reason> WATCH=<pid> there instead. Either would have ended the turn cleanly without an interruption.\n' \
 		"${goal_file}" >&2
+	if [ "${GOAL_CONTINUE_CODEX_EXHAUSTION_SYSTEM_MESSAGE:-0}" = "1" ]; then
+		printf '%s\n' '{"systemMessage":"The active goal remains unfinished. Automatic continuation has ended because the no-progress budget was exhausted. Resume it in a new user turn after a permitted recovery step or changed external condition; real tool progress resets this budget."}'
+	fi
 	printf '%s %s' "${count}" "${new_offset}" >"${counter}" 2>/dev/null || true
 	exit 0
 fi

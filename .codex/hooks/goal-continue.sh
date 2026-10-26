@@ -87,6 +87,7 @@ print(category)
 ESHU_GOAL_ISSUE_FAIL_CLOSED_UNCHECKED=1 \
 CLAUDE_GOAL_ISSUE_CALL_TIMEOUT=0.75 \
 CLAUDE_GOAL_ISSUE_TOTAL_TIMEOUT=1.0 \
+GOAL_CONTINUE_CODEX_EXHAUSTION_SYSTEM_MESSAGE=1 \
 GOAL_CONTINUE_STOP_CATEGORY="${stop_category}" \
 python3 -c '
 """Bound the shared hook to Codex Stop runtime and fail closed on timeout."""

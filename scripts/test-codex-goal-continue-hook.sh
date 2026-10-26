@@ -36,6 +36,32 @@ PY
 }
 run() { printf '%s' "$1" | bash "${hook}" 2>/dev/null; }
 is_blocked() { printf '%s' "$1" | rg '"decision"[[:space:]]*:[[:space:]]*"block"' >/dev/null; }
+has_system_message() { printf '%s' "$1" | rg '"systemMessage"[[:space:]]*:' >/dev/null; }
+assert_error_exhaustion_warning() {
+  local label="$1" session_id="$2" error_message="$3"
+  local session_goal="${work}/project/.claude/active-goal.${session_id}"
+  local attempt continued response
+  printf 'Recover the active goal after this error.\n' >"${session_goal}"
+  for attempt in 1 2 3 4; do
+    continued=false
+    [[ "${attempt}" -eq 1 ]] || continued=true
+    response="$(run "$(payload "${work}/project" "${session_id}" "${error_message}" "${continued}" "turn-${session_id}")")"
+    if [[ "${attempt}" -lt 4 ]]; then
+      if ! is_blocked "${response}"; then
+        no "${label} continues before the no-progress budget is exhausted"
+        return
+      fi
+    elif ! is_blocked "${response}" \
+      && has_system_message "${response}" \
+      && printf '%s' "${response}" | rg -qi 'goal remains unfinished' \
+      && printf '%s' "${response}" | rg -qi 'no-progress.*budget.*exhausted' \
+      && printf '%s' "${response}" | rg -qi 'new user turn'; then
+      ok "${label} exhaustion warns that the goal remains open and explains how to resume"
+      return
+    fi
+  done
+  no "${label} exhaustion warns that the goal remains open and explains how to resume"
+}
 run_bounded() {
   CODEX_TEST_HOOK="${hook}" CODEX_TEST_PAYLOAD="$1" CODEX_TEST_TIMEOUT=2.5 \
     PATH="$2:${PATH}" python3 -c '
@@ -67,7 +93,11 @@ if [[ ! -x "${hook}" ]]; then no 'Codex goal Stop hook is executable'; fi
 
 rm -f "${goal}"
 out="$(run "$(payload "${work}/project" "${sid}" '')")"
-if [[ -z "${out}" ]]; then ok 'no active goal allows the stop'; else no 'no active goal allows the stop'; fi
+if [[ -z "${out}" ]] && ! has_system_message "${out}"; then
+  ok 'no active goal allows the stop without a recovery warning'
+else
+  no 'no active goal allows the stop without a recovery warning'
+fi
 
 printf 'Finish the requested Eshu goal.\n' >"${goal}"
 out="$(run "$(payload "${work}/project" "${sid}" 'Selected model is at capacity. Please try a different model.' false turn-a)")"
@@ -113,6 +143,18 @@ if ! is_blocked "${out}"; then
 else
   no 'the fourth no-progress Stop in one continuation chain reaches the shared limit'
 fi
+if has_system_message "${out}" \
+  && printf '%s' "${out}" | rg -qi 'goal remains unfinished' \
+  && printf '%s' "${out}" | rg -qi 'no-progress.*budget.*exhausted' \
+  && printf '%s' "${out}" | rg -qi 'new user turn'; then
+  ok 'exhaustion warns that the goal remains open and explains how to resume'
+else
+  no 'exhaustion warns that the goal remains open and explains how to resume'
+fi
+assert_error_exhaustion_warning 'repeated model-capacity Stops' 'capacity-budget' \
+  'Selected model is at capacity. Please try a different model.'
+assert_error_exhaustion_warning 'repeated security-policy Stops' 'security-budget' \
+  'Security policy denied the attempted operation.'
 
 out="$(run "$(payload "${work}/project" "${sid}" 'A fresh owner turn starts a fresh no-progress budget.' false turn-b)")"
 if is_blocked "${out}"; then
@@ -226,7 +268,11 @@ fi
 
 printf 'DONE\n' >"${goal}"
 out="$(run "$(payload "${work}/project" "${sid}" '' false turn-c)")"
-if ! is_blocked "${out}"; then ok 'DONE allows the stop'; else no 'DONE allows the stop'; fi
+if ! is_blocked "${out}" && ! has_system_message "${out}"; then
+  ok 'DONE allows the stop without an exhaustion warning'
+else
+  no 'DONE allows the stop without an exhaustion warning'
+fi
 
 # This hook has a three-second command timeout. An unavailable issue status
 # must return a bounded block instead of letting DONE pass on an open ledger.

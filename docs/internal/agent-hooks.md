@@ -273,11 +273,10 @@ happening, repeatedly, and cost more. If it ever bites, `stop_hook_active` is
 parsed from the payload and used nowhere — the harness saying "I already
 blocked once this turn", discarded — and that is the first place to look.
 
-When the budget does release a turn, the owner is about to be interrupted, so
-the hook says why on stderr and names the two escapes that would have avoided
-it. The last continuation warns as well, giving the agent one chance to write
-`DONE` or `BLOCKED: <reason> WATCH=<pid>` itself. Most releases happen because an agent
-that is finished, or waiting, never says so — and the owner pays for that.
+When the budget releases a turn, the hook reports why and names the two goal
+file escapes. The final continuation warns the agent to mark `DONE` or add a
+verified watcher. Codex also returns a visible `systemMessage` that the goal
+remains unfinished and can be resumed in a new user turn. Retries stay bounded.
 
 ### The two hooks must decide alike
 

@@ -65,6 +65,13 @@ returns a continuation block. The definition uses Codex's 3-second command-hook
 timeout configured in `.codex/hooks.json`; the adapter's internal deadline is
 two seconds.
 
+If Codex reaches the no-progress limit, the Stop hook allows the turn to end and
+returns a `systemMessage` warning that the active goal remains unfinished. It
+explains that a new user turn resumes the goal and that real tool progress resets
+the budget. No-goal and `DONE` stops do not show this warning. The warning makes
+exhaustion visible; it does not retry forever when capacity or a policy denial
+prevents progress.
+
 The hook contract has a hermetic regression suite at
 `scripts/test-codex-goal-continue-hook.sh`. The repository files make the hook
 available in each clone; on every machine, trust the project config and review
