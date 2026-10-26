@@ -179,12 +179,13 @@ def valid_result_row(row: object) -> bool:
             return False
     for key in ("tool_calls", "domain_calls", "wrong_tool_calls"):
         value = row.get(key)
-        if type(value) is not int or value < 0:
+        if type(value) is not int or not _finite_nonnegative(value):
             return False
     for key in ("helper_calls", "sibling_wrong_calls",
                 "off_family_wrong_calls", "overflowed_calls",
                 "input_tokens", "output_tokens"):
-        if key in row and (type(row[key]) is not int or row[key] < 0):
+        if key in row and (type(row[key]) is not int or
+                           not _finite_nonnegative(row[key])):
             return False
     for key in ("first_domain_call_correct", "success"):
         if type(row.get(key)) is not bool:

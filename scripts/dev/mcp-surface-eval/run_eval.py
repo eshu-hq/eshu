@@ -239,7 +239,7 @@ def existing_result_shape(path: pathlib.Path, client: str) -> str:
     """
     try:
         previous = json.loads(path.read_text())
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         raise SystemExit(f"cannot read existing results file {path}") from exc
     if not isinstance(previous, dict):
         raise SystemExit(f"invalid results envelope in {path}")

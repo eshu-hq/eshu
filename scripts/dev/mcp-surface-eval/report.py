@@ -140,7 +140,7 @@ def load_results(path: pathlib.Path) -> dict[str, Any]:
     """
     try:
         loaded = json.loads(path.read_text())
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         raise SystemExit(f"cannot read results file {path}") from exc
     if not isinstance(loaded, dict):
         raise SystemExit(f"invalid results envelope in {path}")

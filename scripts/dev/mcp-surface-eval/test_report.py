@@ -166,8 +166,10 @@ class ResultRowBoundaryTest(unittest.TestCase):
             dict(valid, surface="unknown"),
             {key: value for key, value in valid.items() if key != "tool_calls"},
             dict(valid, tool_calls=True),
+            dict(valid, tool_calls=10 ** 400),
             dict(valid, wrong_tool_calls=-1),
             dict(valid, input_tokens=True),
+            dict(valid, input_tokens=10 ** 400),
             dict(valid, first_domain_call_correct="yes"),
             dict(valid, success="yes"),
             dict(valid, task_id=[]),
@@ -175,6 +177,7 @@ class ResultRowBoundaryTest(unittest.TestCase):
             dict(valid, wall_seconds=float("nan")),
             dict(valid, cost_usd=float("inf")),
             dict(valid, helper_calls=True),
+            dict(valid, helper_calls=10 ** 400),
         ]
         with tempfile.TemporaryDirectory() as directory:
             path = pathlib.Path(directory) / "rows.json"
@@ -188,6 +191,18 @@ class ResultRowBoundaryTest(unittest.TestCase):
                             report.main([str(path)])
                     self.assertIn(str(path), str(ctx.exception))
                     self.assertEqual(output.getvalue(), "")
+
+    def test_rejects_json_integer_digit_limit_without_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "oversized.json"
+            path.write_text('{"meta": {"client": "claude"}, "results": [' +
+                            "9" * 5000 + "]}")
+            output = io.StringIO()
+            with self.assertRaises(SystemExit) as ctx:
+                with contextlib.redirect_stdout(output):
+                    report.main([str(path)])
+            self.assertIn(str(path), str(ctx.exception))
+            self.assertEqual(output.getvalue(), "")
 
     def test_accepts_legacy_optional_defaults_and_extra_fields(self) -> None:
         row = _row("router", "code-lookup-001", True)
