@@ -43,7 +43,8 @@ reach the repository. The SQL below covers what the re-collection does not:
    with `w = W`. The files, entities, and references statements lock the batch
    first and re-test the "ingested before `W`" guard in the same transaction,
    so those three can run while the reindex rebuilds. Statements A and B carry
-   the guard only in the batch select, with no lock and no re-check, so until
+   the guard only in the batch select, with no file-row lock and no
+   same-transaction re-check, so until
    #9166 lands this page claims no concurrent-rebuild safety for them.
 4. Watch `eshu_dp_collector_reconciliation_due_unvisited`. When it reads zero
    for every reason, run the statements again. The second run catches rows
