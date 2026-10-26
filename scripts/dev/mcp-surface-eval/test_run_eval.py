@@ -202,6 +202,12 @@ class ShapeSelectionTest(unittest.TestCase):
             dict(valid, tool_calls=10 ** 400),
             dict(valid, input_tokens=10 ** 400),
             dict(valid, wall_seconds=float("nan")),
+            dict(valid, domain_calls=2),
+            dict(valid, domain_calls=0, wrong_tool_calls=1),
+            dict(valid, helper_calls=1),
+            dict(valid, sibling_wrong_calls=1),
+            dict(valid, off_family_wrong_calls=1),
+            dict(valid, overflowed_calls=2),
         ]
         with tempfile.TemporaryDirectory() as out:
             result = pathlib.Path(out) / "results_claude.json"
@@ -236,9 +242,11 @@ class ShapeSelectionTest(unittest.TestCase):
             client.assert_not_called()
 
     def test_legacy_nonempty_results_allow_same_shape_run(self) -> None:
-        row = dict(score.Score("test-id", "code_lookup", 1, 1, 0,
-                               True, True, 1.0).__dict__, surface="router")
-        for key in ("cost_usd", "input_tokens", "output_tokens"):
+        row = dict(score.Score("test-id", "code_lookup", 2, 1, 1,
+                               False, False, 1.0).__dict__, surface="router")
+        for key in ("cost_usd", "input_tokens", "output_tokens",
+                    "helper_calls", "sibling_wrong_calls",
+                    "off_family_wrong_calls", "overflowed_calls"):
             del row[key]
         row["future_field"] = "ignored"
         with tempfile.TemporaryDirectory() as out:

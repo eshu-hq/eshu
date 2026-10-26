@@ -190,6 +190,23 @@ def valid_result_row(row: object) -> bool:
     for key in ("first_domain_call_correct", "success"):
         if type(row.get(key)) is not bool:
             return False
+    tool_calls = row["tool_calls"]
+    domain_calls = row["domain_calls"]
+    wrong_calls = row["wrong_tool_calls"]
+    # score() counts nested subsets, then partitions the wrong calls.
+    if not wrong_calls <= domain_calls <= tool_calls:
+        return False
+    parts = ("helper_calls", "sibling_wrong_calls", "off_family_wrong_calls")
+    classified_wrong = sum(row.get(key, 0) for key in parts)
+    if classified_wrong > wrong_calls:
+        return False
+    if all(key in row for key in parts) and classified_wrong != wrong_calls:
+        return False
+    if row.get("overflowed_calls", 0) > tool_calls:
+        return False
+    if (row["first_domain_call_correct"] or row["success"]) and \
+            wrong_calls == domain_calls:
+        return False
     if not _finite_nonnegative(row.get("wall_seconds")):
         return False
     if "cost_usd" in row and not _finite_nonnegative(row["cost_usd"]):
