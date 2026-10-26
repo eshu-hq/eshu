@@ -25,9 +25,12 @@ const (
 	maxCursorPathLength    = 4096
 	maxCursorRuntimeLength = 128
 	// maxCursorLength bounds a cursor token before it is decoded. It is sized
-	// to the key fields above: their JSON (about 4.9KB worst case) encodes to
-	// about 6.5KB of base64, so 8192 leaves headroom and every cursor this
-	// route issues decodes. Anything longer is not a token this route issued.
+	// to the key fields above: their JSON (4794 bytes at the field maxima)
+	// encodes to a 6392-char token, so 8192 leaves headroom and every cursor
+	// this route issues for realistic rows decodes. A pathological key (for
+	// example thousands of JSON-escaped characters) trips the encode guard
+	// instead and fails loudly at mint time; anything longer is otherwise not
+	// a token this route issued.
 	maxCursorLength = 8192
 )
 
