@@ -47,7 +47,7 @@ This phase changes deployment configuration only.
 
 | Item | Change | Repo | Proof | QA check | Signal, docs |
 | --- | --- | --- | --- | --- | --- |
-| 1.0 | Back-port the fragment redaction (extracted PR #2) to the in-tree `sanitizeURL`. | pair | Shared hostile-input fixture. | Not observable (redaction). | none |
+| 1.0 | Back-port the fragment redaction (extracted PR #2) to the in-tree `sanitizeURL`. | in-tree only | Shared hostile-input fixture. | Not observable (redaction). | none |
 | 1.1 | Fill `cvss_vector` from OSV `severity[]` and `severity_label` from `database_specific.severity` (D1). Normalize labels, for example `MODERATE` to medium. | pair | Fixture first, payload-usage manifest, B-7 cassette and snapshot, shared golden. | Label present on all 726 OSV CVE facts. | Collector README |
 | 1.2 | Severity from a vector or a label (D2), on both the advisory and the alert path. | eshu | See the details below. | Winners with `none` but a label or vector: 506 to 0. | Reducer README, http-api vulnerability-impact doc |
 | 1.3 | Page NVD fully in the provider loop, not the client (the scoped rule), and report `complete` honestly (D3). Keep the 6 s pacing with a request budget per claim. Add the NVD per-source mirror case deferred on #8870. | pair | Fixture with `totalResults` greater than the page size, in both trees. | Not observable until item 2.2. | Page-count metric label; collector README |
@@ -60,6 +60,7 @@ This phase changes deployment configuration only.
 | 1.10 | Go reachability key (D10): reproduce first, then fix. | eshu | RED fixture: a `GO-` record carrying a CVE alias. | Not observable (no Go derivation yet). | none |
 | 1.11 | Doc and status wording (D11, D12). | eshu | Docs build, status test. | `list_collectors` detail is correct. | Source-coverage doc |
 | 1.12 | Carry alert EPSS onto findings (D13). GitHub's fields are named `percentage` and `percentile`. A sample showed values such as 0.00361 and 0.29658, which look like a fraction rather than a percent. Confirm the scale against FIRST for the same CVE before mapping onto `EPSSProbability`. | eshu | Fixture of an alert with `epss`, with the scale asserted. | EPSS set on alert-derived findings (84 of 92 alerts carry it). | http-api doc |
+| 1.13 | Suspected defect D14: an SBOM component path returns `affected_derived` without checking that the version is inside the affected range. In the `index.go` classification it follows the exact, known-fixed, fail-closed, and OS-exact exits. Reproduce first, and settle whether the missing-version case is intended. | eshu | RED fixture: an SBOM-reached package whose version is outside the range and not at or past a known fix. | Count of SBOM-path findings whose version falls outside the range. | Reducer README |
 
 ### Item 1.2 details
 

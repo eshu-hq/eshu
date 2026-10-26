@@ -8,6 +8,10 @@ Companion files:
   items.
 - [Advisory Intelligence Evidence](advisory-intelligence-evidence.md): the
   measurements and code facts.
+- [How Correlation Works](advisory-intelligence-correlation-flow.md): the
+  pipeline, statuses, priority, and readiness for SecOps and DevSecOps.
+- [Engineering Flow](advisory-intelligence-engineering-flow.md): the component
+  map, shared-file zones, and work waves for implementers.
 
 Related:
 
@@ -90,6 +94,7 @@ same wave (§4.7).
 | D11 | The source-coverage doc lists Go, RubyGems, Composer, and Hex as source-only, but the matchers exist. | "Advisory Provenance" in `security-intelligence-source-coverage.md`; `version_match.go` |
 | D12 | The collector status detail says "without workflow coordinator registration" for registered instances. | `directEvidenceRuntimeStatus` (`status/collector/runtime.go`) |
 | D13 | The EPSS on Dependabot alerts never reaches the finding. | `core/security_alert.go` has no EPSS handling |
+| D14 | Suspected: an SBOM component path returns `affected_derived` without a range check, so a version outside the range and not at or past a known fix still reads as derived. Needs a reproduction (item 1.13). | classification in `core/index.go` |
 
 ## 4. Design decisions
 
@@ -273,9 +278,11 @@ or another justified choice. It chose the split by size, with amendments:
   `eshu-collector-vulnerability-intelligence` holds no producer authority
   until the #8870 cutover. Nothing freezes in-tree changes.
 - **Collector fixes land in-tree now, with a port in the same wave.** This
-  covers items 1.0, 1.1, 1.3, 1.4, 2.2, and 3.1.
+  covers items 1.1, 1.3, 1.4, 2.2, and 3.1. Item 1.0 is in-tree only, because
+  the extracted repository already has that fix.
   - The extracted-repository PR is opened and cross-linked before the in-tree
-    PR merges.
+    PR merges, and the in-tree PR is not merge-ready until the extracted PR is
+    green.
   - Both mirror tests gain the same assertion.
   - Each change adds an input-to-payload golden that both trees load from
     `sdk/go/factschema/fixturepack/payloads/`.
