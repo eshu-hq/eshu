@@ -96,17 +96,24 @@ Observability Evidence: `go test ./internal/collector/cicdrun/ghactionsruntime
 provider metrics, spans, partial-generation metrics, rate-limit metrics, and
 fact-backed central collector status evidence.
 
+### Historical #9186 evidence
+
+The following validation and impact notes were recorded for #9186 against
+baseline `d1f56dc14b` using Go 1.26.6. They do not describe or validate the
+App authentication, durable Actions queue, storage, or telemetry changes in
+#9146; those changes require their own proof.
+
 No-Regression Evidence (#9186): `go test ./cmd/collector-cicd-run
-./internal/collector/cicdrun/... ./internal/workflow -count=1` is green at
-HEAD (Go 1.26.6) against baseline origin/main d1f56dc14b with synthetic
-unit targets and no live provider calls. The token_env mapping statements
+./internal/collector/cicdrun/... ./internal/workflow -count=1` was reported
+green for that change with synthetic unit targets and no live provider calls. The token_env mapping statements
 are verbatim and its fetch-error propagation is untouched, so existing
 static-token activations behave byte-identically (pinned by
 TestMapTargetTokenEnvByteIdentical). host_minted adds per-claim file
 resolution (a local disk read, no provider volume change) and classifies a
 refused host value as terminal `auth_denied`; the fetch, pagination, and
-watermark hot path is otherwise untouched, so request volume and timings
-cannot shift. No queue, lease, Cypher, or storage path is touched, so there
+watermark hot path is otherwise untouched. These unit checks do not measure
+provider latency or the end-to-end cost of #9146. No queue, lease, Cypher, or
+storage path is touched in #9186, so there
 are no terminal queue or row counts to compare.
 
 Observability Evidence (#9186): no new metrics, spans, logs, or status
