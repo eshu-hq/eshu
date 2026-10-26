@@ -11,6 +11,7 @@ gates:
       - ".codex/hooks.json"
       - ".codex/hooks/**"
       - ".claude/hooks/goal-continue.sh"
+      - ".claude/hooks/lib/goal-issues.py"
       - ".claude/hooks/lib/goal-issues.sh"
       - ".claude/hooks/lib/goal-progress.sh"
       - "scripts/test-codex-goal-continue-hook.sh"
