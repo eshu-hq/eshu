@@ -4,8 +4,9 @@
 accepts GitHub, GitLab, Bitbucket, AWS EventBridge/AWS Config, GCP Cloud Asset
 Inventory (CAI) Pub/Sub push, PagerDuty, and Jira HTTP
 deliveries, verifies the configured shared secret or token, normalizes the
-payload, and persists a durable refresh trigger in Postgres. GitHub `ping`
-deliveries are accepted as verified no-op handshakes and do not create refresh
+payload, and persists a durable refresh trigger in Postgres. Verified GitHub
+`workflow_run` and `workflow_job` deliveries use a dedicated Actions inbox.
+GitHub `ping` deliveries are accepted as verified no-op handshakes and do not create refresh
 triggers.
 
 The command requires a provider delivery identifier before normalization. It
@@ -23,8 +24,8 @@ flowchart LR
   Provider["GitHub, GitLab, Bitbucket, AWS, GCP, PagerDuty, or Jira"] --> Handler["provider route"]
   Handler --> Verify["signature or token check"]
   Verify --> Normalize["webhook, aws freshness, gcp freshness, or incident freshness package"]
-  Normalize --> Store["webhook_refresh_triggers, aws_freshness_triggers, gcp_freshness_triggers, or incident_freshness_triggers"]
-  Store --> Collector["Git, AWS, GCP, PagerDuty, or Jira collector handoff"]
+  Normalize --> Store["webhook_refresh_triggers, cicd_actions_deliveries, aws_freshness_triggers, gcp_freshness_triggers, or incident_freshness_triggers"]
+  Store --> Collector["Git, CI/CD run, AWS, GCP, PagerDuty, or Jira collector handoff"]
 ```
 
 ## Environment
@@ -56,6 +57,12 @@ flowchart LR
 - `ESHU_WEBHOOK_MAX_BODY_BYTES` bounds request bodies and defaults to 1 MiB.
 - `ESHU_WEBHOOK_DEFAULT_BRANCH` is a fallback only when provider payloads omit
   repository default-branch data.
+
+GitHub Actions deliveries require `X-GitHub-Delivery` and a valid GitHub
+HMAC. The listener stores only event, action, repository, run, and optional job
+identity; the coordinator later admits bounded collection for matching
+configured GitHub Actions scopes. Failed storage returns a retryable server
+error. The event payload itself never becomes a CI/CD fact.
 
 GitHub uses `X-Hub-Signature-256`, GitLab uses `X-Gitlab-Token`, and
 Bitbucket uses `X-Hub-Signature` for provider authentication.

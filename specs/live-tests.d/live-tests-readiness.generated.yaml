@@ -14,6 +14,11 @@ tests:
     class: postgres_ci
     reason: "#7529 disposable PostgreSQL 18 proofs of the package-manifest backfill leadership lock (one candidate owns a pass, a crashed owner is taken over) and the single-connection pool (no starvation), enrolled in the live-postgres-readiness runner; the env-gated pair moved out of the hermetic package_manifest_backfill_test.go so this ledger can classify it. Upper-bound timing: in the local sixteen-proof runner the two proofs took 0.05s and 0.02s of test time (2.4s wall with a warm build cache) on postgres:18-alpine on tmpfs on 2026-10-03; an earlier run on a loaded laptop took under 1s; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/cmd/webhook-listener/cicd_actions_handler_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9146 signed GitHub workflow_run and workflow_job routing, rejected invalid signatures, and durable listener-to-PostgreSQL Actions inbox proof in an isolated schema; focused local tests passed in 0.06s"
+    runner: live-postgres-readiness
   - file: go/internal/coordinator/service_cicd_run_burst_live_test.go
     tag: ~
     class: postgres_ci

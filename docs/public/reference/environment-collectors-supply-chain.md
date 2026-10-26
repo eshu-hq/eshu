@@ -88,13 +88,14 @@ GitHub `max_jobs` and `max_artifacts` must each be 1–500; `max_runs` is 0–10
 runtime default. Optional `api_base_url` overrides require HTTPS because the
 runtime sends the bearer token to that endpoint.
 
-The coordinator can consume durable Actions inbox entries for configured
-repository scopes. The webhook listener does not yet route `workflow_run` or
-`workflow_job` events into that inbox; the listener adapter and its deployment
-wiring follow separately. Continue scheduled bounded collection until intake
-is enabled. An inbox entry only triggers collection: the collector fetches
-authoritative run, job, and artifact metadata and emits only `ci.*` source
-facts. Reducers own graph and correlation truth.
+The webhook listener verifies GitHub HMAC signatures for `workflow_run` and
+`workflow_job`, then stores their bounded identities in the durable Actions
+inbox. The coordinator admits collection only for matching configured GitHub
+repository scopes. Enable the listener and App credential wiring in the
+deployment configuration; scheduled bounded collection remains the backfill
+path for missed events. An inbox entry only triggers collection: the collector
+fetches authoritative run, job, and artifact metadata and emits only `ci.*`
+source facts. Reducers own graph and correlation truth.
 
 Every claim cycle collects the target's most recent runs, one fully
 populated fact-set per run, up to `max_runs` (an omitted or zero `max_runs`

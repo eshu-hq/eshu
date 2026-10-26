@@ -1,11 +1,8 @@
 # GitHub Actions delivery inbox
 
-The inbox stores bounded, immutable delivery identities keyed by
-`X-GitHub-Delivery`; its caller must verify the GitHub HMAC before insertion.
-The coordinator consumer is available, but the listener adapter follows in a
-separate change. The existing listener does not yet enqueue workflow events.
-The coordinator plans every configured
-GitHub Actions scope that matches the delivery repository. It uses the existing
+The listener verifies the GitHub HMAC before storing bounded, immutable
+delivery identities keyed by `X-GitHub-Delivery`. The coordinator plans every
+configured GitHub Actions scope that matches the delivery repository. It uses the existing
 open-target admission guard, verifies the exact durable workflow item for each
 scope, then ACKs the delivery with its current fencing token. Another open run
 cannot satisfy the ACK check. A duplicate delivery cannot reopen completed work
