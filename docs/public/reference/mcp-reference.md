@@ -320,7 +320,7 @@ where it ran:
 - A manual run on the other documented clients.
 - One week with no over-budget increase on a hosted deployment.
 - The [structured result-contract proof](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/8800-structured-result-contract.md)
-  at `635a19daadba81ed6f72f0a9bf8f2d1ea6dc5c03` passed 629 checks with zero
+  at `9a43126e3f56aeb2c53814b9e6da913374619b5c` passed 629 checks with zero
   required failures and two advisory timing warnings. Its evidence note records
   the exact code, substrate and remaining limits.
 - The four proof-script readers now prefer `structuredContent` and retain the

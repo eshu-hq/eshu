@@ -117,7 +117,7 @@ resource. This note records how that interacts with the budget.
   post-change two-client re-measurement is pending, so no saving is claimed for
   the `structured` shape.
 - The [structured result-contract proof](../evidence/8800-structured-result-contract.md)
-  at `635a19daadba81ed6f72f0a9bf8f2d1ea6dc5c03` passed 629 checks with zero
+  at `9a43126e3f56aeb2c53814b9e6da913374619b5c` passed 629 checks with zero
   required failures and two advisory timing warnings. Runtime code and gate
   inputs are unchanged by its documentation-only evidence record.
 - The four proof-script readers now prefer `structuredContent` and retain the
