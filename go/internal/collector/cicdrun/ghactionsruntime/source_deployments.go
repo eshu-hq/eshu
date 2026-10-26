@@ -89,7 +89,7 @@ func (s ClaimedSource) appendDeploymentEnvelopes(
 	runPage RunPage,
 	envelopes []facts.Envelope,
 	observedAt time.Time,
-	appMode bool,
+	appMode, hostMode bool,
 ) ([]facts.Envelope, bool, error) {
 	fetcher, ok := s.client.(DeploymentFetcher)
 	if !ok {
@@ -112,7 +112,7 @@ func (s ClaimedSource) appendDeploymentEnvelopes(
 		// Classify that outcome before wrapping host read failures as terminal.
 		optionalPermissionDenied := deploymentPermissionDenied(err)
 		if !optionalPermissionDenied {
-			err = classifyReadFailure(err, appMode, target.AuthMode == AuthModeHostMinted)
+			err = classifyReadFailure(err, appMode, hostMode)
 		}
 		statusClass := classifyProviderStatusForMode(err, appMode)
 		s.recordFetch(ctx, statusClass, startedAt)

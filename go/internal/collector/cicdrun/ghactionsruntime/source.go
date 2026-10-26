@@ -193,6 +193,7 @@ func (s ClaimedSource) NextClaimed(
 		return collector.CollectedGeneration{}, false, fmt.Errorf("ci/cd run target %q is not configured", item.ScopeID)
 	}
 	appMode := target.AuthMode == AuthModeGitHubApp
+	hostMode := target.AuthMode == AuthModeHostMinted
 	startedAt := time.Now()
 	observeCtx, observeSpan := s.startObserve(ctx)
 	defer observeSpan.End()
@@ -209,7 +210,7 @@ func (s ClaimedSource) NextClaimed(
 	}
 	page, err := s.client.FetchRuns(fetchCtx, target)
 	if err != nil {
-		err = classifyReadFailure(err, appMode, target.AuthMode == AuthModeHostMinted)
+		err = classifyReadFailure(err, appMode, hostMode)
 		statusClass := classifyProviderStatusForMode(err, appMode)
 		s.recordFetch(observeCtx, statusClass, startedAt)
 		s.recordRateLimit(observeCtx, statusClass)
@@ -236,7 +237,7 @@ func (s ClaimedSource) NextClaimed(
 	}
 	// #5425 STEP 3: deployment facts MUST land in this SAME generation as
 	// the ci.run facts above -- see appendDeploymentEnvelopes' doc comment.
-	envelopes, deploymentsTruncated, err := s.appendDeploymentEnvelopes(observeCtx, observeSpan, item, target, page, envelopes, observedAt, appMode)
+	envelopes, deploymentsTruncated, err := s.appendDeploymentEnvelopes(observeCtx, observeSpan, item, target, page, envelopes, observedAt, appMode, hostMode)
 	if err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}

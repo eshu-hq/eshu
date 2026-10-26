@@ -24,7 +24,12 @@ func resolveClaimCredential(ctx context.Context, target TargetConfig) (TargetCon
 		if err != nil {
 			return TargetConfig{}, err
 		}
+		// The provider client validates the claim-local copy again before
+		// each bounded read. Present the resolved bearer as token_env there;
+		// retain host mode on the configured target for the next claim.
 		target.Token = token
+		target.AuthMode = AuthModeTokenEnv
+		target.HostTokenFile = ""
 		return target, nil
 	}
 	if target.AuthMode != AuthModeGitHubApp {
