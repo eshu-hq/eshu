@@ -34,6 +34,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=${CODEX_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}; [ -x \"$r/.codex/hooks/goal-continue.sh\" ] || exit 0; bash \"$r/.codex/hooks/goal-continue.sh\"",
+            "timeout": 3
+          }
+        ]
+      }
     ]
   }
 }

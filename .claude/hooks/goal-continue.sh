@@ -406,6 +406,10 @@ fi
 
 reason="${reason_head}
 
+${GOAL_CONTINUE_STOP_CONTEXT:+Codex stopped after reporting this error. Treat it as an obstacle to diagnose and recover from, not a reason to end the goal:
+${GOAL_CONTINUE_STOP_CONTEXT}
+}
+
 ACTIVE GOAL (${goal_file}):
 ${goal}${consent_note}
 

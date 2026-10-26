@@ -21,6 +21,34 @@ This probe pins `UserPromptSubmit` only. The Claude/Muse pre-tool and
 session-start hook adapters require separate Codex payload probes before
 porting.
 
+## Active-goal Stop hook
+
+`.codex/hooks.json` registers `.codex/hooks/goal-continue.sh` for Codex's
+`Stop` event. It passes the event to the shared goal guard, which reads the
+worktree's `.claude/active-goal.<session_id>` or shared
+`.claude/active-goal`. An unfinished goal returns Codex's
+`{"decision":"block","reason":"..."}` response, which starts a
+continuation prompt. `DONE` and the verified live-watcher escape keep their
+existing meaning, and the shared no-progress budget still bounds repeated
+continuations that make no tool calls.
+
+The official [Codex hooks reference](https://developers.openai.com/codex/hooks)
+defines `Stop` inputs with `session_id`, `turn_id`, `stop_hook_active`, and
+`last_assistant_message`, and documents the block response as a continuation.
+The local regression exercises the adapter payload; a live Stop-event probe has
+not been run on this Codex CLI version.
+
+When `last_assistant_message` contains capacity, security, blocked, denied,
+error, or failed language, the adapter includes up to 1,200 characters of it
+in the continuation so the agent can recover from the reported failure. The
+hook does not switch models. The definition uses Codex's 3-second command-hook
+timeout limit.
+
+The hook contract has a hermetic regression suite at
+`scripts/test-codex-goal-continue-hook.sh`. Project hooks only load after the
+project config is trusted; review and trust the Stop hook with `/hooks` in an
+interactive Codex session before relying on it.
+
 ## Agent spawn probe
 
 On 2026-09-28, a trusted Eshu worktree on Codex CLI 0.158.0 loaded the project

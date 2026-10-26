@@ -3,15 +3,12 @@
 Harness hooks that reach the failures CI structurally cannot. Detail for the
 hook files under `.claude/hooks/` and `.codex/hooks/`.
 
-Two of them block and the rest only speak. The tier column below says which,
-and it is set by the exit code — do not assume a hook stops anything without
-checking it there.
+Some of them block and the rest only speak. The tier column says which; check
+the exit code before assuming a hook stops anything.
 
-CI fires on a diff. These fire on an action, before the diff exists. That is the
-whole reason they are here rather than in a workflow, and it matches the canon
-rule in [Agent Orchestration Model](agent-orchestration.md): inline only the
-boundaries whose ambiguity can mutate state before CI runs, and let CI enforce
-everything else.
+CI runs on diffs; hooks run on actions before diffs exist. This matches the
+[Agent Orchestration Model](agent-orchestration.md): inline only boundaries
+where ambiguity can mutate state, and let CI enforce the rest.
 
 ## Layout
 
@@ -30,6 +27,7 @@ rebuilding the whole snapshot, which only works for a hook that needs no path.
 | `guard-live-gate.sh` | Claude | PreToolUse on Bash | **blocking** | Blocks a second live gate on the default ports |
 | `on-compact.sh` | Claude | SessionStart, compact or resume | advisory | Points a re-grounded session at `eshu-session-lifecycle` |
 | `goal-continue.sh` | Claude | Stop | **blocking** | Refuses to end the turn while this session's goal file (`.claude/active-goal.<session_id>`, else the shared `.claude/active-goal`) names unfinished work, and hands the goal back. |
+| `goal-continue.sh` | Codex | Stop | **blocking** | Applies the same active-goal rule; includes a bounded capacity or security error message in the continuation context. |
 | `goal-refresh.sh` | Claude | UserPromptSubmit | side effect | Sets a goal from `/goal <text>`, and re-injects the active goal into context on every prompt so it cannot go stale. |
 | `issue-capture.sh` | Claude, Muse | PostToolUse on Bash | side effect | Records an issue filed during a goal in the goal's ledger; `goal-continue.sh` then refuses DONE while one is open. |
 
@@ -91,8 +89,10 @@ pre-tool and session-start behavior to Codex still needs the `apply_patch`
 payload shape and event equivalents pinned. Do not write adapters against guessed payloads.
 
 The Codex `UserPromptSubmit` goal router has a live probe on `codex-cli
-0.156.1`. See [Codex Goal Hook](agent-hooks-codex-goal.md) for its payload,
-trust steps, and the 0.158.0 spawn guard matcher probe.
+0.156.1`. The Codex `Stop` adapter is registered separately and routes the
+event through the shared goal continuation policy. See
+[Codex Goal Hook](agent-hooks-codex-goal.md) for payload and trust details,
+including the 0.158.0 spawn guard matcher probe.
 
 ## The nudge table rots, so a gate watches it
 
