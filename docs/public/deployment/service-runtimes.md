@@ -34,8 +34,8 @@ mode needs no database or graph connection and applies no DDL. It reports
 path, with `full` before `deferred` for the same path. Each row has `path`,
 `variant`, and `checksum_sha256`; deferred rows also have
 `full_checksum_sha256`. Compare these with the target database's
-`eshu_schema_migrations` receipts. The inventory reports embedded SQL, not
-applied database state.
+`eshu_schema_migrations` receipts. The inventory is derived from embedded SQL
+and reports checksums, not applied database state.
 
 Deployment binaries connect to external Bolt-compatible graph endpoints.
 Embedded NornicDB is only the local `eshu graph start` path.
