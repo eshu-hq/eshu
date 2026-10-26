@@ -333,3 +333,29 @@ cd go && go test -race ./internal/collector/repo/runtime/declaration/... ./inter
 
 Changes to emitted facts also need the golden-corpus gate (B-7) and the B-12
 snapshot; see `docs/public/reference/local-testing/golden-corpus-gate.md`.
+
+### Evidence for the Dockerfile and workflow readers (#8818)
+
+No-Regression Evidence: the pin and manifest emission paths are unchanged
+apart from additive switch arms for the two new manifest kinds. Benchmarks at
+HEAD `30af13f0` against base `8545023c9f` (`go test -run XXX -bench
+'BenchmarkEmitPackageJSON$|BenchmarkEmitGoMod$' -benchtime 1000x -count 3`,
+linux/arm64): `BenchmarkEmitPackageJSON` 54.3µs to 54.1µs median with 620
+allocs on both, `BenchmarkEmitGoMod` 19.7µs to 19.6µs median with 233 allocs
+on both. Identical within noise with identical allocation counts.
+
+Performance Evidence: the new readers run once per changed file per
+generation under the 1 MiB manifest byte cap, in a single pass, keeping only
+the few declarations (heap retention pinned by
+`TestNoteRuntimeDeclarationCandidateRetainsNoManifestBody`, extended to both
+readers). Near-cap (~1 MiB) worst case at HEAD `30af13f0` (same bench
+harness, `-benchtime 100x`): Dockerfile 1.27ms/op with 166 allocs, workflow
+8.8ms/op with 260 allocs (a `yaml.v3` decode, linear in lines). Realistic
+fixtures (a multi-stage Dockerfile with `ARG`, a five-input workflow) emit in
+about 90µs combined.
+
+No-Observability-Change: the package logs nothing itself and adds no metric.
+Dockerfile and workflow files flow through the existing skip reasons
+(`byte_cap_exceeded`, `token_cap_exceeded`, `manifest_unparseable`,
+`value_rejected`) on the existing Git collector WARN logs; no new reason
+string, log line, or instrument was added.
