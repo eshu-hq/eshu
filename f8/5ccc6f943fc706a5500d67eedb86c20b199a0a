@@ -1,0 +1,22 @@
+docs/mkdocs.yml
+  h_78a442cba0b3e6 451
+docs/public/deploy/kubernetes/upgrades-rollbacks.md
+  h_78a442cba0b3e6 247-252
+docs/public/operate/collector-cutover-rollback.md
+  h_78a442cba0b3e6 215
+docs/public/operate/collector-cutover-truth-checks.md
+  h_78a442cba0b3e6 205
+docs/public/operate/qa-drill-window.md
+  h_78a442cba0b3e6 1-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f85ccc6f943fc706a5500d67eedb86c20b199a0a",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
