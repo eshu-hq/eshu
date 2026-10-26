@@ -92,6 +92,8 @@ var flowHostileSeeds = map[string]string{
 	"tab-indented flow value":                                                "{\n\t\tnpmAuthToken:\n\t{T}\n}\n",
 	"double quoted, closes on a later line":                                  "{\nnpmAuthToken: \"abcd\n{T}\"\n}\n",
 	"single quoted, closes on a later line":                                  "{\nnpmAuthToken: 'abcd\n{T}'\n}\n",
+	"document-end-prefixed double-quoted continuation, closed low":           "...\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"document-end-prefixed single-quoted continuation, closed low":           "...\nnpmAuthToken:\n  'abcd\n{T}'\n",
 	"JSON key, quoted value folded":                                          "{\n  \"npmAuthToken\": \"ab\n{T}\"\n}\n",
 	"quoted scalar opened on the next line, closed at the key indent":        "npmAuthToken:\n  \"abcd\n{T}\"\n",
 	"single-quoted scalar opened on the next line, closed at the key indent": "npmAuthToken:\n  'abcd\n{T}'\n",
@@ -153,6 +155,8 @@ func TestRedactMarkerFlowShapesFailClosed(t *testing.T) {
 		"value is a flow map",
 		"quoted scalar opened on the next line, closed at the key indent",
 		"single-quoted scalar opened on the next line, closed at the key indent",
+		"document-end-prefixed double-quoted continuation, closed low",
+		"document-end-prefixed single-quoted continuation, closed low",
 		"nested quoted scalar opened on the next line, closed low",
 		"URL key quoted scalar opened on the next line, closed low",
 	} {
@@ -181,6 +185,30 @@ func TestRedactMarkerQuotedContinuationFailsClosed(t *testing.T) {
 		"flat single-quoted": "npmAuthToken:\n  'abc\ndef'\n",
 		"nested":             "npmScopes:\n  acme:\n    npmAuthToken:\n      \"abc\ndef\"\n",
 		"url userinfo":       "npmRegistryServer:\n  \"https://user:abc\ndef@registry.example.com/\"\n",
+	} {
+		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
+		if !errors.Is(err, errYAMLIndirection) {
+			t.Errorf("%s: err = %v, want errYAMLIndirection", name, err)
+		}
+		if got := failureReason(err); got != FailureYAMLIndirection {
+			t.Errorf("%s: failure reason = %q, want %q", name, got, FailureYAMLIndirection)
+		}
+	}
+}
+
+// TestRedactMarkerDocumentEndQuotedContinuationFailsClosed is the #8833 P1
+// regression: a "..."-prefixed body whose quoted scalar opens on the line
+// after a bare listed key and closes at the key's indent. yaml.v3 rejects the
+// bare document after "...", so the parsed walk sees nothing and only the
+// lexical fallback can cover it; js-yaml 4.1.1 (Yarn's parser) decodes the
+// token under the listed key. Before the "..."-and-quotes arm joined the
+// fallback trigger, both shapes were stored with the tail in the clear.
+func TestRedactMarkerDocumentEndQuotedContinuationFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"document-end double-quoted": "...\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"document-end single-quoted": "...\nnpmAuthToken:\n  'abc\ndef'\n",
 	} {
 		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
 		if !errors.Is(err, errYAMLIndirection) {

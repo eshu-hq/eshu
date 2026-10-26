@@ -119,6 +119,11 @@ var oracleFragments = []string{
 	// A quoted scalar opened on the line after a bare listed key, closed at an
 	// indent at or below the key: the P0 continuation shape.
 	"  \"abcd", "  'abcd", "      \"abcd", "      'abcd", "  \"https://user:abcd",
+	// Token-bearing quoted tails closing at the key's indent or below: with the
+	// "..." fragment, a bare key, and an opener above they compose the P1
+	// "..."-prefixed quoted-continuation shape, which only the lexical fallback
+	// covers.
+	"abcd{T}\"", "abcd{T}'",
 }
 
 // randomOracleBody joins random fragments, numbering each planted token so the

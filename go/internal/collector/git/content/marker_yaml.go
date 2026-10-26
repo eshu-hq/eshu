@@ -112,12 +112,16 @@ func checkYAMLStructure(body string, lines, redacted, listed []string, keyPatter
 	// rejects a tab as flow indentation and a bare document after "...", both of
 	// which js-yaml reads. A body it cannot parse still has a value gap when a
 	// line after a listed key is neither replaced nor another entry. The lexical
-	// fallback below only runs when the body shows a flow, alias, explicit-key,
-	// or escape vehicle: every hostile shape it was swept against opens a
-	// bracket, and a body with only quotes that yaml.v3 rejects is an ordinary
-	// non-YAML file (ini-style key = "value" lines) the redactor already covers
-	// line-wise, so following it would fail closed on ordinary files.
-	if parseFailed && holdsAnyByte(body, '*', '?', '\\', '{', '[') && check.lexicalValueGap() {
+	// fallback below runs for the flow, alias, explicit-key, and escape
+	// vehicles, and for a quote-only body that holds a "..." document marker:
+	// a bare document after "..." is the shape yaml.v3 rejects while js-yaml
+	// reads it as a further document, so a quoted scalar opened after a bare
+	// listed key still decodes its tail under that key. A quote-only body
+	// without "..." is an ordinary non-YAML file the redactor covers
+	// line-wise (a tab-indented or low-indent plain continuation is rejected by
+	// every parser probed), so the fallback skips it.
+	if parseFailed && (holdsAnyByte(body, '*', '?', '\\', '{', '[') ||
+		(strings.Contains(body, "...") && holdsAnyByte(body, '"', '\''))) && check.lexicalValueGap() {
 		return errYAMLIndirection
 	}
 	return nil
@@ -275,8 +279,10 @@ func opensEntry(before string) bool {
 //
 // Anything else is a value line off the redactor's reach, so the body fails
 // closed. An ordinary block file never trips it: the next key starts on the
-// next line, and a block scalar or quoted value spills only onto more-indented
-// lines the redactor replaces whole.
+// next line, and a block scalar spills only onto more-indented lines the
+// redactor replaces whole. A quoted scalar is different: it may close at or
+// below the key's indent, leaving its tail where the continuation does not
+// reach, so the quoted-continuation check above fails those closed instead.
 func (c *yamlCheck) valueReachesUnreplacedText(key, value *yaml.Node) bool {
 	last := lastNodeLine(value, key.Line)
 	// A line inside a quoted scalar is value text even when it starts with "#"
