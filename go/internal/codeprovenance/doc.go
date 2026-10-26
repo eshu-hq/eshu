@@ -18,5 +18,6 @@
 // changes which edges are written, or promotes a heuristic score to canonical
 // truth. The vocabulary is closed; adding a resolver branch requires extending
 // the Method constants, the confidence table, and the accuracy goldens (#2226)
-// together.
+// together. The three tables change as one unit, so a reader never pins an
+// older mapping.
 package codeprovenance
