@@ -92,8 +92,8 @@ All must hold, else NO-GO:
    pin. Run the rollback script in plan mode per collector kind — it prints the
    steps with exact commands and runs nothing — then tabletop the forward-fix
    path: what ships forward for a writer crash-loop. Record exit-code literacy
-   for the script: 0 done, 3 step failed, 4 refused, 5 drain/replay timeout, 6
-   truth differs, 7 dual authority.
+   for the script: 0 done, 2 usage error, 3 step failed, 4 refused, 5
+   drain/replay timeout, 6 truth differs, 7 dual authority.
 7. **Post the rehearsal note.** Within 24 hours, post sync and bootstrap
    receipts with SHAs and timestamps, the health census, the rollback-drill
    outcome, and the open threads filed and linked.
