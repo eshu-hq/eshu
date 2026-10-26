@@ -100,7 +100,7 @@ family, `AWSFamilyDeclaration`), `ec2_instance_posture.go`,
 Envelope constructors: `NewResourceEnvelope`, `NewRelationshipEnvelope`,
 `NewImageReferenceEnvelope`, `NewWarningEnvelope` (`envelope.go`);
 `NewDNSRecordEnvelope` (`dns_envelope.go`);
-`NewSecurityGroupEnvelope`-family via `security_group_rule_envelope.go:90`;
+`NewSecurityGroupRuleEnvelope`-family via `security_group_rule_envelope.go:90`;
 `NewIAMPermissionEnvelope` (`iam_permission_envelope.go:32`);
 `NewResourcePolicyPermissionEnvelope`
 (`resource_policy_permission_envelope.go:33`);
