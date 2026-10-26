@@ -43,9 +43,11 @@ reach the repository. The SQL below covers what the re-collection does not:
    with `w = W`. The files, entities, and references statements lock the batch
    first and re-test the "ingested before `W`" guard in the same transaction,
    so those three can run while the reindex rebuilds. Statements A and B carry
-   the guard only in the batch select, with no file-row lock and no
-   same-transaction re-check, so until
-   #9166 lands this page claims no concurrent-rebuild safety for them.
+   the guard in the batch select and the generation-keyed safety argument,
+   proven beside the writer by
+   TestCredentialCleanupPurgeABRacesTheSearchDocumentWriterLive;
+   files/entities/references additionally lock the batch and re-check the
+   guard in the same transaction.
 4. Watch `eshu_dp_collector_reconciliation_due_unvisited`. When it reads zero
    for every reason, run the statements again. The second run catches rows
    that an old binary wrote during the rollout, and repositories no sweep
