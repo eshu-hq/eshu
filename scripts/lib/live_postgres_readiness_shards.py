@@ -25,6 +25,7 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).parent))
 from live_postgres_readiness_records import package_records  # noqa: E402
+import live_postgres_readiness_row_split as row_split  # noqa: E402
 import live_postgres_readiness_weights as wt  # noqa: E402
 
 
@@ -126,14 +127,24 @@ def partition_runs(runs: list[str], shard: str,
 
 def subset_tsv(runs: list[str], shard: str,
                weights: wt.Weights | None = None) -> list[str]:
-    """Render the shard's runner TSV rows grouped by package."""
-    selected = partition_runs(runs, shard, weights)
+    """Render the shard's runner TSV rows grouped by package.
+
+    Package rows predicted past the row budget split into sequential
+    chunks (see :mod:`live_postgres_readiness_row_split`); every chunk is
+    one ``go test`` invocation with its own clock.
+    """
+    resolved = weights or wt.load_weights()
+    selected = partition_runs(runs, shard, resolved)
     by_package: dict[str, list[str]] = {}
     for line in selected:
         package, test = line.split("|")
-        by_package.setdefault(package, []).append(test)
-    return [f"{package}\t^({'|'.join(tests)})$\t{' '.join(tests)}"
-            for package, tests in by_package.items()]
+        by_package.setdefault(package, []).append(line)
+    rows = []
+    for lines in row_split.split_rows(list(by_package.values()), resolved):
+        package = lines[0].split("|")[0]
+        tests = [line.split("|", 1)[1] for line in lines]
+        rows.append(f"{package}\t^({'|'.join(tests)})$\t{' '.join(tests)}")
+    return rows
 
 
 def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
