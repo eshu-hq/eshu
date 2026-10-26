@@ -240,7 +240,7 @@ verify_mcp() {
 			 else first(.result.content[]? | select(.type == "resource" and .resource.uri == "eshu://tool-result/envelope") | .resource.text | fromjson)
 			 end)
 		 else empty end) as $env |
-		.jsonrpc == "2.0" and .error == null and .result.isError != true and
+		.jsonrpc == "2.0" and .error == null and (.result.isError == null or .result.isError == false) and
 		($env | type == "object" and has("data") and has("truth") and has("error") and .error == null) and
 		$env.data.truth_basis == "materialized_reducer_rows" and
 		$env.data.analysis_status == "materialized_reachability" and

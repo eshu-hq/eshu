@@ -238,7 +238,7 @@ mcp_tool_envelope() {
 	chmod 600 "${curl_config}"
 	curl -fsS -K "${curl_config}" --max-time "${API_TIMEOUT_SECONDS}" \
 		--data-binary "@${payload_file}" "${MCP_BASE_URL}/mcp/message" >"${response_file}"
-	if ! jq -e '.jsonrpc == "2.0" and .error == null and (.result | type == "object") and (.result.isError != true)' "${response_file}" >/dev/null; then
+	if ! jq -e '.jsonrpc == "2.0" and .error == null and (.result | type == "object") and (.result.isError == null or .result.isError == false)' "${response_file}" >/dev/null; then
 		echo "MCP tool ${tool_name} returned an error" >&2
 		return 1
 	fi

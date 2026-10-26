@@ -96,7 +96,7 @@ mcp_tool_envelope() {
 	fi
 	chmod 600 "${curl_config}"
 	curl -fsS -K "${curl_config}" --max-time "${API_TIMEOUT_SECONDS}" --data-binary "@${payload_file}" "${MCP_URL}" >"${response_file}"
-	if ! jq -e '.jsonrpc == "2.0" and .error == null and (.result | type == "object") and (.result.isError != true)' "${response_file}" >/dev/null; then
+	if ! jq -e '.jsonrpc == "2.0" and .error == null and (.result | type == "object") and (.result.isError == null or .result.isError == false)' "${response_file}" >/dev/null; then
 		echo "target story MCP tool ${tool_name} failed" >&2
 		return 1
 	fi

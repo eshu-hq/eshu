@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -55,6 +55,11 @@ make_response() {
 		elif $variant == "jsonrpc_error" then .error={code:-1,message:"failed"}
 		elif $variant == "jsonrpc_version" then .jsonrpc="1.0"
 		elif $variant == "tool_error" then .result.isError=true
+		elif $variant == "iserror_null" then .result.isError=null
+		elif $variant == "iserror_false" then .result.isError=false
+		elif $variant == "iserror_string" then .result.isError="invalid"
+		elif $variant == "iserror_number" then .result.isError=1
+		elif $variant == "iserror_object" then .result.isError={invalid:true}
 		else error("unknown variant") end
 	' >"$MCP_TEST_RESPONSE"
 }
@@ -85,9 +90,9 @@ check_case() {
 
 failures=0
 for parser in target local dead component; do
-	for variant in structured dual resource array null malformed envelope_error resource_error jsonrpc_error jsonrpc_version tool_error; do
+	for variant in structured dual resource array null malformed envelope_error resource_error jsonrpc_error jsonrpc_version tool_error iserror_null iserror_false iserror_string iserror_number iserror_object; do
 		expected=pass
-		case "$variant" in null|malformed|envelope_error|resource_error|jsonrpc_error|jsonrpc_version|tool_error) expected=fail ;; esac
+		case "$variant" in null|malformed|envelope_error|resource_error|jsonrpc_error|jsonrpc_version|tool_error|iserror_string|iserror_number|iserror_object) expected=fail ;; esac
 		[[ "$parser" != dead || "$variant" != array ]] || expected=fail
 		check_case "$parser" "$variant" "$expected" || failures=$((failures + 1))
 	done
@@ -96,4 +101,4 @@ if ((failures > 0)); then
 	printf '%d MCP parser cases failed\n' "$failures" >&2
 	exit 1
 fi
-printf 'PASS: 44 MCP parser cases\n'
+printf 'PASS: 64 MCP parser cases\n'
