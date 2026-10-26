@@ -26,6 +26,10 @@ const flowSeedToken = "Zq19FlowSeedAAAAAAAA"
 // The BOM-prefixed, tab-indented, and unspaced ("%YAML1.2") directive
 // variants decode it in js-yaml 4.1.1 only (PyYAML reads the BOM-prefixed
 // one too); yaml.v3 rejects each, so only the lexical fallback covers them.
+// The CR-prefixed ("%YAML 1.2" after "\r") variant stands for the
+// break-prefixed class (CR, NEL, LS, PS, and a late CR-separated directive):
+// a "\n"-only split misses each while both downstream parsers read them as
+// directive lines and yaml.v3 rejects each, so the same fallback covers them.
 // The letter-suffixed ("%YAMLx", "%YAMLé", "%YAMLL") and reserved ("%FOO",
 // "%YAM", "%ABC", "%x", "%%YAML") directive variants decode it in js-yaml
 // 4.1.1 (PyYAML reads a subset) while yaml.v3 rejects each, so the same
@@ -114,6 +118,8 @@ var flowHostileSeeds = map[string]string{
 	"tab-indented directive single-quoted continuation, closed low":          "\t%YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
 	"unspaced directive double-quoted continuation, closed low":              "%YAML1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
 	"unspaced directive single-quoted continuation, closed low":              "%YAML1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
+	"CR-prefixed directive double-quoted continuation, closed low":           "\r%YAML 1.2\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
+	"CR-prefixed directive single-quoted continuation, closed low":           "\r%YAML 1.2\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
 	"letter-suffixed directive double-quoted continuation, closed low":       "%YAMLx\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
 	"letter-suffixed directive single-quoted continuation, closed low":       "%YAMLx\n---\nnpmAuthToken:\n  'abcd\n{T}'\n",
 	"reserved directive double-quoted continuation, closed low":              "%FOO\n---\nnpmAuthToken:\n  \"abcd\n{T}\"\n",
@@ -191,6 +197,8 @@ func TestRedactMarkerFlowShapesFailClosed(t *testing.T) {
 		"tab-indented directive single-quoted continuation, closed low",
 		"unspaced directive double-quoted continuation, closed low",
 		"unspaced directive single-quoted continuation, closed low",
+		"CR-prefixed directive double-quoted continuation, closed low",
+		"CR-prefixed directive single-quoted continuation, closed low",
 		"letter-suffixed directive double-quoted continuation, closed low",
 		"letter-suffixed directive single-quoted continuation, closed low",
 		"reserved directive double-quoted continuation, closed low",
@@ -296,8 +304,12 @@ func TestRedactMarkerVersionDirectiveQuotedContinuationFailsClosed(t *testing.T)
 // directive name / expected directive name) yet js-yaml 4.1.1 reads while
 // PyYAML 6.0.3 reads a subset: a letter-suffixed "%YAML" ("%YAMLx", "%YAMLé",
 // "%YAMLL"), a truncated or generic name ("%YAM", "%FOO", "%ABC", "%x"), and a
-// doubled percent ("%%YAML"). Each of all shapes must fail closed in both
-// quote styles.
+// doubled percent ("%%YAML"). The break-prefixed follow-up adds directives a
+// "\n"-only split misses yet both downstream parsers read as directive lines:
+// CR-, NEL-, LS-, and PS-prefixed ("%YAML 1.2" after "\r", U+0085, U+2028,
+// U+2029) plus a late CR-separated directive ("a: b\n\r%YAML 1.2"), which
+// PyYAML reads while js-yaml rejects. Each of all shapes must fail closed in
+// both quote styles.
 func TestRedactMarkerVersionDirectiveVariantQuotedContinuationFailsClosed(t *testing.T) {
 	t.Parallel()
 
@@ -324,6 +336,16 @@ func TestRedactMarkerVersionDirectiveVariantQuotedContinuationFailsClosed(t *tes
 		"reserved ABC single-quoted":          "%ABC\n---\nnpmAuthToken:\n  'abc\ndef'\n",
 		"single-letter x double-quoted":       "%x\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
 		"single-letter x single-quoted":       "%x\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"CR-prefixed double-quoted":           "\r%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"CR-prefixed single-quoted":           "\r%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"NEL-prefixed double-quoted":          "\u0085%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"NEL-prefixed single-quoted":          "\u0085%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"LS-prefixed double-quoted":           "\u2028%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"LS-prefixed single-quoted":           "\u2028%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"PS-prefixed double-quoted":           "\u2029%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"PS-prefixed single-quoted":           "\u2029%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
+		"late CR directive double-quoted":     "a: b\n\r%YAML 1.2\n---\nnpmAuthToken:\n  \"abc\ndef\"\n",
+		"late CR directive single-quoted":     "a: b\n\r%YAML 1.2\n---\nnpmAuthToken:\n  'abc\ndef'\n",
 	} {
 		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
 		if !errors.Is(err, errYAMLIndirection) {

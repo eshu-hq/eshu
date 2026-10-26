@@ -136,6 +136,11 @@ var oracleFragments = []string{
 	// one too) while yaml.v3 rejects all three, so they compose the same
 	// fail-closed shape through the widened directive arm.
 	"\uFEFF%YAML 1.2", "\t%YAML 1.2", "%YAML1.2",
+	// CR-prefixed directive variant: the break-prefixed class (CR, NEL, LS,
+	// PS, and a late CR-separated directive) splits a "\n"-only line before
+	// the "%", while both downstream parsers read the segment as a directive
+	// line and yaml.v3 rejects it, so it composes the same fail-closed shape.
+	"\r%YAML 1.2",
 	// Letter-suffixed and reserved directive variants: js-yaml 4.1.1 reads
 	// each as a directive (PyYAML 6.0.3 reads a subset) while yaml.v3 rejects
 	// each, so they compose the same fail-closed shape through the
@@ -167,8 +172,11 @@ func TestRedactMarkerNeverStoresADecodedCredential(t *testing.T) {
 
 	listed := append(append([]string{}, yarnrcCredentialKeys...), oracleURLKeys...)
 	// ESHU_8833_YAML_ORACLE_N and ESHU_8833_YAML_ORACLE_SEED widen the search
-	// for a one-off run; the defaults keep the test under a second.
-	iterations, seed := envInt("ESHU_8833_YAML_ORACLE_N", 150000), envInt("ESHU_8833_YAML_ORACLE_SEED", 8833)
+	// for a one-off run; the defaults keep the test around a second. N grows
+	// with the fragment table: each directive-line fragment breaks yaml.v3
+	// parsing in the bodies it joins, so a wider table needs more draws to
+	// keep the 600-decoding-body floor with margin.
+	iterations, seed := envInt("ESHU_8833_YAML_ORACLE_N", 180000), envInt("ESHU_8833_YAML_ORACLE_SEED", 8833)
 	rng := rand.New(rand.NewSource(int64(seed)))
 	decodedBodies, failedClosed := 0, 0
 	for i := 0; i < iterations; i++ {
