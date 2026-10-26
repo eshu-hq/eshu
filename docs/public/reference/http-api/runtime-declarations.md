@@ -49,8 +49,10 @@ The body (the `data` of the `{data, truth, error}` envelope) carries
 bound that was read), `excluded_from_comparison` and `partial_reasons`.
 
 Rows are ordered by `(repo_id, relative_path, line_number, runtime,
-order_index)`, the graph key, so a page is stable and `cursor` resumes strictly
-after the last returned row. `truth` is `exact` on `authoritative_graph`.
+order_index)`, the graph key, so a page is stable and a `next_cursor` this
+route issued resumes strictly after the last returned row. A `cursor` the route
+did not issue (tampered, truncated, or from another route) is a `400`;
+restart paging without it. `truth` is `exact` on `authoritative_graph`.
 
 Every row carries `repo_id`, `repo_name`, `relative_path`, `scope_dir`,
 `line_number`, `order_index`, `runtime`, `source_kind`, `tool_name`, `raw_spec`,
@@ -107,7 +109,8 @@ verdict answers `503` or `504`.
 ## Repository context
 
 `GET /api/v0/repositories/{repo_id}/context` gains `runtime_declarations`:
-`count` (all declarations of the repository), `runtimes` (the distinct declared
+`count` (declarations across the listed runtimes; when `truncated` is set the
+unlisted runtimes are not counted), `runtimes` (the distinct declared
 runtimes in name order, each with `declaration_count`, `resolved_count` and
 `lowest_resolved_major`, `null` when nothing of that runtime resolves to a
 major) and `truncated`. A failed read adds `runtime_declarations_read_degraded`

@@ -32,6 +32,21 @@ func TestToolSchemaBoundsMirrorTheHandler(t *testing.T) {
 	if properties["repo_ids"].(map[string]any)["maxItems"] != 100 {
 		t.Errorf("repo_ids maxItems = %v, want 100", properties["repo_ids"].(map[string]any)["maxItems"])
 	}
+	if schema["additionalProperties"] != false {
+		t.Errorf("additionalProperties = %v, want false to match the handler's unknown-field rejection", schema["additionalProperties"])
+	}
+	if properties["version_below"].(map[string]any)["pattern"] != `^[0-9]{1,9}(\.[0-9]{1,9}){0,2}$` {
+		t.Errorf("version_below pattern = %v, want the OpenAPI digit bound", properties["version_below"].(map[string]any)["pattern"])
+	}
+	for _, field := range []string{"runtime", "source_kind"} {
+		if properties[field].(map[string]any)["maxLength"] != 128 {
+			t.Errorf("%s maxLength = %v, want 128", field, properties[field].(map[string]any)["maxLength"])
+		}
+	}
+	items := properties["repo_ids"].(map[string]any)["items"].(map[string]any)
+	if items["maxLength"] != 512 {
+		t.Errorf("repo_ids items maxLength = %v, want 512", items["maxLength"])
+	}
 }
 
 func TestToolDescriptionTellsTheModelToReadPartialReasons(t *testing.T) {

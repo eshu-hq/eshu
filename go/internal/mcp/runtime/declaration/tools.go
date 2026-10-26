@@ -25,11 +25,13 @@ func listTool() toolcontract.ToolDefinition {
 			"Rows are ordered by repo_id, relative_path, line_number, runtime and order_index. When truncated is true, pass next_cursor as cursor to continue. " +
 			"Use get_repo_context for one repository's declared-runtime summary.",
 		InputSchema: map[string]any{
-			"type": "object",
+			"type":                 "object",
+			"additionalProperties": false,
 			"properties": map[string]any{
 				"runtime": map[string]any{
 					"type":        "string",
-					"description": "Exact runtime name, such as node, python, go or rust. Required with major_below or version_below.",
+					"maxLength":   128,
+					"description": "Exact runtime name, such as node, python, go or rust. At most 128 characters. Required with major_below or version_below.",
 				},
 				"major_below": map[string]any{
 					"type":        "integer",
@@ -38,17 +40,19 @@ func listTool() toolcontract.ToolDefinition {
 				},
 				"version_below": map[string]any{
 					"type":        "string",
+					"pattern":     "^[0-9]{1,9}(\\.[0-9]{1,9}){0,2}$",
 					"description": "Return declarations below major, major.minor or major.minor.patch, such as 20.10. A partial spec that is too imprecise for the bound (20 against 20.10) is excluded and named in partial_reasons. Requires runtime. Not with major_below.",
 				},
 				"source_kind": map[string]any{
 					"type":        "string",
-					"description": "Exact declaring source: nvmrc, tool_versions, rust_toolchain, package_json_engines, package_json_volta, package_json_package_manager, go_mod_go or go_mod_toolchain.",
+					"maxLength":   128,
+					"description": "Exact declaring source: nvmrc, tool_versions, rust_toolchain, package_json_engines, package_json_volta, package_json_package_manager, go_mod_go or go_mod_toolchain. At most 128 characters.",
 				},
 				"repo_ids": map[string]any{
 					"type":        "array",
-					"items":       map[string]any{"type": "string"},
+					"items":       map[string]any{"type": "string", "maxLength": 512},
 					"maxItems":    100,
-					"description": "Restrict to these repository ids (at most 100).",
+					"description": "Restrict to these repository ids (at most 100, each at most 512 characters).",
 				},
 				"limit": map[string]any{
 					"type":        "integer",

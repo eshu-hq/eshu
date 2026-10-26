@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -15,8 +16,19 @@ const (
 	// cursor with another version is rejected, and paging restarts: the route
 	// has no side effects.
 	cursorVersion = 1
-	// maxCursorLength bounds an incoming cursor before it is decoded.
-	maxCursorLength = 2048
+	// maxCursorRepoIDLength, maxCursorPathLength and maxCursorRuntimeLength
+	// bound the key string fields a cursor can carry. They mirror the request
+	// filter caps (maxRepoIDLength, maxFilterLength) for repo_id and runtime;
+	// relative_path comes from the graph, not the request, so it takes the
+	// filesystem PATH_MAX instead of a filter cap.
+	maxCursorRepoIDLength  = 512
+	maxCursorPathLength    = 4096
+	maxCursorRuntimeLength = 128
+	// maxCursorLength bounds a cursor token before it is decoded. It is sized
+	// to the key fields above: their JSON (about 4.9KB worst case) encodes to
+	// about 6.5KB of base64, so 8192 leaves headroom and every cursor this
+	// route issues decodes. Anything longer is not a token this route issued.
+	maxCursorLength = 8192
 )
 
 // errBadCursor is the one message every malformed cursor answers with.
@@ -37,13 +49,20 @@ type cursorKey struct {
 	OrderIndex   int    `json:"o"`
 }
 
-// encodeCursor renders key as an opaque URL-safe token.
+// encodeCursor renders key as an opaque URL-safe token. It refuses to mint a
+// token longer than maxCursorLength: decodeCursor would reject it on the next
+// call and dead-end the page walk, so the failure surfaces here (a 500 with
+// the step's fixed message) instead of stranding the caller mid-walk.
 func encodeCursor(key cursorKey) (string, error) {
 	raw, err := json.Marshal(key)
 	if err != nil {
 		return "", err
 	}
-	return base64.RawURLEncoding.EncodeToString(raw), nil
+	token := base64.RawURLEncoding.EncodeToString(raw)
+	if len(token) > maxCursorLength {
+		return "", fmt.Errorf("cursor key of %d bytes exceeds the %d-character cursor bound", len(raw), maxCursorLength)
+	}
+	return token, nil
 }
 
 // decodeCursor parses a token from encodeCursor. It rejects other versions,
