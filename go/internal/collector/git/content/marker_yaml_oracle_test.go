@@ -116,6 +116,9 @@ var oracleFragments = []string{
 	// Quote characters that are plain text, and quotes after them.
 	"a\"b", "it's", "[a\"b, \"abcd", "[it's, 'abcd", "{npmAuthToken: [a\"b, \"abcd", "{npmAuthToken: [it's, 'abcd", "b\"c, \"abcd",
 	"{npmAuthToken: [\"x\", b\"c, \"abcd",
+	// A quoted scalar opened on the line after a bare listed key, closed at an
+	// indent at or below the key: the P0 continuation shape.
+	"  \"abcd", "  'abcd", "      \"abcd", "      'abcd", "  \"https://user:abcd",
 }
 
 // randomOracleBody joins random fragments, numbering each planted token so the

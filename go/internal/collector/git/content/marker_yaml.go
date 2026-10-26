@@ -72,11 +72,14 @@ func checkYAMLIndirection(body string, redacted, listed []string, keyPatterns ..
 // before it are.
 func checkYAMLStructure(body string, lines, redacted, listed []string, keyPatterns []*regexp.Regexp) error {
 	// A listed key or its value can only leave the key's line through an alias
-	// (*), an explicit key (?), a double-quoted escape (\), or a flow collection
-	// ({ or [), where a line break is white space inside the value. A body with
-	// none of them needs no parse, which keeps the common file at line-redaction
+	// (*), an explicit key (?), a double-quoted escape (\), a flow collection
+	// ({ or [), or a quoted scalar (' or ") spanning lines, where a line break
+	// is white space inside the value. A block scalar cannot dedent and stay
+	// inside the value, and the other vehicles above already trigger, so the
+	// quote bytes complete the trigger set for valid YAML. A body with none of
+	// them needs no parse, which keeps the quote-free file at line-redaction
 	// cost.
-	if !holdsAnyByte(body, '*', '?', '\\', '{', '[') {
+	if !holdsAnyByte(body, '*', '?', '\\', '{', '[', '"', '\'') {
 		return nil
 	}
 	decoder := yaml.NewDecoder(strings.NewReader(body))
@@ -108,8 +111,13 @@ func checkYAMLStructure(body string, lines, redacted, listed []string, keyPatter
 	// yaml.v3 is stricter than Yarn's js-yaml in places that matter here: it
 	// rejects a tab as flow indentation and a bare document after "...", both of
 	// which js-yaml reads. A body it cannot parse still has a value gap when a
-	// line after a listed key is neither replaced nor another entry.
-	if parseFailed && check.lexicalValueGap() {
+	// line after a listed key is neither replaced nor another entry. The lexical
+	// fallback below only runs when the body shows a flow, alias, explicit-key,
+	// or escape vehicle: every hostile shape it was swept against opens a
+	// bracket, and a body with only quotes that yaml.v3 rejects is an ordinary
+	// non-YAML file (ini-style key = "value" lines) the redactor already covers
+	// line-wise, so following it would fail closed on ordinary files.
+	if parseFailed && holdsAnyByte(body, '*', '?', '\\', '{', '[') && check.lexicalValueGap() {
 		return errYAMLIndirection
 	}
 	return nil

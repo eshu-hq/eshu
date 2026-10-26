@@ -75,24 +75,28 @@ var flowHostileSeeds = map[string]string{
 	"bracket opened on its own line (fallback)":                  "...\n{npmAuthToken:\n[\n{T}]}\n",
 	"brace opened on its own line (fallback)":                    "...\n{npmAuthToken:\n{\na: {T}}}\n",
 	"mapping value opened with an entry on its line (fallback)":  "...\n{npmAuthToken:\n{a: {T}}}\n",
-	"CRLF":                                       "{\r\nnpmAuthToken:\r\n{T}\r\n}\r\n",
-	"CRLF plain scalar second half":              "{\r\nnpmAuthToken: abcd\r\n{T}\r\n}\r\n",
-	"comment between the key and the value":      "{\nnpmAuthToken: # c\n{T}\n}\n",
-	"blank lines between the key and the value":  "{\nnpmAuthToken:\n\n\n{T}\n}\n",
-	"value is a flow sequence":                   "{\nnpmAuthToken: [\n{T}\n]\n}\n",
-	"value is a flow map":                        "{\nnpmAuthToken: {\na: {T}\n}\n}\n",
-	"value is a flow map at the key's line":      "npmAuthToken: {\na: {T}\n}\n",
-	"value is a flow sequence at the key's line": "npmAuthToken: [\n{T}\n]\n",
-	"URL key, value on the next line":            "{\nnpmRegistryServer:\nhttps://user:{T}@registry.example.com/\n}\n",
-	"URL key, plain scalar second half":          "{\nhttpsProxy: http://registry.example.com\nuser:{T}@proxy.example.com\n}\n",
-	"comment line closes a block continuation":   "npmAuthToken:\n# c\n  {T}\n",
-	"comment and blank lines before the value":   "npmScopes:\n  acme:\n    npmAuthToken:\n# c\n\n      {T}\n",
-	"tab after the sequence dash":                "npmAuthToken:\n-\t{T}\n",
-	"tab after the dash, nested":                 "npmScopes:\n  acme:\n    npmAuthToken:\n    -\t{T}\n",
-	"tab-indented flow value":                    "{\n\t\tnpmAuthToken:\n\t{T}\n}\n",
-	"double quoted, closes on a later line":      "{\nnpmAuthToken: \"abcd\n{T}\"\n}\n",
-	"single quoted, closes on a later line":      "{\nnpmAuthToken: 'abcd\n{T}'\n}\n",
-	"JSON key, quoted value folded":              "{\n  \"npmAuthToken\": \"ab\n{T}\"\n}\n",
+	"CRLF":                                                                   "{\r\nnpmAuthToken:\r\n{T}\r\n}\r\n",
+	"CRLF plain scalar second half":                                          "{\r\nnpmAuthToken: abcd\r\n{T}\r\n}\r\n",
+	"comment between the key and the value":                                  "{\nnpmAuthToken: # c\n{T}\n}\n",
+	"blank lines between the key and the value":                              "{\nnpmAuthToken:\n\n\n{T}\n}\n",
+	"value is a flow sequence":                                               "{\nnpmAuthToken: [\n{T}\n]\n}\n",
+	"value is a flow map":                                                    "{\nnpmAuthToken: {\na: {T}\n}\n}\n",
+	"value is a flow map at the key's line":                                  "npmAuthToken: {\na: {T}\n}\n",
+	"value is a flow sequence at the key's line":                             "npmAuthToken: [\n{T}\n]\n",
+	"URL key, value on the next line":                                        "{\nnpmRegistryServer:\nhttps://user:{T}@registry.example.com/\n}\n",
+	"URL key, plain scalar second half":                                      "{\nhttpsProxy: http://registry.example.com\nuser:{T}@proxy.example.com\n}\n",
+	"comment line closes a block continuation":                               "npmAuthToken:\n# c\n  {T}\n",
+	"comment and blank lines before the value":                               "npmScopes:\n  acme:\n    npmAuthToken:\n# c\n\n      {T}\n",
+	"tab after the sequence dash":                                            "npmAuthToken:\n-\t{T}\n",
+	"tab after the dash, nested":                                             "npmScopes:\n  acme:\n    npmAuthToken:\n    -\t{T}\n",
+	"tab-indented flow value":                                                "{\n\t\tnpmAuthToken:\n\t{T}\n}\n",
+	"double quoted, closes on a later line":                                  "{\nnpmAuthToken: \"abcd\n{T}\"\n}\n",
+	"single quoted, closes on a later line":                                  "{\nnpmAuthToken: 'abcd\n{T}'\n}\n",
+	"JSON key, quoted value folded":                                          "{\n  \"npmAuthToken\": \"ab\n{T}\"\n}\n",
+	"quoted scalar opened on the next line, closed at the key indent":        "npmAuthToken:\n  \"abcd\n{T}\"\n",
+	"single-quoted scalar opened on the next line, closed at the key indent": "npmAuthToken:\n  'abcd\n{T}'\n",
+	"nested quoted scalar opened on the next line, closed low":               "npmScopes:\n  acme:\n    npmAuthToken:\n      \"abcd\n{T}\"\n",
+	"URL key quoted scalar opened on the next line, closed low":              "npmRegistryServer:\n  \"https://user:abcd\n{T}@registry.example.com/\"\n",
 }
 
 func flowSeedBody(template string) string {
@@ -147,8 +151,37 @@ func TestRedactMarkerFlowShapesFailClosed(t *testing.T) {
 		"CRLF",
 		"value is a flow sequence",
 		"value is a flow map",
+		"quoted scalar opened on the next line, closed at the key indent",
+		"single-quoted scalar opened on the next line, closed at the key indent",
+		"nested quoted scalar opened on the next line, closed low",
+		"URL key quoted scalar opened on the next line, closed low",
 	} {
 		body := flowSeedBody(flowHostileSeeds[name])
+		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
+		if !errors.Is(err, errYAMLIndirection) {
+			t.Errorf("%s: err = %v, want errYAMLIndirection", name, err)
+		}
+		if got := failureReason(err); got != FailureYAMLIndirection {
+			t.Errorf("%s: failure reason = %q, want %q", name, got, FailureYAMLIndirection)
+		}
+	}
+}
+
+// TestRedactMarkerQuotedContinuationFailsClosed is the P0 regression: a quoted
+// scalar opened on the line after a bare listed key and closed at an indent at
+// or below the key's indent leaves its tail where the redactor's continuation
+// does not reach, so the body must fail closed. It covers the flat,
+// single-quoted, nested-key, and URL-userinfo variants, which all leaked the
+// same way before the quote bytes joined the YAML-indirection trigger set.
+func TestRedactMarkerQuotedContinuationFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"flat double-quoted": "npmAuthToken:\n  \"abc\ndef\"\n",
+		"flat single-quoted": "npmAuthToken:\n  'abc\ndef'\n",
+		"nested":             "npmScopes:\n  acme:\n    npmAuthToken:\n      \"abc\ndef\"\n",
+		"url userinfo":       "npmRegistryServer:\n  \"https://user:abc\ndef@registry.example.com/\"\n",
+	} {
 		_, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, []string{"npmRegistryServer", "httpsProxy"})
 		if !errors.Is(err, errYAMLIndirection) {
 			t.Errorf("%s: err = %v, want errYAMLIndirection", name, err)
