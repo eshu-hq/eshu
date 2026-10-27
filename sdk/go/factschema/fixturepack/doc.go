@@ -31,4 +31,8 @@
 // conformance.Request.PayloadSchemas. See ExampleValidPayloads and
 // SchemaFor for the accessors, and README.md for the versioning and
 // cut procedure.
+// NVDPagingGolden supplies the canonical two-page source input and exact
+// expected provider fact kinds, stable keys and full payload maps. The maps
+// carry producer metadata beyond this module's typed CVE and source-snapshot
+// fields; the per-kind valid/invalid examples remain the schema-shape fixtures.
 package fixturepack
