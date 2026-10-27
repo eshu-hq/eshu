@@ -44,9 +44,9 @@ pending or dead-lettered work; the implementation now keeps that promise.
 
 ## Proof
 
-- `TestSecurityAlertReconciliationQueueCoverage` (8 cases over anchored
-  and unanchored list reads): pending, retrying, dead-lettered,
-  dead-plus-outstanding, drained, outside-covering-set, and
+- `TestSecurityAlertReconciliationQueueCoverage` (10 cases over anchored,
+  unanchored, and scoped-unanchored list reads): pending, retrying,
+  dead-lettered, dead-plus-outstanding, drained, outside-covering-set, and
   collection-incomplete-keeps-collector-verdict (which also proves the
   queue read is skipped there) failed first and pass.
 - `TestSecurityAlertReconciliationQueueStatesLive` (PostgreSQL 18.6,
@@ -65,7 +65,7 @@ a 500,000-item `security_alert_reconciliation` backlog (499,500 outstanding,
 | Covering scopes | Plan | Buffers | Execution |
 |---|---|---|---|
 | 1 | Parallel Seq Scan, HashAggregate | 12,236 shared hit | 47.3 ms |
-| 1,024 (1 hot + 1,023 absent) | Parallel Seq Scan, HashAggregate | 12,237 shared hit | 48.4 ms |
+| 1,024 entries (1 hot + 1 quiet + 1,022 duplicate absent) | Parallel Seq Scan, HashAggregate | 12,237 shared hit | 48.4 ms |
 
 The seed is adversarial: the hot scope holds 99.8% of the table, so the
 planner seq-scans instead of probing `fact_work_items_scope_generation_idx`.

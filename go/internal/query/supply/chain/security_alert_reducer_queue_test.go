@@ -47,6 +47,7 @@ func TestSecurityAlertReconciliationQueueCoverage(t *testing.T) {
 	cases := []struct {
 		name       string
 		anchored   bool
+		scoped     []string
 		configs    []string
 		states     map[string]SecurityAlertTargetState
 		queue      map[string]SecurityAlertReconciliationQueueState
@@ -126,6 +127,16 @@ func TestSecurityAlertReconciliationQueueCoverage(t *testing.T) {
 			wantQueued: true,
 		},
 		{
+			name:       "scoped unanchored healthy answer consults the queue too",
+			anchored:   false,
+			scoped:     []string{coverageTestRepositoryID},
+			configs:    []string{coverageTestRepoTarget},
+			states:     map[string]SecurityAlertTargetState{"sa-target-repo": healthy},
+			queue:      deadQueue,
+			want:       coverageWant{"target_incomplete", []string{"dead_lettered_domain"}, "fallback", "unavailable", deadCause, ""},
+			wantQueued: true,
+		},
+		{
 			name:       "queue read failure fails closed",
 			anchored:   true,
 			configs:    []string{coverageTestRepoTarget},
@@ -144,8 +155,12 @@ func TestSecurityAlertReconciliationQueueCoverage(t *testing.T) {
 		}
 		t.Run(tc.name+"/"+route, func(t *testing.T) {
 			t.Parallel()
+			ctx := context.Background()
+			if tc.scoped != nil {
+				ctx = grantScopedContext(tc.scoped, nil)
+			}
 			store := &fakeSecurityAlertCollectionState{configs: tc.configs, states: tc.states, queueStates: tc.queue, queueErr: tc.queueErr}
-			code, body, resp := serveCoverage(context.Background(), t, coverageTestHandler(store, 0), target)
+			code, body, resp := serveCoverage(ctx, t, coverageTestHandler(store, 0), target)
 			if code != http.StatusOK {
 				t.Fatalf("status = %d, want 200; body = %s", code, body)
 			}

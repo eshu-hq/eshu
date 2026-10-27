@@ -144,15 +144,13 @@ FROM generate_series(1, 1000) AS g`, f.asOf)
 		absent = append(absent, "scope-absent")
 	}
 	for _, scopes := range [][]string{{"scope-hot"}, append([]string{"scope-hot", "scope-quiet"}, absent...)} {
-		rows, err := f.database.QueryContext(f.ctx, `EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
-SELECT scope_id,
-       COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding,
-       COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter
-FROM fact_work_items
-WHERE domain = 'security_alert_reconciliation'
-  AND scope_id = ANY($1)
-  AND status IN ('pending', 'claimed', 'running', 'retrying', 'dead_letter')
-GROUP BY scope_id`, array.Of(scopes))
+		// The measured statement derives from the shipped query constant so
+		// the plan cannot drift false-green when the constant changes.
+		explainSQL := "EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)\n" + securityAlertReconciliationQueueStatesQuery
+		if strings.Count(explainSQL, securityAlertReconciliationQueueStatesQuery) != 1 {
+			t.Fatalf("explain statement does not embed the shipped query constant verbatim")
+		}
+		rows, err := f.database.QueryContext(f.ctx, explainSQL, array.Of(scopes))
 		if err != nil {
 			t.Fatalf("explain for %d scopes: %v", len(scopes), err)
 		}

@@ -239,7 +239,9 @@ func (h *Handler) securityAlertReconciliationQueueVerdict(
 // slugs with one bounded catalog read, the target-state read covers only the
 // targets that collect those slugs, and a granted repository no target covers
 // reports repository_outside_target_set. Worst wins across the covering
-// targets.
+// targets. A grant-healthy answer still consults the reconciliation queue
+// for the covering scopes (#8839), so a scoped read cannot answer complete
+// while reducer work is pending.
 func (h *Handler) readSecurityAlertGrantVerdict(
 	ctx context.Context,
 	targets []securityAlertTargetConfig,
@@ -257,7 +259,11 @@ func (h *Handler) readSecurityAlertGrantVerdict(
 	if err != nil {
 		return securityAlertCoverageVerdict{}, err
 	}
-	return classifySecurityAlertGrantCollection(targets, slugs, unmapped, states), nil
+	verdict := classifySecurityAlertGrantCollection(targets, slugs, unmapped, states)
+	if !verdict.healthy() {
+		return verdict, nil
+	}
+	return h.securityAlertReconciliationQueueVerdict(ctx, scopeIDs, verdict)
 }
 
 // applySecurityAlertCoverageVerdict folds a verdict into an empty answer. A
