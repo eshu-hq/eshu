@@ -32,8 +32,9 @@ Migration stage: `planned`. Destination and owner are assigned by
 (`postgres.NewIngestionStore`) with `postgres.NewWorkflowControlStore` claims;
 `buildCassetteService` wires `cassette.NewSource` with no Vault credentials.
 The scope identity is `vault_live` on both sides of the boundary:
-`scope.CollectorVaultLive` (`go/internal/scope/collector_kind.go:58`) equals
-`vaultlive.CollectorKind` (`go/internal/collector/vaultlive/snapshot.go:28`);
+`scope.CollectorVaultLive` (see `go/internal/scope/collector_kind.go`, symbol
+`CollectorVaultLive`) equals `vaultlive.CollectorKind` (see
+`go/internal/collector/vaultlive/snapshot.go`, symbol `CollectorKind`);
 `go/cmd/collector-vault-live/extraction_census_test.go` locks that agreement.
 
 ## Supporting packages
