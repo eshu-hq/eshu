@@ -198,7 +198,7 @@ func TestValidate_GlobTriggerMatchingOnlyADirectoryFails(t *testing.T) {
 func TestValidate_GlobTriggerGlueingDoubleStarToASegmentFails(t *testing.T) {
 	t.Parallel()
 	root := hermeticGlobRepo(t)
-	writeTracked(t, root, "go/cmd/collector-tempo/main.go")
+	writeTracked(t, root, "go/cmd/collector-jira/main.go")
 	reg := globGate("go/cmd/collector-**")
 
 	errs := reg.Validate(root)

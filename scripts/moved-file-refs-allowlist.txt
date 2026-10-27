@@ -433,3 +433,11 @@ docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/j
 # file the performance gate flagged. There is no in-tree successor path to
 # repoint at, so the note stays as the pre-extraction evidence record.
 docs/internal/evidence/7110-collector-transient-transport.md:go/internal/collector/confluence/client.go
+# Tempo satellite extraction: the in-tree command package and observer leaf
+# are deleted, and the binary now ships from eshu-hq/eshu-collector-tempo
+# (producer record: go/internal/facts/observability.go). The #6695 package-move
+# evidence note below names go/cmd/collector-tempo files as the reverse
+# importers of the tempo leaf move; repointing would falsify the recorded
+# inventory of that already-merged slice.
+docs/internal/evidence/6695-collector-tempo-package-move.md:go/cmd/collector-tempo/config.go
+docs/internal/evidence/6695-collector-tempo-package-move.md:go/cmd/collector-tempo/service.go
