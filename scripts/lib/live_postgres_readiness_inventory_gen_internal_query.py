@@ -45,6 +45,10 @@ TABLE = {
             "TestNonBlankRepoFilePathsMatchesTrimSpaceLive",
             "TestNonBlankSpaceSetMatchesGoOverEveryRuneLive",
         ),
+        "go/internal/query/content_reader_repository_catalog_live_test.go": (
+            "TestMatchRepositoriesByIDsLive",
+            "TestMatchRepositoriesByIDsPlanLive",
+        ),
         "go/internal/query/content_reader_search_scoped_union_probe_live_test.go": (
             "TestUnionAllProbeDerivationGuard",
             "TestUnionAllProbePoisonLegKeepsBindPositions",

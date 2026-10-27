@@ -89,6 +89,8 @@
     "./internal/query|TestGetFileContentsMatchesSingleReadsLive": 0.2,
     "./internal/query|TestGetFileContentsPlanUsesAnIndexLive": 0.3,
     "./internal/query|TestInvestigateCodeTopicEntityNameFirstPostgresLive": 5.3,
+    "./internal/query|TestMatchRepositoriesByIDsLive": 5.0,
+    "./internal/query|TestMatchRepositoriesByIDsPlanLive": 5.0,
     "./internal/query|TestNonBlankRepoFilePathsMatchesTrimSpaceLive": 0.3,
     "./internal/query|TestNonBlankSpaceSetMatchesGoOverEveryRuneLive": 0.3,
     "./internal/query|TestRareEmptySingleScopeBitmapInvestigationLive": 2.7,

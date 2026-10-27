@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const repositoryCatalogIDExpr = "coalesce(payload->>'repo_id', payload->>'id', scope_id)"
@@ -193,6 +195,64 @@ func (cr *ContentReader) MatchRepositories(ctx context.Context, selector string)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate repository catalog matches: %w", err)
+	}
+	return repositories, nil
+}
+
+// MatchRepositoriesByIDs returns the catalog entries named by any of ids: a
+// canonical repository id (the entry's repo_id/id) or an ingestion scope id
+// (#8837). It is the one bounded catalog read the security-alert empty-answer
+// classifier maps a scoped caller's grants to repository slugs with: one
+// statement however many grants the caller holds. Callers bound the id set
+// before reading. The scope_id disjunct probes the primary key; the id
+// expression has no index, so that disjunct filters the repository-kind rows.
+// Evidence: docs/internal/evidence/8837-security-alert-grant-scope.md.
+func (cr *ContentReader) MatchRepositoriesByIDs(ctx context.Context, ids []string) ([]RepositoryCatalogEntry, error) {
+	if cr == nil || cr.db == nil {
+		return nil, nil
+	}
+
+	rows, err := cr.db.QueryContext(ctx, `
+		SELECT `+repositoryCatalogIDExpr+` AS id,
+		       coalesce(payload->>'name', payload->>'repo_name', payload->>'repo_slug', scope_id) AS name,
+		       coalesce(payload->>'path', '') AS path,
+		       coalesce(payload->>'local_path', payload->>'path', '') AS local_path,
+		       coalesce(payload->>'remote_url', '') AS remote_url,
+		       coalesce(payload->>'repo_slug', '') AS repo_slug,
+		       CASE WHEN coalesce(payload->>'remote_url', '') <> '' THEN true ELSE false END AS has_remote,
+		       scope_id
+		FROM ingestion_scopes
+		WHERE scope_kind = 'repository'
+		  AND (
+			`+repositoryCatalogIDExpr+` = ANY($1) OR
+			scope_id = ANY($1)
+		  )
+		ORDER BY scope_id
+	`, array.Of(ids))
+	if err != nil {
+		return nil, fmt.Errorf("match repository catalog rows by ids: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	repositories := make([]RepositoryCatalogEntry, 0, len(ids))
+	for rows.Next() {
+		var repo RepositoryCatalogEntry
+		if err := rows.Scan(
+			&repo.ID,
+			&repo.Name,
+			&repo.Path,
+			&repo.LocalPath,
+			&repo.RemoteURL,
+			&repo.RepoSlug,
+			&repo.HasRemote,
+			&repo.ScopeID,
+		); err != nil {
+			return nil, fmt.Errorf("scan repository catalog match by ids: %w", err)
+		}
+		repositories = append(repositories, repo)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate repository catalog matches by ids: %w", err)
 	}
 	return repositories, nil
 }

@@ -233,9 +233,10 @@ type SecurityAlertCollectionStateStore interface {
 	// generation existence for each target scope id, the requested
 	// repositories the latest committed generation did not collect (#8838),
 	// and the target's unread repositories in its active generation (#8943). requestedSlugs are the
-	// normalized owner/name slugs of an anchored read, empty for an unanchored
-	// one. A scope id with no work item and no generation may be omitted from
-	// the result.
+	// normalized owner/name slugs of an anchored read, or of a scoped caller's
+	// granted repositories on a grant-scoped unanchored read (#8837); empty
+	// for an unscoped unanchored one. A scope id with no work item and no
+	// generation may be omitted from the result.
 	SecurityAlertTargetStates(ctx context.Context, scopeIDs []string, requestedSlugs []string) ([]SecurityAlertTargetState, error)
 }
 

@@ -173,6 +173,13 @@ type ContentStore interface {
 	) ([]RepositoryLanguageInventoryRow, error)
 	ListRepositories(ctx context.Context) ([]RepositoryCatalogEntry, error)
 	MatchRepositories(ctx context.Context, selector string) ([]RepositoryCatalogEntry, error)
+	// MatchRepositoriesByIDs returns the catalog entries named by any of ids:
+	// a granted canonical repository id (the entry's repo_id/id) or a granted
+	// ingestion scope id. It is the one bounded catalog read the security-alert
+	// empty-answer classifier maps a scoped caller's grants to repository slugs
+	// with (#8837). Callers bound the id set before reading; the read returns
+	// at most the rows naming those ids.
+	MatchRepositoriesByIDs(ctx context.Context, ids []string) ([]RepositoryCatalogEntry, error)
 	ResolveRepository(ctx context.Context, selector string) (*RepositoryCatalogEntry, error)
 }
 

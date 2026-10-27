@@ -144,7 +144,7 @@ func (h *Handler) listSecurityAlertReconciliations(w http.ResponseWriter, r *htt
 	// the requested scope. A later cursor page that comes back empty ends a
 	// stream whose earlier rows already proved collection.
 	if len(results) == 0 && filter.AfterReconciliationID == "" {
-		if verdict, ok := h.securityAlertEmptyAnswerVerdict(r, supplyChainSecurityAlertReconciliationOperation, repositoryID, repositoryScopeIDs); ok {
+		if verdict, ok := h.securityAlertEmptyAnswerVerdict(r, supplyChainSecurityAlertReconciliationOperation, repositoryID, repositoryScopeIDs, access); ok {
 			applySecurityAlertCoverageVerdict(body, coverage, truth, verdict)
 		}
 	}

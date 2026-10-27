@@ -73,7 +73,12 @@ Read `doc.go` and `README.md` first.
 - The security-alert empty-answer classification (#8803) runs only for an
   empty answer and only after the out-of-grant selector check, so a scoped
   caller never triggers target-membership work for a repository outside its
-  grants. Its payload, log attributes, and metric labels MUST stay closed
+  grants. A scoped unanchored read classifies over the caller's granted
+  repositories only (#8837: one bounded grant-to-slug catalog read past the
+  selector, worst wins across the covering targets, an uncovered grant reads
+  `repository_outside_target_set`); an unscoped unanchored read still
+  evaluates every configured target. Its payload, log attributes, and metric
+  labels MUST stay closed
   tokens: never a target scope id, repository name, allowlist, URL, or
   failure message. A new reason token changes `securityAlertCoverageReasons`
   and the OpenAPI enum together (`TestSecurityAlertCoverageOpenAPIEnum`).

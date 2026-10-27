@@ -69,12 +69,16 @@ const (
 // resolved. A scoped caller reaches here only for a repository inside its
 // grants (the out-of-grant check answers 404 first), so membership is computed
 // only for a repository the caller may read; the verdict carries no target
-// scope id, repository name, or allowlist.
+// scope id, repository name, or allowlist. On an unanchored read a scoped
+// caller's grants are mapped to repository slugs with one bounded catalog
+// read and the verdict is classified over that set only (#8837); an
+// unscoped unanchored read still evaluates every configured target.
 func (h *Handler) securityAlertEmptyAnswerVerdict(
 	r *http.Request,
 	operation string,
 	repositoryID string,
 	repositoryScopeIDs []string,
+	access querycontract.RepositoryAccessFilter,
 ) (securityAlertCoverageVerdict, bool) {
 	if h == nil || h.SecurityAlertCollectionState == nil {
 		return securityAlertCoverageVerdict{}, false
@@ -82,7 +86,7 @@ func (h *Handler) securityAlertEmptyAnswerVerdict(
 	ctx := r.Context()
 	timer := startSupplyChainQueryStage(ctx, h.Logger, operation, repositoryID, securityAlertCollectionStateStage)
 	probeCtx, cancel := context.WithTimeout(ctx, securityAlertCollectionStateTimeout)
-	verdict, err := h.readSecurityAlertCollectionVerdict(probeCtx, repositoryID != "", repositoryScopeIDs)
+	verdict, err := h.readSecurityAlertCollectionVerdict(probeCtx, repositoryID != "", repositoryScopeIDs, access)
 	errorClass := securityAlertProbeErrorClass(ctx, probeCtx, err)
 	cancel()
 	if err != nil {
@@ -163,15 +167,18 @@ func securityAlertCoverageReasonLabel(verdict securityAlertCoverageVerdict) stri
 	return verdict.reasons[0]
 }
 
-// readSecurityAlertCollectionVerdict performs at most two bounded reads: the
+// readSecurityAlertCollectionVerdict performs at most three bounded reads: the
 // enabled instances' configuration, then the latest work item, committed
 // generation existence, the requested repositories the latest committed
 // generation did not collect (#8838), and unread repositories for the covering
-// targets.
+// targets. On a scoped unanchored read the covering set is the caller's
+// granted repositories, mapped from grants to slugs with one bounded catalog
+// read first (#8837).
 func (h *Handler) readSecurityAlertCollectionVerdict(
 	ctx context.Context,
 	anchored bool,
 	repositoryScopeIDs []string,
+	access querycontract.RepositoryAccessFilter,
 ) (securityAlertCoverageVerdict, error) {
 	configs, err := h.SecurityAlertCollectionState.SecurityAlertCollectorConfigurations(ctx)
 	if err != nil {
@@ -180,6 +187,9 @@ func (h *Handler) readSecurityAlertCollectionVerdict(
 	targets := decodeSecurityAlertTargets(configs)
 	if len(targets) == 0 {
 		return securityAlertCollectorNotConfiguredVerdict(), nil
+	}
+	if !anchored && access.Scoped() {
+		return h.readSecurityAlertGrantVerdict(ctx, targets, access)
 	}
 	slugs := securityAlertRequestedSlugs(repositoryScopeIDs)
 	scopeIDs := securityAlertTargetScopeIDs(targets, slugs, anchored)
@@ -195,6 +205,32 @@ func (h *Handler) readSecurityAlertCollectionVerdict(
 		return securityAlertCoverageVerdict{}, err
 	}
 	return classifySecurityAlertCollection(targets, scopeIDs, states, requestedSlugs, anchored), nil
+}
+
+// readSecurityAlertGrantVerdict classifies a scoped caller's unanchored empty
+// answer over the caller's granted repositories only (#8837): grants map to
+// slugs with one bounded catalog read, the target-state read covers only the
+// targets that collect those slugs, and a granted repository no target covers
+// reports repository_outside_target_set. Worst wins across the covering
+// targets.
+func (h *Handler) readSecurityAlertGrantVerdict(
+	ctx context.Context,
+	targets []securityAlertTargetConfig,
+	access querycontract.RepositoryAccessFilter,
+) (securityAlertCoverageVerdict, error) {
+	slugs, unmapped, err := h.securityAlertGrantSlugs(ctx, access)
+	if err != nil {
+		return securityAlertCoverageVerdict{}, err
+	}
+	scopeIDs := securityAlertGrantCoveringScopeIDs(targets, slugs)
+	if len(scopeIDs) == 0 {
+		return securityAlertOutsideTargetsVerdict(), nil
+	}
+	states, err := h.SecurityAlertCollectionState.SecurityAlertTargetStates(ctx, scopeIDs, slugs)
+	if err != nil {
+		return securityAlertCoverageVerdict{}, err
+	}
+	return classifySecurityAlertGrantCollection(targets, slugs, unmapped, states), nil
 }
 
 // applySecurityAlertCoverageVerdict folds a verdict into an empty answer. A

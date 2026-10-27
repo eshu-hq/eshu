@@ -46,6 +46,30 @@ func (f FakePortContentStore) MatchRepositories(
 	return matches, nil
 }
 
+// MatchRepositoriesByIDs returns every fixture repository named by any of ids,
+// either by catalog id or by ingestion scope id, mirroring the production
+// grant-to-entry match (#8837).
+func (f FakePortContentStore) MatchRepositoriesByIDs(
+	_ context.Context,
+	ids []string,
+) ([]querycontract.RepositoryCatalogEntry, error) {
+	wanted := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		wanted[id] = struct{}{}
+	}
+	matches := make([]querycontract.RepositoryCatalogEntry, 0, 1)
+	for _, repo := range f.Repositories {
+		if _, ok := wanted[repo.ID]; ok {
+			matches = append(matches, repo)
+			continue
+		}
+		if _, ok := wanted[repo.ScopeID]; ok {
+			matches = append(matches, repo)
+		}
+	}
+	return matches, nil
+}
+
 // ResolveRepository returns the first fixture repository regardless of
 // selector. Callers that care which repository resolves assert through
 // MatchRepositories instead.
