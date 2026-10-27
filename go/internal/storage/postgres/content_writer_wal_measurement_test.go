@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 )
 
 // writerWALSample is a PostgreSQL 18 per-backend counter reading. The measured
@@ -37,8 +38,8 @@ func sampleWriterWAL(t *testing.T, ctx context.Context, db walCounterConn) write
 		t.Fatalf("clear writer stats snapshot: %v", err)
 	}
 	var sample writerWALSample
-	if err := db.QueryRowContext(ctx, `SELECT pg_backend_pid(), (pg_stat_get_backend_wal(pg_backend_pid())).wal_bytes::bigint,
-        (pg_stat_get_backend_wal(pg_backend_pid())).stats_reset`).Scan(&sample.pid, &sample.bytes, &sample.reset); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT pg_backend_pid(), counters.wal_bytes::bigint, counters.stats_reset
+        FROM pg_stat_get_backend_wal(pg_backend_pid()) AS counters`).Scan(&sample.pid, &sample.bytes, &sample.reset); err != nil {
 		t.Fatalf("writer backend WAL (PostgreSQL 18 required): %v", err)
 	}
 	if sample.pid != beforePID {
@@ -74,6 +75,26 @@ func TestWriterWALCounterIdentity(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := sameWriterWALCounter(baseline, tc.after); got != tc.want {
+				t.Errorf("counter identity valid = %v, want %v", got, tc.want)
+			}
+		})
+	}
+
+	validEpoch := sql.NullTime{Time: time.Unix(1700000000, 0).UTC(), Valid: true}
+	validBaseline := writerWALSample{pid: 11, bytes: 100, reset: validEpoch}
+	changedEpoch := sql.NullTime{Time: validEpoch.Time.Add(time.Second), Valid: true}
+	for _, tc := range []struct {
+		name  string
+		after writerWALSample
+		want  bool
+	}{
+		{name: "valid_same_epoch", after: writerWALSample{pid: 11, bytes: 150, reset: validEpoch}, want: true},
+		{name: "valid_changed_epoch_after_regrowth", after: writerWALSample{pid: 11, bytes: 150, reset: changedEpoch}},
+		{name: "valid_different_backend", after: writerWALSample{pid: 12, bytes: 150, reset: validEpoch}},
+		{name: "valid_counter_regressed", after: writerWALSample{pid: 11, bytes: 80, reset: validEpoch}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sameWriterWALCounter(validBaseline, tc.after); got != tc.want {
 				t.Errorf("counter identity valid = %v, want %v", got, tc.want)
 			}
 		})
