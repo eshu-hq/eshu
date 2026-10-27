@@ -1,0 +1,14 @@
+docker-compose.remote-e2e.observability.yaml
+  h_78a442cba0b3e6 280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1d129413fd818b1be9930bc1d89c37fe453f020f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
