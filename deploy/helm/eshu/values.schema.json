@@ -1235,6 +1235,17 @@
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
         "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string", "minLength": 1 },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
         "instanceId": { "type": "string" },
         "pollInterval": { "type": "string" },
         "claimLeaseTTL": { "type": "string" },

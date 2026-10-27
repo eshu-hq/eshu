@@ -29,8 +29,10 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: tempo-collector
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Extracted satellite (#9172): the in-tree producer is deleted, so
+          # this Deployment runs the satellite image, not the monolith image.
+          image: "{{ .Values.tempoCollector.image.repository }}:{{ .Values.tempoCollector.image.tag }}"
+          imagePullPolicy: {{ .Values.tempoCollector.image.pullPolicy }}
           command: ["/usr/local/bin/eshu-collector-tempo"]
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}

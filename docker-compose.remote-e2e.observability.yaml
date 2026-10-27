@@ -201,9 +201,9 @@ services:
       - /bin/sh /usr/local/bin/remote-e2e-observability-preflight.sh
 
   collector-tempo:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Extracted satellite (#9172): the in-tree producer is deleted, so this
+    # service runs the satellite image instead of building the host image.
+    image: ghcr.io/eshu-hq/eshu-collector-tempo:v0.1.3
     profiles:
       - tempo
     restart: on-failure
