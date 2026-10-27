@@ -19,10 +19,11 @@ authorizes emission only.
 - Kinds (`1.0.0` each): the seven `terraform_state_*` kinds in
   [SHIM_MAP](SHIM_MAP.md) §2 (the `TerraformStateFactKinds()` list in
   `facts/cloud/terraform_state.go:54-74` minus the git-owned
-  candidate) **plus** the 3 co-emitted `incident_routing` kinds at
-  `1.0.0` (`applied_pagerduty_resource`, `applied_alert_route`,
-  `coverage_warning` — arbiter ruling on #9195: extend, no remaining
-  owner for two of the three)
+  candidate) **plus** the 2 co-emitted `incident_routing` kinds at
+  `1.0.0` (`applied_pagerduty_resource`, `applied_alert_route` —
+  arbiter partial reversal on #9195: `coverage_warning` dropped,
+  pagerduty owns it; `applied_*` kept, no other owner — see
+  "Partial reversal" below)
 - Lifetime: bounded `--expires-in` (rotation expected; no non-expiring
   grants)
 
@@ -40,7 +41,7 @@ for kind in snapshot resource output module provider_binding tag_observation war
     --scope terraform_state \
     --expires-in 2160h
 done
-for kind in applied_pagerduty_resource applied_alert_route coverage_warning; do
+for kind in applied_pagerduty_resource applied_alert_route; do
   eshu component grant dev.eshu.collector.terraform-state \
     --component-home ~/.eshu/components \
     --version 0.1.0 \
@@ -55,6 +56,33 @@ eshu component grants --component-home ~/.eshu/components \
 
 Grant-first-then-install: authorize before activating the replacement,
 which is the order cutover needs.
+
+## Partial reversal (`#9195`)
+
+Issue #9195 EXTEND first granted all 3 co-emitted `incident_routing`
+kinds to this producer. An arbiter verdict then partially reversed
+that grant for `incident_routing.coverage_warning` ONLY; the two
+`applied_*` kinds stay granted:
+
+- `coverage_warning` dropped: the pagerduty collector owns this kind.
+  It is bound to `collector-pagerduty` in the producer record
+  (`go/internal/facts/incident/routing.go:87`), emitted live from the
+  PagerDuty API (`go/internal/collector/pagerduty/source.go:286,293`
+  via `config_envelope.go`), and covered by the pagerduty grant and
+  rollback drafts (`go/internal/collector/pagerduty/PRODUCER_GRANT_DRAFT.md:17`,
+  `ROLLBACK_DRAFT.md:39`). A live installer conflict in a QA environment proved
+  dual emission, so this producer must not carry it.
+- `applied_pagerduty_resource` and `applied_alert_route` kept: the
+  sole production emitter of both is this parser
+  (`go/internal/collector/terraformstate/pagerduty_applied.go:49`);
+  no other owner exists, so dropping them would orphan applied
+  incident-routing evidence.
+
+In-tree emission code is untouched by this reversal: the parser still
+emits all 3 kinds, and the satellite repo plus IaC already carry the
+verdict-aligned contract. This draft is the docs side of that
+alignment — 9 kinds total (7 `terraform_state_*` + 2
+`incident_routing.applied_*`).
 
 Explicit exclusion: `terraform_state_candidate` is family-declared but
 git-collector-owned (`terraform_state.go:117` in `facts/cloud`,

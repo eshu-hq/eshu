@@ -130,17 +130,20 @@ excluding the candidate: **7**. Proposed grant identity (see
 [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md)): producer
 `dev.eshu.collector.terraform-state`, scope `terraform_state`.
 
-Shared-kind note: the same parser also emits 3 `incident_routing` kinds
-at `1.0.0` from allowlisted applied resources (`pagerduty_applied.go`):
-`incident_routing.applied_pagerduty_resource` (`:159`),
+Shared-kind note: the same parser still emits 3 `incident_routing`
+kinds at `1.0.0` from allowlisted applied resources
+(`pagerduty_applied.go`; emission code untouched by the #9195 partial
+reversal): `incident_routing.applied_pagerduty_resource` (`:159`),
 `incident_routing.applied_alert_route` (`:231`),
 `incident_routing.coverage_warning` (`:240`, unsupported `pagerduty_*`
 types). The producer record binds them to this collector
 (`routing.go:88` in `facts/incident`, same
 `core_issued_grant`/`eshu-hq/eshu-collector-terraform-state`). The staged
-grant draft covers the 7 `terraform_state_*` kinds **plus** the 3
-`incident_routing.*` kinds at `1.0.0` (decided **extend** by arbiter ruling on
-#9195: no remaining owner exists for two of the three; §8.2 records the ruling).
+grant draft covers the 7 `terraform_state_*` kinds **plus** 2 of the 3
+`incident_routing.*` kinds at `1.0.0` (arbiter partial reversal on
+#9195: `coverage_warning` dropped — pagerduty owns it (a live
+installer conflict in a QA environment proved dual emission);
+`applied_*` kept, no other owner; §8.2 records the ruling).
 
 Consumption note: the projector consumes 6 kinds (snapshot, resource,
 module, output, tag_observation, provider_binding — see §3).
@@ -262,11 +265,14 @@ cutover gate.
 
 1. First-party producer delegation live (`#6709`); grant draft recorded
    in [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md) for the 7 owned
-   `terraform_state_*` kinds plus the 3 co-emitted `incident_routing`
-   kinds (see item 2).
+   `terraform_state_*` kinds plus the 2 kept co-emitted
+   `incident_routing` kinds (`applied_*`; see item 2).
 2. Grant-or-drop for the 3 co-emitted `incident_routing.*` kinds —
-   **decided extend** (arbiter ruling on #9195); the draft and the
-   rollback revocation loop now cover all 3 at `1.0.0`.
+   **partially reversed** (arbiter verdict on #9195):
+   `coverage_warning` dropped (pagerduty owns it — a live installer
+   conflict in a QA environment proved dual emission), `applied_pagerduty_resource`
+   and `applied_alert_route` kept (no other owner); the draft and the
+   rollback revocation loop now cover those 2 at `1.0.0`.
 3. Parity proof on representative + hostile inputs via a fixture pack and
    `source_parity` test (AC3, in-tree side) — **in-tree side landed**:
    `go/internal/collector/terraformstate/source_parity_8868_test.go`,

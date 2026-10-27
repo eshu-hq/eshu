@@ -36,7 +36,7 @@ for kind in snapshot resource output module provider_binding tag_observation war
     --kind "terraform_state.${kind}" \
     --scope terraform_state
 done
-for kind in applied_pagerduty_resource applied_alert_route coverage_warning; do
+for kind in applied_pagerduty_resource applied_alert_route; do
   eshu component revoke-grant dev.eshu.collector.terraform-state \
     --component-home ~/.eshu/components \
     --version 0.1.0 \
@@ -44,6 +44,13 @@ for kind in applied_pagerduty_resource applied_alert_route coverage_warning; do
     --scope terraform_state
 done
 ```
+
+Partial reversal (`#9195`): `incident_routing.coverage_warning` is
+NOT revoked here — the arbiter verdict dropped it from this
+producer's grant (pagerduty owns it), so its revocation lives in the
+pagerduty rollback draft
+(`go/internal/collector/pagerduty/ROLLBACK_DRAFT.md:39`). Revoking an
+ungranted kind would return `grant_not_found`, never silent success.
 
 Revocation fails the next external emission closed, so a stray retry
 cannot re-establish dual authority.
