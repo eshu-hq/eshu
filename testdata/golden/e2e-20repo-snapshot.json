@@ -8233,6 +8233,24 @@
           "advisories[].cvss_score": 7.5
         }
       },
+      "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-9229&profile=comprehensive": {
+        "description": "#9229 distinct GO-2026-9229 and CVE-2026-9229 IDs: the orders-api go.mod pins lib-common v1.0.0 inside the affected range, while the cassette carries a GO-keyed call path. The persisted finding and HTTP read must join by the CVE alias without borrowing another advisory's proof.",
+        "truth_class": "deterministic",
+        "required_response_fields": ["findings", "count"],
+        "result_item_required_fields": ["cve_id", "advisory_id", "package_id", "repository_id", "observed_version", "runtime_reachability", "evidence_path"],
+        "required_json_values": {
+          "findings[].cve_id": "CVE-2026-9229",
+          "findings[].advisory_id": "GO-2026-9229",
+          "findings[].package_id": "gomod://proxy.golang.org/github.com/acme/lib-common",
+          "findings[].repository_id": "repository:r_ea78e8bb",
+          "findings[].observed_version": "v1.0.0",
+          "findings[].runtime_reachability": "symbol_reachable",
+          "findings[].evidence_path[]": "vulnerability.go_call_reachability"
+        },
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "findings"
+      },
       "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000": {
         "description": "#5736 non-vacuous default-profile floor: the synthetic github_actions_workflows fixture pins supply-chain-demo-lib@1.2.2 in package-lock.json, matching CVE-2026-00000's exact affected version. The query deliberately omits profile so the API applies its default precise profile; minimum_results:1, maximum_results:1, and the detection_profile pins make a regression that empties, broadens, or misclassifies the default path fail the live gate. The ceiling is measured against the deterministic one-row live response and prevents a mixed precise/comprehensive result set from satisfying the any-element required_json_values checks. This uses the npm lockfile chain rather than an OS-package finding, preserving the epic's explicit comprehensive-profile convention for established DPKG/APK golden assertions.",
         "truth_class": "deterministic",
