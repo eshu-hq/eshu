@@ -3,6 +3,10 @@
 
 package impact
 
+import "slices"
+
+const missingCommittedNVDSnapshotReason = "nvd:committed_snapshot_missing"
+
 func classifyReadinessState(
 	findings []FindingResult,
 	sources []EvidenceFamily,
@@ -13,10 +17,13 @@ func classifyReadinessState(
 		return ReadinessStateReadyWithFindings
 	}
 	advisoryCount := evidenceFactCount(sources, EvidenceFamilyVulnerabilityAdvisory)
-	// A relevant source state stays incomplete even when advisory facts already
-	// exist. The legacy target_incomplete flag remains advisory-guarded because
-	// older snapshot paths may include an unrelated in-flight source.
-	if snapshot.TargetIncomplete && (advisoryCount == 0 || sourceStatesIncomplete(snapshot.SourceStates) || sourceSnapshotsIncomplete(snapshot.SourceSnapshots)) {
+	// A committed coverage gap stays incomplete even when a CVE advisory fact
+	// exists: advisory presence does not prove this configured NVD target ran.
+	// Keep the legacy target_incomplete flag advisory-guarded for unrelated
+	// in-flight sources.
+	if snapshot.TargetIncomplete && (advisoryCount == 0 ||
+		committedNVDCoverageMissing(snapshot) ||
+		sourceStatesIncomplete(snapshot.SourceStates) || sourceSnapshotsIncomplete(snapshot.SourceSnapshots)) {
 		return ReadinessStateTargetIncomplete
 	}
 	if advisoryCount == 0 &&
@@ -59,6 +66,7 @@ func classifyMissingEvidence(
 	var missing []string
 	if snapshot.TargetIncomplete &&
 		(evidenceFactCount(sources, EvidenceFamilyVulnerabilityAdvisory) == 0 ||
+			committedNVDCoverageMissing(snapshot) ||
 			sourceStatesIncomplete(snapshot.SourceStates) || sourceSnapshotsIncomplete(snapshot.SourceSnapshots)) {
 		missing = append(missing, MissingEvidenceTargetCollection)
 	}
@@ -113,6 +121,10 @@ func classifyMissingEvidence(
 		missing = append(missing, MissingEvidenceUnsupportedTargets)
 	}
 	return uniqueSortedReadinessStrings(missing)
+}
+
+func committedNVDCoverageMissing(snapshot ReadinessSnapshot) bool {
+	return slices.Contains(snapshot.IncompleteReasons, missingCommittedNVDSnapshotReason)
 }
 
 func isReadyState(state ReadinessState) bool {
