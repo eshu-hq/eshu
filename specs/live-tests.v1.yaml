@@ -83,3 +83,6 @@ fragments:
   - live-tests.d/live-tests-07b.yaml
   # Readiness enrollment is derived; do not hand-edit this entry.
   - live-tests.d/live-tests-readiness.generated.yaml
+  - live-tests.d/live-tests-readiness-part2.generated.yaml
+  - live-tests.d/live-tests-readiness-part3.generated.yaml
+  - live-tests.d/live-tests-readiness-part4.generated.yaml

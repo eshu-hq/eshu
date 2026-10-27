@@ -68,6 +68,7 @@ if "${helper}" --print-map >"${real_map}" 2>/dev/null; then
 		'docs/public/reference/env-registry/*.md' \
 		'specs/live-tests.v1.yaml' \
 		'specs/live-tests.d/live-tests-readiness.generated.yaml' \
+		'specs/live-tests.d/live-tests-readiness-part*.generated.yaml' \
 		'scripts/lib/live_postgres_readiness_inventory_generated.py' \
 		'scripts/lib/live_postgres_readiness_inventory_gen_*.py' \
 		'scripts/lib/live_postgres_readiness_inventory_helpers.py' \

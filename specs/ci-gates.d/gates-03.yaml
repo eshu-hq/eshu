@@ -447,6 +447,7 @@ gates:
       - "scripts/verify-live-postgres-readiness-drift.sh"
       - "scripts/lib/live_postgres_readiness_gen_scan.py"
       - "scripts/lib/live_postgres_readiness_gen_render.py"
+      - "scripts/lib/live_postgres_readiness_gen_fragments.py"
       - "scripts/lib/live_postgres_readiness_env.sh"
       - "scripts/lib/live_postgres_readiness_inventory_gen_*.py"
       - "scripts/lib/live_postgres_readiness_inventory_generated.py"
@@ -467,6 +468,7 @@ gates:
       - "scripts/generate-live-postgres-readiness.py"
       - "scripts/lib/live_postgres_readiness_gen_scan.py"
       - "scripts/lib/live_postgres_readiness_gen_render.py"
+      - "scripts/lib/live_postgres_readiness_gen_fragments.py"
     local:
       command: "bash scripts/verify-live-postgres-readiness-drift.sh"
       pre_push: floor
@@ -489,6 +491,7 @@ gates:
     regenerate:
       "specs/live-tests.v1.yaml": "git show ${ESHU_REGEN_BASE:?set_ESHU_REGEN_BASE}:specs/live-tests.v1.yaml > specs/live-tests.v1.yaml && python3 scripts/generate-live-postgres-readiness.py"
       "specs/live-tests.d/live-tests-readiness.generated.yaml": "python3 scripts/generate-live-postgres-readiness.py"
+      "specs/live-tests.d/live-tests-readiness-part*.generated.yaml": "python3 scripts/generate-live-postgres-readiness.py"
       "scripts/lib/live_postgres_readiness_inventory_generated.py": "python3 scripts/generate-live-postgres-readiness.py"
       "scripts/lib/live_postgres_readiness_inventory_gen_*.py": "python3 scripts/generate-live-postgres-readiness.py"
       "scripts/lib/live_postgres_readiness_inventory_helpers.py": "python3 scripts/generate-live-postgres-readiness.py"

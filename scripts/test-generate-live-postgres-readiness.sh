@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Hermetic RED/GREEN mirror for the live-postgres-readiness registration
-# generator (#7859 P1): the six shared registration surfaces derive from
+# generator (#7859 P1): the shared registration surfaces derive from
 # enrollment markers in the test files themselves, so adding a live test no
 # longer hand-edits shared files. This mirror proves the derivation without
 # Postgres, NornicDB, Docker, network, or a Go build: only bash, python3,
@@ -31,6 +31,44 @@ command -v git >/dev/null 2>&1 || fail "git is required"
 # green-clean: the committed tree regenerates to itself.
 out="$(python3 "${generator}" --check 2>&1)" || fail "clean tree --check failed: ${out}"
 [[ "${out}" == *"registration current"* ]] || fail "clean tree acknowledgement missing: ${out}"
+fragment_count=0
+for fragment in "${repo_root}"/specs/live-tests.d/live-tests-readiness*.generated.yaml; do
+  fragment_count=$((fragment_count + 1))
+  lines="$(wc -l <"${fragment}")"
+  (( lines < 500 )) || fail "${fragment##*/} exceeds the file cap: ${lines} lines"
+done
+[[ "${fragment_count}" == "4" ]] || fail "want four generated fragments, got ${fragment_count}"
+REPO_ROOT="${repo_root}" python3 - <<'PY' || fail "generated proof rows differ from enrollment"
+import os
+import pathlib
+import re
+import sys
+
+root = pathlib.Path(os.environ["REPO_ROOT"])
+sys.path.insert(0, str(root / "scripts/lib"))
+from live_postgres_readiness_gen_scan import collect
+from live_postgres_readiness_gen_fragments import fragment_paths
+from live_tests_registry import load_ledger_text
+
+enrolled, bindings = collect(root)
+expected = {path: row["reason"] for path, row in {**enrolled, **bindings}.items()}
+actual = {}
+for rel in fragment_paths():
+    text = (root / rel).read_text(encoding="utf-8")
+    for path, reason in re.findall(
+            r'  - file: (\S+)\n    tag: ~\n    class: postgres_ci\n'
+            r'    reason: "([^"]+)"\n    runner: live-postgres-readiness\n', text):
+        if path in actual:
+            raise SystemExit(f"duplicate generated proof: {path}")
+        actual[path] = reason
+if actual != expected:
+    raise SystemExit(f"generated proof mismatch: actual={len(actual)} expected={len(expected)}")
+flattened = load_ledger_text(root / "specs/live-tests.v1.yaml")
+for path in actual:
+    if flattened.count(f"  - file: {path}\n") != 1:
+        raise SystemExit(f"flattened ledger missing or duplicates {path}")
+print(f"generated proof rows: {len(actual)} exact paths and reasons")
+PY
 
 # Scratch tree: hardlinked go/ when the scratch shares the repo's
 # filesystem (reads share inodes; added seed files stay in the scratch),
@@ -64,6 +102,60 @@ scratch_check() { python3 "${generator}" --root "${scratch}" --check 2>&1; }
 [[ "$(scratch_check)" == *"registration current"* ]] ||
   fail "scratch tree is not green before seeding"
 
+# Missing, duplicate, and orphan fragments must fail before any runner can
+# silently lose a proof; regeneration removes only generator-owned orphans.
+part4="${scratch}/specs/live-tests.d/live-tests-readiness-part4.generated.yaml"
+mv "${part4}" "${part4}.saved"
+out="$(scratch_check)" && fail "missing fragment passed --check"
+[[ "${out}" == *"part4"* ]] || fail "missing fragment not named: ${out}"
+mv "${part4}.saved" "${part4}"
+manifest="${scratch}/specs/live-tests.v1.yaml"
+cp "${manifest}" "${manifest}.saved"
+printf '%s\n' '  - live-tests.d/live-tests-readiness-part4.generated.yaml' >>"${manifest}"
+out="$(REPO_ROOT="${scratch}" LEDGER_PATH="${manifest}" bash "${ledger_validator}" 2>&1)" &&
+  fail "duplicate fragment reference passed ledger validation"
+[[ "${out}" == *"duplicate fragment reference"* ]] || fail "duplicate reference misclassified: ${out}"
+mv "${manifest}.saved" "${manifest}"
+orphan_part="${scratch}/specs/live-tests.d/live-tests-readiness-part5.generated.yaml"
+cp "${part4}" "${orphan_part}"
+out="$(scratch_check)" && fail "orphan generated fragment passed --check"
+[[ "${out}" == *"orphan"* && "${out}" == *"part5"* ]] || fail "orphan fragment not named: ${out}"
+python3 "${generator}" --root "${scratch}" >/dev/null || fail "orphan cleanup failed"
+[[ ! -e "${orphan_part}" ]] || fail "orphan generated fragment survived regeneration"
+
+REPO_ROOT="${repo_root}" python3 - <<'PY' || fail "boundary and cap seeds did not fail closed"
+import os
+import pathlib
+import sys
+
+root = pathlib.Path(os.environ["REPO_ROOT"])
+sys.path.insert(0, str(root / "scripts/lib"))
+from live_postgres_readiness_gen_scan import collect
+from live_postgres_readiness_gen_fragments import FRAGMENT_BOUNDARIES, render_fragments
+
+enrolled, bindings = collect(root)
+missing = enrolled.copy()
+missing.pop(FRAGMENT_BOUNDARIES[0])
+try:
+    render_fragments(missing, bindings)
+except ValueError as error:
+    if "boundary missing" not in str(error):
+        raise
+else:
+    raise SystemExit("deleted boundary passed")
+oversized = enrolled.copy()
+for index in range(5):
+    oversized[f"go/000-seeded-{index}_live_test.go"] = {"reason": "seeded cap proof"}
+try:
+    render_fragments(oversized, bindings)
+except ValueError as error:
+    if "add a lexical boundary" not in str(error):
+        raise
+else:
+    raise SystemExit("oversized fragment passed")
+print("boundary and oversized fragment seeds rejected")
+PY
+
 # idempotent: two consecutive generations are byte-identical.
 python3 "${generator}" --root "${scratch}" >/dev/null ||
   fail "first scratch generation failed"
@@ -95,7 +187,7 @@ printf '%s\n' \
   '' \
   'func TestSeededDerivationProbeLive(t *testing.T) { t.Skip("seed") }' >"${seed_file}"
 out="$(scratch_check)" && fail "stale marked seed passed --check"
-[[ "${out}" == *"${seed_file##*/}"* || "${out}" == *"live-tests-readiness.generated.yaml"* ]] ||
+[[ "${out}" == *"${seed_file##*/}"* || "${out}" == *"live-tests-readiness"* ]] ||
   fail "stale seed not named: ${out}"
 python3 "${generator}" --root "${scratch}" >/dev/null ||
   fail "regeneration after seeding failed"
@@ -147,7 +239,8 @@ root = os.environ["SCRATCH"]
 sys.path.insert(0, os.path.join(root, "scripts", "lib"))
 from live_postgres_readiness_inventory_generated import PACKAGES
 from live_postgres_readiness_inventory_helpers import HELPER_PROOFS
-yaml_text = open(os.path.join(root, "specs", "live-tests.d", "live-tests-readiness.generated.yaml")).read()
+from live_postgres_readiness_gen_fragments import fragment_paths
+yaml_text = "".join(open(os.path.join(root, rel)).read() for rel in fragment_paths())
 enrolled = set(re.findall(r"- file: (\S+)", yaml_text))
 covered = {path for files in PACKAGES.values() for path in files}
 missing = sorted(enrolled - covered - set(HELPER_PROOFS))
@@ -205,4 +298,4 @@ out="$(python3 "${generator}" --root "${scratch}" 2>&1)" && fail "quoted reason 
 [[ "${out}" == *"${quote_file##*/}"* ]] || fail "quoted reason not named: ${out}"
 rm "${quote_file}"
 
-printf 'test-generate-live-postgres-readiness: GREEN (clean, idempotent, shard-stable, shard-complete, stale/unregistered/orphan/quote RED)\n'
+printf 'test-generate-live-postgres-readiness: GREEN (exact rows, four capped fragments, idempotent, stable shards, missing/duplicate/orphan/boundary/oversize/stale/unregistered/quote RED)\n'
