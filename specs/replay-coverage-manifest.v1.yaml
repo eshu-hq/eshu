@@ -854,9 +854,11 @@ scenario_requirements:
 # entry only when a surface genuinely cannot have a credential-free replay
 # scenario, with a reason an operator would accept.
 exemptions:
-  # C-2 (#4174): the four implemented-lane collectors that cannot have a
+  # C-2 (#4174): the three implemented-lane collectors that cannot have a
   # credential-free cassette of the supply-chain-demo kind, each for a structural
   # reason an operator would accept (not "we didn't get to it").
+  # (collector:documentation was exempt here until #8855 extracted Confluence
+  # collection to the eshu-collector-confluence satellite.)
   - surface: collector:git
     reason: >-
       Filesystem-native collector, not a credentialed upstream API. Git is
@@ -864,12 +866,6 @@ exemptions:
       bootstrap-index corpus (sync -> discover -> parse -> emit), so a
       supply-chain-demo cassette would re-record a path the gate already
       replays from real fixtures. The fixture corpus is its replay scenario.
-  - surface: collector:documentation
-    reason: >-
-      Offline export library, not a polling collector binary. Documentation
-      facts are produced from offline export manifests (go/internal/collector/
-      document/export), so there is no credentialed upstream to record into
-      a cassette; the offline-manifest path is the credential-free input.
   - surface: collector:webhook
     reason: >-
       Inbound webhook sink, not a pollable source. The webhook collector

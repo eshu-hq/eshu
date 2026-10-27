@@ -93,10 +93,6 @@ go test ./internal/collector/registry/oci/runtime \
 go test ./internal/collector/registry/package/runtime \
   -run 'TestClaimedSourceParsesMetadataIntoPackageRegistryFacts|TestClaimedSourceTruncatesMetadataOverVersionLimit|TestClaimedSourceSanitizesSourceURIBeforeFactEmission' \
   -count=1 -v
-
-go test ./internal/collector/confluence \
-  -run 'TestSourceRecordsBoundedConfluenceMetrics|TestHTTPClientRecordsBoundedRequestMetrics' \
-  -count=1 -v
 ```
 
 Terraform-state parser trend and large-state proof:

@@ -426,6 +426,13 @@ upstreams and fails closed when the cached artifact is missing or stale.
 
 ## Confluence Collector
 
+Confluence collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-confluence`, #8855). The variables below are read
+by the satellite activation, not by an in-tree command. The kept
+`deployment-confluence-collector` template still uses the global product
+image, which no longer ships the binary: to run it, point the Deployment
+at the satellite image explicitly (there is no per-collector image field).
+
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
 | `ESHU_CONFLUENCE_BASE_URL` | unset | collector-confluence | Base Confluence Cloud URL, trimmed of trailing slash. |

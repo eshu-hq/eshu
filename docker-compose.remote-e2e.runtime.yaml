@@ -434,6 +434,8 @@ services:
     profiles:
       - confluence
     restart: on-failure
+    # The confluence binary ships in the eshu-collector-confluence satellite image, not the
+    # in-tree product image: this service's image must provide it.
     command: ["/usr/local/bin/eshu-collector-confluence"]
     ports:
       - "${ESHU_COLLECTOR_CONFLUENCE_METRICS_PORT:-19474}:9464"

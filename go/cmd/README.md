@@ -23,7 +23,6 @@ exact binary set on `PATH`.
 | `eshu-bootstrap-index` | `bootstrap-index/` | One-shot multi-phase orchestration |
 | `eshu-bootstrap-data-plane` | `bootstrap-data-plane/` | One-shot data-plane setup |
 | `eshu-collector-git` | `collector-git/` | Local git-collector helper |
-| `eshu-collector-confluence` | `collector-confluence/` | Long-running Confluence documentation collector |
 | `eshu-collector-terraform-state` | `collector-terraform-state/` | Long-running Terraform-state collector |
 | `eshu-collector-component-extension` | `collector-component-extension/` | Long-running process-backed component extension collector |
 | `eshu-collector-package-registry` | `collector-package-registry/` | Long-running package-registry collector |

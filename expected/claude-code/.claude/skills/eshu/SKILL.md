@@ -162,7 +162,6 @@ rendered fragment body.
 The active collector set on this deployment is enumerated below. Disabling a collector hides its MCP surface from the generated skill.
 
 - aws (enabled)
-- documentation (enabled)
 - git (enabled)
 - grafana (enabled)
 - loki (enabled)

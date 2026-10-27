@@ -13,70 +13,28 @@ and source-fact envelope path only. They do not prove hosted Compose lifecycle,
 workflow claim handoff, container health, or queue-zero. Provider errors such
 as PagerDuty `auth_denied` with the current private token are credential proof
 failures unless the same target fails with a valid token; keep that evidence
-separate from remote Compose service coverage. (The Jira standalone smoke is
-deleted with the in-tree package; see the Jira section.)
+separate from remote Compose service coverage. (The Jira and Confluence
+standalone smokes are deleted with the in-tree packages; see the Jira and
+Confluence sections.)
 
 ## Confluence
 
-Use this when testing the Confluence collector against a real Atlassian site.
-The collector is read-only against Confluence and writes documentation facts to
-the local Postgres content store.
+Confluence collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-confluence`): the in-tree
+`go/internal/collector/confluence` package and its
+`go/cmd/collector-confluence` service are deleted, so there is no in-tree
+`go run` or `go test` smoke for Confluence. Keep site URLs, space IDs,
+emails, and tokens in local shell config only.
 
-```bash
-set -a
-source ~/.jira_api_credentials.conf
-set +a
-
-export ESHU_CONFLUENCE_BASE_URL="${CONFLUENCE_BASE_URL:-https://example.atlassian.net/wiki}"
-export ESHU_CONFLUENCE_EMAIL="${JIRA_EMAIL:?set JIRA_EMAIL}"
-export ESHU_CONFLUENCE_API_TOKEN="${JIRA_API_TOKEN:?set JIRA_API_TOKEN}"
-export ESHU_CONFLUENCE_SPACE_KEY="${ESHU_CONFLUENCE_SPACE_KEY:-DEV}"
-export ESHU_CONFLUENCE_PAGE_LIMIT="${ESHU_CONFLUENCE_PAGE_LIMIT:-25}"
-export ESHU_CONFLUENCE_POLL_INTERVAL="${ESHU_CONFLUENCE_POLL_INTERVAL:-5m}"
-```
-
-```bash
-export ESHU_CONFLUENCE_SPACE_ID="$(
-  curl -fsS \
-    -u "${ESHU_CONFLUENCE_EMAIL}:${ESHU_CONFLUENCE_API_TOKEN}" \
-    "${ESHU_CONFLUENCE_BASE_URL}/api/v2/spaces?keys=${ESHU_CONFLUENCE_SPACE_KEY}&limit=1" |
-    jq -r '.results[0].id'
-)"
-
-test -n "$ESHU_CONFLUENCE_SPACE_ID"
-test "$ESHU_CONFLUENCE_SPACE_ID" != "null"
-```
-
-```bash
-docker compose up -d postgres
-
-cd go
-go run ./cmd/bootstrap-data-plane
-go run ./cmd/collector-confluence
-```
-
-In another shell:
-
-```bash
-curl -fsS http://127.0.0.1:8080/readyz
-
-docker compose exec -T postgres \
-  psql postgresql://eshu:change-me@localhost:5432/eshu \
-  -c "select fact_kind, count(*) from fact_records where source_system = 'confluence' group by fact_kind order by fact_kind;"
-```
-
-Stop the collector with Ctrl-C after the first successful sync unless you are
-testing repeated polling. Record page count, visible document count, emitted
-section/link counts, wall time, and HTTP GET count.
-
-Fixture-backed metric proof:
-
-```bash
-cd go
-go test ./internal/collector/confluence \
-  -run 'TestSourceRecordsBoundedConfluenceMetrics|TestHTTPClientRecordsBoundedRequestMetrics' \
-  -count=1 -v
-```
+Run live Confluence proof through the satellite release image with the same
+target shape (host, credentials passed by `token_env`/`email_env` name
+reference, bounded space or page-tree scope, page/total-page limits).
+The satellite's own CI and the QA activation cutover record
+(eshu-hq/eshu#8855) carry the bounded-space fetch, `documentation_*`
+emission, and no-credential-material proof. The satellite emits no metrics
+or traces of its own, so resource and health evidence comes from the
+component-extension host. There is no remaining in-tree `go test` smoke for
+Confluence.
 
 ## Jira
 

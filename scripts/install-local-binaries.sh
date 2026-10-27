@@ -57,7 +57,6 @@ main() {
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-workflow-coordinator" ./cmd/workflow-coordinator
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-projector" ./cmd/projector
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-git" ./cmd/collector-git
-    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-confluence" ./cmd/collector-confluence
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-terraform-state" ./cmd/collector-terraform-state
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-component-extension" ./cmd/collector-component-extension
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-package-registry" ./cmd/collector-package-registry

@@ -184,15 +184,6 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path: "confluence/source.go",
-			calls: []string{
-				"EncodeDocument",
-				"EncodeLink",
-				"EncodeSection",
-				"EncodeSource",
-			},
-		},
-		{
 			path: "document/export/facts.go",
 			calls: []string{
 				"EncodeDocument",
