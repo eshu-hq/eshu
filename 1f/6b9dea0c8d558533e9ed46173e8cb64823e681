@@ -1,0 +1,14 @@
+go/internal/runtime/helm_observability_collectors_contract_test.go
+  h_78a442cba0b3e6 195-196,203-211,263,270-278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1f6b9dea0c8d558533e9ed46173e8cb64823e681",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
