@@ -185,7 +185,10 @@ func (s ClaimedSource) NextClaimed(
 		ObservedAt:   observedAt,
 		IngestedAt:   observedAt,
 		TriggerKind:  scope.TriggerKindSnapshot,
-		Status:       scope.GenerationStatusCompleted,
+		// Pending: the commit guard (backfill.ValidateGenerationInput)
+		// rejects terminal generations before projection; the projector
+		// marks the generation completed afterwards (#9239).
+		Status: scope.GenerationStatusPending,
 	}
 	if err := scopeValue.Validate(); err != nil {
 		recordSpanError(observeSpan, err)

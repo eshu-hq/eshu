@@ -115,6 +115,11 @@ func TestClaimedSourceCollectsGitLabCIPipelineAndJobs(t *testing.T) {
 	if got, want := collected.Generation.ScopeID, "gitlab-ci://gitlab.com/eshu-hq/demo"; got != want {
 		t.Fatalf("Generation.ScopeID = %q, want %q", got, want)
 	}
+	// #9239: the commit guard rejects terminal generations before
+	// projection; the projector marks completion afterwards.
+	if got, want := collected.Generation.Status, scope.GenerationStatusPending; got != want {
+		t.Fatalf("Generation.Status = %q, want %q", got, want)
+	}
 
 	envelopes := drainFacts(t, collected.Facts)
 	run := requireFactKind(t, envelopes, facts.CICDRunFactKind)
