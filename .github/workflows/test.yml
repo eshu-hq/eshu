@@ -132,6 +132,7 @@ jobs:
               - 'go/internal/cli/hookpreflight/AGENTS.md'
               - 'go/internal/cli/hookpreflight/README.md'
               - 'go/internal/collector/README.md'
+              - 'go/internal/collector/sbom/SHIM_MAP.md'
               - 'go/internal/content/artifacts/README.md'
               - 'go/internal/facts/FACT_KIND_REGISTRIES.md'
               - 'go/internal/ifa/README.md'
