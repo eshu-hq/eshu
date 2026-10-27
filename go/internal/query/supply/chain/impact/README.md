@@ -89,6 +89,39 @@ missing-evidence constants, and the relocated runtime-evidence types
 `KubernetesRuntimeWorkloadRef`, `KubernetesRuntimeProbeMetadata`,
 `VulnerabilitySuppressionMutationResult`).
 
+For an explicit NVD CVE, the readiness SQL treats source state as health and
+requires a complete active-generation source snapshot with a matching
+versioned coverage descriptor before it admits a clean-zero result. The
+comparison uses the current configured selector and the endpoint actually
+used inside the same repeatable-read snapshot as target resolution. Missing
+legacy metadata, stale or partial snapshots, and an in-place selector change
+leave target collection incomplete. Malformed CVE elements and duplicate
+scope IDs fail the readiness lookup closed.
+
+Performance Evidence: #9227 used disposable PostgreSQL 18.6 with 50 active
+collector instances, 10,000 configured targets, and 10,000 source-state rows.
+The prior selector-aware query took 14.795 ms warm with 200 relevant targets;
+it did not enforce committed selector-bound coverage. The full corrected query
+with per-target element validation took 24.043/24.523/24.359 ms on the same
+empty-snapshot corpus. Moving the same fail-closed JSONPath checks to one
+validation pass per instance took 20.071/19.950/19.933 ms (630 shared hits,
+zero temp blocks); 250 relevant targets took 21.280/20.347/21.132 ms (654
+hits, zero temp). The overflow probe detects the 201st target before source
+state lookup, and the plan performs only 200 primary-key state lookups in both
+cases. With 100 committed, complete, zero-result NVD snapshots, the corrected
+query took 21.245/22.093/22.691 ms (1,846 hits, zero temp). Exact SQL rows
+matched the previous validation on the 200/250-target and positive-snapshot
+fixtures, plus malformed blank, numeric, and null CVE elements and numeric
+fallbacks. These warm local plans are not an HTTP p95 or a deployed latency
+claim. The added validation and descriptor work remains a measured cost against
+the earlier incomplete query.
+
+Observability Evidence: `source_states[]` reports collector health and
+`source_snapshots[]` reports committed source health; when no current NVD
+snapshot qualifies for absence coverage, `readiness_state=target_incomplete`
+and `incomplete_reasons[]=nvd:committed_snapshot_missing` identify the gap
+without exposing the descriptor, endpoint URL, or API key.
+
 Every export names a staying root caller, an external `query.X`
 caller, or a carried pre-existing export; see `AGENTS.md` for the
 per-symbol list. See `doc.go` for the godoc-rendered contract.

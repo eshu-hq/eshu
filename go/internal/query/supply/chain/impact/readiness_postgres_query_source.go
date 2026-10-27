@@ -273,7 +273,8 @@ vulnerability_source_state_candidates AS (
         COALESCE(state.result_count, 0) AS result_count,
         COALESCE(state.warning_count, 0) AS warning_count,
         state.updated_at,
-        target.coverage_eligible
+        target.coverage_eligible AND committed.covered AS coverage_eligible,
+        target.coverage_eligible AND NOT committed.covered AS coverage_missing
     FROM (
         SELECT * FROM target_vulnerability_source_scopes
         ORDER BY collector_instance_id, scope_id, source, ecosystem
@@ -288,18 +289,42 @@ vulnerability_source_state_candidates AS (
           AND state.source = target.source
         OFFSET 0
     ) AS state ON TRUE
+    -- A source-state success is written before the generation commit. Only
+    -- an active, complete snapshot for this exact executed selector can prove
+    -- absence. Legacy snapshots without a descriptor fail this match.
+    CROSS JOIN LATERAL (
+        SELECT EXISTS (
+            SELECT 1 FROM vulnerability_source_snapshot_active AS snapshot
+            WHERE target.coverage_eligible
+              AND snapshot.scope_id = target.scope_id
+              AND snapshot.payload->>'collector_instance_id' = target.collector_instance_id
+              AND snapshot.payload->>'source' = 'nvd'
+              AND snapshot.payload @> '{"complete": true}'::jsonb
+              AND NULLIF(TRIM(snapshot.payload->>'warning_code'), '') IS NULL
+              AND NULLIF(TRIM(snapshot.payload->>'warning_message'), '') IS NULL
+              AND JSONB_TYPEOF(snapshot.payload->'result_count') = 'number'
+              AND COALESCE(NULLIF(snapshot.payload->>'result_count', '')::int, -1) = 0
+              AND COALESCE(NULLIF(snapshot.payload->>'cache_freshness', ''), 'fresh') = 'fresh'
+              AND CASE WHEN JSONB_TYPEOF(snapshot.payload->'coverage_descriptor') = 'object'
+                  THEN (snapshot.payload->'coverage_descriptor') - 'executed_endpoint'::text = target.expected_descriptor
+                   AND (target.expected_descriptor->'endpoint_candidates') ?
+                       (snapshot.payload->'coverage_descriptor'->>'executed_endpoint')
+                  ELSE FALSE END
+        ) AS covered
+        OFFSET 0
+    ) AS committed
 ),
 vulnerability_source_state AS (
     SELECT
         'vulnerability.source_state' AS family,
         0::int AS fact_count,
         MAX(updated_at) AS latest_observed_at,
-        BOOL_OR(freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')) AS target_incomplete,
-        ARRAY_REMOVE(
-            ARRAY_AGG(DISTINCT source || ':' || freshness_state)
-                FILTER (WHERE freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')),
-            NULL
-        ) AS incomplete_reasons,
+        BOOL_OR(coverage_missing OR freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')) AS target_incomplete,
+        ARRAY_REMOVE(ARRAY_AGG(DISTINCT CASE
+            WHEN coverage_missing THEN 'nvd:committed_snapshot_missing'
+            WHEN freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')
+                THEN source || ':' || freshness_state
+            ELSE NULL END), NULL) AS incomplete_reasons,
         NULL::text AS source_snapshots_json,
         COALESCE(
             JSONB_AGG(DISTINCT JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(

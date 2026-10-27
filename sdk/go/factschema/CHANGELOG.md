@@ -35,6 +35,14 @@ version row for this release.
 
 ### Added
 
+- `vulnerability.source_snapshot` gains an optional `coverage_descriptor` for
+  NVD: a versioned, normalized record of the explicit CVE set, query mode and
+  window, configured endpoint set, and endpoint actually used. Older snapshots
+  remain valid source observations but cannot certify zero advisory coverage.
+  Optional `collector_instance_id` and `result_count` fields now declare
+  fields the SQL readiness reader already uses. This is an additive payload
+  schema change; no external SDK release is claimed here (#9227).
+
 - New `runtimedeclaration/v1` package with `DecodeRuntimeDeclarationVersion` and
   `EncodeRuntimeDeclarationVersion` seams, a schema, and fixture-pack entries
   for `runtime_declaration.version` (issue #8815): one runtime version a

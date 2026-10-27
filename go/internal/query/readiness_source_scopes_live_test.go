@@ -249,7 +249,7 @@ func seedReadinessSourceSnapshotFact(t *testing.T, ctx context.Context, db *sql.
 		t.Fatalf("activate generation %s: %v", generation, err)
 	}
 	payload, err := json.Marshal(map[string]any{
-		"source": source, "ecosystem": ecosystem, "collector_instance_id": instance, "complete": complete,
+		"source": source, "ecosystem": ecosystem, "collector_instance_id": instance, "complete": complete, "result_count": 0,
 		"cache_freshness": "fresh", "cache_updated_at": now.Format(time.RFC3339),
 	})
 	if err != nil {
@@ -330,13 +330,16 @@ func TestSupplyChainImpactReadinessCoverageEligibilityLive(t *testing.T) {
 		{"NVD modified window", map[string]any{"source": "nvd", "scope_id": "window", "modified_start": "2026-05-01T00:00:00Z", "modified_end": "2026-05-02T00:00:00Z"}, "nvd", 0, 0, impact.ReadinessStateEvidenceIncomplete},
 		{"KEV catalog", map[string]any{"source": "cisa_kev", "scope_id": "kev"}, "cisa_kev", 0, 0, impact.ReadinessStateEvidenceIncomplete},
 		{"EPSS CVE", map[string]any{"source": "first_epss", "scope_id": "epss", "cve_ids": []string{"CVE-2026-9227"}}, "first_epss", 0, 0, impact.ReadinessStateEvidenceIncomplete},
-		{"exact NVD with unprojected result", map[string]any{"source": "nvd", "scope_id": "reported", "cve_ids": []string{"CVE-2026-9227"}}, "nvd", 1, 0, impact.ReadinessStateEvidenceIncomplete},
-		{"exact NVD with warning", map[string]any{"source": "nvd", "scope_id": "warning", "cve_ids": []string{"CVE-2026-9227"}}, "nvd", 0, 1, impact.ReadinessStateEvidenceIncomplete},
+		{"exact NVD with unprojected result", map[string]any{"source": "nvd", "scope_id": "reported", "cve_ids": []string{"CVE-2026-9227"}}, "nvd", 1, 0, impact.ReadinessStateTargetIncomplete},
+		{"exact NVD with warning", map[string]any{"source": "nvd", "scope_id": "warning", "cve_ids": []string{"CVE-2026-9227"}}, "nvd", 0, 1, impact.ReadinessStateTargetIncomplete},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, db, now := readinessScopeLiveDatabase(t)
 			seedReadinessScopeInstance(t, ctx, db, now, "coverage-instance", []map[string]any{tc.target})
 			seedReadinessScopeState(t, ctx, db, now, "coverage-instance", tc.target["scope_id"].(string), tc.source, "fresh", "succeeded")
+			if tc.name == "exact NVD CVE" {
+				seedReadinessNVDCommittedSnapshot(t, ctx, db, now, "exact", "coverage-instance", "CVE-2026-9227")
+			}
 			if _, err := db.ExecContext(ctx, `UPDATE vulnerability_source_states SET result_count = $1, warning_count = $2
                 WHERE collector_instance_id = 'coverage-instance'`, tc.results, tc.warnings); err != nil {
 				t.Fatalf("update source counts: %v", err)
@@ -346,6 +349,22 @@ func TestSupplyChainImpactReadinessCoverageEligibilityLive(t *testing.T) {
 				t.Fatalf("readiness = %q, want %q; states=%+v", readiness.State, tc.want, readiness.SourceStates)
 			}
 		})
+	}
+}
+
+func TestSupplyChainImpactReadinessSuccessWithoutCommittedSnapshotLive(t *testing.T) {
+	ctx, db, now := readinessScopeLiveDatabase(t)
+	seedReadinessScopeInstance(t, ctx, db, now, "uncommitted-instance", []map[string]any{
+		{"source": "nvd", "scope_id": "uncommitted", "cve_ids": []string{"CVE-2026-9227"}},
+	})
+	seedReadinessScopeState(t, ctx, db, now, "uncommitted-instance", "uncommitted", "nvd", "fresh", "succeeded")
+	readiness := readReadinessScopeAPI(t, db, "CVE-2026-9227")
+	if readiness.State == impact.ReadinessStateReadinessUnavailable {
+		_, diagnosticErr := impact.NewPostgresReadinessStore(db).ReadSupplyChainImpactReadiness(ctx, impact.ReadinessQuery{CVEID: "CVE-2026-9227"})
+		t.Logf("unavailable diagnostic: %v", diagnosticErr)
+	}
+	if readiness.State != impact.ReadinessStateTargetIncomplete {
+		t.Fatalf("uncommitted source success readiness = %+v, want target_incomplete", readiness)
 	}
 }
 

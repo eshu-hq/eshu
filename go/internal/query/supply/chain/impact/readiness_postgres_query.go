@@ -380,7 +380,12 @@ vulnerability_source_snapshot AS (
                 'source', payload->>'source', 'ecosystem', payload->>'ecosystem',
                 'cache_artifact_version', payload->>'cache_artifact_version',
                 'snapshot_digest', payload->>'cache_snapshot_digest',
-                'last_updated_at', payload->>'cache_updated_at', 'freshness', payload->>'cache_freshness',
+                'last_updated_at', CASE WHEN payload->>'source' = 'nvd'
+                    THEN COALESCE(NULLIF(payload->>'cache_updated_at', ''), TO_CHAR(snapshot.observed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+                    ELSE payload->>'cache_updated_at' END,
+                'freshness', CASE WHEN payload->>'source' = 'nvd'
+                    THEN COALESCE(NULLIF(payload->>'cache_freshness', ''), 'fresh')
+                    ELSE payload->>'cache_freshness' END,
                 'complete', payload @> '{"complete": true}'::jsonb,
                 'warning_code', payload->>'warning_code', 'warning_message', payload->>'warning_message'
             ))) FILTER (WHERE payload IS NOT NULL),

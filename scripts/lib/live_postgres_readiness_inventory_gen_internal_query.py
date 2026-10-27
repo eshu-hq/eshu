@@ -70,6 +70,16 @@ TABLE = {
             "TestWideWindowChunkPlansUseAnIndexLive",
             "TestWideWindowReadsMatchSingleReadsLive",
         ),
+        "go/internal/query/readiness_committed_coverage_live_test.go": (
+            "TestSupplyChainImpactReadinessCommittedCoverageEdgesLive",
+            "TestSupplyChainImpactReadinessRolledBackGenerationCannotCertifyZeroLive",
+        ),
+        "go/internal/query/readiness_source_reconfiguration_live_test.go": (
+            "TestSupplyChainImpactReadinessReconfiguredExactSelectorRefusesOldSuccessLive",
+            "TestSupplyChainImpactReadinessMalformedCVEElementsRefuseCleanZeroLive",
+            "TestSupplyChainImpactReadinessConflictingDuplicateScopeUnavailableLive",
+            "TestSupplyChainImpactReadinessNVDConfiguredFallbackIdentityLive",
+        ),
         "go/internal/query/readiness_source_scopes_live_test.go": (
             "TestSupplyChainImpactReadinessConfiguredSourceScopesLive",
             "TestSupplyChainImpactReadinessSelectorAndPendingScopeLive",
@@ -78,12 +88,16 @@ TABLE = {
             "TestSupplyChainImpactReadinessOSVEcosystemBoundaryLive",
             "TestSupplyChainImpactReadinessSnapshotRequiresSourceMatchLive",
             "TestSupplyChainImpactReadinessCoverageEligibilityLive",
+            "TestSupplyChainImpactReadinessSuccessWithoutCommittedSnapshotLive",
             "TestSupplyChainImpactReadinessSuccessExpiresAtReadTimeLive",
             "TestSupplyChainImpactReadinessIncompleteSnapshotLive",
             "TestSupplyChainImpactReadinessTrimmedConfiguredSelectorLive",
             "TestSupplyChainImpactReadinessDerivedOnlyNullTargetsLive",
             "TestSupplyChainImpactReadinessMalformedSelectorRefusesCleanZeroLive",
             "TestSupplyChainImpactReadinessMalformedConfiguredTargetRefusesCleanZeroLive",
+        ),
+        "go/internal/query/readiness_source_snapshot_concurrent_live_test.go": (
+            "TestSupplyChainImpactReadinessConcurrentReconfigurationUsesOneSnapshotLive",
         ),
         "go/internal/query/security_alert_collection_state_postgres_live_test.go": (
             "TestSecurityAlertCollectionStateSemanticsLive",

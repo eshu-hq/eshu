@@ -25,6 +25,7 @@ const readinessConfiguredSourceTargetsCTE = `invalid_vulnerability_source_target
                      OR JSONB_TYPEOF(target->'source') IS DISTINCT FROM 'string'
                      OR TRIM(target->>'source') NOT IN ('nvd', 'first_epss', 'cisa_kev', 'osv')
                      OR COALESCE(JSONB_TYPEOF(target->'cve_ids'), 'null') NOT IN ('array', 'null')
+                     OR COALESCE(JSONB_TYPEOF(target->'fallback_urls'), 'null') NOT IN ('array', 'null')
                      OR (TRIM(target->>'source') IN ('nvd', 'first_epss')
                          AND JSONB_ARRAY_LENGTH(CASE WHEN JSONB_TYPEOF(target->'cve_ids') = 'array'
                              THEN target->'cve_ids' ELSE '[]'::jsonb END) = 0
@@ -36,6 +37,18 @@ const readinessConfiguredSourceTargetsCTE = `invalid_vulnerability_source_target
                          OR JSONB_ARRAY_LENGTH(CASE WHEN JSONB_TYPEOF(target->'queries') = 'array'
                              THEN target->'queries' ELSE '[]'::jsonb END) = 0))
               )
+              OR JSONB_PATH_EXISTS(instance.configuration,
+                  '$.targets[*].cve_ids[*] ? (@.type() != "string" || @ like_regex "^\\s*$")')
+              OR JSONB_PATH_EXISTS(instance.configuration,
+                  '$.targets[*].fallback_urls[*] ? (@.type() != "string")')
+              OR EXISTS (
+                  SELECT 1 FROM JSONB_ARRAY_ELEMENTS(
+                      CASE WHEN JSONB_TYPEOF(instance.configuration->'targets') = 'array'
+                          THEN instance.configuration->'targets' ELSE '[]'::jsonb END
+                  ) AS configured(target)
+                  GROUP BY TRIM(target->>'scope_id')
+                  HAVING COUNT(*) > 1
+              )
           )
     ) AS invalid
 ),
@@ -44,7 +57,8 @@ configured_vulnerability_source_targets AS (
         NULLIF(TRIM(target->>'scope_id'), '') AS scope_id,
         selector.source,
         NULLIF(LOWER(TRIM(target->>'ecosystem')), '') AS ecosystem,
-        selector.source = 'nvd' AND selector.cve_selected AS coverage_eligible
+        selector.source = 'nvd' AND selector.cve_selected AS coverage_eligible,
+        descriptor.expected_descriptor
     FROM collector_instances AS instance
     CROSS JOIN LATERAL JSONB_ARRAY_ELEMENTS(
         CASE WHEN JSONB_TYPEOF(instance.configuration->'targets') = 'array'
@@ -61,6 +75,50 @@ configured_vulnerability_source_targets AS (
             ) END AS cve_selected
         OFFSET 0
     ) AS selector
+    CROSS JOIN LATERAL (
+        SELECT JSONB_BUILD_OBJECT(
+            'version', 'nvd.v1', 'source', 'nvd',
+            'mode', CASE
+                WHEN JSONB_ARRAY_LENGTH(cves.ids) > 0 AND
+                    (NULLIF(TRIM(target->>'modified_start'), '') IS NOT NULL OR
+                     NULLIF(TRIM(target->>'modified_end'), '') IS NOT NULL) THEN 'cve_window'
+                WHEN JSONB_ARRAY_LENGTH(cves.ids) > 0 THEN 'cve'
+                WHEN NULLIF(TRIM(target->>'modified_start'), '') IS NOT NULL OR
+                     NULLIF(TRIM(target->>'modified_end'), '') IS NOT NULL THEN 'window'
+                ELSE 'none' END,
+            'cve_ids', cves.ids,
+            'modified_start_unix_us', CASE WHEN NULLIF(TRIM(target->>'modified_start'), '') IS NULL
+                THEN 0 ELSE (EXTRACT(EPOCH FROM (target->>'modified_start')::timestamptz) * 1000000)::bigint END,
+            'modified_end_unix_us', CASE WHEN NULLIF(TRIM(target->>'modified_end'), '') IS NULL
+                THEN 0 ELSE (EXTRACT(EPOCH FROM (target->>'modified_end')::timestamptz) * 1000000)::bigint END,
+            'results_per_page', CASE WHEN NULLIF(TRIM(target->>'modified_start'), '') IS NULL AND
+                NULLIF(TRIM(target->>'modified_end'), '') IS NULL THEN 0
+                ELSE COALESCE(NULLIF(TRIM(target->>'results_per_page'), '')::int, 0) END,
+            'endpoint_candidates', endpoints.ids
+        ) AS expected_descriptor
+        FROM (
+            SELECT COALESCE(JSONB_AGG(id ORDER BY id), '[]'::jsonb) AS ids
+            FROM (SELECT DISTINCT TRIM(cve.value) AS id
+                FROM JSONB_ARRAY_ELEMENTS_TEXT(CASE WHEN JSONB_TYPEOF(target->'cve_ids') = 'array'
+                    THEN target->'cve_ids' ELSE '[]'::jsonb END) AS cve(value)
+                WHERE NULLIF(TRIM(cve.value), '') IS NOT NULL) AS canonical
+        ) AS cves
+        CROSS JOIN LATERAL (
+            SELECT COALESCE(JSONB_AGG(endpoint ORDER BY endpoint), '[]'::jsonb) AS ids
+            FROM (SELECT DISTINCT COALESCE(NULLIF(RTRIM(TRIM(value), '/'), ''),
+                'https://services.nvd.nist.gov/rest/json/cves/2.0') AS endpoint
+                FROM (SELECT COALESCE(NULLIF(TRIM(target->>'feed_url'), ''),
+                    NULLIF(TRIM(target->>'base_url'), ''),
+                    NULLIF(TRIM(target->>'source_uri'), ''), '') AS value
+                    UNION ALL
+                    SELECT fallback.value FROM JSONB_ARRAY_ELEMENTS_TEXT(
+                        CASE WHEN JSONB_TYPEOF(target->'fallback_urls') = 'array'
+                            THEN target->'fallback_urls' ELSE '[]'::jsonb END
+                    ) AS fallback(value)
+                    WHERE NULLIF(RTRIM(TRIM(fallback.value), '/'), '') IS NOT NULL) AS candidates) AS canonical
+        ) AS endpoints
+        OFFSET 0
+    ) AS descriptor
     WHERE instance.collector_kind = 'vulnerability_intelligence'
       AND instance.enabled AND instance.deactivated_at IS NULL
       AND NULLIF(TRIM(target->>'scope_id'), '') IS NOT NULL
@@ -80,7 +138,8 @@ configured_vulnerability_source_targets AS (
 derived_vulnerability_source_targets AS (
     SELECT state.collector_instance_id, state.scope_id, state.source,
         NULLIF(LOWER(TRIM(state.ecosystem)), '') AS ecosystem,
-        FALSE AS coverage_eligible
+        FALSE AS coverage_eligible,
+        NULL::jsonb AS expected_descriptor
     FROM vulnerability_source_states AS state
     JOIN collector_instances AS instance
       ON instance.instance_id = state.collector_instance_id
@@ -101,7 +160,8 @@ derived_vulnerability_source_targets AS (
 ),
 target_vulnerability_source_scopes AS (
     SELECT collector_instance_id, scope_id, source, ecosystem,
-        BOOL_OR(coverage_eligible) AS coverage_eligible
+        BOOL_OR(coverage_eligible) AS coverage_eligible,
+        MIN(expected_descriptor::text)::jsonb AS expected_descriptor
     FROM (
         SELECT * FROM configured_vulnerability_source_targets
         UNION ALL
