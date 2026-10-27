@@ -51,11 +51,9 @@
 version: "v1"
 
 coverage:
-  - {surface: "collector:aws", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/awscloud/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:oci_registry", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/ociregistry/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:package_registry", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/packageregistry/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:prometheus_mimir", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/prometheusmimir/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
-  - {surface: "collector:terraform_state", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/terraformstate/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
 
   # C-2 (#4174): implemented-lane collectors backfilled with synthetic
   # supply-chain-demo cassettes (credential-free, matching each collector's real
@@ -391,7 +389,6 @@ coverage:
   # replay framework's existing R-11/R-13/R-14/R-16/R-17 proof artifacts; the
   # coverage gate verifies they are wired, while the named proof gates execute
   # the scenarios.
-  - {surface: collector:aws, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_timeout_test.go, proof_gate: go-test-race}
   # C-14 (#4367) fault backfill: the 12 HTTP-polling collector boundaries each
   # get a genuine timeout-fault proof. Each row maps to a go-test-race case in
   # go/internal/replay/inputtape/fault_collectors_test.go that drives the REAL
@@ -413,7 +410,6 @@ coverage:
   - {surface: collector:oci_registry, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:package_registry, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:sbom_attestation, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
-  - {surface: collector:terraform_state, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: ordering, ref: go/internal/replay/schedulereplay/scenario_test.go, proof_gate: go-test-race}
   - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
   # C-14 (#4367) projection-ordering backfill: the two shared-conflict-key
@@ -840,7 +836,6 @@ coverage:
   - {surface: projection:config_state_drift, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/terraform_config_state_drift_cost_test.go, proof_gate: go-test-race}
 
 scenario_requirements:
-  - {surface: collector:aws, scenario_types: [baseline, fault]}
   - {surface: capability:platform_impact.relationships_catalog, scenario_types: [baseline, ordering, crash]}
   - {surface: capability:freshness.changed_since, scenario_types: [baseline, delta_tombstone]}
   - {surface: capability:code_search.content_search, scenario_types: [baseline, cost]}

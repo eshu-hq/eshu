@@ -58,10 +58,8 @@ The script installs:
 - indexing and runtime binaries: `eshu-bootstrap-index`, `eshu-ingester`,
   `eshu-reducer`, `eshu-projector`
 - collector and control-plane binaries: `eshu-workflow-coordinator`,
-  `eshu-collector-git`,
-  `eshu-collector-terraform-state`, `eshu-collector-package-registry`,
+  `eshu-collector-git`, `eshu-collector-package-registry`,
   `eshu-collector-sbom-attestation`, `eshu-collector-pagerduty`,
-  `eshu-collector-aws-cloud`,
   `eshu-collector-gcp-cloud`, `eshu-collector-azure-cloud`,
   `eshu-webhook-listener`
 - operator helpers: `eshu-bootstrap-data-plane`, `eshu-admin-status`

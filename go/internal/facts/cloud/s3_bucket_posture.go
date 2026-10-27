@@ -68,6 +68,6 @@ var S3BucketPostureFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "s3_bucket_posture"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu", Path: "go/internal/collector/awscloud", PlannedRepository: "eshu-hq/eshu-collector-aws-cloud", AuthorityMode: "core_issued_grant", Kinds: []string{"s3_bucket_posture"}},
+		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu-collector-aws-cloud", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"s3_bucket_posture"}},
 	},
 })

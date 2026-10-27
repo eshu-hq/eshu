@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `collector-aws-cloud` | `eshu-hq/eshu` | `go/internal/collector/awscloud` | `eshu-hq/eshu-collector-aws-cloud` | `core_issued_grant` | `aws_dns_record, aws_iam_permission, aws_image_reference, aws_relationship, aws_resource, aws_resource_policy_permission, aws_security_group_rule, aws_tag_observation, aws_warning` |
+| `collector-aws-cloud` | `eshu-hq/eshu-collector-aws-cloud` | `.` | `` | `core_issued_grant` | `aws_dns_record, aws_iam_permission, aws_image_reference, aws_relationship, aws_resource, aws_resource_policy_permission, aws_security_group_rule, aws_tag_observation, aws_warning` |
 
 ## Kinds
 

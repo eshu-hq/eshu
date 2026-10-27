@@ -1344,12 +1344,13 @@
     {
       "category": "collector",
       "name": "aws",
-      "readiness": "implemented",
-      "owner": "internal/collector/awscloud",
+      "readiness": "partial",
+      "owner": "eshu-hq/eshu-collector-aws-cloud",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
+      "notes": "Extracted to the eshu-collector-aws-cloud satellite (eshu-hq/eshu-collector-aws-cloud): the in-tree command, source package, and image build are gone, so the implemented lane (built in-tree, charted, replay-proven) is unmet. Fact kinds, reducer projection, and read surfaces stay core-owned and covered.",
       "collector_contract": {
         "fact_kinds": [
           "aws_dns_record",
@@ -1390,11 +1391,12 @@
           "list_secrets_iam_identity_trust_chains"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-aws-cloud ./internal/collector/awscloud ./internal/reducer/... ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./internal/query ./internal/mcp -count=1",
+          "scripts/verify-fact-kind-registry.sh"
         ],
         "fixture_refs": [
-          "go/cmd/collector-aws-cloud/testdata",
-          "go/internal/collector/awscloud/service"
+          "docs/public/services/collector-aws-cloud.md",
+          "testdata/cassettes/awscloud"
         ],
         "truth_profile": "provider_gated"
       }
@@ -2159,12 +2161,13 @@
     {
       "category": "collector",
       "name": "terraform_state",
-      "readiness": "implemented",
-      "owner": "internal/collector/terraformstate",
+      "readiness": "partial",
+      "owner": "eshu-hq/eshu-collector-terraform-state",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
+      "notes": "Extracted to the eshu-collector-terraform-state satellite (eshu-hq/eshu-collector-terraform-state): the in-tree command, source package, and image build are gone, so the implemented lane (built in-tree, charted, replay-proven) is unmet. Fact kinds, reducer projection, and read surfaces stay core-owned and covered.",
       "collector_contract": {
         "fact_kinds": [
           "terraform_state_candidate",
@@ -2189,11 +2192,12 @@
           "get_iac_management_status"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./internal/collector/terraformstate ./internal/relationships ./internal/reducer ./internal/query -count=1"
+          "cd go \u0026\u0026 go test ./internal/query ./internal/mcp -count=1",
+          "scripts/verify-fact-kind-registry.sh"
         ],
         "fixture_refs": [
-          "go/internal/collector/terraformstate/testdata",
-          "go/internal/relationships/testdata"
+          "docs/public/services/collector-terraform-state.md",
+          "testdata/cassettes/terraformstate"
         ],
         "truth_profile": "deterministic"
       }
@@ -2328,11 +2332,6 @@
     },
     {
       "category": "command",
-      "name": "collector-aws-cloud",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
       "name": "collector-azure-cloud",
       "readiness": "implemented"
     },
@@ -2394,11 +2393,6 @@
     {
       "category": "command",
       "name": "collector-security-alerts",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "collector-terraform-state",
       "readiness": "implemented"
     },
     {

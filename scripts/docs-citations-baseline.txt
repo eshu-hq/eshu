@@ -34,6 +34,7 @@
 # --- FIXTURE records ---
 FIXTURE testdata/fixtures
 FIXTURE testdata/report-odu/
+FIXTURE tests/fixtures/aws_runtime_drift
 FIXTURE tests/fixtures/ecosystems/cpp_comprehensive/
 FIXTURE tests/fixtures/ecosystems/crossplane_comprehensive/
 FIXTURE tests/fixtures/ecosystems/helm_comprehensive/
@@ -42,6 +43,7 @@ FIXTURE tests/fixtures/ecosystems/kustomize_comprehensive/
 FIXTURE tests/fixtures/ecosystems/python_terraform
 FIXTURE tests/fixtures/operator_digest/
 FIXTURE tests/fixtures/sample_projects/sample_project_scala/
+FIXTURE tests/fixtures/tfstate_drift_tier2
 # --- LINE records ---
 LINE docs/internal/architecture-review-2026-07-direction-contracts-oss.md go/internal/facts/models.go:28
 LINE docs/internal/architecture-review-2026-07-direction-contracts-oss.md go/internal/reducer/aws_relationship_join.go:64

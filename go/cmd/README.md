@@ -23,7 +23,6 @@ exact binary set on `PATH`.
 | `eshu-bootstrap-index` | `bootstrap-index/` | One-shot multi-phase orchestration |
 | `eshu-bootstrap-data-plane` | `bootstrap-data-plane/` | One-shot data-plane setup |
 | `eshu-collector-git` | `collector-git/` | Local git-collector helper |
-| `eshu-collector-terraform-state` | `collector-terraform-state/` | Long-running Terraform-state collector |
 | `eshu-collector-component-extension` | `collector-component-extension/` | Long-running process-backed component extension collector |
 | `eshu-collector-package-registry` | `collector-package-registry/` | Long-running package-registry collector |
 | `eshu-collector-sbom-attestation` | `collector-sbom-attestation/` | Long-running hosted SBOM and attestation collector |
@@ -33,7 +32,6 @@ exact binary set on `PATH`.
 | `eshu-collector-grafana` | `collector-grafana/` | Long-running live Grafana metadata collector |
 | `eshu-collector-prometheus-mimir` | `collector-prometheus-mimir/` | Long-running live Prometheus and Mimir metadata collector |
 | `eshu-scanner-worker` | `scanner-worker/` | Long-running isolated security analyzer worker |
-| `eshu-collector-aws-cloud` | `collector-aws-cloud/` | Long-running AWS cloud collector |
 | `eshu-collector-gcp-cloud` | `collector-gcp-cloud/` | Long-running GCP Cloud Asset Inventory collector |
 | `eshu-webhook-listener` | `webhook-listener/` | Long-running GitHub/GitLab webhook intake |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |
@@ -55,14 +53,12 @@ flowchart LR
   bootstrap -.one-shot.-> reducer
   workflow[workflow-coordinator] --> postgres
   component[collector-component-extension] --> postgres
-  tfstate[collector-terraform-state] --> postgres
   sbom[collector-sbom-attestation] --> postgres
   alerts[collector-security-alerts] --> postgres
   cicd[collector-cicd-run] --> postgres
   pagerduty[collector-pagerduty] --> postgres
   grafana[collector-grafana] --> postgres
   metrics[collector-prometheus-mimir] --> postgres
-  aws[collector-aws-cloud] --> postgres
   gcp[collector-gcp-cloud] --> postgres
   scanner[scanner-worker] --> postgres
   webhook[webhook-listener] --> postgres

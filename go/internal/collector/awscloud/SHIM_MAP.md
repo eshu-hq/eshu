@@ -14,7 +14,7 @@ claim (`source.go:251-280`), resolves one authorized
 (`source.go:282-312`), acquires the per-account slot, assumes claim-scoped
 credentials, and reuses `item.GenerationID` (= `item.SourceRunID`, enforced at
 `source.go:267-269`) so retries are idempotent. (Fixture and cassette modes in
-`go/cmd/collector-aws-cloud/service.go:40,64` are credential-free replay twins;
+the retired in-tree command service were credential-free replay twins;
 they are not part of the live claim boundary.)
 
 | In-tree outcome | SDK `ResultState` | Host action |
@@ -120,7 +120,7 @@ markers (`RedactionPolicyVersion = "aws-launch-2026-05-14"`,
 
 ## 3. `TargetConfig` JSON (operator shape, unchanged by extraction)
 
-`awsRuntimeConfiguration` (`go/cmd/collector-aws-cloud/config.go:34-47`)
+`awsRuntimeConfiguration` (in-tree command config at extraction)
 `target_scopes[]` keys: `account_id` (12 digits, must match the
 `role_arn` account for `central_assume_role`), `allowed_regions`
 (required, no wildcards/empties), `allowed_services` (required,

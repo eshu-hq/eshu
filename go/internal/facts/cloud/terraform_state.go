@@ -113,7 +113,7 @@ var TerraformStateFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "terraform_state_warning", PayloadSchema: "sdk/go/factschema/schema/terraform_state_warning.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Intentionally not consumed; the terraform-state canonical extractor documents it as unhandled.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries); projector terraform-state extractor doc comment"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-terraform-state", Repository: "eshu-hq/eshu", Path: "go/internal/collector/terraformstate", PlannedRepository: "eshu-hq/eshu-collector-terraform-state", AuthorityMode: "core_issued_grant", Kinds: []string{"terraform_state_module", "terraform_state_output", "terraform_state_provider_binding", "terraform_state_resource", "terraform_state_snapshot", "terraform_state_tag_observation", "terraform_state_warning"}},
+		{ID: "collector-terraform-state", Repository: "eshu-hq/eshu-collector-terraform-state", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"terraform_state_module", "terraform_state_output", "terraform_state_provider_binding", "terraform_state_resource", "terraform_state_snapshot", "terraform_state_tag_observation", "terraform_state_warning"}},
 		{ID: "git-core", Repository: "eshu-hq/eshu", Path: "go/internal/collector/repo", AuthorityMode: "core_owned", Kinds: []string{"terraform_state_candidate"}},
 	},
 })

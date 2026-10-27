@@ -16,9 +16,8 @@ kinds:
     - s3_bucket_posture
 producers:
     - id: collector-aws-cloud
-      repository: eshu-hq/eshu
-      path: go/internal/collector/awscloud
-      planned_repository: eshu-hq/eshu-collector-aws-cloud
+      repository: eshu-hq/eshu-collector-aws-cloud
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - s3_bucket_posture

@@ -90,19 +90,21 @@ See `doc.go` for the godoc contract.
   a stable `aws:<account>:<region>:<service>` scope id and a clock-independent
   generation id when those fields are blank, so re-ingest is idempotent.
 
-## Fixture mode (offline replay)
+## Fixture mode (offline replay, retired)
 
-`FixtureSource` is the offline twin of `ClaimedSource`. The `collector-aws-cloud`
-command wires it into a non-claimed `collector.Service` when run with
-`-mode fixture -config <estate.json>` (default mode stays `claimed-live`). Each
-`Next` yields one scope generation; the source reports the batch drained, then
-restarts it on the next poll, mirroring the GCP fixture source. Because the
-emitted envelopes are byte-identical to live facts, the offline path exercises
-the same projector and `aws_cloud_runtime_drift` reducer behavior. A checked-in
-estate and its drift intent live in
-`go/cmd/collector-aws-cloud/testdata/fixture-estate.json` and
-`tests/fixtures/aws_runtime_drift/`; the compose proof is
-`scripts/verify_aws_runtime_drift_compose.sh`.
+`FixtureSource` was the offline twin of `ClaimedSource`. The deleted
+`collector-aws-cloud` command wired it into a non-claimed
+`collector.Service` when run with `-mode fixture -config <estate.json>`.
+Each `Next` yielded one scope generation; the source reported the batch
+drained, then restarted it on the next poll, mirroring the GCP fixture source.
+Because the emitted envelopes were byte-identical to live facts, the offline
+path exercised the same projector and `aws_cloud_runtime_drift` reducer
+behavior. The checked-in estate
+(`go/cmd/collector-aws-cloud/testdata/fixture-estate.json`), the drift
+fixtures (`tests/fixtures/aws_runtime_drift/`), and the compose proof
+(`scripts/verify_aws_runtime_drift_compose.sh`) were retired with the #8852
+in-tree collector removal: the `eshu-hq/eshu-collector-aws-cloud` satellite
+has no fixture mode. `FixtureSource` remains as kernel test support.
 
 ## Dependencies
 

@@ -38,9 +38,10 @@ import (
 // 12-digit AWS account id and a GCP self_link embeds the project id, so those
 // can now appear raw from a provider the bundle cannot classify. On the ordinary
 // SchemaKnown path these same three keys — and standalone `account_id` — are
-// already preserved raw (see defaultRedactionSensitiveKeys in
-// cmd/collector-terraform-state/config.go, which lists only credential-shaped
-// keys). The genuinely new exposure is a state-only deployment with no cloud
+// already preserved raw (see defaultRedactionSensitiveKeys formerly in
+// the in-tree command config, removed on the #8868 extraction,
+// which lists only credential-shaped keys). The genuinely new exposure is a
+// state-only deployment with no cloud
 // collector, where nothing else would emit that ARN.
 //
 // The carve-out is by key NAME, not by content. A provider that stores

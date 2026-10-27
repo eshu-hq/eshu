@@ -31,6 +31,9 @@ spec:
         - name: aws-cloud-collector
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The aws-cloud binary ships in the eshu-collector-aws-cloud satellite image
+          # (producer record: go/internal/facts/cloud/aws.go), not the
+          # in-tree product image: this Deployment's image must provide it.
           command: ["/usr/local/bin/eshu-collector-aws-cloud"]
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}

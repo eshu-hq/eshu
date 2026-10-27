@@ -67,6 +67,6 @@ var RDSPostureFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "rds_instance_posture"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu", Path: "go/internal/collector/awscloud", PlannedRepository: "eshu-hq/eshu-collector-aws-cloud", AuthorityMode: "core_issued_grant", Kinds: []string{"rds_instance_posture"}},
+		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu-collector-aws-cloud", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"rds_instance_posture"}},
 	},
 })

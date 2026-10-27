@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 456,
-    "covered": 446,
+    "total": 452,
+    "covered": 442,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 10,
@@ -102,8 +102,8 @@
     },
     {
       "registry": "surface_inventory",
-      "total": 28,
-      "covered": 21,
+      "total": 24,
+      "covered": 17,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 7,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 242,
-      "covered": 238,
+      "total": 240,
+      "covered": 236,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 4,
@@ -149,8 +149,8 @@
     },
     {
       "scenario_type": "fault",
-      "total": 14,
-      "covered": 10,
+      "total": 12,
+      "covered": 8,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 4,
@@ -4440,26 +4440,6 @@
     },
     {
       "registry": "surface_inventory",
-      "key": "collector:aws",
-      "scenario_type": "baseline",
-      "status": "covered",
-      "scenario": "cassette",
-      "ref": "testdata/cassettes/awscloud/supply-chain-demo.json",
-      "proof_gate": "golden-corpus-gate-neo4j",
-      "detail": "artifact present: testdata/cassettes/awscloud/supply-chain-demo.json"
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:aws",
-      "scenario_type": "fault",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_timeout_test.go",
-      "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_timeout_test.go"
-    },
-    {
-      "registry": "surface_inventory",
       "key": "collector:git",
       "scenario_type": "baseline",
       "status": "exempt",
@@ -4642,26 +4622,6 @@
       "scenario_type": "fault",
       "status": "exempt",
       "detail": "Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-tempo while the coordinator still plans tempo claims and the reducer/query surfaces still serve the fact kinds. No in-tree Tempo client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound."
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:terraform_state",
-      "scenario_type": "baseline",
-      "status": "covered",
-      "scenario": "cassette",
-      "ref": "testdata/cassettes/terraformstate/supply-chain-demo.json",
-      "proof_gate": "golden-corpus-gate-neo4j",
-      "detail": "artifact present: testdata/cassettes/terraformstate/supply-chain-demo.json"
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:terraform_state",
-      "scenario_type": "fault",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
-      "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",

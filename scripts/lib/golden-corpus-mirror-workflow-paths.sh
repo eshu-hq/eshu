@@ -57,8 +57,9 @@ require_workflow_path "relationship resolution (#5596)" "go/internal/relationshi
 require_workflow_path "fact-kind schemas (#5596)"       "sdk/go/factschema/**"
 # The fact-emitting command packages (service wiring that assembles the
 # collectors/ingester/reducer/projector) must trigger the gate too — a change
-# under go/cmd/collector-aws-cloud/service.go can alter emitted facts as much
-# as go/internal/collector (#5686 review).
+# under a collector command service file (formerly
+# the in-tree aws-cloud command service, removed on the #8852 extraction) can
+# alter emitted facts as much as go/internal/collector (#5686 review).
 require_workflow_path "collector command wiring"       "go/cmd/collector-**"
 require_workflow_path "bootstrap-index fact seeding"   "go/cmd/bootstrap-index/**"
 require_workflow_path "ingester fact emission"         "go/cmd/ingester/**"

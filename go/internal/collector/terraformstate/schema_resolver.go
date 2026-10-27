@@ -116,10 +116,10 @@ func (r *packagedSchemaResolver) EntryCount() int {
 //
 // Reaching the empty case means neither the operator's directory nor the
 // binary's own embedded bundle produced a single attribute — a broken build or
-// a broken deployment, not a degraded mode worth starting in. The caller
-// (cmd/collector-terraform-state/config.go) already wraps and returns this
-// error, so the collector now fails to start instead of silently degrading
-// every scalar of every resource.
+// a broken deployment, not a degraded mode worth starting in. The in-tree
+// command wrapped and returned this error (removed on the #8868 extraction;
+// the satellite owns command startup now), so the collector failed to start
+// instead of silently degrading every scalar of every resource.
 func LoadPackagedSchemaResolver(schemaDir string) (ProviderSchemaResolver, error) {
 	stateAttributes := make(map[string]map[string]struct{}, 1024)
 

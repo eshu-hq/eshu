@@ -404,7 +404,7 @@ target may raise `ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX` only for that
 partial run and must record the partial classification in the proof evidence.
 All-collector release gates keep the default zero threshold.
 The checked-in remote E2E Compose stack scopes both the exact S3 seed and the
-graph-backed S3 `backend_filters` entry with `ESHU_TFSTATE_S3_KEY`. That keeps
+graph-backed S3 `backend_filters` entry to the configured seed object. That keeps
 all-collector proofs from treating stale same-bucket Git backend declarations
 as configured targets while preserving the zero `state_missing` threshold for
 the exact configured object.

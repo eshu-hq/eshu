@@ -132,10 +132,12 @@ already has zero compile-time dependency on individual service packages.
 A scanner that redacts sensitive metadata declares the requirement in its own
 `runtimebind/bind.go`, not in the command. Set `RequiresRedactionKey: true` in
 the `awsruntime.Register` call and keep the builder's `d.RedactionKey.IsZero()`
-guard. The command derives the `ESHU_AWS_REDACTION_KEY` pre-flight requirement
+guard. The command derives the redaction-key pre-flight requirement (`ESHU_AWS_*` family)
 and the missing-key error message from
 `awsruntime.ServiceKindsRequiringRedactionKey()`, so adding a redaction scanner
-touches zero shared lines in `go/cmd/collector-aws-cloud/config.go`. Scanners
+touches zero shared command lines (the in-tree command config was removed
+on the #8852 extraction; the `eshu-hq/eshu-collector-aws-cloud`
+satellite owns command wiring now). Scanners
 that need no key leave the flag unset.
 
 The reference table at

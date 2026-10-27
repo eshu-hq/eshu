@@ -5,7 +5,8 @@ Fixture corpus for `scripts/verify_tfstate_drift_compose.sh`.
 Tier 1 seeds Postgres with Terraform config and state facts, then reruns
 bootstrap Phase 3.5 so the reducer handles `config_state_drift` work. It
 exercises the drift handler and evidence loader without the Terraform-state
-collector. Tier 2 lives in `../tfstate_drift_tier2/`.
+collector. (Tier 2 lived in `../tfstate_drift_tier2/`; retired with the #8868
+in-tree collector removal — see `docs/internal/evidence/8852-8868-collector-removal.md`.)
 
 ## File Map
 

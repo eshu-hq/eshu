@@ -224,13 +224,11 @@ func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 	t.Parallel()
 
 	for _, sourcePath := range []string{
-		"go/cmd/collector-aws-cloud/main.go",
 		"go/cmd/collector-git/main.go",
 		"go/cmd/collector-oci-registry/main.go",
 		"go/cmd/collector-package-registry/main.go",
 		"go/cmd/collector-sbom-attestation/main.go",
 		"go/cmd/collector-security-alerts/main.go",
-		"go/cmd/collector-terraform-state/main.go",
 		"go/cmd/collector-vulnerability-intelligence/main.go",
 		"go/cmd/projector/main.go",
 		"go/cmd/scanner-worker/main.go",

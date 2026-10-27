@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `collector-terraform-state` | `eshu-hq/eshu` | `go/internal/collector/terraformstate` | `eshu-hq/eshu-collector-terraform-state` | `core_issued_grant` | `terraform_state_module, terraform_state_output, terraform_state_provider_binding, terraform_state_resource, terraform_state_snapshot, terraform_state_tag_observation, terraform_state_warning` |
+| `collector-terraform-state` | `eshu-hq/eshu-collector-terraform-state` | `.` | `` | `core_issued_grant` | `terraform_state_module, terraform_state_output, terraform_state_provider_binding, terraform_state_resource, terraform_state_snapshot, terraform_state_tag_observation, terraform_state_warning` |
 | `git-core` | `eshu-hq/eshu` | `go/internal/collector/repo` | `` | `core_owned` | `terraform_state_candidate` |
 
 ## Kinds
