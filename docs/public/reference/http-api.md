@@ -58,11 +58,6 @@ Saved IdP group mapping refs from before the FIPS-safe SHA-256 transition must
 be refreshed through the admin mapping list before deletion; a legacy ref
 returns `409` (see [Dashboard browser sessions](http-api/dashboard-sessions.md)).
 
-Vulnerability impact finding provenance can include
-`selected_epss_score_date` and, only when the source supplies it,
-`selected_epss_model_version`; see the
-[vulnerability impact reference](http-api/vulnerability-impact.md).
-
 ## Shared Wire Contracts
 
 Programmatic HTTP clients should opt in to the canonical envelope with:
