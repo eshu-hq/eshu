@@ -142,7 +142,6 @@ The active collector set on this deployment is enumerated below. Disabling a col
 - documentation (enabled)
 - git (enabled)
 - grafana (enabled)
-- jira (enabled)
 - loki (enabled)
 - oci_registry (enabled)
 - package_registry (enabled)
