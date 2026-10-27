@@ -58,6 +58,12 @@ Primary proof:
   decoder has no depth bound and would otherwise overflow its stack
   ([#8985](https://github.com/eshu-hq/eshu/issues/8985)). Real Cargo files
   nest about four levels.
+- A `Cargo.toml` or `Cargo.lock` with an implausible number of keys in one
+  table (about 7,000 keys, against 45 in the widest of 290 real files) is also
+  reported as unparseable. The TOML decoder takes time quadratic in the keys
+  of a table: 100,000 keys held a parse worker for 18.5 seconds
+  ([#8991](https://github.com/eshu-hq/eshu/issues/8991)). A lockfile with
+  tens of thousands of `[[package]]` sections still parses.
 
 ## Parser Performance
 

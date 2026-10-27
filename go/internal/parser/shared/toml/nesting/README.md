@@ -2,6 +2,9 @@
 
 ## Purpose
 
+The package bounds two decoder costs before `go-toml` sees a document: nesting
+depth (below) and key-lookup work (see [Key Work](#key-work)).
+
 `internal/parser/shared/toml/nesting` checks how deeply a TOML document nests
 before a decoder parses it. `github.com/pelletier/go-toml/v2` v2.3.1 recurses
 once per array or inline-table level and once per dotted-key segment, with no
@@ -39,20 +42,87 @@ extra quotes of content, so a run of up to five quotes ends the string. Brackets
 comments never count. Where the lexer could disagree with the decoder, the
 decoder has already failed on an earlier byte, so nothing after it is decoded.
 
+## Key Work
+
+go-toml v2.3.1 finds a key in a table with `tracker.SeenTracker.find`, which
+scans a linked list, so a table of n keys decodes in about half n squared
+steps (#8991). Measured on one table: 25,000 keys take 1.0 s, 50,000 take
+4.3 s, and 100,000 take 18.5 s. Plain keys, dotted keys, inline-table keys,
+and child tables made by headers (`[dependencies.a]`, `[a]`) all pay it, and
+a repeated header pays it again: naming an already-seen table rescans the
+siblings every time, so repeats cost per repeat and are not bounded by the
+distinct header texts.
+
+`CheckBounds(source, Bounds{Depth, KeyWork, KnownTables})` adds up that work
+in the same pass and returns an error wrapping `ErrTooManyKeys` once the
+total passes `KeyWork`. A zero field allows nothing, so a caller that omits a
+bound fails closed.
+
+- Each `=` in key position charges the entries its lookup scans: a plain
+  entry of m segments charges m times its scope's entries so far plus the
+  distinct headers so far, and an inline-table entry charges m times its own
+  inline table's entries. A table of n entries therefore adds about half n
+  squared, and the pass stops within one entry of the limit.
+- Each header charges its segments plus one times the distinct headers so
+  far plus the widest scope seen, repeated headers included. Distinct headers
+  are remembered as seeded 64-bit hashes, one per header, capped by the
+  limit.
+- Every root key and every key in a table the decode target knows is charged
+  in full, known field or not: go-toml tracker-checks them all and clears its
+  per-key skip at the end of each key, so 30,000 unknown keys in one
+  `[[package]]` element really cost about 450 million tracker steps. The one
+  exemption needs the caller to name its struct target's top-level tables in
+  `KnownTables`: go-toml never enters a table the target does not know, so
+  plain entries under a single-segment header naming no known table (the v1
+  lockfile's `[metadata]`) are not charged. Headers, inline tables, dotted
+  headers, and quoted headers are charged in full either way, so a spelling
+  the pass does not decode can only over-charge. A map target passes an empty
+  set, so every entry is charged.
+
+| Document | Work |
+| --- | --- |
+| `a=1`, `b=2`, `c=3` | 6 |
+| `[x]` with 2 keys, then `[y]` with 1 | 18 |
+| `d = {a=1, b=2, c=3}` then `z=1` | 9 |
+| 50,000 `[[package]]` sections (12.6 MB) | 1.6 million |
+| 100,000 keys in one table | 5 billion |
+
+The count never falls below the decoder's tracker steps: each charge is an
+upper bound of the list its lookup scans, every header repeat is charged, and
+the unknown-table exemption mirrors the one skip the decoder really makes.
+The charge may exceed the steps, and map bounds reject some documents a
+struct decode would finish quickly; that over-count is policy, and
+`KnownTables` exists so legal struct-decoded files (a v1 lockfile's
+`[metadata]` checksums) are not refused. `TestKeyWorkNeverUndercountsTheDecoder`
+and `TestStructShapeWorkCoversTheDecoder` check the work against a
+step-counting copy of the go-toml tracker on seeded documents, including
+2,000 unknown keys inside one `[[package]]` element so the oracle cannot
+drift back to a per-key skip the decoder does not have;
+`TestStructBoundsRejectUnknownKeysInKnownTable` requires the 30,000-key
+document to be rejected under the lock bounds.
+
 ## Cost
 
-The pass allocates only a frame stack of at most `limit+1` entries. On a
-2.5 MB legal Cargo.lock it takes about 1.7 ms with 0 B/op, against about
-16 ms and 9.2 MB for the go-toml decode of the same file
-(`BenchmarkCheckLegalLockfile`, `BenchmarkDecodeLegalLockfile`). At one
-million levels it rejects the input within 16 KiB.
+Depth only: the pass allocates a frame stack of at most `limit+1` entries.
+`CheckBounds` adds a small set of header hashes: on a 2.5 MB legal Cargo.lock
+of 10,000 packages `Check` takes 1.68 ms with 0 B/op before the key-work
+change and 2.13 ms with 192 B/op after, against about 16 ms and 9.2 MB for the
+go-toml decode of the same file (`BenchmarkCheckLegalLockfile`,
+`BenchmarkCheckBoundsLegalLockfile`, `BenchmarkDecodeLegalLockfile`). At one
+million levels the guard rejects the input within 16 KiB, and a 100,000-key
+table within 1 MiB (the header set).
 
 ## Callers
 
 - `internal/parser/rust` checks every `Cargo.toml` and `Cargo.lock` at depth
-  64 before `toml.Unmarshal`.
+  64 and key work 25,000,000 before `toml.Unmarshal`; lockfiles pass the lock
+  struct's known tables (`{"package"}`) so entries under tables the decoder
+  never enters are not charged.
 
-Any new parser that hands repository TOML to go-toml must call `Check` first.
+Any new parser that hands repository TOML to go-toml must call `CheckBounds`
+first with an explicit `KeyWork` bound (and `KnownTables` for a struct
+target). `Check` alone bounds depth only and gives no key-work protection,
+though it allocates the same per-distinct-header hash set.
 
 ## Telemetry
 
@@ -75,3 +145,17 @@ worker, lease, batch, or graph-write path changes.
 No-Observability-Change: no metric, span, or log key is added. A rejected file
 fails its parse through the existing error path, and the git collector already
 records it in the parse-file status metric as `skipped`.
+
+Benchmark Evidence (#8991 guard limits): over-limit documents stop within
+one entry past the 25,000,000 budget (`TestCheckBoundsStopsEarly` asserts
+work in (25,000,000, 25,010,001]); the 7,069-admitted / 7,070-rejected
+boundary holds 24,995,986 at the edge. Race-detector runs use 12,000-entry
+hostile shapes with at least 2.88x margin over the limit: full nesting
+package green under `-race` in 302 s, standard suite green in 78 s, legal
+50,000-package lockfiles scanning in 0.08 s total
+(`go test -count=1 -v -run TestCheckBoundsAcceptsLegalDocuments
+./internal/parser/shared/toml/nesting/`). Backend go-toml v2.3.1,
+linux/arm64 shared host.
+
+No-Observability-Change (#8991 reaffirmed): this change adds no new metric,
+span, log, or knob; rejections flow through the existing parse-failure path.

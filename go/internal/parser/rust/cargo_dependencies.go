@@ -26,11 +26,38 @@ const cargoPackageManager = "cargo"
 // table with a features array adds 2. 64 leaves wide room for legal files.
 const cargoMaxNesting = 64
 
+// cargoMaxKeyWork bounds the decoder's key-lookup work before it runs (see
+// nesting.Bounds.KeyWork). go-toml v2.3.1 finds a key by scanning a linked
+// list, so a table of n keys costs about n squared over two: 100,000 keys in
+// one [dependencies] table hold a parse worker for about 18 seconds (#8991).
+// The corpus of 290 real Cargo.toml and Cargo.lock files tops out at 16,919
+// (a 190 KB lockfile; the widest table is 45 keys). 25,000,000 is about
+// 1,480 times that, admits one table of 7,069 keys, and passes a lockfile of
+// 50,000 packages (1.6 million); the decode it permits takes well under a
+// tenth of a second.
+const cargoMaxKeyWork = 25_000_000
+
+// cargoLockKnownTables names the top-level tables of cargoLockDocument for
+// nesting.Bounds.KnownTables: its one root field is the package array
+// table. go-toml never enters a table the lock struct does not know (the v1
+// [metadata] checksum table), so the guard does not charge its plain
+// entries, but it tracker-checks every key inside [[package]], known field
+// or not, so those are charged in full. A manifest decodes into a map,
+// where every entry is looked up, so it passes nil.
+// TestCargoLockKnownTablesCoversTarget keeps this set over every table
+// field of the lock target: a table left out would be skipped by the guard
+// but tracked by the decoder.
+var cargoLockKnownTables = map[string]bool{"package": true}
+
 // decodeCargoTOML checks source with the nesting guard and then decodes it
-// into target. A too-deep file returns an error wrapping nesting.ErrTooDeep,
-// and an unterminated string one wrapping nesting.ErrUnterminatedString.
-func decodeCargoTOML(source []byte, target any) error {
-	if err := nesting.Check(source, cargoMaxNesting); err != nil {
+// into target. knownTables is nesting.Bounds.KnownTables for the target:
+// nil for a map, cargoLockKnownTables for the lock struct. A too-deep file
+// returns an error wrapping nesting.ErrTooDeep, a file with too much
+// key-lookup work one wrapping nesting.ErrTooManyKeys, and an unterminated
+// string one wrapping nesting.ErrUnterminatedString.
+func decodeCargoTOML(source []byte, target any, knownTables map[string]bool) error {
+	bounds := nesting.Bounds{Depth: cargoMaxNesting, KeyWork: cargoMaxKeyWork, KnownTables: knownTables}
+	if err := nesting.CheckBounds(source, bounds); err != nil {
 		return err
 	}
 	return toml.Unmarshal(source, target)
@@ -58,13 +85,13 @@ func ParseCargoDependencyFile(repoRoot string, path string, isDependency bool) (
 	switch strings.ToLower(filepath.Base(path)) {
 	case "cargo.toml":
 		var document map[string]any
-		if err := decodeCargoTOML(source, &document); err != nil {
+		if err := decodeCargoTOML(source, &document, nil); err != nil {
 			return nil, fmt.Errorf("parse Cargo.toml %q: %w", path, err)
 		}
 		payload["variables"] = cargoManifestDependencyRows(repoRoot, path, document)
 	case "cargo.lock":
 		var lock cargoLockDocument
-		if err := decodeCargoTOML(source, &lock); err != nil {
+		if err := decodeCargoTOML(source, &lock, cargoLockKnownTables); err != nil {
 			return nil, fmt.Errorf("parse Cargo.lock %q: %w", path, err)
 		}
 		payload["variables"] = cargoLockDependencyRows(repoRoot, path, lock)
@@ -223,7 +250,7 @@ func cargoAncestorWorkspaceDependencies(repoRoot string, path string) map[string
 				// manifest is skipped: it only adds workspace versions, and
 				// the member manifest still parses without them.
 				var document map[string]any
-				if decodeCargoTOML(source, &document) == nil {
+				if decodeCargoTOML(source, &document, nil) == nil {
 					for key, value := range cargoWorkspaceDependenciesFromDocument(document) {
 						out[key] = value
 					}
