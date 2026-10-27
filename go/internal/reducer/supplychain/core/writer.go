@@ -378,6 +378,12 @@ func supplyChainImpactSuppressionPayload(decision SupplyChainSuppressionDecision
 
 func supplyChainImpactProvenancePayload(finding SupplyChainImpactFinding) map[string]any {
 	out := map[string]any{}
+	if finding.EPSSScoreDate != "" {
+		out["selected_epss_score_date"] = finding.EPSSScoreDate
+	}
+	if finding.EPSSModelVersion != "" {
+		out["selected_epss_model_version"] = finding.EPSSModelVersion
+	}
 	if finding.SeveritySource != "" {
 		out["selected_severity_source"] = finding.SeveritySource
 	}

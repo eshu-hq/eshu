@@ -3,7 +3,11 @@
 
 package supplychainmodel
 
-import "github.com/eshu-hq/eshu/go/internal/facts"
+import (
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
 
 // ImpactCVE is the reducer's internal projection of one vulnerability
 // advisory fact (a CVE/GHSA/OSV record) used to classify supply-chain-impact
@@ -214,9 +218,13 @@ type ServiceContext struct {
 // RiskSignals is the reducer's internal projection of one advisory's
 // exploit-prediction (EPSS) and known-exploited-vulnerability (KEV) evidence.
 type RiskSignals struct {
-	EPSSFactID      string
-	EPSSProbability string
-	EPSSPercentile  string
-	KEVFactID       string
-	KnownExploited  bool
+	EPSSFactID       string
+	EPSSProbability  string
+	EPSSPercentile   string
+	EPSSScoreDate    string
+	EPSSModelVersion string
+	EPSSObservedAt   time.Time
+	EPSSSelected     bool
+	KEVFactID        string
+	KnownExploited   bool
 }

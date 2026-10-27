@@ -236,6 +236,8 @@ type Provenance struct {
 	SelectedSeverityLabel      string               `json:"selected_severity_label,omitempty"`
 	SelectedFixedVersionSource string               `json:"selected_fixed_version_source,omitempty"`
 	SelectedRangeSource        string               `json:"selected_range_source,omitempty"`
+	SelectedEPSSScoreDate      string               `json:"selected_epss_score_date,omitempty"`
+	SelectedEPSSModelVersion   string               `json:"selected_epss_model_version,omitempty"`
 	AlternateSeverities        []AlternateSeverity  `json:"alternate_severities,omitempty"`
 	FixedVersionBranches       []FixedVersionBranch `json:"fixed_version_branches,omitempty"`
 	AdvisorySources            []AdvisorySource     `json:"advisory_sources,omitempty"`

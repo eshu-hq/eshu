@@ -4,7 +4,9 @@
 package core
 
 import (
+	"fmt"
 	"sort"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
@@ -196,11 +198,28 @@ func addSupplyChainImpactIndexEntry(
 		if err != nil {
 			return factdecode.PartitionDecodeFailures(envelope, err)
 		}
+		scoreDate := payloadcore.DerefString(score.ScoreDate)
+		if scoreDate != "" {
+			parsed, parseErr := time.Parse(time.DateOnly, scoreDate)
+			if parseErr != nil || parsed.Format(time.DateOnly) != scoreDate {
+				return factdecode.PartitionDecodeFailures(envelope, factdecode.NewFactDecodeError(envelope.FactKind, fmt.Errorf("invalid score_date: expected YYYY-MM-DD")))
+			}
+		}
 		signals := index.riskSignals[score.CVEID]
-		signals.EPSSFactID = envelope.FactID
-		signals.EPSSProbability = payloadcore.DerefString(score.Probability)
-		signals.EPSSPercentile = payloadcore.DerefString(score.Percentile)
-		index.riskSignals[score.CVEID] = signals
+		candidate := supplychainmodel.RiskSignals{
+			EPSSFactID:       envelope.FactID,
+			EPSSProbability:  payloadcore.DerefString(score.Probability),
+			EPSSPercentile:   payloadcore.DerefString(score.Percentile),
+			EPSSScoreDate:    scoreDate,
+			EPSSModelVersion: payloadcore.DerefString(score.ModelVersion),
+			EPSSObservedAt:   envelope.ObservedAt,
+			EPSSSelected:     true,
+		}
+		if preferEPSSObservation(candidate, signals) {
+			candidate.KEVFactID = signals.KEVFactID
+			candidate.KnownExploited = signals.KnownExploited
+			index.riskSignals[score.CVEID] = candidate
+		}
 	case chain.VulnerabilityKnownExploitedFactKind:
 		kev, err := schemadecode.DecodeVulnerabilityKnownExploited(envelope)
 		if err != nil {
