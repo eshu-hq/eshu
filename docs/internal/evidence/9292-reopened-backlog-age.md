@@ -77,8 +77,9 @@ Not covered, by design of this change:
 ## Performance Evidence
 
 No-Regression Evidence: `EXPLAIN (ANALYZE, BUFFERS)` on a private PostgreSQL
-18.6 with 800 scopes, 453,200 `fact_work_items` rows (450,000 succeeded, 3,200
-outstanding, about 430 reopened) and 2,000 pending shared-projection intents,
+18.6 with 801 scopes, 453,201 `fact_work_items` rows (450,000 succeeded, 3,200
+outstanding, 428 reopened, plus the standing migration row) and 2,000 pending
+shared-projection intents,
 before and after, five interleaved runs each with alternating first mover, host
 load average 14 to 42 (a shared laptop):
 
