@@ -47,7 +47,7 @@ import sys
 root = pathlib.Path(os.environ["REPO_ROOT"])
 sys.path.insert(0, str(root / "scripts/lib"))
 from live_postgres_readiness_gen_scan import collect
-from live_postgres_readiness_gen_fragments import fragment_paths
+from live_postgres_readiness_gen_render import fragment_paths
 from live_tests_registry import load_ledger_text
 
 enrolled, bindings = collect(root)
@@ -131,7 +131,7 @@ import sys
 root = pathlib.Path(os.environ["REPO_ROOT"])
 sys.path.insert(0, str(root / "scripts/lib"))
 from live_postgres_readiness_gen_scan import collect
-from live_postgres_readiness_gen_fragments import FRAGMENT_BOUNDARIES, render_fragments
+from live_postgres_readiness_gen_render import FRAGMENT_BOUNDARIES, render_fragments
 
 enrolled, bindings = collect(root)
 missing = enrolled.copy()
@@ -239,7 +239,7 @@ root = os.environ["SCRATCH"]
 sys.path.insert(0, os.path.join(root, "scripts", "lib"))
 from live_postgres_readiness_inventory_generated import PACKAGES
 from live_postgres_readiness_inventory_helpers import HELPER_PROOFS
-from live_postgres_readiness_gen_fragments import fragment_paths
+from live_postgres_readiness_gen_render import fragment_paths
 yaml_text = "".join(open(os.path.join(root, rel)).read() for rel in fragment_paths())
 enrolled = set(re.findall(r"- file: (\S+)", yaml_text))
 covered = {path for files in PACKAGES.values() for path in files}
