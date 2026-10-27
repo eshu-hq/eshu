@@ -1,0 +1,38 @@
+go/internal/telemetry/compat_observability.go
+  h_78a442cba0b3e6 22-23
+specs/fact-kind-registry-contracts.d/families/observability.yaml
+  h_78a442cba0b3e6 42-43
+specs/fact-kind-registry-contracts.d/families/observability.md
+  h_78a442cba0b3e6 15
+go/internal/facts/observability.go
+  h_78a442cba0b3e6 165
+deploy/helm/eshu/templates/deployment-loki-collector.yaml
+  h_78a442cba0b3e6 34-36
+docker-compose.demo.corpus.yaml
+  h_78a442cba0b3e6 184,185-186
+docker-compose.remote-e2e.observability.yaml
+  h_78a442cba0b3e6 155-156
+docs/public/observability/telemetry-coverage.md
+  h_78a442cba0b3e6 683
+docs/public/reference/collector-reducer-readiness.md
+  h_78a442cba0b3e6 171,194
+go/internal/capabilitycatalog/data/surface-inventory.generated.json
+  h_78a442cba0b3e6 1756-1757,1761,1791-1792,1796
+go/internal/collector/sdk/README.md
+  h_78a442cba0b3e6 334,354-356
+scripts/moved-file-refs-allowlist.txt
+  h_78a442cba0b3e6 430-443
+specs/surface-inventory.v1.yaml
+  h_78a442cba0b3e6 209-210,212-217,222-223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d632e25a95c7c2868af2abc311e8a319e499c5b0",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
