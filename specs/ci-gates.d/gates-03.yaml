@@ -443,6 +443,7 @@ gates:
       - ".github/static-contract-filters.yml"
       - "scripts/generate-live-postgres-readiness.py"
       - "scripts/test-generate-live-postgres-readiness.sh"
+      - "scripts/test-live-postgres-readiness-fragments.py"
       - "scripts/test-live-postgres-readiness-child-env.py"
       - "scripts/verify-live-postgres-readiness-drift.sh"
       - "scripts/lib/live_postgres_readiness_gen_scan.py"
@@ -463,6 +464,7 @@ gates:
       - ".github/workflows/live-postgres-readiness.yml"
     self_test_triggers:
       - "scripts/test-generate-live-postgres-readiness.sh"
+      - "scripts/test-live-postgres-readiness-fragments.py"
       - "scripts/test-live-postgres-readiness-child-env.py"
       - "scripts/generate-live-postgres-readiness.py"
       - "scripts/lib/live_postgres_readiness_gen_scan.py"

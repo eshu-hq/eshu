@@ -38,37 +38,7 @@ for fragment in "${repo_root}"/specs/live-tests.d/live-tests-readiness*.generate
   (( lines < 500 )) || fail "${fragment##*/} exceeds the file cap: ${lines} lines"
 done
 [[ "${fragment_count}" == "4" ]] || fail "want four generated fragments, got ${fragment_count}"
-REPO_ROOT="${repo_root}" python3 - <<'PY' || fail "generated proof rows differ from enrollment"
-import os
-import pathlib
-import re
-import sys
-
-root = pathlib.Path(os.environ["REPO_ROOT"])
-sys.path.insert(0, str(root / "scripts/lib"))
-from live_postgres_readiness_gen_scan import collect
-from live_postgres_readiness_gen_render import fragment_paths
-from live_tests_registry import load_ledger_text
-
-enrolled, bindings = collect(root)
-expected = {path: row["reason"] for path, row in {**enrolled, **bindings}.items()}
-actual = {}
-for rel in fragment_paths():
-    text = (root / rel).read_text(encoding="utf-8")
-    for path, reason in re.findall(
-            r'  - file: (\S+)\n    tag: ~\n    class: postgres_ci\n'
-            r'    reason: "([^"]+)"\n    runner: live-postgres-readiness\n', text):
-        if path in actual:
-            raise SystemExit(f"duplicate generated proof: {path}")
-        actual[path] = reason
-if actual != expected:
-    raise SystemExit(f"generated proof mismatch: actual={len(actual)} expected={len(expected)}")
-flattened = load_ledger_text(root / "specs/live-tests.v1.yaml")
-for path in actual:
-    if flattened.count(f"  - file: {path}\n") != 1:
-        raise SystemExit(f"flattened ledger missing or duplicates {path}")
-print(f"generated proof rows: {len(actual)} exact paths and reasons")
-PY
+python3 "${repo_root}/scripts/test-live-postgres-readiness-fragments.py" rows "${repo_root}" || fail "generated proof rows differ from enrollment"
 
 # Scratch tree: hardlinked go/ when the scratch shares the repo's
 # filesystem (reads share inodes; added seed files stay in the scratch),
@@ -123,38 +93,7 @@ out="$(scratch_check)" && fail "orphan generated fragment passed --check"
 python3 "${generator}" --root "${scratch}" >/dev/null || fail "orphan cleanup failed"
 [[ ! -e "${orphan_part}" ]] || fail "orphan generated fragment survived regeneration"
 
-REPO_ROOT="${repo_root}" python3 - <<'PY' || fail "boundary and cap seeds did not fail closed"
-import os
-import pathlib
-import sys
-
-root = pathlib.Path(os.environ["REPO_ROOT"])
-sys.path.insert(0, str(root / "scripts/lib"))
-from live_postgres_readiness_gen_scan import collect
-from live_postgres_readiness_gen_render import FRAGMENT_BOUNDARIES, render_fragments
-
-enrolled, bindings = collect(root)
-missing = enrolled.copy()
-missing.pop(FRAGMENT_BOUNDARIES[0])
-try:
-    render_fragments(missing, bindings)
-except ValueError as error:
-    if "boundary missing" not in str(error):
-        raise
-else:
-    raise SystemExit("deleted boundary passed")
-oversized = enrolled.copy()
-for index in range(5):
-    oversized[f"go/000-seeded-{index}_live_test.go"] = {"reason": "seeded cap proof"}
-try:
-    render_fragments(oversized, bindings)
-except ValueError as error:
-    if "add a lexical boundary" not in str(error):
-        raise
-else:
-    raise SystemExit("oversized fragment passed")
-print("boundary and oversized fragment seeds rejected")
-PY
+python3 "${repo_root}/scripts/test-live-postgres-readiness-fragments.py" failures "${repo_root}" || fail "boundary and cap seeds did not fail closed"
 
 # idempotent: two consecutive generations are byte-identical.
 python3 "${generator}" --root "${scratch}" >/dev/null ||
