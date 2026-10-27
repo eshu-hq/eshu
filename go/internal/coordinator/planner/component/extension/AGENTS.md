@@ -69,7 +69,7 @@ before broader verification.
 ## Common changes and how to scope them
 
 - **A kind needs host-derived scopes beyond its host scope** → do not plan
-  them here. Add a kind-scoped hook in root (`../../../activation_derived_scopes.go`)
+  them here. Add a kind-scoped hook in root (`../../../component_extension_service.go`)
   that runs after the egress decision and admits through
   `createWorkflowWorkIfNoOpenTargets`; this planner keeps planning one
   host-scope item per plan key.

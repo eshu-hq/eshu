@@ -249,7 +249,7 @@ because schedulers stop at the first error. One predicate enforces it:
   scheduler logs and audits its own egress decisions.
 - A kind that needs host-derived scopes for its activations gets them from a
   kind-scoped hook, not from a selector: `scheduleActivationDerivedScopes`
-  (`activation_derived_scopes.go`) runs inside `scheduleComponentExtensionWork`,
+  (`component_extension_service.go`) runs inside `scheduleComponentExtensionWork`,
   after the egress decision, and admits through
   `createWorkflowWorkIfNoOpenTargets` (#9311). Today only
   `vulnerability_intelligence` has one. It decodes the opaque

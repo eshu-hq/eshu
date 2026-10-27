@@ -75,7 +75,7 @@ signals continue to cover scheduling and egress-audit failures.
   run or work-item identity, so adding keys to an activation's `config` block
   does not change this planner's rows (#9311).
 - This planner plans the host scope only. For `vulnerability_intelligence`,
-  root's kind-scoped hook (`../../../activation_derived_scopes.go`) plans the
+  root's kind-scoped hook (`../../../component_extension_service.go`) plans the
   derived OSV scopes as a second run under its own `derived` run-id segment.
 - `GenerationID` and `SourceRunID` are minted from the same identity because
   the claimed-collection runtime invariant for non-terraform kinds requires

@@ -88,7 +88,7 @@ move into the scheduler-owned child), not adjacent scope.
   fields to `Config`. Root's readback already carries the block as
   `ComponentConfig` for the kinds `activationCarriesComponentConfig` names;
   extend that list and decode the block in the kind-scoped hook
-  (`../../activation_derived_scopes.go`) with the kind's own validator. Keep
+  (`../../component_extension_service.go`) with the kind's own validator. Keep
   it out of `RequestedScopeSet` and out of work-item identity.
 
 ## Verification
