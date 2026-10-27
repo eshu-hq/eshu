@@ -345,13 +345,11 @@ func securityAlertDependencyScope(payload map[string]any) string {
 	return payloadcore.PayloadStr(payload, "manifest_section")
 }
 
-// packageNameFromPURL and packageNameFromPackageID are declared locally
-// rather than imported from the reducer root
-// (supply_chain_impact_manifest_dependency.go): they are pure syntactic
-// parsers (purl path extraction, Eshu package-registry URI path extraction)
-// with no dependency on any reducer-root state, shared verbatim with
-// supply_chain's own package-name-candidate matching, which has not moved
-// out of root yet (issue #6061).
+// packageNameFromPURL is declared locally rather than imported from the
+// reducer root (supply_chain_impact_manifest_dependency.go): it is a pure
+// syntactic parser (purl path extraction) with no dependency on any
+// reducer-root state, shared verbatim with supply_chain's own
+// package-name-candidate matching (issue #6061).
 func packageNameFromPURL(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -372,18 +370,9 @@ func packageNameFromPURL(raw string) string {
 	return strings.TrimSpace(decoded)
 }
 
+// packageNameFromPackageID forwards to [payloadcore.PackageNameFromPackageID]
+// so the alert side and the supply-chain impact side share one parser and agree
+// on a Maven package ID's name (issue #9286).
 func packageNameFromPackageID(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	_, afterScheme, ok := strings.Cut(raw, "://")
-	if !ok {
-		return ""
-	}
-	_, path, ok := strings.Cut(afterScheme, "/")
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(path)
+	return payloadcore.PackageNameFromPackageID(raw)
 }

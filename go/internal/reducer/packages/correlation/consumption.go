@@ -450,15 +450,18 @@ func PackageConsumptionKeys(ecosystem string, packageNames ...string) []string {
 	return payloadcore.UniqueSortedStrings(keys)
 }
 
-// PackageConsumptionNameCandidates returns the normalized plus lower-cased
-// name forms one manifest dependency name joins on for an ecosystem.
-// Exported because supply-chain impact expands filter names through the same
-// candidates the consumption join uses.
+// PackageConsumptionNameCandidates returns the names one advisory package name
+// is looked up under in the stored manifest dependency rows: the normalized and
+// lower-cased consumption-join forms plus, for Maven, the case-preserved
+// group:artifact coordinate Maven and Gradle manifests store (issue #9286).
+// Exported because supply-chain impact expands its manifest read filter through
+// it. It is a read-prefilter name set; the persisted join keys come from
+// [PackageConsumptionKeys] and are unchanged.
 func PackageConsumptionNameCandidates(
 	ecosystem packageidentity.Ecosystem,
 	packageName string,
 ) []string {
-	return packageidentity.ConsumptionNameCandidates(ecosystem, packageName)
+	return packageidentity.ManifestEntityNameCandidates(ecosystem, packageName)
 }
 
 func packageManifestDependencyFilter(envelopes []facts.Envelope) PackageManifestDependencyFactFilter {

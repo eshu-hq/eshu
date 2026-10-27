@@ -4,6 +4,7 @@
 package core
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -28,15 +29,22 @@ func sbtManifestRow(name, cross, artifact string) facts.Envelope {
 	)
 }
 
+// sbtAffectedIndex builds an affected-package index entry in the shape the OSV
+// collector emits for a group:artifact coordinate: the bare artifact id as the
+// name, a slash purl, and a package ID whose path starts with the registry's
+// maven2 segment (issue #9286). A fixture that names the package by its
+// coordinate hides a join that only works on coordinate-shaped names.
 func sbtAffectedIndex(name string) *supplyChainImpactIndex {
+	group, artifact, _ := strings.Cut(name, ":")
 	return &supplyChainImpactIndex{
 		affectedPackages: map[string][]supplychainmodel.AffectedPackage{
 			"CVE-2026-0001": {{
 				FactID:    "affected-" + name,
 				CVEID:     "CVE-2026-0001",
 				PackageID: "maven://repo1.maven.org/maven2/" + name,
+				PURL:      "pkg:maven/" + group + "/" + artifact,
 				Ecosystem: "maven",
-				Name:      name,
+				Name:      artifact,
 			}},
 		},
 		consumption: map[string][]supplychainmodel.PackageConsumption{},
@@ -196,4 +204,31 @@ func correlationDependency(t *testing.T, envelope facts.Envelope) correlation.Pa
 		t.Fatalf("dependencies = %d, want 1", len(dependencies))
 	}
 	return dependencies[0]
+}
+
+// The sbt and Maven fixtures carry the OSV shape (bare artifact name), so the
+// manifest read filter built from them must still request the stored
+// group:artifact coordinate. Before issue #9286 it did not, and the fixtures'
+// coordinate-shaped names hid that.
+func TestSBTAffectedFixtureFilterRequestsStoredCoordinate(t *testing.T) {
+	t.Parallel()
+
+	for _, coordinate := range []string{"org.slf4j:slf4j-api", "org.typelevel:cats-core_2.13"} {
+		t.Run(coordinate, func(t *testing.T) {
+			t.Parallel()
+			index := sbtAffectedIndex(coordinate)
+			var names []string
+			for _, pkg := range index.affectedPackages["CVE-2026-0001"] {
+				if pkg.Name == coordinate {
+					t.Fatalf("fixture Name = %q, want the bare artifact id as OSV emits", pkg.Name)
+				}
+				for _, name := range supplyChainAffectedPackageNameCandidates(pkg) {
+					names = append(names, correlation.PackageConsumptionNameCandidates("maven", name)...)
+				}
+			}
+			if !slices.Contains(names, coordinate) {
+				t.Fatalf("requested names = %q, want to contain %q", names, coordinate)
+			}
+		})
+	}
 }

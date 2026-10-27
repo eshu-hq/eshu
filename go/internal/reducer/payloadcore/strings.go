@@ -368,12 +368,18 @@ func PackageNameFromPURL(raw string) string {
 // PackageNameFromPackageID extracts the package name from an Eshu
 // package-registry URI by taking the path after the authority. It returns ""
 // when the input has no scheme or no path after the authority.
+//
+// A Maven package ID is maven://<registry>/<group>:<artifact> and its registry
+// can itself carry a path (repo.maven.apache.org/maven2), so for the maven
+// scheme the name is the final path segment: the group:artifact coordinate,
+// never the registry path (issue #9286). Every other ecosystem keeps the whole
+// path because its names can contain slashes (scoped npm, Go modules).
 func PackageNameFromPackageID(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return ""
 	}
-	_, afterScheme, ok := strings.Cut(raw, "://")
+	scheme, afterScheme, ok := strings.Cut(raw, "://")
 	if !ok {
 		return ""
 	}
@@ -381,5 +387,11 @@ func PackageNameFromPackageID(raw string) string {
 	if !ok {
 		return ""
 	}
-	return strings.TrimSpace(path)
+	path = strings.TrimSpace(path)
+	if strings.EqualFold(scheme, "maven") {
+		if lastSlash := strings.LastIndex(path, "/"); lastSlash >= 0 {
+			path = strings.TrimSpace(path[lastSlash+1:])
+		}
+	}
+	return path
 }
