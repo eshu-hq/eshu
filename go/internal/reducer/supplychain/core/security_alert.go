@@ -5,6 +5,8 @@ package core
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -107,6 +109,8 @@ func buildSecurityAlertImpactFinding(
 		SeveritySource:     strings.TrimSpace(alert.Provider),
 		SeverityVector:     securityAlertCVSSVector(alert.CVSS),
 		SeverityLabel:      strings.ToLower(strings.TrimSpace(alert.Severity)),
+		EPSSProbability:    securityAlertEPSSValue(alert.EPSS["percentage"]),
+		EPSSPercentile:     securityAlertEPSSValue(alert.EPSS["percentile"]),
 		AdvisoryUpdatedAt:  strings.TrimSpace(alert.UpdatedAt),
 		FixedVersionSource: strings.TrimSpace(alert.Provider),
 		RangeSource:        strings.TrimSpace(alert.Provider),
@@ -130,6 +134,20 @@ func buildSecurityAlertImpactFinding(
 	applySupplyChainVersionDecision(&finding, decision)
 	finalizeSupplyChainImpactFinding(&finding, index, decision.MissingEvidence)
 	return finding, true
+}
+
+// securityAlertEPSSValue keeps GitHub's decimal 0-1 EPSS values in source
+// form and drops malformed or out-of-range values before they affect priority.
+func securityAlertEPSSValue(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" || strings.ContainsAny(value, "xXpP_") {
+		return ""
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil || math.IsNaN(parsed) || parsed < 0 || parsed > 1 {
+		return ""
+	}
+	return value
 }
 
 func securityAlertConsumptionEvidenceKind(consumption securityalert.SecurityAlertConsumption) string {
