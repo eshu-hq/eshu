@@ -1,0 +1,16 @@
+go/internal/cigates/globtrigger_test.go
+  h_78a442cba0b3e6 201
+scripts/moved-file-refs-allowlist.txt
+  h_78a442cba0b3e6 422-429
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3d53e43ca6ff9b16dc76e988e4d318f7eddf980e",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
