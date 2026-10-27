@@ -132,7 +132,6 @@ collector_specs=(
 	"collector-terraform-state:terraformstate"
 	"collector-prometheus-mimir:prometheusmimir"
 	"collector-grafana:grafana"
-	"collector-loki:loki"
 	"collector-security-alerts:securityalerts"
 	"collector-pagerduty:pagerduty"
 	"collector-sbom-attestation:sbomattestation"

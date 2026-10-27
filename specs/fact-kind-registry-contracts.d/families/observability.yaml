@@ -39,9 +39,8 @@ producers:
       kinds:
         - observability.observed_dashboard
     - id: collector-loki
-      repository: eshu-hq/eshu
-      path: go/internal/collector/observability/loki
-      planned_repository: eshu-hq/eshu-collector-loki
+      repository: eshu-hq/eshu-collector-loki
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - observability.coverage_warning

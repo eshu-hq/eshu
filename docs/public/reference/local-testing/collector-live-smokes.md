@@ -152,25 +152,34 @@ go test ./internal/collector/observability/prometheus \
   -run TestLivePrometheusMimirObservedMetricEvidence -count=1 -v
 ```
 
-Loki can run unauthenticated when the target allows metadata reads. Label values
-are collected only for names explicitly listed in
-`ESHU_LOKI_LABEL_VALUE_NAMES`, and values are stored as counts and hashes within
-the configured cardinality limit.
+Loki collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-loki`): the in-tree
+`go/internal/collector/observability/loki` package and its
+`TestLiveLokiObservedLogSignalEvidence` smoke are deleted, so there is no
+in-tree `go test` smoke for Loki. Label values are still collected only for
+names explicitly listed in `label_value_names`, stored as counts and hashes
+within the cardinality limit, and Loki can run unauthenticated when the target
+allows metadata reads.
+
+Run live Loki proof through the hosted `loki` profile in
+`docker-compose.remote-e2e.observability.yaml` — the satellite image with the
+same target shape, credentials passed by `token_env`/`tenant_id_env` name
+reference. Set up the private env file as shown in [Remote Collector Hosted
+Profiles](remote-collector-hosted-profiles.md) — the `loki` profile enable
+flag, `ESHU_LOKI_BASE_URL`, and the token/tenant `*_ENV` name references
+(the `collector-loki-reconcile` service in
+`docker-compose.remote-e2e.observability.yaml` lists every variable) — then
+render the profile:
 
 ```bash
-export ESHU_LOKI_LIVE=1
-export ESHU_LOKI_BASE_URL="${ESHU_LOKI_BASE_URL:?set Loki URL}"
-export ESHU_LOKI_API_TOKEN="${ESHU_LOKI_API_TOKEN:-}"
-export ESHU_LOKI_TENANT_ID="${ESHU_LOKI_TENANT_ID:-}"
-export ESHU_LOKI_LABEL_VALUE_NAMES="${ESHU_LOKI_LABEL_VALUE_NAMES:-}"
-export ESHU_LOKI_SERIES_MATCHERS="${ESHU_LOKI_SERIES_MATCHERS:-}"
-export ESHU_LOKI_RESOURCE_LIMIT="${ESHU_LOKI_RESOURCE_LIMIT:-5}"
-export ESHU_LOKI_MAX_LABEL_VALUES_PER_LABEL="${ESHU_LOKI_MAX_LABEL_VALUES_PER_LABEL:-5}"
-
-cd go
-go test ./internal/collector/observability/loki \
-  -run TestLiveLokiObservedLogSignalEvidence -count=1 -v
+docker compose --env-file path/to/private-remote-e2e.env \
+  -f docker-compose.remote-e2e.yaml \
+  -f docker-compose.remote-e2e.observability.yaml \
+  --profile loki config --services
 ```
+
+Then start the profile and capture proof with
+`scripts/verify_remote_e2e_runtime_state.sh` as shown on that page.
 
 Tempo collection runs from the extracted satellite
 (`eshu-hq/eshu-collector-tempo`): the in-tree
@@ -200,17 +209,16 @@ docker compose --env-file path/to/private-remote-e2e.env \
 Then start the profile and capture proof with
 `scripts/verify_remote_e2e_runtime_state.sh` as shown on that page.
 
-To run all three remaining in-tree smokes against a prepared environment:
+To run both remaining in-tree smokes against a prepared environment:
 
 ```bash
 cd go
 go test ./internal/collector/observability/grafana \
   ./internal/collector/observability/prometheus \
-  ./internal/collector/observability/loki \
   -run 'TestLive.*Observed.*Evidence' -count=1 -v
 ```
 
-Tempo runs separately from the satellite profile above; it is no longer part
+Tempo and Loki run separately from the satellite profiles above; they are no longer part
 of this combined command.
 
 ## OCI Registry Smokes

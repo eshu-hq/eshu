@@ -130,7 +130,7 @@ duration histograms, rate-limit counters, fact counters, and provider spans;
 metric labels remain bounded to provider, status class, fact kind, and existing
 low-cardinality dimensions.
 
-No-Regression Evidence (#2756): `go test ./internal/collector/sdk ./internal/collector ./cmd/collector-jira ./cmd/collector-grafana ./cmd/collector-loki ./cmd/collector-tempo ./cmd/collector-prometheus-mimir ./cmd/collector-security-alerts ./cmd/collector-cicd-run -run 'Test(HTTPErrorExposesRetryAfterDelay|ClassifyProviderFailurePreservesRetryAfterDelay|ClaimedServiceHonorsSDKProviderFailureRetryAfter|ClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|BuildClaimedServiceWires)' -count=1` proves SDK HTTP errors return parsed Retry-After delay, provider failure classification preserves that delay for claim-aware retry handling, `ClaimedService` applies it to retryable claim `visible_at`, and standard claim-driven collector commands wire the default bounded attempt budget.
+No-Regression Evidence (#2756): `go test ./internal/collector/sdk ./internal/collector ./cmd/collector-jira ./cmd/collector-grafana ./cmd/collector-tempo ./cmd/collector-prometheus-mimir ./cmd/collector-security-alerts ./cmd/collector-cicd-run -run 'Test(HTTPErrorExposesRetryAfterDelay|ClassifyProviderFailurePreservesRetryAfterDelay|ClaimedServiceHonorsSDKProviderFailureRetryAfter|ClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|BuildClaimedServiceWires)' -count=1` proves SDK HTTP errors return parsed Retry-After delay, provider failure classification preserves that delay for claim-aware retry handling, `ClaimedService` applies it to retryable claim `visible_at`, and standard claim-driven collector commands wire the default bounded attempt budget.
 
 No-Observability-Change (#2756): the SDK remains telemetry-free and does not
 sleep, retry beyond caller-supplied bounds, mutate workflow state, or add labels.
@@ -148,10 +148,10 @@ deletions, a net reduction of 102 lines while preserving provider-owned API
 status handling and Loki YAML decoding.
 
 No-Regression Evidence (#2361): `go test ./internal/collector/sdk
-./internal/collector/observability/prometheus ./internal/collector/observability/loki -count=1` covers
+./internal/collector/observability/prometheus -count=1` covers
 the SDK custom decoder hook, bounded SDK `HTTPError` return path, retry counts
-on hard provider failures, Prometheus/Mimir API-status failures, Loki YAML rule
-decoding, partial warnings, and terminal versus retryable workflow failure
+on hard provider failures, Prometheus/Mimir API-status failures,
+partial warnings, and terminal versus retryable workflow failure
 classes.
 
 Collector Performance Evidence: Prometheus/Mimir and Loki keep the same
@@ -331,7 +331,7 @@ admin-status surfaces.
 
 Fleet closeout marker (#2392): after the collector migration slices through
 #2387, `rg --files go/internal/collector go/cmd | rg
-'(^|/)(failure|http_client|retry)\.go$'` returns only the SDK files plus seven
+'(^|/)(failure|http_client|retry)\.go$'` returns only the SDK files plus six
 intentional owner-boundary files:
 
 - `go/internal/collector/failure.go` remains the root registry workflow failure
@@ -352,9 +352,9 @@ intentional owner-boundary files:
   in the extracted satellite (`eshu-hq/eshu-collector-confluence`, #8855).
   SDK helpers still own base URL validation, bounded HTTP errors, default
   clients, and `Retry-After` parsing.
-- `go/internal/collector/observability/loki/http_client.go` remains the Loki endpoint
-  traversal wrapper. Request execution and bounded status failures use
-  `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
+- Loki endpoint traversal now lives in the extracted satellite
+  (eshu-hq/eshu-collector-loki). Request execution and bounded status failures
+  there still use `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
 - `go/internal/collector/observability/prometheus/http_client.go` remains
   the Prometheus/Mimir endpoint traversal wrapper. Request execution and
   bounded status failures use `sdk.DefaultHTTPClient` and `sdk.DoJSON`.

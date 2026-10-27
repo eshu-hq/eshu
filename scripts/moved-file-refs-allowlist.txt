@@ -441,3 +441,17 @@ docs/internal/evidence/7110-collector-transient-transport.md:go/internal/collect
 # inventory of that already-merged slice.
 docs/internal/evidence/6695-collector-tempo-package-move.md:go/cmd/collector-tempo/config.go
 docs/internal/evidence/6695-collector-tempo-package-move.md:go/cmd/collector-tempo/service.go
+# Loki satellite extraction: the in-tree command package and observer leaf
+# are deleted, and the binary now ships from eshu-hq/eshu-collector-loki
+# (producer record: go/internal/facts/observability.go). The #6695 package-move
+# evidence note below names go/cmd/collector-loki files as the reverse
+# importers of the loki leaf move; repointing would falsify the recorded
+# inventory of that already-merged slice.
+docs/internal/evidence/6695-collector-loki-package-move.md:go/cmd/collector-loki/config.go
+docs/internal/evidence/6695-collector-loki-package-move.md:go/cmd/collector-loki/service.go
+# Same extraction: the 4786 contract-integration matrix cells name the loki
+# observer envelope at its pre-extraction in-tree path as the helper-map for
+# the observability row. There is no in-tree successor path to repoint at --
+# the envelope now lives in the satellite -- so the cells stay as the
+# pre-extraction contract record.
+docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/observability/loki/envelope.go

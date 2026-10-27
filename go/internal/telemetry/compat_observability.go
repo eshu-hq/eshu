@@ -19,7 +19,8 @@ const (
 	SpanGrafanaFetch   = observability.SpanGrafanaFetch
 )
 
-// Loki source-collector spans (from contract/observability/loki.go).
+// Loki source-collector spans (emitted by the extracted satellite
+// eshu-hq/eshu-collector-loki; the in-tree producer is removed).
 const (
 	SpanLokiObserve = observability.SpanLokiObserve
 	SpanLokiFetch   = observability.SpanLokiFetch

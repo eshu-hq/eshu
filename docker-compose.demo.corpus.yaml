@@ -323,11 +323,91 @@ services:
     volumes:
       - ./testdata/cassettes/grafana:/cassettes:ro
 
+  # Loki runs the live-QA host-image-plus-seed shape (#9202): the in-tree
+  # producer is deleted and the satellite image ships only an SDK-stdio
+  # collector (no -mode=cassette, no status server, no shell), so compose
+  # uses no init containers: a seed service runs the satellite seed command
+  # into a named volume, a host-image reconcile step grants/installs/enables
+  # the component, and collector-loki (host image) runs the
+  # component-extension worker. Service name, cassette bind, env, the curl
+  # healthcheck, orchestrator gating, and the expected-collector count stay
+  # at 9.
+  collector-loki-seed:
+    # Digest-pinned satellite release (the tag documents the release, the
+    # digest is the pin). Verified 2026-10-26: the image holds only
+    # /usr/local/bin/collector (SDK-stdio plus the seed subcommand).
+    image: ghcr.io/eshu-hq/eshu-collector-loki:v0.1.2@sha256:12eac89e7abd2988529c6f2854ba63293b5507502630764c3f6b8ffc7e3bf84d
+    user: "0:0"
+    # --dest must stay ${component home}/runtime/${instance} for the
+    # ESHU_COMPONENT_HOME / ESHU_COMPONENT_COLLECTOR_INSTANCE_ID pair the
+    # reconcile step and the worker share below.
+    command: ["/usr/local/bin/collector", "seed", "--dest", "/data/.eshu/components/runtime/collector-loki-demo", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-loki@sha256:12eac89e7abd2988529c6f2854ba63293b5507502630764c3f6b8ffc7e3bf84d"]
+    volumes:
+      - type: volume
+        source: eshu_demo_loki_components
+        target: /data
+        volume:
+          nocopy: true
+
+  collector-loki-reconcile:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    # Root like the other one-shots in this file: the seed container writes
+    # root-owned files and the worker reads them as the image's eshu user,
+    # so this step fixes permissions before install.
+    user: "0:0"
+    # Disable the image's inherited HEALTHCHECK, as for the orchestrator
+    # below: this is a one-shot script with no :8080 server.
+    healthcheck:
+      disable: true
+    entrypoint: ["/bin/sh", "/usr/local/bin/demo-corpus-loki-reconcile.sh"]
+    environment:
+      <<: *demo_runtime_env
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: collector-loki-demo
+    volumes:
+      - type: volume
+        source: eshu_demo_loki_components
+        target: /data
+        volume:
+          nocopy: true
+      - ./scripts/demo-corpus-loki-reconcile.sh:/usr/local/bin/demo-corpus-loki-reconcile.sh:ro
+    depends_on:
+      collector-loki-seed:
+        condition: service_completed_successfully
+
   collector-loki:
     <<: *demo_collector
-    command: ["/usr/local/bin/eshu-collector-loki", "-mode=cassette", "-cassette-file=/cassettes/supply-chain-demo.json"]
+    command: ["/usr/local/bin/eshu-collector-component-extension"]
+    environment:
+      <<: *demo_runtime_env
+      ESHU_LISTEN_ADDR: "0.0.0.0:8080"
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.collector.loki
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: collector-loki-demo
+      ESHU_COMPONENT_COLLECTOR_OWNER_ID: collector-loki-demo-worker
     volumes:
+      # Retained for the follow-up replay wiring: the satellite runs
+      # live-only today, so the credential-free demo carries no Loki target
+      # and the worker idles healthy until live QA supplies targets through
+      # the reconcile step's activation shape.
       - ./testdata/cassettes/loki:/cassettes:ro
+      - type: volume
+        source: eshu_demo_loki_components
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      collector-loki-reconcile:
+        condition: service_completed_successfully
 
   # One-shot orchestrator: verify collector commits landed -> bootstrap-index
   # -> drain -> deferred-relationship maintenance x2 -> drain, mirroring
@@ -402,3 +482,4 @@ volumes:
   postgres_data:
   eshu_demo_data:
   tempo_component_home:
+  eshu_demo_loki_components:

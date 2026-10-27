@@ -27,15 +27,6 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path: "observability/loki/envelope.go",
-			calls: []string{
-				"EncodeObservabilitySourceInstance",
-				"EncodeObservabilityObservedLogSignal",
-				"EncodeObservabilityObservedRule",
-				"EncodeObservabilityCoverageWarning",
-			},
-		},
-		{
 			path: "observability/prometheus/envelope.go",
 			calls: []string{
 				"EncodeObservabilitySourceInstance",

@@ -32,7 +32,6 @@ exact binary set on `PATH`.
 | `eshu-collector-pagerduty` | `collector-pagerduty/` | Long-running PagerDuty incident-context collector |
 | `eshu-collector-grafana` | `collector-grafana/` | Long-running live Grafana metadata collector |
 | `eshu-collector-prometheus-mimir` | `collector-prometheus-mimir/` | Long-running live Prometheus and Mimir metadata collector |
-| `eshu-collector-loki` | `collector-loki/` | Long-running live Loki log-signal metadata collector |
 | `eshu-scanner-worker` | `scanner-worker/` | Long-running isolated security analyzer worker |
 | `eshu-collector-aws-cloud` | `collector-aws-cloud/` | Long-running AWS cloud collector |
 | `eshu-collector-gcp-cloud` | `collector-gcp-cloud/` | Long-running GCP Cloud Asset Inventory collector |
@@ -63,7 +62,6 @@ flowchart LR
   pagerduty[collector-pagerduty] --> postgres
   grafana[collector-grafana] --> postgres
   metrics[collector-prometheus-mimir] --> postgres
-  loki[collector-loki] --> postgres
   aws[collector-aws-cloud] --> postgres
   gcp[collector-gcp-cloud] --> postgres
   scanner[scanner-worker] --> postgres

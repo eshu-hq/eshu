@@ -112,13 +112,6 @@ func TestObservabilityCollectorBinariesAreBuiltInstalledAndDocumented(t *testing
 			envVar:       "ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID",
 			templatePath: "deploy/helm/eshu/templates/deployment-prometheus-mimir-collector.yaml",
 		},
-		{
-			binary:       "eshu-collector-loki",
-			commandPath:  "./cmd/collector-loki",
-			displayName:  "Loki Collector",
-			envVar:       "ESHU_LOKI_COLLECTOR_INSTANCE_ID",
-			templatePath: "deploy/helm/eshu/templates/deployment-loki-collector.yaml",
-		},
 		// Tempo collects from its extracted satellite
 		// (eshu-hq/eshu-collector-tempo) since #9172: no in-tree binary,
 		// command path, env-var row, or monolith-image template remains.
