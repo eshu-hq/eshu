@@ -5070,7 +5070,10 @@
           "findings[].deployment_truth_tier": "runtime_confirmed",
           "findings[].version_resolution_tier": "runtime_confirmed",
           "findings[].suppression.suppression_id": "golden-CVE-2026-00010",
-          "findings[].suppression.state": "expired"
+          "findings[].suppression.state": "expired",
+          "findings[].provenance.selected_epss_score_date": "2026-06-24",
+          "findings[].epss_probability": "0.87345",
+          "findings[].epss_percentile": "0.99012"
         },
         "required_json_object_matches": {
           "findings[].kubernetes_runtime_workload_refs[]": [
