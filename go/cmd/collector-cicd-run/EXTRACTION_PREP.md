@@ -187,7 +187,8 @@ the satellite image. Observed read-only against the QA environment:
   `ci.pipeline_definition` / `ci.warning` facts. `ci.job`,
   `ci.pipeline_definition`, and `ci.warning` stay
   Disposition-`unconsumed` by design (no reducer decode call;
-  `go/internal/facts/ci_cd_run.go:103-108`). The reducer writes
+  `go/internal/facts/ci_cd_run.go`, the `Kinds` entries with
+  Disposition-`unconsumed`). The reducer writes
   Postgres only; this family has no Neo4j write path.
 - API (executor-observed via authenticated session 2026-10-27):
   `GET /api/v0/ci-cd/run-correlations/count` returns 10/10 for
