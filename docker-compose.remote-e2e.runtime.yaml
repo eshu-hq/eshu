@@ -127,6 +127,8 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: on-failure
+    # The terraform-state binary ships in the eshu-collector-terraform-state satellite image, not the
+    # in-tree product image: this service's image must provide it.
     command: ["/usr/local/bin/eshu-collector-terraform-state"]
     ports:
       - "${ESHU_COLLECTOR_TFSTATE_METRICS_PORT:-19470}:9464"
@@ -324,6 +326,8 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: on-failure
+    # The aws-cloud binary ships in the eshu-collector-aws-cloud satellite image, not the
+    # in-tree product image: this service's image must provide it.
     command: ["/usr/local/bin/eshu-collector-aws-cloud"]
     ports:
       - "${ESHU_COLLECTOR_AWS_CLOUD_METRICS_PORT:-19473}:9464"

@@ -126,7 +126,7 @@ trust:
   "infrastructure" would undercount the constants population to consolidate by
   three and misclassify these as infra.
 - **Row 5 and the composition** move whenever a new **file** imports this
-  package — not a new package. The 1,312 files sit in 413 directories, so most
+  package — not a new package. The 954 files sit in 409 directories, so most
   of them are second-or-later files in a package that already imports; one more
   file under `services/ec2/` moves row 5 with nothing new importing anything.
   **Nothing catches this**: `dirgate` watches this directory's file set, and a
@@ -154,22 +154,21 @@ naming alongside it lands exactly here.
 | `constants_<service>.go` files | 133 | `ls go/internal/collector/awscloud/constants_*.go \| rg -v '_test\.go$' \| wc -l` |
 | Lines across those | 7,283 | `wc -l $(ls go/internal/collector/awscloud/constants_*.go \| rg -v '_test\.go$') \| tail -1` |
 | Non-test root files not matching `constants_*.go` (**not** all non-constants — see row 4 above) | 21 | 154 − 133 |
-| Files importing this package | 1,312 | `rg -l --type go '"github.com/eshu-hq/eshu/go/internal/collector/awscloud"' go/ \| wc -l` |
+| Files importing this package | 954 | `rg -l --type go '"github.com/eshu-hq/eshu/go/internal/collector/awscloud"' go/ \| wc -l` |
 
-That 1,312 is not 1,312 external dependents, and the difference decides the
-restructure risk: **1,243 (94.7%) are inside this package's own subtree**, 69
-are outside it, and of those only **five are non-test** —
-`go/internal/coordinator/planner/aws/scheduled/planner.go`,
-`go/cmd/collector-aws-cloud/config.go`,
-`go/cmd/collector-aws-cloud/status_committer.go`,
-`go/internal/collector/conformance/contract/assert.go`, and
+That 954 is not 954 external dependents, and the difference decides the
+restructure risk: **948 (99.4%) are inside this package's own subtree**, 6
+are outside it, and of those only **two are non-test** —
+`go/internal/collector/conformance/contract/assert.go` and
 `go/internal/storage/postgres/cloud/aws/scan_status.go`.
+(Recounted on the #8852/#8868 removal tree; the in-tree command importers
+left with the deleted commands.)
 
 Three properties of that import surface matter for planning a move:
 
-- **Every dependent imports the package directly.** All 1,312 matching lines are
+- **Every dependent imports the package directly.** All 954 matching lines are
   the identical bare import — zero dot-imports, zero blank imports, zero aliases
-  (`sort | uniq -c` over the extracted lines gives one form, 1312×). So the
+  (`sort | uniq -c` over the extracted lines gives one form, 954×). So the
   import set *is* the dependent set.
 - **There is one package-level re-export, and it IS consumed — in-package.**
   `awsruntime/types.go:27-36` re-exports `WarningAssumeRoleFailed`,
@@ -191,7 +190,7 @@ Three properties of that import surface matter for planning a move:
   inside package `awsruntime`, which is the one package where these names live
   and are used, so that search exits 1 whether or not they are consumed. Do not
   delete `types.go:27-36` as dead. The blast-radius count above is unaffected —
-  those uses are already among the 1,243 — but a move of the `Warning*`
+  those uses are already among the 948 — but a move of the `Warning*`
   constants has to carry that file.
 - **Cross-service references are common**, because these are cross-resource
   relationship constants. `services/ec2/volume.go` references

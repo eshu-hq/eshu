@@ -50,7 +50,6 @@ import (
 	packageruntime "github.com/eshu-hq/eshu/go/internal/collector/registry/package/runtime"
 	"github.com/eshu-hq/eshu/go/internal/collector/sbom/runtime"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
-	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/replay/inputtape"
 	"gopkg.in/yaml.v3"
@@ -73,17 +72,6 @@ type faultTransport struct{ err error }
 // Unwrap() delegate to the fault error — the shape a live transport fault takes.
 func (f faultTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	return nil, f.err
-}
-
-// faultS3ObjectClient injects the inputtape timeout fault at the terraform-state
-// collector's S3 read boundary — the narrow dependency interface the collector
-// reads remote state through — reproducing a transport timeout without a live
-// S3 backend.
-type faultS3ObjectClient struct{ err error }
-
-// GetObject fails every read with the injected fault.
-func (f faultS3ObjectClient) GetObject(context.Context, terraformstate.S3GetObjectInput) (terraformstate.S3GetObjectOutput, error) {
-	return terraformstate.S3GetObjectOutput{}, f.err
 }
 
 // collectorFaultCase drives one real collector's poll into an injected boundary
@@ -219,22 +207,6 @@ func collectorFaultCases() []collectorFaultCase {
 					SourceType:  runtime.SourceTypeConfigured,
 					DocumentURL: "https://attestations.invalid/sbom.json",
 				})
-				return err
-			},
-		},
-		{
-			surface: "collector:terraform_state",
-			collect: func() error {
-				source, err := terraformstate.NewS3StateSource(terraformstate.S3SourceConfig{
-					Bucket: "tfstate-prod",
-					Key:    "env/prod/terraform.tfstate",
-					Region: "us-east-1",
-					Client: faultS3ObjectClient{err: inputtape.ErrFaultTimeout},
-				})
-				if err != nil {
-					return err
-				}
-				_, _, err = source.Open(context.Background())
 				return err
 			},
 		},

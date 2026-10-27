@@ -6,18 +6,19 @@ JSON and discovery policy live in
 Metrics and triage live in
 [Terraform State Collector Operations](collector-terraform-state-operations.md).
 
-`collector-terraform-state` is a claim-driven worker that reads exact
+Terraform-state collection runs from its extracted satellite
+(`eshu-hq/eshu-collector-terraform-state`): a claim-driven worker that reads exact
 Terraform state snapshots, redacts sensitive values during parsing, and commits
 typed facts through the ingestion boundary. It does not decide what work exists
 and it does not write graph truth.
 
 | Runtime | Value |
 | --- | --- |
-| Binary | `/usr/local/bin/eshu-collector-terraform-state` |
-| Kubernetes shape | optional `Deployment` |
-| Command package | `go/cmd/collector-terraform-state/` |
-| Parser package | `go/internal/collector/terraformstate/` |
-| Claim adapter | `go/internal/collector/tfstateruntime/` |
+| Binary | `/usr/local/bin/collector` in the satellite image (`ghcr.io/eshu-hq/eshu-collector-terraform-state`) |
+| Kubernetes shape | component-extension activation (seeded); legacy optional `Deployment` chart template kept |
+| Command package | `eshu-hq/eshu-collector-terraform-state` (extracted; in-tree `go/cmd/collector-terraform-state/` removed) |
+| Parser package | `go/internal/collector/terraformstate/` (core-owned kernel) |
+| Claim adapter | `go/internal/collector/tfstateruntime/` (core-owned) |
 
 ## Workflow
 
@@ -40,7 +41,7 @@ Only redacted facts and warning records cross the persistence boundary.
 | Layer | Owns |
 | --- | --- |
 | Workflow coordinator | Collector instance reconciliation and claimable work creation. |
-| `collector-terraform-state` command | Runtime config, AWS credential routing, S3/DynamoDB adapters, service loop wiring. |
+| `eshu-collector-terraform-state` satellite | Runtime config, AWS credential routing, S3 adapters, service loop wiring (extracted from the former in-tree command). |
 | `tfstateruntime` | Claim-to-candidate matching, source open, snapshot identity, parser handoff. |
 | `terraformstate` package | Discovery primitives, exact source contracts, streaming parse, redaction, fact envelopes. |
 

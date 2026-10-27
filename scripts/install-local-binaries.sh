@@ -57,7 +57,6 @@ main() {
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-workflow-coordinator" ./cmd/workflow-coordinator
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-projector" ./cmd/projector
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-git" ./cmd/collector-git
-    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-terraform-state" ./cmd/collector-terraform-state
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-component-extension" ./cmd/collector-component-extension
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-package-registry" ./cmd/collector-package-registry
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-sbom-attestation" ./cmd/collector-sbom-attestation
@@ -66,7 +65,6 @@ main() {
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-grafana" ./cmd/collector-grafana
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-prometheus-mimir" ./cmd/collector-prometheus-mimir
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-scanner-worker" ./cmd/scanner-worker
-    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-aws-cloud" ./cmd/collector-aws-cloud
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-gcp-cloud" ./cmd/collector-gcp-cloud
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-azure-cloud" ./cmd/collector-azure-cloud
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-kubernetes-live" ./cmd/collector-kubernetes-live

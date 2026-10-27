@@ -28,7 +28,7 @@ import (
 // provider-schema resolver is nil or a schema bundle fails to parse, and both
 // paths are silent (terraformstate/schema_resolver.go: LoadPackagedSchemaResolver
 // returns (nil, nil); parseSchemaInto skips a corrupt bundle;
-// cmd/collector-terraform-state/config.go accepts a nil resolver as non-fatal).
+// the removed in-tree command config accepted a nil resolver as non-fatal).
 // The condition is sticky per deployment, so replay repeats the deletion rather
 // than healing it.
 //

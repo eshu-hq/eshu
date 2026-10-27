@@ -71,7 +71,8 @@ changed.
   `CommitAWSScan` keep an exact `(generation_id, fencing_token)` match so a
   stale collector that wakes up cannot clobber the new owner's row.
 - Do not import the parent `postgres` package: that is an import cycle.
-  `cmd/collector-aws-cloud/service.go` imports this package directly instead.
+  (The former in-tree command importer was removed with the #8852
+  extraction; the satellite owns that wiring now.)
 
 No-Regression Evidence: `go test ./internal/storage/postgres/cloud/aws/...
 -count=1` covers both stores' schema, fencing, and event-recording

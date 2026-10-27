@@ -66,29 +66,41 @@ surfaces:
       truth_profile: provider_gated
   - category: collector
     name: terraform_state
-    readiness: implemented
-    owner: internal/collector/terraformstate
+    readiness: partial
+    owner: eshu-hq/eshu-collector-terraform-state
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
+    notes: >-
+      Extracted to the eshu-collector-terraform-state satellite
+      (eshu-hq/eshu-collector-terraform-state): the in-tree command, source package,
+      and image build are gone, so the implemented lane (built in-tree, charted,
+      replay-proven) is unmet. Fact kinds, reducer projection, and read surfaces
+      stay core-owned and covered.
     collector_contract:
       fact_kinds: [terraform_state_candidate, terraform_state_module, terraform_state_output, terraform_state_provider_binding, terraform_state_resource, terraform_state_snapshot, terraform_state_tag_observation, terraform_state_warning]
       projection_surfaces: [cloud_asset_resolution, config_state_drift, incident_routing_materialization, terraform_relationship_projection]
       read_surfaces: [GET /api/v0/iac/resources, "GET /api/v0/incidents/{incident_id}/context", find_unmanaged_resources, get_iac_management_status]
-      proof_gates: [cd go && go test ./internal/collector/terraformstate ./internal/relationships ./internal/reducer ./internal/query -count=1]
-      fixture_refs: [go/internal/collector/terraformstate/testdata, go/internal/relationships/testdata]
+      proof_gates: [cd go && go test ./internal/query ./internal/mcp -count=1, scripts/verify-fact-kind-registry.sh]
+      fixture_refs: [testdata/cassettes/terraformstate, docs/public/services/collector-terraform-state.md]
       truth_profile: deterministic
   - category: collector
     name: aws
-    readiness: implemented
-    owner: internal/collector/awscloud
+    readiness: partial
+    owner: eshu-hq/eshu-collector-aws-cloud
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
+    notes: >-
+      Extracted to the eshu-collector-aws-cloud satellite
+      (eshu-hq/eshu-collector-aws-cloud): the in-tree command, source package,
+      and image build are gone, so the implemented lane (built in-tree, charted,
+      replay-proven) is unmet. Fact kinds, reducer projection, and read surfaces
+      stay core-owned and covered.
     collector_contract:
       fact_kinds: [aws_dns_record, aws_iam_access_analyzer_finding, aws_iam_instance_profile, aws_iam_permission, aws_iam_permission_boundary, aws_iam_permission_policy, aws_iam_policy_attachment, aws_iam_principal, aws_iam_trust_policy, aws_image_reference, aws_relationship, aws_resource, aws_resource_policy_permission, aws_security_group_rule, aws_tag_observation, aws_warning, ec2_instance_posture, eks_irsa_annotation, eks_pod_identity_association, rds_instance_posture, s3_bucket_posture, s3_external_principal_grant]
       projection_surfaces: [aws_cloud_runtime_drift, cloud_asset_resolution, secrets_iam_trust_chain, supply_chain_impact]
       read_surfaces: [GET /api/v0/cloud/inventory, GET /api/v0/cloud/resources, GET /api/v0/replatforming/selectors, GET /api/v0/secrets-iam/posture-summary, list_aws_runtime_drift_findings, list_secrets_iam_identity_trust_chains]
-      proof_gates: [cd go && go test ./cmd/collector-aws-cloud ./internal/collector/awscloud ./internal/reducer/... ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/cmd/collector-aws-cloud/testdata, go/internal/collector/awscloud/service]
+      proof_gates: [cd go && go test ./internal/query ./internal/mcp -count=1, scripts/verify-fact-kind-registry.sh]
+      fixture_refs: [testdata/cassettes/awscloud, docs/public/services/collector-aws-cloud.md]
       truth_profile: provider_gated
   - category: collector
     name: webhook

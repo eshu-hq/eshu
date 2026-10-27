@@ -67,6 +67,6 @@ var S3ExternalPrincipalGrantFamilyDeclaration = contract.Declare(contract.Family
 		{Kind: "s3_external_principal_grant"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu", Path: "go/internal/collector/awscloud", PlannedRepository: "eshu-hq/eshu-collector-aws-cloud", AuthorityMode: "core_issued_grant", Kinds: []string{"s3_external_principal_grant"}},
+		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu-collector-aws-cloud", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"s3_external_principal_grant"}},
 	},
 })

@@ -14,8 +14,6 @@ fast rebuilds without containers.
 | `docker-compose.telemetry.yml` | Jaeger, OpenTelemetry collector, and OTLP export settings. | You need local traces or metrics export. |
 | `--profile workflow-coordinator` | Adds the workflow coordinator to the default or Neo4j stack. | You are testing collector claims, scheduling, or control-plane behavior. |
 | `--profile webhook-listener` | Adds the webhook listener to the default NornicDB stack. | You are testing webhook-driven freshness or external event ingestion locally. |
-| `docker-compose.tier2-tfstate.yaml` | Layers MinIO, MinIO setup, active workflow coordination, and one Terraform state collector onto the default stack. | You are running the Tier-2 Terraform state drift proof. |
-| `docker-compose.tier2-tfstate-v25.yaml` | Layers MinIO, two generation-specific MinIO setup jobs, active workflow coordination, and two Terraform state collectors. | You are running the v2.5 Terraform state drift proof across two fixture generations. |
 | `docker-compose.remote-e2e.yaml` | Standalone remote proof stack with runtime services, preflight, workflow coordination, webhook listener, and cloud/package/registry collectors. | You are on an EC2 or VPN-attached host and need a full remote collector proof. |
 | `docker-compose.demo.yaml` | Standalone, credential-free demo stack: corpus staging, one-shot cassette collectors, a deferred-relationship maintenance orchestrator, API, and MCP. Answers the five `specs/demo-first-answers.v1.yaml` questions. | You want a working correlated-graph demo with zero credential env, or you are proving the first-five-minutes onboarding path. |
 | `docker-compose.e2e.yaml` | Standalone, minimal fresh-stack for the browser SSO auth E2E suite: Neo4j (the digest-pinned image from `docker-compose.neo4j.yml`), Postgres, migration, workspace setup, the API, and a synthetic mock OIDC IdP. No ingester, reducer, projector, or collectors, and zero seeded local identities. | You are proving the SSO login flow against a fresh, zero-corpus stack (issue #4971). |
@@ -410,47 +408,17 @@ The overlay adds Jaeger on `http://localhost:16686`, an OpenTelemetry collector
 on `4317`, `4318`, and `9464`, and OTLP env overrides for API, MCP, ingester,
 reducer, bootstrap index, and workflow coordinator.
 
-## Tier-2 Terraform State Overlay
+## Tier-2 Terraform State Overlays (retired)
 
-Use `docker-compose.tier2-tfstate.yaml` for the Terraform state drift proof
-with MinIO, active workflow coordination, and one Terraform state collector.
-The overlay points runtime services at
-`./tests/fixtures/tfstate_drift_tier2/repos/`.
-
-| Service or override | Provides |
-| --- | --- |
-| `minio` | Local S3-compatible object store for Terraform state. |
-| `minio-init` | One-shot MinIO bucket and object setup. |
-| `workflow-coordinator` | Active claim coordinator for the proof. |
-| `collector-terraform-state` | Terraform state collector worker. |
-| Runtime fixture overrides | Point runtime services at the Tier-2 fixture repositories. |
-
-The overlay pins MinIO images to immutable release tags
-(`minio/minio:RELEASE.2025-09-07T16-13-09Z` and
-`minio/mc:RELEASE.2025-08-13T08-35-41Z`). Confirm replacement tags exist on
-Docker Hub before bumping them; do not switch to `:latest`.
-
-Run commands live in
+The Tier-2 and v2.5 Terraform state drift overlays
+(`docker-compose.tier2-tfstate.yaml`,
+`docker-compose.tier2-tfstate-v25.yaml`) were retired with the #8868 in-tree
+collector removal: they drove the deleted in-tree binary against MinIO, which
+the extracted satellite does not serve. Tier 1 (handcrafted facts through the
+same reducer drift handler) remains; see
 [Verification Gates](../reference/local-testing/verification-gates.md#targeted-graph-and-terraform-gates).
-
-## Tier-2 Terraform State v2.5 Overlay
-
-Use `docker-compose.tier2-tfstate-v25.yaml` for the two-generation Terraform
-state drift proof. It does not stack on
-`docker-compose.tier2-tfstate.yaml`; layer it with the default stack.
-
-| Service or override | Provides |
-| --- | --- |
-| `minio` | Local S3-compatible object store shared by the two proof generations. |
-| `minio-init-gen1` | One-shot object setup for the first fixture generation. |
-| `minio-init-gen2` | Optional second-generation object setup behind the `gen2` profile. |
-| `workflow-coordinator` | Active claim coordinator for both generations. |
-| `collector-terraform-state-gen1` | Terraform state collector for generation 1. |
-| `collector-terraform-state-gen2` | Terraform state collector for generation 2. |
-| Runtime fixture overrides | Point runtime services at the v2.5 fixture repository tree. |
-
-Use this overlay only for the v2.5 proof. Use the simpler Tier-2 overlay for
-the single-generation proof.
+Do not treat collector end-to-end drift as proven until the satellite-based
+revival follow-up (linked from the removal evidence doc) lands.
 
 ## Remote Collector E2E Stack
 

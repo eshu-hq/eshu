@@ -103,9 +103,9 @@ terraform-state collector fail-closed-redacts scalar attributes whenever
 bundle no longer yields a nil resolver, because `LoadPackagedSchemaResolver`
 rejects an empty attribute set with an error and the collector fails to start
 rather than degrading every attribute of every resource
-(`terraformstate/schema_resolver.go` rejects the empty set;
-`cmd/collector-terraform-state/config.go` propagates that error out of
-startup). What remains open is the PER-PROVIDER
+(`terraformstate/schema_resolver.go` rejects the empty set; the former
+in-tree command config propagated that error out of startup before its
+#8868 removal). What remains open is the PER-PROVIDER
 case — a resolver that loads but does not cover one provider still answers
 `SchemaUnknown` for that provider's attributes, and `parseSchemaInto` still
 skips a corrupt bundle — which is the half of #5870 that is still an open

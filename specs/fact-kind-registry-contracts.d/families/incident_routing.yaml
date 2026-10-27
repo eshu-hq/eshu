@@ -28,9 +28,8 @@ producers:
         - incident_routing.observed_pagerduty_integration
         - incident_routing.observed_pagerduty_service
     - id: collector-terraform-state
-      repository: eshu-hq/eshu
-      path: go/internal/collector/terraformstate
-      planned_repository: eshu-hq/eshu-collector-terraform-state
+      repository: eshu-hq/eshu-collector-terraform-state
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - incident_routing.applied_alert_route

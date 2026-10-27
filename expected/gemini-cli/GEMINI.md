@@ -134,7 +134,6 @@ rendered fragment body.
 
 The active collector set on this deployment is enumerated below. Disabling a collector hides its MCP surface from the generated skill.
 
-- aws (enabled)
 - git (enabled)
 - grafana (enabled)
 - oci_registry (enabled)
@@ -145,7 +144,6 @@ The active collector set on this deployment is enumerated below. Disabling a col
 - scanner_worker (enabled)
 - security_alert (enabled)
 - tempo (enabled)
-- terraform_state (enabled)
 - vulnerability_intelligence (enabled)
 - webhook (enabled)
 

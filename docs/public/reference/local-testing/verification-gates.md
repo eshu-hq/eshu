@@ -11,8 +11,7 @@ Use this broad package gate for runtime and collector wiring:
 ```bash
 cd go
 go test ./internal/parser/... ./internal/collector/repo/discovery ./internal/content/shape \
-  ./internal/collector ./cmd/collector-git ./cmd/collector-terraform-state \
-  ./cmd/collector-aws-cloud \
+  ./internal/collector ./cmd/collector-git \
   ./cmd/ingester ./cmd/bootstrap-index \
   ./internal/runtime ./internal/app ./internal/telemetry \
   ./internal/storage/cypher ./internal/storage/neo4j ./internal/storage/postgres \
@@ -277,14 +276,16 @@ bash scripts/verify_tfstate_drift_compose.sh
 
 ESHU_TFSTATE_DRIFT_PROOF_OUT=/tmp/eshu-tfstate-drift-compose-$(date +%Y-%m-%d).md \
   bash scripts/verify_tfstate_drift_compose.sh
-
-bash scripts/verify_tfstate_drift_compose_tier2.sh
-
-bash scripts/verify_tfstate_drift_compose_tier2_v25.sh
 ```
 
-The Terraform-state scripts use distinct `COMPOSE_PROJECT_NAME` values and
-dynamic host ports, so tier 1, tier 2, and v2.5 proofs can run side by side.
+The tier-2 and v2.5 collector end-to-end proofs
+(`verify_tfstate_drift_compose_tier2.sh`,
+`verify_tfstate_drift_compose_tier2_v25.sh`) were retired with the #8868
+in-tree collector removal: they drove the deleted in-tree binary against
+MinIO, which the extracted satellite does not serve. Tier 1 (handcrafted
+facts through the same reducer drift handler) remains. See the revival
+follow-up linked from the removal evidence doc before treating collector
+end-to-end drift as proven.
 
 Webhook refresh:
 

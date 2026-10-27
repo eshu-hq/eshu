@@ -5,7 +5,8 @@ path. Credentials, IAM, and redaction live in
 [AWS Collector Security And Config](collector-aws-cloud-security.md). Scanner
 coverage lives in [AWS Collector Scanner Coverage](collector-aws-cloud-scanners.md).
 
-`collector-aws-cloud` is a claim-driven worker for AWS control-plane metadata.
+AWS cloud collection runs from its extracted satellite
+(`eshu-hq/eshu-collector-aws-cloud`): a claim-driven worker for AWS control-plane metadata.
 It claims coordinator-created `(account_id, region, service_kind)` work, checks
 the selected collector instance, obtains claim-scoped credentials, runs one
 metadata-only scanner, records scanner status, and commits reported facts
@@ -16,10 +17,10 @@ infer service ownership.
 
 | Runtime | Value |
 | --- | --- |
-| Binary | `/usr/local/bin/eshu-collector-aws-cloud` |
-| Kubernetes shape | optional `Deployment` |
-| Command package | `go/cmd/collector-aws-cloud/` |
-| Runtime package | `go/internal/collector/awscloud/awsruntime/` |
+| Binary | `/usr/local/bin/collector` in the satellite image (`ghcr.io/eshu-hq/eshu-collector-aws-cloud`) |
+| Kubernetes shape | component-extension activation (seeded); legacy optional `Deployment` chart template kept |
+| Command package | `eshu-hq/eshu-collector-aws-cloud` (extracted; in-tree `go/cmd/collector-aws-cloud/` removed) |
+| Runtime package | `go/internal/collector/awscloud/awsruntime/` (core-owned kernel) |
 | Scanner bindings aggregator | `go/internal/collector/awscloud/awsruntime/bindings/` |
 | Service package root | `go/internal/collector/awscloud/service/` |
 | Per-service binding | `go/internal/collector/awscloud/service/<svc>/runtimebind/` |
@@ -30,13 +31,13 @@ infer service ownership.
 2. Configure one enabled `aws` collector instance with `claims_enabled=true`.
 3. Use exact target scopes: 12-digit account, concrete regions, concrete
    service kinds, per-account concurrency, and one credential mode.
-4. Mount `ESHU_AWS_REDACTION_KEY` when any target scope enables Batch,
-   CloudWatch, Cognito, ECS, Lambda, Security Hub, or Organizations. Batch needs
-   it because job-definition container environment values can carry secrets and
-   are redacted before persistence. CloudWatch needs it
-   because alarm metric dimension values can be customer-tag-named and are
-   redacted before persistence; Cognito needs it for identity-pool developer
-   provider names and group descriptions.
+4. Provide the satellite redaction key through the activation config when any
+   target scope enables Batch, CloudWatch, Cognito, ECS, Lambda, Security Hub,
+   or Organizations. Batch needs it because job-definition container
+   environment values can carry secrets and are redacted before persistence.
+   CloudWatch needs it because alarm metric dimension values can be
+   customer-tag-named and are redacted before persistence; Cognito needs it
+   for identity-pool developer provider names and group descriptions.
 5. Check `/healthz`, `/readyz`, `/metrics`, and `/admin/status?format=json`.
 6. Confirm scanner status and commit status before debugging reducer or query
    results.

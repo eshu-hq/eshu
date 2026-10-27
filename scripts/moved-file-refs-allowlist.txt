@@ -455,3 +455,27 @@ docs/internal/evidence/6695-collector-loki-package-move.md:go/cmd/collector-loki
 # the envelope now lives in the satellite -- so the cells stay as the
 # pre-extraction contract record.
 docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/observability/loki/envelope.go
+# AWS-cloud satellite extraction (#8852): the in-tree command is deleted and
+# collection now runs from eshu-hq/eshu-collector-aws-cloud. The 6965
+# record-pseudonymization evidence note names main.go at its pre-extraction
+# in-tree path as the file the record-mode branch lived in. There is no
+# in-tree successor path to repoint at, so the note stays as the
+# pre-extraction evidence record.
+docs/internal/evidence/6965-record-pseudonymization.md:go/cmd/collector-aws-cloud/main.go
+# AWS-cloud satellite extraction (#8852): the 6693 evidence note names
+# service.go at its pre-extraction in-tree path as the file whose symbols
+# the note was gathered on. No in-tree successor path exists, so the note
+# stays as the pre-extraction evidence record.
+docs/internal/evidence/6693-cloud-aws-leaf.md:go/cmd/collector-aws-cloud/service.go
+# Terraform-state satellite extraction (#8868): the in-tree command is
+# deleted and collection now runs from
+# eshu-hq/eshu-collector-terraform-state. The 5837 evidence note names
+# config.go at its pre-extraction in-tree path. No in-tree successor path
+# exists, so the note stays as the pre-extraction evidence record.
+docs/internal/evidence/5837-aws-drift-reopen.md:go/cmd/collector-terraform-state/config.go
+# Terraform-state satellite extraction (#8868): the 5870 evidence note
+# names config.go and service.go at their pre-extraction in-tree paths as
+# the files the nil-resolver guard evidence was gathered on. No in-tree
+# successor paths exist, so the note stays as the pre-extraction record.
+docs/internal/evidence/5870-nil-schema-resolver-guard.md:go/cmd/collector-terraform-state/config.go
+docs/internal/evidence/5870-nil-schema-resolver-guard.md:go/cmd/collector-terraform-state/service.go

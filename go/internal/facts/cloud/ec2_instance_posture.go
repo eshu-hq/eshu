@@ -72,6 +72,6 @@ var EC2InstancePostureFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "ec2_instance_posture"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu", Path: "go/internal/collector/awscloud", PlannedRepository: "eshu-hq/eshu-collector-aws-cloud", AuthorityMode: "core_issued_grant", Kinds: []string{"ec2_instance_posture"}},
+		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu-collector-aws-cloud", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"ec2_instance_posture"}},
 	},
 })

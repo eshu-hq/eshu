@@ -31,6 +31,9 @@ spec:
         - name: terraform-state-collector
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The terraform-state binary ships in the eshu-collector-terraform-state satellite image
+          # (producer record: go/internal/facts/cloud/terraform_state.go), not the
+          # in-tree product image: this Deployment's image must provide it.
           command: ["/usr/local/bin/eshu-collector-terraform-state"]
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}

@@ -12,7 +12,7 @@
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
 | `collector-pagerduty` | `eshu-hq/eshu` | `go/internal/collector/pagerduty` | `eshu-hq/eshu-collector-pagerduty` | `core_issued_grant` | `incident_routing.coverage_warning, incident_routing.observed_pagerduty_integration, incident_routing.observed_pagerduty_service` |
-| `collector-terraform-state` | `eshu-hq/eshu` | `go/internal/collector/terraformstate` | `eshu-hq/eshu-collector-terraform-state` | `core_issued_grant` | `incident_routing.applied_alert_route, incident_routing.applied_pagerduty_resource, incident_routing.coverage_warning` |
+| `collector-terraform-state` | `eshu-hq/eshu-collector-terraform-state` | `.` | `` | `core_issued_grant` | `incident_routing.applied_alert_route, incident_routing.applied_pagerduty_resource, incident_routing.coverage_warning` |
 
 ## Kinds
 

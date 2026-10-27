@@ -40,19 +40,12 @@ reuses coordinator reconcile metrics, workflow rows, claim status, and
 
 ## Terraform State Collector
 
-| Variable | Default | Read by | Purpose |
-| --- | --- | --- | --- |
-| `ESHU_TFSTATE_REDACTION_KEY` | unset | collector-terraform-state | Deployment-scoped secret material for deterministic redaction markers. Required before parsing Terraform state. |
-| `ESHU_TFSTATE_REDACTION_RULESET_VERSION` | unset | collector-terraform-state | Non-empty version string for the redaction rule set. Blank values fail startup. |
-| `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` | `password,secret,token,access_key,private_key,certificate,key_pair` | collector-terraform-state | Comma-separated leaf attribute keys treated as redacted secrets. Outranks the identity join-key exemption below, so naming `arn`, `id`, or `self_link` here redacts them even under an unknown provider schema. |
-| `ESHU_TFSTATE_COLLECTOR_INSTANCE_ID` | required when more than one enabled Terraform-state instance exists | collector-terraform-state | Selects the claim-capable `terraform_state` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. |
-| `ESHU_TFSTATE_COLLECTOR_OWNER_ID` | host/process-derived | collector-terraform-state | Owner label written into workflow claim rows. |
-| `ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL` | `1s` | collector-terraform-state | Delay between empty claim polls. |
-| `ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-terraform-state | Lease TTL used when claiming and refreshing work. |
-| `ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-terraform-state | Heartbeat interval for active workflow claims. |
-| `ESHU_TFSTATE_COLLECTOR_HEARTBEAT` | workflow default | collector-terraform-state | Backward-compatible alias for `ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL`. |
-| `ESHU_TFSTATE_SOURCE_MAX_BYTES` | reader default | collector-terraform-state | Max bytes read from one local or S3 state source. |
-| `ESHU_TERRAFORM_SCHEMA_DIR` | packaged schema default | collector-terraform-state | Optional override for the Terraform provider-schema bundle directory. |
+Terraform state now collects from its extracted satellite
+(`eshu-hq/eshu-collector-terraform-state`); the target shape below is unchanged, but the
+`ESHU_TFSTATE_*` process variables are satellite-side operator inputs, not
+in-tree registry entries, so `eshu config validate` does not cover them. The
+satellite resolves credentials and redaction through its activation config
+(see the satellite repo's `config.example.yaml`).
 
 ### Identity join keys under an unknown provider schema
 
@@ -76,7 +69,7 @@ What this means for operators:
   On the ordinary known-schema path these same keys, and standalone
   `account_id`, are already preserved raw.
 - The exemption is by attribute NAME, not by content. Add any of the three to
-  `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` to redact it anyway.
+  the satellite's sensitive-keys setting to redact it anyway.
 - Everything else still fails closed: other scalars, all composites,
   hard-sensitive attributes, and hashed correlation anchors.
 - The collector emits a `provider_schema_not_covered` warning fact per uncovered
@@ -86,14 +79,12 @@ What this means for operators:
 
 ## AWS Cloud Collector
 
-| Variable | Default | Read by | Purpose |
-| --- | --- | --- | --- |
-| `ESHU_AWS_COLLECTOR_INSTANCE_ID` | required when more than one enabled AWS instance exists | collector-aws-cloud | Selects the claim-capable `aws` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. |
-| `ESHU_AWS_COLLECTOR_OWNER_ID` | host/process-derived | collector-aws-cloud | Owner label written into workflow claim rows. |
-| `ESHU_AWS_COLLECTOR_POLL_INTERVAL` | `1s` | collector-aws-cloud | Delay between empty claim polls. |
-| `ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-aws-cloud | Lease TTL used when claiming and refreshing work. |
-| `ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-aws-cloud | Heartbeat interval for active workflow claims. |
-| `ESHU_AWS_REDACTION_KEY` | unset | collector-aws-cloud | Deployment-scoped key for Batch container-environment, CloudWatch alarm dimension, CodeBuild environment-variable PLAINTEXT value, Cognito free-text, ECS task-definition, Lambda environment, Security Hub action-target, and Organizations account redaction markers. Required when a target scope enables `batch`, `cloudwatch`, `codebuild`, `cognito`, `ecs`, `lambda`, `organizations`, or `securityhub`. |
+AWS cloud now collects from its extracted satellite
+(`eshu-hq/eshu-collector-aws-cloud`); the target shape below is unchanged, but the
+`ESHU_AWS_*` process variables are satellite-side operator inputs, not
+in-tree registry entries, so `eshu config validate` does not cover them. The
+satellite resolves credentials and redaction through its activation config
+(see the satellite repo's `config.example.yaml`).
 
 ## GCP Cloud Collector
 

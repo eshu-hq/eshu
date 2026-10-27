@@ -142,10 +142,10 @@ func TestRunRejectsBadManifest(t *testing.T) {
 func TestRunRejectsUnknownProofGate(t *testing.T) {
 	manifestBody := `version: "v1"
 coverage:
-  - surface: collector:aws
+  - surface: collector:pagerduty
     scenario: cassette
     scenario_type: baseline
-    ref: testdata/cassettes/awscloud/supply-chain-demo.json
+    ref: testdata/cassettes/pagerduty/supply-chain-demo.json
     proof_gate: stale-proof-gate
 `
 	specsDir, snapshot, manifest, reportOut := testEnv(t, manifestBody)

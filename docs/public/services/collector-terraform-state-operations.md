@@ -62,7 +62,7 @@ Trace spans: `tfstate.collector.claim.process`, `tfstate.discovery.resolve`,
 | S3 access denied | Target trust policy, external ID, bucket policy, allowed region, `tfstate.source.open` span. |
 | Missing S3 object | Stale backend declaration or deleted exact seed; inspect warning facts. |
 | DynamoDB warning | `dynamodb:GetItem`, table name, or removed lock table. |
-| Oversize state | `ESHU_TFSTATE_SOURCE_MAX_BYTES` and snapshot size histogram. |
+| Oversize state | Satellite source size limit and snapshot size histogram. |
 | Conditional GET never short-circuits | Prior snapshot ETag metadata and conditional-read metric. |
 | Redaction surge | Provider-schema coverage and redaction reason metric. |
 

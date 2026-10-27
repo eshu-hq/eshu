@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `collector-aws-cloud` | `eshu-hq/eshu` | `go/internal/collector/awscloud` | `eshu-hq/eshu-collector-aws-cloud` | `core_issued_grant` | `ec2_instance_posture` |
+| `collector-aws-cloud` | `eshu-hq/eshu-collector-aws-cloud` | `.` | `` | `core_issued_grant` | `ec2_instance_posture` |
 
 ## Kinds
 

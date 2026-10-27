@@ -131,8 +131,8 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   claims: it resolves exact candidates, opens a matching source, parses facts
   with the claim fencing token, and leaves SDK-specific cloud wiring behind the
   existing read-only source interfaces.
-- `cmd/collector-terraform-state` supplies the current AWS SDK adapter for
-  read-only S3 access in the claim-driven runtime.
+- The `eshu-hq/eshu-collector-terraform-state` satellite supplies the AWS
+  SDK adapter for read-only S3 access (in-tree command removed on #8868).
 - `LocatorHash(StateKey)` returns the per-version durable hash that backs
   `CandidatePlanningID` and the persisted
   `terraform_state_snapshot.payload->>'locator_hash'` field. It digests
@@ -287,8 +287,9 @@ An ARN embeds the 12-digit AWS account id; a GCP `self_link` embeds the project
 id. Those can now appear raw from a provider the bundle cannot classify.
 
 On the ordinary `SchemaKnown` path these same three keys — and standalone
-`account_id` — are already preserved raw (`defaultRedactionSensitiveKeys` in
-`cmd/collector-terraform-state/config.go` lists only credential-shaped keys).
+`account_id` — are already preserved raw (`defaultRedactionSensitiveKeys`
+lists only credential-shaped keys; the table moved from the removed in-tree
+the in-tree command config to the satellite on #8868).
 The genuinely new exposure is a state-only deployment with no cloud collector,
 where nothing else would emit that ARN.
 
@@ -468,8 +469,7 @@ new runtime stage or hide failures behind fallback behavior.
 No-Regression Evidence: after classifying S3 `NoSuchKey` as a missing exact
 state object, the focused reader and AWS adapter gate passed with
 `go test ./internal/collector/terraformstate -run 'TestS3StateSourceReports(MissingState|NotModified)' -count=1`
-and
-`go test ./cmd/collector-terraform-state -run 'TestSafeS3GetObjectErrorMaps(NoSuchKey|NotModified)|TestSafeS3GetObjectErrorDoesNotLeakLocator' -count=1`.
+(the companion cmd-level test retired with the in-tree command on #8868).
 The change does not alter discovery cardinality, parser memory behavior,
 worker counts, graph writes, or retry timing for transient AWS failures.
 

@@ -174,7 +174,8 @@ var arnSecondTokens = map[string]tokenSet{
 
 // awsServiceWords are the ARN service names and collector service kinds
 // that are not already keys of arnTypeTokens: the services the aws-cloud
-// collector scans (one config test per service in cmd/collector-aws-cloud)
+// collector scans (formerly one config test per service in
+// cmd/collector-aws-cloud, removed on the #8852 extraction)
 // plus the ARN-only names. AWS-defined words, never customer-chosen.
 var awsServiceWords = []string{
 	"s3", "sns", "sqs", "apigateway", "apigatewayv2", "execute-api", "appmesh", "autoscaling", "bedrock",

@@ -124,21 +124,21 @@ go run ./cmd/collector-<record-capable-collector> -mode=record \
   -cassette-file=../testdata/cassettes/<collector>/<recording>.json
 ```
 
-For the current in-tree pilots, that is:
+For the current in-tree pilot, that is:
 
 ```bash
 go run ./cmd/collector-kubernetes-live -mode=record \
   -cassette-file=../testdata/cassettes/kuberneteslive/supply-chain-demo.json
-ESHU_RECORD_PSEUDONYM_KEY="$(cat /path/to/corpus.key)" \
-  go run ./cmd/collector-aws-cloud -mode=record \
-  -cassette-file=../testdata/cassettes/awscloud/supply-chain-demo.json
 ```
+
+(The former `collector-aws-cloud` record pilot was retired with the #8852
+in-tree collector removal.)
 
 ### Record-Mode Pseudonymization
 
 A recording of a real estate carries account ids, ARNs, resource names,
 hostnames and addresses, none of which may be committed. Recorders that
-implement it (`collector-aws-cloud` is the pilot) rewrite every identifier
+implement it rewrite every identifier
 before the recorder sees it, through `go/internal/replay/recordpseudo`:
 each raw token becomes a keyed pseudonym of the same shape (12-digit accounts
 in the reserved `0000` range, ARNs with their grammar intact, `n` + 11 hex

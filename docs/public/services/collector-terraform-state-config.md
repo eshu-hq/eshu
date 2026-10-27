@@ -4,21 +4,24 @@ Use this page to configure `collector-terraform-state` instances, discovery
 policy, credential routing, redaction, and provider-schema coverage. The
 runtime overview lives in [Terraform State Collector](collector-terraform-state.md).
 
-## Required Environment
+## Required Configuration (Satellite Activation)
 
-| Env var | Purpose |
+The extracted satellite (`eshu-hq/eshu-collector-terraform-state`) resolves
+state sources, redaction, and claim behavior through its activation config
+(see the satellite repo's `config.example.yaml`), not through in-tree process
+environment. It reads S3 with ambient workload credentials only (IRSA web
+identity, then the process environment triple); no credential key exists in
+config.
+
+| Setting | Purpose |
 | --- | --- |
-| `ESHU_POSTGRES_DSN` or split Postgres DSNs | Shared Postgres runtime loader. |
-| `ESHU_COLLECTOR_INSTANCES_JSON` | Must include one enabled `terraform_state` instance with `claims_enabled=true`. |
-| `ESHU_TFSTATE_REDACTION_KEY` | Deployment-scoped key for deterministic redaction markers. |
-| `ESHU_TFSTATE_REDACTION_RULESET_VERSION` | Non-empty redaction rule-set version; blank values fail startup. |
+| Satellite redaction key | Deployment-scoped key for deterministic redaction markers. |
+| Redaction ruleset version | Non-empty redaction rule-set version; blank values fail startup. |
 
-Optional knobs: `ESHU_TFSTATE_COLLECTOR_INSTANCE_ID`,
-`ESHU_TFSTATE_COLLECTOR_OWNER_ID`, `ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL`,
-`ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL`,
-`ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL`,
-`ESHU_TFSTATE_SOURCE_MAX_BYTES`, `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS`, and
-`ESHU_TERRAFORM_SCHEMA_DIR`.
+Claim polling, lease TTL, heartbeat, source size caps, sensitive-key
+overrides, and the provider-schema bundle directory are satellite activation
+settings. (`ESHU_TERRAFORM_SCHEMA_DIR` remains a live in-tree input for the
+core schema loader used in local schema development.)
 
 ## Instance Shape
 

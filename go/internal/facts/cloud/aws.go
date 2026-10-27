@@ -135,6 +135,6 @@ var AWSFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "aws_warning", PayloadSchema: "sdk/go/factschema/schema/aws_warning.v1.schema.json", Disposition: "unconsumed", NoReducerReason: "Round-2 verified no real consumer: searches for the kind constant and wire literal across reducer, projector, query, storage, and relationships trees returned no consumption.", NoReducerEvidence: "go/internal/mcp/kind_disclosure_ledger.go (kindDisclosureEntries, #5474 backfill)"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu", Path: "go/internal/collector/awscloud", PlannedRepository: "eshu-hq/eshu-collector-aws-cloud", AuthorityMode: "core_issued_grant", Kinds: []string{"aws_dns_record", "aws_iam_permission", "aws_image_reference", "aws_relationship", "aws_resource", "aws_resource_policy_permission", "aws_security_group_rule", "aws_tag_observation", "aws_warning"}},
+		{ID: "collector-aws-cloud", Repository: "eshu-hq/eshu-collector-aws-cloud", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"aws_dns_record", "aws_iam_permission", "aws_image_reference", "aws_relationship", "aws_resource", "aws_resource_policy_permission", "aws_security_group_rule", "aws_tag_observation", "aws_warning"}},
 	},
 })

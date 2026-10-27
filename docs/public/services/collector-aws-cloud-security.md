@@ -3,19 +3,20 @@
 Use this page for AWS collector credentials, target scopes, IAM guardrails, and
 redaction. The overview lives in [AWS Cloud Collector](collector-aws-cloud.md).
 
-## Required Environment
+## Required Configuration (Satellite Activation)
 
-| Env var | Purpose |
+The extracted satellite (`eshu-hq/eshu-collector-aws-cloud`) resolves
+credentials, target scopes, and redaction through its activation config (see
+the satellite repo's `config.example.yaml`), not through in-tree process
+environment. It collects with ambient workload credentials only (IRSA,
+container, or instance role); no credential key exists in config.
+
+| Setting | Purpose |
 | --- | --- |
-| `ESHU_POSTGRES_DSN` or split Postgres DSNs | Shared Postgres runtime loader. |
-| `ESHU_COLLECTOR_INSTANCES_JSON` | Desired collector instances. Must include one enabled `aws` instance with `claims_enabled=true`. |
-| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables Batch, CloudWatch, CodeBuild, Cognito, ECS, Lambda, Security Hub, Organizations, or IAM Identity Center (`ssoadmin`). Batch job-definition container environment values can carry secrets and are redacted before persistence; CloudWatch alarm metric dimension values can be customer-tag-named and are redacted before persistence; CodeBuild environment-variable PLAINTEXT values may carry secrets and are redacted before persistence (name and type only); Cognito redacts identity-pool developer provider names and group descriptions; Identity Center principal display names are redacted before persistence. |
+| Satellite redaction key | Required when any target scope enables Batch, CloudWatch, CodeBuild, Cognito, ECS, Lambda, Security Hub, Organizations, or IAM Identity Center (`ssoadmin`). Batch job-definition container environment values can carry secrets and are redacted before persistence; CloudWatch alarm metric dimension values can be customer-tag-named and are redacted before persistence; CodeBuild environment-variable PLAINTEXT values may carry secrets and are redacted before persistence (name and type only); Cognito redacts identity-pool developer provider names and group descriptions; Identity Center principal display names are redacted before persistence. |
 
-Optional knobs: `ESHU_AWS_COLLECTOR_INSTANCE_ID`,
-`ESHU_AWS_COLLECTOR_OWNER_ID`, `ESHU_AWS_COLLECTOR_POLL_INTERVAL`,
-`ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL`, and
-`ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL`. Heartbeat must stay below the lease
-TTL.
+Claim polling, lease TTL, and heartbeat are satellite activation settings
+(heartbeat must stay below the lease TTL).
 
 ## Target Scopes
 
@@ -54,7 +55,7 @@ Inspector v2 finding details, Inspector v2 filter criteria, or Inspector v2 CIS
 scan results.
 
 CloudWatch, CodeBuild, ECS, Lambda, Security Hub, Organizations, and IAM
-Identity Center (`ssoadmin`) scans require `ESHU_AWS_REDACTION_KEY` before
+Identity Center (`ssoadmin`) scans require the satellite redaction key before
 startup because sensitive-derived fields are redacted before persistence. The
 key produces deterministic HMAC markers; it is not stored in facts. Security Hub
 action target descriptions and Organizations account email/name values pass
@@ -176,7 +177,7 @@ collector role: `CreateDomain`, `DeleteDomain`, `UpdateDomainConfig`,
 `AcceptInboundConnection`, `RejectInboundConnection`, `CreateCollection`,
 `DeleteCollection`, `UpdateCollection`, `CreateSecurityConfig`,
 `CreateVpcEndpoint`, or `DeleteVpcEndpoint`; do not grant `GetIndex` on either
-service. OpenSearch does not require `ESHU_AWS_REDACTION_KEY`.
+service. OpenSearch does not require the satellite redaction key.
 
 Do not persist credential material, bearer tokens, session tokens, presigned
 query parameters, secret values, policy JSON payload bodies, queue messages, log

@@ -22,9 +22,8 @@ kinds:
     - terraform_state_warning
 producers:
     - id: collector-terraform-state
-      repository: eshu-hq/eshu
-      path: go/internal/collector/terraformstate
-      planned_repository: eshu-hq/eshu-collector-terraform-state
+      repository: eshu-hq/eshu-collector-terraform-state
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - terraform_state_module
