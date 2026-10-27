@@ -43,7 +43,8 @@ all three together.
 ## EPSS selection
 
 For each CVE, the reducer chooses the latest valid EPSS score date. Equal dates
-use observation time and stable fact identity; undated legacy observations
+use observation time, stable fact identity, then payload values for duplicate
+identities; undated legacy observations
 rank below dated ones. Probability, percentile, score date, optional model
 version, and evidence fact ID remain one observation. Invalid dates are
 quarantined with the input-invalid signal. KEV remains independent.
