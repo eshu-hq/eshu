@@ -238,6 +238,23 @@ type SecurityAlertCollectionStateStore interface {
 	// for an unscoped unanchored one. A scope id with no work item and no
 	// generation may be omitted from the result.
 	SecurityAlertTargetStates(ctx context.Context, scopeIDs []string, requestedSlugs []string) ([]SecurityAlertTargetState, error)
+	// SecurityAlertReconciliationQueueStates returns the reducer queue depth
+	// of the security_alert_reconciliation domain for each scope id (#8839):
+	// how many work items are still outstanding (pending, claimed, running,
+	// or retrying) and how many are dead-lettered. The handler reads it only
+	// for a collection-healthy empty answer, so a scope whose reconciliation
+	// already ran never pays this read. A scope with no such work item may
+	// be omitted from the result.
+	SecurityAlertReconciliationQueueStates(ctx context.Context, scopeIDs []string) ([]SecurityAlertReconciliationQueueState, error)
+}
+
+// SecurityAlertReconciliationQueueState is the reducer queue depth of the
+// security_alert_reconciliation domain for one scope: outstanding work the
+// reducer has not drained, and work parked as dead-lettered.
+type SecurityAlertReconciliationQueueState struct {
+	ScopeID     string
+	Outstanding int
+	DeadLetter  int
 }
 
 // ErrSecurityAlertCollectionStateBound reports that a collection-state read

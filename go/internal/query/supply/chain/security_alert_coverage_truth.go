@@ -167,13 +167,15 @@ func securityAlertCoverageReasonLabel(verdict securityAlertCoverageVerdict) stri
 	return verdict.reasons[0]
 }
 
-// readSecurityAlertCollectionVerdict performs at most three bounded reads: the
+// readSecurityAlertCollectionVerdict performs at most four bounded reads: the
 // enabled instances' configuration, then the latest work item, committed
 // generation existence, the requested repositories the latest committed
 // generation did not collect (#8838), and unread repositories for the covering
 // targets. On a scoped unanchored read the covering set is the caller's
 // granted repositories, mapped from grants to slugs with one bounded catalog
-// read first (#8837).
+// read first (#8837). Then — only for a collection-healthy answer — the
+// reducer queue depth of the security_alert_reconciliation domain for the
+// covering scopes (#8839).
 func (h *Handler) readSecurityAlertCollectionVerdict(
 	ctx context.Context,
 	anchored bool,
@@ -204,7 +206,32 @@ func (h *Handler) readSecurityAlertCollectionVerdict(
 	if err != nil {
 		return securityAlertCoverageVerdict{}, err
 	}
-	return classifySecurityAlertCollection(targets, scopeIDs, states, requestedSlugs, anchored), nil
+	verdict := classifySecurityAlertCollection(targets, scopeIDs, states, requestedSlugs, anchored)
+	if !verdict.healthy() {
+		return verdict, nil
+	}
+	return h.securityAlertReconciliationQueueVerdict(ctx, scopeIDs, verdict)
+}
+
+// securityAlertReconciliationQueueVerdict downgrades a collection-healthy
+// empty answer while the reducer's security_alert_reconciliation work for a
+// covering scope is still outstanding or dead-lettered (#8839). The queue
+// read runs only on this path, so a collection-incomplete answer keeps its
+// collector verdict without paying for it. A queue read failure fails closed
+// to collector_state_unavailable like any other probe error.
+func (h *Handler) securityAlertReconciliationQueueVerdict(
+	ctx context.Context,
+	scopeIDs []string,
+	healthy securityAlertCoverageVerdict,
+) (securityAlertCoverageVerdict, error) {
+	states, err := h.SecurityAlertCollectionState.SecurityAlertReconciliationQueueStates(ctx, scopeIDs)
+	if err != nil {
+		return securityAlertCoverageVerdict{}, err
+	}
+	if verdict, ok := classifySecurityAlertReconciliationQueue(states); ok {
+		return verdict, nil
+	}
+	return healthy, nil
 }
 
 // readSecurityAlertGrantVerdict classifies a scoped caller's unanchored empty
@@ -237,8 +264,8 @@ func (h *Handler) readSecurityAlertGrantVerdict(
 // healthy verdict keeps the row-derived coverage and the exact, fresh truth and
 // adds the ready_zero_results readiness envelope. Any other verdict replaces
 // the coverage state, adds the reasons, lowers the truth level, sets the
-// freshness state, and attaches the missing_collector_completion cause when the
-// verdict proves it.
+// freshness state, and attaches the verdict's proven freshness cause, if it
+// carries one.
 func applySecurityAlertCoverageVerdict(
 	body map[string]any,
 	coverage securityAlertReconciliationCoverageSummary,
@@ -251,8 +278,8 @@ func applySecurityAlertCoverageVerdict(
 		if truth != nil {
 			truth.Level = querycontract.MinTruthLevel(truth.Level, verdict.level)
 			truth.Freshness.State = verdict.freshness
-			if verdict.cause {
-				querycontract.WithFreshnessCause(truth, querycontract.FreshnessCauseMissingCollectorCompletion)
+			if verdict.cause != "" {
+				querycontract.WithFreshnessCause(truth, verdict.cause)
 			}
 		}
 	}

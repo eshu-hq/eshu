@@ -105,6 +105,8 @@
     "./internal/query|TestSecurityAlertCollectionStateBoundsLive": 0.9,
     "./internal/query|TestSecurityAlertCollectionStatePlanLive": 9.1,
     "./internal/query|TestSecurityAlertCollectionStateSemanticsLive": 0.9,
+    "./internal/query|TestSecurityAlertReconciliationQueuePlanLive": 15.0,
+    "./internal/query|TestSecurityAlertReconciliationQueueStatesLive": 5.0,
     "./internal/query|TestSecurityAlertTargetSetAllowlistChangeLive": 1.0,
     "./internal/query|TestSecurityAlertTargetSetLegacyAndEmptyLive": 1.0,
     "./internal/query|TestSecurityAlertUnreadRepositoriesLive": 0.9,

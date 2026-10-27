@@ -137,6 +137,22 @@ recent shipped work grouped by feature area.
   catalog read takes 1.2 to 3.1 ms at grant sizes 1, 100, and 5,000 over a
   10,000-repository catalog.
   Evidence: `docs/internal/evidence/8837-security-alert-grant-scope.md`.
+### Security alerts: empty answers wait for reducer reconciliation
+
+- **A collection-healthy security-alert empty answer now waits for
+  reconciliation**
+  ([#8839](https://github.com/eshu-hq/eshu/issues/8839)). The empty-answer
+  check used to consult collection and projection only, so a scope with a
+  projected generation and no reconciliation rows yet answered `complete`,
+  exact and fresh. The classification now also reads the reducer queue
+  depth of the `security_alert_reconciliation` domain for the covering
+  scopes (one statement, only on the collection-healthy path): outstanding
+  work reports `target_incomplete` with reason `reducer_backlog`,
+  derived truth, and building freshness; dead-lettered work reports
+  `target_incomplete` with reason `dead_lettered_domain`, fallback truth,
+  and unavailable freshness. The per-scope queue read takes 47 to 48 ms
+  over a 500,000-item backlog.
+  Evidence: `docs/internal/evidence/8839-security-alert-reconciliation-queue.md`.
 
 ### Security alerts: org targets over 100 repositories are collected as shards
 
