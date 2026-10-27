@@ -135,30 +135,49 @@ the default-host identity stability (#7764).
 ## Filesystem copy keeps only admitted dotfiles
 
 The managed-workspace copy prunes dot-prefixed entries unless
-`preserveFilesystemHiddenPath` (`selection_copy_workspace.go`) allows them. When
-the parser registry admits a new dot-prefixed name (#8814, and the #8809
-version pins), add its basename there, or filesystem mode never sees it. Never
-add a credential-bearing dotfile (`.env`, `.pypirc`, `.netrc`) unless a record admits
-it under a content-store policy (`.npmrc` is the one exception, #8978), and
-keep `.gitignore` out: the copy applies the source ignore rules itself, and
-copying the file would make discovery filter a second time. Names match case-insensitively, like the
-registry, and are kept under non-hidden or allowlisted directories (`.github`,
-`.github/workflows`, `.mvn`, and a dot-directory whose name is an allowlisted
-file name) at any depth. A name under any other, unallowlisted dot-directory
-(`tools/.config/.eslintrc`) is pruned with its parent, because the copy drops
-such dot-directories whole; clone mode admits it, and
-`TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories` pins the
-difference. The copy keeps the whole `.mvn` directory and discovery applies the
-registry rules to it, as in clone mode: `.mvn/extensions.xml` is admitted as
-text, a `.java` file under `.mvn/wrapper` is parsed as Java, and `.mvn/jvm.config`,
-`.mvn/maven.config` and the wrapper properties have no registry entry
+`preserveFilesystemHiddenPath` (`selection_copy_workspace.go`) allows them. The
+kept set is derived from the parser registry (#8904): a dot-prefixed entry is
+kept when `Registry.LookupByPath` admits it under the store content-store
+policy, so a new registry dotfile name needs no second edit here. That covers
+exact names (`.editorconfig`, the #8809 version pins), extension-admitted names
+(`.gitlab-ci.yml` via `.yml`), and path rules alike. Three exemptions stay out:
+`.gitignore`, which the copy must not duplicate because it applies the source
+ignore rules itself (copying it would let discovery filter a second time);
+the names a metadata or redact policy governs (`.npmrc`, `.yarnrc.yml`,
+`*.tfvars`), which stay pruned even though the registry admits them; and the
+unadmitted credential-bearing dotfiles (`.env`, `.pypirc`, `.netrc`), which no
+registry change keeps unless their definition binds a policy. Names match
+case-insensitively, like the registry, and are kept under non-hidden or
+allowlisted directories (`.github`, `.github/workflows`, `.mvn`, and a
+dot-directory whose name the registry admits) at any depth. A name under any
+other, unadmitted dot-directory (`tools/.config/.eslintrc`) is pruned with its
+parent, because the copy drops such dot-directories whole; clone mode admits
+it, and `TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories`
+pins the difference. The copy keeps the whole `.mvn` directory and discovery
+applies the registry rules to it, as in clone mode: `.mvn/extensions.xml` is
+admitted as text, a `.java` file under `.mvn/wrapper` is parsed as Java, and
+`.mvn/jvm.config`, `.mvn/maven.config` and the wrapper properties have no
+registry entry
 (`TestFilesystemCopyKeepsMvnDirectoryAndDiscoveryAppliesRegistryRules`).
-`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails when a
-dot-prefixed registry exact name (all except `.gitignore`) is missing from
-`preservedHiddenFilesystemFileNames`. A PR that adds dotfile names to the
-registry goes red on it until it adds them to that map in the same change; the
-version-pin names from #8882 (`.nvmrc`, `.node-version`, `.tool-versions` and
-the rest) are in the map for that reason.
+`.gitmodules` is kept by explicit structural rule: no parser definition binds
+it, but the submodule facts read it from the copy
+(`TestNativeRepositorySelectorSelectRepositoriesFilesystemPreservesGitlabCI`).
+`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails when the derived
+set drifts from what the copy keeps, in either direction.
+
+No-Regression Evidence (#8904): copy path. The derived probe (lowercase,
+basename, `.gitignore` check, one `LookupByPath`) replaces one map lookup per
+dot entry: ~270 ns/op over ten mixed dot paths (three 100k runs), invisible
+next to per-file copy/discovery. Full package suite green; pin re-recorded
+with no bucket movement (epoch unchanged). Behavior moves toward the registry
+only: extension-admitted names outside the old hand list are kept, while
+`.npmrc`/`.yarnrc.yml` leave the copy. `fingerprintTree` walks the same
+filter, so affected manifests move on the next poll and re-sync with no epoch
+advance.
+
+No-Observability-Change: same skip/admit counters; a pruned dotfile stays
+silently pruned. No metric, span, log, status field, queue, worker, lease,
+batch, or runtime knob is added or removed.
 
 No-Regression Evidence (#8814): discovery path. `LookupByPath` over 29,083
 repository paths averaged 14.94 ms before and 15.29 ms after the new names and
@@ -196,8 +215,9 @@ golden-corpus fixtures, synthetic corpora and the repo's own path list.
 No-Observability-Change: discovery reports the same skip and admit counters. A
 newly admitted file is counted as an ordinary admitted file, and an unadmitted
 dotfile is still pruned silently by the copy, as before. When a PR adds dotfile
-names to the registry without adding them to `preservedHiddenFilesystemFileNames`,
-`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails.
+names to the registry, the derived keep rule follows with no second edit;
+`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails only when the
+derived set drifts from what the copy keeps.
 
 ## Content-store policy (#8812)
 
@@ -427,8 +447,9 @@ never reaches a file through a directory link; an explicit operator
 `--file-targets` path can, and is then judged as the regular file it reaches.
 
 No-Regression Evidence (#8939): discovery path. `.swift-version` joins the
-`raw_text` exact names and `preservedHiddenFilesystemFileNames`; both are map
-lookups, so the added entry changes no lookup's complexity. A throwaway
+`raw_text` exact names, and the derived copy rule picks it up with no second
+edit; both the registry lookup and the copy probe are map lookups, so the added
+entry changes no lookup's complexity. A throwaway
 benchmark of `LookupByPath` over eight mixed paths (none of them `.swift-version`),
 run on the Go version pinned in `go/go.mod` with three alternating base/HEAD
 rounds of three runs each, gave per-eight-lookup times of 2.10-4.25 us before and
@@ -442,9 +463,9 @@ no `.swift-version` and the golden corpus has none.
 No-Observability-Change: discovery reports the same skip and admit counters, and
 a `.swift-version` is counted as an ordinary admitted file. No metric, span, log,
 status field, queue, worker, lease, batch, or runtime knob is added. When a PR adds
-a dot-prefixed registry name without adding it to
-`preservedHiddenFilesystemFileNames`,
-`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails.
+a dot-prefixed registry name, the derived keep rule follows with no second edit;
+`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails only when the
+derived set drifts from what the copy keeps.
 
 ## Per-file read cap (#8986)
 

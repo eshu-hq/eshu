@@ -14,14 +14,13 @@ import (
 )
 
 // TestPreserveFilesystemHiddenPathCoversRegistryDotfiles ties the managed
-// workspace copy to the parser registry (#8814). The copy prunes dot-prefixed
-// entries unless preserveFilesystemHiddenPath keeps them, so a dot-prefixed
-// exact name added to the registry without a matching allowlist entry is
-// admitted in clone mode and silently dropped in filesystem mode. The only
-// exemption is .gitignore: the copy applies the source ignore rules itself,
-// and a copied file would make discovery filter a second time. A change that
-// adds a dotfile name to the registry must add it to
-// preservedHiddenFilesystemFileNames, or this test goes red.
+// workspace copy to the parser registry (#8904). The copy derives its kept
+// dotfiles from the registry, so a dot-prefixed exact name added to the
+// registry is kept with no second edit. The exemptions are .gitignore, which
+// the copy must not duplicate because it applies the source ignore rules
+// itself, and the names a metadata or redact content-store policy governs,
+// which stay pruned. A change that moves a dotfile name across those lines
+// fails here until the copy follows.
 func TestPreserveFilesystemHiddenPathCoversRegistryDotfiles(t *testing.T) {
 	t.Parallel()
 
@@ -29,13 +28,20 @@ func TestPreserveFilesystemHiddenPathCoversRegistryDotfiles(t *testing.T) {
 	checked := 0
 	for _, definition := range registry.Definitions() {
 		for _, name := range definition.ExactNames {
-			if !strings.HasPrefix(name, ".") || strings.EqualFold(name, ".gitignore") {
+			if !strings.HasPrefix(name, ".") {
 				continue
 			}
 			checked++
-			for _, rel := range []string{name, filepath.ToSlash(filepath.Join("nested", "dir", name))} {
-				if !preserveFilesystemHiddenPath(rel) {
-					t.Errorf("registry admits %q (%s) but the filesystem copy prunes it: add it to preservedHiddenFilesystemFileNames", rel, definition.ParserKey)
+			rel := filepath.ToSlash(filepath.Join("nested", "dir", name))
+			if strings.EqualFold(name, ".gitignore") || definition.ContentStore.Policy != parser.ContentStoreStore {
+				if preserveFilesystemHiddenPath(name) || preserveFilesystemHiddenPath(rel) {
+					t.Errorf("registry exempts %q (%s) but the filesystem copy keeps it", name, definition.ParserKey)
+				}
+				continue
+			}
+			for _, keep := range []string{name, rel} {
+				if !preserveFilesystemHiddenPath(keep) {
+					t.Errorf("registry admits %q (%s) but the filesystem copy prunes it", keep, definition.ParserKey)
 				}
 			}
 		}
@@ -66,9 +72,10 @@ func TestPreserveFilesystemHiddenPathMatchesCaseInsensitively(t *testing.T) {
 	t.Parallel()
 
 	for _, rel := range []string{
-		".EditorConfig", "web/.ESLINTRC", ".Flake8", ".NpmRC", ".MVN", "module/.Mvn",
+		".EditorConfig", "web/.ESLINTRC", ".Flake8", ".MVN", "module/.Mvn",
 		".GITHUB", ".Github", ".GITHUB/workflows", ".github/WORKFLOWS",
 		".GITHUB/workflows/.eslintrc", ".Github/Workflows/ci.yml",
+		"nested/.GitLab-CI.YAML",
 	} {
 		if !preserveFilesystemHiddenPath(rel) {
 			t.Errorf("preserveFilesystemHiddenPath(%q) = false, want true", rel)
@@ -76,6 +83,7 @@ func TestPreserveFilesystemHiddenPathMatchesCaseInsensitively(t *testing.T) {
 	}
 	for _, rel := range []string{
 		".ENV", ".PypiRC", ".GitIgnore", ".GITHUBX", ".GITHUB/other", ".GITHUB/workflowsx",
+		".NpmRC", ".Yarnrc.Yml", ".Auto.Tfvars",
 	} {
 		if preserveFilesystemHiddenPath(rel) {
 			t.Errorf("preserveFilesystemHiddenPath(%q) = true, want false", rel)
@@ -162,7 +170,7 @@ func TestFilesystemCopyKeepsMvnDirectoryAndDiscoveryAppliesRegistryRules(t *test
 // at any depth because the registry matches by basename. The managed-workspace
 // copy keeps one only when every directory above it is a non-hidden directory
 // or an allowlisted one (.github, .github/workflows, .mvn, or a dot-directory
-// whose name is an allowlisted file name): it prunes any other, unallowlisted dot-directory
+// whose name the registry admits): it prunes any other, unallowlisted dot-directory
 // whole with filepath.SkipDir, so tools/.config/.eslintrc never reaches
 // discovery in filesystem mode. The pruning of unknown dot-directories
 // is intentional and long-standing; if it changes, update this test and the
