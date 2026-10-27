@@ -1,0 +1,14 @@
+scripts/docs-cli-env-refs-baseline.txt
+  h_78a442cba0b3e6 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "db6722a164c8f0790dd8214687ae2463aa96a968",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

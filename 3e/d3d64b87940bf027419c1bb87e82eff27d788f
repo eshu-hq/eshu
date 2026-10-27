@@ -1,0 +1,34 @@
+deploy/helm/eshu/templates/deployment-tempo-collector.yaml
+  h_78a442cba0b3e6 32-35
+deploy/helm/eshu/values.schema.json
+  h_78a442cba0b3e6 1238-1248
+deploy/helm/eshu/values.yaml
+  h_78a442cba0b3e6 991-997
+docker-compose.demo.corpus.yaml
+  h_78a442cba0b3e6 166-173,177-185
+docker-compose.remote-e2e.observability.yaml
+  h_78a442cba0b3e6 204-206
+docs/public/deployment/service-runtimes-collectors.md
+  h_78a442cba0b3e6 78,127
+docs/public/reference/environment-collectors.md
+  h_78a442cba0b3e6 318-320
+go/internal/capabilitycatalog/data/surface-inventory.generated.json
+  h_78a442cba0b3e6 2115,2120,2150,2153
+go/internal/facts/observability.go
+  h_78a442cba0b3e6 167
+go/internal/runtime/scanner_worker_binary_contract_test.go
+  h_78a442cba0b3e6 122-124
+specs/surface-inventory.v1.yaml
+  h_78a442cba0b3e6 241,244-249,254-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3ed3d64b87940bf027419c1bb87e82eff27d788f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
