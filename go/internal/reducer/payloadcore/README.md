@@ -35,7 +35,9 @@ do not belong here even when more than one family reads them.
   `MissingStrings`, `StringSet`, `CloneBoolPointer`, `OrderedStrings`,
   `NonVersionDependencyPrefix`, `ExactManifestDependencyVersion`,
   `GradleVersionSelector`,
-  `PackageNameFromPURL`, `PackageNameFromPackageID`.
+  `PackageNameFromPURL`, `PackageNameFromPackageID` (for the `maven` scheme it
+  returns the final path segment, the `group:artifact` coordinate, so a registry
+  path such as `maven2` never becomes part of the name, #9286).
 - Identity derivation: `RepositoryIDFromReducerScope`,
   `SupplyChainWorkloadIDsFromPayload`, `OCIRepositoryID`.
 - Source ordering: `SourceOrderKey`, `PreferMaxSourceOrderKey`,

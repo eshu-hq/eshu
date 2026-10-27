@@ -38,6 +38,14 @@ truth; reducers admit user-facing truth.
 - `ManifestPackageManagersForEcosystem` lists the `package_manager` values a
   registry ecosystem's manifests can carry (`maven` -> `gradle`, `maven`,
   `sbt`; `gomod` -> `go`, `gomod`). It is a read prefilter, never an identity rule.
+- `ManifestEntityNameCandidates` returns the names a reducer asks a store for
+  when it reads manifest dependency rows by their stored `entity_name`. It is
+  `ConsumptionNameCandidates` plus, for Maven, the case-preserved
+  `group:artifact` coordinate (and its lowercase form) derived from a
+  `group/artifact` or `group:artifact` name, because Maven and Gradle manifests
+  store that coordinate while an advisory can name the package as a bare
+  artifact, a slash Package URL path, or a package ID. It never feeds
+  `ConsumptionKeys`, so persisted join keys do not change (issue #9286).
 - `NormalizeRegistry` canonicalizes registry host/path values without hiding
   the source registry.
 - `DefaultRegistry` returns the canonical registry host for an ecosystem so

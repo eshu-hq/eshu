@@ -209,10 +209,12 @@ for the same value. Each bullet below says which:
   root wires into other families' handlers also satisfies these local
   declarations without duplicating any logic -- the pattern
   `internal/reducer/code/taint/graph_ports.go` established.
-- `packageNameFromPURL` / `packageNameFromPackageID`
-  (`reconciliation.go`) mirror
-  `manifest_dependency.go`: pure purl/package-ID string
-  parsing with no further dependency.
+- `packageNameFromPURL` (`reconciliation.go`) mirrors
+  `manifest_dependency.go`: pure purl string parsing with no further
+  dependency. `packageNameFromPackageID` forwards to
+  `payloadcore.PackageNameFromPackageID`, so the alert side and the
+  supply-chain impact side agree on a Maven package ID's `group:artifact`
+  name (#9286).
 - `securityAlertDependencyScope` / `securityAlertPayloadBoolPointer`
   (`reconciliation.go`) are `match.go`'s
   former `supplyChainDependencyScope` / `payloadBoolPointer`: short payload
