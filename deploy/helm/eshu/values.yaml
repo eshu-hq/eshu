@@ -989,12 +989,61 @@ tempoCollector:
   replicas: 1
   revisionHistoryLimit: 3
   # The in-tree tempo producer was removed after the satellite cutover
-  # (#9172): this Deployment runs the extracted satellite image, not the
-  # monolith image. Keep the tag pinned like the top-level image above.
-  image:
-    repository: ghcr.io/eshu-hq/eshu-collector-tempo
-    tag: "v0.1.3"
+  # (#9172). The Eshu image stays the host: the main container runs the
+  # component-extension worker, and an init seed container copies the
+  # collector binary and manifest out of the digest-pinned satellite release
+  # image (repository@sha256:<64 hex>; tags are refused) before a reconcile
+  # init container grants, installs, and enables the component in a
+  # pod-local registry. This mirrors the live QA tempo worker.
+  componentId: dev.eshu.collector.tempo
+  componentVersion: "0.1.3"
+  mode: scheduled
+  seed:
+    image: ghcr.io/eshu-hq/eshu-collector-tempo@sha256:0230e174284bb7a9831babac9b9927be05df02e8620c20e448e91dbb1ac2ecac
     pullPolicy: IfNotPresent
+    # Satellite entrypoint: the image ships only /usr/local/bin/collector.
+    command: ["/usr/local/bin/collector", "seed"]
+  host:
+    sourceSystem: tempo
+    scope:
+      # Keep id in sync with config.targets[].scope_id below and with the
+      # scope_id of the tempo target in collectorInstances, so the claims
+      # the coordinator plans line up with the config the worker hands the
+      # seeded collector.
+      id: "tempo:primary"
+      kind: trace_source
+  process:
+    args: ["--sdk-stdio"]
+    stdoutLimitBytes: 67108864
+  # Non-secret collector config for the activation file. Targets use the
+  # same shape as the live QA tempo activation; point base_url (and the
+  # token/tenant env names) at the Tempo to collect. A target without a
+  # reachable base_url fails its claims closed, so an enabled deployment
+  # with placeholder targets collects nothing until they are configured.
+  config:
+    limits:
+      claimTimeoutSeconds: 300
+      maxPayloadBytes: 1048576
+      maxRecordsPerClaim: 50000
+      maxResultBytes: 3145728
+    targets:
+      - provider: tempo
+        scope_id: "tempo:primary"
+        instance_id: "primary"
+        base_url: ""
+        resource_limit: 50
+        stale_after: 24h
+  # Producer grants for the core fact kinds the seeded manifest declares.
+  grants:
+    - kind: observability.source_instance
+      schemaVersions: ["1.0.0"]
+      scope: tempo
+    - kind: observability.observed_trace_signal
+      schemaVersions: ["1.0.0"]
+      scope: tempo
+    - kind: observability.coverage_warning
+      schemaVersions: ["1.0.0"]
+      scope: tempo
   instanceId: tempo-primary
   pollInterval: 2s
   claimLeaseTTL: ""

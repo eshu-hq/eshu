@@ -49,3 +49,27 @@ app.kubernetes.io/component: loki-collector
 {{- include "eshu.selectorLabels" . }}
 app.kubernetes.io/component: tempo-collector
 {{- end -}}
+
+{{/*
+The single activation the dedicated tempo worker renders. It carries the same
+keys as a componentExtensionCollector.activations entry, so the shared seed
+and reconcile helpers serve it unchanged: the seed init container copies the
+collector binary and manifest out of the digest-pinned satellite image, and
+the reconcile init container grants, installs, and enables the component.
+*/}}
+{{- define "eshu.tempoCollectorActivation" -}}
+{{- $tempo := .Values.tempoCollector -}}
+{{- $activation := dict "instanceId" $tempo.instanceId -}}
+{{- $_ := set $activation "componentId" $tempo.componentId -}}
+{{- $_ := set $activation "componentVersion" $tempo.componentVersion -}}
+{{- $_ := set $activation "mode" (default "scheduled" $tempo.mode) -}}
+{{- $_ := set $activation "seed" (default (dict) $tempo.seed) -}}
+{{- $_ := set $activation "host" (default (dict) $tempo.host) -}}
+{{- $_ := set $activation "process" (default (dict) $tempo.process) -}}
+{{- with $tempo.config }}{{ $_ := set $activation "config" . }}{{ end -}}
+{{- with $tempo.grants }}{{ $_ := set $activation "grants" . }}{{ end -}}
+{{- with $tempo.pollInterval }}{{ $_ := set $activation "pollInterval" . }}{{ end -}}
+{{- with $tempo.claimLeaseTTL }}{{ $_ := set $activation "claimLeaseTTL" . }}{{ end -}}
+{{- with $tempo.heartbeatInterval }}{{ $_ := set $activation "heartbeatInterval" . }}{{ end -}}
+{{- $activation | toJson -}}
+{{- end -}}

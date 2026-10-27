@@ -1,4 +1,6 @@
 {{- if .Values.tempoCollector.enabled }}
+{{- $activation := (include "eshu.tempoCollectorActivation" . | fromJson) }}
+{{- $ctx := dict "root" . "activation" $activation }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,21 +21,27 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
       annotations:
+        checksum/tempo-activation: {{ include "eshu.componentActivationConfigYAML" $ctx | sha256sum | quote }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "eshu.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- include "eshu.componentActivationInitContainers" (dict "root" . "activations" (list $activation)) | nindent 8 }}
       containers:
         - name: tempo-collector
-          # Extracted satellite (#9172): the in-tree producer is deleted, so
-          # this Deployment runs the satellite image, not the monolith image.
-          image: "{{ .Values.tempoCollector.image.repository }}:{{ .Values.tempoCollector.image.tag }}"
-          imagePullPolicy: {{ .Values.tempoCollector.image.pullPolicy }}
-          command: ["/usr/local/bin/eshu-collector-tempo"]
+          # Extracted satellite (#9172): the in-tree producer is deleted. The
+          # Eshu image stays the host and runs the component-extension
+          # worker; the collector binary and manifest arrive from the
+          # digest-pinned satellite seed image via the init containers above,
+          # mirroring the live QA tempo worker.
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/eshu-collector-component-extension"]
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           env:
@@ -44,9 +52,31 @@ spec:
             {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}
             {{- include "eshu.renderConnectionTuningEnv" .Values.tempoCollector.connectionTuning | nindent 12 }}
             {{- include "eshu.renderTempoCollectorEnv" . | nindent 12 }}
+            {{- include "eshu.renderComponentExtensionPolicyEnv" . | nindent 12 }}
+            - name: ESHU_COMPONENT_COLLECTOR_INSTANCE_ID
+              value: {{ .Values.tempoCollector.instanceId | quote }}
+            - name: ESHU_COMPONENT_COLLECTOR_OWNER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ESHU_COMPONENT_COLLECTOR_SCOPE_KIND
+              value: {{ $activation.host.scope.kind | quote }}
+            - name: ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL
+              value: {{ .Values.tempoCollector.pollInterval | quote }}
+            {{- with .Values.tempoCollector.claimLeaseTTL }}
+            - name: ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.tempoCollector.heartbeatInterval }}
+            - name: ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL
+              value: {{ . | quote }}
+            {{- end }}
             {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "tempo-collector") | nindent 12 }}
             {{- include "eshu.renderPrometheusEnv" . | nindent 12 }}
             {{- include "eshu.renderEnvMap" .Values.env | nindent 12 }}
+            {{- with .Values.tempoCollector.extraEnv }}
+            {{ toYaml . | nindent 12 }}
+            {{- end }}
           ports:
             - name: http
               containerPort: 8080
@@ -71,9 +101,19 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: component-home
+              mountPath: {{ .Values.componentExtensionCollector.componentHome | quote }}
+            - name: component-activations
+              mountPath: {{ include "eshu.componentActivationConfigDir" . | quote }}
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: component-home
+          emptyDir: {}
+        - name: component-activations
+          configMap:
+            name: {{ include "eshu.tempoCollectorFullname" . }}-activation
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

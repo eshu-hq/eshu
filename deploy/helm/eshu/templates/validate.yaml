@@ -201,6 +201,49 @@
 {{- if not $tempoLocalMatch -}}
 {{- fail "tempoCollector.collectorInstances must contain an enabled claim-driven tempo instance matching tempoCollector.instanceId" -}}
 {{- end -}}
+{{- $tempoComponentId := toString (default "" .Values.tempoCollector.componentId) -}}
+{{- if not (regexMatch "^[a-z0-9][a-z0-9._-]*$" $tempoComponentId) -}}
+{{- fail "tempoCollector.componentId is required and must be a lowercase component identifier" -}}
+{{- end -}}
+{{- $tempoAllowed := list -}}
+{{- range splitList "," (include "eshu.componentCSVList" .Values.componentExtensionCollector.allowIds) -}}
+{{- $tempoAllowed = append $tempoAllowed . -}}
+{{- end -}}
+{{- if not (has $tempoComponentId $tempoAllowed) -}}
+{{- fail (printf "tempoCollector.componentId %q must be listed in componentExtensionCollector.allowIds" $tempoComponentId) -}}
+{{- end -}}
+{{- if not (regexMatch "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?$" (toString (default "" .Values.tempoCollector.componentVersion))) -}}
+{{- fail "tempoCollector.componentVersion is required and must be the semantic version in the seeded manifest" -}}
+{{- end -}}
+{{- $tempoSeed := default (dict) .Values.tempoCollector.seed -}}
+{{- $tempoSeedImage := toString (default "" $tempoSeed.image) -}}
+{{- if eq $tempoSeedImage "" -}}
+{{- fail "tempoCollector.seed.image is required" -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9][A-Za-z0-9._-]*(:[0-9]+(/[A-Za-z0-9._-]+)+|(/[A-Za-z0-9._-]+)*)@sha256:[a-f0-9]{64}$" $tempoSeedImage) -}}
+{{- fail (printf "tempoCollector.seed.image %q must be pinned by digest (repository@sha256:<64 hex>); tags are not accepted, not even next to a digest, because --image-ref would carry the tag" $tempoSeedImage) -}}
+{{- end -}}
+{{- if hasKey $tempoSeed "pullPolicy" -}}
+{{- if not (has (toString $tempoSeed.pullPolicy) (list "Always" "IfNotPresent" "Never")) -}}
+{{- fail (printf "tempoCollector.seed.pullPolicy %q must be Always, IfNotPresent or Never" (toString $tempoSeed.pullPolicy)) -}}
+{{- end -}}
+{{- end -}}
+{{- range $arg := default (list) $tempoSeed.command -}}
+{{- if not (regexMatch "^[A-Za-z0-9._/:=@-]+$" (toString $arg)) -}}
+{{- fail (printf "tempoCollector.seed.command entries may only contain letters, digits and ._/:=@-") -}}
+{{- end -}}
+{{- end -}}
+{{- $tempoHost := default (dict) .Values.tempoCollector.host -}}
+{{- if not (regexMatch "^[A-Za-z0-9._-]+$" (toString (default "" $tempoHost.sourceSystem))) -}}
+{{- fail "tempoCollector.host.sourceSystem is required" -}}
+{{- end -}}
+{{- $tempoScope := default (dict) $tempoHost.scope -}}
+{{- if not (regexMatch "^[A-Za-z0-9._:/@-]+$" (toString (default "" $tempoScope.id))) -}}
+{{- fail "tempoCollector.host.scope.id is required" -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9_.-]+$" (toString (default "" $tempoScope.kind))) -}}
+{{- fail "tempoCollector.host.scope.kind is required" -}}
+{{- end -}}
 {{- end -}}
 {{- if .Values.jiraCollector.enabled -}}
 {{- if not .Values.jiraCollector.instanceId -}}
