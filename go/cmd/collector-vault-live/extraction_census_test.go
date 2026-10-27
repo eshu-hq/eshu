@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/vaultlive"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -128,6 +129,42 @@ func TestExtractionBoundaryConfigCarriesNoToken(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// TestExtractionBoundaryKeyMaterialIsExplicit names the single permitted
+// exception to the no-secret boundary: the deployment-scoped HMAC redaction
+// key. redact.Key is secret material by its own package definition; it
+// crosses the boundary by design because the snapshot source redacts with
+// it, and the census records the exception. Any other key-material field,
+// or the same type under a different name, fails.
+func TestExtractionBoundaryKeyMaterialIsExplicit(t *testing.T) {
+	keyType := reflect.TypeOf(redact.Key{})
+	structs := []struct {
+		name string
+		typ  reflect.Type
+	}{
+		{"ClusterTarget", reflect.TypeOf(vaultlive.ClusterTarget{})},
+		{"Config", reflect.TypeOf(vaultlive.Config{})},
+	}
+	found := false
+	for _, tc := range structs {
+		for i := 0; i < tc.typ.NumField(); i++ {
+			field := tc.typ.Field(i)
+			if field.Type != keyType {
+				continue
+			}
+			if tc.name != "Config" || field.Name != "RedactionKey" {
+				t.Errorf("cross-boundary %s.%s carries key material outside the documented RedactionKey exception", tc.name, field.Name)
+				continue
+			}
+			found = true
+		}
+	}
+	// The exception must exist: if Config stops carrying the redaction key,
+	// the census exception claim is stale.
+	if !found {
+		t.Errorf("Config.RedactionKey of type redact.Key not found; update the census exception claim")
 	}
 }
 

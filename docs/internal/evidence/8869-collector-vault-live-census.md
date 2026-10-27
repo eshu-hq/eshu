@@ -120,11 +120,15 @@ claim contracts, never shared-table shortcuts.
 - The token is never serialized in the targets JSON: `token_env` names the
   environment variable holding the read-only token
   (`config.go:30-42,162-186`). An empty resolved token fails closed.
-- The cross-boundary `vaultlive.Config`/`vaultlive.ClusterTarget` carry
-  non-secret identity only (`snapshot.go:34-52`); connection details and the
-  token live in the command-local `vaultClientFactory`, keyed by
-  `authKey(cluster, namespace)` because the scope identity is
-  namespace-scoped (`service.go:109-153`).
+- The cross-boundary `vaultlive.ClusterTarget` carries non-secret identity
+  only; connection details and the token live in the command-local
+  `vaultClientFactory`, keyed by `authKey(cluster, namespace)` because the
+  scope identity is namespace-scoped (`service.go:109-153`).
+- `vaultlive.Config` carries the same identity plus exactly one documented
+  exception: the deployment-scoped HMAC redaction key (`RedactionKey`,
+  required for fingerprinting names and paths). It is secret material by the
+  `redact` package definition, never the Vault token, and
+  `extraction_census_test.go` locks the exception to that single field.
 - `ESHU_VAULT_LIVE_REDACTION_KEY` is required; names and paths are
   HMAC-fingerprinted with it. Heartbeat must stay below the claim-lease TTL.
 - Do not log the token or the raw Vault address
@@ -132,7 +136,9 @@ claim contracts, never shared-table shortcuts.
 - `go/cmd/collector-vault-live/extraction_census_test.go` guards the
   boundary: no `token`/`secret`/`password`/`credential` field may appear on
   the cross-boundary structs (`FencingToken` is allowlisted only as a locked
-  int64 generation counter), and `authKey` must separate both dimensions.
+  int64 generation counter), exactly one `redact.Key` field is permitted and
+  it must be the documented `Config.RedactionKey`, and `authKey` must
+  separate both dimensions.
 
 ## Artifacts
 
