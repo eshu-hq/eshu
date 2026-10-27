@@ -96,18 +96,23 @@ REMOVE w.__eshu_retire_lock
 WITH w
 `
 
-// deleteGateClause is every retirement clause, evaluated after the lock.
+// deleteGateClause is every retirement clause, evaluated after the lock. The
+// legacy-shape clause joins byte for byte (a padded id carries its padding,
+// so it still matches); only the twin construction and the own-repository
+// comparisons trim, exactly as TwinID and safeRelationship do in Go. trim()
+// and Go TrimSpace agree on ASCII space, tab, LF, and CR by live probe, and
+// the live seed proves space; no-break space is out of claim scope.
 const deleteGateClause = `WHERE 'workload:' + w.name = w.id
   AND w.generation_id IS NULL
   AND NOT (w)<-[:INSTANCE_OF]-(:WorkloadInstance)
   AND NOT EXISTS { MATCH (i:WorkloadInstance) WHERE i.workload_id = w.id }
   AND EXISTS {
-    MATCH (:Repository {id: w.repo_id})-[:DEFINES]->(t:Workload {id: 'workload:' + w.repo_id + ':' + w.name})
+    MATCH (:Repository {id: trim(w.repo_id)})-[:DEFINES]->(t:Workload {id: 'workload:' + trim(w.repo_id) + ':' + trim(w.name)})
     WHERE t.generation_id IS NOT NULL
   }
   AND NOT EXISTS {
     MATCH (w)-[r]-(o)
-    WHERE NOT ((type(r) = 'SAME_NAME' AND 'Workload' IN labels(o)) OR (type(r) = 'DEFINES' AND startNode(r) = o AND 'Repository' IN labels(o) AND coalesce(o.id = w.repo_id, false)))
+    WHERE NOT ((type(r) = 'SAME_NAME' AND 'Workload' IN labels(o)) OR (type(r) = 'DEFINES' AND startNode(r) = o AND 'Repository' IN labels(o) AND coalesce(trim(o.id) = trim(w.repo_id), false)))
   }
 `
 

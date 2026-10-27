@@ -146,26 +146,55 @@ func (f fixture) scoped(repo, name string) string {
 // the legacy-shape clause keeps it out.
 func (f fixture) odd() string { return "workload:odd-" + f.nonce }
 
-// paddedIDs are the two leftovers seedPadded writes: one whose name and one
-// whose repository id has leading whitespace.
+// paddedIDs are the three eligible leftovers seedPadded writes: a
+// leading-space name, a trailing-space name, and a both-sides-padded
+// repository id, each beside the trimmed scoped twin its repository DEFINES.
+// Every padding char is an ASCII space (U+0020): the only character the live
+// seed proves. Tab, LF, and CR agree between Go TrimSpace and Cypher trim by
+// probe, but no seed node carries them.
 func (f fixture) paddedIDs() []string {
-	return []string{"workload: padname-" + f.nonce, "workload:padrepo-" + f.nonce}
+	return []string{
+		"workload: padname-" + f.nonce,
+		"workload:padtrail-" + f.nonce + " ",
+		"workload:padrepo-" + f.nonce,
+	}
 }
 
-// seedPadded writes a leftover with a padded name and a leftover with a padded
-// repository id, each beside a trimmed scoped twin that its repository
-// DEFINES. The delete statement joins name and repository id byte for byte, so
-// neither leftover has a twin it can match; Detect must agree and report
-// no_twin. Without the TwinID trim guard the padded-name leftover would look
-// eligible in Go while the statement keeps it. The padded-repo-id seed is
-// belt and braces: Evaluate's slices.Contains(facts.Twins[twin], c.RepoID)
-// already yields no_twin for it, so only the unit tests (TestTwinID repo-id
-// rows, TestEvaluateUntrimmedNameOrRepoNeverHasTwin) pin the repo-id half of
-// the guard.
+// paddedTwinIDs are the trimmed scoped twins of the padded eligible leftovers.
+func (f fixture) paddedTwinIDs() []string {
+	return []string{
+		"workload:" + f.repo("pn") + ":padname-" + f.nonce,
+		"workload:" + f.repo("pn") + ":padtrail-" + f.nonce,
+		"workload:" + f.repo("pr") + ":padrepo-" + f.nonce,
+	}
+}
+
+// paddedNegativeStems lists the padded leftovers that must stay blocked, in
+// stable order: instance by edge, instance by property, unsafe relationship,
+// twin absent, twin without generation, twin the repository does not define,
+// twin in a different repository only.
+func paddedNegativeStems() []string { return []string{"n9e", "n9p", "n9r", "n9t", "n9g", "n9d", "n9f"} }
+
+// paddedNegativeIDs are the padded leftovers that must stay blocked.
+func (f fixture) paddedNegativeIDs() []string {
+	ids := make([]string, 0, 7)
+	for _, stem := range paddedNegativeStems() {
+		ids = append(ids, "workload: "+stem+"-"+f.nonce)
+	}
+	return ids
+}
+
+// seedPadded writes the three eligible padded leftovers beside their trimmed
+// scoped twins, plus seven padded negative controls. A padded node is judged
+// against its trimmed twin: the twin id joins the trimmed parts, and the
+// own-repository comparisons (twin DEFINES membership, leftover DEFINES
+// safety) compare trimmed repo ids. The legacy-shape clause still joins byte
+// for byte, which holds because the leftover id carries the same padding.
 func seedPadded(t *testing.T, db *liveDB, f fixture) {
 	t.Helper()
 	nameRepo, repoRepo := f.repo("pn"), f.repo("pr")
-	for _, r := range []string{nameRepo, repoRepo} {
+	negRepo, foreignRepo := f.repo("qn"), f.repo("qf")
+	for _, r := range []string{nameRepo, repoRepo, negRepo, foreignRepo} {
 		db.mustWrite(t, `CREATE (:Repository {id: $id})`, map[string]any{"id": r})
 	}
 	node := func(id, name, repo string, scoped bool) {
@@ -180,17 +209,79 @@ func seedPadded(t *testing.T, db *liveDB, f fixture) {
 		db.mustWrite(t, `MATCH (r:Repository {id: $r}), (w:Workload {id: $w}) CREATE (r)-[:DEFINES]->(w)`,
 			map[string]any{"r": repo, "w": id})
 	}
-	ids := f.paddedIDs()
+	twin := func(repo, stem string) string {
+		name := stem + "-" + f.nonce
+		id := "workload:" + repo + ":" + name
+		node(id, name, repo, true)
+		defines(repo, id)
+		return id
+	}
 
+	ids := f.paddedIDs()
 	padName := " padname-" + f.nonce
 	node(ids[0], padName, nameRepo, false)
-	node("workload:"+nameRepo+":"+strings.TrimSpace(padName), strings.TrimSpace(padName), nameRepo, true)
 	defines(nameRepo, ids[0])
-	defines(nameRepo, "workload:"+nameRepo+":"+strings.TrimSpace(padName))
+	twin(nameRepo, "padname")
 
-	node(ids[1], "padrepo-"+f.nonce, " "+repoRepo, false)
-	node("workload:"+repoRepo+":padrepo-"+f.nonce, "padrepo-"+f.nonce, repoRepo, true)
-	defines(repoRepo, "workload:"+repoRepo+":padrepo-"+f.nonce)
+	trailName := "padtrail-" + f.nonce + " "
+	node(ids[1], trailName, nameRepo, false)
+	defines(nameRepo, ids[1])
+	twin(nameRepo, "padtrail")
+
+	padRepo := " " + repoRepo + " "
+	node(ids[2], "padrepo-"+f.nonce, padRepo, false)
+	defines(repoRepo, ids[2])
+	twin(repoRepo, "padrepo")
+
+	negPad := " " + negRepo
+	neg := func(stem string) string {
+		name := " " + stem + "-" + f.nonce
+		id := "workload:" + name
+		node(id, name, negPad, false)
+		defines(negRepo, id)
+		return id
+	}
+	negTwin := func(stem, repo string, scoped, defined bool) string {
+		name := stem + "-" + f.nonce
+		id := "workload:" + repo + ":" + name
+		node(id, name, repo, scoped)
+		if defined {
+			defines(repo, id)
+		}
+		return id
+	}
+	instance := func(id, leftover string, edge bool) {
+		db.mustWrite(t, `CREATE (:WorkloadInstance {id: $id, workload_id: $w})`,
+			map[string]any{"id": id, "w": leftover})
+		if edge {
+			db.mustWrite(t, `MATCH (a:WorkloadInstance {id: $a}), (b:Workload {id: $b}) CREATE (a)-[:INSTANCE_OF]->(b)`,
+				map[string]any{"a": id, "b": leftover})
+		}
+	}
+
+	e := neg("n9e")
+	negTwin("n9e", negRepo, true, true)
+	instance("inst:n9e-"+f.nonce, e, true)
+
+	p := neg("n9p")
+	negTwin("n9p", negRepo, true, true)
+	instance("inst:n9p-"+f.nonce, p, false)
+
+	r := neg("n9r")
+	rTwin := negTwin("n9r", negRepo, true, true)
+	db.mustWrite(t, `MATCH (a:Workload {id: $a}), (b:Workload {id: $b}) CREATE (a)-[:DEPENDS_ON]->(b)`,
+		map[string]any{"a": r, "b": rTwin})
+
+	neg("n9t")
+
+	neg("n9g")
+	negTwin("n9g", negRepo, false, false)
+
+	neg("n9d")
+	negTwin("n9d", negRepo, true, false)
+
+	neg("n9f")
+	negTwin("n9f", foreignRepo, true, true)
 }
 
 // extraIDs are ids that must never be deleted or become eligible when a

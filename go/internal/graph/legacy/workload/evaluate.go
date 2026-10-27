@@ -96,15 +96,14 @@ func IsLegacyID(id, name string) bool {
 }
 
 // TwinID returns the repository-scoped id for the same name and repository,
-// built by the production constructor. It is empty when either part is blank,
-// when either part has leading or trailing whitespace, or when the name
-// carries a colon, so it can never equal a node id. The constructor trims its
-// inputs but the delete Cypher joins them byte for byte, so a padded part has
-// no twin the delete could match.
+// built by the production constructor from the trimmed parts. It is empty
+// when either trimmed part is blank or when the name carries a colon, so it
+// can never equal a node id. A padded name or repository id resolves to its
+// trimmed twin, exactly as the delete Cypher does with trim(): the two agree
+// on ASCII space, tab, LF, and CR by live probe, and the live seed proves
+// space. No-break space is out of claim scope (TrimSpace strips it, trim
+// does not).
 func TwinID(repoID, name string) string {
-	if strings.TrimSpace(repoID) != repoID || strings.TrimSpace(name) != name {
-		return ""
-	}
 	return workloadid.NewWorkloadID(repoID, name).String()
 }
 
@@ -124,7 +123,7 @@ func evaluateOne(c Candidate, facts Facts) Verdict {
 	case facts.EdgeInstances[c.ID] || facts.PropInstances[c.ID]:
 		v.BlockedReason = BlockedHasInstances
 		return v
-	case v.TwinID == "" || !slices.Contains(facts.Twins[v.TwinID], c.RepoID):
+	case v.TwinID == "" || !slices.Contains(facts.Twins[v.TwinID], strings.TrimSpace(c.RepoID)):
 		v.BlockedReason = BlockedNoTwin
 		return v
 	}
@@ -142,16 +141,17 @@ func evaluateOne(c Candidate, facts Facts) Verdict {
 }
 
 // safeRelationship reports whether a retirement may drop rel with the node:
-// DEFINES arriving from the candidate's own Repository, or SAME_NAME to
-// another Workload in either direction. Anything else carries evidence the
-// twin does not necessarily hold. The Neo4j delete statement encodes the same
-// rule; keep them together.
+// DEFINES arriving from the candidate's own Repository (repo ids compared
+// trimmed, so a DEFINES edge from the trimmed repository node covers a padded
+// leftover), or SAME_NAME to another Workload in either direction. Anything
+// else carries evidence the twin does not necessarily hold. The Neo4j delete
+// statement encodes the same rule; keep them together.
 func safeRelationship(c Candidate, rel Relationship) bool {
 	switch rel.Type {
 	case relSameName:
 		return slices.Contains(rel.OtherLabels, labelWorkld)
 	case relDefines:
-		return !rel.Outgoing && c.RepoID != "" && rel.OtherID == c.RepoID && slices.Contains(rel.OtherLabels, labelRepo)
+		return !rel.Outgoing && c.RepoID != "" && strings.TrimSpace(rel.OtherID) == strings.TrimSpace(c.RepoID) && slices.Contains(rel.OtherLabels, labelRepo)
 	}
 	return false
 }
