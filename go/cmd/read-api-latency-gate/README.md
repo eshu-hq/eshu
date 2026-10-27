@@ -112,6 +112,13 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
   distinct dimensions, `content_entities` and the four seeded Postgres tables'
   row counts) and fail the run when anything is short, so a shrunken corpus can
   never read as GREEN
+- The synthetic search repositories use the `seed-gate-search-` prefix so
+  their 300 token-bearing entity rows sort into the first 1,000-row ordered
+  probe before the bulk `seed-infra-repo-` rows. `SeedSearchRepoID` supplies
+  both file and entity rows; `ExpectedContentFileCounts` uses the same prefix
+  for the file count check. Historical work-counter variance in #8682 remains
+  unexplained. Keep measurements from before and after the prefix change in
+  separate fixture cohorts; they do not form an identical-workload comparison.
 - `ParseRouteBudgets`, `EvaluateBudgets` — the budget table and breach check
   (a `HardFailed` route always breaches); `RouteBudgets.WithCatalog`
   tightens a mapped route's budget to the capability catalog's declared
