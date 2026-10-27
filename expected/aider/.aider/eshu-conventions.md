@@ -143,7 +143,6 @@ The active collector set on this deployment is enumerated below. Disabling a col
 - aws (enabled)
 - git (enabled)
 - grafana (enabled)
-- loki (enabled)
 - oci_registry (enabled)
 - package_registry (enabled)
 - pagerduty (enabled)
