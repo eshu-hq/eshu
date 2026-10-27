@@ -23,14 +23,26 @@ versions are `affected_exact`; known fixed versions remain
 `not_affected_known_fixed`; missing, malformed, conflicting, or outside-range
 versions remain `possibly_affected`. The product/CPE-only image path keeps its
 separate `affected_derived` rule. The existing finding payload and counters
-expose these decisions without a new queue stage or metric label.
+expose these decisions without a new queue stage or metric label. One package
+advisory can now produce separate findings for every verified SBOM image
+subject and installed version. An unassociated package manifest or OS scan
+remains its own finding; a scanner result joins an SBOM image only when the
+scan scope and generation resolve that image's digest. Conflicting
+scanner digests for one scope and generation resolve no subject. Equivalent image rows
+coalesce after version conflict checks, and one complete writer pass publishes
+the resulting set so prior subjects can retract when evidence changes.
 
-No-Regression Evidence (#9232): `BenchmarkSBOMVersionGuard` used the same
-five-fact npm advisory and attached image on Apple M5 Max, Go 1.26.10, three
-one-second samples per version. Base `c232c1d1e2` took 9580/9781/9782 ns/op
-with 165 allocs/op; the changed classifier took 9592/9666/9715 ns/op with
-165 allocs/op. The sample ranges overlap, so this shows no measurable
-regression on that input, not a throughput claim. The rule adds no worker,
+Performance Evidence (#9232): `BenchmarkSBOMVersionGuard` uses the same
+five-fact npm advisory and attached image on Apple M5 Max with Go 1.26.10.
+The single-subject baseline was commit `2446f21874245d2d63a46ecf28136dfed44dfa64`.
+The previous single-subject classifier measured 9592/9666/9715 ns/op (165
+allocations/op). The final multi-subject classifier measured
+11155/12777/11430 ns/op (167 allocations/op); its additional subject
+indexing has a small measurable cost on this input. The new fan-out benchmark
+measured 11244/12797 ns/op for one subject, 33096/37685 ns/op for two, and
+309411/331932 ns/op for sixteen (two one-second samples each). These runs
+bound the local cost shape; they do not claim a throughput target. The writer
+still publishes the full finding set in one transaction, with no new worker,
 lease, queue, or graph write.
 
 Observability Evidence (#9232): the existing persisted impact finding carries

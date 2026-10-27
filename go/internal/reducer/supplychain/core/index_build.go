@@ -162,21 +162,7 @@ func addSupplyChainImpactIndexEntry(
 		if err != nil {
 			return factdecode.PartitionDecodeFailures(envelope, err)
 		}
-		// Only index an analysis that actually carries a real image digest — a
-		// blank digest (a legitimate not_scanned/unsupported analysis outcome)
-		// must never anchor an os_package's SubjectDigest, so it is simply not
-		// indexed rather than indexed as an empty-digest row a lookup could match.
-		//
-		// Keyed by scope+generation only, so multiple scanner_worker.analysis
-		// facts for the same scan (different analyzers) resolve last-write-wins.
-		// That is safe for SubjectDigest: imageDigest is a content-addressed
-		// property of the scanned image, identical across analyzers of the same
-		// target, so any winner yields the same digest. EvidenceFactIDs may then
-		// cite an arbitrary analyzer of that scan, which is acceptable evidence
-		// provenance for a digest that all of them agree on.
-		if analysis.ImageDigest != "" {
-			index.scannerAnalyses[supplychainmodel.ScopeGenerationKey(analysis.ScopeID, analysis.GenerationID)] = analysis
-		}
+		recordSupplyChainScannerAnalysis(index, analysis)
 	case chain.SBOMComponentFactKind:
 		component := supplyChainSBOMComponentFromEnvelope(envelope)
 		if component.PURL != "" || component.PackageID != "" || component.CPE != "" {
@@ -184,9 +170,7 @@ func addSupplyChainImpactIndexEntry(
 		}
 	case reducercontract.SBOMAttestationAttachmentFactKind:
 		attachment := supplyChainAttachmentFromEnvelope(envelope)
-		if attachment.DocumentID != "" {
-			index.attachments[attachment.DocumentID] = attachment
-		}
+		recordSupplyChainAttachment(index, attachment)
 	case reducercontract.ContainerImageIdentityFactKind:
 		image := supplyChainImageIdentityFromEnvelope(envelope)
 		if image.digest != "" {
@@ -280,4 +264,53 @@ func preferEPSSObservation(candidate, current supplychainmodel.RiskSignals) bool
 		return candidate.EPSSPercentile > current.EPSSPercentile
 	}
 	return candidate.EPSSModelVersion > current.EPSSModelVersion
+}
+
+// recordSupplyChainScannerAnalysis indexes a scan only when its digest is unambiguous.
+func recordSupplyChainScannerAnalysis(index *supplyChainImpactIndex, analysis supplychainmodel.ScannerAnalysis) {
+	// Only index an analysis that actually carries a real image digest — a
+	// blank digest (a legitimate not_scanned/unsupported analysis outcome)
+	// must never anchor an os_package's SubjectDigest, so it is simply not
+	// indexed rather than indexed as an empty-digest row a lookup could match.
+	//
+	// Conflicting analyzer digests for one scan scope and generation cannot
+	// establish an image subject. Equivalent observations choose stable
+	// evidence by fact ID, independent of load order.
+	if analysis.ImageDigest != "" {
+		key := supplychainmodel.ScopeGenerationKey(analysis.ScopeID, analysis.GenerationID)
+		if !index.scannerAnalysisConflicts[key] {
+			existing, exists := index.scannerAnalyses[key]
+			switch {
+			case !exists:
+				index.scannerAnalyses[key] = analysis
+			case existing.ImageDigest != analysis.ImageDigest:
+				delete(index.scannerAnalyses, key)
+				if index.scannerAnalysisConflicts == nil {
+					index.scannerAnalysisConflicts = map[string]bool{}
+				}
+				index.scannerAnalysisConflicts[key] = true
+			case analysis.FactID < existing.FactID:
+				index.scannerAnalyses[key] = analysis
+			}
+		}
+	}
+}
+
+// recordSupplyChainAttachment indexes a document only when its subject binding is unambiguous.
+func recordSupplyChainAttachment(index *supplyChainImpactIndex, attachment supplychainmodel.Attachment) {
+	if attachment.DocumentID != "" && !index.attachmentConflicts[attachment.DocumentID] {
+		existing, exists := index.attachments[attachment.DocumentID]
+		switch {
+		case !exists:
+			index.attachments[attachment.DocumentID] = attachment
+		case existing.SubjectDigest != attachment.SubjectDigest || existing.Status != attachment.Status:
+			delete(index.attachments, attachment.DocumentID)
+			if index.attachmentConflicts == nil {
+				index.attachmentConflicts = map[string]bool{}
+			}
+			index.attachmentConflicts[attachment.DocumentID] = true
+		case attachment.FactID < existing.FactID:
+			index.attachments[attachment.DocumentID] = attachment
+		}
+	}
 }

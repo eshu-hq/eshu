@@ -45,24 +45,26 @@ import (
 // dragging them into supplychainmodel; see
 // supplychainmodel/README.md#ownership-boundary.
 type supplyChainImpactIndex struct {
-	cves                    []supplychainmodel.ImpactCVE
-	affectedPackages        map[string][]supplychainmodel.AffectedPackage
-	affectedProducts        map[string][]supplychainmodel.AffectedProduct
-	consumption             map[string][]supplychainmodel.PackageConsumption
-	osPackages              map[string][]supplychainmodel.OSPackage
-	components              []supplychainmodel.SBOMComponent
-	attachments             map[string]supplychainmodel.Attachment
-	images                  map[string]supplyChainImageIdentity
-	deployments             []supplychainmodel.DeploymentContext
-	deploymentLanes         []supplychainmodel.DeploymentLaneContext
-	workloads               []supplychainmodel.WorkloadContext
-	services                []supplychainmodel.ServiceContext
-	riskSignals             map[string]supplychainmodel.RiskSignals
-	scannerAnalyses         map[string]supplychainmodel.ScannerAnalysis
-	goReachability          map[string]GoVulnerabilityFinding
-	jsTSPackageReachability jsTSPackageReachabilityIndex
-	pythonReachability      map[string]pythonReachabilityRepositoryEvidence
-	jvmReachability         jvmReachabilityIndex
+	cves                     []supplychainmodel.ImpactCVE
+	affectedPackages         map[string][]supplychainmodel.AffectedPackage
+	affectedProducts         map[string][]supplychainmodel.AffectedProduct
+	consumption              map[string][]supplychainmodel.PackageConsumption
+	osPackages               map[string][]supplychainmodel.OSPackage
+	components               []supplychainmodel.SBOMComponent
+	attachments              map[string]supplychainmodel.Attachment
+	attachmentConflicts      map[string]bool
+	images                   map[string]supplyChainImageIdentity
+	deployments              []supplychainmodel.DeploymentContext
+	deploymentLanes          []supplychainmodel.DeploymentLaneContext
+	workloads                []supplychainmodel.WorkloadContext
+	services                 []supplychainmodel.ServiceContext
+	riskSignals              map[string]supplychainmodel.RiskSignals
+	scannerAnalyses          map[string]supplychainmodel.ScannerAnalysis
+	scannerAnalysisConflicts map[string]bool
+	goReachability           map[string]GoVulnerabilityFinding
+	jsTSPackageReachability  jsTSPackageReachabilityIndex
+	pythonReachability       map[string]pythonReachabilityRepositoryEvidence
+	jvmReachability          jvmReachabilityIndex
 }
 
 // buildSupplyChainImpactIndex and buildSupplyChainImpactIndexWithQuarantine
@@ -132,9 +134,13 @@ func classifySupplyChainImpactPackage(
 			finding.RepositoryID = image.repositoryID
 		}
 	}
+	osVersionConflict := hasComponentPath && hasOSPackage && component.Version != "" && osPackage.InstalledVersion != "" &&
+		!equivalentSupplyChainVersions(finding.Ecosystem, component.Version, osPackage.InstalledVersion)
 	if hasOSPackage {
-		finding.PURL = payloadcore.FirstNonBlank(osPackage.PURL, finding.PURL)
-		finding.ObservedVersion = payloadcore.FirstNonBlank(osPackage.InstalledVersion, finding.ObservedVersion)
+		if !osVersionConflict {
+			finding.PURL = payloadcore.FirstNonBlank(osPackage.PURL, finding.PURL)
+			finding.ObservedVersion = payloadcore.FirstNonBlank(osPackage.InstalledVersion, finding.ObservedVersion)
+		}
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, osPackage.FactID)
 		finding.EvidencePath = append(finding.EvidencePath, chain.VulnerabilityOSPackageFactKind)
 		// An os_package fact's ScopeID is an opaque scan-target locator, never a
@@ -229,7 +235,7 @@ func classifySupplyChainImpactPackage(
 		finding.FixedVersion,
 		pkgs,
 	)
-	if hasComponentPath && !hasOSPackage && sbomVersionEvidenceConflicts(finding.Ecosystem, component, consumption) {
+	if hasComponentPath && (osVersionConflict || sbomVersionEvidenceConflicts(finding.Ecosystem, component, consumption)) {
 		versionDecision = possiblyAffectedDecision(
 			supplyChainVersionReasonSBOMVersionConflict,
 			[]string{supplyChainMissingSBOMVersionConflict},

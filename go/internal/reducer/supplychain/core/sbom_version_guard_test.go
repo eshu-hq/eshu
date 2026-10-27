@@ -81,26 +81,28 @@ func sbomVersionGuardEnvelopes(fieldVersion, purl string) []facts.Envelope {
 	}
 }
 
-// TestSBOMPathConsumptionConflictKeepsPartialTruth rejects a manifest version
-// that describes a different installed version from the attached SBOM record.
+// TestSBOMPathConsumptionConflictKeepsPartialTruth preserves both observations
+// without attributing an unassociated package manifest to an image.
 func TestSBOMPathConsumptionConflictKeepsPartialTruth(t *testing.T) {
 	t.Parallel()
 	base := sbomVersionGuardEnvelopes("4.17.5", "pkg:npm/lodash@4.17.5")
-	consumption := packageConsumptionFactWithRange(
-		"consume-version", crossScopeAffectedPackageID, testImpactRepositoryID, "4.17.12",
-	)
+	consumption := packageConsumptionFactWithRange("consume-version", crossScopeAffectedPackageID, testImpactRepositoryID, "4.17.12")
 	for _, reverse := range []bool{false, true} {
-		facts := append(append([]facts.Envelope(nil), base...), consumption)
+		input := append(append([]facts.Envelope(nil), base...), consumption)
 		if reverse {
-			slices.Reverse(facts)
+			slices.Reverse(input)
 		}
-		got := supplyChainImpactFindingsByCVE(BuildSupplyChainImpactFindings(facts))["CVE-2026-91913"]
-		assertSupplyChainImpactStatus(t, got, SupplyChainImpactPossiblyAffected)
-		if got.MatchReason != supplyChainVersionReasonSBOMVersionConflict || got.RuntimeReachability != "image_sbom" {
-			t.Fatalf("reverse=%t reason=%q reachability=%q", reverse, got.MatchReason, got.RuntimeReachability)
+		findings := BuildSupplyChainImpactFindings(input)
+		if len(findings) != 2 {
+			t.Fatalf("reverse=%t findings=%#v", reverse, findings)
 		}
-		if got.RepositoryID != testImpactRepositoryID || !slices.Contains(got.EvidenceFactIDs, consumption.FactID) {
-			t.Fatalf("reverse=%t consumption provenance lost: %#v", reverse, got)
+		image := supplyChainImpactFindingForDigest(t, findings, testImpactSubjectDigest)
+		if image.Status != SupplyChainImpactPossiblyAffected || image.MatchReason != "version_not_in_advisory_range" || slices.Contains(image.EvidenceFactIDs, consumption.FactID) {
+			t.Fatalf("reverse=%t image borrowed manifest: %#v", reverse, image)
+		}
+		manifest := supplyChainImpactFindingForDigest(t, findings, "")
+		if manifest.Status != SupplyChainImpactAffectedExact || !slices.Contains(manifest.EvidenceFactIDs, consumption.FactID) {
+			t.Fatalf("reverse=%t manifest lost: %#v", reverse, manifest)
 		}
 	}
 }
@@ -127,7 +129,7 @@ func TestSBOMExactVersionDoesNotBorrowRangeOnlyConsumptionProof(t *testing.T) {
 		"consume-range", crossScopeAffectedPackageID, testImpactRepositoryID, "^4.17.0",
 	)
 	envelopes = append(envelopes, consumption)
-	got := supplyChainImpactFindingsByCVE(BuildSupplyChainImpactFindings(envelopes))["CVE-2026-91913"]
+	got := supplyChainImpactFindingForDigest(t, BuildSupplyChainImpactFindings(envelopes), testImpactSubjectDigest)
 	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
 	if got.RuntimeReachability != "image_sbom" || got.RepositoryID != testImpactRepositoryID {
 		t.Fatalf("range-only consumption borrowed precision: reachability=%q repository=%q", got.RuntimeReachability, got.RepositoryID)
@@ -163,12 +165,16 @@ func TestSBOMPathRetainsVendorOSVersionAuthority(t *testing.T) {
 		sbomAttachmentImpactFact("attachment-rpm-sbom", "doc-rpm-sbom", testImpactSubjectDigest),
 		containerImageIdentityImpactFact("image-rpm-sbom", testImpactSubjectDigest, testImpactRepositoryID),
 	}
-	got := supplyChainImpactFindingsByCVE(BuildSupplyChainImpactFindings(facts))["CVE-2026-91914"]
+	findings := BuildSupplyChainImpactFindings(facts)
+	if len(findings) != 2 {
+		t.Fatalf("findings=%#v, want separate SBOM and OS observations", findings)
+	}
+	got := supplyChainImpactFindingForDigest(t, findings, "")
 	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
 	if got.RuntimeReachability != "image_os_package" || got.ObservedVersion != "1:3.0.7-18.el9_2" {
 		t.Fatalf("vendor OS version proof lost: reachability=%q version=%q", got.RuntimeReachability, got.ObservedVersion)
 	}
-	if !slices.Contains(got.EvidenceFactIDs, "component-rpm-sbom") || !slices.Contains(got.EvidenceFactIDs, "os-rpm-sbom") {
+	if slices.Contains(got.EvidenceFactIDs, "component-rpm-sbom") || !slices.Contains(got.EvidenceFactIDs, "os-rpm-sbom") {
 		t.Fatalf("coexisting evidence lost: %#v", got.EvidenceFactIDs)
 	}
 }

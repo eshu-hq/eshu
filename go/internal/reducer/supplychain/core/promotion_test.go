@@ -50,7 +50,7 @@ func TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeR
 	)
 	findings := BuildSupplyChainImpactFindings(branch3TestFindingFacts("CVE-2026-5426", deployment))
 
-	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-5426"]
+	got := supplyChainImpactFindingForDigest(t, findings, "")
 	if got.RuntimeReachability == "deployed_image" {
 		t.Fatalf("RuntimeReachability = %q, want declared-only branch-3 evidence to withhold deployed_image", got.RuntimeReachability)
 	}

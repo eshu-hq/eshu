@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -358,7 +357,7 @@ func buildSupplyChainImpactFindingsWithQuarantine(envelopes []facts.Envelope) ([
 			pkgGroups := groupSupplyChainAffectedByPackage(affected)
 			for _, packageID := range sortedPackageKeys(pkgGroups) {
 				pkgs := pkgGroups[packageID]
-				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(group, pkgs, index))
+				findings = appendSupplyChainImpactPackageFindings(findings, group, pkgs, index)
 			}
 			continue
 		}
@@ -380,15 +379,7 @@ func buildSupplyChainImpactFindingsWithQuarantine(envelopes []facts.Envelope) ([
 	// same factdecode.RecordQuarantinedFacts path, and a poisoned security_alert fact never
 	// aborts the whole supply_chain_impact generation.
 	quarantined = append(quarantined, securityAlertQuarantined...)
-	sort.SliceStable(findings, func(i, j int) bool {
-		if findings[i].CVEID != findings[j].CVEID {
-			return findings[i].CVEID < findings[j].CVEID
-		}
-		if findings[i].PackageID != findings[j].PackageID {
-			return findings[i].PackageID < findings[j].PackageID
-		}
-		return findings[i].ProductCriteria < findings[j].ProductCriteria
-	})
+	findings = coalesceAndSortSupplyChainImpactFindings(findings)
 	return findings, quarantined, nil
 }
 
