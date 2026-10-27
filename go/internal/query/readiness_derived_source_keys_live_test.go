@@ -103,7 +103,7 @@ func TestSupplyChainImpactReadinessDerivedKeyNormalizationLive(t *testing.T) {
 	seedDerivedInstance(t, ctx, db, now, "derived-mixed", "npm", "pypi", "maven", "go")
 	scopes := []struct{ scope, ecosystem string }{
 		{"vuln-intel://osv/pypi/Django_REST?version=3.0.0", "pypi"},
-		{"vuln-intel://osv/npm/@Org%2FName?version=1.0.0", "npm"},
+		{"vuln-intel://osv/npm/@Example%2FName?version=1.0.0", "npm"},
 		{"vuln-intel://osv/maven/org.apache.logging.log4j:log4j-core?version=2.17.1", "maven"},
 		{"vuln-intel://osv/go/golang.org%2Fx%2Fnet?version=v0.23.0", "go"},
 	}
@@ -116,7 +116,7 @@ func TestSupplyChainImpactReadinessDerivedKeyNormalizationLive(t *testing.T) {
 	// maven names need a group namespace, so that row carries a PURL.
 	seedDerivedFacts(t, ctx, db, now, "affected-scope", "vulnerability.affected_package", []map[string]any{
 		{"cve_id": "CVE-2026-9301", "ecosystem": "PyPI", "package_name": "django-rest"},
-		{"cve_id": "CVE-2026-9301", "ecosystem": "npm", "package_name": "@org/name"},
+		{"cve_id": "CVE-2026-9301", "ecosystem": "npm", "package_name": "@example/name"},
 		{"cve_id": "CVE-2026-9301", "purl": "pkg:maven/org.apache.logging.log4j/log4j-core@2.17.1"},
 		{"cve_id": "CVE-2026-9301", "ecosystem": "Go", "package_name": "golang.org/x/net"},
 	})

@@ -143,8 +143,8 @@ The batch repository read costs more because the old SQL refused it
 CVE-only configured read stayed level: 31.395 ms to 31.292 ms with 25,000
 keys present, and 27.082 ms to 28.432 ms with none. The host's one-minute
 load average was 12-14 on 18 cores; these are plan-shape and relative
-figures, not a deployed latency claim. The derived-key write adds about 4.5 ms to a
-100-key upsert in a SQL shim.
+figures, not a deployed latency claim. The key write cost is measured in the
+vulnerability store README.
 
 Earlier Performance Evidence: the #9227 F1/F5 change (covered no longer requires
 `result_count = 0`, a per-target `coverage_zero` aggregate replaces the
