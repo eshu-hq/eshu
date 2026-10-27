@@ -1,0 +1,26 @@
+docs/public/reference/collector-readiness-proof-matrix.md
+  h_78a442cba0b3e6 157
+docs/public/reference/environment-collectors.md
+  h_78a442cba0b3e6 320-326
+docs/public/reference/generated/replay-coverage.md
+  h_78a442cba0b3e6 7,23-24,34,47,49,508
+docs/public/reference/local-testing/collector-live-smokes.md
+  h_78a442cba0b3e6 230-246,249-252,255-258,268-270
+replay-coverage-report.json
+  h_78a442cba0b3e6 7,9-10,107,109-110,154,156-157,4697-4698,4755
+scripts/docs-cli-env-refs-baseline.txt
+  h_78a442cba0b3e6 38,56
+specs/replay-depth-requirements.v1.yaml
+  h_78a442cba0b3e6 269-289
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a37b18f37199c667cf645df4753cd12c033bc6d9",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
