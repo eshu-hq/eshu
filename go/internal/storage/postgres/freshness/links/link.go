@@ -114,14 +114,18 @@ func (w *LinkWriter) LinkNext(ctx context.Context, scopeID string) (LinkResult, 
 		return LinkResult{}, errors.New("changed-since link database is required")
 	}
 	start := time.Now()
+	timer := startPhaseTimer()
 	// The cursor row is created by its own autocommit insert, never inside
 	// the link transaction (#7127 ruling 8.10).
-	if _, err := w.database.ExecContext(ctx, ensureCursorQuery, scopeID, DigestVersion, w.now()); err != nil {
+	_, err := w.database.ExecContext(ctx, ensureCursorQuery, scopeID, DigestVersion, w.now())
+	timer.mark(&timer.phases.EnsureCursor)
+	if err != nil {
 		return LinkResult{}, fmt.Errorf("changed-since link: ensure cursor: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(ctx, w.transactionDeadline())
 	defer cancel()
 	tx, err := w.begin(ctx)
+	timer.mark(&timer.phases.Begin)
 	if err != nil {
 		return LinkResult{}, fmt.Errorf("changed-since link: begin: %w", err)
 	}
@@ -133,9 +137,11 @@ func (w *LinkWriter) LinkNext(ctx context.Context, scopeID string) (LinkResult, 
 	}()
 
 	var failed *FailureError
-	result, err := w.linkInTx(ctx, tx, scopeID, &failed)
+	result, err := w.linkInTx(ctx, tx, scopeID, &failed, timer)
 	if err == nil {
-		if err = tx.Commit(); err != nil && failed != nil {
+		err = tx.Commit()
+		timer.mark(&timer.phases.Commit)
+		if err != nil && failed != nil {
 			err = w.counted(failed, fmt.Errorf("changed-since link: commit: %w", err))
 		}
 	}
@@ -144,6 +150,7 @@ func (w *LinkWriter) LinkNext(ctx context.Context, scopeID string) (LinkResult, 
 	}
 	committed = true
 	result.Duration = time.Since(start)
+	result.Phases = timer.phases
 	return result, nil
 }
 
@@ -167,8 +174,11 @@ func (w *LinkWriter) counted(failed *FailureError, err error) error {
 }
 
 // linkInTx runs the link. Once it has chosen to run a link statement it arms
-// *failed with the activation, so errors from that point on are counted.
-func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID string, failed **FailureError) (LinkResult, error) {
+// *failed with the activation, so errors from that point on are counted. It
+// charges its time to timer's Locks, Statement and Advance phases (#9275).
+func (w *LinkWriter) linkInTx(
+	ctx context.Context, tx db.Transaction, scopeID string, failed **FailureError, timer *phaseTimer,
+) (LinkResult, error) {
 	cursor, locked, err := lockCursor(ctx, tx, scopeID)
 	if err != nil {
 		return LinkResult{}, err
@@ -183,9 +193,11 @@ func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID st
 		return LinkResult{}, err
 	}
 	if !found {
+		timer.mark(&timer.phases.Locks)
 		return LinkResult{Idle: true, ScopeID: scopeID}, nil
 	}
 	if cursor.attemptActivationSeq == act.seq && cursor.nextAttemptAt.Valid && cursor.nextAttemptAt.Time.After(w.now()) {
+		timer.mark(&timer.phases.Locks)
 		return LinkResult{Idle: true, Deferred: true, ScopeID: scopeID}, nil
 	}
 	result := LinkResult{
@@ -201,7 +213,7 @@ func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID st
 	}
 	if !exists {
 		result.Break = BreakPrunedBeforeLink
-		return result, w.advance(ctx, tx, scopeID, cursor.stateGenerationID, act.seq, false)
+		return result, w.advanceKeeping(ctx, tx, scopeID, cursor.stateGenerationID, act.seq, timer)
 	}
 	// Bound every generation lock (G here, X in fencePrior): SKIP LOCKED
 	// does not cover PostgreSQL's update-chain walk (arbiter ruling
@@ -214,10 +226,10 @@ func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID st
 	}
 	if isDelta {
 		result.Break = deltaBreakReason(cursor.stateGenerationID, act)
-		return result, w.advance(ctx, tx, scopeID, cursor.stateGenerationID, act.seq, false)
+		return result, w.advanceKeeping(ctx, tx, scopeID, cursor.stateGenerationID, act.seq, timer)
 	}
 	if cursor.stateGenerationID == act.generationID {
-		return result, w.advance(ctx, tx, scopeID, cursor.stateGenerationID, act.seq, false)
+		return result, w.advanceKeeping(ctx, tx, scopeID, cursor.stateGenerationID, act.seq, timer)
 	}
 	priorPresent := false
 	if cursor.stateGenerationID != "" {
@@ -231,6 +243,7 @@ func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID st
 	if err := w.setLocals(ctx, tx); err != nil {
 		return LinkResult{}, err
 	}
+	timer.mark(&timer.phases.Locks)
 	*failed = &FailureError{ScopeID: scopeID, GenerationID: act.generationID, ActivationSeq: act.seq}
 	switch {
 	case cursor.stateGenerationID == "":
@@ -240,8 +253,10 @@ func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID st
 	default:
 		err = w.incremental(ctx, tx, scopeID, act.generationID, cursor.stateGenerationID, &result)
 	}
+	timer.mark(&timer.phases.Statement)
 	if err == nil {
 		err = w.advance(ctx, tx, scopeID, act.generationID, act.seq, true)
+		timer.mark(&timer.phases.Advance)
 	}
 	if err != nil {
 		return LinkResult{}, w.counted(*failed, err)

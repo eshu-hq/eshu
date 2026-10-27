@@ -87,7 +87,14 @@ known gap).
   scope, generation, prior, sequence, kind, break reason and, for a rebase,
   `changed_since.rebased_from_generation_id`.
 - One `changed-since link` log line is written per committed link; a rebase
-  carries `break_reason=prior_pruned` and `rebased_from_generation_id`.
+  carries `break_reason=prior_pruned` and `rebased_from_generation_id`. Next to
+  `duration_seconds` it carries `phase_ensure_cursor_seconds`,
+  `phase_begin_seconds`, `phase_locks_seconds`, `phase_statement_seconds`,
+  `phase_advance_seconds` and `phase_commit_seconds` (#9275), which sum to at
+  most `duration_seconds`: a slow link names its phase (a long commit is WAL
+  flush latency, a long statement is the SQL or its buffers, a long begin or
+  locks is the connection or a lock wait). They are log fields only; there is
+  no per-phase metric.
 - `changed-since ledger orphan probe failed` (ERROR) when the probe read
   fails.
 - `changed-since journal pass gave way on a generation lock; nothing

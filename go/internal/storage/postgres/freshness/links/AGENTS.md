@@ -10,6 +10,15 @@
 
 ## Invariants
 
+- Gate G4's 600-key link bound is 100 ms on one sample
+  (`TestLinkStatementPlanShape`, `g4Limit`). It stays: no retry, no median, no
+  wider bound (#9275). A slow hosted-runner sample is read from the one
+  diagnostic line the test logs and appends to its failure (the phases of
+  `LinkResult.Phases`, a durable-commit control, the Postgres settings, the
+  WAL and checkpoint movement, the host's load and pressure), and
+  `TestG4GateStillFailsAt100msPlus` pins the bound. Keep `LinkPhases` laid end
+  to end by `phaseTimer`; `TestLinkNextRecordsPhaseTimings` fails when a phase
+  is measured around the wrong call.
 - The lock order in `LinkWriter.linkInTx` is: cursor row, then the activating
   generation, then the prior generation, then slot. The cursor lock
   (`FOR UPDATE SKIP LOCKED`) and the slot (`pg_try_advisory_xact_lock`) never

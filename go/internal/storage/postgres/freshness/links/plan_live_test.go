@@ -309,13 +309,17 @@ FROM generate_series(0, 797) AS s, generate_series(1, 4760) AS k`)
 		}
 	}
 
-	// The 600-key link, through the writer, at most 100 ms.
-	result := mustLink(t, linksfreshnessstore.NewLinkWriter(l.store), l, "small")
+	// The 600-key link, through the writer, at most 100 ms on one sample
+	// (g4Limit; #9275 keeps the bound and adds the evidence around it).
+	result, report := l.timedG4Link(t, func() linksfreshnessstore.LinkResult {
+		return mustLink(t, linksfreshnessstore.NewLinkWriter(l.store), l, "small")
+	})
 	if result.Kind != linksfreshnessstore.LinkKindIncremental {
 		t.Fatalf("small link = %+v", result)
 	}
 	t.Logf("600-key incremental link: %s (%d delta rows)", result.Duration, result.DeltaRows)
-	if result.Duration > 100*time.Millisecond {
-		t.Errorf("600-key link took %s, gate G4 allows 100ms (host load may explain it; see the evidence file)", result.Duration)
+	t.Log(report)
+	if failure := g4Verdict(report); failure != "" {
+		t.Error(failure)
 	}
 }

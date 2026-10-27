@@ -30,6 +30,10 @@
 // delta whose prior is unknown is a chain break: the cursor advances and the
 // state is kept. The overlay link for delta generations is not shipped yet.
 //
+// LinkNext reports where a link's time went in LinkResult.Phases (ensure
+// cursor, begin, locks, statement, advance, commit), laid end to end so they
+// never sum past Duration (#9275).
+//
 // The projector Ack journals the activation it commits (source "ack") when
 // ESHU_CHANGED_SINCE_LINK_ENABLED is on, gated by AckJournalGateSQL: the
 // shared side of the journal pass's try-only advisory key. The pass holds
