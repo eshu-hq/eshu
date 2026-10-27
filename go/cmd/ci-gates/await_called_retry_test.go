@@ -169,3 +169,52 @@ func TestReadCurrentCalledChecksMixedAttemptStillErrors(t *testing.T) {
 		t.Fatalf("mixed attempt evidence must return no checks: %#v", checks)
 	}
 }
+
+func TestReadCurrentCalledChecksRunDisappearsDuringJobsRead(t *testing.T) {
+	runner := &flakyEndpointRunner{scripts: map[string][]flakyResult{
+		"actions/runs?": {
+			calledRunsFixture(20, 3),
+			{body: `[{"workflow_runs":[]}]`},
+		},
+		"/actions/runs/20/attempts/3/jobs": {calledJobsFixture("success", 3)},
+	}}
+	checks, err := readCurrentCalledChecks(context.Background(), runner, "eshu-hq/eshu", 42, headSHAFixture)
+	if err == nil {
+		t.Fatal("disappearing run must stay an error, never a classification")
+	}
+	if len(checks) != 0 {
+		t.Fatalf("disappearing run must return no checks: %#v", checks)
+	}
+	if !strings.Contains(err.Error(), "disappeared during jobs read") {
+		t.Fatalf("error must report the disappearance: %v", err)
+	}
+}
+
+func TestReadCurrentCalledChecksAttemptKeepsMovingFailsClosed(t *testing.T) {
+	runner := &flakyEndpointRunner{scripts: map[string][]flakyResult{
+		"actions/runs?": {
+			calledRunsFixture(20, 3),
+			calledRunsFixture(20, 4),
+			calledRunsFixture(20, 5),
+			calledRunsFixture(20, 6),
+		},
+		"/actions/runs/20/attempts/3/jobs": {calledJobsFixture("success", 3)},
+		"/actions/runs/20/attempts/4/jobs": {calledJobsFixture("success", 4)},
+		"/actions/runs/20/attempts/5/jobs": {calledJobsFixture("success", 5)},
+	}}
+	checks, err := readCurrentCalledChecks(context.Background(), runner, "eshu-hq/eshu", 42, headSHAFixture)
+	if err == nil {
+		t.Fatal("a constantly moving attempt must stay an error, never a classification")
+	}
+	if len(checks) != 0 {
+		t.Fatalf("a constantly moving attempt must return no checks: %#v", checks)
+	}
+	if !strings.Contains(err.Error(), "kept moving during jobs read") {
+		t.Fatalf("error must report pin exhaustion: %v", err)
+	}
+	for _, attempt := range []string{"/attempts/3/jobs", "/attempts/4/jobs", "/attempts/5/jobs"} {
+		if got := runner.countCalls(attempt); got != 1 {
+			t.Fatalf("attempt jobs reads for %s = %d, want 1 (chase every pin, classify none)", attempt, got)
+		}
+	}
+}
