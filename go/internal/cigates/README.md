@@ -9,6 +9,11 @@ It answers two related questions:
 1. Given changed paths and a tier ceiling, which credential-free verifiers run locally?
 2. Given a pull request's changed paths, which blocking CI checks must pass before merge?
 
+The docs-only lockstep test accepts a repository path literal only when every
+component has the spelling recorded in the checkout. This makes case-aliased
+fixture names classify the same way on case-sensitive and case-insensitive
+filesystems; a real read of a correctly spelled docs-set path remains guarded.
+
 ## Files
 
 | File | Purpose |
