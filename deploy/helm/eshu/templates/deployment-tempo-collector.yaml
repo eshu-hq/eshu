@@ -74,9 +74,6 @@ spec:
             {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "tempo-collector") | nindent 12 }}
             {{- include "eshu.renderPrometheusEnv" . | nindent 12 }}
             {{- include "eshu.renderEnvMap" .Values.env | nindent 12 }}
-            {{- with .Values.tempoCollector.extraEnv }}
-            {{ toYaml . | nindent 12 }}
-            {{- end }}
           ports:
             - name: http
               containerPort: 8080
