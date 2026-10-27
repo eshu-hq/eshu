@@ -11,6 +11,30 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/content"
 )
 
+// updateSingleMetadataOnlyContentFileQuery is the single-row twin of the
+// batched metadata-only UPDATE (#8950): it rewrites one row whose content and
+// guarded columns equal the incoming record but whose commit_sha or
+// generation_id differs, moving only the lineage so the update stays HOT.
+// The parameter order mirrors the batch VALUES list (repo, path, lineage,
+// content identity, content, size, guarded columns) to keep the two shapes
+// reviewable side by side. Text parameters infer their type from the
+// comparison; only the non-text comparisons carry casts. A row it does not
+// touch (insert, content change, or an identical row) falls through to the
+// guarded upsert, which keeps last-writer-wins.
+const updateSingleMetadataOnlyContentFileQuery = `
+UPDATE content_files AS c SET commit_sha = $3, generation_id = $4
+WHERE c.repo_id = $1 AND c.relative_path = $2
+  AND c.content_hash = $5
+  AND octet_length(c.content) = $6::bigint
+  AND c.content IS NOT DISTINCT FROM $7
+  AND c.line_count IS NOT DISTINCT FROM $8::integer
+  AND c.language IS NOT DISTINCT FROM $9
+  AND c.artifact_type IS NOT DISTINCT FROM $10
+  AND c.template_dialect IS NOT DISTINCT FROM $11
+  AND c.iac_relevant IS NOT DISTINCT FROM $12::boolean
+  AND (c.commit_sha IS DISTINCT FROM $3 OR c.generation_id IS DISTINCT FROM $4)
+RETURNING c.repo_id, c.relative_path`
+
 // UpsertFileBatch persists file content records in batches, tagging every
 // row with the writing generation (#7760) so active-generation reads can
 // tell current content from ahead writes.
@@ -31,6 +55,9 @@ func (s ContentStore) UpsertFileBatch(
 	}
 
 	indexedAt := s.now()
+
+	// Blank writing generations bind NULL through the shared tag rule.
+	tag := contentFileTagParam(generationID)
 
 	for _, record := range files {
 		if strings.TrimSpace(record.Path) == "" {
@@ -73,6 +100,25 @@ func (s ContentStore) UpsertFileBatch(
 			return fmt.Errorf("iac_relevant metadata for %q: %w", record.Path, err)
 		}
 
+		// #8950: a lineage-only rewrite stays HOT through the
+		// metadata-only UPDATE, which leaves content and indexed_at alone.
+		// Anything it misses (insert, content change, or an identical row
+		// whose lineage already matches) falls through to the guarded
+		// upsert, the last-writer-wins backstop.
+		bodyLen := len(record.Body)
+		bodyLineCount := lineCount(record.Body)
+		updated, err := s.updateMetadataOnlyContentFile(
+			ctx, repoID, record.Path, commitSHA, tag,
+			contentHash, bodyLen, record.Body, bodyLineCount,
+			language, artifactType, templateDialect, iacRelevant,
+		)
+		if err != nil {
+			return err
+		}
+		if updated {
+			continue
+		}
+
 		if _, err := s.database.ExecContext(
 			ctx,
 			upsertContentFileQuery,
@@ -81,19 +127,60 @@ func (s ContentStore) UpsertFileBatch(
 			commitSHA,
 			record.Body,
 			contentHash,
-			lineCount(record.Body),
+			bodyLineCount,
 			language,
 			artifactType,
 			templateDialect,
 			iacRelevant,
 			indexedAt,
-			contentFileTagParam(generationID),
+			tag,
 		); err != nil {
 			return fmt.Errorf("upsert content_files for %q: %w", record.Path, err)
 		}
 	}
 
 	return nil
+}
+
+// updateMetadataOnlyContentFile runs the single-row metadata-only UPDATE and
+// reports whether it rewrote the row. A concurrent content edit between a
+// caller-side read and this UPDATE misses the content recheck and falls
+// through to the guarded upsert, which keeps last-writer-wins.
+func (s ContentStore) updateMetadataOnlyContentFile(
+	ctx context.Context,
+	repoID, path string,
+	commitSHA, generation any,
+	contentHash string,
+	bodyLen int,
+	body string,
+	bodyLineCount int,
+	language, artifactType, templateDialect, iacRelevant any,
+) (bool, error) {
+	rows, err := s.database.QueryContext(
+		ctx,
+		updateSingleMetadataOnlyContentFileQuery,
+		repoID,
+		path,
+		commitSHA,
+		generation,
+		contentHash,
+		bodyLen,
+		body,
+		bodyLineCount,
+		language,
+		artifactType,
+		templateDialect,
+		iacRelevant,
+	)
+	if err != nil {
+		return false, fmt.Errorf("update metadata-only content_files for %q: %w", path, err)
+	}
+	defer func() { _ = rows.Close() }()
+	updated := rows.Next()
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("read updated metadata-only content_files key for %q: %w", path, err)
+	}
+	return updated, nil
 }
 
 // UpsertEntityBatch persists entity content records in batches.

@@ -124,8 +124,19 @@ TABLE = {
             "TestContentPolicyRawRowsHealsAfterTheNextGeneration",
             "TestContentPolicyRawRowsIsZeroWithoutAPolicy",
         ),
+        "go/internal/storage/postgres/content_store_metadata_only_live_test.go": (
+            "TestContentStoreSingleRowMetadataOnlyPreservesIndexedAtLive",
+        ),
         "go/internal/storage/postgres/content_store_policy_upgrade_live_test.go": (
             "TestContentStorePolicyHealsStoredRowsOnTheNextGeneration",
+        ),
+        "go/internal/storage/postgres/content_writer_metadata_only_hot_live_test.go": (
+            "TestContentWriterMetadataOnlyRewriteIsHOTLive",
+            "TestContentWriterMetadataOnlySavesWalWallLive",
+            "TestContentWriterMetadataOnlyConcurrentNoTornRowsLive",
+        ),
+        "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go": (
+            "TestContentWriterMetadataOnlyIndexedAtMoveIsNotHOTLive",
         ),
         "go/internal/storage/postgres/content_writer_upsert_outcome_bench_live_test.go": (
             "TestContentFileUpsertOutcomePreReadCostLive",

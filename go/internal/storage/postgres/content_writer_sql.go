@@ -32,10 +32,14 @@ const (
 // own so an edit that kept its content_hash still writes.
 //
 // indexed_at is deliberately not compared: it moves on every write, so
-// comparing it would stop the guard from ever skipping. A skipped row keeps its
-// old indexed_at: it means "when this row was last written with a change to its
-// content, commit, generation, or another stored column", not "when it was last
-// replayed".
+// comparing it would stop the guard from ever skipping. A skipped row keeps
+// its old indexed_at. On the converted paths (#8950: classified batches and
+// the single-row ContentStore path) a metadata-only rewrite keeps it too,
+// so there it means "when this row was last written with a change beyond
+// commit_sha/generation_id lineage", not "when it was last replayed". Only a
+// row the guarded upsert itself writes moves indexed_at; unobserved and
+// unclassified batches still take this statement for every row, so a
+// lineage-only replay through those paths moves it as before.
 //
 // A skipped row writes nothing, but the statement still locks it and still
 // fires the statement-level triggers. The migration-138 secret-line and

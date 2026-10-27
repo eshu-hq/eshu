@@ -8,6 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"regexp"
 	"slices"
@@ -23,26 +24,54 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// outcomeFakeDB answers the #8950 pre-read with canned stored rows and
-// delegates every other statement to the shared transactional fake, so the
-// upsert and reference statements keep their recorded shape.
+// outcomeFakeDB answers the #8950 pre-read with canned stored rows and the
+// #8950 metadata UPDATE with canned updated keys, and delegates every other
+// statement to the shared transactional fake, so the upsert and reference
+// statements keep their recorded shape. A nil updatedRows echoes every
+// (repo_id, relative_path) pair the UPDATE carried, as if the stored rows
+// matched the pre-read; a test stages explicit pairs to model a concurrent
+// edit moving a key under the pre-read.
 type outcomeFakeDB struct {
 	*transactionalFakeDB
-	storedRows [][]any
-	readErr    error
+	storedRows  [][]any
+	readErr     error
+	updatedRows [][]any
+	// updateErrs answers the metadata UPDATE with FIFO errors before the
+	// canned updated rows, so a test can deadlock the first attempt.
+	updateErrs []error
 }
 
 func (d *outcomeFakeDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	if query != contentFileOutcomePreReadSQL {
+	if !strings.HasPrefix(strings.TrimSpace(query), "UPDATE content_files") && query != contentFileOutcomePreReadSQL {
 		return d.transactionalFakeDB.QueryContext(ctx, query, args...)
 	}
 	d.mu.Lock()
 	d.queries = append(d.queries, fakeQueryCall{query: query, args: args})
 	d.mu.Unlock()
-	if d.readErr != nil {
-		return nil, d.readErr
+	if query == contentFileOutcomePreReadSQL {
+		if d.readErr != nil {
+			return nil, d.readErr
+		}
+		return &queueFakeRows{rows: d.storedRows}, nil
 	}
-	return &queueFakeRows{rows: d.storedRows}, nil
+	if len(d.updateErrs) > 0 {
+		err := d.updateErrs[0]
+		d.updateErrs = d.updateErrs[1:]
+		return nil, err
+	}
+	if d.updatedRows != nil {
+		return &queueFakeRows{rows: d.updatedRows}, nil
+	}
+	var echoed [][]any
+	for i := 0; i+1 < len(args); i += columnsPerMetadataOnlyUpdate {
+		repo, okRepo := args[i].(string)
+		path, okPath := args[i+1].(string)
+		if !okRepo || !okPath {
+			return nil, fmt.Errorf("metadata UPDATE arg pair %d is not (repo_id, relative_path) strings", i/columnsPerMetadataOnlyUpdate)
+		}
+		echoed = append(echoed, []any{repo, path})
+	}
+	return &queueFakeRows{rows: echoed}, nil
 }
 
 // storedFileRow builds one pre-read result row in the column order of
@@ -246,14 +275,30 @@ func TestContentWriterCountsMixedUpsertOutcomes(t *testing.T) {
 		t.Errorf("unchanged_skipped bytes = %d, want %d", got, want)
 	}
 
-	// The upsert itself is untouched: one guarded INSERT, no extra statement
-	// from the pre-read, and the pre-read is a plain SELECT.
+	// The two-statement write: the metadata_only row goes through the metadata
+	// UPDATE, every other row through one guarded INSERT, and the pre-read is
+	// a plain SELECT that adds no write.
+	updates := 0
+	for _, q := range fake.queries {
+		if strings.HasPrefix(strings.TrimSpace(q.query), "UPDATE content_files") {
+			updates++
+			if groups := strings.Count(q.query, "($"); groups != 1 {
+				t.Fatalf("metadata UPDATE carries %d value groups, want 1 (meta.go)", groups)
+			}
+		}
+	}
+	if updates != 1 {
+		t.Fatalf("content_files metadata updates = %d, want 1", updates)
+	}
 	inserts := 0
 	for _, exec := range fake.execs {
 		if strings.Contains(exec.query, "INSERT INTO content_files") {
 			inserts++
 			if !strings.HasSuffix(strings.TrimSpace(exec.query), strings.TrimSpace(upsertContentFileBatchSuffix)) {
 				t.Fatalf("upsert no longer ends with the guarded conflict clause")
+			}
+			if groups := strings.Count(exec.query, "($"); groups != 4 {
+				t.Fatalf("upsert carries %d value groups, want 4 (new, same, edited, reclass)", groups)
 			}
 		}
 	}

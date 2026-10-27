@@ -684,10 +684,25 @@ tests:
     class: postgres_ci
     reason: "#8833 disposable PostgreSQL proof that eshu_dp_content_policy_raw_rows (ContentPolicyRawRowsStore) counts the verbatim credential lines of .yarnrc.yml and tfvars rows written before the content-store binding, and reads zero after the next generation stores the same files through the default registry's marker and skeleton policies; isolated bootstrapped schema per test"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_store_metadata_only_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8950 single-row rollout proof: a lineage-only rewrite through the single-row ContentStore keeps indexed_at and stays HOT, with the guarded upsert as the fall-through; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/content_store_policy_upgrade_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#8812 disposable PostgreSQL proof that a database already holding a verbatim content_files row, a content_file_references row, a content_file_secret_lines row, and a content_entities row with a non-empty source_cache holds an empty or marker-redacted body for that path after the next projected generation under a metadata or redact content-store policy, on both a full-snapshot and a delta generation, through the production projector runtime and content writer and migration 138 triggers; isolated bootstrapped database per test"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_writer_metadata_only_hot_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8950 disposable PostgreSQL 18 proof that an unchanged-content rewrite under a new generation through the real ContentWriter is a metadata-only HOT update: every row keeps its index entries and page, WAL stays near zero, and concurrent writers leave no torn rows; enrolled in the live-postgres-readiness runner; bridges the family ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the retention proofs do; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8950 RED-arm control for the two-statement writer: the same metadata-only batch with indexed_at added to the SET list must show zero HOT updates, proving the HOT result comes from leaving indexed_at alone; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/content_writer_upsert_outcome_bench_live_test.go
     tag: ~

@@ -141,13 +141,16 @@ import (
 // (the detector's marker arm and extras, plus a conditional one-row state
 // UPDATE; ruling-3).
 // #9146 adds 236_cicd_actions_deliveries.sql: fenced delivery claim groups.
-const goldenBootstrapDefinitionsDigest = "526e65de99b9fcd2c9cdeab3633862d1051d314943069b34e4d3072304e64c4a"
+// #8950 adds 237_content_files_fillfactor.sql (the rollout writer's HOT
+// headroom: ALTER TABLE content_files SET fillfactor 50, catalog-only,
+// single statement).
+const goldenBootstrapDefinitionsDigest = "e0e2f2ea851f65e93b597a874bd054c21ff5f039e199d8307234019483888012"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 254
+const goldenBootstrapDefinitionsCount = 255
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

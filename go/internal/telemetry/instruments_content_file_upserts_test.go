@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
@@ -68,6 +69,9 @@ func TestContentFileUpsertContract(t *testing.T) {
 	if instruments.ContentFileUpsertUnclassifiedRows == nil {
 		t.Fatal("ContentFileUpsertUnclassifiedRows counter not registered")
 	}
+	if instruments.ContentFileWriteConflictRetries == nil {
+		t.Fatal("ContentFileWriteConflictRetries counter not registered")
+	}
 }
 
 // TestContentFileUpsertScrapeNames pins the Prometheus series names operators
@@ -89,6 +93,9 @@ func TestContentFileUpsertScrapeNames(t *testing.T) {
 	instruments.ContentFileUpsertUnclassifiedRows.Add(ctx, 7, metric.WithAttributes(
 		AttrReason(ContentFileUnclassifiedSampledOut), AttrSnapshot(ContentFileSnapshotDelta), AttrBatchClass(ContentFileBatchSmall)))
 
+	instruments.ContentFileWriteConflictRetries.Add(ctx, 2, metric.WithAttributes(
+		attribute.String(MetricDimensionFailureClass, "deadlock")))
+
 	code, body := scrapeMetrics(providers.PrometheusHandler)
 	if code != http.StatusOK {
 		t.Fatalf("scrape status = %d, want 200: %s", code, body)
@@ -103,6 +110,8 @@ func TestContentFileUpsertScrapeNames(t *testing.T) {
 		`reason="sampled_out"`,
 		`batch_class="small"`,
 		`batch_class="large"`,
+		`eshu_dp_content_file_write_conflict_retries_total{`,
+		`failure_class="deadlock"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("scrape lacks %q", want)

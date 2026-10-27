@@ -81,45 +81,25 @@ func (w ContentWriter) upsertObservedContentFileBatch(ctx context.Context, batch
 
 	// Blank writing generations bind NULL through the shared tag rule.
 	tag := contentFileTagParam(generationID)
-	outcomes, unclassifiedReason := w.preClassify(ctx, obs, batch, tag)
 
-	args := make([]any, 0, len(batch)*columnsPerContentFile)
-	var values strings.Builder
-
-	for i, row := range batch {
-		if i > 0 {
-			values.WriteString(", ")
-		}
-		offset := i * columnsPerContentFile
-		fmt.Fprintf(
-			&values,
-			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
-			offset+1, offset+2, offset+3, offset+4, offset+5,
-			offset+6, offset+7, offset+8, offset+9, offset+10, offset+11,
-			offset+12,
-		)
-
-		args = append(
-			args,
-			row.repoID,
-			row.path,
-			row.commitSHA,
-			row.body,
-			row.contentHash,
-			row.lineCount,
-			row.language,
-			row.artifactType,
-			row.templateDialect,
-			row.iacRelevant,
-			indexedAt,
-			tag,
-		)
-	}
-
-	query := upsertContentFileBatchPrefix + values.String() + upsertContentFileBatchSuffix
-
-	if _, err := w.database.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("upsert content_files batch (%d files): %w", len(batch), err)
+	// #8950 prototype: rows the pre-read classified as metadata_only go
+	// through the metadata-only UPDATE, which leaves content and indexed_at
+	// alone so the update stays HOT. The UPDATE reports the keys it touched;
+	// every other metadata-classified row falls through to the guarded upsert,
+	// which is the last-writer-wins backstop for a concurrent edit between
+	// the pre-read and the UPDATE. An unclassified batch keeps the single
+	// statement. The whole unit runs under the write-conflict retry: the two
+	// statements take locks over snapshot-dependent subsets, so concurrent
+	// writers for the same keys can deadlock where the single statement never
+	// did.
+	var outcomes []fileOutcome
+	var unclassifiedReason string
+	if err := w.retryContentFileWriteConflicts(ctx, batch, func() error {
+		var attemptErr error
+		outcomes, unclassifiedReason, attemptErr = w.classifyAndWriteFileBatch(ctx, obs, batch, indexedAt, tag)
+		return attemptErr
+	}); err != nil {
+		return err
 	}
 	w.recordFileUpsertOutcomes(ctx, obs, batch, outcomes, unclassifiedReason)
 
