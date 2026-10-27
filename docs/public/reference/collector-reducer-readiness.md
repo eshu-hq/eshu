@@ -156,7 +156,7 @@ instances.
 | Source family | Runtime state | Reducer and read state | Readiness gap |
 | --- | --- | --- | --- |
 | Git and repository | Ingester and Git collector paths emit repository, parser, relationship, and follow-up facts. | Workload identity, deployment mapping, code-call, semantic entity, SQL relationship, inheritance, package-source, and shared projection domains exist. | Prove sync, fact commit, queue drain, graph projection, and API/MCP truth on the target cluster. |
-| Confluence documentation | `eshu-collector-confluence` reads one bounded Confluence scope. | Emits documentation source, document, section, link, and optional claim-candidate facts. Documentation facts remain evidence unless a reducer domain admits them. | Prove the configured Confluence scope, credentials, metrics, and status in the target environment. |
+| Confluence documentation | Documentation collects from its extracted satellite (`eshu-hq/eshu-collector-confluence`) for one bounded Confluence scope. | Emits documentation source, document, section, link, and optional claim-candidate facts. Documentation facts remain evidence unless a reducer domain admits them. | Prove the configured Confluence scope, credentials, metrics, and status in the target environment. |
 | OCI registry | `eshu-collector-oci-registry` reads registry targets. Runtime code supports direct and claim-aware modes. | Container image identity is digest-first. Explicit digests and single tag observations can become normalized supports under one digest identity; ambiguous, unresolved, or stale tags stay diagnostic. Each scope reads only its active immutable support set. Incomplete registry evidence carries forward only exact held image references until a complete pass proves retirement safe. | Prove registry collection in the target environment, the reducer's active-set publication and held-reference behavior, and digest-bound API reads before vulnerability impact work. |
 | Terraform state | `eshu-collector-terraform-state` is claim-driven. | Terraform-state facts feed graph projection and `config_state_drift`. Drift v1 emits bounded counters and structured logs; graph/read-model promotion remains separate. | Prove live local or S3 state collection, redaction policy version, claim handoff, reducer drain, and management-status reads together. |
 | AWS cloud | `eshu-collector-aws-cloud` is claim-driven. | AWS facts feed cloud-asset and AWS runtime-drift domains. AWS runtime drift writes durable reducer facts and bounded Postgres reads; graph shape remains reducer-owned. | Prove read-only AWS collection, claim-scoped credentials, AWS service coverage, reducer drain, drift reads, and status visibility in the target environment. |
@@ -178,7 +178,7 @@ without linked promotion proof. The lane markers below are invisible in the
 rendered page and bind each collector to its inventory lane.
 
 <!-- collector-state: name=git lane=implemented -->
-<!-- collector-state: name=documentation lane=implemented -->
+<!-- collector-state: name=documentation lane=partial -->
 <!-- collector-state: name=oci_registry lane=implemented -->
 <!-- collector-state: name=terraform_state lane=implemented -->
 <!-- collector-state: name=aws lane=implemented -->

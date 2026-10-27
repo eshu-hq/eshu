@@ -55,7 +55,6 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-workflow-coordinator ./cmd/workflow-coordinator \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-projector ./cmd/projector \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-git ./cmd/collector-git \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-confluence ./cmd/collector-confluence \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-terraform-state ./cmd/collector-terraform-state \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-component-extension ./cmd/collector-component-extension \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-kubernetes-live ./cmd/collector-kubernetes-live \

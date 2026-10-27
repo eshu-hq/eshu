@@ -213,11 +213,11 @@ source-stage telemetry stay local. The production Go diff is four net added
 lines while deleting the local Confluence `Retry-After` parser.
 
 No-Regression Evidence (#2371): `go test ./internal/collector/sdk
-./internal/collector/confluence ./cmd/collector-confluence -count=1` covers SDK
+-count=1` covers SDK
 base URL credential rejection, default client construction, bounded SDK HTTP
-errors for retryable and non-retryable provider statuses, HTTP-date
-`Retry-After` parsing, read-only Confluence GET requests, context-rooted
-pagination, source retry backoff, and command service wiring.
+errors for retryable and non-retryable provider statuses, and HTTP-date
+`Retry-After` parsing. Confluence provider traversal now runs from the
+extracted satellite (`eshu-hq/eshu-collector-confluence`, #8855).
 
 No-Observability-Change (#2371): Confluence keeps its existing HTTP request
 counters, fetch-duration histograms, sync failure counters,
@@ -348,9 +348,10 @@ intentional owner-boundary files:
 - `go/internal/collector/securityalerts/alertruntime/failure.go` remains a
   Dependabot/GitHub runtime wrapper for rate-limit metadata. Generic HTTP status
   class decisions delegate to `sdk.ClassifyProviderFailure`.
-- `go/internal/collector/confluence/retry.go` remains Confluence source-level
-  backoff state for retryable provider statuses. SDK helpers still own base URL
-  validation, bounded HTTP errors, default clients, and `Retry-After` parsing.
+- Confluence source-level backoff state for retryable provider statuses now lives
+  in the extracted satellite (`eshu-hq/eshu-collector-confluence`, #8855).
+  SDK helpers still own base URL validation, bounded HTTP errors, default
+  clients, and `Retry-After` parsing.
 - `go/internal/collector/observability/loki/http_client.go` remains the Loki endpoint
   traversal wrapper. Request execution and bounded status failures use
   `sdk.DefaultHTTPClient` and `sdk.DoJSON`.

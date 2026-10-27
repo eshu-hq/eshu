@@ -2,11 +2,11 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 460,
+    "total": 458,
     "covered": 449,
     "uncovered": 0,
     "unresolved": 0,
-    "exempt": 11,
+    "exempt": 9,
     "percent_satisfied": 100
   },
   "registry_summaries": [
@@ -102,22 +102,22 @@
     },
     {
       "registry": "surface_inventory",
-      "total": 32,
+      "total": 30,
       "covered": 24,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 8,
+      "exempt": 6,
       "percent_satisfied": 100
     }
   ],
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 244,
+      "total": 243,
       "covered": 239,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 5,
+      "exempt": 4,
       "percent_satisfied": 100
     },
     {
@@ -149,11 +149,11 @@
     },
     {
       "scenario_type": "fault",
-      "total": 16,
+      "total": 15,
       "covered": 12,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 4,
+      "exempt": 3,
       "percent_satisfied": 100
     },
     {
@@ -4457,20 +4457,6 @@
       "ref": "go/internal/replay/inputtape/fault_timeout_test.go",
       "proof_gate": "go-test-race",
       "detail": "artifact present: go/internal/replay/inputtape/fault_timeout_test.go"
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:documentation",
-      "scenario_type": "baseline",
-      "status": "exempt",
-      "detail": "Offline export library, not a polling collector binary. Documentation facts are produced from offline export manifests (go/internal/collector/ document/export), so there is no credentialed upstream to record into a cassette; the offline-manifest path is the credential-free input."
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:documentation",
-      "scenario_type": "fault",
-      "status": "exempt",
-      "detail": "Offline export library, not a polling collector binary. Documentation facts are produced from offline export manifests (go/internal/collector/ document/export), so there is no credentialed upstream to record into a cassette; the offline-manifest path is the credential-free input."
     },
     {
       "registry": "surface_inventory",

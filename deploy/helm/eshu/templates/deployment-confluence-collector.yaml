@@ -31,6 +31,9 @@ spec:
         - name: confluence-collector
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The confluence binary ships in the eshu-collector-confluence satellite image
+          # (component activation with documentation_* producer grants), not the
+          # in-tree product image: this Deployment's image must provide it.
           command: ["/usr/local/bin/eshu-collector-confluence"]
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}

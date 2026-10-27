@@ -225,7 +225,6 @@ func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 
 	for _, sourcePath := range []string{
 		"go/cmd/collector-aws-cloud/main.go",
-		"go/cmd/collector-confluence/main.go",
 		"go/cmd/collector-git/main.go",
 		"go/cmd/collector-oci-registry/main.go",
 		"go/cmd/collector-package-registry/main.go",

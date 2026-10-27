@@ -1487,12 +1487,12 @@
     {
       "category": "collector",
       "name": "documentation",
-      "readiness": "implemented",
-      "owner": "internal/collector/confluence",
-      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "readiness": "partial",
+      "owner": "eshu-hq/eshu-collector-confluence",
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
+      "notes": "Extracted to the eshu-collector-confluence satellite (eshu-hq/eshu-collector-confluence): the in-tree command, source package, and image build are gone, so the implemented lane (built in-tree, charted, live-smoke-proven) is unmet. Fact kinds, reducer projection, and read surfaces stay core-owned and covered.",
       "collector_contract": {
         "fact_kinds": [
           "documentation_claim_candidate",
@@ -1515,10 +1515,10 @@
           "list_documentation_findings"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-confluence ./internal/collector ./internal/query ./internal/mcp/... -count=1"
+          "cd go \u0026\u0026 go test ./internal/collector ./internal/query ./internal/mcp/... -count=1",
+          "scripts/verify-fact-kind-registry.sh"
         ],
         "fixture_refs": [
-          "go/cmd/collector-confluence/service_test.go",
           "go/internal/collector/repo/git/documentation_facts_test.go"
         ],
         "truth_profile": "provider_gated"
@@ -2343,11 +2343,6 @@
     {
       "category": "command",
       "name": "collector-component-extension",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "collector-confluence",
       "readiness": "implemented"
     },
     {
