@@ -237,3 +237,28 @@ func addSupplyChainImpactIndexEntry(
 // bestSupplyChainImageIdentitiesByDigest live in
 // anchor_tier.go (split out to keep this file under the
 // repo's 500-line cap).
+
+// preferEPSSObservation chooses one complete score observation independently
+// of input order. Dated rows outrank undated legacy rows; ties use observed
+// time, stable fact identity, then payload values for duplicate identities.
+func preferEPSSObservation(candidate, current supplychainmodel.RiskSignals) bool {
+	if !current.EPSSSelected {
+		return true
+	}
+	if candidate.EPSSScoreDate != current.EPSSScoreDate {
+		return candidate.EPSSScoreDate > current.EPSSScoreDate
+	}
+	if !candidate.EPSSObservedAt.Equal(current.EPSSObservedAt) {
+		return candidate.EPSSObservedAt.After(current.EPSSObservedAt)
+	}
+	if candidate.EPSSFactID != current.EPSSFactID {
+		return candidate.EPSSFactID > current.EPSSFactID
+	}
+	if candidate.EPSSProbability != current.EPSSProbability {
+		return candidate.EPSSProbability > current.EPSSProbability
+	}
+	if candidate.EPSSPercentile != current.EPSSPercentile {
+		return candidate.EPSSPercentile > current.EPSSPercentile
+	}
+	return candidate.EPSSModelVersion > current.EPSSModelVersion
+}
