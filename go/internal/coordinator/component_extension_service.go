@@ -72,11 +72,20 @@ func (s Service) scheduleComponentExtensionWork(
 		if err != nil {
 			return fmt.Errorf("plan component extension work for %q: %w", instance.InstanceID, err)
 		}
-		if len(items) == 0 {
-			continue
+		if len(items) > 0 {
+			if _, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items); err != nil {
+				return fmt.Errorf("create component extension scheduled work for %q: %w", instance.InstanceID, err)
+			}
 		}
-		if _, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items); err != nil {
-			return fmt.Errorf("create component extension scheduled work for %q: %w", instance.InstanceID, err)
+		// A kind-scoped hook plans the scopes the coordinator derives for
+		// this activation (today vulnerability_intelligence OSV scopes) as a
+		// second run, after the egress decision above and through the same
+		// durable admission. The open-target guard admits per scope, so an
+		// open host-scope item does not block them (#9311).
+		if configErr == nil && configOK {
+			if err := s.scheduleActivationDerivedScopes(ctx, observedAt, instance, config, interval); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

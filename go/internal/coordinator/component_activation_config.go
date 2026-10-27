@@ -116,7 +116,7 @@ func desiredInstancesForComponent(
 		if !activation.ClaimsEnabled {
 			continue
 		}
-		config, err := componentActivationRuntimeConfig(entry, manifest, activation)
+		config, err := componentActivationRuntimeConfig(entry, manifest, activation, collectorKind)
 		if err != nil {
 			return nil, err
 		}
@@ -137,8 +137,11 @@ func componentActivationRuntimeConfig(
 	entry component.RegistryReadbackComponent,
 	manifest component.Manifest,
 	registeredActivation component.Activation,
+	collectorKind scope.CollectorKind,
 ) (string, error) {
-	host, ok, err := component.LoadActivationHostClaimMetadata(registeredActivation.ConfigPath)
+	// One read of the activation file serves both host and, for a kind with
+	// host-planned derived scopes, the config block (#9311).
+	file, err := component.LoadActivationRuntimeFile(registeredActivation.ConfigPath)
 	if err != nil {
 		return "", fmt.Errorf(
 			"load component activation host metadata for %q: %w",
@@ -158,8 +161,20 @@ func componentActivationRuntimeConfig(
 			Adapter:     manifest.Spec.Runtime.Adapter,
 		},
 	}
-	if ok {
+	if file.HasHost {
+		host := file.Host
 		config.Host = &host
+	}
+	if activationCarriesComponentConfig(collectorKind) {
+		block, err := file.ConfigJSON()
+		if err != nil {
+			return "", fmt.Errorf(
+				"load component activation config block for %q: %w",
+				strings.TrimSpace(registeredActivation.InstanceID),
+				err,
+			)
+		}
+		config.ComponentConfig = block
 	}
 	raw, err := json.Marshal(config)
 	if err != nil {

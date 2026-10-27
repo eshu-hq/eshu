@@ -19,6 +19,11 @@ tests:
     class: postgres_ci
     reason: "#9146 signed GitHub workflow_run and workflow_job routing, rejected invalid signatures, and durable listener-to-PostgreSQL Actions inbox proof in an isolated schema; focused local tests passed in 0.06s"
     runner: live-postgres-readiness
+  - file: go/internal/coordinator/activation_derived_scopes_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9311 real coordinator Service and PostgreSQL admission proof that a vulnerability activation's derived OSV scopes ride a second run beside the open host scope, re-plan idempotently, and admit once under two concurrent coordinators"
+    runner: live-postgres-readiness
   - file: go/internal/coordinator/service_cicd_run_burst_live_test.go
     tag: ~
     class: postgres_ci

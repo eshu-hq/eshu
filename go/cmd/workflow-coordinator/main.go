@@ -257,6 +257,7 @@ func run(parent context.Context) error {
 		GCPFreshnessTriggers:              gcpFreshnessStore,
 		GCPFreshnessEvents:                instruments.GCPFreshnessEvents,
 		GCPFreshnessFanOut:                instruments.GCPFreshnessFanOut,
+		ActivationDerivedScopes:           instruments.ActivationDerivedScopesPlanned,
 		IncidentFreshnessTriggers:         incidentFreshnessStore,
 		GovernanceAudit:                   governanceAuditStore,
 		Metrics:                           coordinatorMetrics,

@@ -7,6 +7,10 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/coordinator": {
+        "go/internal/coordinator/activation_derived_scopes_live_test.go": (
+            "TestActivationDerivedScopesAdmissionLive",
+            "TestActivationDerivedScopesConcurrentCoordinatorsLive",
+        ),
         "go/internal/coordinator/service_cicd_run_burst_live_test.go": (
             "TestCICDServiceClaimGroupBurstAndLateArrivalLive",
             "TestCICDServiceConcurrentCoordinatorsShareClaimGroupLive",

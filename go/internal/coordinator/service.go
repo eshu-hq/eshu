@@ -129,7 +129,10 @@ type Service struct {
 	GCPFreshnessEvents                gcpFreshnessEventCounter
 	// GCPFreshnessFanOut is optional. When set, it records the number of
 	// scopes one GCP freshness trigger fanned out to (#4338).
-	GCPFreshnessFanOut        gcpFreshnessFanOutRecorder
+	GCPFreshnessFanOut gcpFreshnessFanOutRecorder
+	// ActivationDerivedScopes is optional. When set, it counts the derived
+	// scopes planned for a component activation per ecosystem (#9311).
+	ActivationDerivedScopes   activationDerivedScopeCounter
 	IncidentFreshnessTriggers IncidentFreshnessTriggerStore
 	GovernanceAudit           GovernanceAuditAppender
 	// SemanticProviderWorker is the optional egress-gated semantic-provider

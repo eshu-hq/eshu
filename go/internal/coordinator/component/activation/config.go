@@ -4,6 +4,7 @@
 package activation
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -38,6 +39,16 @@ type Config struct {
 	ConfigHandle     string                                 `json:"config_handle"`
 	Host             *component.ActivationHostClaimMetadata `json:"host,omitempty"`
 	Runtime          RuntimeConfig                          `json:"runtime"`
+	// ComponentConfig is the activation's config block as one opaque JSON
+	// object, or nil. Root's registry readback fills it only for collector
+	// kinds whose coordinator plans host-derived scopes (today
+	// vulnerability_intelligence), from the same activation file it reads
+	// host from. This package checks only that it is a JSON object; it never
+	// reads a key inside it. A kind-scoped planner in the coordinator decodes
+	// it; every other consumer ignores it, and the extension planner keeps
+	// it out of RequestedScopeSet. The block is non-secret by contract:
+	// credentials go in the worker's environment, not the config block.
+	ComponentConfig json.RawMessage `json:"component_config,omitempty"`
 }
 
 // RuntimeConfig is the collector-SDK runtime binding a component activation
@@ -112,6 +123,11 @@ func ParseConfig(raw string) (Config, bool, error) {
 			config.Host = &host
 		}
 	}
+	componentConfig, err := normalizeComponentConfig(config.ComponentConfig)
+	if err != nil {
+		return Config{}, false, err
+	}
+	config.ComponentConfig = componentConfig
 	if strings.TrimSpace(config.Runtime.SDKProtocol) == "" {
 		return Config{}, false, fmt.Errorf("component activation configuration runtime.sdk_protocol is required")
 	}
@@ -135,4 +151,18 @@ func ParseConfig(raw string) (Config, bool, error) {
 		)
 	}
 	return config, true, nil
+}
+
+// normalizeComponentConfig accepts an absent or null component_config and any
+// JSON object, and rejects every other JSON value. It does not look inside the
+// object: the keys belong to the component's kind-scoped planner.
+func normalizeComponentConfig(raw json.RawMessage) (json.RawMessage, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil, nil
+	}
+	if trimmed[0] != '{' {
+		return nil, fmt.Errorf("component activation configuration component_config must be a JSON object")
+	}
+	return trimmed, nil
 }

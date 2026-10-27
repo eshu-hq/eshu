@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/egress"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/component/extension"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -55,6 +56,8 @@ func testVulnerabilityActivationInstance(now time.Time, configuration string) wo
 	}
 }
 
+// testVulnerabilityActivationService builds an active-mode service that plans
+// one activation. An empty egressPolicy leaves the zero policy, which denies.
 func testVulnerabilityActivationService(
 	t *testing.T,
 	now time.Time,
@@ -63,12 +66,16 @@ func testVulnerabilityActivationService(
 	reader OwnedPackageTargetReader,
 	egressPolicy string,
 ) Service {
+	var policy egress.ExtensionPolicy
+	if egressPolicy != "" {
+		policy = mustParseExtensionEgressPolicy(t, egressPolicy)
+	}
 	return Service{
 		Config: Config{
 			DeploymentMode:        deploymentModeActive,
 			ClaimsEnabled:         true,
 			ReconcileInterval:     time.Hour,
-			ExtensionEgressPolicy: mustParseExtensionEgressPolicy(t, egressPolicy),
+			ExtensionEgressPolicy: policy,
 			CollectorInstances: []workflow.DesiredCollectorInstance{{
 				InstanceID:    instance.InstanceID,
 				CollectorKind: instance.CollectorKind,
@@ -181,6 +188,30 @@ config:
 	want := `"component_config":{"derive_from_owned_packages":{"ecosystems":["npm","maven"],"enabled":true,"sources":["osv"],"target_limit":1000}}`
 	if !strings.Contains(instances[0].Configuration, want) {
 		t.Fatalf("configuration = %s, want it to contain %s", instances[0].Configuration, want)
+	}
+}
+
+// TestDesiredInstancesLeaveOtherKindsConfigurationUnchanged proves the
+// readback keeps the config block only for a kind with host-planned derived
+// scopes: another kind's stored configuration carries no component_config.
+func TestDesiredInstancesLeaveOtherKindsConfigurationUnchanged(t *testing.T) {
+	t.Parallel()
+
+	path := writeActivationFile(t, `host:
+  sourceSystem: openssf-scorecard
+  scope:
+    id: github.com/example/widgets
+    kind: repository
+config:
+  derive_from_owned_packages:
+    enabled: true
+`)
+	instances, err := desiredInstancesForComponent(testActivationReadbackEntry(path), testActivationManifest("scorecard"))
+	if err != nil {
+		t.Fatalf("desiredInstancesForComponent() error = %v, want nil", err)
+	}
+	if strings.Contains(instances[0].Configuration, "component_config") {
+		t.Fatalf("configuration = %s, want no component_config for a scorecard activation", instances[0].Configuration)
 	}
 }
 

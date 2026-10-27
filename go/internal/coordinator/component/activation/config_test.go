@@ -169,3 +169,50 @@ func TestIsConfigurationMatchesParseConfigPartition(t *testing.T) {
 		})
 	}
 }
+
+// TestParseConfigComponentConfigIsOpaqueObject pins the one opaque field:
+// absent or null parses to nil, any JSON object parses unchanged and
+// uninterpreted, and any other JSON value fails as an activation error.
+func TestParseConfigComponentConfigIsOpaqueObject(t *testing.T) {
+	t.Parallel()
+
+	base := `{"schema_version":"eshu.component.instance.v1",` +
+		`"component_id":"dev.eshu.collectors.vulnerability-intelligence",` +
+		`"component_version":"0.1.0","manifest_digest":"sha256:1234",` +
+		`"config_handle":"component-config:abcd",` +
+		`"runtime":{"sdk_protocol":"collector-sdk/v1alpha1","adapter":"oci"}`
+	for _, tc := range []struct {
+		name, field, want string
+		wantErr           bool
+	}{
+		{"absent", "", "", false},
+		{"null", `,"component_config":null`, "", false},
+		{
+			"object", `,"component_config":{"derive_from_owned_packages":{"enabled":true},"anything":[1]}`,
+			`{"derive_from_owned_packages":{"enabled":true},"anything":[1]}`, false,
+		},
+		{"array", `,"component_config":[1]`, "", true},
+		{"string", `,"component_config":"x"`, "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			raw := base + tc.field + `}`
+			config, ok, err := ParseConfig(raw)
+			if tc.wantErr {
+				if err == nil || ok {
+					t.Fatalf("ParseConfig() ok=%v err=%v, want an error", ok, err)
+				}
+				if !IsConfiguration(raw) {
+					t.Fatal("IsConfiguration() = false, want true: a malformed activation still belongs to the generic planner")
+				}
+				return
+			}
+			if err != nil || !ok {
+				t.Fatalf("ParseConfig() ok=%v err=%v, want ok", ok, err)
+			}
+			if got := string(config.ComponentConfig); got != tc.want {
+				t.Fatalf("ComponentConfig = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
