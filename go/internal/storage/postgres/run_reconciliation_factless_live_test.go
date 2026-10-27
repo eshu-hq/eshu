@@ -127,6 +127,18 @@ func TestWorkflowControlStoreIntegrationReconcileHoldsFactCommittedClaim(t *test
 	// One committed fact, no queue row, no phase row: projection is still
 	// legitimately in flight (or lost upstream), so the run must hold.
 	if _, err := db.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status, active_generation_id, payload)
+VALUES ('scope-factless-integration-facts', 'terraform_state', 'terraform_state', 'scope-factless-integration-facts', 'terraform_state', '', $1, $1, 'active', 'component-generation:integration-facts-pending', '{}'::jsonb)
+`, now); err != nil {
+		t.Fatalf("insert scope error = %v, want nil", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, observed_at, ingested_at, status, trigger_kind, freshness_hint)
+VALUES ('component-generation:integration-facts-pending', 'scope-factless-integration-facts', $1, $1, 'accepted', 'scheduled', '')
+`, now); err != nil {
+		t.Fatalf("insert generation error = %v, want nil", err)
+	}
+	if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (
     fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
     schema_version, collector_kind, fencing_token, source_confidence,
