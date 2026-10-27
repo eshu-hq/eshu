@@ -130,6 +130,16 @@ the deployment platform inventory for that unsupported mode.
 | Scanner Worker | Claim-driven. Selects one enabled `scanner_worker` instance, applies analyzer resource limits, emits source facts only, and records retry or dead-letter state without producing reducer-owned findings. The fallback analyzer emits `scanner_worker.warning`; `sbom_generation` accepts repository, image, or artifact targets when the runtime source has enough subject evidence; and the concrete `os_package_extraction` analyzer parses configured, already-extracted Alpine or Debian rootfs targets into `vulnerability.os_package` and `vulnerability.warning` facts. |
 | Vulnerability Intelligence | Claim-driven. Selects one enabled `vulnerability_intelligence` instance, fetches bounded source targets (explicit CVE IDs, source snapshots, OSV package-version queries, NVD modified windows, GitLab Gemnasium, GHSA) or coordinator-derived exact owned-package targets for supported ecosystems such as npm and Hex, and commits `vulnerability.*` facts. API keys are referenced from the pod environment through the target's `api_key_env` and never persisted into facts, logs, metric labels, or chart values. |
 
+
+NVD claims fail without publishing a partial snapshot when a decoded page
+exceeds 8 MiB, cumulative input exceeds 16 MiB, the claim traverses more than
+5,000 CVE records, or raw reference/CPE fan-out could exceed 10,000 facts.
+Actual emitted facts are also capped at 10,000 or 8 MiB serialized. The limits include retries across fallback endpoints.
+`capacity_exceeded` is terminal for that target; narrow its modified window
+or split explicit ID targets before retrying. A single oversized CVE needs
+source inspection and a measured capacity decision. Cache fallback does not turn this failure into a successful
+claim; NVD cache files are bounded before replay. These process-local limits do not provide fleet-wide NVD rate pacing.
+
 When `prometheusMimirCollector.enabled=true`, Helm also passes that collector
 instance JSON, selected instance ID, and referenced secret envs into the API
 Deployment. The API uses the same target to back
