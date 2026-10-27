@@ -18,6 +18,7 @@ type delayedDeadlineContext struct {
 	deadline time.Time
 }
 
+// Deadline reports the preset deadline while the embedded context stays live.
 func (c delayedDeadlineContext) Deadline() (time.Time, bool) {
 	return c.deadline, true
 }
