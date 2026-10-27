@@ -71,6 +71,7 @@ TABLE = {
             "TestWideWindowReadsMatchSingleReadsLive",
         ),
         "go/internal/query/readiness_committed_coverage_live_test.go": (
+            "TestSupplyChainImpactReadinessAdvisoryDoesNotCertifyUncommittedCoverageLive",
             "TestSupplyChainImpactReadinessCommittedCoverageEdgesLive",
             "TestSupplyChainImpactReadinessRolledBackGenerationCannotCertifyZeroLive",
         ),
