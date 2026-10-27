@@ -1,0 +1,14 @@
+{{- if .Values.lokiCollector.enabled }}
+{{- $activation := (include "eshu.lokiCollectorActivation" . | fromJson) }}
+{{- $ctx := dict "root" . "activation" $activation }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "eshu.lokiCollectorFullname" . }}-activation
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: loki-collector
+data:
+  {{ $activation.instanceId }}.yaml: |
+    {{- include "eshu.componentActivationConfigYAML" $ctx | nindent 4 }}
+{{- end }}

@@ -963,6 +963,63 @@ lokiCollector:
   enabled: false
   replicas: 1
   revisionHistoryLimit: 3
+  # The in-tree loki producer was removed after the satellite cutover
+  # (#9202). The Eshu image stays the host: the main container runs the
+  # component-extension worker, and an init seed container copies the
+  # collector binary and manifest out of the digest-pinned satellite release
+  # image (repository@sha256:<64 hex>; tags are refused) before a reconcile
+  # init container grants, installs, and enables the component in a
+  # pod-local registry. This mirrors the live QA loki worker.
+  componentId: dev.eshu.collector.loki
+  componentVersion: "0.1.2"
+  mode: scheduled
+  seed:
+    image: ghcr.io/eshu-hq/eshu-collector-loki@sha256:12eac89e7abd2988529c6f2854ba63293b5507502630764c3f6b8ffc7e3bf84d
+    pullPolicy: IfNotPresent
+    # Satellite entrypoint: the image ships only /usr/local/bin/collector.
+    command: ["/usr/local/bin/collector", "seed"]
+  host:
+    sourceSystem: loki
+    scope:
+      # Keep id in sync with config.targets[].scope_id below and with the
+      # scope_id of the loki target in collectorInstances, so the claims
+      # the coordinator plans line up with the config the worker hands the
+      # seeded collector.
+      id: "loki:primary"
+      kind: log_source
+  process:
+    args: ["--sdk-stdio"]
+    stdoutLimitBytes: 67108864
+  # Non-secret collector config for the activation file. Targets use the
+  # same shape as the satellite's config.example.yaml (no provider key: the
+  # satellite rejects unknown target keys); point base_url (and the
+  # token/tenant env names) at the Loki to collect. A target without a
+  # reachable base_url fails its claims closed, so an enabled deployment
+  # with placeholder targets collects nothing until they are configured.
+  config:
+    limits:
+      max_result_bytes: 3500000
+    targets:
+      - scope_id: "loki:primary"
+        instance_id: "primary"
+        base_url: ""
+        resource_limit: 50
+        stale_after: 24h
+  # Producer grants for the four emitted kinds the seeded manifest declares,
+  # in manifest emission order.
+  grants:
+    - kind: observability.source_instance
+      schemaVersions: ["1.0.0"]
+      scope: loki
+    - kind: observability.observed_log_signal
+      schemaVersions: ["1.0.0"]
+      scope: loki
+    - kind: observability.observed_rule
+      schemaVersions: ["1.0.0"]
+      scope: loki
+    - kind: observability.coverage_warning
+      schemaVersions: ["1.0.0"]
+      scope: loki
   instanceId: loki-primary
   pollInterval: 2s
   claimLeaseTTL: ""
