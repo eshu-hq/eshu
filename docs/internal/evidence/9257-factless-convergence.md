@@ -6,7 +6,7 @@ counts completed items with nothing committed and nothing queued as
 vacuously published (`FactlessCompletedItems`, `go/internal/workflow`,
 `go/internal/storage/postgres/run_reconciliation_factless.go`).
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 - Baseline: `reconcileWorkflowRunOnce` ran 3 read queries per run
   reconcile (progress, phase counts, dead-letter counts).
@@ -28,7 +28,7 @@ vacuously published (`FactlessCompletedItems`, `go/internal/workflow`,
   behavior change is runs like the incident's converging instead of
   wedging. Fail-closed companion test pins the fact-committed case.
 
-## No-Observability-Change
+## No-Observability-Change:
 
 Existing signals diagnose this path: the completeness detail string
 now names the vacuous convergence (`published for all 1 work items
