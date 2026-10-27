@@ -216,6 +216,7 @@ services:
               max_label_values_per_label: ${ESHU_LOKI_MAX_LABEL_VALUES_PER_LABEL:-5}
               series_matchers: ${ESHU_LOKI_SERIES_MATCHERS_JSON:-[]}
               stale_after: "${ESHU_LOKI_STALE_AFTER:-24h}"
+              enabled: ${ESHU_REMOTE_E2E_LOKI_ENABLED:-false}
               observed_only_hint: true
         host:
           scope:
