@@ -277,6 +277,7 @@ services:
               tag_value_names: ${ESHU_TEMPO_TAG_VALUE_NAMES_JSON:-[]}
               max_tag_values_per_tag: ${ESHU_TEMPO_MAX_TAG_VALUES_PER_TAG:-5}
               stale_after: "${ESHU_TEMPO_STALE_AFTER:-24h}"
+              enabled: ${ESHU_REMOTE_E2E_TEMPO_ENABLED:-false}
               observed_only_hint: true
               freshness_probe_enabled: ${ESHU_TEMPO_FRESHNESS_PROBE_ENABLED:-true}
               lookback: "${ESHU_TEMPO_LOOKBACK:-2h}"
