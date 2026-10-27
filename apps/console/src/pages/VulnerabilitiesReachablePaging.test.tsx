@@ -300,11 +300,20 @@ describe("reachable vulnerability paging", () => {
     await waitFor(() =>
       expect(screen.getByRole("link", { name: "CVE-2026-00101" })).toBeInTheDocument(),
     );
+    fireEvent.click(screen.getByRole("button", { name: "Next findings page" }));
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "CVE-2026-00268" })).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("The next findings cursor did not advance.")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Previous findings page" }));
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "CVE-2026-00101" })).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Previous findings page" }));
     await waitFor(() =>
       expect(screen.getByRole("link", { name: "CVE-2026-00001" })).toBeInTheDocument(),
     );
-    expect(get).toHaveBeenCalledTimes(4);
+    expect(get).toHaveBeenCalledTimes(6);
     expect(document.querySelectorAll("[data-vulnerability-finding-id]")).toHaveLength(100);
   });
 });

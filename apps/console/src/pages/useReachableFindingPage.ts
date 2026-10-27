@@ -66,7 +66,7 @@ export function useReachableFindingPage(model: ConsoleModel, client?: EshuApiCli
       const targetIndex = state.index + (direction === "next" ? 1 : -1);
       if (targetIndex < 0 || (direction === "next" && !state.page.truncated)) return;
       const cursor = direction === "next" ? state.page.nextCursor : state.cursors[targetIndex];
-      if (direction === "next" && (!cursor || state.cursors.includes(cursor))) {
+      if (direction === "next" && !cursor) {
         setState((current) => ({ ...current, error: "The next findings cursor did not advance." }));
         return;
       }
@@ -84,7 +84,10 @@ export function useReachableFindingPage(model: ConsoleModel, client?: EshuApiCli
         setState((current) => ({
           ...current,
           index: targetIndex,
-          cursors: direction === "next" ? [...current.cursors, cursor] : current.cursors,
+          cursors:
+            direction === "next"
+              ? [...current.cursors.slice(0, targetIndex), cursor]
+              : current.cursors,
           page,
           loading: false,
         }));
