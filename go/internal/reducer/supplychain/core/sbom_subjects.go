@@ -39,8 +39,8 @@ func appendSupplyChainImpactPackageFindings(
 	osByDigest := map[string]map[string][]supplychainmodel.OSPackage{}
 	baseOS := map[string][]supplychainmodel.OSPackage{}
 	vendorSource := classifyAffectedPackageAdvisorySource(pkg)
-	for key, packages := range index.osPackages {
-		for _, installed := range packages {
+	for _, key := range affectedOSPackageLookupKeys(pkg) {
+		for _, installed := range index.osPackages[key] {
 			if !osPackageMatchesAffectedPackage(installed, pkg, vendorSource) {
 				continue
 			}

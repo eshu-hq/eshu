@@ -47,6 +47,16 @@ bound the local cost shape; they do not claim a throughput target. The writer
 still publishes the full finding set in one transaction, with no new worker,
 lease, queue, or graph write.
 
+Performance Evidence (#9232 OS lookup): `BenchmarkSBOMSubjectOSLookup`
+prebuilds the index with one matching SBOM and vendor OS row, then times only
+package classification with 0, 100, or 10,000 unrelated OS keys. On Apple M5
+Max with Go 1.26.10, three 500 ms samples at baseline `a6933d2878` measured
+6,793/6,805/6,836 ns/op with no unrelated keys and
+363,215/361,581/363,002 ns/op with 10,000. The keyed lookup measured
+6,948/6,863/7,064 and 6,069/6,035/6,001 ns/op on those same inputs.
+The unrelated corpus no longer determines classification cost; this local
+microbenchmark excludes index construction, database work, and queue time.
+
 Observability Evidence (#9232): the existing persisted impact finding carries
 `impact_status`, `match_reason`, `observed_version`, `subject_digest`, and
 `evidence_fact_ids`; the existing query span and reducer finding counters
