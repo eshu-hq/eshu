@@ -76,6 +76,9 @@ log "install allowlisted manifest"
 	--allow-publisher "${component_publisher}"
 
 log "write activation config"
+# Credential-free demo: no live Loki target. The satellite requires at
+# least one enabled target per collection, so with no targets the worker
+# starts healthy and idles until live QA supplies targets here.
 cat >"${activation_path}" <<CFG
 host:
   sourceSystem: loki
@@ -87,9 +90,6 @@ process:
   args:
     - --sdk-stdio
 config:
-  # Credential-free demo: no live Loki target. The satellite requires at
-  # least one enabled target per collection, so with no targets the worker
-  # starts healthy and idles until live QA supplies targets here.
   targets: []
 CFG
 chmod a+r "${activation_path}"
