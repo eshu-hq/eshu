@@ -316,8 +316,13 @@ the webhook listener enqueues freshness work only and does not emit
 The Grafana, Prometheus/Mimir, Loki, and Tempo collectors are claim-only. Each
 selects one enabled collector instance from `ESHU_COLLECTOR_INSTANCES_JSON`.
 Tempo now collects from its extracted satellite
-(eshu-hq/eshu-collector-tempo); the target shape below is unchanged, and the
-satellite reads the same `ESHU_TEMPO_*` process variables.
+(eshu-hq/eshu-collector-tempo); the target shape below is unchanged, but the
+`ESHU_TEMPO_*` process variables are satellite-side operator inputs, not
+in-tree registry entries, so `eshu config validate` does not cover them. The
+satellite resolves credentials through its activation config
+(`token_env`/`tenant_id_env` name references; see the satellite repo's
+`config.example.yaml`), and the hosted `tempo` profile shows the mapping (see
+[Remote Collector Hosted Profiles](local-testing/remote-collector-hosted-profiles.md)).
 Target configuration uses `targets` and references credentials through
 environment-variable names. The runtime resolves those secrets in process
 memory and commits metadata-only source facts.

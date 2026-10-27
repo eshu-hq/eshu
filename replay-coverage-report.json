@@ -4,10 +4,10 @@
   "totals": {
     "total": 458,
     "covered": 448,
-    "uncovered": 1,
+    "uncovered": 0,
     "unresolved": 0,
-    "exempt": 9,
-    "percent_satisfied": 99.78
+    "exempt": 10,
+    "percent_satisfied": 100
   },
   "registry_summaries": [
     {
@@ -104,10 +104,10 @@
       "registry": "surface_inventory",
       "total": 30,
       "covered": 23,
-      "uncovered": 1,
+      "uncovered": 0,
       "unresolved": 0,
-      "exempt": 6,
-      "percent_satisfied": 96.67
+      "exempt": 7,
+      "percent_satisfied": 100
     }
   ],
   "scenario_type_summaries": [
@@ -151,10 +151,10 @@
       "scenario_type": "fault",
       "total": 15,
       "covered": 11,
-      "uncovered": 1,
+      "uncovered": 0,
       "unresolved": 0,
-      "exempt": 3,
-      "percent_satisfied": 93.33
+      "exempt": 4,
+      "percent_satisfied": 100
     },
     {
       "scenario_type": "ordering",
@@ -4660,8 +4660,8 @@
       "registry": "surface_inventory",
       "key": "collector:tempo",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "exempt",
+      "detail": "Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-tempo while the coordinator still plans tempo claims and the reducer/query surfaces still serve the fact kinds. No in-tree Tempo client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound."
     },
     {
       "registry": "surface_inventory",
@@ -4718,9 +4718,7 @@
       "detail": "Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette."
     }
   ],
-  "gaps": [
-    "collector:tempo|fault"
-  ],
+  "gaps": null,
   "stale_manifest_surfaces": null,
   "language_scoreboard": {
     "total": 33,

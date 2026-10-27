@@ -4,7 +4,7 @@
 
 Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass. Exempt rows carry the audited reason that a proof class does not apply. The inventory check itself is credential-free and Docker-free; backend-required scenarios run in their named proof gates. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 457/458 surfaces satisfied (99.78%)** — mode: blocking.
+**Overall: 458/458 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -20,8 +20,8 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 64 | 64 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 100 | 100 | 100.00% | 0 | 1 |
-| Collectors | 29 | 30 | 96.67% | 1 | 6 |
-| **Total** | **457** | **458** | **99.78%** | **1** | **9** |
+| Collectors | 30 | 30 | 100.00% | 0 | 7 |
+| **Total** | **458** | **458** | **100.00%** | **0** | **10** |
 
 ## Coverage by scenario type
 
@@ -31,7 +31,7 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | cost | 30 | 30 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 165 | 165 | 100.00% | 0 | 1 |
-| fault | 14 | 15 | 93.33% | 1 | 3 |
+| fault | 15 | 15 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
 ## Language parser coverage
@@ -44,13 +44,9 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-1 surface(s) uncovered or unresolved:
+None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.
 
-### Collectors (1)
-
-- `collector:tempo` (fault)
-
-## Covered surfaces (457)
+## Covered surfaces (458)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |
 | --- | --- | --- | --- | --- |
@@ -505,6 +501,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `collector:security_alert` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/securityalerts/supply-chain-demo.json` |
 | `collector:security_alert` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:tempo` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/tempo/supply-chain-demo.json` |
+| `collector:tempo` | fault | exempt | — | Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-tempo while the coordinator still plans tempo claims and the reducer/query surfaces still serve the fact kinds. No in-tree Tempo client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound. |
 | `collector:terraform_state` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/terraformstate/supply-chain-demo.json` |
 | `collector:terraform_state` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:vulnerability_intelligence` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json` |
