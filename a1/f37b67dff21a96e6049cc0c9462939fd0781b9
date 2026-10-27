@@ -1,0 +1,30 @@
+deploy/helm/eshu/templates/_observability_collector_helpers.tpl
+  h_78a442cba0b3e6 52-75
+deploy/helm/eshu/templates/configmap-tempo-collector-activation.yaml
+  h_78a442cba0b3e6 1-14
+deploy/helm/eshu/templates/deployment-tempo-collector.yaml
+  h_78a442cba0b3e6 2-3,25-26,28,33-34,37-44,55-73,77-79,104-108,112-116
+deploy/helm/eshu/templates/validate.yaml
+  h_78a442cba0b3e6 204-246
+deploy/helm/eshu/values.schema.json
+  h_78a442cba0b3e6 1238-1241,1244,1246-1266,1268-1270,1272-1283,1299-1303
+deploy/helm/eshu/values.yaml
+  h_78a442cba0b3e6 992-1002,1004-1046
+docker-compose.demo.corpus.yaml
+  h_78a442cba0b3e6 165-278,280-286,290-297,299-303,305,309-312,404
+docker-compose.remote-e2e.observability.yaml
+  h_78a442cba0b3e6 203-333,335-342,346,351-360,370-371,380-383,409-411
+docs/public/deploy/kubernetes/helm-collector-and-webhook-values.md
+  h_78a442cba0b3e6 90,156-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a1f37b67dff21a96e6049cc0c9462939fd0781b9",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
