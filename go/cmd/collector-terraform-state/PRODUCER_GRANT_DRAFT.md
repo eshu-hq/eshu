@@ -65,16 +65,18 @@ that grant for `incident_routing.coverage_warning` ONLY; the two
 `applied_*` kinds stay granted:
 
 - `coverage_warning` dropped: the pagerduty collector owns this kind.
-  It is bound to `collector-pagerduty` in the producer record
-  (`go/internal/facts/incident/routing.go:87`), emitted live from the
-  PagerDuty API (`go/internal/collector/pagerduty/source.go:286,293`
-  via `config_envelope.go`), and covered by the pagerduty grant and
-  rollback drafts (`go/internal/collector/pagerduty/PRODUCER_GRANT_DRAFT.md:17`,
-  `ROLLBACK_DRAFT.md:39`). A live installer conflict in a QA environment proved
+  It is bound to `collector-pagerduty` in the producer record (the
+  `Producers` list in `go/internal/facts/incident/routing.go`), emitted
+  live from the PagerDuty API (the `NewPagerDutyConfigCoverageWarningEnvelope`
+  call sites in `go/internal/collector/pagerduty/source.go`), and covered
+  by the pagerduty grant and rollback drafts
+  (`go/internal/collector/pagerduty/PRODUCER_GRANT_DRAFT.md`,
+  `ROLLBACK_DRAFT.md`). A live installer conflict in a QA environment proved
   dual emission, so this producer must not carry it.
 - `applied_pagerduty_resource` and `applied_alert_route` kept: the
-  sole production emitter of both is this parser
-  (`go/internal/collector/terraformstate/pagerduty_applied.go:49`);
+  sole production emitter of both is this parser (the
+  `emitAppliedIncidentRoutingEvidence` method in
+  `go/internal/collector/terraformstate/pagerduty_applied.go`);
   no other owner exists, so dropping them would orphan applied
   incident-routing evidence.
 
