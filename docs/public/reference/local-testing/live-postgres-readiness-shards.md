@@ -195,3 +195,19 @@ If the gate fails after a refresh, the plan no longer fits in the active shard c
 80% of the cap. Reduce the cost instead of raising the cap: split the slowest
 package's proofs, cache the Go build for the storage package, or add a shard.
 Raising `timeout-minutes` only hides a hang.
+
+## Race detector
+
+The shards run without `-race`: the runner invokes `go test` with no `-race` flag
+and the workflow sets no `GOFLAGS`. Concurrency proofs are race-checked
+locally only — the pre-push changed-package race lane, the `pre-pr-full`
+whole-module race, and author-run `-race` — never by the required gate.
+
+That is a measured decision (#9026), not an oversight. A local probe of
+three live proofs (two concurrency plus one guard) showed `-race` slowing
+test time 2.55x to 4.85x; even the smallest multiplier pushes every shard
+past the 1800 s cap (the tightest no-race shard samples leave only 198 s of
+headroom), and enlarged
+rows would breach the 900 s per-invocation `go test` timeout. Enabling
+`-race` later needs a re-split (more shards or a dedicated race lane) plus a
+weights refit from `-race` measurements.
