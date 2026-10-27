@@ -144,6 +144,7 @@ collector_specs=(
 cassette_replay_alias_specs=(
 	"semantic-extraction-cassette:collector-prometheus-mimir:semanticextraction"
 	"jira-cassette-replay:collector-pagerduty:jira"
+	"tempo-cassette-replay:collector-pagerduty:tempo"
 )
 cassette_recording="supply-chain-demo.json"
 
