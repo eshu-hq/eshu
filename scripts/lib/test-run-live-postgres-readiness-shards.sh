@@ -37,9 +37,26 @@ report_count() {
   python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["expected_count"])' "$1"
 }
 shard_head="a000000000000000000000000000000000000000"
+shard_ids_text="$(python3 "${shards_lib}" matrix | python3 -c '
+import json
+import sys
+
+legs = json.load(sys.stdin)["include"]
+if not legs or any(leg["total"] != len(legs) or leg["shard"] != index
+                   for index, leg in enumerate(legs, 1)):
+    raise ValueError("invalid active shard matrix")
+print("\n".join("{}/{}".format(leg["shard"], leg["total"]) for leg in legs))
+')" || fail "could not read active shard matrix"
+mapfile -t shard_ids <<<"${shard_ids_text}"
+[[ "${#shard_ids[@]}" -ge 2 ]] || fail "active shard matrix has fewer than two legs"
+first_shard="${shard_ids[0]}"
+second_shard="${shard_ids[1]}"
+invalid_shard="$((${#shard_ids[@]} + 1))/${#shard_ids[@]}"
 covered=""
-for shard in 1/4 2/4 3/4 4/4; do
-  mapfile -t sproofs < <(shard_proofs "${shard}")
+for shard in "${shard_ids[@]}"; do
+  selected="$(shard_proofs "${shard}")" || fail "shard ${shard} plan failed"
+  [[ -n "${selected}" ]] || fail "shard ${shard} selected no proofs"
+  mapfile -t sproofs <<<"${selected}"
   [[ "${#sproofs[@]}" -gt 0 ]] || fail "shard ${shard} selected no proofs"
   write_subset_events "${sproofs[@]}"
   : >"${fake}/calls"
@@ -50,50 +67,53 @@ for shard in 1/4 2/4 3/4 4/4; do
   for entry in "${sproofs[@]}"; do covered="${covered}${entry}"$'\n'; done
 done
 [[ "$(printf '%s' "${covered}" | sort -u | wc -l | tr -d '[:space:]')" -eq "${total}" ]] ||
-  fail "four shard selections do not cover every enrolled proof"
+  fail "shard selections do not cover every enrolled proof"
 [[ "$(printf '%s' "${covered}" | sort | uniq -d | wc -l | tr -d '[:space:]')" -eq 0 ]] ||
   fail "shard selections overlap"
 # A shard run with a dropped test event fails naming the missing run.
-mapfile -t sproofs < <(shard_proofs "2/4")
+selected="$(shard_proofs "${second_shard}")" || fail "shard ${second_shard} plan failed"
+mapfile -t sproofs <<<"${selected}"
 write_subset_events "${sproofs[@]}"
 second_pkg="${sproofs[0]%%|*}"
 second_name="${sproofs[0]##*|}"
 sed -i.bak "/\"Test\":\"${second_name}\"/d" "$(events_of "${second_pkg}")"
-out="$(run_shard "2/4" "${shard_head}")" && fail "shard 2/4 with a dropped test passed"
+out="$(run_shard "${second_shard}" "${shard_head}")" && fail "shard ${second_shard} with a dropped test passed"
 [[ "${out}" == *"missing or duplicate event"* ]] || fail "dropped shard test not named: ${out}"
 # A shard run with an event for a test outside its selection fails closed.
 write_subset_events "${sproofs[@]}"
 printf '{"Action":"run","Test":"%s"}\n{"Action":"pass","Test":"%s","Elapsed":0.1}\n' \
   "${first_proof}" "${first_proof}" >>"$(events_of "${second_pkg}")"
-out="$(run_shard "2/4" "${shard_head}")" && fail "shard 2/4 with an unexpected test passed"
+out="$(run_shard "${second_shard}" "${shard_head}")" && fail "shard ${second_shard} with an unexpected test passed"
 [[ "${out}" == *"unexpected test event"* ]] || fail "unexpected shard test not named: ${out}"
 # An invalid shard identifier fails before any go test starts.
 write_subset_events "${sproofs[@]}"
 : >"${fake}/calls"
-out="$(run_shard "5/4" "${shard_head}")" && fail "invalid shard passed"
+out="$(run_shard "${invalid_shard}" "${shard_head}")" && fail "invalid shard passed"
 [[ "${out}" == *"invalid shard"* ]] || fail "invalid shard not named: ${out}"
 [[ ! -s "${fake}/calls" ]] || fail "go test ran for an invalid shard"
 # Subtests resolve to their enrolled parent: `go test -run` matches the
 # parent and emits Parent/child events, which the shard subset must accept
 # exactly as the full suite does. A child of an unenrolled parent fails.
-mapfile -t sproofs < <(shard_proofs "1/4")
+selected="$(shard_proofs "${first_shard}")" || fail "shard ${first_shard} plan failed"
+mapfile -t sproofs <<<"${selected}"
 write_subset_events "${sproofs[@]}"
 first_parent="${sproofs[0]##*|}"
 printf '{"Action":"run","Test":"%s/seeded-child"}\n{"Action":"pass","Test":"%s/seeded-child","Elapsed":0.1}\n' \
   "${first_parent}" "${first_parent}" >>"$(events_of "${sproofs[0]%%|*}")"
-out="$(run_shard "1/4" "${shard_head}")" || fail "shard 1/4 with subtest events failed: ${out}"
+out="$(run_shard "${first_shard}" "${shard_head}")" || fail "shard ${first_shard} with subtest events failed: ${out}"
 write_subset_events "${sproofs[@]}"
 printf '{"Action":"run","Test":"TestZzzDecoyNotEnrolled/seeded-child"}\n{"Action":"pass","Test":"TestZzzDecoyNotEnrolled/seeded-child","Elapsed":0.1}\n' \
   >>"$(events_of "${sproofs[0]%%|*}")"
-out="$(run_shard "1/4" "${shard_head}")" && fail "shard 1/4 with a foreign subtest passed"
+out="$(run_shard "${first_shard}" "${shard_head}")" && fail "shard ${first_shard} with a foreign subtest passed"
 [[ "${out}" == *"unexpected test event"* ]] || fail "foreign subtest not named: ${out}"
 # Shard-plus-degrade: without a Neo4j backend a shard excuses its graph
 # proofs, and an excused proof that fails still fails the leg by name.
 shard_graph_tests="$(python3 "${checker}" list-neo4j-tests)" || fail "list-neo4j-tests rejected"
 degraded_shard=""
 degraded_graph=""
-for shard in 1/4 2/4 3/4 4/4; do
-  mapfile -t sproofs < <(shard_proofs "${shard}")
+for shard in "${shard_ids[@]}"; do
+  selected="$(shard_proofs "${shard}")" || fail "shard ${shard} plan failed"
+  mapfile -t sproofs <<<"${selected}"
   for entry in "${sproofs[@]}"; do
     for g in ${shard_graph_tests}; do
       if [[ "${entry##*|}" == "${g}" ]]; then degraded_shard="${shard}"; degraded_graph="${g}"; fi
@@ -104,7 +124,8 @@ done
 cp "${fake}/envs" "${fake}/envs.shard-degrade"
 rg -v '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs.shard-degrade" >"${fake}/envs"
 unset ESHU_NEO4J_URI ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD ESHU_GRAPH_BACKEND
-mapfile -t sproofs < <(shard_proofs "${degraded_shard}")
+selected="$(shard_proofs "${degraded_shard}")" || fail "shard ${degraded_shard} plan failed"
+mapfile -t sproofs <<<"${selected}"
 write_subset_events "${sproofs[@]}"
 for entry in "${sproofs[@]}"; do
   if [[ "${entry##*|}" == "${degraded_graph}" ]]; then
