@@ -117,7 +117,7 @@ func (h *Handler) countSecurityAlertReconciliations(w http.ResponseWriter, r *ht
 	)
 	// #8803: a zero total is classified from collector state.
 	if count.TotalReconciliations == 0 {
-		if verdict, ok := h.securityAlertEmptyAnswerVerdict(r, supplyChainSecurityAlertAggregateOperation, filter.RepositoryID, filter.RepositoryScopeIDs); ok {
+		if verdict, ok := h.securityAlertEmptyAnswerVerdict(r, supplyChainSecurityAlertAggregateOperation, filter.RepositoryID, filter.RepositoryScopeIDs, access); ok {
 			applySecurityAlertCoverageVerdict(body, coverage, truth, verdict)
 		}
 	}
@@ -225,7 +225,7 @@ func (h *Handler) securityAlertReconciliationInventory(w http.ResponseWriter, r 
 	// #8803: an empty first page is classified from collector state and gains
 	// the coverage object; a non-empty or later page keeps its existing shape.
 	if len(rows) == 0 && offset == 0 {
-		if verdict, ok := h.securityAlertEmptyAnswerVerdict(r, supplyChainSecurityAlertAggregateOperation, filter.RepositoryID, filter.RepositoryScopeIDs); ok {
+		if verdict, ok := h.securityAlertEmptyAnswerVerdict(r, supplyChainSecurityAlertAggregateOperation, filter.RepositoryID, filter.RepositoryScopeIDs, access); ok {
 			applySecurityAlertCoverageVerdict(body, securityAlertCoverageFromCounts(0, 0), truth, verdict)
 		}
 	}

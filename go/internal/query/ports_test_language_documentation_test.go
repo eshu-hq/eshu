@@ -77,6 +77,13 @@ func (f fakePortContentStore) MatchRepositories(
 	return f.promoted().MatchRepositories(ctx, selector)
 }
 
+func (f fakePortContentStore) MatchRepositoriesByIDs(
+	ctx context.Context,
+	ids []string,
+) ([]RepositoryCatalogEntry, error) {
+	return f.promoted().MatchRepositoriesByIDs(ctx, ids)
+}
+
 func (f fakePortContentStore) ResolveRepository(
 	ctx context.Context,
 	selector string,

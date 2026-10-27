@@ -122,6 +122,22 @@ recent shipped work grouped by feature area.
   incompressible repositories (0.09 to 0.34 ms for one target).
   Evidence: `docs/internal/evidence/8838-security-alert-target-set.md`.
 
+### Security alerts: scoped unanchored reads classify over the caller's grants
+
+- **Grant-scoped coverage for unanchored security-alert empty answers**
+  ([#8837](https://github.com/eshu-hq/eshu/issues/8837)). A scoped token's
+  unanchored empty answer used to evaluate every configured collector target,
+  so it read `complete` when all targets were healthy even when none of the
+  caller's granted repositories was inside a target. The caller's grants now
+  map to repository slugs with one bounded catalog read (past 5,000 ids the
+  read fails closed), and the answer is classified over that set only:
+  worst wins across the covering targets, and a granted repository no target
+  covers reports `not_configured` with `repository_outside_target_set`.
+  Unscoped unanchored reads still evaluate every configured target. The
+  catalog read takes 1.2 to 3.1 ms at grant sizes 1, 100, and 5,000 over a
+  10,000-repository catalog.
+  Evidence: `docs/internal/evidence/8837-security-alert-grant-scope.md`.
+
 ### Security alerts: org targets over 100 repositories are collected as shards
 
 - **Upgrade order: the collector and the API before the coordinator.** All

@@ -49,6 +49,30 @@ func (s selectorMatchContent) MatchRepositories(context.Context, string) ([]quer
 	return s.entries, nil
 }
 
+// MatchRepositoriesByIDs answers the grant-to-entry read (#8837) from the
+// same entries fixture, matching by catalog id or ingestion scope id like the
+// production query.
+func (s selectorMatchContent) MatchRepositoriesByIDs(_ context.Context, ids []string) ([]querycontract.RepositoryCatalogEntry, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	wanted := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		wanted[id] = struct{}{}
+	}
+	matches := make([]querycontract.RepositoryCatalogEntry, 0, 1)
+	for _, entry := range s.entries {
+		if _, ok := wanted[entry.ID]; ok {
+			matches = append(matches, entry)
+			continue
+		}
+		if _, ok := wanted[entry.ScopeID]; ok {
+			matches = append(matches, entry)
+		}
+	}
+	return matches, nil
+}
+
 // selectorScopeLookupStore serves the security-alert list and aggregate ports
 // and fails the provider repository-scope lookup the selector runs when the
 // catalog entry carries no repo_slug or remote_url evidence.

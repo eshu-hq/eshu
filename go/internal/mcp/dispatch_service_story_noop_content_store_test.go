@@ -188,6 +188,10 @@ func (mcpNoopContentStore) MatchRepositories(context.Context, string) ([]query.R
 	return nil, nil
 }
 
+func (mcpNoopContentStore) MatchRepositoriesByIDs(context.Context, []string) ([]query.RepositoryCatalogEntry, error) {
+	return nil, nil
+}
+
 func (mcpNoopContentStore) ResolveRepository(context.Context, string) (*query.RepositoryCatalogEntry, error) {
 	return nil, nil
 }
