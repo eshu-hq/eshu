@@ -14,9 +14,15 @@
 | `eshu_dp_ci_cd_run_webhook_lag_seconds` | none | Receipt-to-admission delay for successful or exactly recovered webhook handoffs. Watch the upper buckets for stuck wake-ups. |
 | `eshu_dp_ci_cd_run_poll_fallback_total` | none | Scheduled GitHub Actions target work actually admitted as bounded backfill. Compare its rate with webhook handoffs to see fallback use. |
 
-The Actions inbox consumer emits these handoff and reaper signals. The
-listener adapter is not yet enabled for workflow events, so scheduled bounded
-reads continue to carry freshness until that adapter and its wiring land.
+The Actions inbox consumer emits these handoff and reaper signals. Verified
+workflow-event intake uses the shared webhook request counter and duration
+metrics and the `webhook.handle` span. Its bounded event kind appears in spans
+and request logs; request metric labels remain provider, outcome, and reason.
+Scheduled bounded reads provide backfill when no delivery work is pending.
+Intake records acceptance after the durable inbox store succeeds. Invalid
+signatures use the shared rejected/auth outcome; unavailable or failing inbox
+storage uses failed/store. Follow the request span to distinguish intake
+failure from later admission lag.
 
 Repository names, workflow run IDs, artifact names, URLs, token environment
 names, token values, and provider response bodies stay out of metric labels.

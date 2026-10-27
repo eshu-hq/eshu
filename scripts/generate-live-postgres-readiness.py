@@ -9,8 +9,8 @@ fails on any difference. See live_postgres_readiness_gen_scan.py for the
 marker contract.
 
 Generated outputs (LC_ALL=C byte order, idempotent):
-    specs/live-tests.d/live-tests-readiness.generated.yaml
-    specs/live-tests.v1.yaml (fragments entry only; prose stays hand-owned)
+    specs/live-tests.d/live-tests-readiness*.generated.yaml (four fixed shards)
+    specs/live-tests.v1.yaml (fragment entries only; prose stays hand-owned)
     scripts/lib/live_postgres_readiness_inventory_gen_<slug>.py (per package)
     scripts/lib/live_postgres_readiness_inventory_generated.py (PACKAGES)
     scripts/lib/live_postgres_readiness_inventory_helpers.py (sha pins)
@@ -23,6 +23,7 @@ Usage: generate-live-postgres-readiness.py [--root DIR] [--check]
 
 import argparse
 import pathlib
+import re
 import sys
 
 LIB = pathlib.Path(__file__).parent / "lib"
@@ -40,6 +41,25 @@ from live_postgres_readiness_gen_render import (  # noqa: E402
     mutate_workflow,
     render_workflow_block,
 )
+
+READINESS_FRAGMENT = re.compile(
+    r"live-tests-readiness(?:-part[0-9]+)?\.generated\.yaml\Z"
+)
+
+
+def orphan_outputs(root: pathlib.Path, planned: set[str]) -> list[str]:
+    """Find only generator-owned stale inventory and readiness fragments."""
+    paths = root.joinpath("scripts/lib").glob(
+        "live_postgres_readiness_inventory_gen_*.py")
+    fragments = root.joinpath("specs/live-tests.d").glob(
+        "live-tests-readiness*.generated.yaml")
+    return sorted(
+        path.relative_to(root).as_posix()
+        for path in (*paths, *fragments)
+        if (path.relative_to(root).as_posix() not in planned
+            and (path.parent.name != "live-tests.d"
+                 or READINESS_FRAGMENT.fullmatch(path.name)))
+    )
 
 
 def plan(root: pathlib.Path) -> list[tuple[str, str]]:
@@ -94,29 +114,21 @@ def main() -> int:
                       file=sys.stderr)
                 return 1
         planned = {rel for rel, _ in outputs}
-        for path in sorted(root.joinpath(
-                "scripts/lib").glob(
-                    "live_postgres_readiness_inventory_gen_*.py")):
-            rel = path.relative_to(root).as_posix()
-            if rel not in planned:
-                print(f"generate-live-postgres-readiness: orphan {rel}; "
-                      f"regenerate with python3 "
-                      f"scripts/generate-live-postgres-readiness.py",
-                      file=sys.stderr)
-                return 1
+        for rel in orphan_outputs(root, planned):
+            print(f"generate-live-postgres-readiness: orphan {rel}; "
+                  f"regenerate with python3 "
+                  f"scripts/generate-live-postgres-readiness.py",
+                  file=sys.stderr)
+            return 1
         print(f"generate-live-postgres-readiness: registration current "
               f"({len(outputs)} surfaces)")
         return 0
     planned = {rel for rel, _ in outputs}
     for rel, content in outputs:
         root.joinpath(rel).write_text(content, encoding="utf-8")
-    for path in sorted(root.joinpath(
-            "scripts/lib").glob(
-                "live_postgres_readiness_inventory_gen_*.py")):
-        rel = path.relative_to(root).as_posix()
-        if rel not in planned:
-            path.unlink()
-            print(f"generate-live-postgres-readiness: removed orphan {rel}")
+    for rel in orphan_outputs(root, planned):
+        root.joinpath(rel).unlink()
+        print(f"generate-live-postgres-readiness: removed orphan {rel}")
     print(f"generate-live-postgres-readiness: regenerated {len(outputs)} "
           f"surfaces")
     return 0

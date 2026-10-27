@@ -28,6 +28,10 @@ type triggerStore interface {
 	StoreTrigger(context.Context, webhook.Trigger, time.Time) (webhook.StoredTrigger, error)
 }
 
+type actionsTriggerStore interface {
+	Store(context.Context, webhook.ActionsTrigger, time.Time) (webhook.StoredActionsTrigger, error)
+}
+
 type incidentFreshnessStore interface {
 	StoreIncidentFreshnessTrigger(
 		context.Context,
@@ -47,6 +51,7 @@ type gcpFreshnessStore interface {
 type webhookHandler struct {
 	Config                 webhookListenerConfig
 	Store                  triggerStore
+	ActionsStore           actionsTriggerStore
 	IncidentFreshnessStore incidentFreshnessStore
 	AWSFreshnessStore      awsFreshnessStore
 	GCPFreshnessStore      gcpFreshnessStore
@@ -137,45 +142,6 @@ func gcpFreshnessConfigured(config webhookListenerConfig) bool {
 
 func incidentWebhookConfigured(config webhookListenerConfig) bool {
 	return config.PagerDutySecret != "" || config.JiraSecret != ""
-}
-
-func (h webhookHandler) handleGitHub(w http.ResponseWriter, r *http.Request) {
-	ctx, span, startedAt := h.startWebhookRequest(r.Context(), webhook.ProviderGitHub)
-	r = r.WithContext(ctx)
-	result := webhookTelemetryResult{Outcome: webhookOutcomeRejected, Reason: webhookReasonMalformed}
-	defer func() {
-		h.finishWebhookRequest(ctx, span, startedAt, webhook.ProviderGitHub, result)
-	}()
-
-	payload, readReason, ok := h.readPostBody(w, r)
-	if !ok {
-		result.Reason = readReason
-		return
-	}
-	if err := webhook.VerifyGitHubSignature(payload, h.Config.GitHubSecret, r.Header.Get("X-Hub-Signature-256")); err != nil {
-		result.Reason = webhookReasonAuth
-		http.Error(w, "signature verification failed", http.StatusUnauthorized)
-		return
-	}
-
-	deliveryID := strings.TrimSpace(r.Header.Get("X-GitHub-Delivery"))
-	if deliveryID == "" {
-		result.Reason = webhookReasonDelivery
-		http.Error(w, "missing delivery id", http.StatusBadRequest)
-		return
-	}
-	event := strings.TrimSpace(r.Header.Get("X-GitHub-Event"))
-	if strings.EqualFold(event, githubEventPing) {
-		result = h.writeGitHubPingAccepted(w)
-		return
-	}
-	trigger, err := webhook.NormalizeGitHub(
-		event,
-		deliveryID,
-		payload,
-		h.Config.DefaultBranch,
-	)
-	result = h.storeAndWrite(w, r, trigger, err)
 }
 
 func (h webhookHandler) handleGitLab(w http.ResponseWriter, r *http.Request) {
@@ -328,28 +294,6 @@ func (h webhookHandler) storeAndWrite(
 		"reason":     stored.Reason,
 	})
 	return result
-}
-
-func (h webhookHandler) writeGitHubPingAccepted(w http.ResponseWriter) webhookTelemetryResult {
-	writeWebhookJSON(w, http.StatusAccepted, map[string]any{
-		"status":   webhook.TriggerStatusIgnored,
-		"decision": webhook.DecisionIgnored,
-		"reason":   webhookReasonPing,
-	})
-	return webhookTelemetryResult{
-		Outcome:   webhookOutcomeIgnored,
-		Reason:    webhookReasonPing,
-		EventKind: webhook.EventKind(webhookReasonPing),
-		Decision:  webhook.DecisionIgnored,
-		Status:    webhook.TriggerStatusIgnored,
-	}
-}
-
-func (h webhookHandler) now() time.Time {
-	if h.Clock != nil {
-		return h.Clock()
-	}
-	return time.Now().UTC()
 }
 
 func (h webhookHandler) startWebhookRequest(

@@ -1,17 +1,9 @@
-openapi:
-  - '.github/workflows/static-contract-gates.yml'
-  - 'specs/ci-gates.v1.yaml'
-  - 'specs/ci-gates.d/**'
-  - '.github/static-contract-filters.yml'
-  - 'go/internal/query/**'
-  - 'go/internal/mcp/**'
-  - 'go/internal/serviceintelhttp/**'
-  - 'specs/surface-inventory.v1.yaml'
-  - 'specs/capability-catalog.v1.yaml'
-  - 'specs/capability-matrix.v1.yaml'
-  - 'scripts/*verify-openapi*.sh'
-  - 'scripts/lib/*verify-openapi*.sh'
-  - '.github/openapi-known-drift.txt'
+openapi: [
+  '.github/workflows/static-contract-gates.yml', 'specs/ci-gates.v1.yaml', 'specs/ci-gates.d/**', '.github/static-contract-filters.yml',
+  'go/internal/query/**', 'go/internal/mcp/**', 'go/internal/serviceintelhttp/**', 'specs/surface-inventory.v1.yaml',
+  'specs/capability-catalog.v1.yaml', 'specs/capability-matrix.v1.yaml', 'scripts/*verify-openapi*.sh', 'scripts/lib/*verify-openapi*.sh',
+  '.github/openapi-known-drift.txt',
+]
 route:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'
@@ -32,25 +24,13 @@ edge:
   - 'go/internal/reducer/crossrepo/cross_repo_evidence_type.go'
   - 'specs/surface-inventory.v1.yaml'
   - 'scripts/*verify-edge-source-tool-coverage*.sh'
-evidence:
-  - '.github/workflows/static-contract-gates.yml'
-  - 'specs/ci-gates.v1.yaml'
-  - 'specs/ci-gates.d/**'
-  - '.github/static-contract-filters.yml'
-  - 'specs/evidence-continuity.v1.yaml'
-  - 'specs/capability-matrix.v1.yaml'
-  - 'specs/capability-matrix/**'
-  - 'go/cmd/eshu/**'
-  - 'go/internal/capabilitycatalog/**'
-  - 'go/internal/cigates/**'
-  - 'go/internal/cli/**'
-  - 'go/internal/collector/**'
-  - 'go/internal/evidencecontinuity/**'
-  - 'go/internal/facts/**'
-  - 'go/internal/mcp/**'
-  - 'go/internal/query/**'
-  - 'go/internal/relationships/**'
-  - 'scripts/*verify-evidence-continuity*.sh'
+evidence: [
+  '.github/workflows/static-contract-gates.yml', 'specs/ci-gates.v1.yaml', 'specs/ci-gates.d/**', '.github/static-contract-filters.yml',
+  'specs/evidence-continuity.v1.yaml', 'specs/capability-matrix.v1.yaml', 'specs/capability-matrix/**', 'go/cmd/eshu/**',
+  'go/internal/capabilitycatalog/**', 'go/internal/cigates/**', 'go/internal/cli/**', 'go/internal/collector/**',
+  'go/internal/evidencecontinuity/**', 'go/internal/facts/**', 'go/internal/mcp/**', 'go/internal/query/**',
+  'go/internal/relationships/**', 'scripts/*verify-evidence-continuity*.sh',
+]
 skill:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'
@@ -103,20 +83,12 @@ envdoc:
   - 'docs/public/reference/env-registry.md'
   - 'docs/public/reference/env-registry/**'
   - 'scripts/*env-registry-doc*.sh'
-contract:
-  - '.github/workflows/static-contract-gates.yml'
-  - 'specs/ci-gates.v1.yaml'
-  - 'specs/ci-gates.d/**'
-  - '.github/static-contract-filters.yml'
-  - 'go/internal/facts/**'
-  - 'go/internal/reducer/**'
-  - 'go/cmd/fact-kind-registry/**'
-  - 'go/internal/collector/conformance/contract/**'
-  - 'specs/fact-kind-registry.v1.yaml'
-  - 'specs/fact-kind-registry-contracts.d/**'
-  - 'specs/collector_fact_contract.v1.yaml'
-  - 'scripts/*verify-contracttest*.sh'
-  - 'scripts/*fact-kind-registry*.sh'
+contract: [
+  '.github/workflows/static-contract-gates.yml', 'specs/ci-gates.v1.yaml', 'specs/ci-gates.d/**', '.github/static-contract-filters.yml',
+  'go/internal/facts/**', 'go/internal/reducer/**', 'go/cmd/fact-kind-registry/**', 'go/internal/collector/conformance/contract/**',
+  'specs/fact-kind-registry.v1.yaml', 'specs/fact-kind-registry-contracts.d/**', 'specs/collector_fact_contract.v1.yaml', 'scripts/*verify-contracttest*.sh',
+  'scripts/*fact-kind-registry*.sh',
+]
 bucketsync:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'
@@ -214,22 +186,12 @@ ifa:
   - 'testdata/cassettes/shellexec/**'
   - 'testdata/cassettes/submodulepin/**'
   - 'testdata/cassettes/workloaddependency/**'
-ifaload:
-  - '.github/workflows/static-contract-gates.yml'
-  - 'specs/ci-gates.v1.yaml'
-  - 'specs/ci-gates.d/**'
-  - '.github/static-contract-filters.yml'
-  - 'go/internal/ifa/amplify.go'
-  - 'go/internal/ifa/slots.go'
-  - 'go/internal/ifa/saturation/**'
-  - 'go/internal/ifa/throughput/**'
-  - 'specs/scale-lab-corpus.v1.yaml'
-  - 'go/internal/storage/cypher/backpressure_executor.go'
-  - 'go/internal/storage/cypher/timeout_executor.go'
-  - 'go/internal/storage/postgres/reducer_queue_helpers.go'
-  - 'go/internal/storage/postgres/reducer_queue_readiness_sql.go'
-  - 'go/internal/reducer/contract/intent.go'
-  - 'go/internal/reducer/intent.go'
+ifaload: [
+  '.github/workflows/static-contract-gates.yml', 'specs/ci-gates.v1.yaml', 'specs/ci-gates.d/**', '.github/static-contract-filters.yml',
+  'go/internal/ifa/amplify.go', 'go/internal/ifa/slots.go', 'go/internal/ifa/saturation/**', 'go/internal/ifa/throughput/**',
+  'specs/scale-lab-corpus.v1.yaml', 'go/internal/storage/cypher/backpressure_executor.go', 'go/internal/storage/cypher/timeout_executor.go', 'go/internal/storage/postgres/reducer_queue_helpers.go',
+  'go/internal/storage/postgres/reducer_queue_readiness_sql.go', 'go/internal/reducer/contract/intent.go', 'go/internal/reducer/intent.go',
+]
 ifareplaydrive:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'
@@ -459,31 +421,14 @@ collectorcutoverrollback:
   - 'scripts/test-collector-cutover-rollback*.sh'
   - 'scripts/lib/collector-cutover-rollback-*'
   - 'scripts/lib/test-collector-cutover-rollback-*'
-dockerpublish:
-  - 'docs/internal/ci-service-image-mirrors.md'
-  - '.github/workflows/static-contract-gates.yml'
-  - 'specs/ci-gates.v1.yaml'
-  - 'specs/ci-gates.d/**'
-  - '.github/static-contract-filters.yml'
-  - '.github/workflows/docker-publish.yml'
-  - '.github/workflows/security-scan.yml'
-  - 'scripts/ci/promote-moving-tags.sh'
-  - 'scripts/ci/select-docker-publish-lanes.sh'
-  - 'scripts/ci/push-helm-chart.sh'
-  - 'scripts/ci/test-docker-publish-extracted-steps.sh'
-  - 'scripts/ci/resolve-image-scan-ref.sh'
-  - 'scripts/test-promote-moving-tags.sh'
-  - 'scripts/fixtures/promote-moving-tags-stub-curl.sh'
-  - 'scripts/test-resolve-image-scan-ref.sh'
-  - 'scripts/fixtures/resolve-image-scan-ref-stub-curl.sh'
-  - 'scripts/test-verify-docker-publish-pr-platforms.sh'
-  - 'scripts/test-verify-docker-publish-moving-tags.sh'
-  - 'scripts/dev/publish-ci-image-mirrors.sh'
-  - 'scripts/dev/fixtures/ci-image-mirror-crane-stub.sh'
-  - 'scripts/dev/fixtures/ci-image-mirror-publish-job.txt'
-  - 'scripts/dev/fixtures/ci-image-mirror-verify-public-job.txt'
-  - 'scripts/dev/test-publish-ci-image-mirrors.sh'
-  - 'scripts/dev/test-docker-publish-ci-mirror-mode.sh'
+dockerpublish: [
+  'docs/internal/ci-service-image-mirrors.md', '.github/workflows/static-contract-gates.yml', 'specs/ci-gates.v1.yaml', 'specs/ci-gates.d/**',
+  '.github/static-contract-filters.yml', '.github/workflows/docker-publish.yml', '.github/workflows/security-scan.yml', 'scripts/ci/promote-moving-tags.sh',
+  'scripts/ci/select-docker-publish-lanes.sh', 'scripts/ci/push-helm-chart.sh', 'scripts/ci/test-docker-publish-extracted-steps.sh', 'scripts/ci/resolve-image-scan-ref.sh',
+  'scripts/test-promote-moving-tags.sh', 'scripts/fixtures/promote-moving-tags-stub-curl.sh', 'scripts/test-resolve-image-scan-ref.sh', 'scripts/fixtures/resolve-image-scan-ref-stub-curl.sh',
+  'scripts/test-verify-docker-publish-pr-platforms.sh', 'scripts/test-verify-docker-publish-moving-tags.sh', 'scripts/dev/publish-ci-image-mirrors.sh', 'scripts/dev/fixtures/ci-image-mirror-crane-stub.sh',
+  'scripts/dev/fixtures/ci-image-mirror-publish-job.txt', 'scripts/dev/fixtures/ci-image-mirror-verify-public-job.txt', 'scripts/dev/test-publish-ci-image-mirrors.sh', 'scripts/dev/test-docker-publish-ci-mirror-mode.sh',
+]
 dockerhublogin:
   - "scripts/lib/ci_image_*.py"
   - "scripts/ci/tools.Dockerfile"
@@ -515,6 +460,7 @@ readinessderive:
   - 'scripts/lib/test-run-live-postgres-readiness-seed-cases.sh'
   - 'scripts/lib/tooling-line-cap-core.sh'
   - 'scripts/test-generate-live-postgres-readiness.sh'
+  - 'scripts/test-live-postgres-readiness-fragments.py'
   - 'scripts/test-live-postgres-readiness-child-env.py'
   - 'scripts/verify-live-postgres-readiness-drift.sh'
   - 'scripts/lib/live_postgres_readiness_gen_scan.py'

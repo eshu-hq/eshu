@@ -7,8 +7,11 @@
 //
 // The runtime verifies provider authentication, normalizes webhook payloads,
 // persists trigger decisions in Postgres, and exposes the shared Eshu admin
-// surface. Provider delivery identity is required before normalization; GitHub
-// ping deliveries are accepted as verified no-op handshakes, GitLab delivery
+// surface. Verified GitHub workflow_run and workflow_job deliveries persist
+// identity-only Actions wake-ups for authorized coordinator handoff; their
+// payloads never become CI/CD facts. Provider delivery identity is required
+// before normalization. GitHub ping deliveries are verified no-op handshakes;
+// GitLab delivery
 // identity prefers Idempotency-Key so provider retries dedupe against the same
 // durable trigger, and Bitbucket delivery identity prefers X-Request-UUID with
 // X-Hub-Signature verification. The runtime does not mount the repository

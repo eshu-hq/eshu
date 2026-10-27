@@ -28,6 +28,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/gcp"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/incident"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
+	actionsstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook/actions"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -90,6 +91,11 @@ func run(parent context.Context) error {
 	if err := store.EnsureSchema(parent); err != nil {
 		return err
 	}
+	actionsDB := &postgres.InstrumentedDB{Inner: postgres.SQLDB{DB: db}, Tracer: tracer, Instruments: instruments, StoreName: "cicd_actions_deliveries"}
+	actionsStore := actionsstore.NewStore(actionsDB)
+	if err := actionsStore.EnsureSchema(parent); err != nil {
+		return err
+	}
 	var incidentFreshnessStore *incidentfreshnessstore.IncidentFreshnessStore
 	if cfg.PagerDutySecret != "" || cfg.JiraSecret != "" {
 		incidentFreshnessDB := &postgres.InstrumentedDB{
@@ -136,6 +142,7 @@ func run(parent context.Context) error {
 	webhookMux, err := newWebhookMux(webhookHandler{
 		Config:                 cfg,
 		Store:                  store,
+		ActionsStore:           actionsStore,
 		IncidentFreshnessStore: incidentFreshnessStore,
 		AWSFreshnessStore:      awsFreshnessStore,
 		GCPFreshnessStore:      gcpFreshnessStore,

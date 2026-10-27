@@ -8,8 +8,9 @@ return `Trigger` or `IncidentFreshnessTrigger` refresh decisions. Actions
 normalization returns an identity-only `ActionsTrigger` for a bounded wake-up.
 
 The package does not enqueue work, write graph data, or decide provider
-truth. Callers own durable handoff. The Actions listener adapter follows
-separately; the current listener does not invoke that normalizer.
+truth. Callers own durable handoff. The listener verifies GitHub workflow-event
+signatures before invoking Actions normalization and persisting the wake-up
+identity in the dedicated inbox.
 
 ## Flow
 
@@ -35,8 +36,8 @@ flowchart LR
 - `VerifyJiraSignature` accepts Jira Cloud `X-Hub-Signature` HMAC-SHA256
   signatures.
 - `NormalizeGitHubActions` parses verified `workflow_run` and `workflow_job`
-  payloads into bounded wake-up identities. The coordinator consumes durable
-  entries, while the listener adapter that enqueues them follows separately.
+  payloads into bounded wake-up identities. The listener enqueues them after
+  signature verification; the coordinator admits authorized collection later.
 - `NormalizeGitHub` accepts GitHub push events and merged pull request events
   that target the repository default branch.
 - `NormalizeGitLab` accepts GitLab push events and merged merge request events

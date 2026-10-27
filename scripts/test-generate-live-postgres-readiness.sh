@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Hermetic RED/GREEN mirror for the live-postgres-readiness registration
-# generator (#7859 P1): the six shared registration surfaces derive from
+# generator (#7859 P1): the shared registration surfaces derive from
 # enrollment markers in the test files themselves, so adding a live test no
 # longer hand-edits shared files. This mirror proves the derivation without
 # Postgres, NornicDB, Docker, network, or a Go build: only bash, python3,
@@ -31,6 +31,14 @@ command -v git >/dev/null 2>&1 || fail "git is required"
 # green-clean: the committed tree regenerates to itself.
 out="$(python3 "${generator}" --check 2>&1)" || fail "clean tree --check failed: ${out}"
 [[ "${out}" == *"registration current"* ]] || fail "clean tree acknowledgement missing: ${out}"
+fragment_count=0
+for fragment in "${repo_root}"/specs/live-tests.d/live-tests-readiness*.generated.yaml; do
+  fragment_count=$((fragment_count + 1))
+  lines="$(wc -l <"${fragment}")"
+  (( lines < 500 )) || fail "${fragment##*/} exceeds the file cap: ${lines} lines"
+done
+[[ "${fragment_count}" == "4" ]] || fail "want four generated fragments, got ${fragment_count}"
+python3 "${repo_root}/scripts/test-live-postgres-readiness-fragments.py" rows "${repo_root}" || fail "generated proof rows differ from enrollment"
 
 # Scratch tree: hardlinked go/ when the scratch shares the repo's
 # filesystem (reads share inodes; added seed files stay in the scratch),
@@ -64,6 +72,29 @@ scratch_check() { python3 "${generator}" --root "${scratch}" --check 2>&1; }
 [[ "$(scratch_check)" == *"registration current"* ]] ||
   fail "scratch tree is not green before seeding"
 
+# Missing, duplicate, and orphan fragments must fail before any runner can
+# silently lose a proof; regeneration removes only generator-owned orphans.
+part4="${scratch}/specs/live-tests.d/live-tests-readiness-part4.generated.yaml"
+mv "${part4}" "${part4}.saved"
+out="$(scratch_check)" && fail "missing fragment passed --check"
+[[ "${out}" == *"part4"* ]] || fail "missing fragment not named: ${out}"
+mv "${part4}.saved" "${part4}"
+manifest="${scratch}/specs/live-tests.v1.yaml"
+cp "${manifest}" "${manifest}.saved"
+printf '%s\n' '  - live-tests.d/live-tests-readiness-part4.generated.yaml' >>"${manifest}"
+out="$(REPO_ROOT="${scratch}" LEDGER_PATH="${manifest}" bash "${ledger_validator}" 2>&1)" &&
+  fail "duplicate fragment reference passed ledger validation"
+[[ "${out}" == *"duplicate fragment reference"* ]] || fail "duplicate reference misclassified: ${out}"
+mv "${manifest}.saved" "${manifest}"
+orphan_part="${scratch}/specs/live-tests.d/live-tests-readiness-part5.generated.yaml"
+cp "${part4}" "${orphan_part}"
+out="$(scratch_check)" && fail "orphan generated fragment passed --check"
+[[ "${out}" == *"orphan"* && "${out}" == *"part5"* ]] || fail "orphan fragment not named: ${out}"
+python3 "${generator}" --root "${scratch}" >/dev/null || fail "orphan cleanup failed"
+[[ ! -e "${orphan_part}" ]] || fail "orphan generated fragment survived regeneration"
+
+python3 "${repo_root}/scripts/test-live-postgres-readiness-fragments.py" failures "${repo_root}" || fail "boundary and cap seeds did not fail closed"
+
 # idempotent: two consecutive generations are byte-identical.
 python3 "${generator}" --root "${scratch}" >/dev/null ||
   fail "first scratch generation failed"
@@ -95,7 +126,7 @@ printf '%s\n' \
   '' \
   'func TestSeededDerivationProbeLive(t *testing.T) { t.Skip("seed") }' >"${seed_file}"
 out="$(scratch_check)" && fail "stale marked seed passed --check"
-[[ "${out}" == *"${seed_file##*/}"* || "${out}" == *"live-tests-readiness.generated.yaml"* ]] ||
+[[ "${out}" == *"${seed_file##*/}"* || "${out}" == *"live-tests-readiness"* ]] ||
   fail "stale seed not named: ${out}"
 python3 "${generator}" --root "${scratch}" >/dev/null ||
   fail "regeneration after seeding failed"
@@ -147,7 +178,8 @@ root = os.environ["SCRATCH"]
 sys.path.insert(0, os.path.join(root, "scripts", "lib"))
 from live_postgres_readiness_inventory_generated import PACKAGES
 from live_postgres_readiness_inventory_helpers import HELPER_PROOFS
-yaml_text = open(os.path.join(root, "specs", "live-tests.d", "live-tests-readiness.generated.yaml")).read()
+from live_postgres_readiness_gen_render import fragment_paths
+yaml_text = "".join(open(os.path.join(root, rel)).read() for rel in fragment_paths())
 enrolled = set(re.findall(r"- file: (\S+)", yaml_text))
 covered = {path for files in PACKAGES.values() for path in files}
 missing = sorted(enrolled - covered - set(HELPER_PROOFS))
@@ -205,4 +237,4 @@ out="$(python3 "${generator}" --root "${scratch}" 2>&1)" && fail "quoted reason 
 [[ "${out}" == *"${quote_file##*/}"* ]] || fail "quoted reason not named: ${out}"
 rm "${quote_file}"
 
-printf 'test-generate-live-postgres-readiness: GREEN (clean, idempotent, shard-stable, shard-complete, stale/unregistered/orphan/quote RED)\n'
+printf 'test-generate-live-postgres-readiness: GREEN (exact rows, four capped fragments, idempotent, stable shards, missing/duplicate/orphan/boundary/oversize/stale/unregistered/quote RED)\n'
