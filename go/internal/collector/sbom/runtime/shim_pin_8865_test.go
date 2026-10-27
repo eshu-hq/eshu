@@ -108,7 +108,16 @@ func sdkReplaceOffenses(goMod string) []string {
 	var offenses []string
 	inReplaceBlock := false
 	for _, line := range strings.Split(goMod, "\n") {
+		// go.mod carries only '//' line comments; strip them first so a
+		// parenthesis inside a comment can neither close a replace block
+		// nor mask a redirect. Comment-only lines are skipped entirely.
 		trimmed := strings.TrimSpace(line)
+		if i := strings.Index(trimmed, "//"); i >= 0 {
+			trimmed = strings.TrimSpace(trimmed[:i])
+		}
+		if trimmed == "" {
+			continue
+		}
 		if strings.HasPrefix(trimmed, "replace") {
 			rest := strings.TrimSpace(strings.TrimPrefix(trimmed, "replace"))
 			if strings.HasPrefix(rest, "(") {
@@ -165,6 +174,14 @@ func TestSBOM8865ReplaceFormsFailClosed(t *testing.T) {
 		"clean": {
 			goMod: "module example.test\n\nrequire github.com/eshu-hq/eshu-sdk/collector v0.1.0\n",
 			want:  0,
+		},
+		"paren comment before entry": {
+			goMod: "module example.test\n\nreplace (\n\t// see docs (note)\n\tgithub.com/eshu-hq/eshu-sdk/collector => ../local\n)\n",
+			want:  1,
+		},
+		"trailing paren comment on unrelated entry": {
+			goMod: "module example.test\n\nreplace (\n\tgithub.com/tree-sitter/tree-sitter-elixir => github.com/elixir-lang/tree-sitter-elixir v0.3.5 // ok (pinned)\n\tgithub.com/eshu-hq/eshu-sdk/collector => ../local\n)\n",
+			want:  1,
 		},
 	}
 	for name, tc := range cases {
