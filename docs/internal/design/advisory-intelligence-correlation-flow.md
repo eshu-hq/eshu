@@ -138,7 +138,9 @@ flowchart TD
   S3 -- no --> S4{"4. OS package with an exact match?"}
   S4 -- yes --> AE
   S4 -- no --> S5{"5. Reached through an SBOM component<br/>on an owned image?"}
-  S5 -- "yes (no range check: D14)" --> AD["affected_derived"]
+  S5 -- "yes: preserve image evidence" --> V{"Installed version matches<br/>package advisory?"}
+  V -- yes --> AE
+  V -- "no or missing" --> P
   S5 -- no --> P
   A2["Advisory names only a product or CPE<br/>(no package rows for this CVE)"] --> F{"Does an SBOM component carry that CPE,<br/>attached to an image you own?"}
   F -- yes --> AD
@@ -149,14 +151,14 @@ flowchart TD
 | --- | --- | --- |
 | `affected_exact` | Package identity and installed version match the advisory exactly. | yes |
 | `not_affected_known_fixed` | The installed version is at or past a source-reported fix. | yes |
-| `affected_derived` | Impact follows from an SBOM, image, or CPE join after the package or product is identified. | no |
+| `affected_derived` | Product/CPE impact follows from an owned SBOM-to-image join without a package-version match. | no |
 | `possibly_affected` | Advisory evidence exists, but package identity or version precision is incomplete. | no |
 | `unknown_impact` | Reserved in the API and MCP enums. The reducer does not emit it today. | no |
 
 The API and MCP default to `profile=precise`. That view returns only
 `affected_exact` and `not_affected_known_fixed` findings that have an observed
 version and a supported matcher. Pass `profile=comprehensive` to also see
-SBOM-derived, CPE-derived, range-only, and missing-version findings. A SecOps
+SBOM package paths with partial version evidence, CPE-derived, range-only, and missing-version findings. A SecOps
 query that uses the default does not show image-only exposure.
 
 The reducer checks the numbered steps in order and stops at the first match.
@@ -170,15 +172,13 @@ Rules that hold today:
 - Version comparison is per ecosystem: npm, PyPI, Go, Maven, NuGet, Cargo,
   Composer, RubyGems, Hex, Swift, Pub, and RPM, dpkg, and APK for OS packages.
   An unsupported ecosystem fails closed.
-- **Suspected defect, under investigation (item 1.13).** Step 5 sets
-  `affected_derived` without checking the version against the affected range.
-  So an SBOM-reached package whose version is outside the range, and not at or
-  past a known fix, is still reported as derived. This also applies when the
-  version is missing.
-  - `affected_derived` is documented as "SBOM/CPE-derived", so part of this may
-    be intended for missing or range-only versions.
-  - It is not yet settled whether an out-of-range version should land here.
-    Item 1.13 reproduces it first.
+- **Resolved rule (item 1.13).** An SBOM attachment supplies package and
+  image evidence but cannot override the package version matcher. Exact
+  in-range versions are `affected_exact`; a known fix stays
+  `not_affected_known_fixed`; missing, malformed, conflicting, or
+  outside-range versions stay `possibly_affected`. The image path and its
+  evidence remain visible. Product/CPE-only matches keep their separate
+  `affected_derived` rule.
 
 ## 4. When sources disagree
 

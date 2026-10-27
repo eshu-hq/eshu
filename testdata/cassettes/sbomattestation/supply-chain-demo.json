@@ -142,6 +142,79 @@
           }
         }
       ]
+    },
+    {
+      "scope_id": "sbom_attestation:supply-chain-demo:range-guard",
+      "source_system": "sbom_attestation",
+      "scope_kind": "sbom_attestation",
+      "collector_kind": "sbom_attestation",
+      "partition_key": "oci_referrer:sbom:range-guard",
+      "metadata": {
+        "artifact_kind": "sbom",
+        "document_format": "cyclonedx",
+        "source_type": "oci_referrer"
+      },
+      "generation_id": "cassette-sbom-scd-range-guard-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "sbom.document",
+          "stable_fact_key": "sbom_attestation:supply-chain-demo:document:range-guard",
+          "schema_version": "1.0.0",
+          "collector_kind": "sbom_document",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "document_id": "scd-sbom-range-guard",
+            "document_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "format": "cyclonedx",
+            "source_format": "json",
+            "spec_version": "1.4",
+            "serial_number": "urn:uuid:00000000-0000-4000-8000-00000000a113",
+            "document_name": "supply-chain-demo outside-range SBOM",
+            "subject_digest": "sha256:c41d0000000000000000000000000000000000000000000000000000000000cd",
+            "subject_digests": [
+              "sha256:c41d0000000000000000000000000000000000000000000000000000000000cd"
+            ],
+            "parse_status": "parsed",
+            "verification_status": "unset",
+            "verification_policy": "",
+            "created_at": "2026-06-20T00:00:00Z",
+            "created_by_tool": "syft/1.0.0",
+            "component_count": 1,
+            "dependency_count": 0,
+            "warning_count": 0,
+            "correlation_anchors": [
+              "sha256:c41d0000000000000000000000000000000000000000000000000000000000cd"
+            ]
+          }
+        },
+        {
+          "fact_kind": "sbom.component",
+          "stable_fact_key": "sbom_attestation:supply-chain-demo:component:range-guard",
+          "schema_version": "1.0.0",
+          "collector_kind": "sbom_document",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "document_id": "scd-sbom-range-guard",
+            "component_id": "component:range-guard",
+            "bom_ref": "pkg:npm/supply-chain-demo-sbom-guard@1.2.2",
+            "name": "supply-chain-demo-sbom-guard",
+            "version": "1.2.2",
+            "type": "library",
+            "purl": "pkg:npm/supply-chain-demo-sbom-guard@1.2.2",
+            "package_id": "npm://registry.npmjs.org/supply-chain-demo-sbom-guard",
+            "scope": "required",
+            "is_duplicate": false,
+            "correlation_anchors": [
+              "pkg:npm/supply-chain-demo-sbom-guard@1.2.2",
+              "npm://registry.npmjs.org/supply-chain-demo-sbom-guard"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

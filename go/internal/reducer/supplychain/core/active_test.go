@@ -96,7 +96,7 @@ func TestSupplyChainImpactHandlerExpandsActiveEvidenceUntilSBOMImagePathIsLoaded
 	if got, want := len(writer.write.Findings), 1; got != want {
 		t.Fatalf("len(Findings) = %d, want %d", got, want)
 	}
-	assertSupplyChainImpactStatus(t, writer.write.Findings[0], SupplyChainImpactAffectedDerived)
+	assertSupplyChainImpactStatus(t, writer.write.Findings[0], SupplyChainImpactAffectedExact)
 	if writer.write.Findings[0].SubjectDigest != testImpactSubjectDigest {
 		t.Fatalf("SubjectDigest = %q, want %q", writer.write.Findings[0].SubjectDigest, testImpactSubjectDigest)
 	}
@@ -185,7 +185,7 @@ func TestSupplyChainImpactHandlerExpandsActiveEvidenceFromOCIReferrer(t *testing
 		t.Fatalf("len(Findings) = %d, want %d", got, want)
 	}
 	got := writer.write.Findings[0]
-	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedDerived)
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
 	if got.SubjectDigest != testImpactSubjectDigest {
 		t.Fatalf("SubjectDigest = %q, want %q", got.SubjectDigest, testImpactSubjectDigest)
 	}

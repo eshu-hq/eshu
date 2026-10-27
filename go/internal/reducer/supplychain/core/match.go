@@ -66,6 +66,8 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplychainmod
 // buildSBOMAttachmentIndex.
 func supplyChainSBOMComponentFromEnvelope(envelope facts.Envelope) supplychainmodel.SBOMComponent {
 	purl := payloadcore.PayloadStr(envelope.Payload, "purl")
+	payloadVersion := payloadcore.PayloadStr(envelope.Payload, "version")
+	purlVersion := versionFromPURL(purl)
 	return supplychainmodel.SBOMComponent{
 		FactID:     envelope.FactID,
 		DocumentID: payloadcore.PayloadStr(envelope.Payload, "document_id"),
@@ -75,8 +77,10 @@ func supplyChainSBOMComponentFromEnvelope(envelope facts.Envelope) supplychainmo
 		// component joins vulnerability facts on the same identity every
 		// other package fact uses; fall back to the version-stripped purl for
 		// components ingested before the collector carried package_id.
-		PackageID: payloadcore.FirstNonBlank(payloadcore.PayloadStr(envelope.Payload, "package_id"), packageIDFromPURL(purl)),
-		Version:   payloadcore.FirstNonBlank(payloadcore.PayloadStr(envelope.Payload, "version"), versionFromPURL(purl)),
+		PackageID:      payloadcore.FirstNonBlank(payloadcore.PayloadStr(envelope.Payload, "package_id"), packageIDFromPURL(purl)),
+		Version:        payloadcore.FirstNonBlank(payloadVersion, purlVersion),
+		PayloadVersion: payloadVersion,
+		PURLVersion:    purlVersion,
 	}
 }
 

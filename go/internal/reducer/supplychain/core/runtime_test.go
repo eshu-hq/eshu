@@ -271,7 +271,7 @@ func TestBuildSupplyChainImpactFindingsKeepsImageOnlyRuntimeHopsMissing(t *testi
 	})
 
 	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-0599"]
-	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedDerived)
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
 	if got.RuntimeReachability == "deployed_image" {
 		t.Fatalf("RuntimeReachability = %q, want image-only evidence to remain undeployed", got.RuntimeReachability)
 	}

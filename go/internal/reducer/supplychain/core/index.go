@@ -229,8 +229,15 @@ func classifySupplyChainImpactPackage(
 		finding.FixedVersion,
 		pkgs,
 	)
+	if hasComponentPath && !hasOSPackage && sbomVersionEvidenceConflicts(finding.Ecosystem, component, consumption) {
+		versionDecision = possiblyAffectedDecision(
+			supplyChainVersionReasonSBOMVersionConflict,
+			[]string{supplyChainMissingSBOMVersionConflict},
+		)
+	}
 	consumptionMissing := supplyChainConsumptionMissingEvidence(consumption)
-	if consumption.FactID != "" && versionDecision.Status == SupplyChainImpactAffectedExact {
+	if consumption.FactID != "" && versionDecision.Status == SupplyChainImpactAffectedExact &&
+		(!hasComponentPath || consumptionProvesObservedVersion(finding.Ecosystem, finding.ObservedVersion, consumption)) {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
 		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
@@ -242,7 +249,7 @@ func classifySupplyChainImpactPackage(
 		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
 		return finding
 	}
-	if versionDecision.FailClosed {
+	if versionDecision.FailClosed && !hasComponentPath {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
 		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
@@ -255,9 +262,12 @@ func classifySupplyChainImpactPackage(
 		return finding
 	}
 	if hasComponentPath {
-		finding.Status = SupplyChainImpactAffectedDerived
-		finding.Confidence = "derived"
-		finding.MatchReason = "sbom_component_path"
+		if versionDecision.Status == "" {
+			versionDecision = possiblyAffectedDecision(versionDecision.Reason, versionDecision.MissingEvidence)
+		}
+		finding.Status = versionDecision.Status
+		finding.Confidence = versionDecision.Confidence
+		finding.MatchReason = versionDecision.Reason
 		finding.RuntimeReachability = "image_sbom"
 		finding.CanonicalWrites = 1
 		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, consumptionMissing, reconciliationMissing)

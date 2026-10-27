@@ -8233,6 +8233,22 @@
           "advisories[].cvss_score": 7.5
         }
       },
+      "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-91913&profile=comprehensive": {
+        "description": "#9232 synthetic SBOM package has installed 1.2.2 below the advisory range 1.2.3 to 1.3.0. The attached image is real evidence, but it cannot promote an outside-range package to affected_derived; the live read must retain the digest and the matcher's partial status.",
+        "truth_class": "deterministic",
+        "required_response_fields": ["findings", "count"],
+        "result_item_required_fields": ["cve_id", "impact_status", "match_reason", "observed_version", "subject_digest"],
+        "required_json_values": {
+          "findings[].cve_id": "CVE-2026-91913",
+          "findings[].impact_status": "possibly_affected",
+          "findings[].match_reason": "version_not_in_advisory_range",
+          "findings[].observed_version": "1.2.2",
+          "findings[].subject_digest": "sha256:c41d0000000000000000000000000000000000000000000000000000000000cd"
+        },
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "findings"
+      },
       "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-9229&profile=comprehensive": {
         "description": "#9229 distinct GO-2026-9229 and CVE-2026-9229 IDs: the orders-api go.mod pins lib-common v1.0.0 inside the affected range, while the cassette carries a GO-keyed call path. The persisted finding and HTTP read must join by the CVE alias without borrowing another advisory's proof.",
         "truth_class": "deterministic",

@@ -142,7 +142,7 @@ func TestBuildSupplyChainImpactFindingsDerivesImagePathFromSBOMAttachment(t *tes
 	})
 
 	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-0001"]
-	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedDerived)
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
 	if got.SubjectDigest != testImpactSubjectDigest {
 		t.Fatalf("SubjectDigest = %q, want %q", got.SubjectDigest, testImpactSubjectDigest)
 	}

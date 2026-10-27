@@ -68,7 +68,7 @@ func TestBuildSupplyChainImpactFindingsDemoImageIdentityHop(t *testing.T) {
 	})
 
 	got := supplyChainImpactFindingsByCVE(findings)[demoImageIdentityCVEID]
-	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedDerived)
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
 
 	// The image-identity hop: a registry digest surfaces as image_ref. This is
 	// the exact field the live proof asserts is non-empty.
@@ -84,8 +84,8 @@ func TestBuildSupplyChainImpactFindingsDemoImageIdentityHop(t *testing.T) {
 	if got.RepositoryID != demoImageIdentityRepositoryID {
 		t.Fatalf("RepositoryID = %q, want %q", got.RepositoryID, demoImageIdentityRepositoryID)
 	}
-	if got.MatchReason != "sbom_component_path" {
-		t.Fatalf("MatchReason = %q, want sbom_component_path", got.MatchReason)
+	if got.MatchReason != "npm_semver_affected_range" {
+		t.Fatalf("MatchReason = %q, want npm_semver_affected_range", got.MatchReason)
 	}
 	if got.RuntimeReachability != "image_sbom" {
 		t.Fatalf("RuntimeReachability = %q, want image_sbom", got.RuntimeReachability)

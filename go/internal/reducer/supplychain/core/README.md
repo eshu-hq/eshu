@@ -17,6 +17,27 @@ through the default domain catalog; `go/cmd/reducer` wires the Postgres
 writer. Query surfaces read the durable facts; they never import this
 package.
 
+For package advisories, an attached SBOM image path preserves package and
+image evidence while the ecosystem matcher decides version truth. In-range
+versions are `affected_exact`; known fixed versions remain
+`not_affected_known_fixed`; missing, malformed, conflicting, or outside-range
+versions remain `possibly_affected`. The product/CPE-only image path keeps its
+separate `affected_derived` rule. The existing finding payload and counters
+expose these decisions without a new queue stage or metric label.
+
+No-Regression Evidence (#9232): `BenchmarkSBOMVersionGuard` used the same
+five-fact npm advisory and attached image on Apple M5 Max, Go 1.26.10, three
+one-second samples per version. Base `c232c1d1e2` took 9580/9781/9782 ns/op
+with 165 allocs/op; the changed classifier took 9592/9666/9715 ns/op with
+165 allocs/op. The sample ranges overlap, so this shows no measurable
+regression on that input, not a throughput claim. The rule adds no worker,
+lease, queue, or graph write.
+
+Observability Evidence (#9232): the existing persisted impact finding carries
+`impact_status`, `match_reason`, `observed_version`, `subject_digest`, and
+`evidence_fact_ids`; the existing query span and reducer finding counters
+expose the read and classification. No new metric or span is added.
+
 Alert-derived findings carry the provider's 0–1 EPSS percentage and percentile
 when each value is a valid decimal. The collector converts GitHub's numeric
 percentage and string percentile into fact strings before this package decodes

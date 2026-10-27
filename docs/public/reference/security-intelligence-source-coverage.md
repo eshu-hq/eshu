@@ -300,9 +300,9 @@ requires hosted `pub.dev` parser evidence and exact `pubspec.lock` versions for
 precise findings; manifest ranges remain partial evidence. RubyGems matching
 uses the same reducer-owned exact-version gate as other precise lockfile
 ecosystems: git/path Bundler dependencies remain ambiguous source evidence and
-are not admitted as public RubyGems registry versions. SBOM component versions
-only participate in exact matching when their PURL or package ID maps to a
-supported package ecosystem. Findings preserve `observed_version`,
+are not admitted as public RubyGems registry versions. SBOM versions match only for supported package ecosystems when the installed version matches the advisory.
+Missing, conflicting, malformed, or outside-range versions remain `possibly_affected` despite image attachment; product/CPE paths are separate.
+Findings preserve `observed_version`,
 `requested_range`, the advisory vulnerable range (`vulnerable_range`),
 `fixed_version`, malformed or unsupported state, and `match_reason` as separate
 truth fields instead of collapsing them into severity or reachability.

@@ -41,22 +41,28 @@ func componentMatchesAffectedProduct(component supplychainmodel.SBOMComponent, p
 // packageIDFromPURL returns the purl with any version qualifier removed, giving
 // a stable version-independent package identity for correlation.
 func packageIDFromPURL(purl string) string {
-	purl = strings.TrimSpace(purl)
-	if before, _, ok := strings.Cut(purl, "@"); ok {
-		return before
-	}
-	return purl
+	identity, _ := splitPackagePURLVersion(purl)
+	return identity
 }
 
 func versionFromPURL(purl string) string {
-	_, after, ok := strings.Cut(strings.TrimSpace(purl), "@")
-	if !ok {
-		return ""
+	_, version := splitPackagePURLVersion(purl)
+	return version
+}
+
+// splitPackagePURLVersion separates the optional version delimiter after the
+// package name. A scoped npm name can contain @ before its final slash.
+func splitPackagePURLVersion(purl string) (string, string) {
+	purl = strings.TrimSpace(purl)
+	base := purl
+	if cut := strings.IndexAny(base, "?#"); cut >= 0 {
+		base = base[:cut]
 	}
-	if version, _, ok := strings.Cut(after, "?"); ok {
-		return version
+	at := strings.LastIndex(base, "@")
+	if at <= strings.LastIndex(base, "/") {
+		return purl, ""
 	}
-	return after
+	return base[:at], base[at+1:]
 }
 
 func versionFromCPE23Criteria(criteria string) string {
