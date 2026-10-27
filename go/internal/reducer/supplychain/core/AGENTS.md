@@ -17,12 +17,17 @@ changing anything here.
   and `securityalert` imports stay one-way (this package reads their
   exported consts, fact kinds, and alert/consumption types; none of them
   imports this package).
-- Package moves and mechanical refactors preserve admitted intents, written
-  facts, and emitted metrics. Intentional behavior changes require a regression
-  test that fails before the fix, plus focused family tests and applicable
-  reducer-root caller tests (`defaults_additive_domains_*`,
-  `defaults_handlers.go`, `service.go`). Preserve unrelated ownership,
-  evidence, and telemetry contracts, and document the changed behavior.
+- Package moves and mechanical refactors preserve behavior: same intents
+  admitted, same facts written, same metrics emitted. Prove it with the
+  focused family tests plus the reducer-root callers
+  (`defaults_additive_domains_*`, `defaults_handlers.go`, `service.go`).
+- A behavior change here is deliberate and proven. A bug fix starts from
+  a regression test that fails before the fix. New behavior ships with
+  tests of its contract. Both keep the family tests and the reducer-root
+  caller tests green, leave unrelated ownership, evidence, and telemetry
+  contracts as they were, and record the new rule in this package's
+  README and in the public doc that describes the changed status or
+  classification.
 - New exports are join contracts other families program against. Name them
   for what they return, document who reads them, and keep the bodies
   cut-paste identical to what they replace.
