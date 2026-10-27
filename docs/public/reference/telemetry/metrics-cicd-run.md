@@ -19,6 +19,10 @@ workflow-event intake uses the shared webhook request counter and duration
 metrics and the `webhook.handle` span. Its bounded event kind appears in spans
 and request logs; request metric labels remain provider, outcome, and reason.
 Scheduled bounded reads provide backfill when no delivery work is pending.
+Intake records acceptance after the durable inbox store succeeds. Invalid
+signatures use the shared rejected/auth outcome; unavailable or failing inbox
+storage uses failed/store. Follow the request span to distinguish intake
+failure from later admission lag.
 
 Repository names, workflow run IDs, artifact names, URLs, token environment
 names, token values, and provider response bodies stay out of metric labels.
