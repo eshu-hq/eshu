@@ -427,3 +427,9 @@ docs/internal/evidence/6696-aws-constants-mismatch-leaf.md:go/internal/collector
 # repoint at -- the envelope now lives in the satellite -- so the cells
 # stay as the pre-extraction contract record.
 docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/jira/envelope.go
+# Confluence satellite extraction: the in-tree source package is deleted and
+# collection now runs from the confluence satellite activation. The 7110
+# evidence note names client.go at its pre-extraction in-tree path as the
+# file the performance gate flagged. There is no in-tree successor path to
+# repoint at, so the note stays as the pre-extraction evidence record.
+docs/internal/evidence/7110-collector-transient-transport.md:go/internal/collector/confluence/client.go
