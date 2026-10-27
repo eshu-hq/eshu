@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -16,17 +17,24 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
+	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 type failingActionsStore struct {
 	triggers []webhook.ActionsTrigger
 	times    []time.Time
+	err      error
 }
 
 func (s *failingActionsStore) Store(_ context.Context, trigger webhook.ActionsTrigger, at time.Time) (webhook.StoredActionsTrigger, error) {
 	s.triggers = append(s.triggers, trigger)
 	s.times = append(s.times, at)
+	if s.err != nil {
+		return webhook.StoredActionsTrigger{}, s.err
+	}
 	return webhook.StoredActionsTrigger{}, errors.New("inbox unavailable")
 }
 
@@ -47,9 +55,13 @@ func TestWebhookHandlerActionsStoreFailures(t *testing.T) {
 			name      string
 			status    int
 			withStore bool
+			storeErr  error
+			outcome   string
+			reason    string
 		}{
-			{"missing_store", http.StatusServiceUnavailable, false},
-			{"store_error", http.StatusInternalServerError, true},
+			{"missing_store", http.StatusServiceUnavailable, false, nil, "failed", "store_failed"},
+			{"store_error", http.StatusInternalServerError, true, nil, "failed", "store_failed"},
+			{"identity_conflict", http.StatusConflict, true, fmt.Errorf("wrapped: %w", webhook.ErrActionsDeliveryConflict), "rejected", "delivery_conflict"},
 		} {
 			t.Run(event.name+"/"+failure.name, func(t *testing.T) {
 				t.Parallel()
@@ -59,13 +71,15 @@ func TestWebhookHandlerActionsStoreFailures(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				spanRecorder := tracetest.NewSpanRecorder()
+				tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
 				var logs bytes.Buffer
 				gitStore := &recordingTriggerStore{}
-				failedStore := &failingActionsStore{}
+				failedStore := &failingActionsStore{err: failure.storeErr}
 				handler := webhookHandler{
 					Config: webhookListenerConfig{GitHubSecret: "secret", GitHubPath: "/webhooks/github", MaxRequestBodyBytes: defaultMaxWebhookBodyBytes},
 					Store:  gitStore, Clock: func() time.Time { return clockTime },
-					Instruments: instruments, Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+					Instruments: instruments, Logger: slog.New(slog.NewJSONHandler(&logs, nil)), Tracer: tracerProvider.Tracer("actions-failure-test"),
 				}
 				if failure.withStore {
 					handler.ActionsStore = failedStore
@@ -104,12 +118,29 @@ func TestWebhookHandlerActionsStoreFailures(t *testing.T) {
 				}
 				assertCounterPoint(t, collectMetrics(t, reader), "eshu_dp_webhook_requests_total", map[string]string{
 					telemetry.MetricDimensionProvider: "github",
-					telemetry.MetricDimensionOutcome:  "failed",
-					telemetry.MetricDimensionReason:   "store_failed",
+					telemetry.MetricDimensionOutcome:  failure.outcome,
+					telemetry.MetricDimensionReason:   failure.reason,
 				})
-				for _, want := range []string{`"provider":"github"`, `"event_kind":"` + event.name + `"`, `"outcome":"failed"`, `"reason":"store_failed"`} {
+				for _, want := range []string{`"provider":"github"`, `"event_kind":"` + event.name + `"`, `"outcome":"` + failure.outcome + `"`, `"reason":"` + failure.reason + `"`} {
 					if !strings.Contains(logs.String(), want) {
 						t.Fatalf("logs = %q, want %q", logs.String(), want)
+					}
+				}
+				var matchedSpan bool
+				for _, span := range spanRecorder.Ended() {
+					if span.Name() == telemetry.SpanWebhookHandle && attributeSetContains(attribute.NewSet(span.Attributes()...), map[string]string{
+						telemetry.MetricDimensionOutcome: failure.outcome,
+						telemetry.MetricDimensionReason:  failure.reason,
+					}) {
+						matchedSpan = true
+					}
+				}
+				if !matchedSpan {
+					t.Fatalf("webhook.handle span lacks outcome=%q reason=%q", failure.outcome, failure.reason)
+				}
+				for _, sensitive := range []string{"delivery-1", "example/repo"} {
+					if strings.Contains(logs.String(), sensitive) {
+						t.Fatalf("logs expose delivery identity %q: %q", sensitive, logs.String())
 					}
 				}
 			})

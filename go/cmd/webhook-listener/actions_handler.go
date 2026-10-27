@@ -4,12 +4,15 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
+
+const webhookReasonDeliveryConflict = "delivery_conflict"
 
 func (h webhookHandler) handleGitHub(w http.ResponseWriter, r *http.Request) {
 	ctx, span, startedAt := h.startWebhookRequest(r.Context(), webhook.ProviderGitHub)
@@ -91,6 +94,12 @@ func (h webhookHandler) storeGitHubActionsVerified(w http.ResponseWriter, r *htt
 	}
 	stored, err := h.ActionsStore.Store(r.Context(), trigger, h.now())
 	if err != nil {
+		if errors.Is(err, webhook.ErrActionsDeliveryConflict) {
+			result.Outcome = webhookOutcomeRejected
+			result.Reason = webhookReasonDeliveryConflict
+			http.Error(w, "conflicting actions delivery", http.StatusConflict)
+			return result
+		}
 		result.Outcome = webhookOutcomeFailed
 		result.Reason = webhookReasonStore
 		http.Error(w, "store actions delivery", http.StatusInternalServerError)

@@ -61,8 +61,11 @@ flowchart LR
 GitHub Actions deliveries require `X-GitHub-Delivery` and a valid GitHub
 HMAC. The listener stores only event, action, repository, run, and optional job
 identity; the coordinator later admits bounded collection for matching
-configured GitHub Actions scopes. Failed storage returns a retryable server
-error. The event payload itself never becomes a CI/CD fact.
+configured GitHub Actions scopes. Exact duplicate deliveries return 202
+without changing the stored identity or status. A signed retry that reuses a
+delivery ID with a different immutable identity returns 409; the original inbox
+row stays intact. A missing Actions store returns 503 and other storage errors
+return 500. The event payload itself never becomes a CI/CD fact.
 
 GitHub uses `X-Hub-Signature-256`, GitLab uses `X-Gitlab-Token`, and
 Bitbucket uses `X-Hub-Signature` for provider authentication.
@@ -131,3 +134,13 @@ payloads, unsupported Jira event families, durable-store failures,
 duplicate/coalesced triggers, and accepted freshness triggers use the existing
 webhook request, decision, store, and span signals with bounded provider, event
 kind, status, outcome, and reason labels.
+
+No-Regression Evidence: the signed Actions listener fixture checks exact
+duplicate 202, conflicting retry 409, one intact inbox row, and generic store
+500 / unavailable store 503 across workflow run and job requests.
+
+Observability Evidence: `eshu_dp_webhook_requests_total`, `webhook.handle`,
+and the bounded request log distinguish identity conflicts with
+`outcome=rejected,reason=delivery_conflict` from storage failures with
+`outcome=failed,reason=store_failed`. No delivery ID, repository, or payload is
+used as a metric label or request-outcome log field.

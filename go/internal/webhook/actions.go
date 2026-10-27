@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+// ErrActionsDeliveryConflict marks a verified retry whose delivery ID already
+// belongs to a different immutable Actions identity.
+var ErrActionsDeliveryConflict = errors.New("conflicting delivery identity")
+
 // ActionsTrigger is a verified GitHub workflow delivery used only to wake
 // authoritative, bounded CI/CD run collection. It is not graph evidence.
 type ActionsTrigger struct {

@@ -70,7 +70,7 @@ func (s *Store) Store(ctx context.Context, trigger webhook.ActionsTrigger, recei
 		return webhook.StoredActionsTrigger{}, fmt.Errorf("read actions delivery: %w", err)
 	}
 	if stored.ActionsTrigger != trigger {
-		return webhook.StoredActionsTrigger{}, errors.New("conflicting delivery identity")
+		return webhook.StoredActionsTrigger{}, webhook.ErrActionsDeliveryConflict
 	}
 	return stored, nil
 }

@@ -6,7 +6,10 @@ configured GitHub Actions scope that matches the delivery repository. It uses th
 open-target admission guard, verifies the exact durable workflow item for each
 scope, then ACKs the delivery with its current fencing token. Another open run
 cannot satisfy the ACK check. A duplicate delivery cannot reopen completed work
-or alter the event identity. No raw payload or credential is persisted.
+or alter the event identity. The store returns
+`webhook.ErrActionsDeliveryConflict` for a mismatched retry; the listener maps
+it to HTTP 409 while exact duplicates remain HTTP 202. The first identity and
+status remain intact. No raw payload or credential is persisted.
 
 The claim conflict domain is a delivery ID. Two coordinators use `SKIP LOCKED`
 and fencing tokens to claim disjoint deliveries and reject stale ACKs. Each
