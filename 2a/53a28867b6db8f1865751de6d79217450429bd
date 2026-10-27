@@ -1,0 +1,18 @@
+docs/public/observability/telemetry-coverage.md
+  h_78a442cba0b3e6 684
+docs/public/reference/generated/replay-coverage.md
+  h_78a442cba0b3e6 47,49-52
+replay-coverage-report.json
+  h_78a442cba0b3e6 7,10,107,154,4677-4678,4735-4737
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2a53a28867b6db8f1865751de6d79217450429bd",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

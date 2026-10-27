@@ -1,0 +1,14 @@
+deploy/helm/eshu/templates/validate.yaml
+  h_78a442cba0b3e6 204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2080007032f1fc9e512eca7bb9ea3f28e77dbc05",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
