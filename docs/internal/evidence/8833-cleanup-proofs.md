@@ -114,10 +114,13 @@ documents, `ContextText` included, in an LRU with no TTL. Its key comes from
 - the document count;
 - the vector build fence.
 
-The purge changes none of these. `TestPersistedSemanticSearchCachesStableReadySnapshotAcrossQueries`
-already proves that an unchanged snapshot reloads no documents. The runbook
-therefore restarts the API and MCP server replicas after each run, and the
-exit criterion includes that restart.
+Statement A's bump CTEs move the scope's document projection revision together
+with the matching vector scope revisions for exactly the ready scopes the
+batch deletes from, so a replica that indexed the scope before the purge
+misses its cache on the next search and rebuilds from the database: no
+restart is needed after a run (#9049). `TestPersistedSemanticSearchCachesStableReadySnapshotAcrossQueries`
+still proves that an unchanged snapshot reloads no documents, so a pass that
+deletes nothing touches nothing and the repeat-until-zero loop still ends.
 
 The purge also leaves the deleted documents' rows in `eshu_search_vector_values`
 and `eshu_search_vector_metadata`. `readyVectors` loads vectors only for the

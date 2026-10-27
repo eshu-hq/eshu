@@ -55,13 +55,13 @@ reach the repository. The SQL below covers what the re-collection does not:
    for every reason, run the statements again. The second run catches rows
    that an old binary wrote during the rollout, and repositories no sweep
    visits.
-5. After each run, restart the API and MCP server replicas (a rolling restart
-   is enough). Both keep an in-process semantic and hybrid search index. The
-   cache key is the scope's active generation and projection revision, and
-   the purge changes neither. A replica that indexed a scope before the purge
-   keeps returning the purged `context_text` until it restarts or the scope's
-   rebuilt generation becomes active.
-6. Restore `ESHU_REPO_RECONCILE_MAX_PER_CYCLE`.
+5. Restore `ESHU_REPO_RECONCILE_MAX_PER_CYCLE`.
+
+Statement A bumps the scope's document projection revision together with the
+matching vector scope revisions, which is the in-process semantic and hybrid
+search cache key. A replica that indexed a scope before the purge therefore
+misses its cache on the next search and rebuilds from the database: no
+restart is needed after a run (#9049).
 
 The drain takes `ceil(repositories / cap)` selection cycles.
 
@@ -70,7 +70,6 @@ The drain takes `ceil(repositories / cap)` selection cycles.
 The cleanup is done when all of these hold, the two readings on two
 consecutive scrapes:
 
-- The API and MCP server replicas restarted after the last run.
 - `eshu_dp_content_policy_raw_rows` reads zero, or every remaining row sits on
   a metadata-policy path. The purge never touches `.npmrc` or
   `gradle-wrapper.properties` — the metadata policy stores an empty body going
@@ -220,7 +219,9 @@ The statements do the following:
   generated column;
 - blank `content_entities.source_cache`;
 - delete `content_file_references`;
-- delete the active generation's search index documents and terms;
+- delete the active generation's search index documents and terms, and bump
+  the scope's document projection revision together with the matching vector
+  scope revisions so cached semantic/hybrid indexes rebuild with no restart;
 - delete the matching `reducer_eshu_search_document` fact rows by `fact_id`.
 
 The reindex rebuilds all of them from the redacted rows. Every statement keeps
@@ -316,6 +317,13 @@ WHERE f.repo_id = b.repo_id AND f.relative_path = b.relative_path
 COMMIT;
 
 -- Statement A: index documents and terms, keyed on the documents alone.
+-- The bump CTEs move the scope's document projection revision together with
+-- the matching vector scope revisions, so a replica that indexed the scope
+-- before the purge misses its in-process semantic/hybrid cache on the next
+-- search and rebuilds from the database with no restart (#9049). They touch
+-- only scopes the batch deletes from, and only while the projection is
+-- ready (an in-flight build already moved the revision), so a pass that
+-- deletes nothing touches nothing and the repeat-until-zero loop still ends.
 WITH batch AS (
   SELECT d.scope_id, d.generation_id, d.document_id
   FROM eshu_search_index_documents d
@@ -333,6 +341,25 @@ WITH batch AS (
   DELETE FROM eshu_search_index_terms t USING batch b
   WHERE t.scope_id = b.scope_id AND t.generation_id = b.generation_id
     AND t.document_id = b.document_id
+), bumped_docs AS (
+  UPDATE eshu_search_document_projection_state projection SET
+    projection_revision = projection.projection_revision + 1,
+    updated_at = now()
+  FROM (SELECT DISTINCT scope_id, generation_id FROM batch) doomed
+  WHERE projection.scope_id = doomed.scope_id
+    AND projection.generation_id = doomed.generation_id
+    AND projection.generation_id = (SELECT active_generation_id FROM ingestion_scopes scope
+                                    WHERE scope.scope_id = doomed.scope_id)
+    AND projection.state = 'ready'
+  RETURNING projection.scope_id, projection.generation_id, projection.projection_revision
+), bumped_vectors AS (
+  UPDATE eshu_search_vector_scope_state vector SET
+    projection_revision = bumped_docs.projection_revision,
+    updated_at = now()
+  FROM bumped_docs
+  WHERE vector.scope_id = bumped_docs.scope_id
+    AND vector.generation_id = bumped_docs.generation_id
+    AND vector.projection_revision <> bumped_docs.projection_revision
 )
 DELETE FROM eshu_search_index_documents d USING batch b
 WHERE d.scope_id = b.scope_id AND d.generation_id = b.generation_id
