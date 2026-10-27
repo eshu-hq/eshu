@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
@@ -89,6 +89,138 @@ describe("reachable vulnerability paging", () => {
     expect(screen.queryByRole("link", { name: "CVE-2026-00001" })).not.toBeInTheDocument();
   });
 
+  it("keeps the current page and reports a failed next request", async () => {
+    const first = [row(1)];
+    const model = {
+      ...demoModel,
+      source: "live" as const,
+      vulnerabilities: first,
+      vulnerabilityPages: {
+        affected_exact: {
+          rows: first,
+          count: 1,
+          limit: 100,
+          truncated: true,
+          nextCursor: "finding-1",
+          truth: null,
+        },
+        affected_derived: {
+          rows: [],
+          count: 0,
+          limit: 100,
+          truncated: false,
+          nextCursor: null,
+          truth: null,
+        },
+      },
+    };
+    const get = vi.fn(async () => {
+      throw new Error("read unavailable");
+    });
+    render(
+      <MemoryRouter>
+        <VulnerabilitiesPage model={model} client={{ get } as unknown as EshuApiClient} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Next findings page" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("read unavailable"));
+    expect(screen.getByRole("link", { name: "CVE-2026-00001" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next findings page" })).toBeEnabled();
+  });
+
+  it("discards a late exact response after switching to derived and aborts on unmount", async () => {
+    const exact = [row(1)];
+    const derived = [row(2)];
+    const model = {
+      ...demoModel,
+      source: "live" as const,
+      vulnerabilities: [...exact, ...derived],
+      vulnerabilityPages: {
+        affected_exact: {
+          rows: exact,
+          count: 1,
+          limit: 100,
+          truncated: true,
+          nextCursor: "finding-1",
+          truth: null,
+        },
+        affected_derived: {
+          rows: derived,
+          count: 1,
+          limit: 100,
+          truncated: false,
+          nextCursor: null,
+          truth: null,
+        },
+      },
+    };
+    let release!: (value: unknown) => void;
+    const get = vi.fn(
+      () =>
+        new Promise<unknown>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const client = { get } as unknown as EshuApiClient;
+    const rendered = render(
+      <MemoryRouter>
+        <VulnerabilitiesPage model={model} client={client} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Next findings page" }));
+    const signal = (get.mock.calls[0] as unknown as [string, { signal: AbortSignal }])[1].signal;
+    fireEvent.click(screen.getByRole("button", { name: "Derived impact" }));
+    expect(signal.aborted).toBe(true);
+    await act(async () =>
+      release({
+        data: { findings: [finding(3)], truncated: false },
+        error: null,
+        truth: null,
+      }),
+    );
+    expect(screen.getByRole("link", { name: "CVE-2026-00002" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "CVE-2026-00003" })).not.toBeInTheDocument();
+    rendered.unmount();
+  });
+
+  it("aborts a pending page request when the view unmounts", () => {
+    const first = [row(1)];
+    const model = {
+      ...demoModel,
+      source: "live" as const,
+      vulnerabilities: first,
+      vulnerabilityPages: {
+        affected_exact: {
+          rows: first,
+          count: 1,
+          limit: 100,
+          truncated: true,
+          nextCursor: "finding-1",
+          truth: null,
+        },
+        affected_derived: {
+          rows: [],
+          count: 0,
+          limit: 100,
+          truncated: false,
+          nextCursor: null,
+          truth: null,
+        },
+      },
+    };
+    const get = vi.fn(() => new Promise<unknown>(() => {}));
+    const rendered = render(
+      <MemoryRouter>
+        <VulnerabilitiesPage model={model} client={{ get } as unknown as EshuApiClient} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Next findings page" }));
+    const signal = (get.mock.calls[0] as unknown as [string, { signal: AbortSignal }])[1].signal;
+    expect(signal.aborted).toBe(false);
+    rendered.unmount();
+    expect(signal.aborted).toBe(true);
+  });
+
   it("reaches all 268 exact findings without retaining earlier pages", async () => {
     const first = Array.from({ length: 100 }, (_, index) => row(index + 1));
     const get = vi.fn(async (path: string) => {
@@ -96,14 +228,22 @@ describe("reachable vulnerability paging", () => {
       const numbers =
         after === "finding-100"
           ? Array.from({ length: 100 }, (_, index) => index + 101)
-          : Array.from({ length: 68 }, (_, index) => index + 201);
+          : after === "finding-200"
+            ? Array.from({ length: 68 }, (_, index) => index + 201)
+            : Array.from({ length: 100 }, (_, index) => index + 1);
       return {
         data: {
           findings: numbers.map(finding),
           count: numbers.length,
           limit: 100,
-          truncated: after === "finding-100",
-          ...(after === "finding-100" ? { next_cursor: { after_finding_id: "finding-200" } } : {}),
+          truncated: after !== "finding-200",
+          ...(after !== "finding-200"
+            ? {
+                next_cursor: {
+                  after_finding_id: after === "finding-100" ? "finding-200" : "finding-100",
+                },
+              }
+            : {}),
         },
         error: null,
         truth: null,
@@ -152,5 +292,15 @@ describe("reachable vulnerability paging", () => {
     expect(document.querySelectorAll("[data-vulnerability-finding-id]")).toHaveLength(68);
     expect(screen.queryByRole("link", { name: "CVE-2026-00001" })).not.toBeInTheDocument();
     expect(get).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Previous findings page" }));
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "CVE-2026-00101" })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Previous findings page" }));
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "CVE-2026-00001" })).toBeInTheDocument(),
+    );
+    expect(get).toHaveBeenCalledTimes(4);
+    expect(document.querySelectorAll("[data-vulnerability-finding-id]")).toHaveLength(100);
   });
 });

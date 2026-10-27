@@ -41,6 +41,19 @@ describe("impact finding page contract", () => {
     });
   });
 
+  it("rejects a truncated page without a cursor", async () => {
+    const client = {
+      get: vi.fn(async () => ({
+        data: { findings: [{ finding_id: "f-2", cve_id: "CVE-2026-22222" }], truncated: true },
+        error: null,
+        truth: null,
+      })),
+    } as unknown as EshuApiClient;
+    await expect(loadVulnerabilityStatusPage(client, new Map(), "affected_exact")).rejects.toThrow(
+      "no advancing cursor",
+    );
+  });
+
   it("does not call an alias a CVE or accept a non-advancing cursor", async () => {
     const client = {
       get: vi.fn(async () => ({
