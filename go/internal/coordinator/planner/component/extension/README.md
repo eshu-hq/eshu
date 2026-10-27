@@ -70,7 +70,13 @@ signals continue to cover scheduling and egress-audit failures.
   `component:<id>` scope.
 - `RequestedScopeSet` never includes raw host configuration paths or
   credentials — only component identity, manifest digest, config handle, the
-  normalized host claim, and runtime binding.
+  normalized host claim, and runtime binding. The opaque
+  `Config.ComponentConfig` block never enters it, and it is not part of the
+  run or work-item identity, so adding keys to an activation's `config` block
+  does not change this planner's rows (#9311).
+- This planner plans the host scope only. For `vulnerability_intelligence`,
+  root's kind-scoped hook (`../../../activation_derived_scopes.go`) plans the
+  derived OSV scopes as a second run under its own `derived` run-id segment.
 - `GenerationID` and `SourceRunID` are minted from the same identity because
   the claimed-collection runtime invariant for non-terraform kinds requires
   them equal (see `collector.validateClaimedGeneration`).

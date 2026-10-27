@@ -50,7 +50,9 @@ uses for the projector families' equivalent problem.
 - Prefer the host claim's source system and scope ID for claim identity;
   fall back to the component ID and a derived `component:<id>` scope.
 - Keep raw host configuration paths and credentials out of
-  `RequestedScopeSet`.
+  `RequestedScopeSet`. Keep `activation.Config.ComponentConfig` out of it
+  too, and out of `componentExtensionIdentity`: the block is opaque here and
+  only a kind-scoped root hook reads it (#9311).
 - Mint `GenerationID` and `SourceRunID` from the same identity value.
 - Keep all timestamps in UTC and all IDs deterministic for a fixed request.
 - Do not duplicate `activation.ParseConfig`'s validation logic
@@ -63,3 +65,11 @@ the scoped race suite. At minimum, run
 `go test ./internal/coordinator/component/activation ./internal/coordinator/planner/component/extension ./internal/coordinator -count=1`.
 Mutation checks must break the production assertion and must be reverted
 before broader verification.
+
+## Common changes and how to scope them
+
+- **A kind needs host-derived scopes beyond its host scope** → do not plan
+  them here. Add a kind-scoped hook in root (`../../../activation_derived_scopes.go`)
+  that runs after the egress decision and admits through
+  `createWorkflowWorkIfNoOpenTargets`; this planner keeps planning one
+  host-scope item per plan key.

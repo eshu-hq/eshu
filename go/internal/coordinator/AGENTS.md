@@ -247,6 +247,19 @@ because schedulers stop at the first error. One predicate enforces it:
 - Blank, unrelated, and in-tree target configuration stay with the in-tree
   planner. Skipping is silent by design: it is a partition, and the generic
   scheduler logs and audits its own egress decisions.
+- A kind that needs host-derived scopes for its activations gets them from a
+  kind-scoped hook, not from a selector: `scheduleActivationDerivedScopes`
+  (`activation_derived_scopes.go`) runs inside `scheduleComponentExtensionWork`,
+  after the egress decision, and admits through
+  `createWorkflowWorkIfNoOpenTargets` (#9311). Today only
+  `vulnerability_intelligence` has one. It decodes the opaque
+  `activation.Config.ComponentConfig` (filled by the readback only for kinds
+  `activationCarriesComponentConfig` names), refuses a host scope kind or
+  source system that is not `vulnerability_intelligence`, and reads targets
+  through the same `vulnerabilityOwnedTargets` and
+  `vulnerabilityInstalledEvidenceTargets` helpers as the in-tree path, which
+  take the decoded derive section. Do not add a second scheduler that selects
+  activations: it would bypass egress and break the partition above.
 
 ## Common changes and how to scope them
 

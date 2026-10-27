@@ -80,6 +80,13 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
   `LoadActivationHostClaimMetadata` read the optional non-secret `host` block
   from an activation config. The reader returns only source system, scope ID,
   and scope kind, and it strips private file paths from read errors.
+- `ActivationRuntimeFile` and `LoadActivationRuntimeFile` read the same file
+  once for the coordinator: the `host` block plus the activation's `config`
+  block, which `ConfigJSON` re-encodes as one JSON object the way the worker
+  decodes it (a YAML mapping into `map[string]any`). The block stays opaque
+  here; a non-mapping block is an error only when `ConfigJSON` is called, so a
+  caller that reads `host` alone behaves as before (#9311).
+  `LoadActivationHostClaimMetadata` is a thin wrapper over it.
 - `Error`, `ErrorCode`, and `ErrorSummary` carry stable operator-facing error
   classes, including installed fact-kind ownership conflicts, without embedding
   private filesystem paths in their messages.

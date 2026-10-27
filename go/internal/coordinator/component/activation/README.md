@@ -43,6 +43,11 @@ through `ParseConfig`. None of these consumers owns the shared contract.
   binding. Root's `component_activation_config.go` constructs one directly
   when it builds a collector instance's `Configuration` JSON; every other
   consumer gets one back from `ParseConfig`.
+- `Config.ComponentConfig` is the activation's config block as one opaque
+  JSON object (`component_config`). Root's readback fills it only for a
+  collector kind whose coordinator plans host-derived scopes, today
+  `vulnerability_intelligence` (#9311). The coordinator's kind-scoped hook
+  decodes it; every other consumer ignores it.
 - `RuntimeConfig` is the collector-SDK runtime binding (`sdk_protocol`,
   `adapter`) nested under `Config.Runtime`.
 - `ParseConfig` parses and validates raw configuration, reporting whether it
@@ -83,6 +88,10 @@ status value, queue, worker, lease, retry, or runtime setting.
   must be `oci` or `process`. The v1alpha1 default is unchanged.
 - An optional `host` claim is normalized and validated when present; an
   empty normalized host clears the field rather than failing validation.
+- `component_config` must be absent, `null`, or a JSON object; any other
+  JSON value is a validation error. The package never reads a key inside it,
+  so a component-specific setting (for example `derive_from_*` or
+  `target_limit`) is never validated here.
 - This package must never import `internal/coordinator` or any of its child
   packages. If a future change to `Config` needs coordinator-only context,
   that context belongs in the caller, not here — importing coordinator here

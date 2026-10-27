@@ -121,7 +121,7 @@ Every entry needs its own `instanceId`.
 | `host.sourceSystem`, `host.scope.id`, `host.scope.kind` | yes | Claim identity the coordinator copies into planned work. An activation plans exactly one scope, its `host.scope.id`; component configuration that names other scopes is never collected, so run one activation per scope. |
 | `process.args`, `process.env`, `process.stdoutLimitBytes`, `process.stderrLimitBytes` | no | How the worker starts the binary. The chart sets the command itself. The worker reads 4 MiB of collector output by default; raise `stdoutLimitBytes` for a collector that emits more (for example 33554432 for 32 MiB, 67108864 for 64 MiB). |
 | `claimLeaseTTL`, `heartbeatInterval`, `pollInterval` | no | Per-worker claim timing. Each overrides the value of the same name under `componentExtensionCollector`. Durations use `h`, `m` and `s` (`pollInterval` also accepts `ms`). The heartbeat must be less than the lease. See "Set The Claim Lease". |
-| `config` | no | Non-secret collector settings, passed to the collector as its config block. |
+| `config` | no | Non-secret collector settings, passed to the collector as its config block. For a core collector kind with host-planned derived scopes, today `vulnerability_intelligence`, the coordinator also reads that kind's derive sections from this block (see "Derived OSV Scopes"); the block is still passed to the collector verbatim. |
 | `grants` | no | Producer grants for core-owned fact kinds: `kind`, `schemaVersions`, `scope`, and `expiresIn` (default `720h`, a positive duration whose first number is not zero). Each `kind` must be an exact core fact kind such as `incident.record`; `eshu component grant` refuses anything else and the pod stays in `Init:Error`. The scope is the collector kind (for example `jira` or `documentation`), and a grant is needed for each core fact kind and schema version the manifest declares before install succeeds. |
 | `replicas`, `resources`, `env`, `extraEnv`, `extraVolumes`, `extraVolumeMounts` | no | Per-worker overrides. `extraEnv` is where credentials go. |
 
@@ -159,6 +159,41 @@ ConfigMap changes.
 A render with `componentExtensionCollector.enabled: false`, or with an empty
 `activations` list, is unchanged. An empty list keeps the older single worker,
 which still needs `instanceId` and hand-mounted `extraVolumes`.
+
+## Derived OSV Scopes
+
+A `vulnerability_intelligence` activation plans more than its host scope. The
+coordinator reads `derive_from_owned_packages` and
+`derive_from_installed_evidence` from the activation's `config` block and plans
+one claim per derived OSV scope, the same way it does for an in-tree instance
+(#9311):
+
+- The coordinator reads the block from the file it already opens for `host`,
+  and keeps it as an opaque `component_config` value for this kind only. The
+  worker still hands the collector its own read of the block, unchanged.
+- The derive sections follow the in-tree rules (`enabled`, `sources`,
+  `ecosystems`, `planning_mode`, `target_limit`), with the same validation and
+  error text. An invalid value fails that activation's reconcile. Unknown keys
+  are ignored, as they are in-tree and in the collector.
+- `target_limit` (default 100, at most 5000) and `planning_mode` (`rotating` or
+  `single_pass`) are host-only: the coordinator applies them, and collector
+  v0.1.0 ignores them. Rotation buckets on the coordinator's reconcile interval,
+  because an activation sets no `scan_interval`.
+- Derived scopes ride a second run beside the host-scope claim. The open-target
+  guard admits each scope separately, so an open host-scope claim does not block
+  them, and the host scope is never planned twice.
+- `host.sourceSystem` and `host.scope.kind` must both be
+  `vulnerability_intelligence`. Otherwise the coordinator refuses derived
+  planning for that activation, logs both values, and fails its reconcile.
+- Egress policy applies first: a denied activation gets no derived scopes and
+  no owned-package read.
+- Set `sources` and `ecosystems` explicitly. The coordinator defaults blank
+  lists to `osv` and `npm`, but collector v0.1.0 resolves a derived scope only
+  for a source and ecosystem its own block names.
+
+`eshu_dp_workflow_coordinator_activation_derived_scopes_planned_total` counts
+planned scopes by instance and ecosystem. The owned-package read shows in the
+store histograms under `store="owned_package_targets"`.
 
 ## Set The Claim Lease
 

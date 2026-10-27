@@ -391,7 +391,7 @@ variables or Kubernetes Secrets referenced by `extraEnv`.
 ## Vulnerability Intelligence Collector
 
 The vulnerability intelligence collector is claim-only. It selects an enabled
-`vulnerability_intelligence` instance from `ESHU_COLLECTOR_INSTANCES_JSON`.
+`vulnerability_intelligence` instance from `ESHU_COLLECTOR_INSTANCES_JSON`; for an activation, where `target_limit` and `planning_mode` are host-only, see [Derived OSV Scopes](../deploy/kubernetes/run-an-extracted-collector.md#derived-osv-scopes).
 Supported source targets are CISA KEV, FIRST EPSS, OSV, and NVD.
 Collector configuration may define explicit `targets` or enable
 `derive_from_owned_packages` so the coordinator derives bounded OSV npm, Pub,
