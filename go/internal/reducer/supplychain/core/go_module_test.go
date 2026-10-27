@@ -46,6 +46,63 @@ func TestBuildSupplyChainImpactFindingsMatchesGoModuleRangeAndReachability(t *te
 	}
 }
 
+func TestBuildSupplyChainImpactFindingsJoinsGoReachabilityThroughCVEAlias(t *testing.T) {
+	t.Parallel()
+
+	const advisoryID = "GO-2026-9229"
+	const cveID = "CVE-2026-9229"
+	const modulePath = "golang.org/x/text"
+	packageID := "gomod://proxy.golang.org/" + modulePath
+	advisory := vulnerabilityCVEFact("go-cve-alias", cveID, 7.5)
+	advisory.Payload["advisory_id"] = advisoryID
+	advisory.Payload["aliases"] = []any{advisoryID, cveID}
+	affected := vulnerabilityAffectedPackageGoRangeFact("go-affected-alias", cveID, packageID, modulePath, "0.3.8")
+	affected.Payload["advisory_id"] = advisoryID
+	reach := goReachabilityEnvelope(t, testImpactRepositoryID, advisoryID, modulePath, "v0.3.7", modulePath+"/language", "Parse", "symbol")
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		advisory,
+		affected,
+		packageConsumptionFactWithRange("go-consume-alias", packageID, testImpactRepositoryID, "v0.3.7"),
+		goModuleEvidenceEnvelope(t, testImpactRepositoryID, "go.mod", modulePath, "v0.3.7", false, "", ""),
+		reach,
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)[cveID]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	if got.RuntimeReachability != string(GoVulnReachabilitySymbolReachable) {
+		t.Fatalf("RuntimeReachability = %q, want symbol reachability for %s via %s", got.RuntimeReachability, cveID, advisoryID)
+	}
+	if containsString(got.MissingEvidence, "govulncheck call-graph evidence missing") {
+		t.Fatalf("MissingEvidence = %#v, should include the GO advisory call-path proof", got.MissingEvidence)
+	}
+	if !containsString(got.EvidenceFactIDs, reach.FactID) {
+		t.Fatalf("EvidenceFactIDs = %#v, want GO advisory reachability fact %s", got.EvidenceFactIDs, reach.FactID)
+	}
+}
+
+func TestGoReachabilityCVEAliasAmbiguityDoesNotClaimCallProof(t *testing.T) {
+	t.Parallel()
+
+	const cveID = "CVE-2026-9229"
+	const modulePath = "golang.org/x/text"
+	first := goAffectedPackageEnvelope(t, "GO-2026-9229-A", modulePath)
+	first.Payload["cve_id"] = cveID
+	second := goAffectedPackageEnvelope(t, "GO-2026-9229-B", modulePath)
+	second.Payload["cve_id"] = cveID
+	index, _, err := buildSupplyChainImpactIndexWithQuarantine([]facts.Envelope{
+		goModuleEvidenceEnvelope(t, testImpactRepositoryID, "go.mod", modulePath, "v0.3.7", false, "", ""),
+		first,
+		second,
+		goReachabilityEnvelope(t, testImpactRepositoryID, "GO-2026-9229-A", modulePath, "v0.3.7", modulePath+"/language", "Parse", "symbol"),
+	})
+	if err != nil {
+		t.Fatalf("build index: %v", err)
+	}
+	if _, ok := index.goReachability[goSupplyChainReachabilityKey(cveID, modulePath, testImpactRepositoryID)]; ok {
+		t.Fatal("ambiguous CVE alias must not claim one GO advisory's call-path proof")
+	}
+}
+
 func TestBuildSupplyChainImpactFindingsUsesGoModResolvedReplacementVersion(t *testing.T) {
 	t.Parallel()
 

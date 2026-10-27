@@ -144,6 +144,9 @@ func TestManifestPackageManagersForEcosystem(t *testing.T) {
 	if got, want := ManifestPackageManagersForEcosystem("npm"), []string{"npm"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("npm managers = %v, want %v", got, want)
 	}
+	if got, want := ManifestPackageManagersForEcosystem("gomod"), []string{"go", "gomod"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Go module managers = %v, want %v", got, want)
+	}
 }
 
 // BenchmarkManifestConsumptionKeys compares the helper with the direct

@@ -44,7 +44,6 @@ func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope) (supp
 		images:                  map[string]supplyChainImageIdentity{},
 		riskSignals:             map[string]supplychainmodel.RiskSignals{},
 		scannerAnalyses:         map[string]supplychainmodel.ScannerAnalysis{},
-		goReachability:          map[string]GoVulnerabilityFinding{},
 		jsTSPackageReachability: buildJSTSPackageReachabilityIndex(envelopes),
 		pythonReachability:      map[string]pythonReachabilityRepositoryEvidence{},
 		jvmReachability:         buildJVMReachabilityIndex(envelopes),
@@ -70,12 +69,32 @@ func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope) (supp
 		return supplyChainImpactIndex{}, nil, err
 	}
 	quarantined = append(quarantined, goQuarantined...)
+	index.goReachability = make(map[string]GoVulnerabilityFinding, len(goFindings)*2)
 	for _, finding := range goFindings {
 		if finding.OSVID == "" || finding.ModulePath == "" {
 			continue
 		}
 		key := goSupplyChainReachabilityKey(finding.OSVID, finding.ModulePath, finding.RepositoryID)
 		index.goReachability[key] = finding
+	}
+	// A GO advisory can carry a distinct CVE alias. Index that alias only
+	// when it identifies one advisory for this repository and module.
+	ambiguousAliases := make(map[string]struct{})
+	for _, finding := range goFindings {
+		for _, alias := range finding.cveAliases {
+			key := goSupplyChainReachabilityKey(alias, finding.ModulePath, finding.RepositoryID)
+			if _, ambiguous := ambiguousAliases[key]; ambiguous {
+				continue
+			}
+			if prior, exists := index.goReachability[key]; exists && prior.OSVID != finding.OSVID {
+				if prior.OSVID != alias {
+					delete(index.goReachability, key)
+				}
+				ambiguousAliases[key] = struct{}{}
+				continue
+			}
+			index.goReachability[key] = finding
+		}
 	}
 	index.pythonReachability = extractPythonReachabilityEvidence(envelopes)
 	addManifestDependencySupplyChainConsumption(&index, envelopes)

@@ -34,6 +34,22 @@ Observability Evidence (#9231): alert-derived findings now carry validated EPSS
 fields in the existing persisted finding and HTTP read. The RED/GREEN fixture
 checks that output. No metric, span, log key, or new queue stage was added.
 
+Performance Evidence (#9229): `BenchmarkBuildGoReachabilityAliasIndex` on
+Apple M5 Max with Go 1.26.10 and the same 200 GO advisories, each with a
+distinct CVE alias, measured 354876/360197/356569 ns/op (789913 B/op, 6303
+allocs/op) at `origin/main` and 389028/383986/393318 ns/op (874137 B/op,
+6894 allocs/op) after the alias join. The added 24–38 microseconds per 200
+advisories is the cost of indexing the extra identity; this index builds once
+per reducer intent, with no new backend calls or nested advisory scan. The
+benchmark is in memory and does not establish end-to-end throughput.
+
+No-Observability-Change (#9229): the finding's existing runtime reachability
+and evidence fields now carry matched GO call proof through a CVE alias. The
+reducer's existing execution metrics and input-invalid quarantine remain the
+operator signals; no new worker, queue stage, metric label, span, or runtime
+setting was added. QA behavior is not observable until Go target derivation
+exists.
+
 The directory stays whole. The `Suppression` field on
 `SupplyChainImpactFinding` makes the finding, core, and suppression code one
 unit: the suppression functions take the finding type (#6636). A later move,

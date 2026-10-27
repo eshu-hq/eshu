@@ -110,6 +110,23 @@ func TestListActivePackageManifestDependencyFactsReachesSBTAndGradleRows(t *test
 	}
 }
 
+func TestListActivePackageManifestDependencyFactsMapsGoModuleToParserManager(t *testing.T) {
+	t.Parallel()
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}}}
+	if _, err := NewFactStore(db).ListActivePackageManifestDependencyFacts(
+		context.Background(), []string{"gomod"}, []string{"github.com/acme/lib-common"},
+	); err != nil {
+		t.Fatalf("ListActivePackageManifestDependencyFacts(gomod): %v", err)
+	}
+	call := db.queries[0]
+	if got, want := call.args[0], []string{"go", "gomod"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("package_manager arg = %v, want %v to include go.mod parser rows", got, want)
+	}
+	if strings.Contains(call.query, "sbt_binary_artifact") || strings.Contains(call.query, "UNION ALL") {
+		t.Fatalf("Go module query carries the sbt branch:\n%s", call.query)
+	}
+}
+
 func TestListActivePackageManifestDependencyFactsKeepsNonMavenQueryUnchanged(t *testing.T) {
 	t.Parallel()
 

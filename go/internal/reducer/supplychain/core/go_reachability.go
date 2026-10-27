@@ -12,6 +12,7 @@
 package core
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -54,6 +55,7 @@ const (
 // Eshu chose a level: the module path, repository anchor, govulncheck-compat
 // call trace, deepest symbol, and missing evidence fields.
 type GoVulnerabilityFinding struct {
+	cveAliases []string
 	// OSVID is the Go vulnerability advisory identifier (for example,
 	// "GO-2022-0969").
 	OSVID string
@@ -194,6 +196,13 @@ func classifyGoVulnerabilityReachabilityWithQuarantine(envelopes []facts.Envelop
 				// evidence is visible instead of silently dropped.
 			}
 			finding := classifyGoVulnerabilityForModuleAdvisory(moduleRows, reachRows, osvID)
+			for _, row := range advisoryRows {
+				if alias := strings.TrimSpace(row.cveID); alias != "" && alias != osvID {
+					finding.cveAliases = append(finding.cveAliases, alias)
+				}
+			}
+			sort.Strings(finding.cveAliases)
+			finding.cveAliases = slices.Compact(finding.cveAliases)
 			if !applicability.applicable && !applicability.hasRangeEvidence {
 				finding.MissingEvidence = append(finding.MissingEvidence, "advisory affected-range evidence missing")
 				sort.Strings(finding.MissingEvidence)

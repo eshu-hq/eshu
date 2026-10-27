@@ -37,7 +37,7 @@ truth; reducers admit user-facing truth.
   name through an alias.
 - `ManifestPackageManagersForEcosystem` lists the `package_manager` values a
   registry ecosystem's manifests can carry (`maven` -> `gradle`, `maven`,
-  `sbt`). It is a read prefilter, never an identity rule.
+  `sbt`; `gomod` -> `go`, `gomod`). It is a read prefilter, never an identity rule.
 - `NormalizeRegistry` canonicalizes registry host/path values without hiding
   the source registry.
 - `DefaultRegistry` returns the canonical registry host for an ecosystem so

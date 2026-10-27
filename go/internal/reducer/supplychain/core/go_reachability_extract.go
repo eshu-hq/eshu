@@ -39,6 +39,7 @@ type goReachabilityRow struct {
 }
 
 type goAffectedPackageRow struct {
+	cveID            string
 	osvID            string
 	modulePath       string
 	affectedRanges   []supplychainmodel.AffectedRange
@@ -181,6 +182,7 @@ func extractGoAffectedPackages(envelopes []facts.Envelope) []goAffectedPackageRo
 			continue
 		}
 		out = append(out, goAffectedPackageRow{
+			cveID:            payloadcore.DerefString(pkg.CVEID),
 			osvID:            osvID,
 			modulePath:       modulePath,
 			affectedRanges:   supplyChainAffectedRangesFromTyped(pkg.AffectedRanges),
