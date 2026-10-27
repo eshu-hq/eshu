@@ -17,6 +17,23 @@ through the default domain catalog; `go/cmd/reducer` wires the Postgres
 writer. Query surfaces read the durable facts; they never import this
 package.
 
+Alert-derived findings carry the provider's 0–1 EPSS percentage and percentile
+when each value is a valid decimal. The collector converts GitHub's numeric
+percentage and string percentile into fact strings before this package decodes
+them.
+
+No-Regression Evidence (#9231): `BenchmarkBuildSupplyChainImpactFindingsAlertEPSS`
+on Apple M5 Max, Go 1.26.10, same two-envelope input, three one-second samples:
+baseline 7973/7859/7884 ns/op and 118 allocs/op; changed 7960/8066/7988
+ns/op and 117 allocs/op. The ranges overlap and the changed samples are within
+2.6% of baseline. This is no measured material regression on the touched path;
+it does not prove an end-to-end throughput improvement. The benchmark has no
+backend or queue; it returns one finding per call.
+
+Observability Evidence (#9231): alert-derived findings now carry validated EPSS
+fields in the existing persisted finding and HTTP read. The RED/GREEN fixture
+checks that output. No metric, span, log key, or new queue stage was added.
+
 The directory stays whole. The `Suppression` field on
 `SupplyChainImpactFinding` makes the finding, core, and suppression code one
 unit: the suppression functions take the finding type (#6636). A later move,
