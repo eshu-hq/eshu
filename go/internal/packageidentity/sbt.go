@@ -74,6 +74,11 @@ func ManifestPackageManagersForEcosystem(ecosystem string) []string {
 	if normalized == EcosystemMaven {
 		return []string{"gradle", string(EcosystemMaven), sbtPackageManager}
 	}
+	if normalized == EcosystemGoModule {
+		// go.mod rows use the parser's package_manager="go". Keep gomod
+		// for existing normalized rows; the join still checks identity.
+		return []string{"go", string(EcosystemGoModule)}
+	}
 	return []string{ecosystem}
 }
 

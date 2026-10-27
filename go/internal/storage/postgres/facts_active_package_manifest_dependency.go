@@ -281,21 +281,21 @@ LIMIT $5
 `
 
 // activePackageManifestDependencyQuery returns the package_manager values and
-// the query one ListActivePackageManifestDependencyFacts call uses. When any
-// ecosystem is Maven, the list expands to the Maven family and the sbt-aware
-// query runs; otherwise the list and the original query pass through
-// unchanged.
+// the query one ListActivePackageManifestDependencyFacts call uses. Each
+// ecosystem expands to the parser package_manager values it can represent.
+// Maven selects the sbt-aware query; other ecosystems use the original query.
 func activePackageManifestDependencyQuery(ecosystems []string) ([]string, string) {
 	hasMaven := slices.ContainsFunc(ecosystems, func(ecosystem string) bool {
 		return packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem)) == packageidentity.EcosystemMaven
 	})
-	if !hasMaven {
-		return ecosystems, listActivePackageManifestDependencyFactsQuery
-	}
 	expanded := make([]string, 0, len(ecosystems)+2)
 	for _, ecosystem := range ecosystems {
 		expanded = append(expanded, packageidentity.ManifestPackageManagersForEcosystem(ecosystem)...)
 	}
 	slices.Sort(expanded)
-	return slices.Compact(expanded), listActivePackageManifestDependencyFactsWithSBTQuery
+	expanded = slices.Compact(expanded)
+	if !hasMaven {
+		return expanded, listActivePackageManifestDependencyFactsQuery
+	}
+	return expanded, listActivePackageManifestDependencyFactsWithSBTQuery
 }
