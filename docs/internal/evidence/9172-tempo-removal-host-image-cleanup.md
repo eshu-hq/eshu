@@ -20,13 +20,14 @@ surface-inventory overlay row (both registries regenerated).
   change the satellite serves collection with an identical contract.
 
 The two build lines are gone and the production stage still
-copies `/go-bin/` wholesale, so no other binary is affected. The chart
-`tempo-collector` Deployment and both Compose `collector-tempo`
-services now run the satellite image
-`ghcr.io/eshu-hq/eshu-collector-tempo:v0.1.3` (the QA-proven satellite
-from the lane commit message) with the identical binary path
-`/usr/local/bin/eshu-collector-tempo`, identical command flags, and
-the identical `ESHU_COLLECTOR_INSTANCES_JSON` tempo instance shape
+copies `/go-bin/` wholesale, so no other binary is affected. The chart `tempo-collector` Deployment and the Compose `collector-tempo`
+worker run the Eshu host image (chart `image.repository:image.tag`) with
+command `/usr/local/bin/eshu-collector-component-extension`. Collection is
+seeded from the digest-pinned satellite image
+`ghcr.io/eshu-hq/eshu-collector-tempo@sha256:0230e174284bb7a9831babac9b9927be05df02e8620c20e448e91dbb1ac2ecac`
+via init containers running `/usr/local/bin/collector seed` (the satellite
+ships only that binary; tags are refused, digest pin only). The
+`ESHU_COLLECTOR_INSTANCES_JSON` tempo instance shape is unchanged
 (`collector_kind: tempo`, `mode: continuous`, claim-driven). Service,
 Deployment, and profile names are unchanged, and the workload stays
 default-disabled in chart and Compose.
@@ -34,22 +35,32 @@ default-disabled in chart and Compose.
 Measured at this HEAD:
 
 - `go test ./internal/runtime/ -count=1` passes, including the Helm
-  observability-collectors contract (renders the tempo Deployment with
-  the satellite image and asserts command plus claim env) and the
-  Compose preflight/render tests.
+  observability-collectors contract (renders the tempo Deployment on the
+  host image with the component-extension command and asserts claim env)
+  and the Compose preflight/render tests.
 - `bash scripts/test-remote-e2e-hosted-compose-render.sh` passes
   (tempo service present under the tempo profile with the satellite
   image and unchanged env contract).
 - `bash scripts/verify-compose-helm-runtime-parity.sh` passes
   (observability collectors, probes, and ServiceMonitor coverage).
-- `go test ./cmd/capability-inventory/ ./cmd/fact-kind-registry/
-  -count=1` passes; `bash scripts/verify-fact-kind-registry.sh`
-  reports current; surface inventory reconciles 643 surfaces with no
-  findings.
-- `helm template` with `tempoCollector.enabled=true` renders
-  `image: "ghcr.io/eshu-hq/eshu-collector-tempo:v0.1.3"`.
-- `docker compose config` for both Compose files renders
-  `collector-tempo` with that image and no `build:` block.
+- `go test ./cmd/fact-kind-registry/ -count=1` passes and
+  `bash scripts/verify-fact-kind-registry.sh` reports current.
+  `go test ./cmd/capability-inventory/` does not build on this host
+  (environmental CGO `bsearch.h` `_Generic` failure via its
+  `go/internal/query` import; CI is authoritative), so the surface-count
+  reconciliation is not re-claimed here.
+- `helm template` with `tempoCollector.enabled=true` renders the main
+  container on the host image (`ghcr.io/eshu-hq/eshu:v0.0.3-pre-release-18`
+  from `image.repository:image.tag`) with
+  `command: ["/usr/local/bin/eshu-collector-component-extension"]`, and a
+  `seed-tempo-primary` init container on the digest-pinned satellite image
+  with `command: ["/usr/local/bin/collector", "seed", ...]`.
+- `docker compose config` (tempo profile) renders `collector-tempo`
+  with a host `build:` block and
+  `command: [/usr/local/bin/eshu-collector-component-extension]`,
+  `collector-tempo-seed` on the digest-pinned satellite image with the
+  `collector seed` command and no `build:` block, and
+  `collector-tempo-reconcile` on a host `build:` block.
 
 Coordinator claim planning (`planner/tempo`), reducer projection, and
 query surfaces are untouched, so in-tree collection semantics cannot
@@ -59,13 +70,15 @@ nothing else in the image referenced.
 ## Observability: no new or altered telemetry
 
 - No-Observability-Change: this change adds no metrics, spans, logs,
-  or status fields. The only Go
-edit reorders a producer kind list to the generator-canonical
-alphabetical order; the only test edit removes a stale table entry.
-Chart and Compose edits change image references, not probes, ports, or
-metric wiring (parity script confirms probes and ServiceMonitor
-coverage). Collection telemetry now comes from the satellite binary,
-which is the extracted identical code (byte-identical parity proven by
-the #8867 extraction-prep mirror tests); operator-visible signals
+  or status fields. The Go edits delete the in-tree producer package and
+its tests, drop the tempo fault-table row and the encode-adoption ratchet
+entry, reorder a producer kind list, and pin the Helm contract to the
+host-image-plus-seed shape; no coordinator, planner, reducer, or query
+logic changes. Chart and Compose edits change image references, not
+probes, ports, or metric wiring (parity script confirms probes and
+ServiceMonitor coverage). Collection telemetry now comes from the seeded
+satellite binary, which is the extracted identical code (byte-identical
+parity proven by the #8867 extraction-prep mirror tests before the
+mirror files were deleted with the producer); operator-visible signals
 (`/healthz`, `/readyz`, `/metrics`, `/admin/status`) keep the same
 paths and ports.
