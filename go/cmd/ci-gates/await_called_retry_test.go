@@ -127,6 +127,18 @@ func TestReadCurrentCalledChecksPersistentJobsFailureStillErrors(t *testing.T) {
 	if !strings.Contains(err.Error(), "attempt 3") {
 		t.Fatalf("error must name the evaluated attempt: %v", err)
 	}
+	if got := runner.countCalls("/attempts/3/jobs?per_page=100"); got != 3 {
+		t.Fatalf("full-page jobs reads = %d, want 3 before fallback", got)
+	}
+	fellBack := false
+	for _, call := range runner.calls {
+		if strings.HasSuffix(call, "jobs?per_page=1") {
+			fellBack = true
+		}
+	}
+	if !fellBack {
+		t.Fatal("repeated full-page failure must attempt the small-page fallback")
+	}
 }
 
 func TestReadCurrentCalledChecksAttemptBumpRereads(t *testing.T) {
