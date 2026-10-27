@@ -30,6 +30,7 @@ workflows:
   - go/internal/testutil/postgresproof/**
   - go/internal/reducer/status/**
   - go/internal/cigates/readiness_job_split_test.go
+  - go/internal/cigates/readiness_matrix_test.go
   - go/go.mod
   - go/go.sum
   - specs/live-tests.v1.yaml
@@ -47,7 +48,15 @@ workflows:
   - scripts/lib/live_postgres_readiness_shards.py
   - scripts/lib/live_postgres_readiness_weights*.py
   - scripts/lib/live_postgres_readiness_balance_cases.py
+  - scripts/lib/live_postgres_readiness_v2.py
+  - scripts/lib/live_postgres_readiness_v2_planner.py
+  - scripts/lib/live_postgres_readiness_v2_cases.py
+  - scripts/lib/live_postgres_readiness_reports.py
+  - scripts/lib/live_postgres_readiness_refresh_v2.py
+  - scripts/lib/live_postgres_readiness_refresh_v2_provenance.py
+  - scripts/test-live-postgres-readiness-refresh-v2.py
   - specs/live-postgres-readiness-weights.v1.json
+  - specs/live-postgres-readiness-weights.v2.json
   - scripts/test-live-postgres-readiness-shards.py
   - scripts/test-live-postgres-readiness-helper.py
   - scripts/lib/live_postgres_readiness_events.py
@@ -74,7 +83,9 @@ workflows:
   - live-postgres-readiness
   - live-postgres-readiness-shards
   - queue-selection
+  - readiness-plan
   job_names:
     hermetic: live-postgres-readiness hermetic
     live-postgres-readiness: live-postgres-readiness (postgres18)
-    live-postgres-readiness-shards: live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/4)
+    live-postgres-readiness-shards: live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/${{ matrix.total }})
+    readiness-plan: live-postgres-readiness plan

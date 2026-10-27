@@ -29,6 +29,8 @@ SPEC.loader.exec_module(shards)
 sys.path.insert(0, str(LIB))
 from live_postgres_readiness_balance_cases import (  # noqa: E402,F401
     BalanceContractTest, RefreshTest)
+from live_postgres_readiness_v2_cases import (  # noqa: E402,F401
+    ActiveDefaultTest, V2ModelTest, V2ReportTest)
 import live_postgres_readiness_row_split as row_split  # noqa: E402
 import live_postgres_readiness_weights as wt  # noqa: E402
 
@@ -74,6 +76,8 @@ class ShardContractTest(unittest.TestCase):
             cls.full_tests[package] = names.split(" ")
         cls.flat = [f"{package}|{test}" for package, tests in cls.full_tests.items()
                     for test in tests]
+        cls.weights = wt.weights_from_json(json.loads(wt.WEIGHTS_PATH.read_text(
+            encoding="utf-8")))
 
     def setUp(self) -> None:
         self.plan = [run("./internal/query", f"TestShard{letter}Live")
@@ -81,10 +85,15 @@ class ShardContractTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.directory = Path(self.temp.name)
+        self.legacy_weights_path = self.directory / "legacy.json"
+        self.legacy_weights_path.write_bytes(wt.WEIGHTS_PATH.read_bytes())
 
     def invoke(self, *args: str, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
-        """Run the public command line as the CI shell does."""
-        return subprocess.run([sys.executable, str(SCRIPT), *args], input=input_text,
+        """Run the public command line against the legacy model under test."""
+        arguments = list(args)
+        if "--weights" not in arguments:
+            arguments[1:1] = ["--weights", str(self.legacy_weights_path)]
+        return subprocess.run([sys.executable, str(SCRIPT), *arguments], input=input_text,
                               text=True, capture_output=True, check=False)
 
     def write_full_tsv(self) -> Path:
@@ -95,7 +104,7 @@ class ShardContractTest(unittest.TestCase):
 
     def manifest_text(self, shard: str, statuses: dict[str, int] | None = None) -> str:
         """Render a runner manifest for the shard's live assigned tests."""
-        selected = shards.partition_runs(self.flat, shard)
+        selected = shards.partition_runs(self.flat, shard, self.weights)
         by_package: dict[str, list[str]] = {}
         for line in selected:
             package, test = line.split("|")
@@ -149,31 +158,31 @@ class ShardContractTest(unittest.TestCase):
 
     def test_equal_cost_runs_split_evenly_into_contiguous_shards(self) -> None:
         """Eight runs priced alike cut into four adjacent pairs, the one optimum."""
-        self.assertEqual(shards.partition_runs(self.plan, "all"), self.plan)
-        self.assertEqual(shards.partition_runs(self.plan, "1/4"), self.plan[0:2])
-        self.assertEqual(shards.partition_runs(self.plan, "2/4"), self.plan[2:4])
-        self.assertEqual(shards.partition_runs(self.plan, "3/4"), self.plan[4:6])
-        self.assertEqual(shards.partition_runs(self.plan, "4/4"), self.plan[6:8])
+        self.assertEqual(shards.partition_runs(self.plan, "all", self.weights), self.plan)
+        self.assertEqual(shards.partition_runs(self.plan, "1/4", self.weights), self.plan[0:2])
+        self.assertEqual(shards.partition_runs(self.plan, "2/4", self.weights), self.plan[2:4])
+        self.assertEqual(shards.partition_runs(self.plan, "3/4", self.weights), self.plan[4:6])
+        self.assertEqual(shards.partition_runs(self.plan, "4/4", self.weights), self.plan[6:8])
 
     def test_partition_union_covers_plan_for_uneven_counts(self) -> None:
         for extra in range(4, 9):
             expanded = [*self.plan, *(run("./internal/query", f"TestFuture{i}Live")
                                        for i in range(extra))]
             assigned = [line for shard in ("1/4", "2/4", "3/4", "4/4")
-                        for line in shards.partition_runs(expanded, shard)]
+                        for line in shards.partition_runs(expanded, shard, self.weights)]
             self.assertCountEqual(assigned, expanded)
 
     def test_degenerate_plan_fails_closed_instead_of_running_three_shards(self) -> None:
         tiny = self.plan[:3]
         with self.assertRaises(ValueError):
-            shards.partition_runs(tiny, "4/4")
+            shards.partition_runs(tiny, "4/4", self.weights)
 
     def test_invalid_plan_and_shard_fail(self) -> None:
         for plan, shard in (([], "all"), (self.plan * 2, "all"),
                             (["bad"], "all"), (["./x|bad-name"], "all"),
                             (self.plan, "5/4")):
             with self.subTest(plan=plan, shard=shard), self.assertRaises(ValueError):
-                shards.partition_runs(plan, shard)
+                shards.partition_runs(plan, shard, self.weights)
 
     def test_plan_cli_partitions_live_tsv_without_loss(self) -> None:
         assigned = [line for shard in ("1/4", "2/4", "3/4", "4/4")
@@ -223,8 +232,7 @@ class ShardContractTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
 
     def test_live_shard_three_four_postgres_row_splits(self) -> None:
-        import live_postgres_readiness_weights as weights_lib
-        weights = weights_lib.load_weights()
+        weights = self.weights
         rows = self.invoke("plan", "--shard", "3/4",
                            input_text=self.full_tsv_text)
         self.assertEqual(rows.returncode, 0, rows.stderr)
@@ -233,7 +241,7 @@ class ShardContractTest(unittest.TestCase):
         self.assertGreaterEqual(len(postgres), 2)
         flat = [f"{row.split(chr(9))[0]}|{test}"
                 for row in postgres for test in row.split(chr(9))[2].split(" ")]
-        expected = shards.partition_runs(self.flat, "3/4")
+        expected = shards.partition_runs(self.flat, "3/4", self.weights)
         self.assertCountEqual(flat, expected)
         self.assertEqual(flat, expected)
         for row in postgres:
@@ -267,12 +275,12 @@ class ShardContractTest(unittest.TestCase):
         reports = self.good_reports()
         self.assertEqual(self.verify(reports).returncode, 0, self.verify(reports).stderr)
         result = json.loads(reports[1].read_text(encoding="utf-8"))
-        expected_second = shards.partition_runs(self.flat, "2/4")
+        expected_second = shards.partition_runs(self.flat, "2/4", self.weights)
         self.assertEqual(result["expected_runs"], expected_second)
         self.assertEqual(result["observed_count"], len(expected_second))
 
     def test_missing_failed_and_unexpected_tests_fail_report(self) -> None:
-        selected = shards.partition_runs(self.flat, "2/4")
+        selected = shards.partition_runs(self.flat, "2/4", self.weights)
         package, first = selected[0].split("|")
         rest = ",".join(line.split("|")[1] for line in selected[1:]
                         if line.split("|")[0] == package)
@@ -309,7 +317,7 @@ class ShardContractTest(unittest.TestCase):
         forged = self.directory / "forged-4-report.json"
         forged.write_text(self.write_report("4/4").read_text(encoding="utf-8"),
                           encoding="utf-8")
-        expected = shards.partition_runs(self.flat, "4/4")
+        expected = shards.partition_runs(self.flat, "4/4", self.weights)
         raw = json.loads(forged.read_text(encoding="utf-8"))
         raw["runs"] = [{"run": line, "status": 0} for line in
                        [*expected[:-1], expected[0]]]
@@ -322,7 +330,7 @@ class ShardContractTest(unittest.TestCase):
 
     def test_verify_rejects_failed_shard_report(self) -> None:
         reports = self.good_reports()
-        package = shards.partition_runs(self.flat, "4/4")[0].split("|")[0]
+        package = shards.partition_runs(self.flat, "4/4", self.weights)[0].split("|")[0]
         failed = self.write_report("4/4", {package: 1})
         self.assertNotEqual(self.verify([*reports[:3], failed]).returncode, 0)
 
@@ -364,7 +372,7 @@ class ShardContractTest(unittest.TestCase):
 
     def mixed_attempt_layout(self) -> list[Path]:
         """Three attempt-1 greens plus a failed then rerun-green shard 2/4."""
-        package = shards.partition_runs(self.flat, "2/4")[0].split("|")[0]
+        package = shards.partition_runs(self.flat, "2/4", self.weights)[0].split("|")[0]
         layout = [self.layout_report(shard, 1) for shard in ("1/4", "3/4", "4/4")]
         layout.append(self.layout_report("2/4", 1, {package: 1}))
         layout.append(self.layout_report("2/4", 2))
@@ -391,7 +399,7 @@ class ShardContractTest(unittest.TestCase):
 
     def test_select_rejects_stale_newest_report(self) -> None:
         """A shard whose rerun report is stale keeps the aggregate red."""
-        package = shards.partition_runs(self.flat, "2/4")[0].split("|")[0]
+        package = shards.partition_runs(self.flat, "2/4", self.weights)[0].split("|")[0]
         others = [self.layout_report(shard, 1) for shard in ("1/4", "3/4", "4/4")]
         failed = self.layout_report("2/4", 1, {package: 1})
         stale = self.layout_report("2/4", 2, head="b" * 40)

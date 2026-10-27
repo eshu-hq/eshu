@@ -64,12 +64,15 @@ class BalanceContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.plan = live_plan()
-        cls.weights = wt.load_weights()
+        cls.weights = wt.weights_from_json(json.loads(wt.WEIGHTS_PATH.read_text(
+            encoding="utf-8")))
 
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.directory = Path(self.temp.name)
+        self.legacy_weights_path = self.directory / "legacy.json"
+        self.legacy_weights_path.write_bytes(wt.WEIGHTS_PATH.read_bytes())
 
     def job_seconds(self, runs: list[str], weights: wt.Weights,
                     bounds: list[int]) -> list[float]:
@@ -125,9 +128,10 @@ class BalanceContractTest(unittest.TestCase):
     def test_partition_runs_and_plan_cli_follow_the_weighted_cut(self) -> None:
         bounds = wt.weighted_bounds(self.plan, self.weights)
         for index, shard in enumerate(SHARD_IDS):
-            self.assertEqual(shards.partition_runs(self.plan, shard),
+            self.assertEqual(shards.partition_runs(self.plan, shard, self.weights),
                              self.plan[bounds[index]:bounds[index + 1]])
-        sizes = [len(shards.partition_runs(self.plan, shard)) for shard in SHARD_IDS]
+        sizes = [len(shards.partition_runs(self.plan, shard, self.weights))
+                 for shard in SHARD_IDS]
         jobs = self.job_seconds(self.plan, self.weights, [0, *itertools.accumulate(sizes)])
         self.assertLessEqual(max(jobs), wt.BUDGET_SECONDS, jobs)
         result = self.invoke("plan", "--shard", "1/4", input_text=self.full_tsv())
@@ -278,9 +282,12 @@ class BalanceContractTest(unittest.TestCase):
 
     def invoke(self, *args: str, input_text: str | None = None
                ) -> subprocess.CompletedProcess[str]:
-        """Run the planner CLI as the CI shell does."""
+        """Run the planner CLI against the legacy model under test."""
+        arguments = list(args)
+        if "--weights" not in arguments:
+            arguments[1:1] = ["--weights", str(self.legacy_weights_path)]
         return subprocess.run([sys.executable, str(LIB / "live_postgres_readiness_shards.py"),
-                               *args], input=input_text, text=True, capture_output=True,
+                               *arguments], input=input_text, text=True, capture_output=True,
                               check=False)
 
     def full_tsv(self) -> str:

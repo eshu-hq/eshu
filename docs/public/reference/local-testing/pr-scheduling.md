@@ -12,7 +12,12 @@ the trusted publisher to compare with the required verdict.
 
 The remaining synchronize workflows are called from `Build Test`. Their
 original base-branch and changed-path filters are in the inventory. A callable
-job runs only when the plan selects its local job ID. The caller retains each
+job runs only when the plan selects its local job ID. The sole auxiliary
+exception is `live-postgres-readiness.yml`'s `readiness-plan`: on a PR it
+also runs when the trusted plan selects its dependent
+`live-postgres-readiness-shards` job. This bridges a full plan made from
+the previous frozen inventory, which did not yet name the helper; smoke
+and reuse do not select the shards. The caller retains each
 workflow's token scope and passes the private cassette-author identifiers only
 to the static-contract workflow. Each called workflow has its own concurrency
 group so it cannot cancel the caller. Opened-only Discord and labeled-only
