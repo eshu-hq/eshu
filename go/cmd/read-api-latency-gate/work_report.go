@@ -11,9 +11,10 @@ import (
 )
 
 type workReportRoute struct {
-	Route string         `json:"route"`
-	P95MS float64        `json:"p95_ms"`
-	Work  workReportWork `json:"work"`
+	Route                string         `json:"route"`
+	P95MS                float64        `json:"p95_ms"`
+	Work                 workReportWork `json:"work"`
+	StatementDiagnostics *WorkSnapshot  `json:"statement_diagnostics,omitempty"`
 }
 
 type workReportWork struct {
@@ -33,9 +34,10 @@ func WriteWorkReport(w io.Writer, results []RouteLatency) error {
 			continue
 		}
 		routes = append(routes, workReportRoute{
-			Route: r.Route,
-			P95MS: float64(r.P95) / 1e6,
-			Work:  workReportWork{Calls: r.Work.Calls, Rows: r.Work.Rows, Blks: r.Work.Blks},
+			Route:                r.Route,
+			P95MS:                float64(r.P95) / 1e6,
+			Work:                 workReportWork{Calls: r.Work.Calls, Rows: r.Work.Rows, Blks: r.Work.Blks},
+			StatementDiagnostics: r.StatementDiagnostics,
 		})
 	}
 	sort.Slice(routes, func(i, j int) bool { return routes[i].Route < routes[j].Route })

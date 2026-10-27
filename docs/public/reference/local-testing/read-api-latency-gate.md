@@ -311,9 +311,21 @@ ceiling before it.
 **Work budgets** (`testdata/benchmarks/read-api-route-work-budgets.txt`) are the
 regression-sensitive check. For every exercised route the gate resets
 `pg_stat_statements` after the warmup requests, sends the counted requests, and
-reads statements (`calls`), `rows`, and buffer blocks (`blks`: shared, local and
-temp, read and hit) per request. A route breaches when any of the three exceeds
-its budget, and the report prints all three next to the route's p95. Buffers
+reads statements (`calls`), `rows`, and buffer blocks (`blks`: shared and local
+hits/reads plus temp reads/writes) per request. A route breaches when any of the three exceeds
+its budget, and the report prints all three next to the route's p95. For
+the serial `MCP search_entity_content` pilot, the work report also retains up
+to 10,000 numeric `pg_stat_statements` rows under `statement_diagnostics`
+(`scope: database_interval`). Its calls, rows, and six buffer counters are
+folded into the same official work totals used by the budget. The capture
+checks its reset timestamp before and after reading the rows and requires zero
+statement deallocations; a changed epoch, incomplete read, or overflow fails
+the gate. Captured rows include only tracked statements in the current
+database that pass the existing work-meter filter; entries with unavailable
+query text or query text containing `pg_stat_statements` are excluded. They do
+not identify which request issued each SQL statement or detect every selective
+reset, so the fixture must own resets exclusively. Query IDs should only be compared within a compatible database,
+catalog, platform, and PostgreSQL version. Buffers
 separate the pre- and post-fix status routes by 10.7x to 12.7x while the
 statement count moves only 29.1 to 26.0, and they do not depend on runner CPU
 speed (evidence:
@@ -323,6 +335,31 @@ generated: run the gate on the runner class with `GATE_WORK_REPORT`, then
 `calls = ceil(max*1.25)+5`, `blks = ceil(max*3.0)`, `rows = ceil(max*2.0)` over
 the GREEN maximum. The five routes the #6794 fix did not change are guards for
 future regressions; the fix pair cannot prove them RED.
+
+Performance Evidence: #8682 bounded statement-capture proof (run `20261026T230946Z`). A compiled harness
+used PostgreSQL 18.6, 12,000 synthetic entities, and 20 direct
+`ContentReader` search requests per sample. In three valid ABBA rounds, each
+leg had five statement identities and the same database-interval totals: 100
+calls, 1,080 rows, and 3,500 buffer blocks (5, 54, and 175 per request). The
+frozen pilot median spread was 12.31% (limit 20%), with a 0.369318 ms control
+ceiling. The added capture cost had a 0.190402 ms median, ranged from 0.134562
+to 0.212742 ms, and was 0.194% to 0.308% of the corresponding 20-request
+wall time. The legacy capture ranged from 0.124221 to 0.230589 ms; the numeric
+statement capture ranged from 0.337908 to 0.388701 ms. A separate 8,192-ID
+stress arm took 7.210 ms for the legacy read and 90.877 ms for the row capture.
+The stress cardinality is not the representative five-statement workload.
+
+The Go harness passed and produced 22 retained rows. Its first offline check
+failed because Go omitted the zero `dealloc` field; the corrected checker
+accepted the same rows without another measurement. This proof covers the
+Postgres capture on direct search calls. It does not attribute the original
+CI variance, exercise MCP transport or the full gate corpus, or time whole
+report serialization. A unit test covers propagation of statement diagnostics
+on a budget breach; the private harness did not exercise that report path.
+The request count, work denominator, and budgets are unchanged.
+
+Observability Evidence: the work report retains numeric statement diagnostics
+on budget breaches; reset, deallocation, and malformed captures fail the gate.
 
 **Floor.** No named work row is rendered below the current `default` row (13 calls, 18
 buffers, 14 rows). Routes that read almost nothing would otherwise get a budget

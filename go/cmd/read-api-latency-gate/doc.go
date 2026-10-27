@@ -20,7 +20,10 @@
 // counter exceeds its budget: buffers, unlike latency, separate a plan-shape
 // regression such as #6794's from a healthy build by an order of magnitude
 // regardless of runner speed. After seeding it reads per-label graph node
-// counts back and fails if any label is short.
+// counts back and fails if any label is short. The serial MCP
+// search_entity_content pilot retains bounded numeric pg_stat_statements rows
+// in its work report; they cover the database interval of counted requests,
+// with no per-request SQL ownership claim.
 //
 // It exists to catch a regression like #6793 (infra resource aggregate
 // full-graph scans, or the Postgres jsonb-detoast cost in

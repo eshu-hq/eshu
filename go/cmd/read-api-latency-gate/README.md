@@ -86,6 +86,22 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
   `MeasureBackgroundCallRate`, `CheckMeterQuiet` — the `pg_stat_statements`
   meter (calls, rows, buffer blocks per request), its idle-noise guard, and the
   interface the hermetic RED/GREEN tests fake
+- `WorkSnapshotMeter`, `WorkSnapshot`, `StatementWork` — for the serial
+  `MCP search_entity_content` pilot only, retain bounded numeric statement
+  counters in the work report. The route uses a reset timestamp token and
+  checks the global epoch and zero deallocations before and after one captured
+  row set. The official work totals are folded from those same rows. This is
+  database-interval evidence across the counted requests, not per-request SQL
+  ownership; the fixture must own resets exclusively. A selective reset may
+  escape the global epoch check. Numeric query IDs only correlate within a
+  compatible database, catalog, platform, and PostgreSQL version. Capture
+  failures abort the gate rather than falling back to aggregate work.
+  A bounded PostgreSQL 18.6 check for #8682 measured 0.134562–0.212742 ms
+  of added capture time across three valid ABBA rounds over direct
+  `ContentReader` calls. This synthetic search proof does not include full
+  gate or MCP transport time. The
+  [read API latency gate reference](../../../docs/public/reference/local-testing/read-api-latency-gate.md)
+  records its controls and limits.
 - `ParseRouteWorkBudgets`, `EvaluateWorkBudgets`, `UnmeteredExercisedRoutes`,
   `WriteWorkReport` — the work budget table, the breach check (any of calls,
   blks, rows over budget), the guard against an exercised-but-unmetered route,
