@@ -1,0 +1,20 @@
+docker-compose.demo.corpus.yaml
+  h_78a442cba0b3e6 183-238,240-241,245-251,253-256,258-262,266-267,341
+docs/public/reference/collector-reducer-readiness.md
+  h_78a442cba0b3e6 171
+docs/public/run-locally/docker-compose.md
+  h_78a442cba0b3e6 562
+scripts/demo-corpus-loki-reconcile.sh
+  h_78a442cba0b3e6 1-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "863049277a6e3bf0e6c1987512df59b7576ed3d2",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
