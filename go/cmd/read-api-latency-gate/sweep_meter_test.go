@@ -320,8 +320,26 @@ func TestValidateWorkSnapshotRejectsUntrustworthyRows(t *testing.T) {
 	if _, err := validateWorkSnapshot(token, []StatementWork{large, {DBID: 3, UserID: 2, QueryID: "1", StatsSinceUnixMicro: token.UnixMicro(), TempBlksRead: 1}}); err == nil {
 		t.Fatal("accepted block counter overflow")
 	}
-	if _, err := validateWorkSnapshot(token, make([]StatementWork, maxSnapshotStatements+1)); err == nil {
-		t.Fatal("accepted snapshot beyond cap")
+}
+
+func TestValidateWorkSnapshotStatementCap(t *testing.T) {
+	token := time.Date(2026, time.October, 26, 19, 0, 0, 0, time.UTC)
+	rows := make([]StatementWork, 10_001)
+	for i := range rows {
+		rows[i] = StatementWork{
+			DBID: 1, UserID: 2, QueryID: fmt.Sprintf("%d", i),
+			StatsSinceUnixMicro: token.UnixMicro(), Calls: 1, Rows: 2, SharedBlksHit: 3,
+		}
+	}
+	atLimit, err := validateWorkSnapshot(token, rows[:10_000])
+	if err != nil {
+		t.Fatalf("valid snapshot at the 10000-row limit rejected: %v", err)
+	}
+	if len(atLimit.Statements) != 10_000 || atLimit.Counters != (WorkCounters{Calls: 10_000, Rows: 20_000, Blks: 30_000}) {
+		t.Fatalf("snapshot at the limit has wrong rows or totals: %+v", atLimit.Counters)
+	}
+	if _, err := validateWorkSnapshot(token, rows); err == nil || !strings.Contains(err.Error(), "exceeds 10000 rows") {
+		t.Fatalf("valid snapshot beyond the limit: error = %v, want cap rejection", err)
 	}
 }
 
