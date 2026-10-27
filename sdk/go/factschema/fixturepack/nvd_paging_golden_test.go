@@ -4,6 +4,7 @@
 package fixturepack
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -16,6 +17,14 @@ type nvdGoldenFact struct {
 	Kind          string          `json:"kind"`
 	StableFactKey string          `json:"stable_fact_key"`
 	Payload       json.RawMessage `json:"payload"`
+}
+
+func TestNVDPagingGoldenFullContentDigest(t *testing.T) {
+	const expected = "bd1d347f1e89d27ad66c9014162d337bc9b7fa890a0abc5222314cf961e324fa"
+	got := fmt.Sprintf("%x", sha256.Sum256(NVDPagingGolden()))
+	if got != expected {
+		t.Fatalf("NVD paging golden digest = %s, want %s; review every input and payload field before updating the pin", got, expected)
+	}
 }
 
 func TestNVDPagingGoldenContentAndCopy(t *testing.T) {
