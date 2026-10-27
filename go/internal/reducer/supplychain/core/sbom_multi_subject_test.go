@@ -260,3 +260,58 @@ func TestSBOMSubjectRejectsConflictingScannerDigests(t *testing.T) {
 		}
 	}
 }
+
+// TestSBOMSubjectConflictingOSRowsStayPartial checks every version from scans
+// resolving the same image digest before one OS row can reinforce the SBOM.
+func TestSBOMSubjectConflictingOSRowsStayPartial(t *testing.T) {
+	t.Parallel()
+	const (
+		packageID = "pkg:rpm/redhat/openssl"
+		digest    = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		sbomPURL  = "pkg:rpm/redhat/openssl@1:3.0.7-18.el9_2"
+	)
+	makeOS := func(id, scope, release string) facts.Envelope {
+		os := osPackageFact(id, scope, map[string]any{
+			"distro": "redhat", "distro_version": "9.2", "package_manager": "rpm",
+			"name": "openssl", "epoch": "1", "upstream_version": "3.0.7",
+			"distro_release": release, "arch": "x86_64", "source_package": "openssl",
+			"repository_class": "vendor", "vendor_advisory_source": "redhat",
+			"installed_version_raw": "1:3.0.7-" + release,
+			"purl":                  "pkg:rpm/redhat/openssl@1:3.0.7-" + release + "?arch=x86_64&distro=redhat-9.2",
+		})
+		os.GenerationID = "generation-" + scope
+		return os
+	}
+	matching := makeOS("os-version-18", "scan-version-18", "18.el9_2")
+	conflicting := makeOS("os-version-19", "scan-version-19", "19.el9_2")
+	base := []facts.Envelope{
+		vulnerabilityCVEFactWithProvenance("cve-os-rows", "CVE-2026-91914", "redhat", "RHSA-2026:91914", 7.8, "", "HIGH", "2026-05-31T12:00:00Z"),
+		vulnerabilityAffectedPackageFactWithSource("affected-os-rows", "CVE-2026-91914", "redhat", "RHSA-2026:91914", packageID, "redhat", "openssl", "1:3.0.7-18.el9_2", "1:3.0.7-20.el9_2"),
+		sbomComponentImpactFactWithPackageIDVersion("component-os-rows", "doc-os-rows", sbomPURL, packageID, "1:3.0.7-18.el9_2"),
+		sbomAttachmentImpactFact("attachment-os-rows", "doc-os-rows", digest),
+		containerImageIdentityImpactFact("image-os-rows", digest, testImpactRepositoryID),
+	}
+	for _, rows := range [][]facts.Envelope{{matching, conflicting}, {conflicting, matching}} {
+		input := append(slices.Clone(base), rows...)
+		for _, row := range rows {
+			input = append(input, scannerWorkerAnalysisFact(row.ScopeID, row.GenerationID, digest, "registry.example/os@"+digest))
+		}
+		got := supplyChainImpactFindingForDigest(t, BuildSupplyChainImpactFindings(input), digest)
+		if got.Status != SupplyChainImpactPossiblyAffected || got.MatchReason != supplyChainVersionReasonSBOMVersionConflict ||
+			got.ObservedVersion != "1:3.0.7-18.el9_2" || got.PURL != sbomPURL ||
+			!slices.Contains(got.EvidenceFactIDs, matching.FactID) || !slices.Contains(got.EvidenceFactIDs, conflicting.FactID) ||
+			!slices.Contains(got.MissingEvidence, supplyChainMissingSBOMVersionConflict) {
+			t.Fatalf("OS rows %q, %q produced %#v", rows[0].FactID, rows[1].FactID, got)
+		}
+	}
+	equivalent := makeOS("os-version-18-again", "scan-version-18-again", "18.el9_2")
+	input := append(slices.Clone(base), matching, equivalent)
+	for _, row := range []facts.Envelope{matching, equivalent} {
+		input = append(input, scannerWorkerAnalysisFact(row.ScopeID, row.GenerationID, digest, "registry.example/os@"+digest))
+	}
+	got := supplyChainImpactFindingForDigest(t, BuildSupplyChainImpactFindings(input), digest)
+	if got.Status != SupplyChainImpactAffectedExact || !slices.Contains(got.EvidenceFactIDs, matching.FactID) ||
+		!slices.Contains(got.EvidenceFactIDs, equivalent.FactID) {
+		t.Fatalf("equivalent OS rows did not reinforce the subject: %#v", got)
+	}
+}

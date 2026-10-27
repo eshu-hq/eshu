@@ -28,9 +28,11 @@ advisory can now produce separate findings for every verified SBOM image
 subject and installed version. An unassociated package manifest or OS scan
 remains its own finding; a scanner result joins an SBOM image only when the
 scan scope and generation resolve that image's digest. Conflicting
-scanner digests for one scope and generation resolve no subject. Equivalent image rows
-coalesce after version conflict checks, and one complete writer pass publishes
-the resulting set so prior subjects can retract when evidence changes.
+scanner digests for one scope and generation resolve no subject. Conflicting
+vendor OS versions for the same resolved image stay partial with both scan
+facts in provenance. Equivalent image rows coalesce after version conflict
+checks. One complete writer pass publishes the resulting set so prior subjects
+can retract when evidence changes.
 
 Performance Evidence (#9232): `BenchmarkSBOMVersionGuard` uses the same
 five-fact npm advisory and attached image on Apple M5 Max with Go 1.26.10.

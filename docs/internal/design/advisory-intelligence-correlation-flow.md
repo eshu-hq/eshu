@@ -101,8 +101,8 @@ sequenceDiagram
   Prj->>Red: enqueue one impact intent for that scope
   Red->>PG: load the scope's facts
   Red->>PG: pull matching evidence from other scopes (up to 8 rounds)
-  Red->>Red: group by CVE, then by package
-  Red->>Red: match versions, set status, score priority, apply suppressions
+  Red->>Red: group by CVE and package; enumerate verified SBOM image subjects
+  Red->>Red: classify each subject and independent evidence path; score priority, apply suppressions
   Red->>PG: write impact findings for that scope
   Win->>PG: every 30 s by default, keep one winning row per finding
   You->>Win: read findings
@@ -129,7 +129,8 @@ Notes on the order:
 flowchart TD
   A["Advisory names a package<br/>(ecosystem + name or PURL)"] --> B{"Do you use that package?<br/>lockfile, manifest, SBOM, OS package"}
   B -- no --> X["No finding"]
-  B -- yes --> S1{"1. Exact version inside the range,<br/>backed by a lockfile or manifest consumption fact?"}
+  B -- yes --> E["Enumerate each verified SBOM image subject<br/>and independent manifest or OS path"]
+  E --> S1{"1. Exact version inside the range,<br/>backed by a lockfile or manifest consumption fact?"}
   S1 -- yes --> AE["affected_exact"]
   S1 -- no --> S2{"2. Installed version at or past a known fix?"}
   S2 -- yes --> NF["not_affected_known_fixed"]
@@ -161,9 +162,11 @@ version and a supported matcher. Pass `profile=comprehensive` to also see
 SBOM package paths with partial version evidence, CPE-derived, range-only, and missing-version findings. A SecOps
 query that uses the default does not show image-only exposure.
 
-The reducer checks the numbered steps in order and stops at the first match.
-This is today's code path in the package classifier. The CPE branch runs only
-when a CVE has no package rows.
+The reducer applies these precedence steps within each subject's classifier.
+It enumerates every valid SBOM component-to-attachment-to-image path before
+classification, so a decision for one image does not hide another image or
+installed version. Unassociated manifest and OS evidence follows its separate
+path. The CPE branch runs only when a CVE has no package rows.
 
 Rules that hold today:
 

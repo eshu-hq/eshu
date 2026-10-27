@@ -81,6 +81,13 @@ func classifySupplyChainImpactPackage(
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMImpactPath(pkg, index)
 	consumption := firstConsumption(pkg.PackageID, index.consumption)
 	osPackage, hasOSPackage := firstOSPackageImpactPath(pkg, index)
+	var subjectOSRows []supplychainmodel.OSPackage
+	if hasComponentPath && hasOSPackage {
+		// The caller scoped these OS rows to this attachment's resolved digest.
+		// Inspect every matching version before choosing a representative row.
+		subjectOSRows = matchingOSPackageImpactPaths(pkg, index)
+		osPackage = subjectOSRows[0]
+	}
 	// repoFromConsumption is the single provenance signal both image-evidence
 	// branches below gate on: the SBOM branch must not overwrite a
 	// consumption-derived anchor with the image's OCI registry path (#5780),
@@ -134,8 +141,7 @@ func classifySupplyChainImpactPackage(
 			finding.RepositoryID = image.repositoryID
 		}
 	}
-	osVersionConflict := hasComponentPath && hasOSPackage && component.Version != "" && osPackage.InstalledVersion != "" &&
-		!equivalentSupplyChainVersions(finding.Ecosystem, component.Version, osPackage.InstalledVersion)
+	osVersionConflict := hasComponentPath && conflictingOSPackageVersions(finding.Ecosystem, component.Version, subjectOSRows)
 	if hasOSPackage {
 		if !osVersionConflict {
 			finding.PURL = payloadcore.FirstNonBlank(osPackage.PURL, finding.PURL)
@@ -225,6 +231,17 @@ func classifySupplyChainImpactPackage(
 						finding.SubjectDigest, repositoryID, index.images,
 					)
 				}
+			}
+		}
+	}
+	if hasComponentPath && hasOSPackage {
+		// Keep every agreeing or disagreeing scan row and its digest binding
+		// in provenance after the version conflict check.
+		for _, row := range subjectOSRows {
+			finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, row.FactID)
+			analysis := index.scannerAnalyses[supplychainmodel.ScopeGenerationKey(row.ScopeID, row.GenerationID)]
+			if analysis.ImageDigest == attachment.SubjectDigest {
+				finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, analysis.FactID)
 			}
 		}
 	}
