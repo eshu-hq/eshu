@@ -475,12 +475,6 @@ github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1 h1:SBFlZaq6+VZ04JxcrJl2DU4F/
 github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1/go.mod h1:1sJQmsa9f9xLU2bfoXpeLb7Px/AUfIJKo+Yiez8nFC0=
 github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3 h1:IWRyIZzVRyxC/MSFWAToTYChSvO9sI8Fg8v5IYVbLqs=
 github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3/go.mod h1:ysNLZcpQe9ZGYFZnTLyYTCHNaLrPRJjb1f9aLPOXdtA=
-github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.4 h1:4f/K99bd++Gm4TXLMU22QzEWItzWgX3oDV+IZLiT9KE=
-github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.4/go.mod h1:CnwND1yYkq0K/gMO7k746nEKmTKvVCRYrHB3TZpsJqk=
-github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.5 h1:SDj+eLPRnCqanwpYctLIvaMb0vrBeeiEa+htNk+xveU=
-github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.5/go.mod h1:CnwND1yYkq0K/gMO7k746nEKmTKvVCRYrHB3TZpsJqk=
-github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.6 h1:ntCEc84V2lEV6ECPAuD30a7reZ4EEX3vewJziTONhpc=
-github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.6/go.mod h1:CnwND1yYkq0K/gMO7k746nEKmTKvVCRYrHB3TZpsJqk=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7 h1:20Q3x+rqSSsQ2fEc4PvfiSFDaoQLNghsaTNgv5xSf5k=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7/go.mod h1:CnwND1yYkq0K/gMO7k746nEKmTKvVCRYrHB3TZpsJqk=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
@@ -491,8 +485,8 @@ github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/fxamacker/cbor/v2 v2.9.0 h1:NpKPmjDBgUfBms6tr6JZkTHtfFGcMKsw3eGcmD/sapM=
 github.com/fxamacker/cbor/v2 v2.9.0/go.mod h1:vM4b+DJCtHn+zz7h3FFp/hDAI9WNWCsZj23V5ytsSxQ=
-github.com/go-jose/go-jose/v4 v4.1.4 h1:moDMcTHmvE6Groj34emNPLs/qtYXRVcd6S7NHbHz3kA=
-github.com/go-jose/go-jose/v4 v4.1.4/go.mod h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=
+github.com/go-jose/go-jose/v4 v4.1.6 h1:sNRkftxFJxwsILiQukqp5z83QBSmntVwmgRY7AqBDO4=
+github.com/go-jose/go-jose/v4 v4.1.6/go.mod h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
 github.com/go-logr/logr v1.4.4 h1:tG4xh9yMsRCAiodLVTxyrkzSZ9+o0L1Kg/+cPVcbP/8=
 github.com/go-logr/logr v1.4.4/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
