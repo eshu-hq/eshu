@@ -274,6 +274,7 @@ vulnerability_source_state_candidates AS (
         COALESCE(state.warning_count, 0) AS warning_count,
         state.updated_at,
         target.coverage_eligible AND committed.covered AS coverage_eligible,
+        target.coverage_eligible AND committed.zero_result AS coverage_zero,
         target.coverage_eligible AND NOT committed.covered AS coverage_missing
     FROM (
         SELECT * FROM target_vulnerability_source_scopes
@@ -290,11 +291,17 @@ vulnerability_source_state_candidates AS (
         OFFSET 0
     ) AS state ON TRUE
     -- A source-state success is written before the generation commit. Only
-    -- an active, complete snapshot for this exact executed selector can prove
-    -- absence. Legacy snapshots without a descriptor fail this match.
+    -- an active, complete snapshot for this exact executed selector proves the
+    -- target ran (covered). Absence is certified only when that snapshot also
+    -- counted zero records (zero_result); a covered snapshot that counted a
+    -- record is not a coverage gap. Legacy snapshots without a descriptor fail
+    -- this match. result_count must be a non-negative JSON integer; the regex
+    -- rejects a fractional value without a cast that could raise.
     CROSS JOIN LATERAL (
-        SELECT EXISTS (
-            SELECT 1 FROM vulnerability_source_snapshot_active AS snapshot
+        SELECT COUNT(*) > 0 AS covered,
+            COALESCE(BOOL_AND(snapshot.payload->'result_count' = '0'::jsonb), FALSE) AS zero_result
+        FROM (
+            SELECT snapshot.payload FROM vulnerability_source_snapshot_active AS snapshot
             WHERE target.coverage_eligible
               AND snapshot.scope_id = target.scope_id
               AND snapshot.payload->>'collector_instance_id' = target.collector_instance_id
@@ -303,15 +310,15 @@ vulnerability_source_state_candidates AS (
               AND NULLIF(TRIM(snapshot.payload->>'warning_code'), '') IS NULL
               AND NULLIF(TRIM(snapshot.payload->>'warning_message'), '') IS NULL
               AND JSONB_TYPEOF(snapshot.payload->'result_count') = 'number'
-              AND COALESCE(NULLIF(snapshot.payload->>'result_count', '')::int, -1) = 0
+              AND snapshot.payload->>'result_count' ~ '^[0-9]+$'
               AND COALESCE(NULLIF(snapshot.payload->>'cache_freshness', ''), 'fresh') = 'fresh'
               AND CASE WHEN JSONB_TYPEOF(snapshot.payload->'coverage_descriptor') = 'object'
                   THEN (snapshot.payload->'coverage_descriptor') - 'executed_endpoint'::text = target.expected_descriptor
                    AND (target.expected_descriptor->'endpoint_candidates') ?
                        (snapshot.payload->'coverage_descriptor'->>'executed_endpoint')
                   ELSE FALSE END
-        ) AS covered
-        OFFSET 0
+            OFFSET 0
+        ) AS snapshot
     ) AS committed
 ),
 vulnerability_source_state AS (
@@ -345,6 +352,7 @@ vulnerability_source_state AS (
                 'result_count', result_count,
                 'warning_count', warning_count,
                 'coverage_eligible', coverage_eligible,
+                'coverage_zero', coverage_zero,
                 'updated_at', TO_CHAR(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
             ))) FILTER (WHERE scope_id IS NOT NULL),
             '[]'::jsonb

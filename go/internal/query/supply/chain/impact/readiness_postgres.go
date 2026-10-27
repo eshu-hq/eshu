@@ -6,6 +6,7 @@ package impact
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -120,7 +121,7 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 			return ReadinessSnapshot{}, err
 		}
 		if !ready {
-			return ReadinessSnapshot{}, fmt.Errorf("package manifest consumption keys are not ready")
+			return ReadinessSnapshot{}, ErrReadinessConsumptionKeysNotReady
 		}
 		target, err = resolveReadinessTarget(ctx, database, query)
 		if err != nil {
@@ -225,13 +226,13 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 		}
 		if family == sourceStateInvalidMarker {
 			if incompleteFlag.Valid && incompleteFlag.Bool {
-				return ReadinessSnapshot{}, fmt.Errorf("vulnerability source readiness has malformed active target configuration")
+				return ReadinessSnapshot{}, ErrReadinessSourceTargetsMalformed
 			}
 			continue
 		}
 		if family == sourceStateOverflowMarker {
 			if incompleteFlag.Valid && incompleteFlag.Bool {
-				return ReadinessSnapshot{}, fmt.Errorf("vulnerability source readiness exceeds 200 relevant targets")
+				return ReadinessSnapshot{}, ErrReadinessSourceTargetsOverflow
 			}
 			continue
 		}
@@ -300,4 +301,46 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 		TargetIncomplete:   targetIncomplete,
 		IncompleteReasons:  uniqueSortedReadinessStrings(incompleteReasons),
 	}, nil
+}
+
+// Deterministic fail-closed readiness causes. Each one turns a readiness read
+// into readiness_unavailable until an operator fixes configuration or the
+// consumption-key backfill finishes, so handlers log the cause by class.
+var (
+	// ErrReadinessSourceTargetsMalformed reports an enabled vulnerability
+	// intelligence instance whose configured targets are malformed or repeat
+	// a scope ID; no target can be trusted to certify coverage.
+	ErrReadinessSourceTargetsMalformed = errors.New("vulnerability source readiness has malformed active target configuration")
+	// ErrReadinessSourceTargetsOverflow reports more than 200 relevant
+	// configured or derived source targets; a truncated read is refused.
+	ErrReadinessSourceTargetsOverflow = errors.New("vulnerability source readiness exceeds 200 relevant targets")
+	// ErrReadinessConsumptionKeysNotReady reports that the package manifest
+	// consumption-key backfill has not completed, so targets cannot resolve.
+	ErrReadinessConsumptionKeysNotReady = errors.New("package manifest consumption keys are not ready")
+)
+
+// Closed-set readiness_unavailable_cause values for operator logs.
+const (
+	ReadinessUnavailableCauseTargetsMalformed = "source_targets_malformed"
+	ReadinessUnavailableCauseTargetsOverflow  = "source_targets_overflow"
+	ReadinessUnavailableCauseConsumptionKeys  = "consumption_keys_not_ready"
+	ReadinessUnavailableCauseQueryError       = "query_error"
+)
+
+// ReadinessUnavailableCause classifies a readiness read error into a bounded
+// cause class. It returns an empty string for a nil error and query_error for
+// any transient or unrecognized failure.
+func ReadinessUnavailableCause(err error) string {
+	switch {
+	case err == nil:
+		return ""
+	case errors.Is(err, ErrReadinessSourceTargetsMalformed):
+		return ReadinessUnavailableCauseTargetsMalformed
+	case errors.Is(err, ErrReadinessSourceTargetsOverflow):
+		return ReadinessUnavailableCauseTargetsOverflow
+	case errors.Is(err, ErrReadinessConsumptionKeysNotReady):
+		return ReadinessUnavailableCauseConsumptionKeys
+	default:
+		return ReadinessUnavailableCauseQueryError
+	}
 }

@@ -26,6 +26,7 @@ type SourceState struct {
 	WarningCount        int               `json:"warning_count"`
 	UpdatedAt           string            `json:"updated_at,omitempty"`
 	coverageEligible    bool
+	coverageZero        bool
 }
 
 // SourceStateWindow is the bounded source collection window.
@@ -102,6 +103,11 @@ func sourceStateIncompleteReasons(states []SourceState) []string {
 	return reasons
 }
 
+// sourceStatesHaveCoveredSuccess reports whether committed NVD coverage
+// certifies advisory absence: every covered exact-CVE NVD state must be fresh,
+// succeeded, warning-free, and backed by a committed zero-result snapshot
+// (coverageZero). The state row's own counts stay as extra health gates; the
+// certifying bit comes from the snapshot, never from source-state health.
 func sourceStatesHaveCoveredSuccess(states []SourceState) bool {
 	covered := false
 	for _, state := range states {
@@ -109,7 +115,7 @@ func sourceStatesHaveCoveredSuccess(states []SourceState) bool {
 			continue
 		}
 		if state.FreshnessState != "fresh" || state.TerminalStatus != "succeeded" ||
-			state.ResultCount != 0 || state.WarningCount != 0 {
+			!state.coverageZero || state.ResultCount != 0 || state.WarningCount != 0 {
 			return false
 		}
 		covered = true

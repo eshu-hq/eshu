@@ -268,7 +268,7 @@ func TestPostgresSupplyChainImpactReadinessScopesSourceFreshness(t *testing.T) {
 		"FROM collector_instances AS instance",
 		"JSONB_ARRAY_ELEMENTS(",
 		"JSONB_TYPEOF(instance.configuration->'targets') = 'array'",
-		"TRIM(cve.id) = $9",
+		"UPPER(TRIM(cve.id)) = UPPER(TRIM($9))",
 		"selector.cve_selected",
 		"target_vulnerability_source_overflow AS (",
 		"FROM target_vulnerability_source_scopes AS target",

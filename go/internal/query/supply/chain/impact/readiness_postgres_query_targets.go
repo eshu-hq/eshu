@@ -7,6 +7,8 @@ package impact
 // collector configuration. The 201-row probe below refuses a truncated read.
 // Explicit CVE selectors and modified windows are separate source-health
 // routes; only an exact NVD CVE selector may certify empty advisory coverage.
+// CVE ids compare case-insensitively (upper case on both sides), matching the
+// collector's strings.EqualFold selection and the producer's descriptor.
 const readinessConfiguredSourceTargetsCTE = `invalid_vulnerability_source_targets AS (
     SELECT EXISTS (
         SELECT 1 FROM collector_instances AS instance
@@ -71,7 +73,7 @@ configured_vulnerability_source_targets AS (
                     CASE WHEN JSONB_TYPEOF(target->'cve_ids') = 'array'
                         THEN target->'cve_ids' ELSE '[]'::jsonb END
                 ) AS cve(id)
-                WHERE TRIM(cve.id) = $9
+                WHERE UPPER(TRIM(cve.id)) = UPPER(TRIM($9))
             ) END AS cve_selected
         OFFSET 0
     ) AS selector
@@ -98,7 +100,7 @@ configured_vulnerability_source_targets AS (
         ) AS expected_descriptor
         FROM (
             SELECT COALESCE(JSONB_AGG(id ORDER BY id), '[]'::jsonb) AS ids
-            FROM (SELECT DISTINCT TRIM(cve.value) AS id
+            FROM (SELECT DISTINCT UPPER(TRIM(cve.value)) AS id
                 FROM JSONB_ARRAY_ELEMENTS_TEXT(CASE WHEN JSONB_TYPEOF(target->'cve_ids') = 'array'
                     THEN target->'cve_ids' ELSE '[]'::jsonb END) AS cve(value)
                 WHERE NULLIF(TRIM(cve.value), '') IS NOT NULL) AS canonical

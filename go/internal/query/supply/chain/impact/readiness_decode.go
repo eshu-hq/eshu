@@ -35,6 +35,7 @@ func decodeSourceStates(raw sql.NullString) ([]SourceState, error) {
 	var decoded []struct {
 		SourceState
 		CoverageEligible bool `json:"coverage_eligible"`
+		CoverageZero     bool `json:"coverage_zero"`
 	}
 	if err := json.Unmarshal([]byte(raw.String), &decoded); err != nil {
 		return nil, fmt.Errorf("decode vulnerability source state metadata: %w", err)
@@ -42,6 +43,7 @@ func decodeSourceStates(raw sql.NullString) ([]SourceState, error) {
 	states := make([]SourceState, 0, len(decoded))
 	for _, entry := range decoded {
 		entry.coverageEligible = entry.CoverageEligible
+		entry.coverageZero = entry.CoverageZero
 		states = append(states, entry.SourceState)
 	}
 	return states, nil

@@ -90,44 +90,54 @@ missing-evidence constants, and the relocated runtime-evidence types
 `VulnerabilitySuppressionMutationResult`).
 
 For an explicit NVD CVE, the readiness SQL treats source state as health and
-requires a complete active-generation source snapshot with a matching
-versioned coverage descriptor before it admits a clean-zero result. The
-comparison uses the current configured selector and the endpoint actually
-used inside the same repeatable-read snapshot as target resolution. Missing
-legacy metadata, stale or partial snapshots, and an in-place selector change
-leave target collection incomplete. Malformed CVE elements and duplicate
-scope IDs fail the readiness lookup closed.
+calls a target covered only when a complete, fresh, warning-free
+active-generation source snapshot carries a matching versioned coverage
+descriptor. The comparison uses the current configured selector (CVE ids
+compared in upper case, as the collector matches them) and the endpoint
+actually used, inside the same repeatable-read snapshot as target resolution.
+Missing legacy metadata, stale or partial snapshots, and an in-place selector
+change leave the target uncovered, which is the only source of
+`nvd:committed_snapshot_missing`. A covered snapshot that counted records is
+not a gap: the CVE's advisory fact decides between `ready_zero_findings` and
+`evidence_incomplete`. Only a covered snapshot with `result_count = 0`
+(`coverage_zero`, carried per state row and never exposed) certifies advisory
+absence. Source-state freshness ages by `last_success_at` only; the
+collection window is reported, not aged. Malformed CVE elements and duplicate
+scope IDs fail the readiness lookup closed, and the findings and explain
+handlers log the fail-closed cause.
 
-Performance Evidence: local run `9227-pg18-selector-coverage-20261027-1348`
-used disposable PostgreSQL 18.6 with 50 active collector instances, 10,000
-configured targets, and 10,000 source-state rows. Its raw local plans are
-`/tmp/eshu-9227-plan-{200,250,positive}-final-{1,2,3}.json` with summary log
-`/tmp/eshu-9227-actual-instancepath-final.log`; a one-off Go test harness
-issued `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` on the assembled
-`ListReadinessQuery` and was removed after proof. The timings below belong to
-the pre-rebase source tree later committed as `e2b49c3755` and carried without
-conflict into `624da17ad2`; they are not an exact-head rerun. Baseline source
-SHA `16fad519` took 14.795 ms warm with 200 relevant targets and did not
-enforce committed selector-bound coverage. The full corrected query
-with per-target element validation took 24.043/24.523/24.359 ms on the same
-empty-snapshot corpus. Moving the same fail-closed JSONPath checks to one
-validation pass per instance took 20.071/19.950/19.933 ms (630 shared hits,
-zero temp blocks); 250 relevant targets took 21.280/20.347/21.132 ms (654
-hits, zero temp). The overflow probe detects the 201st target before source
-state lookup, and the plan performs only 200 primary-key state lookups in both
-cases. With 100 committed, complete, zero-result NVD snapshots, the corrected
-query took 21.245/22.093/22.691 ms (1,846 hits, zero temp). Exact SQL rows
-matched the previous validation on the 200/250-target and positive-snapshot
-fixtures, plus malformed blank, numeric, and null CVE elements and numeric
-fallbacks. These warm local plans are not an HTTP p95 or a deployed latency
-claim. The added validation and descriptor work remains a measured cost against
-the earlier incomplete query.
+Performance Evidence: the #9227 F1/F5 change (covered no longer requires
+`result_count = 0`, a per-target `coverage_zero` aggregate replaces the
+`EXISTS`, and CVE selectors compare in upper case) was measured with a
+scratch harness that wraps the read transaction and runs `EXPLAIN (ANALYZE,
+BUFFERS, FORMAT JSON)` on the assembled `ListReadinessQuery` with production
+arguments. Fixture: disposable PostgreSQL 18.6, 50 active collector instances,
+10,000 configured NVD targets, 10,000 source-state rows, CVE-only request.
+Before (`6a2f420830`) and after SQL ran alternately in one transaction on the
+same data, nine warm samples each. Plans are node-for-node identical except
+the per-target coverage `Result` node became an `Aggregate` over the same 200
+loops (0.4-1.4 ms in both). Shared hits were equal: 630 for 200 and 250
+relevant targets, 1,986 with 100 committed zero-result snapshots, with zero
+reads and zero temp blocks. Median execution time for 200 targets went from
+34.979 ms to 37.921 ms; the 250-target and positive-snapshot medians stayed
+inside run-to-run noise. A SQL shim put the added `UPPER` at about 0.9 ms per
+10,000 configured CVE elements (`COLLATE "C"` saved nothing). The host ran at
+load average 82-105 on 18 cores, so absolute times are about twice the
+earlier quiet-host figures and are not a deployed latency claim. The 250-target
+read still detects the 201st target before any state lookup. The earlier
+figures in this paragraph's history (baseline `16fad519` 14.795 ms; corrected
+query 19.933-22.691 ms) were quiet-host runs of the pre-F1 SQL.
 
 Observability Evidence: `source_states[]` reports collector health and
 `source_snapshots[]` reports committed source health; when no current NVD
 snapshot qualifies for absence coverage, `readiness_state=target_incomplete`
 and `incomplete_reasons[]=nvd:committed_snapshot_missing` identify the gap
-without exposing the descriptor, endpoint URL, or API key.
+without exposing the descriptor, endpoint URL, or API key. A fail-closed read
+(`ErrReadinessSourceTargetsMalformed`, `ErrReadinessSourceTargetsOverflow`,
+`ErrReadinessConsumptionKeysNotReady`, or a query error) answers
+`readiness_unavailable`; the handlers log one WARN `readiness_snapshot` stage
+line whose `readiness_unavailable_cause` comes from
+`ReadinessUnavailableCause`.
 
 Every export names a staying root caller, an external `query.X`
 caller, or a carried pre-existing export; see `AGENTS.md` for the

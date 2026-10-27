@@ -75,6 +75,11 @@ TABLE = {
             "TestSupplyChainImpactReadinessCommittedCoverageEdgesLive",
             "TestSupplyChainImpactReadinessRolledBackGenerationCannotCertifyZeroLive",
         ),
+        "go/internal/query/readiness_known_cve_coverage_live_test.go": (
+            "TestSupplyChainImpactReadinessKnownCVECoverageLive",
+            "TestSupplyChainImpactReadinessStaticWindowStaysHealthOnlyLive",
+            "TestSupplyChainImpactReadinessLowercaseConfiguredCVELive",
+        ),
         "go/internal/query/readiness_source_reconfiguration_live_test.go": (
             "TestSupplyChainImpactReadinessReconfiguredExactSelectorRefusesOldSuccessLive",
             "TestSupplyChainImpactReadinessMalformedCVEElementsRefuseCleanZeroLive",

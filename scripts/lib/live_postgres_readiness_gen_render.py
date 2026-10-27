@@ -20,10 +20,11 @@ FRAGMENT_NAMES = (
 )
 # Committed lexical cuts keep each file's destination stable as enrollment grows.
 FRAGMENT_BOUNDARIES = (
-    "go/internal/storage/postgres/backfill/targeted/interleave_live_test.go",
     "go/internal/storage/postgres/"
-    "ingestion_reopen_correlation_fingerprint_interleave_live_test.go",
-    "go/internal/storage/postgres/status/summary/bloat_live_test.go",
+    "aws_cloud_runtime_drift_state_arn_differential_live_test.go",
+    "go/internal/storage/postgres/"
+    "ingestion_reopen_correlation_fingerprint_differential_live_test.go",
+    "go/internal/storage/postgres/successor_guard_recheck_plan_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499

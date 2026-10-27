@@ -5,8 +5,10 @@ package impact
 
 import "time"
 
-// ageSourceStates reevaluates stored success at read time. A historical
-// collection window or an old success cannot remain fresh indefinitely.
+// ageSourceStates reevaluates stored success at read time: a fresh state
+// becomes stale when last_success_at is missing, unparseable, or not after the
+// cutoff. The collection window is reported, never aged: it records what a
+// target asked for (a static configured window or date), not when it last ran.
 func ageSourceStates(states []SourceState, cutoff time.Time) []SourceState {
 	for index := range states {
 		state := &states[index]
@@ -15,14 +17,6 @@ func ageSourceStates(states []SourceState, cutoff time.Time) []SourceState {
 		}
 		success, err := time.Parse(time.RFC3339, state.LastSuccessAt)
 		if err != nil || !success.After(cutoff) {
-			state.FreshnessState = "stale"
-			continue
-		}
-		if state.CollectionWindow.End == "" {
-			continue
-		}
-		windowEnd, err := time.Parse(time.RFC3339, state.CollectionWindow.End)
-		if err != nil || !windowEnd.After(cutoff) {
 			state.FreshnessState = "stale"
 		}
 	}

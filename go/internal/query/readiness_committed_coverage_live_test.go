@@ -118,6 +118,9 @@ func TestSupplyChainImpactReadinessCommittedCoverageEdgesLive(t *testing.T) {
 		{"nonzero result snapshot", func(t *testing.T, ctx context.Context, db *sql.DB, _ time.Time) {
 			execReadinessCoverageMutation(t, ctx, db, `UPDATE fact_records SET payload = JSONB_SET(payload, '{result_count}', '1'::jsonb)`)
 		}},
+		{"fractional result snapshot", func(t *testing.T, ctx context.Context, db *sql.DB, _ time.Time) {
+			execReadinessCoverageMutation(t, ctx, db, `UPDATE fact_records SET payload = JSONB_SET(payload, '{result_count}', '1.5'::jsonb)`)
+		}},
 		{"string zero result snapshot", func(t *testing.T, ctx context.Context, db *sql.DB, _ time.Time) {
 			execReadinessCoverageMutation(t, ctx, db, `UPDATE fact_records SET payload = JSONB_SET(payload, '{result_count}', '"0"'::jsonb)`)
 		}},
@@ -146,8 +149,18 @@ func TestSupplyChainImpactReadinessCommittedCoverageEdgesLive(t *testing.T) {
 			seedReadinessNVDCommittedSnapshot(t, ctx, db, now, "coverage-edge-scope", "coverage-edge", "CVE-2026-9227")
 			tc.mutate(t, ctx, db, now)
 			readiness := readReadinessScopeAPI(t, db, "CVE-2026-9227")
-			if readiness.State != impact.ReadinessStateTargetIncomplete {
-				t.Fatalf("%s readiness = %+v, want target_incomplete", tc.name, readiness)
+			want := impact.ReadinessStateTargetIncomplete
+			if tc.name == "nonzero result snapshot" {
+				// A covered snapshot that counted a record is not a coverage
+				// gap; without the advisory fact it is missing advisory
+				// evidence, never committed_snapshot_missing (#9227 F1 ruling).
+				want = impact.ReadinessStateEvidenceIncomplete
+				if slices.Contains(readiness.IncompleteReasons, "nvd:committed_snapshot_missing") {
+					t.Fatalf("covered nonzero snapshot reported committed_snapshot_missing: %+v", readiness)
+				}
+			}
+			if readiness.State != want {
+				t.Fatalf("%s readiness = %+v, want %s", tc.name, readiness, want)
 			}
 		})
 	}

@@ -72,6 +72,11 @@ to this list.
   `VulnerabilitySuppressionMutationStore`, the four Postgres structs) —
   the `SupplyChainHandler` fields, the staying probes, and `cmd/*`
   wiring via the root aliases.
+- Readiness fail-closed causes (`ErrReadinessSourceTargetsMalformed`,
+  `ErrReadinessSourceTargetsOverflow`, `ErrReadinessConsumptionKeysNotReady`,
+  the `ReadinessUnavailableCause*` constants, and `ReadinessUnavailableCause`)
+  — the parent `chain` findings and explain handlers log the bounded cause
+  on the WARN `readiness_snapshot` stage line (#9227).
 - Row/filter/result values (`FindingFilter`,
   `FindingRow`, `FindingResult`,
   `EvidenceFact` and its summary,

@@ -36,7 +36,8 @@ version row for this release.
 ### Added
 
 - `vulnerability.source_snapshot` gains an optional `coverage_descriptor` for
-  NVD: a versioned, normalized record of the explicit CVE set, query mode and
+  NVD: a versioned, normalized record of the explicit CVE set (trimmed, upper
+  case, deduplicated, sorted), query mode and
   window, configured endpoint set, and endpoint actually used. Older snapshots
   remain valid source observations but cannot certify zero advisory coverage.
   Optional `collector_instance_id` and `result_count` fields now declare

@@ -30,6 +30,7 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 				LastAttemptAt:    "2026-05-24T19:00:00Z",
 				CollectionWindow: SourceStateWindow{Start: "2026-05-23T19:00:00Z", End: "2026-05-24T19:00:00Z"},
 				coverageEligible: true,
+				coverageZero:     true,
 			},
 			wantState: ReadinessStateReadyZeroFindings,
 			wantFresh: "fresh",
@@ -239,7 +240,11 @@ func TestAgeSourceStatesAtReadTime(t *testing.T) {
 	}{
 		{"recent exact", SourceState{FreshnessState: "fresh", LastSuccessAt: "2026-10-20T00:00:00Z"}, "fresh"},
 		{"old success", SourceState{FreshnessState: "fresh", LastSuccessAt: "2026-09-20T00:00:00Z"}, "stale"},
-		{"old window", SourceState{FreshnessState: "fresh", LastSuccessAt: "2026-10-20T00:00:00Z", CollectionWindow: SourceStateWindow{End: "2026-09-20T00:00:00Z"}}, "stale"},
+		// The collection window says what was asked for, not when it was
+		// fetched; only success time ages a source (#9227 F2 ruling).
+		{"old window", SourceState{FreshnessState: "fresh", LastSuccessAt: "2026-10-20T00:00:00Z", CollectionWindow: SourceStateWindow{End: "2026-09-20T00:00:00Z"}}, "fresh"},
+		{"old window, old success", SourceState{FreshnessState: "fresh", LastSuccessAt: "2026-09-20T00:00:00Z", CollectionWindow: SourceStateWindow{End: "2026-09-20T00:00:00Z"}}, "stale"},
+		{"unparseable success", SourceState{FreshnessState: "fresh", LastSuccessAt: "yesterday"}, "stale"},
 		{"missing success", SourceState{FreshnessState: "fresh"}, "stale"},
 		{"failure precedence", SourceState{FreshnessState: "failed", LastSuccessAt: "2026-09-20T00:00:00Z"}, "failed"},
 	}

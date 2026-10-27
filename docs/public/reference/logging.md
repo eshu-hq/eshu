@@ -107,6 +107,16 @@ request (#7674). The mutation applied, the route answered `200` to a client
 that was gone, and a retry with the same key returns that outcome. It carries
 `operation`, `route`, and `correlation_id`, and no identifiers or error text.
 
+The `supply_chain_query.stage_completed` event for stage `readiness_snapshot`
+(impact findings and impact explain) rises to WARN when the readiness read
+fails and the route answers `readiness_unavailable` instead of an error. That
+line adds `readiness_unavailable_cause`, one of `source_targets_malformed`
+(malformed or duplicate configured vulnerability-intelligence targets),
+`source_targets_overflow` (more than 200 relevant source targets),
+`consumption_keys_not_ready`, or `query_error`, plus `readiness_error`, the
+error text cut to 256 bytes (#9227). The first three persist until an operator
+fixes configuration or the backfill finishes; `query_error` is transient.
+
 The `supply_chain_query.stage_completed` event for stage `impact_findings_query`
 also carries `reader_borrow_seconds`, `reader_identity_seconds`,
 `reader_replay_seconds`, and `business_query_seconds` (#7545), so a slow findings
