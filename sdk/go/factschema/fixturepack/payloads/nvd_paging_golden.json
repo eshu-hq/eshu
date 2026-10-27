@@ -1,0 +1,90 @@
+{
+  "responses": [
+    {
+      "startIndex": 0,
+      "resultsPerPage": 1,
+      "totalResults": 2,
+      "vulnerabilities": [
+        {
+          "cve": {
+            "id": "CVE-2026-0001"
+          }
+        }
+      ]
+    },
+    {
+      "startIndex": 1,
+      "resultsPerPage": 1,
+      "totalResults": 2,
+      "vulnerabilities": [
+        {
+          "cve": {
+            "id": "CVE-2026-0002"
+          }
+        }
+      ]
+    }
+  ],
+  "expected_facts": [
+    {
+      "kind": "vulnerability.source_snapshot",
+      "stable_fact_key": "9b02f30b90e787bb50a014746e88b3857cbe5345e8c9abf3380d19da4084a35b",
+      "payload": {
+        "collector_instance_id": "collector-vulnerability-intelligence",
+        "source": "nvd",
+        "query_count": 0,
+        "result_count": 2,
+        "response_digest": "",
+        "complete": true,
+        "warning_code": "",
+        "warning_message": ""
+      }
+    },
+    {
+      "kind": "vulnerability.cve",
+      "stable_fact_key": "3d5ec65605344f96a5d8a8bf855ff9ce626079d9ea9d0c4ca29a3a75856e1d78",
+      "payload": {
+        "collector_instance_id": "collector-vulnerability-intelligence",
+        "source": "nvd",
+        "cve_id": "CVE-2026-0001",
+        "advisory_id": "CVE-2026-0001",
+        "status": "",
+        "published_at": "",
+        "modified_at": "",
+        "source_identifier": "",
+        "descriptions": null,
+        "cwes": null,
+        "cvss_score": 0,
+        "cvss_vector": "",
+        "severity_label": "",
+        "cvss_metrics": null,
+        "correlation_anchors": [
+          "CVE-2026-0001"
+        ]
+      }
+    },
+    {
+      "kind": "vulnerability.cve",
+      "stable_fact_key": "9ca478d91daa1cfced028ac7df9427c72bf6ec9642f29011fef45304783ea26e",
+      "payload": {
+        "collector_instance_id": "collector-vulnerability-intelligence",
+        "source": "nvd",
+        "cve_id": "CVE-2026-0002",
+        "advisory_id": "CVE-2026-0002",
+        "status": "",
+        "published_at": "",
+        "modified_at": "",
+        "source_identifier": "",
+        "descriptions": null,
+        "cwes": null,
+        "cvss_score": 0,
+        "cvss_vector": "",
+        "severity_label": "",
+        "cvss_metrics": null,
+        "correlation_anchors": [
+          "CVE-2026-0002"
+        ]
+      }
+    }
+  ]
+}
