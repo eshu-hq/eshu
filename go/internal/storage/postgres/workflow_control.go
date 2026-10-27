@@ -5,7 +5,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -24,8 +23,11 @@ const (
 	DefaultWorkflowExpiredClaimRequeueDelay = 5 * time.Second
 )
 
-// ErrWorkflowClaimRejected reports that a fenced claim mutation was rejected.
-var ErrWorkflowClaimRejected = errors.New("workflow claim rejected")
+// ErrWorkflowClaimRejected aliases the workflow claim-rejection sentinel at
+// the storage boundary. The store is the enforcement point; the canonical
+// value lives in the workflow package so collectors can match a fenced-away
+// claim without importing the store implementation.
+var ErrWorkflowClaimRejected = workflow.ErrClaimRejected
 
 // ClaimSelector aliases the workflow package selector at the storage boundary.
 type ClaimSelector = workflow.ClaimSelector

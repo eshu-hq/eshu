@@ -446,46 +446,6 @@ func (s ClaimedService) budgetExhaustedError(ctx context.Context, item workflow.
 	)
 }
 
-func (s ClaimedService) failRetryable(
-	ctx context.Context,
-	mutation workflow.ClaimMutation,
-	item workflow.WorkItem,
-	operation string,
-	err error,
-) error {
-	failureClass := classifiedFailureClass(err, operation)
-	failed := withFailure(mutation, operation, failureClass, false, err)
-	if failed.VisibleAt.IsZero() {
-		failed.VisibleAt = s.retryableVisibleAt(err)
-	}
-	if failErr := s.ControlStore.FailClaimRetryable(ctx, failed); failErr != nil {
-		return fmt.Errorf("retryable-fail claimed %s work item: %w", s.claimedKindLabel(), failErr)
-	}
-	s.recordClaimRetry(ctx, item, failureClass)
-	s.recordProviderThrottle(ctx, item, failureClass, err)
-	return errors.Join(errRetryableClaimRecorded, fmt.Errorf("%s: %w", failureClass, err))
-}
-
-// failTerminal persists a terminal claim failure. operation is the
-// claim-stage token recorded in the operation column (for example
-// "collect_failure"); classFallback seeds the class column only when the
-// error chain carries no class of its own. The two stay separate so a class
-// constant never leaks into the operation taxonomy.
-func (s ClaimedService) failTerminal(
-	ctx context.Context,
-	mutation workflow.ClaimMutation,
-	operation string,
-	classFallback string,
-	err error,
-) error {
-	failureClass := classifiedFailureClass(err, classFallback)
-	failed := withFailure(mutation, operation, failureClass, true, err)
-	if failErr := s.ControlStore.FailClaimTerminal(ctx, failed); failErr != nil {
-		return fmt.Errorf("terminal-fail claimed %s work item: %w", s.claimedKindLabel(), failErr)
-	}
-	return errors.Join(errTerminalClaimRecorded, fmt.Errorf("%s: %w", failureClass, err))
-}
-
 func (s ClaimedService) claimedKindLabel() string {
 	return string(s.CollectorKind)
 }

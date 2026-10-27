@@ -13,6 +13,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
+// errRetryableFailForTest is a generic (non-fencing) FailClaimRetryable
+// failure: the retryable record itself was lost to a store error.
+var errRetryableFailForTest = errors.New("retryable fail write failed for test")
+
 // errHeartbeatLostForTest simulates a fencing loss on the dispatch grant.
 var errHeartbeatLostForTest = errors.New("heartbeat lost for test")
 
@@ -124,5 +128,92 @@ func TestClaimedServiceSkipsDispatchWhenDispatchHeartbeatFails(t *testing.T) {
 	}
 	if store.retryableFailCalls != 1 {
 		t.Fatalf("retryable fails = %d, want 1", store.retryableFailCalls)
+	}
+}
+
+// TestClaimedServiceContinuesWhenDispatchGrantAndRetryableFailAreFencedAway
+// is the RED test for the review P2 on eshu-hq/eshu#9212: when fencing is lost,
+// the dispatch heartbeat is rejected AND the retryable-fail write is rejected
+// with it. The stale item must be dropped and the poll loop must continue
+// (Run returns nil); dropping the dispatch cause or aborting the loop strands
+// no work but restarts the service on a benign fencing race.
+func TestClaimedServiceContinuesWhenDispatchGrantAndRetryableFailAreFencedAway(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.October, 26, 19, 0, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	item.LeaseExpiresAt = now.Add(-time.Minute)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	calls := 0
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		heartbeat: func(_ context.Context, _ workflow.ClaimMutation) error {
+			calls++
+			if calls >= 2 {
+				return workflow.ErrClaimRejected
+			}
+			return nil
+		},
+		retryableFail: func(_ context.Context, _ workflow.ClaimMutation) error {
+			cancel()
+			return workflow.ErrClaimRejected
+		},
+	}
+	source := &itemRecordingClaimedSource{
+		collected: FactsFromSlice(testScope(), testGeneration(now), testFacts(now)),
+		ok:        true,
+	}
+	committer := &stubClaimedCommitter{}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, committer)
+	source.cancel = cancel
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil (fenced-away claim is dropped, loop continues)", err)
+	}
+	if len(source.got) != 0 {
+		t.Fatalf("dispatches = %d, want 0 (fenced-away grant must not dispatch)", len(source.got))
+	}
+	if store.retryableFailCalls != 1 {
+		t.Fatalf("retryable fails = %d, want 1", store.retryableFailCalls)
+	}
+}
+
+// TestFailRetryableJoinsOriginalCauseWhenFailWriteFails pins the fail-path
+// contract: losing the retryable record must never drop the dispatch cause.
+// A generic store failure aborts loudly with both causes and no continue
+// sentinel; a fencing rejection is the fenced-away case the loop test above
+// covers end to end.
+func TestFailRetryableJoinsOriginalCauseWhenFailWriteFails(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.October, 26, 19, 0, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		retryableFail: func(_ context.Context, _ workflow.ClaimMutation) error {
+			return errRetryableFailForTest
+		},
+	}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, &itemRecordingClaimedSource{}, &stubClaimedCommitter{})
+
+	err := service.failRetryable(context.Background(), service.claimMutation(item, claim), item, "collect_failure", errHeartbeatLostForTest)
+	if err == nil {
+		t.Fatal("failRetryable() error = nil, want joined causes")
+	}
+	if !errors.Is(err, errHeartbeatLostForTest) {
+		t.Fatalf("failRetryable() dropped the original cause: %v", err)
+	}
+	if !errors.Is(err, errRetryableFailForTest) {
+		t.Fatalf("failRetryable() dropped the fail-write cause: %v", err)
+	}
+	if errors.Is(err, errRetryableClaimRecorded) {
+		t.Fatalf("failRetryable() returned the continue sentinel for an unrecorded retryable fail: %v", err)
 	}
 }
