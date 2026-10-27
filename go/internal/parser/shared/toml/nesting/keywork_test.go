@@ -9,6 +9,8 @@ import (
 	"math"
 	"strings"
 	"testing"
+
+	"github.com/pelletier/go-toml/v2/unstable"
 )
 
 // headerSetCeiling bounds the allocation of a rejection that came from distinct
@@ -28,6 +30,22 @@ var testBounds = Bounds{Depth: 64, KeyWork: testWorkLimit}
 // widest element has four fields.
 var lockStructBounds = Bounds{Depth: 64, KeyWork: testWorkLimit, StructFields: 4}
 
+// buildInline joins n comma-separated entries into one inline table. Every
+// hostile document must be valid TOML, or the guard is not what stands
+// between the file and a quadratic decode: go-toml rejects a trailing comma
+// (`k9 = 1,}`) without any key lookup.
+func buildInline(head string, n int) string {
+	var b strings.Builder
+	b.WriteString(head)
+	for i := range n {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		fmt.Fprintf(&b, "k%d = 1", i)
+	}
+	return b.String()
+}
+
 // hostileTableDocs returns 100,000-entry documents that each hold the
 // go-toml v2.3.1 key lookup for about 18 seconds, one per way of putting
 // many entries into one table.
@@ -44,7 +62,7 @@ func hostileTableDocs(n int) map[string]string {
 		"table keys":        build("[dependencies]\n", func(i int) string { return fmt.Sprintf("k%d = \"1\"\n", i) }),
 		"root keys":         build("", func(i int) string { return fmt.Sprintf("k%d = 1\n", i) }),
 		"dotted keys":       build("", func(i int) string { return fmt.Sprintf("a.k%d = 1\n", i) }),
-		"inline table keys": build("d = {", func(i int) string { return fmt.Sprintf("k%d = 1,", i) }) + "}\n",
+		"inline table keys": buildInline("d = {", n) + "}\n",
 		"inline dependency": build("[dependencies]\n", func(i int) string { return fmt.Sprintf("k%d = {version = \"1\"}\n", i) }),
 		"subtable headers":  build("", func(i int) string { return fmt.Sprintf("[dependencies.k%d]\nversion = \"1\"\n", i) }),
 		"root headers":      build("", func(i int) string { return fmt.Sprintf("[k%d]\nv = 1\n", i) }),
@@ -52,12 +70,16 @@ func hostileTableDocs(n int) map[string]string {
 	}
 }
 
-// repeatedHeaderDocs are the two layouts from the #8991 review: headers that
+// repeatedHeaderDocs are the layouts from the #8991 review: headers that
 // name an already-seen table cost the decoder a scan of the siblings every
 // time, so they are linear in the repeat count and not bounded by distinct
 // header texts. distinct is the number of sibling tables, repeats the number
-// of times the array table comes back.
-func repeatedHeaderDocs(distinct, repeats int) map[string]string {
+// of times the array table comes back, and elemKeys the keys each repeated
+// [[x.y]] element carries. Bare repeats of an empty array child cost the
+// decoder almost nothing per repeat (each lookup hits a one-entry list), so
+// the third layout carries keys: rebuilding each element's children is what
+// makes the repeats rescan.
+func repeatedHeaderDocs(distinct, repeats, elemKeys int) map[string]string {
 	var rootSiblings, childSiblings strings.Builder
 	rootSiblings.WriteString("[[package]]\nname = \"a\"\n")
 	for i := range distinct {
@@ -75,7 +97,12 @@ func repeatedHeaderDocs(distinct, repeats int) map[string]string {
 	for i := range distinct {
 		fmt.Fprintf(&keysThenChildren, "k%d = 1\n", i)
 	}
-	keysThenChildren.WriteString(strings.Repeat("[[x.y]]\n", repeats))
+	for range repeats {
+		keysThenChildren.WriteString("[[x.y]]\n")
+		for i := range elemKeys {
+			fmt.Fprintf(&keysThenChildren, "k%d = 1\n", i)
+		}
+	}
 	return map[string]string{
 		"array header after root siblings": rootSiblings.String(),
 		"array element rebuilds children":  childSiblings.String(),
@@ -110,17 +137,38 @@ func TestCheckBoundsRejectsHostileTablesWithBoundedAllocation(t *testing.T) {
 // TestCheckBoundsRejectsRepeatedHeaders is the P1 from the #8991 review. Each
 // layout stays under the limit while the repeats are few, passes the old
 // distinct-header count at any size, and is rejected once the repeats make the
-// decoder rescan the siblings thousands of times.
+// decoder rescan the siblings thousands of times. The document is converted
+// once outside the measured closure: converting inside would charge the copy
+// of the multi-megabyte file to the guard.
 func TestCheckBoundsRejectsRepeatedHeaders(t *testing.T) {
-	for name, doc := range repeatedHeaderDocs(4900, 100_000) {
+	for name, doc := range repeatedHeaderDocs(4900, 100_000, 0) {
 		t.Run(name, func(t *testing.T) {
+			src := []byte(doc)
 			var err error
-			got := allocatedBytes(func() { err = CheckBounds([]byte(doc), testBounds) })
+			got := allocatedBytes(func() { err = CheckBounds(src, testBounds) })
 			if !errors.Is(err, ErrTooManyKeys) {
 				t.Fatalf("CheckBounds() = %v, want ErrTooManyKeys", err)
 			}
 			if got > headerSetCeiling {
 				t.Fatalf("CheckBounds() allocated %d bytes per op, want <= %d", got, headerSetCeiling)
+			}
+		})
+	}
+}
+
+// TestHostileTableDocsAreValidTOML keeps the hostile documents honest: each
+// must parse, so the guard is what stands between the file and a quadratic
+// decode. An invalid document is rejected by the decoder without any key
+// lookup, which makes its rejection prove nothing.
+func TestHostileTableDocsAreValidTOML(t *testing.T) {
+	for name, doc := range hostileTableDocs(10) {
+		t.Run(name, func(t *testing.T) {
+			var p unstable.Parser
+			p.Reset([]byte(doc))
+			for p.NextExpression() {
+			}
+			if err := p.Error(); err != nil {
+				t.Fatalf("parser error = %v, want nil", err)
 			}
 		})
 	}
@@ -193,8 +241,16 @@ func TestStructBoundsStillChargeInlineTablesAndHeaders(t *testing.T) {
 			t.Errorf("%s: scanBounds() = %v, want ErrTooManyKeys", name, err)
 		}
 	}
-	for name, doc := range repeatedHeaderDocs(4900, 100_000) {
-		if _, err := scanBounds([]byte(doc), lockStructBounds); !errors.Is(err, ErrTooManyKeys) {
+	// Bare repeats of an empty array child are not rejected here: the struct
+	// decode skips the unknown table's keys and each repeated lookup hits a
+	// one-entry list, so the document is genuinely cheap and struct bounds
+	// accept it. Map bounds still reject it as policy (see
+	// TestCheckBoundsRejectsRepeatedHeaders), and
+	// TestStructShapeWorkCoversTheDecoder proves the work still covers the
+	// steps, so the acceptance is sound.
+	layouts := repeatedHeaderDocs(4900, 100_000, 0)
+	for _, name := range []string{"array header after root siblings", "array element rebuilds children"} {
+		if _, err := scanBounds([]byte(layouts[name]), lockStructBounds); !errors.Is(err, ErrTooManyKeys) {
 			t.Errorf("%s: scanBounds() = %v, want ErrTooManyKeys", name, err)
 		}
 	}

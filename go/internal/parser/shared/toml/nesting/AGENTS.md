@@ -23,10 +23,14 @@
 - The pass is linear and allocates only a frame stack capped at `limit+1`,
   plus one 8-byte hash per distinct table header (capped by the key-work
   limit).
-- Key work is the sum over tables of entries squared, counted from `=` in key
-  position and from distinct header texts (#8991). It may over-count and must
-  never under-count: `TestKeyWorkNeverUndercountsTheDecoder` holds twice the
-  work at or above the square of the largest table go-toml builds.
+- Key work is a running upper bound of the decoder's tracker steps: plain
+  entries charge their segments times the scope so far plus distinct headers,
+  inline entries charge against their own table, every header repeat is
+  charged, and struct targets stop charging plain entries after StructFields+1
+  per scope (#8991). It may over-count and must never under-count:
+  `TestKeyWorkNeverUndercountsTheDecoder` and
+  `TestStructShapeWorkCoversTheDecoder` hold the work at or above the steps of
+  a step-counting copy of the go-toml tracker.
 - A zero `Bounds` field allows nothing; never read zero as unlimited.
 - An unterminated string is rejected, never guessed.
 
@@ -39,8 +43,9 @@
 - When go-toml is upgraded, re-check its recursion and string rules; a new
   recursive construct needs a depth rule here.
 - Mutation-check key-work changes the same way: dropping the `=` count, the
-  header count, the header-text dedupe, the per-header scope reset, or the
-  end-of-file header must each fail a test.
+  header count, the header-text dedupe, the repeat charge, the per-header
+  scope reset, the struct skip, or the end-of-file header must each fail a
+  test.
 - Mutation-check a lexer change with `go test -overlay`: dropping the comment
   skip, the multi-line handling, the extra-quote run, escapes, or the header
   reset must each fail a test.

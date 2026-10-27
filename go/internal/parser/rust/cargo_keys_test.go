@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -40,15 +41,27 @@ func manifestWithKeys(n int) string {
 // which proves the quadratic decode never ran. The test asserts bytes, not
 // time: an unguarded decode of these files allocates many times the file.
 func TestCargoManyKeysAreRejectedBeforeDecode(t *testing.T) {
-	var headers, lock strings.Builder
+	var headers, bomb strings.Builder
 	for i := range hostileKeyCount {
 		fmt.Fprintf(&headers, "[dependencies.dep%d]\nversion = \"1\"\n", i)
-		fmt.Fprintf(&lock, "k%d = 1\n", i)
 	}
+	// The lock decodes into a struct, so plain keys past the first unknown
+	// one are never looked up: the hostile lockfile piles its entries into an
+	// inline table on a checked entry instead, which the decoder always walks.
+	// No trailing comma: go-toml rejects `,}` without any key lookup, which
+	// would make the document a vacuous threat.
+	bomb.WriteString("version = 3\n[[package]]\nname = \"a\"\ndeps = {")
+	for i := range hostileKeyCount {
+		if i > 0 {
+			bomb.WriteString(", ")
+		}
+		fmt.Fprintf(&bomb, "k%d = 1", i)
+	}
+	bomb.WriteString("}\n")
 	for name, tc := range map[string]struct{ file, body string }{
 		"manifest table keys":    {"Cargo.toml", manifestWithKeys(hostileKeyCount)},
 		"manifest child headers": {"Cargo.toml", headers.String()},
-		"lockfile root keys":     {"Cargo.lock", "version = 3\n" + lock.String()},
+		"lockfile inline bomb":   {"Cargo.lock", bomb.String()},
 	} {
 		t.Run(name, func(t *testing.T) {
 			repoRoot := t.TempDir()
@@ -106,16 +119,73 @@ func TestCargoWideLegalFilesStillParse(t *testing.T) {
 	}
 }
 
+// TestCargoLockStructFieldsCoversTarget keeps cargoLockStructFields at or
+// above the widest struct in the lock target. A new field that outgrows it
+// would under-count that table's lookups, so the constant must move with the
+// structs.
+func TestCargoLockStructFieldsCoversTarget(t *testing.T) {
+	t.Parallel()
+	var widest int
+	var walk func(rt reflect.Type)
+	walk = func(rt reflect.Type) {
+		for rt.Kind() == reflect.Slice || rt.Kind() == reflect.Array || rt.Kind() == reflect.Pointer {
+			rt = rt.Elem()
+		}
+		if rt.Kind() != reflect.Struct {
+			return
+		}
+		widest = max(widest, rt.NumField())
+		for i := range rt.NumField() {
+			walk(rt.Field(i).Type)
+		}
+	}
+	walk(reflect.TypeOf(cargoLockDocument{}))
+	if cargoLockStructFields < widest {
+		t.Fatalf("cargoLockStructFields = %d, want >= %d (widest lock struct)", cargoLockStructFields, widest)
+	}
+}
+
+// TestCargoV1LockfileWithManyPackagesStillParses is the P2 from the #8991
+// review. A v1 Cargo.lock holds one checksum key per package under
+// [metadata], and the lock target has no metadata field, so the struct decode
+// skips that table after its first key. Map-shaped bounds count all 50,000
+// keys (over a billion work) and reject the legal file; the lock bounds must
+// skip them the way the decoder does.
+func TestCargoV1LockfileWithManyPackagesStillParses(t *testing.T) {
+	t.Parallel()
+	const packages = 50_000
+	var lock strings.Builder
+	for i := range packages {
+		fmt.Fprintf(&lock, "[[package]]\nname = \"crate-%d\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n\n", i)
+	}
+	lock.WriteString("[metadata]\n")
+	for i := range packages {
+		fmt.Fprintf(&lock, "\"checksum crate-%d 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)\" = \"%064x\"\n", i, i)
+	}
+	repoRoot := t.TempDir()
+	path := filepath.Join(repoRoot, "Cargo.lock")
+	writeCargoFile(t, path, lock.String())
+	payload, err := ParseCargoDependencyFile(repoRoot, path, false)
+	if err != nil {
+		t.Fatalf("lockfile error = %v, want nil", err)
+	}
+	if rows, _ := payload["variables"].([]map[string]any); len(rows) != packages {
+		t.Fatalf("lockfile rows = %d, want %d", len(rows), packages)
+	}
+}
+
 // TestCargoKeyWorkLimitBoundary pins cargoMaxKeyWork. A [dependencies] table
-// of n keys costs n squared plus one for its header, so the limit admits 5,000
-// minus one keys and rejects 5,000.
+// of n keys costs about half n squared: the header costs 2 and key i scans
+// the i entries so far plus the one header, for n(n+1)/2 + n + 2. The limit
+// admits 7,069 keys and rejects 7,070.
 func TestCargoKeyWorkLimitBoundary(t *testing.T) {
 	t.Parallel()
-	const widest = 4999
-	if got := widest*widest + 1; got > cargoMaxKeyWork {
+	const widest = 7069
+	cost := func(n int) int { return n*(n+1)/2 + n + 2 }
+	if got := cost(widest); got > cargoMaxKeyWork {
 		t.Fatalf("%d keys cost %d, over cargoMaxKeyWork %d", widest, got, cargoMaxKeyWork)
 	}
-	if got := (widest+1)*(widest+1) + 1; got <= cargoMaxKeyWork {
+	if got := cost(widest + 1); got <= cargoMaxKeyWork {
 		t.Fatalf("%d keys cost %d, under cargoMaxKeyWork %d", widest+1, got, cargoMaxKeyWork)
 	}
 	repoRoot := t.TempDir()

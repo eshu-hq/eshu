@@ -32,7 +32,10 @@
 - The same call enforces `cargoMaxKeyWork` (#8991), because go-toml's key
   lookup is quadratic in the keys of one table. Never raise it without
   re-measuring the decode time at the new limit and the real-file corpus
-  maximum; `TestCargoKeyWorkLimitBoundary` pins the constant.
+  maximum; `TestCargoKeyWorkLimitBoundary` pins the constant. Lock decodes
+  pass `cargoLockStructFields` (kept over the widest lock struct by
+  `TestCargoLockStructFieldsCoversTarget`); manifests pass zero for a map
+  target.
 
 ## Common Changes And Scope
 

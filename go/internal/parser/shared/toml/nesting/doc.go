@@ -14,11 +14,13 @@
 // closes. Callers report either as an unparseable file and keep going.
 //
 // The same decoder finds a key by scanning a linked list, so a table of n keys
-// decodes in n squared steps: 100,000 keys under one header hold a worker for
-// about 18 seconds (#8991). CheckBounds adds up the squared entry count of
-// every table in the same pass and returns ErrTooManyKeys past the caller's
-// KeyWork limit. A repeated [[package]] section costs nothing, so a large
-// Cargo.lock stays cheap.
+// decodes in about half n squared steps: 100,000 keys under one header hold a
+// worker for about 18 seconds (#8991). CheckBounds adds up each lookup's scan
+// length in the same pass and returns ErrTooManyKeys past the caller's KeyWork
+// limit. Every repeated header is charged, so a hostile file of repeated
+// sections is rejected; a large Cargo.lock stays cheap because each of its
+// sections holds a few entries and the lock target decodes into a struct
+// (StructFields).
 //
 // The lexer skips comments and the four TOML string forms with the same
 // rules as the go-toml scanner, including the one or two extra quotes a

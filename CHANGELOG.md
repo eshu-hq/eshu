@@ -466,12 +466,13 @@ recent shipped work grouped by feature area.
   finds a key with a linked-list scan, so a table of n keys decodes in n
   squared steps: 100,000 keys under one `[dependencies]` header held a parse
   worker for 18.5 s, and 13 MB would hold it for minutes. The shared guard now
-  has `CheckBounds`, which also adds up each table's squared entry count
-  (plain, dotted, and inline-table keys, plus distinct child headers) and
+  has `CheckBounds`, which also adds up each key lookup's scan length (plain,
+  dotted, and inline-table keys, plus every header, repeats included) and
   stops with `nesting.ErrTooManyKeys` past 25,000,000. The same 100,000-key
   file now fails in under 10 ms as an unparseable file; the widest of 290
   real Cargo files has 45 keys in one table and a work total of 16,919. A
-  50,000-package `Cargo.lock` (repeated `[[package]]` sections) still parses.
+  50,000-package `Cargo.lock` (repeated `[[package]]` sections, including the
+  v1 `[metadata]` checksum table the struct decode skips) still parses.
 
 ### CI: readiness shard weights refreshed from the first weighted wave
 

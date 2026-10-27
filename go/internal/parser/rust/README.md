@@ -171,12 +171,14 @@ Cargo files nest about four levels.
 
 The same call bounds the decoder's quadratic key lookup (#8991): go-toml
 scans a linked list per table, so 100,000 keys in one `[dependencies]` table
-took 18.5 s. `cargoMaxKeyWork` (25,000,000) caps the sum over tables of
-entries squared, and a file over it returns an error wrapping
-`nesting.ErrTooManyKeys`. Of 290 real `Cargo.toml` and `Cargo.lock` files the
-largest work total is 16,919 and the widest table has 45 keys, so the limit
-leaves a factor of about 1,480; it admits one table of 4,999 keys and a
-50,000-package lockfile. The guard stops before the decode, so the rejected
+took 18.5 s. `cargoMaxKeyWork` (25,000,000) caps the tracker's key-lookup
+steps, and a file over it returns an error wrapping `nesting.ErrTooManyKeys`.
+Of 290 real `Cargo.toml` and `Cargo.lock` files the largest work total is
+16,919 and the widest table has 45 keys, so the limit leaves a factor of
+about 1,480; it admits one table of 7,069 keys and a 50,000-package lockfile.
+Lockfiles decode into a struct, so the lock bounds skip plain entries past
+the first unknown key the way the decoder does; manifests decode into a map
+and charge every entry. The guard stops before the decode, so the rejected
 file costs under 10 ms.
 `ResolveModuleRowFileCandidates` does not probe the filesystem; it returns
 Rust's candidate paths for direct module declarations, honors explicit

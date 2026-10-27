@@ -45,41 +45,49 @@ decoder has already failed on an earlier byte, so nothing after it is decoded.
 ## Key Work
 
 go-toml v2.3.1 finds a key in a table with `tracker.SeenTracker.find`, which
-scans a linked list, so a table of n keys decodes in n squared steps (#8991).
-Measured on one table: 25,000 keys take 1.0 s, 50,000 take 4.3 s, and 100,000
-take 18.5 s. Plain keys, dotted keys, inline-table keys, and child tables made
-by headers (`[dependencies.a]`, `[a]`) all pay it. Repeated `[[package]]`
-sections and long arrays do not.
+scans a linked list, so a table of n keys decodes in about half n squared
+steps (#8991). Measured on one table: 25,000 keys take 1.0 s, 50,000 take
+4.3 s, and 100,000 take 18.5 s. Plain keys, dotted keys, inline-table keys,
+and child tables made by headers (`[dependencies.a]`, `[a]`) all pay it, and
+a repeated header pays it again: naming an already-seen table rescans the
+siblings every time, so repeats cost per repeat and are not bounded by the
+distinct header texts.
 
-`CheckBounds(source, Bounds{Depth, KeyWork})` adds up the squared entry count
-of every table in the same pass and returns an error wrapping `ErrTooManyKeys`
-once the total passes `KeyWork`. A zero field allows nothing, so a caller that
-omits a bound fails closed.
+`CheckBounds(source, Bounds{Depth, KeyWork, StructFields})` adds up that work
+in the same pass and returns an error wrapping `ErrTooManyKeys` once the
+total passes `KeyWork`. A zero field allows nothing, so a caller that omits a
+bound fails closed.
 
-- Each `=` that starts an entry counts toward the table that holds it: the
-  table under the latest header, or the inline table around it. Dotted keys
-  count one per `=`, which over-counts the child tables they build and never
-  under-counts.
-- Each distinct header text counts as one entry of some parent table, since
-  `[dependencies.serde]` defines a key of `dependencies`. A repeated header
-  adds nothing. Distinct headers are remembered as seeded 64-bit hashes, one
-  per header, capped by the limit.
-- A table of n entries adds n squared. The pass keeps the total by adding
-  2n-1 per new entry, so it stops within one entry of the limit.
+- Each `=` in key position charges the entries its lookup scans: a plain
+  entry of m segments charges m times its scope's entries so far plus the
+  distinct headers so far, and an inline-table entry charges m times its own
+  inline table's entries. A table of n entries therefore adds about half n
+  squared, and the pass stops within one entry of the limit.
+- Each header charges its segments plus one times the distinct headers so
+  far plus the widest scope seen, repeated headers included. Distinct headers
+  are remembered as seeded 64-bit hashes, one per header, capped by the
+  limit.
+- A struct target (StructFields above zero) stops charging a table's plain
+  entries after StructFields+1 of them: go-toml skips the rest without a
+  tracker scan once the struct rejects a key. Inline tables and headers are
+  still charged in full. A map target passes zero, so every entry is charged.
 
 | Document | Work |
 | --- | --- |
-| `a=1`, `b=2`, `c=3` | 9 |
-| `[x]` with 2 keys, then `[y]` with 1 | 4 + 1 + 4 (two headers) |
-| `d = {a=1, b=2, c=3}` then `z=1` | 9 + 4 |
-| 50,000 `[[package]]` sections (12.6 MB) | 1.25 million |
-| 100,000 keys in one table | 10 billion |
+| `a=1`, `b=2`, `c=3` | 6 |
+| `[x]` with 2 keys, then `[y]` with 1 | 18 |
+| `d = {a=1, b=2, c=3}` then `z=1` | 9 |
+| 50,000 `[[package]]` sections (12.6 MB) | 1.6 million |
+| 100,000 keys in one table | 5 billion |
 
-The count never falls below half the square of the largest table go-toml
-builds: a table's entries come from `=` in one place and from header children,
-so its size squared is at most twice the sum of the two squared counts.
-`TestKeyWorkNeverUndercountsTheDecoder` checks that against go-toml on seeded
-documents.
+The count never falls below the decoder's tracker steps: each charge is an
+upper bound of the list its lookup scans, every header repeat is charged, and
+the struct rule mirrors the decoder's skip. The charge may exceed the steps,
+and map bounds reject some documents a struct decode would finish quickly;
+that over-count is policy, and the struct bounds exist so legal
+struct-decoded files are not refused. `TestKeyWorkNeverUndercountsTheDecoder`
+and `TestStructShapeWorkCoversTheDecoder` check the work against a
+step-counting copy of the go-toml tracker on seeded documents.
 
 ## Cost
 
@@ -95,7 +103,8 @@ table within 1 MiB (the header set).
 ## Callers
 
 - `internal/parser/rust` checks every `Cargo.toml` and `Cargo.lock` at depth
-  64 and key work 25,000,000 before `toml.Unmarshal`.
+  64 and key work 25,000,000 before `toml.Unmarshal`; lockfiles pass the lock
+  struct's field count so struct-skipped entries are not charged.
 
 Any new parser that hands repository TOML to go-toml must call `Check` first.
 

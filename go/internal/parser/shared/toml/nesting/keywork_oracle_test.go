@@ -151,7 +151,7 @@ func TestKeyWorkNeverUndercountsTheDecoder(t *testing.T) {
 func TestKeyWorkUpperBoundsTheReviewShapes(t *testing.T) {
 	var lastWork int
 	for _, repeats := range []int{200, 400, 800} {
-		for name, doc := range repeatedHeaderDocs(300, repeats) {
+		for name, doc := range repeatedHeaderDocs(300, repeats, 300) {
 			steps, err := trackerSteps([]byte(doc), nil)
 			if err != nil {
 				t.Fatalf("%s: step tracker: %v", name, err)
@@ -190,6 +190,10 @@ func TestStructShapeWorkCoversTheDecoder(t *testing.T) {
 		"root keys":          []byte("version = 3\nother = 1\nmore = 2\n[[package]]\nname = \"a\"\n"),
 		"inline first entry": []byte("[metadata]\nx = {a=1, b=2, c=3, d=4, e=5, f=6}\n"),
 		"many unknown":       []byte("[[package]]\nx = 1\n" + strings.Repeat("k = 1\n", 0) + "[foo]\na=1\n[[package]]\nname=\"b\"\n"),
+		// Bare repeats of an empty array child: struct bounds accept this
+		// document (see TestStructBoundsStillChargeInlineTablesAndHeaders),
+		// so this case proves the acceptance is sound instead.
+		"repeated array children": []byte(repeatedHeaderDocs(300, 800, 0)["array child after table keys"]),
 	} {
 		t.Run(name, func(t *testing.T) {
 			steps, err := trackerSteps(doc, shape)
