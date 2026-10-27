@@ -1,0 +1,28 @@
+deploy/helm/eshu/templates/_observability_collector_helpers.tpl
+  h_78a442cba0b3e6 52-75
+deploy/helm/eshu/templates/configmap-loki-collector-activation.yaml
+  h_78a442cba0b3e6 1-14
+deploy/helm/eshu/templates/deployment-loki-collector.yaml
+  h_78a442cba0b3e6 2-3,25-26,28,33-34,37-41,44,55-73,77-79,104-108,112-116
+deploy/helm/eshu/values.schema.json
+  h_78a442cba0b3e6 1211-1256,1272-1276
+deploy/helm/eshu/values.yaml
+  h_78a442cba0b3e6 966-1022
+docker-compose.remote-e2e.observability.yaml
+  h_78a442cba0b3e6 148-270,272-276,283,288-297,307-308,317-320,401-403
+docs/public/reference/environment-collectors.md
+  h_78a442cba0b3e6 319-326
+go/internal/runtime/helm_observability_collectors_contract_test.go
+  h_78a442cba0b3e6 163-164,171-179,257,263-271,299-344
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6734412d9156df29edd7359c0a1910c761bd0a7e",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
