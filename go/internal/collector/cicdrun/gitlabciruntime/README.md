@@ -91,3 +91,15 @@ Mirrors `../gitlab_ci_fixture.go`'s own documented narrower scope:
   or token.
 - HTTP error messages never echo request tokens or the raw provider response
   body (see `TestGitLabClientReturnsBoundedSDKHTTPErrorForPermissionFailure`).
+
+## Evidence
+
+No-Regression Evidence (#9239): collected generations are built
+`GenerationStatusPending`, never `Completed`, so the commit guard
+(`backfill.ValidateGenerationInput`) accepts them and the projector marks
+completion afterwards. `go test ./internal/collector/cicdrun/... -count=1`
+passes, including the `GenerationStatusPending` assertion on
+`TestClaimedSourceCollectsGitLabCIPipelineAndJobs`. No fetch, retry,
+batching, or telemetry shape changes.
+
+No-Observability-Change: no new spans, metrics, or log fields.
