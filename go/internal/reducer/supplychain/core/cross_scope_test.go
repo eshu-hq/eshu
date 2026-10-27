@@ -33,13 +33,13 @@ func TestBuildSupplyChainImpactFindingsMatchesSBOMComponentByCanonicalPackageID(
 	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
 		vulnerabilityCVEFact("cve-1", "CVE-2026-0001", 8.0),
 		affectedPackageWithPURLFact("affected-1", "CVE-2026-0001", crossScopeAffectedPackageID, crossScopeAffectedPURL, "npm", "lodash", "4.17.11", "4.17.21"),
-		sbomComponentImpactFactWithPackageID("component-1", "doc-1", crossScopeComponentPURL, crossScopeAffectedPackageID),
+		sbomComponentImpactFactWithPackageIDVersion("component-1", "doc-1", crossScopeComponentPURL, crossScopeAffectedPackageID, "4.17.11"),
 		sbomAttachmentImpactFact("attachment-1", "doc-1", testImpactSubjectDigest),
 		containerImageIdentityImpactFact("image-1", testImpactSubjectDigest, testImpactRepositoryID),
 	})
 
 	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-0001"]
-	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedDerived)
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
 	if got.RuntimeReachability != "image_sbom" {
 		t.Fatalf("RuntimeReachability = %q, want image_sbom", got.RuntimeReachability)
 	}
@@ -61,7 +61,7 @@ func TestBuildSupplyChainImpactFindingsMatchesSBOMComponentByVersionStrippedPURL
 	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
 		vulnerabilityCVEFact("cve-1", "CVE-2026-0001", 8.0),
 		affectedPackageWithPURLFact("affected-1", "CVE-2026-0001", crossScopeAffectedPackageID, crossScopeAffectedPURL, "npm", "lodash", "4.17.11", "4.17.21"),
-		sbomComponentImpactFact("component-1", "doc-1", crossScopeComponentPURL),
+		sbomComponentImpactFactVersion("component-1", "doc-1", crossScopeComponentPURL, "4.17.11"),
 		sbomAttachmentImpactFact("attachment-1", "doc-1", testImpactSubjectDigest),
 		containerImageIdentityImpactFact("image-1", testImpactSubjectDigest, testImpactRepositoryID),
 	})
@@ -168,5 +168,17 @@ func affectedPackageWithPURLFact(
 func sbomComponentImpactFactWithPackageID(factID string, documentID string, purl string, packageID string) facts.Envelope {
 	envelope := sbomComponentImpactFact(factID, documentID, purl)
 	envelope.Payload["package_id"] = packageID
+	return envelope
+}
+
+func sbomComponentImpactFactVersion(factID, documentID, purl, version string) facts.Envelope {
+	envelope := sbomComponentImpactFact(factID, documentID, purl)
+	envelope.Payload["version"] = version
+	return envelope
+}
+
+func sbomComponentImpactFactWithPackageIDVersion(factID, documentID, purl, packageID, version string) facts.Envelope {
+	envelope := sbomComponentImpactFactWithPackageID(factID, documentID, purl, packageID)
+	envelope.Payload["version"] = version
 	return envelope
 }

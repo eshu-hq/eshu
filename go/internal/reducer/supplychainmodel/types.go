@@ -107,6 +107,9 @@ type SBOMComponent struct {
 	CPE        string
 	PackageID  string
 	Version    string
+	// PayloadVersion and PURLVersion retain independent SBOM version evidence.
+	PayloadVersion string
+	PURLVersion    string
 }
 
 // OSPackage is the reducer's internal projection of one OS-package

@@ -39,11 +39,13 @@ const (
 	supplyChainVersionReasonMalformedInstalled          = "installed_version_malformed"
 	supplyChainVersionReasonNoAffectedMatch             = "version_not_in_advisory_range"
 	supplyChainVersionReasonMissingInstalled            = "installed_version_missing"
+	supplyChainVersionReasonSBOMVersionConflict         = "sbom_component_version_conflict"
 
-	supplyChainMissingUnsupportedMatcher = "ecosystem version matcher unsupported"
-	supplyChainMissingMalformedRange     = "advisory version range malformed"
-	supplyChainMissingMalformedInstalled = "installed package version malformed"
-	supplyChainMissingInstalledVersion   = "installed package version missing"
+	supplyChainMissingUnsupportedMatcher  = "ecosystem version matcher unsupported"
+	supplyChainMissingMalformedRange      = "advisory version range malformed"
+	supplyChainMissingMalformedInstalled  = "installed package version malformed"
+	supplyChainMissingInstalledVersion    = "installed package version missing"
+	supplyChainMissingSBOMVersionConflict = "sbom component version evidence conflicts"
 )
 
 type supplyChainVersionMatchDecision struct {

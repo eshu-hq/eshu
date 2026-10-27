@@ -17,6 +17,51 @@ through the default domain catalog; `go/cmd/reducer` wires the Postgres
 writer. Query surfaces read the durable facts; they never import this
 package.
 
+For package advisories, an attached SBOM image path preserves package and
+image evidence while the ecosystem matcher decides version truth. In-range
+versions are `affected_exact`; known fixed versions remain
+`not_affected_known_fixed`; missing, malformed, conflicting, or outside-range
+versions remain `possibly_affected`. The product/CPE-only image path keeps its
+separate `affected_derived` rule. The existing finding payload and counters
+expose these decisions without a new queue stage or metric label. One package
+advisory can now produce separate findings for every verified SBOM image
+subject and installed version. An unassociated package manifest or OS scan
+remains its own finding; a scanner result joins an SBOM image only when the
+scan scope and generation resolve that image's digest. Conflicting
+scanner digests for one scope and generation resolve no subject. Conflicting
+vendor OS versions for the same resolved image stay partial with both scan
+facts in provenance. Equivalent image rows coalesce after version conflict
+checks. One complete writer pass publishes the resulting set so prior subjects
+can retract when evidence changes.
+
+Performance Evidence (#9232): `BenchmarkSBOMVersionGuard` uses the same
+five-fact npm advisory and attached image on Apple M5 Max with Go 1.26.10.
+The single-subject baseline was commit `2446f21874245d2d63a46ecf28136dfed44dfa64`.
+The previous single-subject classifier measured 9592/9666/9715 ns/op (165
+allocations/op). The final multi-subject classifier measured
+11155/12777/11430 ns/op (167 allocations/op); its additional subject
+indexing has a small measurable cost on this input. The new fan-out benchmark
+measured 11244/12797 ns/op for one subject, 33096/37685 ns/op for two, and
+309411/331932 ns/op for sixteen (two one-second samples each). These runs
+bound the local cost shape; they do not claim a throughput target. The writer
+still publishes the full finding set in one transaction, with no new worker,
+lease, queue, or graph write.
+
+Performance Evidence (#9232 OS lookup): `BenchmarkSBOMSubjectOSLookup`
+prebuilds the index with one matching SBOM and vendor OS row, then times only
+package classification with 0, 100, or 10,000 unrelated OS keys. On Apple M5
+Max with Go 1.26.10, three 500 ms samples at baseline `a6933d2878` measured
+6,793/6,805/6,836 ns/op with no unrelated keys and
+363,215/361,581/363,002 ns/op with 10,000. The keyed lookup measured
+6,948/6,863/7,064 and 6,069/6,035/6,001 ns/op on those same inputs.
+The unrelated corpus no longer determines classification cost; this local
+microbenchmark excludes index construction, database work, and queue time.
+
+Observability Evidence (#9232): the existing persisted impact finding carries
+`impact_status`, `match_reason`, `observed_version`, `subject_digest`, and
+`evidence_fact_ids`; the existing query span and reducer finding counters
+expose the read and classification. No new metric or span is added.
+
 Alert-derived findings carry the provider's 0–1 EPSS percentage and percentile
 when each value is a valid decimal. The collector converts GitHub's numeric
 percentage and string percentile into fact strings before this package decodes

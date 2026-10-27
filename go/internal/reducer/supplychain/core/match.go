@@ -4,6 +4,7 @@
 package core
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -66,6 +67,8 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplychainmod
 // buildSBOMAttachmentIndex.
 func supplyChainSBOMComponentFromEnvelope(envelope facts.Envelope) supplychainmodel.SBOMComponent {
 	purl := payloadcore.PayloadStr(envelope.Payload, "purl")
+	payloadVersion := payloadcore.PayloadStr(envelope.Payload, "version")
+	purlVersion := versionFromPURL(purl)
 	return supplychainmodel.SBOMComponent{
 		FactID:     envelope.FactID,
 		DocumentID: payloadcore.PayloadStr(envelope.Payload, "document_id"),
@@ -75,8 +78,10 @@ func supplyChainSBOMComponentFromEnvelope(envelope facts.Envelope) supplychainmo
 		// component joins vulnerability facts on the same identity every
 		// other package fact uses; fall back to the version-stripped purl for
 		// components ingested before the collector carried package_id.
-		PackageID: payloadcore.FirstNonBlank(payloadcore.PayloadStr(envelope.Payload, "package_id"), packageIDFromPURL(purl)),
-		Version:   payloadcore.FirstNonBlank(payloadcore.PayloadStr(envelope.Payload, "version"), versionFromPURL(purl)),
+		PackageID:      payloadcore.FirstNonBlank(payloadcore.PayloadStr(envelope.Payload, "package_id"), packageIDFromPURL(purl)),
+		Version:        payloadcore.FirstNonBlank(payloadVersion, purlVersion),
+		PayloadVersion: payloadVersion,
+		PURLVersion:    purlVersion,
 	}
 }
 
@@ -237,6 +242,61 @@ func firstOSPackageImpactPath(
 		}
 	}
 	return supplychainmodel.OSPackage{}, false
+}
+
+// matchingOSPackageImpactPaths returns every vendor row for the advisory in a
+// stable order so a conflicting installed version cannot win by input order.
+func matchingOSPackageImpactPaths(
+	pkg supplychainmodel.AffectedPackage,
+	index supplyChainImpactIndex,
+) []supplychainmodel.OSPackage {
+	vendorSource := classifyAffectedPackageAdvisorySource(pkg)
+	if vendorSource == "" {
+		return nil
+	}
+	var matches []supplychainmodel.OSPackage
+	for _, key := range affectedOSPackageLookupKeys(pkg) {
+		for _, installed := range index.osPackages[key] {
+			if osPackageMatchesAffectedPackage(installed, pkg, vendorSource) {
+				matches = append(matches, installed)
+			}
+		}
+	}
+	sort.Slice(matches, func(i, j int) bool {
+		a, b := matches[i], matches[j]
+		if a.InstalledVersion != b.InstalledVersion {
+			return a.InstalledVersion < b.InstalledVersion
+		}
+		if a.PURL != b.PURL {
+			return a.PURL < b.PURL
+		}
+		if a.ScopeID != b.ScopeID {
+			return a.ScopeID < b.ScopeID
+		}
+		if a.GenerationID != b.GenerationID {
+			return a.GenerationID < b.GenerationID
+		}
+		return a.FactID < b.FactID
+	})
+	return matches
+}
+
+func conflictingOSPackageVersions(ecosystem, sbomVersion string, rows []supplychainmodel.OSPackage) bool {
+	reference := strings.TrimSpace(sbomVersion)
+	for _, row := range rows {
+		version := strings.TrimSpace(row.InstalledVersion)
+		if version == "" {
+			continue
+		}
+		if reference == "" {
+			reference = version
+			continue
+		}
+		if !equivalentSupplyChainVersions(ecosystem, reference, version) {
+			return true
+		}
+	}
+	return false
 }
 
 func osPackageMatchesAffectedPackage(

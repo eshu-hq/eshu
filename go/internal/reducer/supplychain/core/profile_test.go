@@ -170,7 +170,7 @@ func TestSupplyChainImpactProviderOnlyAlertEmitsNoImpactFinding(t *testing.T) {
 	}
 }
 
-func TestSupplyChainImpactSBOMComponentDerivedIsComprehensiveOnly(t *testing.T) {
+func TestSupplyChainImpactSBOMOutsideRangeIsComprehensiveOnly(t *testing.T) {
 	t.Parallel()
 
 	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
@@ -182,9 +182,9 @@ func TestSupplyChainImpactSBOMComponentDerivedIsComprehensiveOnly(t *testing.T) 
 	})
 
 	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-9004"]
-	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedDerived)
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactPossiblyAffected)
 	if got.DetectionProfile != DetectionProfileComprehensive {
-		t.Fatalf("DetectionProfile = %q, want %q for SBOM-derived path without exact-version proof", got.DetectionProfile, DetectionProfileComprehensive)
+		t.Fatalf("DetectionProfile = %q, want %q for SBOM path outside the advisory version range", got.DetectionProfile, DetectionProfileComprehensive)
 	}
 	if got.SubjectDigest != testImpactSubjectDigest {
 		t.Fatalf("SubjectDigest = %q, want %q", got.SubjectDigest, testImpactSubjectDigest)

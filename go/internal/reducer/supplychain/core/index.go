@@ -45,24 +45,26 @@ import (
 // dragging them into supplychainmodel; see
 // supplychainmodel/README.md#ownership-boundary.
 type supplyChainImpactIndex struct {
-	cves                    []supplychainmodel.ImpactCVE
-	affectedPackages        map[string][]supplychainmodel.AffectedPackage
-	affectedProducts        map[string][]supplychainmodel.AffectedProduct
-	consumption             map[string][]supplychainmodel.PackageConsumption
-	osPackages              map[string][]supplychainmodel.OSPackage
-	components              []supplychainmodel.SBOMComponent
-	attachments             map[string]supplychainmodel.Attachment
-	images                  map[string]supplyChainImageIdentity
-	deployments             []supplychainmodel.DeploymentContext
-	deploymentLanes         []supplychainmodel.DeploymentLaneContext
-	workloads               []supplychainmodel.WorkloadContext
-	services                []supplychainmodel.ServiceContext
-	riskSignals             map[string]supplychainmodel.RiskSignals
-	scannerAnalyses         map[string]supplychainmodel.ScannerAnalysis
-	goReachability          map[string]GoVulnerabilityFinding
-	jsTSPackageReachability jsTSPackageReachabilityIndex
-	pythonReachability      map[string]pythonReachabilityRepositoryEvidence
-	jvmReachability         jvmReachabilityIndex
+	cves                     []supplychainmodel.ImpactCVE
+	affectedPackages         map[string][]supplychainmodel.AffectedPackage
+	affectedProducts         map[string][]supplychainmodel.AffectedProduct
+	consumption              map[string][]supplychainmodel.PackageConsumption
+	osPackages               map[string][]supplychainmodel.OSPackage
+	components               []supplychainmodel.SBOMComponent
+	attachments              map[string]supplychainmodel.Attachment
+	attachmentConflicts      map[string]bool
+	images                   map[string]supplyChainImageIdentity
+	deployments              []supplychainmodel.DeploymentContext
+	deploymentLanes          []supplychainmodel.DeploymentLaneContext
+	workloads                []supplychainmodel.WorkloadContext
+	services                 []supplychainmodel.ServiceContext
+	riskSignals              map[string]supplychainmodel.RiskSignals
+	scannerAnalyses          map[string]supplychainmodel.ScannerAnalysis
+	scannerAnalysisConflicts map[string]bool
+	goReachability           map[string]GoVulnerabilityFinding
+	jsTSPackageReachability  jsTSPackageReachabilityIndex
+	pythonReachability       map[string]pythonReachabilityRepositoryEvidence
+	jvmReachability          jvmReachabilityIndex
 }
 
 // buildSupplyChainImpactIndex and buildSupplyChainImpactIndexWithQuarantine
@@ -79,6 +81,13 @@ func classifySupplyChainImpactPackage(
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMImpactPath(pkg, index)
 	consumption := firstConsumption(pkg.PackageID, index.consumption)
 	osPackage, hasOSPackage := firstOSPackageImpactPath(pkg, index)
+	var subjectOSRows []supplychainmodel.OSPackage
+	if hasComponentPath && hasOSPackage {
+		// The caller scoped these OS rows to this attachment's resolved digest.
+		// Inspect every matching version before choosing a representative row.
+		subjectOSRows = matchingOSPackageImpactPaths(pkg, index)
+		osPackage = subjectOSRows[0]
+	}
 	// repoFromConsumption is the single provenance signal both image-evidence
 	// branches below gate on: the SBOM branch must not overwrite a
 	// consumption-derived anchor with the image's OCI registry path (#5780),
@@ -132,9 +141,12 @@ func classifySupplyChainImpactPackage(
 			finding.RepositoryID = image.repositoryID
 		}
 	}
+	osVersionConflict := hasComponentPath && conflictingOSPackageVersions(finding.Ecosystem, component.Version, subjectOSRows)
 	if hasOSPackage {
-		finding.PURL = payloadcore.FirstNonBlank(osPackage.PURL, finding.PURL)
-		finding.ObservedVersion = payloadcore.FirstNonBlank(osPackage.InstalledVersion, finding.ObservedVersion)
+		if !osVersionConflict {
+			finding.PURL = payloadcore.FirstNonBlank(osPackage.PURL, finding.PURL)
+			finding.ObservedVersion = payloadcore.FirstNonBlank(osPackage.InstalledVersion, finding.ObservedVersion)
+		}
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, osPackage.FactID)
 		finding.EvidencePath = append(finding.EvidencePath, chain.VulnerabilityOSPackageFactKind)
 		// An os_package fact's ScopeID is an opaque scan-target locator, never a
@@ -222,6 +234,17 @@ func classifySupplyChainImpactPackage(
 			}
 		}
 	}
+	if hasComponentPath && hasOSPackage {
+		// Keep every agreeing or disagreeing scan row and its digest binding
+		// in provenance after the version conflict check.
+		for _, row := range subjectOSRows {
+			finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, row.FactID)
+			analysis := index.scannerAnalyses[supplychainmodel.ScopeGenerationKey(row.ScopeID, row.GenerationID)]
+			if analysis.ImageDigest == attachment.SubjectDigest {
+				finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, analysis.FactID)
+			}
+		}
+	}
 	versionDecision := evaluateSupplyChainVersionMatch(
 		finding.Ecosystem,
 		finding.ObservedVersion,
@@ -229,8 +252,15 @@ func classifySupplyChainImpactPackage(
 		finding.FixedVersion,
 		pkgs,
 	)
+	if hasComponentPath && (osVersionConflict || sbomVersionEvidenceConflicts(finding.Ecosystem, component, consumption)) {
+		versionDecision = possiblyAffectedDecision(
+			supplyChainVersionReasonSBOMVersionConflict,
+			[]string{supplyChainMissingSBOMVersionConflict},
+		)
+	}
 	consumptionMissing := supplyChainConsumptionMissingEvidence(consumption)
-	if consumption.FactID != "" && versionDecision.Status == SupplyChainImpactAffectedExact {
+	if consumption.FactID != "" && versionDecision.Status == SupplyChainImpactAffectedExact &&
+		(!hasComponentPath || consumptionProvesObservedVersion(finding.Ecosystem, finding.ObservedVersion, consumption)) {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
 		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
@@ -242,7 +272,7 @@ func classifySupplyChainImpactPackage(
 		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
 		return finding
 	}
-	if versionDecision.FailClosed {
+	if versionDecision.FailClosed && !hasComponentPath {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
 		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
@@ -255,9 +285,12 @@ func classifySupplyChainImpactPackage(
 		return finding
 	}
 	if hasComponentPath {
-		finding.Status = SupplyChainImpactAffectedDerived
-		finding.Confidence = "derived"
-		finding.MatchReason = "sbom_component_path"
+		if versionDecision.Status == "" {
+			versionDecision = possiblyAffectedDecision(versionDecision.Reason, versionDecision.MissingEvidence)
+		}
+		finding.Status = versionDecision.Status
+		finding.Confidence = versionDecision.Confidence
+		finding.MatchReason = versionDecision.Reason
 		finding.RuntimeReachability = "image_sbom"
 		finding.CanonicalWrites = 1
 		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, consumptionMissing, reconciliationMissing)

@@ -8233,6 +8233,77 @@
           "advisories[].cvss_score": 7.5
         }
       },
+      "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-91913&profile=comprehensive": {
+        "description": "#9232 synthetic SBOM package has installed 1.2.2 below the advisory range 1.2.3 to 1.3.0. Three observed OCI digests carry SBOM documents with verification_status unset; the unfiltered query pins all three independent subject/version decisions: outside range, affected, and fixed.",
+        "truth_class": "deterministic",
+        "required_response_fields": ["findings", "count"],
+        "result_item_required_fields": ["cve_id", "impact_status", "match_reason", "observed_version", "subject_digest"],
+        "required_json_values": {
+          "findings[].cve_id": "CVE-2026-91913",
+          "findings[].impact_status": "possibly_affected",
+          "findings[].match_reason": "version_not_in_advisory_range",
+          "findings[].observed_version": "1.2.2",
+          "findings[].subject_digest": "sha256:c41d0000000000000000000000000000000000000000000000000000000000cd"
+        },
+        "required_json_object_matches": {
+          "findings[]": [
+            {"subject_digest": "sha256:c41d0000000000000000000000000000000000000000000000000000000000cd", "observed_version": "1.2.2", "impact_status": "possibly_affected", "match_reason": "version_not_in_advisory_range"},
+            {"subject_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010ba5e", "observed_version": "1.2.4", "impact_status": "affected_exact", "match_reason": "npm_semver_affected_range"},
+            {"subject_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1", "observed_version": "1.3.0", "impact_status": "not_affected_known_fixed", "match_reason": "npm_semver_known_fixed"}
+          ]
+        },
+        "minimum_results": 3,
+        "maximum_results": 3,
+        "results_field": "findings"
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-91913&profile=comprehensive&subject_digest=sha256:c41d0000000000000000000000000000000000000000000000000000000000cd": {
+        "description": "#9232 exact outside-range image row in the three-subject SBOM fixture; its verified attachment preserves the subject digest without promoting impact.",
+        "truth_class": "deterministic",
+        "required_response_fields": ["findings", "count"],
+        "result_item_required_fields": ["cve_id", "impact_status", "match_reason", "observed_version", "subject_digest"],
+        "required_json_values": {
+          "findings[].cve_id": "CVE-2026-91913",
+          "findings[].impact_status": "possibly_affected",
+          "findings[].match_reason": "version_not_in_advisory_range",
+          "findings[].observed_version": "1.2.2",
+          "findings[].subject_digest": "sha256:c41d0000000000000000000000000000000000000000000000000000000000cd"
+        },
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "findings"
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-91913&profile=comprehensive&subject_digest=sha256:c10000000000000000000000000000000000000000000000000000000010ba5e": {
+        "description": "#9232 exact affected image row in the three-subject SBOM fixture; independent version classification retains the verified subject digest.",
+        "truth_class": "deterministic",
+        "required_response_fields": ["findings", "count"],
+        "result_item_required_fields": ["cve_id", "impact_status", "match_reason", "observed_version", "subject_digest"],
+        "required_json_values": {
+          "findings[].cve_id": "CVE-2026-91913",
+          "findings[].impact_status": "affected_exact",
+          "findings[].match_reason": "npm_semver_affected_range",
+          "findings[].observed_version": "1.2.4",
+          "findings[].subject_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010ba5e"
+        },
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "findings"
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-91913&profile=comprehensive&subject_digest=sha256:c10000000000000000000000000000000000000000000000000000000010c1c1": {
+        "description": "#9232 exact fixed image row in the three-subject SBOM fixture; independent version classification retains the verified subject digest.",
+        "truth_class": "deterministic",
+        "required_response_fields": ["findings", "count"],
+        "result_item_required_fields": ["cve_id", "impact_status", "match_reason", "observed_version", "subject_digest"],
+        "required_json_values": {
+          "findings[].cve_id": "CVE-2026-91913",
+          "findings[].impact_status": "not_affected_known_fixed",
+          "findings[].match_reason": "npm_semver_known_fixed",
+          "findings[].observed_version": "1.3.0",
+          "findings[].subject_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1"
+        },
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "findings"
+      },
       "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-9229&profile=comprehensive": {
         "description": "#9229 distinct GO-2026-9229 and CVE-2026-9229 IDs: the orders-api go.mod pins lib-common v1.0.0 inside the affected range, while the cassette carries a GO-keyed call path. The persisted finding and HTTP read must join by the CVE alias without borrowing another advisory's proof.",
         "truth_class": "deterministic",
