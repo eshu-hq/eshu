@@ -324,12 +324,26 @@ services:
       - ./testdata/cassettes/grafana:/cassettes:ro
 
   collector-loki:
-    <<: *demo_collector
-    # The loki binary ships in the eshu-collector-loki satellite image, not the
-    # in-tree product image: this service's image must provide it.
+    # Extracted satellite (#9202): the in-tree producer is deleted, so this
+    # service runs the satellite image instead of building the host image.
+    # The merge anchor is inlined (minus its build block): a merged `build:`
+    # key cannot be removed by an override.
+    image: ghcr.io/eshu-hq/eshu-collector-loki:v0.1.2
+    environment:
+      <<: *demo_runtime_env
+      ESHU_LISTEN_ADDR: "0.0.0.0:8080"
     command: ["/usr/local/bin/eshu-collector-loki", "-mode=cassette", "-cassette-file=/cassettes/supply-chain-demo.json"]
     volumes:
       - ./testdata/cassettes/loki:/cassettes:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
 
   # One-shot orchestrator: verify collector commits landed -> bootstrap-index
   # -> drain -> deferred-relationship maintenance x2 -> drain, mirroring
