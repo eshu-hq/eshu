@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 )
@@ -22,9 +23,18 @@ const (
 
 // ProcessRunner launches a local collector SDK process with JSON stdin/stdout.
 type ProcessRunner struct {
-	Command          string
-	Args             []string
-	Env              []string
+	Command string
+	Args    []string
+	Env     []string
+	// ScrubEnv names inherited environment variables to withhold from the
+	// satellite child. The child receives only its request on stdin plus
+	// Env; host credential material (for example the GitHub App private key
+	// the token provider mints from) must never reach the child environment,
+	// even though the satellite never reads it (eshu-hq/eshu#9256, epic
+	// #9182 AC1: no private key in satellite env — presence, not use).
+	// Names match exactly. Env entries are applied after scrubbing, so
+	// explicit operator config still wins over an inherited value.
+	ScrubEnv         []string
 	Dir              string
 	StdoutLimitBytes int64
 	StderrLimitBytes int64
@@ -44,7 +54,7 @@ func (r ProcessRunner) RunCollector(ctx context.Context, request Request) (sdkco
 
 	cmd := exec.CommandContext(ctx, r.Command, r.Args...) // #nosec G204 -- runs operator-configured extension command with operator-supplied args from ProcessRunner config
 	cmd.Stdin = bytes.NewReader(payload)
-	cmd.Env = append(os.Environ(), r.Env...)
+	cmd.Env = append(scrubbedEnviron(os.Environ(), r.ScrubEnv), r.Env...)
 	cmd.Dir = r.Dir
 
 	stdout := newLimitedBuffer(effectiveLimit(r.StdoutLimitBytes, defaultStdoutLimitBytes))
@@ -88,7 +98,7 @@ func (r ProcessRunner) RunPagedCollector(ctx context.Context, request Request) (
 
 	cmd := exec.CommandContext(ctx, r.Command, r.Args...) // #nosec G204 -- runs operator-configured extension command with operator-supplied args from ProcessRunner config
 	cmd.Stdin = bytes.NewReader(payload)
-	cmd.Env = append(os.Environ(), r.Env...)
+	cmd.Env = append(scrubbedEnviron(os.Environ(), r.ScrubEnv), r.Env...)
 	cmd.Dir = r.Dir
 
 	stdout := newLimitedBuffer(effectiveLimit(r.StdoutLimitBytes, defaultStdoutLimitBytes))
@@ -115,6 +125,32 @@ func (r ProcessRunner) RunPagedCollector(ctx context.Context, request Request) (
 	}
 
 	return decodePagedSDKResult(stdout.Bytes())
+}
+
+// scrubbedEnviron returns environ without the named entries. Names match
+// exactly (a scrubbed prefix never removes longer names); blank entries are
+// ignored. The returned slice is fresh except when there is nothing to drop,
+// in which case environ is returned as-is (read-only use).
+func scrubbedEnviron(environ, scrub []string) []string {
+	drop := make(map[string]struct{}, len(scrub))
+	for _, name := range scrub {
+		if name = strings.TrimSpace(name); name != "" {
+			drop[name] = struct{}{}
+		}
+	}
+	if len(drop) == 0 {
+		return environ
+	}
+	kept := make([]string, 0, len(environ))
+	for _, entry := range environ {
+		if name, _, _ := strings.Cut(entry, "="); name != "" {
+			if _, remove := drop[name]; remove {
+				continue
+			}
+		}
+		kept = append(kept, entry)
+	}
+	return kept
 }
 
 func effectiveLimit(value int64, defaultValue int64) int64 {
