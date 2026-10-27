@@ -192,12 +192,23 @@ lokiCollector:
         secretKeyRef:
           name: observability-credentials
           key: loki-tenant
+componentExtensionCollector:
+  allowIds: dev.eshu.collector.tempo
 tempoCollector:
   enabled: true
   instanceId: tempo-primary
   pollInterval: 8s
   claimLeaseTTL: 3m
   heartbeatInterval: 50s
+  componentId: dev.eshu.collector.tempo
+  componentVersion: "0.1.3"
+  seed:
+    image: ghcr.io/eshu-hq/eshu-collector-tempo@sha256:0230e174284bb7a9831babac9b9927be05df02e8620c20e448e91dbb1ac2ecac
+  host:
+    sourceSystem: tempo
+    scope:
+      id: "tempo:prod"
+      kind: trace_source
   collectorInstances:
     - instance_id: tempo-primary
       collector_kind: tempo
@@ -249,12 +260,21 @@ tempoCollector:
 		"ESHU_LOKI_COLLECTOR_CLAIM_LEASE_TTL":    "2m",
 		"ESHU_LOKI_COLLECTOR_HEARTBEAT_INTERVAL": "40s",
 	})
-	assertClaimCollector(t, manifests, "tempo-collector", "eshu-collector-tempo", map[string]string{
+	assertClaimCollector(t, manifests, "tempo-collector", "eshu-collector-component-extension", map[string]string{
 		"ESHU_TEMPO_COLLECTOR_INSTANCE_ID":        "tempo-primary",
 		"ESHU_TEMPO_COLLECTOR_POLL_INTERVAL":      "8s",
 		"ESHU_TEMPO_COLLECTOR_CLAIM_LEASE_TTL":    "3m",
 		"ESHU_TEMPO_COLLECTOR_HEARTBEAT_INTERVAL": "50s",
 	})
+
+	// The reworked tempo lane (#9172) runs the component-extension worker on
+	// the Eshu host image: the seeded satellite binary arrives via the init
+	// seed container, so the Deployment carries the extension worker identity
+	// env alongside the claim timing above.
+	tempoEnv := helmEnvByName(requireHelmContainer(t, requireHelmManifest(t, manifests, "Deployment", "eshu-tempo-collector"), "tempo-collector"))
+	assertHelmLiteralEnv(t, tempoEnv, "ESHU_COMPONENT_COLLECTOR_INSTANCE_ID", "tempo-primary")
+	assertHelmLiteralEnv(t, tempoEnv, "ESHU_COMPONENT_COLLECTOR_SCOPE_KIND", "trace_source")
+	assertHelmLiteralEnv(t, tempoEnv, "ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL", "8s")
 
 	assertHelmValueFromEnv(t, manifests, "grafana-collector", "GRAFANA_TOKEN")
 	assertHelmValueFromEnv(t, manifests, "prometheus-mimir-collector", "MIMIR_TOKEN")

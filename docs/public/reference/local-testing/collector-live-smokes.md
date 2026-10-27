@@ -172,37 +172,46 @@ go test ./internal/collector/observability/loki \
   -run TestLiveLokiObservedLogSignalEvidence -count=1 -v
 ```
 
-Tempo can run unauthenticated when the target allows metadata reads. Tag values
-are collected only for names explicitly listed in
-`ESHU_TEMPO_TAG_VALUE_NAMES`, and values are stored as counts and hashes within
-the configured cardinality limit.
+Tempo collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-tempo`): the in-tree
+`go/internal/collector/observability/tempo` package and its
+`TestLiveTempoObservedTraceSignalEvidence` smoke are deleted, so there is no
+in-tree `go test` smoke for Tempo. Tag values are still collected only for
+allowlisted `tag_value_names`, stored as counts and hashes within the
+cardinality limit, and Tempo can run unauthenticated when the target allows
+metadata reads.
+
+Run live Tempo proof through the hosted `tempo` profile in
+`docker-compose.remote-e2e.observability.yaml` — the satellite image with the
+same target shape, credentials passed by `token_env`/`tenant_id_env` name
+reference. Set up the private env file as shown in [Remote Collector Hosted
+Profiles](remote-collector-hosted-profiles.md) — the `tempo` profile enable
+flag, `ESHU_TEMPO_BASE_URL`, and the token/tenant `*_ENV` name references
+(the `collector-tempo` service in `docker-compose.remote-e2e.observability.yaml`
+lists every variable) — then render the profile:
 
 ```bash
-export ESHU_TEMPO_LIVE=1
-export ESHU_TEMPO_BASE_URL="${ESHU_TEMPO_BASE_URL:?set Tempo URL}"
-export ESHU_TEMPO_API_TOKEN="${ESHU_TEMPO_API_TOKEN:-}"
-export ESHU_TEMPO_TENANT_ID="${ESHU_TEMPO_TENANT_ID:-}"
-export ESHU_TEMPO_TAG_VALUE_NAMES="${ESHU_TEMPO_TAG_VALUE_NAMES:-}"
-export ESHU_TEMPO_LOOKBACK="${ESHU_TEMPO_LOOKBACK:-1h}"
-export ESHU_TEMPO_RESOURCE_LIMIT="${ESHU_TEMPO_RESOURCE_LIMIT:-5}"
-export ESHU_TEMPO_MAX_TAG_VALUES_PER_TAG="${ESHU_TEMPO_MAX_TAG_VALUES_PER_TAG:-5}"
-export ESHU_TEMPO_FRESHNESS_PROBE="${ESHU_TEMPO_FRESHNESS_PROBE:-false}"
-
-cd go
-go test ./internal/collector/observability/tempo \
-  -run TestLiveTempoObservedTraceSignalEvidence -count=1 -v
+docker compose --env-file path/to/private-remote-e2e.env \
+  -f docker-compose.remote-e2e.yaml \
+  -f docker-compose.remote-e2e.observability.yaml \
+  --profile tempo config --services
 ```
 
-To run all four against a prepared environment:
+Then start the profile and capture proof with
+`scripts/verify_remote_e2e_runtime_state.sh` as shown on that page.
+
+To run all three remaining in-tree smokes against a prepared environment:
 
 ```bash
 cd go
 go test ./internal/collector/observability/grafana \
   ./internal/collector/observability/prometheus \
   ./internal/collector/observability/loki \
-  ./internal/collector/observability/tempo \
   -run 'TestLive.*Observed.*Evidence' -count=1 -v
 ```
+
+Tempo runs separately from the satellite profile above; it is no longer part
+of this combined command.
 
 ## OCI Registry Smokes
 

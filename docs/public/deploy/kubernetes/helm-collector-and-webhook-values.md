@@ -87,6 +87,7 @@ coordinator's registry itself, so the volume values above stay empty. See
 | Jira | `instanceId`, `collectorInstances` with a `jira` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `jira` instance | Polling-only mode enables `jiraCollector` and passes `token_env` plus optional `email_env` through `extraEnv` Secret refs. Webhook-enabled mode also enables `webhookListener.jira` with a matching `scopeId`; webhooks are freshness triggers only and polling remains the recovery path. |
 | Vulnerability intelligence | `instanceId`, `collectorInstances` with a `vulnerability_intelligence` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `vulnerability_intelligence` instance | Bounded source targets only (explicit CVE IDs, source snapshots, OSV package-version queries, NVD windows, or derived owned-package targets). API keys are referenced from `extraEnv` Secret refs via `api_key_env` and never embedded in values. |
 | Component extension | `componentHome`, `trustMode=allowlist`, `allowIds` with at least one non-empty CSV token, `allowPublishers` with at least one non-empty CSV token, `extensionEgressPolicyJSON`, shared registry volume mounts for coordinator and worker | Runs verified claim-capable component activations through `/usr/local/bin/eshu-collector-component-extension`. Keep component config files, provider targets, and credentials in private mounts or Secrets; extension facts still enter through the collector commit boundary and reducers own graph truth. Strict trust mode is not charted until provenance verifier values are first-class chart inputs. |
+| Tempo | `instanceId`, `collectorInstances` with a matching enabled claim-driven `tempo` instance, `workflowCoordinator.collectorInstances` with an enabled claim-driven `tempo` instance, digest-pinned `seed.image`, `componentId`/`componentVersion` matching the seeded manifest, `componentExtensionCollector.allowIds` carrying the component ID, `host.scope` matching the planned Tempo scope | No in-tree producer remains: the host image runs the component-extension worker, seeded from the satellite release image through init containers that grant, install, and enable the component in a pod-local registry. Keep the activation `config.targets` in sync with the collector target and credentials in `extraEnv` Secret refs. See [Run An Extracted Collector](run-an-extracted-collector.md) for the seed contract. |
 
 All optional collectors support `replicas`, `revisionHistoryLimit`, `resources`,
 Postgres connection tuning, global pod labels/annotations, and global
@@ -152,7 +153,10 @@ additionally fails when the
 collector-local instance list does not contain a matching enabled claim-driven
 instance, when required GCP or Azure live scope fields are absent, or when
 `workflowCoordinator.collectorInstances` does not contain an enabled
-claim-driven instance for that collector kind. Component extension rendering
+claim-driven instance for that collector kind. A tempo rendering additionally
+fails when the satellite seed image is not digest-pinned, when the component
+ID or version is missing or unlisted in the site allowlist, or when the
+activation host scope is absent. Component extension rendering
 fails if the workflow coordinator is not active with claims enabled, if
 `componentHome` is empty, if trust mode is not `allowlist`, if the extension
 egress policy JSON is missing, or if the coordinator and worker do not both

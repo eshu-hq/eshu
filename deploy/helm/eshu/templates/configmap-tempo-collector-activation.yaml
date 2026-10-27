@@ -1,0 +1,14 @@
+{{- if .Values.tempoCollector.enabled }}
+{{- $activation := (include "eshu.tempoCollectorActivation" . | fromJson) }}
+{{- $ctx := dict "root" . "activation" $activation }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "eshu.tempoCollectorFullname" . }}-activation
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tempo-collector
+data:
+  {{ $activation.instanceId }}.yaml: |
+    {{- include "eshu.componentActivationConfigYAML" $ctx | nindent 4 }}
+{{- end }}

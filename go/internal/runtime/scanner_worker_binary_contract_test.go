@@ -119,13 +119,9 @@ func TestObservabilityCollectorBinariesAreBuiltInstalledAndDocumented(t *testing
 			envVar:       "ESHU_LOKI_COLLECTOR_INSTANCE_ID",
 			templatePath: "deploy/helm/eshu/templates/deployment-loki-collector.yaml",
 		},
-		{
-			binary:       "eshu-collector-tempo",
-			commandPath:  "./cmd/collector-tempo",
-			displayName:  "Tempo Collector",
-			envVar:       "ESHU_TEMPO_COLLECTOR_INSTANCE_ID",
-			templatePath: "deploy/helm/eshu/templates/deployment-tempo-collector.yaml",
-		},
+		// Tempo collects from its extracted satellite
+		// (eshu-hq/eshu-collector-tempo) since #9172: no in-tree binary,
+		// command path, env-var row, or monolith-image template remains.
 	} {
 		for file, want := range map[string]string{
 			"Dockerfile":                        "-o /go-bin/" + collector.binary + " " + collector.commandPath,

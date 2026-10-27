@@ -46,7 +46,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/grafana"
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/loki"
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/prometheus"
-	"github.com/eshu-hq/eshu/go/internal/collector/observability/tempo"
 	"github.com/eshu-hq/eshu/go/internal/collector/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/collector/registry/oci/distribution"
 	packageruntime "github.com/eshu-hq/eshu/go/internal/collector/registry/package/runtime"
@@ -160,25 +159,6 @@ func collectorFaultCases() []collectorFaultCase {
 					Provider:      prometheus.ProviderPrometheus,
 					BaseURL:       "https://prometheus.invalid",
 					Token:         "prom-token",
-					ResourceLimit: 50,
-				})
-				return err
-			},
-		},
-		{
-			surface: "collector:tempo",
-			collect: func() error {
-				client, err := tempo.NewHTTPClient(tempo.HTTPClientConfig{
-					BaseURL: "https://tempo.invalid",
-					Client:  timeoutFaultClient(),
-				})
-				if err != nil {
-					return err
-				}
-				_, err = client.CollectObservedMetadata(context.Background(), tempo.TargetConfig{
-					ScopeID:       "tempo:cluster:prod",
-					InstanceID:    "tempo-prod",
-					BaseURL:       "https://tempo.invalid",
 					ResourceLimit: 50,
 				})
 				return err

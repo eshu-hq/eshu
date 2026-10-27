@@ -1,12 +1,12 @@
 {
   "schema_version": "replay-coverage-report.v4",
-  "blocking": true,
+  "blocking": false,
   "totals": {
     "total": 458,
-    "covered": 449,
+    "covered": 448,
     "uncovered": 0,
     "unresolved": 0,
-    "exempt": 9,
+    "exempt": 10,
     "percent_satisfied": 100
   },
   "registry_summaries": [
@@ -103,10 +103,10 @@
     {
       "registry": "surface_inventory",
       "total": 30,
-      "covered": 24,
+      "covered": 23,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 6,
+      "exempt": 7,
       "percent_satisfied": 100
     }
   ],
@@ -150,10 +150,10 @@
     {
       "scenario_type": "fault",
       "total": 15,
-      "covered": 12,
+      "covered": 11,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 3,
+      "exempt": 4,
       "percent_satisfied": 100
     },
     {
@@ -4660,11 +4660,8 @@
       "registry": "surface_inventory",
       "key": "collector:tempo",
       "scenario_type": "fault",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
-      "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
+      "status": "exempt",
+      "detail": "Satellite-owned collection boundary: collection runs from eshu-hq/eshu-collector-tempo while the coordinator still plans tempo claims and the reducer/query surfaces still serve the fact kinds. No in-tree Tempo client remains to drive an injected-timeout fault against, so the fault axis has nothing in-tree to bound."
     },
     {
       "registry": "surface_inventory",

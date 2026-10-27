@@ -2112,11 +2112,12 @@
       "category": "collector",
       "name": "tempo",
       "readiness": "implemented",
-      "owner": "internal/collector/observability/tempo",
+      "owner": "internal/coordinator/planner/tempo",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
+      "notes": "The in-tree producer (go/cmd/collector-tempo, go/internal/collector/observability/tempo) was removed after the satellite cutover (#9172); collection runs from eshu-hq/eshu-collector-tempo while the coordinator still plans tempo claims and the reducer/query surfaces still serve the fact kinds.",
       "collector_contract": {
         "fact_kinds": [
           "observability.applied_resource",
@@ -2146,11 +2147,10 @@
           "list_observability_coverage"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-tempo ./internal/collector/observability/tempo ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./internal/reducer ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
-          "docs/public/reference/observability-evidence.md",
-          "go/internal/collector/observability/tempo/testdata"
+          "docs/public/reference/observability-evidence.md"
         ],
         "truth_profile": "provider_gated"
       }
@@ -2398,11 +2398,6 @@
     {
       "category": "command",
       "name": "collector-security-alerts",
-      "readiness": "implemented"
-    },
-    {
-      "category": "command",
-      "name": "collector-tempo",
       "readiness": "implemented"
     },
     {

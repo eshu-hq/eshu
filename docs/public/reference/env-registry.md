@@ -15,7 +15,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 92 |
 | [Ingester and collector framework](env-registry/collectors-platform.md) | The ingester's git collector, the component package manager, and the component-extension collector. | 38 |
 | [Infrastructure and registry collectors](env-registry/collectors-infrastructure.md) | Cloud, Kubernetes, Vault, Terraform state, OCI registry, and package registry collectors. | 54 |
-| [Observability, delivery, and security collectors](env-registry/collectors-signals.md) | Grafana, Loki, Prometheus/Mimir, Tempo, PagerDuty, CI/CD run, security alert, SBOM, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). | 45 |
+| [Observability, delivery, and security collectors](env-registry/collectors-signals.md) | Grafana, Loki, Prometheus/Mimir, PagerDuty, CI/CD run, security alert, SBOM, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). | 40 |
 
 ## Subsystems
 
@@ -39,7 +39,6 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [`collector-prometheus-mimir`](env-registry/collectors-signals.md#collector-prometheus-mimir) | 5 | Observability, delivery, and security collectors |
 | [`collector-sbom-attestation`](env-registry/collectors-signals.md#collector-sbom-attestation) | 5 | Observability, delivery, and security collectors |
 | [`collector-security-alerts`](env-registry/collectors-signals.md#collector-security-alerts) | 5 | Observability, delivery, and security collectors |
-| [`collector-tempo`](env-registry/collectors-signals.md#collector-tempo) | 5 | Observability, delivery, and security collectors |
 | [`collector-terraform-state`](env-registry/collectors-infrastructure.md#collector-terraform-state) | 12 | Infrastructure and registry collectors |
 | [`collector-vault-live`](env-registry/collectors-infrastructure.md#collector-vault-live) | 6 | Infrastructure and registry collectors |
 | [`collector-vulnerability-intelligence`](env-registry/collectors-signals.md#collector-vulnerability-intelligence) | 5 | Observability, delivery, and security collectors |

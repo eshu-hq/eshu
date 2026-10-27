@@ -266,3 +266,24 @@ exemptions:
       Remove this exemption only if a future change adds a delta-scoped
       retract path for TerraformStateResource (e.g. by threading a
       backend-scoped exclusion list through the delta materialization).
+
+  # eshu-hq/eshu#9172: the Tempo collection boundary moved to the
+  # eshu-hq/eshu-collector-tempo satellite (v0.1.3). The in-tree producer
+  # (go/cmd/collector-tempo,
+  # go/internal/collector/observability/tempo) and its injected-timeout
+  # fault case are deleted, and the coordinator planner
+  # (go/internal/coordinator/planner/tempo) plans work without resolving
+  # credentials or contacting Tempo, so no in-tree network boundary
+  # remains for a fault scenario to bound. Baseline replay still covers
+  # the surface (testdata/cassettes/tempo/supply-chain-demo.json); fault
+  # proof for the collection boundary belongs to the satellite
+  # repository. Remove this exemption only if an in-tree Tempo
+  # collection boundary returns.
+  - surface: collector:tempo
+    scenario_type: fault
+    reason: >-
+      Satellite-owned collection boundary: collection runs from
+      eshu-hq/eshu-collector-tempo while the coordinator still plans
+      tempo claims and the reducer/query surfaces still serve the fact
+      kinds. No in-tree Tempo client remains to drive an injected-timeout
+      fault against, so the fault axis has nothing in-tree to bound.

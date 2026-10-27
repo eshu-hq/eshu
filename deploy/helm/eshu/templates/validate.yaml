@@ -201,6 +201,21 @@
 {{- if not $tempoLocalMatch -}}
 {{- fail "tempoCollector.collectorInstances must contain an enabled claim-driven tempo instance matching tempoCollector.instanceId" -}}
 {{- end -}}
+{{- /* values.schema.json enforces the tempoCollector patterns (componentId, componentVersion, seed.image digest pin, pullPolicy, host); only checks the schema cannot express live here. */ -}}
+{{- $tempoComponentId := toString (default "" .Values.tempoCollector.componentId) -}}
+{{- $tempoAllowed := list -}}
+{{- range splitList "," (include "eshu.componentCSVList" .Values.componentExtensionCollector.allowIds) -}}
+{{- $tempoAllowed = append $tempoAllowed . -}}
+{{- end -}}
+{{- if not (has $tempoComponentId $tempoAllowed) -}}
+{{- fail (printf "tempoCollector.componentId %q must be listed in componentExtensionCollector.allowIds" $tempoComponentId) -}}
+{{- end -}}
+{{- $tempoSeed := default (dict) .Values.tempoCollector.seed -}}
+{{- range $arg := default (list) $tempoSeed.command -}}
+{{- if not (regexMatch "^[A-Za-z0-9._/:=@-]+$" (toString $arg)) -}}
+{{- fail (printf "tempoCollector.seed.command entries may only contain letters, digits and ._/:=@-") -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- if .Values.jiraCollector.enabled -}}
 {{- if not .Values.jiraCollector.instanceId -}}

@@ -28,7 +28,6 @@ var coreScanFiles = []string{
 	"cmd/reducer/code_value_flow_stale_cleanup_config.go",
 	"cmd/reducer/infra_inventory_reconcile_wiring.go",
 	"cmd/reducer/generation_retention_wiring.go",
-	"cmd/collector-tempo/config.go",
 	"cmd/collector-loki/config.go",
 	"cmd/collector-prometheus-mimir/config.go",
 	"cmd/collector-grafana/config.go",

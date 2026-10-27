@@ -32,7 +32,8 @@ const (
 	SpanPrometheusMimirFetch   = observability.SpanPrometheusMimirFetch
 )
 
-// Tempo source-collector spans (from contract/observability/tempo.go).
+// Tempo source-collector spans (emitted by the extracted satellite
+// eshu-hq/eshu-collector-tempo; the in-tree producer is removed).
 const (
 	SpanTempoObserve = observability.SpanTempoObserve
 	SpanTempoFetch   = observability.SpanTempoFetch
