@@ -290,7 +290,8 @@
       "TestActiveWorkSummaryMatchesPreHistoryGroupsOracle",
       "TestActiveWorkSummaryMatchesStandaloneReads",
       "TestActiveWorkSummaryOracleCatchesSeededHistoryMutations",
-      "TestStatusActiveWorkQueriesPreserveSemantics"
+      "TestStatusActiveWorkQueriesPreserveSemantics",
+      "TestStatusOldestOutstandingAgeMeasuresFromReopen"
     ]
   },
   "go/internal/storage/postgres/status_blockage_leases_live_test.go": {

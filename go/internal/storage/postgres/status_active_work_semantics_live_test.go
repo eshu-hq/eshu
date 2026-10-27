@@ -121,6 +121,22 @@ func TestStatusActiveWorkQueriesPreserveSemantics(t *testing.T) {
 	}
 }
 
+// TestStatusOldestOutstandingAgeMeasuresFromReopen is the #9292 regression:
+// the status backlog, the queue snapshot, and the queue observer report how
+// long outstanding work has waited since it last became outstanding
+// (COALESCE(reopened_at, created_at)), not since its first creation. A reducer
+// row reopened five minutes ago reads five minutes, not the 115 hours since it
+// was created. The fixture and checks are in
+// reopened_backlog_age_fixture_test.go.
+func TestStatusOldestOutstandingAgeMeasuresFromReopen(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run the #9292 reopened backlog age proof")
+	}
+	ctx := context.Background()
+	runReopenedBacklogAgeProof(ctx, t, openStatusSemanticsSchema(ctx, t, dsn))
+}
+
 // TestActiveWorkSummaryMatchesStandaloneReads is the #6794 dedupe
 // differential: on the semantics fixture, the single activeWorkSummaryQuery
 // round trip must decode to exactly what the five pre-#6794 standalone reads

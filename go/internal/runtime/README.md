@@ -353,7 +353,9 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
   growth. No new OTEL metric — the existing `git repository sync
   started/completed/failed` logs and `eshu_dp_collector_observe_duration_seconds`
   still cover the operations themselves.
-- `eshu_runtime_queue_oldest_outstanding_age_seconds` aging means workers
+- `eshu_runtime_queue_oldest_outstanding_age_seconds` (age since the oldest
+  outstanding item last became outstanding, `COALESCE(reopened_at, created_at)`)
+  aging means workers
   cannot keep up with ingest rate; investigate worker count and graph backend
   latency before changing pool sizes.
 - `eshu_runtime_health_state{state="stalled"}` = 1 means the pipeline is not

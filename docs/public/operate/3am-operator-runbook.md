@@ -39,7 +39,7 @@ reported `truth.freshness.state = stale`.
   reports pending projection work. Each observed cause carries a bounded
   `next_check` drilldown.
 - **Metric:** `eshu_runtime_queue_oldest_outstanding_age_seconds` and
-  `eshu_dp_queue_oldest_age_seconds` show how far behind projection is.
+  `eshu_dp_queue_oldest_age_seconds` show how far behind projection is, counting each fact work item from when it last became outstanding (a reopened reducer item restarts at its reopen).
 - **Trace / log field:** pivot on `generation_id` and `domain` from the
   freshness `recent_transitions` rows to the `projector.run` and `reducer.run`
   spans for the lagging scope; `pipeline_phase` separates `projection` from

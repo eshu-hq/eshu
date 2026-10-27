@@ -198,9 +198,9 @@ Use these to locate the phase that changed before opening logs or traces:
 | Metric | Use |
 | --- | --- |
 | `eshu_dp_queue_depth` | Queue depth by queue and status. |
-| `eshu_dp_queue_oldest_age_seconds` | Oldest queued item age by queue. |
+| `eshu_dp_queue_oldest_age_seconds` | Oldest queued item age by queue, measured from when the item last became outstanding. A reopened reducer item restarts at its reopen, not its first creation. |
 | `eshu_dp_queue_source_depth` | Queue depth by queue, source system, and status. |
-| `eshu_dp_queue_source_oldest_age_seconds` | Oldest queued item age by queue and source system. |
+| `eshu_dp_queue_source_oldest_age_seconds` | Oldest queued item age by queue and source system, on the same reopen-aware clock as `eshu_dp_queue_oldest_age_seconds`. |
 | `eshu_dp_queue_claim_duration_seconds` | Queue claim latency. |
 | `eshu_dp_queue_claim_conflict_retries_total` | Claim statements retried after a Postgres deadlock (`40P01`) or serialization failure (`40001`), by `queue` and `failure_class`. The projector claim takes every row lock with `SKIP LOCKED`, so a sustained nonzero rate is worth investigating as a possible new lock-order conflict (#7108). bootstrap-index emits it too since #7122; there the retry is bounded, and 20 consecutive conflicting claims fail the run. Wiring the queue instruments in bootstrap-index also makes `eshu_dp_projector_retry_surge_total` emit from it. |
 | `eshu_dp_queue_dead_letters_total` | Work items a projector or reducer Fail path moved to `dead_letter` (#7386), by `queue` (`projector` or `reducer`) and `failure_class`. Counted once, after the dead-letter UPDATE reports exactly one affected row, so a claim the lease fence rejected is not counted. The class is the stored `failure_class`; a value that is not a lowercase identifier of at most 64 characters is labeled `other`. Operator dead-letters through the admin API are not counted. The stored row keeps the full class, message and details; use the counter to see how many and which class, then read the row. |

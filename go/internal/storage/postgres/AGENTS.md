@@ -208,7 +208,7 @@
   (`reducer_queue_replay.go`) reset `fact_work_items.reopened_at` in the same
   statement that resets `attempt_count = 0`, so a reopened row's
   `CycleStartedAt` (`COALESCE(reopened_at, created_at)`, computed by the claim
-  query) gets a genuinely fresh window; see
+  query and by the status and queue-observer oldest-age aggregates, #9292) gets a genuinely fresh window; see
   `go/internal/reducer/awscloud/aws_cloud_runtime_drift_readiness.go`'s
   `awsCloudRuntimeDriftStatePendingMaxWait` doc comment,
   `TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive`
