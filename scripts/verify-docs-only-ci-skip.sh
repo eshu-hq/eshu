@@ -374,11 +374,11 @@ else
 fi
 needs_n=0; for j in verify-contracts go-core go-race; do
 	if job_gated "${t}" "${j}"; then needs_n=$((needs_n + 1)); fi; done
-guard_n="$(rg -cF "github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'" "${t}" || true)"; guard_n="${guard_n:-0}"
+guard_n="$(rg -cF "needs.changes.outputs.code == 'true'" "${t}" || true)"; guard_n="${guard_n:-0}"
 if [[ "${needs_n}" -ge 3 && "${guard_n}" -ge 3 ]]; then
 	ok "all 3 heavy test.yml jobs gate on the changes job (needs×${needs_n}, guard×${guard_n})"
 else
-	bad "verify-contracts, go-core and go-race each carry needs:changes + the event-guarded if (needs×${needs_n}, guard×${guard_n}, want ≥3 each)"
+	bad "verify-contracts, go-core and go-race each carry needs:changes + the code-gated if (needs×${needs_n}, guard×${guard_n}, want ≥3 each)"
 fi
 if job_alwayson "${t}" docs-helm-hygiene; then
 	ok "test.yml keeps docs-helm-hygiene (docs build) always-on for docs-only PRs"
@@ -393,6 +393,8 @@ run_merge_group_checks "${t}"
 run_docs_planner_checks "${t}" "${wf}/build.yml" "${repo_root}/specs/ci-pr-workflows.d/build.yml" "${repo_root}/scripts/ci/assert-go-complete.sh"
 
 run_docs_set_checks "${t}" "${s}" "${m}" "${repo_root}/specs/ci-pr-workflows.d"
+
+run_lockstep_checks "${t}" "${s}" "${m}" "${repo_root}/specs/ci-docs-lockstep-paths.txt"
 
 # --- #5818 regression guard 1: the three `code` filter copies must stay
 # byte-identical. #5818 happened because the fix (excluding a nested markdown

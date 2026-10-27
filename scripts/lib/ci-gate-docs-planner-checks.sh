@@ -71,6 +71,53 @@ EOF
 	fi
 }
 
+# run_lockstep_checks <test.yml> <security-scan.yml> <mcp-schema-drift.yml>
+# <manifest> — the P1 proof: every code-gated lane must also run when only a
+# lockstep test input changed. Each workflow carries a second dorny step whose
+# `lockstep` filter lists the manifest entries verbatim under the `some`
+# quantifier (all-positive entries; `every` would select nothing), the changes
+# job exports it, and every code-gated job `if` ORs it with the code result.
+# A code-gated clause without its lockstep twin strands the aggregate await
+# on lockstep-only PRs: selected through the registry, skipped at runtime.
+run_lockstep_checks() {
+	local t="$1" s="$2" m="$3" manifest="$4"
+	local wf entry line ok_all=1
+	for wf in "${t}" "${s}" "${m}"; do
+		if ! rg -q -- "^[[:space:]]+id: lockstep$" "${wf}"; then
+			bad "$(basename "${wf}") has no dorny lockstep step (P1: lockstep-only PRs strand code-gated lanes)"
+			ok_all=0
+			continue
+		fi
+		if ! awk '/id: lockstep$/{f=1} f && /predicate-quantifier:/{print; exit}' "${wf}" | rg -q "'some'"; then
+			bad "$(basename "${wf}") lockstep step must use the some quantifier (every over all-positive entries selects nothing)"
+			ok_all=0
+		fi
+		if ! rg -qF 'lockstep: ${{ steps.lockstep.outputs.lockstep' "${wf}"; then
+			bad "$(basename "${wf}") changes job does not export the lockstep filter"
+			ok_all=0
+		fi
+		while IFS= read -r line; do
+			case "${line}" in
+				*"needs.changes.outputs.lockstep == 'true'"*) ;;
+				*)
+					bad "$(basename "${wf}") code-gated job if lacks the lockstep OR: ${line}"
+					ok_all=0
+					;;
+			esac
+		done < <(rg -nF "needs.changes.outputs.code == 'true'" "${wf}" || true)
+		while IFS= read -r entry; do
+			case "${entry}" in ''|\#*) continue;; esac
+			if ! rg -qF -- "              - '${entry}'" "${wf}"; then
+				bad "$(basename "${wf}") lockstep filter lacks manifest entry ${entry}"
+				ok_all=0
+			fi
+		done < "${manifest}"
+	done
+	if [[ "${ok_all}" -eq 1 ]]; then
+		ok 'all three code-gated workflows run lockstep-only PRs through a manifest-pinned some-quantifier filter'
+	fi
+}
+
 # run_docs_set_checks <test.yml> <security-scan.yml> <mcp-schema-drift.yml>
 # <specs/ci-pr-workflows.d dir> — the #9200 docs-set proof: every code filter
 # must negate nested markdown and the scoped JSON set (guard 1 above proves
@@ -79,6 +126,7 @@ EOF
 run_docs_set_checks() {
 	local t="$1" s="$2" m="$3" fragdir="$4"
 	local wf block ok_all line
+	local manifest="${fragdir}/../ci-docs-lockstep-paths.txt"
 	ok_all=1
 	for wf in "${t}" "${s}" "${m}"; do
 		block="$(code_filter_block "${wf}")"
@@ -104,9 +152,23 @@ run_docs_set_checks() {
 		if [[ -z "${neg_line}" || -z "${jobs_line}" ]]; then
 			bad "${frag} fragment has no readable paths/jobs anchor (#9200)"
 			ok_all=0
-		elif [[ "${jobs_line}" -gt "$((neg_line + 1))" ]] && sed -n "$((neg_line + 1)),$((jobs_line - 1))p" "${fragdir}/${frag}" | rg -q -- "- "; then
-			bad "${frag} fragment: a positive path after the '!**/*.md' exclusion would silently re-select markdown (last-match-wins)"
-			ok_all=0
+		elif [[ "${jobs_line}" -gt "$((neg_line + 1))" ]]; then
+			# Positives after the exclusion are lockstep re-includes only:
+			# last-match-wins reselects exactly the manifest entries, so an
+			# unlisted positive here would silently re-select markdown.
+			# Fragments with nothing between the exclusion and `jobs:`
+			# have nothing to check.
+			while IFS= read -r tail; do
+				trimmed="$(printf '%s' "${tail}" | sed 's/^[[:space:]]*//')"
+				case "${trimmed}" in
+					''|\#*) continue ;;
+				esac
+				stripped="$(printf '%s' "${trimmed}" | sed 's/^- //;s/^'\''//;s/'\''$//')"
+				if ! rg -qxF -- "${stripped}" "${manifest}"; then
+					bad "${frag} fragment: '${stripped}' after the '!**/*.md' exclusion is not a lockstep manifest entry (last-match-wins would re-select markdown)"
+					ok_all=0
+				fi
+			done < <(sed -n "$((neg_line + 1)),$((jobs_line - 1))p" "${fragdir}/${frag}" || true)
 		fi
 	done
 	if ! rg -qF -- "- '**/*.md'" "${fragdir}/build.yml"; then

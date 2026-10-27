@@ -168,6 +168,10 @@ func TestFullCodeApplicabilityUsesTrustedFilter(t *testing.T) {
 		{path: "apps/console/src/App.tsx", want: true},
 		{path: "go/cmd/ci-gates/main.go", want: true},
 		{path: "specs/ci-images.v1.json", want: true},
+		{path: "go/internal/reducer/README.md", want: true},
+		{path: "go/cmd/README.md", want: true},
+		{path: "docs/public/reference/http-api.md", want: true},
+		{path: "AGENTS.md", want: true},
 	} {
 		got, err := fullCodeApplicable(root, []string{tc.path}, false)
 		if err != nil || got != tc.want {
@@ -185,6 +189,82 @@ func TestFullCodeApplicabilityUsesTrustedFilter(t *testing.T) {
 	if _, err := fullCodeApplicable(changedRoot, []string{"README.md"}, true); err == nil {
 		t.Fatal("changed code policy minted full proof even for truncated paths")
 	}
+}
+
+func TestFullCodeApplicabilityPinsLockstepFilter(t *testing.T) {
+	t.Parallel()
+	codeFilter := "            code:\n              - '**'\n              - '!docs/**'\n              - '!*.md'\n              - '!**/*.md'\n              - '!*.json'\n              - '!docs/**/*.json'\n              - '!scripts/**/*.json'\n              - '!mkdocs.yml'\n              - '!.github/**/*.md'\n              - '!.agents/**'\n"
+	writeFixture := func(t *testing.T, manifest, lockstep, quantifier string) string {
+		t.Helper()
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, ".github/workflows"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(root, "specs"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		workflow := "jobs:\n  changes:\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          predicate-quantifier: every\n          filters: |\n" + codeFilter +
+			"      - uses: dorny/paths-filter@v3\n        with:\n          predicate-quantifier: '" + quantifier + "'\n          filters: |\n            lockstep:\n" + lockstep
+		if err := os.WriteFile(filepath.Join(root, ".github/workflows/test.yml"), []byte(workflow), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "specs/ci-docs-lockstep-paths.txt"), []byte(manifest), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return root
+	}
+	t.Run("matching pair selects lockstep paths", func(t *testing.T) {
+		t.Parallel()
+		root := writeFixture(t, "# manifest\nAGENTS.md\ngo/internal/reducer/README.md\n", "              - 'AGENTS.md'\n              - 'go/internal/reducer/README.md'\n", "some")
+		for _, tc := range []struct {
+			path string
+			want bool
+		}{
+			{path: "go/internal/reducer/README.md", want: true},
+			{path: "AGENTS.md", want: true},
+			{path: "docs/guide.md", want: false},
+			{path: "go/main.go", want: true},
+		} {
+			got, err := fullCodeApplicable(root, []string{tc.path}, false)
+			if err != nil || got != tc.want {
+				t.Fatalf("applicability for %s = %v, %v; want %v", tc.path, got, err, tc.want)
+			}
+		}
+	})
+	t.Run("drifting filter fails closed", func(t *testing.T) {
+		t.Parallel()
+		root := writeFixture(t, "AGENTS.md\n", "              - 'AGENTS.md'\n              - 'go/internal/reducer/README.md'\n", "some")
+		if _, err := fullCodeApplicable(root, []string{"AGENTS.md"}, false); err == nil {
+			t.Fatal("drifting lockstep filter minted proof")
+		}
+	})
+	t.Run("every quantifier fails closed", func(t *testing.T) {
+		t.Parallel()
+		root := writeFixture(t, "AGENTS.md\n", "              - 'AGENTS.md'\n", "every")
+		if _, err := fullCodeApplicable(root, []string{"AGENTS.md"}, false); err == nil {
+			t.Fatal("every-quantified lockstep filter minted proof")
+		}
+	})
+	t.Run("missing filter fails closed", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, ".github/workflows"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(root, "specs"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		workflow := "jobs:\n  changes:\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          predicate-quantifier: every\n          filters: |\n" + codeFilter
+		if err := os.WriteFile(filepath.Join(root, ".github/workflows/test.yml"), []byte(workflow), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "specs/ci-docs-lockstep-paths.txt"), []byte("AGENTS.md\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fullCodeApplicable(root, []string{"AGENTS.md"}, false); err == nil {
+			t.Fatal("missing lockstep filter minted proof")
+		}
+	})
 }
 
 func successfulSelectedJobs(t *testing.T, raw string, selected []resolvedRequiredGate) string {

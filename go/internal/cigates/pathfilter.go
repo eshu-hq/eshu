@@ -63,48 +63,19 @@ func DornyFilters(raw []byte) (filters map[string][]string, every bool) {
 // its filters block does not parse. A workflow with no such step (true for
 // most workflows) returns nil so callers skip it rather than false-erroring.
 //
-// Jobs are visited in sorted key order. Every workflow in this repo hosts
-// exactly one dorny step, so today the order cannot change the answer -- but Go
-// randomises map iteration, so a second dorny step would otherwise make "the
-// first" mean a different step run to run, and the result would silently vary.
-// That is the same randomised-iteration hazard ifGatedFilterKeys reports as
-// ambiguous rather than guessing at; deterministic order keeps a caller's
-// verdict reproducible instead of flaky (#6145 review).
+// Jobs are visited in sorted key order and steps in document order, so
+// "first" is deterministic even now that the code-gated workflows host a
+// second dorny step. Callers that need the lockstep step must select it by
+// filter key with DornyFilterStepWithKey, never by position: Go randomises
+// map iteration, so positional selection would silently vary run to run,
+// the same randomised-iteration hazard ifGatedFilterKeys reports as
+// ambiguous rather than guessing at (#6145 review).
 func dornyFilters(raw []byte) (map[string][]string, bool, string) {
-	var wf pathFilterWorkflowFile
-	if err := yaml.Unmarshal(raw, &wf); err != nil {
+	steps := DornyFilterSteps(raw)
+	if len(steps) == 0 {
 		return nil, false, ""
 	}
-	jobKeys := make([]string, 0, len(wf.Jobs))
-	for jobKey := range wf.Jobs {
-		jobKeys = append(jobKeys, jobKey)
-	}
-	sort.Strings(jobKeys)
-	for _, jobKey := range jobKeys {
-		job := wf.Jobs[jobKey]
-		for _, step := range job.Steps {
-			if !strings.Contains(step.Uses, "dorny/paths-filter") {
-				continue
-			}
-			rawFilters, ok := step.With["filters"]
-			if !ok {
-				continue
-			}
-			s, ok := rawFilters.(string)
-			if !ok {
-				continue
-			}
-			var filters map[string][]string
-			if err := yaml.Unmarshal([]byte(s), &filters); err != nil {
-				continue
-			}
-			if len(filters) > 0 {
-				q, _ := step.With["predicate-quantifier"].(string)
-				return filters, q == "every", jobKey
-			}
-		}
-	}
-	return nil, false, ""
+	return steps[0].Filters, steps[0].Every, steps[0].Job
 }
 
 // appendGateKeysByDisplay returns two maps parsed from every append_gate call

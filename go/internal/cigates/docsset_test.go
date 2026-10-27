@@ -159,19 +159,19 @@ func TestDocsSetSkipsCodeGatedJobs(t *testing.T) {
 	}
 }
 
-// TestCodeGatedJobsMatchWorkflowIfs pins codeGatedCIJobs against test.yml:
-// the set must equal exactly the jobs whose own `if` requires
-// needs.changes.outputs.code, so a newly code-gated lane cannot silently
-// strand docs-only PRs.
-func TestCodeGatedJobsMatchWorkflowIfs(t *testing.T) {
-	t.Parallel()
-	raw, err := os.ReadFile(filepath.Join("..", "..", "..", ".github", "workflows", "test.yml"))
+// workflowCodeGatedJobs returns the job IDs in a workflow file whose own
+// first `if` requires needs.changes.outputs.code, with that `if` text. A
+// second dorny step or a reordered clause does not change the answer: only
+// the presence of the code clause in the job's own gate counts.
+func workflowCodeGatedJobs(t *testing.T, file string) map[string]string {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", ".github", "workflows", file))
 	if err != nil {
 		t.Fatal(err)
 	}
 	jobHeader := regexp.MustCompile(`^  ([A-Za-z0-9_-]+):`)
 	jobIf := regexp.MustCompile(`^    if: (.*)$`)
-	gated := make(map[string]struct{})
+	gated := make(map[string]string)
 	var current string
 	var seenIf bool
 	for _, line := range strings.Split(string(raw), "\n") {
@@ -185,16 +185,74 @@ func TestCodeGatedJobsMatchWorkflowIfs(t *testing.T) {
 		if m := jobIf.FindStringSubmatch(line); m != nil {
 			seenIf = true
 			if strings.Contains(m[1], "needs.changes.outputs.code == 'true'") {
-				gated[current] = struct{}{}
+				gated[current] = m[1]
 			}
 		}
 	}
-	if len(gated) != len(codeGatedCIJobs) {
-		t.Fatalf("code-gated jobs in test.yml = %v, want %v", keys(gated), keys(codeGatedCIJobs))
+	return gated
+}
+
+// TestCodeGatedJobsMatchWorkflowIfs pins codeGatedCIJobs against test.yml:
+// the set must equal exactly the jobs whose own `if` requires
+// needs.changes.outputs.code, so a newly code-gated lane cannot silently
+// strand docs-only PRs.
+func TestCodeGatedJobsMatchWorkflowIfs(t *testing.T) {
+	t.Parallel()
+	gated := workflowCodeGatedJobs(t, "test.yml")
+	names := make(map[string]struct{}, len(gated))
+	for job := range gated {
+		names[job] = struct{}{}
+	}
+	if len(names) != len(codeGatedCIJobs) {
+		t.Fatalf("code-gated jobs in test.yml = %v, want %v", keys(names), keys(codeGatedCIJobs))
 	}
 	for job := range codeGatedCIJobs {
 		if _, ok := gated[job]; !ok {
 			t.Errorf("job %q listed in codeGatedCIJobs but not code-gated in test.yml", job)
+		}
+	}
+}
+
+// TestLockstepGatedJobsMatchWorkflowIfs pins the P1 fix: every job whose
+// `if` requires needs.changes.outputs.code must also accept
+// needs.changes.outputs.lockstep, in all three code-gated workflows. A
+// lockstep-only PR (a manifest-listed test input, skipped by the code
+// filter) would otherwise select the job through the registry while CI
+// runtime skips it, and the aggregate await would fail red.
+func TestLockstepGatedJobsMatchWorkflowIfs(t *testing.T) {
+	t.Parallel()
+	for _, file := range []string{"test.yml", "security-scan.yml", "mcp-schema-drift.yml"} {
+		for job, cond := range workflowCodeGatedJobs(t, file) {
+			if !strings.Contains(cond, "needs.changes.outputs.lockstep == 'true'") {
+				t.Errorf("job %s/%s is code-gated but never runs on lockstep-only PRs", file, job)
+			}
+		}
+	}
+}
+
+// TestLockstepFilterMatchesManifest pins each code-gated workflow's dorny
+// `lockstep` filter to the canonical manifest, entry for entry. The filter
+// is the runtime half of the "test inputs stay code" contract: the
+// registry selects the lanes, the filter lets them run.
+func TestLockstepFilterMatchesManifest(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join("..", "..", "..")
+	manifest := dsManifest(t, root)
+	for _, file := range []string{"test.yml", "security-scan.yml", "mcp-schema-drift.yml"} {
+		raw, err := os.ReadFile(filepath.Join(root, ".github", "workflows", file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		steps := DornyFilterSteps(raw)
+		step, ok := DornyFilterStepWithKey(steps, "lockstep")
+		if !ok {
+			t.Fatalf("%s has no dorny lockstep filter", file)
+		}
+		if step.Every {
+			t.Errorf("%s lockstep filter must use the `some` quantifier: `every` over all-positive entries selects nothing", file)
+		}
+		if !slices.Equal(step.Filters["lockstep"], manifest) {
+			t.Errorf("%s lockstep filter drifts from specs/ci-docs-lockstep-paths.txt", file)
 		}
 	}
 }

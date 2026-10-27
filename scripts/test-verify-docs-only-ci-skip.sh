@@ -34,6 +34,7 @@ cp "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh" "${tmp}/scripts/lib/
 mkdir -p "${tmp}/scripts/ci" "${tmp}/specs/ci-pr-workflows.d"
 cp "${repo_root}/scripts/ci/assert-go-complete.sh" "${tmp}/scripts/ci/assert-go-complete.sh"
 for frag in bench.yml build.yml e2e-tests.yml live-backend-tests.yml read-api-latency-gate.yml sdk-go.yml; do cp "${repo_root}/specs/ci-pr-workflows.d/${frag}" "${tmp}/specs/ci-pr-workflows.d/${frag}"; done
+cp "${repo_root}/specs/ci-docs-lockstep-paths.txt" "${tmp}/specs/ci-docs-lockstep-paths.txt"
 for wf in build.yml security-scan.yml mcp-schema-drift.yml test.yml; do
 	cp "${repo_root}/.github/workflows/${wf}" "${tmp}/.github/workflows/${wf}"
 done
@@ -366,7 +367,7 @@ import re, sys
 path = sys.argv[1]
 content = open(path).read()
 pat = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
-assert len(pat.findall(content)) == 1, "one line expected"
+assert len(pat.findall(content)) == 2, "one every plus one some line expected"
 open(path, "w").write(pat.sub("", content, count=1))
 PY
 if out="$(run_scratch 2>&1)"; then
@@ -397,7 +398,7 @@ path = sys.argv[1]
 with open(path) as f:
 	content = f.read()
 pattern = re.compile(r"^([ \t]*)predicate-quantifier:.*\n", re.MULTILINE)
-assert len(pattern.findall(content)) == 1, "one line expected"
+assert len(pattern.findall(content)) == 2, "one every plus one some line expected"
 open(path, "w").write(pattern.sub(lambda m: m.group(1) + "predicate-quantifier: 'all'\n", content, count=1))
 PY
 if out="$(run_scratch 2>&1)"; then
@@ -428,7 +429,7 @@ path, style = sys.argv[1], sys.argv[2]
 with open(path) as f:
 	content = f.read()
 pattern = re.compile(r"^([ \t]*)predicate-quantifier:.*\n", re.MULTILINE)
-assert len(pattern.findall(content)) == 1, "expected exactly one predicate-quantifier line"
+assert len(pattern.findall(content)) == 2, "one every plus one some line expected"
 with open(path, "w") as f:
 	f.write(pattern.sub(lambda m: m.group(1) + "predicate-quantifier: " + style + "\n", content, count=1))
 PYQ
@@ -449,7 +450,7 @@ import re, sys
 path = sys.argv[1]
 c = open(path).read()
 pat = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
-assert len(pat.findall(c)) == 1, "one line expected"
+assert len(pat.findall(c)) == 2, "one every plus one some line expected"
 c = pat.sub("", c, count=1)
 a = '        run: echo "code=true" >> "$GITHUB_OUTPUT"\n'
 assert c.count(a) == 1, "anchor missing"

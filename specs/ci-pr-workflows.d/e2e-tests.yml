@@ -35,6 +35,28 @@ workflows:
   # not select end-to-end tests. Appended last so every positive entry above
   # keeps precedence for non-markdown paths (last match wins).
   - '!**/*.md'
+  # Lockstep re-includes: asserted test inputs stay code even though they
+  # are markdown. Appended last so they win over the exclusion above
+  # (last match wins); keep sorted, mirror specs/ci-docs-lockstep-paths.txt.
+  - go/cmd/README.md
+  - go/cmd/audit-preflight/testdata/codegraphcontext-already-tracked.md
+  - go/cmd/audit-preflight/testdata/gitnexus-missing.md
+  - go/cmd/audit-preflight/testdata/graphify-foundation-exists.md
+  - go/cmd/audit-preflight/testdata/incomplete.md
+  - go/cmd/ifa/README.md
+  - go/internal/ask/catalog/README.md
+  - go/internal/cli/demo/README.md
+  - go/internal/cli/hookpreflight/AGENTS.md
+  - go/internal/cli/hookpreflight/README.md
+  - go/internal/collector/README.md
+  - go/internal/content/artifacts/README.md
+  - go/internal/facts/FACT_KIND_REGISTRIES.md
+  - go/internal/ifa/README.md
+  - go/internal/ifa/materializededges/README.md
+  - go/internal/query/repository/README.md
+  - go/internal/reducer/AGENTS.md
+  - go/internal/reducer/README.md
+  - go/internal/runtime/README.md
   jobs:
   - queue-selection
   - test

@@ -32,6 +32,7 @@ cp "${repo_root}/scripts/ci/assert-go-complete.sh" "${tmp}/scripts/ci/assert-go-
 for frag in bench.yml build.yml e2e-tests.yml live-backend-tests.yml read-api-latency-gate.yml sdk-go.yml; do
 	cp "${repo_root}/specs/ci-pr-workflows.d/${frag}" "${tmp}/specs/ci-pr-workflows.d/${frag}"
 done
+cp "${repo_root}/specs/ci-docs-lockstep-paths.txt" "${tmp}/specs/ci-docs-lockstep-paths.txt"
 for wf in build.yml security-scan.yml mcp-schema-drift.yml test.yml; do
 	cp "${repo_root}/.github/workflows/${wf}" "${tmp}/.github/workflows/${wf}"
 done
@@ -127,23 +128,25 @@ else
 fi
 cp "${repo_root}/specs/ci-pr-workflows.d/e2e-tests.yml" "${tmp}/specs/ci-pr-workflows.d/e2e-tests.yml"
 
-# --- last-match-wins order proof, failing case: a positive markdown path
-# appended after the exclusion would silently re-select markdown. ---
+# --- last-match-wins order proof, failing case: a positive markdown path that
+# is NOT a lockstep manifest entry, appended after the exclusion, would
+# silently re-select markdown. Manifest entries after the exclusion are the
+# reviewed re-includes and must keep passing. ---
 python3 - "${tmp}/specs/ci-pr-workflows.d/e2e-tests.yml" <<'PY'
 import sys
 path = sys.argv[1]
 with open(path) as f:
 	content = f.read()
-needle = "  - '!**/*.md'\n  jobs:\n"
-assert content.count(needle) == 1, "expected exclusion immediately before jobs:"
+needle = "  - '!**/*.md'\n"
+assert content.count(needle) == 1, "expected exactly one '!**/*.md' exclusion line"
 with open(path, "w") as f:
-	f.write(content.replace(needle, "  - '!**/*.md'\n  - 'docs/**/*.md'\n  jobs:\n", 1))
+	f.write(content.replace(needle, "  - '!**/*.md'\n  - 'docs/**/*.md'\n", 1))
 PY
 if out="$(run_scratch 2>&1)"; then
-	no "a positive markdown path after the exclusion must fail"
+	no "a non-manifest markdown path after the exclusion must fail"
 else
-	if rg -F "would silently re-select markdown" < <(printf '%s\n' "${out}") >/dev/null; then
-		ok "order check fails and names the last-match-wins hazard"
+	if rg -F "is not a lockstep manifest entry" < <(printf '%s\n' "${out}") >/dev/null; then
+		ok "order check fails and names the unlisted re-selecting path"
 	else
 		no "order check failed for the wrong reason; got:"
 		printf '%s\n' "${out}" >&2

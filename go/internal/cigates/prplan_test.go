@@ -282,6 +282,12 @@ func TestDocsOnlyAggregateIsPlannable(t *testing.T) {
 		{"docs/mkdocs.yml"},
 		{"docs/public/reference/local-testing.md", "go/cmd/ci-gates/main.go"},
 	}
+	// Every lockstep test input must keep its lanes plannable and
+	// runnable: the manifest is the carve-out's code-equivalence list,
+	// so each entry gets the same aggregate proof as a code path.
+	for _, entry := range dsManifest(t, root) {
+		vectors = append(vectors, []string{entry})
+	}
 	for _, paths := range vectors {
 		required, err := reg.RequiredGates(paths)
 		if err != nil {
@@ -322,6 +328,85 @@ func TestDocsOnlyAggregateIsPlannable(t *testing.T) {
 					paths, gate.Workflow)
 			}
 		}
+		// Runnability: a required code-gated job must actually run at CI
+		// runtime, not merely be planned. The registry selects the job;
+		// the dorny `code` or `lockstep` filter must then select the
+		// changed paths, or the job is skipped and the aggregate await
+		// fails red on a selected-but-skipped gate. Jobs the aggregate
+		// does not require are out of scope: skipping them strands nothing.
+		gatedCache := map[string]map[string]string{}
+		gatedFor := func(workflow string) map[string]string {
+			if g, ok := gatedCache[workflow]; ok {
+				return g
+			}
+			g := workflowCodeGatedJobs(t, workflow)
+			gatedCache[workflow] = g
+			return g
+		}
+		dornyRuns := map[string]bool{}
+		runsFor := func(workflow string) bool {
+			if r, ok := dornyRuns[workflow]; ok {
+				return r
+			}
+			r := true
+			raw, err := os.ReadFile(filepath.Join(root, ".github", "workflows", workflow))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var code, lockstep []string
+			codeEvery := true
+			lockEvery := false
+			for _, step := range DornyFilterSteps(raw) {
+				if pats, ok := step.Filters["code"]; ok && code == nil {
+					code, codeEvery = pats, step.Every
+				}
+				if pats, ok := step.Filters["lockstep"]; ok && lockstep == nil {
+					lockstep, lockEvery = pats, step.Every
+				}
+			}
+			if code != nil || lockstep != nil {
+				r = (code != nil && codeEvery && DornyEveryMatch(code, paths)) ||
+					(lockstep != nil && !lockEvery && DornySomeMatch(lockstep, paths))
+			}
+			dornyRuns[workflow] = r
+			return r
+		}
+		for _, gate := range required {
+			if _, ok := gatedFor(gate.Workflow)[gate.Job]; !ok {
+				continue
+			}
+			if !runsFor(gate.Workflow) {
+				t.Errorf("paths %v: aggregate gate %q (job %s/%s) is code-gated but both dorny filters skip the paths — selected but never run",
+					paths, gate.GateIDs, gate.Workflow, gate.Job)
+			}
+		}
+	}
+}
+
+// TestDornyRunnabilityModelsBothQuantifiers pins the two dorny
+// evaluations the runnability arm relies on: `every` needs all patterns
+// to hold per path, `some` needs one pattern on one path.
+func TestDornyRunnabilityModelsBothQuantifiers(t *testing.T) {
+	t.Parallel()
+	code := []string{"**", "!secret/**", "!*.md", "!**/*.md"}
+	if !DornyEveryMatch(code, []string{"go/main.go"}) {
+		t.Errorf("every: go/main.go should survive the code filter")
+	}
+	if DornyEveryMatch(code, []string{"secret/guide.md"}) {
+		t.Errorf("every: secret/guide.md must not survive the code filter")
+	}
+	if DornyEveryMatch(code, []string{"go/internal/reducer/README.md"}) {
+		t.Errorf("every: a nested README must not survive the code filter")
+	}
+	if DornyEveryMatch(code, []string{"README.md"}) {
+		t.Errorf("every: a root README must not survive the code filter")
+	}
+	lock := []string{"AGENTS.md", "go/internal/reducer/README.md"}
+	if !DornySomeMatch(lock, []string{"go/internal/reducer/README.md"}) {
+		t.Errorf("some: a listed lockstep input must select the filter")
+	}
+	if DornySomeMatch(lock, []string{"docs/guide.md"}) {
+		t.Errorf("some: an unlisted path must not select the filter")
 	}
 }
 
