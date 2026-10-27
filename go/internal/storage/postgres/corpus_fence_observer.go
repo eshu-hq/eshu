@@ -41,7 +41,9 @@ func corpusFenceDeferredPredicate() string {
 // disagree with the gate) and, per consumer domain, the consumers currently
 // deferred on resolution readiness (retrying rows in the consumers'
 // non-counting resolution-not-ready classes, which cover both the corpus
-// fence and its own-generation gate) with the oldest row's created_at age.
+// fence and its own-generation gate) with the oldest row's age since it last
+// became outstanding (COALESCE(reopened_at, created_at), the #9292 definition
+// shared with the queue observer and the admin status backlog).
 //
 // No-Regression Evidence: the statement runs only from the Postgres gauge
 // snapshot refresher (default every 5 minutes per reducer process, see
@@ -66,7 +68,7 @@ deferred AS (
   SELECT domain,
          COUNT(*) AS deferred_count,
          GREATEST(
-           COALESCE(EXTRACT(EPOCH FROM ($1 - MIN(created_at))), 0),
+           COALESCE(EXTRACT(EPOCH FROM ($1 - MIN(COALESCE(reopened_at, created_at)))), 0),
            0
          ) AS oldest_age_seconds
   FROM active_fact_work_items

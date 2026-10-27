@@ -63,7 +63,10 @@ INSERT INTO scope_generations (
 		id: "deferred-workload", scopeID: "open-scope", generationID: "gen-open",
 		domain: string(reducer.DomainWorkloadMaterialization), status: "retrying",
 		failureClass: reducer.WorkloadMaterializationResolutionNotReadyFailureClass,
-		createdAt:    now.Add(-2 * time.Hour),
+		// Created long ago but reopened from succeeded two hours ago (#9292):
+		// the deferred age runs from the reopen, not the original creation.
+		createdAt:  now.Add(-200 * time.Hour),
+		reopenedAt: now.Add(-2 * time.Hour),
 	})
 	insertCorpusFenceWorkItem(t, ctx, db, corpusFenceWorkItem{
 		id: "pending-not-deferred", scopeID: "open-scope", generationID: "gen-open",
@@ -118,6 +121,9 @@ FROM generate_series(1, 20000) AS g`, now); err != nil {
 	}
 	if got := oldest[string(reducer.DomainDeployableUnitCorrelation)]; got != 48*3600 {
 		t.Fatalf("oldest deployable age = %v, want %v", got, float64(48*3600))
+	}
+	if got := oldest[string(reducer.DomainWorkloadMaterialization)]; got != 2*3600 {
+		t.Fatalf("oldest reopened workload age = %v, want %v (age runs from reopened_at, #9292)", got, float64(2*3600))
 	}
 
 	plan := explainCorpusFenceGauges(t, ctx, db, now)
@@ -186,16 +192,23 @@ type corpusFenceWorkItem struct {
 	status       string
 	failureClass string
 	createdAt    time.Time
+	// reopenedAt is the zero value for a never-reopened row (NULL reopened_at).
+	reopenedAt time.Time
 }
 
 func insertCorpusFenceWorkItem(t *testing.T, ctx context.Context, db *sql.DB, item corpusFenceWorkItem) {
 	t.Helper()
+	var reopenedAt any
+	if !item.reopenedAt.IsZero() {
+		reopenedAt = item.reopenedAt
+	}
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_work_items (
     work_item_id, scope_id, generation_id, stage, domain, conflict_domain,
-    conflict_key, status, attempt_count, failure_class, payload, created_at, updated_at
-) VALUES ($1, $2, $3, 'reducer', $4, 'scope', $1, $5, 1, $6, '{}'::jsonb, $7, $7)`,
-		item.id, item.scopeID, item.generationID, item.domain, item.status, item.failureClass, item.createdAt); err != nil {
+    conflict_key, status, attempt_count, failure_class, payload, created_at, updated_at,
+    reopened_at
+) VALUES ($1, $2, $3, 'reducer', $4, 'scope', $1, $5, 1, $6, '{}'::jsonb, $7, $7, $8)`,
+		item.id, item.scopeID, item.generationID, item.domain, item.status, item.failureClass, item.createdAt, reopenedAt); err != nil {
 		t.Fatalf("insert corpus fence work item %q: %v", item.id, err)
 	}
 }
