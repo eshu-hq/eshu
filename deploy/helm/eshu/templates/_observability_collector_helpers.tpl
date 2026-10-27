@@ -89,5 +89,3 @@ the reconcile init container grants, installs, and enables the component.
 {{- with $loki.heartbeatInterval }}{{ $_ := set $activation "heartbeatInterval" . }}{{ end -}}
 {{- $activation | toJson -}}
 {{- end -}}
-{{- $activation | toJson -}}
-{{- end -}}

@@ -132,7 +132,6 @@ collector_specs=(
 	"collector-terraform-state:terraformstate"
 	"collector-prometheus-mimir:prometheusmimir"
 	"collector-grafana:grafana"
-	# 2026-10-27 (#9202): loki removed — satellite-owned since v0.1.2, live QA green, snapshot never asserted its scopes.
 	"collector-security-alerts:securityalerts"
 	"collector-pagerduty:pagerduty"
 	"collector-sbom-attestation:sbomattestation"
