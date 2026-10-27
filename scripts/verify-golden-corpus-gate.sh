@@ -135,7 +135,6 @@ collector_specs=(
 	"collector-grafana:grafana"
 	"collector-loki:loki"
 	"collector-security-alerts:securityalerts"
-	"collector-jira:jira"
 	"collector-pagerduty:pagerduty"
 	"collector-sbom-attestation:sbomattestation"
 	"collector-vulnerability-intelligence:vulnerabilityintelligence"
@@ -144,6 +143,7 @@ collector_specs=(
 # replay a source that has no dedicated command without reusing its process log.
 cassette_replay_alias_specs=(
 	"semantic-extraction-cassette:collector-prometheus-mimir:semanticextraction"
+	"jira-cassette-replay:collector-pagerduty:jira"
 )
 cassette_recording="supply-chain-demo.json"
 

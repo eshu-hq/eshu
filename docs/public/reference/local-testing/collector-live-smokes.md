@@ -8,12 +8,13 @@ For fixture-backed collector checks, prefer
 [Verification gates](verification-gates.md). For hosted all-collector proof, use
 [Remote collector E2E](remote-collector-e2e.md).
 
-Jira and PagerDuty standalone live smokes prove the read-only provider fetch
+PagerDuty standalone live smokes prove the read-only provider fetch
 and source-fact envelope path only. They do not prove hosted Compose lifecycle,
 workflow claim handoff, container health, or queue-zero. Provider errors such
 as PagerDuty `auth_denied` with the current private token are credential proof
 failures unless the same target fails with a valid token; keep that evidence
-separate from remote Compose service coverage.
+separate from remote Compose service coverage. (The Jira standalone smoke is
+deleted with the in-tree package; see the Jira section.)
 
 ## Confluence
 
@@ -79,34 +80,20 @@ go test ./internal/collector/confluence \
 
 ## Jira
 
-Use this when testing the Jira collector against a real Jira Cloud site. The
-smoke is read-only and goes through the same claim-backed source path as the
-hosted collector, but it does not require a local Postgres workflow queue. Keep
-site URLs, project filters, emails, and tokens in local shell config only.
+Jira collection runs from the extracted satellite
+(`eshu-hq/eshu-collector-jira`): the in-tree
+`go/internal/collector/jira` package and its
+`TestLiveJiraWorkItemEvidence` smoke are deleted, so there is no in-tree
+`go test` smoke for Jira. Keep site URLs, project filters, emails, and tokens
+in local shell config only.
 
-```bash
-set -a
-source /path/to/local/private/env
-set +a
-
-export ESHU_JIRA_LIVE=1
-export ESHU_JIRA_BASE_URL="${ESHU_JIRA_BASE_URL:?set the Jira Cloud site URL}"
-export ESHU_JIRA_EMAIL="${ESHU_JIRA_EMAIL:-${JIRA_EMAIL:?set JIRA_EMAIL}}"
-export ESHU_JIRA_API_TOKEN="${ESHU_JIRA_API_TOKEN:-${JIRA_API_TOKEN:?set JIRA_API_TOKEN}}"
-export ESHU_JIRA_JQL="${ESHU_JIRA_JQL:-}"
-export ESHU_JIRA_UPDATED_LOOKBACK="${ESHU_JIRA_UPDATED_LOOKBACK:-168h}"
-export ESHU_JIRA_ISSUE_LIMIT="${ESHU_JIRA_ISSUE_LIMIT:-1}"
-export ESHU_JIRA_METADATA_LIMIT="${ESHU_JIRA_METADATA_LIMIT:-25}"
-```
-
-```bash
-cd go
-go test ./internal/collector/jira -run TestLiveJiraWorkItemEvidence -count=1 -v
-```
-
-The smoke fetches a bounded updated window, issue changelogs, remote links, and
-bounded metadata definitions. It fails if no `work_item.*` facts are emitted or
-if credential material appears in emitted envelopes or source references.
+Run live Jira proof through the satellite release image with the same target
+shape (site, credentials passed by `token_env`/`email_env` name reference,
+bounded JQL scope, issue/changelog/remote-link limits, updated lookback).
+The satellite's own CI and the QA activation cutover record (eshu-hq/eshu#8858)
+carry the bounded-window fetch, changelog/remote-link/metadata, `work_item.*`
+emission, and no-credential-material proof. There is no remaining in-tree
+`go test` smoke for Jira.
 
 ## Vulnerability Intelligence Fixture
 

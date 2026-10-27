@@ -77,10 +77,10 @@ where token env references, JQL env references, target limits, source-specific
 duration fields, redaction-sensitive validation, and provider config error
 messages belong.
 
-The first generated parity slice covers `collector-pagerduty` and
-`collector-jira`. PagerDuty now generates 326 shared entrypoint lines from about
-37 manifest lines; Jira generates 324 shared entrypoint lines from about 37
-manifest lines. New standard claimed collectors therefore avoid roughly 287
+The first generated parity slice covers `collector-pagerduty` (and formerly
+`collector-jira`, extracted to `eshu-hq/eshu-collector-jira` in #8858).
+PagerDuty generates 326 shared entrypoint lines from about
+37 manifest lines. New standard claimed collectors therefore avoid roughly 287
 lines of handwritten shared boilerplate before provider-specific target config
 is added.
 

@@ -17,7 +17,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
-	"github.com/eshu-hq/eshu/go/internal/collector/jira"
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -219,11 +218,10 @@ func TestBoundedFailureClassesMatchTheCollectorWriters(t *testing.T) {
 		}
 	}
 
-	check(scope.CollectorJira, declared(t, "collector/jira", typedAs("FailureClass"), map[string]string{
-		"FailurePermissionHidden": jira.FailurePermissionHidden, "FailureDeleted": jira.FailureDeleted,
-		"FailureArchived": jira.FailureArchived, "FailureRateLimited": jira.FailureRateLimited,
-		"FailureRetryable": jira.FailureRetryable, "FailureTerminal": jira.FailureTerminal,
-	}))
+	// The Jira writer lives in the extracted satellite
+	// (eshu-hq/eshu-collector-jira), so no in-tree writer declares its
+	// classes anymore. The status leaf's Jira classes stay pinned below
+	// against the in-tree SDK policy classes the satellite still emits.
 	check(scope.CollectorAWS, declared(t, "collector/awscloud/awsruntime", namePrefix("FailureClass"), map[string]string{
 		"FailureClassPermissionDenied":      awsruntime.FailureClassPermissionDenied,
 		"FailureClassUnsupportedPermission": awsruntime.FailureClassUnsupportedPermission,

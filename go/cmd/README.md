@@ -31,7 +31,6 @@ exact binary set on `PATH`.
 | `eshu-collector-security-alerts` | `collector-security-alerts/` | Long-running hosted provider security-alert collector |
 | `eshu-collector-cicd-run` | `collector-cicd-run/` | Long-running hosted GitHub Actions CI/CD run collector |
 | `eshu-collector-pagerduty` | `collector-pagerduty/` | Long-running PagerDuty incident-context collector |
-| `eshu-collector-jira` | `collector-jira/` | Long-running Jira work-item evidence collector |
 | `eshu-collector-grafana` | `collector-grafana/` | Long-running live Grafana metadata collector |
 | `eshu-collector-prometheus-mimir` | `collector-prometheus-mimir/` | Long-running live Prometheus and Mimir metadata collector |
 | `eshu-collector-loki` | `collector-loki/` | Long-running live Loki log-signal metadata collector |
@@ -64,7 +63,6 @@ flowchart LR
   alerts[collector-security-alerts] --> postgres
   cicd[collector-cicd-run] --> postgres
   pagerduty[collector-pagerduty] --> postgres
-  jira[collector-jira] --> postgres
   grafana[collector-grafana] --> postgres
   metrics[collector-prometheus-mimir] --> postgres
   loki[collector-loki] --> postgres

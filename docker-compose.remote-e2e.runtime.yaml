@@ -382,6 +382,8 @@ services:
     profiles:
       - jira
     restart: on-failure
+    # The jira binary ships in the eshu-collector-jira satellite image, not the
+    # in-tree product image: this service's image must provide it.
     command: ["/usr/local/bin/eshu-collector-jira"]
     ports:
       - "${ESHU_COLLECTOR_JIRA_METRICS_PORT:-19481}:9464"

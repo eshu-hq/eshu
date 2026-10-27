@@ -14,7 +14,8 @@ import "github.com/eshu-hq/eshu/go/internal/telemetry/contract/thirdparty"
 // referenced thirdparty.* symbol for the canonical doc comment.
 
 // Jira source-collection spans and bounded fetch-span attributes (from
-// contract/thirdparty/jira.go).
+// contract/thirdparty/jira.go; emitted by the extracted satellite
+// eshu-hq/eshu-collector-jira, whose in-tree producer is removed).
 const (
 	SpanJiraObserve = thirdparty.SpanJiraObserve
 	SpanJiraFetch   = thirdparty.SpanJiraFetch

@@ -158,16 +158,21 @@ surfaces:
       truth_profile: provider_gated
   - category: collector
     name: jira
-    readiness: implemented
-    owner: internal/collector/jira
-    proof: reference/collector-reducer-readiness.md#promotion-proof
+    readiness: partial
+    owner: eshu-hq/eshu-collector-jira
     docs: [reference/collector-reducer-readiness.md, reference/jira-evidence.md]
+    notes: >-
+      Extracted to the eshu-collector-jira satellite
+      (eshu-hq/eshu-collector-jira): the in-tree command, source package,
+      and image build are gone, so the implemented lane (built in-tree,
+      charted, replay-proven) is unmet. Fact kinds, reducer projection, and
+      read surfaces stay core-owned and covered.
     collector_contract:
       fact_kinds: [work_item.external_link, work_item.field_metadata, work_item.issue_type_metadata, work_item.metadata_warning, work_item.project_metadata, work_item.record, work_item.status_metadata, work_item.transition, work_item.workflow_metadata]
       projection_surfaces: [incident_context_read_model, work_item_evidence_read_model]
       read_surfaces: [GET /api/v0/work-items/evidence, list_work_item_evidence]
-      proof_gates: [cd go && go test ./cmd/collector-jira ./internal/collector/jira ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/jira/testdata, docs/public/reference/jira-evidence.md]
+      proof_gates: [cd go && go test ./internal/query ./internal/mcp -count=1, scripts/verify-fact-kind-registry.sh]
+      fixture_refs: [testdata/cassettes/jira, docs/public/reference/jira-evidence.md]
       truth_profile: provider_gated
   - category: collector
     name: scanner_worker

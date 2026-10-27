@@ -9,7 +9,7 @@
 // The directory name (workitem/v1) mirrors the fact-kind namespace
 // (work_item), the same convention incident/v1 follows for the "incident"
 // namespace — NOT the collector package name (jira). Nine fact kinds live
-// here, all emitted by the Jira collector (go/internal/collector/jira):
+// here, all emitted by the Jira collector (eshu-hq/eshu-collector-jira):
 //
 //   - WorkItemRecord (work_item.record)
 //   - WorkItemTransition (work_item.transition)
@@ -37,7 +37,8 @@
 // distinct from an observed zero.
 //
 // The required set of each struct is grounded in the actual collector
-// emitters (go/internal/collector/jira/envelope.go and envelope_metadata.go):
+// emitters (the extracted eshu-hq/eshu-collector-jira satellite's envelope
+// builders, seeded from the former in-tree package):
 // a field is required only where the emitter's identity guard makes it
 // unconditional. Every kind requires "provider" (stamped on every payload).
 // WorkItemRecord additionally requires "provider_work_item_id" and

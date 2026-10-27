@@ -61,7 +61,7 @@ The script installs:
   `eshu-collector-git`, `eshu-collector-confluence`,
   `eshu-collector-terraform-state`, `eshu-collector-package-registry`,
   `eshu-collector-sbom-attestation`, `eshu-collector-pagerduty`,
-  `eshu-collector-jira`, `eshu-collector-aws-cloud`,
+  `eshu-collector-aws-cloud`,
   `eshu-collector-gcp-cloud`, `eshu-collector-azure-cloud`,
   `eshu-webhook-listener`
 - operator helpers: `eshu-bootstrap-data-plane`, `eshu-admin-status`

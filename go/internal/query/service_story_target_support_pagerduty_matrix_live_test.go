@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/jira"
 	"github.com/eshu-hq/eshu/go/internal/collector/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -198,22 +197,18 @@ func seedPagerDutyRoutingMatrix(ctx context.Context, t *testing.T, db *sql.DB) p
 		seedRoutingScope(ctx, t, db, s.scopeID, s.source, s.generation, s.old, at)
 	}
 
-	// Jira: one link to R, built by the production writer.
-	jiraCtx := jira.EnvelopeContext{
-		ScopeID: "s-jira", GenerationID: "g-jira", CollectorInstanceID: "jira-test",
-		ObservedAt: at, SourceURI: "https://example.atlassian.net",
-	}
+	// Jira: one link to R, carrying the durable keys the extracted
+	// satellite's envelope writers emit (linkRepositoryID mirrors the
+	// satellite's typed-link rule; see the Jira issue-link matrix test).
 	link := func(id, issue, url string) facts.Envelope {
-		t.Helper()
-		env, err := jira.NewWorkItemExternalLinkEnvelope(jiraCtx, jira.ExternalLink{
-			ID: id, IssueID: "2" + id, IssueKey: issue,
-			Application: jira.LinkApplication{Name: "GitHub", Type: "com.github.integration"},
-			Object:      jira.LinkObject{URL: url},
-		})
-		if err != nil {
-			t.Fatalf("NewWorkItemExternalLinkEnvelope(%s) error = %v", url, err)
+		return facts.Envelope{
+			FactKind: facts.WorkItemExternalLinkFactKind,
+			Payload: map[string]any{
+				"provider_work_item_id": "2" + id,
+				"work_item_key":         issue,
+				"linked_repository_id":  linkRepositoryID(url),
+			},
 		}
-		return env
 	}
 	linkR := link("1", "OPS-1", "https://github.com/acme/payments/pull/1")
 	repoID, _ := linkR.Payload["linked_repository_id"].(string)

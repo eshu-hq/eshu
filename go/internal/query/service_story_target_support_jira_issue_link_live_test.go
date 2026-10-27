@@ -6,14 +6,15 @@ package query
 import (
 	"context"
 	"database/sql"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/jira"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	jirasupport "github.com/eshu-hq/eshu/go/internal/query/support"
+	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
 // jiraIssueLinkFixture holds the repository ids the #7464 matrix asserts on.
@@ -29,8 +30,9 @@ type jiraIssueLinkFixture struct {
 // work_item.transition carries no repository, so it attaches to a repository
 // story through the work_item.external_link of the same issue: same scope, same
 // active generation, a non-blank provider_work_item_id on both sides, and a
-// link whose linked_repository_id is the target. Every payload comes from the
-// production Jira envelope writers.
+// link whose linked_repository_id is the target. Fixture payloads carry the
+// same durable keys the extracted satellite's envelope writers emit; envelope
+// construction moved out of core with the #8858 extraction.
 //
 // Skipped unless ESHU_POSTGRES_DSN names a disposable Postgres.
 func TestServiceStoryTargetSupportJiraIssueLinkMatrixLive(t *testing.T) {
@@ -249,42 +251,31 @@ VALUES ($1, $2, 'snapshot', $3, $3, 'active', '{}'::jsonb)`, scope.generation, s
 	mustExec(ctx, t, db, `INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, payload)
 VALUES ('g-jira-old', 's-jira', 'snapshot', $1, $1, 'superseded', '{}'::jsonb)`, observed)
 
-	ctxFor := func(scopeID, generation string) jira.EnvelopeContext {
-		return jira.EnvelopeContext{
-			ScopeID: scopeID, GenerationID: generation, CollectorInstanceID: "jira-test",
-			ObservedAt: observed, SourceURI: "https://example.atlassian.net",
+	link := func(issueID, rawURL string) facts.Envelope {
+		return facts.Envelope{
+			FactKind: facts.WorkItemExternalLinkFactKind,
+			Payload: map[string]any{
+				"provider_work_item_id": issueID,
+				"linked_repository_id":  linkRepositoryID(rawURL),
+			},
 		}
 	}
-	main, other := ctxFor("s-jira", "g-jira"), ctxFor("s-jira2", "g-jira2")
-	link := func(c jira.EnvelopeContext, id, issueID, key, url string) facts.Envelope {
-		t.Helper()
-		env, err := jira.NewWorkItemExternalLinkEnvelope(c, jira.ExternalLink{
-			ID: id, IssueID: issueID, IssueKey: key,
-			Application: jira.LinkApplication{Name: "GitHub", Type: "com.github.integration"},
-			Object:      jira.LinkObject{URL: url},
-		})
-		if err != nil {
-			t.Fatalf("NewWorkItemExternalLinkEnvelope(%s) error = %v", url, err)
+	record := func(issueID, key string) facts.Envelope {
+		return facts.Envelope{
+			FactKind: facts.WorkItemRecordFactKind,
+			Payload: map[string]any{
+				"provider_work_item_id": issueID,
+				"work_item_key":         key,
+			},
 		}
-		return env
 	}
-	record := func(c jira.EnvelopeContext, issueID, key string) facts.Envelope {
-		t.Helper()
-		env, err := jira.NewWorkItemRecordEnvelope(c, jira.Issue{ID: issueID, Key: key})
-		if err != nil {
-			t.Fatalf("NewWorkItemRecordEnvelope(%s) error = %v", key, err)
+	transition := func(issueID string) facts.Envelope {
+		return facts.Envelope{
+			FactKind: facts.WorkItemTransitionFactKind,
+			Payload: map[string]any{
+				"provider_work_item_id": issueID,
+			},
 		}
-		return env
-	}
-	transition := func(c jira.EnvelopeContext, id, issueID, key string) facts.Envelope {
-		t.Helper()
-		env, err := jira.NewWorkItemTransitionEnvelope(c, jira.Transition{
-			ID: id, IssueID: issueID, IssueKey: key, Field: "status", From: "Open", To: "Done",
-		})
-		if err != nil {
-			t.Fatalf("NewWorkItemTransitionEnvelope(%s) error = %v", id, err)
-		}
-		return env
 	}
 	const (
 		payments = "https://github.com/acme/payments/pull/"
@@ -298,57 +289,81 @@ VALUES ('g-jira-old', 's-jira', 'snapshot', $1, $1, 'superseded', '{}'::jsonb)`,
 	h := func(n int) time.Time { return observed.Add(-time.Duration(n) * time.Hour) }
 
 	// Issue 1: record, two transitions, two links to R (the record must appear once).
-	seed("f-rec-i1", "s-jira", "g-jira", record(main, "20001", "OPS-1"), observed, false)
-	seed("f-tr-i1a", "s-jira", "g-jira", transition(main, "9001", "20001", "OPS-1"), observed, false)
-	seed("f-tr-i1b", "s-jira", "g-jira", transition(main, "9002", "20001", "OPS-1"), observed, false)
-	seed("f-l-i1a", "s-jira", "g-jira", link(main, "1", "20001", "OPS-1", payments+"1"), h(4), false)
-	seed("f-l-i1b", "s-jira", "g-jira", link(main, "2", "20001", "OPS-1", payments+"2"), h(3), false)
+	seed("f-rec-i1", "s-jira", "g-jira", record("20001", "OPS-1"), observed, false)
+	seed("f-tr-i1a", "s-jira", "g-jira", transition("20001"), observed, false)
+	seed("f-tr-i1b", "s-jira", "g-jira", transition("20001"), observed, false)
+	seed("f-l-i1a", "s-jira", "g-jira", link("20001", payments+"1"), h(4), false)
+	seed("f-l-i1b", "s-jira", "g-jira", link("20001", payments+"2"), h(3), false)
 	// Issue 2: linked to R and to R2.
-	seed("f-rec-i2", "s-jira", "g-jira", record(main, "20002", "OPS-2"), observed, false)
-	seed("f-tr-i2", "s-jira", "g-jira", transition(main, "9003", "20002", "OPS-2"), observed, false)
-	seed("f-l-i2", "s-jira", "g-jira", link(main, "3", "20002", "OPS-2", payments+"3"), h(1), false)
-	seed("f-l-i2r2", "s-jira", "g-jira", link(main, "4", "20002", "OPS-2", billing+"4"), h(5), false)
+	seed("f-rec-i2", "s-jira", "g-jira", record("20002", "OPS-2"), observed, false)
+	seed("f-tr-i2", "s-jira", "g-jira", transition("20002"), observed, false)
+	seed("f-l-i2", "s-jira", "g-jira", link("20002", payments+"3"), h(1), false)
+	seed("f-l-i2r2", "s-jira", "g-jira", link("20002", billing+"4"), h(5), false)
 	// Issue 3: linked to R2 only.
-	seed("f-rec-i3", "s-jira", "g-jira", record(main, "20003", "OPS-3"), observed, false)
-	seed("f-tr-i3", "s-jira", "g-jira", transition(main, "9004", "20003", "OPS-3"), observed, false)
-	seed("f-l-i3", "s-jira", "g-jira", link(main, "5", "20003", "OPS-3", billing+"5"), h(2), false)
+	seed("f-rec-i3", "s-jira", "g-jira", record("20003", "OPS-3"), observed, false)
+	seed("f-tr-i3", "s-jira", "g-jira", transition("20003"), observed, false)
+	seed("f-l-i3", "s-jira", "g-jira", link("20003", billing+"5"), h(2), false)
 	// Issue 4: no link at all. Issue 5: its only link is tombstoned. Issue 6: its
 	// only link sits on a superseded generation.
-	seed("f-rec-i4", "s-jira", "g-jira", record(main, "20004", "OPS-4"), observed, false)
-	seed("f-rec-i5", "s-jira", "g-jira", record(main, "20005", "OPS-5"), observed, false)
-	seed("f-l-i5", "s-jira", "g-jira", link(main, "6", "20005", "OPS-5", payments+"6"), observed, true)
-	seed("f-rec-i6", "s-jira", "g-jira", record(main, "20006", "OPS-6"), observed, false)
-	seed("f-l-i6", "s-jira", "g-jira-old", link(main, "7", "20006", "OPS-6", payments+"7"), observed, false)
+	seed("f-rec-i4", "s-jira", "g-jira", record("20004", "OPS-4"), observed, false)
+	seed("f-rec-i5", "s-jira", "g-jira", record("20005", "OPS-5"), observed, false)
+	seed("f-l-i5", "s-jira", "g-jira", link("20005", payments+"6"), observed, true)
+	seed("f-rec-i6", "s-jira", "g-jira", record("20006", "OPS-6"), observed, false)
+	seed("f-l-i6", "s-jira", "g-jira-old", link("20006", payments+"7"), observed, false)
 	// A blank issue id on a transition and on a link naming a fourth repository:
 	// '' = '' must not join them.
-	seed("f-tr-blank", "s-jira", "g-jira", transition(main, "9005", "", "OPS-8"), observed, false)
-	seed("f-l-blank", "s-jira", "g-jira", link(main, "8", "", "OPS-8", other4+"8"), observed, false)
+	seed("f-tr-blank", "s-jira", "g-jira", transition(""), observed, false)
+	seed("f-l-blank", "s-jira", "g-jira", link("", other4+"8"), observed, false)
 	// Issue id 20009: a record in this scope, linked to R only in another scope.
-	seed("f-rec-i9", "s-jira", "g-jira", record(main, "20009", "OPS-9"), observed, false)
-	seed("f-l-other-scope", "s-jira2", "g-jira2", link(other, "9", "20009", "OPS-9", payments+"9"), observed, false)
+	seed("f-rec-i9", "s-jira", "g-jira", record("20009", "OPS-9"), observed, false)
+	seed("f-l-other-scope", "s-jira2", "g-jira2", link("20009", payments+"9"), observed, false)
 	// A link with no repository and a metadata row stay source-only.
-	plain, err := jira.NewWorkItemExternalLinkEnvelope(main, jira.ExternalLink{
-		ID: "10", IssueID: "20010", IssueKey: "OPS-10",
-		Application: jira.LinkApplication{Name: "Confluence"},
-		Object:      jira.LinkObject{URL: "https://example.atlassian.net/wiki/pages/1"},
-	})
-	if err != nil {
-		t.Fatalf("NewWorkItemExternalLinkEnvelope(plain) error = %v", err)
-	}
-	seed("f-l-plain", "s-jira", "g-jira", plain, observed, false)
-	metadata, err := jira.NewWorkItemProjectMetadataEnvelope(main, jira.ProjectMetadata{ID: "10", Key: "OPS", Name: "Ops"})
-	if err != nil {
-		t.Fatalf("NewWorkItemProjectMetadataEnvelope error = %v", err)
-	}
-	seed("f-metadata", "s-jira", "g-jira", metadata, observed, false)
+	seed("f-l-plain", "s-jira", "g-jira", facts.Envelope{
+		FactKind: facts.WorkItemExternalLinkFactKind,
+		Payload: map[string]any{
+			"provider_work_item_id": "20010",
+			"linked_repository_id":  "",
+		},
+	}, observed, false)
+	seed("f-metadata", "s-jira", "g-jira", facts.Envelope{
+		FactKind: facts.WorkItemProjectMetadataFactKind,
+		Payload: map[string]any{
+			"provider_work_item_id": "20010",
+		},
+	}, observed, false)
 
-	repoID, _ := link(main, "x", "1", "K-1", payments+"1").Payload["linked_repository_id"].(string)
-	repo2, _ := link(main, "y", "1", "K-1", billing+"1").Payload["linked_repository_id"].(string)
-	repo3, _ := link(main, "z", "1", "K-1", "https://github.com/acme/unlinked/pull/1").Payload["linked_repository_id"].(string)
-	repo4, _ := link(main, "w", "1", "K-1", other4+"1").Payload["linked_repository_id"].(string)
+	repoID := linkRepositoryID(payments + "1")
+	repo2 := linkRepositoryID(billing + "1")
+	repo3 := linkRepositoryID("https://github.com/acme/unlinked/pull/1")
+	repo4 := linkRepositoryID(other4 + "1")
 	if repoID == "" || repo2 == "" || repo3 == "" || repo4 == "" ||
 		repoID == repo2 || repoID == repo3 || repoID == repo4 || repo2 == repo4 || repo3 == repo4 {
 		t.Fatalf("writer ids not distinct canonical repository ids: %q %q %q %q", repoID, repo2, repo3, repo4)
 	}
 	return jiraIssueLinkFixture{repoID: repoID, repo2ID: repo2, repo3ID: repo3, repo4ID: repo4}
+}
+
+// linkRepositoryID mirrors the extracted satellite's typed-link rule for the
+// fixture URLs above: a GitHub pull-request URL resolves to the canonical
+// repository id of its owner/repo remote, and anything else carries no
+// durable link, so the read path treats it as source-only.
+func linkRepositoryID(rawURL string) string {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	path := strings.Trim(parsed.Path, "/")
+	idx := strings.Index(strings.ToLower(path), "/pull/")
+	if idx <= 0 {
+		return ""
+	}
+	repoPath := path[:idx]
+	if len(strings.Split(repoPath, "/")) != 2 {
+		return ""
+	}
+	id, err := repositoryidentity.CanonicalRepositoryID(parsed.Scheme+"://"+parsed.Host+"/"+repoPath, "")
+	if err != nil {
+		return ""
+	}
+	return id
 }

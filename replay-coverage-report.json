@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 462,
-    "covered": 451,
+    "total": 460,
+    "covered": 449,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 11,
@@ -102,8 +102,8 @@
     },
     {
       "registry": "surface_inventory",
-      "total": 34,
-      "covered": 26,
+      "total": 32,
+      "covered": 24,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 8,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 245,
-      "covered": 240,
+      "total": 244,
+      "covered": 239,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -149,8 +149,8 @@
     },
     {
       "scenario_type": "fault",
-      "total": 17,
-      "covered": 13,
+      "total": 16,
+      "covered": 12,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 4,
@@ -4499,26 +4499,6 @@
     {
       "registry": "surface_inventory",
       "key": "collector:grafana",
-      "scenario_type": "fault",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
-      "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:jira",
-      "scenario_type": "baseline",
-      "status": "covered",
-      "scenario": "cassette",
-      "ref": "testdata/cassettes/jira/supply-chain-demo.json",
-      "proof_gate": "golden-corpus-gate-neo4j",
-      "detail": "artifact present: testdata/cassettes/jira/supply-chain-demo.json"
-    },
-    {
-      "registry": "surface_inventory",
-      "key": "collector:jira",
       "scenario_type": "fault",
       "status": "covered",
       "scenario": "go_test",

@@ -55,10 +55,11 @@ asserts each constant equals its `go/internal/facts.*FactKind` counterpart.
   and `TestSchemasHaveNoDrift` lock it.
 - Ground the required set in the ACTUAL collector emitter, not intuition. A
   field is required only where the emitter's identity guard makes it
-  unconditional. The emitter is
-  `go/internal/collector/jira/envelope.go`/`envelope_metadata.go`. Making a
-  conditionally-emitted or alternate-anchor field required would dead-letter
-  valid facts — see each struct's godoc for the specific guard it reflects.
+  unconditional. The emitter is the extracted eshu-hq/eshu-collector-jira
+  satellite's envelope builders (seeded from the former in-tree package).
+  Making a conditionally-emitted or alternate-anchor field required would
+  dead-letter valid facts — see each struct's godoc for the specific guard
+  it reflects.
 - `WorkItemFieldMetadata` is the one kind in this family where the Go-level
   emitter guard (a non-blank field id) does NOT promote to a required payload
   key: the payload's own `field_id` is always redacted to `""`, so only

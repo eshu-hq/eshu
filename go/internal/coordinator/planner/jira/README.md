@@ -18,8 +18,9 @@ The root `internal/coordinator` package keeps service scheduling order, the
 clock and plan-key cadence, active and claims gates, collector-egress filtering,
 tenant-grant authorization, durable open-target admission, incident-freshness
 trigger transitions, retries, queue and lease behavior, and telemetry.
-`internal/collector/jira` owns provider calls and fact emission after a worker
-claims the planned item.
+The extracted `eshu-hq/eshu-collector-jira` satellite owns provider calls and
+fact emission after a worker claims the planned item (formerly
+`internal/collector/jira`, removed in #8858).
 
 ## Exported surface
 

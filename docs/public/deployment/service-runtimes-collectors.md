@@ -73,7 +73,6 @@ freshness, and effective target, rule, log-signal, or trace-signal metadata.
 | Security Alert Collector | `security_alert` | workflow claims for configured GitHub Dependabot repository-alert targets | `/usr/local/bin/eshu-collector-security-alerts` | `deploy/helm/eshu/templates/deployment-security-alert-collector.yaml` |
 | CI/CD Run Collector | `ci_cd_run` | workflow claims for configured GitHub Actions repository run targets | `/usr/local/bin/eshu-collector-cicd-run` | `deploy/helm/eshu/templates/deployment-cicd-run-collector.yaml` |
 | PagerDuty Collector | `pagerduty` | workflow claims for configured PagerDuty account or service-allowlist targets | `/usr/local/bin/eshu-collector-pagerduty` | `deploy/helm/eshu/templates/deployment-pagerduty-collector.yaml` |
-| Jira Collector | `jira` | workflow claims for configured Jira Cloud work-item targets | `/usr/local/bin/eshu-collector-jira` | `deploy/helm/eshu/templates/deployment-jira-collector.yaml` |
 | Grafana Collector | `grafana` | workflow claims for configured live Grafana API targets | `/usr/local/bin/eshu-collector-grafana` | `deploy/helm/eshu/templates/deployment-grafana-collector.yaml` |
 | Prometheus/Mimir Collector | `prometheus_mimir` | workflow claims for configured live Prometheus or Mimir API targets | `/usr/local/bin/eshu-collector-prometheus-mimir` | `deploy/helm/eshu/templates/deployment-prometheus-mimir-collector.yaml` |
 | Loki Collector | `loki` | workflow claims for configured live Loki API targets | `/usr/local/bin/eshu-collector-loki` | `deploy/helm/eshu/templates/deployment-loki-collector.yaml` |
@@ -249,9 +248,10 @@ The collector metrics services live under:
 - `deploy/helm/eshu/templates/service-vulnerability-intelligence-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-component-extension-collector-metrics.yaml`
 
-No-Regression Evidence: `go test ./internal/runtime -run 'TestHelmJiraCollectorDeployment|TestJiraCollectorBinaryIsBuiltInstalledAndDocumented' -count=1`
+No-Regression Evidence: `go test ./internal/runtime -run 'TestHelmJiraCollectorDeployment' -count=1`
 proves the Jira collector stays opt-in by default, renders a claim-driven
-Deployment with `/usr/local/bin/eshu-collector-jira`, mounts Secret-backed
+Deployment whose `/usr/local/bin/eshu-collector-jira` binary ships in the
+extracted satellite image (eshu-hq/eshu-collector-jira), mounts Secret-backed
 credential env vars through `extraEnv`, and publishes metrics Service,
 ServiceMonitor, NetworkPolicy, and PodDisruptionBudget resources when enabled.
 Observability Evidence: the rendered Deployment exposes `/healthz`, `/readyz`,

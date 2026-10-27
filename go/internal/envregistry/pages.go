@@ -92,9 +92,9 @@ var pageLayout = []pageSpec{
 	},
 	{
 		Slug: "collectors-signals", Title: "Observability, delivery, and security collectors",
-		Summary: "Grafana, Loki, Prometheus/Mimir, Tempo, PagerDuty, Jira, CI/CD run, security alert, SBOM, and vulnerability collectors.",
+		Summary: "Grafana, Loki, Prometheus/Mimir, Tempo, PagerDuty, CI/CD run, security alert, SBOM, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira).",
 		Subsystems: []string{
-			"collector-cicd-run", "collector-grafana", "collector-jira", "collector-loki",
+			"collector-cicd-run", "collector-grafana", "collector-loki",
 			"collector-pagerduty", "collector-prometheus-mimir", "collector-sbom-attestation",
 			"collector-security-alerts", "collector-tempo", "collector-vulnerability-intelligence",
 		},

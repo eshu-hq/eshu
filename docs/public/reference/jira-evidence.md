@@ -310,11 +310,13 @@ Before a Jira expansion PR is production-ready, it must prove:
 7. Work-item evidence reads stay scoped, paginated, URL-redacted, and
    freshness-aware, with explicit missing/stale/permission-hidden states.
 
-No-Regression Evidence: `go test ./internal/collector/jira -count=1` covers
-bounded endpoint use, search and changelog pagination, duplicate-safe remote
-link identity, duplicate-window stable keys, malformed remote-link rejection,
-Retry-After classification, envelope redaction, empty-window handling, and
-visibility, deletion, archive, and provider failure classification.
+No-Regression Evidence: the in-tree `go/internal/collector/jira` package is
+deleted with the #8858 extraction; collection proof lives in the satellite
+repository (eshu-hq/eshu-collector-jira) and the QA activation cutover record.
+Core holds the contract instead: `go test ./internal/facts ./internal/query
+./internal/mcp -count=1` plus `scripts/verify-fact-kind-registry.sh` cover the
+`work_item.*` fact-kind declarations, the work-item evidence read path, and
+the registry pins both sides still honor.
 
 Webhook No-Regression Evidence:
 
@@ -359,14 +361,11 @@ gate above.
 
 Live-Smoke Evidence:
 
-```bash
-go test ./internal/collector/jira -run TestLiveJiraWorkItemEvidence -count=1 -v
-```
-
-The live smoke is opt-in with `ESHU_JIRA_LIVE=1`. It requires a Jira Cloud base
-URL and private credential environment variables, exercises the same
-claim-backed Jira source path used by the hosted collector, and fails if
-credential material appears in emitted `work_item.*` envelopes.
+The in-tree `TestLiveJiraWorkItemEvidence` smoke is deleted with the
+`go/internal/collector/jira` package. Live proof runs through the satellite
+release image with the same target shape, and the QA activation cutover record
+(eshu-hq/eshu#8858) carries the bounded-window fetch, `work_item.*` emission,
+and no-credential-material evidence on the production path.
 
 Webhook Observability Evidence: existing webhook listener metrics and spans
 report accepted, rejected, unsupported, malformed, invalid-signature,
