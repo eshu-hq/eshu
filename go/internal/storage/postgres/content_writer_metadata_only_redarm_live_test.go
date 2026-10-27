@@ -79,6 +79,8 @@ WHERE schemaname = $1 AND relname = 'content_files'`, schema).Scan(&afterUpd, &a
 // its page.
 func TestContentWriterMetadataOnlyIndexedAtMoveIsNotHOTLive(t *testing.T) {
 	ctx, database := openContentUpsertGuardDatabase(t)
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
 	const repoID = "repo-8950-redarm"
 	writer, _ := newLiveOutcomeWriter(t, database)
 
@@ -112,7 +114,7 @@ WHERE schemaname = $1 AND relname = 'content_files'`, schema).Scan(&beforeUpd, &
 		t.Fatal("shipped SET list not found: the RED arm no longer differs by one assignment")
 	}
 	values, args := hotLiveMetadataVariantValues(repoID, "c2", "gen-2", bodies)
-	beforeLSN := walLSN(t, ctx, database)
+	beforeWAL := sampleWriterWAL(t, ctx, database)
 	rows, err := database.QueryContext(ctx, variantPrefix+values+metadataOnlyContentFileUpdateSuffix, args...)
 	if err != nil {
 		t.Fatalf("indexed_at-moving UPDATE: %v", err)
@@ -125,7 +127,7 @@ WHERE schemaname = $1 AND relname = 'content_files'`, schema).Scan(&beforeUpd, &
 		t.Fatalf("read updated keys: %v", err)
 	}
 	_ = rows.Close()
-	walBytes := walBytesBetween(t, ctx, database, beforeLSN, walLSN(t, ctx, database))
+	walBytes := writerWALBetween(t, beforeWAL, sampleWriterWAL(t, ctx, database))
 
 	if updated != hotLiveFileCount {
 		t.Fatalf("variant UPDATE touched %d rows, want %d: the recheck must match the HOT path", updated, hotLiveFileCount)

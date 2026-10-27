@@ -62,26 +62,6 @@ func hotLiveMaterialization(repoID, gen, commit string, bodies []string) content
 	}
 }
 
-// walLSN returns the current WAL insert position.
-func walLSN(t *testing.T, ctx context.Context, db *sql.DB) string {
-	t.Helper()
-	var lsn string
-	if err := db.QueryRowContext(ctx, `SELECT pg_current_wal_lsn()`).Scan(&lsn); err != nil {
-		t.Fatalf("pg_current_wal_lsn: %v", err)
-	}
-	return lsn
-}
-
-// walBytesBetween returns the WAL bytes written between two LSN positions.
-func walBytesBetween(t *testing.T, ctx context.Context, db *sql.DB, before, after string) int64 {
-	t.Helper()
-	var n int64
-	if err := db.QueryRowContext(ctx, `SELECT pg_wal_lsn_diff($1, $2)`, after, before).Scan(&n); err != nil {
-		t.Fatalf("pg_wal_lsn_diff: %v", err)
-	}
-	return n
-}
-
 // contentFilesIndexBytes maps each content_files index name to its size, so a
 // HOT-only rewrite can prove it added no index entry.
 func contentFilesIndexBytes(t *testing.T, ctx context.Context, db *sql.DB) map[string]int64 {
@@ -110,7 +90,7 @@ FROM pg_index WHERE indrelid = 'content_files'::regclass`)
 
 // hotLiveCounters carries the HOT proof inputs around one rewrite.
 type hotLiveCounters struct {
-	beforeLSN  string
+	beforeWAL  writerWALSample
 	beforeIdx  map[string]int64
 	beforeRows map[string]contentFileVersionRow
 }
@@ -190,6 +170,8 @@ func assertMetadataOnlyHOT(t *testing.T, ctx context.Context, db *sql.DB, repoID
 // fails: every row leaves its page and the indexes grow.
 func TestContentWriterMetadataOnlyRewriteIsHOTLive(t *testing.T) {
 	ctx, database := openContentUpsertGuardDatabase(t)
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
 	const repoID = "repo-8950-hot"
 	writer, _ := newLiveOutcomeWriter(t, database)
 
@@ -208,7 +190,7 @@ func TestContentWriterMetadataOnlyRewriteIsHOTLive(t *testing.T) {
 		return v
 	}
 	c := hotLiveCounters{
-		beforeLSN:  walLSN(t, ctx, database),
+		beforeWAL:  sampleWriterWAL(t, ctx, database),
 		beforeIdx:  contentFilesIndexBytes(t, ctx, database),
 		beforeRows: readContentFileVersions(t, ctx, database, repoID),
 	}
@@ -223,7 +205,7 @@ func TestContentWriterMetadataOnlyRewriteIsHOTLive(t *testing.T) {
 	if got := fenceVersion(); got <= beforeFence {
 		t.Errorf("fence version = %d after rewrite, want > %d", got, beforeFence)
 	}
-	walBytes := walBytesBetween(t, ctx, database, c.beforeLSN, walLSN(t, ctx, database))
+	walBytes := writerWALBetween(t, c.beforeWAL, sampleWriterWAL(t, ctx, database))
 	t.Logf("rewrite wall %s for %d files of ~%d KiB", wall, hotLiveFileCount, hotLiveSizeKB)
 
 	// 2.4 MiB of bodies: a metadata rewrite is tens of KiB of heap tuples.
@@ -259,6 +241,56 @@ func TestContentWriterMetadataOnlyRewriteIsHOTLive(t *testing.T) {
 // with the observed prototype rewrite on identical findings-heavy batches.
 func TestContentWriterMetadataOnlySavesWalWallLive(t *testing.T) {
 	ctx, database := openContentUpsertGuardDatabase(t)
+	database.SetMaxOpenConns(2)
+	t.Run("foreign_backend_wal_is_ignored", func(t *testing.T) {
+		writerConn, err := database.Conn(ctx)
+		if err != nil {
+			t.Fatalf("acquire writer backend: %v", err)
+		}
+		defer func() { _ = writerConn.Close() }()
+		foreignConn, err := database.Conn(ctx)
+		if err != nil {
+			t.Fatalf("acquire foreign backend: %v", err)
+		}
+		defer func() { _ = foreignConn.Close() }()
+		var schema string
+		if err := writerConn.QueryRowContext(ctx, `SELECT current_schema()`).Scan(&schema); err != nil {
+			t.Fatalf("current schema: %v", err)
+		}
+		table := quoteSQLIdentifier(schema) + `.wal_measurement_noise`
+		if _, err := foreignConn.ExecContext(ctx, `CREATE TABLE `+table+` (body text)`); err != nil {
+			t.Fatalf("create foreign WAL table: %v", err)
+		}
+		before := sampleWriterWAL(t, ctx, writerConn)
+		foreignBefore := sampleWriterWAL(t, ctx, foreignConn)
+		if before.pid == foreignBefore.pid {
+			t.Fatal("noise and writer measurements share one backend")
+		}
+		if _, err := foreignConn.ExecContext(ctx, `INSERT INTO `+table+` SELECT repeat(md5(g::text), 32) FROM generate_series(1, 1000) AS g`); err != nil {
+			t.Fatalf("write foreign WAL: %v", err)
+		}
+		if got := writerWALBetween(t, foreignBefore, sampleWriterWAL(t, ctx, foreignConn)); got <= 0 {
+			t.Errorf("foreign backend added %d WAL bytes, want positive", got)
+		} else {
+			t.Logf("foreign backend WAL %d bytes", got)
+		}
+		if got := writerWALBetween(t, before, sampleWriterWAL(t, ctx, writerConn)); got != 0 {
+			t.Errorf("foreign backend added %d bytes to writer WAL, want 0", got)
+		} else {
+			t.Logf("writer WAL after foreign write %d bytes", got)
+		}
+		before = sampleWriterWAL(t, ctx, writerConn)
+		if _, err := writerConn.ExecContext(ctx, `INSERT INTO `+table+` VALUES (repeat('own-wal-', 1000))`); err != nil {
+			t.Fatalf("write own WAL: %v", err)
+		}
+		if got := writerWALBetween(t, before, sampleWriterWAL(t, ctx, writerConn)); got <= 0 {
+			t.Errorf("own backend added %d WAL bytes, want positive", got)
+		} else {
+			t.Logf("own backend WAL %d bytes", got)
+		}
+	})
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
 	bodies := hotLiveBodies(t)
 
 	legacyWriter := NewContentWriter(SQLDB{DB: database})
@@ -274,13 +306,13 @@ func TestContentWriterMetadataOnlySavesWalWallLive(t *testing.T) {
 		if err := database.QueryRowContext(ctx, `SELECT pg_total_relation_size('content_files')`).Scan(&beforeTotal); err != nil {
 			t.Fatalf("total size: %v", err)
 		}
-		beforeLSN := walLSN(t, ctx, database)
+		beforeWAL := sampleWriterWAL(t, ctx, database)
 		start := time.Now()
 		if _, err := writer.Write(ctx, hotLiveMaterialization(repoID, "gen-2", "c2", bodies)); err != nil {
 			t.Fatalf("rewrite Write: %v", err)
 		}
 		wall = time.Since(start)
-		walBytes = walBytesBetween(t, ctx, database, beforeLSN, walLSN(t, ctx, database))
+		walBytes = writerWALBetween(t, beforeWAL, sampleWriterWAL(t, ctx, database))
 		var afterTotal int64
 		if err := database.QueryRowContext(ctx, `SELECT pg_total_relation_size('content_files')`).Scan(&afterTotal); err != nil {
 			t.Fatalf("total size: %v", err)
@@ -290,10 +322,13 @@ func TestContentWriterMetadataOnlySavesWalWallLive(t *testing.T) {
 
 	legacyWAL, legacyWall, legacySize := rewrite("repo-8950-legacy", legacyWriter)
 	protoWAL, protoWall, protoSize := rewrite("repo-8950-proto", protoWriter)
-	t.Logf("legacy rewrite: WAL %.2f MiB wall %s total-size delta %d bytes",
-		float64(legacyWAL)/(1<<20), legacyWall, legacySize)
-	t.Logf("prototype rewrite: WAL %.2f MiB wall %s total-size delta %d bytes",
-		float64(protoWAL)/(1<<20), protoWall, protoSize)
+	if legacyWAL <= 0 {
+		t.Fatal("legacy writer produced no attributed WAL: comparison denominator is invalid")
+	}
+	t.Logf("legacy rewrite: WAL %d bytes (%.2f MiB) wall %s total-size delta %d bytes",
+		legacyWAL, float64(legacyWAL)/(1<<20), legacyWall, legacySize)
+	t.Logf("prototype rewrite: WAL %d bytes (%.2f MiB) wall %s total-size delta %d bytes",
+		protoWAL, float64(protoWAL)/(1<<20), protoWall, protoSize)
 
 	if protoWAL*20 > legacyWAL {
 		t.Errorf("prototype WAL %d is not at least 20x below legacy WAL %d", protoWAL, legacyWAL)
