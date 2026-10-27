@@ -33,6 +33,7 @@ import {
   loadVulnerabilities,
 } from "./eshuConsoleSections";
 import type { SectionContext } from "./eshuConsoleSections";
+import type { VulnerabilityPage, VulnerabilityStatus } from "./eshuConsoleVulnerabilities";
 import { loadImages } from "./imageInventory";
 import type { ImagePage, ImageRow } from "./imageInventory";
 // severityFromCvss stays re-exported from this module for existing consumers.
@@ -57,6 +58,8 @@ export interface ConsoleSnapshot {
   readonly ingesters: readonly IngesterRow[];
   readonly findings: readonly FindingRow[];
   readonly vulnerabilities: readonly VulnRow[];
+  readonly vulnerabilityPages?: Readonly<Record<VulnerabilityStatus, VulnerabilityPage>>;
+  readonly repositoryNames?: Readonly<Record<string, string>>;
   readonly sbom: SbomEvidenceRow | null;
   readonly dependencies: readonly DependencyRow[];
   readonly images: readonly ImageRow[];
@@ -140,6 +143,10 @@ export interface VulnRow {
   // advisory identifier used by the detail route and human-facing labels.
   readonly findingId?: string;
   readonly id: string;
+  readonly cveId?: string;
+  readonly ghsaIds?: readonly string[];
+  readonly sources?: readonly string[];
+  readonly epssProbability?: number | null;
   readonly package: string;
   readonly severity: string;
   readonly cvss: number;
@@ -398,7 +405,9 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     languages: languages ?? [],
     ingesters: ingesters ?? [],
     findings: findings ?? [],
-    vulnerabilities: vulnerabilities ?? [],
+    vulnerabilities: vulnerabilities?.rows ?? [],
+    vulnerabilityPages: vulnerabilities?.pages,
+    repositoryNames: Object.fromEntries(ctx.repoNames),
     sbom,
     dependencies: dependencies ?? [],
     images: images ?? [],

@@ -99,7 +99,7 @@ export function VulnerabilitiesPage({
           aria-labelledby="vulnerability-tab-reachable"
           tabIndex={0}
         >
-          <ReachableAdvisories model={model} />
+          <ReachableAdvisories model={model} client={client} />
         </div>
       ) : (
         <div
@@ -169,10 +169,15 @@ function statusForReachable(model: ConsoleModel): ViewStatus {
       count: 0,
       state: "empty",
       value: "0 affected services proven",
-      detail: "No affected service is proven by impact findings.",
+      detail: Object.values(model.vulnerabilityPages ?? {}).some((page) => page.truncated)
+        ? "No affected service in initial pages; browse reachable impact for later pages."
+        : "No affected service is proven by impact findings.",
     };
   }
   const findingCount = model.vulnerabilities.length;
+  const partial =
+    model.vulnerabilityPages?.affected_exact.truncated === true ||
+    model.vulnerabilityPages?.affected_derived.truncated === true;
   const serviceBackedFindingCount = model.vulnerabilities.filter((row) =>
     row.services.some((service) => service.trim() !== ""),
   ).length;
@@ -182,15 +187,19 @@ function statusForReachable(model: ConsoleModel): ViewStatus {
       count: 0,
       state: "populated",
       value: "0 affected services proven",
-      detail: `${findingCount} impact ${findingCount === 1 ? "finding has" : "findings have"} no admitted service evidence.`,
+      detail: model.vulnerabilityPages
+        ? `${findingCount} findings in the initial pages have no admitted service evidence.${partial ? " More pages are available in the reachable view." : ""}`
+        : `${findingCount} impact ${findingCount === 1 ? "finding has" : "findings have"} no admitted service evidence.`,
     };
   }
   return {
     count: serviceBackedFindingCount,
     state: "populated",
-    value: `${serviceBackedFindingCount} service-backed ${serviceBackedFindingCount === 1 ? "finding" : "findings"}`,
-    detail:
-      noServiceFindingCount > 0
+    value: `${serviceBackedFindingCount} service-backed ${serviceBackedFindingCount === 1 ? "finding" : "findings"}${model.vulnerabilityPages ? " in initial pages" : ""}`,
+    truncated: partial,
+    detail: partial
+      ? `${findingCount} findings in initial pages; browse reachable impact for the rest.`
+      : noServiceFindingCount > 0
         ? `${findingCount} impact findings; ${noServiceFindingCount} ${noServiceFindingCount === 1 ? "has" : "have"} no admitted service evidence.`
         : `${findingCount} impact ${findingCount === 1 ? "finding has" : "findings have"} admitted service evidence.`,
   };
