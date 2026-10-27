@@ -481,6 +481,8 @@ github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.5 h1:SDj+eLPRnCqanwpYctLIvaMb0v
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.5/go.mod h1:CnwND1yYkq0K/gMO7k746nEKmTKvVCRYrHB3TZpsJqk=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.6 h1:ntCEc84V2lEV6ECPAuD30a7reZ4EEX3vewJziTONhpc=
 github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.6/go.mod h1:CnwND1yYkq0K/gMO7k746nEKmTKvVCRYrHB3TZpsJqk=
+github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7 h1:20Q3x+rqSSsQ2fEc4PvfiSFDaoQLNghsaTNgv5xSf5k=
+github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7/go.mod h1:CnwND1yYkq0K/gMO7k746nEKmTKvVCRYrHB3TZpsJqk=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=
 github.com/fatih/color v1.18.0 h1:S8gINlzdQ840/4pfAwic/ZE0djQEH3wM94VfqLTZcOM=

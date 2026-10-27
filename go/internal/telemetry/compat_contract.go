@@ -245,6 +245,7 @@ func VulnerabilitySuppressionMutationOutcomes() []string {
 const (
 	SpanVulnerabilityIntelligenceObserve = contract.SpanVulnerabilityIntelligenceObserve
 	SpanVulnerabilityIntelligenceFetch   = contract.SpanVulnerabilityIntelligenceFetch
+	MetricDimensionPageCount             = contract.MetricDimensionPageCount
 )
 
 // Incident-context query span (from contract/z_incident_context.go).

@@ -110,6 +110,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"stage",
 		"source_tool",
 		"field_class",
+		"page_count",
 		"host",
 		"scope",
 		"block",

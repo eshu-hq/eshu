@@ -320,7 +320,7 @@ module prefixes across generations.
 | `OCIRegistryScanDuration` | `eshu_dp_oci_registry_scan_duration_seconds` | 0.05–120 s |
 | `PackageRegistryObserveDuration` | `eshu_dp_package_registry_observe_duration_seconds` | 0.01–60 s |
 | `PackageRegistryGenerationLag` | `eshu_dp_package_registry_generation_lag_seconds` | 0.01–60 s |
-| `VulnerabilityIntelligenceFetchDuration` | `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` | 0.01-60 s |
+| `VulnerabilityIntelligenceFetchDuration` | `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` (`page_count` 0-100) | 0.01-60 s |
 | `SecurityAlertFetchDuration` | `eshu_dp_security_alert_fetch_duration_seconds` | 0.01–60 s |
 | `CICDRunFetchDuration`, `CICDRunWebhookLag` | `eshu_dp_ci_cd_run_fetch_duration_seconds`, `eshu_dp_ci_cd_run_webhook_lag_seconds` | 0.01–60 s fetch; 0–21600 s webhook lag |
 | `PagerDutyFetchDuration` | `eshu_dp_pagerduty_fetch_duration_seconds` | 0.01-60 s |
