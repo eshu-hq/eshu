@@ -11,10 +11,9 @@ import (
 
 // ResolveRepoID resolves a submodule's raw ".gitmodules" URL to Eshu's
 // canonical repo_id, mirroring the "never guess, empty means no durable
-// link" discipline
-// go/internal/collector/jira/linked_repository.go's linkedRepositoryID
-// applies to PR/MR links: the empty string means "unresolved", never a
-// guessed id a later phase would have to unwind.
+// link" discipline the extracted eshu-hq/eshu-collector-jira satellite's
+// linkedRepositoryID applies to PR/MR links: the empty string means
+// "unresolved", never a guessed id a later phase would have to unwind.
 //
 // It returns a non-empty repo_id only when rawURL is an absolute,
 // host-qualified git remote — https://, ssh://, git://, or the SCP

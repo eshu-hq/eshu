@@ -70,7 +70,6 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-prometheus-mimir ./cmd/collector-prometheus-mimir \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-loki ./cmd/collector-loki \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-tempo ./cmd/collector-tempo \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-jira ./cmd/collector-jira \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-worker ./cmd/scanner-worker \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-aws-cloud ./cmd/collector-aws-cloud \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-gcp-cloud ./cmd/collector-gcp-cloud \

@@ -419,3 +419,11 @@ docs/internal/evidence/6216-sibling-delta-gate-and-mixed-batch-retract.md:go/int
 # note records the tree as it stood when the #6901 rename landed.
 # Repointing would falsify which file that evidence was gathered on.
 docs/internal/evidence/6696-aws-constants-mismatch-leaf.md:go/internal/collector/awscloud/constants_acm.go
+# Jira satellite extraction: the in-tree envelope builders are deleted and
+# collection now runs from eshu-hq/eshu-collector-jira (producer record:
+# go/internal/facts/work_item.go). The 4786 contract-integration matrix
+# cells name the envelope at its pre-extraction in-tree path as the
+# helper-map for the work-item row. There is no in-tree successor path to
+# repoint at -- the envelope now lives in the satellite -- so the cells
+# stay as the pre-extraction contract record.
+docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/jira/envelope.go

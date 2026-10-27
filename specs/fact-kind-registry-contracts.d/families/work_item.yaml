@@ -23,9 +23,8 @@ kinds:
     - work_item.workflow_metadata
 producers:
     - id: collector-jira
-      repository: eshu-hq/eshu
-      path: go/internal/collector/jira
-      planned_repository: eshu-hq/eshu-collector-jira
+      repository: eshu-hq/eshu-collector-jira
+      path: .
       authority_mode: core_issued_grant
       kinds:
         - work_item.external_link

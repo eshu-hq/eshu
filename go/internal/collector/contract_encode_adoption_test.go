@@ -160,14 +160,6 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			calls: []string{"EncodeSecurityAlertRepositoryAlert"},
 		},
 		{
-			path: "jira/envelope.go",
-			calls: []string{
-				"EncodeWorkItemExternalLink",
-				"EncodeWorkItemRecord",
-				"EncodeWorkItemTransition",
-			},
-		},
-		{
 			path: "pagerduty/envelope.go",
 			calls: []string{
 				"EncodeChangeRecord",

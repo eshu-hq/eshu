@@ -33,9 +33,9 @@
 //     repo_id when — and only when — that URL is an absolute, host-qualified
 //     git remote. It returns the empty string ("no durable link") for git's
 //     own relative submodule URL forms and anything else it cannot
-//     canonicalize, following the same never-guess discipline
-//     go/internal/collector/jira/linked_repository.go applies to PR/MR
-//     links.
+//     canonicalize, following the same never-guess discipline the
+//     extracted eshu-hq/eshu-collector-jira satellite's linkedRepositoryID
+//     applies to PR/MR links.
 //   - Emit turns one ".gitmodules" file's parsed entries into
 //     "submodule.pin" fact envelopes, one per entry, keyed by
 //     (parent_repo_id, submodule_path), calling

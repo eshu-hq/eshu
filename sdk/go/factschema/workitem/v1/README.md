@@ -37,7 +37,7 @@ namespace. The schema filename is the dotted kind plus `.v1.schema.json`
 ## Purpose
 
 Nine work-item fact kinds decode through this package, all emitted by the
-Jira collector (`go/internal/collector/jira`):
+Jira collector (`eshu-hq/eshu-collector-jira`):
 
 | Fact kind | Struct | Decode function |
 | --- | --- | --- |
@@ -55,8 +55,9 @@ Jira collector (`go/internal/collector/jira`):
 
 A field is required exactly when its json tag carries no `omitempty` (and, by
 the flat-struct convention, is non-pointer). The required set of each struct is
-grounded in the actual collector emitters
-(`go/internal/collector/jira/envelope.go`, `envelope_metadata.go`):
+grounded in the actual collector emitters (the extracted
+`eshu-hq/eshu-collector-jira` satellite's envelope builders, seeded from the
+former in-tree package):
 
 - `WorkItemRecord`: required `provider`, `provider_work_item_id`,
   `work_item_key` — the emitter rejects a blank issue id or key.
@@ -87,8 +88,8 @@ See each struct's godoc for the full field list and the emitter grounding.
 
 ## Redaction is load-bearing (jira_work_item_v1)
 
-The Jira collector redacts at EMISSION time
-(`go/internal/collector/jira/envelope.go`, `envelope_metadata.go`): every
+The Jira collector redacts at EMISSION time (the extracted
+`eshu-hq/eshu-collector-jira` satellite's envelope builders): every
 persisted payload carries presence booleans, bounded category enums,
 URL/text sha256 fingerprints, ids/keys, and timestamps — raw summaries,
 descriptions, user identities, and URLs are always emitted as the empty
@@ -100,10 +101,10 @@ emitted shape exactly — dropping them would silently narrow the schema
 relative to what the collector emits, which is itself a contract violation
 (§3.1's "no narrowing without a major bump").
 
-`TestWorkItemEnvelopesRedactPrivateTextUsersAndURLs` and
-`TestWorkItemProjectAndFieldMetadataEnvelopesRedactPrivateValues`
-(`go/internal/collector/jira`) are the guard tests that prove the collector
-emission side stays redacted; they are unchanged by this migration.
+Emission-side redaction guards now live with the emitter in the satellite
+repository; the in-tree `go/internal/collector/jira` guard tests are deleted
+with the #8858 extraction. The structs and required sets here are unchanged,
+so the contract the satellite emits against is unchanged.
 
 ## Manifest-gate blind spot
 

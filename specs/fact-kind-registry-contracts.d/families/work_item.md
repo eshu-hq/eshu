@@ -11,7 +11,7 @@
 
 | Producer | Repository | Path | Planned repository | Authority | Emitted kinds |
 | --- | --- | --- | --- | --- | --- |
-| `collector-jira` | `eshu-hq/eshu` | `go/internal/collector/jira` | `eshu-hq/eshu-collector-jira` | `core_issued_grant` | `work_item.external_link, work_item.field_metadata, work_item.issue_type_metadata, work_item.metadata_warning, work_item.project_metadata, work_item.record, work_item.status_metadata, work_item.transition, work_item.workflow_metadata` |
+| `collector-jira` | `eshu-hq/eshu-collector-jira` | `.` | `` | `core_issued_grant` | `work_item.external_link, work_item.field_metadata, work_item.issue_type_metadata, work_item.metadata_warning, work_item.project_metadata, work_item.record, work_item.status_metadata, work_item.transition, work_item.workflow_metadata` |
 
 ## Kinds
 

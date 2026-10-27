@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/jira"
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // TestServiceStoryTargetSupportMatchesWriterShapedFactsLive is the #7138
-// regression. It seeds support facts whose payloads come from the production
-// writers themselves (not hand-written JSON), so the read is held to the keys
+// regression. It seeds support facts whose payloads carry the durable keys
+// the extracted satellite's writers emit, so the read is held to the keys
 // real collectors emit. Before #7138 the read matched only candidate_refs,
 // evidence_refs and linked_entities, which no support writer emits, and a real
 // Jira pull-request link never appeared in its repository's story.
@@ -33,57 +33,37 @@ func TestServiceStoryTargetSupportMatchesWriterShapedFactsLive(t *testing.T) {
 
 	observed := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
 	seedWriterShapeScope(ctx, t, conn, "s-jira", "g-jira", observed)
-	envelopeCtx := jira.EnvelopeContext{
-		ScopeID:             "s-jira",
-		GenerationID:        "g-jira",
-		CollectorInstanceID: "jira-test",
-		ObservedAt:          observed,
-		SourceURI:           "https://example.atlassian.net",
-	}
 
-	prLink, err := jira.NewWorkItemExternalLinkEnvelope(envelopeCtx, jira.ExternalLink{
-		ID:          "10001",
-		IssueID:     "20001",
-		IssueKey:    "OPS-1",
-		Application: jira.LinkApplication{Name: "GitHub", Type: "com.github.integration"},
-		Object:      jira.LinkObject{URL: "https://github.com/acme/payments/pull/42"},
-	})
-	if err != nil {
-		t.Fatalf("NewWorkItemExternalLinkEnvelope(pull request) error = %v", err)
+	// Fixture payloads carry the durable keys the extracted satellite's
+	// envelope writers emit (linkRepositoryID mirrors the satellite's
+	// typed-link rule; see the Jira issue-link matrix test).
+	prPayload := map[string]any{
+		"provider_work_item_id": "20001",
+		"work_item_key":         "OPS-1",
+		"linked_repository_id":  linkRepositoryID("https://github.com/acme/payments/pull/42"),
 	}
-	repoID, _ := prLink.Payload["linked_repository_id"].(string)
+	repoID, _ := prPayload["linked_repository_id"].(string)
 	if !strings.HasPrefix(repoID, "repository:") {
 		t.Fatalf("writer linked_repository_id = %q, want a canonical repository id", repoID)
 	}
-	otherLink, err := jira.NewWorkItemExternalLinkEnvelope(envelopeCtx, jira.ExternalLink{
-		ID:          "10002",
-		IssueID:     "20002",
-		IssueKey:    "OPS-2",
-		Application: jira.LinkApplication{Name: "GitHub", Type: "com.github.integration"},
-		Object:      jira.LinkObject{URL: "https://github.com/acme/billing/pull/7"},
-	})
-	if err != nil {
-		t.Fatalf("NewWorkItemExternalLinkEnvelope(other repository) error = %v", err)
+	otherPayload := map[string]any{
+		"provider_work_item_id": "20002",
+		"work_item_key":         "OPS-2",
+		"linked_repository_id":  linkRepositoryID("https://github.com/acme/billing/pull/7"),
 	}
-	plainLink, err := jira.NewWorkItemExternalLinkEnvelope(envelopeCtx, jira.ExternalLink{
-		ID:          "10003",
-		IssueID:     "20003",
-		IssueKey:    "OPS-3",
-		Application: jira.LinkApplication{Name: "Confluence"},
-		Object:      jira.LinkObject{URL: "https://example.atlassian.net/wiki/pages/1"},
-	})
-	if err != nil {
-		t.Fatalf("NewWorkItemExternalLinkEnvelope(non-repository link) error = %v", err)
+	plainPayload := map[string]any{
+		"provider_work_item_id": "20003",
+		"work_item_key":         "OPS-3",
 	}
-	if _, ok := plainLink.Payload["linked_repository_id"]; ok {
-		t.Fatalf("writer set linked_repository_id on a non-repository link: %#v", plainLink.Payload)
+	if _, ok := plainPayload["linked_repository_id"]; ok {
+		t.Fatalf("writer set linked_repository_id on a non-repository link: %#v", plainPayload)
 	}
 	for id, payload := range map[string]map[string]any{
-		"f-pr-link":    prLink.Payload,
-		"f-other-repo": otherLink.Payload,
-		"f-plain-link": plainLink.Payload,
+		"f-pr-link":    prPayload,
+		"f-other-repo": otherPayload,
+		"f-plain-link": plainPayload,
 	} {
-		seedWriterShapeFact(ctx, t, conn, id, "s-jira", "g-jira", prLink.FactKind, observed, payload)
+		seedWriterShapeFact(ctx, t, conn, id, "s-jira", "g-jira", facts.WorkItemExternalLinkFactKind, observed, payload)
 	}
 
 	filter := serviceStoryTargetSupportFilter{

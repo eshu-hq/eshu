@@ -33,7 +33,6 @@ var coreScanFiles = []string{
 	"cmd/collector-prometheus-mimir/config.go",
 	"cmd/collector-grafana/config.go",
 	"cmd/collector-aws-cloud/config.go",
-	"cmd/collector-jira/config.go",
 	"cmd/collector-cicd-run/config.go",
 	"cmd/collector-pagerduty/config.go",
 	"cmd/collector-security-alerts/config.go",

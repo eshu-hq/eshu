@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/jira"
 	"github.com/eshu-hq/eshu/go/internal/collector/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -27,8 +26,10 @@ type writerMatrixFixture struct {
 }
 
 // TestServiceStoryTargetSupportWriterShapedMatrixLive is the #7138
-// correlation-truth matrix against Postgres. Every payload comes from the
-// production writers, so the read is held to the keys real collectors emit.
+// correlation-truth matrix against Postgres. Every payload carries the
+// durable keys the writers emit (the Jira fixtures mirror the extracted
+// satellite's envelope keys), so the read is held to the keys real
+// collectors emit.
 //
 // Repository target: a link to R appears; a link to R2 does not; an
 // external_link with no linked_repository_id, a record, a transition, a
@@ -167,7 +168,7 @@ func TestServiceStoryTargetSupportWriterShapedMatrixLive(t *testing.T) {
 }
 
 // seedWriterMatrix seeds one Jira scope (active generation plus a superseded
-// one) and one PagerDuty scope with writer-built facts, then returns the
+// one) and one PagerDuty scope with writer-shaped facts, then returns the
 // repository ids the links resolve to.
 func seedWriterMatrix(ctx context.Context, t *testing.T, db *sql.DB) writerMatrixFixture {
 	t.Helper()
@@ -185,48 +186,49 @@ VALUES ($1, $2, 'snapshot', $3, $3, 'active', '{}'::jsonb)`, scope.generation, s
 	mustExec(ctx, t, db, `INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, payload)
 VALUES ('g-jira-old', 's-jira', 'snapshot', $1, $1, 'superseded', '{}'::jsonb)`, observed)
 
-	jiraCtx := jira.EnvelopeContext{
-		ScopeID: "s-jira", GenerationID: "g-jira", CollectorInstanceID: "jira-test",
-		ObservedAt: observed, SourceURI: "https://example.atlassian.net",
-	}
 	link := func(id, issue, url string) facts.Envelope {
-		t.Helper()
-		env, err := jira.NewWorkItemExternalLinkEnvelope(jiraCtx, jira.ExternalLink{
-			ID: id, IssueID: "2" + id, IssueKey: issue,
-			Application: jira.LinkApplication{Name: "GitHub", Type: "com.github.integration"},
-			Object:      jira.LinkObject{URL: url},
-		})
-		if err != nil {
-			t.Fatalf("NewWorkItemExternalLinkEnvelope(%s) error = %v", url, err)
+		return facts.Envelope{
+			FactKind: facts.WorkItemExternalLinkFactKind,
+			Payload: map[string]any{
+				"provider_work_item_id": "2" + id,
+				"work_item_key":         issue,
+				"linked_repository_id":  linkRepositoryID(url),
+			},
 		}
-		return env
 	}
 	linkR1 := link("1", "OPS-1", "https://github.com/acme/payments/pull/1")
 	linkR2 := link("2", "OPS-2", "https://github.com/acme/payments/pull/2")
 	linkOther := link("3", "OPS-3", "https://github.com/acme/billing/pull/3")
 	linkTomb := link("4", "OPS-4", "https://github.com/acme/payments/pull/4")
 	linkOld := link("5", "OPS-5", "https://github.com/acme/payments/pull/5")
-	plain, err := jira.NewWorkItemExternalLinkEnvelope(jiraCtx, jira.ExternalLink{
-		ID: "6", IssueID: "26", IssueKey: "OPS-6",
-		Application: jira.LinkApplication{Name: "Confluence"},
-		Object:      jira.LinkObject{URL: "https://example.atlassian.net/wiki/pages/1"},
-	})
-	if err != nil {
-		t.Fatalf("NewWorkItemExternalLinkEnvelope(plain) error = %v", err)
+	plain := facts.Envelope{
+		FactKind: facts.WorkItemExternalLinkFactKind,
+		Payload: map[string]any{
+			"provider_work_item_id": "26",
+			"work_item_key":         "OPS-6",
+			"linked_repository_id":  "",
+		},
 	}
-	record, err := jira.NewWorkItemRecordEnvelope(jiraCtx, jira.Issue{ID: "20001", Key: "OPS-1"})
-	if err != nil {
-		t.Fatalf("NewWorkItemRecordEnvelope error = %v", err)
+	record := facts.Envelope{
+		FactKind: facts.WorkItemRecordFactKind,
+		Payload: map[string]any{
+			"provider_work_item_id": "20001",
+			"work_item_key":         "OPS-1",
+		},
 	}
-	transition, err := jira.NewWorkItemTransitionEnvelope(jiraCtx, jira.Transition{
-		ID: "9001", IssueID: "20001", IssueKey: "OPS-1", Field: "status", From: "Open", To: "Done",
-	})
-	if err != nil {
-		t.Fatalf("NewWorkItemTransitionEnvelope error = %v", err)
+	transition := facts.Envelope{
+		FactKind: facts.WorkItemTransitionFactKind,
+		Payload: map[string]any{
+			"provider_work_item_id": "20001",
+			"work_item_key":         "OPS-1",
+		},
 	}
-	metadata, err := jira.NewWorkItemProjectMetadataEnvelope(jiraCtx, jira.ProjectMetadata{ID: "10", Key: "OPS", Name: "Ops"})
-	if err != nil {
-		t.Fatalf("NewWorkItemProjectMetadataEnvelope error = %v", err)
+	metadata := facts.Envelope{
+		FactKind: facts.WorkItemProjectMetadataFactKind,
+		Payload: map[string]any{
+			"provider_work_item_id": "20001",
+			"work_item_key":         "OPS-1",
+		},
 	}
 	pdService, err := pagerduty.NewObservedPagerDutyServiceEnvelope(pagerduty.EnvelopeContext{
 		ScopeID: "s-pd", GenerationID: "g-pd", CollectorInstanceID: "pd-test", ObservedAt: observed,

@@ -69,7 +69,8 @@ var registryFailureClasses = []string{
 // by kind:
 //
 //   - jira: permission_hidden, deleted, archived, from jiraStatusPolicy
-//     (collector/jira/source.go) over sdk.StatusPolicy for 401 and 403, 404,
+//     (extracted eshu-hq/eshu-collector-jira satellite's source, formerly
+//     collector/jira/source.go) over sdk.StatusPolicy for 401 and 403, 404,
 //     and 410.
 //   - aws: permission_denied, unsupported_permission, stale_fence
 //     (collector/awscloud/awsruntime/scan_status.go).

@@ -31,6 +31,9 @@ spec:
         - name: jira-collector
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The jira binary ships in the eshu-collector-jira satellite image
+          # (producer record: go/internal/facts/work_item.go), not the
+          # in-tree product image: this Deployment's image must provide it.
           command: ["/usr/local/bin/eshu-collector-jira"]
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}

@@ -114,8 +114,9 @@ fact store upserts instead of duplicating.
 ## Resolution discipline
 
 `ResolveRepoID` mirrors the "never guess, empty means no durable link"
-discipline `go/internal/collector/jira/linked_repository.go`'s
-`linkedRepositoryID` applies to PR/MR links. It resolves a submodule URL only
+discipline the extracted `eshu-hq/eshu-collector-jira` satellite's
+`linkedRepositoryID` applies to PR/MR links.
+It resolves a submodule URL only
 when `repositoryidentity.NormalizeRemoteURL` can canonicalize it into an
 `https://host/path` identity (an absolute `https://`, `ssh://`, `git://`, or
 SCP `git@host:path` remote). Any other shape — most notably git's own

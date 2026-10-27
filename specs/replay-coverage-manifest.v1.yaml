@@ -65,7 +65,6 @@ coverage:
   - {surface: "collector:grafana", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/grafana/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:loki", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/loki/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:security_alert", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/securityalerts/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
-  - {surface: "collector:jira", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/jira/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:pagerduty", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/pagerduty/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:sbom_attestation", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/sbomattestation/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
   - {surface: "collector:vulnerability_intelligence", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
@@ -411,7 +410,6 @@ coverage:
   - {surface: collector:loki, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:prometheus_mimir, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:tempo, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
-  - {surface: collector:jira, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:pagerduty, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:security_alert, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:vulnerability_intelligence, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}

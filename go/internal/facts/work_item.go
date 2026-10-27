@@ -107,6 +107,6 @@ var WorkItemFamilyDeclaration = contract.Declare(contract.Family{
 		{Kind: "work_item.workflow_metadata", PayloadSchema: "sdk/go/factschema/schema/work_item.workflow_metadata.v1.schema.json", Disposition: "read_only", NoReducerReason: "Consumed by read surfaces only; no reducer domain decodes it.", NoReducerEvidence: "read consumption in go/internal/query/decode/workitem, go/internal/query/workitem"},
 	},
 	Producers: []contract.Producer{
-		{ID: "collector-jira", Repository: "eshu-hq/eshu", Path: "go/internal/collector/jira", PlannedRepository: "eshu-hq/eshu-collector-jira", AuthorityMode: "core_issued_grant", Kinds: []string{"work_item.external_link", "work_item.field_metadata", "work_item.issue_type_metadata", "work_item.metadata_warning", "work_item.project_metadata", "work_item.record", "work_item.status_metadata", "work_item.transition", "work_item.workflow_metadata"}},
+		{ID: "collector-jira", Repository: "eshu-hq/eshu-collector-jira", Path: ".", PlannedRepository: "", AuthorityMode: "core_issued_grant", Kinds: []string{"work_item.external_link", "work_item.field_metadata", "work_item.issue_type_metadata", "work_item.metadata_warning", "work_item.project_metadata", "work_item.record", "work_item.status_metadata", "work_item.transition", "work_item.workflow_metadata"}},
 	},
 })

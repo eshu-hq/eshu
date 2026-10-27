@@ -43,7 +43,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/jira"
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/grafana"
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/loki"
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/prometheus"
@@ -182,31 +181,6 @@ func collectorFaultCases() []collectorFaultCase {
 					BaseURL:       "https://tempo.invalid",
 					ResourceLimit: 50,
 				})
-				return err
-			},
-		},
-		{
-			surface: "collector:jira",
-			collect: func() error {
-				client, err := jira.NewHTTPClient(jira.HTTPClientConfig{
-					BaseURL: "https://jira.invalid",
-					Email:   "collector@example.com",
-					Token:   "jira-token",
-					Client:  timeoutFaultClient(),
-				})
-				if err != nil {
-					return err
-				}
-				_, err = client.CollectWorkItemEvidence(context.Background(), jira.TargetConfig{
-					Provider:   "jira",
-					ScopeID:    "jira:site:prod",
-					SiteID:     "site-prod",
-					BaseURL:    "https://jira.invalid",
-					Email:      "collector@example.com",
-					Token:      "jira-token",
-					JQL:        "project = OPS",
-					IssueLimit: 25,
-				}, jira.CollectionWindow{Until: time.Now().UTC()})
 				return err
 			},
 		},
