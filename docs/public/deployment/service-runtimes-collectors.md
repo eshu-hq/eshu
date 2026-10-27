@@ -139,8 +139,9 @@ Actual emitted facts are also capped at 10,000 or 8 MiB serialized. The limits i
 or split explicit ID targets before retrying. A single oversized CVE needs
 source inspection and a measured capacity decision. Cache fallback does not turn this failure into a successful
 claim. NVD cache replay bounds the artifact size, serialized fact bytes, fact
-count, and JSON structure before decoding. It returns a capacity failure with
-no facts when a limit is exceeded. Retention cleanup reads at most 16 MiB per
+count, and JSON structure before decoding. Refresh checks annotated claim and
+rebound replay output before replacing a previous cache artifact. It returns
+a capacity failure with no facts when a limit is exceeded. Retention cleanup reads at most 16 MiB per
 artifact and checks metadata and syntax; retained files are validated fully
 on replay. Larger legacy or unrelated files age by file modification time
 without being decoded. These process-local limits do not
