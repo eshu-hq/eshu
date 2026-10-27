@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #9257 disposable PostgreSQL proof that reconcile converges a run whose completed claim committed no facts and holds a run whose committed facts are not yet published; the companion hermetic shape test pins the index prefixes; enrolled in the live-postgres-readiness runner; sub-second local proof on a throwaway database
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"strings"

@@ -276,6 +276,10 @@ TABLE = {
         "go/internal/storage/postgres/repository_catalog_projection_live_test.go": (
             "TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode",
         ),
+        "go/internal/storage/postgres/run_reconciliation_factless_live_test.go": (
+            "TestWorkflowControlStoreIntegrationReconcileConvergesFactlessClaim",
+            "TestWorkflowControlStoreIntegrationReconcileHoldsFactCommittedClaim",
+        ),
         "go/internal/storage/postgres/security_alert_impact_producer_store_live_test.go": (
             "TestReducerContentionGateSecurityAlertImpactProducerStateScopesToTheGeneration",
             "TestReducerContentionGateSecurityAlertImpactProducerStatePlanUsesScopeGenerationIndex",
