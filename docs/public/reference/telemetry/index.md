@@ -756,11 +756,11 @@ The matching trace span is `collector.claimed_run`, carrying the same
 attributes plus the raw `fairness_key` and `claim_priority` so a trace
 correlates with the duration histogram ([Fair-Claim Rotation Signals](fair-claim-rotation.md)).
 
-These share the `collector_kind` label with the per-stage
-`eshu_dp_bootstrap_pipeline_phase_seconds` and `eshu_dp_content_entity_emitted_total`
-metrics, so the per-collector and per-stage layers join cleanly: an operator
-can attribute corpus-run wall time to a collector family, then to a pipeline
-phase and a source-file kind, from metrics alone.
+These join `eshu_dp_bootstrap_pipeline_phase_seconds` and `eshu_dp_content_entity_emitted_total`
+by `collector_kind`, locating the family and phase that set wall time. For NVD,
+`eshu_dp_vulnerability_intelligence_fetch_duration_seconds` adds numeric
+`page_count` (0-100) for validated modified-window pages, including pages
+later discarded on failure or mirror restart; cache-only runs report zero.
 
 Observability Evidence: formerly the time spent per collector needed strace and
 DB forensics. With these metrics an operator reads the per-collector long pole
