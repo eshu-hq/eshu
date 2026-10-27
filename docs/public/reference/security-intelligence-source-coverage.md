@@ -232,13 +232,12 @@ Selection rules:
 - For language ecosystems (npm, PyPI, Go, Maven, Crates.io, RubyGems,
   Composer, Pub, Hex, Swift, NuGet), GHSA outranks GLAD, OSV-via-OSV,
   PYSEC-via-OSV, RUSTSEC-via-OSV, GO-via-OSV, and NVD.
-  Impact-supported version matchers are npm, PyPI, Cargo, Pub, Swift, NuGet,
-  and Maven; vendor-backed RPM-family, Debian/dpkg, and Alpine/APK OS package
-  facts use the OS package priority above. Go, RubyGems, Composer, Hex, and
-  other matcher-unimplemented
-  ecosystems remain source-only, missing, or unsupported evidence until package
-  identity, dependency evidence, version matching, advisory ingestion, and
-  readback are proven end to end.
+  The reducer has version matchers for npm, PyPI, Cargo, Go, Pub, Hex, Swift,
+  NuGet, Maven, RubyGems, and Composer; vendor-backed RPM-family, Debian/dpkg,
+  and Alpine/APK facts use the OS package priority above. A matcher alone does
+  not prove a finding: package identity, dependency evidence, advisory
+  ingestion, and readback still have to join for that ecosystem. Missing or
+  unsupported evidence remains visible rather than counting as clean.
 - An OSV record whose advisory id begins with `GHSA-`, `PYSEC-`, `GO-`,
   `RUSTSEC-`, or `MAL-` is classified by that upstream prefix, so a GHSA
   collected through OSV still ranks as a GHSA observation.

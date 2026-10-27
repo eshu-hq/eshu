@@ -88,6 +88,8 @@ func RuntimeStatuses(evidence Evidence) []RuntimeStatus {
 	return builder.rows()
 }
 
+const unregisteredEvidenceDetail = "status evidence exists without workflow coordinator registration"
+
 type runtimeStatusBuilder struct {
 	statuses []RuntimeStatus
 	byKey    map[string]int
@@ -120,7 +122,9 @@ func (b *runtimeStatusBuilder) merge(index int, status RuntimeStatus) {
 	existing.EvidenceSources = uniqueNonEmptyStrings(append(existing.EvidenceSources, status.EvidenceSources...))
 	existing.SourceSystems = uniqueNonEmptyStrings(append(existing.SourceSystems, status.SourceSystems...))
 	existing.ObservationCount += status.ObservationCount
-	if runtimeHealthRank(status.Health) > runtimeHealthRank(existing.Health) && strings.TrimSpace(status.Detail) != "" {
+	if runtimeHealthRank(status.Health) > runtimeHealthRank(existing.Health) &&
+		strings.TrimSpace(status.Detail) != "" &&
+		(!existing.CoordinatorRegistered || status.Detail != unregisteredEvidenceDetail) {
 		existing.Detail = status.Detail
 	}
 	existing.Health = combineRuntimeHealth(existing.Health, status.Health)
@@ -327,7 +331,7 @@ func directEvidenceRuntimeStatus(
 		ObservationCount: observations,
 		LastObservedAt:   lastObservedAt,
 		UpdatedAt:        updatedAt,
-		Detail:           "status evidence exists without workflow coordinator registration",
+		Detail:           unregisteredEvidenceDetail,
 	}
 }
 
