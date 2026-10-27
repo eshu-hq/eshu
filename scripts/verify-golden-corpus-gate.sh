@@ -131,7 +131,7 @@ collector_specs=(
 	"collector-package-registry:packageregistry"
 	"collector-terraform-state:terraformstate"
 	"collector-prometheus-mimir:prometheusmimir"
-	"collector-tempo:tempo"
+	# 2026-10-27 (#9172): collector-tempo removed — satellite-owned since v0.1.3, live QA serves tempo, snapshot never asserted its scopes.
 	"collector-grafana:grafana"
 	"collector-loki:loki"
 	"collector-security-alerts:securityalerts"
