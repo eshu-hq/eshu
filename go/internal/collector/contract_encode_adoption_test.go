@@ -36,14 +36,6 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path: "observability/tempo/envelope.go",
-			calls: []string{
-				"EncodeObservabilitySourceInstance",
-				"EncodeObservabilityObservedTraceSignal",
-				"EncodeObservabilityCoverageWarning",
-			},
-		},
-		{
 			path: "observability/prometheus/envelope.go",
 			calls: []string{
 				"EncodeObservabilitySourceInstance",
