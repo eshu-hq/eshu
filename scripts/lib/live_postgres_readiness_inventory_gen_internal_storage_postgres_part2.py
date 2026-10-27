@@ -224,6 +224,10 @@ TABLE = {
             "TestReducerContentionGateSecurityAlertReconciliationImpactFenceKeepsItsAttemptBudget",
             "TestReducerContentionGateSecurityAlertReconciliationGivesUpVisiblyWithoutAFence",
         ),
+        "go/internal/storage/postgres/reducer_queue_security_alert_settled_skip_live_test.go": (
+            "TestReducerContentionGateSecurityAlertReconciliationSettledSkipsTheWait",
+            "TestReducerContentionGateSecurityAlertReconciliationLateProducerKeepsItsWait",
+        ),
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_bound_live_test.go": (
             "TestReducerContentionGateServiceCatalogRuntimeFenceBoundsOnProducerNotCatalogAge",
             "TestReducerContentionGateServiceCatalogRuntimeFenceDefersWhileProducerIsWorked",

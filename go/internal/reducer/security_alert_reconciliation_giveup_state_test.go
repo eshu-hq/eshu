@@ -95,18 +95,15 @@ func TestSecurityAlertReconciliationWriteCarriesTheGiveUpOutcome(t *testing.T) {
 // TestSecurityAlertReconciliationSettledProducerIsNotAGiveUp pins the settled
 // pass: it writes the same unmatched decision, records producer_settled on the
 // counter at INFO, and raises none of the give-up signals (no summary suffix,
-// no sub signal, no WARN line).
+// no sub signal, no WARN line). Since #9053 the settled write happens on the
+// first run; the cap-attempt write below pins the same shape for a pass that
+// reaches the cap directly.
 func TestSecurityAlertReconciliationSettledProducerIsNotAGiveUp(t *testing.T) {
 	t.Parallel()
 
 	readiness := &stubImpactProducerReadiness{state: securityalert.ImpactProducerState{Succeeded: 1, Total: 1}}
 	var logs bytes.Buffer
 	handler, writer := pendingImpactFenceHandler(readiness, &logs)
-
-	_, err := handler.Handle(context.Background(), impactFenceIntent(1))
-	if got, want := impactFenceFailureClass(err), "security_alert_reconciliation_waiting_for_impact"; got != want {
-		t.Fatalf("attempt 1 with a settled producer: failure class = %q, want counting %q (retry skipping is out of scope)", got, want)
-	}
 
 	result, err := handler.Handle(context.Background(), impactFenceIntent(3))
 	if err != nil {

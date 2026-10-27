@@ -12,9 +12,10 @@ no-match (the impact work succeeded and found nothing) reads apart from it.
 ## Counter
 
 `eshu_dp_security_alert_reconciliation_impact_wait_total` counts one decision
-per reconciliation pass that deferred without spending an attempt or wrote at
-the handler cap; passes on the counting wait below the cap record nothing
-here. Every label is a closed set:
+per reconciliation pass that deferred without spending an attempt, wrote at
+the handler cap, or wrote a settled genuine no-match on an earlier pass;
+passes on the counting wait below the cap record nothing here. Every label is
+a closed set:
 
 | Label | Values |
 | --- | --- |
@@ -26,7 +27,7 @@ here. Every label is a closed set:
 | `deferred_in_flight` | The same scope generation's `supply_chain_impact` work is pending, retrying, claimed, or running, and its newest sign of life (claim, retry schedule, or lease heartbeat) is under 30 minutes old. The pass deferred with `failure_class=security_alert_reconciliation_impact_not_ready` and wrote nothing. | No: the queue keeps `attempt_count` for that class. |
 | `gave_up_unmatched` | The handler reached its cap of 3 attempts with no impact work in flight and the work did not all succeed: it dead-lettered, failed, was superseded, was never enqueued, or the fence is not wired. It wrote `unmatched` decisions marked `impact_wait_outcome=gave_up_unmatched`. | n/a, the attempt records `succeeded` |
 | `gave_up_bound_exceeded` | The handler reached its cap while impact work was in flight but had shown no sign of life for 30 minutes, and wrote `unmatched` decisions marked `impact_wait_outcome=gave_up_bound_exceeded`. | n/a |
-| `producer_settled` | The handler reached its cap after every `supply_chain_impact` work item of the same scope generation succeeded with no finding that matches. It wrote `unmatched` decisions with no `impact_wait_outcome`: a genuine no-match, not a give-up. | n/a, the attempt records `succeeded` |
+| `producer_settled` | Every `supply_chain_impact` work item of the same scope generation succeeded with no finding that matches, so the answer is already final. The handler skips its counting defers and writes `unmatched` decisions with no `impact_wait_outcome` on the first run: a genuine no-match, not a give-up. | n/a, the attempt records `succeeded` |
 
 It never carries a scope id or a generation id; those are on the logs.
 
@@ -58,12 +59,13 @@ unchanged. Rows written by a binary from before #8956, including rows written
 during a rolling deploy, carry no field and are not reclassified. For such a
 generation an untagged `unmatched` row is not proof of a genuine no-match.
 
-The handler reads settlement before it loads any evidence, on the attempt
-where it can write at its cap. A settled reading then means every impact
+The handler reads settlement before it loads any evidence, on every attempt
+of an impact-producing pass. A settled reading then means every impact
 finding committed before the load, because the impact writer commits its
 findings inside its handler and the queue acks `succeeded` only afterwards. A
 finding that lands after that reading defers the pass instead of reading as
-absent. That attempt pays the one probe even when nothing waits on impact.
+absent. Every impact-producing pass pays the one probe even when nothing
+waits on impact; the pass performs no second probe.
 
 ## What to do
 

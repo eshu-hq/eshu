@@ -254,10 +254,12 @@ func TestSecurityAlertReconciliationProbeErrorIsCountingAndNeverAWait(t *testing
 	}
 }
 
-// TestSecurityAlertReconciliationSkipsTheProbeWhenNothingIsPending proves the
-// fence is only consulted for the pending-impact shape, so a reconciliation
-// with nothing to wait for pays no extra query.
-func TestSecurityAlertReconciliationSkipsTheProbeWhenNothingIsPending(t *testing.T) {
+// TestSecurityAlertReconciliationProbesOncePerImpactProducingPass proves the
+// fence costs exactly one early probe per impact-producing pass (#9053 reads
+// settlement before the load on every attempt, so even a pass with nothing
+// waiting on impact pays the probe), and no probe at all when the intent
+// cannot produce impact evidence.
+func TestSecurityAlertReconciliationProbesOncePerImpactProducingPass(t *testing.T) {
 	t.Parallel()
 
 	readiness := &stubImpactProducerReadiness{}
@@ -267,8 +269,21 @@ func TestSecurityAlertReconciliationSkipsTheProbeWhenNothingIsPending(t *testing
 	if _, err := handler.Handle(context.Background(), impactFenceIntent(1)); err != nil {
 		t.Fatalf("Handle() error = %v, want a clean write with no alerts", err)
 	}
-	if readiness.calls != 0 {
-		t.Fatalf("readiness probes = %d, want 0 when no decision is waiting on impact", readiness.calls)
+	if readiness.calls != 1 {
+		t.Fatalf("readiness probes = %d, want exactly 1 early probe per impact-producing pass", readiness.calls)
+	}
+
+	idle := &stubImpactProducerReadiness{}
+	idleHandler, _ := pendingImpactFenceHandler(idle, nil)
+	idleHandler.FactLoader = &recordingSecurityAlertReconciliationFactLoader{}
+	idleIntent := impactFenceIntent(1)
+	idleIntent.SourceSystem = "unrelated"
+	idleIntent.Cause = "unrelated evidence observed"
+	if _, err := idleHandler.Handle(context.Background(), idleIntent); err != nil {
+		t.Fatalf("Handle() error = %v, want a clean write for a non-impact-producing intent", err)
+	}
+	if idle.calls != 0 {
+		t.Fatalf("readiness probes = %d, want 0 when the intent cannot produce impact evidence", idle.calls)
 	}
 }
 

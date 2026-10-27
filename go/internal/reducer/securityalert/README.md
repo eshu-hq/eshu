@@ -124,11 +124,12 @@ a counting attempt, and give up at attempt 3 before impact existed.
 - in flight and under `crossscope.ProducerReadinessMaxWait` (30 minutes, from
   the newest row's last-workable time): return `ImpactNotReadyFailureClass`,
   which the queue exempts from the retry budget;
+- with a settled producer (`ImpactProducerState.Settled`: at least
+  one impact row and every one succeeded): write `unmatched` with no give-up,
+  record `producer_settled`, log INFO, on the first run. That is a genuine
+  no-match, and the counting defers are skipped (#9053, was #8956 at the cap);
 - otherwise, below the handler cap of 3 attempts: the counting
   `security_alert_reconciliation_waiting_for_impact` wait;
-- at the cap with a settled producer (`ImpactProducerState.Settled`: at least
-  one impact row and every one succeeded): write `unmatched` with no give-up,
-  record `producer_settled`, log INFO. That is a genuine no-match (#8956);
 - at the cap otherwise: write `unmatched`, record `gave_up_unmatched` or
   `gave_up_bound_exceeded`, log WARN, set `sub_signal_impact_wait_gave_up`, and
   pass the outcome on `SecurityAlertReconciliationWrite.ImpactWaitOutcome`. The
@@ -137,11 +138,37 @@ a counting attempt, and give up at attempt 3 before impact existed.
   `PersistedImpactWaitOutcomes`; with no give-up the payload bytes are the
   pre-#8956 bytes (`TestSecurityAlertReconciliationWriterKeepsTheGenuineNoMatchPayload`).
 
-On the cap attempt `probeImpactProducerBeforeLoad` reads the producer state
-before any evidence loads, and `resolveImpactWait` decides with that one
-reading. Read after the load, a finding that committed and acked in between
-would be missing from the decisions while the probe read settled
-(`TestSecurityAlertReconciliationReadsSettlementBeforeTheEvidenceLoad`).
+On every attempt of an impact-producing pass `probeImpactProducerBeforeLoad`
+reads the producer state before any evidence loads, and `resolveImpactWait`
+decides with that one reading. Read after the load, a finding that committed
+and acked in between would be missing from the decisions while the probe read
+settled (`TestSecurityAlertReconciliationReadsSettlementBeforeTheEvidenceLoad`).
+Every impact-producing pass pays that one probe even when nothing waits on
+impact; only a pass whose intent cannot produce impact evidence skips it
+(`TestSecurityAlertReconciliationProbesOncePerImpactProducingPass`).
+
+No-Regression Evidence (#9053): no SQL, index, or queue state machine
+changed — the lane reuses the shipped claim/fail/ack statements and the
+existing indexed `ImpactStore` aggregate, adding one read-only probe per
+impact-producing pass and removing up to two queue cycles (claim, counting
+fail, backoff) for settled producers. Baseline: a settled producer spent
+attempts 1-2 on counting defers and wrote at the cap of 3. After: the
+real-queue convergence proof on disposable PostgreSQL 18 (full 255-migration
+bootstrap, one scope generation with one reconciliation and one impact row)
+shows both directions — a succeeded impact row finishes the reconciliation in
+one claim, terminal `succeeded` at `attempt_count=1` with one `unmatched`
+write carrying no `impact_wait_outcome`; a pending producer holds the
+reconciliation at `attempt_count=1` across repeated non-counting defers and
+the next claim after the producer acks matches at attempt 1
+(`TestReducerContentionGateSecurityAlertReconciliationSettledSkipsTheWait`,
+`TestReducerContentionGateSecurityAlertReconciliationLateProducerKeepsItsWait`).
+
+Observability Evidence (#9053): no new metric or log key — the first-run
+settled write records the existing
+`eshu_dp_security_alert_reconciliation_impact_wait_total{outcome="producer_settled"}`
+at INFO with `attempt_count`, and the counting path below the cap still
+records nothing. The coverage row and the impact-wait reference name the
+first-run behavior.
 
 The non-counting class freezes `attempt_count`, so the in-flight wait is
 bounded by ELAPSED TIME only; never compare the attempt count to bound it. A

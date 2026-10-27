@@ -329,6 +329,11 @@ tests:
     class: postgres_ci
     reason: "#8827 disposable PostgreSQL 18 proof, on the real ReducerQueue claim/fail/ack SQL, the real readiness/producer.ImpactStore, and the real SecurityAlertReconciliationHandler, that a reconciliation waiting on its own scope generation's supply_chain_impact work keeps attempt_count frozen at 1 through more cycles than MaxAttempts and past the handler's own cap, is fenced while the producer is claimed, matches once the producer acks, and that without the fence or after the producer dead-letters it still gives up visibly after three counting attempts; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 3s on postgres:18; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_security_alert_settled_skip_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9053 disposable PostgreSQL 18 proof, on the real ReducerQueue claim/fail/ack SQL, the real readiness/producer.ImpactStore, and the real SecurityAlertReconciliationHandler, that a reconciliation whose same-generation supply_chain_impact work already succeeded writes its genuine no-match on the first attempt (one claim, terminal succeeded at attempt 1, no impact_wait_outcome), and that a reconciliation whose producer finishes late still waits without spending an attempt and matches once the finding lands; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 3s on postgres:18; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_bound_live_test.go
     tag: ~
     class: postgres_ci
