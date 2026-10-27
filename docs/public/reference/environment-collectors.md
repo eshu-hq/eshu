@@ -412,8 +412,10 @@ configured name. Configuring `maven` also derives targets from Gradle
 dependencies, because Gradle declares Maven `group:artifact` coordinates and OSV
 publishes their advisories under Maven. Configuring `go` also covers the older
 `gomod`, `go-module`, and `go_module` spellings. Aliases follow the same
-exact-version rule as the configured ecosystem, and a package and version that
-Gradle and Maven manifests both declare produces one target. `gradle` is not a
+exact-version rule as the configured ecosystem, which skips unresolved
+versions such as `${version}`, `$version`, `latest.release`, `1.0!!`, and
+`1.0@jar`. A package and version that Gradle and Maven manifests both declare
+produces one target. `gradle` is not a
 valid value for `ecosystems`; validation rejects it with `unsupported
 ecosystem`, so a configuration cannot select Gradle without Maven. Skipped
 Gradle dependencies are counted under `maven` in the derived-target skip

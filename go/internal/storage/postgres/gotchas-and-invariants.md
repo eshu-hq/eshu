@@ -378,8 +378,10 @@ instead of 12,722, 2,583 of them Gradle-only pairs. The `CASE` fold alone,
 measured on the same maven-only filter, costs about 5 ms (134.1, 136.9, 140.8
 ms against 126 to 136 ms). Go, Maven, npm, and PyPI together, before and after:
 594.6, 606.2, 602.1 ms and 681.9, 683.9, 702.9 ms (+14%).
-The alias-off query is byte-identical to the previous query, and the ranked order
-of every pre-existing target is unchanged.
+The alias-off query is byte-identical to the previous query, and the relative
+order of every pre-existing target is unchanged. Absolute ranks shift once when
+Gradle-only pairs join the ranked list, so the first rotation window after
+deploy covers a different slice.
 
 Observability Evidence: no new signal. The derivation reports skipped targets
 by reason and ecosystem through the existing derived-target skip evidence; a

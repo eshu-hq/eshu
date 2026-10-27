@@ -18,6 +18,12 @@ import (
 // Gradle declares Maven coordinates (group:artifact), and OSV publishes their
 // advisories under the Maven ecosystem. The Go module spellings come from
 // older normalized rows; the go.mod parser itself emits "go".
+//
+// This table is separate from packageidentity.NormalizeEcosystem and
+// packageidentity.ManifestPackageManagersForEcosystem on purpose: OSV names the
+// Go ecosystem "go" where packageidentity uses "gomod", and sbt must not be
+// aliased to maven because its unsuffixed coordinates are not published
+// artifact names (see packageidentity/sbt.go). Change the tables together.
 var ownedPackageManagerAliasTargets = map[string]string{
 	"gradle":    "maven",
 	"gomod":     "go",
