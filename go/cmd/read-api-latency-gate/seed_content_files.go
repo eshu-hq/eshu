@@ -60,6 +60,9 @@ const (
 	SeedEntityRowCount = 300
 	// SeedEntityType is the entity_type of the gate entity rows.
 	SeedEntityType = "GateSeedEntity"
+	// Keep search repositories before seed-infra repositories in the
+	// unscoped entity search's ordered first window.
+	seedSearchRepoPrefix = "seed-gate-search-"
 )
 
 // SeedStoryRelatedID returns the repository id of related repository i.
@@ -69,7 +72,7 @@ func SeedStoryRelatedID(i int) string {
 
 // SeedSearchRepoID returns the repository id of search repository i.
 func SeedSearchRepoID(i int) string {
-	return fmt.Sprintf("seed-search-%02d", i)
+	return fmt.Sprintf(seedSearchRepoPrefix+"%02d", i)
 }
 
 // contentFileColumns is the content_files column list contentFileCopyRows
@@ -312,8 +315,8 @@ func SeedContentFiles(ctx context.Context, pool *pgxpool.Pool, now time.Time) er
 // content_files table holds.
 func ExpectedContentFileCounts() map[string]int {
 	return map[string]int{
-		"seed-story-":  len(BuildStoryContentRows()),
-		"seed-search-": len(BuildSearchContentRows()),
+		"seed-story-":        len(BuildStoryContentRows()),
+		seedSearchRepoPrefix: len(BuildSearchContentRows()),
 	}
 }
 

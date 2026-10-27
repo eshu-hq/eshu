@@ -30,7 +30,7 @@ func seededStoryResponse() map[string]any {
 func seededSearchEnvelope(rows int) map[string]any {
 	results := make([]any, 0, rows)
 	for i := 0; i < rows; i++ {
-		results = append(results, map[string]any{"repo_id": "seed-search-00"})
+		results = append(results, map[string]any{"repo_id": "seed-gate-search-00"})
 	}
 	return map[string]any{
 		"jsonrpc": "2.0",
