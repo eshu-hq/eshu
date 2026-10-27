@@ -1,0 +1,30 @@
+docs/public/reference/env-registry.md
+  h_78a442cba0b3e6 18
+docs/public/reference/env-registry/collectors-signals.md
+  h_78a442cba0b3e6 5
+go/internal/envregistry/pages.go
+  h_78a442cba0b3e6 95,99
+go/internal/facts/observability.go
+  h_78a442cba0b3e6 167
+go/internal/telemetry/compat_observability.go
+  h_78a442cba0b3e6 35-36
+specs/fact-kind-registry-contracts.d/families/observability.md
+  h_78a442cba0b3e6 17
+specs/fact-kind-registry-contracts.d/families/observability.yaml
+  h_78a442cba0b3e6 62-63,66,68
+specs/fact-kind-registry-contracts.d/kinds/observability/observability.coverage_warning.yaml
+  h_78a442cba0b3e6 11
+specs/fact-kind-registry-contracts.d/kinds/observability/observability.source_instance.yaml
+  h_78a442cba0b3e6 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5873b15e9fe98b0fe9d3e1065c6e872a7735e6b1",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
