@@ -129,3 +129,17 @@ worker, lease, batch, or graph-write path changes.
 No-Observability-Change: no metric, span, or log key is added. A rejected file
 fails its parse through the existing error path, and the git collector already
 records it in the parse-file status metric as `skipped`.
+
+Benchmark Evidence (#8991 guard limits): over-limit documents stop within
+one entry past the 25,000,000 budget (`TestCheckBoundsStopsEarly` asserts
+work in (25,000,000, 25,010,001]); the 7,069-admitted / 7,070-rejected
+boundary holds 24,995,986 at the edge. Race-detector runs use 12,000-entry
+hostile shapes with at least 2.88x margin over the limit: full nesting
+package green under `-race` in 302 s, standard suite green in 78 s, legal
+50,000-package lockfiles scanning in 0.08 s total
+(`go test -count=1 -v -run TestCheckBoundsAcceptsLegalDocuments
+./internal/parser/shared/toml/nesting/`). Backend go-toml v2.3.1,
+linux/arm64 shared host.
+
+No-Observability-Change (#8991 reaffirmed): this change adds no new metric,
+span, log, or knob; rejections flow through the existing parse-failure path.
