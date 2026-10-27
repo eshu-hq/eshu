@@ -4,7 +4,7 @@
 
 Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass. Exempt rows carry the audited reason that a proof class does not apply. The inventory check itself is credential-free and Docker-free; backend-required scenarios run in their named proof gates. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 458/458 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 456/456 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -20,18 +20,18 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 64 | 64 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 100 | 100 | 100.00% | 0 | 1 |
-| Collectors | 30 | 30 | 100.00% | 0 | 7 |
-| **Total** | **458** | **458** | **100.00%** | **0** | **10** |
+| Collectors | 28 | 28 | 100.00% | 0 | 7 |
+| **Total** | **456** | **456** | **100.00%** | **0** | **10** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 243 | 243 | 100.00% | 0 | 4 |
+| baseline | 242 | 242 | 100.00% | 0 | 4 |
 | cost | 30 | 30 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 165 | 165 | 100.00% | 0 | 1 |
-| fault | 15 | 15 | 100.00% | 0 | 4 |
+| fault | 14 | 14 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
 ## Language parser coverage
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.
 
-## Covered surfaces (458)
+## Covered surfaces (456)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |
 | --- | --- | --- | --- | --- |
@@ -484,8 +484,6 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `collector:git` | fault | exempt | — | Filesystem-native collector, not a credentialed upstream API. Git is already exercised end-to-end by the golden-corpus gate's 20-repo bootstrap-index corpus (sync -> discover -> parse -> emit), so a supply-chain-demo cassette would re-record a path the gate already replays from real fixtures. The fixture corpus is its replay scenario. |
 | `collector:grafana` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/grafana/supply-chain-demo.json` |
 | `collector:grafana` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:loki` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/loki/supply-chain-demo.json` |
-| `collector:loki` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:oci_registry` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/ociregistry/supply-chain-demo.json` |
 | `collector:oci_registry` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:package_registry` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/packageregistry/supply-chain-demo.json` |
