@@ -98,10 +98,17 @@ legacy metadata, stale or partial snapshots, and an in-place selector change
 leave target collection incomplete. Malformed CVE elements and duplicate
 scope IDs fail the readiness lookup closed.
 
-Performance Evidence: #9227 used disposable PostgreSQL 18.6 with 50 active
-collector instances, 10,000 configured targets, and 10,000 source-state rows.
-The prior selector-aware query took 14.795 ms warm with 200 relevant targets;
-it did not enforce committed selector-bound coverage. The full corrected query
+Performance Evidence: local run `9227-pg18-selector-coverage-20261027-1348`
+used disposable PostgreSQL 18.6 with 50 active collector instances, 10,000
+configured targets, and 10,000 source-state rows. Its raw local plans are
+`/tmp/eshu-9227-plan-{200,250,positive}-final-{1,2,3}.json` with summary log
+`/tmp/eshu-9227-actual-instancepath-final.log`; a one-off Go test harness
+issued `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` on the assembled
+`ListReadinessQuery` and was removed after proof. The timings below belong to
+the pre-rebase source tree later committed as `e2b49c3755` and carried without
+conflict into `624da17ad2`; they are not an exact-head rerun. Baseline source
+SHA `16fad519` took 14.795 ms warm with 200 relevant targets and did not
+enforce committed selector-bound coverage. The full corrected query
 with per-target element validation took 24.043/24.523/24.359 ms on the same
 empty-snapshot corpus. Moving the same fail-closed JSONPath checks to one
 validation pass per instance took 20.071/19.950/19.933 ms (630 shared hits,
