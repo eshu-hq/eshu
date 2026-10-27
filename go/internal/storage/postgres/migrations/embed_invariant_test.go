@@ -149,6 +149,8 @@ import (
 // stale-claim reap index; DDL half) and
 // 239_incident_freshness_claim_lease_backfill.sql (the claimed-row backfill;
 // DML half, #7961 split).
+// #9227 adds 238_vulnerability_source_state_packages.sql: the package keys a
+// derived vulnerability source target queried, joined by readiness.
 const goldenBootstrapDefinitionsDigest = "0835a7054f93082fdf1c650519bc36b7922762cf4bf4b828e4b80e856d59ce9a"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the

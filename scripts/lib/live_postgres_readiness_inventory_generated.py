@@ -30,8 +30,9 @@ from live_postgres_readiness_inventory_gen_internal_storage_postgres_poison impo
 from live_postgres_readiness_inventory_gen_internal_storage_postgres_retention_work_items import TABLE as _TABLE_22
 from live_postgres_readiness_inventory_gen_internal_storage_postgres_search_index_retention import TABLE as _TABLE_23
 from live_postgres_readiness_inventory_gen_internal_storage_postgres_status_summary import TABLE as _TABLE_24
-from live_postgres_readiness_inventory_gen_internal_storage_postgres_webhook import TABLE as _TABLE_25
-from live_postgres_readiness_inventory_gen_internal_storage_postgres_webhook_actions import TABLE as _TABLE_26
+from live_postgres_readiness_inventory_gen_internal_storage_postgres_vulnerability import TABLE as _TABLE_25
+from live_postgres_readiness_inventory_gen_internal_storage_postgres_webhook import TABLE as _TABLE_26
+from live_postgres_readiness_inventory_gen_internal_storage_postgres_webhook_actions import TABLE as _TABLE_27
 
 
 PACKAGES = {}
@@ -63,6 +64,7 @@ for _table in (
     _TABLE_24,
     _TABLE_25,
     _TABLE_26,
+    _TABLE_27,
 ):
     for _package, _files in _table.items():
         PACKAGES.setdefault(_package, {}).update(_files)

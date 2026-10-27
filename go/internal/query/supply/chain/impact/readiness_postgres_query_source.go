@@ -256,7 +256,7 @@ unsupported_target AS (
         )::text AS unsupported_targets_json
     FROM unsupported_target_rows
 ),
-vulnerability_source_state_candidates AS (
+configured_vulnerability_source_state_candidates AS (
     SELECT
         target.collector_instance_id,
         target.scope_id,
@@ -321,6 +321,11 @@ vulnerability_source_state_candidates AS (
         ) AS snapshot
     ) AS committed
 ),
+vulnerability_source_state_candidates AS (
+    SELECT *, NULL::jsonb AS derived_detail FROM configured_vulnerability_source_state_candidates
+    UNION ALL
+    SELECT * FROM derived_vulnerability_source_state_candidates
+),
 vulnerability_source_state AS (
     SELECT
         'vulnerability.source_state' AS family,
@@ -354,7 +359,7 @@ vulnerability_source_state AS (
                 'coverage_eligible', coverage_eligible,
                 'coverage_zero', coverage_zero,
                 'updated_at', TO_CHAR(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
-            ))) FILTER (WHERE scope_id IS NOT NULL),
+            )) || COALESCE(derived_detail, '{}'::jsonb)) FILTER (WHERE scope_id IS NOT NULL),
             '[]'::jsonb
         )::text AS source_states_json,
         NULL::text AS unsupported_targets_json

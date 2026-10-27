@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
@@ -431,8 +432,8 @@ func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testin
 		context.Background(),
 		impact.ReadinessQuery{RepositoryID: "repository:scan-tier-args"},
 	)
-	if len(db.args) != 20 {
-		t.Fatalf("QueryContext args = %d, want 20 (8 fact-kind arrays + 6 scalars + 2 scan-tier arrays + 3 target arrays + target flag)", len(db.args))
+	if len(db.args) != 25 {
+		t.Fatalf("QueryContext args = %d, want 25 (8 fact-kind arrays + 6 scalars + 2 scan-tier arrays + 3 target arrays + target flag + key package ids + freshness cutoff + 3 ecosystem alias arrays)", len(db.args))
 	}
 	osPackageKinds, ok := db.args[14].(*array.StringArray)
 	if !ok {
@@ -459,5 +460,20 @@ func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testin
 	}
 	if targetResolved, ok := db.args[19].(bool); !ok || targetResolved {
 		t.Fatalf("args[19] = %#v (%T), want false repository-only target flag", db.args[19], db.args[19])
+	}
+	// #9227 F7: the derived source-state join binds per-key package ids (empty
+	// for a repository-only read, which takes keys in SQL), the freshness
+	// cutoff, and the ecosystem alias table.
+	if values, ok := db.args[20].(*array.StringArray); !ok || len(*values) != 0 {
+		t.Fatalf("args[20] = %#v (%T), want empty key package-id array", db.args[20], db.args[20])
+	}
+	if _, ok := db.args[21].(time.Time); !ok {
+		t.Fatalf("args[21] = %#v (%T), want the freshness cutoff time", db.args[21], db.args[21])
+	}
+	for _, index := range []int{22, 23, 24} {
+		values, ok := db.args[index].(*array.StringArray)
+		if !ok || len(*values) == 0 {
+			t.Fatalf("args[%d] = %#v (%T), want a non-empty ecosystem alias array", index, db.args[index], db.args[index])
+		}
 	}
 }

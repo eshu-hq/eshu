@@ -106,7 +106,47 @@ collection window is reported, not aged. Malformed CVE elements and duplicate
 scope IDs fail the readiness lookup closed, and the findings and explain
 handlers log the fail-closed cause.
 
-Performance Evidence: the #9227 F1/F5 change (covered no longer requires
+Derived owned-package OSV scopes (#9227 F7) never reach readiness by scope-id
+parsing. The collector writes each derived scope's package identities to
+`vulnerability_source_state_packages` (canonical `packageidentity` ecosystem,
+every consumption-key candidate) in the same statement as its source-state
+upsert. `readinessDerivedSourceStateCTE` joins the request's keys to that table
+by equality: package, CVE, and image requests use the resolved target keys,
+and a repository-only request takes keys from the active consumption facts.
+Per (instance, source, ecosystem, requested package) the newest state wins,
+the distinct winners are aged by the read cutoff, and one aggregate
+`SourceState` row (`Derived`, `derived://<source>/<ecosystem>`) reports the
+worst state and the counts. A requested package with no matching scope makes
+the row pending, so an enabled derived ecosystem with no coverage reads
+`osv:pending`. Configured targets keep one row per scope. The 200-row bound
+counts configured scopes plus aggregate rows. Known limitations: packages the
+planner skipped read as pending (follow-up under #9209); a state written
+before the key table existed matches nothing until its scope is collected
+again, with no backfill; Swift keys are not proven; OS-distribution derived
+scopes are not joined.
+
+Performance Evidence: the #9227 F7 derived-scope join was measured with a
+scratch harness that ran `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` on the
+assembled `ListReadinessQuery` with production arguments, alternating the
+pre-F7 SQL (`98e8b15af9`) and the new SQL in one repeatable-read transaction,
+nine warm samples each, on disposable PostgreSQL 18.6. Fixture: 50 instances
+with 10,000 configured NVD targets and states (200 selecting the CVE), plus
+either 25,000 single-package derived npm scopes or 250 batch scopes of 100
+keys each. New plans read the key table and the states primary key by index
+only, with no states sequential scan, zero reads, and zero temp blocks.
+Medians, old to new: a package request on single scopes 132.185 ms to
+14.984 ms (shared hits 1,515 to 98), a 10-package CVE 163.867 ms to
+27.108 ms, a 300-package repository 133.166 ms to 28.963 ms; on batch scopes
+24.234 ms to 18.677 ms, 29.856 ms to 24.010 ms, and 25.246 ms to 32.693 ms.
+The batch repository read costs more because the old SQL refused it
+(250 relevant scopes exceeded the bound) while the new SQL answers it. A
+CVE-only configured read stayed level: 31.395 ms to 31.292 ms with 25,000
+keys present, and 27.082 ms to 28.432 ms with none. The host's one-minute
+load average was 12-14 on 18 cores; these are plan-shape and relative
+figures, not a deployed latency claim. The derived-key write adds about 4.5 ms to a
+100-key upsert in a SQL shim.
+
+Earlier Performance Evidence: the #9227 F1/F5 change (covered no longer requires
 `result_count = 0`, a per-target `coverage_zero` aggregate replaces the
 `EXISTS`, and CVE selectors compare in upper case) was measured with a
 scratch harness that wraps the read transaction and runs `EXPLAIN (ANALYZE,
@@ -129,7 +169,10 @@ figures in this paragraph's history (baseline `16fad519` 14.795 ms; corrected
 query 19.933-22.691 ms) were quiet-host runs of the pre-F1 SQL.
 
 Observability Evidence: `source_states[]` reports collector health and
-`source_snapshots[]` reports committed source health; when no current NVD
+`source_snapshots[]` reports committed source health; a derived aggregate row
+names its worst scopes in `scope_ids` and its uncovered packages in
+`unmatched_package_count`, so an operator can find the scope behind
+`osv:failed` or `osv:pending`; when no current NVD
 snapshot qualifies for absence coverage, `readiness_state=target_incomplete`
 and `incomplete_reasons[]=nvd:committed_snapshot_missing` identify the gap
 without exposing the descriptor, endpoint URL, or API key. A fail-closed read

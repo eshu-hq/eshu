@@ -75,6 +75,18 @@ TABLE = {
             "TestSupplyChainImpactReadinessCommittedCoverageEdgesLive",
             "TestSupplyChainImpactReadinessRolledBackGenerationCannotCertifyZeroLive",
         ),
+        "go/internal/query/readiness_derived_source_keys_live_test.go": (
+            "TestSupplyChainImpactReadinessDerivedRepositoryAcrossBatchScopesLive",
+            "TestSupplyChainImpactReadinessDerivedKeyNormalizationLive",
+            "TestSupplyChainImpactReadinessDerivedLegacyStateWithoutKeysLive",
+            "TestSupplyChainImpactReadinessDerivedCVEAffectedPackagesDoNotOverflowLive",
+        ),
+        "go/internal/query/readiness_derived_source_live_test.go": (
+            "TestSupplyChainImpactReadinessDerivedUnrelatedScopesDoNotOverflowLive",
+            "TestSupplyChainImpactReadinessDerivedMissingScopeReadsPendingLive",
+            "TestSupplyChainImpactReadinessDerivedNewestStateWinsLive",
+            "TestSupplyChainImpactReadinessConfiguredOSVOverflowStillRefusesLive",
+        ),
         "go/internal/query/readiness_known_cve_coverage_live_test.go": (
             "TestSupplyChainImpactReadinessKnownCVECoverageLive",
             "TestSupplyChainImpactReadinessStaticWindowStaysHealthOnlyLive",

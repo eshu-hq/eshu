@@ -144,29 +144,12 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 	return snapshot, nil
 }
 
-func (q ReadinessQuery) needsTargetResolution() bool {
-	return strings.TrimSpace(q.CVEID) != "" ||
-		strings.TrimSpace(q.PackageID) != "" ||
-		strings.TrimSpace(q.SubjectDigest) != "" ||
-		strings.TrimSpace(q.ImageRef) != ""
-}
-
-func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
-	ctx context.Context,
-	database db.Queryer,
-	query ReadinessQuery,
-	target readinessTarget,
-) (ReadinessSnapshot, error) {
-	window := s.FreshnessWindow
-	if window <= 0 {
-		window = supplyChainImpactReadinessFreshnessWindow
-	}
-	freshnessCutoff := time.Now().UTC().Add(-window)
+// readinessQueryArguments returns the ListReadinessQuery parameters in
+// placeholder order ($1..$25) for one request and its resolved target.
+func readinessQueryArguments(query ReadinessQuery, target readinessTarget, freshnessCutoff time.Time) []any {
 	targetEcosystems, targetPackageNames, targetPackageIDs, targetResolved := readinessTargetArguments(target, query)
-
-	rows, err := database.QueryContext(
-		ctx,
-		ListReadinessQuery,
+	aliasSpellings, aliasCanonicals, aliasDerivation := readinessEcosystemAliases()
+	return []any{
 		array.Of(vulnerabilityAdvisoryFactKinds),
 		array.Of(vulnerabilityExploitabilityFactKinds),
 		array.Of(packageConsumptionCorrelationFactKinds),
@@ -187,7 +170,33 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 		array.Of(targetPackageNames),
 		array.Of(targetPackageIDs),
 		targetResolved,
-	)
+		array.Of(readinessTargetKeyPackageIDs(target)),
+		freshnessCutoff,
+		array.Of(aliasSpellings),
+		array.Of(aliasCanonicals),
+		array.Of(aliasDerivation),
+	}
+}
+
+func (q ReadinessQuery) needsTargetResolution() bool {
+	return strings.TrimSpace(q.CVEID) != "" ||
+		strings.TrimSpace(q.PackageID) != "" ||
+		strings.TrimSpace(q.SubjectDigest) != "" ||
+		strings.TrimSpace(q.ImageRef) != ""
+}
+
+func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
+	ctx context.Context,
+	database db.Queryer,
+	query ReadinessQuery,
+	target readinessTarget,
+) (ReadinessSnapshot, error) {
+	window := s.FreshnessWindow
+	if window <= 0 {
+		window = supplyChainImpactReadinessFreshnessWindow
+	}
+	freshnessCutoff := time.Now().UTC().Add(-window)
+	rows, err := database.QueryContext(ctx, ListReadinessQuery, readinessQueryArguments(query, target, freshnessCutoff)...)
 	if err != nil {
 		return ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
 	}
