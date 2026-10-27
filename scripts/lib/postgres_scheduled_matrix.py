@@ -85,6 +85,8 @@ def verify_aggregate_bundle(aggregate_steps: list[str]) -> None:
         raise ValueError("conditional hosted proof stream download")
     _, assembly_step = named_step(aggregate_steps, "Assemble hosted proof bundle")
     if not {
+        "        run: |",
+        '          python3 scripts/lib/postgres_scheduled_runner.py \\',
         '            --assemble-proof-streams "${RUNNER_TEMP}/proof-streams" \\',
         '            --output-proof-bundle "${RUNNER_TEMP}/proof-bundle"',
     }.issubset(set(assembly_step.splitlines())):

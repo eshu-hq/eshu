@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -45,6 +46,25 @@ def seed_artifact(root: Path, leg: str, run_id: str, attempt: int,
 
 class ScheduledRerunTest(unittest.TestCase):
     """A partial rerun may reuse only same-run, same-head proof streams."""
+
+    def test_new_assembly_files_trigger_pr_proof(self) -> None:
+        paths = {
+            "scripts/lib/postgres_scheduled_artifacts.py",
+            "scripts/test-postgres-scheduled-rerun.py",
+        }
+        self.assertTrue(paths.issubset(MODULE.PR_PATHS))
+        fragment = (ROOT / MODULE.FRAGMENT).read_text(encoding="utf-8")
+        self.assertTrue(all(f"  - {path}\n" in fragment for path in paths))
+
+    def test_assembly_command_cannot_be_replaced_with_echo(self) -> None:
+        workflow = (ROOT / MODULE.WORKFLOW).read_text(encoding="utf-8")
+        aggregate = MODULE.job_blocks(workflow)["scheduled-aggregate"]
+        command = "          python3 scripts/lib/postgres_scheduled_runner.py \\"
+        self.assertIn(command, aggregate)
+        altered = aggregate.replace(command, "          echo assembly-skipped", 1)
+        steps = re.split(r"(?m)^      - name:", altered)
+        with self.assertRaisesRegex(ValueError, "assembly"):
+            MODULE.verify_aggregate_bundle(steps)
 
     def test_partial_rerun_selects_latest_leg_and_retains_sources(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
