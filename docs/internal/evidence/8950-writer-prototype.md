@@ -234,3 +234,29 @@ reference page's HOT-share query) plus
 `eshu_dp_content_file_upserts_total{outcome="metadata_only"}` for the rewrite
 share and `eshu_dp_content_file_write_conflict_retries_total` for retry rate.
 Production outcome share stays NOT_CHECKED: it needs a deployed metric window.
+
+## Gate markers
+
+Performance Evidence (#8950): backend disposable `postgres:18.6-bookworm` on
+this aarch64 box, `shared_buffers=1GB`, autovacuum ON, no `VACUUM FULL`.
+Corpus 30,050 rows (30,000 lognormal background + 50 findings-heavy at 469 KiB)
+in one repository, every replay a `FullSnapshot` `Write` through the real
+`ContentWriter` in 61 batches of 500. Baseline (fillfactor 100, dense):
+17.0% then 25.8% HOT, 747,782,240 then 691,304,352 bytes WAL per replay.
+After (fillfactor 50): 100.0% HOT on three consecutive replays, 77,416,664 /
+14,101,664 / 15,236,792 bytes WAL; total relation 320,217,088 to
+350,420,992 bytes (+9.4%, inside the +10% bar). Reads: language inventory
+1.678 ms to 1.700 ms (+1.3%), single fetch 93 us to 84 us (faster). Safe
+because migration 237 is catalog-only (no page rewrite, SHARE UPDATE
+EXCLUSIVE), unobserved writers and unclassified batches keep the single
+statement byte-identical, the guarded upsert stays the last-writer-wins
+fall-through, and the RED arm (indexed_at in SET) shows HOT 0.
+
+Observability Evidence (#8950): each retried batch counts
+`eshu_dp_content_file_write_conflict_retries_total` by `failure_class`
+(`deadlock`, `serialization_failure`) and logs
+`content_file_write.conflict_retry` at WARN with attempt, batch size, and
+class. Operators watch the reference page signals: HOT share of
+`content_files`, the `metadata_only` outcome share, and the retry rate; a
+sustained nonzero retry rate with failing writes behind it means the batch
+lock order needs investigation.
