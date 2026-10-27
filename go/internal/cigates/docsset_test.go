@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -204,6 +205,29 @@ func keys(set map[string]struct{}) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// TestLockstepPathsMatchManifest pins the Go denylist to the canonical
+// manifest: the only copy is specs/ci-docs-lockstep-paths.txt, everything
+// else derives from it.
+func TestLockstepPathsMatchManifest(t *testing.T) {
+	t.Parallel()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "ci-docs-lockstep-paths.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest []string
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		manifest = append(manifest, line)
+	}
+	if !slices.Equal(slices.Sorted(slices.Values(lockstepDocsPaths)), manifest) {
+		t.Fatalf("lockstepDocsPaths drifts from the manifest: go=%v manifest=%v",
+			slices.Sorted(slices.Values(lockstepDocsPaths)), manifest)
+	}
 }
 
 func TestTriggerMatchesChangedPathKeepsMixedPRsWhole(t *testing.T) {

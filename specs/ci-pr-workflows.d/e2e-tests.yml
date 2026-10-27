@@ -18,6 +18,7 @@ workflows:
   - deploy/**
   - scripts/verify_backend_conformance_live.sh
   - scripts/lib/nornic_conformance_events.py
+  - scripts/lib/nornic_conformance_runner.py
   - scripts/lib/nornic_conformance_inventory.json
   - scripts/test-nornic-conformance-events.py
   - scripts/lib/verify-live-tests-ledger.py

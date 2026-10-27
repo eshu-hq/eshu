@@ -456,6 +456,7 @@ if has_prepr_selector_parity "${tmp}/pre-pr"; then
 fi
 
 python3 "${repo_root}/scripts/test-replay-tier-enrollment.py"
+python3 "${repo_root}/scripts/test-replay-tier-carveout.py"
 python3 "${repo_root}/scripts/test-replay-tier-source-integrity.py"
 python3 "${repo_root}/scripts/test-replay-tier-ledger-policy.py"
 

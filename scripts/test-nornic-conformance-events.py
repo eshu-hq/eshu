@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -18,6 +19,8 @@ SPEC = importlib.util.spec_from_file_location("nornic_conformance_events", LIB)
 assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+sys.path.insert(0, str(LIB.parent))
+import nornic_conformance_runner as RUNNER_MODULE  # noqa: E402
 
 
 class NornicConformanceTest(unittest.TestCase):
@@ -52,7 +55,7 @@ class NornicConformanceTest(unittest.TestCase):
             ):
                 with self.subTest(old=old):
                     with self.assertRaises(ValueError):
-                        MODULE.verify_runner_text(script.replace(old, new, 1), inventory)
+                        RUNNER_MODULE.verify_runner_text(script.replace(old, new, 1), inventory)
 
             workflow = (root / MODULE.WORKFLOW).read_text()
             for old, new in (
@@ -72,14 +75,14 @@ class NornicConformanceTest(unittest.TestCase):
             ):
                 with self.subTest(old=old):
                     with self.assertRaises(ValueError):
-                        MODULE.verify_workflow_text(workflow.replace(old, new, 1))
+                        RUNNER_MODULE.verify_workflow_text(workflow.replace(old, new, 1))
 
     def test_runner_preamble_and_tail_are_bound(self) -> None:
         """Executable code outside the Nornic branch cannot bypass CORE."""
         root = Path(__file__).resolve().parent.parent
         runner = (root / MODULE.RUNNER).read_text(encoding="utf-8")
         inventory = MODULE.load_inventory()
-        MODULE.verify_runner_text(runner, inventory)
+        RUNNER_MODULE.verify_runner_text(runner, inventory)
         cd = 'cd "$REPO_ROOT/go"\n'
         core = "go test ./internal/backendconformance -run '^TestLiveBackendConformance$' -count=1 -v"
         for label, changed in (
@@ -93,7 +96,7 @@ class NornicConformanceTest(unittest.TestCase):
             with self.subTest(label=label):
                 self.assertNotEqual(changed, runner)
                 with self.assertRaises(ValueError):
-                    MODULE.verify_runner_text(changed, inventory)
+                    RUNNER_MODULE.verify_runner_text(changed, inventory)
 
     def test_active_metadata_routes_and_static_owner(self) -> None:
         """A source edit must select both hosted jobs and their local mirror."""
