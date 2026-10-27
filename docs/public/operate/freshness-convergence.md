@@ -43,7 +43,7 @@ one runtime or view all.
 
 | Panel | Metric | Reads as |
 | --- | --- | --- |
-| Oldest Outstanding Work Age | `eshu_runtime_queue_oldest_outstanding_age_seconds` | primary freshness signal; rising age means the pipeline is falling behind. Age runs from when the oldest outstanding fact work item last became outstanding (`COALESCE(reopened_at, created_at)`), so a reducer item reopened by a refresh pass starts at zero instead of showing days of age. |
+| Oldest Outstanding Work Age | `eshu_runtime_queue_oldest_outstanding_age_seconds` | primary freshness signal; rising age means the pipeline is falling behind. Age runs from `COALESCE(reopened_at, created_at)` of the oldest outstanding fact work item, so a reducer item reopened from `succeeded` by a refresh pass starts at zero instead of showing days of age. Items replayed from dead-letter or failed, swept by the poison sweep, or re-driven by the projector still age from creation (#9320). |
 | Queue State Breakdown | `eshu_runtime_queue_outstanding\|pending\|in_flight\|retrying\|dead_letter` | outstanding draining toward zero is convergence; sustained retrying or dead-letter is a stuck queue. |
 | Dead-Letter Items | `eshu_runtime_queue_dead_letter` | work that exhausted retries and will not converge without operator action. |
 | Data-Plane Queue Depth by Stage | `eshu_dp_queue_depth` by `queue`, `status` | which stage (fact, projector, reducer) owns the backlog. |

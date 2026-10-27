@@ -30,6 +30,7 @@ Surfaces on the one definition:
 | Admin status `queue.oldest_outstanding_age`, per-domain `oldest_age` | `domainBacklogCTEs`, `queueSnapshotTail` (`status_queries.go`) |
 | `eshu_runtime_queue_oldest_outstanding_age_seconds`, evidence bundle, local progress, `status.health` stall check | read `Report.Queue.OldestOutstandingAge`, fed by the same statement |
 | `eshu_dp_queue_oldest_age_seconds`, `eshu_dp_queue_source_oldest_age_seconds` | `queueOldestAgeQuery`, `sourceQueueOldestAgeQuery` (`queue_observer.go`) |
+| `eshu_dp_corpus_fence_oldest_deferred_age_seconds` | `corpusFenceGaugesQuery` (`corpus_fence_observer.go`); `TestQueueObserverStoreCorpusFenceCountsRunOnPostgres` seeds a row created 200 hours ago and reopened two hours ago and expects 7200 s (failed with 720000 s before the change) |
 
 The stored status summary row carries the statement's SHA-256 and falls back to
 the live read on a mismatch, so rows written by the previous binary are served
@@ -38,7 +39,8 @@ live until the periodic writer replaces them.
 ## Reopen paths
 
 Every reducer-stage writer that moves a `succeeded` row back to `pending`
-resets `reopened_at` with the reopen timestamp:
+resets `reopened_at` with the reopen timestamp (the activation wake does the
+same for the dead-lettered own-gate consumers it wakes):
 
 | Writer | How |
 | --- | --- |
@@ -49,13 +51,19 @@ resets `reopened_at` with the reopen timestamp:
 | activation wake | `relationship_store_resolved.go` |
 | cross-scope completion fanout | `scope/completion/fanout.go` |
 
-Not covered, by design of this change:
+Not covered, by design of this change (tracked in #9320, which carries the
+design constraint: stamp `reopened_at` only on a terminal-to-outstanding
+transition, because `reprojectReopenedCTE` also re-drives expired `claimed` and
+`running` rows, and stamping those would understate the age of a real stall):
 
 - Projector-stage reopens (`reprojectReopenedCTE`, the liveness re-drive, the
   refinalize reset, zombie heal) and failed or dead-letter replays
   (`projector_queue_sql.go` replay templates, the admin replay, the poison
-  sweep) do not set `reopened_at`. Setting it there would also hand those rows a
-  fresh readiness grace window, a behavior change the reducer claim path reads.
+  sweep, `RecoverDeadLettersQuery`) do not set `reopened_at`. Those rows still
+  age from `created_at`, so a replayed dead letter or a re-driven projector
+  generation can still show days of age. Setting it there would also hand those
+  rows a fresh readiness grace window, a behavior change the reducer claim path
+  reads, so it needs its own proof.
 - `shared_projection_intents` can be reopened (admin reopen and the refinalize
   reset both clear `completed_at`) but has no reopen marker column, so its age
   still starts at `created_at`. Fixing that needs a schema column.
