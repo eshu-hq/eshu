@@ -101,9 +101,10 @@ deleted package.
   (jira stanza removed; pagerduty stanza regenerates byte-identical).
 - `bash scripts/verify-replay-coverage-gate.sh` (advisory): report
   refreshed, 460/460 surfaces satisfied.
-- `bash scripts/test-golden-corpus-cassette-replay.sh`: PASS (mechanism
-  unchanged; the jira cassette now rides the `jira-cassette-replay`
-  alias through the pagerduty binary).
+- `bash scripts/lib/test-golden-corpus-cassette-replay.sh`: PASS
+  (`PASS: golden cassette replay helper`, exit 0 at this HEAD;
+  mechanism unchanged; the jira cassette now rides the
+  `jira-cassette-replay` alias through the pagerduty binary).
 - Moved-file-refs gate: clean (dated evidence and design references to the
   pre-extraction paths allowlisted in
   `scripts/moved-file-refs-allowlist.txt`).
