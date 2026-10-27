@@ -129,7 +129,10 @@ func dsResolve(root, file, raw string, fileDirOK bool) string {
 	}
 	for _, cand := range cands {
 		if st, err := os.Stat(cand); err == nil && !st.IsDir() {
-			return dsExactRel(root, cand)
+			// A case alias is not a match; a later candidate may still be exact.
+			if rel := dsExactRel(root, cand); rel != "" {
+				return rel
+			}
 		}
 	}
 	return ""
@@ -164,7 +167,9 @@ func dsChainResolve(root, file string, chain []string, literalFirst bool) string
 	for _, base := range dsChainBases(root, file, chain, literalFirst) {
 		cand := filepath.Join(append([]string{base}, chain...)...)
 		if st, err := os.Stat(cand); err == nil && !st.IsDir() {
-			return dsExactRel(root, cand)
+			if rel := dsExactRel(root, cand); rel != "" {
+				return rel
+			}
 		}
 	}
 	return ""
@@ -179,6 +184,9 @@ func dsChainDir(root, file string, chain []string, literalFirst bool) string {
 		cand := filepath.Join(append([]string{base}, chain...)...)
 		if st, err := os.Stat(cand); err == nil && st.IsDir() {
 			rel := dsExactRel(root, cand)
+			if rel == "" {
+				continue
+			}
 			if strings.HasPrefix(rel, "docs/") || strings.HasPrefix(rel, ".agents/") || strings.HasPrefix(rel, "skill-fragments/") || strings.HasPrefix(rel, "expected/") {
 				return ""
 			}

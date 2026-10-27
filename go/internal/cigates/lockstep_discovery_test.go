@@ -325,7 +325,7 @@ func dsScan(t *testing.T, root, goRoot string) (map[string]bool, map[string]bool
 					// members the same way.
 					unresolvableBare := bare && !dsSingleArg.MatchString(code) && chainDir == ""
 					if unresolvableBare {
-						if _, err := os.Stat(filepath.Join(root, raw)); err == nil || len(baseIndex[raw]) > 0 {
+						if dsExactRel(root, filepath.Join(root, raw)) != "" || len(baseIndex[raw]) > 0 {
 							r7add(fileRel, idx, raw, "bare path on a multi-arg read; resolve the caller-relative target")
 						}
 						continue
