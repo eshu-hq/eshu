@@ -258,47 +258,36 @@ unsupported_target AS (
 ),
 vulnerability_source_state_candidates AS (
     SELECT
-        collector_instance_id,
-        scope_id,
-        source,
-        ecosystem,
-        window_start,
-        window_end,
-        last_attempt_at,
-        last_success_at,
-        next_retry_at,
-        last_error_class,
-        freshness_state,
-        terminal_status,
-        result_count,
-        warning_count,
-        updated_at
-    FROM vulnerability_source_states AS state
-    WHERE EXISTS (
-        SELECT 1
-        FROM target_vulnerability_source_scopes AS target
-        WHERE (target.scope_id IS NOT NULL AND state.scope_id = target.scope_id)
-           OR (
-               target.scope_id IS NULL
-               AND target.source = state.source
-               AND target.ecosystem = NULLIF(LOWER(TRIM(state.ecosystem)), '')
-           )
-    )
-      -- #9420: only rows of a live collector instance count. A retired
-      -- instance's rows stop updating, so their last state would read as
-      -- current forever.
-      AND EXISTS (
-          SELECT 1
-          FROM collector_instances AS instance
-          WHERE instance.instance_id = state.collector_instance_id
-            AND instance.enabled
-            AND instance.deactivated_at IS NULL
-      )
-    ORDER BY CASE WHEN scope_id IN ($9, $10, $11, $12, $14) THEN 0 ELSE 1 END,
-        updated_at DESC,
-        source ASC,
-        scope_id ASC
-    LIMIT 200
+        target.collector_instance_id,
+        target.scope_id,
+        target.source,
+        COALESCE(state.ecosystem, target.ecosystem, '') AS ecosystem,
+        state.window_start,
+        state.window_end,
+        state.last_attempt_at,
+        state.last_success_at,
+        state.next_retry_at,
+        state.last_error_class,
+        COALESCE(state.freshness_state, 'pending') AS freshness_state,
+        COALESCE(state.terminal_status, 'pending') AS terminal_status,
+        COALESCE(state.result_count, 0) AS result_count,
+        COALESCE(state.warning_count, 0) AS warning_count,
+        state.updated_at,
+        target.coverage_eligible
+    FROM (
+        SELECT * FROM target_vulnerability_source_scopes
+        ORDER BY collector_instance_id, scope_id, source, ecosystem
+        LIMIT 200
+    ) AS target
+    -- Keep the 200-target limit ahead of keyed state reads. OFFSET 0 prevents
+    -- Postgres from flattening this lateral lookup into a full state scan.
+    LEFT JOIN LATERAL (
+        SELECT * FROM vulnerability_source_states AS state
+        WHERE state.collector_instance_id = target.collector_instance_id
+          AND state.scope_id = target.scope_id
+          AND state.source = target.source
+        OFFSET 0
+    ) AS state ON TRUE
 ),
 vulnerability_source_state AS (
     SELECT
@@ -330,12 +319,35 @@ vulnerability_source_state AS (
                 'terminal_status', terminal_status,
                 'result_count', result_count,
                 'warning_count', warning_count,
+                'coverage_eligible', coverage_eligible,
                 'updated_at', TO_CHAR(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
             ))) FILTER (WHERE scope_id IS NOT NULL),
             '[]'::jsonb
         )::text AS source_states_json,
         NULL::text AS unsupported_targets_json
     FROM vulnerability_source_state_candidates
+),
+vulnerability_source_state_invalid AS (
+    SELECT 'vulnerability.source_state_invalid' AS family,
+        0::int AS fact_count,
+        NULL::timestamptz AS latest_observed_at,
+        invalid AS target_incomplete,
+        NULL::text[] AS incomplete_reasons,
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json,
+        NULL::text AS unsupported_targets_json
+    FROM invalid_vulnerability_source_targets
+),
+vulnerability_source_state_overflow AS (
+    SELECT 'vulnerability.source_state_overflow' AS family,
+        0::int AS fact_count,
+        NULL::timestamptz AS latest_observed_at,
+        overflow AS target_incomplete,
+        NULL::text[] AS incomplete_reasons,
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json,
+        NULL::text AS unsupported_targets_json
+    FROM target_vulnerability_source_overflow
 ),
 os_package_active AS (
     -- vulnerability.os_package facts carry no image identity of their own

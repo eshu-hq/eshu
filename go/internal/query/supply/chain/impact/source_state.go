@@ -25,6 +25,7 @@ type SourceState struct {
 	ResultCount         int               `json:"result_count"`
 	WarningCount        int               `json:"warning_count"`
 	UpdatedAt           string            `json:"updated_at,omitempty"`
+	coverageEligible    bool
 }
 
 // SourceStateWindow is the bounded source collection window.
@@ -63,9 +64,21 @@ func normalizeSourceStates(states []SourceState) []SourceState {
 		if out[i].Ecosystem != out[j].Ecosystem {
 			return out[i].Ecosystem < out[j].Ecosystem
 		}
-		return out[i].ScopeID < out[j].ScopeID
+		if out[i].ScopeID != out[j].ScopeID {
+			return out[i].ScopeID < out[j].ScopeID
+		}
+		return out[i].CollectorInstanceID < out[j].CollectorInstanceID
 	})
 	return out
+}
+
+func sourceSnapshotsIncomplete(snapshots []SourceSnapshot) bool {
+	for _, snapshot := range snapshots {
+		if !snapshot.Complete || snapshot.Freshness == FreshnessLabelStale {
+			return true
+		}
+	}
+	return false
 }
 
 func sourceStatesIncomplete(states []SourceState) bool {
@@ -87,6 +100,21 @@ func sourceStateIncompleteReasons(states []SourceState) []string {
 		}
 	}
 	return reasons
+}
+
+func sourceStatesHaveCoveredSuccess(states []SourceState) bool {
+	covered := false
+	for _, state := range states {
+		if !state.coverageEligible || state.Source != "nvd" {
+			continue
+		}
+		if state.FreshnessState != "fresh" || state.TerminalStatus != "succeeded" ||
+			state.ResultCount != 0 || state.WarningCount != 0 {
+			return false
+		}
+		covered = true
+	}
+	return covered
 }
 
 func sourceStatesHaveFreshSuccess(states []SourceState) bool {

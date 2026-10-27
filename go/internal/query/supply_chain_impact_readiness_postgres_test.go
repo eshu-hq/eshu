@@ -64,8 +64,9 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		// per-package OSV rows cannot make unrelated readiness calls
 		// target_incomplete or grow response size without limit.
 		"vulnerability_source_state_candidates AS (",
-		"scope_id IN ($9, $10, $11, $12, $14)",
-		"ORDER BY CASE WHEN scope_id IN ($9, $10, $11, $12, $14) THEN 0 ELSE 1 END",
+		"FROM target_vulnerability_source_scopes",
+		"target.collector_instance_id = snapshot.payload->>'collector_instance_id'",
+		"state.collector_instance_id = target.collector_instance_id",
 		"LIMIT 200",
 		"FROM vulnerability_source_state_candidates",
 		// The unsupported target aggregation must surface the closed set of
@@ -264,12 +265,15 @@ func TestPostgresSupplyChainImpactReadinessScopesSourceFreshness(t *testing.T) {
 		"registry.payload->>'package_id' = $10",
 		"SELECT DISTINCT ecosystem\n    FROM target_consumption_keys",
 		"target_vulnerability_source_scopes AS (",
-		"'vuln-intel://nvd/cve' AS scope_id",
-		"'vuln-intel://cisa/kev' AS scope_id",
-		"'vuln-intel://first/epss' AS scope_id",
+		"FROM collector_instances AS instance",
+		"JSONB_ARRAY_ELEMENTS(",
+		"JSONB_TYPEOF(instance.configuration->'targets') = 'array'",
+		"TRIM(cve.id) = $9",
+		"selector.cve_selected",
+		"target_vulnerability_source_overflow AS (",
 		"FROM target_vulnerability_source_scopes AS target",
-		"target.ecosystem = NULLIF(LOWER(TRIM(snapshot.payload->>'ecosystem')), '')",
-		"target.ecosystem = NULLIF(LOWER(TRIM(state.ecosystem)), '')",
+		"target.collector_instance_id = snapshot.payload->>'collector_instance_id'",
+		"state.collector_instance_id = target.collector_instance_id",
 	} {
 		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
 			t.Fatalf("listSupplyChainImpactReadinessQuery missing scoped source freshness fragment %q:\n%s", want, listSupplyChainImpactReadinessQuery)

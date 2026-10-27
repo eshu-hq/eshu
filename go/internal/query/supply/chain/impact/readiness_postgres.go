@@ -220,7 +220,19 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 			if err != nil {
 				return ReadinessSnapshot{}, err
 			}
-			sourceSnapshots = append(sourceSnapshots, decodedSnapshots...)
+			sourceSnapshots = append(sourceSnapshots, ageSourceSnapshots(decodedSnapshots, freshnessCutoff)...)
+			continue
+		}
+		if family == sourceStateInvalidMarker {
+			if incompleteFlag.Valid && incompleteFlag.Bool {
+				return ReadinessSnapshot{}, fmt.Errorf("vulnerability source readiness has malformed active target configuration")
+			}
+			continue
+		}
+		if family == sourceStateOverflowMarker {
+			if incompleteFlag.Valid && incompleteFlag.Bool {
+				return ReadinessSnapshot{}, fmt.Errorf("vulnerability source readiness exceeds 200 relevant targets")
+			}
 			continue
 		}
 		if family == sourceStateFamilyMarker {
@@ -232,7 +244,7 @@ func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 			if err != nil {
 				return ReadinessSnapshot{}, err
 			}
-			sourceStates = append(sourceStates, decodedStates...)
+			sourceStates = append(sourceStates, ageSourceStates(decodedStates, freshnessCutoff)...)
 			continue
 		}
 		if family == unsupportedTargetFamilyMarker {

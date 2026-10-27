@@ -3,7 +3,10 @@
 
 package impact
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) {
 	t.Parallel()
@@ -26,6 +29,7 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 				LastSuccessAt:    "2026-05-24T19:00:00Z",
 				LastAttemptAt:    "2026-05-24T19:00:00Z",
 				CollectionWindow: SourceStateWindow{Start: "2026-05-23T19:00:00Z", End: "2026-05-24T19:00:00Z"},
+				coverageEligible: true,
 			},
 			wantState: ReadinessStateReadyZeroFindings,
 			wantFresh: "fresh",
@@ -132,5 +136,135 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 				t.Fatalf("incomplete_reasons = %#v, want %q", envelope.IncompleteReasons, tt.wantReason)
 			}
 		})
+	}
+}
+
+func TestRelevantSourcePendingWithAdvisoryFactsStaysIncomplete(t *testing.T) {
+	t.Parallel()
+	envelope := BuildReadiness(TargetScope{CVEID: "CVE-2026-0001"}, nil, false, ReadinessSnapshot{
+		EvidenceSources: []EvidenceFamily{{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh}},
+		SourceStates:    []SourceState{{CollectorInstanceID: "instance", ScopeID: "matching", Source: "nvd", FreshnessState: "pending", TerminalStatus: "pending"}},
+	})
+	if envelope.State != ReadinessStateTargetIncomplete {
+		t.Fatalf("state = %q, want target_incomplete for relevant pending source", envelope.State)
+	}
+}
+
+func TestRelevantIncompleteSnapshotWithAdvisoryFactsStaysIncomplete(t *testing.T) {
+	t.Parallel()
+	envelope := BuildReadiness(TargetScope{CVEID: "CVE-2026-0001"}, nil, false, ReadinessSnapshot{
+		EvidenceSources:  []EvidenceFamily{{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh}},
+		SourceSnapshots:  []SourceSnapshot{{Source: "nvd", Complete: false}},
+		TargetIncomplete: true,
+	})
+	if envelope.State != ReadinessStateTargetIncomplete {
+		t.Fatalf("state = %q, want target_incomplete for relevant incomplete snapshot", envelope.State)
+	}
+}
+
+func TestStaleSnapshotWithAdvisoryFactsStaysIncomplete(t *testing.T) {
+	t.Parallel()
+	envelope := BuildReadiness(TargetScope{CVEID: "CVE-2026-0001"}, nil, false, ReadinessSnapshot{
+		EvidenceSources: []EvidenceFamily{{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh}},
+		SourceSnapshots: []SourceSnapshot{{Source: "nvd", Complete: true, Freshness: FreshnessLabelStale}},
+	})
+	if envelope.State != ReadinessStateTargetIncomplete {
+		t.Fatalf("state = %q, want target_incomplete for stale source snapshot", envelope.State)
+	}
+}
+
+func TestExactSourceResultWithoutAdvisoryFactDoesNotCertifyZero(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		results  int
+		warnings int
+	}{
+		{name: "reported advisory", results: 1},
+		{name: "warning", warnings: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			envelope := BuildReadiness(TargetScope{CVEID: "CVE-2026-9227"}, nil, false, ReadinessSnapshot{
+				SourceStates: []SourceState{{
+					CollectorInstanceID: "instance", ScopeID: "exact", Source: "nvd",
+					FreshnessState: "fresh", TerminalStatus: "succeeded", ResultCount: tc.results,
+					WarningCount: tc.warnings, coverageEligible: true,
+				}},
+			})
+			if envelope.State == ReadinessStateReadyZeroFindings {
+				t.Fatalf("reported results=%d warnings=%d certified clean zero", tc.results, tc.warnings)
+			}
+		})
+	}
+}
+
+func TestMixedExactSourceResultsDoNotCertifyZero(t *testing.T) {
+	t.Parallel()
+	envelope := BuildReadiness(TargetScope{CVEID: "CVE-2026-9227"}, nil, false, ReadinessSnapshot{
+		SourceStates: []SourceState{
+			{CollectorInstanceID: "first", ScopeID: "clean", Source: "nvd", FreshnessState: "fresh", TerminalStatus: "succeeded", coverageEligible: true},
+			{CollectorInstanceID: "second", ScopeID: "reported", Source: "nvd", FreshnessState: "fresh", TerminalStatus: "succeeded", ResultCount: 1, coverageEligible: true},
+		},
+	})
+	if envelope.State == ReadinessStateReadyZeroFindings {
+		t.Fatal("one clean exact target hid another exact target with a reported advisory")
+	}
+}
+
+func TestSourceHealthDoesNotCertifyAdvisoryAbsence(t *testing.T) {
+	t.Parallel()
+	for _, source := range []string{"nvd", "cisa_kev", "first_epss", "osv", "glad"} {
+		t.Run(source, func(t *testing.T) {
+			t.Parallel()
+			envelope := BuildReadiness(TargetScope{CVEID: "CVE-2026-9227"}, nil, false,
+				ReadinessSnapshot{SourceStates: []SourceState{{
+					CollectorInstanceID: "instance", ScopeID: "arbitrary-scope", Source: source,
+					FreshnessState: "fresh", TerminalStatus: "succeeded",
+				}}})
+			if envelope.State == ReadinessStateReadyZeroFindings {
+				t.Fatalf("%s source health certified advisory absence without exact CVE coverage", source)
+			}
+		})
+	}
+}
+
+func TestAgeSourceStatesAtReadTime(t *testing.T) {
+	t.Parallel()
+	cutoff := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name  string
+		state SourceState
+		want  string
+	}{
+		{"recent exact", SourceState{FreshnessState: "fresh", LastSuccessAt: "2026-10-20T00:00:00Z"}, "fresh"},
+		{"old success", SourceState{FreshnessState: "fresh", LastSuccessAt: "2026-09-20T00:00:00Z"}, "stale"},
+		{"old window", SourceState{FreshnessState: "fresh", LastSuccessAt: "2026-10-20T00:00:00Z", CollectionWindow: SourceStateWindow{End: "2026-09-20T00:00:00Z"}}, "stale"},
+		{"missing success", SourceState{FreshnessState: "fresh"}, "stale"},
+		{"failure precedence", SourceState{FreshnessState: "failed", LastSuccessAt: "2026-09-20T00:00:00Z"}, "failed"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := ageSourceStates([]SourceState{tc.state}, cutoff)
+			if len(got) != 1 || got[0].FreshnessState != tc.want {
+				t.Fatalf("ageSourceStates() = %+v, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAgeSourceSnapshotsAtReadTime(t *testing.T) {
+	t.Parallel()
+	cutoff := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	got := ageSourceSnapshots([]SourceSnapshot{
+		{Source: "nvd", Freshness: "fresh", LastUpdatedAt: "2026-10-20T00:00:00Z"},
+		{Source: "first_epss", Freshness: "fresh", LastUpdatedAt: "2026-09-20T00:00:00Z"},
+		{Source: "glad", Freshness: "fresh"},
+	}, cutoff)
+	if got[0].Freshness != FreshnessLabelFresh ||
+		got[1].Freshness != FreshnessLabelStale ||
+		got[2].Freshness != FreshnessLabelStale {
+		t.Fatalf("ageSourceSnapshots() = %+v", got)
 	}
 }

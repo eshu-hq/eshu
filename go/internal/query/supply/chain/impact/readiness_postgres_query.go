@@ -220,30 +220,7 @@ target_vulnerability_source_ecosystems AS (
     )), '') AS ecosystem
     WHERE $10 <> ''
 ),
-target_vulnerability_source_scopes AS (
-    SELECT DISTINCT NULLIF(TRIM($9), '') AS scope_id, NULL::text AS source, NULL::text AS ecosystem
-    WHERE $9 <> ''
-    UNION
-    SELECT DISTINCT 'vuln-intel://nvd/cve' AS scope_id, 'nvd' AS source, NULL::text AS ecosystem
-    WHERE $9 <> ''
-    UNION
-    SELECT DISTINCT 'vuln-intel://nvd/' || TRIM($9) AS scope_id, 'nvd' AS source, NULL::text AS ecosystem
-    WHERE $9 <> ''
-    UNION
-    SELECT DISTINCT 'vuln-intel://cisa/kev' AS scope_id, 'cisa_kev' AS source, NULL::text AS ecosystem
-    WHERE $9 <> ''
-    UNION
-    SELECT DISTINCT 'vuln-intel://first/epss' AS scope_id, 'first_epss' AS source, NULL::text AS ecosystem
-    WHERE $9 <> ''
-    UNION
-    SELECT DISTINCT NULL::text AS scope_id, 'osv' AS source, ecosystem
-    FROM target_vulnerability_source_ecosystems
-    WHERE ecosystem IS NOT NULL
-    UNION
-    SELECT DISTINCT NULL::text AS scope_id, 'glad' AS source, ecosystem
-    FROM target_vulnerability_source_ecosystems
-    WHERE ecosystem IS NOT NULL
-),
+` + readinessConfiguredSourceTargetsCTE + `
 target_advisory_packages AS (
     SELECT DISTINCT NULLIF(TRIM($10), '') AS package_id
     WHERE $10 <> ''
@@ -415,12 +392,12 @@ vulnerability_source_snapshot AS (
     WHERE EXISTS (
         SELECT 1
         FROM target_vulnerability_source_scopes AS target
-        WHERE (target.scope_id IS NOT NULL AND snapshot.scope_id = target.scope_id)
-           OR (
-               target.scope_id IS NULL
-               AND target.source = snapshot.payload->>'source'
-               AND target.ecosystem = NULLIF(LOWER(TRIM(snapshot.payload->>'ecosystem')), '')
-           )
+        WHERE target.scope_id = snapshot.scope_id
+          AND target.collector_instance_id = snapshot.payload->>'collector_instance_id'
+          AND target.source = snapshot.payload->>'source'
     )
+       OR (snapshot.payload->>'source' = 'glad'
+           AND NULLIF(LOWER(TRIM(snapshot.payload->>'ecosystem')), '') IN
+               (SELECT ecosystem FROM target_vulnerability_source_ecosystems))
 ),
 `
