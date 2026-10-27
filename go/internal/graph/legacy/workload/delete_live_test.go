@@ -171,7 +171,7 @@ func TestLiveDetectionAndDeleteStatementSelectTheSameIDs(t *testing.T) {
 	f := seedFixture(t, db)
 	ctx := context.Background()
 	seedPadded(t, db, f)
-	allIDs := append(append(f.legacyIDs(), f.extraIDs()...), f.paddedIDs()...)
+	allIDs := append(append(append(f.legacyIDs(), f.extraIDs()...), f.paddedIDs()...), f.paddedNegativeIDs()...)
 	p1, twin := f.legacy("p1"), f.scoped("a", "p1")
 
 	readForm := gateReadForm(t)
@@ -204,11 +204,18 @@ func TestLiveDetectionAndDeleteStatementSelectTheSameIDs(t *testing.T) {
 
 	assertSame("base fixture")
 	rows, _ := db.Run(ctx, readForm, map[string]any{"ids": allIDs})
-	if len(rows) != 1 || rows[0]["id"] != p1 {
-		t.Fatalf("base fixture: statement selects %v, want exactly p1", rows)
+	var gotBase []string
+	for _, row := range rows {
+		gotBase = append(gotBase, row["id"].(string))
 	}
-	// A padded name or repository id has a trimmed twin the delete cannot
-	// match, so neither side selects it; Detect reports it no_twin.
+	wantBase := append([]string{p1}, f.paddedIDs()...)
+	slices.Sort(gotBase)
+	slices.Sort(wantBase)
+	if !slices.Equal(gotBase, wantBase) {
+		t.Fatalf("base fixture: statement selects %v, want %v (p1 plus the padded leftovers)", gotBase, wantBase)
+	}
+	// A padded name or repository id is judged against its trimmed twin, so
+	// each padded leftover is eligible and readiness counts it.
 	padded, err := legacyworkload.Detect(ctx, db, legacyworkload.Options{IDs: f.paddedIDs()})
 	if err != nil {
 		t.Fatal(err)
@@ -217,12 +224,26 @@ func TestLiveDetectionAndDeleteStatementSelectTheSameIDs(t *testing.T) {
 		t.Fatalf("padded leftovers: got %d verdicts, want %d", len(padded.Verdicts), len(f.paddedIDs()))
 	}
 	for _, v := range padded.Verdicts {
-		if v.Eligible || v.BlockedReason != legacyworkload.BlockedNoTwin {
-			t.Fatalf("padded leftover %q: eligible=%v reason=%q, want no_twin", v.ID, v.Eligible, v.BlockedReason)
+		if !v.Eligible || v.BlockedReason != legacyworkload.BlockedNone {
+			t.Fatalf("padded leftover %q: eligible=%v reason=%q, want eligible", v.ID, v.Eligible, v.BlockedReason)
 		}
 	}
-	if padded.WithScopedTwin() != 0 {
-		t.Fatalf("padded leftovers: WithScopedTwin = %d, want 0 (readiness does not count them)", padded.WithScopedTwin())
+	if padded.WithScopedTwin() != len(f.paddedIDs()) {
+		t.Fatalf("padded leftovers: WithScopedTwin = %d, want %d (readiness counts them)", padded.WithScopedTwin(), len(f.paddedIDs()))
+	}
+	// Padded negative controls stay blocked with their reason.
+	neg, err := legacyworkload.Detect(ctx, db, legacyworkload.Options{IDs: f.paddedNegativeIDs()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantNeg := paddedNegativeReasons(f)
+	if len(neg.Verdicts) != len(f.paddedNegativeIDs()) {
+		t.Fatalf("padded negatives: got %d verdicts, want %d", len(neg.Verdicts), len(f.paddedNegativeIDs()))
+	}
+	for _, v := range neg.Verdicts {
+		if v.Eligible || v.BlockedReason != wantNeg[v.ID] {
+			t.Fatalf("padded negative %q: eligible=%v reason=%q, want blocked %q", v.ID, v.Eligible, v.BlockedReason, wantNeg[v.ID])
+		}
 	}
 
 	db.mustWrite(t, `CREATE (:WorkloadInstance {id: $id, workload_id: $w})`, map[string]any{"id": "inst:late-" + f.nonce, "w": p1})
@@ -242,8 +263,90 @@ func TestLiveDetectionAndDeleteStatementSelectTheSameIDs(t *testing.T) {
 	db.mustWrite(t, `MATCH (a:Repository {id: $a}), (b:Workload {id: $b}) CREATE (a)-[:SAME_NAME]->(b)`, map[string]any{"a": f.repo("doc"), "b": p1})
 	assertSame("SAME_NAME from a non-Workload blocks")
 	rows, _ = db.Run(ctx, readForm, map[string]any{"ids": allIDs})
-	if len(rows) != 0 {
-		t.Fatalf("SAME_NAME from a Repository must block, statement selects %v", rows)
+	var gotTail []string
+	for _, row := range rows {
+		gotTail = append(gotTail, row["id"].(string))
+	}
+	wantTail := f.paddedIDs()
+	slices.Sort(gotTail)
+	slices.Sort(wantTail)
+	if !slices.Equal(gotTail, wantTail) {
+		t.Fatalf("SAME_NAME from a Repository must block p1, statement selects %v, want %v", gotTail, wantTail)
+	}
+}
+
+// paddedNegativeReasons maps each padded negative leftover id to the blocked
+// reason it must report: instance by edge or property, unsafe relationship,
+// then the four no-twin shapes (absent, no generation, not defined, foreign).
+func paddedNegativeReasons(f fixture) map[string]string {
+	ids := f.paddedNegativeIDs()
+	reasons := []string{
+		legacyworkload.BlockedHasInstances,
+		legacyworkload.BlockedHasInstances,
+		legacyworkload.BlockedRelationships,
+		legacyworkload.BlockedNoTwin,
+		legacyworkload.BlockedNoTwin,
+		legacyworkload.BlockedNoTwin,
+		legacyworkload.BlockedNoTwin,
+	}
+	out := make(map[string]string, len(ids))
+	for i, id := range ids {
+		out[id] = reasons[i]
+	}
+	return out
+}
+
+// TestLiveDeleteNeo4jRemovesPaddedLeftovers proves the delete removes exactly
+// the eligible padded nodes: p1 plus the three padded leftovers are deleted,
+// every trimmed twin survives with its DEFINES count unchanged, all seven
+// padded negatives survive with their reasons, and a second run deletes
+// nothing. Only Neo4j is tested, by owner direction.
+func TestLiveDeleteNeo4jRemovesPaddedLeftovers(t *testing.T) {
+	db := openLiveDB(t)
+	f := seedFixture(t, db)
+	seedPadded(t, db, f)
+	ctx := context.Background()
+	const exists = `MATCH (w:Workload {id: $id}) RETURN count(w) AS c`
+	allIDs := append(append(append(f.legacyIDs(), f.extraIDs()...), f.paddedIDs()...), f.paddedNegativeIDs()...)
+	wantDeleted := append([]string{f.legacy("p1")}, f.paddedIDs()...)
+
+	counters, err := db.write(ctx, legacyworkload.DeleteNeo4jCypher, map[string]any{"ids": allIDs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := counters.NodesDeleted(); got != len(wantDeleted) {
+		t.Fatalf("deleted %d nodes, want %d (p1 plus the three padded leftovers)", got, len(wantDeleted))
+	}
+	if got := counters.RelationshipsDeleted(); got != 5 {
+		t.Fatalf("deleted %d relationships, want 5 (p1's DEFINES and SAME_NAME plus one DEFINES per padded leftover)", got)
+	}
+	for _, id := range wantDeleted {
+		db.settledCount(t, exists, map[string]any{"id": id}, 0, id+" after delete")
+	}
+	for _, id := range append(f.paddedTwinIDs(), f.scoped("a", "p1")) {
+		db.settledCount(t, exists, map[string]any{"id": id}, 1, id+" twin must survive")
+		if got := db.count(t, `MATCH (:Repository)-[r:DEFINES]->(:Workload {id: $id}) RETURN count(r) AS c`, map[string]any{"id": id}); got != 1 {
+			t.Errorf("twin %s DEFINES = %d, want 1 unchanged", id, got)
+		}
+	}
+	for _, id := range f.paddedNegativeIDs() {
+		db.settledCount(t, exists, map[string]any{"id": id}, 1, id+" negative must survive")
+	}
+	if nodes, _ := db.write(ctx, legacyworkload.DeleteNeo4jCypher, map[string]any{"ids": allIDs}); nodes.NodesDeleted() != 0 {
+		t.Fatalf("second run deleted %d nodes, want 0", nodes.NodesDeleted())
+	}
+	report, err := legacyworkload.Detect(ctx, db, legacyworkload.Options{IDs: allIDs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Verdicts) != 16 || report.Eligible() != 0 {
+		t.Fatalf("verdicts=%d eligible=%d, want 16 blocked and none eligible", len(report.Verdicts), report.Eligible())
+	}
+	wantNeg := paddedNegativeReasons(f)
+	for _, v := range report.Verdicts {
+		if want, ok := wantNeg[v.ID]; ok && (v.Eligible || v.BlockedReason != want) {
+			t.Errorf("padded negative %q: eligible=%v reason=%q, want blocked %q", v.ID, v.Eligible, v.BlockedReason, want)
+		}
 	}
 }
 

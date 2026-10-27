@@ -5,6 +5,7 @@ package workload
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -126,20 +127,61 @@ func TestEvaluateBlankRepoOrNameNeverHasTwin(t *testing.T) {
 	}
 }
 
-func TestEvaluateUntrimmedNameOrRepoNeverHasTwin(t *testing.T) {
-	// workloadid trims its inputs, but the delete Cypher builds the twin id by
-	// exact concatenation, so a padded name or repo id must not look eligible
-	// in Go while the delete can never match.
+func TestEvaluatePaddedNameOrRepoUsesTrimmedTwin(t *testing.T) {
+	// A padded name or repo id resolves to the trimmed twin: TwinID joins the
+	// trimmed parts exactly as the delete statement does with trim(), and the
+	// own-repository comparisons trim too, so the candidate is eligible.
 	for _, c := range []Candidate{
 		{ID: "workload: svc", Name: " svc", RepoID: "repository:a"},
 		{ID: "workload:svc ", Name: "svc ", RepoID: "repository:a"},
-		{ID: "workload:svc", Name: "svc", RepoID: " repository:a"},
-		{ID: "workload:svc", Name: "svc", RepoID: "repository:a "},
+		{ID: "workload:svc", Name: "svc", RepoID: " repository:a "},
+		{ID: "workload:svc", Name: "svc", RepoID: "repository:a\t"},
 	} {
-		facts := Facts{Candidates: []Candidate{c}, Twins: map[string][]string{TwinID(c.RepoID, c.Name): {c.RepoID}}}
-		if v := Evaluate(facts)[0]; v.Eligible || v.BlockedReason != BlockedNoTwin {
-			t.Errorf("%+v: eligible=%v reason=%q, want blocked no_twin", c, v.Eligible, v.BlockedReason)
+		trimmedRepo := strings.TrimSpace(c.RepoID)
+		trimmedName := strings.TrimSpace(c.Name)
+		wantTwin := "workload:" + trimmedRepo + ":" + trimmedName
+		if got := TwinID(c.RepoID, c.Name); got != wantTwin {
+			t.Errorf("TwinID(%q, %q) = %q, want %q", c.RepoID, c.Name, got, wantTwin)
 		}
+		facts := Facts{
+			Candidates: []Candidate{c},
+			Twins:      map[string][]string{wantTwin: {trimmedRepo}},
+			Relationships: map[string][]Relationship{c.ID: {
+				{Type: "DEFINES", Outgoing: false, OtherID: trimmedRepo, OtherLabels: []string{"Repository"}},
+			}},
+		}
+		if v := Evaluate(facts)[0]; !v.Eligible {
+			t.Errorf("%+v: eligible=%v reason=%q rels=%v, want eligible", c, v.Eligible, v.BlockedReason, v.Relationships)
+		}
+	}
+}
+
+func TestEvaluateTrimmedTwinStillNeedsTrimmedRepoMatch(t *testing.T) {
+	// The twin lookup trims, but the twin must still be defined by the
+	// candidate's own (trimmed) repository: a Twins entry keyed by the trimmed
+	// id that lists only the padded repo string is no twin. Dropping the
+	// own-repository trim must fail this test.
+	c := Candidate{ID: "workload:svc", Name: "svc", RepoID: " repository:a "}
+	twin := TwinID(c.RepoID, c.Name)
+	if twin == "" {
+		t.Fatal("TwinID must resolve a padded repo to the trimmed twin id")
+	}
+	facts := Facts{Candidates: []Candidate{c}, Twins: map[string][]string{twin: {c.RepoID}}}
+	if v := Evaluate(facts)[0]; v.Eligible || v.BlockedReason != BlockedNoTwin {
+		t.Errorf("%+v: eligible=%v reason=%q, want blocked no_twin", c, v.Eligible, v.BlockedReason)
+	}
+	// Trimming does not wave through a foreign repository: a DEFINES edge from
+	// a different repo id still blocks, padded or not.
+	own := strings.TrimSpace(c.RepoID)
+	relFacts := Facts{
+		Candidates: []Candidate{c},
+		Twins:      map[string][]string{twin: {own}},
+		Relationships: map[string][]Relationship{c.ID: {
+			{Type: "DEFINES", Outgoing: false, OtherID: "repository:b", OtherLabels: []string{"Repository"}},
+		}},
+	}
+	if v := Evaluate(relFacts)[0]; v.Eligible || v.BlockedReason != BlockedRelationships {
+		t.Errorf("%+v: eligible=%v reason=%q, want blocked relationships", c, v.Eligible, v.BlockedReason)
 	}
 }
 
@@ -211,8 +253,8 @@ func TestTwinID(t *testing.T) {
 	for _, padded := range [][2]string{
 		{"repository:r", " svc"}, {"repository:r", "svc "}, {" repository:r", "svc"}, {"repository:r\t", "svc"},
 	} {
-		if got := TwinID(padded[0], padded[1]); got != "" {
-			t.Fatalf("TwinID(%q, %q) = %q, want blank: the delete joins byte for byte, so a padded part has no twin", padded[0], padded[1], got)
+		if got := TwinID(padded[0], padded[1]); got != "workload:repository:r:svc" {
+			t.Fatalf("TwinID(%q, %q) = %q, want the trimmed twin id", padded[0], padded[1], got)
 		}
 	}
 }

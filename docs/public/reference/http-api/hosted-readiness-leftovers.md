@@ -23,17 +23,15 @@ Fields on the check:
 | `detail` | `<N> name-only Workload nodes with a scoped twin (pre-#5385 leftovers)`, or `no name-only Workload nodes with a scoped twin` |
 | `next_diagnostic` | `POST /admin/retire-legacy-workloads {"dry_run":true}` on the reducer admin port, and the retirement runbook |
 
-A node whose name or repository id has leading or trailing whitespace has no
-twin the delete could match. It is reported `no_twin` and is not counted, so the
-check can pass while it is still there. A padded repository id leaves the name
-clean, so that node still matches a by-name selector and makes the name
-ambiguous. A name padded only at the start matches only its exact handle
-(`workload: svc`); a name padded at the end, or at both ends, matches no
-selector, because selectors are trimmed on entry.
-
-This is a known limit, tracked in #8903. Fixing the value at the source writes a
-clean scoped node but does not remove the old one, and retirement cannot delete
-it. It needs a manual, reviewed removal.
+A leftover whose name or repository id has leading or trailing whitespace is
+judged against its trimmed twin and IS counted while that twin exists, so the
+check fails until it is retired (#8903). Trimming covers ASCII whitespace
+(space proven live; tab, LF, CR equivalent by probe); no-break space is out of
+scope. A padded repository id leaves the name clean, so that node still matches
+a by-name selector and makes the name ambiguous. A name padded only at the
+start matches only its exact handle (`workload: svc`); a name padded at the
+end, or at both ends, matches no selector, because selectors are trimmed on
+entry.
 
 The count is a lower bound (`N+`) if the read hit its examined cap of 5,000
 candidates. The read is the same detection the retirement dry run uses, so the
