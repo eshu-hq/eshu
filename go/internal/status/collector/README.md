@@ -126,6 +126,24 @@ views from data the root's status reader already gathered.
   `internal/status/testdata/`; a failure there is a real API break to
   justify.
 
+Registered collector rows keep their coordinator-registration detail when
+ordinary source evidence raises health to `observed`. The unregistered detail
+appears only without a matching registration; a specific failure detail still
+replaces the registration detail when it explains degraded health. This changes
+operator status text, with no new metric, span, or log field.
+
+No-Regression Evidence (#9230): `BenchmarkCollectorRuntimeStatusesRegisteredSource`
+on Apple M5 Max and Go 1.26.10, using the same registered-instance and source
+row in three one-second samples, measured 493.1/478.7/476.4 ns/op before and
+483.6/481.6/503.4 ns/op after; both used 13 allocs/op and 1240 B/op. The
+ranges overlap; this does not show a material status-path regression. The
+benchmark has no backend or queue; its output is one merged status row.
+
+Observability Evidence (#9230): status JSON and text now keep the registration
+detail on a registered row when an ordinary source observation raises health.
+The RED/GREEN status test reads that operator-facing JSON. No metric, span, or
+log key changed.
+
 ## Related docs
 
 - `docs/internal/naming.md` — the nesting rules this leaf was created under
