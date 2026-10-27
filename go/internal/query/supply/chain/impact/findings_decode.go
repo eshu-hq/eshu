@@ -187,6 +187,8 @@ func decodeSupplyChainImpactProvenance(payload map[string]any) *Provenance {
 		SelectedSeverityLabel:      querycontract.StringVal(raw, "selected_severity_label"),
 		SelectedFixedVersionSource: querycontract.StringVal(raw, "selected_fixed_version_source"),
 		SelectedRangeSource:        querycontract.StringVal(raw, "selected_range_source"),
+		SelectedEPSSScoreDate:      querycontract.StringVal(raw, "selected_epss_score_date"),
+		SelectedEPSSModelVersion:   querycontract.StringVal(raw, "selected_epss_model_version"),
 	}
 	provenance.AlternateSeverities = decodeAlternateSeverities(raw["alternate_severities"])
 	provenance.FixedVersionBranches = decodeFixedVersionBranches(raw["fixed_version_branches"])
@@ -204,6 +206,8 @@ func (p Provenance) isEmpty() bool {
 		p.SelectedSeverityLabel == "" &&
 		p.SelectedFixedVersionSource == "" &&
 		p.SelectedRangeSource == "" &&
+		p.SelectedEPSSScoreDate == "" &&
+		p.SelectedEPSSModelVersion == "" &&
 		len(p.AlternateSeverities) == 0 &&
 		len(p.FixedVersionBranches) == 0 &&
 		len(p.AdvisorySources) == 0

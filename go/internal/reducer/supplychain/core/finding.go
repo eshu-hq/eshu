@@ -45,6 +45,8 @@ type SupplyChainImpactFinding struct {
 	AdvisorySources       []AdvisorySourceObservation
 	EPSSProbability       string
 	EPSSPercentile        string
+	EPSSScoreDate         string
+	EPSSModelVersion      string
 	KnownExploited        bool
 	PriorityReason        string
 	PriorityScore         int

@@ -125,6 +125,8 @@ func provenanceAdvisoryID(provenance advisoryProvenanceSelection, cves supplyCha
 func applyRiskSignals(finding *SupplyChainImpactFinding, signals supplychainmodel.RiskSignals) {
 	finding.EPSSProbability = signals.EPSSProbability
 	finding.EPSSPercentile = signals.EPSSPercentile
+	finding.EPSSScoreDate = signals.EPSSScoreDate
+	finding.EPSSModelVersion = signals.EPSSModelVersion
 	finding.KnownExploited = signals.KnownExploited
 	finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, signals.EPSSFactID, signals.KEVFactID)
 	var reasons []string

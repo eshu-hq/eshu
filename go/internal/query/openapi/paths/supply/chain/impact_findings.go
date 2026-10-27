@@ -147,7 +147,7 @@ const impactFindings = `
                           },
                           "provenance": {
                             "type": "object",
-                            "description": "Per-source advisory provenance. Reducers preserve every source observation behind a finding so callers see which advisory source supplied the selected severity, fixed version, and vulnerable range plus alternates other sources reported. Selection uses documented per-ecosystem priority (vendor advisory for OS package classes, GHSA/GLAD/OSV/NVD for language ecosystems).",
+                            "description": "Selected EPSS observation and per-source advisory provenance. Reducers preserve advisory source observations behind a finding so callers see which source supplied severity, fixed version, and vulnerable range plus alternates. Advisory selection uses documented per-ecosystem priority (vendor advisory for OS package classes, GHSA/GLAD/OSV/NVD for language ecosystems).",
                             "properties": {
                               "selected_severity_source": {"type": "string", "description": "Advisory source whose severity was selected."},
                               "selected_severity_score": {"type": "number"},
@@ -155,6 +155,8 @@ const impactFindings = `
                               "selected_severity_label": {"type": "string"},
                               "selected_fixed_version_source": {"type": "string", "description": "Advisory source whose fixed-version branch was selected."},
                               "selected_range_source": {"type": "string", "description": "Advisory source whose vulnerable-range expression was selected."},
+                              "selected_epss_score_date": {"type": "string", "format": "date", "description": "Score date of the selected EPSS observation. Omitted for undated legacy facts."},
+                              "selected_epss_model_version": {"type": "string", "description": "Model version supplied by the selected EPSS observation, when available. The FIRST API does not supply this field."},
                               "alternate_severities": {
                                 "type": "array",
                                 "description": "Severities reported by other sources that were not selected.",

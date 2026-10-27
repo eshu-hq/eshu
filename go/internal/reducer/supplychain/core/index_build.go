@@ -4,7 +4,9 @@
 package core
 
 import (
+	"fmt"
 	"sort"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
@@ -196,11 +198,28 @@ func addSupplyChainImpactIndexEntry(
 		if err != nil {
 			return factdecode.PartitionDecodeFailures(envelope, err)
 		}
+		scoreDate := payloadcore.DerefString(score.ScoreDate)
+		if scoreDate != "" {
+			parsed, parseErr := time.Parse(time.DateOnly, scoreDate)
+			if parseErr != nil || parsed.Format(time.DateOnly) != scoreDate {
+				return factdecode.PartitionDecodeFailures(envelope, factdecode.NewFactDecodeError(envelope.FactKind, fmt.Errorf("invalid score_date: expected YYYY-MM-DD")))
+			}
+		}
 		signals := index.riskSignals[score.CVEID]
-		signals.EPSSFactID = envelope.FactID
-		signals.EPSSProbability = payloadcore.DerefString(score.Probability)
-		signals.EPSSPercentile = payloadcore.DerefString(score.Percentile)
-		index.riskSignals[score.CVEID] = signals
+		candidate := supplychainmodel.RiskSignals{
+			EPSSFactID:       envelope.FactID,
+			EPSSProbability:  payloadcore.DerefString(score.Probability),
+			EPSSPercentile:   payloadcore.DerefString(score.Percentile),
+			EPSSScoreDate:    scoreDate,
+			EPSSModelVersion: payloadcore.DerefString(score.ModelVersion),
+			EPSSObservedAt:   envelope.ObservedAt,
+			EPSSSelected:     true,
+		}
+		if preferEPSSObservation(candidate, signals) {
+			candidate.KEVFactID = signals.KEVFactID
+			candidate.KnownExploited = signals.KnownExploited
+			index.riskSignals[score.CVEID] = candidate
+		}
 	case chain.VulnerabilityKnownExploitedFactKind:
 		kev, err := schemadecode.DecodeVulnerabilityKnownExploited(envelope)
 		if err != nil {
@@ -218,3 +237,28 @@ func addSupplyChainImpactIndexEntry(
 // bestSupplyChainImageIdentitiesByDigest live in
 // anchor_tier.go (split out to keep this file under the
 // repo's 500-line cap).
+
+// preferEPSSObservation chooses one complete score observation independently
+// of input order. Dated rows outrank undated legacy rows; ties use observed
+// time, stable fact identity, then payload values for duplicate identities.
+func preferEPSSObservation(candidate, current supplychainmodel.RiskSignals) bool {
+	if !current.EPSSSelected {
+		return true
+	}
+	if candidate.EPSSScoreDate != current.EPSSScoreDate {
+		return candidate.EPSSScoreDate > current.EPSSScoreDate
+	}
+	if !candidate.EPSSObservedAt.Equal(current.EPSSObservedAt) {
+		return candidate.EPSSObservedAt.After(current.EPSSObservedAt)
+	}
+	if candidate.EPSSFactID != current.EPSSFactID {
+		return candidate.EPSSFactID > current.EPSSFactID
+	}
+	if candidate.EPSSProbability != current.EPSSProbability {
+		return candidate.EPSSProbability > current.EPSSProbability
+	}
+	if candidate.EPSSPercentile != current.EPSSPercentile {
+		return candidate.EPSSPercentile > current.EPSSPercentile
+	}
+	return candidate.EPSSModelVersion > current.EPSSModelVersion
+}
