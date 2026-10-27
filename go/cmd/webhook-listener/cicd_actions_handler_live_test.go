@@ -116,12 +116,39 @@ func TestSignedActionsDeliveryPersistsInRealInboxLive(t *testing.T) {
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("response=%d body=%q", response.Code, response.Body.String())
 	}
-	var repository, status string
-	if err := database.QueryRowContext(t.Context(), `SELECT repository,status FROM cicd_actions_deliveries WHERE delivery_id='durable-signed-delivery'`).Scan(&repository, &status); err != nil {
+	duplicate := httptest.NewRequest(http.MethodPost, "/webhooks/github", bytes.NewReader(payload))
+	duplicate.Header = request.Header.Clone()
+	duplicateResponse := httptest.NewRecorder()
+	mux.ServeHTTP(duplicateResponse, duplicate)
+	if duplicateResponse.Code != http.StatusAccepted {
+		t.Fatalf("exact duplicate status=%d body=%q, want 202", duplicateResponse.Code, duplicateResponse.Body.String())
+	}
+	changedPayload := []byte(`{"action":"completed","repository":{"id":42,"full_name":"example/repo"},"workflow_run":{"id":124}}`)
+	conflict := httptest.NewRequest(http.MethodPost, "/webhooks/github", bytes.NewReader(changedPayload))
+	conflict.Header.Set("X-GitHub-Event", "workflow_run")
+	conflict.Header.Set("X-GitHub-Delivery", "durable-signed-delivery")
+	conflict.Header.Set("X-Hub-Signature-256", githubSignature("secret", changedPayload))
+	conflictResponse := httptest.NewRecorder()
+	mux.ServeHTTP(conflictResponse, conflict)
+	if conflictResponse.Code != http.StatusConflict {
+		t.Fatalf("conflicting delivery status=%d body=%q, want 409", conflictResponse.Code, conflictResponse.Body.String())
+	}
+	if bytes.Contains(conflictResponse.Body.Bytes(), []byte(`"decision":"accepted"`)) {
+		t.Fatalf("conflict response claims accepted storage: %q", conflictResponse.Body.String())
+	}
+	var deliveryCount int
+	if err := database.QueryRowContext(t.Context(), `SELECT count(*) FROM cicd_actions_deliveries WHERE delivery_id='durable-signed-delivery'`).Scan(&deliveryCount); err != nil {
 		t.Fatal(err)
 	}
-	if repository != "example/repo" || status != "queued" {
-		t.Fatalf("stored repository=%q status=%q", repository, status)
+	if deliveryCount != 1 {
+		t.Fatalf("stored delivery count=%d, want 1", deliveryCount)
+	}
+	var repository, status, runID string
+	if err := database.QueryRowContext(t.Context(), `SELECT repository,status,run_id FROM cicd_actions_deliveries WHERE delivery_id='durable-signed-delivery'`).Scan(&repository, &status, &runID); err != nil {
+		t.Fatal(err)
+	}
+	if repository != "example/repo" || status != "queued" || runID != "123" {
+		t.Fatalf("stored repository=%q status=%q run_id=%q", repository, status, runID)
 	}
 }
 

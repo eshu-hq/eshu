@@ -90,8 +90,10 @@ runtime sends the bearer token to that endpoint.
 
 The webhook listener verifies GitHub HMAC signatures for `workflow_run` and
 `workflow_job`, then stores their bounded identities in the durable Actions
-inbox. The coordinator admits collection only for matching configured GitHub
-repository scopes. Enable the listener and App credential wiring in the
+inbox. An exact duplicate delivery returns HTTP 202 without changing its
+inbox row; a signed retry that reuses a delivery ID for a different run or job
+returns HTTP 409 and leaves the original row intact. The coordinator admits
+collection only for matching configured GitHub repository scopes. Enable the listener and App credential wiring in the
 deployment configuration; scheduled bounded collection remains the backfill
 path for missed events. An inbox entry only triggers collection: the collector
 fetches authoritative run, job, and artifact metadata and emits only `ci.*`

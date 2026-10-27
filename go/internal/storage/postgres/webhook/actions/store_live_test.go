@@ -10,6 +10,7 @@ package actionsstore_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -80,7 +81,7 @@ func TestActionsDeliveryLeaseAndIdentityLive(t *testing.T) {
 	}
 	changed := first
 	changed.RunID = "124"
-	if _, err = store.Store(ctx, changed, now); err == nil || !strings.Contains(err.Error(), "conflicting delivery identity") {
+	if _, err = store.Store(ctx, changed, now); !errors.Is(err, webhook.ErrActionsDeliveryConflict) {
 		t.Fatalf("conflicting delivery error=%v", err)
 	}
 	claimed, err := store.Claim(ctx, "worker", now, 1, time.Minute)

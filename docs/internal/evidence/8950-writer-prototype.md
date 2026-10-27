@@ -60,6 +60,13 @@ gen-2/commit c2 through the real `ContentWriter`.
 | Config-artifact fence version | bumped | bumped |
 | Language rollup `MAX(indexed_at)` | advances | seed stamp (see open question) |
 
+The table records the original isolated LSN-difference run. The current live
+gate reads PostgreSQL 18 WAL bytes for the writer backend from
+`pg_stat_get_backend_wal`, with one measurement connection and a checked backend
+PID. It flushes writer statistics and clears the stats snapshot before each
+sample. The gate retains the 20x bound and checks that a separate backend's WAL
+does not enter the measurement and that the measured backend's own write does.
+
 Tests: `TestContentWriterMetadataOnlyRewriteIsHOTLive` (the failing
 regression: index growth + 0 HOT on the old path), `...SavesWalWallLive`
 (the table above, plus the merged counter reading 12/12 rows and 100% of body
