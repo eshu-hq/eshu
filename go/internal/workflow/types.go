@@ -214,6 +214,11 @@ type OwnedPackageDependencyTargetFilter struct {
 	Limit           int
 	VersionSpecific bool
 	RotationOffset  int64
+	// ExpandPackageManagerAliases makes the read select every raw
+	// package_manager alias of each requested ecosystem (for example gradle
+	// for maven) and report them under the canonical ecosystem name. The zero
+	// value keeps the raw package_manager match.
+	ExpandPackageManagerAliases bool
 }
 
 // OSPackageAdvisoryTarget is one active installed OS package fact that can

@@ -78,6 +78,15 @@ operational lessons that future storage changes still need to respect.
   Swift OSV planning can send the source Git URL required by OSV `SwiftURL`.
   The rotation offset lets bounded full-corpus runs advance past the first
   sorted page without changing worker counts or query scope.
+  Vulnerability-intelligence callers also set `ExpandPackageManagerAliases`
+  (#9285): the filter selects every raw `package_manager` alias of each
+  configured ecosystem (`gradle` for `maven`, `gomod`, `go-module`, and
+  `go_module` for `go`) and the `ecosystem` column folds them onto the canonical
+  name inside SQL, so a pair declared under two aliases is one `DISTINCT ON`
+  row and one rank. The alias table lives in `workflow` and also drives the
+  derivation's Go mapping, so the two cannot disagree. The filter stays a raw
+  `= ANY($1)` on the indexed expression. Package-registry callers leave the flag
+  off and keep the byte-identical raw query.
 - `ListOSPackageAdvisoryTargets` and `ListSBOMComponentAdvisoryTargets` serve
   vulnerability-intelligence installed-evidence derivation. OS package reads
   stay on active `vulnerability.os_package` facts joined to the active
@@ -352,3 +361,27 @@ operational lessons that future storage changes still need to respect.
   the recheck, do not compare a subset of the tuple, and do not widen it to
   un-hinted generations here (that is a separate issue).
   See `docs/internal/evidence/8750-successor-guard-sizing.md`.
+
+## Owned-package alias expansion evidence (#9285)
+
+Performance Evidence: the owned-package reader query keeps the same plan with
+alias expansion on: `fact_records_active_package_dependency_entity_idx` index
+scan on the raw `package_manager` expression, then the scope and generation
+nested loops. Synthetic corpus on a private PostgreSQL 18.6 (the production
+bootstrap schema, 185,000 fact rows, 85,000 dependency facts of which 65,000 are
+active, 4% of active dependency facts Gradle, 22% of Gradle pairs sharing a
+Maven twin), `PREPARE`/`EXECUTE` with `EXPLAIN (ANALYZE, BUFFERS)`, limit 1000,
+three warm runs after one discarded warm-up. Maven only, before and after:
+128.4, 136.3, 126.3 ms and 175.2, 171.7, 172.1 ms; buffers 106,141 and 127,306.
+The difference is the work the change adds. It returns 15,305 distinct targets
+instead of 12,722, 2,583 of them Gradle-only pairs. The `CASE` fold alone,
+measured on the same maven-only filter, costs about 5 ms (134.1, 136.9, 140.8
+ms against 126 to 136 ms). Go, Maven, npm, and PyPI together, before and after:
+594.6, 606.2, 602.1 ms and 681.9, 683.9, 702.9 ms (+14%).
+The alias-off query is byte-identical to the previous query, and the ranked order
+of every pre-existing target is unchanged.
+
+Observability Evidence: no new signal. The derivation reports skipped targets
+by reason and ecosystem through the existing derived-target skip evidence; a
+skipped Gradle dependency now appears under `maven`. Existing Postgres
+query-duration telemetry covers the read.

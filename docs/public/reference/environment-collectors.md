@@ -405,6 +405,20 @@ limit is 100; full-corpus deployments can raise
 `derive_from_owned_packages.target_limit` up to 5000. The single OSV target
 query payload remains capped separately at 100 queries.
 
+`derive_from_owned_packages.ecosystems` takes OSV ecosystem names only. Some
+dependency facts carry a different `package_manager` spelling for the same OSV
+ecosystem, so the coordinator reads those facts and reports them under the
+configured name. Configuring `maven` also derives targets from Gradle
+dependencies, because Gradle declares Maven `group:artifact` coordinates and OSV
+publishes their advisories under Maven. Configuring `go` also covers the older
+`gomod`, `go-module`, and `go_module` spellings. Aliases follow the same
+exact-version rule as the configured ecosystem, and a package and version that
+Gradle and Maven manifests both declare produces one target. `gradle` is not a
+valid value for `ecosystems`; validation rejects it with `unsupported
+ecosystem`, so a configuration cannot select Gradle without Maven. Skipped
+Gradle dependencies are counted under `maven` in the derived-target skip
+evidence. Package-registry derivation does not expand aliases.
+
 Inside `ESHU_COLLECTOR_INSTANCES_JSON`, vulnerability targets may set
 `fallback_urls` for source mirrors. The instance configuration may also set
 `source_cache.directory`, `source_cache.mode` (`refresh` or `offline`),

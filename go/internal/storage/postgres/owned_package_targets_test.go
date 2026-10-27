@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -11,7 +12,7 @@ import (
 func TestListOwnedPackageDependencyTargetsQueryIsActiveAndBounded(t *testing.T) {
 	t.Parallel()
 
-	query := listOwnedPackageDependencyTargetsQuery(true)
+	query := listOwnedPackageDependencyTargetsQuery(true, false)
 	for _, want := range []string{
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",
@@ -37,7 +38,7 @@ func TestListOwnedPackageDependencyTargetsQueryIsActiveAndBounded(t *testing.T) 
 func TestListOwnedPackageDependencyTargetsQueryCanUsePackageLevelIdentity(t *testing.T) {
 	t.Parallel()
 
-	query := listOwnedPackageDependencyTargetsQuery(false)
+	query := listOwnedPackageDependencyTargetsQuery(false, false)
 	if !strings.Contains(query, "SELECT DISTINCT ON (ecosystem, package_name)") {
 		t.Fatalf("package-level target query should distinct by package identity:\n%s", query)
 	}
@@ -67,5 +68,33 @@ func TestOwnedPackageDependencyTargetLimitSupportsFullCorpusBudgets(t *testing.T
 				t.Fatalf("ownedPackageDependencyTargetLimit(%d) = %d, want %d", tc.raw, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestOwnedPackageEcosystemAliasExpansionSharesOneTable(t *testing.T) {
+	t.Parallel()
+
+	raw := listOwnedPackageDependencyTargetsQuery(true, false)
+	if strings.Contains(raw, "CASE LOWER(") {
+		t.Fatalf("raw package_manager query must not fold aliases:\n%s", raw)
+	}
+	expanded := listOwnedPackageDependencyTargetsQuery(true, true)
+	for _, want := range []string{
+		"CASE LOWER(fact.payload->'entity_metadata'->>'package_manager')",
+		"WHEN 'gradle' THEN 'maven'",
+		"WHEN 'gomod' THEN 'go'",
+		"END AS ecosystem",
+		"SELECT DISTINCT ON (ecosystem, package_name, version)",
+	} {
+		if !strings.Contains(expanded, want) {
+			t.Fatalf("alias-expanded query missing %q:\n%s", want, expanded)
+		}
+	}
+	if got, want := ownedPackageManagerFilterValues([]string{"go", "maven"}, true),
+		[]string{"go", "go-module", "go_module", "gomod", "gradle", "maven"}; !slices.Equal(got, want) {
+		t.Fatalf("expanded filter values = %#v, want %#v", got, want)
+	}
+	if got, want := ownedPackageManagerFilterValues([]string{"maven"}, false), []string{"maven"}; !slices.Equal(got, want) {
+		t.Fatalf("raw filter values = %#v, want %#v", got, want)
 	}
 }
