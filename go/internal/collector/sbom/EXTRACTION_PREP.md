@@ -207,9 +207,12 @@ compatibility harness, `#4047` per-collector cutover gate.
 
 ## 9. Prerequisites for cutover
 
-1. Published SDK + fact-schema modules (`#6708`, `#8851` Codex lane) at the
-   pinned `v0.1.0-rc.1` coordinates (verified present and sufficient — see
-   [SHIM_MAP](SHIM_MAP.md); no missing symbols).
+1. Published SDK + fact-schema modules (`#6708`, `#8851` Codex lane) at
+   the coordinates pinned in [SHIM_MAP](SHIM_MAP.md) (currently collector
+   `v0.1.0-rc.3`, factschema `v0.1.0-rc.6`). Symbol sufficiency was
+   verified at `v0.1.0-rc.1` (SHIM_MAP §6); each later bump re-proves it by
+   building this lane green, and the pin-parity guard
+   (`runtime/shim_pin_8865_test.go`) fails closed on undocumented drift.
 2. Producer-record reconciliation for the 5-vs-8 kind discrepancy (§2) and
    first-party producer delegation live (`#6709`); grant draft recorded in
    [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md).

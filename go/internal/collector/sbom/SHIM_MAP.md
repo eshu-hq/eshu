@@ -5,12 +5,22 @@ seam becomes a public SDK exchange at extraction, so the `#6710` template
 repository and the `#4047` parity gate share one interpretation. Nothing here
 changes runtime behavior.
 
-Pinned SDK (exact, immutable, proxy-verified 2026-10-24; newer RC tags —
-`collector v0.2.0-rc.1`, `factschema v0.1.0-rc.2` — lack source-bound
-approval and MUST NOT be substituted):
+Pinned SDK (exact; a reviewed change that bumps `go.mod` MUST update
+these pins in the same change — enforced by
+`runtime/shim_pin_8865_test.go:TestSBOM8865ShimPinsMatchGoMod`. Newer tags
+MUST NOT be substituted without that reviewed update):
 
-- `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.1`
-- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.1`
+- `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3`
+- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.6`
+
+Pin history: proxy-verified 2026-10-24 at collector/factschema
+`v0.1.0-rc.1`; in-tree moved to standalone modules at collector `rc.3` +
+factschema `rc.4` via `686ad9c269`, to factschema `rc.5` via `d103071673`,
+and to factschema `rc.6` via `df21acbf30` (#9252, records RC6/RC7 proxy
+availability). The extracted port (`eshu-collector-sbom-attestation` main,
+observed 2026-10-27) still builds at collector/factschema `v0.1.0-rc.2` —
+that drift is open until the port re-pins and re-proves the #4047 parity
+gate.
 
 ## 1. Claim path: `ClaimedService` / `NextClaimed` → SDK `Claim` / `Result`
 
