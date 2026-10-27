@@ -42,6 +42,13 @@ const (
 	// scoped token with no grants gets: it authorizes no repository, so no
 	// enabled target covers the requested scope for that caller.
 	securityAlertReasonNoAuthorizedRepositories = "no_authorized_repositories"
+	// securityAlertReasonReducerBacklog marks a collection-healthy empty
+	// answer whose security_alert_reconciliation work is still outstanding
+	// (#8839). securityAlertReasonDeadLetteredDomain marks one whose work is
+	// dead-lettered. Both reuse the freshness-cause vocabulary, so the
+	// coverage reason and the truth cause read the same.
+	securityAlertReasonReducerBacklog     = "reducer_backlog"
+	securityAlertReasonDeadLetteredDomain = "dead_lettered_domain"
 )
 
 // securityAlertTerminalFailureClasses is every failure class the security-alert
@@ -78,6 +85,8 @@ func securityAlertCoverageReasons() []string {
 		securityAlertReasonNoCommittedGeneration,
 		securityAlertReasonCollectorStateUnavailable,
 		securityAlertReasonNoAuthorizedRepositories,
+		securityAlertReasonReducerBacklog,
+		securityAlertReasonDeadLetteredDomain,
 	}
 	out = append(out, securityAlertUnreadReasons...)
 	for _, class := range securityAlertTerminalFailureClasses {
@@ -98,6 +107,12 @@ const (
 	securityAlertCollectorStateHealthy          = "healthy"
 	securityAlertCollectorStatePartialRead      = "partial_read"
 	securityAlertCollectorStateUnavailable      = "state_unavailable"
+	// securityAlertCollectorStateReconciling reports a collection-healthy
+	// answer held back by outstanding security_alert_reconciliation work
+	// (#8839); securityAlertCollectorStateReconciliationStuck reports one
+	// parked as dead-lettered.
+	securityAlertCollectorStateReconciling         = "reconciling"
+	securityAlertCollectorStateReconciliationStuck = "reconciliation_stuck"
 )
 
 // securityAlertTargetScopeOrg is the scope value of an organization target.
@@ -263,9 +278,10 @@ type securityAlertCoverageVerdict struct {
 	// would be false for it. A failed state read is also target_incomplete but
 	// carries readiness_unavailable, because the read itself failed.
 	readiness querycontract.CollectorListReadinessState
-	// cause reports whether the freshness gap has the proven
-	// missing_collector_completion cause.
-	cause bool
+	// cause is the proven freshness cause to attach, or "" when the verdict
+	// says nothing about why the answer is not fresh (a grantless answer, an
+	// unread answer, or a failed probe).
+	cause querycontract.FreshnessCause
 }
 
 // healthy reports whether the verdict leaves the row-derived answer unchanged.
@@ -285,7 +301,7 @@ func securityAlertCollectorNotConfiguredVerdict() securityAlertCoverageVerdict {
 		freshness:      querycontract.FreshnessUnavailable,
 		collectorState: securityAlertCollectorStateNotConfigured,
 		readiness:      querycontract.CollectorListReadinessStateNotConfigured,
-		cause:          true,
+		cause:          querycontract.FreshnessCauseMissingCollectorCompletion,
 	}
 }
 
@@ -300,7 +316,7 @@ func securityAlertOutsideTargetsVerdict() securityAlertCoverageVerdict {
 		level:          querycontract.TruthLevelFallback,
 		freshness:      querycontract.FreshnessUnavailable,
 		collectorState: securityAlertCollectorStateOutsideTargets,
-		cause:          true,
+		cause:          querycontract.FreshnessCauseMissingCollectorCompletion,
 	}
 }
 
@@ -348,7 +364,7 @@ func classifySecurityAlertTarget(state SecurityAlertTargetState, anchored bool) 
 	terminal := state.LatestFailureTerminal || state.LatestWorkItemStatus == "failed_terminal"
 	incomplete := securityAlertCoverageVerdict{
 		coverageState: securityAlertCoverageTargetIncomplete,
-		cause:         true,
+		cause:         querycontract.FreshnessCauseMissingCollectorCompletion,
 	}
 	// A retirement generation (#9019) holds no data: until the scope's next
 	// collection activates, it counts as nothing committed.

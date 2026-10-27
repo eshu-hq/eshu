@@ -40,11 +40,16 @@ type fakeSecurityAlertCollectionState struct {
 	targetSets map[string][]string
 	configErr  error
 	stateErr   error
+	// queueStates is the reducer queue depth each scope reports (#8839). A
+	// scope with no entry reads as drained. queueErr fails the queue read.
+	queueStates map[string]SecurityAlertReconciliationQueueState
+	queueErr    error
 	// block makes the configuration read wait for its context, so a test can
 	// prove the probe deadline fails closed.
 	block        bool
 	configCalls  int
 	stateCalls   int
+	queueCalls   int
 	lastScopeIDs []string
 	lastSlugs    []string
 }
@@ -96,10 +101,36 @@ func (f *fakeSecurityAlertCollectionState) SecurityAlertTargetStates(
 	return out, nil
 }
 
+func (f *fakeSecurityAlertCollectionState) SecurityAlertReconciliationQueueStates(
+	_ context.Context,
+	scopeIDs []string,
+) ([]SecurityAlertReconciliationQueueState, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.queueCalls++
+	if f.queueErr != nil {
+		return nil, f.queueErr
+	}
+	out := make([]SecurityAlertReconciliationQueueState, 0, len(scopeIDs))
+	for _, id := range scopeIDs {
+		if state, ok := f.queueStates[id]; ok {
+			state.ScopeID = id
+			out = append(out, state)
+		}
+	}
+	return out, nil
+}
+
 func (f *fakeSecurityAlertCollectionState) calls() (int, int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.configCalls, f.stateCalls
+}
+
+func (f *fakeSecurityAlertCollectionState) queueReadCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.queueCalls
 }
 
 func (f *fakeSecurityAlertCollectionState) lastRequestedSlugs() []string {

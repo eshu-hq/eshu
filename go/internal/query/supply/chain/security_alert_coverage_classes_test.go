@@ -22,6 +22,7 @@ func TestSecurityAlertCoverageReasonsPinned(t *testing.T) {
 	want := []string{
 		"collector_not_configured",
 		"collector_state_unavailable",
+		"dead_lettered_domain",
 		"no_authorized_repositories",
 		"no_committed_generation",
 		"org_repository_alerts_disabled",
@@ -31,6 +32,7 @@ func TestSecurityAlertCoverageReasonsPinned(t *testing.T) {
 		"org_repository_read_incomplete",
 		"org_repository_read_rate_limited",
 		"provider_open_alert_page_limit_reached",
+		"reducer_backlog",
 		"repository_outside_target_set",
 		"terminal_fetch_failure:attempt_budget_exhausted",
 		"terminal_fetch_failure:auth_denied",

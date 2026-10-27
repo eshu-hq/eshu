@@ -267,3 +267,57 @@ func (s PostgresSecurityAlertCollectionStateStore) SecurityAlertTargetStates(
 	}
 	return states, nil
 }
+
+// securityAlertReconciliationQueueStatesQuery reads the reducer queue depth
+// of the security_alert_reconciliation domain per scope (#8839): outstanding
+// work (pending, claimed, running, retrying — the same outstanding set the
+// status snapshot's per-domain backlog counts) and dead-lettered work.
+// Completed, failed, and succeeded rows are not read. The domain literal is
+// pinned here, not imported, because query must not depend on the reducer
+// packages (reducer/contract/domain.go DomainSecurityAlertReconciliation).
+// Evidence: docs/internal/evidence/8839-security-alert-reconciliation-queue.md.
+const securityAlertReconciliationQueueStatesQuery = `
+SELECT scope_id,
+       COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding,
+       COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter
+FROM fact_work_items
+WHERE domain = 'security_alert_reconciliation'
+  AND scope_id = ANY($1)
+  AND status IN ('pending', 'claimed', 'running', 'retrying', 'dead_letter')
+GROUP BY scope_id`
+
+// SecurityAlertReconciliationQueueStates returns the reducer queue depth of
+// the security_alert_reconciliation domain for each scope id.
+func (s PostgresSecurityAlertCollectionStateStore) SecurityAlertReconciliationQueueStates(
+	ctx context.Context,
+	scopeIDs []string,
+) ([]supplychain.SecurityAlertReconciliationQueueState, error) {
+	if s.reader == nil {
+		return nil, fmt.Errorf("security alert collection state database is required")
+	}
+	if len(scopeIDs) == 0 {
+		return nil, nil
+	}
+	if len(scopeIDs) > securityAlertCollectionStateMaxTargets {
+		return nil, fmt.Errorf("security alert targets exceed the %d-target read bound: %w",
+			securityAlertCollectionStateMaxTargets, supplychain.ErrSecurityAlertCollectionStateBound)
+	}
+	rows, err := s.reader.QueryContext(ctx, securityAlertReconciliationQueueStatesQuery, array.Of(scopeIDs))
+	if err != nil {
+		return nil, fmt.Errorf("read security alert reconciliation queue states: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	states := make([]supplychain.SecurityAlertReconciliationQueueState, 0, len(scopeIDs))
+	for rows.Next() {
+		var state supplychain.SecurityAlertReconciliationQueueState
+		if err := rows.Scan(&state.ScopeID, &state.Outstanding, &state.DeadLetter); err != nil {
+			return nil, fmt.Errorf("scan security alert reconciliation queue state: %w", err)
+		}
+		states = append(states, state)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read security alert reconciliation queue state rows: %w", err)
+	}
+	return states, nil
+}

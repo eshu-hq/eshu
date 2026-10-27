@@ -96,7 +96,11 @@ Read `doc.go` and `README.md` first.
   incomplete. A scoped token with no grants
   MUST NOT reach the collector read: the empty-grant writers answer
   `not_configured` with `no_authorized_repositories` and no readiness
-  envelope. A failed probe names a closed `error_class`; a caller cancel is
+  envelope. A collection-healthy answer is downgraded while the reducer's
+  security_alert_reconciliation work for a covering scope is outstanding
+  (`building` with cause `reducer_backlog`) or dead-lettered (`unavailable`
+  with cause `dead_lettered_domain`); the queue read runs only on that path
+  (#8839). A failed probe names a closed `error_class`; a caller cancel is
   INFO and uncounted, every other class WARN and counted.
 - Files must stay under 500 lines. Watch
   `kubernetes_runtime_probe.go` and the aggregate
@@ -173,10 +177,11 @@ not export a new symbol without adding its caller to this list.
   test (via root forward).
 - `ImpactPacketResponder` — root's lane-B packet responder
   implementation and `cmd/*` wiring, which inject it.
-- `SecurityAlertCollectionStateStore`, `SecurityAlertTargetState` — root's
+- `SecurityAlertCollectionStateStore`, `SecurityAlertTargetState`,
+  `SecurityAlertReconciliationQueueState` — root's
   `security_alert_collection_state_postgres.go` implementation (compile-time
   assertion there) and `cmd/*` wiring of the `SecurityAlertCollectionState`
-  handler field (#8803).
+  handler field (#8803, #8839).
 - `ErrSecurityAlertCollectionStateBound` — root's
   `security_alert_collection_state_postgres.go` wraps it on a read-bound hit,
   and the empty-answer classifier reports it as `error_class=bound_exceeded`.

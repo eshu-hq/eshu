@@ -75,6 +75,10 @@ TABLE = {
             "TestSecurityAlertCollectionStateBoundsLive",
             "TestSecurityAlertCollectionStatePlanLive",
         ),
+        "go/internal/query/security_alert_reconciliation_queue_postgres_live_test.go": (
+            "TestSecurityAlertReconciliationQueueStatesLive",
+            "TestSecurityAlertReconciliationQueuePlanLive",
+        ),
         "go/internal/query/security_alert_target_set_postgres_live_test.go": (
             "TestSecurityAlertTargetSetAllowlistChangeLive",
             "TestSecurityAlertTargetSetLegacyAndEmptyLive",
