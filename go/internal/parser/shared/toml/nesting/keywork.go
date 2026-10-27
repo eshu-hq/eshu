@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/maphash"
+	"strings"
 )
 
 // ErrTooManyKeys reports a document whose tables hold so many keys that a
@@ -18,8 +19,8 @@ import (
 var ErrTooManyKeys = errors.New("toml key-table work exceeds limit")
 
 // Bounds are the limits CheckBounds enforces. A zero field allows nothing, so
-// a caller that leaves one out fails closed, except StructFields where zero is
-// the strictest reading (every entry is looked up).
+// a caller that leaves one out fails closed, except KnownTables where empty
+// is the strictest reading (every entry is charged).
 type Bounds struct {
 	// Depth is the deepest nesting allowed, as for Check.
 	Depth int
@@ -27,13 +28,19 @@ type Bounds struct {
 	// the length of the sibling list it scans, so the total tracks the steps
 	// go-toml takes. See CheckBounds.
 	KeyWork int
-	// StructFields is zero when the caller decodes into a map, so go-toml
-	// looks up every entry. When the caller decodes into a struct it is the
-	// largest field count of any struct in the target. go-toml then stops
-	// looking up the plain entries of a table after the first key the struct
-	// does not know, so at most StructFields+1 entries per table are charged.
-	// Inline tables are charged in full either way.
-	StructFields int
+	// KnownTables names the top-level tables a struct decode target knows:
+	// its root fields' TOML names ({"package": true} for a Cargo.lock),
+	// matched case-insensitively the way go-toml matches struct fields.
+	// go-toml tracker-checks every root key and every key in a table the
+	// target knows, known field or not, but never enters a table the target
+	// does not know, so plain entries under a single-segment header that
+	// names no known table are not charged. Headers, inline tables, dotted
+	// headers, and quoted headers are charged in full either way. A nil or
+	// empty set charges every entry: the right reading for a map target, and
+	// the strictest for any target. A caller that sets it must name every
+	// table its target knows, because a table left out would be skipped by
+	// the guard but tracked by the decoder.
+	KnownTables map[string]bool
 }
 
 // keyWork is the running lookup-step estimate of one pass.
@@ -53,23 +60,33 @@ type Bounds struct {
 //   - a header with s segments costs s+1 times the distinct headers so far
 //     plus the most entries any scope has held, which covers its segment
 //     lookups and the walk over the table it replaces.
+//
+// The one exemption is a scope under a single-segment header that names no
+// table in Bounds.KnownTables: go-toml never enters such a table for a
+// struct target, so its plain entries add no tracker entries and cost
+// nothing. Every other key is charged, in known tables too: the decoder
+// tracker-checks unknown keys there and clears its skip at the end of each
+// key, so no per-key or field-count skip exists to mirror.
 type keyWork struct {
 	total int
 	limit int
-	// structFields is Bounds.StructFields.
-	structFields int
-	// scopeEntries and scopeKeys describe the table under the latest header:
-	// the key segments its plain entries defined, and how many entries.
+	// knownTables is Bounds.KnownTables.
+	knownTables map[string]bool
+	// scopeEntries counts the key segments the plain entries of the table
+	// under the latest header defined.
 	scopeEntries int
-	scopeKeys    int
+	// scopeSkipped is true while the latest header names a table the target
+	// does not know, so plain entries are free until the next header.
+	scopeSkipped bool
 	// maxEntries is the largest scopeEntries any scope has reached.
 	maxEntries int
 	headers    headerSet
 }
 
-// startScope begins the table under a new header.
+// startScope begins the table under a new header. The scope counts as
+// tracked until the header closes and header proves it unknown.
 func (w *keyWork) startScope() {
-	w.scopeEntries, w.scopeKeys = 0, 0
+	w.scopeEntries, w.scopeSkipped = 0, false
 }
 
 // charge adds steps and reports whether the total now passes the limit.
@@ -78,12 +95,12 @@ func (w *keyWork) charge(steps int) bool {
 	return w.total > w.limit
 }
 
-// plainKey records a plain entry of segs key segments in the current scope and
-// reports whether the total passes the limit. A struct target stops looking
-// up entries after structFields+1 of them in one scope, so the rest are free.
+// plainKey records a plain entry of segs key segments in the current scope
+// and reports whether the total passes the limit. In a skipped scope (see
+// keyWork) the entry is never looked up and leaves no tracker entry, so it
+// costs nothing and does not widen the scope.
 func (w *keyWork) plainKey(segs int) bool {
-	w.scopeKeys++
-	if w.structFields > 0 && w.scopeKeys > w.structFields+1 {
+	if w.scopeSkipped {
 		return false
 	}
 	w.scopeEntries += segs
@@ -98,10 +115,73 @@ func (w *keyWork) inlineKey(entries *int, segs int) bool {
 	return w.charge(segs * *entries)
 }
 
-// header records a header of segs segments with the given text.
+// header records a header of segs segments with the given text, brackets
+// included, and settles whether the scope it opens is skipped.
 func (w *keyWork) header(text []byte, segs int) bool {
 	w.headers.add(text)
+	w.scopeSkipped = w.unknownTable(text)
 	return w.charge((segs + 1) * (len(w.headers) + w.maxEntries))
+}
+
+// unknownTable reports whether text is a header the decode target provably
+// never enters: a single bare segment that names no known table. With no
+// known tables there is nothing to prove against, and a dotted or quoted
+// header might still name a known table under a spelling this pass does not
+// decode, so both count as tracked. Misreading a header can therefore only
+// over-charge, never skip a scope the decoder tracks.
+func (w *keyWork) unknownTable(text []byte) bool {
+	if len(w.knownTables) == 0 {
+		return false
+	}
+	name, ok := bareHeaderName(text)
+	return ok && !knownTable(w.knownTables, name)
+}
+
+// knownTable reports whether name is one of the known tables. The compare
+// folds case because go-toml matches a header to a struct field
+// case-insensitively: [[Package]] enters a field tagged "package" and its
+// keys are tracker-checked, so a case variant must count as known. Bare
+// keys are ASCII, so the fold is exact here. Known sets name a target's
+// root tables and stay a handful of entries, so the scan is short.
+func knownTable(tables map[string]bool, name string) bool {
+	for known := range tables {
+		if strings.EqualFold(name, known) {
+			return true
+		}
+	}
+	return false
+}
+
+// bareHeaderName returns the table name of a header written as one bare key
+// segment, brackets and padding aside: "[metadata]", "[[package]]". Any
+// other form (dotted, quoted, empty) reports false.
+func bareHeaderName(text []byte) (string, bool) {
+	for len(text) > 0 && text[0] == '[' {
+		text = text[1:]
+	}
+	for len(text) > 0 && text[len(text)-1] == ']' {
+		text = text[:len(text)-1]
+	}
+	for len(text) > 0 && (text[0] == ' ' || text[0] == '\t') {
+		text = text[1:]
+	}
+	for len(text) > 0 && (text[len(text)-1] == ' ' || text[len(text)-1] == '\t') {
+		text = text[:len(text)-1]
+	}
+	if len(text) == 0 {
+		return "", false
+	}
+	for _, c := range text {
+		if !isBareKeyByte(c) {
+			return "", false
+		}
+	}
+	return string(text), true
+}
+
+// isBareKeyByte reports whether c may appear in a TOML bare key.
+func isBareKeyByte(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-'
 }
 
 // exceeded builds the typed error for a pass that went over the limit.
@@ -139,8 +219,9 @@ func (s *headerSet) add(text []byte) bool {
 // field behaves like zero.
 //
 // The key-work total estimates the steps go-toml's key lookup takes (see
-// keyWork for the charges). A Cargo.lock of 50,000 packages costs about 1.2
-// million because each [[package]] header sees a handful of siblings, and the
+// keyWork for the charges). A Cargo.lock of 50,000 packages costs about 1.6
+// million (1,599,985 for the tests' 12.6 MB fixture) because each
+// [[package]] header sees a handful of siblings, and the
 // same header repeated after thousands of distinct ones costs thousands every
 // time. Distinct headers are remembered as seeded 64-bit hashes so a hostile
 // file cannot craft collisions that hide them.

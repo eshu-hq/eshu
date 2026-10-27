@@ -52,8 +52,15 @@ type frame struct {
 // is depth 3 at the 1, and the table header `[a.b.c]` is depth 2. Header
 // brackets do not count: a header is one level and cannot nest.
 //
-// Check is one linear pass with no allocation beyond a stack of at most
-// limit+1 frames. Its lexer follows the TOML string rules exactly for every
+// Check is one linear pass. It allocates a stack of at most limit+1 frames
+// plus one seeded 64-bit hash per distinct table header: Check shares the
+// key-work pass with CheckBounds and remembers headers the same way, but it
+// allows unlimited key work and bounds depth only. A caller handing
+// repository TOML to a decoder must use CheckBounds with an explicit
+// KeyWork bound instead, so a wide table cannot force quadratic key lookup;
+// Check alone gives no key-work protection.
+//
+// Its lexer follows the TOML string rules exactly for every
 // document a decoder accepts: comments, basic strings with escapes, literal
 // strings, and multi-line strings whose closing delimiter may carry one or
 // two extra quotes of content. Brackets, braces, and dots inside a string or
@@ -97,7 +104,7 @@ func scanBounds(source []byte, b Bounds) (measures, error) {
 		// work bounds the quadratic key lookup, see keyWork. keySegs counts
 		// the segments of the entry key being read, hdrSegs those of the
 		// header being read, and hdrStart and hdrEnd bound the header text.
-		work     = keyWork{limit: max(b.KeyWork, 0), structFields: max(b.StructFields, 0)}
+		work     = keyWork{limit: max(b.KeyWork, 0), knownTables: b.KnownTables}
 		keySegs  = 1
 		hdrSegs  = 1
 		hdrStart int

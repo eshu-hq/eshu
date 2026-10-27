@@ -151,7 +151,7 @@ func BenchmarkCheckBoundsLegalLockfile(b *testing.B) {
 	b.SetBytes(int64(len(doc)))
 	b.ReportAllocs()
 	for b.Loop() {
-		if err := CheckBounds(doc, Bounds{Depth: 64, KeyWork: 25_000_000}); err != nil {
+		if err := CheckBounds(doc, Bounds{Depth: 64, KeyWork: 25_000_000, KnownTables: map[string]bool{"package": true}}); err != nil {
 			b.Fatal(err)
 		}
 	}

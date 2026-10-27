@@ -27,8 +27,8 @@ const testWorkLimit = 25_000_000
 var testBounds = Bounds{Depth: 64, KeyWork: testWorkLimit}
 
 // lockStructBounds are the bounds for a lockfile decoded into a struct whose
-// widest element has four fields.
-var lockStructBounds = Bounds{Depth: 64, KeyWork: testWorkLimit, StructFields: 4}
+// only top-level table is [[package]].
+var lockStructBounds = Bounds{Depth: 64, KeyWork: testWorkLimit, KnownTables: map[string]bool{"package": true}}
 
 // buildInline joins n comma-separated entries into one inline table. Every
 // hostile document must be valid TOML, or the guard is not what stands
@@ -113,7 +113,8 @@ func repeatedHeaderDocs(distinct, repeats, elemKeys int) map[string]string {
 }
 
 // TestCheckBoundsRejectsHostileTablesWithBoundedAllocation is the contract
-// from #8991: a document with 100,000 entries in one table is rejected with
+// from #8991: a document with up to 100,000 entries in one table (12,000
+// under -race; see hostileTableEntries) is rejected with
 // a typed error before any decode, and the rejection allocates a bounded
 // amount whatever the size. It measures bytes, not time.
 func TestCheckBoundsRejectsHostileTablesWithBoundedAllocation(t *testing.T) {
@@ -219,18 +220,43 @@ func TestCheckBoundsAcceptsLegalDocuments(t *testing.T) {
 	}
 }
 
-// TestStructBoundsSkipPlainEntriesAfterTheFirstUnknownKey is the P2 from the
+// TestStructBoundsSkipPlainEntriesUnderUnknownTables is the P2 from the
 // #8991 review. A v1 Cargo.lock has one `"checksum ..."` key per package under
-// [metadata]. go-toml decoding into the lock struct skips that table's plain
-// entries untracked, so a struct caller is not charged for them, and a map
-// caller (every entry looked up) is.
-func TestStructBoundsSkipPlainEntriesAfterTheFirstUnknownKey(t *testing.T) {
+// [metadata]. The lock struct has no metadata field, so go-toml never enters
+// that table and its plain entries are never tracker-checked (30,000 of them
+// decode in about a millisecond), so a struct caller is not charged for
+// them, and a map caller (every entry looked up) is.
+func TestStructBoundsSkipPlainEntriesUnderUnknownTables(t *testing.T) {
 	doc := legalLockfileV1(50_000)
 	if _, err := scanBounds(doc, lockStructBounds); err != nil {
 		t.Fatalf("struct bounds: scanBounds() = %v, want nil", err)
 	}
 	if _, err := scanBounds(doc, testBounds); !errors.Is(err, ErrTooManyKeys) {
 		t.Fatalf("map bounds: scanBounds() = %v, want ErrTooManyKeys", err)
+	}
+}
+
+// unknownKeysInPackage returns one [[package]] element holding a known key
+// plus n keys the lock struct does not know.
+func unknownKeysInPackage(n int) []byte {
+	var b strings.Builder
+	b.WriteString("[[package]]\nname = \"a\"\n")
+	for i := range n {
+		fmt.Fprintf(&b, "x%d = 1\n", i)
+	}
+	return []byte(b.String())
+}
+
+// TestStructBoundsRejectUnknownKeysInKnownTable is the P0 regression from the
+// PR #9270 review. go-toml checks every key of a table it decodes into a
+// struct element against its key tracker, known field or not, so 30,000
+// unknown keys in one [[package]] element cost about 450 million tracker
+// steps (1.47 s measured for a 319 KB document). The lock bounds must charge
+// them in full and reject the document.
+func TestStructBoundsRejectUnknownKeysInKnownTable(t *testing.T) {
+	doc := unknownKeysInPackage(30_000)
+	if _, err := scanBounds(doc, lockStructBounds); !errors.Is(err, ErrTooManyKeys) {
+		t.Fatalf("scanBounds() = %v, want ErrTooManyKeys", err)
 	}
 }
 
@@ -244,10 +270,10 @@ func TestStructBoundsStillChargeInlineTablesAndHeaders(t *testing.T) {
 		}
 	}
 	// Bare repeats of an empty array child are not rejected here: the struct
-	// decode skips the unknown table's keys and each repeated lookup hits a
-	// one-entry list, so the document is genuinely cheap and struct bounds
-	// accept it. Map bounds still reject it as policy (see
-	// TestCheckBoundsRejectsRepeatedHeaders), and
+	// decode never enters the unknown tables, so their keys are untracked
+	// and each repeated lookup hits a one-entry list; the document is
+	// genuinely cheap and struct bounds accept it. Map bounds still reject
+	// it as policy (see TestCheckBoundsRejectsRepeatedHeaders), and
 	// TestStructShapeWorkCoversTheDecoder proves the work still covers the
 	// steps, so the acceptance is sound.
 	layouts := repeatedHeaderDocs(repeatScale())
@@ -256,8 +282,8 @@ func TestStructBoundsStillChargeInlineTablesAndHeaders(t *testing.T) {
 			t.Errorf("%s: scanBounds() = %v, want ErrTooManyKeys", name, err)
 		}
 	}
-	// The first entry of a table is looked up even when the struct does not
-	// know it, so an inline table as that entry is charged.
+	// Inline tables are charged in every scope, even under a header the
+	// struct does not know: the guard exempts only plain entries there.
 	first := []byte("[metadata]\nx = {" + strings.Repeat("a=1,", hostileTableEntries()) + "}\n")
 	if _, err := scanBounds(first, lockStructBounds); !errors.Is(err, ErrTooManyKeys) {
 		t.Errorf("first entry inline table: scanBounds() = %v, want ErrTooManyKeys", err)
@@ -271,6 +297,7 @@ func TestStructBoundsStillChargeInlineTablesAndHeaders(t *testing.T) {
 // m * (its scope's segments + distinct headers), and an inline entry costs
 // m * (its inline table's segments).
 func TestCheckBoundsCountsEveryTableForm(t *testing.T) {
+	knownPackage := map[string]bool{"package": true}
 	for _, tc := range []struct {
 		name   string
 		doc    string
@@ -295,7 +322,22 @@ func TestCheckBoundsCountsEveryTableForm(t *testing.T) {
 		{"string and comment", "a = \"b = 1\" # c = 2\n", testBounds, 1},
 		{"header comment", "[a] # [b]\nx=1\n", testBounds, 2*1 + 1*(1+1)},
 		{"header at eof", "[a]\n[b]", testBounds, 2*1 + 2*2},
-		{"struct stops after the first unknown", "a=1\nb=2\nc=3\nd=4\n", Bounds{Depth: 64, KeyWork: 1000, StructFields: 2}, 1 + 2 + 3},
+		// KnownTables pins the decoder's real skip. Root keys and keys in a
+		// known table are charged in full, known field or not; only plain
+		// entries under a single-segment header naming no known table are
+		// free. Quoted and dotted spellings stay charged (fail closed).
+		{"known tables: root keys charged", "a=1\nb=2\nc=3\nd=4\n", Bounds{Depth: 64, KnownTables: knownPackage}, 1 + 2 + 3 + 4},
+		{"known tables: package entries charged", "[[package]]\na=1\nb=2\n", Bounds{Depth: 64, KnownTables: knownPackage}, 2*1 + 1*(1+1) + 1*(2+1)},
+		// go-toml matches headers to struct fields case-insensitively, so a
+		// case variant of a known table is entered and tracked.
+		{"known tables: case-variant package charged", "[[Package]]\na=1\nb=2\n", Bounds{Depth: 64, KnownTables: knownPackage}, 2*1 + 1*(1+1) + 1*(2+1)},
+		{"known tables: case-variant unknown free", "[METADATA]\na=1\n", Bounds{Depth: 64, KnownTables: knownPackage}, 2 * 1},
+		{"known tables: unknown table free", "[metadata]\na=1\nb=2\nc=3\n", Bounds{Depth: 64, KnownTables: knownPackage}, 2 * 1},
+		{"known tables: unknown array table free", "[[bin]]\na=1\nb=2\n", Bounds{Depth: 64, KnownTables: knownPackage}, 2 * 1},
+		{"known tables: spaced unknown header free", "[ metadata ]\na=1\n", Bounds{Depth: 64, KnownTables: knownPackage}, 2 * 1},
+		{"known tables: quoted header charged", "[\"metadata\"]\na=1\nb=2\n", Bounds{Depth: 64, KnownTables: knownPackage}, 2*1 + 1*(1+1) + 1*(2+1)},
+		{"known tables: dotted header charged", "[metadata.sub]\na=1\n", Bounds{Depth: 64, KnownTables: knownPackage}, 3*1 + 1*(1+1)},
+		{"known tables: empty set charges all", "[metadata]\na=1\nb=2\n", Bounds{Depth: 64, KnownTables: map[string]bool{}}, 2*1 + 1*(1+1) + 1*(2+1)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.bounds.KeyWork = math.MaxInt

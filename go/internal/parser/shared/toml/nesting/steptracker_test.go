@@ -260,56 +260,66 @@ func (s *stepTracker) checkInlineTable(node *unstable.Node) (bool, error) {
 	return first, nil
 }
 
-// decodeShape says how the decoder walks a document, because go-toml skips
-// the tracker for plain entries after a struct target rejects a key.
+// decodeShape says which top-level tables a struct target knows, because
+// that is all that decides which expressions go-toml tracker-checks. A nil
+// decodeShape is a map decode: the tracker sees every expression.
 type decodeShape struct {
-	// tables maps a known single-segment array-table name to the field names
-	// of the struct it decodes into. A nil decodeShape is a map decode: the
-	// tracker sees every expression.
-	root   map[string]bool
-	tables map[string]map[string]bool
+	// knownTables holds the single-segment table names that match a field
+	// of the target's root struct.
+	knownTables map[string]bool
 }
 
 // trackerSteps parses doc with go-toml's own parser and replays every
 // expression through the step-counting tracker the way the decoder does. It
 // returns the total steps, or an error for a document go-toml rejects.
+//
+// The replay mirrors go-toml v2.3.1 unmarshaler.go: handleRootExpression
+// skips CheckExpression for a key/value only while skipUntilTable is set,
+// handleKeyValues (the loop inside a table the target knows) calls
+// CheckExpression unconditionally, and handleKeyValue clears
+// skipUntilTable at the end of the same key that set it. So an unknown key
+// never suppresses the tracker: skip lasts only from a table header the
+// target does not know (handleKeyPart sets skipUntilTable and the table's
+// entries are never entered) until the next header. Headers themselves are
+// always checked.
 func trackerSteps(doc []byte, shape *decodeShape) (int, error) {
 	var steps int
 	tracker := newStepTracker(&steps)
 	var p unstable.Parser
 	p.Reset(doc)
 	skip := false
-	fields := map[string]bool(nil)
-	if shape != nil {
-		fields = shape.root
-	}
 	for p.NextExpression() {
 		expr := p.Expression()
-		if !skip || expr.Kind != unstable.KeyValue {
+		switch expr.Kind {
+		case unstable.KeyValue:
+			if !skip {
+				if _, err := tracker.check(expr); err != nil {
+					return steps, err
+				}
+			}
+		case unstable.Table, unstable.ArrayTable:
+			if _, err := tracker.check(expr); err != nil {
+				return steps, err
+			}
+			skip = shape != nil && !shape.knowsHeader(expr)
+		default:
 			if _, err := tracker.check(expr); err != nil {
 				return steps, err
 			}
 		}
-		if shape == nil {
-			continue
-		}
-		switch expr.Kind {
-		case unstable.KeyValue:
-			if !skip && !fields[firstSegment(expr)] {
-				skip = true
-			}
-		case unstable.Table, unstable.ArrayTable:
-			skip = false
-			name := firstSegment(expr)
-			sub, known := shape.tables[name]
-			if !known || expr.Kind != unstable.ArrayTable || segmentCount(expr) != 1 {
-				skip, fields = true, nil
-			} else {
-				fields = sub
-			}
-		}
 	}
 	return steps, p.Error()
+}
+
+// knowsHeader reports whether a table header names a root field of the
+// target struct. Only a single-segment header can: a dotted header whose
+// first segment is unknown is skipped at its first segment, and one under a
+// known table names a nested field the replay does not model, so it counts
+// as unknown and its entries go unchecked here. The guard charges dotted
+// headers' entries in full, so this can only understate the steps, never
+// overstate them.
+func (s *decodeShape) knowsHeader(expr *unstable.Node) bool {
+	return segmentCount(expr) == 1 && knownTable(s.knownTables, firstSegment(expr))
 }
 
 func firstSegment(expr *unstable.Node) string {

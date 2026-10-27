@@ -53,7 +53,7 @@ a repeated header pays it again: naming an already-seen table rescans the
 siblings every time, so repeats cost per repeat and are not bounded by the
 distinct header texts.
 
-`CheckBounds(source, Bounds{Depth, KeyWork, StructFields})` adds up that work
+`CheckBounds(source, Bounds{Depth, KeyWork, KnownTables})` adds up that work
 in the same pass and returns an error wrapping `ErrTooManyKeys` once the
 total passes `KeyWork`. A zero field allows nothing, so a caller that omits a
 bound fails closed.
@@ -67,10 +67,17 @@ bound fails closed.
   far plus the widest scope seen, repeated headers included. Distinct headers
   are remembered as seeded 64-bit hashes, one per header, capped by the
   limit.
-- A struct target (StructFields above zero) stops charging a table's plain
-  entries after StructFields+1 of them: go-toml skips the rest without a
-  tracker scan once the struct rejects a key. Inline tables and headers are
-  still charged in full. A map target passes zero, so every entry is charged.
+- Every root key and every key in a table the decode target knows is charged
+  in full, known field or not: go-toml tracker-checks them all and clears its
+  per-key skip at the end of each key, so 30,000 unknown keys in one
+  `[[package]]` element really cost about 450 million tracker steps. The one
+  exemption needs the caller to name its struct target's top-level tables in
+  `KnownTables`: go-toml never enters a table the target does not know, so
+  plain entries under a single-segment header naming no known table (the v1
+  lockfile's `[metadata]`) are not charged. Headers, inline tables, dotted
+  headers, and quoted headers are charged in full either way, so a spelling
+  the pass does not decode can only over-charge. A map target passes an empty
+  set, so every entry is charged.
 
 | Document | Work |
 | --- | --- |
@@ -82,12 +89,17 @@ bound fails closed.
 
 The count never falls below the decoder's tracker steps: each charge is an
 upper bound of the list its lookup scans, every header repeat is charged, and
-the struct rule mirrors the decoder's skip. The charge may exceed the steps,
-and map bounds reject some documents a struct decode would finish quickly;
-that over-count is policy, and the struct bounds exist so legal
-struct-decoded files are not refused. `TestKeyWorkNeverUndercountsTheDecoder`
+the unknown-table exemption mirrors the one skip the decoder really makes.
+The charge may exceed the steps, and map bounds reject some documents a
+struct decode would finish quickly; that over-count is policy, and
+`KnownTables` exists so legal struct-decoded files (a v1 lockfile's
+`[metadata]` checksums) are not refused. `TestKeyWorkNeverUndercountsTheDecoder`
 and `TestStructShapeWorkCoversTheDecoder` check the work against a
-step-counting copy of the go-toml tracker on seeded documents.
+step-counting copy of the go-toml tracker on seeded documents, including
+2,000 unknown keys inside one `[[package]]` element so the oracle cannot
+drift back to a per-key skip the decoder does not have;
+`TestStructBoundsRejectUnknownKeysInKnownTable` requires the 30,000-key
+document to be rejected under the lock bounds.
 
 ## Cost
 
@@ -104,9 +116,13 @@ table within 1 MiB (the header set).
 
 - `internal/parser/rust` checks every `Cargo.toml` and `Cargo.lock` at depth
   64 and key work 25,000,000 before `toml.Unmarshal`; lockfiles pass the lock
-  struct's field count so struct-skipped entries are not charged.
+  struct's known tables (`{"package"}`) so entries under tables the decoder
+  never enters are not charged.
 
-Any new parser that hands repository TOML to go-toml must call `Check` first.
+Any new parser that hands repository TOML to go-toml must call `CheckBounds`
+first with an explicit `KeyWork` bound (and `KnownTables` for a struct
+target). `Check` alone bounds depth only and gives no key-work protection,
+though it allocates the same per-distinct-header hash set.
 
 ## Telemetry
 

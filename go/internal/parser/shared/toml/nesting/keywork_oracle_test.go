@@ -175,21 +175,22 @@ func TestKeyWorkUpperBoundsTheReviewShapes(t *testing.T) {
 }
 
 // TestStructShapeWorkCoversTheDecoder replays lockfile-shaped documents through
-// the tracker the way a struct decode walks them: plain entries after the
-// first key the struct does not know are never looked up. The guard's work
-// under StructFields must still cover the steps.
+// the tracker the way a struct decode walks them: every key in a table the
+// struct knows is tracker-checked, known field or not, and only the entries
+// under a header the struct does not know are skipped. The guard's work
+// under the lock bounds must still cover the steps.
 func TestStructShapeWorkCoversTheDecoder(t *testing.T) {
-	shape := &decodeShape{
-		root:   map[string]bool{"package": true},
-		tables: map[string]map[string]bool{"package": {"name": true, "version": true, "source": true, "dependencies": true}},
-	}
+	shape := &decodeShape{knownTables: map[string]bool{"package": true}}
 	for name, doc := range map[string][]byte{
 		"v1 lockfile":        legalLockfileV1(300),
 		"v3 lockfile":        legalLockfile(300),
 		"unknown first key":  []byte("[[package]]\nx = 1\nname = \"a\"\n[metadata]\na = 1\nb = 2\n"),
 		"root keys":          []byte("version = 3\nother = 1\nmore = 2\n[[package]]\nname = \"a\"\n"),
 		"inline first entry": []byte("[metadata]\nx = {a=1, b=2, c=3, d=4, e=5, f=6}\n"),
-		"many unknown":       []byte("[[package]]\nx = 1\n" + strings.Repeat("k = 1\n", 0) + "[foo]\na=1\n[[package]]\nname=\"b\"\n"),
+		"many unknown":       []byte("[[package]]\nx = 1\n[foo]\na=1\n[[package]]\nname=\"b\"\n"),
+		// The P0 shape at oracle scale: unknown keys inside a table the
+		// struct knows are all tracker-checked by the real decoder.
+		"unknown keys in package": unknownKeysInPackage(2000),
 		// Bare repeats of an empty array child: struct bounds accept this
 		// document (see TestStructBoundsStillChargeInlineTablesAndHeaders),
 		// so this case proves the acceptance is sound instead.
@@ -200,9 +201,16 @@ func TestStructShapeWorkCoversTheDecoder(t *testing.T) {
 			if err != nil {
 				t.Fatalf("step tracker: %v", err)
 			}
-			got, err := scanBounds(doc, Bounds{Depth: math.MaxInt, KeyWork: math.MaxInt, StructFields: 4})
+			got, err := scanBounds(doc, Bounds{Depth: math.MaxInt, KeyWork: math.MaxInt, KnownTables: map[string]bool{"package": true}})
 			if err != nil {
 				t.Fatalf("scanBounds() = %v", err)
+			}
+			// The P0 corpus case must stay quadratic: 2,000 unknown keys
+			// in one [[package]] element cost about 2 million steps. A
+			// handful of steps here means the oracle has drifted back to
+			// modeling a skip the decoder does not have.
+			if name == "unknown keys in package" && steps < 1_000_000 {
+				t.Fatalf("steps = %d, want at least 1,000,000: the oracle no longer counts unknown keys in a known table", steps)
 			}
 			if got.work < steps {
 				t.Fatalf("work %d is under the %d steps a struct decode takes", got.work, steps)

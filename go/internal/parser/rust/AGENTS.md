@@ -33,9 +33,10 @@
   lookup is quadratic in the keys of one table. Never raise it without
   re-measuring the decode time at the new limit and the real-file corpus
   maximum; `TestCargoKeyWorkLimitBoundary` pins the constant. Lock decodes
-  pass `cargoLockStructFields` (kept over the widest lock struct by
-  `TestCargoLockStructFieldsCoversTarget`); manifests pass zero for a map
-  target.
+  pass `cargoLockKnownTables` (kept over every table field of the lock
+  target by `TestCargoLockKnownTablesCoversTarget`); manifests pass nil for
+  a map target. Never exempt keys inside a known table: go-toml
+  tracker-checks unknown keys there too (PR #9270 P0).
 
 ## Common Changes And Scope
 

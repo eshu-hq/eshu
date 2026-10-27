@@ -26,8 +26,12 @@
 - Key work is a running upper bound of the decoder's tracker steps: plain
   entries charge their segments times the scope so far plus distinct headers,
   inline entries charge against their own table, every header repeat is
-  charged, and struct targets stop charging plain entries after StructFields+1
-  per scope (#8991). It may over-count and must never under-count:
+  charged, and the only exemption is plain entries under a single-segment
+  header naming no table in `Bounds.KnownTables`, because go-toml never
+  enters such a table for a struct target (#8991). Unknown keys in known
+  tables are charged in full: the decoder tracker-checks them and clears its
+  skip per key, so no field-count or first-unknown-key skip may be
+  reintroduced (PR #9270 P0). It may over-count and must never under-count:
   `TestKeyWorkNeverUndercountsTheDecoder` and
   `TestStructShapeWorkCoversTheDecoder` hold the work at or above the steps of
   a step-counting copy of the go-toml tracker.
@@ -44,8 +48,9 @@
   recursive construct needs a depth rule here.
 - Mutation-check key-work changes the same way: dropping the `=` count, the
   header count, the header-text dedupe, the repeat charge, the per-header
-  scope reset, the struct skip, or the end-of-file header must each fail a
-  test.
+  scope reset, the unknown-table exemption, or the end-of-file header must
+  each fail a test. The same applies to widening the oracle's skip in
+  `trackerSteps` beyond unknown-table scopes.
 - Mutation-check a lexer change with `go test -overlay`: dropping the comment
   skip, the multi-line handling, the extra-quote run, escapes, or the header
   reset must each fail a test.

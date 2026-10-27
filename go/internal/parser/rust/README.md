@@ -176,10 +176,12 @@ steps, and a file over it returns an error wrapping `nesting.ErrTooManyKeys`.
 Of 290 real `Cargo.toml` and `Cargo.lock` files the largest work total is
 16,919 and the widest table has 45 keys, so the limit leaves a factor of
 about 1,480; it admits one table of 7,069 keys and a 50,000-package lockfile.
-Lockfiles decode into a struct, so the lock bounds skip plain entries past
-the first unknown key the way the decoder does; manifests decode into a map
-and charge every entry. The guard stops before the decode, so the rejected
-file costs under 10 ms.
+Lockfiles decode into a struct: the decoder tracker-checks every key inside
+`[[package]]`, known field or not, so those keys are charged in full, and it
+never enters a table the lock struct does not know (the v1 `[metadata]`
+checksum table), so plain entries under such a header are not charged
+(`cargoLockKnownTables`). Manifests decode into a map and charge every entry.
+The guard stops before the decode, so the rejected file costs under 10 ms.
 `ResolveModuleRowFileCandidates` does not probe the filesystem; it returns
 Rust's candidate paths for direct module declarations, honors explicit
 `#[path = "..."]` rows, and leaves macro-origin rows blocked. The parent parser

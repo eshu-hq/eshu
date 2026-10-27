@@ -41,13 +41,14 @@ func manifestWithKeys(n int) string {
 // which proves the quadratic decode never ran. The test asserts bytes, not
 // time: an unguarded decode of these files allocates many times the file.
 func TestCargoManyKeysAreRejectedBeforeDecode(t *testing.T) {
-	var headers, bomb strings.Builder
+	var headers, bomb, unknownKeys strings.Builder
 	for i := range hostileKeyCount {
 		fmt.Fprintf(&headers, "[dependencies.dep%d]\nversion = \"1\"\n", i)
 	}
-	// The lock decodes into a struct, so plain keys past the first unknown
-	// one are never looked up: the hostile lockfile piles its entries into an
-	// inline table on a checked entry instead, which the decoder always walks.
+	// The decoder tracker-checks every key inside [[package]], known field
+	// or not, so unknown plain keys pile up quadratically there (the P0 from
+	// the PR #9270 review). The inline case is the same pile inside one
+	// entry's inline table, which the decoder always walks.
 	// No trailing comma: go-toml rejects `,}` without any key lookup, which
 	// would make the document a vacuous threat.
 	bomb.WriteString("version = 3\n[[package]]\nname = \"a\"\ndeps = {")
@@ -58,10 +59,15 @@ func TestCargoManyKeysAreRejectedBeforeDecode(t *testing.T) {
 		fmt.Fprintf(&bomb, "k%d = 1", i)
 	}
 	bomb.WriteString("}\n")
+	unknownKeys.WriteString("version = 3\n[[package]]\nname = \"a\"\n")
+	for i := range hostileKeyCount {
+		fmt.Fprintf(&unknownKeys, "x%d = 1\n", i)
+	}
 	for name, tc := range map[string]struct{ file, body string }{
 		"manifest table keys":    {"Cargo.toml", manifestWithKeys(hostileKeyCount)},
 		"manifest child headers": {"Cargo.toml", headers.String()},
 		"lockfile inline bomb":   {"Cargo.lock", bomb.String()},
+		"lockfile unknown keys":  {"Cargo.lock", unknownKeys.String()},
 	} {
 		t.Run(name, func(t *testing.T) {
 			repoRoot := t.TempDir()
@@ -119,38 +125,61 @@ func TestCargoWideLegalFilesStillParse(t *testing.T) {
 	}
 }
 
-// TestCargoLockStructFieldsCoversTarget keeps cargoLockStructFields at or
-// above the widest struct in the lock target. A new field that outgrows it
-// would under-count that table's lookups, so the constant must move with the
-// structs.
-func TestCargoLockStructFieldsCoversTarget(t *testing.T) {
+// TestCargoLockKnownTablesCoversTarget keeps cargoLockKnownTables over
+// every top-level table of the lock target. A table field missing from the
+// set would be skipped by the guard but tracker-checked by the decoder,
+// which reopens the quadratic hole, so the set must move with the struct.
+func TestCargoLockKnownTablesCoversTarget(t *testing.T) {
 	t.Parallel()
-	var widest int
-	var walk func(rt reflect.Type)
-	walk = func(rt reflect.Type) {
-		for rt.Kind() == reflect.Slice || rt.Kind() == reflect.Array || rt.Kind() == reflect.Pointer {
-			rt = rt.Elem()
-		}
-		if rt.Kind() != reflect.Struct {
-			return
-		}
-		widest = max(widest, rt.NumField())
+	var checkFields func(rt reflect.Type)
+	checkFields = func(rt reflect.Type) {
 		for i := range rt.NumField() {
-			walk(rt.Field(i).Type)
+			field := rt.Field(i)
+			name, _, _ := strings.Cut(field.Tag.Get("toml"), ",")
+			if name == "-" {
+				continue
+			}
+			// An untagged embedded struct promotes its fields to the root,
+			// so its tables are root tables too.
+			ft := field.Type
+			for ft.Kind() == reflect.Pointer {
+				ft = ft.Elem()
+			}
+			if field.Anonymous && name == "" && ft.Kind() == reflect.Struct {
+				checkFields(ft)
+				continue
+			}
+			// Only table-valued fields can be named by a table header; a
+			// scalar root field is a key, and root keys are always charged.
+			switch field.Type.Kind() {
+			case reflect.Slice, reflect.Array, reflect.Struct, reflect.Map, reflect.Pointer, reflect.Interface:
+			default:
+				continue
+			}
+			if name == "" {
+				name = field.Name
+			}
+			// The guard matches case-insensitively, as go-toml does.
+			found := false
+			for known := range cargoLockKnownTables {
+				if strings.EqualFold(name, known) {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("cargoLockKnownTables is missing %q (field %s): the guard would skip a table the decoder tracks", name, field.Name)
+			}
 		}
 	}
-	walk(reflect.TypeOf(cargoLockDocument{}))
-	if cargoLockStructFields < widest {
-		t.Fatalf("cargoLockStructFields = %d, want >= %d (widest lock struct)", cargoLockStructFields, widest)
-	}
+	checkFields(reflect.TypeOf(cargoLockDocument{}))
 }
 
 // TestCargoV1LockfileWithManyPackagesStillParses is the P2 from the #8991
 // review. A v1 Cargo.lock holds one checksum key per package under
-// [metadata], and the lock target has no metadata field, so the struct decode
-// skips that table after its first key. Map-shaped bounds count all 50,000
-// keys (over a billion work) and reject the legal file; the lock bounds must
-// skip them the way the decoder does.
+// [metadata], and the lock target has no metadata field, so the struct
+// decode never enters that table and its keys are never tracker-checked.
+// Map-shaped bounds count all 50,000 keys (over a billion work) and reject
+// the legal file; the lock bounds must skip them the way the decoder does.
 func TestCargoV1LockfileWithManyPackagesStillParses(t *testing.T) {
 	t.Parallel()
 	const packages = 50_000
