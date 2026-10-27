@@ -138,9 +138,12 @@ Actual emitted facts are also capped at 10,000 or 8 MiB serialized. The limits i
 `capacity_exceeded` is terminal for that target; narrow its modified window
 or split explicit ID targets before retrying. A single oversized CVE needs
 source inspection and a measured capacity decision. Cache fallback does not turn this failure into a successful
-claim; NVD cache files are bounded before replay. Retention cleanup reads at
-most 16 MiB per cache artifact; larger legacy or unrelated files age by file
-modification time without being decoded. These process-local limits do not
+claim. NVD cache replay bounds the artifact size, serialized fact bytes, fact
+count, and JSON structure before decoding. It returns a capacity failure with
+no facts when a limit is exceeded. Retention cleanup reads at most 16 MiB per
+artifact and checks metadata and syntax; retained files are validated fully
+on replay. Larger legacy or unrelated files age by file modification time
+without being decoded. These process-local limits do not
 provide fleet-wide NVD rate pacing.
 
 When `prometheusMimirCollector.enabled=true`, Helm also passes that collector
