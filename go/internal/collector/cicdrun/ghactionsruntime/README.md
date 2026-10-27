@@ -225,6 +225,18 @@ flowchart LR
 
 ## Evidence
 
+No-Regression Evidence (#9239): collected generations are built
+`GenerationStatusPending`, never `Completed`, so the commit guard
+(`backfill.ValidateGenerationInput`) accepts them and the projector marks
+completion afterwards. `go test ./internal/collector/cicdrun/... -count=1`
+passes, including `TestClaimedGenerationIsPendingBeforeProjection` (fails on
+`Completed`, passes on `Pending`). No fetch, retry, batching, or telemetry
+shape changes.
+
+No-Observability-Change: no new spans, metrics, or log fields; the existing
+`auth_error`/`success` status classes and `auth_denied` failure class are the
+unchanged operator signals.
+
 Collector Performance Evidence: `go test ./internal/collector/cicdrun/ghactionsruntime
 -count=1` proves each claim fetches exactly one bounded run page (`per_page`
 already equals `max_runs`, so the runs request itself is bounded — see
