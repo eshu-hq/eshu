@@ -27,77 +27,99 @@ import (
 func TestSBOM8865ShimPinsMatchGoMod(t *testing.T) {
 	t.Parallel()
 
-	pinned := readShimPins(t)
-	built := readGoModPins(t)
-
-	for module, want := range pinned {
-		got, ok := built[module]
-		if !ok {
-			t.Fatalf("SHIM_MAP.md pins %s but the test binary was not built against it", module)
-		}
-		if got != want {
-			t.Fatalf("SDK pin drift for %s: SHIM_MAP.md says %s, go.mod builds %s; update SHIM_MAP.md in the same reviewed change as the go.mod bump (Refs #8865)",
-				module, want, got)
-		}
-	}
-}
-
-// readShimPins extracts the exact pinned SDK versions recorded in the
-// cutover contract doc. Lines look like:
-//
-//   - `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3`
-func readShimPins(t *testing.T) map[string]string {
-	t.Helper()
-
-	raw, err := os.ReadFile(filepath.Join("..", "SHIM_MAP.md"))
+	shimRaw, err := os.ReadFile(filepath.Join("..", "SHIM_MAP.md"))
 	if err != nil {
 		t.Fatalf("read SHIM_MAP.md: %v", err)
 	}
-	re := regexp.MustCompile("`(" + regexp.QuoteMeta("github.com/eshu-hq/eshu-sdk/") + "[a-z]+) (v[0-9][^`]*)`")
-	pins := map[string]string{}
-	for _, m := range re.FindAllSubmatch(raw, -1) {
-		pins[string(m[1])] = string(m[2])
+	goModRaw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "go.mod"))
+	if err != nil {
+		t.Fatalf("read go.mod: %v", err)
 	}
-	for _, module := range []string{
-		"github.com/eshu-hq/eshu-sdk/collector",
-		"github.com/eshu-hq/eshu-sdk/factschema",
-	} {
-		if pins[module] == "" {
-			t.Fatalf("SHIM_MAP.md records no exact pin for %s", module)
+	for _, offense := range pinParityOffenses(string(shimRaw), string(goModRaw)) {
+		t.Fatal(offense)
+	}
+}
+
+// pinParityOffenses compares the cutover contract (SHIM_MAP.md content)
+// against the built module file (go.mod content) and reports every drift
+// as a human-readable offense. Empty means parity holds.
+func pinParityOffenses(shimContent, goModContent string) []string {
+	var offenses []string
+	pinned := parseShimPins(shimContent)
+	built, replaceOffenses := parseGoModPins(goModContent)
+	for _, offense := range replaceOffenses {
+		offenses = append(offenses, "go.mod replaces an eshu-sdk module ("+offense+"); pin-parity needs exact published versions")
+	}
+	for module, want := range pinned {
+		got, ok := built[module]
+		if !ok {
+			offenses = append(offenses, "SHIM_MAP.md pins "+module+" but the test binary was not built against it")
+			continue
 		}
+		if got != want {
+			offenses = append(offenses, "SDK pin drift for "+module+": SHIM_MAP.md says "+want+", go.mod builds "+got+"; update SHIM_MAP.md in the same reviewed change as the go.mod bump (Refs #8865)")
+		}
+	}
+	for module, got := range built {
+		if _, ok := pinned[module]; !ok {
+			offenses = append(offenses, "go.mod builds "+module+"@"+got+" with no SHIM_MAP.md pin; record the new SDK dependency in SHIM_MAP.md in the same reviewed change (Refs #8865)")
+		}
+	}
+	return offenses
+}
+
+// TestSBOM8865NewModuleFailsClosed is the regression for the repeat P1: a
+// go.mod that gains a new eshu-sdk module (here hyphenated, which the old
+// [a-z]+ readers could not even parse) alongside correct pins for the
+// known two must report an offense so the reviewed change records it.
+func TestSBOM8865NewModuleFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	shim := "- `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3`\n" +
+		"- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.6`\n"
+	goMod := "module github.com/eshu-hq/eshu/go\n\n" +
+		"require (\n" +
+		"\tgithub.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3\n" +
+		"\tgithub.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.6\n" +
+		"\tgithub.com/eshu-hq/eshu-sdk/new-module v0.1.0-rc.1\n" +
+		")\n"
+	offenses := pinParityOffenses(shim, goMod)
+	for _, o := range offenses {
+		t.Logf("offense: %s", o)
+	}
+	if len(offenses) == 0 {
+		t.Fatal("pin parity passed with an unrecorded eshu-sdk module (new-module); a new SDK dependency must fail closed until SHIM_MAP.md records it (Refs #8865)")
+	}
+}
+
+// parseShimPins extracts the exact pinned SDK versions recorded in the
+// cutover contract doc content. Lines look like:
+//
+//   - `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3`
+//
+// The module-name class covers the real module-name charset (letters,
+// digits, dots, hyphens, underscores) so hyphenated SDK modules cannot
+// slip past the reader.
+func parseShimPins(content string) map[string]string {
+	re := regexp.MustCompile("`(" + regexp.QuoteMeta("github.com/eshu-hq/eshu-sdk/") + "[A-Za-z0-9][A-Za-z0-9._~-]*) (v[0-9][^`]*)`")
+	pins := map[string]string{}
+	for _, m := range re.FindAllStringSubmatch(content, -1) {
+		pins[string(m[1])] = string(m[2])
 	}
 	return pins
 }
 
-// readGoModPins reports the SDK versions the lane builds against,
-// read from the module file (`go test` runs with the package directory as
-// the working directory, so this path is repo-deterministic). A replace
-// directive on either SDK module fails closed: pin-parity needs exact
-// published versions, not a local checkout.
-func readGoModPins(t *testing.T) map[string]string {
-	t.Helper()
-
-	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "go.mod"))
-	if err != nil {
-		t.Fatalf("read go.mod: %v", err)
-	}
+// parseGoModPins reports the SDK versions a module file builds against.
+// It returns the parsed pins plus every eshu-sdk replace offense; a
+// replace directive on an SDK module fails closed because pin-parity
+// needs exact published versions, not a local checkout.
+func parseGoModPins(content string) (map[string]string, []string) {
 	pins := map[string]string{}
-	requireRe := regexp.MustCompile(`(?m)^\s*(github\.com/eshu-hq/eshu-sdk/[a-z]+)\s+(v[0-9][^\s]*)`)
-	for _, m := range requireRe.FindAllSubmatch(raw, -1) {
+	requireRe := regexp.MustCompile(`(?m)^\s*(github\.com/eshu-hq/eshu-sdk/[A-Za-z0-9][A-Za-z0-9._~-]*)\s+(v[0-9][^\s]*)`)
+	for _, m := range requireRe.FindAllStringSubmatch(content, -1) {
 		pins[string(m[1])] = string(m[2])
 	}
-	for _, offense := range sdkReplaceOffenses(string(raw)) {
-		t.Fatalf("go.mod replaces an eshu-sdk module (%q); pin-parity needs exact published versions", offense)
-	}
-	for _, module := range []string{
-		"github.com/eshu-hq/eshu-sdk/collector",
-		"github.com/eshu-hq/eshu-sdk/factschema",
-	} {
-		if pins[module] == "" {
-			t.Fatalf("go.mod records no pin for %s", module)
-		}
-	}
-	return pins
+	return pins, sdkReplaceOffenses(content)
 }
 
 // sdkReplaceOffenses reports every go.mod line that redirects an eshu-sdk

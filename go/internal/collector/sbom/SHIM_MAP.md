@@ -5,10 +5,12 @@ seam becomes a public SDK exchange at extraction, so the `#6710` template
 repository and the `#4047` parity gate share one interpretation. Nothing here
 changes runtime behavior.
 
-Pinned SDK (exact; a reviewed change that bumps `go.mod` MUST update
-these pins in the same change — enforced by
-`runtime/shim_pin_8865_test.go:TestSBOM8865ShimPinsMatchGoMod`. Newer tags
-MUST NOT be substituted without that reviewed update):
+Pinned SDK (exact; a reviewed change that bumps `go.mod` or adds an
+eshu-sdk dependency MUST update these pins in the same change — enforced
+by `runtime/shim_pin_8865_test.go:TestSBOM8865ShimPinsMatchGoMod`, which
+fails on version drift in either direction and on built SDK modules with
+no recorded pin. Newer tags MUST NOT be substituted without that reviewed
+update):
 
 - `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3`
 - `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.6`
