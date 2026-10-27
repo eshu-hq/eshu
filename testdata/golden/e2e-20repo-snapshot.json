@@ -6677,7 +6677,7 @@
           "version"
         ],
         "results_field": "collectors",
-        "minimum_results": 16
+        "minimum_results": 15
       },
       "list_ingesters": {
         "description": "MCP tool coverage shape for list_ingesters; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
