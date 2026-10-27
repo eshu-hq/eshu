@@ -189,11 +189,15 @@ the satellite image. Observed read-only against the QA environment:
   Disposition-`unconsumed` by design (no reducer decode call;
   `go/internal/facts/ci_cd_run.go:103-108`). The reducer writes
   Postgres only; this family has no Neo4j write path.
-- API: `GET /api/v0/ci-cd/run-correlations/count` returns 10/10 for
+- API (executor-observed via authenticated session 2026-10-27):
+  `GET /api/v0/ci-cd/run-correlations/count` returns 10/10 for
   `repository:r_64f1601b` (iac-eks-eshu) /
   `repository:r_33474efb` (portal-nextjs-platform) with
-  `provider=github_actions`, matching Postgres exactly.
-- MCP: `count_ci_cd_run_correlations` and
+  `provider=github_actions`, matching the Postgres counts above.
+  The API requires authentication; an unauthenticated probe returns
+  `unauthenticated`.
+- MCP (executor-observed 2026-10-27):
+  `count_ci_cd_run_correlations` and
   `list_ci_cd_run_correlations` return the same rows
   (`truth.level=exact`, `freshness.state=fresh`, real provider run
   IDs and commit SHAs in every row).
