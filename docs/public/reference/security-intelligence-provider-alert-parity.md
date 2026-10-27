@@ -339,25 +339,28 @@ counted).
 The read costs nothing on a page with rows. On an empty answer it scans each
 covering target's whole work-item history through the collector/scope index,
 about 1 ms per target with 2,000 work items on a vacuumed table and more when
-recent rows still need heap reads. A read with no repository anchor checks every target.
+recent rows still need heap reads. A read with no repository anchor checks every target; a scoped unanchored read checks only the targets covering the caller's granted repositories.
 Work-item history is not pruned, so the cost grows as the collector runs.
 
 A repository counts as covered when a repository-scope target names it, or when
 an organization-scope target's `allowed_repositories` lists it under the same
 owner. When several targets cover it, the healthiest one decides. A read with
 no repository anchor needs every configured target to be healthy, and its
-reasons list each distinct failing state. That makes an unanchored `complete`
+reasons list each distinct failing state. A scoped unanchored read narrows to
+the caller's grants: it needs only the targets covering the caller's granted
+repositories to be healthy. That makes an unscoped unanchored `complete`
 a statement about configured-target health only: it says nothing about whether
-any particular repository is inside a target, and for a scoped token it does
-not narrow to the caller's grants. Anchor by `repository_id` for repository
+any particular repository is inside a target, while a scoped token narrows
+classification to the caller's grants. Anchor by `repository_id` for repository
 coverage.
 
 An empty security-alert list, count, or first inventory page reports
 `coverage.state=complete` with exact, fresh truth only when the security-alert
 collector has a projected generation and no later terminal fetch failure for a
 target that covers the requested repository (or, unanchored, for every
-configured target). It does not cover a pending or dead-lettered reducer
-reconciliation or a scoped caller's grants on an unanchored read, and a caller
+configured target; for a scoped token, only the targets covering the caller's
+grants). It does not cover a pending or dead-lettered reducer reconciliation
+on an unanchored read, and a caller
 with no grants gets `not_configured` with reason `no_authorized_repositories`.
 
 Coverage reflects each target's latest projected generation and the

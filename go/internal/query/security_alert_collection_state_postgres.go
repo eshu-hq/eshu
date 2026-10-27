@@ -61,7 +61,8 @@ LIMIT $1`
 // security_alert_unread_repositories (generation_id, repository). A target
 // with no read state (a generation committed before the carrier, or a
 // repository-scope target) returns zero and empty arrays. $2 is the requested
-// slugs; empty for an unanchored read, which then reads no child row.
+// slugs; empty for an unscoped unanchored read, which then reads no child row,
+// and holds the caller's grant slugs on a grant-scoped unanchored read (#8837).
 //
 // retired reports that the active generation is a retirement (#9019): its
 // freshness_hint is $3, shard.RetirementFreshnessHint, read by a primary-key
@@ -114,11 +115,13 @@ ORDER BY t.scope_id`
 // long the history is. The row's payload holds the target set the generation
 // collected.
 //
-// The CASE guard reads the set only for an anchored read ($2 not empty). The
-// payload is one TOASTed value, so any read of it decompresses the whole set:
-// at 5,000 incompressible slugs (82 KB stored) that costs about 0.2 ms and
-// 14 buffers per covering target. An unanchored read needs no set, so the
-// guard keeps it at the cost of the EXISTS it replaced. Containment
+// The CASE guard reads the set only for an anchored read ($2 not empty).
+// The payload is one TOASTed value, so any read of it decompresses the
+// whole set: at 5,000 incompressible slugs (82 KB stored) that costs about
+// 0.2 ms and 14 buffers per covering target. An unscoped unanchored read
+// needs no set, so the guard keeps it at the cost of the EXISTS it
+// replaced; a grant-scoped unanchored read passes grant slugs (#8837).
+// Containment
 // (payload @> ...) per slug is slower: it decompresses once per slug.
 // Evidence: docs/internal/evidence/8838-security-alert-target-set.md.
 const securityAlertLatestCommittedGenerationLateral = `LEFT JOIN LATERAL (
@@ -136,8 +139,8 @@ const securityAlertLatestCommittedGenerationLateral = `LEFT JOIN LATERAL (
 // recorded target set (#8838), sorted. The slugs are the caller's own, so no
 // other repository name leaves Postgres. A generation that recorded no set
 // (committed before #8838) returns an empty array, which keeps the answer it
-// gave before the record existed. An unanchored read passes no slug and gets
-// an empty array.
+// gave before the record existed. An unscoped unanchored read passes no slug
+// and gets an empty array; a scoped one passes grant slugs (#8837).
 const securityAlertCommittedColumns = `       committed.generation_id IS NOT NULL AS committed,
        COALESCE(ARRAY(
            SELECT s
@@ -202,7 +205,8 @@ func (s PostgresSecurityAlertCollectionStateStore) SecurityAlertCollectorConfigu
 // SecurityAlertTargetStates returns the latest work item, committed
 // generation existence, the requested repositories the latest committed
 // generation did not collect (#8838), and unread repositories for each target
-// scope id, in scope id order. requestedSlugs are the normalized slugs of an anchored read.
+// scope id, in scope id order. requestedSlugs are the normalized slugs of an anchored read,
+// or of a scoped caller's granted repositories on a grant-scoped unanchored read (#8837).
 func (s PostgresSecurityAlertCollectionStateStore) SecurityAlertTargetStates(
 	ctx context.Context,
 	scopeIDs []string,
