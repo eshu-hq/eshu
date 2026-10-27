@@ -135,9 +135,10 @@ duplicate/coalesced triggers, and accepted freshness triggers use the existing
 webhook request, decision, store, and span signals with bounded provider, event
 kind, status, outcome, and reason labels.
 
-No-Regression Evidence: the signed Actions listener fixture checks exact
-duplicate 202, conflicting retry 409, one intact inbox row, and generic store
-500 / unavailable store 503 across workflow run and job requests.
+No-Regression Evidence: the signed `workflow_run` fixture checks exact duplicate
+202, conflicting retry 409, and one intact inbox row against PostgreSQL.
+Hermetic `workflow_run` and `workflow_job` requests check generic-store 500,
+unavailable-store 503, and wrapped-conflict 409 responses.
 
 Observability Evidence: `eshu_dp_webhook_requests_total`, `webhook.handle`,
 and the bounded request log distinguish identity conflicts with
