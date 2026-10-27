@@ -126,6 +126,10 @@ python3 scripts/lib/live_postgres_readiness_weights_refresh.py \
   --sample RUN_ID_1=RUN_DIR_1 --sample RUN_ID_2=RUN_DIR_2
 ```
 
+The v2 output sorts top-level keys and places two sorted table entries per
+line. Re-run the command and compare the proposed file byte-for-byte before
+committing it. The v1 output retains its one-entry-per-line layout.
+
 Review the source run and job IDs, successful terminal states, complete rows,
 first-use/repeat identification, predicted row and job maxima, defaults, and
 exact ordered test coverage. Then add only the sorted

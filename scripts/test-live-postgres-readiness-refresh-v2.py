@@ -12,6 +12,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 import live_postgres_readiness_refresh_v2 as refresh  # noqa: E402
+import live_postgres_readiness_weights_refresh as cli_refresh  # noqa: E402
 
 
 PLAN = [f"./{package}|Test{name}" for package, name in (
@@ -111,6 +112,59 @@ class RefreshV2Cases(unittest.TestCase):
     def fit(self) -> dict[str, object]:
         """Fit the two complete synthetic workflows."""
         return refresh.build_document(self.sources, self.root)
+
+    def test_v2_render_is_sorted_and_two_entries_per_line(self) -> None:
+        document = {
+            "test_seconds": {"./z|TestC": 3.0, "./b|TestB": 2.0,
+                             "./a|TestA": 1.0},
+            "source_runs": ["100", "101"],
+            "package_repeat_seconds": {},
+            "schema_version": 2,
+        }
+        expected = (
+            '{\n'
+            '  "package_repeat_seconds": {\n'
+            '  },\n'
+            '  "schema_version": 2,\n'
+            '  "source_runs": ["100", "101"],\n'
+            '  "test_seconds": {\n'
+            '    "./a|TestA": 1.0, "./b|TestB": 2.0,\n'
+            '    "./z|TestC": 3.0\n'
+            '  }\n'
+            '}\n'
+        )
+        rendered = cli_refresh.render(document)
+        self.assertEqual(rendered, expected)
+        self.assertEqual(json.loads(rendered), document)
+        self.assertEqual(cli_refresh.render(json.loads(rendered)), rendered)
+
+    def test_v1_render_keeps_legacy_bytes(self) -> None:
+        document = {
+            "source_runs": ["100"],
+            "test_seconds": {"./b|TestB": 2.0, "./a|TestA": 1.0},
+            "schema_version": 1,
+        }
+        self.assertEqual(cli_refresh.render(document), (
+            '{\n'
+            '  "source_runs": ["100"],\n'
+            '  "schema_version": 1,\n'
+            '  "test_seconds": {\n'
+            '    "./a|TestA": 1.0,\n'
+            '    "./b|TestB": 2.0\n'
+            '  }\n'
+            '}\n'
+        ))
+
+    def test_cli_writes_compact_v2_layout(self) -> None:
+        output = self.root / "weights.v2.json"
+        argv = ["refresh", "--schema-version", "2", "--out", str(output)]
+        argv.extend(f"--sample={source.name}={source}" for source in self.sources)
+        with mock.patch.object(cli_refresh.sys, "argv", argv):
+            self.assertEqual(cli_refresh.main(), 0)
+        rendered = output.read_text()
+        self.assertEqual(json.loads(rendered), self.fit())
+        self.assertTrue(any(line.count("|Test") == 2 for line in rendered.splitlines()))
+        self.assertEqual(cli_refresh.render(json.loads(rendered)), rendered)
 
     def test_source_rows_support_five_shard_v2(self) -> None:
         plan = [f"./a|Test{number}" for number in range(1, 6)]
