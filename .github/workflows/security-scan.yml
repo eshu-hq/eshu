@@ -51,6 +51,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      lockstep: ${{ steps.lockstep.outputs.lockstep }}
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -71,9 +72,81 @@ jobs:
               - '**'
               - '!docs/**'
               - '!*.md'
+              - '!**/*.md'
+              - '!*.json'
+              - '!docs/**/*.json'
+              - '!scripts/**/*.json'
               - '!mkdocs.yml'
               - '!.github/**/*.md'
               - '!.agents/**'
+
+      - name: Filter lockstep test inputs
+        id: lockstep
+        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)'))) && (github.event_name != 'merge_group') }}
+        uses: dorny/paths-filter@v3
+        with:
+          # Unlike `code` above, this filter is all positives (the manifest-derived
+          # lockstep list), so it needs the default `some` quantifier: a PR touching
+          # ANY listed input must run the code-gated lanes. `every` would require a
+          # file to match all entries at once and select nothing.
+          predicate-quantifier: 'some'
+          filters: |
+            lockstep:
+              - 'AGENTS.md'
+              - 'docs/internal/design/430-nornicdb-graph-search-split.md'
+              - 'docs/internal/design/5351-ifa-materialized-edge-known-gaps.md'
+              - 'docs/internal/evidence/5275-documentation-query-plan-shim.sql'
+              - 'docs/internal/evidence/5998-rationale-relative-path.md'
+              - 'docs/internal/evidence/7127-link-writer-g7-results.json'
+              - 'docs/internal/remote-validation/inventory.generated.json'
+              - 'docs/public/deploy/kubernetes/helm-routing-and-storage-values.md'
+              - 'docs/public/deployment/credential-file-cleanup.md'
+              - 'docs/public/deployment/service-runtimes-collectors.md'
+              - 'docs/public/deployment/service-runtimes.md'
+              - 'docs/public/languages/admitted-files.md'
+              - 'docs/public/operate/3am-operator-runbook.md'
+              - 'docs/public/reference/assistant-fast-path-hooks.md'
+              - 'docs/public/reference/env-registry.md'
+              - 'docs/public/reference/environment-collectors-supply-chain.md'
+              - 'docs/public/reference/environment-collectors.md'
+              - 'docs/public/reference/environment-ingestion-queues.md'
+              - 'docs/public/reference/first-run-evidence.md'
+              - 'docs/public/reference/generated/replay-coverage.md'
+              - 'docs/public/reference/graph-backend-installation.md'
+              - 'docs/public/reference/http-api.md'
+              - 'docs/public/reference/http-api/collector-terminal-failure.md'
+              - 'docs/public/reference/hybrid-retrieval-production-gate.md'
+              - 'docs/public/reference/local-performance-envelope.md'
+              - 'docs/public/reference/mcp-cookbook.md'
+              - 'docs/public/reference/mcp-prompt-surface-audit.md'
+              - 'docs/public/reference/mcp-tool-contract-matrix.md'
+              - 'docs/public/reference/nornicdb-tuning.md'
+              - 'docs/public/reference/reducer-claim-latency-gate.md'
+              - 'docs/public/reference/searchbench-evidence/issue-1298-semantic-retrieval-proof-v1.json'
+              - 'docs/public/reference/searchbench-evidence/issue-417-nornicdb-hybrid-retrieval-prototype-v1.json'
+              - 'docs/public/reference/searchbench-evidence/issue-420-link-prediction-evaluation-v1.json'
+              - 'docs/public/reference/searchbench-evidence/issue-421-rerank-protocol-evaluation-v1.json'
+              - 'docs/public/run-locally/docker-compose.md'
+              - 'go/cmd/README.md'
+              - 'go/cmd/audit-preflight/testdata/codegraphcontext-already-tracked.md'
+              - 'go/cmd/audit-preflight/testdata/gitnexus-missing.md'
+              - 'go/cmd/audit-preflight/testdata/graphify-foundation-exists.md'
+              - 'go/cmd/audit-preflight/testdata/incomplete.md'
+              - 'go/cmd/ifa/README.md'
+              - 'go/internal/ask/catalog/README.md'
+              - 'go/internal/cli/demo/README.md'
+              - 'go/internal/cli/hookpreflight/AGENTS.md'
+              - 'go/internal/cli/hookpreflight/README.md'
+              - 'go/internal/collector/README.md'
+              - 'go/internal/content/artifacts/README.md'
+              - 'go/internal/facts/FACT_KIND_REGISTRIES.md'
+              - 'go/internal/ifa/README.md'
+              - 'go/internal/ifa/materializededges/README.md'
+              - 'go/internal/query/repository/README.md'
+              - 'go/internal/reducer/AGENTS.md'
+              - 'go/internal/reducer/README.md'
+              - 'go/internal/runtime/README.md'
+              - 'testdata/golden/documentation-positive.md'
   trivy-fs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'trivy-fs')) && (github.event_name != 'workflow_run') }}
     needs: queue-selection
@@ -172,7 +245,7 @@ jobs:
           sarif_file: trivy-image.sarif
           category: trivy-image
   govulncheck:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'govulncheck')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true')) }}
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'govulncheck')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true'))) }}
     name: govulncheck (Go vulnerability database)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -215,7 +288,7 @@ jobs:
           path: go/govulncheck.out
           if-no-files-found: ignore
   gosec:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gosec')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true')) }}
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gosec')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true'))) }}
     name: gosec (Go static analysis)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -269,7 +342,7 @@ jobs:
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         run: bash scripts/dev/precommit-go.sh gosec-all
   nancy:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'nancy')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true')) }}
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'nancy')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true'))) }}
     name: nancy (Sonatype dep CVE + license scan)
     runs-on: ubuntu-24.04
     timeout-minutes: 15

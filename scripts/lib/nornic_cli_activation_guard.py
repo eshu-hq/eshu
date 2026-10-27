@@ -6,7 +6,7 @@ import ast
 import hashlib
 from pathlib import Path
 
-NORNIC_CLI_SOURCE_SHA256 = "bb5d5b3b8387af609c4fca85ce9a3a5f4bb0cf9a562b877997035361c08b50cd"
+NORNIC_CLI_SOURCE_SHA256 = "4a9d4253c28ee564040242af015ddbbbdb546a472d04a15af1612cd51c8a8a62"
 NORNIC_CLI_MAIN = '''def main() -> int:
     """Check runner enrollment, then optionally a captured Go event stream."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -83,6 +83,7 @@ NORNIC_CLI_FUNCTION_SIGNATURES = {
     "_block": "lines: list[tuple[int, str]], key: str, depth: int -> list[tuple[int, str]]",
     "_paths": "lines: list[tuple[int, str]], depth: int -> set[str]",
     "_workflow_paths": "source: str, static: bool, fragment: str -> set[str]",
+    "_fragment_narrowings": "fragment: str -> set[str]",
     "_registry_paths": "source: str -> set[str]",
     "_static_step": "source: str -> None",
     "verify_routing_text": "e2e: str, live: str, registry: str, e2e_fragment: str | None=None, live_fragment: str | None=None -> None",
@@ -90,8 +91,6 @@ NORNIC_CLI_FUNCTION_SIGNATURES = {
     "verify_source": "root: Path, inventory: dict[str, list[str]] -> None",
     "read_ledger_rows": "root: Path -> dict[str, tuple[str, str, str]]",
     "verify_ledger": "inventory: dict[str, list[str]], rows: dict[str, tuple[str, str, str]] -> None",
-    "verify_runner_text": "text: str, inventory: dict[str, list[str]] -> None",
-    "verify_workflow_text": "text: str, fragment: str | None=None -> None",
     "verify_source_and_runner": "root: Path, inventory: dict[str, list[str]] -> None",
     "verify_events": "path: Path, expected: set[str], packages: frozenset[str], output: TextIO -> bool",
     "main": " -> int",
@@ -177,9 +176,11 @@ def verify_nornic_enrollment(
     except (OSError, ValueError) as error:
         raise ValueError(f"Nornic verifier CLI activation failed: {error}") from error
     from nornic_conformance_events import (
-        load_inventory, verify_ledger, verify_source, verify_runner_text,
-        verify_workflow_text, verify_routing_text,
+        load_inventory, verify_ledger, verify_source, verify_routing_text,
         RUNNER, WORKFLOW, STATIC_WORKFLOW, REGISTRY,
+    )
+    from nornic_conformance_runner import (
+        verify_runner_text, verify_workflow_text,
     )
     inventory = load_inventory()
     verify_ledger(inventory, rows)

@@ -15,6 +15,10 @@ workflows:
   - testdata/benchmarks/**
   - .github/workflows/bench.yml
   - specs/ci-pr-workflows.d/bench.yml
+  # Markdown prose is never compiled or executed: a markdown-only change must
+  # not select benchmarks. Appended last so every positive entry above keeps
+  # precedence for non-markdown paths (last match wins).
+  - '!**/*.md'
   jobs:
   - bench-regression
   - benchmarks

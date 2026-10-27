@@ -15,6 +15,7 @@ runs:
       shell: bash
       run: |
         scripts/test-verify-docs-only-ci-skip.sh
+        scripts/test-verify-docs-only-ci-skip-docs-set.sh
         scripts/verify-docs-only-ci-skip.sh
     - name: Verify docs catalog metadata
       if: ${{ inputs.mode != 'smoke' }}

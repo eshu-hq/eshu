@@ -80,10 +80,17 @@ run_merge_group_checks() {
 	fi
 
 	changes_block="$(job_block "${t}" changes)"
-	if rg -F "if: \${{ github.event_name != 'merge_group' }}" < <(printf '%s\n' "${changes_block}") >/dev/null; then
+	filter_step="$(step_block "${changes_block}" filter)"
+	if rg -F "if: \${{ github.event_name != 'merge_group' }}" < <(printf '%s\n' "${filter_step}") >/dev/null; then
 		ok "test.yml changes job skips the paths-filter diff on merge_group"
 	else
 		bad "test.yml changes job's Filter changed paths step must guard if: \${{ github.event_name != 'merge_group' }} (do not depend on paths-filter's unproven merge_group behavior)"
+	fi
+	lockstep_step="$(step_block "${changes_block}" lockstep)"
+	if rg -F "if: \${{ github.event_name != 'merge_group' }}" < <(printf '%s\n' "${lockstep_step}") >/dev/null; then
+		ok "test.yml lockstep step skips the paths-filter diff on merge_group"
+	else
+		bad "test.yml lockstep step must guard if: \${{ github.event_name != 'merge_group' }} (same unproven merge_group behavior as the code filter)"
 	fi
 	# Scoped to the single step carrying `id: merge_group_code`, not the whole
 	# job block: two independent whole-block substring searches would false-pass

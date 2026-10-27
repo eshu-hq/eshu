@@ -211,6 +211,43 @@ def _paths(lines: list[tuple[int, str]], indent: int, quote: str,
     return paths
 
 
+def _fragment_path_entries(fragment: str, filename: str) -> tuple[set[str], set[str]]:
+    """Split one frozen fragment paths sequence into positives and narrowings.
+
+    Narrowings (dorny `!` entries) are permitted only in
+    live-backend-tests.yml, whose enrollment demands source-subset coverage
+    rather than exact trigger equality: the positives still prove every
+    replay source starts the workflow. verify-replay-tier.yml keeps the
+    strict positive-only shape its equality contract requires.
+    """
+    lines = _active_lines(fragment, "workflow fragment")
+    _reject_quoted_workflow_keys(lines)
+    starts = [index for index, line in enumerate(lines) if line == (2, "paths:")]
+    ends = [index for index, line in enumerate(lines) if line == (2, "jobs:")]
+    if len(starts) != 1 or len(ends) != 1 or ends[0] <= starts[0]:
+        raise ValueError("workflow fragment needs one paths sequence before jobs")
+    paths = lines[starts[0] + 1:ends[0]]
+    positives: set[str] = set()
+    narrowed: set[str] = set()
+    for depth, content in paths:
+        match = re.fullmatch(r"- ([A-Za-z0-9_./*?-]+)", content)
+        carveout = re.fullmatch(r"- '!([A-Za-z0-9_./*?-]+)'", content)
+        if carveout is not None and filename != "live-backend-tests.yml":
+            carveout = None
+        if carveout is not None:
+            entry, target = carveout.group(1), narrowed
+        elif match is not None:
+            entry, target = match.group(1), positives
+        else:
+            raise ValueError("workflow fragment has an ambiguous path sequence")
+        if depth != 2 or entry in positives or entry in narrowed:
+            raise ValueError("workflow fragment has an ambiguous path sequence")
+        target.add(entry)
+    if not positives:
+        raise ValueError("workflow fragment has no active paths")
+    return positives, narrowed
+
+
 def workflow_paths(fragment: str, filename: str) -> set[str]:
     """Read frozen synchronize paths from one validated callable fragment."""
     lines = _active_lines(fragment, "workflow fragment")
@@ -219,7 +256,6 @@ def workflow_paths(fragment: str, filename: str) -> set[str]:
     ends = [index for index, line in enumerate(lines) if line == (2, "jobs:")]
     if len(starts) != 1 or len(ends) != 1 or ends[0] <= starts[0]:
         raise ValueError("workflow fragment needs one paths sequence before jobs")
-    paths = lines[starts[0] + 1:ends[0]]
     controls = [" " * depth + content for index, (depth, content) in enumerate(lines)
                 if not starts[0] < index < ends[0]]
     name = ("Replay Tier (offline NornicDB)" if filename == "verify-replay-tier.yml"
@@ -238,15 +274,30 @@ def workflow_paths(fragment: str, filename: str) -> set[str]:
                          "    static-mirror: static-mirror (ledger and runner probes)"))
     if controls != expected:
         raise ValueError("workflow fragment has unsupported active YAML controls")
-    selected = set()
-    for depth, content in paths:
-        match = re.fullmatch(r"- ([A-Za-z0-9_./*?-]+)", content)
-        if depth != 2 or match is None or match.group(1) in selected:
-            raise ValueError("workflow fragment has an ambiguous path sequence")
-        selected.add(match.group(1))
-    if not selected:
-        raise ValueError("workflow fragment has no active paths")
+    selected, _ = _fragment_path_entries(fragment, filename)
     return selected
+
+
+def workflow_negations(fragment: str, filename: str) -> set[str]:
+    """Return the reviewed scheduling narrowings excluded from enrollment."""
+    _, narrowed = _fragment_path_entries(fragment, filename)
+    return narrowed
+
+
+def _reject_shadowed_carveout(narrowed: set[str], required: set[str]) -> None:
+    """Reject narrowings beyond the reviewed docs carve-out.
+
+    Only the `!**/*.md` scheduling narrowing is reviewed: prose never feeds
+    replay sources. A future narrowing needs its own review, and a replay
+    source that ever ends in `.md` must fail loudly instead of being
+    silently shadowed by the carve-out.
+    """
+    if narrowed - {"**/*.md"}:
+        raise ValueError("independent workflow narrows replay sources "
+                         "beyond the reviewed docs carve-out")
+    if any(source.endswith(".md") for source in required):
+        raise ValueError("independent workflow docs carve-out "
+                         "shadows a replay source")
 
 
 def replay_gate_triggers(registry: str) -> set[str]:
@@ -353,6 +404,8 @@ def verify_independent_static_mirror(root: Path) -> None:
     }
     if not required <= paths:
         raise ValueError("independent workflow does not select replay proof sources")
+    _reject_shadowed_carveout(
+        workflow_negations(fragment, "live-backend-tests.yml"), required)
 
     jobs = _only_block(lines, "jobs", 0, "independent workflow")
     job = _only_block(jobs, "static-mirror", 2, "independent workflow")

@@ -1,0 +1,70 @@
+# Docs lockstep paths: markdown and JSON files whose content is an asserted
+# test input. A change to one of these files can break a Go unit test, so the
+# docs-only CI carve-out must treat them as code in every selection layer:
+# the Go docs set (go/internal/cigates/docsset.go `lockstepDocsPaths`), the
+# dorny `lockstep` filters (test.yml, security-scan.yml, mcp-schema-drift.yml),
+# and the PR plan fragments that would otherwise exclude them.
+#
+# Rule: if a Go test reads the file and asserts on its content, it belongs
+# here. Pure path probes (test vectors that name a file without reading it)
+# stay out. go/internal/cigates/docsset_test.go enforces both directions:
+# every test-read docs file must be listed, and every listed file must still
+# be read by a test (a stale entry fails the build the same way a missing
+# one does).
+#
+# One path per line, repo-root-relative, sorted.
+AGENTS.md
+docs/internal/design/430-nornicdb-graph-search-split.md
+docs/internal/design/5351-ifa-materialized-edge-known-gaps.md
+docs/internal/evidence/5275-documentation-query-plan-shim.sql
+docs/internal/evidence/5998-rationale-relative-path.md
+docs/internal/evidence/7127-link-writer-g7-results.json
+docs/internal/remote-validation/inventory.generated.json
+docs/public/deploy/kubernetes/helm-routing-and-storage-values.md
+docs/public/deployment/credential-file-cleanup.md
+docs/public/deployment/service-runtimes-collectors.md
+docs/public/deployment/service-runtimes.md
+docs/public/languages/admitted-files.md
+docs/public/operate/3am-operator-runbook.md
+docs/public/reference/assistant-fast-path-hooks.md
+docs/public/reference/env-registry.md
+docs/public/reference/environment-collectors-supply-chain.md
+docs/public/reference/environment-collectors.md
+docs/public/reference/environment-ingestion-queues.md
+docs/public/reference/first-run-evidence.md
+docs/public/reference/generated/replay-coverage.md
+docs/public/reference/graph-backend-installation.md
+docs/public/reference/http-api.md
+docs/public/reference/http-api/collector-terminal-failure.md
+docs/public/reference/hybrid-retrieval-production-gate.md
+docs/public/reference/local-performance-envelope.md
+docs/public/reference/mcp-cookbook.md
+docs/public/reference/mcp-prompt-surface-audit.md
+docs/public/reference/mcp-tool-contract-matrix.md
+docs/public/reference/nornicdb-tuning.md
+docs/public/reference/reducer-claim-latency-gate.md
+docs/public/reference/searchbench-evidence/issue-1298-semantic-retrieval-proof-v1.json
+docs/public/reference/searchbench-evidence/issue-417-nornicdb-hybrid-retrieval-prototype-v1.json
+docs/public/reference/searchbench-evidence/issue-420-link-prediction-evaluation-v1.json
+docs/public/reference/searchbench-evidence/issue-421-rerank-protocol-evaluation-v1.json
+docs/public/run-locally/docker-compose.md
+go/cmd/README.md
+go/cmd/audit-preflight/testdata/codegraphcontext-already-tracked.md
+go/cmd/audit-preflight/testdata/gitnexus-missing.md
+go/cmd/audit-preflight/testdata/graphify-foundation-exists.md
+go/cmd/audit-preflight/testdata/incomplete.md
+go/cmd/ifa/README.md
+go/internal/ask/catalog/README.md
+go/internal/cli/demo/README.md
+go/internal/cli/hookpreflight/AGENTS.md
+go/internal/cli/hookpreflight/README.md
+go/internal/collector/README.md
+go/internal/content/artifacts/README.md
+go/internal/facts/FACT_KIND_REGISTRIES.md
+go/internal/ifa/README.md
+go/internal/ifa/materializededges/README.md
+go/internal/query/repository/README.md
+go/internal/reducer/AGENTS.md
+go/internal/reducer/README.md
+go/internal/runtime/README.md
+testdata/golden/documentation-positive.md

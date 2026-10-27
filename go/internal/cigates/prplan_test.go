@@ -181,3 +181,290 @@ func TestPlanPRWorkflowsSmokeClosesFastNeedsWithoutHeavyAggregateNeeds(t *testin
 		t.Fatalf("heavy aggregate need re-admitted go-race: %v", got)
 	}
 }
+
+func TestPlanPRWorkflowsMarkdownNegation(t *testing.T) {
+	t.Parallel()
+	defs := []PRWorkflowDefinition{
+		{File: "e2e-tests.yml", Name: "End-to-end Tests", Synchronize: true, Paths: []string{"go/**", "!**/*.md"}, Jobs: []string{"test"}},
+	}
+	got, err := PlanPRWorkflows(defs, []string{"go/cmd/collector-cicd-run/README.md"}, false, "main", "full", nil)
+	if err != nil {
+		// A docs-only PR that selects nothing is a valid empty plan only in
+		// reuse mode; in full mode the planner errors, which still proves the
+		// heavy workflow was not selected for nested markdown.
+		if len(got) != 0 {
+			t.Fatalf("nested markdown selected heavy jobs: %#v", got)
+		}
+		return
+	}
+	if len(got) != 0 {
+		t.Fatalf("nested markdown selected heavy jobs: %#v", got)
+	}
+	got, err = PlanPRWorkflows(defs, []string{"go/cmd/collector-cicd-run/main.go"}, false, "main", "full", nil)
+	if err != nil || !slices.Equal(got["e2e-tests.yml"], []string{"test"}) {
+		t.Fatalf("go source must still select the heavy workflow: %#v, %v", got, err)
+	}
+}
+
+// TestDocsOnlyAggregateIsPlannable proves the docs-only carve-out never
+// strands required-gates-complete: every aggregate-selected blocking gate
+// must be producible on the PR — its workflow planned with the gate in the
+// plan set, and, for test.yml lanes, its job actually running (not
+// code-gated). A vector that selects a gate no job produces would wait out
+// the await timeout instead of merging.
+func TestDocsOnlyAggregateIsPlannable(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join("..", "..", "..")
+	reg, err := Load(filepath.Join(root, "specs", "ci-gates.v1.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Mirror trustedPRWorkflowDefinitions: direct pull_request workflows plus
+	// validated callable fragments, so the plan under test is the production
+	// plan rather than a fragment-only subset.
+	workflowPaths, err := filepath.Glob(filepath.Join(root, ".github", "workflows", "*.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var defs []PRWorkflowDefinition
+	seen := make(map[string]bool)
+	for _, path := range workflowPaths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		def, include, err := ParsePRWorkflowDefinition(filepath.Base(path), raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if include {
+			defs = append(defs, def)
+			seen[def.File] = true
+		}
+	}
+	entries, err := os.ReadDir(filepath.Join(root, "specs", "ci-pr-workflows.d"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(root, "specs", "ci-pr-workflows.d", entry.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed, err := ParsePRPlanFragment(raw)
+		if err != nil || len(parsed) != 1 {
+			t.Fatalf("fragment %s: definitions=%d error=%v", entry.Name(), len(parsed), err)
+		}
+		if seen[parsed[0].File] {
+			t.Fatalf("duplicate PR workflow %s", parsed[0].File)
+		}
+		seen[parsed[0].File] = true
+		workflowRaw, err := os.ReadFile(filepath.Join(root, ".github", "workflows", parsed[0].File))
+		if err != nil {
+			t.Fatal(err)
+		}
+		def, err := ValidateCallablePRWorkflow(parsed[0], workflowRaw)
+		if err != nil {
+			t.Fatalf("fragment %s: %v", entry.Name(), err)
+		}
+		defs = append(defs, def)
+	}
+	vectors := [][]string{
+		{"docs/public/reference/local-testing.md"},
+		{"go/internal/parser/rust/README.md"},
+		{"sdk/go/factschema/azure/v1/README.md"},
+		{"docs/public/reference/local-testing.md", "package.json"},
+		{"skill-fragments/operating-standard.md"},
+		{"expected/gemini-cli/GEMINI.md"},
+		{"docs/mkdocs.yml"},
+		{"docs/public/reference/local-testing.md", "go/cmd/ci-gates/main.go"},
+	}
+	// Every lockstep test input must keep its lanes plannable and
+	// runnable: the manifest is the carve-out's code-equivalence list,
+	// so each entry gets the same aggregate proof as a code path.
+	for _, entry := range dsManifest(t, root) {
+		vectors = append(vectors, []string{entry})
+	}
+	for _, paths := range vectors {
+		required, err := reg.RequiredGates(paths)
+		if err != nil {
+			t.Fatalf("RequiredGates(%v): %v", paths, err)
+		}
+		plan, err := PlanPRWorkflows(defs, paths, false, "main", "full", nil)
+		if err != nil {
+			t.Fatalf("PlanPRWorkflows(%v): %v", paths, err)
+		}
+		planned, err := SelectPRGateIDs(reg, defs, paths, false, "full", plan)
+		if err != nil {
+			t.Fatalf("SelectPRGateIDs(%v): %v", paths, err)
+		}
+		inPlan := make(map[string]struct{}, len(planned))
+		for _, id := range planned {
+			inPlan[id] = struct{}{}
+		}
+		for _, gate := range required {
+			for _, id := range gate.GateIDs {
+				if _, ok := inPlan[id]; !ok {
+					t.Errorf("paths %v: aggregate gate %q (job %s/%s) has no producing plan entry — strands the await",
+						paths, id, gate.Workflow, gate.Job)
+				}
+			}
+			if gate.Workflow == "test.yml" {
+				if allDocsSetChanged(paths) {
+					if _, gated := codeGatedCIJobs[gate.Job]; gated {
+						t.Errorf("paths %v: aggregate job test.yml/%s never runs on a docs-only PR",
+							paths, gate.Job)
+					}
+				}
+				if !slices.Contains(plan["test.yml"], gate.Job) {
+					t.Errorf("paths %v: aggregate job test.yml/%s is not in the test.yml plan — never produced",
+						paths, gate.Job)
+				}
+			} else if _, ok := plan[gate.Workflow]; !ok {
+				t.Errorf("paths %v: aggregate workflow %s is not planned — call never runs",
+					paths, gate.Workflow)
+			}
+		}
+		// Runnability: a required code-gated job must actually run at CI
+		// runtime, not merely be planned. The registry selects the job;
+		// the dorny `code` or `lockstep` filter must then select the
+		// changed paths, or the job is skipped and the aggregate await
+		// fails red on a selected-but-skipped gate. Jobs the aggregate
+		// does not require are out of scope: skipping them strands nothing.
+		gatedCache := map[string]map[string]string{}
+		gatedFor := func(workflow string) map[string]string {
+			if g, ok := gatedCache[workflow]; ok {
+				return g
+			}
+			g := workflowCodeGatedJobs(t, workflow)
+			gatedCache[workflow] = g
+			return g
+		}
+		dornyRuns := map[string]bool{}
+		runsFor := func(workflow string) bool {
+			if r, ok := dornyRuns[workflow]; ok {
+				return r
+			}
+			r := true
+			raw, err := os.ReadFile(filepath.Join(root, ".github", "workflows", workflow))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var code, lockstep []string
+			codeEvery := true
+			lockEvery := false
+			for _, step := range DornyFilterSteps(raw) {
+				if pats, ok := step.Filters["code"]; ok && code == nil {
+					code, codeEvery = pats, step.Every
+				}
+				if pats, ok := step.Filters["lockstep"]; ok && lockstep == nil {
+					lockstep, lockEvery = pats, step.Every
+				}
+			}
+			if code != nil || lockstep != nil {
+				r = (code != nil && codeEvery && DornyEveryMatch(code, paths)) ||
+					(lockstep != nil && !lockEvery && DornySomeMatch(lockstep, paths))
+			}
+			dornyRuns[workflow] = r
+			return r
+		}
+		for _, gate := range required {
+			if _, ok := gatedFor(gate.Workflow)[gate.Job]; !ok {
+				continue
+			}
+			if !runsFor(gate.Workflow) {
+				t.Errorf("paths %v: aggregate gate %q (job %s/%s) is code-gated but both dorny filters skip the paths — selected but never run",
+					paths, gate.GateIDs, gate.Workflow, gate.Job)
+			}
+		}
+	}
+}
+
+// TestDornyRunnabilityModelsBothQuantifiers pins the two dorny
+// evaluations the runnability arm relies on: `every` needs all patterns
+// to hold per path, `some` needs one pattern on one path.
+func TestDornyRunnabilityModelsBothQuantifiers(t *testing.T) {
+	t.Parallel()
+	code := []string{"**", "!secret/**", "!*.md", "!**/*.md"}
+	if !DornyEveryMatch(code, []string{"go/main.go"}) {
+		t.Errorf("every: go/main.go should survive the code filter")
+	}
+	if DornyEveryMatch(code, []string{"secret/guide.md"}) {
+		t.Errorf("every: secret/guide.md must not survive the code filter")
+	}
+	if DornyEveryMatch(code, []string{"go/internal/reducer/README.md"}) {
+		t.Errorf("every: a nested README must not survive the code filter")
+	}
+	if DornyEveryMatch(code, []string{"README.md"}) {
+		t.Errorf("every: a root README must not survive the code filter")
+	}
+	lock := []string{"AGENTS.md", "go/internal/reducer/README.md"}
+	if !DornySomeMatch(lock, []string{"go/internal/reducer/README.md"}) {
+		t.Errorf("some: a listed lockstep input must select the filter")
+	}
+	if DornySomeMatch(lock, []string{"docs/guide.md"}) {
+		t.Errorf("some: an unlisted path must not select the filter")
+	}
+}
+
+func TestDocsOnlyPathsSkipHeavyFragments(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join("..", "..", "..")
+	files := []string{"bench.yml", "build.yml", "e2e-tests.yml", "live-backend-tests.yml", "read-api-latency-gate.yml", "sdk-go.yml"}
+	var defs []PRWorkflowDefinition
+	for _, file := range files {
+		raw, err := os.ReadFile(filepath.Join(root, "specs/ci-pr-workflows.d", file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed, err := ParsePRPlanFragment(raw)
+		if err != nil || len(parsed) != 1 {
+			t.Fatalf("fragment %s: definitions=%d error=%v", file, len(parsed), err)
+		}
+		defs = append(defs, parsed[0])
+	}
+	nestedMD := []string{"go/cmd/collector-cicd-run/README.md"}
+	got, _ := PlanPRWorkflows(defs, nestedMD, false, "main", "full", nil)
+	if len(got) != 0 {
+		t.Fatalf("nested markdown must not select heavy workflows: %#v", got)
+	}
+	docsJSON := []string{"docs/public/reference/code-coverage-shield.json"}
+	got, _ = PlanPRWorkflows(defs, docsJSON, false, "main", "full", nil)
+	if _, ok := got["build.yml"]; ok {
+		t.Fatalf("docs JSON must not select the build workflow: %#v", got)
+	}
+	for _, probe := range [][]string{
+		{"package.json"},
+		{"package-lock.json"},
+		{"scripts/lib/new-tool-inventory.json"},
+		{"docs/public/reference/code-coverage-shield.json"},
+	} {
+		got, _ := PlanPRWorkflows(defs, probe, false, "main", "full", nil)
+		for _, heavy := range []string{"bench.yml", "build.yml", "e2e-tests.yml", "live-backend-tests.yml", "read-api-latency-gate.yml", "sdk-go.yml"} {
+			if _, ok := got[heavy]; ok {
+				t.Fatalf("scoped JSON %v must not select heavy workflow %s: %#v", probe, heavy, got)
+			}
+		}
+	}
+	pinned := []string{"specs/ci-images.v1.json"}
+	got, err := PlanPRWorkflows(defs, pinned, false, "main", "full", nil)
+	if err != nil || slices.Contains(got["e2e-tests.yml"], "test") == false {
+		t.Fatalf("an explicitly pinned image JSON must still select e2e: %#v, %v", got, err)
+	}
+	if _, ok := got["build.yml"]; !ok {
+		t.Fatalf("specs image pins stay code: build must remain selected: %#v", got)
+	}
+	goJSON := []string{"go/cmd/collector-cicd-run/config.json"}
+	got, err = PlanPRWorkflows(defs, goJSON, false, "main", "full", nil)
+	if err != nil || len(got["e2e-tests.yml"]) == 0 {
+		t.Fatalf("go-tree JSON stays code and must still select e2e: %#v, %v", got, err)
+	}
+	control := []string{"go/cmd/collector-cicd-run/main.go"}
+	got, err = PlanPRWorkflows(defs, control, false, "main", "full", nil)
+	if err != nil || len(got) == 0 {
+		t.Fatalf("go source must still select heavy workflows: %#v, %v", got, err)
+	}
+}

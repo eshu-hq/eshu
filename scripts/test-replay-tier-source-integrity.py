@@ -39,6 +39,7 @@ def production_ledger_fixture(parent: Path) -> Path:
     for name in ("scripts/verify-live-tests-ledger.sh", LEDGER_CHECKER_PATH,
                  "scripts/lib/nornic_cli_activation_guard.py",
                  "scripts/lib/nornic_conformance_events.py",
+                 "scripts/lib/nornic_conformance_runner.py",
                  "scripts/lib/nornic_conformance_inventory.json",
                  "scripts/verify_backend_conformance_live.sh",
                  "specs/live-tests.d/live-tests-04.yaml",
