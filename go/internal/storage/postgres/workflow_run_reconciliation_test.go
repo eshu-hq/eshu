@@ -147,6 +147,8 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUpdatesRunAndCompleteness(t *t
 			},
 			// No terminal reducer dead-letters for this scope generation.
 			{rows: nil},
+			// No factless completed items: every completed item committed facts.
+			{rows: nil},
 		},
 	}
 	store := NewWorkflowControlStore(db)
@@ -316,6 +318,8 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUsesTransactionWhenAvailable(t
 			},
 			// No terminal reducer dead-letters for this scope generation.
 			{rows: nil},
+			// No factless completed items: every completed item committed facts.
+			{rows: nil},
 		},
 	}
 	db := &fakeTransactionalDB{
@@ -465,6 +469,8 @@ func workflowRunReconciliationTx() *fakeTx {
 				},
 			},
 			// No terminal reducer dead-letters for this scope generation.
+			{rows: nil},
+			// No factless completed items: every completed item committed facts.
 			{rows: nil},
 		},
 	}

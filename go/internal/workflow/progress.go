@@ -77,13 +77,24 @@ func (k PhasePublicationKey) Validate() error {
 // CollectorRunProgress captures the collector-visible and reducer-visible
 // progress for one collector kind inside a workflow run.
 type CollectorRunProgress struct {
-	CollectorKind        scope.CollectorKind
-	TotalWorkItems       int
-	PendingWorkItems     int
-	ClaimedWorkItems     int
-	CompletedWorkItems   int
-	FailedTerminalItems  int
-	PublishedPhaseCounts map[PhasePublicationKey]int
+	CollectorKind       scope.CollectorKind
+	TotalWorkItems      int
+	PendingWorkItems    int
+	ClaimedWorkItems    int
+	CompletedWorkItems  int
+	FailedTerminalItems int
+	// FactlessCompletedItems counts completed work items whose generation
+	// committed nothing to project: no fact_records rows for the item's
+	// (scope, generation) and no fact_work_items rows for the generation.
+	// A completed claim whose result carries no facts (for example an
+	// unchanged-state merge) skips ingestion entirely, so the reducer never
+	// sees the generation and the publication count can never reach the
+	// total. Counting those items as vacuously published keeps the run from
+	// wedging in reducer_converging forever (issue #9257). The count must
+	// never exceed CompletedWorkItems: it only ever describes items the
+	// collector already finished, after their commit already landed.
+	FactlessCompletedItems int
+	PublishedPhaseCounts   map[PhasePublicationKey]int
 	// TerminalDeadLetterCounts counts, per required phase, how many
 	// same-scope-generation fact_work_items rows have permanently
 	// dead-lettered (status = 'dead_letter', a genuinely terminal,
@@ -118,6 +129,12 @@ func (p CollectorRunProgress) Validate() error {
 	}
 	if p.PendingWorkItems+p.ClaimedWorkItems+p.CompletedWorkItems+p.FailedTerminalItems > p.TotalWorkItems {
 		return fmt.Errorf("collector progress counts exceed total work items")
+	}
+	if p.FactlessCompletedItems < 0 {
+		return fmt.Errorf("factless completed items must not be negative")
+	}
+	if p.FactlessCompletedItems > p.CompletedWorkItems {
+		return fmt.Errorf("factless completed items must not exceed completed work items")
 	}
 	for key, count := range p.PublishedPhaseCounts {
 		if err := key.Validate(); err != nil {
@@ -179,12 +196,27 @@ func ReconcileRunProgress(snapshot RunProgressSnapshot, observedAt time.Time) (R
 				PhaseName: requirement.PhaseName,
 			}
 			published := collector.PublishedPhaseCounts[publicationKey]
+			// Factless completed items committed nothing for the reducer to
+			// project, so they count toward convergence alongside genuinely
+			// published items. A generation that committed facts always has
+			// fact_records rows, so it can never be miscounted here: only a
+			// generation with nothing committed and nothing queued converges
+			// vacuously (#9257).
+			effectivePublished := published + collector.FactlessCompletedItems
 			status := CompletenessStatusPending
 			detail := fmt.Sprintf(
 				"published for %d of %d work items",
 				published,
 				collector.TotalWorkItems,
 			)
+			if collector.FactlessCompletedItems > 0 {
+				detail = fmt.Sprintf(
+					"published for %d of %d work items (%d factless with nothing to project)",
+					published,
+					collector.TotalWorkItems,
+					collector.FactlessCompletedItems,
+				)
+			}
 			// terminalDeadLetters only ever reflects a confirmed
 			// fact_work_items status='dead_letter' row (#4459); a
 			// still-retrying or otherwise non-terminal reducer failure MUST
@@ -195,9 +227,16 @@ func ReconcileRunProgress(snapshot RunProgressSnapshot, observedAt time.Time) (R
 			case collector.FailedTerminalItems > 0:
 				status = CompletenessStatusBlocked
 				detail = "terminal collector failure prevents downstream completion"
-			case collector.TotalWorkItems > 0 && published >= collector.TotalWorkItems:
+			case collector.TotalWorkItems > 0 && effectivePublished >= collector.TotalWorkItems:
 				status = CompletenessStatusReady
 				detail = fmt.Sprintf("published for all %d work items", collector.TotalWorkItems)
+				if collector.FactlessCompletedItems > 0 {
+					detail = fmt.Sprintf(
+						"published for all %d work items (%d factless with nothing to project)",
+						collector.TotalWorkItems,
+						collector.FactlessCompletedItems,
+					)
+				}
 			case terminalDeadLetters:
 				// The phase never published and never will: its owning
 				// reducer domain dead-lettered terminally for this scope

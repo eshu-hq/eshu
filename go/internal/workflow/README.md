@@ -72,15 +72,15 @@ Types in this package flow through four phases of the workflow control plane:
    collector failures produce blocked completeness rows before downstream
    phases can be marked ready. So does a terminal reducer dead-letter on a
    required, bridged phase (`PhaseRequirement.DeadLetterDomain`,
-   `CollectorRunProgress.TerminalDeadLetterCounts`) — see issue #4459: before
-   this bridge, a permanently dead-lettered reducer intent (`fact_work_items`,
-   `status = 'dead_letter'`) never published its phase, so the phase stayed
-   pending forever and the run wedged in `reducer_converging` with no
-   terminal signal. Only a confirmed `dead_letter` row on a phase whose
-   `PhaseRequirement.DeadLetterDomain` names the exact reducer domain that
-   owns it may trip this; a still-retrying row, or a dead-letter on a
-   non-bridged phase, leaves the phase merely `pending` so in-flight work is
-   never mistaken for a permanent block. The transition table:
+   `CollectorRunProgress.TerminalDeadLetterCounts`) — see issue #4459: a
+   permanently dead-lettered reducer intent never published its phase, so
+   the run wedged in `reducer_converging`. Only a confirmed `dead_letter`
+   row on the phase's exact owning domain may trip this; still-retrying
+   rows, or dead-letters on non-bridged phases, leave the phase `pending`.
+   Completed items whose generations committed nothing (no `fact_records`
+   or `fact_work_items` rows; factless claims skip ingestion) count as
+   vacuously published (`FactlessCompletedItems`, #9257). The transition
+   table:
 
    | Condition | `RunStatus` |
    |---|---|

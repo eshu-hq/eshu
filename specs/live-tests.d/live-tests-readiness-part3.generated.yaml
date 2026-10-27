@@ -409,6 +409,11 @@ tests:
     class: postgres_ci
     reason: "#8829 disposable PostgreSQL 18 proofs that workflow_work_items retention keeps the newest unresolved terminal failure, the newest completed row (so the status registry last_completed_at survives), the newest row and the active-generation row per target, never touches claimed, pending, retrying, expired, open-run or young rows, respects its batch bound and deletes nothing on a second walk; each proof creates and drops its own database from the bootstrap schema; about 1 to 2 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/run_reconciliation_factless_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9257 disposable PostgreSQL proof that reconcile converges a run whose completed claim committed no facts and holds a run whose committed facts are not yet published; the companion hermetic shape test pins the index prefixes; enrolled in the live-postgres-readiness runner; sub-second local proof on a throwaway database"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/search/index/retention/drain_live_test.go
     tag: ~
     class: postgres_ci

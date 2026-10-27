@@ -207,9 +207,14 @@ func (s *WorkflowControlStore) reconcileWorkflowRunOnce(ctx context.Context, run
 	if err != nil {
 		return fmt.Errorf("reconcile workflow run %s: %w", run.RunID, err)
 	}
+	factlessCounts, err := s.listWorkflowCollectorFactlessCompletedCounts(ctx, queryTarget, run.RunID)
+	if err != nil {
+		return fmt.Errorf("reconcile workflow run %s: %w", run.RunID, err)
+	}
 	for i := range progress {
 		progress[i].PublishedPhaseCounts = phaseCounts[string(progress[i].CollectorKind)]
 		progress[i].TerminalDeadLetterCounts = deadLetterCounts[string(progress[i].CollectorKind)]
+		progress[i].FactlessCompletedItems = factlessCounts[string(progress[i].CollectorKind)]
 	}
 
 	nextRun, completeness, err := workflow.ReconcileRunProgress(workflow.RunProgressSnapshot{
