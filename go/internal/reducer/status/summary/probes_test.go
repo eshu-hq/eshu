@@ -178,10 +178,11 @@ func startLockSampler(ctx context.Context, t *testing.T, database *sql.DB) *lock
 		defer close(sampler.done)
 		for ctx.Err() == nil {
 			waits, err := writerLockWaits(ctx, database)
+			observedAt := time.Now()
 			if err == nil {
 				sampler.samples++
 				sampler.writerWaits += waits
-			} else if ctx.Err() == nil {
+			} else if shouldReportProbeError(ctx, err, observedAt) {
 				t.Errorf("lock sample: %v", err)
 			}
 			time.Sleep(100 * time.Millisecond)
@@ -276,10 +277,11 @@ func startAsOfReader(ctx context.Context, t *testing.T, database *sql.DB, modelK
 			)
 			err := database.QueryRowContext(ctx, `SELECT as_of, EXTRACT(EPOCH FROM now() - as_of)
 				FROM status_summary_snapshots WHERE model_key = $1`, modelKey).Scan(&asOf, &age)
+			observedAt := time.Now()
 			switch {
 			case errors.Is(err, sql.ErrNoRows):
 			case err != nil:
-				if ctx.Err() == nil {
+				if shouldReportProbeError(ctx, err, observedAt) {
 					t.Errorf("read stored as_of: %v", err)
 				}
 			default:

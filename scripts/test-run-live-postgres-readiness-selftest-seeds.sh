@@ -68,7 +68,11 @@ apply_seed() {
   cp "${repo_root}/${events_py}" "${tree}/${events_py}"
   cp "${repo_root}/${runner_sh}" "${tree}/${runner_sh}"
   cp "${repo_root}/scripts/${selftest}" "${tree}/scripts/${selftest}"
-  python3 - "${tree}/$1" "$2" "$3" <<'PY' || fail "seed anchor missing in $1: $2"
+  replace_once "${tree}/$1" "$2" "$3"
+}
+
+replace_once() {
+  python3 - "$1" "$2" "$3" <<'PY' || fail "seed anchor missing in $1: $2"
 import pathlib
 import sys
 
@@ -78,6 +82,32 @@ if text.count(old) != 1:
     sys.exit(1)
 path.write_text(text.replace(old, new), encoding="utf-8")
 PY
+}
+
+# Only this mutant needs the large package first. The clean self-test and all
+# other mutants keep the verifier's package order.
+prioritize_truncation_target() {
+  local target="$1" pkg seen=0 quoted_target replacement
+  while IFS=$'\t' read -r pkg _; do
+    [[ "${pkg}" == "${target}" ]] && seen=$((seen + 1))
+  done <"${work}/packages.tsv"
+  [[ "${seen}" -eq 1 ]] || fail "runner-truncates target package missing or duplicate: ${target}"
+  printf -v quoted_target '%q' "${target}"
+  replacement="target_pkg=${quoted_target}
+priority_packages=(\"\${target_pkg}\")
+seen_target=0
+for pkg in \"\${packages[@]}\"; do
+  if [[ \"\${pkg}\" == \"\${target_pkg}\" ]]; then
+    seen_target=\$((seen_target + 1))
+  else
+    priority_packages+=(\"\${pkg}\")
+  fi
+done
+[[ \"\${seen_target}\" -eq 1 ]] || fail \"runner-truncates target absent from self-test: \${target_pkg}\"
+packages=(\"\${priority_packages[@]}\")
+check_each_proof
+"
+  replace_once "${tree}/scripts/${selftest}" $'check_each_proof\n' "${replacement}"
 }
 
 # expect_failure runs the self-test in the seeded tree and requires a nonzero
@@ -115,6 +145,16 @@ apply_batch_mutant() {
   python3 "${repo_root}/scripts/lib/live_postgres_readiness_batch_mutant.py" \
     mutate-target "${target}" "${kind}" || fail "batch mutant anchor missing"
 }
+
+# Source drift or a stale package inventory must fail before the costly test.
+cp "${repo_root}/scripts/${selftest}" "${tree}/scripts/${selftest}"
+replace_once "${tree}/scripts/${selftest}" $'check_each_proof\n' $'missing_proof_anchor\n'
+out="$(prioritize_truncation_target "${big_pkg}" 2>&1)" && fail "missing priority anchor passed"
+[[ "${out}" == *"seed anchor missing"* ]] || fail "missing priority anchor not named: ${out}"
+cp "${repo_root}/scripts/${selftest}" "${tree}/scripts/${selftest}"
+out="$(prioritize_truncation_target './package/not-enrolled' 2>&1)" && fail "missing priority package passed"
+[[ "${out}" == *"target package missing or duplicate"* ]] || fail "missing priority package not named: ${out}"
+printf 'seed runner-truncates setup guards: caught missing anchor and package\n'
 
 apply_batch_mutant status
 SEED_MUTANT_KIND=status expect_failure batch-status \
@@ -158,6 +198,7 @@ apply_seed "${runner_sh}" ' </dev/null; then
 ' " </dev/null | if [[ \"\${shard}\" == all ]]; then tail -n ${tail_keep}; else cat; fi; then
     results_status=0
 "
+prioritize_truncation_target "${big_pkg}"
 expect_failure runner-truncates "${big_pkg} skip events: ${hidden_name} not named by the runner: " prefix
 
 apply_seed "${events_py}" '        if action != "pass":

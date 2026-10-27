@@ -139,13 +139,32 @@ def build_weights(samples: list[Sample], plan: list[str], source_runs: list[str]
     }
 
 
-def render(document: dict[str, object]) -> str:
-    """Render one sorted table entry per line so a one-key change is one hunk.
+def _render_v2(document: dict[str, object]) -> str:
+    """Keep the measured v2 tables readable within the file line budget."""
+    lines = ["{"]
+    keys = sorted(document)
+    for key_index, key in enumerate(keys):
+        value = document[key]
+        suffix = "," if key_index < len(keys) - 1 else ""
+        if isinstance(value, dict):
+            lines.append(f"  {json.dumps(key)}: {{")
+            entries = [f"{json.dumps(name)}: {json.dumps(price)}"
+                       for name, price in sorted(value.items())]
+            for offset in range(0, len(entries), 2):
+                pair = ", ".join(entries[offset:offset + 2])
+                lines.append("    " + pair
+                             + ("," if offset + 2 < len(entries) else ""))
+            lines.append("  }" + suffix)
+        else:
+            lines.append(f"  {json.dumps(key)}: {json.dumps(value)}" + suffix)
+    lines.append("}")
+    return "\n".join(lines) + "\n"
 
-    No line cap applies in specs/: feature PRs must not edit the weights
-    file, and a standalone refit PR touches only it, so concurrent edits
-    merge as local hunks instead of whole-file rewrites (#9148).
-    """
+
+def render(document: dict[str, object]) -> str:
+    """Render legacy v1 bytes or compact, canonical v2 table entries."""
+    if document.get("schema_version") == 2:
+        return _render_v2(document)
     lines = ["{"]
     scalars = [key for key in document if not isinstance(document[key], dict)]
     for key in scalars:
