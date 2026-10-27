@@ -120,6 +120,7 @@ var allowedUnresolvedReads = map[string]string{
 	"go/internal/collector/repo/git/hardcoded_secret_golden_test.go|fixturePath":                                                          "tests/fixtures golden tree (code)",
 	"go/internal/collector/repo/git/observability_applied_facts_test.go|relativePath":                                                     "tmpdir fixture written then read back (write-then-read)",
 	"go/internal/collector/repo/git/selection_copy_commit_policy_test.go|retainedPath":                                                    "synthetic workflow names in a tmpdir git repo (never committed)",
+	"go/internal/collector/repo/git/selection_copy_hidden_test.go|rel":                                                                    "synthetic registry-dotfile rel joined under nested/dir, os.Stat only under a t.TempDir() copy root (code, never docs-set)",
 	"go/internal/collector/repo/git/snapshot_copy_bound_commit_test.go|workflowPath":                                                      "synthetic workflow name in a tmpdir git repo (never committed)",
 	"go/internal/collector/repo/git/snapshot_source_commit_sha_test.go|FileTargets":                                                       "tmpdir repo file written then snapshotted (fixture)",
 	"go/internal/correlation/drift/tfconfigstate/fixture_corpus_test.go|path":                                                             "param-dir helper; callers pass testdata corpus dirs (code)",
