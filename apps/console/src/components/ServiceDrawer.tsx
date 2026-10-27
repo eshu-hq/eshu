@@ -40,6 +40,9 @@ export function ServiceDrawer({
   // Findings for this service derive from the same impact-findings rows the
   // Vulnerabilities page uses, so the count always equals the listed rows.
   const findings = model.vulnerabilities.filter((v) => v.services.includes(name));
+  const vulnerabilityPagesPartial = Object.values(model.vulnerabilityPages ?? {}).some(
+    (page) => page.truncated,
+  );
   const sevCount: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
   findings.forEach((v) => {
     const k = v.severity as Severity;
@@ -240,6 +243,15 @@ export function ServiceDrawer({
 
                 {drill === "findings" ? (
                   <div style={{ marginTop: 10 }}>
+                    {vulnerabilityPagesPartial ? (
+                      <p role="status">
+                        Findings here cover initial pages only.{" "}
+                        <Link to="/vulnerabilities" onClick={onClose}>
+                          Browse all reachable finding pages
+                        </Link>
+                        .
+                      </p>
+                    ) : null}
                     <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
                       {(["critical", "high", "medium", "low"] as const)
                         .filter((k) => sevCount[k] > 0)

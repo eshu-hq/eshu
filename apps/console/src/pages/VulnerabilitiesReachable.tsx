@@ -5,6 +5,9 @@
 import { Link } from "react-router";
 
 import { vulnerabilityRowKey } from "../api/eshuConsoleVulnerabilities";
+import type { EshuApiClient } from "../api/client";
+import { useReachableFindingPage } from "./useReachableFindingPage";
+import { ReachablePageControls } from "./ReachablePageControls";
 import { AsyncStateGuard } from "../components/AsyncStateGuard";
 import { Panel, StatTile, Badge } from "../components/atoms";
 import { Donut } from "../components/charts";
@@ -25,10 +28,13 @@ interface PathHop {
 
 export function ReachableAdvisories({
   model,
+  client,
 }: {
   readonly model: ConsoleModel;
+  readonly client?: EshuApiClient;
 }): React.JSX.Element {
-  const rows = model.vulnerabilities.slice().sort((a, b) => b.cvss - a.cvss);
+  const paging = useReachableFindingPage(model, client);
+  const rows = (paging.page?.rows ?? model.vulnerabilities).slice().sort((a, b) => b.cvss - a.cvss);
   const sevCount: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
   rows.forEach((v) => {
     const k = v.severity as Severity;
@@ -44,9 +50,16 @@ export function ReachableAdvisories({
         Reachable findings — <span className="mono">GET /api/v0/supply-chain/impact/findings</span>.
       </p>
       <AsyncStateGuard provenance={provenance} label="vulnerabilities">
+        {model.vulnerabilityPages ? (
+          <ReachablePageControls
+            paging={paging}
+            clientAvailable={!!client}
+            rowsShown={rows.length}
+          />
+        ) : null}
         <div className="grid g-4">
           <StatTile
-            label="Open findings"
+            label={model.vulnerabilityPages ? "Findings on page" : "Open findings"}
             value={rows.length}
             color="var(--crit)"
             sub={`${sevCount.critical} critical · ${sevCount.high} high`}
@@ -81,12 +94,14 @@ export function ReachableAdvisories({
               />
             </div>
           </Panel>
-          <Panel className="flush" title="Finding register" sub="Sorted by CVSS">
+          <Panel className="flush" title="Finding register" sub="Current page, sorted by CVSS">
             <div className="supply-chain-register-scroll">
               <table className="tbl">
                 <thead>
                   <tr>
-                    <th>ID</th>
+                    <th>ID and aliases</th>
+                    <th>Source</th>
+                    <th>EPSS</th>
                     <th>Severity</th>
                     <th>CVSS</th>
                     <th>Package</th>
@@ -110,7 +125,28 @@ export function ReachableAdvisories({
                         >
                           {v.id}
                         </Link>
-                        {v.kev ? <span className="kev-flag">KEV</span> : null}
+                        {v.ghsaIds?.map((alias) => (
+                          <Badge tone="neutral" key={alias}>
+                            {alias}
+                          </Badge>
+                        ))}
+                        {v.kev ? <Badge tone="crit">KEV</Badge> : null}
+                      </td>
+                      <td>
+                        {v.sources?.length
+                          ? v.sources.map((source) => (
+                              <Badge tone="neutral" key={source}>
+                                {source}
+                              </Badge>
+                            ))
+                          : "—"}
+                      </td>
+                      <td>
+                        {v.epssProbability == null ? (
+                          "—"
+                        ) : (
+                          <Badge tone="ember">EPSS {(v.epssProbability * 100).toFixed(2)}%</Badge>
+                        )}
                       </td>
                       <td>
                         <span
@@ -155,7 +191,7 @@ export function ReachableAdvisories({
                   ))}
                   {rows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="empty">
+                      <td colSpan={8} className="empty">
                         No affected service proven by current vulnerability impact evidence.
                       </td>
                     </tr>

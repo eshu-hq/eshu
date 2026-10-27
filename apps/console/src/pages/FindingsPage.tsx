@@ -23,6 +23,9 @@ export function FindingsPage({ model }: { readonly model: ConsoleModel }): React
   const partialFailure = partialFailureMessage(findingsProv, vulnProv);
   const loadingNotice = partialLoadingMessage(findingsProv, vulnProv);
   const allSourcesReady = isReady(findingsProv) && isReady(vulnProv);
+  const vulnerabilityPagesPartial = Object.values(model.vulnerabilityPages ?? {}).some(
+    (page) => page.truncated,
+  );
   return (
     <div className="page">
       <div className="page-intro">
@@ -43,7 +46,7 @@ export function FindingsPage({ model }: { readonly model: ConsoleModel }): React
         data-vulnerabilities-state={vulnProv}
       >
         <StatTile
-          label="Open findings"
+          label={vulnerabilityPagesPartial ? "Findings in initial pages" : "Open findings"}
           value={allSourcesReady ? rows.length : "—"}
           color="var(--ember)"
           sub={combinedCountSub(
@@ -71,6 +74,12 @@ export function FindingsPage({ model }: { readonly model: ConsoleModel }): React
           sub={combinedCountSub(findingsProv, vulnProv, "distinct categories")}
         />
       </div>
+      {vulnerabilityPagesPartial ? (
+        <p role="status">
+          Vulnerability rows here cover the initial exact and derived pages only.{" "}
+          <Link to="/vulnerabilities">Browse all reachable finding pages</Link>.
+        </p>
+      ) : null}
       <Panel className="flush mt" title="Unified worklist">
         {partialFailure ? (
           <p className="src-err" role="alert">
