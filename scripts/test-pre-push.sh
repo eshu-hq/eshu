@@ -311,6 +311,60 @@ case_k_seeded="$(floor_rows_outside_categories "${floor_cats//security,/}")"
 printf '%s\n' "${case_k_seeded}" | rg -q -- '^gosec-changed security$' ||
 	fail "case K: seeded run without security did not name gosec-changed (got: ${case_k_seeded})"
 
+# Single-command builds must not dirty the source tree; multiple packages
+# already discard output. The stand-in models the real Go behavior proved
+# with a standalone module, while the real driver selects and builds packages.
+for scenario in main library multiple broken existing; do
+    fixture="$(build_fixture "build-output-${scenario}")"
+    if [[ "${scenario}" == library ]]; then
+        mkdir -p "${fixture}/go/internal/library"
+        printf 'package library\n' > "${fixture}/go/internal/library/value.go"
+    else
+        mkdir -p "${fixture}/go/cmd/one"
+        printf 'package main\nfunc main() {}\n' > "${fixture}/go/cmd/one/main.go"
+        if [[ "${scenario}" == multiple ]]; then
+            mkdir -p "${fixture}/go/cmd/two"
+            printf 'package main\nfunc main() {}\n' > "${fixture}/go/cmd/two/main.go"
+        fi
+    fi
+    if [[ "${scenario}" == existing ]]; then
+        printf 'existing executable\n' > "${fixture}/go/one"
+    fi
+    git -C "${fixture}" -c core.hooksPath=/dev/null add go
+    cat > "${fixture}/bin/go" <<'BUILD_OUTPUT'
+#!/usr/bin/env bash
+printf 'go %s\n' "$*" >> "${DRIVER_ARGS_LOG}"
+[[ "${1:-}" == build ]] || exit 0
+shift
+[[ "${BUILD_OUTPUT_FAIL:-0}" == 0 ]] || exit 17
+output=
+if [[ "${1:-}" == -o ]]; then
+    output="$2"
+    shift 2
+    [[ "$#" == 1 ]] || exit 18
+fi
+if [[ "$#" == 1 && "$1" == ./cmd/one ]]; then
+    output="${output:-one}"
+    [[ "${output}" == /dev/null ]] || : > "${output}"
+fi
+exit 0
+BUILD_OUTPUT
+    chmod +x "${fixture}/bin/go"
+    if [[ "${scenario}" == broken ]]; then
+        status="$(BUILD_OUTPUT_FAIL=1 run_fixture "${fixture}" 0)"
+        [[ "${status}" != 0 ]] || fail "broken build was accepted"
+    else
+        status="$(run_fixture "${fixture}" 0)"
+        [[ "${status}" == 0 ]] || { cat "${fixture}.log" >&2; fail "${scenario} build failed"; }
+    fi
+    if [[ "${scenario}" == existing ]]; then
+        [[ "$(cat "${fixture}/go/one")" == "existing executable" ]] || fail "build altered an existing executable"
+    fi
+    [[ -z "$(git -C "${fixture}" ls-files --others --exclude-standard -- go)" ]] || fail "single main build left untracked output"
+    rg -q '^go build ' "${fixture}.args" || fail "${scenario}: build never ran"
+    rg -q '^go vet ' "${fixture}.args" || fail "${scenario}: vet never ran"
+done
+
 # ── Cases E-I: the merge-tree step (#7111 F5) ──
 # shellcheck source=lib/test-pre-push-merge-cases.sh
 source "${repo_root}/scripts/lib/test-pre-push-merge-cases.sh"

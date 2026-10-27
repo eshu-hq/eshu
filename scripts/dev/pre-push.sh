@@ -223,7 +223,15 @@ step_fmt_lint_build_vet() {
 	"${precommit}" lint "${files[@]}" || status=1
 	if [[ ${#dirs[@]} -gt 0 ]]; then
 		printf 'build+vet: %d changed package(s)\n' "${#dirs[@]}"
-		( cd "${go_dir}" && go build "${dirs[@]}" ) || status=1
+		# A single main package otherwise leaves an executable in go/, which
+		# the source-identity gate correctly rejects as untracked input.
+		# Multiple-package builds already discard output; /dev/null cannot
+		# be used as one output file for multiple packages.
+		if [[ ${#dirs[@]} -eq 1 ]]; then
+			( cd "${go_dir}" && go build -o /dev/null "${dirs[@]}" ) || status=1
+		else
+			( cd "${go_dir}" && go build "${dirs[@]}" ) || status=1
+		fi
 		( cd "${go_dir}" && go vet "${dirs[@]}" ) || status=1
 	fi
 	return "${status}"
