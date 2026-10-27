@@ -305,6 +305,9 @@ WHERE work_item_id IN (
 	}
 	stopTraffic()
 	traffic.Wait()
+	// A canceled client can return before its PostgreSQL backend finishes.
+	// Settle that backend before writing the row used for exact equality.
+	drainActiveBackends(ctx, t, database)
 
 	if errored.Load() != 0 {
 		t.Fatalf("%d model transactions errored", errored.Load())
