@@ -122,9 +122,9 @@ by `sdk/go/factschema/cicdrun/v1` (physical relocation under Codex
 [PRODUCER_GRANT_DRAFT](PRODUCER_GRANT_DRAFT.md)).
 
 Supported oldest/newest core pairs: NOT_CHECKED until the first
-extracted release. SDK pins: NOT_CHECKED — `go/go.mod` references
-`sdk/go/collector` and `sdk/go/factschema` at `v0.0.0` with local
-`replace` directives; this PREP invents no published versions.
+extracted release. SDK pins: the satellite `go.mod` pins
+`eshu-sdk/collector v0.1.0-rc.3` + `eshu-sdk/factschema v0.1.0-rc.5`
+(main `0aa22ffd`); this PREP invents no published versions.
 
 ## 5. Consumers + protocols
 
@@ -144,8 +144,14 @@ extracted release. SDK pins: NOT_CHECKED — `go/go.mod` references
 
 ## 6. Migration stage + prerequisites
 
-- Stage: in-tree preparation (this PREP). Destination repository does
-  not exist yet; no standalone release; no deployment.
+- Stage: in-tree preparation (this PREP) with satellite pins cut.
+  `eshu-hq/eshu-collector-cicd-run` exists at `0aa22ffd` (emission
+  half only; no tags/releases). The `eshu-cicd-run-collector`
+  Deployment in the owner-designated QA EKS environment runs the
+  in-tree monolith
+  image (see §7); no satellite image is deployed anywhere
+  cluster-wide. No in-tree deletion: removal stays gated on
+  production acceptance per #8854.
 - Prerequisites to reuse: #6708 SDK publication, #6709 producer
   delegation, #6710 standalone template, #4047 gate implementation.
 - Blockers: #8851 physical SDK relocation (Codex-owned; this drive
@@ -156,3 +162,47 @@ extracted release. SDK pins: NOT_CHECKED — `go/go.mod` references
   determinism of target split, generation-agnostic stable census,
   credential-from-env-only, fail-closed hostile inputs, provider-scope
   routing, claim-ID namespace, heartbeat guard).
+
+## 7. Live production truth (QA environment, 2026-10-27)
+
+Production collection currently flows through the in-tree path, not
+the satellite image. Observed read-only against the QA environment:
+
+- Deployed image `ghcr.io/eshu-hq/eshu:sha-fb25d62...` (merge #9253;
+  includes #9171 GitHub App auth, predates #9255 listener intake),
+  managed by the ArgoCD QA app. No Deployment cluster-wide runs an
+  `eshu-collector-cicd-run` image.
+- Auth resolves through `ESHU_CICD_RUN_GITHUB_APP_ID /
+  _PRIVATE_KEY / _INSTALLATION_ID` (secret
+  `eshu-github-app-credentials`). The shared-PAT 404 blocker reported
+  2026-10-26 no longer fires: zero ERROR/404 lines in the trailing
+  collector log window.
+- Emission 2026-10-27T14:50Z: `iac-eks-eshu` generation
+  `ci_cd_run:de2f3a04...` committed 231 facts and
+  `portal-nextjs-platform` generation `ci_cd_run:f89a3a2d...`
+  committed 99 facts; `successor_guard` `refused:false` on both.
+- Reducer projection: 10 `reducer_ci_cd_run_correlation` rows per
+  generation (one per `ci.run`; `canonical_writes=0`), alongside the
+  admitted `ci.run` / `ci.job` / `ci.step` / `ci.artifact` /
+  `ci.pipeline_definition` / `ci.warning` facts. `ci.job`,
+  `ci.pipeline_definition`, and `ci.warning` stay
+  Disposition-`unconsumed` by design (no reducer decode call;
+  `go/internal/facts/ci_cd_run.go:103-108`). The reducer writes
+  Postgres only; this family has no Neo4j write path.
+- API: `GET /api/v0/ci-cd/run-correlations/count` returns 10/10 for
+  `repository:r_64f1601b` (iac-eks-eshu) /
+  `repository:r_33474efb` (portal-nextjs-platform) with
+  `provider=github_actions`, matching Postgres exactly.
+- MCP: `count_ci_cd_run_correlations` and
+  `list_ci_cd_run_correlations` return the same rows
+  (`truth.level=exact`, `freshness.state=fresh`, real provider run
+  IDs and commit SHAs in every row).
+
+Satellite cutover precondition: the satellite holds the emission
+half only (no App-auth consumer, no webhook intake) at rc.3, so it
+cannot reproduce the above until the #9146 wiring (#9171 auth +
+consumer, #9255 listener intake) is ported to
+`eshu-collector-cicd-run`, released, deployed, and proven with the
+same admission → projection → API → MCP agreement plus rollback
+rehearsal. Rollback target and dual-authority guard stay as drafted
+in [ROLLBACK_DRAFT](ROLLBACK_DRAFT.md).
