@@ -4,10 +4,10 @@
 // opposed to the broader known-intelligence catalog.
 import { Link } from "react-router";
 
-import { vulnerabilityRowKey } from "../api/eshuConsoleVulnerabilities";
-import type { EshuApiClient } from "../api/client";
-import { useReachableFindingPage } from "./useReachableFindingPage";
 import { ReachablePageControls } from "./ReachablePageControls";
+import { useReachableFindingPage } from "./useReachableFindingPage";
+import type { EshuApiClient } from "../api/client";
+import { vulnerabilityRowKey } from "../api/eshuConsoleVulnerabilities";
 import { AsyncStateGuard } from "../components/AsyncStateGuard";
 import { Panel, StatTile, Badge } from "../components/atoms";
 import { Donut } from "../components/charts";
@@ -95,7 +95,12 @@ export function ReachableAdvisories({
             </div>
           </Panel>
           <Panel className="flush" title="Finding register" sub="Current page, sorted by CVSS">
-            <div className="supply-chain-register-scroll">
+            <div
+              className="supply-chain-register-scroll"
+              role="region"
+              aria-label="Finding register"
+              tabIndex={0}
+            >
               <table className="tbl">
                 <thead>
                   <tr>

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { EshuApiClient } from "../api/client";
-import type { ConsoleModel } from "../console/types";
 import {
   loadVulnerabilityStatusPage,
   type VulnerabilityPage,
   type VulnerabilityStatus,
 } from "../api/eshuConsoleVulnerabilities";
+import type { ConsoleModel } from "../console/types";
 
 interface PageState {
   readonly status: VulnerabilityStatus;

@@ -2,10 +2,10 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
+import { VulnerabilitiesPage } from "./VulnerabilitiesPage";
 import type { EshuApiClient } from "../api/client";
 import type { VulnRow } from "../api/eshuConsoleLive";
 import { demoModel } from "../console/demoModel";
-import { VulnerabilitiesPage } from "./VulnerabilitiesPage";
 
 function row(number: number): VulnRow {
   return {
@@ -279,6 +279,10 @@ describe("reachable vulnerability paging", () => {
       </MemoryRouter>,
     );
 
+    expect(document.querySelector(".supply-chain-register-scroll")).toHaveAttribute(
+      "tabindex",
+      "0",
+    );
     expect(document.querySelectorAll("[data-vulnerability-finding-id]")).toHaveLength(100);
     fireEvent.click(screen.getByRole("button", { name: "Next findings page" }));
     await waitFor(() =>
