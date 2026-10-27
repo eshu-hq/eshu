@@ -23,6 +23,13 @@ Tags for this module use the Go subdirectory-module format:
   extension wire contract, admitted only when explicitly configured;
   v1alpha1 default unchanged.
 
+### Changed
+
+- `Status.FailureClass` documents the refined-class form
+  `<class>.<reason>` (for example `invalid_config.target_scope_mismatch`): one
+  bounded token under the existing pattern, with `<reason>` matching
+  `[a-z0-9_]+`. Docs-only; no field, validator, or wire change.
+
 ### Fixed
 
 - Native fact payloads with custom JSON serialization reject duplicate decoded

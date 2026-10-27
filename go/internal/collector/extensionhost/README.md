@@ -133,6 +133,18 @@ values per process fold to `other`. Failure classes are collector-defined, so
 the cap is per process and which classes fold depends on arrival order: the
 first 64 seen keep their own label for the life of the process.
 
+A collector may refine a class with one dot-separated sub-reason,
+`<class>.<reason>` (for example `invalid_config.target_scope_mismatch`). The
+host treats the whole token as the class and changes nothing for it:
+`failureClassFromStatus` returns it verbatim, `extensionFailure.Error()` puts it
+in the failure message, `ClaimedService` persists it unsanitized as
+`last_failure_class`, and the metric label admits it like any other class.
+`TestValidateBoundedStatusesRefinedClass`, the refined case in
+`TestSourceRoutesRetryableAndTerminalResultsThroughClaimFailures`, and the
+telemetry and `ClaimedService` pins keep that true. An alert that matches the
+base class exactly must match the prefix instead (see the
+[hosted extension policy](../../../../docs/public/operate/hosted-extension-policy.md)).
+
 A `retryable` result's classified failure carries the largest
 `status.retry_after_seconds` as `RetryAfterDelay()`, which
 `collector.ClaimedService` uses for `VisibleAt` and for

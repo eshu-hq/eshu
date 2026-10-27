@@ -304,6 +304,9 @@ func TestSourceRoutesRetryableAndTerminalResultsThroughClaimFailures(t *testing.
 		wantClass     string
 		wantTerminal  bool
 		wantRetryable bool
+		// wantMessage, when set, must appear in the claim failure message
+		// the workflow persists as last_failure_message.
+		wantMessage string
 	}{
 		{
 			name:  "retryable",
@@ -326,6 +329,21 @@ func TestSourceRoutesRetryableAndTerminalResultsThroughClaimFailures(t *testing.
 			wantClass:    "invalid_config",
 			wantTerminal: true,
 		},
+		{
+			// A collector may refine a class with one dot-separated sub-reason
+			// (eshu-hq/eshu#9289). The host treats the whole token as the
+			// class, so it must survive verbatim into FailureClass() and the
+			// message ClaimedService persists, with no host-side mapping.
+			name:  "terminal with a refined class",
+			state: sdkcollector.ResultTerminal,
+			status: sdkcollector.Status{
+				Class:        sdkcollector.StatusFailure,
+				FailureClass: "invalid_config.target_scope_mismatch",
+			},
+			wantClass:    "invalid_config.target_scope_mismatch",
+			wantTerminal: true,
+			wantMessage:  "invalid_config.target_scope_mismatch",
+		},
 	}
 
 	for _, tc := range tests {
@@ -344,6 +362,9 @@ func TestSourceRoutesRetryableAndTerminalResultsThroughClaimFailures(t *testing.
 				t.Fatal("NextClaimed() ok = true, want false")
 			}
 			assertFailure(t, err, tc.wantClass, tc.wantTerminal)
+			if tc.wantMessage != "" && !strings.Contains(err.Error(), tc.wantMessage) {
+				t.Fatalf("error = %q, want it to contain %q", err.Error(), tc.wantMessage)
+			}
 			if tc.wantRetryable {
 				var terminal interface{ TerminalFailure() bool }
 				if errors.As(err, &terminal) && terminal.TerminalFailure() {

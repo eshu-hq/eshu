@@ -151,6 +151,16 @@ type Redaction struct {
 }
 
 // Status reports bounded progress, partial, retry, or terminal metadata.
+//
+// FailureClass is one bounded token matching ^[a-z0-9][a-z0-9._-]{0,95}$. A
+// collector may refine a class with one dot-separated sub-reason,
+// "<class>.<reason>" (for example invalid_config.target_scope_mismatch), where
+// <reason> matches [a-z0-9_]+. The host treats the whole token as the failure
+// class and records it verbatim in metrics, logs, and the claim's
+// last_failure_class and last_failure_message; a consumer that groups by the
+// base class uses the segment before the first dot. Status has no free-text
+// field, so a refinement is the only way to name a reason; never put a name,
+// URL, id, or credential in it.
 type Status struct {
 	Class             StatusClass `json:"class"`
 	FailureClass      string      `json:"failure_class,omitempty"`

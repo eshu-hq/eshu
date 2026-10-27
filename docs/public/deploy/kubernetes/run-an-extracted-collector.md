@@ -118,7 +118,7 @@ Every entry needs its own `instanceId`.
 | `mode` | no | Activation mode, default `scheduled`. Claims are always enabled. |
 | `seed.image` | yes | Release image pinned by digest alone: `repository@sha256:<64 hex>`. A tag is rejected, even next to a digest, because the seed command's `--image-ref` would carry the tag. A registry port is fine (`registry.example:5000/org/name@sha256:...`). |
 | `seed.pullPolicy`, `seed.command` | no | Pull policy (default `IfNotPresent`) and seed entrypoint (default `["/collector", "seed"]`). |
-| `host.sourceSystem`, `host.scope.id`, `host.scope.kind` | yes | Claim identity the coordinator copies into planned work. |
+| `host.sourceSystem`, `host.scope.id`, `host.scope.kind` | yes | Claim identity the coordinator copies into planned work. An activation plans exactly one scope, its `host.scope.id`; component configuration that names other scopes is never collected, so run one activation per scope. |
 | `process.args`, `process.env`, `process.stdoutLimitBytes`, `process.stderrLimitBytes` | no | How the worker starts the binary. The chart sets the command itself. The worker reads 4 MiB of collector output by default; raise `stdoutLimitBytes` for a collector that emits more (for example 33554432 for 32 MiB, 67108864 for 64 MiB). |
 | `claimLeaseTTL`, `heartbeatInterval`, `pollInterval` | no | Per-worker claim timing. Each overrides the value of the same name under `componentExtensionCollector`. Durations use `h`, `m` and `s` (`pollInterval` also accepts `ms`). The heartbeat must be less than the lease. See "Set The Claim Lease". |
 | `config` | no | Non-secret collector settings, passed to the collector as its config block. |
