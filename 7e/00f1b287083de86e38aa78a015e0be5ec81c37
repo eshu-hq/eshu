@@ -1,0 +1,14 @@
+scripts/demo-corpus-loki-reconcile.sh
+  h_78a442cba0b3e6 79-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7e00f1b287083de86e38aa78a015e0be5ec81c37",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
