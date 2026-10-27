@@ -99,9 +99,10 @@ func TestMatchRepositoriesByIDsLive(t *testing.T) {
 }
 
 // TestMatchRepositoriesByIDsPlanLive records EXPLAIN (ANALYZE, BUFFERS) for
-// the shipped grant-to-slug query over a 10,000-repository catalog at grant
-// sizes 1, 100 and 5,000 (#8837 acceptance criterion). Plans and timings are
-// logged, not gated; the figures feed
+// the shipped query access path (same WHERE/ORDER BY) with a reduced
+// projection over a 10,000-repository catalog at grant sizes 1, 100 and
+// 5,000 (#8837 acceptance criterion). Plans and timings are logged, not
+// gated; the figures feed
 // docs/internal/evidence/8837-security-alert-grant-scope.md.
 func TestMatchRepositoriesByIDsPlanLive(t *testing.T) {
 	f := newGrantCatalogLiveFixture(t, "grant_catalog_plan")

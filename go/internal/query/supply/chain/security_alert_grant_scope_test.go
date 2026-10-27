@@ -276,6 +276,14 @@ func TestSecurityAlertGrantSlugs(t *testing.T) {
 			wantMapped: false,
 		},
 		{
+			name: "scope grant to a slug-less catalog row leaves its grant unmapped",
+			entries: []querycontract.RepositoryCatalogEntry{{
+				ID: "repository:r_bare", ScopeID: "scope:s_bare",
+			}},
+			scopeIDs:   []string{"scope:s_bare"},
+			wantMapped: false,
+		},
+		{
 			name:       "non-repository scope grant names no repository and is ignored",
 			entries:    grantScopeCatalog,
 			scopeIDs:   []string{"scope:s_unrelated"},

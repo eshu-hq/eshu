@@ -27,8 +27,9 @@ const securityAlertGrantCatalogMaxIDs = 5000
 // evidence) is unmapped, and the classifier reports
 // repository_outside_target_set for it rather than silently ignoring a
 // repository the caller may read. Scope grants that name a repository-kind
-// catalog row or a git repository scope contribute that repository's slugs;
-// any other scope grant names no repository and is ignored.
+// catalog row or a git repository scope contribute that repository's slugs,
+// except a row with no slug evidence, which leaves its grant unmapped; any
+// other scope grant names no repository and is ignored.
 func (h *Handler) securityAlertGrantSlugs(
 	ctx context.Context,
 	access querycontract.RepositoryAccessFilter,
@@ -82,7 +83,17 @@ func (h *Handler) securityAlertGrantSlugs(
 		slugs = append(slugs, grantSlugs...)
 	}
 	for _, scopeID := range UniqueSortedNonEmpty(access.AllowedScopeIDs) {
-		slugs = append(slugs, slugsForKey(scopeID)...)
+		grantSlugs := slugsForKey(scopeID)
+		if len(grantSlugs) == 0 {
+			// A scope grant with no slug evidence poisons the verdict
+			// only when it names a repository-kind catalog row: any
+			// other scope grant names no repository and stays ignored.
+			if _, ok := byKey[scopeID]; ok {
+				unmapped = true
+			}
+			continue
+		}
+		slugs = append(slugs, grantSlugs...)
 	}
 	return UniqueSortedNonEmpty(slugs), unmapped, nil
 }
