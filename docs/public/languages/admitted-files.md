@@ -279,16 +279,20 @@ Some names are left out on purpose:
   userinfo, and only the Gradle version and the `bin` or `all` distribution
   type are reported.
 
-In filesystem source mode, the managed-workspace copy keeps the admitted
-dot-prefixed names, including the runtime-version pins such as `.nvmrc` and
-`.tool-versions` (matched case-insensitively) under non-hidden directories and
-under `.github`, `.github/workflows` and `.mvn`, but not `.gitignore`: the copy
-already applies the source repository's ignore rules, so `.gitignore` is not
-indexed in that mode. Discovery then applies the registry to what the copy kept,
+In filesystem source mode, the managed-workspace copy keeps the dot-prefixed
+names the registry admits under the store policy, including the
+runtime-version pins such as `.nvmrc` and `.tool-versions` (matched
+case-insensitively) under non-hidden directories and under `.github`,
+`.github/workflows` and `.mvn` — a new registry dotfile name needs no second
+edit. Two exemptions stay out: `.gitignore`, which the copy must not duplicate
+because it already applies the source repository's ignore rules, so `.gitignore`
+is not indexed in that mode; and the names a metadata or redact policy governs
+(`.npmrc`, `.yarnrc.yml`, `*.tfvars`), which stay pruned in filesystem mode even though
+clone mode indexes them, as does any future dotfile a metadata or redact policy governs. Discovery then applies the registry to what the copy kept,
 as it does in clone mode: `.mvn/extensions.xml` is admitted as text, a `.java`
 file under `.mvn/wrapper` is admitted as Java, and `.mvn/jvm.config`,
 `.mvn/maven.config` and `.mvn/wrapper/maven-wrapper.properties` have no registry entry, so they
-are not indexed. The copy still prunes any other, unallowlisted dot-directory
-(other than a dot-directory whose name is itself an allowlisted file name)
+are not indexed. The copy still prunes any other, unadmitted dot-directory
+(other than a dot-directory whose name the registry itself admits)
 whole, so an admitted name inside one, such as `tools/.config/.eslintrc`, is
 indexed in clone mode only.

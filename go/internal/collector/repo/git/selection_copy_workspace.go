@@ -9,6 +9,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 func cleanManagedWorkspace(reposDir string) error {
@@ -38,69 +40,63 @@ func cleanManagedWorkspace(reposDir string) error {
 	return nil
 }
 
-// preservedHiddenFilesystemFileNames lists hidden (dot-prefixed) file basenames
-// that the managed-workspace copy must keep even though they would otherwise be
-// pruned as dotfiles. Unlike .github/workflows (a directory prefix), these are
-// individual hidden config FILES that can live at the repo root or, for GitLab
-// CI, in a subdirectory referenced via include:. They are matched by basename so
-// the copy preserves them wherever they appear under non-hidden or allowlisted
-// directories (.github, .github/workflows, .mvn, and a dot-directory whose name
-// is itself an allowlisted file name). A name under any other, unallowlisted
-// dot-directory, such as tools/.config/.eslintrc, is not copied: the walk
-// prunes that dot-directory whole, so clone mode admits it and filesystem mode
-// does not
-// (TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories). Keys
-// are lower case; the lookup lowercases the entry name.
-//
-// The tool configuration names (#8814) and the runtime-version pin names (#8809)
-// are the dot-prefixed names the parser registry admits as plain text.
-// .gitignore is deliberately absent: the copy applies the source repository's
-// ignore rules itself, and copying the file would let discovery filter a second
-// time, dropping files the copy kept because git tracks them (#5591).
-// .npmrc (#8978) is kept: it is admitted under the metadata content-store
-// policy, so no body is stored. The other credential-bearing dotfiles (.env,
-// .pypirc, .netrc) stay pruned.
-var preservedHiddenFilesystemFileNames = map[string]struct{}{
-	".gitlab-ci.yml":  {},
-	".gitlab-ci.yaml": {},
-	".gitmodules":     {},
-	".editorconfig":   {},
-	".gitattributes":  {},
-	".dockerignore":   {},
-	".eslintrc":       {},
-	".prettierrc":     {},
-	".babelrc":        {},
-	".npmignore":      {},
-	".flake8":         {},
-	".npmrc":          {},
+// filesystemCopyRegistry is the parser registry the managed-workspace copy
+// consults for its kept dotfiles. The registry is immutable and fixed for
+// the life of the process, so one shared value covers every walk.
+var filesystemCopyRegistry = parser.DefaultRegistry()
 
-	// Runtime-version pin files (#8809). Each holds only a version string.
-	".nvmrc":             {},
-	".node-version":      {},
-	".tool-versions":     {},
-	".python-version":    {},
-	".ruby-version":      {},
-	".java-version":      {},
-	".go-version":        {},
-	".sdkmanrc":          {},
-	".terraform-version": {},
-	".swift-version":     {},
+// registryKeepsHiddenPath reports whether the parser registry admits the
+// dot-prefixed entry at rel under the store content-store policy, so the
+// managed-workspace copy keeps it (#8904). Probing Registry.LookupByPath
+// keeps one source of truth: a dotfile name added to the registry is kept
+// with no second edit, whether it binds by exact name (.editorconfig), by
+// extension (.gitlab-ci.yml via .yml), or by a path rule, and a definition
+// that binds metadata or redact (.npmrc, .yarnrc.yml, *.tfvars) is pruned
+// because a governed definition wins every dispatch. .gitignore is excluded
+// even though the registry admits it as plain text: the copy applies the
+// source repository's ignore rules itself, and copying the file would let
+// discovery filter a second time, dropping files the copy kept because git
+// tracks them (#5591). Matching is case-insensitive, like the registry, and
+// only the basename matters for the dot rule, so the copy preserves an
+// admitted name wherever it appears under non-hidden or allowlisted
+// directories. A name under any other, unallowlisted dot-directory, such as
+// tools/.config/.eslintrc, is not copied: the walk prunes that dot-directory
+// whole, so clone mode admits it and filesystem mode does not
+// (TestFilesystemCopyPrunesAdmittedDotfilesUnderUnknownDotDirectories).
+func registryKeepsHiddenPath(registry parser.Registry, rel string) bool {
+	normalized := path.Clean(filepath.ToSlash(rel))
+	if normalized == "." {
+		return false
+	}
 
-	// Yarn settings (#8833). The yarnrc definition stores it marker-redacted,
-	// so the filesystem copy keeps it like the git-sourced mode does.
-	".yarnrc.yml": {},
+	lowered := strings.ToLower(normalized)
+	base := path.Base(lowered)
+	if !strings.HasPrefix(base, ".") {
+		return false
+	}
+	if base == ".gitignore" {
+		return false
+	}
+	definition, ok := registry.LookupByPath(lowered)
+	if !ok {
+		return false
+	}
+	return definition.ContentStore.Policy == parser.ContentStoreStore
 }
 
 // preserveFilesystemHiddenPath reports whether the managed-workspace copy keeps
-// the dot-prefixed entry at rel. Names match case-insensitively, like the
-// parser registry that decides what discovery admits, so .EditorConfig and
+// the dot-prefixed entry at rel. Dotfiles the parser registry admits under
+// the store policy are kept via registryKeepsHiddenPath, so .EditorConfig and
 // .MVN reach discovery in filesystem mode exactly as they do in clone mode.
-// The .mvn directory is kept whole: discovery then applies the registry rules
-// to what is inside it, as it does in clone mode. The walk calls this only for
-// entries whose parent directories were kept, so none of this reaches inside
-// an unknown dot-directory.
-// TestPreserveFilesystemHiddenPathCoversRegistryDotfiles fails when a
-// dot-prefixed registry exact name is missing from the allowlist above.
+// The rest is structural, not registry-derived: the .github and .mvn
+// directories are kept whole (.mvn/extensions.xml binds by path rule, and
+// discovery applies the registry rules to what is inside each directory, as
+// it does in clone mode), and .gitmodules is kept because the submodule
+// facts read it from the copy even though no parser definition binds it. The
+// walk calls this only for entries whose parent directories were kept, so
+// none of this reaches inside an unknown dot-directory.
+// TestPreserveFilesystemHiddenPathCoversRegistryDotfiles fails when the
+// derived set drifts from what the copy keeps.
 func preserveFilesystemHiddenPath(rel string) bool {
 	normalized := path.Clean(filepath.ToSlash(rel))
 	if normalized == "." {
@@ -109,14 +105,14 @@ func preserveFilesystemHiddenPath(rel string) bool {
 
 	lowered := strings.ToLower(normalized)
 	base := path.Base(lowered)
-	if _, ok := preservedHiddenFilesystemFileNames[base]; ok {
-		return true
-	}
-	if base == ".mvn" {
+	if base == ".mvn" || base == ".gitmodules" {
 		return true
 	}
 
-	return lowered == ".github" ||
+	if lowered == ".github" ||
 		lowered == ".github/workflows" ||
-		strings.HasPrefix(lowered, ".github/workflows/")
+		strings.HasPrefix(lowered, ".github/workflows/") {
+		return true
+	}
+	return registryKeepsHiddenPath(filesystemCopyRegistry, lowered)
 }

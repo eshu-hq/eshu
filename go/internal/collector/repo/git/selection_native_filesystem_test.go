@@ -55,8 +55,10 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemPreservesGitHubWork
 // managed workspace instead of pruning it as a dotfile. The managed-workspace copy
 // drops dot-prefixed entries unless preserveFilesystemHiddenPath allows them; the
 // GitLab CI pipeline file is a root-level hidden file (not a directory prefix like
-// .github/workflows), so the allowlist must match it by exact relative path or the
-// file never reaches discovery, the parser, or the graph.
+// .github/workflows), so the registry-derived keep rule must admit it by its .yml
+// extension or the file never reaches discovery, the parser, or the graph.
+// .gitmodules rides the same test: no parser definition binds it, so the copy
+// keeps it by explicit structural rule for the submodule facts.
 func TestNativeRepositorySelectorSelectRepositoriesFilesystemPreservesGitlabCI(t *testing.T) {
 	t.Parallel()
 

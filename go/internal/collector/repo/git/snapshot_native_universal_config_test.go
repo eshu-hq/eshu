@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
@@ -132,11 +133,14 @@ func TestResolveNativeSnapshotFileSetAdmitsUniversalConfigNames(t *testing.T) {
 }
 
 // TestFilesystemSelectorPreservesUniversalConfigDotfiles proves the filesystem
-// selector copies the admitted dot-prefixed names into the managed workspace.
-// The copy drops dot-prefixed entries unless preserveFilesystemHiddenPath
-// allows them, so a registry-admitted dotfile would otherwise never reach
-// discovery in filesystem mode (#8814). Credential-bearing dotfiles and
-// .gitignore stay out.
+// selector copies the registry-derived dotfile set into the managed workspace
+// (#8904). The kept and dropped lists come from the live registry, not from a
+// duplicate table: a store-policy dot-prefixed exact name is kept at the root
+// and nested, while .gitignore and the names a metadata or redact policy
+// governs stay out, so a registry-admitted dotfile reaches discovery in
+// filesystem mode exactly as it does in clone mode. The copy keeps .mvn
+// whole; what discovery then admits from it is pinned by
+// TestFilesystemCopyKeepsMvnDirectoryAndDiscoveryAppliesRegistryRules.
 func TestFilesystemSelectorPreservesUniversalConfigDotfiles(t *testing.T) {
 	t.Parallel()
 
@@ -144,18 +148,29 @@ func TestFilesystemSelectorPreservesUniversalConfigDotfiles(t *testing.T) {
 	reposDir := t.TempDir()
 	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
 	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
-	kept := []string{
-		".editorconfig", ".gitattributes", ".dockerignore",
-		".eslintrc", ".prettierrc", ".babelrc", ".npmignore", ".flake8", ".npmrc",
-		filepath.Join("web", ".editorconfig"),
+	registry := parser.DefaultRegistry()
+	var kept, dropped []string
+	for _, definition := range registry.Definitions() {
+		for _, name := range definition.ExactNames {
+			if !strings.HasPrefix(name, ".") {
+				continue
+			}
+			if strings.EqualFold(name, ".gitignore") || definition.ContentStore.Policy != parser.ContentStoreStore {
+				dropped = append(dropped, name)
+				continue
+			}
+			kept = append(kept, name, filepath.Join("web", name))
+		}
+	}
+	if len(kept) == 0 {
+		t.Fatal("no store-policy registry dotfiles found; the derived set checked nothing")
+	}
+	kept = append(kept,
 		filepath.Join(".mvn", "extensions.xml"),
 		filepath.Join("module", ".mvn", "extensions.xml"),
-	}
-	// .gitignore stays uncopied: the copy applies the source ignore rules
-	// itself, and a copied file would let discovery filter a second time. The
-	// copy keeps .mvn whole; what discovery then admits from it is pinned by
-	// TestFilesystemCopyKeepsMvnDirectoryAndDiscoveryAppliesRegistryRules.
-	dropped := []string{".env", ".pypirc", ".netrc", ".secret-config", ".gitignore"}
+	)
+	// Unadmitted credential-bearing dotfiles stay pruned as before.
+	dropped = append(dropped, ".env", ".pypirc", ".netrc", ".secret-config")
 	for _, rel := range append(append([]string{}, kept...), dropped...) {
 		writeSelectionTestFile(t, filepath.Join(sourceRepo, rel), "x = 1\n")
 	}
