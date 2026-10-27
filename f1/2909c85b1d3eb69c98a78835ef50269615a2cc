@@ -1,0 +1,16 @@
+docs/internal/evidence/9172-tempo-removal-host-image-cleanup.md
+  h_78a442cba0b3e6 23-30,38-40,46-63,73-82
+docs/public/deployment/service-runtimes-collectors.md
+  h_78a442cba0b3e6 78,127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f12909c85b1d3eb69c98a78835ef50269615a2cc",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
