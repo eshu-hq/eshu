@@ -10,6 +10,7 @@ import re
 import sys
 
 from postgres_scheduled_contract import ADMIN_ENVS, DATABASES, DSNS, IMAGE, PACKAGES, PR_PATHS
+from postgres_scheduled_artifacts import assemble_proof_bundle, verify_artifact_sources
 from reducer_contention_events import verify_events as verify_go_events
 from postgres_scheduled_fragments import load_inventory as load_fragments, inventory_digest
 from postgres_scheduled_manifest import build_manifest as build_source_bound_manifest
@@ -24,7 +25,7 @@ INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
 FRAGMENT = Path("specs/ci-pr-workflows.d/postgres-scheduled-live.yml")
 BULK_ACTION = Path(".github/actions/postgres-scheduled-bulk/action.yml")
-WORKFLOW_SHA256 = "1dcb7d11df10b33a3175ca26867ea8a93fa4f260c871fa87756587b47411aa0f"
+WORKFLOW_SHA256 = "6bb42daf05f2007873c07fba965ddd3ceddb1b3c641576a0a795408d5c8b773f"
 BULK_ACTION_SHA256 = "a40268e192f607a4201130cca07a30e3070a19808176b8eab25cd1331e4feb4f"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 GROUP_LABELS = {
@@ -118,6 +119,7 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         raise ValueError("scheduled runner harness step missing")
     for command in (
         "python3 scripts/test-postgres-scheduled-runner.py",
+        "python3 scripts/test-postgres-scheduled-rerun.py",
         "python3 scripts/test-postgres-scheduled-matrix.py",
         "python3 scripts/test-postgres-scheduled-fragments.py",
         "python3 scripts/test-postgres-scheduled-ledger-policy.py",
@@ -327,12 +329,17 @@ def verify_hosted_environment(manifest: dict[str, object]) -> None:
     for field, variable, label in (
         ("event", "GITHUB_EVENT_NAME", "event"),
         ("run_id", "GITHUB_RUN_ID", "run ID"),
-        ("run_attempt", "GITHUB_RUN_ATTEMPT", "run attempt"),
         ("checkout_sha", "GITHUB_SHA", "checkout SHA"),
         ("event_sha", "GITHUB_SHA", "event SHA"),
     ):
         if str(manifest.get(field)) != os.environ.get(variable):
             raise ValueError(f"hosted {label} differs from current GitHub run")
+    current_attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "")
+    manifest_attempt = manifest.get("run_attempt")
+    if (not current_attempt.isdecimal() or int(current_attempt) < 1
+            or not isinstance(manifest_attempt, int)
+            or manifest_attempt < 1 or manifest_attempt > int(current_attempt)):
+        raise ValueError("hosted run attempt differs from current GitHub run")
     if manifest.get("event") == "pull_request":
         event_path = os.environ.get("GITHUB_EVENT_PATH")
         if not event_path:
@@ -384,6 +391,9 @@ def verify_proof_bundle(
     if manifest != expected:
         raise ValueError("hosted proof manifest differs from expected run")
     verify_hosted_environment(manifest)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        verify_artifact_sources(
+            bundle, manifest, int(os.environ["GITHUB_RUN_ATTEMPT"]))
     for group, package in PACKAGES.items():
         path = bundle / f"{group}.jsonl"
         if not path.is_file():
@@ -404,6 +414,8 @@ def main() -> int:
     parser.add_argument("--group", choices=tuple(PACKAGES))
     parser.add_argument("--write-manifest", type=Path)
     parser.add_argument("--verify-proof-bundle", type=Path)
+    parser.add_argument("--assemble-proof-streams", type=Path)
+    parser.add_argument("--output-proof-bundle", type=Path)
     parser.add_argument("--event")
     parser.add_argument("--run-id")
     parser.add_argument("--run-attempt")
@@ -445,6 +457,15 @@ def main() -> int:
                 "local simulated" if arguments.allow_local_simulation else "hosted"
             )
             print(f"scheduled PostgreSQL {label} proof bundle verified")
+            return 0
+        if arguments.assemble_proof_streams:
+            if not arguments.output_proof_bundle:
+                parser.error("--output-proof-bundle is required with --assemble-proof-streams")
+            assemble_proof_bundle(
+                arguments.assemble_proof_streams, arguments.output_proof_bundle,
+                os.environ.get("GITHUB_RUN_ID", ""),
+                int(os.environ.get("GITHUB_RUN_ATTEMPT", "0")),
+            )
             return 0
         if arguments.events is None:
             print(f"scheduled PostgreSQL inventory: {len(inventory)} files verified")

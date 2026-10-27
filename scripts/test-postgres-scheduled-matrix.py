@@ -38,7 +38,7 @@ class ScheduledMatrixTest(unittest.TestCase):
             "freshness_links_scale", "freshness_links_a", "freshness_links_b",
         ):
             self.assertIn(f"${{{{ runner.temp }}}}/{group}.jsonl", workflow)
-        self.assertIn("merge-multiple: true", workflow)
+        self.assertIn("merge-multiple: false", workflow)
         self.assertIn(
             "needs: [scheduled-setup, scheduled-freshness-scale, "
             "scheduled-freshness-a, scheduled-freshness-b, scheduled-ack, "
