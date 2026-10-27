@@ -46,9 +46,11 @@ func buildInline(head string, n int) string {
 	return b.String()
 }
 
-// hostileTableDocs returns 100,000-entry documents that each hold the
-// go-toml v2.3.1 key lookup for about 18 seconds, one per way of putting
-// many entries into one table.
+// hostileTableDocs returns n-entry documents that each hold the go-toml
+// v2.3.1 key lookup (about 18 seconds at the full 100,000 scale), one per
+// way of putting many entries into one table. The entry count comes from
+// hostileTableEntries so the race detector runs a smaller but still
+// over-limit shape.
 func hostileTableDocs(n int) map[string]string {
 	build := func(head string, row func(i int) string) string {
 		var b strings.Builder
@@ -115,7 +117,7 @@ func repeatedHeaderDocs(distinct, repeats, elemKeys int) map[string]string {
 // a typed error before any decode, and the rejection allocates a bounded
 // amount whatever the size. It measures bytes, not time.
 func TestCheckBoundsRejectsHostileTablesWithBoundedAllocation(t *testing.T) {
-	for name, doc := range hostileTableDocs(100_000) {
+	for name, doc := range hostileTableDocs(hostileTableEntries()) {
 		t.Run(name, func(t *testing.T) {
 			src := []byte(doc)
 			var err error
@@ -141,7 +143,7 @@ func TestCheckBoundsRejectsHostileTablesWithBoundedAllocation(t *testing.T) {
 // once outside the measured closure: converting inside would charge the copy
 // of the multi-megabyte file to the guard.
 func TestCheckBoundsRejectsRepeatedHeaders(t *testing.T) {
-	for name, doc := range repeatedHeaderDocs(4900, 100_000, 0) {
+	for name, doc := range repeatedHeaderDocs(repeatScale()) {
 		t.Run(name, func(t *testing.T) {
 			src := []byte(doc)
 			var err error
@@ -178,7 +180,7 @@ func TestHostileTableDocsAreValidTOML(t *testing.T) {
 // scanning the whole hostile file: the work counter at rejection is within
 // one entry of the limit.
 func TestCheckBoundsStopsEarly(t *testing.T) {
-	doc := []byte(hostileTableDocs(100_000)["table keys"])
+	doc := []byte(hostileTableDocs(hostileTableEntries())["table keys"])
 	got, err := scanBounds(doc, testBounds)
 	if !errors.Is(err, ErrTooManyKeys) {
 		t.Fatalf("scanBounds() error = %v, want ErrTooManyKeys", err)
@@ -235,7 +237,7 @@ func TestStructBoundsSkipPlainEntriesAfterTheFirstUnknownKey(t *testing.T) {
 // TestStructBoundsStillChargeInlineTablesAndHeaders keeps the struct reading
 // from becoming a hole: inline tables and headers are looked up in full.
 func TestStructBoundsStillChargeInlineTablesAndHeaders(t *testing.T) {
-	docs := hostileTableDocs(100_000)
+	docs := hostileTableDocs(hostileTableEntries())
 	for _, name := range []string{"inline table keys", "subtable headers", "root headers", "array headers"} {
 		if _, err := scanBounds([]byte(docs[name]), lockStructBounds); !errors.Is(err, ErrTooManyKeys) {
 			t.Errorf("%s: scanBounds() = %v, want ErrTooManyKeys", name, err)
@@ -248,7 +250,7 @@ func TestStructBoundsStillChargeInlineTablesAndHeaders(t *testing.T) {
 	// TestCheckBoundsRejectsRepeatedHeaders), and
 	// TestStructShapeWorkCoversTheDecoder proves the work still covers the
 	// steps, so the acceptance is sound.
-	layouts := repeatedHeaderDocs(4900, 100_000, 0)
+	layouts := repeatedHeaderDocs(repeatScale())
 	for _, name := range []string{"array header after root siblings", "array element rebuilds children"} {
 		if _, err := scanBounds([]byte(layouts[name]), lockStructBounds); !errors.Is(err, ErrTooManyKeys) {
 			t.Errorf("%s: scanBounds() = %v, want ErrTooManyKeys", name, err)
@@ -256,7 +258,7 @@ func TestStructBoundsStillChargeInlineTablesAndHeaders(t *testing.T) {
 	}
 	// The first entry of a table is looked up even when the struct does not
 	// know it, so an inline table as that entry is charged.
-	first := []byte("[metadata]\nx = {" + strings.Repeat("a=1,", 100_000) + "}\n")
+	first := []byte("[metadata]\nx = {" + strings.Repeat("a=1,", hostileTableEntries()) + "}\n")
 	if _, err := scanBounds(first, lockStructBounds); !errors.Is(err, ErrTooManyKeys) {
 		t.Errorf("first entry inline table: scanBounds() = %v, want ErrTooManyKeys", err)
 	}
