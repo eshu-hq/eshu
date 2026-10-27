@@ -17,8 +17,12 @@
 # Must pass: no new stage exists, only a moved one.
 case_rename_repointed="$(init_repo case-rename-repointed)"
 git -C "${case_rename_repointed}" mv go/internal/reducer/service.go go/internal/reducer/service_renamed.go
-sed -i 's|go/internal/reducer/service\.go|go/internal/reducer/service_renamed.go|g' \
-  "${case_rename_repointed}/docs/public/observability/telemetry-coverage.md"
+# `sed -i.bak` is the form both BSD (macOS) and GNU sed accept; a bare `sed -i`
+# takes the script as the backup suffix on BSD sed (#9316). Drop the backup so
+# `git add .` never commits it.
+rename_doc="${case_rename_repointed}/docs/public/observability/telemetry-coverage.md"
+sed -i.bak 's|go/internal/reducer/service\.go|go/internal/reducer/service_renamed.go|g' "${rename_doc}"
+rm -f "${rename_doc}.bak"
 git -C "${case_rename_repointed}" add .
 git -C "${case_rename_repointed}" commit -q -m "rename stage file with lockstep doc repoint"
 expect_pass "passes when a stage file is renamed with its doc rows repointed" "${case_rename_repointed}"
