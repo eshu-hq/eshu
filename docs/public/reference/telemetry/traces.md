@@ -27,6 +27,7 @@ registry.
 | Query handlers | `query.*` spans for relationship evidence, documentation, IaC, code investigation, entity map, package registry, CI/CD, image identity, SBOM, declared runtime versions (`query.runtime_declarations`), and supply-chain reads |
 | Source collectors and webhooks | `tfstate.*`, `webhook.handle`, `webhook.store`, `oci_registry.*`, `vulnerability_intelligence.*`, `security_alert.*`, `ci_cd_run.*`, `pagerduty.*`, `jira.*`, `package_registry.*`, `scanner_worker.*`, and `aws.*` |
 | Storage dependencies | `postgres.exec`, `postgres.query`, `neo4j.execute`; read wrappers can also emit `neo4j.query` and `neo4j.query.single` |
+| Owned-package planner read | `owned_package_targets.read` (#9422): one span per hash-slot read, with a `postgres.query` child. Attributes and the `owned_package_targets.window` event carry `total_targets`, `slot_count`, `slot`, `slot_size`, `rows_read`, `selected`, and `truncated`; the event adds the per-ecosystem selected counts. See [Derived Target Rotation](../../deploy/kubernetes/run-an-extracted-collector.md#derived-target-rotation). |
 
 Legacy names such as `eshu.http.*`, `eshu.mcp.*`, `eshu.query.*`,
 `eshu.index.*`, `eshu.fact_*`, `eshu.resolution.*`, `eshu.graph.*`, and

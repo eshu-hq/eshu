@@ -9,6 +9,25 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Vulnerability and package-registry planning: every target within P windows
+
+- **Derived targets now rotate through fixed hash slots**
+  ([#9422](https://github.com/eshu-hq/eshu/issues/9422)). The owned-package
+  read used to start each window at `bucket * target_limit mod T`, so every
+  change in the target count T moved the window to an effectively random rank
+  and small ecosystems such as rubygems could wait days. Each distinct target
+  now has a fixed slot, `sha256(key)` mod P, where P is the smallest power of
+  two with `P * target_limit >= 2 * T`, and window `bucket` plans slot
+  `bucket mod P`. Every target is planned within P windows: 32 windows (16 h)
+  at `target_limit: 2000` while T stays at or below 32,000. The read cost is
+  unchanged on the QA replica (14.0 s against 13.9 s, n = 6 each). A slot that
+  the read limit cuts short now reports `derived_target_budget_exhausted`, and
+  the target after a skipped row is no longer planned in two windows. Each read
+  logs T, P, the slot, its size and the selected count per ecosystem, and adds
+  the `owned_package_targets.read` span.
+  `eshu_dp_postgres_query_duration_seconds` gains buckets up to 300 s.
+  `single_pass` keeps reading the first page of the whole set.
+
 ### Supply chain: sbt dependencies join their Maven package
 
 - **An sbt `%%` dependency now reaches the registry package it publishes**
