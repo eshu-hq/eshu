@@ -152,6 +152,19 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 			// path.
 			"aws_ec2_ami",
 			"aws_appsync_graphql_api",
+			"aws_eks_cluster",
+			"aws_eks_nodegroup",
+			"aws_eks_addon",
+		},
+		"CloudResource|uid": {
+			"ebb466e52cc949aa5efc8ce1cfa38014a98f9bb6b6f1be61a7e3e972f3b26d67",
+			"f21d65a5c93f368bb92a20b32ba2fd51c9c2210a00e51dac5ce9e77462b13727",
+			"1c239aaba3f3c257b7cc8fa06530cf38bf04b810a3b1f546bb4a2efbbb2e2cc5",
+		},
+		"CloudResource|resource_id": {
+			"arn:aws:eks:us-east-1:123456789012:cluster/demo-cluster",
+			"arn:aws:eks:us-east-1:123456789012:nodegroup/demo-cluster/demo-nodes/0000000000000000000000000000000a",
+			"arn:aws:eks:us-east-1:123456789012:addon/demo-cluster/vpc-cni/0000000000000000000000000000000b",
 		},
 		"CloudResource|ami_id":                         {"ami-000000000000000a"},
 		"FluxKustomization|source_ref_kind":            {"GitRepository"},
