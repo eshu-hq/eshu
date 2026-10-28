@@ -96,10 +96,14 @@ type composerRuntimeSnapshot struct {
 	Digest     string
 }
 
-// composerRuntimeUnparsed is a discovered Composer file without parser evidence.
+// composerRuntimeUnparsed is a discovered Composer file without accepted parser
+// evidence. A deterministic skip is bound to the failed file's bytes (or its
+// over-cap state); empty SkipReason leaves a transient parser miss to retry.
 type composerRuntimeUnparsed struct {
-	Path     string
-	ByteSize int
+	Path       string
+	ByteSize   int
+	Digest     string
+	SkipReason string
 }
 
 // RepositorySnapshot captures one repository parse snapshot and content transport.

@@ -84,6 +84,12 @@ func NoteUnavailableComposerCandidate(candidates map[string]Candidate, relativeP
 	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailableComposerExtraction(byteSize)}
 }
 
+// NoteCappedComposerCandidate records a Composer file proven over the byte
+// cap, without retaining or parsing its body.
+func NoteCappedComposerCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.CappedComposerExtraction(byteSize)}
+}
+
 // EmitRuntimeDeclarationFactsForCandidates sends one
 // runtime_declaration.version fact per declaration of every accumulated file,
 // in path order so the stream is deterministic. A no-op when candidates is

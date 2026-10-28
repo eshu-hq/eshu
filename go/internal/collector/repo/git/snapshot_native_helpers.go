@@ -344,7 +344,8 @@ func collectComposerRuntimeSnapshot(repoPath string, fileSet discovery.RepoFileS
 			continue
 		}
 		if _, ok := snapshot.ComposerRuntime[relativePath]; !ok {
-			snapshot.ComposerRuntimeUnparsed = append(snapshot.ComposerRuntimeUnparsed, composerRuntimeUnparsed{Path: relativePath, ByteSize: max(0, int(file.Size))})
+			snapshot.ComposerRuntimeUnparsed = append(snapshot.ComposerRuntimeUnparsed,
+				classifyMissingComposerFile(file.Path, relativePath, file.Size))
 		}
 	}
 }

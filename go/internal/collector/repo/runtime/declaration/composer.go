@@ -83,8 +83,14 @@ type errComposerEvidenceUnavailable struct{}
 func (errComposerEvidenceUnavailable) Error() string { return "composer evidence unavailable" }
 
 // UnavailableComposerExtraction reports a Composer file whose native parser
-// did not produce trustworthy evidence. The collector retries it on the next
-// snapshot rather than treating it as a known empty declaration.
+// did not produce trustworthy evidence. The collector may retry a transient
+// miss, while a proven unchanged malformed file can keep its typed skip.
 func UnavailableComposerExtraction(byteSize int) Extraction {
 	return ExtractComposerEvidence(parserjson.ComposerRuntimeEvidence{Unavailable: true, ByteSize: byteSize})
+}
+
+// CappedComposerExtraction reports a Composer document proven over the
+// manifest byte cap without retaining or parsing its body.
+func CappedComposerExtraction(byteSize int) Extraction {
+	return ExtractComposerEvidence(parserjson.ComposerRuntimeEvidence{ByteSize: byteSize})
 }

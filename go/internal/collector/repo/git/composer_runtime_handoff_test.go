@@ -136,7 +136,7 @@ func TestComposerRuntimeHandoffRejectsChangedBody(t *testing.T) {
 	}
 }
 
-func TestComposerRuntimeHandoffRetriesUnparsedFile(t *testing.T) {
+func TestComposerRuntimeHandoffSkipsUnchangedMalformedFile(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "composer.json"), `{"require":{"php":"8.2",}`)
 	observed := time.Date(2026, time.October, 28, 0, 0, 0, 0, time.UTC)
@@ -153,8 +153,8 @@ func TestComposerRuntimeHandoffRetriesUnparsedFile(t *testing.T) {
 	if got := decodeDeclarationList(t, drainFactChannel(collected.Facts)); len(got) != 0 {
 		t.Fatalf("invalid composer emitted %+v", got)
 	}
-	if collected.Generation.PreparseIdentityDropped == nil || !collected.Generation.PreparseIdentityDropped.Load() {
-		t.Fatal("unparsed composer file did not request recollection")
+	if collected.Generation.PreparseIdentityDropped == nil || collected.Generation.PreparseIdentityDropped.Load() {
+		t.Fatal("unchanged malformed Composer file requested recollection")
 	}
 }
 

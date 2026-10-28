@@ -244,11 +244,7 @@ func streamFacts(
 	// its definition's policy instead of emitting its raw body (#8833).
 	tally.lookup = contentStoreFallback(snapshot.ContentStoreFallbackRegistry)
 	gitmodulesCandidates, codeownersCandidates, runtimeDeclarationCandidates := map[string]string{}, map[string]string{}, map[string]runtimedeclaration.Candidate{}
-	for _, unparsed := range snapshot.ComposerRuntimeUnparsed {
-		dropped.Store(true)
-		droppedPaths.Note(unparsed.Path)
-		runtimedeclaration.NoteUnavailableComposerCandidate(runtimeDeclarationCandidates, unparsed.Path, unparsed.ByteSize)
-	}
+	noteUnparsedComposerCandidates(repoPath, snapshot.ComposerRuntimeUnparsed, runtimeDeclarationCandidates, dropped, droppedPaths)
 	if len(snapshot.ContentFileMetas) > 0 {
 		for i, meta := range snapshot.ContentFileMetas {
 			body, err := streamContentBodyReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads indexed repo content file at a path derived from the scan target, not user-supplied input

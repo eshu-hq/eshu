@@ -237,10 +237,18 @@ No-Observability-Change: no metric, span, or log key was added. Existing
 `git_runtime_declaration_file_skipped` and
 `git_runtime_declaration_values_rejected` WARN logs report bounded skips with
 reason, relative path, byte size, and rejected count without raw values. A
-changed or unparsed Composer body marks the generation `stream_dropped` with
-the affected relative path, so the next sweep recollects it; an unparsed file
-also reaches the typed skip WARN. The existing pre-parse identity drop metric
-and WARN log cover file read failures, not this Composer mismatch branch.
+malformed Composer body that remains byte-identical, or one that remains over
+the 1 MiB cap, reaches the typed skip WARN without marking the generation
+`stream_dropped`; an unchanged clean scope can reproject without reparsing.
+After a native parser miss, the collector makes a failed-only bounded read to
+classify that skip and rechecks it at emission. A transient read failure,
+valid fallback body, or changed body marks `stream_dropped` with the affected
+relative path so the next sweep recollects it. The existing pre-parse identity
+drop metric and WARN log cover file read failures, not this Composer mismatch
+branch. The accepted Composer path makes no additional read.
+An under-cap parser miss adds at most two 1 MiB plus one byte reads and one
+canonical JSON extraction in that generation; a proven over-cap file needs
+only size checks. This cost is confined to failed Composer parses.
 Queue and graph counts were not measured in this local parser/collector
 benchmark; the live golden-corpus gate owns projection proof.
 
