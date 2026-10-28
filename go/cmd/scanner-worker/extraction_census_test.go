@@ -107,23 +107,39 @@ func TestExtractionScopeIdentityAgrees(t *testing.T) {
 // later into the extracted repository) must carry non-secret identity and
 // local-path configuration only. Scanner inputs hold no registry
 // credentials by design; a future secret-bearing field must fail loudly
-// here before it can cross the boundary.
+// here before it can cross the boundary. The walk is recursive: nested
+// target structs carried inside runtimeConfig (osruntime.TargetConfig,
+// imageanalyzer.TargetConfig and their element types) are checked too, so a
+// secret-named field cannot hide one level down.
 func TestExtractionBoundaryConfigCarriesNoSecret(t *testing.T) {
 	banned := []string{"token", "secret", "password", "credential"}
-	for _, typ := range []reflect.Type{
-		reflect.TypeOf(runtimeConfig{}),
-		reflect.TypeOf(sbomTargetConfig{}),
-		reflect.TypeOf(resourceLimitsJSON{}),
-	} {
+	seen := map[reflect.Type]bool{}
+	var walk func(path string, typ reflect.Type)
+	walk = func(path string, typ reflect.Type) {
+		for typ.Kind() == reflect.Pointer || typ.Kind() == reflect.Slice || typ.Kind() == reflect.Array || typ.Kind() == reflect.Map {
+			typ = typ.Elem()
+		}
+		if typ.Kind() != reflect.Struct || seen[typ] {
+			return
+		}
+		seen[typ] = true
 		for i := 0; i < typ.NumField(); i++ {
 			field := typ.Field(i)
 			name := strings.ToLower(field.Name)
 			for _, word := range banned {
 				if strings.Contains(name, word) {
 					t.Errorf("cross-boundary %s.%s carries %q material; scanner inputs hold no credentials",
-						typ.Name(), field.Name, word)
+						path, field.Name, word)
 				}
 			}
+			walk(path+"."+field.Name, field.Type)
 		}
+	}
+	for _, typ := range []reflect.Type{
+		reflect.TypeOf(runtimeConfig{}),
+		reflect.TypeOf(sbomTargetConfig{}),
+		reflect.TypeOf(resourceLimitsJSON{}),
+	} {
+		walk(typ.Name(), typ)
 	}
 }
