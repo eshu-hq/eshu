@@ -185,6 +185,7 @@ jobs:
               - 'docs/internal/evidence/7127-link-writer-g7-results.json'
               - 'docs/internal/evidence/8869-collector-vault-live-census.md'
               - 'docs/internal/evidence/8870-vulnerability-intelligence-version-provenance.md'
+              - 'docs/internal/evidence/8871-eshu-deploy-census.md'
               - 'docs/internal/remote-validation/inventory.generated.json'
               - 'docs/public/deploy/kubernetes/helm-routing-and-storage-values.md'
               - 'docs/public/deployment/credential-file-cleanup.md'
