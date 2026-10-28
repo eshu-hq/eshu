@@ -57,14 +57,15 @@ func (e *Engine) ParsePath(
 		return nil, fmt.Errorf("no parser registered for %q", resolvedPath)
 	}
 
-	// Prime the shared single-read cache so every internal consumer of this
-	// path's bytes during this call — the language parser dispatched by
-	// parseDefinition (via shared.ReadSource or the local readSource) and the
-	// content-metadata inference below — reuses one physical disk read instead
-	// of each reading the file independently. If the read fails here, nothing
+	// Prime the shared single-read cache with original bytes so the language
+	// parser dispatched by parseDefinition (via shared.ReadSource or the local
+	// readSource) and the content-metadata inference below reuse one physical
+	// disk read. Readers
+	// normalize their parser view; evidence that binds to raw source bytes
+	// retains the original view. If the read fails here, nothing
 	// is primed and both call sites fall back to their normal independent
 	// read-and-fail behavior, so error handling is unchanged.
-	primedSource, primeErr := readSource(resolvedPath)
+	_, primedSource, primeErr := shared.ReadSourceWithOriginal(resolvedPath)
 	if primeErr == nil {
 		primeSource(resolvedPath, primedSource)
 		defer clearSource(resolvedPath)

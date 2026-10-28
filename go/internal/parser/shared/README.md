@@ -51,7 +51,8 @@ inference, parser runtime caching, or language-specific semantics.
 The godoc contract is in `doc.go` and `shared.go`. Current exports are
 `Options`, `GoImportedInterfaceParamMethods`, `GoDirectMethodCallRoots`,
 `GoPackageSemanticRoots`, `GoPackageSemanticRootOptions`, `BasePayload`, `ReadSource`,
-`NormalizeLineEndings`, `PrimeSource`, `ClearSource`, `SetReadSourceHookForTest`,
+`ReadSourceWithOriginal`, `NormalizeLineEndings`, `PrimeSource`, `ClearSource`,
+`SetReadSourceHookForTest`,
 `MaxSourceBytes`, `ErrSourceTooLarge`, `SourceReadCap`, `SetSourceReadCapForTest`,
 `ReadFileCapped` (`read_cap.go`, issue #8986), `WalkNamed`, `NodeText`, `NodeLine`, `NodeEndLine`, `CloneNode`,
 `AppendBucket`, `SortNamedBucket`, `SortNamedMaps`, `CollectBucketNames`,

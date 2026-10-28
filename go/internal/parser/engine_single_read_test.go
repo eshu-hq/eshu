@@ -4,6 +4,7 @@
 package parser
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	jsonparser "github.com/eshu-hq/eshu/go/internal/parser/json"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
@@ -53,6 +55,46 @@ func Hello() string {
 
 	if reads != 1 {
 		t.Fatalf("physical disk reads for %q = %d, want 1", filePath, reads)
+	}
+}
+
+// TestParsePathComposerBareCRKeepsRawIdentity checks the standalone engine
+// path, which primes its own cache before the JSON adapter reads source.
+func TestParsePathComposerBareCRKeepsRawIdentity(t *testing.T) {
+	const body = "{\r  \"require\": {\"php\": \"^8.2\"}\r}"
+	repoRoot := t.TempDir()
+	path := filepath.Join(repoRoot, "composer.json")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reads := 0
+	restore := shared.SetReadSourceHookForTest(func(readPath string) {
+		if readPath == path {
+			reads++
+		}
+	})
+	defer restore()
+	payload, err := engine.ParsePath(repoRoot, path, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, ok := payload["composer_runtime_evidence"].(jsonparser.ComposerRuntimeEvidence)
+	if !ok || len(evidence.Values) != 1 {
+		t.Fatalf("Composer evidence = %+v, want one PHP declaration", evidence)
+	}
+	wantDigest := fmt.Sprintf("%x", sha256.Sum256([]byte(body)))
+	if evidence.Digest != wantDigest || evidence.Values[0].Value != "^8.2" || evidence.Values[0].Line != 2 {
+		t.Fatalf("Composer evidence = %+v, want raw digest %q and PHP ^8.2 on line 2", evidence, wantDigest)
+	}
+	if got, want := payload["source"], strings.ReplaceAll(body, "\r", "\n"); got != want {
+		t.Fatalf("indexed parser source = %q, want normalized view %q", got, want)
+	}
+	if reads != 1 {
+		t.Fatalf("physical reads = %d, want 1", reads)
 	}
 }
 
