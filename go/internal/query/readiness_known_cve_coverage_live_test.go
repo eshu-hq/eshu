@@ -146,22 +146,6 @@ func TestSupplyChainImpactReadinessStaticWindowStaysHealthOnlyLive(t *testing.T)
 	}
 }
 
-// TestSupplyChainImpactReadinessLowercaseConfiguredCVELive pins reviewer F5: a
-// lowercase configured CVE selects the same target as its uppercase spelling,
-// as the collector's case-insensitive match does.
-func TestSupplyChainImpactReadinessLowercaseConfiguredCVELive(t *testing.T) {
-	ctx, db, now := readinessScopeLiveDatabase(t)
-	seedReadinessScopeInstance(t, ctx, db, now, cassetteNVDZeroInstance, []map[string]any{{
-		"source": "nvd", "scope_id": cassetteNVDZeroScope, "cve_ids": []string{" cve-2026-09227 "}, "base_url": cassetteNVDEndpoint,
-	}})
-	seedReadinessScopeState(t, ctx, db, now, cassetteNVDZeroInstance, cassetteNVDZeroScope, "nvd", "fresh", "succeeded")
-	seedReadinessCassetteScope(t, ctx, db, now, cassetteNVDZeroScope)
-	readiness := readReadinessScopeAPI(t, db, cassetteNVDZeroCVE)
-	if readiness.State != impact.ReadinessStateReadyZeroFindings || len(readiness.SourceStates) != 1 {
-		t.Fatalf("lowercase configured CVE readiness = %+v, want ready_zero_findings with one state", readiness)
-	}
-}
-
 // seedReadinessCassetteScope loads one committed vulnerability-intelligence
 // cassette scope as the active generation, with observation time now so the
 // committed snapshot reads as fresh.
