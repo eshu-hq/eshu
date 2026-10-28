@@ -106,6 +106,10 @@ func TestParityThroughput(t *testing.T) {
 	inTreeElapsed := run("in-tree", inTree, inTreeSuite)
 	ResetSatellite(t, satelliteDSN)
 	satElapsed := run("satellite", satellite, satSuite)
-	t.Logf("parity throughput ratio satellite/in-tree: %.2f (emulated satellite leg; binding comparison runs on a native dark deployment)",
-		float64(satElapsed)/float64(inTreeElapsed))
+	leg := "local satellite leg"
+	if os.Getenv("PARITY_DARK") == "1" {
+		leg = "native dark-deployment satellite leg"
+	}
+	t.Logf("parity throughput ratio satellite/in-tree: %.2f (%s)",
+		float64(satElapsed)/float64(inTreeElapsed), leg)
 }
