@@ -35,37 +35,41 @@ PR #7913 separately changes PostgreSQL readiness and is outside this patch.
 
 ## Scheduling design
 
-`queue-selection.yml` is a shared scheduling helper, not an additional required
-check. Its selection work runs only on `merge_group` events (any other event
-emits `selected=true` and an empty job list). `main` has had no merge queue
-since 2026-10-16 (#8288), so that selection is currently dead code. It reuses
-`ci-gates` fixed-base merge-group selection, including renamed
-paths and the conservative 300-file truncation rule. It unions the head registry
-with the trusted default-branch registry so policy edits cannot suppress work the
-trusted publisher still expects. The trusted root and ordered fragments come
-from one fetched default-branch commit. Missing or malformed fragments fail
-closed. Workflow, shared selector, or registry fragment edits select all owned
-gates for the workflow. A static filter edit selects every static row. Existing
-gate names and registry ownership remain intact.
+Update 2026-10-28 (#9367): `queue-selection.yml` was a shared scheduling
+helper, not an additional required check. Its selection work ran only on
+`merge_group` events (any other event emitted `selected=true` and an empty job
+list). `main` has had no merge queue since 2026-10-16 (#8288), so that
+selection was dead code, and the helper is now deleted: no workflow waits for
+selection anymore, and every job runs its payload when its workflow's own
+`pull_request`/`push`/schedule triggers select it. The paragraphs below
+describe the retired mechanism and are kept as the measured history. They
+reused `ci-gates` fixed-base merge-group selection, including renamed
+paths and the conservative 300-file truncation rule. The helper unioned the
+head registry with the trusted default-branch registry so policy edits could
+not suppress work the trusted publisher still expected. The trusted root and
+ordered fragments came from one fetched default-branch commit. Missing or
+malformed fragments failed closed. Workflow, shared selector, or registry
+fragment edits selected all owned gates for the workflow. A static filter edit
+selected every static row. Gate names and registry ownership stayed intact.
 
-All source jobs wait for selection. Unselected payload steps skip expensive
-checkout, builds, and tests, while stable check jobs succeed. Selection
-failure fails closed, including jobs with `always()`. Hosted runner and declared
-service provisioning still occur for stable check jobs; selection removes payload
-work, not all scheduling overhead. Dependencies execute when
-any selected downstream owner needs them. Static matrix rows retain every check
-name but execute payload only for selected rows. PR and push payload selection
-continues to use existing workflow behavior.
+While it lived, all source jobs waited for selection. Unselected payload steps
+skipped expensive checkout, builds, and tests, while stable check jobs
+succeeded. Selection failure failed closed, including jobs with `always()`.
+Hosted runner and declared service provisioning still occurred for stable check
+jobs; selection removed payload work, not all scheduling overhead. Dependencies
+executed when any selected downstream owner needed them. Static matrix rows
+retained every check name but executed payload only for selected rows. PR and
+push payload selection continued to use existing workflow behavior.
 
-The differential uses four isolated runners (two independent pairings times two
-backends), with fail-fast disabled. Each publishes a nonempty, attempt-scoped
-capture. The required join rejects failed/cancelled producers or missing/empty
+The differential used four isolated runners (two independent pairings times two
+backends), with fail-fast disabled. Each published a nonempty, attempt-scoped
+capture. The required join rejected failed/cancelled producers or missing/empty
 captures before running the existing comparison and coverage checks. Backend
-comparison retains its existing advisory divergence policy; capture and coverage
-failures remain blocking. Runner-local absolute corpus paths stay consistent.
+comparison retained its existing advisory divergence policy; capture and coverage
+failures remained blocking. Runner-local absolute corpus paths stayed consistent.
 
-Capture jobs have 30 minutes, the join 15, and selection 10. The publisher waits
-80 minutes in an 85-minute job, below the queue's 90 minutes. This also covers the
+Capture jobs had 30 minutes, the join 15, and selection 10. The publisher waited
+80 minutes in an 85-minute job, below the queue's 90 minutes. This also covered the
 longest existing 60-minute payload plus selection and publication margin. Hosted
 runner start delays and cold-cache timings still require validation after rollout.
 
@@ -110,8 +114,9 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `verify-ci-gate-registry.yml` | Blocking ownership/ruleset consistency and self-tests | Necessary while registry is authoritative; retain. |
 | `verify-replay-tier.yml` | Blocking offline real NornicDB replay | Distinct backend replay proof; retain. |
 
-The new `queue-selection.yml` makes 36 workflow files. It has no independent
-trigger or product gate and is classified as a nongate helper in the registry.
+The `queue-selection.yml` helper was removed in #9367 (it made 36 workflow
+files while it lived; 38 remain). It had no independent
+trigger or product gate and was classified as a nongate helper in the registry.
 
 ## Redundancy policy
 

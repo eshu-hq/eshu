@@ -447,7 +447,6 @@ workflows:
   - dead-letter-matrix
   - determinism-matrix
   - fault-injection
-  - queue-selection
   - static-mirror
   job_names:
     dead-letter-matrix: dead-letter-matrix

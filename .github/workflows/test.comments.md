@@ -20,25 +20,18 @@ Original lines 22–27.
 
 ## Comment group 2
 
-Original lines 40–55.
+Original lines 40–55 (at `da8c3cbd`; the merge-queue arm is gone — see below).
 
 ```yaml
-      # merge_group (#5814): every downstream heavy-lane `if:` already runs
-      # unconditionally on any non-pull_request event (`github.event_name !=
-      # 'pull_request'`, see verify-contracts/go-core/go-race below), so the
-      # value of `code` is never actually consulted for a merge-queue entry.
-      # What DOES matter is that this job always SUCCEEDS on merge_group:
+      # The queue arm of this job (force code=true on the queue event,
+      # #5814) was removed with the rest of the queue plumbing (#9367):
+      # main has had no merge queue since 2026-10-16 (#8288). What still
+      # matters is that this job SUCCEEDS whenever it runs:
       # go-core-complete and go-race-complete both require
       # `needs.changes.result == 'success'`, and a `changes` job that fails
       # (rather than cleanly skipping) marks its dependents `skipped`, which
       # the umbrella's "skipped is pass" rule would then wrongly accept as a
       # legitimate docs-only skip while nothing actually built or raced.
-      # dorny/paths-filter@v3 does document merge_group support (it seeds
-      # base/head from the event), but this job's shallow `fetch-depth: 2`
-      # checkout has never been proven against merge_group's synthetic
-      # merge-base lookup, so we do not depend on it: skip the diff outright
-      # on merge_group and report code=true directly, which costs nothing
-      # since it is already unused downstream.
 ```
 
 ## Comment group 3
@@ -446,7 +439,7 @@ the generic `did not succeed` one a real lint/build failure emits.
 New in #6054. The `dirgate` job.
 
 ```yaml
-      # dirgate job: needs only queue-selection, so it runs on every pull request
+      # dirgate job: needs only pr-plan, so it runs on every pull request
       # including docs-only ones; go-core is skipped when no code path changed.
       # Unlike the path-scoped scripts-file-cap and markdown-file-cap, its input
       # includes commit messages, which do not depend on paths. It is therefore

@@ -23,11 +23,6 @@ on:
       plan_mode:
         required: true
         type: string
-  # Merge-queue entries (#7111): every job runs, publication stays off, and
-  # required-gates.yml aggregates the merge_group check rows.
-  # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
-  merge_group:
-    types: [checks_requested]
   push:
     branches:
       - main
@@ -40,81 +35,69 @@ permissions:
   contents: read
 
 jobs:
-  queue-selection:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
-    uses: ./.github/workflows/queue-selection.yml
-    with:
-      workflow: verify-agent-hygiene.yml
-
   test-verify:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'test-verify') }}
-    needs: queue-selection
     name: Agent hygiene test mirror
     timeout-minutes: 10
     runs-on: ubuntu-24.04
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         uses: actions/checkout@v5
 
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Run test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'no-private-identifiers')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'no-private-identifiers') }}
         run: scripts/test-verify-agent-hygiene.sh
 
       - name: Run agent role binding test
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: python3 scripts/test-agent-roles.py
 
       - name: Run Codex spawn guard test
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: python3 scripts/test-codex-spawn-guard.py
 
       - name: Run goal role routing test
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: python3 scripts/test-goal-role-router.py
 
       - name: Run diff-fragment gate test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'no-diff-fragments')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'no-diff-fragments') }}
         run: scripts/test-verify-no-diff-fragments.sh
 
       - name: Run scope-prefix-single-source gate test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'scope-prefix-single-source')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'scope-prefix-single-source') }}
         run: scripts/test-verify-scope-prefix-single-source.sh
 
       - name: Run filename-stutter gate test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'filename-stutter')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'filename-stutter') }}
         run: scripts/test-verify-filename-stutter.sh
 
       - name: Run answer-demo fixture scrubber test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'answer-demo-fixtures-sanitized')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'answer-demo-fixtures-sanitized') }}
         run: scripts/test-verify-answer-demo-fixtures-sanitized.sh
 
       - name: Run gitignore-rg-parity gate test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'gitignore-rg-parity')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'gitignore-rg-parity') }}
         run: scripts/test-verify-gitignore-rg-parity.sh
 
       - name: Run cgo-cflags-guard gate test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'cgo-cflags-guard')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'cgo-cflags-guard') }}
         run: scripts/test-verify-cgo-cflags-guard.sh
 
       - name: Run agent hooks test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: scripts/test-agent-hooks.sh
 
       # The fake running gate the hook mirrors rely on must be visible to
       # `pgrep -x ci-gates` as its own pid (#9098); a real gate on the host
       # would otherwise hide a broken fake.
       - name: Run agent hooks fake-gate test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: scripts/test-agent-hooks-fake-gate.sh
 
       # These two were chained in the ci-gates registry's test_command but had
@@ -122,34 +105,34 @@ jobs:
       # the registry and the workflow disagreeing is the two-layer false-green
       # this repo has been bitten by before.
       - name: Run goal-continue hook test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: scripts/test-goal-continue-hook.sh
 
       - name: Run Codex goal-continue hook test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: scripts/test-codex-goal-continue-hook.sh
 
       - name: Run goal-refresh hook test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: scripts/test-goal-refresh-hook.sh
 
       - name: Run issue-capture hook test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: scripts/test-issue-capture-hook.sh
 
       - name: Run Muse hooks port test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: scripts/test-muse-hooks.sh
 
       - name: Run Cursor hooks port test mirror
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: scripts/test-cursor-hooks.sh
 
       # Static self-guard for the canon scripts' assertion idiom: fails if
       # the racy printf-piped-to-quiet-rg form (#8278) reappears. Mirrors
       # the registry test_command so local promotion and Actions agree.
       - name: Run agent-canon pipe-idiom guard
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: scripts/test-verify-agent-canon-pipes.sh
 
   verify:
@@ -157,13 +140,9 @@ jobs:
     name: Agent hygiene gate
     timeout-minutes: 10
     runs-on: ubuntu-24.04
-    needs: [queue-selection, test-verify]
+    needs: [test-verify]
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         uses: actions/checkout@v5
         with:
           # Full history so commit-message scanning over <base>..HEAD sees every
@@ -171,25 +150,24 @@ jobs:
           fetch-depth: 0
 
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Shared agent canon and harness discovery
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: scripts/verify-agent-canon.sh
 
       - name: No diff fragments or conflict markers
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'no-diff-fragments')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'no-diff-fragments') }}
         run: scripts/verify-no-diff-fragments.sh
 
       - name: Git repository scope prefix stays single-sourced
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'scope-prefix-single-source')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'scope-prefix-single-source') }}
         run: scripts/verify-scope-prefix-single-source.sh
 
       - name: No AI attribution
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'no-ai-attribution')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'no-ai-attribution') }}
         shell: bash
         env:
           GITHUB_BASE_REF: ${{ github.base_ref }}
@@ -207,21 +185,17 @@ jobs:
           scripts/verify-no-private-identifiers.sh
 
       - name: Answer demo fixtures sanitized
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'answer-demo-fixtures-sanitized')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'answer-demo-fixtures-sanitized') }}
         run: scripts/verify-answer-demo-fixtures-sanitized.sh
 
       - name: No filename or directory stutter in added/renamed paths
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'filename-stutter')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'filename-stutter') }}
         run: |
-          # PRs scan the base..head range; merge-queue entries scan from
-          # their merge base with main; direct pushes scan everything
+          # PRs scan the base..head range; direct pushes scan everything
           # pushed (before..sha). A recreated ref has no before SHA, so the
           # HEAD~1 fallback covers only the tip there.
           if [ -n "${{ github.base_ref }}" ]; then
             range="origin/${{ github.base_ref }}"
-          elif [ "${{ github.event_name }}" = "merge_group" ]; then
-            # A queue entry has no before SHA; scan what it adds over main.
-            range="$(git merge-base origin/main HEAD)"
           elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
             range="HEAD~1"
           else
@@ -230,9 +204,9 @@ jobs:
           scripts/verify-filename-stutter.sh --range "$range"
 
       - name: Tracked files visible to ripgrep from every search root
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'gitignore-rg-parity')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'gitignore-rg-parity') }}
         run: scripts/verify-gitignore-rg-parity.sh
 
       - name: Go workflows and entrypoints set the cgo C dialect flag
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Agent hygiene gate'))) && (github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'cgo-cflags-guard')) }}
+        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'cgo-cflags-guard') }}
         run: scripts/verify-cgo-cflags-guard.sh

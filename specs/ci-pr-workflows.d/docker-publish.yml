@@ -28,7 +28,6 @@ workflows:
   - package-and-push-chart
   - promote-moving-tags
   - publish-ci-service-mirrors
-  - queue-selection
   - verify-apk-floors
   - verify-public-ci-service-mirrors
   - verify-reproducibility

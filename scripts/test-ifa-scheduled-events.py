@@ -281,7 +281,7 @@ class ScheduledProofTest(unittest.TestCase):
                 MODULE.verify_inventory(ROOT, MODULE.load_inventory())
 
     def test_static_mirror_selects_harness_changes(self) -> None:
-        """PR and merge queue changes must run the hermetic negative guards."""
+        """PR changes must run the hermetic negative guards."""
         workflow = (ROOT / ".github/workflows/live-backend-tests.yml").read_text()
         fragment = (ROOT / "specs/ci-pr-workflows.d/live-backend-tests.yml").read_text()
         registry = (ROOT / "specs/ci-gates.d/gates-09.yaml").read_text()
@@ -319,7 +319,7 @@ class ScheduledProofTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIn(command, workflow)
                 self.assertIn(command, mirror)
-        self.assertIn("merge_group:", workflow)
+        self.assertNotIn("merge_group:", workflow)
         self.assertIn("workflow_call:", workflow)
 
 

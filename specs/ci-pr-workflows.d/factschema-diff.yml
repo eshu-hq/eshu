@@ -16,7 +16,6 @@ workflows:
   - specs/ci-pr-workflows.d/factschema-diff.yml
   jobs:
   - gate
-  - queue-selection
   - test-mirror
   job_names:
     gate: Verify factschema-diff gate

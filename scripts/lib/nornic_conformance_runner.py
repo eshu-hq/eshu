@@ -77,7 +77,7 @@ def verify_workflow_text(text: str, fragment: str | None = None) -> None:
     if (
         text.count("\njobs:\n") != 1
         or text.count("  workflow_call:\n") != 1
-        or text.count("  merge_group:\n") != 1
+        or text.count("  merge_group:\n") != 0
         or job.count(nornic_matrix) != 1
     ):
         raise ValueError("hosted Nornic conformance matrix or event changed")
@@ -86,7 +86,7 @@ def verify_workflow_text(text: str, fragment: str | None = None) -> None:
                and line.strip() and not line.lstrip().startswith("#")]
     keys = [re.fullmatch(r"    ([a-z][a-z-]*):(?: .*)?", line) for line in headers]
     if any(key is None for key in keys) or [key.group(1) for key in keys if key] != [
-        "if", "needs", "name", "runs-on", "timeout-minutes", "strategy", "steps"
+        "if", "name", "runs-on", "timeout-minutes", "strategy", "steps"
     ]:
         raise ValueError("noncanonical hosted conformance job properties")
     condition = "    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'test') }}"
@@ -98,12 +98,11 @@ def verify_workflow_text(text: str, fragment: str | None = None) -> None:
     if any(match is None for match in keys):
         raise ValueError("noncanonical hosted conformance step key")
     fields = [match.group(1) for match in keys if match]
-    if fields != ["if", "env", "run"]:
+    if fields != ["env", "run"]:
         raise ValueError("hosted conformance step activation or failure suppression changed")
     if 'run: ./scripts/verify_backend_conformance_live.sh' not in step:
         raise ValueError("hosted conformance runner is not invoked")
-    expected_if = "        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'test')) }}"
-    if top[0] != expected_if or top[-1] != "        run: ./scripts/verify_backend_conformance_live.sh":
+    if top[-1] != "        run: ./scripts/verify_backend_conformance_live.sh":
         raise ValueError("hosted conformance step is inactive")
     env_lines = [line for line in step.splitlines() if line.startswith("          ")]
     if env_lines != [

@@ -148,51 +148,10 @@ fi
 require_path_line "${e2e_gate}" "${backend_conformance_script}" \
 	"e2e-tests registry triggers omit the live backend-conformance driver"
 
-# #5814/#5863 codex review: scripts/lib/ci-gate-merge-group-checks.sh is
-# sourced by scripts/verify-docs-only-ci-skip.sh (extracted to keep that
-# script under the 500-line cap) but is not itself a workflow or script the
-# docs-only-ci-skip gate's own file list would otherwise catch. Without this
-# trigger, a change touching ONLY that lib selected NO local gate at all — the
-# exact unregistered-trigger false-green class #5538/#5546 closed elsewhere —
-# so the first discovery of a broken merge_group assertion would have been CI,
-# on the always-on job guarding the go-core-complete/go-race-complete required
-# status checks. docs-only-ci-skip is tier pre-pr, not pre-push, so this uses
-# its own --tier pre-pr call rather than the pre-push-only select_explain
-# helper defined below for the frontend suite.
-docs_only_ci_skip_gate="$(
-	sed -n '/^  - id: docs-only-ci-skip$/,/^  - id:/p' "${registry}"
-)"
-merge_group_lib='scripts/lib/ci-gate-merge-group-checks.sh'
-require_path_line "${docs_only_ci_skip_gate}" "${merge_group_lib}" \
-	"docs-only-ci-skip registry triggers omit the merge_group checks lib"
-selection="$(
-	printf '%s\n' "${merge_group_lib}" |
-		(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
-			--registry "${registry}" --tier pre-pr --paths-from - --explain)
-)"
-# Also legitimately selects heredoc-budget (its own "scripts/**/*.sh" trigger
-# covers every shell script, including this one) — that is correct, unrelated
-# behavior, not something this assertion should suppress or ignore.
-#
-# Deliberately membership-only, never an exact SELECTED count: a future
-# registry addition with a broad scripts/lib/** trigger would legitimately
-# select a third gate for this path, and an "exactly N" assertion here would
-# then fail for a reason unrelated to the wiring it guards. Assert the gates
-# that must be selected, and let unrelated ones come and go.
-printf '%s\n' "${selection}" |
-	rg '^SELECTED[[:space:]]+docs-only-ci-skip[[:space:]]' >/dev/null ||
-	fail "merge_group checks lib did not select docs-only-ci-skip (${merge_group_lib})"
-printf '%s\n' "${selection}" |
-	rg --fixed-strings -- "matched trigger \"${merge_group_lib}\" on path \"${merge_group_lib}\"" >/dev/null ||
-	fail "docs-only-ci-skip selected for the wrong reason (${merge_group_lib})"
-printf '%s\n' "${selection}" |
-	rg '^SELECTED[[:space:]]+heredoc-budget[[:space:]]' >/dev/null ||
-	fail "merge_group checks lib did not also select heredoc-budget (${merge_group_lib})"
-
-# #5814 class fix: five more gates depend on a scripts/lib helper their own
-# triggers omit, so a change touching only that helper selected NO gate and CI
-# became first discovery — the same unregistered-trigger false-green class as
-# the merge_group lib above. Membership assertions only, never an exact
+# Unregistered-trigger false-green class (#5538/#5546, #5814): five gates
+# depend on a scripts/lib helper their own triggers omit, so a change touching
+# only that helper selected NO gate and CI became first discovery.
+# Membership assertions only, never an exact
 # SELECTED count: heredoc-budget's "scripts/**/*.sh" trigger legitimately also
 # matches every one of these paths, and other gates may come to match later.
 # The list is fed by heredoc (not a pipe) so `fail` exits this script rather

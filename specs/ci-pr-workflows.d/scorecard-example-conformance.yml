@@ -12,7 +12,6 @@ workflows:
   - .github/workflows/scorecard-example-conformance.yml
   - specs/ci-pr-workflows.d/scorecard-example-conformance.yml
   jobs:
-  - queue-selection
   - test
   job_names:
     test: Scorecard example go test

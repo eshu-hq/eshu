@@ -15,7 +15,7 @@ const (
 	workflowPath = "../../../.github/workflows/test.yml"
 	dirgateJob   = "dirgate"
 	// Pull requests may skip dirgate only when the trusted plan omits it.
-	dirgatePlanIf = "${{ github.event_name == 'merge_group' || (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'dirgate'))) }}"
+	dirgatePlanIf = "${{ github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'dirgate')) }}"
 )
 
 // workflowFile is the slice of a GitHub Actions workflow the check reads.
@@ -50,26 +50,11 @@ func swallowsFailure(v any) bool {
 	}
 }
 
-// normalizeIf strips the expression wrapper, spaces and parentheses so two
-// spellings of the same condition compare equal.
-func normalizeIf(s string) string {
-	s = strings.NewReplacer("${{", "", "}}", "", " ", "", "(", "", ")", "", "\"", "'").Replace(s)
-	return strings.TrimSpace(s)
-}
-
-// queueOnlyIf reports whether a condition schedules the step only through the
-// merge-queue selection: it always runs on a pull request, and on a merge group
-// only when queue-select chose the job.
-func queueOnlyIf(cond, job string) bool {
-	n := normalizeIf(cond)
-	event := "github.event_name!='merge_group'"
-	selected := "containsfromJSONneeds.queue-selection.outputs.jobs||'[]','" + job + "'"
-	return n == event+"||"+selected || n == selected+"||"+event
-}
-
 // checkDirgateJob returns the reasons the dirgate job could skip a selected
 // pull request or avoid running the real gate. The trusted plan is the only
-// allowed pull-request selector; code-path conditions cannot bypass it.
+// allowed pull-request selector; code-path conditions cannot bypass it. Steps
+// run unconditionally inside the job: the job-level plan guard already
+// selected the run, so a step-level guard could only skip the real gate.
 func checkDirgateJob(content []byte) []string {
 	var wf workflowFile
 	if err := yaml.Unmarshal(content, &wf); err != nil {
@@ -81,13 +66,16 @@ func checkDirgateJob(content []byte) []string {
 	}
 	var problems []string
 	switch needs := job.Needs.(type) {
+	case string:
+		if needs != "pr-plan" {
+			problems = append(problems, "needs must be exactly pr-plan")
+		}
 	case []any:
-		validNeeds := len(needs) == 2 && ((needs[0] == "queue-selection" && needs[1] == "pr-plan") || (needs[0] == "pr-plan" && needs[1] == "queue-selection"))
-		if !validNeeds {
-			problems = append(problems, "needs must contain exactly queue-selection and pr-plan")
+		if len(needs) != 1 || needs[0] != "pr-plan" {
+			problems = append(problems, "needs must be exactly pr-plan")
 		}
 	default:
-		problems = append(problems, "needs must contain exactly queue-selection and pr-plan")
+		problems = append(problems, "needs must be exactly pr-plan")
 	}
 	if strings.TrimSpace(job.If) != dirgatePlanIf {
 		problems = append(problems, "job-level if does not require the trusted pr-plan selection: "+job.If)
@@ -97,16 +85,11 @@ func checkDirgateJob(content []byte) []string {
 	}
 	var ran, tested bool
 	for _, step := range job.Steps {
-		selector := step.Name == "Require queue selection to succeed"
-		if step.If != "" && !queueOnlyIf(step.If, dirgateJob) &&
-			(!selector || normalizeIf(step.If) != "always&&github.event_name=='merge_group'") {
-			problems = append(problems, "step "+step.Name+" has a non-queue guard: "+step.If)
+		if step.If != "" {
+			problems = append(problems, "step "+step.Name+" has a guard that could skip the real gate: "+step.If)
 		}
 		if swallowsFailure(step.ContinueOnError) {
 			problems = append(problems, "step "+step.Name+" has continue-on-error, so a failure would pass")
-		}
-		if selector {
-			continue
 		}
 		// The gate command must stand alone: a trailing `|| true` or `; true`
 		// turns a RED gate into a green step.
@@ -162,18 +145,18 @@ func TestWorkflowDirgateJobMutationsAreRejected(t *testing.T) {
 		{"missing planner success", mutate("needs.pr-plan.result == 'success' && ", "")},
 		{"missing planner selection", mutate("contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'dirgate')", "true")},
 		{"renamed planner selection", mutate("['test.yml'], 'dirgate'", "['test.yml'], 'renamed'")},
-		{"arbitrary pull-request skip", mutate("if: "+dirgatePlanIf, "if: ${{ github.event_name == 'merge_group' }}")},
-		{"missing planner dependency", mutate("needs: [queue-selection, pr-plan]", "needs: queue-selection")},
-		{"missing queue dependency", mutate("needs: [queue-selection, pr-plan]", "needs: pr-plan")},
-		{"an extra dependency", mutate("needs: [queue-selection, pr-plan]", "needs: [queue-selection, pr-plan, changes]")},
-		{"renamed merge-queue guard", mutate("contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dirgate')", "contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'renamed')")},
+		{"merge-group-only job guard", mutate("if: "+dirgatePlanIf, "if: ${{ github.event_name == 'merge_group' }}")},
+		{"missing planner dependency", mutate("    needs: [pr-plan]\n", "")},
+		{"planner dependency swapped", mutate("    needs: [pr-plan]\n", "    needs: changes\n")},
+		{"an extra dependency", mutate("    needs: [pr-plan]\n", "    needs: [pr-plan, changes]\n")},
+		{"step-level skip guard", mutate("      - name: Verify dirgate (derived ratchet)\n", "      - name: Verify dirgate (derived ratchet)\n        if: false\n")},
 		{"missing job", mutate("  "+dirgateJob+":\n", "  other-job:\n")},
 		{"dropped gate step", mutate("run: bash scripts/verify-dirgate.sh --ci", "run: echo skipped")},
 		{"commented-out gate", mutate("run: bash scripts/verify-dirgate.sh --ci", "# run: bash scripts/verify-dirgate.sh --ci\n        run: true")},
 		{"dropped unit tests", mutate("go test ./cmd/dirgate/ -count=1", "true")},
 		{"gate result swallowed with || true", mutate("run: bash scripts/verify-dirgate.sh --ci", "run: bash scripts/verify-dirgate.sh --ci || true")},
 		{"gate result swallowed with a trailing command", mutate("run: bash scripts/verify-dirgate.sh --ci", "run: bash scripts/verify-dirgate.sh --ci; true")},
-		{"job-level continue-on-error", mutate("    needs: [queue-selection, pr-plan]\n", "    needs: [queue-selection, pr-plan]\n    continue-on-error: true\n")},
+		{"job-level continue-on-error", mutate("    needs: [pr-plan]\n", "    needs: [pr-plan]\n    continue-on-error: true\n")},
 		{"step-level continue-on-error on the gate", mutate("      - name: Verify dirgate (derived ratchet)\n", "      - name: Verify dirgate (derived ratchet)\n        continue-on-error: true\n")},
 		{"step-level continue-on-error on the unit tests", mutate("      - name: Test dirgate\n", "      - name: Test dirgate\n        continue-on-error: true\n")},
 	}

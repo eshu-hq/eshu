@@ -53,7 +53,6 @@ def verify_routes(root: Path) -> None:
                   "      plan_jobs:\n        required: true\n        type: string\n"
                   "      plan_gates:\n        required: true\n        type: string\n"
                   "      plan_mode:\n        required: true\n        type: string\n"
-                  "  merge_group:\n    types: [checks_requested]\n"
                   "  push:\n    branches: [ main ]\n")
     uncommented = "\n".join(line for line in workflow.splitlines()
                               if not line.lstrip().startswith("#")) + "\n"
@@ -70,7 +69,7 @@ def verify_routes(root: Path) -> None:
     end = active.index("  jobs:") if "  jobs:" in active else -1
     if end < len(prefix) or active[end + 1:] != [
             "  - corpus-gate", "  - differential", "  - differential-capture",
-            "  - queue-selection", "  - static-mirror", "  job_names:",
+            "  - static-mirror", "  job_names:",
             "    corpus-gate: corpus-gate (${{ matrix.graph_backend }})",
             "    differential: differential nornicdb vs neo4j",
             "    differential-capture: differential capture (pair ${{ matrix.pair }}, ${{ matrix.graph_backend }})",
@@ -96,15 +95,11 @@ def verify_routes(root: Path) -> None:
         header = body.group(1).split("    steps:\n", 1)[0]
         condition = ("    if: ${{ github.event_name != 'pull_request' || "
                      f"contains(fromJSON(inputs.plan_jobs || '[]'), '{job}') }}}}")
-        if (header.splitlines().count("    needs: queue-selection") != 1
+        if (re.findall(r"(?m)^    needs:.*$", header)
                 or re.findall(r"(?m)^    if:.*$", header) != [condition]
                 or re.search(r"(?m)^    continue-on-error:", header)):
             raise ValueError(f"B-7 identity owner job inactive: {job}")
-        selection = "static mirror" if job == "static-mirror" else "corpus-gate"
-        expected = (f"      - name: {step}\n"
-                    "        if: ${{ github.event_name != 'merge_group' || "
-                    "contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), '"
-                    + selection + "') }}\n" + extra + f"        run: {command}\n")
+        expected = (f"      - name: {step}\n" + extra + f"        run: {command}\n")
         actual = re.findall(rf"(?ms)^      - name: {re.escape(step)}\n.*?(?=^      -|\Z)",
                             body.group(1))
         if len(actual) != 1 or actual[0].rstrip() != expected.rstrip():

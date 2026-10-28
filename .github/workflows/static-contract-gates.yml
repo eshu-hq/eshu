@@ -15,11 +15,9 @@ on:
       plan_mode:
         required: true
         type: string
-  # Merge-queue entries (#7111): every job runs, publication stays off, and
-  # required-gates.yml aggregates the merge_group check rows.
-  # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
-  merge_group:
-    types: [checks_requested]
+  # Pushes to main select every gate through the all-gates backstop below;
+  # PR leaves select through the plan. Main has no merge queue since
+  # 2026-10-16 (#8288).
   push:
     branches:
       - main
@@ -39,14 +37,8 @@ env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
 
 jobs:
-  queue-selection:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
-    uses: ./.github/workflows/queue-selection.yml
-    with:
-      workflow: static-contract-gates.yml
   changes:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'changes') }}
-    needs: queue-selection
     name: Detect changed gate paths
     timeout-minutes: 10
     runs-on: ubuntu-24.04
@@ -88,18 +80,12 @@ jobs:
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
         uses: actions/checkout@v5
-      # merge_group: skip the diff and select every gate, exactly as push
-      # does below. required-gates.yml selects which of them a queue entry
-      # needs from its own three-dot diff against main, so every gate it can
-      # select must have run.
+      # Push has no base diff, so dorny treats everything as changed and
+      # selects every gate.
       - name: Filter changed paths against gate triggers
         id: filter
-        if: ${{ github.event_name != 'merge_group' }}
         uses: dorny/paths-filter@v3
         with:
           # On push (no base), dorny treats everything as changed → all gates run.
@@ -113,7 +99,6 @@ jobs:
       - name: Build selected gate matrix
         id: gate-matrix
         env:
-          QUEUE_JOBS: ${{ needs.queue-selection.outputs.jobs }}
           PLAN_GATES: ${{ inputs.plan_gates }}
         run: |
           matrix_items=""
@@ -132,11 +117,6 @@ jobs:
             local gate_ids="$6"
             local timeout="${7:-15}"
             local run_gate=true
-            local queue_selected=true
-            if [[ "${{ github.event_name }}" == "merge_group" ]]; then
-              queue_selected=$(jq --arg job "${display}" 'index($job) != null' <<< "${QUEUE_JOBS}")
-              [[ "${queue_selected}" == true ]] || run_gate=false
-            fi
 
             if [[ "${test}" == "${gate}" ]]; then
               run_gate=false
@@ -153,8 +133,8 @@ jobs:
               [[ "${allowed}" == true ]] || return 0
             fi
 
-            if [[ "${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "merge_group" || "${selected}" == "true" ]]; then
-              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\",\"run_gate\":${run_gate},\"queue_selected\":${queue_selected},\"timeout\":${timeout}}"
+            if [[ "${{ github.event_name }}" == "push" || "${selected}" == "true" ]]; then
+              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\",\"run_gate\":${run_gate},\"timeout\":${timeout}}"
               if [[ -n "${matrix_items}" ]]; then
                 matrix_items="${matrix_items},${item}"
               else
@@ -215,44 +195,39 @@ jobs:
           printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"
 
   gate:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gate')) && (github.event_name == 'merge_group' || needs.changes.outputs.any == 'true') }}
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gate')) && (needs.changes.outputs.any == 'true') }}
     name: ${{ matrix.display }}
-    needs: [queue-selection, changes]
-    # merge_group lists every gate in the matrix (see append_gate), so `any`
-    # is true there; the explicit arm lets ci-gates validate prove this job
-    # always runs on a queue entry.
+    needs: [changes]
+    # `any` is true when the matrix holds at least one gate; the explicit
+    # arm keeps the job from scheduling an empty matrix.
     timeout-minutes: ${{ matrix.timeout }}
     runs-on: ubuntu-24.04
     defaults: {run: {shell: bash}}
-    container: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && 'ghcr.io/eshu-hq/ci-tools@sha256:2cd4305390057560cd876df8c3350e296b7df0b4b11a3d04e3a7d904d169a776' || '' }}
+    container: ghcr.io/eshu-hq/ci-tools@sha256:2cd4305390057560cd876df8c3350e296b7df0b4b11a3d04e3a7d904d169a776
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     env: {GOTOOLCHAIN: local, GOCACHE: /tmp/eshu-ci/go-build, GOMODCACHE: /tmp/eshu-ci/go-mod}
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
-        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
-      - if: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && matrix.key != 'taggedbuilds' }}
+      - if: ${{ matrix.key != 'taggedbuilds' }}
         uses: actions/cache@v4
         with: {path: /tmp/eshu-ci, key: "${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go/go.sum') }}"}
       # Cache transport is acceleration, not proof. Tagged builds must run on a
       # cache miss and must not archive its large cache after the assertions.
       - name: Restore tagged-build cache
         id: tagged-cache
-        if: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && matrix.key == 'taggedbuilds' }}
+        if: ${{ matrix.key == 'taggedbuilds' }}
         uses: actions/cache/restore@v4
         timeout-minutes: 2
         continue-on-error: true
         with: {path: /tmp/eshu-ci, key: "${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go/go.sum') }}"}
       - name: Report tagged-build cache outcome
         id: tagged-cache-outcome
-        if: ${{ !cancelled() && (github.event_name != 'merge_group' || matrix.queue_selected) && matrix.key == 'taggedbuilds' }}
+        if: ${{ !cancelled() && matrix.key == 'taggedbuilds' }}
         env:
           CACHE_OUTCOME: ${{ steps.tagged-cache.outcome }}
           CACHE_HIT: ${{ steps.tagged-cache.outputs.cache-hit }}
@@ -273,23 +248,21 @@ jobs:
             echo "Tagged-build cache restored; run the full proof."
           fi
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run test mirror (${{ matrix.key }})
-        if: ${{ github.event_name != 'merge_group' || matrix.queue_selected }}
         run: ${{ matrix.test }}
       # #6979: feed the cassette-author identifier check from a repository
-      # secret on same-repo PRs, merge-queue entries, and main pushes.
+      # secret on same-repo PRs and main pushes.
       # Fork PRs cannot read secrets, so this step is skipped there and the
       # gate runs canary-only with its warning. (push is main-only per this
       # workflow's on.push.branches, so the bare event check is correctly
-      # scoped; without merge_group/push coverage a post-PR secret change
-      # would pass the queue gate unnoticed.)
+      # scoped; without push coverage a post-PR secret change would pass
+      # the push gate unnoticed.)
       # After the test mirror on purpose: the mirror asserts the
       # unset/canary-only behavior, which exported vars would mask. The
       # secret value is never echoed; the gate prints only the loaded count.
       - name: Provide private identifiers for cassette-author gate
-        if: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && (matrix.key == 'cassetteauthor' && (github.event_name == 'merge_group' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == 'eshu-hq/eshu')) }}
+        if: ${{ matrix.key == 'cassetteauthor' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == 'eshu-hq/eshu') }}
         env:
           ESHU_PRIVATE_IDENTIFIERS: ${{ secrets.ESHU_PRIVATE_IDENTIFIERS }}
         run: |

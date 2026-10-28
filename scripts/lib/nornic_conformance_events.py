@@ -135,13 +135,11 @@ def _workflow_paths(source: str, static: bool, fragment: str) -> set[str]:
     if root != expected_root:
         raise ValueError("unsupported workflow root controls")
     events = _block(_active_lines(source), "on", 0)
-    expected = ["workflow_call:", "merge_group:", "push:"]
+    expected = ["workflow_call:", "push:"]
     if static:
         expected.append("workflow_dispatch:")
     if [content for depth, content in events if depth == 2] != expected:
         raise ValueError("unsupported hosted workflow events")
-    if _block(events, "merge_group", 2) != [(4, "types: [checks_requested]")]:
-        raise ValueError("merge-group event changed")
     if _block(events, "push", 2) != [(4, "branches: [ main ]")]:
         raise ValueError("main push event changed")
     inputs = _block(_block(events, "workflow_call", 2), "inputs", 4)
@@ -151,7 +149,7 @@ def _workflow_paths(source: str, static: bool, fragment: str) -> set[str]:
     filename = "live-backend-tests.yml" if static else "e2e-tests.yml"
     name = "Live Backend Tests" if static else "End-to-end Tests"
     prefix = ["schema_version: 1", "workflows:", f"- file: {filename}", f"name: {name}", "synchronize: true", "branches:", "- main", "paths:"]
-    suffix = ["jobs:", "- live-backend", "- live-backend-shards", "- queue-selection", "- static-mirror", "job_names:"] if static else ["jobs:", "- queue-selection", "- test", "job_names:"]
+    suffix = ["jobs:", "- live-backend", "- live-backend-shards", "- static-mirror", "job_names:"] if static else ["jobs:", "- test", "job_names:"]
     if rows[:8] != prefix or "jobs:" not in rows:
         raise ValueError("unsupported hosted workflow fragment")
     end = rows.index("jobs:")
@@ -243,7 +241,7 @@ def _static_step(source: str) -> None:
     jobs = _block(_active_lines(source), "jobs", 0)
     job = _block(jobs, "static-mirror", 2)
     headers = [content.split(":", 1)[0] for depth, content in job if depth == 4]
-    if headers != ["if", "needs", "name", "runs-on", "timeout-minutes", "steps"]:
+    if headers != ["if", "name", "runs-on", "timeout-minutes", "steps"]:
         raise ValueError("static mirror job controls changed")
     if (4, "if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}") not in job:
         raise ValueError("static mirror planner selection changed")
@@ -256,7 +254,6 @@ def _static_step(source: str) -> None:
                 if steps[index][0] <= 6), len(steps))
     if steps[starts[0]:end] != [
         (6, "- name: Test Nornic conformance enrollment"),
-        (8, "if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}"),
         (8, "run: python3 scripts/test-nornic-conformance-events.py"),
     ]:
         raise ValueError("Nornic static mirror step is inactive or suppressed")

@@ -159,20 +159,17 @@ class EventProofTest(unittest.TestCase):
             "Run readiness wait ledger proofs",
         )
         contract = "Verify contention runner contract"
-        condition = (
-            "        if: ${{ github.event_name != 'merge_group' || "
-            "(contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), "
-            "'reducer contention gate')) }}\n"
-        )
+        # Proof steps run unconditionally: disabling one means adding a guard.
         mutations: list[tuple[str, str]] = []
         for name in (*proof_steps, contract):
+            header = f"      - name: {name}\n"
             mutations.append(
-                (f"disabled {name}", change_step(name, condition, "        if: ${{ false }}\n"))
+                (f"disabled {name}", change_step(name, header, header + "        if: ${{ false }}\n"))
             )
             mutations.append(
                 (
                     f"continued {name}",
-                    change_step(name, condition, condition + "        continue-on-error: true\n"),
+                    change_step(name, header, header + "        continue-on-error: true\n"),
                 )
             )
             for spelling in (
@@ -186,14 +183,14 @@ class EventProofTest(unittest.TestCase):
                 mutations.append(
                     (
                         f"alternate {name} {spelling}",
-                        change_step(name, condition, condition + f"        {spelling}\n"),
+                        change_step(name, header, header + f"        {spelling}\n"),
                     )
                 )
             mutations.append(
                 (
                     f"folded condition {name}",
                     change_step(
-                        name, condition, condition + "        if : >-\n          ${{ false }}\n"
+                        name, header, header + "        if : >-\n          ${{ false }}\n"
                     ),
                 )
             )
@@ -205,8 +202,10 @@ class EventProofTest(unittest.TestCase):
                 ("continued job", original.replace(job, job + "    continue-on-error: true\n", 1)),
                 ("duplicate job", original + "\n" + original[original.index(job):]),
                 (
-                    "missing queue dependency",
-                    original.replace("    needs: queue-selection\n", "", 1),
+                    "needs smuggled into job",
+                    original.replace(
+                        job, job + "    needs: [other]\n", 1
+                    ),
                 ),
                 (
                     "suppressing job shell",
@@ -258,8 +257,8 @@ class EventProofTest(unittest.TestCase):
             (
                 "merged step failure suppression",
                 alias_workflow.replace(
-                    f"      - name: {proof_steps[2]}\n" + condition,
-                    f"      - name: {proof_steps[2]}\n" + condition
+                    f"      - name: {proof_steps[2]}\n",
+                    f"      - name: {proof_steps[2]}\n"
                     + "        <<: *soft_failure\n",
                     1,
                 ),
@@ -270,8 +269,8 @@ class EventProofTest(unittest.TestCase):
                 "suppressing step shell",
                 change_step(
                     proof_steps[2],
-                    condition,
-                    condition + "        shell: bash {0} || true\n",
+                    f"      - name: {proof_steps[2]}\n",
+                    f"      - name: {proof_steps[2]}\n        shell: bash {{0}} || true\n",
                 ),
             )
         )

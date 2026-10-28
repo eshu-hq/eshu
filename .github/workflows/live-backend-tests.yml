@@ -25,11 +25,6 @@ on:
       plan_mode:
         required: true
         type: string
-  # Merge-queue entries (#7111): selected shards run, publication stays off, and
-  # required-gates.yml aggregates the merge_group check rows.
-  # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
-  merge_group:
-    types: [checks_requested]
   push:
     branches: [ main ]
   workflow_dispatch:
@@ -54,48 +49,32 @@ env:
   ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 
 jobs:
-  queue-selection:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
-    uses: ./.github/workflows/queue-selection.yml
-    with:
-      workflow: live-backend-tests.yml
-
   # The ledger validator, both seed harnesses, and the runner's static
   # probes are cheap and need no Docker, so a broken gate fails here in
   # seconds instead of after the heavy job below.
   static-mirror:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}
-    needs: queue-selection
     name: static-mirror (ledger and runner probes)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         uses: actions/checkout@v5
 
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Validate the live-test ledger
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         run: bash scripts/verify-live-tests-ledger.sh
 
       - name: Test the ledger validator
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         run: bash scripts/test-verify-live-tests-ledger.sh
       - name: Test Nornic conformance enrollment
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         run: python3 scripts/test-nornic-conformance-events.py
 
       - name: Test the live-backend runner
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (ledger and runner probes)')) }}
         run: |
           bash scripts/test-run-live-backend-tests.sh
           python3 scripts/test-live-backend-shards.py
@@ -111,8 +90,7 @@ jobs:
           python3 scripts/test-delta-union-scheduled.py
 
   live-backend-shards:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-backend-shards')) && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
-    needs: queue-selection
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-backend-shards') }}
     name: live-backend shard (${{ matrix.shard }}/4)
     strategy:
       fail-fast: false
@@ -126,36 +104,28 @@ jobs:
       ESHU_SKIP_LIVE_GATE_LOCK: 1
       ESHU_LIVE_COMPOSE_PROJECT: eshu-live-backend-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
         uses: actions/checkout@v5
 
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run live-backend tests on both backends
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
         run: bash scripts/run-live-backend-tests.sh --shard "${{ matrix.shard }}/4" --results live-backend-result.json
 
       - name: Upload exact-source shard coverage
-        if: ${{ always() && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)')) }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: live-backend-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
@@ -163,7 +133,7 @@ jobs:
           if-no-files-found: error
 
       - name: Tear down backend stacks
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)'))) && (always()) }}
+        if: ${{ always() }}
         run: |
           bash scripts/ci/compose.sh -p "${ESHU_LIVE_COMPOSE_PROJECT}" -f docker-compose.live-backend-nornicdb.yml -- down -v || true
           bash scripts/ci/compose.sh -p "${ESHU_LIVE_COMPOSE_PROJECT}" -f docker-compose.live-backend-neo4j.yml -- down -v || true
@@ -171,35 +141,26 @@ jobs:
   live-backend:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-backend')) && (always()) }}
     name: live-backend (nornicdb and neo4j)
-    needs: [queue-selection, live-backend-shards]
+    needs: [live-backend-shards]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Require selection and every shard to succeed
+      - name: Require every shard to succeed
         env:
-          SELECTION_RESULT: ${{ needs.queue-selection.result }}
           SHARD_RESULT: ${{ needs.live-backend-shards.result }}
-          RUN_LIVE: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}
         run: |
-          test "$SELECTION_RESULT" = success
-          case "$RUN_LIVE:$SHARD_RESULT" in
-            true:success|false:skipped) ;;
-            *) exit 1 ;;
-          esac
+          test "$SHARD_RESULT" = success
 
       - name: Check out exact source
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}
         uses: actions/checkout@v5
 
       - name: Download run coverage
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}
         uses: actions/download-artifact@v4
         with:
           pattern: live-backend-${{ github.run_id }}-*
           path: live-backend-reports
 
       - name: Verify complete live-backend coverage
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}
         run: |
           python3 scripts/lib/live_backend_test_targets.py specs/live-tests.v1.yaml . |
             python3 scripts/lib/live_backend_shards.py expand > live-backend-full.plan

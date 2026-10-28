@@ -4,7 +4,7 @@
 # shellcheck disable=SC2034,SC2154
 
 # Check the upload step's own condition, not a free-floating mention of the
-# failure guard elsewhere in the workflow. The queue selector may wrap the
+# failure guard elsewhere in the workflow. A plan selector may wrap the
 # guard, but it must remain a top-level AND term so diagnostics upload cannot
 # start after a successful fault shard.
 ifa_fault_upload_is_failure_only() {
@@ -26,13 +26,13 @@ ifa_fault_upload_is_failure_only() {
 	[[ "${condition}" == '${{ ('* && "${condition}" == *"${suffix}" ]]
 }
 
-# Mutation cases pin the dangerous direction: a queue wrapper cannot turn the
-# failure guard into an OR, drop it, or leave it on a different step.
+# Mutation cases pin the dangerous direction: a selector wrapper cannot turn
+# the failure guard into an OR, drop it, or leave it on a different step.
 test_ifa_fault_upload_condition_mutations() {
 	local upload_name='      - name: Upload fault-injection diagnostics'
 	local guard="failure() && steps.fault_matrix.outcome == 'failure'"
 	local good_wrapped bad_or bad_missing bad_other_step
-	good_wrapped="${upload_name}"$'\n'"        if: \${{ (github.event_name != 'merge_group' || selected) && (${guard}) }}"
+	good_wrapped="${upload_name}"$'\n'"        if: \${{ (github.event_name != 'pull_request' || selected) && (${guard}) }}"
 	bad_or="${upload_name}"$'\n'"        if: \${{ selected || (${guard}) }}"
 	bad_missing="${upload_name}"$'\n'"        if: \${{ selected }}"
 	bad_other_step='      - name: Some other step'$'\n'"        if: \${{ ${guard} }}"$'\n'"${upload_name}"$'\n'"        uses: actions/upload-artifact@v4"

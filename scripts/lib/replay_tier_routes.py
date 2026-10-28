@@ -47,8 +47,6 @@ on:
       plan_mode:
         required: true
         type: string
-  merge_group:
-    types: [checks_requested]
   push:
     branches: [ main ]
 concurrency:
@@ -59,43 +57,28 @@ permissions:
 env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
 jobs:
-  queue-selection:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
-    uses: ./.github/workflows/queue-selection.yml
-    with:
-      workflow: verify-replay-tier.yml
   replay-tier:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier') }}
-    needs: queue-selection
     name: Offline replay tier vs real NornicDB
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         uses: actions/checkout@v5
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Install contract dependencies
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Verify replay tier contract
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         run: bash scripts/test-verify-replay-tier.sh
       - name: Run offline replay tier against real NornicDB
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Offline replay tier vs real NornicDB')) }}
         run: bash scripts/verify-replay-tier.sh
 """.strip("\n").splitlines()
 
@@ -260,8 +243,8 @@ def workflow_paths(fragment: str, filename: str) -> set[str]:
                 if not starts[0] < index < ends[0]]
     name = ("Replay Tier (offline NornicDB)" if filename == "verify-replay-tier.yml"
             else "Live Backend Tests")
-    jobs = (["queue-selection", "replay-tier"] if filename == "verify-replay-tier.yml"
-            else ["live-backend", "live-backend-shards", "queue-selection", "static-mirror"])
+    jobs = (["replay-tier"] if filename == "verify-replay-tier.yml"
+            else ["live-backend", "live-backend-shards", "static-mirror"])
     expected = ["schema_version: 1", "workflows:", f"- file: {filename}",
                 f"  name: {name}", "  synchronize: true", "  branches:",
                 "  - main", "  paths:", "  jobs:",
@@ -375,7 +358,7 @@ def _require_caller(root: Path, filename: str) -> None:
     if len(callers) != 1:
         raise ValueError(f"workflow caller missing or duplicated: {filename}")
     expected = (
-        'call-verify-replay-tier: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == \'pull_req'
+        'call-verify-replay-tier: {needs: [pr-plan], if: "${{ github.event_name == \'pull_req'
         "uest' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(from"
         'JSON(needs.pr-plan.outputs.workflows || \'[]\'), \'verify-replay-tier.yml\') }}", uses: ./.github/workfl'
         'ows/verify-replay-tier.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(ne'
@@ -410,10 +393,9 @@ def verify_independent_static_mirror(root: Path) -> None:
     jobs = _only_block(lines, "jobs", 0, "independent workflow")
     job = _only_block(jobs, "static-mirror", 2, "independent workflow")
     job_keys = [content.split(":", 1)[0] for depth, content in job if depth == 4]
-    if job_keys != ["if", "needs", "name", "runs-on", "timeout-minutes", "steps"]:
+    if job_keys != ["if", "name", "runs-on", "timeout-minutes", "steps"]:
         raise ValueError("independent workflow static mirror is disabled or changed")
     if (4, "if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}") not in job or (
-            4, "needs: queue-selection") not in job or (
             4, "name: static-mirror (ledger and runner probes)") not in job:
         raise ValueError("independent workflow static mirror is not selected")
     steps = _only_block(job, "steps", 4, "independent workflow")
@@ -423,12 +405,8 @@ def verify_independent_static_mirror(root: Path) -> None:
         raise ValueError("independent workflow ledger step is missing")
     end = next((index for index in range(starts[0] + 1, len(steps))
                 if steps[index][0] <= 6), len(steps))
-    selected = ("if: ${{ github.event_name != 'merge_group' || "
-                "(contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), "
-                "'static-mirror (ledger and runner probes)')) }}")
     if steps[starts[0]:end] != [
         (6, "- name: Validate the live-test ledger"),
-        (8, selected),
         (8, "run: bash scripts/verify-live-tests-ledger.sh"),
     ]:
         raise ValueError("independent workflow ledger step is inactive")

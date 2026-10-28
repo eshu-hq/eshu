@@ -31,11 +31,16 @@ func goCoreLinterProblem(workflowText, actionText string) string {
 	}
 	coreActionCalled := false
 	for _, step := range workflow.Jobs["go-core"].Steps {
-		coreActionCalled = coreActionCalled || (step.Uses == "./.github/actions/ci-go-core" &&
-			step.If == "${{ !cancelled() && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}")
+		if step.Uses != "./.github/actions/ci-go-core" {
+			continue
+		}
+		// The cancellation guard is the only allowed step condition: the
+		// lane job's own plan guard already selected the run, so a
+		// selection guard here could only skip lint on a selected lane.
+		coreActionCalled = step.If == "" || step.If == "${{ !cancelled() }}"
 	}
 	if !coreActionCalled {
-		return "go-core must invoke the Go core composite action"
+		return "go-core must invoke the Go core composite action with at most a cancellation guard"
 	}
 	var action struct {
 		Runs struct {
@@ -85,7 +90,7 @@ func TestGoCoreLinterRejectsDisabledCaller(t *testing.T) {
 	root := repositoryRoot(t)
 	workflow := readRepositoryFile(t, root, ".github/workflows/test.yml")
 	action := readRepositoryFile(t, root, ".github/actions/ci-go-core/action.yml")
-	before := "name: Run selected Go core checks\n        if: ${{ !cancelled() && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}"
+	before := "name: Run selected Go core checks\n        if: ${{ !cancelled() }}"
 	mutated := strings.Replace(workflow, before, "name: Run selected Go core checks\n        if: ${{ false }}", 1)
 	if mutated == workflow {
 		t.Fatal("seed did not alter the actual workflow caller")

@@ -28,6 +28,5 @@ workflows:
   - specs/ci-pr-workflows.d/live-postgres-migrations.yml
   jobs:
   - live-postgres-migrations
-  - queue-selection
   job_names:
     live-postgres-migrations: live-postgres-migrations (postgres18)

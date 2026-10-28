@@ -86,7 +86,6 @@ workflows:
   - format
   - lint
   - marketing-site
-  - queue-selection
   job_names:
     audit: npm audit (fail on high/critical)
     auth-mcp-e2e: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)

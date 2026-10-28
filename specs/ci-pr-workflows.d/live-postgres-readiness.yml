@@ -82,7 +82,6 @@ workflows:
   - hermetic
   - live-postgres-readiness
   - live-postgres-readiness-shards
-  - queue-selection
   - readiness-plan
   job_names:
     hermetic: live-postgres-readiness hermetic

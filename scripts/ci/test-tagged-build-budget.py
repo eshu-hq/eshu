@@ -35,6 +35,7 @@ def matrix_rows(event: str, queue_jobs: list[str]) -> list[dict[str, Any]]:
     result = subprocess.check_output(
         ["bash", "-euo", "pipefail", "-c", source], text=True,
         env={**os.environ, "QUEUE_JOBS": json.dumps(queue_jobs),
+             "PLAN_GATES": "[]",
              "GITHUB_OUTPUT": "/dev/stdout"},
     )
     line = next(line for line in result.splitlines() if line.startswith("matrix="))
@@ -67,10 +68,10 @@ class TaggedBuildBudgetTest(unittest.TestCase):
         self.assertEqual(restore["uses"], "actions/cache/restore@v4")
         self.assertEqual(restore["timeout-minutes"], 2)
         self.assertTrue(restore["continue-on-error"])
-        self.assertEqual(restore["if"], "${{ (github.event_name != 'merge_group' || matrix.queue_selected) && matrix.key == 'taggedbuilds' }}")
+        self.assertEqual(restore["if"], "${{ matrix.key == 'taggedbuilds' }}")
         ordinary = next(step for step in steps
                         if step.get("uses") == "actions/cache@v4")
-        self.assertEqual(ordinary["if"], "${{ (github.event_name != 'merge_group' || matrix.queue_selected) && matrix.key != 'taggedbuilds' }}")
+        self.assertEqual(ordinary["if"], "${{ matrix.key != 'taggedbuilds' }}")
         self.assertFalse(any(step.get("uses", "").startswith("actions/cache/save")
                              for step in steps))
         for step in steps:
@@ -90,11 +91,10 @@ class TaggedBuildBudgetTest(unittest.TestCase):
         self.assertTrue(tagged["blocking"])
         gate = load_workflow()["jobs"]["gate"]
         self.assertFalse(gate["strategy"]["fail-fast"])
-        selected = "${{ github.event_name != 'merge_group' || matrix.queue_selected }}"
         for step in gate["steps"]:
             name = step.get("name", "")
             if name == "Pre-warm Go modules" or name.startswith("Run test mirror"):
-                self.assertEqual(step["if"], selected)
+                self.assertNotIn("if", step)
                 self.assertFalse(step.get("continue-on-error", False))
             if name.startswith("Run gate"):
                 self.assertEqual(step["if"], "${{ matrix.run_gate }}")
@@ -131,17 +131,12 @@ class TaggedBuildBudgetTest(unittest.TestCase):
                 elif hit != "true":
                     self.assertIn("::notice::", output)
 
-    def test_idle_queue_does_not_run_tagged_proof(self) -> None:
-        """An unselected cell retains its check but does no expensive work."""
-        tagged = next(row for row in matrix_rows("merge_group", [])
+    def test_unselected_gate_does_not_schedule(self) -> None:
+        """An unselected cell is absent from the matrix, not an idle runner."""
+        self.assertEqual(matrix_rows("pull_request", []), [])
+        tagged = next(row for row in matrix_rows("push", [])
                       if row["key"] == "taggedbuilds")
-        self.assertFalse(tagged["queue_selected"])
-        self.assertFalse(tagged["run_gate"])
-        selected = next(row for row in matrix_rows(
-            "merge_group", ["Verify tagged-builds gate"])
-                        if row["key"] == "taggedbuilds")
-        self.assertTrue(selected["queue_selected"])
-        self.assertTrue(selected["run_gate"])
+        self.assertTrue(tagged["run_gate"])
 
 
 if __name__ == "__main__":

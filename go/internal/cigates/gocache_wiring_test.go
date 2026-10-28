@@ -19,7 +19,10 @@ const goBuildCacheDir = "/tmp/eshu-ci/go-build"
 // checkGoBuildCache requires a Go lane to restore the persisted compiler
 // cache before any go command runs (#8735). Fresh runners otherwise recompile
 // the world on every leg (measured ~2:1 compile over test time on go-race).
-func checkGoBuildCache(job readinessJob, guard string) string {
+// The restore runs unconditionally inside its lane: the lane job's own plan
+// guard is the only selector, so a step-level guard could only skip a cache
+// the lane then rebuilds from scratch.
+func checkGoBuildCache(job readinessJob) string {
 	if job.Env["GOCACHE"] != goBuildCacheDir {
 		return "go lane must set GOCACHE to the persisted cache dir (#8735)"
 	}
@@ -27,11 +30,8 @@ func checkGoBuildCache(job readinessJob, guard string) string {
 	for _, step := range job.Steps {
 		if step.Uses == "actions/cache@v4" &&
 			step.With["path"] == goBuildCacheDir {
-			if step.If == "" || step.ContinueOnError != "" {
-				return "build-cache restore must be guarded without waiving failure"
-			}
-			if !strings.Contains(step.If, guard) {
-				return "build-cache restore must carry the lane queue-selection guard (#8735)"
+			if step.If != "" || step.ContinueOnError != "" {
+				return "build-cache restore must run unconditionally without waiving failure"
 			}
 			if !strings.Contains(step.With["key"], "hashFiles") {
 				return "build-cache key must track dependencies (#8735)"
@@ -72,7 +72,7 @@ func TestGoBuildCacheWiring(t *testing.T) {
 		if !ok {
 			t.Fatalf("job %q missing", jobName)
 		}
-		if problem := checkGoBuildCache(job, jobName); problem != "" {
+		if problem := checkGoBuildCache(job); problem != "" {
 			t.Fatalf("%s: %s", jobName, problem)
 		}
 	}

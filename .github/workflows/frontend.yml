@@ -11,8 +11,6 @@ on:
       plan_mode:
         required: true
         type: string
-  merge_group:
-    types: [checks_requested]
   push:
     branches:
       - main
@@ -35,141 +33,99 @@ env:
   ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 
 jobs:
-  queue-selection:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
-    uses: ./.github/workflows/queue-selection.yml
-    with:
-      workflow: frontend.yml
   marketing-site:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'marketing-site') }}
-    needs: queue-selection
     name: Marketing site (root Vite)
     timeout-minutes: 20
     runs-on: ubuntu-24.04
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         uses: actions/checkout@v5
       - name: Set up Node.js
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install dependencies (clean, lockfile-pinned)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         run: npm ci
       - name: Typecheck root site
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         run: npm run typecheck
       - name: Test root site
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         run: npm test
       - name: Build root site
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         run: npm run build
   console:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'console') }}
-    needs: queue-selection
     name: Console (apps/console)
     timeout-minutes: 20
     runs-on: ubuntu-24.04
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         uses: actions/checkout@v5
 
       - name: Set up Node.js
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install dependencies (clean, lockfile-pinned)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npm ci
       - name: Install live harness dependencies
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Verify live console harness contracts
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: |
           bash scripts/test-run-console-live-e2e.sh
           bash scripts/test-run-console-retained-e2e.sh
       - name: Typecheck console
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npm run console:typecheck
       - name: Test console
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npm run console:test
       - name: Build console
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npm run console:build
       - name: Install Playwright browsers
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npx playwright install chromium --with-deps
       - name: Run per-page e2e (mocked)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npm run console:e2e:mock
   auth-sso-e2e:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'auth-sso-e2e') }}
-    needs: queue-selection
     name: SSO auth E2E (browser, fresh stack)
     timeout-minutes: 30
     runs-on: ubuntu-24.04
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         uses: actions/checkout@v5
 
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Set up Node.js
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install dependencies (clean, lockfile-pinned)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: npm ci
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Verify the auth E2E CLI build contract
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: bash scripts/test-auth-e2e-cli.sh
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Install Playwright browsers
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: npx playwright install chromium --with-deps
       - name: Run the fresh-stack SSO auth E2E
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: bash scripts/run-auth-e2e.sh
       - name: Upload auth E2E artifacts
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)'))) && (always()) }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: auth-sso-e2e-artifacts
@@ -177,51 +133,38 @@ jobs:
           if-no-files-found: ignore
   auth-mcp-e2e:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'auth-mcp-e2e') }}
-    needs: queue-selection
     name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
     timeout-minutes: 30
     runs-on: ubuntu-24.04
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         uses: actions/checkout@v5
 
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Set up Node.js
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install dependencies (clean, lockfile-pinned)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         run: npm ci
       - name: Install Playwright browsers
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         run: npx playwright install chromium --with-deps
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run the fresh-stack MCP-identity auth E2E
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         run: bash scripts/run-auth-mcp-e2e.sh
       - name: Verify the report against the named baseline manifest
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         run: bash scripts/verify-auth-mcp-e2e-manifest.sh
       - name: Run the mutation-sensitivity gate
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)')) }}
         run: bash scripts/verify-auth-mcp-e2e-sensitivity.sh
       - name: Upload MCP-identity auth E2E artifacts
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'MCP-identity auth E2E (browser + scripted OAuth, fresh stack)'))) && (always()) }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: auth-mcp-e2e-artifacts
@@ -229,118 +172,83 @@ jobs:
           if-no-files-found: ignore
   console-a11y:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'console-a11y') }}
-    needs: queue-selection
     name: Console a11y audit (axe-core)
     timeout-minutes: 60
     runs-on: ubuntu-24.04
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console a11y audit (axe-core)')) }}
         uses: actions/checkout@v5
       - name: Set up Node.js
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console a11y audit (axe-core)')) }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install dependencies (clean, lockfile-pinned)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console a11y audit (axe-core)')) }}
         run: npm ci
       - name: Install Playwright browsers
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console a11y audit (axe-core)')) }}
         run: npx playwright install chromium --with-deps
       - name: Run a11y audit gate (critical + serious fail)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console a11y audit (axe-core)')) }}
         run: npm run console:a11y
   lint:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'lint') }}
-    needs: queue-selection
     name: "ESLint flat config (issue #3763)"
     timeout-minutes: 10
     runs-on: ubuntu-24.04
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'ESLint flat config (issue #3763)')) }}"
         uses: actions/checkout@v5
       - name: Set up Node.js
-        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'ESLint flat config (issue #3763)')) }}"
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install dependencies (clean, lockfile-pinned)
-        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'ESLint flat config (issue #3763)')) }}"
         run: npm ci
       - name: Lint (eslint flat config, src + apps/console/src)
-        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'ESLint flat config (issue #3763)')) }}"
         run: scripts/verify-eslint-config.sh
       - name: Test eslint config catches no-console + no-unused-vars + import/order
-        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'ESLint flat config (issue #3763)')) }}"
         run: scripts/test-eslint-config.sh
   format:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'format') }}
-    needs: queue-selection
     name: "Prettier format check (issue #3763)"
     continue-on-error: true
     timeout-minutes: 10
     runs-on: ubuntu-24.04
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Prettier format check (issue #3763)')) }}"
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Set up Node.js
-        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Prettier format check (issue #3763)')) }}"
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install dependencies (clean, lockfile-pinned)
-        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Prettier format check (issue #3763)')) }}"
         run: npm ci
       - name: Prettier check on changed frontend files
-        if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Prettier format check (issue #3763)')) }}"
         shell: bash
         run: scripts/verify-frontend-format-changed.sh
   audit:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'audit') }}
-    needs: queue-selection
     name: npm audit (fail on high/critical)
     timeout-minutes: 20
     runs-on: ubuntu-24.04
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'npm audit (fail on high/critical)')) }}
         uses: actions/checkout@v5
       - name: Set up Node.js
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'npm audit (fail on high/critical)')) }}
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install dependencies (clean, lockfile-pinned)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'npm audit (fail on high/critical)')) }}
         run: npm ci
       - name: Report all advisories (non-blocking)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'npm audit (fail on high/critical)')) }}
         run: npm audit || true
       - name: Fail on high/critical advisories
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'npm audit (fail on high/critical)')) }}
         run: npm audit --audit-level=high

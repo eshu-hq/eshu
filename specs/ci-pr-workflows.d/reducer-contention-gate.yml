@@ -22,6 +22,5 @@ workflows:
   - specs/ci-pr-workflows.d/reducer-contention-gate.yml
   jobs:
   - contention-gate
-  - queue-selection
   job_names:
     contention-gate: reducer contention gate

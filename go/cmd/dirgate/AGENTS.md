@@ -29,8 +29,8 @@
 - A commit message in this repository must not contain a line that starts with
   the trailer key unless it is a real waiver; the gate reads every message in
   the range.
-- The CI `dirgate` job must stay dedicated and depend on both `queue-selection`
-  and the trusted `pr-plan`. Keep the go-dir-gate `"**"` trigger so the gate is
+- The CI `dirgate` job must stay dedicated and depend on the trusted
+  `pr-plan`. Keep the go-dir-gate `"**"` trigger so the gate is
   required for every pull request, including docs-only changes. The job runs
   when the trusted plan selects it; only validated reuse may omit it. This gate
   reads commit messages, so a code-path guard could let a stray trailer inflate

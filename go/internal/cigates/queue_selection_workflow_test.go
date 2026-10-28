@@ -4,9 +4,7 @@
 package cigates
 
 import (
-	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -16,58 +14,62 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TestQueueWorkflowsShareSelection checks the scheduling boundary, rather than
-// mirroring the registry's path lists in another gate.
-func TestQueueWorkflowsShareSelection(t *testing.T) {
+// TestNoMergeGroupPlumbingInWorkflows is the merge-queue removal regression
+// guard (#9367): main has had no merge queue since 2026-10-16 (#8288), so no
+// workflow may carry a merge_group trigger, a queue-selection job, or a
+// condition on the removed selector. A resurrected arm fails here, not in CI.
+func TestNoMergeGroupPlumbingInWorkflows(t *testing.T) {
 	root := repositoryRoot(t)
 	files, err := filepath.Glob(filepath.Join(root, ".github/workflows/*.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, file := range files {
-		raw, err := os.ReadFile(file)
-		if err != nil {
-			t.Fatal(err)
-		}
-		triggers, err := workflowTriggerKeys(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, ok := triggers["merge_group"]; !ok {
-			continue
-		}
 		t.Run(filepath.Base(file), func(t *testing.T) {
-			var workflow struct {
-				Jobs map[string]struct {
-					Uses  string    `yaml:"uses"`
-					If    string    `yaml:"if"`
-					Needs yaml.Node `yaml:"needs"`
-				} `yaml:"jobs"`
-			}
-			if err := yaml.Unmarshal(raw, &workflow); err != nil {
+			raw, err := os.ReadFile(file)
+			if err != nil {
 				t.Fatal(err)
 			}
-			if workflow.Jobs["queue-selection"].Uses != "./.github/workflows/queue-selection.yml" {
-				t.Fatal("queue payload has no shared registry selection")
-			}
-			for key, job := range workflow.Jobs {
-				if key == "queue-selection" {
-					continue
-				}
-				if key == "publish-ci-service-mirrors" || key == "verify-public-ci-service-mirrors" {
-					if !manualMirrorConditionMatches(key, job.If) {
-						t.Errorf("manual mirror job %s must keep its exact dispatch, repository, and main guards", key)
-					}
-					if len(jobNeeds(job.Needs)) != 0 {
-						t.Errorf("manual mirror job %s must not wait for release queue selection", key)
-					}
-					continue
-				}
-				if !strings.Contains(strings.Join(jobNeeds(job.Needs), ","), "queue-selection") {
-					t.Errorf("job %s does not wait for selection", key)
+			for _, token := range []string{"merge_group", "queue-selection", "queue_select"} {
+				if strings.Contains(string(raw), token) {
+					t.Errorf("dead merge-queue plumbing %q remains", token)
 				}
 			}
 		})
+	}
+	if _, err := os.Stat(filepath.Join(root, ".github/workflows/queue-selection.yml")); !os.IsNotExist(err) {
+		t.Error("queue-selection.yml must stay deleted")
+	}
+}
+
+// TestManualMirrorJobsKeepGuards pins the release-mirror jobs' exact dispatch,
+// repository, and main guards in docker-publish.yml: they never took part in
+// queue selection and must not gain a needs edge.
+func TestManualMirrorJobsKeepGuards(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(repositoryRoot(t), ".github/workflows/docker-publish.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow struct {
+		Jobs map[string]struct {
+			If    string    `yaml:"if"`
+			Needs yaml.Node `yaml:"needs"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(raw, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"publish-ci-service-mirrors", "verify-public-ci-service-mirrors"} {
+		job, ok := workflow.Jobs[key]
+		if !ok {
+			t.Fatalf("manual mirror job %s missing", key)
+		}
+		if !manualMirrorConditionMatches(key, job.If) {
+			t.Errorf("manual mirror job %s must keep its exact dispatch, repository, and main guards", key)
+		}
+		if len(jobNeeds(job.Needs)) != 0 {
+			t.Errorf("manual mirror job %s must not wait for release queue selection", key)
+		}
 	}
 }
 
@@ -108,15 +110,20 @@ func TestManualMirrorConditionRejectsWeakenedGuards(t *testing.T) {
 	}
 }
 
-func TestQueuePublisherBudgetCoversSelectionAndPayload(t *testing.T) {
+// TestPublisherBudgetCoversPayload pins the required-gates await timeout
+// against the longest static job budget in the tree: with no merge queue the
+// publisher still waits out the slowest payload lane before publishing.
+func TestPublisherBudgetCoversPayload(t *testing.T) {
 	root := repositoryRoot(t)
 	files, err := filepath.Glob(filepath.Join(root, ".github/workflows/*.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	maximumPayload := 0
-	selection := 0
 	for _, file := range files {
+		if filepath.Base(file) == "required-gates.yml" {
+			continue // The publisher cannot cover its own timeout.
+		}
 		raw, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
@@ -129,21 +136,13 @@ func TestQueuePublisherBudgetCoversSelectionAndPayload(t *testing.T) {
 		if err := yaml.Unmarshal(raw, &workflow); err != nil {
 			t.Fatal(err)
 		}
-		triggers, err := workflowTriggerKeys(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, queue := triggers["merge_group"]
 		for _, job := range workflow.Jobs {
 			minutes, err := time.ParseDuration(job.Timeout + "m")
 			if err != nil {
 				continue // Dynamic static-matrix budgets remain independently tested.
 			}
-			if queue && int(minutes.Minutes()) > maximumPayload {
+			if int(minutes.Minutes()) > maximumPayload {
 				maximumPayload = int(minutes.Minutes())
-			}
-			if filepath.Base(file) == "queue-selection.yml" {
-				selection = int(minutes.Minutes())
 			}
 		}
 	}
@@ -160,72 +159,7 @@ func TestQueuePublisherBudgetCoversSelectionAndPayload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if budget.Minutes() < float64(selection+maximumPayload+5) {
-		t.Fatalf("publisher await %s cannot cover %dm selection + %dm payload + 5m publication margin", budget, selection, maximumPayload)
-	}
-}
-
-// Execute the production builder: unselected rows keep their check identities
-// but run neither mirror nor gate commands.
-func TestQueueStaticMatrixRetainsUnselectedChecks(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join(repositoryRoot(t), ".github/workflows/static-contract-gates.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	builder := staticContractMatrixBuilder(t, raw)
-	first := strings.Index(builder, "\nappend_gate ")
-	if first < 0 {
-		t.Fatal("no production matrix append")
-	}
-	probe := strings.ReplaceAll(builder[:first], "${{ github.event_name }}", "merge_group")
-	probe += `
-append_gate "true" "selected" "Selected" "echo mirror" "echo gate"
-append_gate "true" "unselected" "Unselected" "echo mirror" "echo gate"
-printf '{"include":[%s]}' "${matrix_items}"
-`
-	cmd := exec.Command("bash", "-c", probe)
-	cmd.Env = append(os.Environ(), `QUEUE_JOBS=["Selected"]`)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("production builder: %v\n%s", err, out)
-	}
-	var matrix struct {
-		Include []struct {
-			Key      string `json:"key"`
-			Selected bool   `json:"queue_selected"`
-			Run      bool   `json:"run_gate"`
-		} `json:"include"`
-	}
-	if err := json.Unmarshal(out, &matrix); err != nil {
-		t.Fatalf("decode: %v: %s", err, out)
-	}
-	if len(matrix.Include) != 2 {
-		t.Fatalf("check identities disappeared: %+v", matrix)
-	}
-	if !matrix.Include[0].Selected || !matrix.Include[0].Run || matrix.Include[1].Selected || matrix.Include[1].Run {
-		t.Fatalf("wrong queue payload selection: %+v", matrix)
-	}
-}
-
-func TestQueueStaticBuilderDoesNotSkipIdleQueue(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join(repositoryRoot(t), ".github/workflows/static-contract-gates.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var workflow struct {
-		Jobs map[string]struct {
-			Steps []struct {
-				ID string `yaml:"id"`
-				If string `yaml:"if"`
-			} `yaml:"steps"`
-		} `yaml:"jobs"`
-	}
-	if err := yaml.Unmarshal(raw, &workflow); err != nil {
-		t.Fatal(err)
-	}
-	for _, step := range workflow.Jobs["changes"].Steps {
-		if step.ID == "gate-matrix" && step.If != "" {
-			t.Fatal("matrix builder must run for an idle merge group: otherwise fromJSON receives an empty output")
-		}
+	if budget.Minutes() < float64(maximumPayload+5) {
+		t.Fatalf("publisher await %s cannot cover %dm payload + 5m publication margin", budget, maximumPayload)
 	}
 }

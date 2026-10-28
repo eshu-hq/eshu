@@ -84,7 +84,7 @@ jobs:
     # completed push, schedule or workflow_run (Security Scan's image scan)
     # run of main in this repository wakes the watcher. A run of a fork
     # branch named `main`, and any pull_request, pull_request_target,
-    # issue_comment or merge_group run, never matches.
+    # or issue_comment run, never matches.
     # scripts/test-main-health.sh evaluates this expression against each of
     # those contexts. For a workflow_run-type run head_branch is always main
     # (the default branch at creation), so that test is a floor, not the

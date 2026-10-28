@@ -43,8 +43,7 @@ class ToolsWorkflowTest(unittest.TestCase):
         gate = workflow()["jobs"]["gate"]
         self.assertEqual(
             gate["container"],
-            "${{ (github.event_name != 'merge_group' || matrix.queue_selected) && '"
-            + tools["destination"] + "@" + tools["digest"] + "' || '' }}",
+            tools["destination"] + "@" + tools["digest"],
         )
 
     def test_selected_jobs_get_tools_and_idle_jobs_do_not(self) -> None:

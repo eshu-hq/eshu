@@ -40,32 +40,6 @@ type readinessStrategy struct {
 	Matrix   yaml.Node `yaml:"matrix"`
 }
 
-// readinessSelectedJob extracts the registry job token a queue condition
-// selects: the single-quoted name inside contains(...), skipping the '[]'
-// empty-array literal. An empty result means the condition names no job.
-func readinessSelectedJob(condition string) string {
-	anchor := strings.Index(condition, "contains(fromJSON(needs.queue-selection.outputs.jobs")
-	if anchor < 0 {
-		return ""
-	}
-	rest := condition[anchor:]
-	for {
-		open := strings.Index(rest, "'")
-		if open < 0 {
-			return ""
-		}
-		rest = rest[open+1:]
-		close := strings.Index(rest, "'")
-		if close < 0 {
-			return ""
-		}
-		if token := rest[:close]; token != "[]" {
-			return token
-		}
-		rest = rest[close+1:]
-	}
-}
-
 func readinessNeedsList(job readinessJob) []string {
 	switch needs := job.Needs.(type) {
 	case string:
@@ -91,13 +65,11 @@ type readinessService struct {
 }
 
 const (
-	readinessQueueSelection     = "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}"
-	readinessUnemittedSelection = "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness hermetic')) }}"
-	readinessCleanupSelection   = "${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) && (always()) }}"
-	readinessHermeticPlan       = "${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'hermetic') }}"
-	readinessShardPlan          = "${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards')) && (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) }}"
-	readinessAlways             = "${{ always() }}"
-	readinessAggregatePlan      = "${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness')) && (always()) }}"
+	readinessCleanupSelection = "${{ always() }}"
+	readinessHermeticPlan     = "${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'hermetic') }}"
+	readinessShardPlan        = "${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards') }}"
+	readinessAlways           = "${{ always() }}"
+	readinessAggregatePlan    = "${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness')) && (always()) }}"
 
 	readinessShardJob  = "live-postgres-readiness-shards"
 	readinessShardName = "live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/${{ matrix.total }})"
@@ -145,18 +117,19 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 	}) {
 		return "registry must name both independent checks"
 	}
-	if len(parsed.Jobs) != 5 {
-		return "workflow must have queue selection, plan, hermetic, shards, and aggregate jobs"
+	if len(parsed.Jobs) != 4 {
+		return "workflow must have plan, hermetic, shards, and aggregate jobs"
 	}
-	selector := parsed.Jobs["queue-selection"]
-	if selector.Uses != "./.github/workflows/queue-selection.yml" ||
-		selector.With["workflow"] != "live-postgres-readiness.yml" {
-		return "workflow must use the shared queue selector"
+	if _, ok := parsed.Jobs["queue-selection"]; ok {
+		return "removed queue selector must stay out of the workflow"
 	}
-	for _, trigger := range []string{"merge_group", "workflow_call", "push"} {
+	for _, trigger := range []string{"workflow_call", "push"} {
 		if _, ok := parsed.On[trigger]; !ok {
 			return "missing workflow trigger " + trigger
 		}
+	}
+	if _, ok := parsed.On["merge_group"]; ok {
+		return "removed merge_group trigger must stay out of the workflow"
 	}
 	pushPaths := parsed.On["push"].Paths
 	if _, directPR := parsed.On["pull_request"]; directPR ||
@@ -187,18 +160,18 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 		aggregate.TimeoutMinutes != 10 {
 		return "hermetic, shard, and aggregate jobs must retain independent 30/30/10-minute limits"
 	}
-	if !slices.Equal(readinessNeedsList(hermetic), []string{"queue-selection"}) ||
+	if len(readinessNeedsList(hermetic)) != 0 ||
 		hermetic.If != readinessHermeticPlan || hermetic.ContinueOnError != "" {
-		return "hermetic must wait for queue selection without skipping or waiving"
+		return "hermetic must run on the trusted plan without skipping or waiving"
 	}
-	if !slices.Equal(readinessNeedsList(shards), []string{"queue-selection", "readiness-plan"}) ||
+	if !slices.Equal(readinessNeedsList(shards), []string{"readiness-plan"}) ||
 		shards.If != readinessShardPlan || shards.ContinueOnError != "" {
-		return "shards must wait for queue selection without waiving failure"
+		return "shards must wait for the plan without waiving failure"
 	}
 	if !slices.Equal(readinessNeedsList(aggregate),
-		[]string{"queue-selection", "readiness-plan", readinessShardJob}) ||
+		[]string{"readiness-plan", readinessShardJob}) ||
 		aggregate.If != readinessAggregatePlan || aggregate.ContinueOnError != "" {
-		return "aggregate must wait for selection and every shard without waiving failure"
+		return "aggregate must wait for the plan and every shard without waiving failure"
 	}
 	if shards.Strategy.FailFast == nil || *shards.Strategy.FailFast {
 		return "a slow shard must not cancel its siblings before they attest"
@@ -244,8 +217,8 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 						strings.TrimSpace(step.Run) != "bash "+script {
 						return "proof runner must be a standalone command"
 					}
-					if step.If != readinessQueueSelection || step.ContinueOnError != "" {
-						return "proof runner must use the registry queue selection without waiving failure"
+					if step.If != "" || step.ContinueOnError != "" {
+						return "proof runner must run unconditionally without waiving failure"
 					}
 					counts[script]++
 				}
@@ -335,48 +308,6 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 	if problem := checkReadinessSplit(workflow, *gate, prPaths); problem != "" {
 		t.Fatal(problem)
 	}
-	t.Run("merge queue selects both proof jobs via the shared ci.job token", func(t *testing.T) {
-		selection, err := SelectQueueWorkflow(
-			[]*Registry{registry},
-			[]string{"go/internal/cigates/readiness_job_split_test.go"},
-			false,
-			"live-postgres-readiness.yml",
-			"",
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !selection.Selected || !slices.Equal(selection.Jobs, []string{gate.CI.Job}) {
-			t.Fatalf("unexpected queue jobs: %+v", selection)
-		}
-		var parsed readinessWorkflow
-		if err := yaml.Unmarshal(workflow, &parsed); err != nil {
-			t.Fatal(err)
-		}
-		for _, jobName := range []string{"hermetic", "readiness-plan", readinessShardJob, readinessAggregateJob} {
-			job := parsed.Jobs[jobName]
-			conditions := map[string]string{}
-			for _, step := range job.Steps {
-				conditions[step.Name] = step.If
-			}
-			if job.If != "" {
-				conditions["(job)"] = job.If
-			}
-			for name, condition := range conditions {
-				if !strings.Contains(condition, "needs.queue-selection.outputs.jobs") {
-					continue
-				}
-				queueJob := readinessSelectedJob(condition)
-				if queueJob == "" {
-					t.Errorf("%s %q has an unsupported queue condition", jobName, name)
-					continue
-				}
-				if !slices.Contains(selection.Jobs, queueJob) {
-					t.Errorf("%s %q skips selected queue job %q", jobName, name, gate.CI.Job)
-				}
-			}
-		}
-	})
 	for _, mutation := range readinessRegistryMutations {
 		t.Run(mutation.name, func(t *testing.T) {
 			changed := *gate

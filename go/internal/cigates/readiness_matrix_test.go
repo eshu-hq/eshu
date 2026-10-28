@@ -32,22 +32,19 @@ func TestReadinessPlanSelection(t *testing.T) {
 	if err := yaml.Unmarshal(data, &workflow); err != nil {
 		t.Fatal(err)
 	}
-	legacyFull := []string{"hermetic", "live-postgres-readiness", "live-postgres-readiness-shards", "queue-selection"}
+	legacyFull := []string{"hermetic", "live-postgres-readiness", "live-postgres-readiness-shards"}
 	futureFull := append(slices.Clone(legacyFull), "readiness-plan")
-	selectedQueue := []string{"live-postgres-readiness (postgres18)"}
 	for _, tc := range []struct {
 		name, event string
 		jobs, queue []string
 		want        bool
 	}{
 		{"legacy full PR", "pull_request", legacyFull, nil, true},
-		{"smoke PR", "pull_request", []string{"hermetic", "queue-selection"}, nil, false},
+		{"smoke PR", "pull_request", []string{"hermetic"}, nil, false},
 		{"empty PR", "pull_request", nil, nil, false},
-		{"unrelated PR", "pull_request", []string{"hermetic", "queue-selection", "live-postgres-readiness"}, nil, false},
+		{"unrelated PR", "pull_request", []string{"hermetic", "live-postgres-readiness"}, nil, false},
 		{"future helper only PR", "pull_request", []string{"readiness-plan"}, nil, true},
 		{"future full PR", "pull_request", futureFull, nil, true},
-		{"selected merge group", "merge_group", nil, selectedQueue, true},
-		{"unselected merge group", "merge_group", nil, nil, false},
 		{"push", "push", nil, nil, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -174,11 +171,10 @@ func TestReadinessDynamicMatrixContract(t *testing.T) {
 		t.Fatal("readiness-plan job missing")
 	}
 	if plan.Name != "live-postgres-readiness plan" ||
-		!slices.Equal(readinessNeedsList(plan), []string{"queue-selection"}) ||
+		len(readinessNeedsList(plan)) != 0 ||
 		!strings.Contains(plan.If, "contains(fromJSON(inputs.plan_jobs || '[]'), 'readiness-plan')") ||
-		readinessSelectedJob(plan.If) != "live-postgres-readiness (postgres18)" ||
 		plan.ContinueOnError != "" || len(plan.Services) != 0 || plan.TimeoutMinutes != 10 {
-		t.Fatal("readiness plan must wait for selection and fail closed without services")
+		t.Fatal("readiness plan must run on the trusted plan and fail closed without services")
 	}
 	if plan.Outputs["matrix"] != "${{ steps.matrix.outputs.matrix }}" {
 		t.Fatalf("matrix output not wired to producer: %q", plan.Outputs["matrix"])
@@ -215,7 +211,7 @@ func TestReadinessDynamicMatrixContract(t *testing.T) {
 	}
 	checkReadinessMatrixScript(t, root, producerRun)
 	shards := workflow.Jobs[readinessShardJob]
-	if !slices.Equal(readinessNeedsList(shards), []string{"queue-selection", "readiness-plan"}) ||
+	if !slices.Equal(readinessNeedsList(shards), []string{"readiness-plan"}) ||
 		shards.Name != "live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/${{ matrix.total }})" ||
 		shards.Strategy.Matrix.Value != "${{ fromJSON(needs.readiness-plan.outputs.matrix) }}" {
 		t.Fatal("shard matrix must consume the plan count and preserve dynamic check names")
@@ -233,13 +229,15 @@ func TestReadinessDynamicMatrixContract(t *testing.T) {
 		t.Fatal("runner does not use the dynamic shard total")
 	}
 	aggregate := workflow.Jobs[readinessAggregateJob]
-	if !slices.Equal(readinessNeedsList(aggregate), []string{"queue-selection", "readiness-plan", readinessShardJob}) {
+	if !slices.Equal(readinessNeedsList(aggregate), []string{"readiness-plan", readinessShardJob}) {
 		t.Fatal("aggregate must depend on plan and all shards")
 	}
 	guard := aggregate.Steps[0]
 	if guard.Env["PLAN_RESULT"] != "${{ needs.readiness-plan.result }}" ||
-		!strings.Contains(guard.Run, `test "$PLAN_RESULT" = success`) {
-		t.Fatal("selected aggregate must fail when plan fails or is skipped")
+		guard.Env["SHARD_RESULT"] != "${{ needs.live-postgres-readiness-shards.result }}" ||
+		!strings.Contains(guard.Run, `test "$PLAN_RESULT" = success`) ||
+		!strings.Contains(guard.Run, `test "$SHARD_RESULT" = success`) {
+		t.Fatal("aggregate must fail when plan or any shard fails or is skipped")
 	}
 }
 

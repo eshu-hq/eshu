@@ -185,7 +185,7 @@ gates:
       test_command: "cd go && env -u GOROOT go test -count=1 ./cmd/dirgate/"
     ci:
       workflow: test.yml
-      # A dedicated job that needs only queue-selection, selected on every change
+      # A dedicated job that needs only pr-plan, selected on every change
       # through the "**" trigger above. markdown-file-cap and scripts-file-cap are
       # path-scoped because their verdicts depend only on files under their
       # triggers. This gate also reads commit messages, which do not depend on

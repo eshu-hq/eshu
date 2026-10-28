@@ -264,19 +264,16 @@ done
 # any work dir exists, and a bare failure() then turns that one named download
 # failure into extra misleading completeness/upload failures (#6706 review).
 assert_diagnostic_guard() {
-	local step_name="$1" step_id="$2" job_name="$3" workflow_path="${4:-${workflow}}"
-	local condition normalized expected_queue expected_legacy
+	local step_name="$1" step_id="$2" workflow_path="${4:-${workflow}}"
+	local condition normalized expected_guard
 	condition="$(awk -v name="${step_name}" '
 		$0 == "      - name: " name { inside=1; next }
 		inside && /^      - / { exit }
 		inside && /^        if: / { print; exit }
 	' "${workflow_path}")"
 	normalized="$(printf '%s' "${condition}" | tr -d "[:space:]'\"")"
-	expected_legacy="if:failure()&&steps.${step_id}.outcome==failure"
-	printf -v expected_queue \
-		'if:${{(github.event_name!=merge_group||(contains(fromJSON(needs.queue-selection.outputs.jobs||[]),%s)))&&(failure()&&steps.%s.outcome==failure)}}' \
-		"${job_name}" "${step_id}"
-	[[ "${normalized}" == "${expected_legacy}" || "${normalized}" == "${expected_queue}" ]] \
+	expected_guard="if:failure()&&steps.${step_id}.outcome==failure"
+	[[ "${normalized}" == "${expected_guard}" ]] \
 		|| fail "${step_name} is not gated on steps.${step_id}.outcome"
 }
 for step_id in fault_matrix determinism_matrix dead_letter_matrix; do

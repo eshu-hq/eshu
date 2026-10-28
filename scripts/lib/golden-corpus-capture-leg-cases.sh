@@ -41,7 +41,7 @@ capture_stage_run="$(extract_capture_run 'Require and stage all four recordings'
 [[ "${capture_stage_run}" == *'"${{ needs.differential-capture.result }}"'* ]] ||
   fail 'differential join must block when a matrix leg failed'
 join_header="$(sed -n '/^  differential:$/,/^    steps:$/p' "${workflow}")"
-rg -q '^    needs: \[queue-selection, differential-capture\]$' <<<"${join_header}" ||
+rg -q '^    needs: differential-capture$' <<<"${join_header}" ||
   fail 'differential join must depend on all capture legs'
 rg --fixed-strings --line-regexp --quiet "    if: \${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'differential')) && (always()) }}" <<<"${join_header}" ||
   fail 'differential join must run after a failed or cancelled capture leg'

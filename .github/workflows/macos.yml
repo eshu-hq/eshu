@@ -7,8 +7,8 @@ name: macOS CI
 # day, so it added runner cost and queue latency without adding a merge signal.
 # The nightly run is the backstop for macOS-specific regressions (bash 3.2,
 # case-insensitive filesystem, CGO); a red run is a follow-up issue, not a
-# merge blocker. There is deliberately no pull_request, push, or merge_group
-# trigger; specs/ci-gates.v1.yaml records macos-build as blocking: false and
+# merge blocker. There is deliberately no pull_request or push trigger;
+# specs/ci-gates.v1.yaml records macos-build as blocking: false and
 # required-gates.yml no longer waits on this workflow.
 on:
   schedule:

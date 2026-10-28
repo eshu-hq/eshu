@@ -16,11 +16,6 @@ OWNER_JOB = re.compile(
     r"(?ms)^  contention-gate:\n(?P<body>.*?)(?=^  [A-Za-z][\w-]*:\n|\Z)"
 )
 STEP_NAME = re.compile(r"(?m)^      - name: ([^\n]+)\n")
-ACTIVE_CONDITION = (
-    "        if: ${{ github.event_name != 'merge_group' || "
-    "(contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), "
-    "'reducer contention gate')) }}"
-)
 PROOF_STEPS = {
     "github.com/eshu-hq/eshu/go/internal/storage/postgres": "Run reducer contention gate",
     "github.com/eshu-hq/eshu/go/internal/query": "Run story target-support semantics proof",
@@ -40,7 +35,7 @@ CONTRACT_COMMANDS = (
     "bash scripts/verify-live-tests-ledger.sh",
 )
 ROOT_KEYS = frozenset({"name", "on", "concurrency", "permissions", "jobs"})
-JOB_KEYS = frozenset({"if", "needs", "name", "runs-on", "timeout-minutes", "services", "steps"})
+JOB_KEYS = frozenset({"if", "name", "runs-on", "timeout-minutes", "services", "steps"})
 # #9066: every workflow that compiles Go carries this one reviewed workflow-level
 # env entry (see scripts/lib/cgo-cflags.sh). It sets a C dialect flag and cannot
 # change job activation, so the owned-workflow grammars drop exactly this stanza
@@ -95,7 +90,7 @@ def workflow_steps(workflow: str) -> dict[str, str]:
         if line.startswith("  ") and not line.startswith("   ")
         and line.strip() and not line.lstrip().startswith("#")
     ]
-    if job_ids != ["  queue-selection:", "  contention-gate:"]:
+    if job_ids != ["  contention-gate:"]:
         raise ValueError("inactive contention owner job: noncanonical jobs")
     jobs = list(OWNER_JOB.finditer(workflow))
     if len(re.findall(r"(?m)^jobs:$", workflow)) != 1 or len(jobs) != 1:
@@ -105,7 +100,6 @@ def workflow_steps(workflow: str) -> dict[str, str]:
     if (set(job_keys) != JOB_KEYS or job_keys["if"] !=
             "    if: ${{ github.event_name != 'pull_request' || "
             "contains(fromJSON(inputs.plan_jobs || '[]'), 'contention-gate') }}"
-            or job_keys["needs"] != "    needs: queue-selection"
             or job_keys["services"] != "    services:"
             or job_keys["steps"] != "    steps:"):
         raise ValueError("inactive or non-fail-closed contention owner job")
@@ -127,18 +121,17 @@ def workflow_steps(workflow: str) -> dict[str, str]:
 
 
 def active_commands(steps: dict[str, str], name: str) -> list[str]:
-    """Require an active, failing Actions step with literal shell commands."""
+    """Require an unconditional, failing Actions step with literal shell commands."""
     step = steps.get(name, "")
-    allowed = frozenset({"if", "run"}) if name == CONTRACT_STEP else frozenset(
-        {"if", "working-directory", "env", "run"}
+    allowed = frozenset({"run"}) if name == CONTRACT_STEP else frozenset(
+        {"working-directory", "env", "run"}
     )
     keys = canonical_keys(step, 8, allowed)
     if set(keys) != allowed or ("env" in keys and keys["env"] != "        env:"):
         raise ValueError(f"non-fail-closed contention step properties: {name}")
     if "working-directory" in keys and keys["working-directory"] != "        working-directory: go":
         raise ValueError(f"non-fail-closed contention step directory: {name}")
-    conditions = re.findall(r"(?m)^        if: .*?$", step)
-    if conditions != [ACTIVE_CONDITION]:
+    if re.search(r"(?m)^        if:", step):
         raise ValueError(f"inactive contention step: {name}")
     if re.search(r"(?m)^        (?:continue-on-error|shell):", step):
         raise ValueError(f"non-fail-closed contention step: {name}")
