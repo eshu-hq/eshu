@@ -3,7 +3,7 @@
 
 package postgres
 
-const factRecordSchemaSQL = factRecordBaseSchemaSQL + documentationFactRecordReadIndexesSQL + factRecordReadIndexesSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL + incidentRuntimeFactRecordReadIndexesSQL + incidentWorkItemFactRecordReadIndexesSQL + codeFlowFactRecordReadIndexesSQL + containerImageIdentityCutoverSchemaSQL + ecsTaskFactReadIndexesSQL
+const factRecordSchemaSQL = factRecordBaseSchemaSQL + documentationFactRecordReadIndexesSQL + factRecordReadIndexesSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL + incidentRuntimeFactRecordReadIndexesSQL + incidentWorkItemFactRecordReadIndexesSQL + codeFlowFactRecordReadIndexesSQL + containerImageIdentityCutoverSchemaSQL
 
 const factRecordBaseSchemaSQL = `
 CREATE TABLE IF NOT EXISTS fact_records (

@@ -348,12 +348,14 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// indexes that give the advisory-evidence package legs index probes.
 	"fact_records_vulnerability_active_package_lookup_v2_idx",
 	"fact_records_vulnerability_active_purl_lookup_v2_idx",
-	// Migration 240 (#9307) anchors exact ECS service and task fact reads.
-	// Renumbered to 242 in a later commit of this stack: main owns 240/241
-	// (#9474) and 243 (#9227), so the ECS pair lands on the free slots
-	// 242/244 (gaps are tolerated; 242 is free).
-	"ecs_runtime_task_read_indexes",
+	// Migrations 242/244 (#9307) build exact ECS service and task read
+	// indexes concurrently, one statement per file on populated fact_records
+	// (numbered 242/244: main owns 240/241 for #9474 and 243 for #9227;
+	// sequence gaps are tolerated; bootstrap order follows the numeric path,
+	// so 244 sorts after 243).
+	"ecs_runtime_service_arn_index",
 	// Migration 243 (#9227) adds the package keys derived vulnerability source
 	// targets queried, which supply-chain readiness joins on.
 	"vulnerability_source_state_packages",
+	"ecs_runtime_task_scope_index",
 }

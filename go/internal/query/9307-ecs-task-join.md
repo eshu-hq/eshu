@@ -97,3 +97,18 @@ the image test checks the emitted envelope's account, region, repository,
 registry, digest, manifest digest, and tag. The non-ECR test confirms no
 reference is emitted. This is local historical producer parity only; QA's
 extracted collector remains NOT_CHECKED.
+
+The two ECS read indexes are migration-only, each in a sole
+`CREATE INDEX CONCURRENTLY` statement. `EnsureSchema` does not build them
+against a populated fact table. On a disposable PostgreSQL 18.6 database,
+`TestECSRuntimeIndexFreshBootstrapLive` passed with both indexes valid after
+the complete 259-definition bootstrap. `TestECSRuntimeIndexUpgradeLive`
+applied the first 257 definitions, seeded 30,000 AWS resource facts, then
+applied 240-241 through the tracked runner while an ordinary insert/delete
+writer stayed active. The runner logged concurrent index builds of 112 ms and
+16 ms; the writer completed 98 cycles in the 134 ms upgrade window (maximum
+cycle 2.85 ms). A full restart skipped all 259 receipts. After a duplicate-key
+failure left an invalid same-name concurrent index, a second full
+`ApplyBootstrap` rebuilt 240 with `recovery=true`. Both tests exited 0.
+These timings describe this disposable run under shared-host load; they do
+not establish composed endpoint latency or a stable before/after speedup.
