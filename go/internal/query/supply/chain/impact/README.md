@@ -102,9 +102,18 @@ not a gap: the CVE's advisory fact decides between `ready_zero_findings` and
 `evidence_incomplete`. Only a covered snapshot with `result_count = 0`
 (`coverage_zero`, carried per state row and never exposed) certifies advisory
 absence. Source-state freshness ages by `last_success_at` only; the
-collection window is reported, not aged. Malformed CVE elements and duplicate
-scope IDs fail the readiness lookup closed, and the findings and explain
-handlers log the fail-closed cause.
+collection window is reported, not aged. Malformed CVE elements, duplicate
+scope IDs, and window fields the collector's config parse refuses fail the
+readiness lookup closed as `source_targets_malformed`, and the findings and
+explain handlers log the fail-closed cause. A present `modified_start` or
+`modified_end` must be strict RFC 3339 with a `Z` or `+-hh:mm` zone (no hour
+24 or second 60) that `pg_input_is_valid` accepts, and a present
+`results_per_page` must be a JSON integer of magnitude at most 999,999,999,
+which keeps the int4 cast in range. The descriptor casts
+each field only in the `THEN` arm of a `CASE WHEN` on the same guard, so one
+garbage target can no longer abort the read as `query_error`. A comma
+fraction or a `+24:00` offset, which Go accepts and Postgres refuses, reads
+as malformed (fail closed).
 
 Derived owned-package OSV scopes (#9227 F7) never reach readiness by scope-id
 parsing. The collector writes each derived scope's package identities to
@@ -124,6 +133,23 @@ planner skipped read as pending (follow-up under #9209); a state written
 before the key table existed matches nothing until its scope is collected
 again, with no backfill; Swift keys are not proven; OS-distribution derived
 scopes are not joined.
+
+Performance Evidence: the window-field guards (#9435 review) were measured
+with the same kind of scratch harness, base SQL (`08241776a0`) against guarded
+SQL, 21 warm samples each with alternating first mover in one repeatable-read
+transaction, on disposable PostgreSQL 18.6 with 50 instances and 10,000
+configured targets and states (200 NVD targets selecting the CVE). Plans are
+node-for-node identical (266 nodes) with 645 shared hits in both. With
+CVE-only targets the median moved 21.257 ms to 21.684 ms. With 9,800 non-NVD
+targets carrying window strings and a page size, the worst case, it moved
+34.056 ms to 92.334 ms. The cost is the invalid-target filter (1.052 ms per
+instance against 0.131 ms without window strings), about 4.6 microseconds
+per window-carrying target for two regex matches, two `pg_input_is_valid`
+calls, and one numeric check (a standalone shim put one regex match at about
+1.1 microseconds and one `pg_input_is_valid` at 0.2). The descriptor guards run only
+on the 200 relevant rows. The regex is kept because it mirrors the
+collector's strict parse; a target without window fields pays nothing. The
+host load average was 14-39 on 18 cores, so these are relative figures.
 
 Performance Evidence: the #9227 F7 derived-scope join was measured with a
 scratch harness that ran `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` on the

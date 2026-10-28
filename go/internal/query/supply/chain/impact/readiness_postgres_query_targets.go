@@ -3,6 +3,36 @@
 
 package impact
 
+// readinessRFC3339Pattern accepts the strict RFC 3339 shape the collector's
+// time.Parse(time.RFC3339) accepts: an explicit T, an hour of 00-23, minutes
+// and seconds of 00-59, an optional dot fraction, and a Z or +-hh:mm zone. A
+// value without a zone would resolve in the session TimeZone, and hour 24 or
+// second 60 parse in Postgres but not in Go, so each is malformed here.
+// pg_input_is_valid then rejects impossible calendar fields such as month 13.
+const readinessRFC3339Pattern = `^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$`
+
+// Cast guards for the NVD window descriptor. Each predicate raises no error
+// for any input (regex match and pg_input_is_valid report soft failures), so
+// the planner may evaluate its parts in any order. Every cast of a configured
+// window field sits in the THEN arm of a CASE WHEN on its guard, which
+// Postgres evaluates before the arm, and invalid_vulnerability_source_targets
+// classifies a present value that fails its guard as source_targets_malformed.
+// A guard yields NULL for an absent field, so the descriptor falls to 0.
+const (
+	readinessTargetModifiedStartValidSQL = `(TRIM(target->>'modified_start') ~ '` + readinessRFC3339Pattern + `'
+        AND pg_input_is_valid(TRIM(target->>'modified_start'), 'timestamp with time zone'))`
+	readinessTargetModifiedEndValidSQL = `(TRIM(target->>'modified_end') ~ '` + readinessRFC3339Pattern + `'
+        AND pg_input_is_valid(TRIM(target->>'modified_end'), 'timestamp with time zone'))`
+	// results_per_page decodes into a Go int, so it must be a JSON integer
+	// (scale 0, which refuses 100.5 and 100.0); the bound keeps the int4 cast
+	// in range (the collector caps it at 2000). The CASE keeps the numeric
+	// casts off a non-number, and the ELSE makes a non-number fail the guard.
+	readinessTargetResultsPerPageValidSQL = `CASE WHEN JSONB_TYPEOF(target->'results_per_page') = 'number'
+        THEN SCALE((target->'results_per_page')::numeric) = 0
+            AND ABS((target->'results_per_page')::numeric) <= 999999999
+        ELSE FALSE END`
+)
+
 // readinessConfiguredSourceTargetsCTE resolves opaque target IDs from active
 // collector configuration. The 201-row probe below refuses a truncated read.
 // Explicit CVE selectors and modified windows are separate source-health
@@ -38,6 +68,12 @@ const readinessConfiguredSourceTargetsCTE = `invalid_vulnerability_source_target
                          NULLIF(TRIM(target->>'ecosystem'), '') IS NULL
                          OR JSONB_ARRAY_LENGTH(CASE WHEN JSONB_TYPEOF(target->'queries') = 'array'
                              THEN target->'queries' ELSE '[]'::jsonb END) = 0))
+                     OR (NULLIF(TRIM(target->>'modified_start'), '') IS NOT NULL
+                         AND NOT ` + readinessTargetModifiedStartValidSQL + `)
+                     OR (NULLIF(TRIM(target->>'modified_end'), '') IS NOT NULL
+                         AND NOT ` + readinessTargetModifiedEndValidSQL + `)
+                     OR (COALESCE(JSONB_TYPEOF(target->'results_per_page'), 'null') <> 'null'
+                         AND NOT (` + readinessTargetResultsPerPageValidSQL + `))
               )
               OR JSONB_PATH_EXISTS(instance.configuration,
                   '$.targets[*].cve_ids[*] ? (@.type() != "string" || @ like_regex "^\\s*$")')
@@ -89,13 +125,14 @@ configured_vulnerability_source_targets AS (
                      NULLIF(TRIM(target->>'modified_end'), '') IS NOT NULL THEN 'window'
                 ELSE 'none' END,
             'cve_ids', cves.ids,
-            'modified_start_unix_us', CASE WHEN NULLIF(TRIM(target->>'modified_start'), '') IS NULL
-                THEN 0 ELSE (EXTRACT(EPOCH FROM (target->>'modified_start')::timestamptz) * 1000000)::bigint END,
-            'modified_end_unix_us', CASE WHEN NULLIF(TRIM(target->>'modified_end'), '') IS NULL
-                THEN 0 ELSE (EXTRACT(EPOCH FROM (target->>'modified_end')::timestamptz) * 1000000)::bigint END,
+            'modified_start_unix_us', CASE WHEN ` + readinessTargetModifiedStartValidSQL + `
+                THEN (EXTRACT(EPOCH FROM TRIM(target->>'modified_start')::timestamptz) * 1000000)::bigint ELSE 0 END,
+            'modified_end_unix_us', CASE WHEN ` + readinessTargetModifiedEndValidSQL + `
+                THEN (EXTRACT(EPOCH FROM TRIM(target->>'modified_end')::timestamptz) * 1000000)::bigint ELSE 0 END,
             'results_per_page', CASE WHEN NULLIF(TRIM(target->>'modified_start'), '') IS NULL AND
                 NULLIF(TRIM(target->>'modified_end'), '') IS NULL THEN 0
-                ELSE COALESCE(NULLIF(TRIM(target->>'results_per_page'), '')::int, 0) END,
+                WHEN ` + readinessTargetResultsPerPageValidSQL + ` THEN (target->'results_per_page')::numeric::int
+                ELSE 0 END,
             'endpoint_candidates', endpoints.ids
         ) AS expected_descriptor
         FROM (

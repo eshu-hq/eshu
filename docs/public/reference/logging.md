@@ -111,7 +111,8 @@ The `supply_chain_query.stage_completed` event for stage `readiness_snapshot`
 (impact findings and impact explain) rises to WARN when the readiness read
 fails and the route answers `readiness_unavailable` instead of an error. That
 line adds `readiness_unavailable_cause`, one of `source_targets_malformed`
-(malformed or duplicate configured vulnerability-intelligence targets),
+(malformed or duplicate configured vulnerability-intelligence targets,
+including an unparseable NVD window timestamp or page size),
 `source_targets_overflow` (more than 200 relevant source targets),
 `consumption_keys_not_ready`, or `query_error`, plus `readiness_error`, the
 error text cut to 256 bytes (#9227). The first three persist until an operator

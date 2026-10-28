@@ -107,6 +107,77 @@ func TestSupplyChainImpactReadinessConflictingDuplicateScopeUnavailableLive(t *t
 	if readiness.State != impact.ReadinessStateReadinessUnavailable {
 		t.Fatalf("conflicting duplicate scope readiness = %+v, want readiness_unavailable", readiness)
 	}
+	assertReadinessTargetsMalformed(t, ctx, database, "conflicting duplicate scope")
+
+	// A garbage NVD window or page size beside a healthy CVE target must
+	// classify as source_targets_malformed, never abort the read with a
+	// Postgres cast error (query_error). Each value is one the collector's
+	// strict config parse refuses.
+	healthy := map[string]any{"source": "nvd", "scope_id": "healthy", "cve_ids": []string{"CVE-2026-9227"}}
+	window := func(field string, value any) map[string]any {
+		target := map[string]any{
+			"source": "nvd", "scope_id": "window",
+			"modified_start": "2026-05-01T00:00:00Z", "modified_end": "2026-05-02T00:00:00Z",
+			"results_per_page": 100,
+		}
+		target[field] = value
+		return target
+	}
+	for _, tc := range []struct {
+		name   string
+		target map[string]any
+	}{
+		{"modified_start garbage text", window("modified_start", "garbage")},
+		{"modified_start out-of-range month", window("modified_start", "2026-13-01T00:00:00Z")},
+		{"modified_start without zone", window("modified_start", "2026-05-01")},
+		{"modified_start JSON number", window("modified_start", 1714521600)},
+		{"modified_end garbage text", window("modified_end", "not-a-time")},
+		{"modified_end hour 24", window("modified_end", "2026-05-02T24:00:00Z")},
+		{"modified_end time without zone", window("modified_end", "2026-05-02T00:00:00")},
+		{"modified_end JSON object", window("modified_end", map[string]any{"at": "x"})},
+		{"results_per_page text", window("results_per_page", "abc")},
+		{"results_per_page fraction", window("results_per_page", 100.5)},
+		{"results_per_page int overflow", window("results_per_page", 99999999999)},
+		{"results_per_page boolean", window("results_per_page", true)},
+		{"results_per_page without window", map[string]any{
+			"source": "nvd", "scope_id": "window",
+			"cve_ids": []string{"CVE-2026-0001"}, "results_per_page": "abc",
+		}},
+	} {
+		configuration, err := json.Marshal(map[string]any{"targets": []map[string]any{healthy, tc.target}})
+		if err != nil {
+			t.Fatalf("%s: marshal: %v", tc.name, err)
+		}
+		if _, err := database.ExecContext(ctx, `UPDATE collector_instances SET configuration = $1
+        WHERE instance_id = 'duplicate-instance'`, configuration); err != nil {
+			t.Fatalf("%s: plant malformed target: %v", tc.name, err)
+		}
+		assertReadinessTargetsMalformed(t, ctx, database, tc.name)
+	}
+	// Control: a strict RFC 3339 window with fraction and offset stays valid.
+	valid := window("modified_start", " 2026-05-01T00:00:00.5+02:00 ")
+	configuration, err := json.Marshal(map[string]any{"targets": []map[string]any{healthy, valid}})
+	if err != nil {
+		t.Fatalf("control: marshal: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, `UPDATE collector_instances SET configuration = $1
+        WHERE instance_id = 'duplicate-instance'`, configuration); err != nil {
+		t.Fatalf("control: plant valid window: %v", err)
+	}
+	if _, err := impact.NewPostgresReadinessStore(database).ReadSupplyChainImpactReadiness(ctx,
+		impact.ReadinessQuery{CVEID: "CVE-2026-9227"}); err != nil {
+		t.Fatalf("control: valid RFC 3339 window read failed: %v", err)
+	}
+}
+
+func assertReadinessTargetsMalformed(t *testing.T, ctx context.Context, db *sql.DB, name string) {
+	t.Helper()
+	_, err := impact.NewPostgresReadinessStore(db).ReadSupplyChainImpactReadiness(ctx,
+		impact.ReadinessQuery{CVEID: "CVE-2026-9227"})
+	if cause := impact.ReadinessUnavailableCause(err); cause != impact.ReadinessUnavailableCauseTargetsMalformed {
+		t.Errorf("%s: readiness cause = %q (err %v), want %q", name, cause, err,
+			impact.ReadinessUnavailableCauseTargetsMalformed)
+	}
 }
 
 func TestSupplyChainImpactReadinessNVDConfiguredFallbackIdentityLive(t *testing.T) {
