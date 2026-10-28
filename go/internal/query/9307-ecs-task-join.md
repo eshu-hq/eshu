@@ -49,8 +49,8 @@ PostgreSQL used two fact-record sequential scans: 8.545 ms and 1,827 shared
 buffers. With partial service-ARN and scope/generation/cluster/group indexes,
 PostgreSQL used two index scans: 0.074 ms and 9 shared buffers. External host
 contention was present; these numbers establish the plan shape and cardinality,
-not a stable latency improvement. Story-endpoint before/after latency remains
-NOT_CHECKED.
+not a stable latency improvement. Story-endpoint before/after latency
+remains NOT_PROVEN: no accepted comparison exists.
 
 The original cassette used legacy `ecs.*` resource-type strings. Historical
 in-tree `serviceObservation` and `taskObservation` pass
