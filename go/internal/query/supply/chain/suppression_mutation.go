@@ -40,6 +40,22 @@ type VulnerabilitySuppressionMutationStore interface {
 	) (impact.VulnerabilitySuppressionMutationResult, error)
 }
 
+// SuppressionAdmissionContractVersion versions the #8872 admission-contract
+// shape for the single bounded in-API mutation (operator suppression upsert).
+// Canonical mutations persist through explicit core-owned admission contracts:
+// eshu-api keeps the HTTP shape and calls this versioned port, which the
+// core-owned Postgres store satisfies. A breaking change to the admission
+// shape must bump this version in the same diff.
+const SuppressionAdmissionContractVersion = "v0"
+
+// SuppressionAdmission is the versioned admission-contract port the API
+// handler depends on instead of a direct table handle. It aliases the
+// narrow mutation store so existing fakes and the core-owned Postgres
+// implementation keep satisfying it unchanged.
+type SuppressionAdmission = VulnerabilitySuppressionMutationStore
+
+var _ SuppressionAdmission = (*impact.PostgresVulnerabilitySuppressionMutationStore)(nil)
+
 // impact.VulnerabilitySuppressionMutationResult moved to
 // internal/query/supply/chain/impact with the suppression mutation store
 // (#6060 lane A); see compat_supply_chain.go.

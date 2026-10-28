@@ -106,11 +106,13 @@ type (
 )
 
 // Vulnerability suppression mutation port and values. See the supplychain
-// package.
+// package. SuppressionAdmission is the versioned #8872 admission-contract
+// port the API handler depends on instead of a direct table handle.
 type (
 	VulnerabilitySuppressionMutationStore    = supplychain.VulnerabilitySuppressionMutationStore
 	VulnerabilitySuppressionMutationRequest  = supplychain.VulnerabilitySuppressionMutationRequest
 	VulnerabilitySuppressionMutationResponse = supplychain.VulnerabilitySuppressionMutationResponse
+	SuppressionAdmission                     = supplychain.SuppressionAdmission
 )
 
 // Capability constants. Registration stays in contract_supply_chain.go;

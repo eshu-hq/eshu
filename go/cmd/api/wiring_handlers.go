@@ -58,8 +58,13 @@ func newSupplyChainEvidenceSourceWithReadStore(reader db.ReadStore, logger *slog
 // of Postgres-backed evidence, advisory, impact, container-image, and security
 // alert stores. Extracted from newRouter to keep wiring.go cohesive; the field
 // wiring is identical to the inline construction it replaced.
+//
+// The single bounded mutation travels through the versioned #8872
+// suppression admission contract, not a *sql.DB writer handle: the caller
+// binds the core-owned admission implementation and the handler carries the
+// port.
 func newSupplyChainHandler(
-	writer *sql.DB,
+	suppressionAdmission query.SuppressionAdmission,
 	reader db.ReadStore,
 	neo4jReader query.GraphQuery,
 	contentReader query.ContentStore,
@@ -84,7 +89,7 @@ func newSupplyChainHandler(
 		SecurityAlerts:               alerts.NewPostgresStoreWithReadStore(reader),
 		SecurityAlertAggregates:      alerts.NewPostgresAggregateStoreWithReadStore(reader),
 		Readiness:                    impact.NewPostgresReadinessStoreWithReadStore(reader),
-		SuppressionMutations:         query.NewPostgresVulnerabilitySuppressionMutationStore(writer),
+		SuppressionMutations:         suppressionAdmission,
 		CloudResourceInventory:       query.NewPostgresCloudResourceListStoreWithReadStore(reader),
 		KubernetesWorkloadInventory:  kubernetes.NewPostgresRuntimeWorkloadStoreWithReadStore(reader),
 		CollectorReadiness:           query.NewPostgresCollectorListReadinessStoreWithReadStore(reader),
