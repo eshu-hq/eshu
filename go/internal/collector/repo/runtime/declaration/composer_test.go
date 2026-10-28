@@ -70,3 +70,30 @@ func TestComposerPHPSourceKindsClassifyEachSpecShape(t *testing.T) {
 		}
 	}
 }
+
+func TestComposerPHPSourceKindsRejectMalformedAndCredentialValues(t *testing.T) {
+	const secret = "0123456789abcdef-secret"
+	for _, source := range []struct{ path, prefix, suffix, kind string }{
+		{"composer.json", `{"require":{"php":"`, `"}}`, "composer_json_require_php"},
+		{"composer.json", `{"config":{"platform":{"php":"`, `"}}}`, "composer_json_platform_php"},
+		{"composer.lock", `{"platform":{"php":"`, `"}}`, "composer_lock_platform_php"},
+		{"composer.lock", `{"platform-overrides":{"php":"`, `"}}`, "composer_lock_platform_overrides_php"},
+	} {
+		t.Run(source.kind, func(t *testing.T) {
+			for _, tc := range []struct {
+				name, body, reason string
+				rejected           int
+			}{
+				{"malformed document", source.prefix + "8.2" + source.suffix + ` trailing`, SkipReasonManifestUnparseable, 0},
+				{"credential", source.prefix + secret + source.suffix, SkipReasonValueRejected, 1},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					envelopes, skip := EmitFile(testContext(source.path), "repo-1", source.path, tc.body)
+					if len(envelopes) != 0 || skip.Reason != tc.reason || skip.Rejected != tc.rejected {
+						t.Fatalf("%s emitted %d declarations, skip %+v", source.kind, len(envelopes), skip)
+					}
+				})
+			}
+		})
+	}
+}

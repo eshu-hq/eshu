@@ -2158,6 +2158,14 @@
         ]
       },
       {
+        "id": "rn-php-runtime-declaration",
+        "description": "At least one RuntimeDeclaration node declares PHP. The lib-common composer.json require.php at line 6 supplies the range >=8.1; the paired HTTP and MCP query shapes assert its complete source tuple.",
+        "label": "RuntimeDeclaration",
+        "minimum_count": 1,
+        "required_node_properties": ["runtime"],
+        "allowed_node_property_values": {"runtime": ["php"]}
+      },
+      {
         "id": "rn-cloud-resource-running-image",
         "description": "issue #5450: EXACTLY 2 CloudResource nodes carry non-empty running_image_ref AND running_image_digest -- the ECS running task (resource_type ecs.task, containers[0].image/image_digest) and the Lambda function (resource_type lambda.function, image_uri/resolved_image_uri) from the awscloud supply-chain-demo cassette. Provably 0 without cloudResourceRunningImageFields (go/internal/reducer/aws_resource_running_image.go) wired into cloudResourceNodeRow AND baseCloudResourceUpsertCypher's SET clause (go/internal/storage/cypher/cloud/resource/node_writer.go) actually persisting the two properties -- the in-memory row map alone is necessary but not sufficient, since Cypher silently drops any row key with no matching SET fragment. running_image_digest is normalized to the BARE digest for both resource types (P2 fix: Lambda's resolved_image_uri is registry/repository@digest, parsed down to sha256:<hex> so it matches ECS's already-bare shape; the full reference stays available via running_image_ref). A multi-container ECS task stays ambiguous and unpromoted by design (no essential-container flag exists to disambiguate by), so this is exactly the two single-image fixtures, not every CloudResource. maximum_node_property_count pins the CEILING at 2, not just the floor (a live corpus-gate run caught a real regression here: the pinned NornicDB backend does not evaluate a key MISSING from one row of a heterogeneous UNWIND $rows list as null in a SET clause, it persists a stringified 'row.running_image_ref' literal instead -- which is non-empty and so silently satisfied a floor-only `want >= 2` on all 115 CloudResource nodes. Fixed by making every CloudResource row builder -- AWS (cloudResourceRunningImageFields), GCP (gcpCloudResourceNodeRow), and Azure (azureCloudResourceNodeRow) -- always carry both keys, defaulting to \"\" rather than omitting them, mirroring the pre-existing #4995 workload_id/service_name parity-key precedent. The ceiling is what makes a reintroduced omission fail loud instead of silently passing at the old floor).",
         "label": "CloudResource",
@@ -4817,6 +4825,16 @@
           "limit": 10
         }
       },
+      "list_runtime_version_declarations?assert=php_composer_require": {
+        "description": "PHP Composer require.php from the lib-common fixture, asserted through the deployed MCP tool. The required object match binds source, path, spec, and source line to one returned declaration.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {
+          "declarations[]": [{"runtime": "php", "source_kind": "composer_json_require_php", "relative_path": "composer.json", "raw_spec": ">=8.1", "spec_kind": "range", "line_number": 6, "order_index": 0}]
+        },
+        "arguments": {"runtime": "php", "source_kind": "composer_json_require_php", "limit": 10}
+      },
       "list_kubernetes_correlations": {
         "description": "Returns k8s workload correlations for a cluster; confirms the WorkloadInstance correlation ran. Needs a cluster selector. Also isolates the #5437 selector_match verb (cold-review finding 1): minimum_results:1 alone was already satisfied by the pre-existing owner_reference correlation, so a broken selector_match pass would pass this shape undetected without the required_json_values pin.",
         "required_response_fields": [
@@ -7319,6 +7337,16 @@
           "major_below": 20,
           "limit": 10
         }
+      },
+      "POST /api/v0/runtime-declarations/query?assert=php_composer_require": {
+        "description": "PHP Composer require.php from the lib-common fixture, asserted through the deployed HTTP route. The required object match binds source, path, spec, and source line to one returned declaration.",
+        "required_response_fields": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"],
+        "minimum_results": 1,
+        "results_field": "declarations",
+        "required_json_object_matches": {
+          "declarations[]": [{"runtime": "php", "source_kind": "composer_json_require_php", "relative_path": "composer.json", "raw_spec": ">=8.1", "spec_kind": "range", "line_number": 6, "order_index": 0}]
+        },
+        "request_body": {"runtime": "php", "source_kind": "composer_json_require_php", "limit": 10}
       },
       "POST /api/v0/impact/entity-map": {
         "description": "Positive repository-to-workload entity map for the deployable-config fixture through the deployed HTTP query surface. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",

@@ -22,7 +22,7 @@ that lists several versions is one row per token. There is no effective-version 
 `scope_dir` (`.` at the repository root).
 
 `source_kind` names the declaring source, one value per pin file (`nvmrc`,
-`tool_versions`, `rust_toolchain`), one per manifest section
+`tool_versions`, `rust_toolchain`, `php_version` for `.php-version`), one per manifest section
 (`package_json_engines`, `package_json_volta`, `package_json_package_manager`,
 `go_mod_go`, `go_mod_toolchain`, `composer_json_require_php`,
 `composer_json_platform_php`, `composer_lock_platform_php`,
