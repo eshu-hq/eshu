@@ -73,6 +73,8 @@ ModuleID methods that change neither coordinates nor configurations.
 | infix `exclude("o", "n")`, `excludeAll(...)`, `classifier "c"`, `intransitive()`, `withSources()`, `withJavadoc()`, `cross CrossVersion.full`, `force()`, `changing()` | scope unchanged, resolved |
 | `lazy val core = project.settings(libraryDependencies += ...)` | resolved |
 | a non-literal revision (`Versions.cats`, `s"${v}"`) | `unresolved`; siblings stay resolved |
+| a malformed literal revision (`"1.0!"`, `"1.0:jdk8"`, `"1.0@jar"`) | `unresolved`, literal kept, no key |
+| an interior-`+` revision (`"1.0.0+build.1"`) | resolved; only a trailing `+` is dynamic |
 | `Test /`, `ThisBuild /`, `Global /`, `core /`, `in Test`, `.in(Test)` | partial |
 | `inConfig(...)`, `inThisBuild(...)`, any `in<Name>(...)`, a brace block, a settings `val` | partial |
 | `.map(_ % Test)`, `.flatMap`, `.distinct`, `.filterNot`, `++ Seq(...)`, a lambda | partial |

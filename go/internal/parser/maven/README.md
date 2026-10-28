@@ -33,7 +33,8 @@ row carries:
 - `package_manager`: always `maven`.
 - `dependency_scope`: lowercase Maven scope; defaults to `compile`.
 - `dependency_resolution_state`: `resolved`, `partial` (no `<version>`), or
-  `unresolved` (unresolved `${property}` reference).
+  `unresolved` (unresolved `${property}` reference, or a version holding a
+  character Maven's model validator forbids, `\/:"<>|?*`).
 - `dependency_unresolved_keys`: present only when state is `unresolved`.
 - `dependency_optional`: boolean from `<optional>`.
 - `dependency_type`, `dependency_classifier`: when declared.

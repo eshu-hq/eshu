@@ -3,7 +3,11 @@
 
 package sbt
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/gradle/selector"
+)
 
 // scalaBinaryVersion returns the artifact suffix sbt appends for `%%`:
 // "2.13" for any 2.13.x, "2.10" through "2.12" likewise, "3" for any 3.x, and
@@ -56,6 +60,17 @@ func isDynamicRevision(version string) bool {
 		strings.Contains(version, ",")
 }
 
+// plusOnlyDeviant reports whether version would pass the shared exact-version
+// rule but for '+' characters: every '+' is stripped and the remainder must
+// be exact. A leading '+' is never legitimate (bare "+" is the match-all
+// prefix, already partial), so it stays deviant.
+func plusOnlyDeviant(version string) bool {
+	if strings.HasPrefix(version, "+") {
+		return false
+	}
+	return selector.Exact(strings.ReplaceAll(version, "+", "0"))
+}
+
 // row builds the content_entity-shaped dependency row, mirroring the Gradle
 // row contract. binary is the single known Scala binary version, or "".
 func (d dependency) row(vals map[string]string, binary string) map[string]any {
@@ -80,6 +95,21 @@ func (d dependency) row(vals map[string]string, binary string) map[string]any {
 	case versionOpaque:
 		state = "unresolved"
 		unresolvedKeys = []string{d.version}
+	}
+
+	// A literal revision the shared exact-version rule rejects ("1.0!",
+	// "1.0:jdk8") is not a version, whether written directly or reached
+	// through a top-level val: the row stays unresolved and keeps the text
+	// as written, the way the Gradle readers treat a selector. It names no
+	// interpolation key, so none is recorded. An interior '+' is the one
+	// exception: the shared rule rejects every '+' for Gradle's prefix
+	// selector, but sbt modules publish build metadata after one
+	// ("1.0.0+build.1", dynver "1.2.3+4-abcd1234"), so a revision whose
+	// only deviation is a non-leading '+' stays resolved. A trailing '+'
+	// never reaches here (isDynamicRevision reports it partial first) and
+	// a leading '+' stays unresolved.
+	if state == "resolved" && !selector.Exact(value) && !plusOnlyDeviant(value) {
+		state = "unresolved"
 	}
 
 	if d.scopeUndetermined() && state == "resolved" {
