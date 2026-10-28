@@ -131,3 +131,104 @@ func TestBuildTransitiveRelationshipRowsCypherNeo4jSeeksUID(t *testing.T) {
 		}
 	}
 }
+
+// TestGraphEntityIDPredicate proves the unlabeled identity predicate
+// keeps its exact id-OR-uid shape for the NornicDB anchor.
+func TestGraphEntityIDPredicate(t *testing.T) {
+	t.Parallel()
+
+	if got, want := GraphEntityIDPredicate("e", "$entity_id"), "(e.id = $entity_id OR e.uid = $entity_id)"; got != want {
+		t.Errorf("GraphEntityIDPredicate = %q, want %q", got, want)
+	}
+}
+
+// TestNeo4jEntityIDAnchorStructure proves the anchor seeks uid and id
+// branches as a deduplicating union (issue #7057).
+func TestNeo4jEntityIDAnchorStructure(t *testing.T) {
+	t.Parallel()
+
+	anchor := Neo4jEntityIDAnchor("e", "$entity_id")
+	for _, want := range []string{"CALL ()", "UNION", "{uid: $entity_id}", "{id: $entity_id}", "Function"} {
+		if !strings.Contains(anchor, want) {
+			t.Errorf("entity anchor missing %q:\n%s", want, anchor)
+		}
+	}
+}
+
+// TestBuildTransitiveRelationshipGraphResponse proves transitive rows
+// shape into direction buckets, deduplicate, and drop non-positive
+// depths.
+func TestBuildTransitiveRelationshipGraphResponse(t *testing.T) {
+	t.Parallel()
+
+	rows := []map[string]any{
+		{"target_id": "t1", "target_name": "n1", "depth": 1},
+		{"target_id": "t1", "target_name": "n1", "depth": 1},
+		{"target_id": "t0", "target_name": "n0", "depth": 0},
+	}
+	response := BuildTransitiveRelationshipGraphResponse(map[string]any{"status": "ok"}, rows, "outgoing")
+	outgoing, ok := response["outgoing"].([]map[string]any)
+	if !ok || len(outgoing) != 1 {
+		t.Fatalf("outgoing = %#v, want 1 deduplicated row", response["outgoing"])
+	}
+	if outgoing[0]["reason"] != "transitive_call_graph" {
+		t.Errorf("row reason = %v", outgoing[0]["reason"])
+	}
+
+	incoming := BuildTransitiveRelationshipGraphResponse(map[string]any{}, []map[string]any{
+		{"source_id": "s1", "source_name": "m1", "depth": 2},
+	}, "incoming")
+	if got, ok := incoming["incoming"].([]map[string]any); !ok || len(got) != 1 || got[0]["depth"] != 2 {
+		t.Errorf("incoming = %#v, want the depth-2 row", incoming["incoming"])
+	}
+}
+
+// TestNormalizeGraphRelationships proves the normalizer rewrites JSX
+// component calls to references, drops null provenance keys, and
+// filters unmatched optional rows.
+func TestNormalizeGraphRelationships(t *testing.T) {
+	t.Parallel()
+
+	response := map[string]any{
+		"outgoing": []any{
+			map[string]any{"type": "CALLS", "call_kind": "jsx_component", "confidence": nil},
+			map[string]any{"type": nil},
+			"not-a-row",
+		},
+		"incoming": []map[string]any{
+			{"type": "CALLS", "resolution_method": "  "},
+		},
+	}
+	NormalizeGraphRelationships(response)
+	outgoing, ok := response["outgoing"].([]map[string]any)
+	if !ok || len(outgoing) != 1 {
+		t.Fatalf("outgoing = %#v, want 1 surviving row", response["outgoing"])
+	}
+	if outgoing[0]["type"] != "REFERENCES" || outgoing[0]["reason"] != "jsx_component_call_kind" {
+		t.Errorf("JSX rewrite wrong: %#v", outgoing[0])
+	}
+	if _, ok := outgoing[0]["confidence"]; ok {
+		t.Error("null confidence must be dropped")
+	}
+	incoming, ok := response["incoming"].([]map[string]any)
+	if !ok || len(incoming) != 1 {
+		t.Fatalf("incoming = %#v, want 1 row", response["incoming"])
+	}
+	if _, ok := incoming[0]["resolution_method"]; ok {
+		t.Error("blank resolution_method must be dropped")
+	}
+}
+
+// TestRelationshipGraphRowCypherFromAnchorScoped proves a scoped
+// caller binds the grant on the anchor and on both neighbour reads.
+func TestRelationshipGraphRowCypherFromAnchorScoped(t *testing.T) {
+	t.Parallel()
+
+	access := querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: []string{"repo-1"}}
+	cypher := RelationshipGraphRowCypherFromAnchor("MATCH (e)", access)
+	for _, alias := range []string{"e", "target", "source"} {
+		if !strings.Contains(cypher, access.GraphConditionOnProperty(alias, "repo_id")) {
+			t.Errorf("scoped cypher missing the %s grant:\n%s", alias, cypher)
+		}
+	}
+}
