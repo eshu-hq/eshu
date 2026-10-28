@@ -149,6 +149,7 @@ func (a *Analyzer) snapshot(
 			DistroVersion:      target.DistroVersion,
 			PackageManager:     target.PackageManager,
 			Repositories:       target.Repositories,
+			RPMOriginBindings:  target.RPMOriginBindings,
 			ThirdPartyPackages: target.ThirdPartyPackages,
 		}, limits)
 		if err != nil {
@@ -165,6 +166,7 @@ func (a *Analyzer) snapshot(
 			DistroVersion:      snapshot.DistroVersion,
 			PackageManager:     snapshot.PackageManager,
 			Repositories:       snapshot.Repositories,
+			RPMOriginBindings:  snapshot.RPMOriginBindings,
 			InstalledDB:        snapshot.InstalledDB,
 			Status:             snapshot.Status,
 			ThirdPartyPackages: snapshot.ThirdPartyPackages,
@@ -223,6 +225,11 @@ func (a *Analyzer) envelopes(input scannerworker.ClaimInput, snapshot Snapshot) 
 			Repositories:       snapshot.Repositories,
 			Status:             snapshot.Status,
 			ThirdPartyPackages: snapshot.ThirdPartyPackages,
+		})
+	case ospackagevulnerability.PackageManagerRPM:
+		packages, warnings, err = ospackagevulnerability.ParseRPMDatabase(ospackagevulnerability.RPMSnapshot{
+			Distro: snapshot.Distro, DistroVersion: snapshot.DistroVersion,
+			Repositories: snapshot.Repositories, Database: snapshot.InstalledDB, OriginBindings: snapshot.RPMOriginBindings,
 		})
 	default:
 		return nil, 0, fmt.Errorf("%w: unsupported package database", errUnsupportedTarget)

@@ -22,6 +22,12 @@ CVE
   -> impact finding
 ```
 
+RPM image package extraction supports SQLite, NDB, and legacy Berkeley DB
+installed databases in the scanner-worker code. A package receives a vendor
+advisory source only with a matching package-level repository-origin binding.
+QA scanner-worker deployment and live RPM coverage are tracked by #9296 and
+#9300; this code support does not establish deployed coverage.
+
 ## The Differentiated Claims
 
 Three behaviors separate Eshu from a scanner that prints whatever a feed says.

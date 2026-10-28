@@ -21,13 +21,17 @@ import (
 )
 
 const (
-	osReleasePath     = "etc/os-release"
-	apkReposPath      = "etc/apk/repositories"
-	apkInstalledPath  = "lib/apk/db/installed"
-	dpkgStatusPath    = "var/lib/dpkg/status"
-	whiteoutPrefix    = ".wh."
-	opaqueWhiteout    = ".wh..wh..opq"
-	layerRegularFiles = int64(4)
+	osReleasePath       = "etc/os-release"
+	apkReposPath        = "etc/apk/repositories"
+	apkInstalledPath    = "lib/apk/db/installed"
+	dpkgStatusPath      = "var/lib/dpkg/status"
+	rpmSQLitePath       = "usr/lib/sysimage/rpm/rpmdb.sqlite"
+	rpmSQLiteLegacyPath = "var/lib/rpm/rpmdb.sqlite"
+	rpmNDBPath          = "var/lib/rpm/Packages.db"
+	rpmBDBPath          = "var/lib/rpm/Packages"
+	whiteoutPrefix      = ".wh."
+	opaqueWhiteout      = ".wh..wh..opq"
+	layerRegularFiles   = int64(4)
 )
 
 type layerSnapshotReader struct {
@@ -70,6 +74,7 @@ func readLayerSnapshot(
 		DistroVersion:      firstNonBlank(target.DistroVersion, fields["VERSION_ID"], fields["VERSION"]),
 		PackageManager:     target.PackageManager,
 		Repositories:       target.Repositories,
+		RPMOriginBindings:  target.RPMOriginBindings,
 		ThirdPartyPackages: target.ThirdPartyPackages,
 		SourceURI:          target.SourceURI,
 		SourceRecordID:     target.SourceRecordID,
@@ -92,6 +97,8 @@ func readLayerSnapshot(
 		snapshot.InstalledDB = reader.files[apkInstalledPath]
 	case ospackagevulnerability.PackageManagerDPKG:
 		snapshot.Status = reader.files[dpkgStatusPath]
+	case ospackagevulnerability.PackageManagerRPM:
+		snapshot.InstalledDB = rpmLayerDatabase(reader.files)
 	default:
 		return Snapshot{}, reader.usage(), fmt.Errorf("%w: unsupported package manager", errUnsupportedTarget)
 	}
@@ -104,6 +111,7 @@ func unsupportedLayerSnapshot(target TargetConfig, now func() time.Time, reason 
 		DistroVersion:      target.DistroVersion,
 		PackageManager:     target.PackageManager,
 		Repositories:       target.Repositories,
+		RPMOriginBindings:  target.RPMOriginBindings,
 		ThirdPartyPackages: target.ThirdPartyPackages,
 		SourceURI:          target.SourceURI,
 		SourceRecordID:     target.SourceRecordID,
@@ -260,7 +268,7 @@ func cleanLayerName(name string) string {
 
 func isPackageEvidencePath(name string) bool {
 	switch name {
-	case osReleasePath, apkReposPath, apkInstalledPath, dpkgStatusPath:
+	case osReleasePath, apkReposPath, apkInstalledPath, dpkgStatusPath, rpmSQLitePath, rpmSQLiteLegacyPath, rpmNDBPath, rpmBDBPath:
 		return true
 	default:
 		return false
@@ -283,6 +291,8 @@ func resolvePackageDatabase(
 			manager = ospackagevulnerability.PackageManagerAPK
 		case len(files[dpkgStatusPath]) > 0:
 			manager = ospackagevulnerability.PackageManagerDPKG
+		case len(rpmLayerDatabase(files)) > 0:
+			manager = ospackagevulnerability.PackageManagerRPM
 		case distro == ospackagevulnerability.DistroAlpine:
 			manager = ospackagevulnerability.PackageManagerAPK
 		case distro == ospackagevulnerability.DistroDebian:
@@ -303,6 +313,10 @@ func resolvePackageDatabase(
 	case ospackagevulnerability.PackageManagerDPKG:
 		if distro != ospackagevulnerability.DistroDebian || len(files[dpkgStatusPath]) == 0 {
 			return "", "", fmt.Errorf("%w: missing dpkg status database", errUnsupportedTarget)
+		}
+	case ospackagevulnerability.PackageManagerRPM:
+		if len(rpmLayerDatabase(files)) == 0 {
+			return "", "", fmt.Errorf("%w: missing rpm database", errUnsupportedTarget)
 		}
 	default:
 		return "", "", fmt.Errorf("%w: missing supported package database", errUnsupportedTarget)
@@ -355,4 +369,13 @@ func currentUserCPUSeconds() float64 {
 		return 0
 	}
 	return samples[0].Value.Float64()
+}
+
+func rpmLayerDatabase(files map[string][]byte) []byte {
+	for _, path := range []string{rpmSQLitePath, rpmSQLiteLegacyPath, rpmNDBPath, rpmBDBPath} {
+		if len(files[path]) > 0 {
+			return files[path]
+		}
+	}
+	return nil
 }

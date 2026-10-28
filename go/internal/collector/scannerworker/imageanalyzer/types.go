@@ -20,18 +20,19 @@ type AnalyzerConfig struct {
 
 // TargetConfig maps one image scanner-worker scope to local image evidence.
 type TargetConfig struct {
-	ScopeID            string                                `json:"scope_id"`
-	RootFSPath         string                                `json:"rootfs_path"`
-	LayerPaths         []string                              `json:"layer_paths"`
-	SourceURI          string                                `json:"source_uri"`
-	SourceRecordID     string                                `json:"source_record_id"`
-	ImageReference     string                                `json:"image_reference"`
-	ImageDigest        string                                `json:"image_digest"`
-	Distro             ospackagevulnerability.Distro         `json:"distro"`
-	DistroVersion      string                                `json:"distro_version"`
-	PackageManager     ospackagevulnerability.PackageManager `json:"package_manager"`
-	Repositories       []ospackagevulnerability.Repository   `json:"repositories"`
-	ThirdPartyPackages []string                              `json:"third_party_packages"`
+	ScopeID            string                                    `json:"scope_id"`
+	RootFSPath         string                                    `json:"rootfs_path"`
+	LayerPaths         []string                                  `json:"layer_paths"`
+	SourceURI          string                                    `json:"source_uri"`
+	SourceRecordID     string                                    `json:"source_record_id"`
+	ImageReference     string                                    `json:"image_reference"`
+	ImageDigest        string                                    `json:"image_digest"`
+	Distro             ospackagevulnerability.Distro             `json:"distro"`
+	DistroVersion      string                                    `json:"distro_version"`
+	PackageManager     ospackagevulnerability.PackageManager     `json:"package_manager"`
+	Repositories       []ospackagevulnerability.Repository       `json:"repositories"`
+	RPMOriginBindings  []ospackagevulnerability.RPMOriginBinding `json:"rpm_origin_bindings"`
+	ThirdPartyPackages []string                                  `json:"third_party_packages"`
 }
 
 // EvidenceSource identifies where installed package proof came from.
@@ -50,6 +51,7 @@ type Snapshot struct {
 	DistroVersion      string
 	PackageManager     ospackagevulnerability.PackageManager
 	Repositories       []ospackagevulnerability.Repository
+	RPMOriginBindings  []ospackagevulnerability.RPMOriginBinding
 	InstalledDB        []byte
 	Status             []byte
 	ThirdPartyPackages []string
@@ -101,7 +103,7 @@ func (t TargetConfig) validate() (TargetConfig, error) {
 
 func validateDistro(distro ospackagevulnerability.Distro) error {
 	switch distro {
-	case "", ospackagevulnerability.DistroAlpine, ospackagevulnerability.DistroDebian:
+	case "", ospackagevulnerability.DistroAlpine, ospackagevulnerability.DistroDebian, ospackagevulnerability.DistroRedHat, ospackagevulnerability.DistroFedora, ospackagevulnerability.DistroCentOS, ospackagevulnerability.DistroRocky, ospackagevulnerability.DistroAlma, ospackagevulnerability.DistroAmazonLinux:
 		return nil
 	default:
 		return fmt.Errorf("%w: unsupported distro", errUnsupportedTarget)
@@ -110,7 +112,7 @@ func validateDistro(distro ospackagevulnerability.Distro) error {
 
 func validatePackageManager(manager ospackagevulnerability.PackageManager) error {
 	switch manager {
-	case "", ospackagevulnerability.PackageManagerAPK, ospackagevulnerability.PackageManagerDPKG:
+	case "", ospackagevulnerability.PackageManagerAPK, ospackagevulnerability.PackageManagerDPKG, ospackagevulnerability.PackageManagerRPM:
 		return nil
 	default:
 		return fmt.Errorf("%w: unsupported package manager", errUnsupportedTarget)
