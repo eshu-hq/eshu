@@ -151,4 +151,7 @@ func TestRunRejectsConflictingCoreSchema(t *testing.T) {
 		t.Fatal("Run() error = nil, want trusted schema conflict")
 	}
 	assertFinding(t, report, FindingPayloadSchemaInvalid, true, true)
+	if !strings.Contains(report.Findings[0].Message, "payloadSchemaRef conflicts with manifest") {
+		t.Fatalf("finding = %q, want trusted schema conflict", report.Findings[0].Message)
+	}
 }

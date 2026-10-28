@@ -8,7 +8,8 @@ maps the manifest onto the portable harness input, and delegates the verdict to
 `sdk/go/collector/conformance`. The verdict logic (manifest proof metadata,
 fixture contract validation, reducer-consumer checks, and the
 `eshu.extension.conformance.v1` report) lives once in the public SDK module so
-the same result is produced inside and outside the monorepo.
+the same verdict rules apply inside and outside the monorepo. The host supplies
+trusted core-grant context that standalone callers do not have.
 
 ## Ownership boundary
 
