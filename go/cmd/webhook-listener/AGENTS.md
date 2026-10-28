@@ -11,8 +11,9 @@ Read these files first:
 7. `gcp_freshness_oidc.go`
 8. `intake_submit.go`
 9. `handler_observability_test.go`
-9. `main.go`
-10. `handler_test.go`
+9. `intake_serve.go`
+10. `main.go`
+11. `handler_test.go`
 11. `incident_freshness_handler_test.go`
 12. `aws_freshness_handler_test.go`
 13. `gcp_freshness_handler_test.go`
@@ -67,6 +68,11 @@ Read these files first:
   `gcp_freshness_oidc.go` and cover it in `gcp_freshness_oidc_test.go`, using
   the injected `gcpPushOIDCValidator` seam (never make a live call to Google
   in a test).
+- Add served-intake mount behavior in `intake_serve.go` (serve gating in
+  `serveIntakeConfigured`, store-backed `buildServedIntake`, subtree
+  `mountServedIntake`) and cover it in `intake_serve_test.go` through the
+  production constructors. Intake (submitter) mode never serves; trigger
+  families without a store stay unassigned so the intake API answers 503.
 - Add or change OTEL behavior in `handler.go` and cover it in
   `handler_observability_test.go`.
 - Add runtime startup wiring in `main.go` only after the handler/store contract

@@ -30,6 +30,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	actionsstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook/actions"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/webhook/intake"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -147,6 +148,26 @@ func run(parent context.Context) error {
 			oidcValidator = googleOIDCValidator{}
 		}
 	}
+	// Served intake (#9404): the store-owning binary mounts core's
+	// authenticated versioned intake API backed by these same Postgres
+	// stores, so the satellite has a serving endpoint to submit to. A
+	// trigger family without a store stays unassigned so the intake API
+	// answers 503 (keep the delivery for redelivery) instead of
+	// dereferencing a nil store.
+	servedStores := intake.Stores{Repository: store, Actions: actionsStore}
+	if incidentFreshnessStore != nil {
+		servedStores.Incident = incidentFreshnessStore
+	}
+	if awsFreshnessStore != nil {
+		servedStores.AWS = awsFreshnessStore
+	}
+	if gcpFreshnessStore != nil {
+		servedStores.GCP = gcpFreshnessStore
+	}
+	servedIntake, err := buildServedIntake(cfg, servedStores, logger)
+	if err != nil {
+		return err
+	}
 	webhookMux, err := newWebhookMux(webhookHandler{
 		Config:                 cfg,
 		Store:                  store,
@@ -162,6 +183,7 @@ func run(parent context.Context) error {
 	if err != nil {
 		return err
 	}
+	mountServedIntake(webhookMux, servedIntake)
 
 	runtimeConfig, err := runtimecfg.LoadConfig("webhook-listener")
 	if err != nil {

@@ -478,6 +478,14 @@
             "scopeId": { "type": "string" }
           }
         },
+        "intake": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "secretName": { "type": "string" },
+            "tokenKey": { "type": "string" }
+          }
+        },
         "exposure": {
           "type": "object",
           "properties": {

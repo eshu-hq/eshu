@@ -385,6 +385,10 @@ webhookListener:
     secretName: ""
     secretKey: secret
     scopeId: ""
+  intake:
+    enabled: false
+    secretName: ""
+    tokenKey: token
   exposure:
     ingress:
       enabled: false
