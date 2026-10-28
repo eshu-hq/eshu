@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -175,7 +176,23 @@ func TestCollectorListReadiness(t *testing.T) {
 		if !ok {
 			t.Fatal("ok = false, want an envelope even when the probe fails")
 		}
-		_ = envelope
+		if envelope.State != querycontract.CollectorListReadinessStateReadinessUnavailable {
+			t.Fatalf("state = %q, want %q",
+				envelope.State, querycontract.CollectorListReadinessStateReadinessUnavailable)
+		}
+		body := map[string]any{}
+		attachCollectorListReadiness(t.Context(), body, store, scope.CollectorOCIRegistry, 0, false)
+		got, ok := body["collector_readiness"]
+		if !ok {
+			t.Fatal("body lacks collector_readiness, want the unavailable envelope attached")
+		}
+		gotEnvelope, ok := got.(querycontract.CollectorListReadinessEnvelope)
+		if !ok {
+			t.Fatalf("collector_readiness is %T, want querycontract.CollectorListReadinessEnvelope", got)
+		}
+		if gotEnvelope != envelope {
+			t.Fatalf("attached = %+v, want %+v", gotEnvelope, envelope)
+		}
 	})
 }
 
