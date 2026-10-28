@@ -115,7 +115,7 @@ conditional or block-bodied collections are reported as `unresolved` rows or
 partial rows, both counted in `sbt_state.unresolved_declaration_count`.
 Interpolated strings are scanned with brace depth and nested strings, so a
 `}` inside a nested string cannot end a block early; a string the scanner
-cannot close fails closed with no rows and no tracked `val`s.
+cannot close fails closed: nothing it swallows resolves and no swallowed `val` is tracked.
 `plugins.sbt`, the other `project/*.sbt` files, and `Build.scala` are not read.
 The registry binds `build.sbt` by its base name, so `project/build.sbt`, sbt's
 meta-build, is parsed: its `sbt_state.meta_build` is `true` and every row from
