@@ -28,6 +28,9 @@ func TestIsSensitiveKeyNameAgreesWithValidatePayloadKeys(t *testing.T) {
 		{name: "access_token substring", key: "access_token", wantRejects: true},
 		{name: "case insensitive TOKEN", key: "AUTH_TOKEN", wantRejects: true},
 		{name: "allowlisted token_policy_join_keys", key: "token_policy_join_keys", wantRejects: false},
+		{name: "allowlisted token_ttl_seconds", key: "token_ttl_seconds", wantRejects: false},
+		{name: "allowlisted token_policy_count", key: "token_policy_count", wantRejects: false},
+		{name: "allowlisted token_policy_name_fingerprints", key: "token_policy_name_fingerprints", wantRejects: false},
 		{name: "benign key", key: "repository_name", wantRejects: false},
 		{name: "benign key scope_id", key: "scope_id", wantRejects: false},
 	}
