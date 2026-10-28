@@ -118,6 +118,49 @@ func TestExtractionCensusRecordsPostReplayVerification(t *testing.T) {
 	}
 }
 
+// censusTruthReadMustName lists strings the census record must contain once
+// the API/MCP truth-read surface is recorded from code inspection: all five
+// scope-anchored HTTP route slugs, all seven MCP tool names, the scope_id-
+// required counts-only wording, the vault_secret/vault_lease absence note,
+// the ledger zero-consumer note, and the explicit live-read gap. Each entry
+// pins one load-bearing claim so a later edit that drops any of them fails
+// this test instead of silently shrinking the record.
+var censusTruthReadMustName = []string{
+	"identity-trust-chains",
+	"privilege-posture-observations",
+	"secret-access-paths",
+	"posture-gaps",
+	"posture-summary",
+	"list_secrets_iam_identity_trust_chains",
+	"list_secrets_iam_privilege_posture_observations",
+	"list_secrets_iam_secret_access_paths",
+	"list_secrets_iam_posture_gaps",
+	"count_secrets_iam_posture",
+	"get_changed_since",
+	"get_generation_lifecycle",
+	"counts-only",
+	"scope_id",
+	"vault_secret",
+	"vault_lease",
+	"kind_disclosure_ledger",
+	"zero real-consumer",
+	"localhost:8080/healthz",
+	"NOT_CHECKED",
+}
+
+func TestExtractionCensusRecordsTruthReadSurface(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(repoRootForCensus(t), censusRecordRel))
+	if err != nil {
+		t.Fatalf("read census record %s: %v", censusRecordRel, err)
+	}
+	text := string(body)
+	for _, want := range censusTruthReadMustName {
+		if !strings.Contains(text, want) {
+			t.Errorf("census record %s does not name truth-read evidence %q", censusRecordRel, want)
+		}
+	}
+}
+
 func TestExtractionScopeIdentityAgrees(t *testing.T) {
 	if string(scope.CollectorVaultLive) != vaultlive.CollectorKind {
 		t.Errorf("scope identity %q != vaultlive source identity %q",
