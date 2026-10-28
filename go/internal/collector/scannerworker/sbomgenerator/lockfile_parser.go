@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package sbomgenerator
 
 import (
 	"bufio"
@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/sbomgenerator"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 )
 
@@ -28,7 +27,7 @@ func isSupportedManifestName(name string) bool {
 	}
 }
 
-func parseRepositoryManifest(relativePath string, name string, body []byte) ([]sbomgenerator.Component, []sbomgenerator.Warning) {
+func parseRepositoryManifest(relativePath string, name string, body []byte) ([]Component, []Warning) {
 	switch name {
 	case "package-lock.json", "npm-shrinkwrap.json":
 		return parseNPMLockComponents(relativePath, body)
@@ -60,11 +59,11 @@ func newLockfileComponent(
 	lockfilePath string,
 	dependencyScope string,
 	dependencyType string,
-) (sbomgenerator.Component, bool) {
+) (Component, bool) {
 	name = strings.TrimSpace(name)
 	version = strings.TrimSpace(version)
 	if name == "" || version == "" {
-		return sbomgenerator.Component{}, false
+		return Component{}, false
 	}
 	identity, err := packageidentity.Normalize(packageidentity.RawIdentity{
 		Ecosystem: ecosystem,
@@ -74,9 +73,9 @@ func newLockfileComponent(
 		Version:   version,
 	})
 	if err != nil {
-		return sbomgenerator.Component{}, false
+		return Component{}, false
 	}
-	return sbomgenerator.Component{
+	return Component{
 		PURL:             identity.PURL,
 		Name:             name,
 		Version:          version,
@@ -136,9 +135,9 @@ func mavenNamespace(ecosystem packageidentity.Ecosystem, name string) string {
 	return strings.TrimSpace(groupID)
 }
 
-func malformedLockfileWarning(relativePath string, ecosystem packageidentity.Ecosystem, err error) sbomgenerator.Warning {
-	return sbomgenerator.Warning{
-		Reason:           sbomgenerator.WarningReasonLockfileMalformed,
+func malformedLockfileWarning(relativePath string, ecosystem packageidentity.Ecosystem, err error) Warning {
+	return Warning{
+		Reason:           WarningReasonLockfileMalformed,
 		Summary:          fmt.Sprintf("%s could not be parsed as %s lockfile evidence: %s", filepath.ToSlash(relativePath), ecosystem, boundedParseError(err)),
 		Ecosystem:        string(ecosystem),
 		EvidenceSource:   "repository_lockfile",
@@ -209,12 +208,12 @@ func (d *npmLockDependency) UnmarshalJSON(body []byte) error {
 	return nil
 }
 
-func parseNPMLockComponents(relativePath string, body []byte) ([]sbomgenerator.Component, []sbomgenerator.Warning) {
+func parseNPMLockComponents(relativePath string, body []byte) ([]Component, []Warning) {
 	var lock npmLockFile
 	if err := json.Unmarshal(body, &lock); err != nil {
-		return nil, []sbomgenerator.Warning{malformedLockfileWarning(relativePath, packageidentity.EcosystemNPM, err)}
+		return nil, []Warning{malformedLockfileWarning(relativePath, packageidentity.EcosystemNPM, err)}
 	}
-	components := make([]sbomgenerator.Component, 0, len(lock.Packages)+len(lock.Dependencies))
+	components := make([]Component, 0, len(lock.Packages)+len(lock.Dependencies))
 	for _, path := range sortedMapKeys(lock.Packages) {
 		if strings.TrimSpace(path) == "" {
 			continue
@@ -229,7 +228,7 @@ func parseNPMLockComponents(relativePath string, body []byte) ([]sbomgenerator.C
 	return components, nil
 }
 
-func appendNPMDependencies(components *[]sbomgenerator.Component, deps map[string]npmLockDependency, relativePath string) {
+func appendNPMDependencies(components *[]Component, deps map[string]npmLockDependency, relativePath string) {
 	for _, name := range sortedMapKeys(deps) {
 		dep := deps[name]
 		if component, ok := newLockfileComponent(packageidentity.EcosystemNPM, name, dep.Version, relativePath, npmDependencyScope(dep.Dev, dep.Optional, dep.Peer), "transitive"); ok {
@@ -268,10 +267,10 @@ func npmNameFromPackagePath(path string) string {
 	return strings.TrimSpace(normalized[index+len("node_modules/"):])
 }
 
-func parseGoModComponents(relativePath string, body []byte) []sbomgenerator.Component {
+func parseGoModComponents(relativePath string, body []byte) []Component {
 	scanner := bufio.NewScanner(bytes.NewReader(body))
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	components := make([]sbomgenerator.Component, 0)
+	components := make([]Component, 0)
 	inRequireBlock := false
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -305,14 +304,14 @@ func parseGoModComponents(relativePath string, body []byte) []sbomgenerator.Comp
 	return components
 }
 
-func goRequireComponent(line string, relativePath string) (sbomgenerator.Component, bool) {
+func goRequireComponent(line string, relativePath string) (Component, bool) {
 	dependencyType := "direct"
 	if strings.Contains(line, "// indirect") {
 		dependencyType = "transitive"
 	}
 	fields := strings.Fields(stripGoComment(line))
 	if len(fields) < 2 {
-		return sbomgenerator.Component{}, false
+		return Component{}, false
 	}
 	return newLockfileComponent(packageidentity.EcosystemGoModule, fields[0], fields[1], relativePath, "runtime", dependencyType)
 }

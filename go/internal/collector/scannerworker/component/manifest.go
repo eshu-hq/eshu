@@ -1,0 +1,173 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package component
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
+	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+)
+
+const (
+	// IDImage identifies the image-unpacking stdio component.
+	IDImage = "eshu.scanner.image"
+	// IDSBOM identifies the SBOM-generation stdio component.
+	IDSBOM = "eshu.scanner.sbom"
+	// IDOSRuntime identifies the OS-package-extraction stdio component.
+	IDOSRuntime = "eshu.scanner.osruntime"
+	// Version is the first per-analyzer component manifest version.
+	Version = "0.1.0"
+	// CollectorSDKProtocolV1Alpha3 is the paged collector wire contract
+	// these components speak. It mirrors collector.ProtocolVersionV1Alpha3
+	// in sdk/go/collector: the value must stay identical because the host
+	// admits the protocol by string and the pinned eshu-sdk/collector
+	// module predates the constant.
+	CollectorSDKProtocolV1Alpha3 = "collector-sdk/v1alpha3"
+)
+
+// AnalyzerFor resolves a component ID back to its analyzer. Unknown IDs fail
+// closed so a binary never executes another analyzer's profile.
+func AnalyzerFor(id string) (scannerworker.AnalyzerKind, error) {
+	switch id {
+	case IDImage:
+		return scannerworker.AnalyzerImageUnpacking, nil
+	case IDSBOM:
+		return scannerworker.AnalyzerSBOMGeneration, nil
+	case IDOSRuntime:
+		return scannerworker.AnalyzerOSPackageExtraction, nil
+	default:
+		return "", fmt.Errorf("unknown scanner component %q", id)
+	}
+}
+
+// family declares one emitted fact kind with its schema version.
+type family struct {
+	kind    string
+	version string
+}
+
+// emittedKinds lists every fact kind one analyzer can emit, including
+// degraded-path warnings (unsupported targets, malformed lockfiles, partial
+// snapshots). The host rejects undeclared kinds at admission, so this list
+// must cover every envelope constructor the analyzer reaches, not only the
+// clean-path kinds a representative probe observes.
+func emittedKinds(kind scannerworker.AnalyzerKind) ([]family, error) {
+	switch kind {
+	case scannerworker.AnalyzerImageUnpacking:
+		return []family{
+			{kind: facts.ScannerWorkerAnalysisFactKind, version: facts.ScannerWorkerSchemaVersionV1},
+			{kind: facts.ScannerWorkerWarningFactKind, version: facts.ScannerWorkerSchemaVersionV1},
+			{kind: chain.VulnerabilityOSPackageFactKind, version: chain.VulnerabilityIntelligenceSchemaVersionV1},
+			{kind: chain.VulnerabilityWarningFactKind, version: chain.VulnerabilityIntelligenceSchemaVersionV1},
+		}, nil
+	case scannerworker.AnalyzerSBOMGeneration:
+		return []family{
+			{kind: chain.SBOMDocumentFactKind, version: chain.SBOMAttestationSchemaVersionV1},
+			{kind: chain.SBOMComponentFactKind, version: chain.SBOMAttestationSchemaVersionV1},
+			{kind: chain.SBOMWarningFactKind, version: chain.SBOMAttestationSchemaVersionV1},
+		}, nil
+	case scannerworker.AnalyzerOSPackageExtraction:
+		return []family{
+			{kind: chain.VulnerabilityOSPackageFactKind, version: chain.VulnerabilityIntelligenceSchemaVersionV1},
+			{kind: chain.VulnerabilityWarningFactKind, version: chain.VulnerabilityIntelligenceSchemaVersionV1},
+		}, nil
+	default:
+		return nil, fmt.Errorf("no component manifest for analyzer %q", kind)
+	}
+}
+
+// componentID returns the component identity for one analyzer.
+func componentID(kind scannerworker.AnalyzerKind) (string, error) {
+	switch kind {
+	case scannerworker.AnalyzerImageUnpacking:
+		return IDImage, nil
+	case scannerworker.AnalyzerSBOMGeneration:
+		return IDSBOM, nil
+	case scannerworker.AnalyzerOSPackageExtraction:
+		return IDOSRuntime, nil
+	default:
+		return "", fmt.Errorf("no component identity for analyzer %q", kind)
+	}
+}
+
+// ManifestFor returns the v1alpha3 process-adapter manifest for one scanner
+// analyzer. Reducer-lane analyzers are rejected: the binaries only execute
+// the scanner lane.
+func ManifestFor(kind scannerworker.AnalyzerKind) (component.Manifest, error) {
+	lane, ok := scannerworker.AnalyzerLane(kind)
+	if !ok {
+		return component.Manifest{}, fmt.Errorf("unknown analyzer %q", kind)
+	}
+	if lane != scannerworker.LaneScannerWorker {
+		return component.Manifest{}, fmt.Errorf("analyzer %q belongs to %q, not a component lane", kind, lane)
+	}
+	id, err := componentID(kind)
+	if err != nil {
+		return component.Manifest{}, err
+	}
+	kinds, err := emittedKinds(kind)
+	if err != nil {
+		return component.Manifest{}, err
+	}
+	families := make([]component.FactFamily, 0, len(kinds))
+	for _, family := range kinds {
+		families = append(families, component.FactFamily{
+			Kind:             family.kind,
+			SchemaVersions:   []string{family.version},
+			SourceConfidence: []string{"reported"},
+		})
+	}
+	return component.Manifest{
+		APIVersion: "eshu.dev/v1alpha1",
+		Kind:       "ComponentPackage",
+		Metadata: component.Metadata{
+			ID:        id,
+			Name:      fmt.Sprintf("Scanner %s component", kind),
+			Publisher: "eshu-hq",
+			Version:   Version,
+		},
+		Spec: component.Spec{
+			CompatibleCore: ">=0.0.5 <0.2.0",
+			ComponentType:  component.ComponentTypeCollector,
+			CollectorKinds: []string{"scanner_worker"},
+			Runtime: component.RuntimeContract{
+				SDKProtocol: CollectorSDKProtocolV1Alpha3,
+				Adapter:     component.RuntimeAdapterProcess,
+			},
+			Artifacts: []component.Artifact{{
+				Platform: "linux/arm64",
+				Image:    "ghcr.io/eshu-hq/scanner-" + strings.TrimPrefix(id, "eshu.scanner.") + "@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			}},
+			EmittedFacts: families,
+			ConsumerContracts: component.ConsumerContracts{
+				Reducer: component.ReducerContract{Phases: []string{"source_evidence_only:no_graph_truth"}},
+			},
+			Telemetry: component.Telemetry{MetricsPrefix: "eshu_component_scanner_" + strings.TrimPrefix(id, "eshu.scanner.")},
+		},
+	}, nil
+}
+
+// RequiredGrants returns the live producer grants one manifest needs: one
+// grant per declared fact family, pinned to the manifest id and version.
+// Production activations issue these through `eshu component grant`; the
+// constructor defines the required set the host admission enforces.
+func RequiredGrants(manifest component.Manifest) []component.ProducerGrant {
+	grants := make([]component.ProducerGrant, 0, len(manifest.Spec.EmittedFacts))
+	for _, family := range manifest.Spec.EmittedFacts {
+		grants = append(grants, component.ProducerGrant{
+			ProducerID:     manifest.Metadata.ID,
+			Version:        manifest.Metadata.Version,
+			Kind:           family.Kind,
+			SchemaVersions: append([]string(nil), family.SchemaVersions...),
+			Scope:          "scanner_worker",
+			ExpiresAt:      time.Date(2030, time.January, 1, 0, 0, 0, 0, time.UTC),
+		})
+	}
+	return grants
+}

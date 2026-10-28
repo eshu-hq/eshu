@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package sbomgenerator
 
 import (
 	"encoding/json"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/sbomgenerator"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 )
 
@@ -18,10 +17,10 @@ type cargoLockPackage struct {
 	dependencies []string
 }
 
-func parseCargoLockComponents(relativePath string, body []byte) []sbomgenerator.Component {
+func parseCargoLockComponents(relativePath string, body []byte) []Component {
 	packages := cargoLockPackages(string(body))
 	chains := cargoLockDependencyChains(packages)
-	components := make([]sbomgenerator.Component, 0, len(packages))
+	components := make([]Component, 0, len(packages))
 	for _, pkg := range packages {
 		if strings.TrimSpace(pkg.source) == "" {
 			continue
@@ -204,19 +203,19 @@ type composerLockPackage struct {
 	Version string `json:"version"`
 }
 
-func parseComposerLockComponents(relativePath string, body []byte) ([]sbomgenerator.Component, []sbomgenerator.Warning) {
+func parseComposerLockComponents(relativePath string, body []byte) ([]Component, []Warning) {
 	var lock composerLockFile
 	if err := json.Unmarshal(body, &lock); err != nil {
-		return nil, []sbomgenerator.Warning{malformedLockfileWarning(relativePath, packageidentity.EcosystemComposer, err)}
+		return nil, []Warning{malformedLockfileWarning(relativePath, packageidentity.EcosystemComposer, err)}
 	}
-	components := make([]sbomgenerator.Component, 0, len(lock.Packages)+len(lock.PackagesDev))
+	components := make([]Component, 0, len(lock.Packages)+len(lock.PackagesDev))
 	components = append(components, composerComponents(relativePath, lock.Packages, "packages", "runtime")...)
 	components = append(components, composerComponents(relativePath, lock.PackagesDev, "packages-dev", "development")...)
 	return components, nil
 }
 
-func composerComponents(relativePath string, packages []composerLockPackage, scope string, dependencyType string) []sbomgenerator.Component {
-	components := make([]sbomgenerator.Component, 0, len(packages))
+func composerComponents(relativePath string, packages []composerLockPackage, scope string, dependencyType string) []Component {
+	components := make([]Component, 0, len(packages))
 	for _, pkg := range packages {
 		component, ok := newLockfileComponent(packageidentity.EcosystemComposer, pkg.Name, pkg.Version, relativePath, scope, dependencyType)
 		if ok {
@@ -235,12 +234,12 @@ type nugetLockPackage struct {
 	Resolved string `json:"resolved"`
 }
 
-func parseNuGetLockComponents(relativePath string, body []byte) ([]sbomgenerator.Component, []sbomgenerator.Warning) {
+func parseNuGetLockComponents(relativePath string, body []byte) ([]Component, []Warning) {
 	var lock nugetLockFile
 	if err := json.Unmarshal(body, &lock); err != nil {
-		return nil, []sbomgenerator.Warning{malformedLockfileWarning(relativePath, packageidentity.EcosystemNuGet, err)}
+		return nil, []Warning{malformedLockfileWarning(relativePath, packageidentity.EcosystemNuGet, err)}
 	}
-	components := make([]sbomgenerator.Component, 0)
+	components := make([]Component, 0)
 	for _, target := range sortedMapKeys(lock.Dependencies) {
 		for _, name := range sortedMapKeys(lock.Dependencies[target]) {
 			pkg := lock.Dependencies[target][name]

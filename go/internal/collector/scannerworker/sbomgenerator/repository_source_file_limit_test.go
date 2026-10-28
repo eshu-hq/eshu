@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package sbomgenerator
 
 import (
 	"context"
@@ -21,12 +21,12 @@ func TestRepositorySBOMSourceCountsSupportedManifestInputsForFileLimit(t *testin
 			"": {"name": "test-app", "version": "1.0.0"}
 		}
 	}`)
-	source, err := newRepositorySBOMSource([]sbomTargetConfig{{
+	source, err := NewRepositorySource([]RepositoryTarget{{
 		ScopeID:  "scanner-worker://repository/repo-private-name",
 		RootPath: root,
 	}})
 	if err != nil {
-		t.Fatalf("newRepositorySBOMSource() error = %v, want nil", err)
+		t.Fatalf("NewRepositorySource() error = %v, want nil", err)
 	}
 	input := testSBOMClaimInput(t)
 	input.Limits.MaxFiles = 1

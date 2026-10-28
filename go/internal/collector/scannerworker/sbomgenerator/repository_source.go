@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package sbomgenerator
 
 import (
 	"context"
@@ -14,29 +14,37 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
-	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/sbomgenerator"
 )
 
-const repositorySBOMSourceTool = "eshu_repository_manifest_sbom 0.1.0"
+const repositorySourceTool = "eshu_repository_manifest_sbom 0.1.0"
 
-var errNoSBOMTargets = errors.New("no SBOM generation targets configured")
+// ErrNoSBOMTargets reports that no SBOM generation targets were configured.
+// The worker degrades to an explicit warning fact instead of pretending the
+// target scanned clean.
+var ErrNoSBOMTargets = errors.New("no SBOM generation targets configured")
 
-type sbomTargetConfig struct {
+// RepositoryTarget maps one repository scope to its local lockfile
+// evidence for SBOM generation. It carries identity, paths, and budgets
+// only: credentials never appear here.
+type RepositoryTarget struct {
 	ScopeID       string `json:"scope_id"`
 	RootPath      string `json:"root_path"`
 	SubjectDigest string `json:"subject_digest"`
 	SourceTool    string `json:"source_tool"`
 }
 
-type repositorySBOMSource struct {
-	targets map[string]sbomTargetConfig
+type repositorySource struct {
+	targets map[string]RepositoryTarget
 }
 
-func newRepositorySBOMSource(targets []sbomTargetConfig) (*repositorySBOMSource, error) {
+// NewRepositorySource builds the bounded repository-walk SBOM source for
+// the configured targets. It fails closed on duplicate scopes and on an
+// empty target list.
+func NewRepositorySource(targets []RepositoryTarget) (Source, error) {
 	if len(targets) == 0 {
-		return nil, errNoSBOMTargets
+		return nil, ErrNoSBOMTargets
 	}
-	byScope := make(map[string]sbomTargetConfig, len(targets))
+	byScope := make(map[string]RepositoryTarget, len(targets))
 	for i, target := range targets {
 		validated, err := target.validate()
 		if err != nil {
@@ -47,19 +55,19 @@ func newRepositorySBOMSource(targets []sbomTargetConfig) (*repositorySBOMSource,
 		}
 		byScope[validated.ScopeID] = validated
 	}
-	return &repositorySBOMSource{targets: byScope}, nil
+	return &repositorySource{targets: byScope}, nil
 }
 
-func (s *repositorySBOMSource) Collect(
+func (s *repositorySource) Collect(
 	ctx context.Context,
 	input scannerworker.ClaimInput,
-) (sbomgenerator.Inventory, error) {
+) (Inventory, error) {
 	target, ok := s.targets[strings.TrimSpace(input.Target.ScopeID)]
 	if !ok {
-		return sbomgenerator.Inventory{}, scannerworker.NewTerminalAnalyzerFailure(
+		return Inventory{}, scannerworker.NewTerminalAnalyzerFailure(
 			scannerworker.FailureClassUnsupportedTarget,
 			scannerworker.ResourceUsage{},
-			sbomgenerator.ErrUnsupportedTarget,
+			ErrUnsupportedTarget,
 		)
 	}
 	reader := repositoryManifestReader{
@@ -71,13 +79,13 @@ func (s *repositorySBOMSource) Collect(
 	components, warnings, err := reader.collect(ctx)
 	usage := reader.usage()
 	if err != nil {
-		return sbomgenerator.Inventory{}, err
+		return Inventory{}, err
 	}
 	tool := strings.TrimSpace(target.SourceTool)
 	if tool == "" {
-		tool = repositorySBOMSourceTool
+		tool = repositorySourceTool
 	}
-	return sbomgenerator.Inventory{
+	return Inventory{
 		SubjectDigest: target.SubjectDigest,
 		SourceTool:    tool,
 		FileCount:     reader.filesSeen,
@@ -88,16 +96,16 @@ func (s *repositorySBOMSource) Collect(
 	}, nil
 }
 
-func (t sbomTargetConfig) validate() (sbomTargetConfig, error) {
+func (t RepositoryTarget) validate() (RepositoryTarget, error) {
 	t.ScopeID = strings.TrimSpace(t.ScopeID)
 	t.RootPath = strings.TrimSpace(t.RootPath)
 	t.SubjectDigest = strings.TrimSpace(t.SubjectDigest)
 	t.SourceTool = strings.TrimSpace(t.SourceTool)
 	if t.ScopeID == "" {
-		return sbomTargetConfig{}, fmt.Errorf("scope_id is required")
+		return RepositoryTarget{}, fmt.Errorf("scope_id is required")
 	}
 	if t.RootPath == "" {
-		return sbomTargetConfig{}, fmt.Errorf("root_path is required")
+		return RepositoryTarget{}, fmt.Errorf("root_path is required")
 	}
 	return t, nil
 }
@@ -112,7 +120,7 @@ type repositoryManifestReader struct {
 	startCPUSeconds float64
 }
 
-func (r *repositoryManifestReader) collect(ctx context.Context) ([]sbomgenerator.Component, []sbomgenerator.Warning, error) {
+func (r *repositoryManifestReader) collect(ctx context.Context) ([]Component, []Warning, error) {
 	root, err := secureRepositoryRoot(r.root)
 	if err != nil {
 		return nil, nil, scannerworker.NewRetryableAnalyzerFailure(
@@ -121,8 +129,8 @@ func (r *repositoryManifestReader) collect(ctx context.Context) ([]sbomgenerator
 			err,
 		)
 	}
-	components := make([]sbomgenerator.Component, 0)
-	warnings := make([]sbomgenerator.Warning, 0)
+	components := make([]Component, 0)
+	warnings := make([]Warning, 0)
 	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return scannerworker.NewRetryableAnalyzerFailure(
