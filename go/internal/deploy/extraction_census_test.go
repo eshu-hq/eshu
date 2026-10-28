@@ -221,8 +221,8 @@ func TestExtractionCensusNamesEveryRootComposeFile(t *testing.T) {
 	}
 	// Pin the count as well as the names: the loop above only sees files
 	// present in the tree, so a silent deletion would otherwise pass.
-	if len(matches) != 18 {
-		t.Errorf("repository root has %d docker-compose.* files, census pins 18; update the record or account for the move", len(matches))
+	if len(matches) != 20 {
+		t.Errorf("repository root has %d docker-compose.* files, census pins 20; update the record or account for the move", len(matches))
 	}
 	for _, m := range matches {
 		base := filepath.Base(m)

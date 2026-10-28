@@ -4,6 +4,7 @@
 package tfconfigstate
 
 import (
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -99,5 +100,64 @@ func TestAttributeAllowlistCoversV1Surface(t *testing.T) {
 				t.Errorf("AllowlistFor(%q) missing %q; have %v", resourceType, attr, got)
 			}
 		}
+	}
+}
+
+// TestAttributeAllowlistMatchesContractsTable locks the classifier table
+// byte-for-byte to the contracts-owned drift allowlist
+// (sdk/go/factschema/terraformstate/v1 DriftAttributeAllowlist). Both sides
+// carry the same literals until AllowlistFor delegates to the contracts
+// module after the eshu-sdk split publishes the file; any divergence on
+// either side fails here first so the handoff cannot silently skew what
+// drift can fire versus what satellites may emit.
+func TestAttributeAllowlistMatchesContractsTable(t *testing.T) {
+	t.Parallel()
+
+	want := map[string][]string{
+		"aws_s3_bucket": {
+			"versioning.enabled",
+			"acl",
+			"server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm",
+		},
+		"aws_instance": {
+			"instance_type",
+			"ami",
+		},
+		"aws_db_instance": {
+			"engine",
+			"engine_version",
+			"instance_class",
+		},
+		"aws_lambda_function": {
+			"runtime",
+			"handler",
+			"memory_size",
+			"timeout",
+		},
+		"aws_iam_role": {
+			"assume_role_policy",
+		},
+		"aws_iam_policy": {
+			"policy",
+		},
+		"aws_iam_role_policy_attachment": {
+			"policy_arn",
+		},
+	}
+	for resourceType, wantAttrs := range want {
+		if got := AllowlistFor(resourceType); !reflect.DeepEqual(got, wantAttrs) {
+			t.Errorf("AllowlistFor(%q) = %v, want contracts table %v (order-sensitive)", resourceType, got, wantAttrs)
+		}
+	}
+	if got := AllowlistResourceTypes(); !reflect.DeepEqual(got, []string{
+		"aws_db_instance",
+		"aws_iam_policy",
+		"aws_iam_role",
+		"aws_iam_role_policy_attachment",
+		"aws_instance",
+		"aws_lambda_function",
+		"aws_s3_bucket",
+	}) {
+		t.Errorf("AllowlistResourceTypes() = %v, want exactly the contracts coverage", got)
 	}
 }
