@@ -18,6 +18,13 @@ the old 10 x 20 s tail landed in a band where no five-shard cut meets both the
 tests moved the live plan into or out of that band. The appended tail is now
 sized to the tail shard's own headroom. The count-split overflow runs on a fixed
 synthetic plan. The drift case asserts the drift message itself.
+
+Two cases price the live plan against the v2 row admission and its "no shard
+partition fits the job budget" error, which only the v2 planner raises (v1
+reports a per-shard cap error instead). They skip, with a reason, when the v2
+file is absent and the loader returns v1; every other case here runs on both
+models. When the v2 file exists the skip never applies: a loader that still
+returned v1 fails the case instead.
 """
 
 from __future__ import annotations
@@ -48,6 +55,29 @@ SYNTHETIC_PACKAGES = 20
 SYNTHETIC_TESTS = 20
 SYNTHETIC_SEEDS = 15
 SYNTHETIC_SEED_SECONDS = 60.0
+
+
+SKIP_V1 = "needs the v2 planner and row admission; the v2 weights file is absent (v1 model)"
+
+
+def v2_skip_reason(weights: Model) -> str | None:
+    """Return why a v2-only case must skip on ``weights``, or None to run it.
+
+    The decision follows the model ``wt.load_weights`` returned, which is the
+    loader's own v2-versus-v1 choice, so it cannot drift from the matrix step.
+    """
+    return None if isinstance(weights, v2.WeightsV2) else SKIP_V1
+
+
+def skip_unless_v2(case: unittest.TestCase, weights: Model) -> None:
+    """Skip a v2-only case on the v1 fallback, but never when v2 is committed."""
+    if V2_PATH.exists():
+        case.assertIsInstance(weights, v2.WeightsV2,
+                              "v2 weights file exists but the loader returned v1")
+        return
+    reason = v2_skip_reason(weights)
+    if reason is not None:
+        case.skipTest(reason)
 
 
 def active_model() -> Model:
@@ -122,6 +152,8 @@ class ActiveBudgetContractTest(unittest.TestCase):
                          list(self.shard_ids))
         self.assertEqual(self.count, expected_shard_count())
         self.assertIsInstance(self.weights, v2.WeightsV2 if V2_PATH.exists() else wt.Weights)
+        # The v2-only cases skip exactly when the v2 file is absent, no more.
+        self.assertEqual(v2_skip_reason(self.weights) is None, V2_PATH.exists())
 
     def test_active_weights_fit_the_budget_on_the_live_plan(self) -> None:
         # The live plan changes with every enrollment, so this holds the 15%
@@ -186,6 +218,7 @@ class ActiveBudgetContractTest(unittest.TestCase):
     def test_drift_report_survives_a_plan_the_budget_rejects(self) -> None:
         # A PR that adds too many unpriced tests and also breaks the budget
         # must see both errors, not a cut error in place of the drift error.
+        skip_unless_v2(self, self.weights)
         unweighted = slow_runs(wt.MAX_DEFAULTED_TESTS + 1, prefix="TestNoWeight",
                                package=self.plan[-1].split("|")[0])
         overflow = self.tail("TestOverflowTail")
@@ -229,6 +262,7 @@ class ActiveBudgetContractTest(unittest.TestCase):
         # Past that headroom the live plan's package lumps decide whether any
         # cut meets the budget and the 15% spread, which is the live-plan
         # fit case's question, not this one's.
+        skip_unless_v2(self, self.weights)
         base = self.cut(self.plan, self.weights)
         headroom = round((wt.BUDGET_SECONDS - base[-1]) * wt.UNIT)
         self.assertGreaterEqual(headroom, 0, base)

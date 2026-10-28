@@ -21,6 +21,7 @@ import live_postgres_readiness_balance_cases as balance
 import live_postgres_readiness_row_split as row_split
 import live_postgres_readiness_v2 as v2
 import live_postgres_readiness_weights as wt
+from live_postgres_readiness_weights_budget_cases import skip_unless_v2
 
 RUNNER = Path(__file__).parents[1] / "run-live-postgres-readiness-tests.sh"
 GUARD = "./internal/storage/postgres|TestProjectorClaimMarkedGuardContention"
@@ -98,6 +99,7 @@ class RowClockAdmissionTest(unittest.TestCase):
 
     def test_planted_800_s_lone_test_trips_the_live_gate(self) -> None:
         weights = wt.load_weights()
+        skip_unless_v2(self, weights)
         self.assertIsInstance(weights, v2.WeightsV2)
         plan = balance.live_plan()
         self.assertIn(GUARD, plan)

@@ -87,6 +87,15 @@ it is absent. Their first case fails if the contract's model or shard count
 differs from the `matrix` output or from the committed v2 `shard_count`. Before
 #9100 these cases ran on the v1 four-shard cut while CI ran five shards.
 
+The statements below about five jobs, five-shard cuts, and the "no shard
+partition fits the job budget" error describe the v2 model. Three cases
+assert v2-only results and skip, with a stated reason, when the v2 file is
+absent and the loader returns v1: the drift-survives-a-rejected-plan case and
+the appended-tail case here, and the planted 800 s lone-test case in
+`scripts/lib/live_postgres_readiness_row_clock_cases.py`. They never skip while
+the v2 file exists: a loader that returned v1 then fails them. Every other case
+runs on both models.
+
 The planted cases do not plant a fixed size on the live plan (#9371). A fixed
 plant there measures the live plan's remaining headroom and its package lumps,
 not the model. The old 10 x 20 s appended tail landed where no five-shard cut
