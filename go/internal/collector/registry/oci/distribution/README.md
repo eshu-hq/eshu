@@ -123,3 +123,24 @@ factory and runtime wiring.
 ## Related docs
 
 - `docs/public/deployment/service-runtimes-collectors.md`
+
+## Bounded layer streaming (#9299)
+
+`StreamBlob` copies a single descriptor into caller-owned staging while checking
+its declared byte size and SHA-256 digest. It rejects an invalid digest before
+requesting the registry and stops before writing bytes beyond the caller's cap.
+A caller must discard the provisional destination on any error; the method does
+not turn partially downloaded bytes into accepted image evidence. It reuses the
+client's authenticated request and redirect policy, including removal of registry
+credentials on cross-host redirects. The existing `GetBlob` remains capped at
+1 MiB for small metadata and is not an image-layer downloader.
+
+No-Regression Evidence: `go test ./internal/collector/registry/oci/distribution -count=1`
+proves bounded streaming, digest and size rejection, and the existing auth and
+redirect behavior. This is a transport contract; the end-to-end scanner throughput
+and QA result remain to be measured.
+
+No-Observability-Change: the transport adds no metric, span, log field, queue,
+or workflow state. The caller's scanner claim telemetry remains responsible for
+reporting acquisition failure and backlog. Errors name only operation and class,
+never registry hosts, repository paths, credentials, or digests.
