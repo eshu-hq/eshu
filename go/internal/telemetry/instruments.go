@@ -5647,7 +5647,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register DependencyListErrors counter: %w", err)
 	}
 
-	// liveActivityQueryBuckets matches the documented postgres-query-seconds
+	// liveActivityQueryBuckets matches the documented file-parse-and-live-query-seconds
 	// bucket set (docs/public/observability/telemetry-coverage.md); the
 	// bounded live-activity query's own proof evidence (6.1ms normal shape,
 	// 12.3ms pathological shape) sits comfortably inside it.
@@ -5671,7 +5671,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	// repositoryFreshnessQueryBuckets matches the documented
-	// postgres-query-seconds bucket set (docs/public/observability/telemetry-coverage.md);
+	// file-parse-and-live-query-seconds bucket set (docs/public/observability/telemetry-coverage.md);
 	// the #5143 prove-theory-first single-scope composite read measured
 	// 2.5ms full shape against a 20k-scope/150k-work-item synthetic corpus,
 	// sitting comfortably inside it.
