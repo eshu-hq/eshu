@@ -155,12 +155,14 @@ func TestCanonicalEntityIDWithMetadataSbtConfigSectionDistinctness(t *testing.T)
 }
 
 // TestCanonicalEntityIDWithMetadataSbtSharedIdAcrossScalaVersions pins the
-// accepted residual the sbt discriminator case discloses: two projects on
-// different scalaVersion values declaring the same dep at the same revision
-// via %% agree on (section, name, value, sbt_cross_version) — only
-// sbt_binary_artifact differs — so they share one id. Last-wins keeps a
-// single sbt_binary_artifact downstream; the shared id is the contract, not
-// a collision to fix here.
+// accepted residual the sbt discriminator case discloses: two projects
+// declaring the same dep at the same revision via %% agree on (section,
+// name, value, sbt_cross_version), so they share one id. The parser
+// computes one binary version per file (empty unless exactly one
+// scalaVersion), so with one scalaVersion both rows share the same
+// artifact and with two the field is empty on both: last-wins drops a
+// duplicate row, never a distinct variant. The shared id is the contract,
+// not a collision to fix here.
 func TestCanonicalEntityIDWithMetadataSbtSharedIdAcrossScalaVersions(t *testing.T) {
 	t.Parallel()
 
