@@ -17,7 +17,11 @@
 // read-only root filesystem, non-root user, all capabilities dropped, no new
 // privileges, and no Eshu datastore/graph/reducer/API/MCP/workflow handles).
 // Both speak the same bounded JSON SDK contract over stdin/stdout; OCIRunner
-// refuses any image reference that is not digest-pinned.
+// refuses any image reference that is not digest-pinned. Both also implement
+// the optional PagedRunner contract: on collector-sdk/v1alpha3 the Source
+// re-invokes the runner with each page's resume cursor until a final page
+// closes the generation, then validates and commits the reassembled result
+// as one. Runners without paged support keep the legacy single-call path.
 //
 // The host is the owning decision site for the activation and emission stages
 // of producer-grant admission. Config.GrantObserver receives one allow or deny

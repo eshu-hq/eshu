@@ -200,14 +200,14 @@ func (m Manifest) validateProofMetadata() error {
 
 // validate checks the runtime SDK protocol and host adapter declaration,
 // mirroring the core manifest validation: an explicitly configured
-// collector-sdk/v1alpha2 protocol is admitted without changing the v1alpha1
-// default, and any other protocol stays rejected with the raw configured
-// value in the error.
+// collector-sdk/v1alpha2 or v1alpha3 protocol is admitted without changing
+// the v1alpha1 default, and any other protocol stays rejected with the raw
+// configured value in the error.
 func (r RuntimeContract) validate() error {
 	switch strings.TrimSpace(r.SDKProtocol) {
 	case "":
 		return fmt.Errorf("spec.runtime.sdkProtocol is required")
-	case collector.ProtocolVersionV1Alpha1, collector.ProtocolVersionV1Alpha2:
+	case collector.ProtocolVersionV1Alpha1, collector.ProtocolVersionV1Alpha2, collector.ProtocolVersionV1Alpha3:
 	default:
 		return fmt.Errorf("spec.runtime.sdkProtocol %q is unsupported", r.SDKProtocol)
 	}

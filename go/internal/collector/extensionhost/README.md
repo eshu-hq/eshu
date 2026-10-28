@@ -3,7 +3,15 @@
 `extensionhost` adapts public `collector-sdk/v1alpha1` extension results into
 the core `collector.ClaimedService` path. A manifest that explicitly configures
 `collector-sdk/v1alpha2` handshakes on the alpha2 protocol instead; the
-v1alpha1 default is unchanged.
+v1alpha1 default is unchanged. A manifest that explicitly configures
+`collector-sdk/v1alpha3` additionally admits versioned multi-call pagination:
+the satellite splits a result that would not fit one bounded stdout write
+into pages carrying the resume cursor (`Result.Page`), and the host
+re-invokes the runner with the cursor until a final page closes the
+generation, reassembling one identical fact set. Legacy single-shot
+satellites are unaffected: runners without paged support keep the exact
+single-call path, and the first paged request stays byte-identical to the
+legacy request.
 
 The package owns only the intake boundary:
 
@@ -14,6 +22,8 @@ The package owns only the intake boundary:
 - validate fact payloads against factschema fixture-pack schemas when the
   manifest declares `payloadSchemaRef`
 - compare the returned claim identity with the host claim
+- reassemble v1alpha3 pages with gapless sequence, pinned generation, and
+  declared-total accounting (bounded by `Config.MaxResultPages`, default 64)
 - map accepted SDK facts into internal `facts.Envelope` values
 - classify retryable, terminal, invalid-result, and identity-mismatch outcomes
 - carry the extension's provider retry delay on retryable results
@@ -37,6 +47,27 @@ admits only the documented Kubernetes posture values in their exact fact
 contexts. `ProcessRunner` preserves those values through JSON transport. That
 key check does not grant producer authority: optional payload-schema validation
 and the live producer-grant check still run before fact mapping.
+
+Performance Evidence: `BenchmarkCollectPagesReassembly` (linux/arm64,
+go1.26.6) admits one 30-fact scorecard generation one-shot versus split
+10/10/10 across three resumed calls through the same v1alpha3 source.
+Baseline one-shot: 343,000-461,000 ns/op, ~240,000 B/op, ~1,677 allocs/op.
+After (three pages): 303,000-445,000 ns/op, ~251,000 B/op, ~1,696 allocs/op.
+Terminal counts: 3 satellite calls, 30 facts committed, 1 ResultRecord per
+claim either way. The page loop adds ~11 KB/op (+5%) and ~19 allocs/op (+1%)
+with timing overlapping run-to-run noise; per-page validation is the same O
+(facts) validator the one-shot path already runs, and in production each
+continuation call is a satellite subprocess launch (milliseconds), so the
+microsecond-scale loop never decides claim latency. Safe because the legacy
+Runner path is untouched (exact single-call flow, covered by
+`TestLegacyRunnerPathStaysSingleCall`) and the page bound trims nothing (a
+breach fails the claim terminal naming the bound).
+
+No-Observability-Change: pagination adds no metric, label, span, or log key.
+`StatusTelemetry` instruments and the `ResultRecord` shape are unchanged;
+paged page counts surface only through the existing summed `FactCount` and
+`StatusCount`, and `TestNextClaimedReportsOneResultForEveryFinalState` still
+proves exactly one result record per claim on every exit path.
 
 No-Regression Evidence: `go test ./internal/collector/extensionhost -count=1`
 proves the host passes only a bounded JSON claim/config/contract document,

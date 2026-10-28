@@ -19,6 +19,11 @@ type Request struct {
 	Claim           sdkcollector.Claim    `json:"claim"`
 	Contract        sdkcollector.Contract `json:"contract"`
 	Config          map[string]any        `json:"config,omitempty"`
+	// Continuation carries the resume cursor on collector-sdk/v1alpha3
+	// continuation calls. It is absent on the first call (which stays
+	// byte-identical to the legacy request) and on every call to a
+	// satellite that never paginates, so older satellites never observe it.
+	Continuation *PageContinuation `json:"continuation,omitempty"`
 }
 
 // Runner executes one extension invocation for an already-claimed work item.
@@ -136,6 +141,11 @@ type Config struct {
 	// core-owned fact kind at activation (Source construction) and at every
 	// emission recheck. Nil disables observation and costs one nil check.
 	GrantObserver component.GrantObserver
+	// MaxResultPages bounds how many satellite calls one claim may
+	// reassemble when the satellite paginates. Zero selects
+	// DefaultMaxResultPages; negative fails Source construction. It never
+	// trims facts: breaching it fails the claim terminal naming the bound.
+	MaxResultPages int
 }
 
 // Source implements collector.ClaimedSource for collector SDK extensions.
@@ -164,4 +174,6 @@ type Source struct {
 	liveGrants func() ([]component.ProducerGrant, error)
 	// grantObserver receives grant decisions; nil disables observation.
 	grantObserver component.GrantObserver
+	// maxPages bounds paged reassembly; zero means DefaultMaxResultPages.
+	maxPages int
 }

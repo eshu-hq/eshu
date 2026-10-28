@@ -34,6 +34,11 @@ const (
 	// collector SDK wire protocol. Activation parsing admits an explicitly
 	// configured alpha2 value without changing the v1alpha1 default.
 	CollectorSDKProtocolV1Alpha2 = "collector-sdk/v1alpha2"
+	// CollectorSDKProtocolV1Alpha3 identifies the third out-of-tree
+	// collector SDK wire protocol with versioned multi-call pagination.
+	// Activation admits it only when explicitly configured; the v1alpha1
+	// default is unchanged.
+	CollectorSDKProtocolV1Alpha3 = "collector-sdk/v1alpha3"
 	// RuntimeAdapterOCI identifies a digest-pinned OCI artifact launched by a
 	// core-owned extension host.
 	RuntimeAdapterOCI = "oci"
@@ -267,14 +272,14 @@ func (m Manifest) validateFactFamilies(grants []ProducerGrant, now time.Time) er
 }
 
 // Validate checks the runtime SDK protocol and host adapter declaration. An
-// explicitly configured collector-sdk/v1alpha2 protocol is admitted without
-// changing the v1alpha1 default; any other protocol stays rejected with the
-// raw configured value in the error.
+// explicitly configured collector-sdk/v1alpha2 or v1alpha3 protocol is
+// admitted without changing the v1alpha1 default; any other protocol stays
+// rejected with the raw configured value in the error.
 func (r RuntimeContract) Validate() error {
 	switch strings.TrimSpace(r.SDKProtocol) {
 	case "":
 		return fmt.Errorf("spec.runtime.sdkProtocol is required")
-	case CollectorSDKProtocolV1Alpha1, CollectorSDKProtocolV1Alpha2:
+	case CollectorSDKProtocolV1Alpha1, CollectorSDKProtocolV1Alpha2, CollectorSDKProtocolV1Alpha3:
 	default:
 		return fmt.Errorf("spec.runtime.sdkProtocol %q is unsupported", r.SDKProtocol)
 	}
