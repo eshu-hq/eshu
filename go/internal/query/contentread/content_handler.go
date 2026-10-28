@@ -206,6 +206,10 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if req.BudgetMS != nil && (req.RepoID != "" || len(req.RepoIDs) != 0 || querycontract.RepositoryAccessFilterFromContext(r.Context()).Scoped()) {
+		querycontract.WriteError(w, http.StatusBadRequest, errBudgetNeedsUnscopedSearch.Error())
+		return
+	}
 	if req.RankCursor != "" {
 		writeRankError(w, r, rank.ToolSearchFileContent, rank.Unsupported(rank.ReasonFileSearch))
 		return

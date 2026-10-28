@@ -183,6 +183,24 @@ func TestSearchFilesUnscopedBudgetOverride(t *testing.T) {
 	}
 }
 
+func TestSearchFilesBudgetRejectsScopedTokenWithNoGrants(t *testing.T) {
+	t.Parallel()
+	store := &unscopedSearchStore{}
+	h := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
+	ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+		Mode:        auth.AuthModeScoped,
+		TenantID:    "tenant-a",
+		WorkspaceID: "workspace-a",
+	})
+	rec, _ := postFileSearch(t, h, ctx, `{"query":"render","budget_ms":800}`)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "budget_ms") {
+		t.Fatalf("status = %d, body = %s; want budget_ms 400", rec.Code, rec.Body.String())
+	}
+	if store.calls != 0 {
+		t.Fatalf("unscoped seam called %d times with a scoped empty grant", store.calls)
+	}
+}
+
 func TestSearchEntitiesRejectsFileBudget(t *testing.T) {
 	t.Parallel()
 	h := &ContentHandler{Content: &unscopedSearchStore{}, Profile: querycontract.ProfileLocalAuthoritative}
