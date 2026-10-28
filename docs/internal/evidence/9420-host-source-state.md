@@ -114,15 +114,17 @@ Observability Evidence:
 ## Reading the rows
 
 - The monotonic write guard compares `last_attempt_at` values stamped by the
-  writing replica's clock. Replicas with skewed clocks can order two attempts
-  of one scope by wall time rather than by arrival. The guard never drops a
-  newer attempt that carries a later timestamp, and the skew bound is the
-  clock sync of the cluster nodes, not a value this change sets.
-- A failed post-commit success write, or a lost lease before `CompleteClaim`,
-  leaves the row `pending` (attempt recorded, no success), not `failed`. That is
-  the conservative state: readiness still reads the target as incomplete until a
-  later claim writes `succeeded`. Do not read a `pending` row after rollout as
-  a collector failure without the claim's own result.
+  writing replica's clock. A replica whose clock trails by a gap has its writes
+  skipped when they land within that gap after another replica's attempt on
+  the same scope; the bound is the clock sync of the cluster nodes, not a value
+  this change sets.
+- A failed success write, or a lease lost before the commit (the fenced commit
+  fails and the observer never runs), leaves the row `pending`: an attempt was
+  recorded and no success. Readiness still reads the target as incomplete until
+  a later claim writes `succeeded`. A lease lost or a `CompleteClaim` failure
+  after the commit leaves `succeeded` while the claim did not complete, and the
+  re-run rewrites the row. Do not read a `pending` row after rollout as a
+  collector failure without the claim's own result.
 - Nothing counts successful writes. A host that silently stops writing shows
   up as old `last_attempt_at` values on `/admin/status`; read-time freshness
   decay (#9423) is the backstop.

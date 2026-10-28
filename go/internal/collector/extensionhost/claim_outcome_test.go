@@ -104,6 +104,19 @@ func TestNextClaimedReportsOneClaimOutcomeOnEveryExit(t *testing.T) {
 			wantCompleted: true,
 		},
 		{
+			// A partial result is partial whatever its status rows say: SDK
+			// validation accepts a warning-only status row with Partial unset.
+			name: "partial result with a warning-only status row",
+			result: func(item workflow.WorkItem) sdkcollector.Result {
+				result := baseResult(item, sdkcollector.ResultPartial)
+				result.Facts = []sdkcollector.Fact{testSDKFact(item)}
+				result.Statuses = []sdkcollector.Status{{Class: sdkcollector.StatusWarning, WarningCount: 1, FactCount: 1}}
+				return result
+			},
+			want:          ClaimOutcome{Origin: ResultOriginSDK, State: sdkcollector.ResultPartial, Partial: true, FactCount: 1, WarningCount: 1},
+			wantCompleted: true,
+		},
+		{
 			// A complete result may still carry a partial status row; the
 			// claim is then partial, so the row cannot read fresh/succeeded.
 			name: "complete result with a partial status row",
