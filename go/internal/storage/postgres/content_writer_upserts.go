@@ -29,8 +29,9 @@ import (
 // the parallel-batch optimization is reserved for the entity path where
 // the K8s gate miss actually lives.
 //
-// obs, when non-nil, classifies each batch against the stored rows before the
-// upsert and counts the outcomes after it succeeds (#8950).
+// Every batch is pre-read against the stored rows before the upsert, and the
+// classification routes unchanged rows to the metadata-only UPDATE (#8942);
+// obs, when non-nil, only adds counting the outcomes after it succeeds (#8950).
 func (w ContentWriter) upsertContentFileBatches(ctx context.Context, rows []preparedFileRow, indexedAt time.Time, generationID string, obs *fileUpsertObservation) error {
 	for i := 0; i < len(rows); i += contentFileBatchSize {
 		end := i + contentFileBatchSize
@@ -51,9 +52,9 @@ func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []prepa
 }
 
 // upsertObservedContentFileBatch is upsertContentFileBatch plus the #8950
-// outcome counters: with obs non-nil it reads the stored state of the batch
-// before the upsert and counts the classified outcomes once the upsert
-// succeeded.
+// outcome counters. The pre-read runs on every batch and drives the #8942
+// two-statement write; obs non-nil only counts the classified outcomes once
+// the upsert succeeded.
 func (w ContentWriter) upsertObservedContentFileBatch(ctx context.Context, batch []preparedFileRow, indexedAt time.Time, generationID string, obs *fileUpsertObservation) error {
 	if len(batch) == 0 {
 		return nil

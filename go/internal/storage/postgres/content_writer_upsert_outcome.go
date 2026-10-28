@@ -22,8 +22,10 @@ import (
 // octet_length, which sizes a TOASTed value from its header without detoasting
 // it. It joins the batch's (repo_id, relative_path) keys to the primary key.
 //
-// This is a measure-first instrument, not part of the upsert: it never changes
-// what the upsert writes, and a failure to run it never fails the Write.
+// The pre-read drives the write, not just the counters (#8942): its
+// classification routes unchanged rows to the metadata-only UPDATE on every
+// batch, observed or not. Only a failed pre-read keeps the legacy single
+// statement, and a failure never fails the Write itself.
 const contentFileOutcomePreReadSQL = `
 SELECT c.repo_id, c.relative_path, c.content_hash, octet_length(c.content),
        c.commit_sha, c.line_count, c.language, c.artifact_type,
@@ -159,8 +161,9 @@ type fileUpsertObservation struct {
 }
 
 // newFileUpsertObservation returns the observation for a Write, or nil when
-// neither a counter nor a logger would use the classification, so a writer with
-// no observers pays no pre-read.
+// neither a counter nor a logger would use the classification. A nil
+// observation skips counting only: every batch still pays the pre-read, whose
+// verdict routes the write (#8942).
 func (w ContentWriter) newFileUpsertObservation(fullSnapshot bool) *fileUpsertObservation {
 	counted := w.instruments != nil && w.instruments.ContentFileUpserts != nil
 	if !counted && w.Logger == nil {
@@ -218,8 +221,10 @@ func (w ContentWriter) classifyFileBatch(ctx context.Context, batch []preparedFi
 // small share of a large batch and a visible one of a small batch: measured
 // shares of upsert_files were 0.01% to 1.45% from 500 rows up and several
 // percent for 1 to 50 rows (docs/internal/evidence/8950-upsert-outcome-counter.md).
-// A batch of at least contentFileOutcomeMinBatchRows rows is always classified;
-// a smaller one is classified one time in contentFileOutcomeSampleEvery, and the
+// Sampling gates the counters, never the write (#8942): every batch is
+// classified for the write verdict regardless of size. A batch of at least
+// contentFileOutcomeMinBatchRows rows is always counted; a smaller one is
+// counted one time in contentFileOutcomeSampleEvery, and the
 // rest are counted as unclassified rows and bytes so the counters still add up
 // to every row written. Every counter carries the batch_class label (small or
 // large), so a query can weight the sampled small batches back up; without it a
@@ -271,9 +276,10 @@ func (w ContentWriter) batchClass(rows int) string {
 	return telemetry.ContentFileBatchSmall
 }
 
-// WithOutcomeSampling returns a copy that classifies every batch of at least
+// WithOutcomeSampling returns a copy that counts every batch of at least
 // minRows rows and one in every `every` smaller batches. every of 1 or less
-// classifies every batch.
+// counts every batch. Sampling never skips the write classification: every
+// batch is pre-read for its write verdict (#8942).
 func (w ContentWriter) WithOutcomeSampling(minRows, every int) ContentWriter {
 	w.outcomeSampler = &outcomeSampler{minRows: minRows, every: uint64(max(every, 1))}
 	return w
