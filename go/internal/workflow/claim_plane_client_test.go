@@ -18,7 +18,7 @@ import (
 // stubClaimPlane serves the workflow.v1 claim routes from scripted state
 // for client tests.
 type stubClaimPlane struct {
-	t           *testing.T
+	t           testing.TB
 	grant       bool
 	paced       bool
 	staleOp     string
@@ -221,6 +221,27 @@ func TestClaimPlaneClientIdleAndPaced(t *testing.T) {
 	}
 	if paced.RetryAfter != 5*time.Second {
 		t.Fatalf("paced retry_after = %s", paced.RetryAfter)
+	}
+}
+
+// BenchmarkClaimPlaneClientClaimNext bounds the per-claim HTTP overhead
+// the seam adds on the collector claim path: one grant round trip over
+// loopback against a stub server. Evidence numbers live in
+// claim-plane-client-evidence.md beside this file.
+func BenchmarkClaimPlaneClientClaimNext(b *testing.B) {
+	stub := &stubClaimPlane{t: b, grant: true, pinCommitID: "commit-claim-1-1"}
+	server := httptest.NewServer(stub.handler())
+	defer server.Close()
+	client := NewClaimPlaneClient(server.URL, server.Client())
+	ctx := context.Background()
+	selector := testSelector()
+	now := time.Now().UTC()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, _, _, err := client.ClaimNextEligible(ctx, selector, now, time.Minute); err != nil {
+			b.Fatalf("claim: %v", err)
+		}
 	}
 }
 
