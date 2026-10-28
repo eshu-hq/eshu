@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -35,15 +36,24 @@ type Suite struct {
 var parityClock = time.Date(2026, time.June, 15, 12, 0, 0, 0, time.UTC)
 
 // NewSuite builds one scenario run: deterministic IDs under a fixed run
-// prefix plus the fixed clock. The run prefix keeps every seeded row
-// attributable to its scenario for cleanup and for filtering
-// shared-table reads on legs that cannot isolate by schema.
+// prefix plus one clock shared by both legs of the scenario. The default
+// clock is fixed for rerunnability. Against a long-lived deployment
+// whose background reaper ticks on wall time (PARITY_LIVE_CLOCK=1), the
+// clock is captured once per scenario instead: a fixed past clock would
+// leave every lease already expired for the background reaper. The run
+// prefix keeps every seeded row attributable to its scenario for cleanup
+// and for filtering shared-table reads on legs that cannot isolate by
+// schema.
 func NewSuite(t *testing.T, name string) *Suite {
 	t.Helper()
+	now := parityClock
+	if os.Getenv("PARITY_LIVE_CLOCK") == "1" {
+		now = time.Now().UTC().Truncate(time.Millisecond)
+	}
 	return &Suite{
 		T:     t,
 		RunID: "parity-" + name + "-run",
-		Now:   parityClock,
+		Now:   now,
 		Lease: 5 * time.Minute,
 	}
 }
@@ -161,9 +171,16 @@ var satelliteTables = []string{
 	"component_quota_windows",
 }
 
-// ResetSatellite truncates every satellite table on the database named by
-// dsn. It runs at suite start and at suite end (cleanup), never between
-// the two legs of one scenario: scenarios use disjoint run IDs.
+// ResetSatellite clears satellite state on the database named by dsn. It
+// runs at suite start and at suite end (cleanup), never between the two
+// legs of one scenario: scenarios use disjoint run IDs.
+//
+// Local legs truncate every satellite table. On a dark deployment
+// (PARITY_DARK=1) it instead deletes only rows from this suite's
+// deterministic run IDs: truncating a shared dark database would wipe
+// rows the suite does not own. Dark cleanup additionally relies on each
+// scenario's drain discipline, and the caller verifies the depth
+// readback afterwards.
 func ResetSatellite(t *testing.T, dsn string) {
 	t.Helper()
 	if strings.TrimSpace(dsn) == "" {
@@ -174,10 +191,59 @@ func ResetSatellite(t *testing.T, dsn string) {
 		t.Fatalf("open satellite db: %v", err)
 	}
 	defer func() { _ = db.Close() }()
+	ctx := context.Background()
+	if os.Getenv("PARITY_DARK") == "1" {
+		resetDarkSuiteRows(t, ctx, db)
+		return
+	}
 	query := "TRUNCATE " + strings.Join(satelliteTables, ", ") + " RESTART IDENTITY CASCADE"
-	if _, err := db.ExecContext(context.Background(), query); err != nil {
+	if _, err := db.ExecContext(ctx, query); err != nil {
 		t.Fatalf("truncate satellite tables: %v", err)
 	}
+}
+
+// resetDarkSuiteRows deletes only this suite's synthetic rows, child
+// first. Every seeded id carries the parity- run prefix, so the filter
+// cannot meet another tenant's rows.
+func resetDarkSuiteRows(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	statements := []string{
+		"DELETE FROM workflow_claims WHERE work_item_id LIKE 'parity-%'",
+		"DELETE FROM workflow_run_progress WHERE run_id LIKE 'parity-%'",
+		"DELETE FROM workflow_run_completeness WHERE run_id LIKE 'parity-%'",
+		"DELETE FROM workflow_work_items WHERE work_item_id LIKE 'parity-%'",
+		"DELETE FROM workflow_runs WHERE run_id LIKE 'parity-%'",
+	}
+	for _, query := range statements {
+		if _, err := db.ExecContext(ctx, query); err != nil {
+			t.Fatalf("delete suite rows: %v", err)
+		}
+	}
+}
+
+// CountSuiteRows reports how many synthetic rows of this suite remain on
+// the satellite database. Dark runs assert zero afterwards.
+func CountSuiteRows(t *testing.T, dsn string) int {
+	t.Helper()
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open satellite db: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	var total int
+	queries := []string{
+		"SELECT count(*) FROM workflow_claims WHERE work_item_id LIKE 'parity-%'",
+		"SELECT count(*) FROM workflow_work_items WHERE work_item_id LIKE 'parity-%'",
+		"SELECT count(*) FROM workflow_runs WHERE run_id LIKE 'parity-%'",
+	}
+	for _, query := range queries {
+		var n int
+		if err := db.QueryRowContext(context.Background(), query).Scan(&n); err != nil {
+			t.Fatalf("count suite rows: %v", err)
+		}
+		total += n
+	}
+	return total
 }
 
 // OpenSatellite opens the HTTP leg against the satellite base URL.
