@@ -329,6 +329,9 @@ func resolvePackageDatabase(
 			return "", "", fmt.Errorf("%w: missing dpkg status database", errUnsupportedTarget)
 		}
 	case ospackagevulnerability.PackageManagerRPM:
+		if strings.TrimSpace(string(distro)) == "" || firstNonBlank(target.DistroVersion, fields["VERSION_ID"], fields["VERSION"]) == "" {
+			return "", "", fmt.Errorf("%w: missing rpm distro identity", errUnsupportedTarget)
+		}
 		if len(rpmLayerDatabase(files)) == 0 && !oversizedRPM {
 			return "", "", fmt.Errorf("%w: missing rpm database", errUnsupportedTarget)
 		}
