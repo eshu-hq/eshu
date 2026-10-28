@@ -4,6 +4,7 @@
 package deploy
 
 import (
+	"bytes"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -241,36 +242,164 @@ func TestExtractionImageRefsCarryExplicitTags(t *testing.T) {
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		t.Fatalf("parse values.yaml: %v", err)
 	}
-	images := collectImageStanzas(doc)
+	images := collectImageRefs(doc, "$")
 	if len(images) == 0 {
-		t.Fatal("values.yaml has no image stanzas; the chart defaults moved without review")
+		t.Fatal("values.yaml has no image refs; the chart defaults moved without review")
 	}
 	for _, img := range images {
-		tag, _ := img["tag"].(string)
-		if tag == "" || tag == "latest" {
-			t.Errorf("image stanza %v carries no explicit tag; immutable artifacts require one", img)
+		if img.tag == "" || img.tag == "latest" {
+			t.Errorf("image ref %q at %s carries no explicit tag; immutable artifacts require one", img.ref, img.where)
+		}
+		if img.single && !img.pinned {
+			t.Errorf("single-string image ref %q at %s is neither digest-pinned nor explicitly tagged", img.ref, img.where)
 		}
 	}
 }
 
-func collectImageStanzas(node any) []map[string]any {
-	var out []map[string]any
+// imageRef is one image reference found in chart defaults: either a
+// repository/tag stanza map or a single-string `image:` value such as a
+// satellite `seed.image` digest ref.
+type imageRef struct {
+	where  string // YAML path of the reference, for failure messages
+	ref    string // repository, or the full single-string reference
+	tag    string // tag value, digest, or "" when the stanza names none
+	single bool   // true for single-string `image:` values
+	pinned bool   // true when a single-string ref carries a digest
+}
+
+func collectImageRefs(node any, path string) []imageRef {
+	var out []imageRef
 	switch v := node.(type) {
 	case map[string]any:
 		if repo, ok := v["repository"].(string); ok && repo != "" {
-			if _, hasTag := v["tag"]; hasTag {
-				out = append(out, v)
-			}
+			tag, _ := v["tag"].(string)
+			out = append(out, imageRef{where: path, ref: repo, tag: tag})
 		}
-		for _, child := range v {
-			out = append(out, collectImageStanzas(child)...)
+		for key, child := range v {
+			if s, ok := child.(string); ok && key == "image" && s != "" {
+				out = append(out, imageRef{
+					where:  path + "." + key,
+					ref:    s,
+					tag:    imageTagOfSingleRef(s),
+					single: true,
+					pinned: strings.Contains(s, "@sha256:"),
+				})
+				continue
+			}
+			out = append(out, collectImageRefs(child, path+"."+key)...)
 		}
 	case []any:
 		for _, child := range v {
-			out = append(out, collectImageStanzas(child)...)
+			out = append(out, collectImageRefs(child, path)...)
 		}
 	}
 	return out
+}
+
+// imageTagOfSingleRef extracts the tag half of a single-string image
+// reference: the digest when pinned, the `:tag` suffix otherwise, or "" when
+// the reference names neither.
+func imageTagOfSingleRef(s string) string {
+	if i := strings.Index(s, "@"); i >= 0 {
+		return s[i+1:]
+	}
+	if i := strings.LastIndex(s, ":"); i >= 0 {
+		return s[i+1:]
+	}
+	return ""
+}
+
+// TestCollectImageRefsSeesAllForms is the regression test for the
+// single-string/tagless blind spot: the collector must surface every image
+// reference form so the tag guard below can judge it.
+func TestCollectImageRefsSeesAllForms(t *testing.T) {
+	doc := map[string]any{
+		"stanza": map[string]any{
+			"repository": "ghcr.io/eshu-hq/eshu",
+			"tag":        "v0.0.1",
+		},
+		"tagless": map[string]any{
+			"repository": "ghcr.io/eshu-hq/orphan",
+		},
+		"satellite": map[string]any{
+			"image": "ghcr.io/eshu-hq/eshu-collector-loki@sha256:12eac89e",
+		},
+		"rogue": map[string]any{
+			"image": "ghcr.io/eshu-hq/eshu:latest",
+		},
+	}
+	refs := collectImageRefs(doc, "$")
+	if len(refs) != 4 {
+		t.Fatalf("collector saw %d image refs, want 4 (stanza, tagless, satellite, rogue)", len(refs))
+	}
+}
+
+// TestExtractionCensusPinsHelmContractFigures keeps the census prose honest:
+// the chart identity, default-file sizes, and template breakdown the record
+// presents as the #8871 baseline must match the tree, so a silent rename or
+// version bump fails here instead of drifting into the cutover comparison.
+func TestExtractionCensusPinsHelmContractFigures(t *testing.T) {
+	text := readCensusRecord(t)
+	root := repoRootForCensus(t)
+	chartDir := filepath.Join(root, "deploy/helm/eshu")
+
+	chartRaw, err := os.ReadFile(filepath.Join(chartDir, "Chart.yaml"))
+	if err != nil {
+		t.Fatalf("read Chart.yaml: %v", err)
+	}
+	chartPins := []struct{ tree, record string }{
+		{"name: eshu", "name `eshu`"},
+		{"version: 0.0.3-pre-release-26", "version: 0.0.3-pre-release-26"},
+		{`appVersion: "v0.0.3-pre-release-18"`, "appVersion: v0.0.3-pre-release-18"},
+	}
+	for _, pin := range chartPins {
+		if !strings.Contains(string(chartRaw), pin.tree) {
+			t.Errorf("Chart.yaml no longer contains %q; update the chart or the census record", pin.tree)
+		}
+		if !strings.Contains(text, pin.record) {
+			t.Errorf("census record %s no longer states %q; update the record", censusRecordRel, pin.record)
+		}
+	}
+
+	lineCounts := map[string]int{
+		"values.yaml":        1567,
+		"values.schema.json": 1731,
+	}
+	for file, want := range lineCounts {
+		raw, err := os.ReadFile(filepath.Join(chartDir, file))
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		if got := bytes.Count(raw, []byte{'\n'}); got != want {
+			t.Errorf("%s has %d lines, record states %d; update the record", file, got, want)
+		}
+		if !strings.Contains(text, strconv.Itoa(want)+" lines") {
+			t.Errorf("census record %s no longer states %d lines for %s", censusRecordRel, want, file)
+		}
+	}
+
+	breakdown := map[string]int{
+		"deployment-*.yaml": 27,
+		"service-*.yaml":    31,
+		"servicemonitor*":   4,
+		"_*.tpl":            17,
+	}
+	for pattern, want := range breakdown {
+		matches, err := filepath.Glob(filepath.Join(chartDir, "templates", pattern))
+		if err != nil {
+			t.Fatalf("glob %s: %v", pattern, err)
+		}
+		if len(matches) != want {
+			t.Errorf("templates/%s matches %d files, record states %d; update the record or account for the move",
+				pattern, len(matches), want)
+		}
+		if !strings.Contains(text, strconv.Itoa(want)) {
+			t.Errorf("census record %s no longer states the %d figure", censusRecordRel, want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(chartDir, "templates", "service.yaml")); err != nil {
+		t.Errorf("templates/service.yaml (the +1 beside the 31 service-*.yaml) is gone: %v", err)
+	}
 }
 
 // TestExtractionValuesSchemaIsValidJSON keeps the chart's value gate honest:

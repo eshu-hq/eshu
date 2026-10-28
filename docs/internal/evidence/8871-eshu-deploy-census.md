@@ -59,6 +59,9 @@ helpers (`_helpers.tpl`, `_read_env.tpl`, per-collector helpers,
 `ingress-webhook-listener.yaml`, 2 networkpolicies, 3 poddisruptionbudgets,
 `pvc-nornicdb.yaml`, `rbac-kubernetes-live-collector.yaml`,
 `serviceaccount.yaml`, 3 `validate*.yaml` pre-render gates, and `NOTES.txt`.
+The chart identity, default-file sizes, and breakdown figures in this section
+are pinned by TestExtractionCensusPinsHelmContractFigures; update that test
+with this record.
 
 Values top-level defaults cover `image`, `serviceAccount`, security
 contexts, `schemaBootstrap` (enabled flag, hook modes, resources,
