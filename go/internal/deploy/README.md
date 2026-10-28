@@ -11,10 +11,12 @@ to the tree until the cutover lands.
 ## Ownership boundary
 
 Owns the census record
-(`docs/internal/evidence/8871-eshu-deploy-census.md`) and its contract
-tests only. Does not own the chart, the compose files, the release
-pipelines, or the schema-bootstrap implementation — those live with their
-respective owners (`deploy/`, `.github/workflows/`,
+(`docs/internal/evidence/8871-eshu-deploy-census.md`), the deploy
+contract record
+(`docs/internal/evidence/8871-eshu-deploy-contract.md`), and their
+contract tests only. Does not own the chart, the compose files, the
+release pipelines, or the schema-bootstrap implementation — those live
+with their respective owners (`deploy/`, `.github/workflows/`,
 `go/cmd/bootstrap-data-plane`). After the cutover, the runtime contract
 tests in `go/internal/runtime` repoint at the published eshu-deploy
 artifact versions.
