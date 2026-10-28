@@ -40,12 +40,14 @@ step_block() {
 	local block="$1" needle="        id: $2"
 	# Exact-line match ($0 == needle), NOT substring containment. A prior
 	# version used index(cur, needle) > 0, which matched a step whose id is a
-	# PREFIX of the target or a step whose run: body happens to echo the
-	# literal 8-space-indented id line as text, in both cases silently
-	# returning the WRONG step. Tracking a per-step boolean set only on an
-	# exact line match closes both: a longer id never equals the shorter
-	# needle, and an embedded line inside a run: body is data, not itself a
-	# YAML id: field.
+	# PREFIX of the target, or a step whose run: body merely mentions the
+	# id text with extra characters or different indentation, in both cases
+	# silently returning the WRONG step. Tracking a per-step boolean set
+	# only on an exact line match stops those: a longer id never equals the
+	# shorter needle, and a casual echo never equals the bare field line.
+	# Residual: the match has no YAML-structure awareness, so a run:
+	# literal block containing an exactly-8-space-indented "id: <step>"
+	# line still sets the flag.
 	awk -v needle="${needle}" '
 		BEGIN { cur = ""; found = 0; hit = 0 }
 		/^      - / {
