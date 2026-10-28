@@ -43,6 +43,13 @@ func (s Service) recordGCPFreshnessReap(ctx context.Context, observation Freshne
 	s.Metrics.RecordGCPFreshnessReap(ctx, observation)
 }
 
+func (s Service) recordIncidentFreshnessReap(ctx context.Context, observation FreshnessReapObservation) {
+	if s.Metrics == nil {
+		return
+	}
+	s.Metrics.RecordIncidentFreshnessReap(ctx, observation)
+}
+
 func tickerChan(ticker *time.Ticker) <-chan time.Time {
 	if ticker == nil {
 		return nil

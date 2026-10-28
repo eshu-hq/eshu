@@ -9,7 +9,8 @@ Read these files first:
 5. `aws_freshness_handler.go`
 6. `gcp_freshness_handler.go`
 7. `gcp_freshness_oidc.go`
-8. `handler_observability_test.go`
+8. `intake_submit.go`
+9. `handler_observability_test.go`
 9. `main.go`
 10. `handler_test.go`
 11. `incident_freshness_handler_test.go`
@@ -56,6 +57,12 @@ Read these files first:
   in `aws_freshness_handler_test.go`.
 - Add GCP freshness route behavior in `gcp_freshness_handler.go` and cover it
   in `gcp_freshness_handler_test.go`.
+- Add intake-mode submitter behavior in `intake_submit.go` (one submitter
+  type per store interface so each satisfies exactly one method set) and
+  cover it in `intake_submit_test.go` plus the extracted-path parity
+  harness (`intake_parity_stores_test.go`,
+  `intake_parity_cases_test.go`). The submitter performs zero SQL; receipt
+  shape changes stay in lockstep with `go/internal/webhook/intake`.
 - Add GCP freshness Pub/Sub push OIDC verification behavior in
   `gcp_freshness_oidc.go` and cover it in `gcp_freshness_oidc_test.go`, using
   the injected `gcpPushOIDCValidator` seam (never make a live call to Google

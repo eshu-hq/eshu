@@ -44,6 +44,11 @@ type Config struct {
 	// GCPFreshnessClaimLeaseDuration is AWSFreshnessClaimLeaseDuration's GCP
 	// counterpart (#4576). Zero uses defaultGCPFreshnessClaimLeaseDuration.
 	GCPFreshnessClaimLeaseDuration time.Duration
+	// IncidentFreshnessClaimLeaseDuration bounds how long a claimed incident
+	// freshness trigger can sit unresolved before the reap pass reclaims it
+	// back to 'queued' (#9379). Zero uses
+	// defaultIncidentFreshnessClaimLeaseDuration.
+	IncidentFreshnessClaimLeaseDuration time.Duration
 	// FreshnessClaimReapLimit bounds how many stuck AWS/GCP freshness claims
 	// one reap pass reclaims (#4576). Zero uses defaultFreshnessClaimReapLimit.
 	FreshnessClaimReapLimit int
@@ -144,6 +149,14 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 	if err != nil {
 		return Config{}, err
 	}
+	incidentFreshnessClaimLeaseDuration, err := environment.Duration(
+		getenv,
+		"ESHU_WORKFLOW_COORDINATOR_INCIDENT_FRESHNESS_CLAIM_LEASE_DURATION",
+		defaultIncidentFreshnessClaimLeaseDuration,
+	)
+	if err != nil {
+		return Config{}, err
+	}
 	freshnessClaimReapLimit, err := environment.Int(
 		getenv,
 		"ESHU_WORKFLOW_COORDINATOR_FRESHNESS_CLAIM_REAP_LIMIT",
@@ -190,24 +203,25 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 	}
 
 	cfg := Config{
-		DeploymentMode:                 deploymentMode,
-		ClaimsEnabled:                  claimsEnabled,
-		ReconcileInterval:              reconcileInterval,
-		RunReconcileInterval:           runReconcileInterval,
-		ReapInterval:                   reapInterval,
-		ClaimLeaseTTL:                  claimLeaseTTL,
-		HeartbeatInterval:              heartbeatInterval,
-		ExpiredClaimLimit:              expiredClaimLimit,
-		ExpiredClaimRequeueDelay:       expiredClaimRequeueDelay,
-		AWSFreshnessClaimLeaseDuration: awsFreshnessClaimLeaseDuration,
-		GCPFreshnessClaimLeaseDuration: gcpFreshnessClaimLeaseDuration,
-		FreshnessClaimReapLimit:        freshnessClaimReapLimit,
-		CollectorEgressPolicy:          collectorEgressPolicy,
-		ExtensionEgressPolicy:          extensionEgressPolicy,
-		TenantBoundary:                 tenantBoundary,
-		CollectorInstances:             instances,
-		QuotaLookup:                    quotaLookup,
-		WorkItemRetention:              workItemRetention,
+		DeploymentMode:                      deploymentMode,
+		ClaimsEnabled:                       claimsEnabled,
+		ReconcileInterval:                   reconcileInterval,
+		RunReconcileInterval:                runReconcileInterval,
+		ReapInterval:                        reapInterval,
+		ClaimLeaseTTL:                       claimLeaseTTL,
+		HeartbeatInterval:                   heartbeatInterval,
+		ExpiredClaimLimit:                   expiredClaimLimit,
+		ExpiredClaimRequeueDelay:            expiredClaimRequeueDelay,
+		AWSFreshnessClaimLeaseDuration:      awsFreshnessClaimLeaseDuration,
+		IncidentFreshnessClaimLeaseDuration: incidentFreshnessClaimLeaseDuration,
+		GCPFreshnessClaimLeaseDuration:      gcpFreshnessClaimLeaseDuration,
+		FreshnessClaimReapLimit:             freshnessClaimReapLimit,
+		CollectorEgressPolicy:               collectorEgressPolicy,
+		ExtensionEgressPolicy:               extensionEgressPolicy,
+		TenantBoundary:                      tenantBoundary,
+		CollectorInstances:                  instances,
+		QuotaLookup:                         quotaLookup,
+		WorkItemRetention:                   workItemRetention,
 	}
 	cfg = cfg.withDefaults()
 	if err := cfg.Validate(); err != nil {

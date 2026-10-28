@@ -32,6 +32,14 @@ type webhookListenerConfig struct {
 	JiraScopeID               string
 	MaxRequestBodyBytes       int64
 	DefaultBranch             string
+	// IntakeURL is the core intake API base URL (scheme + host). When set,
+	// the listener verifies and normalizes provider deliveries and submits
+	// them through the authenticated versioned intake API instead of
+	// writing trigger tables directly (#9377).
+	IntakeURL string
+	// IntakeToken is the bearer secret the listener presents to the core
+	// intake API. Required whenever IntakeURL is set.
+	IntakeToken string
 }
 
 func loadWebhookListenerConfig(getenv func(string) string) (webhookListenerConfig, error) {
@@ -59,6 +67,11 @@ func loadWebhookListenerConfig(getenv func(string) string) (webhookListenerConfi
 		JiraScopeID:               strings.TrimSpace(getenv("ESHU_WEBHOOK_JIRA_SCOPE_ID")),
 		MaxRequestBodyBytes:       int64FromEnv(getenv, "ESHU_WEBHOOK_MAX_BODY_BYTES", defaultMaxWebhookBodyBytes),
 		DefaultBranch:             strings.TrimSpace(getenv("ESHU_WEBHOOK_DEFAULT_BRANCH")),
+		IntakeURL:                 strings.TrimSpace(getenv("ESHU_WEBHOOK_INTAKE_URL")),
+		IntakeToken:               strings.TrimSpace(getenv("ESHU_WEBHOOK_INTAKE_TOKEN")),
+	}
+	if cfg.IntakeURL != "" && cfg.IntakeToken == "" {
+		return webhookListenerConfig{}, fmt.Errorf("webhook intake token is required when intake URL is set")
 	}
 	gcpFreshnessOIDCConfigured := cfg.GCPFreshnessOIDCAudience != "" || cfg.GCPFreshnessOIDCAllowedSA != ""
 	if cfg.GitHubSecret == "" && cfg.GitLabToken == "" && cfg.BitbucketSecret == "" &&

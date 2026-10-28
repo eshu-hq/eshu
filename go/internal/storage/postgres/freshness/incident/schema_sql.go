@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS incident_freshness_triggers (
     updated_at TIMESTAMPTZ NOT NULL,
     claimed_by TEXT NULL,
     claimed_at TIMESTAMPTZ NULL,
+    claim_expires_at TIMESTAMPTZ NULL,
+    claim_fencing_token BIGINT NOT NULL DEFAULT 0,
     handed_off_at TIMESTAMPTZ NULL,
     failed_at TIMESTAMPTZ NULL,
     failure_class TEXT NULL,
@@ -35,4 +37,8 @@ CREATE INDEX IF NOT EXISTS incident_freshness_triggers_status_received_idx
 
 CREATE INDEX IF NOT EXISTS incident_freshness_triggers_delivery_key_idx
     ON incident_freshness_triggers (delivery_key, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS incident_freshness_triggers_claimed_lease_idx
+    ON incident_freshness_triggers (claim_expires_at)
+    WHERE status = 'claimed';
 `

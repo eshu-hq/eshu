@@ -86,6 +86,9 @@ func (s Service) runActiveMaintenance(ctx context.Context) error {
 	if webhookHandoffErr != nil && s.Logger != nil {
 		s.Logger.Warn("ci/cd webhook handoff failed; maintenance continues", "error", webhookHandoffErr)
 	}
+	if err := s.runReapExpiredIncidentFreshnessClaims(ctx); err != nil {
+		return fmt.Errorf("reap expired incident freshness trigger claims: %w", err)
+	}
 	if err := s.runIncidentFreshnessHandoff(ctx); err != nil {
 		return fmt.Errorf("handoff incident freshness triggers: %w", err)
 	}
@@ -161,6 +164,37 @@ func (s Service) runReapExpiredGCPFreshnessClaims(ctx context.Context) error {
 		s.recordGCPFreshnessEvent(ctx, trigger.Kind, gcpFreshnessActionReclaimed)
 	}
 	s.recordGCPFreshnessReap(ctx, FreshnessReapObservation{
+		Outcome:        freshnessReapOutcomeSuccess,
+		Duration:       time.Since(startedAt),
+		ReclaimedCount: len(reclaimed),
+	})
+	return nil
+}
+
+// runReapExpiredIncidentFreshnessClaims reclaims incident freshness triggers
+// stranded at 'claimed' past their lease back to 'queued' (#9379). It is a
+// no-op when incident freshness claiming is not configured, mirroring the
+// other freshness handoff run* helpers' guard.
+func (s Service) runReapExpiredIncidentFreshnessClaims(ctx context.Context) error {
+	if s.Config.DeploymentMode != deploymentModeActive || !s.Config.ClaimsEnabled || s.IncidentFreshnessTriggers == nil {
+		return nil
+	}
+	startedAt := time.Now()
+	reclaimed, err := s.IncidentFreshnessTriggers.ReapExpiredTriggerClaims(ctx, s.now().UTC(), s.awsFreshnessReapLimit())
+	if err != nil {
+		s.recordIncidentFreshnessReap(ctx, FreshnessReapObservation{
+			Outcome:  freshnessReapOutcomeError,
+			Duration: time.Since(startedAt),
+		})
+		return err
+	}
+	if len(reclaimed) > 0 && s.Logger != nil {
+		s.Logger.Warn(
+			"reclaimed incident freshness triggers stranded at 'claimed'",
+			"reclaimed_count", len(reclaimed),
+		)
+	}
+	s.recordIncidentFreshnessReap(ctx, FreshnessReapObservation{
 		Outcome:        freshnessReapOutcomeSuccess,
 		Duration:       time.Since(startedAt),
 		ReclaimedCount: len(reclaimed),

@@ -21,9 +21,12 @@ func TestIncidentFreshnessSchemaDefinesCoalescingKeys(t *testing.T) {
 		"CREATE TABLE IF NOT EXISTS incident_freshness_triggers",
 		"delivery_key TEXT NOT NULL",
 		"freshness_key TEXT NOT NULL",
+		"claim_expires_at TIMESTAMPTZ NULL",
+		"claim_fencing_token BIGINT NOT NULL DEFAULT 0",
 		"CREATE UNIQUE INDEX IF NOT EXISTS incident_freshness_triggers_freshness_key_idx",
 		"CREATE INDEX IF NOT EXISTS incident_freshness_triggers_status_received_idx",
 		"ON incident_freshness_triggers (status, received_at ASC, trigger_id ASC)",
+		"CREATE INDEX IF NOT EXISTS incident_freshness_triggers_claimed_lease_idx",
 	} {
 		if !strings.Contains(schema, want) {
 			t.Fatalf("IncidentFreshnessSchemaSQL() missing %q:\n%s", want, schema)
@@ -76,7 +79,7 @@ func TestIncidentFreshnessStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 	}
 	store := NewIncidentFreshnessStore(db)
 
-	triggers, err := store.ClaimQueuedTriggers(context.Background(), "incident-freshness-handoff", now, 10)
+	triggers, err := store.ClaimQueuedTriggers(context.Background(), "incident-freshness-handoff", now, 10, 5*time.Minute)
 	if err != nil {
 		t.Fatalf("ClaimQueuedTriggers() error = %v, want nil", err)
 	}
@@ -127,5 +130,6 @@ func incidentFreshnessTriggerRow(
 		stored.ObservedAt,
 		now,
 		now,
+		stored.ClaimFencingToken,
 	}}}
 }

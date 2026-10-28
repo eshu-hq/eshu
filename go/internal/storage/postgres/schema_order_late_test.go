@@ -339,4 +339,9 @@ var orderedBootstrapDefinitionNamesLate = []string{
 	// Migration 237 (#8950) sets content_files fillfactor = 50 (catalog-only
 	// ALTER) so the metadata-only rewrite stays HOT on new pages.
 	"content_files_fillfactor",
+	// Migration 238 (#9379) adds the incident freshness claim_expires_at
+	// lease, claim_fencing_token fencing column, and stale-claim reap index
+	// (DDL half); 239 is the claimed-row backfill (DML half, #7961 split).
+	"incident_freshness_claim_lease",
+	"incident_freshness_claim_lease_backfill",
 }

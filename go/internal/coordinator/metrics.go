@@ -43,6 +43,11 @@ type Metrics interface {
 	// RecordGCPFreshnessReap is RecordAWSFreshnessReap's GCP counterpart,
 	// mirroring the identical AWS/GCP freshness trigger shape (#4576).
 	RecordGCPFreshnessReap(context.Context, FreshnessReapObservation)
+	// RecordIncidentFreshnessReap is RecordAWSFreshnessReap's incident
+	// counterpart: the operator-visible signal for incident freshness
+	// triggers stranded at 'claimed' by a mid-batch handoff abort or a
+	// coordinator crash (#9379).
+	RecordIncidentFreshnessReap(context.Context, FreshnessReapObservation)
 }
 
 // ReconcileObservation captures one reconcile-loop outcome.
@@ -86,18 +91,21 @@ type otelMetrics struct {
 	runReconcileTotal metric.Int64Counter
 	runReconcileDur   metric.Float64Histogram
 
-	awsFreshnessReapTotal    metric.Int64Counter
-	awsFreshnessReapDuration metric.Float64Histogram
-	gcpFreshnessReapTotal    metric.Int64Counter
-	gcpFreshnessReapDuration metric.Float64Histogram
+	awsFreshnessReapTotal         metric.Int64Counter
+	awsFreshnessReapDuration      metric.Float64Histogram
+	gcpFreshnessReapTotal         metric.Int64Counter
+	gcpFreshnessReapDuration      metric.Float64Histogram
+	incidentFreshnessReapTotal    metric.Int64Counter
+	incidentFreshnessReapDuration metric.Float64Histogram
 
-	desiredCount            atomic.Int64
-	durableCount            atomic.Int64
-	driftCount              atomic.Int64
-	reapedRows              atomic.Int64
-	reconciled              atomic.Int64
-	awsFreshnessStuckClaims atomic.Int64
-	gcpFreshnessStuckClaims atomic.Int64
+	desiredCount                 atomic.Int64
+	durableCount                 atomic.Int64
+	driftCount                   atomic.Int64
+	reapedRows                   atomic.Int64
+	reconciled                   atomic.Int64
+	awsFreshnessStuckClaims      atomic.Int64
+	gcpFreshnessStuckClaims      atomic.Int64
+	incidentFreshnessStuckClaims atomic.Int64
 
 	// workItemRetention holds the workflow_work_items retention instruments
 	// (#8829), registered in retention_metrics.go.
@@ -109,10 +117,12 @@ type otelMetrics struct {
 // Splitting this out of NewMetrics keeps that function under the repo's
 // funlen limit.
 type freshnessReapMetricInstruments struct {
-	awsReapTotal    metric.Int64Counter
-	awsReapDuration metric.Float64Histogram
-	gcpReapTotal    metric.Int64Counter
-	gcpReapDuration metric.Float64Histogram
+	awsReapTotal         metric.Int64Counter
+	awsReapDuration      metric.Float64Histogram
+	gcpReapTotal         metric.Int64Counter
+	gcpReapDuration      metric.Float64Histogram
+	incidentReapTotal    metric.Int64Counter
+	incidentReapDuration metric.Float64Histogram
 }
 
 // newFreshnessReapInstruments registers the AWS/GCP freshness stuck-claim
@@ -152,11 +162,29 @@ func newFreshnessReapInstruments(meter metric.Meter) (freshnessReapMetricInstrum
 	if err != nil {
 		return freshnessReapMetricInstruments{}, fmt.Errorf("register GCP freshness reap duration histogram: %w", err)
 	}
+	incidentFreshnessReapTotal, err := meter.Int64Counter(
+		MetricPrefix+"incident_freshness_reap_total",
+		metric.WithDescription("Total incident freshness stuck-claim reap passes (#9379)"),
+	)
+	if err != nil {
+		return freshnessReapMetricInstruments{}, fmt.Errorf("register incident freshness reap total counter: %w", err)
+	}
+	incidentFreshnessReapDuration, err := meter.Float64Histogram(
+		MetricPrefix+"incident_freshness_reap_duration_seconds",
+		metric.WithDescription("Incident freshness stuck-claim reap pass duration"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
+	)
+	if err != nil {
+		return freshnessReapMetricInstruments{}, fmt.Errorf("register incident freshness reap duration histogram: %w", err)
+	}
 	return freshnessReapMetricInstruments{
-		awsReapTotal:    awsFreshnessReapTotal,
-		awsReapDuration: awsFreshnessReapDuration,
-		gcpReapTotal:    gcpFreshnessReapTotal,
-		gcpReapDuration: gcpFreshnessReapDuration,
+		awsReapTotal:         awsFreshnessReapTotal,
+		awsReapDuration:      awsFreshnessReapDuration,
+		gcpReapTotal:         gcpFreshnessReapTotal,
+		gcpReapDuration:      gcpFreshnessReapDuration,
+		incidentReapTotal:    incidentFreshnessReapTotal,
+		incidentReapDuration: incidentFreshnessReapDuration,
 	}, nil
 }
 
@@ -224,17 +252,19 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 	}
 
 	recorder := &otelMetrics{
-		reconcileTotal:           reconcileTotal,
-		reconcileDuration:        reconcileDuration,
-		reapTotal:                reapTotal,
-		reapDuration:             reapDuration,
-		runReconcileTotal:        runReconcileTotal,
-		runReconcileDur:          runReconcileDur,
-		awsFreshnessReapTotal:    freshnessReapInstruments.awsReapTotal,
-		awsFreshnessReapDuration: freshnessReapInstruments.awsReapDuration,
-		gcpFreshnessReapTotal:    freshnessReapInstruments.gcpReapTotal,
-		gcpFreshnessReapDuration: freshnessReapInstruments.gcpReapDuration,
-		workItemRetention:        workItemRetention,
+		reconcileTotal:                reconcileTotal,
+		reconcileDuration:             reconcileDuration,
+		reapTotal:                     reapTotal,
+		reapDuration:                  reapDuration,
+		runReconcileTotal:             runReconcileTotal,
+		runReconcileDur:               runReconcileDur,
+		awsFreshnessReapTotal:         freshnessReapInstruments.awsReapTotal,
+		awsFreshnessReapDuration:      freshnessReapInstruments.awsReapDuration,
+		gcpFreshnessReapTotal:         freshnessReapInstruments.gcpReapTotal,
+		gcpFreshnessReapDuration:      freshnessReapInstruments.gcpReapDuration,
+		incidentFreshnessReapTotal:    freshnessReapInstruments.incidentReapTotal,
+		incidentFreshnessReapDuration: freshnessReapInstruments.incidentReapDuration,
+		workItemRetention:             workItemRetention,
 	}
 
 	desiredGauge, err := meter.Int64ObservableGauge(
@@ -286,6 +316,13 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 	if err != nil {
 		return nil, fmt.Errorf("register GCP freshness stuck-claimed gauge: %w", err)
 	}
+	incidentFreshnessStuckGauge, err := meter.Int64ObservableGauge(
+		MetricPrefix+"incident_freshness_stuck_claimed",
+		metric.WithDescription("Incident freshness triggers reclaimed from 'claimed' by the most recent reap pass (#9379)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register incident freshness stuck-claimed gauge: %w", err)
+	}
 	if _, err := meter.RegisterCallback(func(ctx context.Context, observer metric.Observer) error {
 		observer.ObserveInt64(desiredGauge, recorder.desiredCount.Load())
 		observer.ObserveInt64(durableGauge, recorder.durableCount.Load())
@@ -294,8 +331,9 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 		observer.ObserveInt64(reconciledGauge, recorder.reconciled.Load())
 		observer.ObserveInt64(awsFreshnessStuckGauge, recorder.awsFreshnessStuckClaims.Load())
 		observer.ObserveInt64(gcpFreshnessStuckGauge, recorder.gcpFreshnessStuckClaims.Load())
+		observer.ObserveInt64(incidentFreshnessStuckGauge, recorder.incidentFreshnessStuckClaims.Load())
 		return nil
-	}, desiredGauge, durableGauge, driftGauge, reapedGauge, reconciledGauge, awsFreshnessStuckGauge, gcpFreshnessStuckGauge); err != nil {
+	}, desiredGauge, durableGauge, driftGauge, reapedGauge, reconciledGauge, awsFreshnessStuckGauge, gcpFreshnessStuckGauge, incidentFreshnessStuckGauge); err != nil {
 		return nil, fmt.Errorf("register coordinator metrics callback: %w", err)
 	}
 
@@ -347,6 +385,22 @@ func (m *otelMetrics) RecordGCPFreshnessReap(ctx context.Context, observation Fr
 	m.gcpFreshnessReapDuration.Record(ctx, observation.Duration.Seconds(), attrs)
 	if outcome == freshnessReapOutcomeSuccess {
 		m.gcpFreshnessStuckClaims.Store(int64(max(observation.ReclaimedCount, 0)))
+	}
+}
+
+func (m *otelMetrics) RecordIncidentFreshnessReap(ctx context.Context, observation FreshnessReapObservation) {
+	if m == nil {
+		return
+	}
+	outcome := observation.Outcome
+	if outcome != freshnessReapOutcomeSuccess {
+		outcome = freshnessReapOutcomeError
+	}
+	attrs := metric.WithAttributes(attribute.String(telemetry.MetricDimensionOutcome, outcome))
+	m.incidentFreshnessReapTotal.Add(ctx, 1, attrs)
+	m.incidentFreshnessReapDuration.Record(ctx, observation.Duration.Seconds(), attrs)
+	if outcome == freshnessReapOutcomeSuccess {
+		m.incidentFreshnessStuckClaims.Store(int64(max(observation.ReclaimedCount, 0)))
 	}
 }
 
