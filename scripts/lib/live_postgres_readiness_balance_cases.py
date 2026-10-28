@@ -1,13 +1,18 @@
-"""Balance and budget contract tests for the readiness shard planner (#8930).
+"""V1 cut mechanics and refresher tests for the readiness shard planner (#8930).
 
 ``scripts/test-live-postgres-readiness-shards.py`` imports ``BalanceContractTest``
 so one command runs the fail-closed accounting tests and these time-balance
-tests together. The cases split by intent:
+tests together. The cases here pin the v1 four-shard planner, which stays the
+fallback when the v2 file is absent:
 
-* the committed weights keep every live shard under the job-budget gate,
-* seeded plans show a naive count split overflowing where the weighted
-  split does not (the RED/GREEN pair for the gate),
+* a fixed synthetic plan bounds the cut's balance and tail growth,
+* the planner CLI, the cut cache, and malformed files fail closed,
 * a changed weights file can never drop or double a proof silently.
+
+The budget, drift, seeded-overflow, and appended-tail cases run on the model
+CI cuts, so they live in ``live_postgres_readiness_weights_budget_cases``
+(#9100): gating the live plan on the retired four-shard cut failed enrollments
+CI's five-shard cut absorbs.
 """
 
 from __future__ import annotations
@@ -79,18 +84,6 @@ class BalanceContractTest(unittest.TestCase):
         """Predicted job seconds per shard for explicit cut points."""
         return wt.shard_job_seconds(runs, weights, bounds)
 
-    def test_committed_weights_fit_the_budget_on_the_live_plan(self) -> None:
-        # The live plan changes with every enrollment, so this test holds the
-        # issue's acceptance bound (15% of the mean) and the budget, not the
-        # exact figures. The tight balance guard runs on a fixed fixture below.
-        self.assertEqual(wt.budget_errors(self.plan, self.weights), [])
-        bounds = wt.weighted_bounds(self.plan, self.weights)
-        jobs = self.job_seconds(self.plan, self.weights, bounds)
-        self.assertLessEqual(max(jobs), wt.BUDGET_SECONDS)
-        mean = sum(jobs) / len(jobs)
-        self.assertLessEqual(max(jobs) / mean - 1, 0.15, jobs)
-        self.assertGreaterEqual(min(jobs) / mean - 1, -0.15, jobs)
-
     @staticmethod
     def fixture() -> tuple[list[str], wt.Weights]:
         """Build a deterministic uneven plan whose near-even cut needs mid-package splits."""
@@ -132,35 +125,19 @@ class BalanceContractTest(unittest.TestCase):
                              self.plan[bounds[index]:bounds[index + 1]])
         sizes = [len(shards.partition_runs(self.plan, shard, self.weights))
                  for shard in SHARD_IDS]
-        jobs = self.job_seconds(self.plan, self.weights, [0, *itertools.accumulate(sizes)])
-        self.assertLessEqual(max(jobs), wt.BUDGET_SECONDS, jobs)
+        self.assertEqual([0, *itertools.accumulate(sizes)], bounds)
         result = self.invoke("plan", "--shard", "1/4", input_text=self.full_tsv())
         self.assertEqual(result.returncode, 0, result.stderr)
         planned = sum(len(row.split("\t")[2].split(" ")) for row in result.stdout.splitlines())
         self.assertEqual(planned, sizes[0])
 
-    def test_committed_weights_have_no_drift_on_the_live_plan(self) -> None:
-        drift = wt.drift_report(self.plan, self.weights)
-        self.assertEqual(wt.drift_errors(drift), [])
-        self.assertLessEqual(len(drift.defaulted_tests), wt.MAX_DEFAULTED_TESTS)
-
     def test_gate_bites_when_unmeasured_tests_blow_the_budget(self) -> None:
+        """The v1 fallback names the cap; the active-model twin is in the budget cases."""
         extra = slow_runs(300)
         heavy = with_slow(self.weights, extra)
         errors = wt.budget_errors([*self.plan, *extra], heavy)
         self.assertTrue(errors)
         self.assertRegex(errors[0], r"exceeds 80% of the 1800 s cap")
-
-    def test_drift_gate_bites_on_too_many_unweighted_tests(self) -> None:
-        unweighted = slow_runs(wt.MAX_DEFAULTED_TESTS + 1, prefix="TestNoWeight")
-        drift = wt.drift_report([*self.plan, *unweighted], self.weights)
-        self.assertEqual(len(drift.defaulted_tests), len(unweighted)
-                         + len(wt.drift_report(self.plan, self.weights).defaulted_tests))
-        self.assertTrue(wt.drift_errors(drift))
-        newpkgs = [f"./internal/newpkg{index}|TestNew{index}Live" for index in range(
-            wt.MAX_DEFAULTED_PACKAGES + 1)]
-        package_drift = wt.drift_report([*self.plan, *newpkgs], self.weights)
-        self.assertTrue(wt.drift_errors(package_drift))
 
     def test_drift_message_states_the_no_feature_edit_rule(self) -> None:
         """The drift gate tells feature PRs to leave the weights file alone (#9148)."""
@@ -180,44 +157,12 @@ class BalanceContractTest(unittest.TestCase):
                          defaulted_packages=(), stale_tests=())
         self.assertEqual(wt.drift_errors(drift), [])
 
-    def test_seeded_slow_tests_overflow_a_count_split_but_not_the_weighted_one(self) -> None:
-        position = 70  # inside shard 1/4's range under the retired count split
-        # The fleet got faster (weighted shards predict ~1260 s, naive worst
-        # 1638 s), so 10x25 s no longer overflows the naive 1800 s cap
-        # (1769 s). Plant 12 to restore the bite; the weighted cut still
-        # absorbs them at 1357 s against the 1440 s budget. The fleet then
-        # grew heavier (new enrolled proofs), so 12x25 s overflows even the
-        # weighted cut (1442.1 s). Plant 11: the naive worst still overflows
-        # the cap (2063.4 s) and the weighted cut absorbs them at 1434.0 s.
-        # The 1440 s budget itself never moves for a seed.
-        inserted = slow_runs(11, package=self.plan[position].split("|")[0])
-        plan = [*self.plan[:position], *inserted, *self.plan[position:]]
-        weights = with_slow(self.weights, inserted)
-        naive = self.job_seconds(plan, weights, naive_count_bounds(len(plan)))
-        self.assertGreater(max(naive), wt.JOB_CAP_SECONDS, naive)
-        weighted = wt.weighted_bounds(plan, weights)
-        jobs = self.job_seconds(plan, weights, weighted)
-        self.assertLessEqual(max(jobs), wt.BUDGET_SECONDS, jobs)
-        self.assertEqual(wt.budget_errors(plan, weights), [])
-
     def test_bounds_cache_is_keyed_on_the_shard_count(self) -> None:
         four = wt.weighted_bounds(self.plan, self.weights, 4)
         two = wt.weighted_bounds(self.plan, self.weights, 2)
         self.assertEqual((len(four), len(two)), (5, 3))
         self.assertEqual((two[0], two[-1]), (0, len(self.plan)))
         self.assertEqual(wt.weighted_bounds(self.plan, self.weights, 4), four)
-
-    def test_seeded_count_split_already_fails_the_gate_on_the_unchanged_plan(self) -> None:
-        naive = self.job_seconds(self.plan, self.weights, naive_count_bounds(len(self.plan)))
-        self.assertGreater(max(naive), wt.BUDGET_SECONDS, naive)
-
-    def test_tests_appended_at_the_end_are_absorbed(self) -> None:
-        appended = slow_runs(10, prefix="TestAppendedTail",
-                             package=self.plan[-1].split("|")[0])
-        plan = [*self.plan, *appended]
-        weights = with_slow(self.weights, appended, 20.0)
-        jobs = self.job_seconds(plan, weights, wt.weighted_bounds(plan, weights))
-        self.assertLessEqual(max(jobs), wt.BUDGET_SECONDS, jobs)
 
     def test_fixture_tail_growth_is_bounded(self) -> None:
         # Exact growth depends on indivisible tests and package-start costs.

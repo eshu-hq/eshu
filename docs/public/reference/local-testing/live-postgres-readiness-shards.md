@@ -1,9 +1,10 @@
 # Live PostgreSQL readiness shards
 
 The `live-postgres-readiness` workflow runs the enrolled PostgreSQL proofs in
-four parallel jobs while only the v1 weights file is present. A later standalone
-v2 weights file activates five jobs through the same workflow. Each job keeps
-the 30-minute cap (1800 s). This page explains the cut and calibration.
+five parallel jobs, cut from `specs/live-postgres-readiness-weights.v2.json`
+(present since #9240). The four-job v1 cut is the fallback, used only when the
+v2 file is absent. Each job keeps the 30-minute cap (1800 s). This page
+explains the cut and calibration.
 
 ## How the cut works
 
@@ -32,7 +33,7 @@ be the exact union of the plan. A report cut under different weights fails with 
 
 ## What the prediction counts
 
-`specs/live-postgres-readiness-weights.v1.json` holds the current fitted cost model,
+`specs/live-postgres-readiness-weights.v1.json` holds the v1 fallback cost model,
 in tenths of a second so the cut is identical on every machine:
 
 | Field | Meaning |
@@ -59,7 +60,19 @@ bounds do not guarantee an observed 1800 s wall time.
 ## Gates
 
 `python3 scripts/test-live-postgres-readiness-shards.py` runs in the hermetic
-job and fails when:
+job. The budget, drift, seeded-overflow, and appended-tail cases
+(`scripts/lib/live_postgres_readiness_weights_budget_cases.py`) load the
+model the way the workflow's `matrix` step does: the committed default path,
+v2 and five shards when the v2 file is present, v1 and four shards only when
+it is absent. Their first case fails if the contract's model or shard count
+differs from the `matrix` output or from the committed v2 `shard_count`. Before
+#9100 these cases ran on the v1 four-shard cut while CI ran five shards: the
+seeded case scored 1439.9 s against the 1440 s budget, and one more 25 s
+seed failed it at 1441.6 s. The five-shard cut scores the same two plans at
+1356.0 s and 1359.9 s. The
+v1 cut mechanics (fixed-plan balance, cut cache, malformed files, union
+under changed weights) stay in `live_postgres_readiness_balance_cases.py`.
+The suite fails when:
 
 - any shard's predicted job seconds pass 80% of the 1800 s cap (1440 s). Adding
   tests without refreshing the weights is caught here once the defaults stop
@@ -94,11 +107,13 @@ job and fails when:
   the cut itself and does not change when tests are enrolled, so an unrelated
   enrollment cannot trip it. If the live-plan bound trips, open a refit;
 - more than 40 planned tests, or more than 2 planned packages, have no measured
-  weight. New tests run on `default_test_seconds` / `default_package_seconds`,
-  so a feature PR must not edit `specs/live-postgres-readiness-weights.v1.json`:
-  the gate stays green while the defaulted count is at or under the cap, and
-  review — not the gate — flags a weights edit inside a feature PR. Only a
-  standalone refit PR (see below) touches the file;
+  weight in the active model, which is
+  `specs/live-postgres-readiness-weights.v2.json` while that file is present
+  (the drift error names the file). New tests run on the model's default
+  prices, so a feature PR must not edit either weights file: the gate stays
+  green while the defaulted count is at or under the cap, and review — not the
+  gate — flags a weights edit inside a feature PR. Only a standalone refit PR
+  (see below) touches the weights files;
 - the shard job's `timeout-minutes` stops matching the 1800 s cap the gate
   uses;
 - a weights file is malformed, has duplicate keys, or a non-finite or negative
@@ -107,15 +122,16 @@ job and fails when:
 
 ## Move to five shards
 
-This infrastructure change keeps `specs/live-postgres-readiness-weights.v2.json`
-absent. The default matrix therefore remains exactly `1/4` through `4/4`; the
-plan job computes it from the same checkout used by the runner and aggregate.
+The move landed in #9240: `specs/live-postgres-readiness-weights.v2.json` is
+present, so the default matrix is `1/5` through `5/5`. The plan job computes it
+from the same checkout used by the runner and aggregate. Without the v2 file
+the matrix falls back to `1/4` through `4/4`.
 A malformed present v2 file fails the plan and the selected aggregate; it never
 falls back to v1. A present valid v2 file changes all five check names to `/5`
 and requires five matching reports. The selected aggregate fails if the plan,
 a shard, or report selection fails.
 
-After the final Phase A code and this infrastructure merge, collect at least two
+To produce a v2 file (the first one, or a refit), collect at least two
 complete, successful `main` workflow runs with the same inventory, profile,
 image, toolchain, and proof boundaries. Save every shard job's metadata and log.
 Use the v2 refresher with both runs and an output outside the repository:
@@ -139,22 +155,28 @@ spread failure before merging. The five-leg model uses one more SQL runner and m
 runner seconds; the plan job also adds setup time. No speedup or fixed
 wall-time result is promised.
 
-## Refit the v1 weights
+## Refit the weights
 
-A refit is a standalone bot-or-owner PR that touches only
-`specs/live-postgres-readiness-weights.v1.json`. It is built from green `main`
-shard logs — never from a feature branch, and never bundled with a feature
-change — so it cannot conflict with feature work, because no feature PR
-touches the file. One entry per line keeps the diff a local hunk instead of a
-whole-file rewrite.
+A refit is a standalone bot-or-owner PR that touches only the weights files.
+While `specs/live-postgres-readiness-weights.v2.json` is present, the budget
+and drift gates run on it, so a refit must regenerate it with the v2
+refresher (see [Move to five shards](#move-to-five-shards)); a v1-only refit
+cannot clear a tripped gate. Regenerating
+`specs/live-postgres-readiness-weights.v1.json` in the same PR keeps the
+fallback current; no gate checks the v1 file against the live plan while v2
+is present. A refit is built from green `main` shard logs — never from a
+feature branch, and never bundled with a feature change — so it cannot
+conflict with feature work, because no feature PR touches the files. Sorted
+entries keep the diff a local hunk instead of a whole-file rewrite.
 
 Trigger a refit when the drift count passes 20 defaulted tests (half the
 40-test gate cap), when the gate fails, when a shard job runs near its cap, or
 on a regular schedule. Either trigger shape is acceptable; the choice is the
 reviewer's call on the refit PR.
 
-Take two or more green full runs of the workflow on `main`, download each
-shard job's log, put each run's four logs in its own directory, and run:
+For the v1 fallback file, take two or more green full runs of the workflow on
+`main`, download each shard job's log, put each run's shard logs in its own
+directory, and run:
 
 ```bash
 gh api repos/eshu-hq/eshu/actions/jobs/<JOB_ID>/logs > <RUN_DIR>/shard<N>.log   # per shard job
@@ -165,7 +187,8 @@ python3 scripts/lib/live_postgres_readiness_weights_refresh.py \
 ```
 
 `--fixed-job-seconds` is the mean of the job duration minus the "Run live
-readiness proofs" step duration. Read both from
+readiness proofs" step duration (v1 only; the v2 refresher infers it from the
+source jobs). Read both from
 `gh api repos/eshu-hq/eshu/actions/runs/<RUN_ID>/jobs`: the job's
 `completed_at - started_at`, and the matching entry under `steps`. The refresher keeps only tests in the current
 inventory, so a test missing from every log uses the default until the next
@@ -177,8 +200,8 @@ and pass `--fixed-job-seconds` as the mean over every shard job of every
 sample. The refresh after the first wave on the weighted cut used runs
 40047410741, 40049588589, and 40071537963 (12 shard jobs, mean 85.75 s). The
 shard job logs of a run stay downloadable for the retention window of
-GitHub Actions logs, so refit before they expire. Use only runs whose four
-shard jobs all passed, since a failed shard log misses its package groups
+GitHub Actions logs, so refit before they expire. Use only runs whose shard
+jobs all passed, since a failed shard log misses its package groups
 and the refresher fails closed.
 
 ### A feature PR that trips the drift gate

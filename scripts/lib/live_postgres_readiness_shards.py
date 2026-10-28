@@ -282,7 +282,6 @@ def main() -> int:
         command.add_argument("--weights", help="weights file (default: committed)")
     args = parser.parse_args()
     import live_postgres_readiness_reports as reports
-    import live_postgres_readiness_v2 as v2
     try:
         weights_path = Path(args.weights) if args.weights else None
         if args.command == "report":
@@ -291,7 +290,7 @@ def main() -> int:
                                 weights_path) else 1
         weights = wt.load_weights(weights_path)
         if args.command == "matrix":
-            count = weights.shard_count if isinstance(weights, v2.WeightsV2) else wt.SHARD_COUNT
+            count = len(reports.shard_ids(weights))
             print(json.dumps({"include": [{"shard": index, "total": count}
                                           for index in range(1, count + 1)]},
                              separators=(",", ":")))
