@@ -43,8 +43,8 @@ tree.
 
 Chart entry points: `deploy/helm/eshu/Chart.yaml` (name `eshu`,
 `version: 0.0.3-pre-release-26`, `appVersion: v0.0.3-pre-release-18`),
-`deploy/helm/eshu/values.yaml` (1567 lines of deployment defaults),
-`deploy/helm/eshu/values.schema.json` (1731 lines, value gate),
+`deploy/helm/eshu/values.yaml` (1571 lines of deployment defaults),
+`deploy/helm/eshu/values.schema.json` (1739 lines, value gate),
 `deploy/helm/eshu/README.md`, and the CI values overlay
 `deploy/helm/eshu/ci/governance-two-team-k8s.values.yaml`.
 

@@ -372,8 +372,8 @@ func TestExtractionCensusPinsHelmContractFigures(t *testing.T) {
 		want   int
 		needle string
 	}{
-		"values.yaml":        {1567, "1567 lines of deployment defaults"},
-		"values.schema.json": {1731, "1731 lines, value gate"},
+		"values.yaml":        {1571, "1571 lines of deployment defaults"},
+		"values.schema.json": {1739, "1739 lines, value gate"},
 	}
 	for file, pin := range lineCounts {
 		raw, err := os.ReadFile(filepath.Join(chartDir, file))
