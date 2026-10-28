@@ -5,7 +5,7 @@ package v1
 
 import "sort"
 
-// DriftAttributeAllowlist is the single source of truth for the Terraform
+// driftAttributeAllowlist is the single source of truth for the Terraform
 // state attribute paths that config-vs-state drift detection compares. It
 // maps a Terraform resource type to the deterministic, ordered list of
 // dot-path attribute keys the attribute_drift classifier evaluates.
@@ -19,11 +19,11 @@ import "sort"
 //   - database engine identity (engine, engine_version)
 //   - IAM policy identity (assume_role_policy, policy_arn)
 //
-// Consumers:
+// Consumers (once the host/satellite follow-ups land):
 //   - Host classifier: go/internal/correlation/drift/tfconfigstate AllowlistFor
-//     delegates to DriftAllowlistFor so the compared set cannot drift from
-//     this contract.
-//   - Extracted satellites (eshu-collector-terraform-state): emission is
+//     will delegate to DriftAllowlistFor so the compared set cannot drift from
+//     this contract; until then the core table remains authoritative.
+//   - Extracted satellites (eshu-collector-terraform-state) will emit
 //     allowlist-only and fail-closed — a resource type with no entry emits no
 //     attributes, and only the listed leaf paths are emitted, re-nested in
 //     the shape the drift evidence loader flattens. The satellite additionally
@@ -33,7 +33,7 @@ import "sort"
 //     gap, not false drift.
 //
 // Promotion to a versioned data file lives in a follow-up ADR.
-var DriftAttributeAllowlist = map[string][]string{
+var driftAttributeAllowlist = map[string][]string{
 	"aws_s3_bucket": {
 		"versioning.enabled",
 		"acl",
@@ -69,7 +69,7 @@ var DriftAttributeAllowlist = map[string][]string{
 // type. Returns nil when the type has no entry — attribute_drift cannot fire
 // for such resources, and satellites must emit no attributes for them.
 func DriftAllowlistFor(resourceType string) []string {
-	attrs, ok := DriftAttributeAllowlist[resourceType]
+	attrs, ok := driftAttributeAllowlist[resourceType]
 	if !ok {
 		return nil
 	}
@@ -81,8 +81,8 @@ func DriftAllowlistFor(resourceType string) []string {
 // DriftAllowlistResourceTypes returns the sorted list of resource types
 // covered by the drift allowlist.
 func DriftAllowlistResourceTypes() []string {
-	out := make([]string, 0, len(DriftAttributeAllowlist))
-	for k := range DriftAttributeAllowlist {
+	out := make([]string, 0, len(driftAttributeAllowlist))
+	for k := range driftAttributeAllowlist {
 		out = append(out, k)
 	}
 	sort.Strings(out)

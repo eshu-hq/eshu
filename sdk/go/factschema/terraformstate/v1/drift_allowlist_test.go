@@ -46,8 +46,8 @@ func TestDriftAllowlistContent(t *testing.T) {
 			"policy_arn",
 		},
 	}
-	if !reflect.DeepEqual(DriftAttributeAllowlist, want) {
-		t.Fatalf("DriftAttributeAllowlist = %#v, want %#v", DriftAttributeAllowlist, want)
+	if !reflect.DeepEqual(driftAttributeAllowlist, want) {
+		t.Fatalf("driftAttributeAllowlist = %#v, want %#v", driftAttributeAllowlist, want)
 	}
 	if got := DriftAllowlistResourceTypes(); !reflect.DeepEqual(got, []string{
 		"aws_db_instance",
@@ -65,7 +65,7 @@ func TestDriftAllowlistContent(t *testing.T) {
 	}
 	got := DriftAllowlistFor("aws_s3_bucket")
 	got[0] = "mutated"
-	if DriftAttributeAllowlist["aws_s3_bucket"][0] == "mutated" {
+	if driftAttributeAllowlist["aws_s3_bucket"][0] == "mutated" {
 		t.Fatal("DriftAllowlistFor must return a copy: caller mutated the shared table")
 	}
 }
