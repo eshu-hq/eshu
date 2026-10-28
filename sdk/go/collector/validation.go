@@ -34,6 +34,16 @@ var redactionSafePayloadKeys = map[string]struct{}{
 	// token_count is an integer body-size metric (lexer tokens), not a
 	// credential; see reducerderived/v1.CodeDriftedMember.TokenCount.
 	"token_count": {},
+	// token_ttl_seconds is an integer Vault role TTL duration in seconds,
+	// not a credential; see posture.VaultAuthRoleObservation.TokenTTLSeconds.
+	"token_ttl_seconds": {},
+	// token_policy_count is an integer count of attached Vault policies,
+	// not a credential.
+	"token_policy_count": {},
+	// token_policy_name_fingerprints holds HMAC redaction markers over
+	// Vault policy names, never the names themselves; see
+	// posture.fingerprintVaultValues.
+	"token_policy_name_fingerprints": {},
 }
 
 // Validator validates extension results against the host-declared contract.
