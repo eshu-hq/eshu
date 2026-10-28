@@ -42,11 +42,12 @@ var cutoverDocOnlyRoutes = map[string]bool{
 const cutoverWireAPIProbeExclusions = 26
 
 type cutoverMapRow struct {
-	route     string
-	family    string
-	contract  string
-	channel   string
-	mountedBy string
+	route       string
+	family      string
+	contract    string
+	channel     string
+	persistence string
+	mountedBy   string
 }
 
 func cutoverRepoRoot(t *testing.T) string {
@@ -89,11 +90,12 @@ func parseCutoverOwnershipMap(t *testing.T) []cutoverMapRow {
 			continue
 		}
 		rows = append(rows, cutoverMapRow{
-			route:     route,
-			family:    strings.TrimSpace(cells[1]),
-			contract:  strings.TrimSpace(cells[2]),
-			channel:   strings.TrimSpace(cells[3]),
-			mountedBy: strings.TrimSpace(cells[5]),
+			route:       route,
+			family:      strings.TrimSpace(cells[1]),
+			contract:    strings.TrimSpace(cells[2]),
+			channel:     strings.TrimSpace(cells[3]),
+			persistence: strings.TrimSpace(cells[4]),
+			mountedBy:   strings.TrimSpace(cells[5]),
 		})
 	}
 	if len(rows) == 0 {
@@ -184,6 +186,89 @@ func TestCutoverOwnershipMapCoversEveryRoute(t *testing.T) {
 		if r.mountedBy != "newRouter" && r.mountedBy != "wireAPI" {
 			t.Errorf("map row %q has mounted-by %q, want newRouter or wireAPI", r.route, r.mountedBy)
 		}
+	}
+}
+
+// cutoverPersistenceVocabulary is the exact persistence-column wording the
+// #8872 ownership-map review approved. A new store, a reworded cell, or a
+// new channel/persistence pairing fails here and forces map review, so the
+// extraction cannot silently gain a writer-handle touchpoint.
+var cutoverPersistenceVocabulary = map[string]bool{
+	"reader (ReadStore/graph/content, no durable writes)":                            true,
+	"reader (StatusReader/ReadStore; writer handle held for governance audit reads)": true,
+	"writer: identity/session/token stores":                                          true,
+	"writer: Postgres recovery/reindex/dead-letter/queue stores":                     true,
+	"writer: login-state/session stores":                                             true,
+	"writer: provider-config stores":                                                 true,
+	"writer: identity stores (roles, IdP mappings)":                                  true,
+	"writer: browser-session store":                                                  true,
+	"writer: bootstrap stores":                                                       true,
+	"writer: terminal-failure ack store + replay ledger":                             true,
+	"writer: sign-in-policy store":                                                   true,
+	"writer: retirement marker/fencer/purger stores":                                 true,
+	"writer: VulnerabilitySuppressionMutationStore (suppressions only)":              true,
+	"n/a (mux-level)": true,
+}
+
+// cutoverReadRowsWithWriterStores pins how many read-channel rows are built
+// with a writer-capable store handle (status reads over recovery stores,
+// session reads over session stores, suppression reads over the suppression
+// store). A new one means a new extraction hazard and needs map review.
+const cutoverReadRowsWithWriterStores = 32
+
+// cutoverReadRowsHoldingWriterHandle pins how many read-channel rows hold a
+// writer handle for governance audit reads. A new one needs map review.
+const cutoverReadRowsHoldingWriterHandle = 18
+
+// cutoverMuxLevelRows pins how many rows use n/a (mux-level) persistence
+// (liveness probe, spec browsers, served spec document). A new one means a
+// route without an owning store and needs map review.
+const cutoverMuxLevelRows = 4
+
+// TestCutoverOwnershipPersistencePairingsAreReviewed is the #8872
+// acceptance-criterion 1 lock for the persistence half of the map: every row
+// must use reviewed persistence wording, every mutation must name the
+// core-owned writer store it persists through, and the set of read rows that
+// touch writer handles must not grow without review.
+func TestCutoverOwnershipPersistencePairingsAreReviewed(t *testing.T) {
+	t.Parallel()
+
+	rows := parseCutoverOwnershipMap(t)
+	writerStoreReads := 0
+	writerHandleReads := 0
+	muxLevelRows := 0
+	for _, r := range rows {
+		if !cutoverPersistenceVocabulary[r.persistence] {
+			t.Errorf("map row %q has persistence %q, want a reviewed vocabulary value", r.route, r.persistence)
+		}
+		switch r.channel {
+		case "mutation":
+			if !strings.HasPrefix(r.persistence, "writer:") {
+				t.Errorf("mutation row %q has persistence %q, want the core-owned writer store", r.route, r.persistence)
+			}
+		case "read":
+			switch {
+			case strings.HasPrefix(r.persistence, "writer:"):
+				writerStoreReads++
+			case strings.Contains(r.persistence, "writer handle held"):
+				writerHandleReads++
+			}
+		}
+		if r.persistence == "n/a (mux-level)" {
+			muxLevelRows++
+			if r.family != "APIRouter" || r.channel != "read" {
+				t.Errorf("map row %q is n/a (mux-level) with family %q channel %q, want APIRouter read", r.route, r.family, r.channel)
+			}
+		}
+	}
+	if writerStoreReads != cutoverReadRowsWithWriterStores {
+		t.Errorf("read rows with writer stores = %d, want %d: a read route gained or lost a writer store without map review", writerStoreReads, cutoverReadRowsWithWriterStores)
+	}
+	if writerHandleReads != cutoverReadRowsHoldingWriterHandle {
+		t.Errorf("read rows holding a writer handle = %d, want %d: a read route gained or lost a writer handle without map review", writerHandleReads, cutoverReadRowsHoldingWriterHandle)
+	}
+	if muxLevelRows != cutoverMuxLevelRows {
+		t.Errorf("mux-level rows = %d, want %d: a route gained or lost n/a persistence without map review", muxLevelRows, cutoverMuxLevelRows)
 	}
 }
 

@@ -58,7 +58,11 @@ to `eshu-api` as consumers of versioned core read contracts.
 
 Every `mutation` row persists through core-owned admission storage that
 stays with the core. `eshu-api` keeps the HTTP shape and calls a versioned
-core admission contract; it never takes direct table or queue handles.
+core admission contract; it never takes direct table or queue handles. The
+in-tree seam exists for the single bounded suppression mutation:
+`query.SuppressionAdmission` at `SuppressionAdmissionContractVersion`, bound
+by `newSupplyChainHandler` to the core-owned Postgres store; reads consume
+the `querycontract.CoreReadContractsVersion` port set.
 
 | Mutation family | Core-owned persistence | eshu-api disposition |
 | --- | --- | --- |

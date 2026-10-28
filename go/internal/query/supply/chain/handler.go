@@ -57,7 +57,11 @@ type Handler struct {
 	SecurityAlerts           SecurityAlertReconciliationStore
 	SecurityAlertAggregates  SecurityAlertReconciliationAggregateStore
 	Readiness                impact.ReadinessStore
-	SuppressionMutations     VulnerabilitySuppressionMutationStore
+	// SuppressionMutations is the versioned #8872 admission-contract port
+	// for the single bounded in-API mutation. The handler takes the
+	// admission contract, never a direct table handle; the core-owned
+	// Postgres store satisfies it.
+	SuppressionMutations SuppressionAdmission
 	// CloudResourceInventory gates the #5452 runtime-observed cloud evidence
 	// probe: it filters the probe's digest-matched CloudResource graph nodes to
 	// those that are BOTH current (active-generation, non-tombstoned) and
