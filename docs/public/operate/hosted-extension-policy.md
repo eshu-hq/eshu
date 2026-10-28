@@ -55,7 +55,10 @@ a reason. The whole token is the failure class: Eshu records it verbatim in
 `failure_class` metric labels, the `component extension result` log, and the
 claim's `last_failure_class` and `last_failure_message`. The reason uses only
 lowercase letters, digits, and underscores, and the full token stays within 96
-characters. To group by the base class, use the segment before the first dot.
+characters. Each process admits at most 64 distinct `failure_class` metric label
+values; a class first seen after that folds to `other` in the label, while the
+log and the claim columns keep the full token. To group by the base class, use
+the segment before the first dot.
 A dashboard or alert that matches `failure_class="invalid_config"` exactly
 must match the prefix instead (`invalid_config(\..*)?`), because a refined
 class no longer equals the base class.
