@@ -73,6 +73,30 @@ func TestSupplyChainImpactReadinessReconfiguredExactSelectorRefusesOldSuccessLiv
 	}
 }
 
+func TestSupplyChainImpactReadinessMalformedCVEElementsRefuseCleanZeroLive(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		cveIDs []any
+	}{
+		{name: "blank", cveIDs: []any{"  "}},
+		{name: "nonstring", cveIDs: []any{7}},
+		{name: "null", cveIDs: []any{nil}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, database, now := readinessScopeLiveDatabase(t)
+			seedReadinessScopeInstance(t, ctx, database, now, "malformed-elements-instance", []map[string]any{
+				{"source": "nvd", "scope_id": "exact", "cve_ids": []string{"CVE-2026-9227"}},
+				{"source": "nvd", "scope_id": "malformed", "cve_ids": tc.cveIDs},
+			})
+			seedReadinessScopeState(t, ctx, database, now, "malformed-elements-instance", "exact", "nvd", "fresh", "succeeded")
+			readiness := readReadinessScopeAPI(t, database, "CVE-2026-9227")
+			if readiness.State != impact.ReadinessStateReadinessUnavailable {
+				t.Fatalf("malformed %s CVE element readiness = %+v, want readiness_unavailable", tc.name, readiness)
+			}
+		})
+	}
+}
+
 func seedReadinessNVDCommittedSnapshot(t *testing.T, ctx context.Context, db *sql.DB,
 	now time.Time, scopeID, instanceID, cveID string,
 ) {
