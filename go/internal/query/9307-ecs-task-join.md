@@ -28,7 +28,11 @@ image match. A multi-container task counts once by ARN. A task with an image
 outside ECR needs an explicit skipped reason. None of those behaviors is
 proved by this plan alone.
 
-No-Regression Evidence: focused matrix and route tests pass locally; full endpoint latency and live corpus proof remain NOT_CHECKED.
+No-Regression Evidence: focused matrix and route tests pass locally. The
+registry-selected static gates passed at `7e6b05a444`. Both the corrected full
+golden replay and its retained-stack repeat passed 634 checks with zero required
+failures and three advisory timing warnings at that SHA. Composed endpoint
+latency remains NOT_PROVEN after an invalid quiet-host calibration.
 Observability Evidence: the new impact.ecs_running_task_count span records observed count or a skip reason; the query read also uses the existing guarded Postgres read port.
 
 The new cassette reference uses the historical in-tree ECS scanner's
@@ -85,8 +89,26 @@ task, and matching `aws_image_reference`, leaving the older
 require the observed count, source, evidence tier, and matching container.
 The source value names both AWS `DescribeServices` and `DescribeTasks`, because
 zero is based on the service's observed running count while nonzero is checked
-against distinct running task ARNs. Full golden replay and endpoint latency
-are still NOT_CHECKED pending host coordination.
+against distinct running task ARNs.
+
+The first full golden replay at `4c0728a98e` failed three exact pins: the new
+task raised running-image nodes from two to three, and the Terraform declaration
+raised IaC resources from 15 to 16 (total 24 to 25). The corrected snapshot
+and synthetic counter passed full replay and a retained-stack repeat at
+`7e6b05a444`: each had 634 passes, zero required failures, and three advisory
+timing warnings. The registry-selected static gates also passed on that SHA.
+
+The retained corpus was seeded once with 20,000 active ECS facts in a separate
+account and scope. Its target service, task, and image-reference state was
+byte-identical before and after seeding. Three unchanged-base calibration sets
+ran, but timing-proof-rules §1 invalidated them because unrelated containers
+were resident. The bounds were quarantined; no base/head endpoint comparison
+has been accepted. Composed latency remains NOT_PROVEN.
+
+A read-only QA check on 2026-10-28 found active typed AWS observations last
+seen on 2026-10-26, older than active placeholder observations from
+2026-10-28. Current extracted-collector typed freshness and the cutover
+prerequisite remain NOT_CHECKED.
 
 Historical scanner envelope parity was checked on this pre-extraction branch with
 `cd go && go test ./internal/collector/awscloud/service/ecs -run
