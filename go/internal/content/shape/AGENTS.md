@@ -68,7 +68,7 @@
 - **Dependency identity gate is narrow** — `Materialize` mints entity ids via
   `content.CanonicalEntityIDWithMetadata`, which only routes an in-scope
   manifest dependency `Variable` (npm, composer, cargo, gradle, maven, nuget,
-  pypi, go, rubygems, pub, hex; non-lockfile, non-empty `section`) to the
+  pypi, go, rubygems, pub, hex, sbt; non-lockfile, non-empty `section`) to the
   section-keyed `content.CanonicalDependencyEntityID`. Everything else,
   including lockfile-sourced `Variable` rows and `swift` (Package.resolved is
   always a lockfile), keeps the legacy line-keyed `content.CanonicalEntityID`.

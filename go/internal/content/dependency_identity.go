@@ -20,7 +20,8 @@ import (
 // "npm" and "composer" are #5357's original two, proven because a JSON object
 // key is unique within its enclosing section by construction. #5507 (this
 // file's remaining nine cases) extends the scheme to cargo, gradle, maven,
-// nuget, pypi, go (gomod), rubygems, pub, and hex — each proven either by the
+// nuget, pypi, go (gomod), rubygems, pub, and hex; #8962 adds sbt — each
+// proven either by the
 // same "the parser's own name field is a unique map/table key, or the
 // ecosystem's own tooling rejects a duplicate" argument (rubygems, pub, hex)
 // or by an added dependencyIdentityDiscriminator component that keeps a
@@ -59,6 +60,7 @@ var dependencyIdentityPackageManagers = map[string]struct{}{
 	"rubygems": {},
 	"pub":      {},
 	"hex":      {},
+	"sbt":      {},
 }
 
 // CanonicalEntityIDWithMetadata returns the canonical content-entity
@@ -167,7 +169,9 @@ func dependencyIdentitySection(entityType string, metadata map[string]any) (stri
 // already unique for this package_manager" — this is the path for every
 // producer not named below, including npm, composer, rubygems (Gemfile), pub
 // (pubspec.yaml), and hex (mix.exs); see dependencyIdentityPackageManagers for
-// why each of those is safe without one.
+// why each of those is safe without one. sbt (#8962) IS named below: its
+// discriminator is the declared revision plus the cross-version label, for
+// the two same-section redeclaration shapes documented on its case.
 //
 // Do not add or change a case here without documenting, in this comment, the
 // concrete manifest feature that makes the discriminator necessary — the
@@ -289,6 +293,39 @@ func dependencyIdentityDiscriminator(packageManager string, metadata map[string]
 			return group
 		}
 		return item + "\x1f" + group
+	case "sbt":
+		// A build.sbt can declare the same organization:name twice in one
+		// section for two coexisting reasons, and neither is visible in
+		// (section, name) alone.
+		//
+		// First, sbt appends to the libraryDependencies sequence — it does
+		// not de-duplicate — so the same coordinate can sit in one section
+		// at two revisions (a version bump that left both `+=` lines, or
+		// two subprojects' settings sharing one section literal). "value"
+		// is the row's literal revision text (sbt/rows.go), stable across a
+		// reorder and independent of the source line, so it keeps those
+		// declarations distinct — the same declared-version reasoning as
+		// the gradle and go cases.
+		//
+		// Second, and sbt-specific: the row's "name" is ALWAYS the
+		// unsuffixed organization:name, for `%`, `%%`, and `%%%` alike
+		// (sbt rows.go keeps the Scala suffix out of name so the registry
+		// join can pick the artifact explicitly). `"org" % "name" % "1.0"`
+		// and `"org" %% "name" % "1.0"` in the same section therefore share
+		// (section, name, value) exactly while naming different published
+		// artifacts. "sbt_cross_version" ("none", "binary", "scalajs",
+		// "custom") is the row's own cross operator label, so folding it in
+		// keeps those declarations distinct.
+		//
+		// The declaration configuration needs no component here: rows.go
+		// rides it in the section ("libraryDependencies:<Config>"), so a
+		// bare declaration and a `% Test` one already key apart. A custom
+		// `cross(...)` modifier finer than the "custom" label, and two
+		// byte-identical redeclarations of one coordinate (including the
+		// same coordinate repeated across two projects of one build.sbt,
+		// whose rows carry no project field), still share one id — the
+		// same accepted residual as an exactly-duplicated gradle line.
+		return metadataStringValue(metadata, "value") + "\x1e" + metadataStringValue(metadata, "sbt_cross_version")
 	case "pypi":
 		// A pip/PEP 508 requirement (requirements.txt lines, and the
 		// PEP 621/Hatch array-form pyproject.toml dependency lists) can

@@ -27,6 +27,6 @@
 // section does not churn their content-entity id — and falls back to
 // CanonicalEntityID for everything else. The in-scope package managers are
 // npm, composer, cargo, gradle, maven, nuget, pypi, go (gomod), rubygems,
-// pub, and hex; swift is deliberately excluded because its only producer is
+// pub, hex, and sbt; swift is deliberately excluded because its only producer is
 // a lockfile (see dependencyIdentityPackageManagers).
 package content

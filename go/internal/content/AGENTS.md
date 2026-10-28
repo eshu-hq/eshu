@@ -31,7 +31,8 @@
   `metadata["config_kind"] == "dependency"` AND
   `metadata["package_manager"] ∈ dependencyIdentityPackageManagers` (`npm`,
   `composer`, `cargo`, `gradle`, `maven`, `nuget`, `pypi`, `go`, `rubygems`,
-  `pub`, `hex` as of #5507; NOT `swift` — its only producer is a lockfile) AND
+  `pub`, `hex` as of #5507, plus `sbt` as of #8962; NOT `swift` — its only
+  producer is a lockfile) AND
   `metadata["lockfile"]` is not true AND `metadata["section"]` is a non-empty
   string. `config_kind == "dependency"` alone is also set by lockfile parsers,
   which legitimately repeat a package name per section (nested transitive
@@ -56,11 +57,15 @@
   `requests[toml]`, platform-gated markers, and — as of PR #5731 review —
   `requests>=2` vs `requests<3` repeated-line version constraints; pip's own
   parser does not reject or de-duplicate these at parse time, the same
-  toolchain-permits-duplicates shape as gomod below), and go/gomod (the raw
+  toolchain-permits-duplicates shape as gomod below), go/gomod (the raw
   declared version, defending against a hand-edited or merge-conflicted,
   not-yet-`go mod tidy`-run go.mod whose non-deduplicating `modfile.Parse`
   admits the same module required twice at different versions in one
-  section). Only npm, composer, rubygems,
+  section), and sbt (declared revision plus cross-version label, defending
+  against the same coordinate declared twice in one section at two revisions
+  — sbt appends to the `libraryDependencies` sequence without de-duplicating
+  — and against `%` vs `%%` of one coordinate at one revision, which share
+  the unsuffixed row name by contract). Only npm, composer, rubygems,
   pub, and hex return an empty discriminator, because each one's parser
   already guarantees per-section name uniqueness on its own (a JSON/YAML map
   key, or the ecosystem's own tooling rejecting a duplicate declaration). Do

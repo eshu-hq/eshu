@@ -135,11 +135,16 @@ the artifact they publish, never through the unsuffixed row name
 label and `sbt_binary_artifact` can name a Maven artifact. The join is identity
 evidence for package consumption and security-alert matching. It adds no JVM
 package API evidence, so an sbt-sourced finding does not claim package
-reachability. sbt rows keep the line-keyed entity id
-([#8962](https://github.com/eshu-hq/eshu/issues/8962)). Rows already stored
+reachability. sbt rows use the section-keyed entity id
+([#8962](https://github.com/eshu-hq/eshu/issues/8962)): the identity
+discriminator folds in the declared revision and the cross-version label, so
+two declarations of one `organization:name` in a section — at different
+revisions, or `%` vs `%%` — keep distinct ids across a line move. Rows already stored
 gain their registry keys through the reducer's sbt repair within minutes of the
 upgrade, without a readiness gap; rows a pre-upgrade reducer or ingester
 rewrites during the rollout are repaired at the next change of that repository.
+Stored rows minted under the old line-keyed scheme are reaped on the next
+re-ingest, which carries only the new section-keyed ids.
 
 Known limits of the sbt reading:
 

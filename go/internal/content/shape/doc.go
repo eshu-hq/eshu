@@ -8,7 +8,7 @@
 // canonical content-entity identifiers via
 // content.CanonicalEntityIDWithMetadata — which routes in-scope manifest
 // dependency Variables (npm, composer, cargo, gradle, maven, nuget, pypi, go,
-// rubygems, pub, hex; non-lockfile) to the section-keyed, line-independent
+// rubygems, pub, hex, sbt; non-lockfile) to the section-keyed, line-independent
 // content.CanonicalDependencyEntityID and falls back to the legacy line-keyed
 // content.CanonicalEntityID for everything else — builds
 // per-entity source_cache snippets from the file body or parser source, records

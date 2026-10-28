@@ -133,3 +133,81 @@ func TestContentWriterReapsStaleLineKeyedDependencyIDForFivefivezerosevenFormats
 		t.Fatalf("fresh maven id (%q) unexpectedly equals the stale line-keyed id; the migration did not change the identity", freshMavenID)
 	}
 }
+
+// TestContentWriterReapsStaleLineKeyedDependencyIDForSbt proves the
+// specific old-id/new-id pair for the #8962 sbt migration: a build.sbt
+// dependency ingested under the pre-#8962 line-keyed
+// content.CanonicalEntityID is absent from the first post-fix Write() call's
+// fresh set, so the generic per-path anti-join reaps it. The fresh id carries
+// the sbt discriminator (declared revision plus cross-version label),
+// proving the migration reap works for the discriminated sbt scheme. No
+// live database is needed: fakeExecQueryer captures the reap statement.
+func TestContentWriterReapsStaleLineKeyedDependencyIDForSbt(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	writer := NewContentWriter(withTransactions(db))
+	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
+
+	const repoID = "repository:r_12345678"
+
+	staleSbtID := content.CanonicalEntityID(repoID, "build.sbt", "Variable", "org.typelevel:cats-core", 3)
+
+	freshSbtMetadata := map[string]any{
+		"section":           "libraryDependencies",
+		"config_kind":       "dependency",
+		"package_manager":   "sbt",
+		"value":             "2.10.0",
+		"sbt_cross_version": "binary",
+	}
+	freshSbtID := content.CanonicalEntityIDWithMetadata(
+		repoID, "build.sbt", "Variable", "org.typelevel:cats-core", 3, freshSbtMetadata,
+	)
+
+	entities := []content.EntityRecord{
+		{
+			EntityID:   freshSbtID,
+			Path:       "build.sbt",
+			EntityType: "Variable",
+			EntityName: "org.typelevel:cats-core",
+			StartLine:  3,
+			Metadata:   freshSbtMetadata,
+		},
+	}
+
+	mat := content.Materialization{
+		RepoID:       repoID,
+		ScopeID:      "test-scope",
+		GenerationID: "test-gen",
+		Entities:     entities,
+	}
+
+	if _, err := writer.Write(context.Background(), mat); err != nil {
+		t.Fatalf("Write() error = %v, want nil", err)
+	}
+
+	reapQuery, reapArgs := findReapExec(t, db)
+	if !strings.Contains(reapQuery, "DELETE FROM content_entities") {
+		t.Fatalf("reap query = %q, want a DELETE FROM content_entities", reapQuery)
+	}
+
+	paths, ok := reapArgs[1].(array.StringArray)
+	if !ok {
+		t.Fatalf("reap path arg type = %T, want array.StringArray", reapArgs[1])
+	}
+	if len(paths) != 1 || paths[0] != "build.sbt" {
+		t.Fatalf("reap paths = %v, want [build.sbt]", []string(paths))
+	}
+
+	freshIDs, ok := reapArgs[2].(array.StringArray)
+	if !ok {
+		t.Fatalf("reap fresh-id arg type = %T, want array.StringArray", reapArgs[2])
+	}
+
+	mustContain(t, freshIDs, freshSbtID)
+	mustNotContain(t, freshIDs, staleSbtID)
+
+	if freshSbtID == staleSbtID {
+		t.Fatalf("fresh sbt id (%q) unexpectedly equals the stale line-keyed id; the migration did not change the identity", freshSbtID)
+	}
+}
