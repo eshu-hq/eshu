@@ -338,11 +338,12 @@ No-Observability-Change: no metric, span, or log key was added. Existing
 `git_runtime_declaration_file_skipped` and
 `git_runtime_declaration_values_rejected` WARN logs report bounded skips with
 reason, relative path, byte size, and rejected count without raw values. A
-changed or unparsed Composer body marks the stream dropped, exposing the
-existing `eshu_dp_collector_preparse_identity_dropped_total` and
-`git_snapshot_preparse_identity_dropped` signals. Queue and graph counts were
-not measured in this local parser/collector benchmark; the live golden-corpus
-gate owns projection proof.
+changed or unparsed Composer body marks the generation `stream_dropped` with
+the affected relative path, so the next sweep recollects it; an unparsed file
+also reaches the typed skip WARN. The existing pre-parse identity drop metric
+and WARN log cover file read failures, not this Composer mismatch branch.
+Queue and graph counts were not measured in this local parser/collector
+benchmark; the live golden-corpus gate owns projection proof.
 
 ## Dockerfile and workflow sources
 
