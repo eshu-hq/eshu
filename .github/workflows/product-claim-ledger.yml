@@ -12,11 +12,6 @@ on:
       plan_mode:
         required: true
         type: string
-  # Merge-queue entries (#7111): every job runs, publication stays off, and
-  # required-gates.yml aggregates the merge_group check rows.
-  # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
-  merge_group:
-    types: [checks_requested]
   push:
     branches:
       - main
@@ -51,37 +46,24 @@ env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
 
 jobs:
-  queue-selection:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
-    uses: ./.github/workflows/queue-selection.yml
-    with:
-      workflow: product-claim-ledger.yml
-
   verify-product-claims:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'verify-product-claims') }}
-    needs: queue-selection
     name: Verify product claim ledger
     timeout-minutes: 15
     runs-on: ubuntu-24.04
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify product claim ledger')) }}
         uses: actions/checkout@v5
         with:
           persist-credentials: false
 
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify product claim ledger')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
       - name: Install workflow test dependencies
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify product claim ledger')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
@@ -90,11 +72,9 @@ jobs:
       # HERE, named for what it is, instead of surfacing as a product-claim
       # ledger drift that never ran (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify product claim ledger')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run product claim workflow contract mirror
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify product claim ledger')) }}
         run: scripts/test-product-claim-ledger-workflow.sh
 
       # -mode product-claims runs only the product claim ledger guard (ledger
@@ -107,7 +87,6 @@ jobs:
       # runs here (pull_request, push, schedule, and workflow_dispatch all hit
       # this one step) using the read-only Actions token.
       - name: Run product-claim ledger verify
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify product claim ledger')) }}
         working-directory: go
         shell: bash
         env:
@@ -118,7 +97,7 @@ jobs:
           go run ./cmd/capability-inventory -mode product-claims 2>&1 | tee /tmp/product-claims.log
 
       - name: Upload product claim report on failure
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Verify product claim ledger'))) && (failure()) }}
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: product-claim-ledger-report

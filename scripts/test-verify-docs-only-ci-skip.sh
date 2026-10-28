@@ -20,14 +20,6 @@ trap 'rm -rf "${tmp}"' EXIT
 # --- build the scratch tree: only the files verify-docs-only-ci-skip.sh reads. ---
 mkdir -p "${tmp}/scripts/lib" "${tmp}/.github/workflows" "${tmp}/specs"
 cp "${repo_root}/${script_rel}" "${tmp}/scripts/verify-docs-only-ci-skip.sh"
-# The merge_group (#5814) checks live in this sourced lib, not inline (kept
-# verify-docs-only-ci-skip.sh under the 500-line cap). Omitting this copy is
-# exactly the "lib committed but never sourced by the scratch mirror" failure
-# mode a stale test harness would hide — reproduced by hand while writing this
-# copy: without it the scratch script aborts with a "did not define
-# run_merge_group_checks" error the first time run_scratch is called, and
-# every case below fails "for the wrong reason" instead of testing anything.
-cp "${repo_root}/scripts/lib/ci-gate-merge-group-checks.sh" "${tmp}/scripts/lib/ci-gate-merge-group-checks.sh"
 cp "${repo_root}/scripts/lib/ci-gate-predicate-quantifier.sh" "${tmp}/scripts/lib/ci-gate-predicate-quantifier.sh"
 cp "${repo_root}/scripts/lib/ci-gate-docs-planner-checks.sh" "${tmp}/scripts/lib/ci-gate-docs-planner-checks.sh"
 cp "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh" "${tmp}/scripts/lib/ci-gates-resolved-fixtures.sh"
@@ -219,143 +211,6 @@ else
 	no "guard 2 should pass again once the mutated registry is restored"
 fi
 
-# --- merge_group (#5814): a required-status-check umbrella must report on the
-# merge_group event too, or enabling a GitHub merge queue later would strand
-# every queued PR waiting on checks that never fire. Four independent guards
-# in verify-docs-only-ci-skip.sh cover the shape; each is mutated separately
-# here, following the same scratch-copy-and-mutate pattern as guards 1/2 above
-# instead of a hand-run proof, so a future edit that quietly breaks one cannot
-# slip back in unnoticed. ---
-
-# --- merge_group case 1: drop the on: trigger itself. ---
-python3 - "${tmp}/.github/workflows/test.yml" <<'PY'
-import sys
-path = sys.argv[1]
-with open(path) as f:
-	content = f.read()
-needle = "  merge_group:\n    types: [checks_requested]\n"
-assert content.count(needle) == 1, "expected exactly one merge_group trigger block"
-with open(path, "w") as f:
-	f.write(content.replace(needle, "", 1))
-PY
-if out="$(run_scratch 2>&1)"; then
-	no "merge_group case 1 should fail when on: drops the merge_group trigger"
-else
-	if rg -F 'test.yml on: block must add a merge_group trigger' < <(printf '%s\n' "${out}") >/dev/null; then
-		ok "merge_group case 1 fails and names the missing on: trigger"
-	else
-		no "merge_group case 1 failed for the wrong reason; got:"
-		printf '%s\n' "${out}" >&2
-	fi
-fi
-cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
-if run_scratch >/dev/null 2>&1; then
-	ok "merge_group case 1 passes again after restoring the on: trigger"
-else
-	no "merge_group case 1 should pass again once the on: trigger is restored"
-fi
-
-# --- merge_group case 2: drop the Filter changed paths step's skip guard, so
-# it would run dorny/paths-filter's unproven merge_group behavior against this
-# job's shallow fetch-depth: 2 checkout. ---
-python3 - "${tmp}/.github/workflows/test.yml" <<'PY'
-import sys
-path = sys.argv[1]
-with open(path) as f:
-	content = f.read()
-needle = (
-	"      - name: Filter changed paths\n"
-	"        id: filter\n"
-	"        if: ${{ github.event_name != 'merge_group' }}\n"
-	"        uses: dorny/paths-filter@v3\n"
-)
-assert content.count(needle) == 1, "expected exactly one guarded Filter changed paths step"
-mutated = needle.replace("        if: ${{ github.event_name != 'merge_group' }}\n", "")
-with open(path, "w") as f:
-	f.write(content.replace(needle, mutated, 1))
-PY
-if out="$(run_scratch 2>&1)"; then
-	no "merge_group case 2 should fail when the Filter changed paths step loses its merge_group skip guard"
-else
-	if rg -F "Filter changed paths step must guard if" < <(printf '%s\n' "${out}") >/dev/null; then
-		ok "merge_group case 2 fails and names the missing skip guard"
-	else
-		no "merge_group case 2 failed for the wrong reason; got:"
-		printf '%s\n' "${out}" >&2
-	fi
-fi
-cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
-if run_scratch >/dev/null 2>&1; then
-	ok "merge_group case 2 passes again after restoring the skip guard"
-else
-	no "merge_group case 2 should pass again once the skip guard is restored"
-fi
-
-# --- merge_group case 3: drop the merge_group_code step entirely, so the
-# changes job would FAIL (not skip) on merge_group once the filter step also
-# skips itself — exactly the false-green-turned-jam this fix closes. ---
-python3 - "${tmp}/.github/workflows/test.yml" <<'PY'
-import sys
-path = sys.argv[1]
-with open(path) as f:
-	content = f.read()
-needle = (
-	"      - name: Force code=true on merge_group\n"
-	"        id: merge_group_code\n"
-	"        if: ${{ github.event_name == 'merge_group' }}\n"
-	"        run: echo \"code=true\" >> \"$GITHUB_OUTPUT\"\n"
-)
-assert content.count(needle) == 1, "expected exactly one Force code=true on merge_group step"
-with open(path, "w") as f:
-	f.write(content.replace(needle, "", 1))
-PY
-if out="$(run_scratch 2>&1)"; then
-	no "merge_group case 3 should fail when the merge_group_code step is removed"
-else
-	if rg -F "must have a single step (id: merge_group_code) that sets code=true" < <(printf '%s\n' "${out}") >/dev/null; then
-		ok "merge_group case 3 fails and names the missing merge_group_code step"
-	else
-		no "merge_group case 3 failed for the wrong reason; got:"
-		printf '%s\n' "${out}" >&2
-	fi
-fi
-cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
-if run_scratch >/dev/null 2>&1; then
-	ok "merge_group case 3 passes again after restoring the merge_group_code step"
-else
-	no "merge_group case 3 should pass again once the merge_group_code step is restored"
-fi
-
-# --- merge_group case 4: drop the outputs.code || fallback, so the job's
-# output silently reverts to only the (skipped-on-merge_group) filter step. ---
-python3 - "${tmp}/.github/workflows/test.yml" <<'PY'
-import sys
-path = sys.argv[1]
-with open(path) as f:
-	content = f.read()
-needle = "      code: ${{ steps.filter.outputs.code || steps.merge_group_code.outputs.code }}\n"
-assert content.count(needle) == 1, "expected exactly one changes job outputs.code fallback line"
-mutated = "      code: ${{ steps.filter.outputs.code }}\n"
-with open(path, "w") as f:
-	f.write(content.replace(needle, mutated, 1))
-PY
-if out="$(run_scratch 2>&1)"; then
-	no "merge_group case 4 should fail when outputs.code drops the merge_group_code fallback"
-else
-	if rg -F "must fall back to the merge_group step's output" < <(printf '%s\n' "${out}") >/dev/null; then
-		ok "merge_group case 4 fails and names the missing outputs.code fallback"
-	else
-		no "merge_group case 4 failed for the wrong reason; got:"
-		printf '%s\n' "${out}" >&2
-	fi
-fi
-cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
-if run_scratch >/dev/null 2>&1; then
-	ok "merge_group case 4 passes again after restoring the outputs.code fallback"
-else
-	no "merge_group case 4 should pass again once the outputs.code fallback is restored"
-fi
-
 # --- guard 3 (#5896), failing case: drop `predicate-quantifier: 'every'` from
 # one workflow. This is the regression that reads as harmless: the five `!`
 # negations below it still LOOK like they exclude docs, but dorny@v3 falls back
@@ -451,10 +306,21 @@ path = sys.argv[1]
 c = open(path).read()
 pat = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
 assert len(pat.findall(c)) == 2, "one every plus one some line expected"
-c = pat.sub("", c, count=1)
-a = '        run: echo "code=true" >> "$GITHUB_OUTPUT"\n'
-assert c.count(a) == 1, "anchor missing"
-open(path, "w").write(c.replace(a, a + "        # predicate-quantifier: 'every'\n", 1))
+open(path, "w").write(pat.sub("", c, count=1))
+PYS
+# Split across two heredocs: one 590-byte body exceeds the 512-byte
+# heredoc budget (#5074); the file mutation below is byte-identical.
+python3 - "${tmp}/.github/workflows/test.yml" <<'PYS'
+import re, sys
+path = sys.argv[1]
+c = open(path).read()
+m = re.search(r"(?m)^  changes:\n(.*?)(?=^  \S)", c, re.DOTALL)
+assert m, "changes job missing"
+job = m.group(1)
+a = '      - name: Checkout repository\n        uses: actions/checkout@v5\n'
+assert job.count(a) == 1, "anchor missing"
+job = job.replace(a, a + "        # predicate-quantifier: 'every'\n", 1)
+open(path, "w").write(c[:m.start(1)] + job + c[m.end(1):])
 PYS
 if out="$(run_scratch 2>&1)"; then
 	no "guard 3 should fail when the quantifier is moved out of the paths-filter step"

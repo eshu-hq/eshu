@@ -78,7 +78,6 @@ workflows:
   jobs:
   - latency-gate
   - methodology-scale
-  - queue-selection
   - static-mirror
   - static-mirror-backend-latency-compare
   job_names:

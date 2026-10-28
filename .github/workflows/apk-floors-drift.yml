@@ -4,7 +4,7 @@ name: Apk Floors Drift
 # floors with what the Alpine repository serves today, so a floor that has
 # gone stale is reported within a day instead of when an image scan fails.
 # The blocking per-PR check lives in docker-publish.yml (verify-apk-floors).
-# This workflow has no pull_request or merge_group trigger, so it never holds
+# This workflow has no pull_request trigger, so it never holds
 # an unrelated change.
 on:
   schedule:

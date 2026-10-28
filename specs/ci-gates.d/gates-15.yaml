@@ -41,8 +41,8 @@ gates:
     # Path-triggered only: the Dockerfile, the publish workflow, and the
     # verifier with its own self-test and fixtures. Unrelated PRs never select
     # it. The same paths gate docker-publish.yml's on.paths and its `changes`
-    # job, so the verify-apk-floors check exists on every pull_request and
-    # merge_group run that selects this row. The job is skipped on push, tag,
+    # job, so the verify-apk-floors check exists on every pull_request run
+    # that selects this row. The job is skipped on push, tag,
     # and dispatch so a post-merge stale floor cannot redden the publish run;
     # the apk-floors-drift row covers main daily.
     triggers:
@@ -121,8 +121,8 @@ gates:
     ci_only_reason: "post-merge publication requires registry push credentials and cannot block its own merge"
 
   # Non-blocking since the owner decision to move macOS CI to nightly +
-  # workflow_dispatch (macos.yml has no pull_request, push, or merge_group
-  # trigger). Evidence: of 29 macOS CI failures since 2026-09-21, 0 were
+  # workflow_dispatch (macos.yml has no pull_request or push trigger).
+  # Evidence: of 29 macOS CI failures since 2026-09-21, 0 were
   # macOS-only (each also failed on the Linux go-race lane), at ~2,800
   # macOS-minutes/day. The triggers below keep the local path selection for
   # `ci-gates select`; the row is not awaited by required-gates-complete.
@@ -472,7 +472,6 @@ gates:
       - ".github/workflows/**"
       - "scripts/verify-ci-gates-registry.sh"
       - "scripts/ci/go-mod-download-retry.sh"
-      - ".github/workflows/queue-selection.yml"
       - "scripts/dev/regen-conflicts.sh"
       - "scripts/test-regen-conflicts.sh"
     self_test_triggers:

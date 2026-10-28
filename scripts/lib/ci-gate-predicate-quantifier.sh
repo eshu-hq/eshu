@@ -24,13 +24,53 @@
 #     cannot be found.
 #
 # Lives in scripts/lib/ rather than inline to keep verify-docs-only-ci-skip.sh
-# under the repo's 500-line file rule, the same seam the merge_group checks use.
+# under the repo's 500-line file rule.
+
+# step_block <job_block_text> <step_id> — the YAML lines of the ONE step inside
+# a job block (as produced by job_block) whose `id: <step_id>` field appears in
+# it, from that step's "      - " list-item marker through the line before the
+# next step marker (or the end of the job). Steps are unkeyed YAML list items,
+# so — unlike job_block, which can match on a literal "  job:" header line —
+# isolating one requires buffering each item and checking which one contains
+# the id line. This exists so a caller can assert two substrings belong to the
+# SAME step rather than merely co-occurring anywhere in the job: two
+# independent `rg -qF` searches over a whole job block would false-pass if a
+# future unrelated step carried one of the two substrings on its own.
+step_block() {
+	local block="$1" needle="        id: $2"
+	# Exact-line match ($0 == needle), NOT substring containment. A prior
+	# version used index(cur, needle) > 0, which matched a step whose id is a
+	# PREFIX of the target, or a step whose run: body merely mentions the
+	# id text with extra characters or different indentation, in both cases
+	# silently returning the WRONG step. Tracking a per-step boolean set
+	# only on an exact line match stops those: a longer id never equals the
+	# shorter needle, and a casual echo never equals the bare field line.
+	# Residual: the match has no YAML-structure awareness, so a run:
+	# literal block containing an exactly-8-space-indented "id: <step>"
+	# line still sets the flag.
+	awk -v needle="${needle}" '
+		BEGIN { cur = ""; found = 0; hit = 0 }
+		/^      - / {
+			if (found) { exit }
+			if (hit) { printf "%s", cur; found = 1 }
+			cur = $0 "\n"
+			hit = 0
+			next
+		}
+		{
+			cur = cur $0 "\n"
+			if ($0 == needle) { hit = 1 }
+		}
+		END {
+			if (!found && hit) { printf "%s", cur }
+		}
+	' < <(printf '%s\n' "${block}")
+}
 
 # run_predicate_quantifier_check <workflow...> — asserts each workflow's
 # changes/filter step sets the quantifier, reporting through the caller's ok/bad
 # (shell functions are global, so the calling script's counters stay accurate).
-# Requires job_block from the caller and step_block from
-# ci-gate-merge-group-checks.sh.
+# Requires job_block from the caller.
 run_predicate_quantifier_check() {
 	local wf step missing=""
 	for wf in "$@"; do

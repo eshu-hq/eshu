@@ -5,8 +5,6 @@ on:
     branches:
       - main
   pull_request:
-  merge_group:
-    types: [checks_requested]
   schedule:
     - cron: "30 18 * * *"
   workflow_dispatch:
@@ -28,35 +26,22 @@ env:
   ESHU_GO_IMAGE: ghcr.io/eshu-hq/ci-mirror-golang@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca
   ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 jobs:
-  queue-selection:
-    uses: ./.github/workflows/queue-selection.yml
-    with:
-      workflow: test.yml
   changes:
-    needs: [queue-selection, pr-plan]
+    needs: [pr-plan]
     if: ${{ github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse') }}
     name: Detect code changes
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      code: ${{ steps.filter.outputs.code || steps.merge_group_code.outputs.code }}
-      lockstep: ${{ steps.lockstep.outputs.lockstep || steps.merge_group_code.outputs.lockstep }}
+      code: ${{ steps.filter.outputs.code }}
+      lockstep: ${{ steps.lockstep.outputs.lockstep }}
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
-      - name: Force code=true on merge_group
-        id: merge_group_code
-        if: ${{ github.event_name == 'merge_group' }}
-        run: echo "code=true" >> "$GITHUB_OUTPUT"
       - name: Filter changed paths
         id: filter
-        if: ${{ github.event_name != 'merge_group' }}
         uses: dorny/paths-filter@v3
         with:
           predicate-quantifier: 'every'
@@ -75,7 +60,6 @@ jobs:
 
       - name: Filter lockstep test inputs
         id: lockstep
-        if: ${{ github.event_name != 'merge_group' }}
         uses: dorny/paths-filter@v3
         with:
           # Unlike `code` above, this filter is all positives (the manifest-derived
@@ -148,7 +132,6 @@ jobs:
               - 'go/internal/runtime/testdata/8894-component-extension-activations.md'
               - 'testdata/golden/documentation-positive.md'
   pr-plan:
-    needs: queue-selection
     runs-on: ubuntu-24.04
     permissions: {checks: read, contents: read, pull-requests: read, statuses: read}
     timeout-minutes: 5
@@ -162,9 +145,6 @@ jobs:
       jobs: ${{ steps.plan.outputs.jobs }}
       gates: ${{ steps.plan.outputs.gates }}
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout trusted default branch
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/checkout@v5
@@ -212,176 +192,132 @@ jobs:
         if: ${{ steps.plan.outputs.mode == 'smoke' }}
         run: test "${{ steps.plan.outputs.mode }}" = smoke
   markdown-file-cap:
-    if: ${{ github.event_name == 'merge_group' || (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'markdown-file-cap'))) }}
-    needs: [queue-selection, pr-plan]
+    if: ${{ github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'markdown-file-cap')) }}
+    needs: [pr-plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'markdown-file-cap')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'markdown-file-cap')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Verify Markdown file cap (go/ and docs/)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'markdown-file-cap')) }}
         run: |
           scripts/test-verify-markdown-line-cap.sh
           MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
   scripts-file-cap:
-    if: ${{ github.event_name == 'merge_group' || (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'scripts-file-cap'))) }}
-    needs: [queue-selection, pr-plan]
+    if: ${{ github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'scripts-file-cap')) }}
+    needs: [pr-plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'scripts-file-cap')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
       - name: Verify scripts/ file cap
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'scripts-file-cap')) }}
         run: |
           scripts/test-verify-tooling-line-cap.sh
           TOOLING_LINE_CAP_REQUIRE_BASE=1 scripts/verify-tooling-line-cap.sh --all
   dirgate:
-    if: ${{ github.event_name == 'merge_group' || (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'dirgate'))) }}
-    needs: [queue-selection, pr-plan]
+    if: ${{ github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'dirgate')) }}
+    needs: [pr-plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dirgate')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dirgate')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache: false
       - name: Test dirgate
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dirgate')) }}
         working-directory: go
         run: go test ./cmd/dirgate/ -count=1
       - name: Verify dirgate (derived ratchet)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'dirgate')) }}
         run: bash scripts/verify-dirgate.sh --ci
   merge-group-slim:
-    if: ${{ github.event_name == 'merge_group' || ((github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'merge-group-slim'))) && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true'))) }}
-    needs: [queue-selection, changes, pr-plan]
+    if: ${{ (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'merge-group-slim'))) && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) }}
+    needs: [changes, pr-plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Build all Go binaries
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
         working-directory: go
         run: go build ./...
       - name: Scoped go vet (changed packages plus direct importers)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
         run: bash scripts/verify-merge-group-slim-vet.sh
       - name: Go 500-line file cap
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
         run: bash scripts/dev/precommit-go.sh filecap-all
       - name: Migration sequence uniqueness
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
         working-directory: go
         run: go test ./internal/storage/postgres/migrations/ -run 'TestBootstrapDefinitionsHaveUniqueSequenceNumbers' -count=1
       - name: Generated collector entrypoints parity
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
         run: |
           scripts/test-verify-collector-entrypoints-generated.sh
           scripts/verify-collector-entrypoints-generated.sh
       - name: Context and story reference layout
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
         run: scripts/test-context-stories-doc-split.sh
   verify-contracts:
-    if: ${{ github.event_name == 'merge_group' || ((github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'verify-contracts'))) && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts'))) }}
-    needs: [queue-selection, changes, pr-plan]
+    if: ${{ (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'verify-contracts'))) && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) }}
+    needs: [changes, pr-plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Install ripgrep and jq
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep jq
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run selected contract checks
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts') }}
         uses: ./.github/actions/ci-verify-contracts
         with:
           mode: ${{ needs.pr-plan.outputs.mode }}
           gates: ${{ needs.pr-plan.outputs.gates }}
   go-core:
-    if: ${{ github.event_name == 'merge_group' || ((github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'go-core'))) && ((github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) && (github.event_name != 'pull_request' || needs.pr-plan.outputs.mode != 'reuse')) && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) }}
-    needs: [queue-selection, changes, pr-plan]
+    if: ${{ (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'go-core'))) && ((github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) && (github.event_name != 'pull_request' || needs.pr-plan.outputs.mode != 'reuse')) }}
+    needs: [changes, pr-plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
       - name: Restore Go build cache
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
         uses: actions/cache@v4
         with:
           path: /tmp/eshu-ci/go-build
@@ -389,20 +325,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
-      - {name: Pre-warm Go modules, if: "${{ !cancelled() && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}", run: scripts/ci/go-mod-download-retry.sh}
-      - {name: Install golangci-lint, if: "${{ !cancelled() && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) && (needs.pr-plan.outputs.mode != 'smoke' || contains(fromJSON(needs.pr-plan.outputs.gates || '[]'), 'go-lint') || contains(fromJSON(needs.pr-plan.outputs.gates || '[]'), 'go-fmt')) }}", run: scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2}
+      - {name: Pre-warm Go modules, if: "${{ !cancelled() }}", run: scripts/ci/go-mod-download-retry.sh}
+      - {name: Install golangci-lint, if: "${{ !cancelled() && (needs.pr-plan.outputs.mode != 'smoke' || contains(fromJSON(needs.pr-plan.outputs.gates || '[]'), 'go-lint') || contains(fromJSON(needs.pr-plan.outputs.gates || '[]'), 'go-fmt')) }}", run: scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2}
       - name: Run selected Go core checks
-        if: ${{ !cancelled() && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
+        if: ${{ !cancelled() }}
         uses: ./.github/actions/ci-go-core
         env: {CI_SMOKE_GO_BUILD_FAIL_CANARY: "${{ vars.CI_SMOKE_GO_BUILD_FAIL_CANARY }}"}
         with:
@@ -412,12 +346,11 @@ jobs:
         if: ${{ github.event_name == 'pull_request' && needs.pr-plan.outputs.mode == 'full' }}
         run: test "${{ needs.pr-plan.outputs.mode }}" = full
   go-core-complete:
-    needs: [queue-selection, changes, go-core, pr-plan]
+    needs: [changes, go-core, pr-plan]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - {name: Require queue selection to succeed, if: "${{ always() && github.event_name == 'merge_group' }}", run: 'test "${{ needs.queue-selection.result }}" = success'}
       - {name: Reject failed go-core lane, run: "test \"${{ needs.go-core.result }}\" != failure || exit 1"}
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -437,7 +370,7 @@ jobs:
         run: bash scripts/ci/assert-go-complete.sh
   go-race:
     if: ${{ (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'go-race'))) && ((github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) && (github.event_name != 'pull_request' || needs.pr-plan.outputs.mode != 'reuse')) }}
-    needs: [queue-selection, changes, pr-plan]
+    needs: [changes, pr-plan]
     strategy:
       fail-fast: false
       matrix:
@@ -446,16 +379,11 @@ jobs:
     timeout-minutes: 35
     env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
       - name: Restore Go build cache
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         uses: actions/cache@v4
         with:
           path: /tmp/eshu-ci/go-build
@@ -463,26 +391,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Set up Helm for race tests
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         uses: azure/setup-helm@v5.0.0
         with:
           version: v4.2.3
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Run Go tests with race detector (shard ${{ matrix.shard }}/${{ strategy.job-total }})
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         working-directory: go
         env:
           SHARD_INDEX: ${{ matrix.shard }}
@@ -498,12 +421,11 @@ jobs:
           echo "shard ${SHARD_INDEX}/${SHARD_TOTAL}: ${count} package(s)"
           printf '%s\n' "${pkgs}" | xargs go test -count=1 -race -timeout 900s -p 2
   go-race-complete:
-    needs: [queue-selection, changes, go-race, pr-plan]
+    needs: [changes, go-race, pr-plan]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - {name: Require queue selection to succeed, if: "${{ always() && github.event_name == 'merge_group' }}", run: 'test "${{ needs.queue-selection.result }}" = success'}
       - {name: Reject failed go-race lane, run: "test \"${{ needs.go-race.result }}\" != failure || exit 1"}
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -522,66 +444,59 @@ jobs:
           SELECTED: ${{ contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'go-race') }}
         run: bash scripts/ci/assert-go-complete.sh
   docs-helm-hygiene:
-    if: ${{ github.event_name == 'merge_group' || (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'docs-helm-hygiene'))) }}
-    needs: [queue-selection, pr-plan]
+    if: ${{ github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'docs-helm-hygiene')) }}
+    needs: [pr-plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
       - name: Set up Go for validated registry fragments
-        if: ${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) && (github.event_name != 'pull_request' || needs.pr-plan.outputs.mode != 'smoke') }}
+        if: ${{ github.event_name != 'pull_request' || needs.pr-plan.outputs.mode != 'smoke' }}
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
         with:
           go-version-file: go/go.mod
           cache: false
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Run selected docs and Helm checks
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene') }}
         uses: ./.github/actions/ci-docs-helm-hygiene
         with:
           mode: ${{ needs.pr-plan.outputs.mode }}
           gates: ${{ needs.pr-plan.outputs.gates }}
       - name: Verify required hand-written doc sections
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: |
           scripts/test-verify-required-doc-sections.sh
           scripts/verify-required-doc-sections.sh
-  call-bench: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'bench.yml') }}", uses: ./.github/workflows/bench.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['bench.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-build: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'build.yml') }}", uses: ./.github/workflows/build.yml, permissions: {contents: write}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['build.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-code-coverage-report: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'code-coverage-report.yml') }}", uses: ./.github/workflows/code-coverage-report.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['code-coverage-report.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-docker-publish: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'docker-publish.yml') }}", uses: ./.github/workflows/docker-publish.yml, permissions: {actions: read, attestations: write, contents: write, id-token: write, packages: write}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['docker-publish.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-e2e-tests: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'e2e-tests.yml') }}", uses: ./.github/workflows/e2e-tests.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['e2e-tests.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-factschema-diff: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'factschema-diff.yml') }}", uses: ./.github/workflows/factschema-diff.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['factschema-diff.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-frontend: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'frontend.yml') }}", uses: ./.github/workflows/frontend.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['frontend.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-golden-corpus-gate: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'golden-corpus-gate.yml') }}", uses: ./.github/workflows/golden-corpus-gate.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['golden-corpus-gate.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-ifa-determinism-gate: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'ifa-determinism-gate.yml') }}", uses: ./.github/workflows/ifa-determinism-gate.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['ifa-determinism-gate.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-ifa-scheduled-proofs: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'ifa-scheduled-proofs.yml') }}", uses: ./.github/workflows/ifa-scheduled-proofs.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['ifa-scheduled-proofs.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-live-backend-tests: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'live-backend-tests.yml') }}", uses: ./.github/workflows/live-backend-tests.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['live-backend-tests.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-live-postgres-migrations: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'live-postgres-migrations.yml') }}", uses: ./.github/workflows/live-postgres-migrations.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['live-postgres-migrations.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-live-postgres-readiness: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'live-postgres-readiness.yml') }}", uses: ./.github/workflows/live-postgres-readiness.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['live-postgres-readiness.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-mcp-schema-drift: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'mcp-schema-drift.yml') }}", uses: ./.github/workflows/mcp-schema-drift.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['mcp-schema-drift.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-payload-usage-manifest: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'payload-usage-manifest.yml') }}", uses: ./.github/workflows/payload-usage-manifest.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['payload-usage-manifest.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-postgres-scheduled-live: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'postgres-scheduled-live.yml') }}", uses: ./.github/workflows/postgres-scheduled-live.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['postgres-scheduled-live.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-product-claim-ledger: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'product-claim-ledger.yml') }}", uses: ./.github/workflows/product-claim-ledger.yml, permissions: {contents: read, issues: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['product-claim-ledger.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-race-graph-writes: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'race-graph-writes.yml') }}", uses: ./.github/workflows/race-graph-writes.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['race-graph-writes.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-read-api-latency-gate: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'read-api-latency-gate.yml') }}", uses: ./.github/workflows/read-api-latency-gate.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['read-api-latency-gate.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-reducer-contention-gate: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'reducer-contention-gate.yml') }}", uses: ./.github/workflows/reducer-contention-gate.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['reducer-contention-gate.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-replay-coverage-gate: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'replay-coverage-gate.yml') }}", uses: ./.github/workflows/replay-coverage-gate.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['replay-coverage-gate.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-scorecard-example-conformance: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'scorecard-example-conformance.yml') }}", uses: ./.github/workflows/scorecard-example-conformance.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['scorecard-example-conformance.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-sdk-go: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'sdk-go.yml') }}", uses: ./.github/workflows/sdk-go.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['sdk-go.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-security-scan: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'security-scan.yml') }}", uses: ./.github/workflows/security-scan.yml, permissions: {contents: read, packages: read, security-events: write}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['security-scan.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-static-contract-gates: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'static-contract-gates.yml') }}", uses: ./.github/workflows/static-contract-gates.yml, permissions: {contents: read, pull-requests: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['static-contract-gates.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}, secrets: inherit}
-  call-verify-agent-hygiene: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'verify-agent-hygiene.yml') }}", uses: ./.github/workflows/verify-agent-hygiene.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['verify-agent-hygiene.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-verify-ci-gate-registry: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'verify-ci-gate-registry.yml') }}", uses: ./.github/workflows/verify-ci-gate-registry.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['verify-ci-gate-registry.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
-  call-verify-replay-tier: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'verify-replay-tier.yml') }}", uses: ./.github/workflows/verify-replay-tier.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['verify-replay-tier.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-bench: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'bench.yml') }}", uses: ./.github/workflows/bench.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['bench.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-build: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'build.yml') }}", uses: ./.github/workflows/build.yml, permissions: {contents: write}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['build.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-code-coverage-report: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'code-coverage-report.yml') }}", uses: ./.github/workflows/code-coverage-report.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['code-coverage-report.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-docker-publish: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'docker-publish.yml') }}", uses: ./.github/workflows/docker-publish.yml, permissions: {actions: read, attestations: write, contents: write, id-token: write, packages: write}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['docker-publish.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-e2e-tests: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'e2e-tests.yml') }}", uses: ./.github/workflows/e2e-tests.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['e2e-tests.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-factschema-diff: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'factschema-diff.yml') }}", uses: ./.github/workflows/factschema-diff.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['factschema-diff.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-frontend: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'frontend.yml') }}", uses: ./.github/workflows/frontend.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['frontend.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-golden-corpus-gate: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'golden-corpus-gate.yml') }}", uses: ./.github/workflows/golden-corpus-gate.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['golden-corpus-gate.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-ifa-determinism-gate: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'ifa-determinism-gate.yml') }}", uses: ./.github/workflows/ifa-determinism-gate.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['ifa-determinism-gate.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-ifa-scheduled-proofs: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'ifa-scheduled-proofs.yml') }}", uses: ./.github/workflows/ifa-scheduled-proofs.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['ifa-scheduled-proofs.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-live-backend-tests: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'live-backend-tests.yml') }}", uses: ./.github/workflows/live-backend-tests.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['live-backend-tests.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-live-postgres-migrations: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'live-postgres-migrations.yml') }}", uses: ./.github/workflows/live-postgres-migrations.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['live-postgres-migrations.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-live-postgres-readiness: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'live-postgres-readiness.yml') }}", uses: ./.github/workflows/live-postgres-readiness.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['live-postgres-readiness.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-mcp-schema-drift: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'mcp-schema-drift.yml') }}", uses: ./.github/workflows/mcp-schema-drift.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['mcp-schema-drift.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-payload-usage-manifest: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'payload-usage-manifest.yml') }}", uses: ./.github/workflows/payload-usage-manifest.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['payload-usage-manifest.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-postgres-scheduled-live: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'postgres-scheduled-live.yml') }}", uses: ./.github/workflows/postgres-scheduled-live.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['postgres-scheduled-live.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-product-claim-ledger: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'product-claim-ledger.yml') }}", uses: ./.github/workflows/product-claim-ledger.yml, permissions: {contents: read, issues: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['product-claim-ledger.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-race-graph-writes: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'race-graph-writes.yml') }}", uses: ./.github/workflows/race-graph-writes.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['race-graph-writes.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-read-api-latency-gate: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'read-api-latency-gate.yml') }}", uses: ./.github/workflows/read-api-latency-gate.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['read-api-latency-gate.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-reducer-contention-gate: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'reducer-contention-gate.yml') }}", uses: ./.github/workflows/reducer-contention-gate.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['reducer-contention-gate.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-replay-coverage-gate: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'replay-coverage-gate.yml') }}", uses: ./.github/workflows/replay-coverage-gate.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['replay-coverage-gate.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-scorecard-example-conformance: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'scorecard-example-conformance.yml') }}", uses: ./.github/workflows/scorecard-example-conformance.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['scorecard-example-conformance.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-sdk-go: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'sdk-go.yml') }}", uses: ./.github/workflows/sdk-go.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['sdk-go.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-security-scan: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'security-scan.yml') }}", uses: ./.github/workflows/security-scan.yml, permissions: {contents: read, packages: read, security-events: write}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['security-scan.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-static-contract-gates: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'static-contract-gates.yml') }}", uses: ./.github/workflows/static-contract-gates.yml, permissions: {contents: read, pull-requests: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['static-contract-gates.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}, secrets: inherit}
+  call-verify-agent-hygiene: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'verify-agent-hygiene.yml') }}", uses: ./.github/workflows/verify-agent-hygiene.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['verify-agent-hygiene.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-verify-ci-gate-registry: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'verify-ci-gate-registry.yml') }}", uses: ./.github/workflows/verify-ci-gate-registry.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['verify-ci-gate-registry.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}
+  call-verify-replay-tier: {needs: [pr-plan], if: "${{ github.event_name == 'pull_request' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(fromJSON(needs.pr-plan.outputs.workflows || '[]'), 'verify-replay-tier.yml') }}", uses: ./.github/workflows/verify-replay-tier.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(needs.pr-plan.outputs.jobs)['verify-replay-tier.yml']) }}", plan_gates: "${{ needs.pr-plan.outputs.gates }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}

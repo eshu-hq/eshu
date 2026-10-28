@@ -12,8 +12,6 @@ on:
       plan_mode:
         required: true
         type: string
-  merge_group:
-    types: [checks_requested]
   push:
     branches:
       - main
@@ -38,14 +36,8 @@ env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
 
 jobs:
-  queue-selection:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
-    uses: ./.github/workflows/queue-selection.yml
-    with:
-      workflow: security-scan.yml
   changes:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'changes')) && (github.event_name != 'workflow_run') }}
-    needs: queue-selection
     name: Detect code changes
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -53,17 +45,12 @@ jobs:
       code: ${{ steps.filter.outputs.code }}
       lockstep: ${{ steps.lockstep.outputs.lockstep }}
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)')) }}
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
       - name: Filter changed paths
         id: filter
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)'))) && (github.event_name != 'merge_group') }}
         uses: dorny/paths-filter@v3
         with:
           predicate-quantifier: 'every'
@@ -82,7 +69,6 @@ jobs:
 
       - name: Filter lockstep test inputs
         id: lockstep
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)') || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)'))) && (github.event_name != 'merge_group') }}
         uses: dorny/paths-filter@v3
         with:
           # Unlike `code` above, this filter is all positives (the manifest-derived
@@ -156,7 +142,6 @@ jobs:
               - 'testdata/golden/documentation-positive.md'
   trivy-fs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'trivy-fs')) && (github.event_name != 'workflow_run') }}
-    needs: queue-selection
     name: Trivy filesystem scan (vuln + secret + config)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -164,14 +149,9 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy filesystem scan (vuln + secret + config)')) }}
         uses: actions/checkout@v5
       - name: Read trivy skip-dirs from scripts/lib/trivy-skip-dirs.sh
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy filesystem scan (vuln + secret + config)')) }}
         id: skipdirs
         shell: bash
         run: |
@@ -179,7 +159,6 @@ jobs:
           dirs="$(trivy_skip_dirs_csv .)"
           echo "dirs=${dirs}" >> "${GITHUB_OUTPUT}"
       - name: Run Trivy filesystem scan (vuln + secret + config)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy filesystem scan (vuln + secret + config)')) }}
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
@@ -193,14 +172,13 @@ jobs:
           output: trivy-fs.sarif
           skip-dirs: ${{ steps.skipdirs.outputs.dirs }}
       - name: Upload Trivy fs SARIF to GitHub Security tab
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy filesystem scan (vuln + secret + config)'))) && (always()) }}
+        if: ${{ always() }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-fs.sarif
           category: trivy-fs
   trivy-image:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'trivy-image')) && (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')) }}
-    needs: queue-selection
     name: Trivy image scan (ghcr.io/eshu-hq/eshu)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -209,23 +187,17 @@ jobs:
       packages: read
       security-events: write
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Log in to GHCR
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy image scan (ghcr.io/eshu-hq/eshu)')) }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Check out trusted default-branch policy
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy image scan (ghcr.io/eshu-hq/eshu)')) }}
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.repository.default_branch }}
       - name: Resolve image reference from triggering workflow_run
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy image scan (ghcr.io/eshu-hq/eshu)')) }}
         id: image
         env:
           TRIGGER_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
@@ -234,7 +206,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/ci/resolve-image-scan-ref.sh
       - name: Run Trivy image scan
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy image scan (ghcr.io/eshu-hq/eshu)'))) && (steps.image.outputs.skip != 'true') }}
+        if: ${{ steps.image.outputs.skip != 'true' }}
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
@@ -246,7 +218,7 @@ jobs:
           format: sarif
           output: trivy-image.sarif
       - name: Upload Trivy image SARIF to GitHub Security tab
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Trivy image scan (ghcr.io/eshu-hq/eshu)'))) && (always() && steps.image.outputs.skip != 'true' && steps.image.outcome == 'success') }}
+        if: ${{ always() && steps.image.outputs.skip != 'true' && steps.image.outcome == 'success' }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-image.sarif
@@ -256,31 +228,23 @@ jobs:
     name: govulncheck (Go vulnerability database)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    needs: [queue-selection, changes]
+    needs: [changes]
     permissions:
       contents: read
       security-events: write
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)')) }}
         uses: actions/checkout@v5
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)')) }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Install govulncheck (pinned)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)')) }}
         run: scripts/ci/go-install-retry.sh golang.org/x/vuln/cmd/govulncheck@latest
       - name: Run govulncheck on every Go package
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)')) }}
         working-directory: go
         run: |
           set -euo pipefail
@@ -288,7 +252,7 @@ jobs:
             'govulncheck: vulnerabilities found, see govulncheck.out above\n' \
             -- govulncheck -scan package ./...
       - name: Upload govulncheck output as workflow artifact
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'govulncheck (Go vulnerability database)'))) && (always()) }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: govulncheck-output
@@ -299,36 +263,27 @@ jobs:
     name: gosec (Go static analysis)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: [queue-selection, changes]
+    needs: [changes]
     permissions:
       contents: read
       security-events: write
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         uses: actions/checkout@v5
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Install gosec (pinned)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         run: scripts/ci/go-install-retry.sh github.com/securego/gosec/v2/cmd/gosec@v2.27.1
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Run gosec on every Go package (SARIF)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         working-directory: go
         run: |
           set -euo pipefail
@@ -340,44 +295,35 @@ jobs:
             exit 1
           fi
       - name: Upload gosec SARIF to GitHub Security tab
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)'))) && (always()) }}
+        if: ${{ always() }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: go/gosec.sarif
           category: gosec
       - name: Fail-closed gosec gate (explicit package dirs)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         run: bash scripts/dev/precommit-go.sh gosec-all
   nancy:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'nancy')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true'))) }}
     name: nancy (Sonatype dep CVE + license scan)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    needs: [queue-selection, changes]
+    needs: [changes]
     permissions:
       contents: read
       security-events: write
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)')) }}
         uses: actions/checkout@v5
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)')) }}
         run: scripts/ci/go-mod-download-retry.sh
       - name: Install nancy (pinned)
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)')) }}
         run: scripts/ci/go-install-retry.sh github.com/sonatype-nexus-community/nancy@latest
       - name: Run nancy sleuth on go.sum
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)')) }}
         working-directory: go
         continue-on-error: true
         run: |
@@ -391,7 +337,7 @@ jobs:
             'nancy: sleuth exited %s, see nancy.out above (a real finding, or an OSS Index transport/auth failure — see #5804)\n' \
             -- nancy sleuth --no-color <deps.json
       - name: Upload nancy output as workflow artifact
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'nancy (Sonatype dep CVE + license scan)'))) && (always()) }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: nancy-output

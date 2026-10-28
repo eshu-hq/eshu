@@ -6,7 +6,7 @@ import ast
 import hashlib
 from pathlib import Path
 
-NORNIC_CLI_SOURCE_SHA256 = "4a9d4253c28ee564040242af015ddbbbdb546a472d04a15af1612cd51c8a8a62"
+NORNIC_CLI_SOURCE_SHA256 = "05b25b2d14a12e07cae607b487608786093d8d50ee98b125cb3b782b21d0c136"
 NORNIC_CLI_MAIN = '''def main() -> int:
     """Check runner enrollment, then optionally a captured Go event stream."""
     parser = argparse.ArgumentParser(description=__doc__)

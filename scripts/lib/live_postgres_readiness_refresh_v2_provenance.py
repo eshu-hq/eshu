@@ -165,7 +165,7 @@ def read_source(directory: Path, root: Path) -> tuple[str, str, list[str], dict[
     count = source_shard_count(root, sha)
     if count not in (4, 5):
         raise ValueError(f"source {run_id} has unsupported shard count {count}")
-    required = {"queue-selection / select", "live-postgres-readiness hermetic",
+    required = {"live-postgres-readiness hermetic",
                 "live-postgres-readiness (postgres18)"}
     names = [job.get("name") for job in jobs]
     if any(names.count(name) != 1 for name in required):

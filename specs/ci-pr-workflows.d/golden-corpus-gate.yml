@@ -127,7 +127,6 @@ workflows:
   - corpus-gate
   - differential
   - differential-capture
-  - queue-selection
   - static-mirror
   job_names:
     corpus-gate: corpus-gate (${{ matrix.graph_backend }})

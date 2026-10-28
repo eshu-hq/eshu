@@ -16,11 +16,6 @@ on:
       plan_mode:
         required: true
         type: string
-  # Merge-queue entries (#7111): every job runs, publication stays off, and
-  # required-gates.yml aggregates the merge_group check rows.
-  # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
-  merge_group:
-    types: [checks_requested]
   push:
     branches: [ main ]
 concurrency:
@@ -41,37 +36,23 @@ env:
   ESHU_GO_IMAGE: ghcr.io/eshu-hq/ci-mirror-golang@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca
   ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 jobs:
-  queue-selection:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
-    uses: ./.github/workflows/queue-selection.yml
-    with:
-      workflow: golden-corpus-gate.yml
   static-mirror:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}
-    needs: queue-selection
     name: static mirror
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - uses: actions/checkout@v5
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror') }}
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror') }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Validate orchestrator contract
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror') }}
         run: bash scripts/test-verify-golden-corpus-gate.sh
       - name: Validate differential capture staging
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static mirror') }}
         run: bash scripts/test-stage-differential-capture.sh
   corpus-gate:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'corpus-gate') }}
-    needs: queue-selection
     name: corpus-gate (${{ matrix.graph_backend }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -93,22 +74,16 @@ jobs:
       # same per-backend compose file the script used.
       GATE_COMPOSE_PROJECT: eshu-golden-corpus-${{ matrix.graph_backend }}
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'corpus-gate') }}
         uses: actions/checkout@v5
 
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'corpus-gate') }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'corpus-gate') }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
@@ -117,11 +92,9 @@ jobs:
       # HERE, named for what it is, instead of surfacing as a B-7 golden
       # corpus gate failure that never ran (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'corpus-gate') }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run B-7 golden corpus gate
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'corpus-gate') }}
         env:
           ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
           ESHU_NEO4J_PASSWORD: change-me
@@ -129,11 +102,11 @@ jobs:
         run: bash scripts/verify-golden-corpus-gate.sh
 
       - name: Dump service logs on failure
-        if: ${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'corpus-gate')) && (failure()) }}
+        if: ${{ failure() }}
         run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f "${{ matrix.compose_file }}" -- logs --tail=200 || true
 
       - name: Tear down Docker services
-        if: ${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'corpus-gate')) && (always()) }}
+        if: ${{ always() }}
         run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f "${{ matrix.compose_file }}" -- down -v || true
 
   # Four independent B-7 recordings run on separate hosted runners. Every
@@ -141,7 +114,6 @@ jobs:
   # required join even though the backend comparison itself stays advisory.
   differential-capture:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'differential-capture') }}
-    needs: queue-selection
     name: differential capture (pair ${{ matrix.pair }}, ${{ matrix.graph_backend }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -154,34 +126,26 @@ jobs:
       GATE_COMPOSE_PROJECT: eshu-differential-pair${{ matrix.pair }}-${{ matrix.graph_backend }}
       COMPOSE_FILE: ${{ matrix.graph_backend == 'neo4j' && 'docker-compose.neo4j.yml' || 'docker-compose.yaml' }}
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j')) }}
         uses: actions/checkout@v5
 
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       # The absolute local_path is part of the statement fingerprint. Hosted
       # Ubuntu runners share this runner.temp path despite isolated filesystems.
       - name: Run B-7 with differential capture
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j')) }}
         env:
           ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
           ESHU_NEO4J_PASSWORD: change-me
@@ -192,11 +156,9 @@ jobs:
         run: bash scripts/verify-golden-corpus-gate.sh
 
       - name: Require non-empty capture before upload
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j')) }}
         run: bash scripts/lib/stage-differential-capture.sh check-leg "${{ runner.temp }}/diff-capture/pair${{ matrix.pair }}/${{ matrix.graph_backend }}"
 
       - name: Upload capture recording
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j')) }}
         uses: actions/upload-artifact@v4
         with:
           name: differential-capture-${{ github.run_attempt }}-pair${{ matrix.pair }}-${{ matrix.graph_backend }}
@@ -204,40 +166,33 @@ jobs:
           if-no-files-found: error
 
       - name: Dump service logs on failure
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j'))) && (failure()) }}
+        if: ${{ failure() }}
         run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" -- logs --tail=200 || true
 
       - name: Tear down Docker services
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j'))) && (always()) }}
+        if: ${{ always() }}
         run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" -- down -v || true
 
   differential:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'differential')) && (always()) }}
     name: differential nornicdb vs neo4j
-    needs: [queue-selection, differential-capture]
+    needs: differential-capture
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j') }}
         uses: actions/checkout@v5
 
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j') }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j') }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Download this attempt's capture artifacts
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j') }}
         uses: actions/download-artifact@v4
         with:
           pattern: differential-capture-${{ github.run_attempt }}-*
@@ -247,7 +202,6 @@ jobs:
       # Reconstruct the original pair/backend layout and reject missing or
       # empty artifacts. A matrix failure remains blocking even if it uploaded.
       - name: Require and stage all four recordings
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j') }}
         run: >
           bash scripts/lib/stage-differential-capture.sh stage
           "${{ runner.temp }}/diff-artifacts"
@@ -256,13 +210,11 @@ jobs:
           "${{ needs.differential-capture.result }}"
 
       - name: Build golden-corpus-gate
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j') }}
         run: go -C go build -o "${{ runner.temp }}/golden-corpus-gate" ./cmd/golden-corpus-gate
 
       # Comparison remains advisory discovery (#6965). Capture completion and
       # the two coverage checks below remain blocking.
       - name: Compare backend recordings
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j') }}
         id: compare
         continue-on-error: true
         run: >
@@ -276,7 +228,6 @@ jobs:
 
       # Statement coverage is Neo4j-only (#7331), merging both pairings.
       - name: Check statement coverage on capture recordings
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j') }}
         run: >
           "${{ runner.temp }}/golden-corpus-gate" -phase=statement-coverage
           -coverage-manifest=go/internal/queryplan/testdata/statement-builders.yaml
@@ -284,13 +235,12 @@ jobs:
 
       # Writer coverage includes all four backend/pairing recordings (#7212).
       - name: Check id writer coverage on capture recordings
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j') }}
         run: >
           "${{ runner.temp }}/golden-corpus-gate" -phase=writer-coverage
           "-coverage-dirs=${{ runner.temp }}/diff-capture/pair1/neo4j,${{ runner.temp }}/diff-capture/pair2/neo4j,${{ runner.temp }}/diff-capture/pair1/nornicdb,${{ runner.temp }}/diff-capture/pair2/nornicdb"
 
       - name: Report an advisory backend divergence
-        if: ${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j')) && (steps.compare.outcome == 'failure') }}
+        if: ${{ steps.compare.outcome == 'failure' }}
         run: |
           echo "::warning title=Backend divergence (advisory)::Compare backend recordings found a divergence. It does not block this PR (#6965); file an issue for the owning package. The differential-capture artifacts hold the recordings."
           {
@@ -302,7 +252,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload capture recordings on failure
-        if: ${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'differential nornicdb vs neo4j')) && (failure() || steps.compare.outcome == 'failure') }}
+        if: ${{ failure() || steps.compare.outcome == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
           name: differential-joined-capture-${{ github.run_attempt }}

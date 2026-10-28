@@ -74,7 +74,7 @@ def _sample(root: Path, run_id: int, sha: str) -> Path:
         })
         (directory / f"shard{shard}.log").write_text(_log(shard, rows, run_id))
     for name in ("live-postgres-readiness hermetic",
-                 "live-postgres-readiness (postgres18)", "queue-selection / select"):
+                 "live-postgres-readiness (postgres18)",):
         jobs.append({"id": 1000 * run_id + len(jobs) + 1, "run_id": run_id,
                      "head_sha": sha, "run_attempt": 1, "name": name,
                      "status": "completed", "conclusion": "success"})

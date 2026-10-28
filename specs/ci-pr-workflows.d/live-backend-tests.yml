@@ -124,7 +124,6 @@ workflows:
   jobs:
   - live-backend
   - live-backend-shards
-  - queue-selection
   - static-mirror
   job_names:
     live-backend: live-backend (nornicdb and neo4j)

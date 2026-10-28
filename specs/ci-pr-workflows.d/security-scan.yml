@@ -9,7 +9,6 @@ workflows:
   - gosec
   - govulncheck
   - nancy
-  - queue-selection
   - trivy-fs
   - trivy-image
   job_names:

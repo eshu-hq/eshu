@@ -63,21 +63,13 @@ of the live-ruleset comparison (#9089). Validation requires at least one
 `ruleset_required: true` entry. Exactly one entry sets
 `aggregates_blocking_gates: true` and names its trusted `source_workflow`.
 Matrix jobs declare their concrete API-visible check names in `ci.check_names`;
-the aggregate never relies on a prefix match. `main` merges through a merge
-queue, so validation also requires every blocking gate's workflow to declare a
-`merge_group` trigger. Without one, a queue entry that selects the gate waits
-out its timeout on a check that never appears. The rule follows from the
-`blocking` flag rather than an exception list: a workflow that must not run on
-the queue has to stop being blocking. Each blocking job must also provably run on
-`merge_group`: its job-level `if:` has to evaluate true with
-`github.event_name == 'merge_group'` (other contexts count as unknown,
-`always()` is true and `cancelled()` false), and so must every job it `needs`
-unless the `if:` calls `always()`. That is the only needs override the guard
-models; a job gated on `!cancelled()` is treated as skippable with its needs,
-which errs toward flagging a job rather than passing one that would skip.
-A queue entry whose compare hits the 300-file cap selects every blocking gate,
+the aggregate never relies on a prefix match. `main` has no merge queue since
+2026-10-16 (#8288, #9367), so no workflow carries a `merge_group` trigger and
+no validator demands one: the merge-group trigger and job guards were removed
+with the queue plumbing rather than left as dead rules.
+A pull request whose compare hits the 300-file cap selects every blocking gate,
 so a SKIPPED blocking job there would publish `failure` for a gate that does
-not apply. Path-selective jobs run anyway on the queue and gate their steps.
+not apply. Path-selective jobs run anyway and gate their steps.
 
 ## Selector semantics
 
@@ -263,7 +255,7 @@ A hook exports more than that one variable, and dropping `GIT_DIR` is not a no-o
 
 Checks 4, 5 and 6 skip rather than false-error when they cannot resolve an unambiguous mapping — an unparseable workflow, a `ci.job` with no matching append_gate call, (check 5 only) a glob-form trigger, or (check 6 only) a verify script that no workflow runs (CI legitimately uses a different entrypoint than the local gate) or that several run (no single owner). Check 7 does not share that escape hatch: its only skip condition is none of the FOUR trivy artifacts (specs file, helper, local script, CI workflow) being present, which is the shape of this package's synthetic drift fixtures rather than a real tree. Any subset present, an unparseable `security-scan.yml`, a missing or ambiguous `trivy-fs` job or trivy-action step, a hard-coded or appended skip-dirs value, or a referenced step that does not both source and call the helper all fail loudly instead. It is exposed via `ci-gates validate --drift` and needs no network, Docker, or credentials.
 
-The central `call-<stem>` carrier in `test.yml` inherits a leaf's declared gate ownership or reasoned non-gate inventory decision only when its `uses:` target is that exact local callable workflow and a schema-v1 PR fragment matches the callable file's name and jobs. Other reusable workflow jobs still need their own owner or a covered dependency. The merge-group job guard parses indexed JSON lookups as unknown values, allowing an explicit true `merge_group` branch to prove the whole `if:`; malformed expressions still fail closed.
+The central `call-<stem>` carrier in `test.yml` inherits a leaf's declared gate ownership or reasoned non-gate inventory decision only when its `uses:` target is that exact local callable workflow and a schema-v1 PR fragment matches the callable file's name and jobs. Other reusable workflow jobs still need their own owner or a covered dependency.
 
 ## Tests
 

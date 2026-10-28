@@ -53,14 +53,14 @@ expected_release_condition() {
   local guard="github.event_name != 'workflow_dispatch' || inputs.mode == 'release'"
   local release
   case "$1" in
-    queue-selection|changes)
+    changes)
       release="${guard}"
       ;;
     verify-apk-floors)
-      release="(${guard}) && (github.event_name == 'merge_group' || (github.event_name == 'pull_request' && needs.changes.outputs.apkfloors == 'true'))"
+      release="(${guard}) && (github.event_name == 'pull_request' && needs.changes.outputs.apkfloors == 'true')"
       ;;
     build-and-push-image|verify-reproducibility)
-      release="(${guard}) && (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')"
+      release="(${guard}) && needs.changes.outputs.image == 'true'"
       ;;
     promote-moving-tags)
       release="(${guard}) && needs.changes.outputs.image == 'true' && needs.build-and-push-image.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')"
@@ -69,7 +69,7 @@ expected_release_condition() {
       release="(${guard}) && needs.changes.outputs.image == 'true' && github.ref_type == 'tag'"
       ;;
     package-and-push-chart)
-      release="(${guard}) && (github.event_name == 'merge_group' || needs.changes.outputs.chart == 'true')"
+      release="(${guard}) && needs.changes.outputs.chart == 'true'"
       ;;
     *) fail "unknown release job: $1" ;;
   esac
@@ -80,7 +80,7 @@ rg -q '^  workflow_dispatch:$' "${workflow}" || fail 'manual dispatch missing'
 rg -q '^        default: release$' "${workflow}" || fail 'normal dispatch default changed'
 
 # An added job cannot silently bypass the mirror-mode partition.
-expected_jobs="$(printf '%s\n' queue-selection changes verify-apk-floors build-and-push-image \
+expected_jobs="$(printf '%s\n' changes verify-apk-floors build-and-push-image \
   promote-moving-tags verify-reproducibility attach-release-sbom \
   package-and-push-chart publish-ci-service-mirrors \
   verify-public-ci-service-mirrors | LC_ALL=C sort)"
@@ -97,7 +97,7 @@ actual_jobs="$(awk '
 ' "${workflow}" | LC_ALL=C sort)"
 [[ "${actual_jobs}" == "${expected_jobs}" ]] || fail 'workflow jobs differ from the guarded release-plus-mirror partition'
 
-for job in queue-selection changes verify-apk-floors build-and-push-image promote-moving-tags \
+for job in changes verify-apk-floors build-and-push-image promote-moving-tags \
   verify-reproducibility attach-release-sbom package-and-push-chart; do
   condition="$(job_condition "${job}")"
   [[ "${condition}" == "$(expected_release_condition "${job}")" ]] ||

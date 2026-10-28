@@ -2,7 +2,7 @@
 # Workflow mirror for the scripts-file-cap CI job (#8221), modelled on
 # scripts/lib/test-verify-markdown-line-cap-workflow-cases.sh. This is a narrow
 # check of the job's block-style YAML, not a YAML parser. It pins what a green
-# gate depends on: the job schedules only through the merge-queue selection
+# gate depends on: the job schedules only through the plan selection
 # (never a code-path guard that skips a scripts-only change), and it runs the
 # real cap self-test and the real --all scan with TOOLING_LINE_CAP_REQUIRE_BASE=1
 # so a missing base ref fails the job instead of passing without a growth check.
@@ -18,63 +18,41 @@ tlcap_check_workflow_job() {
 			gsub(/"/, "\047", value)
 			return value
 		}
-		function queue_only_if(line, value, quote, event, selected) {
-			value = normalize_if(line)
-			quote = sprintf("%c", 39)
-			event = "github.event_name!=" quote "merge_group" quote
-			selected = "containsfromJSONneeds.queue-selection.outputs.jobs||" quote "[]" quote "," quote "scripts-file-cap" quote
-			return value == event "||" selected || value == selected "||" event
-		}
 		function plan_if(line, value, quote, expected) {
 			value = normalize_if(line)
 			quote = sprintf("%c", 39)
-			expected = "github.event_name==" quote "merge_group" quote "||" \
-				"github.event_name!=" quote "pull_request" quote "||" \
+			expected = "github.event_name!=" quote "pull_request" quote "||" \
 				"needs.pr-plan.result==" quote "success" quote "&&" \
 				"containsfromJSONneeds.pr-plan.outputs.jobs||" quote "{}" quote \
 				"[" quote "test.yml" quote "]," quote "scripts-file-cap" quote
 			return value == expected
 		}
-		function selector_failure_if(line, value, quote) {
-			value = normalize_if(line)
-			quote = sprintf("%c", 39)
-			return value == "always&&github.event_name==" quote "merge_group" quote
-		}
 		/^  scripts-file-cap:[[:space:]]*$/ { inside=1; found=1; next }
 		inside && /^  [^[:space:]#][^:]*:/ { inside=0 }
 		!inside || /^[[:space:]]*#/ { next }
-		/^      - / {
-			step_name=""
-			if ($0 ~ /^      - name:[[:space:]]*/) {
-				step_name=$0
-				sub(/^      - name:[[:space:]]*/, "", step_name)
-			}
-		}
 		/^[[:space:]]+(-[[:space:]]+)?needs:/ {
 			value=$0
 			sub(/^[[:space:]]+(-[[:space:]]+)?needs:[[:space:]]*/, "", value)
 			gsub(/[[:space:]]/, "", value)
-			if ($0 !~ /^    needs:/ || (value != "queue-selection" && value != "[queue-selection]" && value != "[queue-selection,pr-plan]")) guarded=1
-			if (value == "[queue-selection,pr-plan]") planned=1
+			if ($0 !~ /^    needs:/ || value != "[pr-plan]") guarded=1
+			if (value == "[pr-plan]") planned=1
 		}
 		/^[[:space:]]+(-[[:space:]]+)?if:/ {
 			if ($0 ~ /^    if:/) {
 				if (plan_if($0)) plan_guard=1
-				else if (!queue_only_if($0)) guarded=1
-			} else if (!queue_only_if($0) && !(step_name == "Require queue selection to succeed" && selector_failure_if($0))) guarded=1
+				else guarded=1
+			} else guarded=1
 		}
 		/^[[:space:]]+(run:[[:space:]]+)?(bash[[:space:]]+)?scripts\/test-verify-tooling-line-cap\.sh[[:space:]]*$/ {
-			if (step_name == "Require queue selection to succeed") guarded=1
-			else selftest=1
+			selftest=1
 		}
 		/^[[:space:]]+(run:[[:space:]]+)?TOOLING_LINE_CAP_REQUIRE_BASE=1[[:space:]]+(bash[[:space:]]+)?scripts\/verify-tooling-line-cap\.sh[[:space:]]+--all[[:space:]]*$/ {
-			if (step_name == "Require queue selection to succeed") guarded=1
-			else scan=1
+			scan=1
 		}
 		END {
 			if (!found) print "tooling workflow: missing scripts-file-cap job"
 			if (planned && !plan_guard) guarded=1
-			if (guarded) print "tooling workflow: scripts-file-cap has a non-queue guard"
+			if (guarded) print "tooling workflow: scripts-file-cap has a non-plan guard"
 			if (!selftest) print "tooling workflow: missing real cap selftest command"
 			if (!scan) print "tooling workflow: missing real cap --all command with TOOLING_LINE_CAP_REQUIRE_BASE=1"
 			exit (!found || guarded || !selftest || !scan)
@@ -98,7 +76,7 @@ test_workflow_job_is_wired() {
 	local workflow="${real_root}/.github/workflows/test.yml" dir job
 	dir="$(mktemp -d)"
 	scratch_dirs+=("${dir}")
-	tlcap_assert_workflow_exit "live test.yml runs the cap self-test and --all scan on the queue guard" 0 "${workflow}"
+	tlcap_assert_workflow_exit "live test.yml runs the cap self-test and --all scan on the plan guard" 0 "${workflow}"
 
 	# Seed the mutations from the real job text so the check bites on the
 	# wiring that ships, not on a hand-written lookalike.
@@ -119,9 +97,9 @@ test_workflow_job_is_wired() {
 
 	sed "s/'scripts-file-cap'/'renamed-job'/" "${job}" >"${dir}/renamed-guard.yml"
 	cmp -s "${job}" "${dir}/renamed-guard.yml" && record_fail "renamed-guard mutation changed nothing" ""
-	tlcap_assert_workflow_exit "renaming the job in the merge-queue guard is rejected" 1 "${dir}/renamed-guard.yml"
+	tlcap_assert_workflow_exit "renaming the job in the plan guard is rejected" 1 "${dir}/renamed-guard.yml"
 
-	sed 's/^    needs: \[queue-selection, pr-plan\]$/    needs: [queue-selection, pr-plan, changes]/' "${job}" >"${dir}/other-needs.yml"
+	sed 's/^    needs: \[pr-plan\]$/    needs: [pr-plan, changes]/' "${job}" >"${dir}/other-needs.yml"
 	cmp -s "${job}" "${dir}/other-needs.yml" && record_fail "other-needs mutation changed nothing" ""
 	tlcap_assert_workflow_exit "a second needs entry is rejected" 1 "${dir}/other-needs.yml"
 

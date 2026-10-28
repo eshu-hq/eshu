@@ -18,6 +18,5 @@ workflows:
   - .github/workflows/race-graph-writes.yml
   - specs/ci-pr-workflows.d/race-graph-writes.yml
   jobs:
-  - queue-selection
   - race
   job_names: {}

@@ -7,7 +7,6 @@ workflows:
   jobs:
   - changes
   - gate
-  - queue-selection
   job_names:
     changes: Detect changed gate paths
     gate: ${{ matrix.display }}

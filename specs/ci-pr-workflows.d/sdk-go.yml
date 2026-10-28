@@ -15,7 +15,6 @@ workflows:
   # keeps precedence for non-markdown paths (last match wins).
   - '!**/*.md'
   jobs:
-  - queue-selection
   - sdk-go-collector
   - sdk-go-factschema
   job_names:

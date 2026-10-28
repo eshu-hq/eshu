@@ -282,9 +282,9 @@ class RouteGuardTest(unittest.TestCase):
                 path.write_text(before)
             path = root / relatives[0]
             before = path.read_text()
-            seeds = [before.replace("    needs: queue-selection\n", "", 1),
+            seeds = [before.replace("    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'corpus-gate') }}\n", "", 1),
                      before.replace("branches: [ main ]", "branches: [ other ]", 1),
-                     before.replace("  merge_group:", "  workflow_dispatch:", 1),
+                     before.replace("  push:\n", "  workflow_dispatch:\n", 1),
                      before.replace("  corpus-gate:\n", "  corpus-gate:\n    if: false\n"),
                      before.replace("  static-mirror:\n", "  static-mirror:\n    continue-on-error: true\n"),
                      before.replace("        run: bash scripts/verify-golden-corpus-gate.sh",

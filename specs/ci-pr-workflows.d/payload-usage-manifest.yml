@@ -22,7 +22,6 @@ workflows:
   - specs/ci-pr-workflows.d/payload-usage-manifest.yml
   jobs:
   - gate
-  - queue-selection
   - test-mirror
   job_names:
     gate: Verify payload-usage-manifest gate

@@ -14,8 +14,8 @@ func checkReadinessCleanup(job readinessJob) string {
 		switch strings.TrimSpace(step.Run) {
 		case readinessFixtureStart:
 			starts++
-			if step.If != readinessQueueSelection || step.ContinueOnError != "" {
-				return "standby start must use the registry queue selection without waiving failure"
+			if step.If != "" || step.ContinueOnError != "" {
+				return "standby start must run unconditionally without waiving failure"
 			}
 		case readinessFixtureStop:
 			stops++
@@ -38,8 +38,8 @@ func checkReadinessAggregate(job readinessJob) string {
 	downloaded, selected, verified, summarized := false, false, false, false
 	for _, step := range job.Steps {
 		if step.Uses == "actions/download-artifact@v4" {
-			if step.If != readinessQueueSelection || step.ContinueOnError != "" {
-				return "artifact download must use the registry queue selection without waiving failure"
+			if step.If != "" || step.ContinueOnError != "" {
+				return "artifact download must run unconditionally without waiving failure"
 			}
 			if step.With["pattern"] != "readiness-shard-${{ github.run_id }}-*" ||
 				step.With["path"] != readinessArtifactPath ||
@@ -50,20 +50,20 @@ func checkReadinessAggregate(job readinessJob) string {
 			continue
 		}
 		if strings.Contains(step.Run, "live_postgres_readiness_shards.py select") {
-			if step.If != readinessQueueSelection || step.ContinueOnError != "" {
-				return "newest-report selection must use the registry queue selection without waiving failure"
+			if step.If != "" || step.ContinueOnError != "" {
+				return "newest-report selection must run unconditionally without waiving failure"
 			}
 			selected = true
 		}
 		if strings.Contains(step.Run, "live_postgres_readiness_shards.py verify") {
-			if step.If != readinessQueueSelection || step.ContinueOnError != "" {
-				return "coverage verification must use the registry queue selection without waiving failure"
+			if step.If != "" || step.ContinueOnError != "" {
+				return "coverage verification must run unconditionally without waiving failure"
 			}
 			verified = true
 		}
 		if strings.Contains(step.Run, "live_postgres_readiness_results.py summary") {
-			if step.If != readinessQueueSelection || step.ContinueOnError != "" {
-				return "suite summary must use the registry queue selection without waiving failure"
+			if step.If != "" || step.ContinueOnError != "" {
+				return "suite summary must run unconditionally without waiving failure"
 			}
 			summarized = true
 		}
@@ -83,11 +83,7 @@ func checkReadinessAggregate(job readinessJob) string {
 	return ""
 }
 
-// backendQueueSelection is the live-backend aggregate guard: same shape as
-// the readiness one, without the extra contains() parentheses the readiness
-// conditions carry. Copy it exactly from live-backend-tests.yml.
 const (
-	backendQueueSelection  = "${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}"
 	backendAggregateJob    = "live-backend"
 	backendArtifactPath    = "live-backend-reports"
 	backendArtifactPattern = "live-backend-${{ github.run_id }}-*"
@@ -102,8 +98,8 @@ func checkBackendAggregate(job readinessJob) string {
 	downloaded, selected, verified := false, false, false
 	for _, step := range job.Steps {
 		if step.Uses == "actions/download-artifact@v4" {
-			if step.If != backendQueueSelection || step.ContinueOnError != "" {
-				return "artifact download must use the registry queue selection without waiving failure"
+			if step.If != "" || step.ContinueOnError != "" {
+				return "artifact download must run unconditionally without waiving failure"
 			}
 			if step.With["pattern"] != backendArtifactPattern ||
 				step.With["path"] != backendArtifactPath ||
@@ -114,14 +110,14 @@ func checkBackendAggregate(job readinessJob) string {
 			continue
 		}
 		if strings.Contains(step.Run, "live_backend_shards.py select") {
-			if step.If != backendQueueSelection || step.ContinueOnError != "" {
-				return "newest-report selection must use the registry queue selection without waiving failure"
+			if step.If != "" || step.ContinueOnError != "" {
+				return "newest-report selection must run unconditionally without waiving failure"
 			}
 			selected = true
 		}
 		if strings.Contains(step.Run, "live_backend_shards.py verify") {
-			if step.If != backendQueueSelection || step.ContinueOnError != "" {
-				return "coverage verification must use the registry queue selection without waiving failure"
+			if step.If != "" || step.ContinueOnError != "" {
+				return "coverage verification must run unconditionally without waiving failure"
 			}
 			verified = true
 		}
@@ -216,8 +212,8 @@ func checkReadinessHermeticSummary(job readinessJob) string {
 	for _, step := range steps {
 		if strings.TrimSpace(step.Run) == readinessSummaryTest {
 			runs++
-			if step.If != readinessQueueSelection || step.ContinueOnError != "" {
-				return "summary classifier test must use the registry queue selection without waiving failure"
+			if step.If != "" || step.ContinueOnError != "" {
+				return "summary classifier test must run unconditionally without waiving failure"
 			}
 		}
 	}

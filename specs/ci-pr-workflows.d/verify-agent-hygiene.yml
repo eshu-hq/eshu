@@ -5,7 +5,6 @@ workflows:
   name: Verify Agent Hygiene
   synchronize: true
   jobs:
-  - queue-selection
   - test-verify
   - verify
   job_names:

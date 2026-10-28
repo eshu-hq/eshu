@@ -31,11 +31,6 @@ on:
       plan_mode:
         required: true
         type: string
-  # Merge-queue entries (#7111): every job runs, publication stays off, and
-  # required-gates.yml aggregates the merge_group check rows.
-  # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
-  merge_group:
-    types: [checks_requested]
   push:
     branches: [ main ]
   workflow_dispatch:
@@ -80,17 +75,10 @@ env:
   ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 
 jobs:
-  queue-selection:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
-    uses: ./.github/workflows/queue-selection.yml
-    with:
-      workflow: read-api-latency-gate.yml
-
   # Supported-backend scale/concurrency proof is a dedicated manual run.
-  # Existing NornicDB PR, push and merge-group checks retain their identity.
+  # Existing NornicDB PR and push checks retain their identity.
   methodology-scale:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'methodology-scale')) && (github.event_name == 'workflow_dispatch') }}
-    needs: queue-selection
     name: methodology scale (neo4j)
     runs-on: ubuntu-24.04
     # Run 38032713508 reached its serial report after 30m8s from first job
@@ -193,26 +181,19 @@ jobs:
   # so a change to the jq formula fails here instead of silently going unproven.
   static-mirror:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}
-    needs: queue-selection
     name: static-mirror (work budget refresh)
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (work budget refresh)')) }}
         uses: actions/checkout@v5
 
       - name: Install ripgrep and jq
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (work budget refresh)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep jq
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Test the work budget refresh script
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (work budget refresh)')) }}
         run: bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh && python3 scripts/test-status-diagnostic-artifacts.py && python3 scripts/test-status-diagnostic-resources.py && bash scripts/test-status-diagnostic-runner.sh
 
   # #6965 phase 6: scripts/compare-backend-latency.sh reads two -latency-report
@@ -223,31 +204,23 @@ jobs:
   # backend-latency-compare-mirror) can name its own job.
   static-mirror-backend-latency-compare:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror-backend-latency-compare') }}
-    needs: queue-selection
     name: static-mirror (backend latency comparator)
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (backend latency comparator)')) }}
         uses: actions/checkout@v5
 
       - name: Install ripgrep and jq
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (backend latency comparator)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep jq
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Test the backend latency comparator script
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'static-mirror (backend latency comparator)')) }}
         run: bash scripts/test-compare-backend-latency.sh
 
   latency-gate:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'latency-gate') }}
-    needs: queue-selection
     name: latency-gate (nornicdb)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -262,38 +235,30 @@ jobs:
       GATE_NEO4J_PASSWORD: change-me
       GATE_POSTGRES_PASSWORD: change-me
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'latency-gate (nornicdb)')) }}
         uses: actions/checkout@v5
 
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'latency-gate (nornicdb)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'latency-gate (nornicdb)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'latency-gate (nornicdb)')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run read-API latency gate
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'latency-gate (nornicdb)')) }}
         env:
           GATE_WORK_REPORT: ${{ runner.temp }}/read-api-work-report.json
         run: bash scripts/verify-read-api-latency-gate.sh
 
       - name: Upload per-route work report
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'latency-gate (nornicdb)'))) && (always()) }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: read-api-work-report
@@ -301,13 +266,13 @@ jobs:
           if-no-files-found: ignore
 
       - name: Show preserved eshu-api log on failure
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'latency-gate (nornicdb)'))) && (failure()) }}
+        if: ${{ failure() }}
         run: cat "${TMPDIR:-/tmp}/read-api-latency-gate-api.log" 2>/dev/null || echo "no preserved eshu-api log found"
 
       - name: Dump service logs on failure
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'latency-gate (nornicdb)'))) && (failure()) }}
+        if: ${{ failure() }}
         run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f docker-compose.yaml -f docker-compose.read-api-latency-gate.yaml -- logs --tail=200 || true
 
       - name: Tear down Docker services
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'latency-gate (nornicdb)'))) && (always()) }}
+        if: ${{ always() }}
         run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f docker-compose.yaml -f docker-compose.read-api-latency-gate.yaml -- down -v || true

@@ -36,7 +36,6 @@ workflows:
   - .github/workflows/verify-replay-tier.yml
   - specs/ci-pr-workflows.d/verify-replay-tier.yml
   jobs:
-  - queue-selection
   - replay-tier
   job_names:
     replay-tier: Offline replay tier vs real NornicDB

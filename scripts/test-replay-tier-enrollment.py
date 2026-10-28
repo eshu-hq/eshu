@@ -221,9 +221,9 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
         workflow_source = (ROOT / ".github/workflows/verify-replay-tier.yml").read_text()
 
         def disabled_step(name: str) -> str:
-            pattern = rf"(?m)(^      - name: {re.escape(name)}\n)        if: [^\n]+"
-            changed, count = re.subn(pattern, r"\1        if: false", workflow_source,
-                                     count=1)
+            pattern = rf"(?m)(^      - name: {re.escape(name)}\n)"
+            changed, count = re.subn(pattern, r"\1        if: false\n",
+                                     workflow_source, count=1)
             self.assertEqual(count, 1, name)
             return changed
 
@@ -232,8 +232,11 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
         cases = {
             "job disabled": workflow_source.replace(
                 "  replay-tier:\n", "  replay-tier:\n    if: false\n", 1),
-            "queue selection disabled": workflow_source.replace(
-                "  queue-selection:\n", "  queue-selection:\n    if: false\n", 1),
+            "queue selection reintroduced": workflow_source.replace(
+                "  replay-tier:\n",
+                "  queue-selection:\n"
+                "    uses: ./.github/workflows/queue-selection.yml\n"
+                "  replay-tier:\n", 1),
             "backend step disabled": disabled_step(backend),
             "contract step disabled": disabled_step(contract),
             "backend command no-op": workflow_source.replace(
@@ -255,16 +258,13 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                 "uses: actions/checkout@v5", "run: true", 1),
             "Go setup replaced": workflow_source.replace(
                 "uses: actions/setup-go@v6", "run: true", 1),
-            "queue condition changed": workflow_source.replace(
-                "github.event_name != 'merge_group'", "github.event_name == 'push'", 1),
+            "plan condition changed": workflow_source.replace(
+                "contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier')",
+                "contains(fromJSON(inputs.plan_jobs || '[]'), 'other')", 1),
             "direct PR trigger reintroduced": workflow_source.replace(
                 "\nconcurrency:\n",
                 "\n  pull_request:\n    branches: [ main ]\n\nconcurrency:\n", 1),
             "duplicate jobs disables gate": workflow_source + "\njobs: {}\n",
-            "queue target overridden": workflow_source.replace(
-                "      workflow: verify-replay-tier.yml\n",
-                "      workflow: verify-replay-tier.yml\n"
-                "      workflow: other.yml\n", 1),
             "Go module overridden": workflow_source.replace(
                 "          go-version-file: go/go.mod\n",
                 "          go-version-file: go/go.mod\n"

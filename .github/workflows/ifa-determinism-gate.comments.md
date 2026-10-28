@@ -14,9 +14,6 @@ These are the original workflow comments in source order.
 # forever without ever exercising a genuine worker-count race. Both matrix
 # scripts already drive that Tier 2 combination; this workflow wires them
 # into per-PR CI instead of leaving them local-only.
-  # Merge-queue entries (#7111): every job runs, publication stays off, and
-  # required-gates.yml aggregates the merge_group check rows.
-  # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
       # NOTHING GATES THIS LIST against specs/ci-gates.v1.yaml. The registry's
       # drift check (scripts/verify-ci-gates-registry.sh) compares trigger
       # strings only for workflows that select jobs with a dorny/paths-filter

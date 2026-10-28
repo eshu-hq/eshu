@@ -50,7 +50,7 @@ func TestReadinessHelpersRouteToProof(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, required := range []string{"queue-selection", "readiness-plan", readinessShardJob, readinessAggregateJob} {
+	for _, required := range []string{"readiness-plan", readinessShardJob, readinessAggregateJob} {
 		if !slices.Contains(smoke[definition.File], required) {
 			t.Fatalf("smoke aggregate omits dependency %s: %v", required, smoke[definition.File])
 		}

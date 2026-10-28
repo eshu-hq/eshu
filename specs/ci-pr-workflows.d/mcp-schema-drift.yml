@@ -10,7 +10,6 @@ workflows:
   - mcp-router-eval
   - mcp-test-suite
   - mcp-tool-count
-  - queue-selection
   job_names:
     capability-verify: Verify capability inventory
     changes: Detect code changes

@@ -26,8 +26,8 @@
 # not count: the script is not executed there. Full-line and trailing ` #`
 # shell comments are stripped before matching, so a commented-out invocation
 # does not count. Step `if:` conditions are NOT evaluated: a conditional
-# checkout still counts as preceding (queue-selection.yml relies on this; a
-# static gate cannot evaluate expressions).
+# checkout still counts as preceding (a static gate cannot evaluate
+# expressions).
 #
 # Out of scope: reusable-call jobs (no steps: of their own), local composite
 # actions (none exist; .github/actions/ is absent), and non-shell repo

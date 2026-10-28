@@ -60,11 +60,10 @@ gates:
   # Owner rows for the `Verify ReadOnlyTools count` and `Full MCP test suite`
   # jobs of mcp-schema-drift.yml. Both had no row, so a failing MCP test never
   # blocked a merge. Their `if:` skips them on a docs-only pull request and
-  # runs them on merge_group and push; the triggers are go/** and sdk/go/**
+  # runs them on push; the triggers are go/** and sdk/go/**
   # because the MCP package tests import the rest of the Go module and the two
   # SDK modules it replaces from ../sdk. Green across the 90 most recent runs
-  # of the workflow (merge_group, push and pull_request), and no merge_group
-  # failure in the failed-run history.
+  # of the workflow (push and pull_request).
   - id: mcp-tool-count
     name: MCP ReadOnlyTools count
     category: exactness

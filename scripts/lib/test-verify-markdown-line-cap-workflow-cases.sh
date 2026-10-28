@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # #6545: docs-only changes must reach the real cap selftests and full scan.
 # This is a narrow check of this workflow's block-style jobs, not a YAML parser.
-# Queue selection may schedule the job, but its guards must still run the cap
-# commands on every docs PR. The old code-only owner omitted them there.
+# The plan may schedule the job, but its steps must still run the cap commands
+# on every docs PR. The old code-only owner omitted them there.
 # shellcheck disable=SC2154  # script_root is defined by the sourcing test.
 mdcap_check_workflow_job() {
 	awk '
@@ -14,63 +14,41 @@ mdcap_check_workflow_job() {
 			gsub(/"/, "\047", value)
 			return value
 		}
-		function queue_only_if(line, value, quote, event, selected) {
-			value = normalize_if(line)
-			quote = sprintf("%c", 39)
-			event = "github.event_name!=" quote "merge_group" quote
-			selected = "containsfromJSONneeds.queue-selection.outputs.jobs||" quote "[]" quote "," quote "markdown-file-cap" quote
-			return value == event "||" selected || value == selected "||" event
-		}
 		function plan_if(line, value, quote, expected) {
 			value = normalize_if(line)
 			quote = sprintf("%c", 39)
-			expected = "github.event_name==" quote "merge_group" quote "||" \
-				"github.event_name!=" quote "pull_request" quote "||" \
+			expected = "github.event_name!=" quote "pull_request" quote "||" \
 				"needs.pr-plan.result==" quote "success" quote "&&" \
 				"containsfromJSONneeds.pr-plan.outputs.jobs||" quote "{}" quote \
 				"[" quote "test.yml" quote "]," quote "markdown-file-cap" quote
 			return value == expected
 		}
-		function selector_failure_if(line, value, quote) {
-			value = normalize_if(line)
-			quote = sprintf("%c", 39)
-			return value == "always&&github.event_name==" quote "merge_group" quote
-		}
 		/^  markdown-file-cap:[[:space:]]*$/ { inside=1; found=1; next }
 		inside && /^  [^[:space:]#][^:]*:/ { inside=0 }
 		!inside || /^[[:space:]]*#/ { next }
-		/^      - / {
-			step_name=""
-			if ($0 ~ /^      - name:[[:space:]]*/) {
-				step_name=$0
-				sub(/^      - name:[[:space:]]*/, "", step_name)
-			}
-		}
 		/^[[:space:]]+(-[[:space:]]+)?needs:/ {
 			value=$0
 			sub(/^[[:space:]]+(-[[:space:]]+)?needs:[[:space:]]*/, "", value)
 			gsub(/[[:space:]]/, "", value)
-			if ($0 !~ /^    needs:/ || (value != "queue-selection" && value != "[queue-selection]" && value != "[queue-selection,pr-plan]")) guarded=1
-			if (value == "[queue-selection,pr-plan]") planned=1
+			if ($0 !~ /^    needs:/ || value != "[pr-plan]") guarded=1
+			if (value == "[pr-plan]") planned=1
 		}
 		/^[[:space:]]+(-[[:space:]]+)?if:/ {
 			if ($0 ~ /^    if:/) {
 				if (plan_if($0)) plan_guard=1
-				else if (!queue_only_if($0)) guarded=1
-			} else if (!queue_only_if($0) && !(step_name == "Require queue selection to succeed" && selector_failure_if($0))) guarded=1
+				else guarded=1
+			} else guarded=1
 		}
 		/^[[:space:]]+(run:[[:space:]]+)?(bash[[:space:]]+)?scripts\/test-verify-markdown-line-cap\.sh[[:space:]]*$/ {
-			if (step_name == "Require queue selection to succeed") guarded=1
-			else selftest=1
+			selftest=1
 		}
 		/^[[:space:]]+(run:[[:space:]]+)?(MARKDOWN_LINE_CAP_REQUIRE_BASE=1[[:space:]]+)?(bash[[:space:]]+)?scripts\/verify-markdown-line-cap\.sh[[:space:]]+--all[[:space:]]*$/ {
-			if (step_name == "Require queue selection to succeed") guarded=1
-			else scan=1
+			scan=1
 		}
 		END {
 			if (!found) print "markdown workflow: missing markdown-file-cap job"
 			if (planned && !plan_guard) guarded=1
-			if (guarded) print "markdown workflow: markdown-file-cap has a non-queue guard"
+			if (guarded) print "markdown workflow: markdown-file-cap has a non-plan guard"
 			if (!selftest) print "markdown workflow: missing real cap selftest command"
 			if (!scan) print "markdown workflow: missing real cap --all command"
 			exit (!found || guarded || !selftest || !scan)
@@ -107,17 +85,11 @@ YAML
 name: fixture
 jobs:
   markdown-file-cap:
-    needs: [queue-selection]
+    needs: [pr-plan]
+    if: ${{ github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'markdown-file-cap')) }}
     runs-on: ubuntu-latest
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
-YAML
-	# Keep each static fixture fragment below the 512-byte heredoc pipe budget.
-	cat >>"${fixture_dir}/queued.yml" <<'YAML'
       - name: Verify Markdown file cap
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'markdown-file-cap') }}
         run: |
           scripts/test-verify-markdown-line-cap.sh
           MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
@@ -126,18 +98,18 @@ YAML
 YAML
 	output="$(mdcap_check_workflow_job "${fixture_dir}/queued.yml" 2>&1)"
 	status=$?
-	assert_exit "${status}" 0 "workflow checker accepts queue-only scheduling and guards"
+	assert_exit "${status}" 0 "workflow checker accepts plan scheduling without step guards"
 	awk '
 		/^  markdown-file-cap:/ {
 			print
-			print "    if: ${{ contains(fromJSON(needs.queue-selection.outputs.jobs || \"[]\"), \"markdown-file-cap\") || github.event_name != \"merge_group\" }}"
+			print "    if: ${{ ((github.event_name != '\''pull_request'\'' || (needs.pr-plan.result == '\''success'\'' && contains(fromJSON(needs.pr-plan.outputs.jobs || '\''{}'\'')['\''test.yml'\''], '\''markdown-file-cap'\'')))) }}"
 			next
 		}
 		{ print }
 	' "${fixture_dir}/queued.yml" >"${fixture_dir}/queued-job-if.yml"
 	output="$(mdcap_check_workflow_job "${fixture_dir}/queued-job-if.yml" 2>&1)"
 	status=$?
-	assert_exit "${status}" 0 "workflow checker accepts equivalent queue-only job guard"
+	assert_exit "${status}" 0 "workflow checker accepts an equivalent plan job guard"
 	for mutation in queued-job-code queued-step-code queued-other-needs; do
 		awk -v mutation="${mutation}" '
 			/^  markdown-file-cap:/ {
@@ -145,11 +117,11 @@ YAML
 				if (mutation == "queued-job-code") print "    if: needs.changes.outputs.code == '\''true'\''"
 				next
 			}
-			/^    needs: \[queue-selection\]/ && mutation == "queued-other-needs" {
-				print "    needs: [queue-selection, changes]"; next
+			/^    needs: \[pr-plan\]/ && mutation == "queued-other-needs" {
+				print "    needs: [pr-plan, changes]"; next
 			}
-			/^        if:.*github.event_name !=/ && mutation == "queued-step-code" {
-				print "        if: needs.changes.outputs.code == '\''true'\''"; next
+			/^          scripts\/test-verify-markdown-line-cap\.sh$/ && mutation == "queued-step-code" {
+				print "        if: needs.changes.outputs.code == '\''true'\''"; print; next
 			}
 			{ print }
 		' "${fixture_dir}/queued.yml" >"${fixture_dir}/${mutation}.yml"

@@ -18,8 +18,6 @@ on:
       plan_mode:
         required: true
         type: string
-  merge_group:
-    types: [checks_requested]
   push:
     branches: [main]
     paths:
@@ -109,15 +107,8 @@ env:
   ESHU_LIVE_POSTGRES_IMAGE: ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
 
 jobs:
-  queue-selection:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
-    uses: ./.github/workflows/queue-selection.yml
-    with:
-      workflow: live-postgres-readiness.yml
-
   hermetic:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'hermetic') }}
-    needs: queue-selection
     name: live-postgres-readiness hermetic
     runs-on: ubuntu-24.04
     # The fake-Go runner checks every ledger-selected proof and its fail-closed
@@ -137,43 +128,32 @@ jobs:
     steps:
       - name: Record hermetic job start
         run: echo "READINESS_JOB_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         uses: actions/checkout@v5
         with:
           persist-credentials: false
 
       - name: Install ripgrep for readiness self-test checks
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Check runner fail-closed behavior
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: bash scripts/test-run-live-postgres-readiness-tests.sh
 
       - name: Check self-test seeded violations
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: bash scripts/test-run-live-postgres-readiness-selftest-seeds.sh
 
       - name: Check helper source dependency
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: python3 scripts/test-live-postgres-readiness-helper.py
 
       - name: Check shard planner fail-closed behavior
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: python3 scripts/test-live-postgres-readiness-shards.py
 
       - name: Check v2 refresher provenance
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: python3 scripts/test-live-postgres-readiness-refresh-v2.py
 
       - name: Check job summary classifier
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: bash scripts/ci/test-live-postgres-readiness-job-summary.sh
 
       - name: Summarize hermetic job outcome
@@ -190,8 +170,7 @@ jobs:
           bash "$script" finish || echo "::warning title=hermetic job summary failed::$script finish exited $?"
 
   readiness-plan:
-    if: ${{ (github.event_name != 'pull_request' || (contains(fromJSON(inputs.plan_jobs || '[]'), 'readiness-plan') || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards'))) && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
-    needs: queue-selection
+    if: ${{ github.event_name != 'pull_request' || (contains(fromJSON(inputs.plan_jobs || '[]'), 'readiness-plan') || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards')) }}
     name: live-postgres-readiness plan
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -216,8 +195,8 @@ jobs:
           printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
 
   live-postgres-readiness-shards:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards')) && (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) }}
-    needs: [queue-selection, readiness-plan]
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards') }}
+    needs: [readiness-plan]
     name: live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/${{ matrix.total }})
     runs-on: ubuntu-24.04
     strategy:
@@ -257,43 +236,33 @@ jobs:
           --health-timeout 10s
           --health-retries 20
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         uses: actions/checkout@v5
         with:
           persist-credentials: false
           ref: ${{ github.sha }}
 
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Install ripgrep for readiness fixture checks
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Check physical-standby fixture fail-closed behavior
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: bash scripts/test-live-postgres-standby-fixture.sh
 
       - name: Start disposable physical standby
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: bash scripts/ci/live-postgres-standby-fixture.sh start '${{ job.services.postgres.id }}' '${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'
 
       - name: Run live readiness proofs
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         env:
           # BEGIN GENERATED READINESS ENV (scripts/generate-live-postgres-readiness.py; do not hand-edit)
           ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE: '1'
@@ -375,7 +344,7 @@ jobs:
         run: bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/${{ matrix.total }}" --report readiness-shard-report.json
 
       - name: Upload shard coverage report
-        if: ${{ always() && (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: readiness-shard-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
@@ -383,7 +352,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload failed-package event streams
-        if: ${{ failure() && (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) }}
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: readiness-debug-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
@@ -392,12 +361,12 @@ jobs:
           if-no-files-found: ignore
 
       - name: Stop disposable physical standby
-        if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) && (always()) }}
+        if: always()
         run: bash scripts/ci/live-postgres-standby-fixture.sh stop '${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'
 
   live-postgres-readiness:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness')) && (always()) }}
-    needs: [queue-selection, readiness-plan, live-postgres-readiness-shards]
+    needs: [readiness-plan, live-postgres-readiness-shards]
     name: live-postgres-readiness (postgres18)
     runs-on: ubuntu-24.04
     # The aggregator carries no proof load: it reunites every shard's
@@ -405,37 +374,26 @@ jobs:
     # or covered less than the full ledger plan.
     timeout-minutes: 10
     steps:
-      - name: Require selection and every shard to succeed
+      - name: Require every shard to succeed
         env:
-          SELECTION_RESULT: ${{ needs.queue-selection.result }}
           PLAN_RESULT: ${{ needs.readiness-plan.result }}
           SHARD_RESULT: ${{ needs.live-postgres-readiness-shards.result }}
-          RUN_LIVE: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)') }}
         run: |
-          test "$SELECTION_RESULT" = success
-          if [ "$RUN_LIVE" = true ]; then
-            test "$PLAN_RESULT" = success
-          fi
-          case "$RUN_LIVE:$SHARD_RESULT" in
-            true:success|false:skipped) ;;
-            *) exit 1 ;;
-          esac
+          test "$PLAN_RESULT" = success
+          test "$SHARD_RESULT" = success
 
       - name: Check out code
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         uses: actions/checkout@v5
         with:
           persist-credentials: false
 
       - name: Download run shard reports
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         uses: actions/download-artifact@v4
         with:
           pattern: readiness-shard-${{ github.run_id }}-*
           path: readiness-shard-reports
 
       - name: Verify complete readiness coverage
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: |
           python3 scripts/lib/live_postgres_readiness_results.py list-packages > readiness-full.tsv
           python3 scripts/lib/live_postgres_readiness_shards.py select --head "$(git rev-parse HEAD)" \
@@ -445,5 +403,4 @@ jobs:
             --plan readiness-full.tsv readiness-shard-selected/*.json
 
       - name: Print suite summary
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: python3 scripts/lib/live_postgres_readiness_results.py summary

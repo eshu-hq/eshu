@@ -24,11 +24,6 @@ on:
       plan_mode:
         required: true
         type: string
-  # Merge-queue entries (#7111): every job runs, publication stays off, and
-  # required-gates.yml aggregates the merge_group check rows.
-  # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
-  merge_group:
-    types: [checks_requested]
   push:
     branches:
       - main
@@ -47,28 +42,16 @@ env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
 
 jobs:
-  queue-selection:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
-    uses: ./.github/workflows/queue-selection.yml
-    with:
-      workflow: scorecard-example-conformance.yml
-
   test:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'test') }}
-    needs: queue-selection
     name: Scorecard example go test
     timeout-minutes: 10
     runs-on: ubuntu-24.04
     steps:
-      - name: Require queue selection to succeed
-        if: ${{ always() && github.event_name == 'merge_group' }}
-        run: test "${{ needs.queue-selection.result }}" = success
       - name: Checkout repository
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Scorecard example go test')) }}
         uses: actions/checkout@v5
 
       - name: Set up Go
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Scorecard example go test')) }}
         uses: actions/setup-go@v6
         with:
           go-version-file: examples/collector-extensions/scorecard/go.mod
@@ -80,10 +63,8 @@ jobs:
       # example is its own module (go.mod outside go/), so it warms its own
       # directory rather than the default go/.
       - name: Pre-warm Go modules
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Scorecard example go test')) }}
         run: scripts/ci/go-mod-download-retry.sh examples/collector-extensions/scorecard
 
       - name: Run scorecard example tests
-        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Scorecard example go test')) }}
         working-directory: examples/collector-extensions/scorecard
         run: go test ./... -count=1

@@ -8,6 +8,10 @@ import (
 	"strings"
 )
 
+// workflowExpressionRE splits a job name on its ${{ }} expressions so a
+// template compiles to a matcher for any concrete rendering.
+var workflowExpressionRE = regexp.MustCompile(`\$\{\{.*?\}\}`)
+
 // nameResolver decides which job produces each declared check name, the way
 // GitHub reports names and `ci-gates await` (exact match) waits for them.
 type nameResolver struct {
