@@ -125,11 +125,20 @@ func TestExtractionBoundaryConfigCarriesNoSecret(t *testing.T) {
 		seen[typ] = true
 		for i := 0; i < typ.NumField(); i++ {
 			field := typ.Field(i)
-			name := strings.ToLower(field.Name)
-			for _, word := range banned {
-				if strings.Contains(name, word) {
-					t.Errorf("cross-boundary %s.%s carries %q material; scanner inputs hold no credentials",
-						path, field.Name, word)
+			// Both the Go field name and the JSON wire name cross the
+			// command-to-analyzer boundary (instance configuration decodes
+			// via encoding/json), so a secret-bearing name must trip the
+			// guard in either spelling.
+			names := []string{strings.ToLower(field.Name)}
+			if tag, _, _ := strings.Cut(field.Tag.Get("json"), ","); tag != "" && tag != "-" {
+				names = append(names, strings.ToLower(tag))
+			}
+			for _, name := range names {
+				for _, word := range banned {
+					if strings.Contains(name, word) {
+						t.Errorf("cross-boundary %s.%s carries %q material; scanner inputs hold no credentials",
+							path, field.Name, word)
+					}
 				}
 			}
 			walk(path+"."+field.Name, field.Type)
