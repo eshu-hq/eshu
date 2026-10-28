@@ -68,7 +68,16 @@ func ownedPackageManagerFilterValues(ecosystems []string, expandAliases bool) []
 // sizes the slots; the query-shape differential derives its read-only
 // all-slots tail from the text before this marker, so it can never drift from
 // production.
-const ownedPackageSlotSelectMarker = "SELECT\n    ecosystem,\n    package_name,\n    version,\n    lockfile,\n    repository_id,\n    fact_id,\n    source_location,\n    total_targets,"
+const ownedPackageSlotSelectMarker = "SELECT\n    window_targets.ecosystem,\n    window_targets.package_name,\n    window_targets.version,"
+
+// ownedPackageSlotCountExpression is P in SQL, the fill rule of
+// [workflow.OwnedPackageTargetSlotCount] over the column total_targets and the
+// target limit $4: 1 << bit_length(max(ceil(2T/L), 1) - 1), or 1 when $4 is
+// zero or less. The statement renders it twice (per target, and on the
+// one-row window stats) from this one definition, so the two cannot differ.
+const ownedPackageSlotCountExpression = `CASE WHEN $4::bigint <= 0 THEN 1::bigint
+      ELSE (1::bigint << length(ltrim((GREATEST((2 * total_targets + $4::bigint - 1) / NULLIF($4::bigint, 0), 1) - 1)::bit(64)::text, '0')))
+    END AS slot_count`
 
 // listOwnedPackageDependencyTargetsQuery builds the hash-slot window read
 // (#9422). Each distinct target hashes to a fixed slot,
@@ -76,11 +85,17 @@ const ownedPackageSlotSelectMarker = "SELECT\n    ecosystem,\n    package_name,\
 // P = next_pow2(ceil(2T/L)) is computed from T = COUNT(*) OVER () in the same
 // statement. The window takes slot bucket mod P in the global target order, so
 // a change in T never moves a target to a different window, and every target
-// is planned within P windows. The text is the one the shim lane measured on
-// the QA read replica (MATERIALIZED fence kept for intent; it is not
-// load-bearing on the measured plan because the slot predicate depends on the
-// window aggregate). Binds: $1 raw package_manager values, $2 read limit,
-// $3 rotation bucket, $4 target limit (zero or less means one slot).
+// is planned within P windows. A one-row window_stats CTE computes T, P and the
+// slot from COUNT(*) of the distinct targets and is LEFT JOINed to the slot's
+// rows, so the statement returns the stats even when the slot, or the whole
+// target set, is empty: an empty window is one row with NULL target columns.
+// The CTE chain up to window_targets is the text the shim lane measured on the
+// QA read replica; the stats CTE and the join were measured again on the same
+// replica (docs/internal/evidence/9422-owned-package-hash-slot.md). The
+// MATERIALIZED fence is kept for intent; it is not load-bearing on the
+// measured plan because the slot predicate depends on the window aggregate.
+// Binds: $1 raw package_manager values, $2 read limit, $3 rotation bucket,
+// $4 target limit (zero or less means one slot).
 func listOwnedPackageDependencyTargetsQuery(versionSpecific bool, expandAliases bool) string {
 	distinctColumns := "ecosystem, package_name"
 	distinctOrder := "ecosystem ASC, package_name ASC, CASE WHEN source_location <> '' THEN 0 ELSE 1 END ASC, lockfile DESC, version ASC, fact_id ASC"
@@ -93,12 +108,13 @@ func listOwnedPackageDependencyTargetsQuery(versionSpecific bool, expandAliases 
 		slotKey = "COALESCE(ecosystem, '') || '|' || COALESCE(package_name, '') || '|' || COALESCE(version, '')"
 	}
 	return fmt.Sprintf(ownedPackageSlotQueryTemplate,
-		ownedPackageEcosystemExpression(expandAliases), distinctColumns, distinctOrder, slotKey)
+		ownedPackageEcosystemExpression(expandAliases), distinctColumns, distinctOrder, slotKey,
+		ownedPackageSlotCountExpression)
 }
 
-// ownedPackageSlotQueryTemplate is the measured statement with its four
+// ownedPackageSlotQueryTemplate is the measured statement with its five
 // builder verbs: %[1]s ecosystem expression, %[2]s DISTINCT ON columns,
-// %[3]s DISTINCT ON order, %[4]s slot key expression.
+// %[3]s DISTINCT ON order, %[4]s slot key expression, %[5]s slot count.
 const ownedPackageSlotQueryTemplate = `
 WITH active_dependencies AS (
   SELECT
@@ -160,9 +176,7 @@ numbered_targets AS (
 sized_targets AS (
   SELECT
     numbered_targets.*,
-    CASE WHEN $4::bigint <= 0 THEN 1::bigint
-      ELSE (1::bigint << length(ltrim((GREATEST((2 * total_targets + $4::bigint - 1) / NULLIF($4::bigint, 0), 1) - 1)::bit(64)::text, '0')))
-    END AS slot_count
+    %[5]s
   FROM numbered_targets
 ),
 slotted_targets AS (
@@ -177,22 +191,35 @@ window_targets AS (
     slotted_targets.*,
     COUNT(*) OVER (PARTITION BY slot_of_key) AS slot_size
   FROM slotted_targets
-)
-SELECT
-    ecosystem,
-    package_name,
-    version,
-    lockfile,
-    repository_id,
-    fact_id,
-    source_location,
+),
+window_stats AS (
+  SELECT
     total_targets,
     slot_count,
-    window_slot,
-    slot_size
-FROM window_targets
-WHERE slot_of_key = window_slot
-ORDER BY target_rank ASC
+    MOD($3::bigint, slot_count) AS window_slot
+  FROM (
+    SELECT
+      total_targets,
+      %[5]s
+    FROM (SELECT COUNT(*) AS total_targets FROM distinct_targets) AS counted_targets
+  ) AS sized_stats
+)
+SELECT
+    window_targets.ecosystem,
+    window_targets.package_name,
+    window_targets.version,
+    window_targets.lockfile,
+    window_targets.repository_id,
+    window_targets.fact_id,
+    window_targets.source_location,
+    window_stats.total_targets,
+    window_stats.slot_count,
+    window_stats.window_slot,
+    COALESCE(window_targets.slot_size, 0) AS slot_size
+FROM window_stats
+LEFT JOIN window_targets
+  ON window_targets.slot_of_key = window_stats.window_slot
+ORDER BY window_targets.target_rank ASC
 LIMIT $2
 `
 
@@ -200,8 +227,9 @@ LIMIT $2
 // that can bound package-registry and vulnerability-intelligence target
 // planning. It returns one hash slot of the target set (slot
 // filter.RotationBucket mod P) in the global target order, with the window
-// stats beside the rows. A read whose slot holds no targets returns no rows and
-// a zero window, because the statement carries the stats on its rows.
+// stats beside the rows. A read whose slot holds no targets returns no targets
+// and still reports T, P and the slot with slot size 0, because the statement
+// always returns its one-row window stats.
 func (s FactStore) ListOwnedPackageDependencyTargets(
 	ctx context.Context,
 	filter workflow.OwnedPackageDependencyTargetFilter,
@@ -253,37 +281,43 @@ func (s FactStore) readOwnedPackageWindow(
 	page := workflow.OwnedPackageDependencyTargetPage{
 		Targets: make([]workflow.OwnedPackageDependencyTarget, 0, limit),
 	}
+	statsRows := 0
 	for rows.Next() {
 		var (
-			target  workflow.OwnedPackageDependencyTarget
-			version sql.NullString
-			name    sql.NullString
-			window  workflow.OwnedPackageDependencyTargetWindow
+			ecosystem, name, version, repositoryID, factID, sourceLocation sql.NullString
+			lockfile                                                       sql.NullBool
 		)
 		if err := rows.Scan(
-			&target.Ecosystem,
+			&ecosystem,
 			&name,
 			&version,
-			&target.Lockfile,
-			&target.RepositoryID,
-			&target.FactID,
-			&target.SourceLocation,
-			&window.TotalTargets,
-			&window.SlotCount,
-			&window.Slot,
-			&window.SlotSize,
+			&lockfile,
+			&repositoryID,
+			&factID,
+			&sourceLocation,
+			&page.Window.TotalTargets,
+			&page.Window.SlotCount,
+			&page.Window.Slot,
+			&page.Window.SlotSize,
 		); err != nil {
 			return workflow.OwnedPackageDependencyTargetPage{}, fmt.Errorf("list owned package dependency targets: %w", err)
 		}
-		page.Window.TotalTargets = window.TotalTargets
-		page.Window.SlotCount = window.SlotCount
-		page.Window.Slot = window.Slot
-		page.Window.SlotSize = window.SlotSize
+		statsRows++
+		// The LEFT JOIN returns one row with NULL target columns when the
+		// slot is empty: it carries the window stats and no target.
+		if !factID.Valid {
+			continue
+		}
 		page.Window.RowsRead++
-		target.PackageName = strings.TrimSpace(name.String)
-		target.Version = strings.TrimSpace(version.String)
-		target.Ecosystem = strings.ToLower(strings.TrimSpace(target.Ecosystem))
-		target.SourceLocation = strings.TrimSpace(target.SourceLocation)
+		target := workflow.OwnedPackageDependencyTarget{
+			Ecosystem:      strings.ToLower(strings.TrimSpace(ecosystem.String)),
+			PackageName:    strings.TrimSpace(name.String),
+			Version:        strings.TrimSpace(version.String),
+			Lockfile:       lockfile.Bool,
+			RepositoryID:   repositoryID.String,
+			FactID:         factID.String,
+			SourceLocation: strings.TrimSpace(sourceLocation.String),
+		}
 		if target.Ecosystem == "" || target.PackageName == "" {
 			continue
 		}
@@ -291,6 +325,10 @@ func (s FactStore) readOwnedPackageWindow(
 	}
 	if err := rows.Err(); err != nil {
 		return workflow.OwnedPackageDependencyTargetPage{}, fmt.Errorf("list owned package dependency targets: %w", err)
+	}
+	if statsRows == 0 {
+		return workflow.OwnedPackageDependencyTargetPage{}, fmt.Errorf(
+			"list owned package dependency targets: statement returned no window stats row")
 	}
 	if err := checkOwnedPackageWindow(page.Window, bucket, targetLimit); err != nil {
 		return workflow.OwnedPackageDependencyTargetPage{}, err
@@ -321,11 +359,9 @@ func recordOwnedPackageWindow(span trace.Span, page workflow.OwnedPackageDepende
 
 // checkOwnedPackageWindow fails the read when the statement's slot count or
 // slot disagrees with the Go fill rule, so the SQL and Go definitions of P
-// cannot drift apart silently. A read with no rows carries no stats.
+// cannot drift apart silently. Every read carries the stats, including an
+// empty slot and T = 0 (P = 1).
 func checkOwnedPackageWindow(window workflow.OwnedPackageDependencyTargetWindow, bucket int64, targetLimit int) error {
-	if window.RowsRead == 0 {
-		return nil
-	}
 	if want := workflow.OwnedPackageTargetSlotCount(window.TotalTargets, targetLimit); window.SlotCount != want {
 		return fmt.Errorf("list owned package dependency targets: statement slot count %d for T=%d L=%d, want %d",
 			window.SlotCount, window.TotalTargets, targetLimit, want)

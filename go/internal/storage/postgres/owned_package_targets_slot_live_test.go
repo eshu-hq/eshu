@@ -157,6 +157,28 @@ func TestListOwnedPackageDependencyTargetsSlotWindowStatsLive(t *testing.T) {
 			t.Fatalf("bucket 0 page differs at row %d: %#v vs %#v", i, first.Targets[i], again.Targets[i])
 		}
 	}
+
+	t.Run("slot hash follows the D1 byte layout", func(t *testing.T) {
+		assertOwnedPackageSlotHashOracle(ctx, t, db, total)
+	})
+	t.Run("empty slot still reports the window stats", func(t *testing.T) {
+		assertOwnedPackageEmptySlotWindow(ctx, t, store, db, total)
+	})
+	t.Run("no targets reports T 0 and one slot", func(t *testing.T) {
+		for _, targetLimit := range []int{1, 0} {
+			page, err := store.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
+				Ecosystems: []string{"cargo"}, Limit: 2, TargetLimit: targetLimit, RotationBucket: slotLiveFirstBucket,
+			})
+			if err != nil {
+				t.Fatalf("target limit %d: read error = %v, want nil", targetLimit, err)
+			}
+			want := workflow.OwnedPackageDependencyTargetWindow{TotalTargets: 0, SlotCount: 1, Slot: 0}
+			if page.Window != want || len(page.Targets) != 0 {
+				t.Fatalf("target limit %d: window = %#v with %d targets, want %#v and none",
+					targetLimit, page.Window, len(page.Targets), want)
+			}
+		}
+	})
 }
 
 // TestListOwnedPackageDependencyTargetsSlotDifferentialLive compares the
