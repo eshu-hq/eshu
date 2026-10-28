@@ -417,6 +417,7 @@ func failureState(err error) sdkcollector.ResultState {
 }
 
 // emitFailure emits a single-shot failure result for an analysis error.
+// No page envelope; see emitTerminal for why resumed calls omit it.
 func (r Runner) emitFailure(claim sdkcollector.Claim, observedAt time.Time, err error) error {
 	return r.emit(claim, observedAt, failureState(err), nil, []sdkcollector.Status{{
 		Class:        sdkcollector.StatusFailure,
@@ -429,6 +430,13 @@ func (r Runner) emitFailure(claim sdkcollector.Claim, observedAt time.Time, err 
 // config, malformed claim, forged cursor): retry cannot fix it, so the
 // claim must not be released for another attempt. The class names the
 // defect, never the values that triggered it.
+//
+// The result carries no page envelope, even on a resumed call: no envelope
+// the stateless call can mint would surface the satellite failure class
+// through the host stream pins (collectPages/checkPageEnvelope in
+// go/internal/collector/extensionhost/pagination.go pin the position,
+// generation, and declared total, and reject a final page short of the
+// total). The bounded component_* class stays on the stderr log line.
 func (r Runner) emitTerminal(claim sdkcollector.Claim, observedAt time.Time, class string) error {
 	return r.emit(claim, observedAt, sdkcollector.ResultTerminal, nil, []sdkcollector.Status{{
 		Class:        sdkcollector.StatusFailure,

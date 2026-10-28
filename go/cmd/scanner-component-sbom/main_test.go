@@ -49,6 +49,67 @@ func writeSBOMRepo(t *testing.T) string {
 	return root
 }
 
+// smokeStatus mirrors the status record the binary emits, decoded strictly
+// like the host decodes it. SourceLatencyMS rides the SDK omitempty wire
+// contract (present iff analysis takes >=1ms), so the smoke decode accepts
+// both shapes: absent decodes zero, present decodes the value.
+type smokeStatus struct {
+	Class           string `json:"class"`
+	FactCount       int    `json:"fact_count"`
+	SourceLatencyMS int    `json:"source_latency_ms,omitempty"`
+}
+
+// smokePage mirrors the result page document the binary writes to stdout.
+type smokePage struct {
+	ProtocolVersion string           `json:"protocol_version"`
+	State           string           `json:"state"`
+	Claim           map[string]any   `json:"claim"`
+	Generation      map[string]any   `json:"generation"`
+	Facts           []map[string]any `json:"facts"`
+	Statuses        []smokeStatus    `json:"statuses"`
+	Page            *struct {
+		PageIndex  int  `json:"page_index"`
+		TotalFacts int  `json:"total_facts"`
+		More       bool `json:"more"`
+	} `json:"page"`
+}
+
+// TestStatusDecodesSourceLatencyBothStates pins the smoke decode against
+// the SDK wire contract: Status.SourceLatencyMS is omitempty, so slow runs
+// carry source_latency_ms while 0ms runs omit it. Both shapes must decode
+// under DisallowUnknownFields.
+func TestStatusDecodesSourceLatencyBothStates(t *testing.T) {
+	t.Parallel()
+
+	decode := func(statusDoc string) smokePage {
+		raw := `{"protocol_version":"collector-sdk/v1alpha3","state":"complete",` +
+			`"statuses":[` + statusDoc + `],` +
+			`"page":{"page_index":0,"total_facts":0,"more":false}}`
+		var page smokePage
+		decoder := json.NewDecoder(strings.NewReader(raw))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&page); err != nil {
+			t.Fatalf("decode page: %v\ndoc = %s", err, raw)
+		}
+		return page
+	}
+
+	absent := decode(`{"class":"complete","fact_count":2}`)
+	if len(absent.Statuses) != 1 || absent.Statuses[0].Class != "complete" {
+		t.Fatalf("statuses = %+v, want one complete status", absent.Statuses)
+	}
+	if got := absent.Statuses[0].SourceLatencyMS; got != 0 {
+		t.Fatalf("SourceLatencyMS = %d without the field, want zero", got)
+	}
+	present := decode(`{"class":"complete","fact_count":2,"source_latency_ms":7}`)
+	if len(present.Statuses) != 1 || present.Statuses[0].Class != "complete" {
+		t.Fatalf("statuses = %+v, want one complete status", present.Statuses)
+	}
+	if got := present.Statuses[0].SourceLatencyMS; got != 7 {
+		t.Fatalf("SourceLatencyMS = %d with the field, want 7", got)
+	}
+}
+
 // TestBinaryServesOnePageOverStdio builds the real binary and drives it
 // through a real subprocess: one request on stdin yields exactly one JSON
 // result document on stdout with a v1alpha3 page envelope, and stderr
@@ -96,22 +157,7 @@ func TestBinaryServesOnePageOverStdio(t *testing.T) {
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("binary exit = %v, stderr = %q", err, stderr.String())
 	}
-	var page struct {
-		ProtocolVersion string           `json:"protocol_version"`
-		State           string           `json:"state"`
-		Claim           map[string]any   `json:"claim"`
-		Generation      map[string]any   `json:"generation"`
-		Facts           []map[string]any `json:"facts"`
-		Statuses        []struct {
-			Class     string `json:"class"`
-			FactCount int    `json:"fact_count"`
-		} `json:"statuses"`
-		Page *struct {
-			PageIndex  int  `json:"page_index"`
-			TotalFacts int  `json:"total_facts"`
-			More       bool `json:"more"`
-		} `json:"page"`
-	}
+	var page smokePage
 	decoder := json.NewDecoder(bytes.NewReader(stdout.Bytes()))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&page); err != nil {
