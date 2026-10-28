@@ -121,6 +121,9 @@ production code. There is no environment variable: no operator need for one
 was shown. Side reads of other repository files (C and C++ headers, Python
 package `__init__` files and Lambda configs, JavaScript siblings, tsconfig and
 package.json, composer manifests and locks, `go.mod`) use `ReadFileCapped` too.
+`ReadSourceWithOriginal` uses the same cache, cap, and physical read as
+`ReadSource`, returning both the line-normalized parser view and the original
+bytes for parsers that bind evidence to a later raw source read.
 `TestParserTreeReadsRepositoryFilesThroughTheCap` fails on any other whole-file
 read in the parser tree; its allowlist names the Terragrunt include walker (its
 own 1 MiB cap), the SCIP index reader, and the golden-audit fixture reader.

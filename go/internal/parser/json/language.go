@@ -45,7 +45,7 @@ func Parse(
 	options shared.Options,
 	config Config,
 ) (map[string]any, error) {
-	source, err := shared.ReadSource(path)
+	source, original, err := shared.ReadSourceWithOriginal(path)
 	if err != nil {
 		return nil, err
 	}
@@ -76,9 +76,9 @@ func Parse(
 	filename := strings.ToLower(filepath.Base(path))
 	if filename == "composer.json" || filename == "composer.lock" {
 		evidence, evidenceErr := composerRuntimeFromDocument(filename, object, normalizedBytes, buildTranslatedNewlineIndex(source, translate))
-		evidence.Digest = ComposerRuntimeDigest(source)
-		evidence.ByteSize = len(source)
-		if len(source) > composerRuntimeMaxBytes {
+		evidence.Digest = ComposerRuntimeDigest(original)
+		evidence.ByteSize = len(original)
+		if len(original) > composerRuntimeMaxBytes {
 			evidence.Values = nil
 			evidence.Unavailable = true
 		}

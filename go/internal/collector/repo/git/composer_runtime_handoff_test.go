@@ -136,6 +136,54 @@ func TestComposerRuntimeHandoffRejectsChangedBody(t *testing.T) {
 	}
 }
 
+// TestComposerRuntimeHandoffBindsRawBareCRBytes keeps normalized parser lines
+// while requiring the streamed source to match the exact bytes parsed.
+func TestComposerRuntimeHandoffBindsRawBareCRBytes(t *testing.T) {
+	const bareCR = "{\r  \"require\": {\"php\": \"^8.2\"}\r}"
+	for _, tc := range []struct {
+		name, after string
+		wantDropped bool
+	}{
+		{name: "unchanged bare CR"},
+		{name: "raw CR changes to LF", after: strings.ReplaceAll(bareCR, "\r", "\n"), wantDropped: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			path := filepath.Join(repoRoot, "composer.json")
+			writeCollectorTestFile(t, path, bareCR)
+			observed := time.Date(2026, time.October, 28, 0, 0, 0, 0, time.UTC)
+			snapshot, err := (NativeRepositorySnapshotter{Now: func() time.Time { return observed }}).
+				SnapshotRepository(context.Background(), SelectedRepository{RepoPath: repoRoot})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(snapshot.ComposerRuntime) != 1 {
+				t.Fatalf("accepted Composer evidence = %d, want 1", len(snapshot.ComposerRuntime))
+			}
+			if tc.after != "" {
+				writeCollectorTestFile(t, path, tc.after)
+			}
+			collected := buildStreamingGeneration(repoRoot, testCollectorRepositoryMetadata(repoRoot), "run-composer-bare-cr", observed, snapshot, false, "")
+			declarations := decodeDeclarationList(t, drainFactChannel(collected.Facts))
+			if got := collected.Generation.PreparseIdentityDropped.Load(); got != tc.wantDropped {
+				t.Fatalf("stream_dropped = %v, want %v", got, tc.wantDropped)
+			}
+			if tc.wantDropped {
+				if len(declarations) != 0 {
+					t.Fatalf("changed raw bytes emitted stale evidence: %+v", declarations)
+				}
+				if paths := collected.Generation.PreparseIdentityDroppedPaths.Sorted(); len(paths) != 1 || paths[0] != "composer.json" {
+					t.Fatalf("dropped paths = %v, want composer.json", paths)
+				}
+				return
+			}
+			if len(declarations) != 1 || declarations[0].RawSpec != "^8.2" || declarations[0].LineNumber != 2 {
+				t.Fatalf("bare-CR PHP declaration = %+v, want ^8.2 at line 2", declarations)
+			}
+		})
+	}
+}
+
 func TestComposerRuntimeHandoffSkipsUnchangedMalformedFile(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "composer.json"), `{"require":{"php":"8.2",}`)

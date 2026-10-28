@@ -89,6 +89,30 @@ func TestComposerParserUsesOriginalLineAfterNormalizedPrefix(t *testing.T) {
 	}
 }
 
+func TestComposerParserBareCRKeepsRawDigestAndRealLine(t *testing.T) {
+	const body = "{\r  \"require\": {\"php\": \"^8.2\"}\r}"
+	path := filepath.Join(t.TempDir(), "composer.json")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := Parse(path, false, shared.Options{}, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantDigest := fmt.Sprintf("%x", sha256.Sum256([]byte(body)))
+	evidence, ok := parsed["composer_runtime_evidence"].(ComposerRuntimeEvidence)
+	if !ok || evidence.Digest != wantDigest || len(evidence.Values) != 1 || evidence.Values[0].Line != 2 {
+		t.Fatalf("parser evidence = %+v, want raw digest %q and PHP line 2", evidence, wantDigest)
+	}
+	legacy, err := ExtractComposerRuntimeEvidence("composer.json", []byte(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacy.Digest != wantDigest || len(legacy.Values) != 1 || legacy.Values[0].Line != 2 {
+		t.Fatalf("legacy evidence = %+v, want raw digest %q and PHP line 2", legacy, wantDigest)
+	}
+}
+
 func TestComposerRuntimeEvidenceCanonicalizesWhitespace(t *testing.T) {
 	const body = `{"require":{"php":" ^8.2 "}}`
 	got, err := ExtractComposerRuntimeEvidence("composer.json", []byte(body))

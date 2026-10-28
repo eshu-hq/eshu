@@ -200,7 +200,10 @@ Rules that keep a manifest read bounded and fail closed:
   minified one-line `package.json` still gets distinct stable keys. Declarations
   come out in a fixed order: engines, volta, `packageManager`, each runtime as
   listed in the table.
-- A body over 1 MiB (`MaxManifestBytesPerFile`) is skipped before any parsing.
+- Runtime declaration extraction skips a manifest body over 1 MiB
+  (`MaxManifestBytesPerFile`). JSON manifests such as `package.json` and
+  Composer files may still be read and decoded by the generic JSON parser up
+  to its shared 64 MiB per-file cap before this extraction guard runs.
 
 ### PHP collector cost and signals
 

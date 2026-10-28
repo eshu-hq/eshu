@@ -44,12 +44,13 @@ func ExtractComposerRuntimeEvidence(filename string, source []byte) (ComposerRun
 		result.Unavailable = true
 		return result, nil
 	}
-	normalized, translate := normalizeJSONSource(source, filename)
+	parseSource := shared.NormalizeLineEndings(source)
+	normalized, translate := normalizeJSONSource(parseSource, filename)
 	var document map[string]any
 	if err := stdjson.Unmarshal([]byte(normalized), &document); err != nil {
 		return result, err
 	}
-	parsed, err := composerRuntimeFromDocument(filename, document, []byte(normalized), buildTranslatedNewlineIndex(source, translate))
+	parsed, err := composerRuntimeFromDocument(filename, document, []byte(normalized), buildTranslatedNewlineIndex(parseSource, translate))
 	parsed.ByteSize = result.ByteSize
 	parsed.Digest = result.Digest
 	return parsed, err

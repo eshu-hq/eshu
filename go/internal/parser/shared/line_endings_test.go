@@ -136,6 +136,32 @@ func TestReadSourceNormalizesBareCRFromDiskAndCache(t *testing.T) {
 	}
 }
 
+func TestReadSourceWithOriginalKeepsRawBytesFromOneRead(t *testing.T) {
+	const raw = "alpha\rbeta\rgamma\r"
+	const normalized = "alpha\nbeta\ngamma\n"
+	path := filepath.Join(t.TempDir(), "classic.txt")
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reads := 0
+	restore := SetReadSourceHookForTest(func(gotPath string) {
+		if gotPath == path {
+			reads++
+		}
+	})
+	defer restore()
+	parseView, original, err := ReadSourceWithOriginal(path)
+	if err != nil || string(parseView) != normalized || string(original) != raw || reads != 1 {
+		t.Fatalf("disk views = (%q, %q, %v), reads = %d", parseView, original, err, reads)
+	}
+	PrimeSource(path, []byte(raw))
+	defer ClearSource(path)
+	parseView, original, err = ReadSourceWithOriginal(path)
+	if err != nil || string(parseView) != normalized || string(original) != raw || reads != 1 {
+		t.Fatalf("cached views = (%q, %q, %v), reads = %d", parseView, original, err, reads)
+	}
+}
+
 // TestNormalizeLineEndingsPreservesCarriageReturnDataInLFAuthoredSource is the
 // boundary this normalization deliberately refuses to cross (issue #6306, PR
 // review). A source that already contains a '\n' has an established LF or
