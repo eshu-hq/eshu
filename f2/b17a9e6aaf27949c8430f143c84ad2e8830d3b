@@ -1,0 +1,21 @@
+go/internal/collector/awscloud/service/ecs/README.md
+  s_5826901f023244::t_69611abc025d82 82-85
+go/internal/projector/supply/chain/impact/README.md
+  s_5826901f023244::t_0e70d2c7d686da 8-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f2b17a9e6aaf27949c8430f143c84ad2e8830d3b",
+  "prompts": {},
+  "sessions": {
+    "s_5826901f023244": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a183bd-3250-71f2-9668-435aa2ce8de2",
+        "model": "gpt-6.1-terra"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
