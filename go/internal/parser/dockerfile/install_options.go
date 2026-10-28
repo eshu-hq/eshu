@@ -5,6 +5,29 @@ package dockerfile
 
 import "strings"
 
+// installActionIndex skips recognized manager options before the action word.
+// The returned index is relative to the full shell word slice.
+func installActionIndex(manager string, args []string, scope *installScope) (int, string, int) {
+	for index := 0; index < len(args); index++ {
+		word := args[index]
+		if !strings.HasPrefix(word, "-") {
+			return index + 1, "", 0
+		}
+		name, _, attached := strings.Cut(word, "=")
+		arity := installOptionArity(manager, name)
+		if arity == unknownInstallOption || arity == flagInstallOption && attached {
+			return 0, "unsupported_option", countCredentialValues(args, scope)
+		}
+		if arity == valueInstallOption && !attached {
+			index++
+			if index >= len(args) || strings.HasPrefix(args[index], "-") {
+				return 0, "missing_option_value", countCredentialValues(args, scope)
+			}
+		}
+	}
+	return len(args) + 1, "", 0
+}
+
 type installOptions struct {
 	packages []string
 	global   bool

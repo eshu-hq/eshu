@@ -74,13 +74,17 @@ func parseInstallInstruction(item instruction, stage string, variables *installS
 	if item.keyword == "ADD" {
 		return parseADDInstall(item, stage, variables)
 	}
-	segments, ok := shellSegments(item.value)
+	runBody, reason, optionDrops := stripInstallRunOptions(item.value, variables)
+	if reason != "" {
+		return nil, []UnparsedCommand{{LineNumber: item.line, Reason: reason}}, optionDrops
+	}
+	segments, ok := shellSegments(runBody)
 	if !ok {
-		return nil, []UnparsedCommand{{LineNumber: item.line, Reason: "invalid_shell_words"}}, 0
+		return nil, []UnparsedCommand{{LineNumber: item.line, Reason: "invalid_shell_words"}}, optionDrops
 	}
 	installs := make([]Install, 0)
 	unparsed := make([]UnparsedCommand, 0)
-	dropped := 0
+	dropped := optionDrops
 	for _, segment := range segments {
 		found, reason, count := parseInstallSegment(segment, item.line, stage, variables)
 		installs = append(installs, found...)
@@ -90,6 +94,33 @@ func parseInstallInstruction(item instruction, stage string, variables *installS
 		}
 	}
 	return installs, unparsed, dropped
+}
+
+// stripInstallRunOptions handles the Dockerfile RUN flags before the shell
+// command. Unsupported forms are recorded without interpreting the remainder.
+func stripInstallRunOptions(raw string, vars *installScope) (string, string, int) {
+	remaining := strings.TrimLeftFunc(raw, unicode.IsSpace)
+	for strings.HasPrefix(remaining, "--") {
+		end := strings.IndexFunc(remaining, unicode.IsSpace)
+		if end < 0 {
+			return "", "unsupported_run_option", countCredentialValues(strings.Fields(raw), vars)
+		}
+		word := remaining[:end]
+		name, value, attached := strings.Cut(word, "=")
+		switch name {
+		case "--mount", "--network", "--security", "--device":
+		default:
+			return "", "unsupported_run_option", countCredentialValues(strings.Fields(raw), vars)
+		}
+		if !attached || value == "" || strings.ContainsAny(value, "\"'\\") {
+			return "", "unsupported_run_option", countCredentialValues(strings.Fields(raw), vars)
+		}
+		if sensitiveInstallValue("", value, vars) {
+			return "", "credential_run_option", countCredentialValues(strings.Fields(raw), vars)
+		}
+		remaining = strings.TrimLeftFunc(remaining[end:], unicode.IsSpace)
+	}
+	return remaining, "", 0
 }
 
 func parseInstallSegment(words []string, line int, stage string, vars *installScope) ([]Install, string, int) {
@@ -104,7 +135,14 @@ func parseInstallSegment(words []string, line int, stage string, vars *installSc
 		if len(words) < 2 {
 			return nil, "missing_action", 0
 		}
-		action := words[1]
+		actionIndex, reason, dropped := installActionIndex(command, words[1:], vars)
+		if reason != "" {
+			return nil, reason, dropped
+		}
+		if actionIndex >= len(words) {
+			return nil, "missing_action", dropped
+		}
+		action := words[actionIndex]
 		switch {
 		case (command == "apt" || command == "apt-get" || command == "yum" || command == "dnf" || command == "pip" || command == "pip3" || command == "pecl") && action == "install":
 		case command == "apk" && action == "add":
@@ -112,7 +150,7 @@ func parseInstallSegment(words []string, line int, stage string, vars *installSc
 		default:
 			return nil, "", 0
 		}
-		manager, start = command, 2
+		manager, start = command, actionIndex+1
 	case "docker-php-ext-install", "docker-php-ext-enable", "docker-php-ext-configure", "a2enmod":
 		manager, start = command, 1
 	case "curl", "wget":
@@ -140,7 +178,11 @@ func parseInstallSegment(words []string, line int, stage string, vars *installSc
 	default:
 		return nil, "", 0
 	}
-	options := parseInstallOptions(manager, words[start:], vars)
+	args := words[start:]
+	if start > 2 {
+		args = append(append([]string{}, words[1:start-1]...), args...)
+	}
+	options := parseInstallOptions(manager, args, vars)
 	if options.reason != "" {
 		return nil, options.reason, options.dropped
 	}

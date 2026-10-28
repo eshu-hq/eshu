@@ -246,8 +246,10 @@ install variables; FROM a prior named stage inherits its ARG and ENV values.
 ENV wins when both provide the same name. Values remain source defaults, since
 build-time overrides are unknown to the parser.
 
-RUN shell comments end at an unquoted `#` that begins a word. Recognized
-package-manager options consume their values before package detection; an
+RUN shell comments end at an unquoted `#` that begins a word. The parser
+consumes Dockerfile `RUN --mount`, `--network`, `--security`, and `--device`
+flags before reading the shell command. Recognized package-manager options
+before or after the action consume their values before package detection; an
 unknown option rejects the command. A simple executable RUN heredoc can
 provide install declarations. Shell data or control-flow heredocs and COPY/ADD
 data bodies do not become RUN declarations. ADD accepts recognized leading
