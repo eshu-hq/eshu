@@ -21,7 +21,7 @@ only and never reducer findings or graph truth.
 ## Exported surface
 
 The command package exposes no library API. `main` parses the `--version`
-flag, then delegates to `component.Runner` pinned to the image component
+flag, then delegates to `component.Runner` pinned to the OS-runtime component
 identity.
 
 ## Dependencies
