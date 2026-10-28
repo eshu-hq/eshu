@@ -33,7 +33,7 @@ be the exact union of the plan. A report cut under different weights fails with 
 
 ## What the prediction counts
 
-`specs/live-postgres-readiness-weights.v1.json` holds the current fitted cost model,
+`specs/live-postgres-readiness-weights.v1.json` holds the v1 fallback cost model,
 in tenths of a second so the cut is identical on every machine:
 
 | Field | Meaning |
@@ -107,11 +107,13 @@ The suite fails when:
   the cut itself and does not change when tests are enrolled, so an unrelated
   enrollment cannot trip it. If the live-plan bound trips, open a refit;
 - more than 40 planned tests, or more than 2 planned packages, have no measured
-  weight. New tests run on `default_test_seconds` / `default_package_seconds`,
-  so a feature PR must not edit `specs/live-postgres-readiness-weights.v1.json`:
-  the gate stays green while the defaulted count is at or under the cap, and
-  review — not the gate — flags a weights edit inside a feature PR. Only a
-  standalone refit PR (see below) touches the file;
+  weight in the active model, which is
+  `specs/live-postgres-readiness-weights.v2.json` while that file is present
+  (the drift error names the file). New tests run on the model's default
+  prices, so a feature PR must not edit either weights file: the gate stays
+  green while the defaulted count is at or under the cap, and review — not the
+  gate — flags a weights edit inside a feature PR. Only a standalone refit PR
+  (see below) touches the weights files;
 - the shard job's `timeout-minutes` stops matching the 1800 s cap the gate
   uses;
 - a weights file is malformed, has duplicate keys, or a non-finite or negative
@@ -153,22 +155,28 @@ spread failure before merging. The five-leg model uses one more SQL runner and m
 runner seconds; the plan job also adds setup time. No speedup or fixed
 wall-time result is promised.
 
-## Refit the v1 weights
+## Refit the weights
 
-A refit is a standalone bot-or-owner PR that touches only
-`specs/live-postgres-readiness-weights.v1.json`. It is built from green `main`
-shard logs — never from a feature branch, and never bundled with a feature
-change — so it cannot conflict with feature work, because no feature PR
-touches the file. One entry per line keeps the diff a local hunk instead of a
-whole-file rewrite.
+A refit is a standalone bot-or-owner PR that touches only the weights files.
+While `specs/live-postgres-readiness-weights.v2.json` is present, the budget
+and drift gates run on it, so a refit must regenerate it with the v2
+refresher (see [Move to five shards](#move-to-five-shards)); a v1-only refit
+cannot clear a tripped gate. Regenerating
+`specs/live-postgres-readiness-weights.v1.json` in the same PR keeps the
+fallback current; no gate checks the v1 file against the live plan while v2
+is present. A refit is built from green `main` shard logs — never from a
+feature branch, and never bundled with a feature change — so it cannot
+conflict with feature work, because no feature PR touches the files. Sorted
+entries keep the diff a local hunk instead of a whole-file rewrite.
 
 Trigger a refit when the drift count passes 20 defaulted tests (half the
 40-test gate cap), when the gate fails, when a shard job runs near its cap, or
 on a regular schedule. Either trigger shape is acceptable; the choice is the
 reviewer's call on the refit PR.
 
-Take two or more green full runs of the workflow on `main`, download each
-shard job's log, put each run's four logs in its own directory, and run:
+For the v1 fallback file, take two or more green full runs of the workflow on
+`main`, download each shard job's log, put each run's shard logs in its own
+directory, and run:
 
 ```bash
 gh api repos/eshu-hq/eshu/actions/jobs/<JOB_ID>/logs > <RUN_DIR>/shard<N>.log   # per shard job
@@ -179,7 +187,8 @@ python3 scripts/lib/live_postgres_readiness_weights_refresh.py \
 ```
 
 `--fixed-job-seconds` is the mean of the job duration minus the "Run live
-readiness proofs" step duration. Read both from
+readiness proofs" step duration (v1 only; the v2 refresher infers it from the
+source jobs). Read both from
 `gh api repos/eshu-hq/eshu/actions/runs/<RUN_ID>/jobs`: the job's
 `completed_at - started_at`, and the matching entry under `steps`. The refresher keeps only tests in the current
 inventory, so a test missing from every log uses the default until the next
@@ -191,8 +200,8 @@ and pass `--fixed-job-seconds` as the mean over every shard job of every
 sample. The refresh after the first wave on the weighted cut used runs
 40047410741, 40049588589, and 40071537963 (12 shard jobs, mean 85.75 s). The
 shard job logs of a run stay downloadable for the retention window of
-GitHub Actions logs, so refit before they expire. Use only runs whose four
-shard jobs all passed, since a failed shard log misses its package groups
+GitHub Actions logs, so refit before they expire. Use only runs whose shard
+jobs all passed, since a failed shard log misses its package groups
 and the refresher fails closed.
 
 ### A feature PR that trips the drift gate
