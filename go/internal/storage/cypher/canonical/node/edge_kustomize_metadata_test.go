@@ -441,8 +441,6 @@ func TestMetadataScalars(t *testing.T) {
 	if got := MetadataStringSlice(map[string]any{"k": 42}, "k"); got != nil {
 		t.Fatalf("MetadataStringSlice(scalar) = %v, want nil", got)
 	}
-	intCases := map[string]any{"int": 3, "int64": int64(4), "float": 5.9, "str": "x", "missing": nil}
-	_ = intCases
 	if got := MetadataInt(map[string]any{"k": 3}, "k"); got != 3 {
 		t.Fatalf("MetadataInt(int) = %d, want 3", got)
 	}
