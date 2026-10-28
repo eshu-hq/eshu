@@ -98,10 +98,14 @@ runs on both models.
 
 The planted cases do not plant a fixed size on the live plan (#9371). A fixed
 plant there measures the live plan's remaining headroom and its package lumps,
-not the model. The old 10 x 20 s appended tail landed where no five-shard cut
-meets both the 1440 s budget and the 15% spread: shard 5 holding one
-`./internal/storage/postgres` row cost 1447.0 s under one correct refit and
-1421.3 s under the committed weights. A PR that added eight live tests also
+not the model. The old 10 x 20 s appended tail landed in a window where, under
+an unmerged refit candidate, no five-shard cut meets both the 1440 s budget and
+the 15% spread: shard 5 holding one `./internal/storage/postgres` row, the last
+storage test through the end of the plan, cost 1447.0 s there, over the
+budget. Under the committed weights the same row costs 1421.3 s and fits, so
+that tail passed. The window exists under both weight sets and sits at
+different sizes ([The live-plan spread window](#the-live-plan-spread-window)).
+A PR that added eight live tests also
 failed the old seeded case with "no shard partition fits the job budget",
 while the live plan itself still fit. Each case now asserts what it is named for:
 
@@ -120,12 +124,11 @@ while the live plan itself still fit. Each case now asserts what it is named for
   plan, which covers every cut's needs. A PR that both adds too many
   unpriced tests and breaks the budget now sees both errors.
 
-The live plan can still fail the 15% spread at some sizes. Under the committed
-weights, the budget gate fails once 45 to 60 default-priced tests are added to
-the last package (the range swept). That failure is the live-plan fit case
-reporting a real limit. The appended-tail case fails with it and names the same
-spread error. The
-v1 cut mechanics (fixed-plan balance, cut cache, malformed files, union
+The live plan can still fail the 15% spread at some sizes. The live-plan fit
+case reports it. When the live plan is inside the window, both the live-fit
+case and the appended-tail case fail with the same spread error.
+[The live-plan spread window](#the-live-plan-spread-window)
+gives the sizes, the cause, and what to do. The v1 cut mechanics (fixed-plan balance, cut cache, malformed files, union
 under changed weights) stay in `live_postgres_readiness_balance_cases.py`.
 The suite fails when:
 
@@ -179,6 +182,119 @@ The suite fails when:
 - a weights file is malformed, has duplicate keys, or a non-finite or negative
   number;
 - a shard report cut under other weights passes the aggregate.
+
+## The live-plan spread window
+
+A PR that only appends tests can trip the live-plan fit case with
+`v2 predicted job spread exceeds 15% of mean`. The 1440 s budget, the 15%
+spread, and the 675 s row budget are unchanged by this section. The failure
+comes from the plan's package lumps, and it shows up as a window of plan sizes:
+the case passes, fails for a range of appended tests, then passes again.
+
+**Where the window is.** The table counts default-priced tests appended to
+the last package: the last size the live-plan fit case accepts, and the first
+size it rejects. Figures are as measured on 2026-10-28. The main row was
+recomputed at `1a6fb70e28`. The #9320 and #9227 rows come from the
+maintainers' exact search at `613ee359ea`; you cannot reproduce them from this
+repository. They describe branches that were not merged when this was
+written, so they go stale once those branches merge. The #9227 row is #9227
+combined with that main. Every enrollment and every refit moves them. The
+"refit candidate" column prices the plan with an unmerged candidate weights
+file that is not in the repository.
+
+| Plan | Committed weights | Refit candidate |
+| --- | --- | --- |
+| main | 44 pass, 45 first fails | 40 pass, 41 first fails |
+| #9320 | 44 pass, 45 first fails | 40 pass, 41 first fails |
+| #9227 plus main | 34 pass, 35 first fails | 31 pass, 32 first fails |
+
+On main, the committed weights fail from 45 through 65 appended tests and pass
+again at 66. The candidate fails from 41 through 56 and passes at 57. Run this
+from the repository root to print the window for the checkout you are on. It
+appends `k` default-priced tests to the last package, the way the appended-tail
+helpers do, and asks the same `budget_errors` the live-plan fit case asks. On
+your branch it counts from your PR's plan, so it gives your own headroom. To
+price a candidate file, pass `Path(...)` to `wt.load_weights`. It takes about
+half a minute.
+
+```bash
+python3 -I -B - <<'EOF'
+import sys
+sys.path.insert(0, "scripts/lib")
+import live_postgres_readiness_weights as wt
+from live_postgres_readiness_balance_cases import live_plan, slow_runs
+
+weights, plan = wt.load_weights(), live_plan()
+package = plan[-1].split("|")[0]
+failing = [k for k in range(121) if wt.budget_errors(
+    [*plan, *slow_runs(k, "TestGrow", package)], weights)]
+print(f"{len(plan)} tests;",
+      f"fails k={failing[0]}..{failing[-1]}" if failing else "no failing k in 0..120")
+EOF
+```
+
+At `1a6fb70e28` and again at the current base (`9344178810`) it prints `699 tests; fails k=45..65`. Main under the committed
+weights therefore takes 44 appended tests before the first failure, and 40
+under the candidate.
+
+**Why the window exists.** While shard 5 can hold at least one
+`./internal/storage/postgres` test (408 tests on main), the fourth cut sits
+inside that package, and shard 5 pays the package's first-use price a second
+time. As the appended tail grows, shard 5 reaches the 1440 s budget, so the cut
+must move to the package boundary. That drops 438.8 s on the committed weights and 461.9 s on the candidate:
+the second first-use charge (437.4 s and 460.3 s) plus the one test that
+leaves the shard. Shard 5 then falls below 85% of the mean job. It cannot grow back: any earlier fourth cut re-adds the
+first-use charge and breaks the budget. The window closes when the appended
+tail alone lifts shard 5 over the 85% floor.
+
+**Whether a valid cut exists.** The maintainers checked by exhaustive
+enumeration at `613ee359ea`. It lists every contiguous five-shard cut whose
+five jobs each stay within 1440 s. For the sweeps over 0 to 60 appended tests
+that is up to 5.3 million cuts per plan; the extension to 110 used an extra
+sound prune. It prices them with the same `v2.Scorer` the production planner
+uses, and tests the spread in integer tenths exactly as
+`live_postgres_readiness_weights.py` does. The search tested only the 1440 s
+cap and the 15% spread; the 675 s row check never decided an outcome. It
+searched only default-priced tests appended to the last package, not other
+growth positions or priced tails.
+
+Six sweeps (main, #9320, and #9227 plus main, each under the committed weights
+and the refit candidate, 0 to 60 appended tests) found that the planner
+accepted exactly the plans that have a valid cut. On main under the committed
+weights, the live-plan fit case fails from 45 through 65 appended tests. For 45
+through 64 no valid contiguous cut exists, so the planner is right to raise
+there. The sweeps covered 0 to 60; an independent enumerator checked 61 to 64
+separately. At 65 a valid cut exists and the planner skips it (below). A
+cross-check on main under the committed weights agreed on the sampled rows (0,
+44, 45, 56, 60, 64, 65, and 66). For the other plans the sweeps also ran 0 to
+60; their edges beyond that come from the extension to 110.
+
+The planner does skip a valid cut at the one place the sweeps found: the
+re-entry edge, where the window is about to close. The planner picks the cut
+with the highest smallest job, then the lowest largest job, then the lowest sum
+of squares, and it checks the 15% spread afterwards on that one cut. It never
+searches for the spread. At the edge, that cut splits a small package and pays
+its first-use price twice, which pushes shard 5 just under the floor. On main
+with the committed weights at 65 appended tests, the planner's cut has a 15.11%
+spread and a cut at 14.93% exists. The same edge appears at 68 appended tests
+on #9320 and 62 on #9227 plus main (14.92% and 14.89% there). The refit
+candidate showed no such edge up to 110 appended tests. These figures, the
+edges and the 110 bound come from the maintainers' exact search, not from this
+repository. #9390 tracks the planner fix. Until it lands, a spread raise at the
+edge of a window is not proof that no cut exists.
+
+**What to do, in order.**
+
+1. Keep the PR's appended tail under the headroom above, and batch the
+   enrollment across PRs when it is larger. Run the snippet on your branch to
+   see where you stand.
+2. Land the refit if one is due. A refit moves the window; it does not remove
+   it, so check the new headroom with the snippet.
+3. If your plan fails at its enrolled size, file a model-change issue. Attach
+   the raise message and the plan size (the number of planned tests). A
+   maintainer runs the exact search for your plan; no committed tool produces
+   it yet. Do not change the budget, the spread, or the weights in a feature
+   PR.
 
 ## Move to five shards
 
