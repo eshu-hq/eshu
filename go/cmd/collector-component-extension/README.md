@@ -131,6 +131,24 @@ No-Observability-Change (#9185 follow-up): the follow-up adds no metric,
 span, log line, or status field; the new test asserts the existing
 fail-closed startup error, so operator signals are unchanged.
 
+No-Regression Evidence (#9413): making `scrubHostCredentialEnv` return
+`(Runner, error)` adds one startup type switch before `NewSource`; the
+per-claim path is unchanged (same scrubbed runner reaches the same child-env
+filter, same explicit-Env append). Baseline and after both run `go test
+-count=1 ./cmd/collector-component-extension
+./internal/collector/extensionhost ./internal/component` green with `go vet`
+and `gofmt` clean, including the stacked #9258 wired-path proof that execs a
+real satellite child. The input shape is the closed set of in-tree runner
+types (process value/pointer, OCI value/pointer) plus a fake inheriting
+runner; no queue, lease, batching, Cypher, graph-write, or network surface is
+touched, so claim throughput and terminal counts are unaffected.
+
+No-Observability-Change (#9413): the guard adds no metric, span, log line,
+or status field; an unknown runner fails startup with an error naming only
+the Go type, reusing the existing `buildClaimedService` startup-error path,
+so operators keep diagnosing through the existing claim rows, failure
+classes, and service metrics endpoint.
+
 ## Related docs
 
 - `docs/public/extend/community-extension-authoring.md`
