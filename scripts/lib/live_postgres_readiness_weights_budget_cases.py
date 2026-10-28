@@ -10,6 +10,14 @@ shards) only when v2 is absent. The shard count comes from
 report, select, and verify commands use. A contract run on a retired model
 would gate capacity CI no longer has, so the first case binds the model and
 count to the matrix output and to the committed files on disk.
+
+The planted cases do not use fixed sizes on the live plan (#9371). A fixed plant
+there tests the plan's remaining headroom and its package lumps, not the model:
+the old 10 x 20 s tail landed in a band where no five-shard cut meets both the
+1440 s budget and the 15% spread, and a correct refit or a PR adding eight live
+tests moved the live plan into or out of that band. The appended tail is now
+sized to the tail shard's own headroom. The count-split overflow runs on a fixed
+synthetic plan. The drift case asserts the drift message itself.
 """
 
 from __future__ import annotations
@@ -34,6 +42,12 @@ REPO = LIB.parents[1]
 Model = wt.Weights | v2.WeightsV2
 V2_PATH = wt.WEIGHTS_PATH.with_name("live-postgres-readiness-weights.v2.json")
 MATRIX_STEP = "python3 scripts/lib/live_postgres_readiness_shards.py matrix)"
+NO_FIT = "no shard partition fits the job budget"
+TAIL_COUNT = 10
+SYNTHETIC_PACKAGES = 20
+SYNTHETIC_TESTS = 20
+SYNTHETIC_SEEDS = 15
+SYNTHETIC_SEED_SECONDS = 60.0
 
 
 def active_model() -> Model:
@@ -46,6 +60,27 @@ def priced(weights: Model, runs: list[str], seconds: float = SLOW_SECONDS) -> Mo
     merged = dict(weights.test)
     merged.update({run: wt._tenths(seconds, run) for run in runs})
     return replace(weights, test=merged)
+
+
+def synthetic_model(test: dict[str, int] | None = None) -> v2.WeightsV2:
+    """Return a fixed v2 model with round prices that no refit changes.
+
+    Every price is in tenths: 120 s fixed, 60 s cold, 10 s per test, 40 s
+    first use, and 10 s per repeated row.
+    """
+    return v2.WeightsV2(source_runs=("1", "2"), fixed=1200, cold=600, default_test=100,
+                        default_package_first=400, default_package_repeat=100,
+                        package_first={}, package_repeat={}, test=dict(test or {}))
+
+
+def synthetic_plan() -> list[str]:
+    """Return a fixed plan of 20 packages with 20 tests each.
+
+    Under ``synthetic_model`` both the count split and the weighted cut score
+    every shard at 1140 s, so the plan fits before anything is seeded.
+    """
+    return [f"./internal/synthetic/pkg{package:02d}|TestSynthetic{package:02d}x{test:02d}Live"
+            for package in range(SYNTHETIC_PACKAGES) for test in range(SYNTHETIC_TESTS)]
 
 
 def expected_shard_count() -> int:
@@ -119,34 +154,70 @@ class ActiveBudgetContractTest(unittest.TestCase):
         self.assertEqual(wt.drift_errors(drift), [])
         self.assertLessEqual(len(drift.defaulted_tests), wt.MAX_DEFAULTED_TESTS)
 
+    def tail(self, prefix: str) -> list[str]:
+        """Plant ``TAIL_COUNT`` runs in the last package, which v2 keeps contiguous."""
+        return slow_runs(TAIL_COUNT, prefix=prefix, package=self.plan[-1].split("|")[0])
+
+    def overflow_seconds(self) -> float:
+        """Price one tail run so ``TAIL_COUNT`` of them pass every job's budget.
+
+        The tail's test seconds alone then exceed the shard count times the
+        budget, so no partition of any plan can fit, whatever its headroom.
+        """
+        return (wt.BUDGET_SECONDS * self.count) / TAIL_COUNT + 1
+
     def test_drift_gate_bites_on_too_many_unweighted_tests(self) -> None:
-        # Plant in the last package: v2 rejects a package that re-enters the plan.
+        # The drift error must name the unpriced tests whether or not the
+        # planted plan also fits the budget (#9371): drift_report used to
+        # raise the cut's spread error instead.
         unweighted = slow_runs(wt.MAX_DEFAULTED_TESTS + 1, prefix="TestNoWeight",
                                package=self.plan[-1].split("|")[0])
         drift = wt.drift_report([*self.plan, *unweighted], self.weights)
         self.assertEqual(len(drift.defaulted_tests), len(unweighted)
                          + len(wt.drift_report(self.plan, self.weights).defaulted_tests))
-        self.assertTrue(wt.drift_errors(drift))
+        self.assertRegex(" ".join(wt.drift_errors(drift)),
+                         rf"planned tests have no weight \(limit {wt.MAX_DEFAULTED_TESTS}\)")
         newpkgs = [f"./internal/newpkg{index}|TestNew{index}Live" for index in range(
             wt.MAX_DEFAULTED_PACKAGES + 1)]
         package_drift = wt.drift_report([*self.plan, *newpkgs], self.weights)
-        self.assertTrue(wt.drift_errors(package_drift))
+        self.assertRegex(" ".join(wt.drift_errors(package_drift)),
+                         rf"planned packages have no cost \(limit {wt.MAX_DEFAULTED_PACKAGES}\)")
+
+    def test_drift_report_survives_a_plan_the_budget_rejects(self) -> None:
+        # A PR that adds too many unpriced tests and also breaks the budget
+        # must see both errors, not a cut error in place of the drift error.
+        unweighted = slow_runs(wt.MAX_DEFAULTED_TESTS + 1, prefix="TestNoWeight",
+                               package=self.plan[-1].split("|")[0])
+        overflow = self.tail("TestOverflowTail")
+        plan = [*self.plan, *unweighted, *overflow]
+        weights = priced(self.weights, overflow, self.overflow_seconds())
+        self.assertEqual(wt.budget_errors(plan, weights), [NO_FIT])
+        drift = wt.drift_report(plan, weights)
+        self.assertTrue(set(unweighted) <= set(drift.defaulted_tests))
+        self.assertRegex(" ".join(wt.drift_errors(drift)),
+                         rf"planned tests have no weight \(limit {wt.MAX_DEFAULTED_TESTS}\)")
+        with self.assertRaisesRegex(ValueError, "duplicate v2 planned run"):
+            wt.drift_report([*plan, plan[0]], weights)
 
     def test_seeded_slow_tests_overflow_a_count_split_but_not_the_weighted_one(self) -> None:
-        position = 70  # inside shard 1's range under the retired count split
-        # 12x25 s planted in shard 1's package push a naive count split past
-        # the 1800 s cap; the weighted cut must still absorb them under the
-        # 1440 s budget. On the #9100 base the four-shard v1 cut scored this
-        # case at 1439.9 s (13 seeds: 1441.6 s), while the five-shard v2 cut
-        # CI runs scored 1356.0 s (13 seeds: 1359.9 s).
-        inserted = slow_runs(12, package=self.plan[position].split("|")[0])
-        plan = [*self.plan[:position], *inserted, *self.plan[position:]]
-        weights = priced(self.weights, inserted)
-        naive = self.jobs(plan, weights, naive_count_bounds(len(plan), self.count))
+        # A fixed synthetic plan, not the live one (#9371): the live plan's
+        # count split and its weighted headroom both move with every
+        # enrollment and refit, so a live plant proves headroom, not the cut.
+        # The live count split and live fit stay asserted by the unseeded
+        # live-plan cases.
+        plan = synthetic_plan()
+        unseeded = synthetic_model()
+        naive = self.jobs(plan, unseeded, naive_count_bounds(len(plan), v2.SHARD_COUNT))
+        self.assertLessEqual(max(naive), wt.BUDGET_SECONDS, naive)
+        seeds = slow_runs(SYNTHETIC_SEEDS, prefix="TestSyntheticSeed",
+                          package=plan[0].split("|")[0])
+        plan = [*seeds, *plan]
+        weights = priced(unseeded, seeds, SYNTHETIC_SEED_SECONDS)
+        naive = self.jobs(plan, weights, naive_count_bounds(len(plan), v2.SHARD_COUNT))
         self.assertGreater(max(naive), wt.JOB_CAP_SECONDS, naive)
-        jobs = self.cut(plan, weights)
-        self.assertLessEqual(max(jobs), wt.BUDGET_SECONDS, jobs)
         self.assertEqual(wt.budget_errors(plan, weights), [])
+        jobs = self.jobs(plan, weights, wt.weighted_bounds(plan, weights))
+        self.assertLessEqual(max(jobs), wt.BUDGET_SECONDS, jobs)
 
     def test_seeded_count_split_already_fails_the_gate_on_the_unchanged_plan(self) -> None:
         naive = self.jobs(self.plan, self.weights,
@@ -154,11 +225,21 @@ class ActiveBudgetContractTest(unittest.TestCase):
         self.assertGreater(max(naive), wt.BUDGET_SECONDS, naive)
 
     def test_tests_appended_at_the_end_are_absorbed(self) -> None:
-        appended = slow_runs(10, prefix="TestAppendedTail",
-                             package=self.plan[-1].split("|")[0])
+        # Size the tail to the tail shard's headroom on the live cut (#9371).
+        # Past that headroom the live plan's package lumps decide whether any
+        # cut meets the budget and the 15% spread, which is the live-plan
+        # fit case's question, not this one's.
+        base = self.cut(self.plan, self.weights)
+        headroom = round((wt.BUDGET_SECONDS - base[-1]) * wt.UNIT)
+        self.assertGreaterEqual(headroom, 0, base)
+        appended = self.tail("TestAppendedTail")
         plan = [*self.plan, *appended]
-        jobs = self.cut(plan, priced(self.weights, appended, 20.0))
+        weights = priced(self.weights, appended, headroom // TAIL_COUNT / wt.UNIT)
+        self.assertEqual(wt.budget_errors(plan, weights), [])
+        jobs = self.cut(plan, weights)
         self.assertLessEqual(max(jobs), wt.BUDGET_SECONDS, jobs)
+        overflow = priced(self.weights, appended, self.overflow_seconds())
+        self.assertEqual(wt.budget_errors(plan, overflow), [NO_FIT])
 
 
 if __name__ == "__main__":
