@@ -50,9 +50,10 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
   `RuntimeContract`, `ConsumerContracts`, and `Telemetry` model the component
   manifest contract. `RuntimeContract` declares the supported collector SDK
   protocol and adapter before a host can consider an activation claim-capable.
-  Each `FactFamily` declares a namespaced, non-core fact kind, supported schema
-  versions, the non-unknown source-confidence values the component emits, and
-  optionally the core fixture-pack payload schema shape that validates it.
+  Each `FactFamily` declares a fact kind, schema versions, the non-unknown
+  source-confidence values the component emits, and optionally a fixture-pack
+  payload schema. Kinds are normally namespaced; a core-owned kind requires a
+  live core-issued producer grant covering the declaration.
 - `LoadManifest(path)` loads and validates a manifest from disk without
   producer grants, so a core-owned fact kind is always rejected.
 - `Registry.LoadGrantedManifest(path)` is the read-only loader for inspect,
@@ -125,9 +126,13 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
   factschema fixture pack. A namespaced component fact with no schema ref stays
   provenance-only and is not payload-shape validated.
 - Unknown or unsupported package behavior must remain inert at install time.
-- Optional components cannot claim core-owned fact kinds. Installed component
-  fact-kind ownership must stay unique unless the same component ID installs a
-  schema-compatible version that declares the same schema major set.
+- Core-owned fact kinds remain owned by core. A component may declare one only
+  when live core-issued grants cover its producer, version, kind, every declared
+  schema version, and a declared collector kind. Emission checks the exact
+  collector-kind/schema-version tuple again. Installed component fact-kind
+  ownership stays unique except for compatible versions of the same component,
+  or separately granted producers of a core-owned kind with matching schema
+  major sets.
 - Install, dry-run enable, and enable all use the same fact-kind ownership
   comparison so old registry state cannot bypass the manifest gate.
 - Duplicate activations are explicit errors. Operators must disable an existing

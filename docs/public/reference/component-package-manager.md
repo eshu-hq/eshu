@@ -112,10 +112,10 @@ is not remote Docker Compose proof.
 Uninstall fails while a component has active instances. `enable` rejects a padded component ID, `--instance`, or `--mode`; `disable` matches the stored values exactly, so it still clears a padded instance an older build recorded.
 
 Producer grants authorize first-party core fact emission. `inspect`, `verify`,
-and `conform` read live grants from `--component-home`; absent, revoked, or
-expired grants fail closed. Conformance keeps all core kinds reserved and passes
-exact component/version/collector/schema tuples with registry reducer phases
-and payload schemas to the SDK. See [Component Producer Grants](component-producer-grants.md).
+and `conform` read grants from `--component-home` only for core-owned kinds.
+Without a live match they fail closed; manifests without core-owned kinds skip the registry.
+Conformance keeps all core kinds reserved and passes exact grant tuples with registry
+reducer phases and payload schemas to the SDK. See [Component Producer Grants](component-producer-grants.md).
 
 Every component subcommand accepts `--json`. JSON output uses
 `schema_version: eshu.component.cli.v1`, a command name, a status, and the
@@ -469,10 +469,10 @@ Each `emittedFacts` entry must declare `sourceConfidence`. Allowed values are
 old stored rows and system fallback data; component manifests cannot declare it
 as normal emitted output.
 
-Each `emittedFacts.kind` must be namespaced with a collision-resistant prefix.
-Core-owned fact kinds from `go/internal/facts` are reserved: an optional component may
-declare one only with a live core-issued producer grant covering every declared schema
-version, scoped to the manifest's collector kinds. During install and activation planning,
+`emittedFacts.kind` is normally namespaced with a collision-resistant prefix.
+Core-owned kinds from `go/internal/facts`, whether namespaced or bare, may be declared
+only with a live core-issued grant covering every declared schema version and a
+manifest collector kind. During install and activation planning,
 the local registry compares the manifest against installed component manifests. A different
 component ID cannot claim an installed fact kind, unless the kind is core-owned, both hold
 live grants, and their schema-version major sets agree. The same component ID can install
