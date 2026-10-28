@@ -219,6 +219,11 @@ func TestExtractionCensusNamesEveryRootComposeFile(t *testing.T) {
 	if len(matches) == 0 {
 		t.Fatal("no docker-compose.* files at repository root")
 	}
+	// Pin the count as well as the names: the loop above only sees files
+	// present in the tree, so a silent deletion would otherwise pass.
+	if len(matches) != 18 {
+		t.Errorf("repository root has %d docker-compose.* files, census pins 18; update the record or account for the move", len(matches))
+	}
 	for _, m := range matches {
 		base := filepath.Base(m)
 		if !strings.Contains(text, base) {
@@ -247,7 +252,9 @@ func TestExtractionImageRefsCarryExplicitTags(t *testing.T) {
 		t.Fatal("values.yaml has no image refs; the chart defaults moved without review")
 	}
 	for _, img := range images {
-		if img.tag == "" || img.tag == "latest" {
+		// Normalize case: a mixed-case moving tag ("Latest") violates the
+		// immutable-artifact intent while passing an exact-match guard.
+		if tag := strings.ToLower(img.tag); tag == "" || tag == "latest" {
 			t.Errorf("image ref %q at %s carries no explicit tag; immutable artifacts require one", img.ref, img.where)
 		}
 		if img.single && !img.pinned {
@@ -361,20 +368,25 @@ func TestExtractionCensusPinsHelmContractFigures(t *testing.T) {
 		}
 	}
 
-	lineCounts := map[string]int{
-		"values.yaml":        1567,
-		"values.schema.json": 1731,
+	lineCounts := map[string]struct {
+		want   int
+		needle string
+	}{
+		"values.yaml":        {1567, "1567 lines of deployment defaults"},
+		"values.schema.json": {1731, "1731 lines, value gate"},
 	}
-	for file, want := range lineCounts {
+	for file, pin := range lineCounts {
 		raw, err := os.ReadFile(filepath.Join(chartDir, file))
 		if err != nil {
 			t.Fatalf("read %s: %v", file, err)
 		}
-		if got := bytes.Count(raw, []byte{'\n'}); got != want {
-			t.Errorf("%s has %d lines, record states %d; update the record", file, got, want)
+		if got := bytes.Count(raw, []byte{'\n'}); got != pin.want {
+			t.Errorf("%s has %d lines, record states %d; update the record", file, got, pin.want)
 		}
-		if !strings.Contains(text, strconv.Itoa(want)+" lines") {
-			t.Errorf("census record %s no longer states %d lines for %s", censusRecordRel, want, file)
+		// Anchor to the full phrase, not the bare number: a bare
+		// Contains("31") also matches "1731 lines" and proves nothing.
+		if !strings.Contains(text, pin.needle) {
+			t.Errorf("census record %s no longer states %q for %s", censusRecordRel, pin.needle, file)
 		}
 	}
 
@@ -393,8 +405,10 @@ func TestExtractionCensusPinsHelmContractFigures(t *testing.T) {
 			t.Errorf("templates/%s matches %d files, record states %d; update the record or account for the move",
 				pattern, len(matches), want)
 		}
-		if !strings.Contains(text, strconv.Itoa(want)) {
-			t.Errorf("census record %s no longer states the %d figure", censusRecordRel, want)
+		// Anchor to the "N `pattern`" phrase: bare numbers collide
+		// ("1731" contains "31" and "17"), so Contains(number) is vacuous.
+		if needle := strconv.Itoa(want) + " `" + pattern + "`"; !strings.Contains(text, needle) {
+			t.Errorf("census record %s no longer states %q", censusRecordRel, needle)
 		}
 	}
 	if _, err := os.Stat(filepath.Join(chartDir, "templates", "service.yaml")); err != nil {
