@@ -325,6 +325,11 @@ func dependencyIdentityDiscriminator(packageManager string, metadata map[string]
 		// same coordinate repeated across two projects of one build.sbt,
 		// whose rows carry no project field), still share one id — the
 		// same accepted residual as an exactly-duplicated gradle line.
+		// That bucket also holds two projects on different scalaVersion
+		// values declaring the same dep at the same revision via %%: name,
+		// value, and cross_version all match (only sbt_binary_artifact
+		// differs), so they share one id and last-wins keeps a single
+		// sbt_binary_artifact.
 		return metadataStringValue(metadata, "value") + "\x1e" + metadataStringValue(metadata, "sbt_cross_version")
 	case "pypi":
 		// A pip/PEP 508 requirement (requirements.txt lines, and the

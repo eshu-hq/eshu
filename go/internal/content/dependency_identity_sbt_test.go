@@ -153,3 +153,30 @@ func TestCanonicalEntityIDWithMetadataSbtConfigSectionDistinctness(t *testing.T)
 		t.Fatalf("compile and Test configurations collapsed into one id: %q", compile)
 	}
 }
+
+// TestCanonicalEntityIDWithMetadataSbtSharedIdAcrossScalaVersions pins the
+// accepted residual the sbt discriminator case discloses: two projects on
+// different scalaVersion values declaring the same dep at the same revision
+// via %% agree on (section, name, value, sbt_cross_version) — only
+// sbt_binary_artifact differs — so they share one id. Last-wins keeps a
+// single sbt_binary_artifact downstream; the shared id is the contract, not
+// a collision to fix here.
+func TestCanonicalEntityIDWithMetadataSbtSharedIdAcrossScalaVersions(t *testing.T) {
+	t.Parallel()
+
+	const (
+		repoID = "repository:r_12345678"
+		path   = "build.sbt"
+		name   = "org.typelevel:cats-core"
+	)
+	scala213 := sbtDependencyMetadata("libraryDependencies", "2.10.0", "binary")
+	scala213["sbt_binary_artifact"] = "org.typelevel:cats-core_2.13"
+	scala3 := sbtDependencyMetadata("libraryDependencies", "2.10.0", "binary")
+	scala3["sbt_binary_artifact"] = "org.typelevel:cats-core_3"
+
+	first := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 11, scala213)
+	second := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 40, scala3)
+	if first != second {
+		t.Fatalf("expected the disclosed shared id across scala versions, got %q vs %q", first, second)
+	}
+}
