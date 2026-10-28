@@ -16,8 +16,12 @@ import live_postgres_readiness_weights as wt
 #: is what that clock times (tests plus the repeat residual; compile and link
 #: run before it starts). Over 17 green five-shard main runs, rows predicted
 #: at 150 s or more ran at a measured/predicted ratio of p50 1.00, p99 1.26
-#: and max 1.33 (n=188), so a 675 s row at the worst observed ratio runs
-#: 675 x 1.33 = 898 s, still inside the clock.
+#: and max 1.33 (n=188). A 675 s row prices about 663.6 s of tests plus the
+#: repeat residual (median 11.5 s, max 19.1 s). The worst observed row ran
+#: 744.1 s of tests, about 763 s with the largest residual, inside the clock.
+#: The joint worst case (max ratio and max residual on one row) is
+#: 1.33 x 663.6 + 19.1 = about 901 s: it was not observed, and if it happens
+#: the 900 s clock fails that shard loudly, which sends the next refit here.
 ROW_BUDGET_TENTHS = 675 * wt.UNIT
 
 

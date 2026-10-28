@@ -67,9 +67,14 @@ is 675 s, 75% of the clock. Measured over 17 green five-shard main runs, the
 repeat residual has a median of 11.5 s (n=157) while a shard's first
 `./internal/storage/postgres` row pays 336 to 655 s of build before its first
 test. Rows predicted at 150 s or more ran at a measured/predicted test-time
-ratio of p50 1.00, p95 1.16, p99 1.26, and max 1.33 (n=188), so a 675 s row
-at the worst observed ratio runs about 898 s, inside the clock. A single test
-priced above the budget cannot be split and fails the gate.
+ratio of p50 1.00, p95 1.16, p99 1.26, and max 1.33 (n=188). A 675 s row
+prices about 663.6 s of tests plus the repeat residual (max measured 19.1 s).
+The worst observed row ran 744.1 s of tests, about 763 s with the largest
+residual, inside the clock. The joint worst case, the maximum ratio and the
+maximum residual on one row, is about 901 s. It was not observed; if it
+happens, the 900 s clock fails that shard loudly and the next refit adjusts the
+prices. A single test priced above the budget cannot be split and fails the
+gate.
 
 ## Gates
 
