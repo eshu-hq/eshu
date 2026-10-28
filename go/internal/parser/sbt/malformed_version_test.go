@@ -18,7 +18,7 @@ import (
 func TestLiteralRevisionRejectedByExactRuleIsUnresolved(t *testing.T) {
 	t.Parallel()
 
-	for _, version := range []string{"1.0!", "1.0:jdk8", "1.0!!", "1.0@jar"} {
+	for _, version := range []string{"1.0!", "1.0:jdk8", "1.0!!", "1.0@jar", "+foo"} {
 		payload := parseSource(t, `libraryDependencies += "a" % "b" % "`+version+`"`+"\n")
 		row := requireRow(t, payload, "a:b")
 		requireField(t, row, "dependency_resolution_state", "unresolved")
@@ -29,7 +29,7 @@ func TestLiteralRevisionRejectedByExactRuleIsUnresolved(t *testing.T) {
 		requireStateField(t, stateOf(t, payload), "unresolved_declaration_count", 1)
 	}
 
-	for _, version := range []string{"1.0", "1.2.3", "2.13.12", "1.0-SNAPSHOT", "5.0.0-M1", "1.0.0.Final", "33.0.0-jre", "1.2.3_beta"} {
+	for _, version := range []string{"1.0", "1.2.3", "2.13.12", "1.0-SNAPSHOT", "5.0.0-M1", "1.0.0.Final", "33.0.0-jre", "1.2.3_beta", "1.0.0+build.1", "1.2.3+4-abcd1234"} {
 		payload := parseSource(t, `libraryDependencies += "a" % "b" % "`+version+`"`+"\n")
 		row := requireRow(t, payload, "a:b")
 		requireField(t, row, "dependency_resolution_state", "resolved")
@@ -61,8 +61,9 @@ func TestMalformedVersionThroughValIsUnresolved(t *testing.T) {
 var malformedQualifiers = []string{"!", ":jdk8", "@jar", "!!"}
 
 // exactQualifiers are revision suffixes Maven Central carries on numeric
-// versions.
-var exactQualifiers = []string{"", "", "-SNAPSHOT", "-rc1", "-M1", ".Final", "-jre", "_beta"}
+// versions, including interior-'+' build metadata sbt modules publish
+// (semver "+build.1", dynver "+4-abcd1234").
+var exactQualifiers = []string{"", "", "-SNAPSHOT", "-rc1", "-M1", ".Final", "-jre", "_beta", "+build.1", "+4-abcd1234"}
 
 // corruptVersion applies one malformed shape to an exact base version.
 func corruptVersion(rng *rand.Rand, base string) string {

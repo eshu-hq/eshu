@@ -37,7 +37,10 @@ The payload follows `shared.BasePayload(path, "sbt", isDependency)`. The
   the grammar below, else `partial`; `unresolved` for a non-literal revision,
   with `dependency_unresolved_keys`. A literal revision the shared
   exact-version rule (`internal/parser/gradle/selector`) rejects (`1.0!`,
-  `1.0:jdk8`) is `unresolved` with the literal kept and no key. An Ivy
+  `1.0:jdk8`) is `unresolved` with the literal kept and no key. The one
+  exception is an interior `+`: sbt modules publish build metadata after
+  one (`1.0.0+build.1`), so a revision whose only deviation is a
+  non-leading `+` stays `resolved`. An Ivy
   dynamic revision (`1.+`, `latest.release`, any range such as `[1.0,2.0)`
   or `]1.0,2.0]`) is `partial`.
 - `direct_dependency`: `true`; `dependency_path_kind`: `manifest`;
