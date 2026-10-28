@@ -47,6 +47,7 @@ workflows:
   - go/cmd/collector-vault-live/testdata/8869-collector-vault-live-census.md
   - go/cmd/eshu/cli_extraction_inventory.md
   - go/cmd/ifa/README.md
+  - go/cmd/mcp-server/CUTOVER_OWNERSHIP.md
   - go/cmd/scanner-worker/EXTRACTION_PREP.md
   - go/internal/ask/catalog/README.md
   - go/internal/cli/demo/README.md
