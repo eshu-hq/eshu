@@ -37,8 +37,11 @@ it (`newRouter` vs `wireAPI`).
   query) are `read`: they compute over reader-backed stores and write
   nothing.
 - `wireAPI` rows are composed after `newRouter` returns, once a live
-  keyring or provider resolver exists. Their mount correctness is proven
-  by their own family tests (proof column of the destination plan).
+  keyring or provider resolver exists. The OPTIONS probe excludes them
+  (exclusion count pinned by `cutoverWireAPIProbeExclusions`); their mount
+  attribution is code-inspected per Method above. Per-family mount proof
+  will be cited in the destination plan's proof column when that plan
+  lands — no such plan or column exists yet.
 - The `/api/v1/` alias rewrite and the `/api/v0/` deprecation headers are
   applied outside `Mount` (`v1PrefixAliasMiddleware`,
   `deprecationHeadersMiddleware`); covered by `v1_alias_test.go` and
