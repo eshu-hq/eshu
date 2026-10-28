@@ -79,7 +79,8 @@ canonical admission/projection/storage) and the repository map
 (`docs/internal/design/eshu-ecosystem-repository-migration.md:56-60`,
 `eshu-ingester` owns intake orchestration outside the default
 Git/parser implementation). `collector-git` is absent from the collector
-table because it is `core_by_design` (`:105-108`).
+table because it is `core_by_design`
+(`docs/internal/design/eshu-ecosystem-repository-migration.md:105-108`).
 
 Stays in eshu: `go/cmd/collector-git`, `go/internal/collector/repo/git`
 (selector, `GitSource`, snapshotter, preparse, webhook-handoff,
