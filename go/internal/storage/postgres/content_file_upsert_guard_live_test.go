@@ -188,7 +188,11 @@ func TestContentFileUpsertGuardUnchangedReplayLeavesRowsUntouchedLive(t *testing
 // TestContentFileUpsertGuardChangedFileStillUpdatesLive proves the guard does
 // not swallow real changes: a changed body re-derives its secret lines, a
 // commit-only change still writes, an untouched sibling stays untouched, and
-// the fence bumps once for the changed statement.
+// the fence stages the repository. The fence bumps once per touching
+// transaction (its contract): the mixed batch writes in two statements (the
+// metadata UPDATE for the commit-only row, the upsert for the changed row),
+// each its own implicit transaction as before, so the version advances by
+// two.
 func TestContentFileUpsertGuardChangedFileStillUpdatesLive(t *testing.T) {
 	ctx, db := openContentUpsertGuardDatabase(t)
 	const repoID = "repo-8915-changed"
@@ -228,8 +232,8 @@ func TestContentFileUpsertGuardChangedFileStillUpdatesLive(t *testing.T) {
 	if after["c.go"].xmin != before["c.go"].xmin || !after["c.go"].indexedAt.Equal(before["c.go"].indexedAt) {
 		t.Errorf("c.go (unchanged sibling) = %+v, want it untouched next to changed rows", after["c.go"])
 	}
-	if got := readContentFenceVersion(t, ctx, db, repoID); got != fenceBefore+1 {
-		t.Errorf("fence version = %d, want %d: one changed batch statement bumps once", got, fenceBefore+1)
+	if got := readContentFenceVersion(t, ctx, db, repoID); got != fenceBefore+2 {
+		t.Errorf("fence version = %d, want %d: the metadata UPDATE and the upsert each bump once", got, fenceBefore+2)
 	}
 	requireSecretLinesParity(t, ctx, db, "after changed write")
 	var newFindings int

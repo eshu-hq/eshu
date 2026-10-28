@@ -399,9 +399,11 @@ func TestContentWriterUpsertFailureCountsNothing(t *testing.T) {
 	}
 }
 
-// TestContentWriterWithoutObserversSkipsPreRead pins that a writer with
-// neither a logger nor instruments pays nothing for the classification.
-func TestContentWriterWithoutObserversSkipsPreRead(t *testing.T) {
+// TestContentWriterWithoutObserversStillPreReads pins that the write-driving
+// pre-read is not observability (#8942): a writer with neither a logger nor
+// instruments still classifies its batch, so an unchanged-content row avoids
+// the full rewrite.
+func TestContentWriterWithoutObserversStillPreReads(t *testing.T) {
 	t.Parallel()
 
 	fake := &outcomeFakeDB{transactionalFakeDB: withTransactions(&fakeExecQueryer{})}
@@ -414,10 +416,14 @@ func TestContentWriterWithoutObserversSkipsPreRead(t *testing.T) {
 	if _, err := writer.Write(context.Background(), mat); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
+	prereads := 0
 	for _, q := range fake.queries {
 		if q.query == contentFileOutcomePreReadSQL {
-			t.Fatal("pre-read ran with no logger and no instruments")
+			prereads++
 		}
+	}
+	if prereads != 1 {
+		t.Fatalf("pre-read ran %d times with no logger and no instruments, want 1 (it drives the write)", prereads)
 	}
 }
 
