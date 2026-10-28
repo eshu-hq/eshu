@@ -101,6 +101,23 @@ deployment evidence available for the traced workload using the closed
 `config_only`. The tier is additive; existing `overall_confidence` and
 `overall_confidence_reason` fields are unchanged.
 
+`deployment_fact_summary.instance_count` counts configured `WorkloadInstance`
+nodes. Its `instance_count_source` is `configured_workload_instances` and its
+`instance_count_evidence_tier` is `config_only`. When an exact ECS service ARN is bound to the traced workload by graph
+evidence, or its own single-workload repository declares the same literal ECS
+service name and full cluster ARN, and active AWS service and task facts agree,
+`ecs_running_task_count` reports distinct running task ARNs. Its source is
+`aws_ecs_describe_services_tasks`, its evidence tier is `runtime_confirmed`, and
+`ecs_matched_container` names the first matching container in sorted order,
+while `ecs_matched_containers` lists every matching container name. Multiple
+containers in one task still count as one task.
+A service observed with zero running tasks reports zero; missing, conflicting,
+truncated, or unauthorized evidence omits the count and uses
+`ecs_running_task_count_unavailable_reason`. This read-side count does not
+create `WorkloadInstance` nodes or independently change the overall deployment
+truth tier. `live_instance_count` separately counts Kubernetes ready replicas
+and names `kubernetes_live.pod_template` as its source.
+
 Consumers must render the returned direction and endpoints. A deployment-source
 repository name is display text, not permission to convert an instance edge into
 a repository edge. Deployment-source expansion is capped at 50 rows. The

@@ -3821,6 +3821,26 @@
           "limit": 10
         }
       },
+      "trace_deployment_chain?assert=ecs_runtime": {
+        "description": "Issue #9307: MCP deployment story for deployable-source carries a runtime-confirmed ECS task count selected by its own parsed Terraform declaration and active same-generation AWS service/task/image-reference facts.",
+        "required_response_fields": [
+          "deployment_fact_summary",
+          "service_name",
+          "workload_id"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "service_name": "deployable-source",
+          "max_depth": 4
+        },
+        "required_json_values": {
+          "deployment_fact_summary.ecs_running_task_count": 1,
+          "deployment_fact_summary.ecs_running_task_count_source": "aws_ecs_describe_services_tasks",
+          "deployment_fact_summary.ecs_running_task_evidence_tier": "runtime_confirmed",
+          "deployment_fact_summary.ecs_matched_container": "deployable-source",
+          "deployment_fact_summary.ecs_matched_containers[]": "deployable-source"
+        }
+      },
       "trace_deployment_chain": {
         "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. Stays on the rich api-svc fixture for field coverage and pins the negative tier path: api-svc has no deployment evidence, so no deployment_truth_tier is emitted and overall_confidence_reason is no_deployment_evidence — the tier can never be bluffed absent evidence. The HTTP deployable-config shape is the non-vacuous runtime_confirmed proof (#5471). The MCP default is evidence_detail handles (#7174): primary families ship as identity handle rows and the derived families (delivery_paths, deployment_facts, controller_driven_paths, k8s_relationships, topology_edges, artifact_lineage, network_paths, entrypoints) are omitted and reported in section_detail and truth.omissions, so those keys are not required here; the HTTP entries keep the full shape.",
         "required_response_fields": [
@@ -8181,6 +8201,11 @@
           "data.k8s_resource_limits.returned_count": 1,
           "data.deployment_fact_summary.live_instance_count": 3,
           "data.deployment_fact_summary.live_instance_count_truncated": false,
+          "data.deployment_fact_summary.ecs_running_task_count": 1,
+          "data.deployment_fact_summary.ecs_running_task_count_source": "aws_ecs_describe_services_tasks",
+          "data.deployment_fact_summary.ecs_running_task_evidence_tier": "runtime_confirmed",
+          "data.deployment_fact_summary.ecs_matched_container": "deployable-source",
+          "data.deployment_fact_summary.ecs_matched_containers[]": "deployable-source",
           "data.image_refs[]": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
           "truth.level": "derived",
           "truth.basis": "hybrid"

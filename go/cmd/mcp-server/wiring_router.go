@@ -202,6 +202,7 @@ func newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
 			Logger:                 logger,
 			Instruments:            instruments,
 			KubernetesPodTemplates: deployment.NewPostgresKubernetesPodTemplateStoreWithReadStore(reader),
+			ECSTasks:               deployment.NewPostgresECSTaskStore(reader),
 		},
 		Evidence: &query.EvidenceHandler{
 			Content:            contentReader,
