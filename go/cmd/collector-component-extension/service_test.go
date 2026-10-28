@@ -152,3 +152,14 @@ func TestScrubHostCredentialEnvRefusesNilProcessRunner(t *testing.T) {
 		t.Fatal("scrubHostCredentialEnv(nil process runner) error = nil, want startup refusal")
 	}
 }
+
+// TestScrubHostCredentialEnvRefusesNilOCIRunner proves a typed-nil OCI pointer
+// is refused: the interface is non-nil so callers cannot catch it, and the
+// value-receiver RunCollector would panic at first claim (review on #9416).
+func TestScrubHostCredentialEnvRefusesNilOCIRunner(t *testing.T) {
+	t.Parallel()
+
+	if _, err := scrubHostCredentialEnv((*extensionhost.OCIRunner)(nil)); err == nil {
+		t.Fatal("scrubHostCredentialEnv(nil OCI runner) error = nil, want startup refusal")
+	}
+}

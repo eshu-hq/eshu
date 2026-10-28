@@ -55,7 +55,12 @@ func scrubHostCredentialEnv(runner extensionhost.Runner) (extensionhost.Runner, 
 		}
 		scrubbed.ScrubEnv = append(scrubbed.ScrubEnv, envGitHubAppID, envGitHubAppPrivateKey, envGitHubAppInstallations)
 		return scrubbed, nil
-	case extensionhost.OCIRunner, *extensionhost.OCIRunner:
+	case extensionhost.OCIRunner:
+		return runner, nil
+	case *extensionhost.OCIRunner:
+		if scrubbed == nil {
+			return nil, fmt.Errorf("extension OCI runner is nil: refusing startup rather than panicking at first claim")
+		}
 		return runner, nil
 	default:
 		return nil, fmt.Errorf("unknown extension runner type %T: refusing startup; declare its host-env inheritance in scrubHostCredentialEnv", runner)
