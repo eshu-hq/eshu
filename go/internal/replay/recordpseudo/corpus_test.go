@@ -132,23 +132,60 @@ func measure(t *testing.T, gens [][]facts.Envelope, scopeIDs []string) shape {
 	return sh
 }
 
-func withoutAppSync(gens [][]facts.Envelope, scopeIDs []string) ([][]facts.Envelope, []string) {
+func withoutAdditiveScopes(gens [][]facts.Envelope, scopeIDs []string) ([][]facts.Envelope, []string) {
 	filteredGens := make([][]facts.Envelope, 0, len(gens))
 	filteredIDs := make([]string, 0, len(scopeIDs))
 	for i, envs := range gens {
-		isAppSync := false
+		isAdditive := false
 		for _, e := range envs {
-			if e.FactKind == cloud.AWSResourceFactKind && e.Payload["resource_type"] == "aws_appsync_graphql_api" {
-				isAppSync = true
-				break
+			if e.FactKind != cloud.AWSResourceFactKind {
+				continue
+			}
+			switch e.Payload["resource_type"] {
+			case "aws_appsync_graphql_api", "aws_eks_cluster", "aws_eks_nodegroup", "aws_eks_addon":
+				isAdditive = true
 			}
 		}
-		if !isAppSync {
+		if !isAdditive {
 			filteredGens = append(filteredGens, envs)
 			filteredIDs = append(filteredIDs, scopeIDs[i])
 		}
 	}
 	return filteredGens, filteredIDs
+}
+
+func assertEKSAdditiveScope(t *testing.T, gens [][]facts.Envelope, scopeIDs []string) {
+	t.Helper()
+	wantPaths := map[string]string{
+		"aws_eks_cluster":   ":cluster/",
+		"aws_eks_nodegroup": ":nodegroup/",
+		"aws_eks_addon":     ":addon/",
+	}
+	seen := map[string]int{}
+	scopes := 0
+	for i, scopeID := range scopeIDs {
+		if !strings.HasSuffix(scopeID, ":eks") {
+			continue
+		}
+		scopes++
+		if len(gens[i]) != 3 {
+			t.Errorf("EKS scope facts=%d, want 3", len(gens[i]))
+		}
+		for _, e := range gens[i] {
+			resourceType, _ := e.Payload["resource_type"].(string)
+			path, wanted := wantPaths[resourceType]
+			resourceID, idOK := e.Payload["resource_id"].(string)
+			arn, arnOK := e.Payload["arn"].(string)
+			if e.FactKind != cloud.AWSResourceFactKind || !wanted || !idOK || !arnOK ||
+				resourceID != arn || !strings.HasPrefix(resourceID, "arn:aws:eks:") || !strings.Contains(resourceID, path) {
+				t.Errorf("EKS fact kind/type or scanner ARN shape changed")
+			}
+			seen[resourceType]++
+		}
+	}
+	if scopes != 1 || fmt.Sprint(seen) != fmt.Sprint(map[string]int{"aws_eks_cluster": 1, "aws_eks_nodegroup": 1, "aws_eks_addon": 1}) {
+		t.Errorf("EKS scopes=%d resource types=%v, want one scope with one cluster, nodegroup and add-on", scopes, seen)
+	}
 }
 
 func scopeServiceCounts(scopeIDs []string) map[string]int {
@@ -169,17 +206,19 @@ func TestAWSCorpusShapePreserved(t *testing.T) {
 	pseudoGens, pseudoIDs := loadAll(t, pseudoPath)
 	raw := measure(t, rawGens, rawIDs)
 	pseudo := measure(t, pseudoGens, pseudoIDs)
-	baselineRawGens, baselineRawIDs := withoutAppSync(rawGens, rawIDs)
-	baselinePseudoGens, baselinePseudoIDs := withoutAppSync(pseudoGens, pseudoIDs)
+	baselineRawGens, baselineRawIDs := withoutAdditiveScopes(rawGens, rawIDs)
+	baselinePseudoGens, baselinePseudoIDs := withoutAdditiveScopes(pseudoGens, pseudoIDs)
 	baselineRaw := measure(t, baselineRawGens, baselineRawIDs)
 	baselinePseudo := measure(t, baselinePseudoGens, baselinePseudoIDs)
-	wantServices := map[string]int{"ec2": 1, "ecr": 1, "ecs": 1, "iam": 2, "lambda": 1, "s3": 1, "appsync": 1}
+	wantServices := map[string]int{"ec2": 1, "ecr": 1, "ecs": 1, "iam": 2, "lambda": 1, "s3": 1, "appsync": 1, "eks": 1}
 	if fmt.Sprint(scopeServiceCounts(rawIDs)) != fmt.Sprint(wantServices) || fmt.Sprint(scopeServiceCounts(pseudoIDs)) != fmt.Sprint(wantServices) {
 		t.Fatalf("scope services raw=%v pseudonymized=%v; want %v", scopeServiceCounts(rawIDs), scopeServiceCounts(pseudoIDs), wantServices)
 	}
+	assertEKSAdditiveScope(t, rawGens, rawIDs)
+	assertEKSAdditiveScope(t, pseudoGens, pseudoIDs)
 
-	// Keep #6965's seven-scope baseline exact on BOTH sides. The AppSync
-	// extension is asserted separately below so it cannot rewrite that baseline.
+	// Keep #6965's seven-scope baseline exact on BOTH sides. AppSync and EKS
+	// extensions are asserted separately below so they cannot rewrite it.
 	wantTypes := map[string]int{"aws_ec2_ami": 1, "aws_iam_role": 1, "aws_s3_bucket": 1, "ecr.repository": 1, "ecs.service": 1, "ecs.task": 1, "ecs.task_definition": 1, "lambda.function": 3}
 	for label, sh := range map[string]shape{"raw baseline": baselineRaw, "pseudonymized baseline": baselinePseudo} {
 		if sh.nodes != 10 || sh.distinctUIDs != 10 {
@@ -205,11 +244,12 @@ func TestAWSCorpusShapePreserved(t *testing.T) {
 		}
 	}
 	for label, sh := range map[string]shape{"raw full corpus": raw, "pseudonymized full corpus": pseudo} {
-		if sh.nodes != 11 || sh.distinctUIDs != 11 || sh.nodeTypes["aws_appsync_graphql_api"] != 1 {
-			t.Errorf("%s: CloudResource rows=%d distinct uids=%d AppSync APIs=%d; want 11/11/1", label, sh.nodes, sh.distinctUIDs, sh.nodeTypes["aws_appsync_graphql_api"])
+		if sh.nodes != 14 || sh.distinctUIDs != 14 || sh.nodeTypes["aws_appsync_graphql_api"] != 1 ||
+			sh.nodeTypes["aws_eks_cluster"] != 1 || sh.nodeTypes["aws_eks_nodegroup"] != 1 || sh.nodeTypes["aws_eks_addon"] != 1 {
+			t.Errorf("%s: CloudResource rows=%d distinct uids=%d additive types=%v; want 14/14 and one AppSync, cluster, nodegroup and add-on", label, sh.nodes, sh.distinctUIDs, sh.nodeTypes)
 		}
-		if len(rawGens) != 8 || len(pseudoGens) != 8 {
-			t.Errorf("full corpus scopes raw=%d pseudonymized=%d; want 8/8", len(rawGens), len(pseudoGens))
+		if len(rawGens) != 9 || len(pseudoGens) != 9 {
+			t.Errorf("full corpus scopes raw=%d pseudonymized=%d; want 9/9", len(rawGens), len(pseudoGens))
 		}
 		if fmt.Sprint(sh.relRows) != fmt.Sprint(baselineRaw.relRows) || fmt.Sprint(sh.imageRows) != fmt.Sprint(baselineRaw.imageRows) || sh.usesRows != baselineRaw.usesRows || sh.canPerform != baselineRaw.canPerform {
 			t.Errorf("%s changed existing relationship or identity counts: rel=%v image=%v uses=%d IAM=%d", label, sh.relRows, sh.imageRows, sh.usesRows, sh.canPerform)
@@ -217,7 +257,7 @@ func TestAWSCorpusShapePreserved(t *testing.T) {
 	}
 
 	// Fact-level bijection retains the baseline assertion and also covers the
-	// AppSync extension in the full corpus.
+	// AppSync and EKS extensions in the full corpus.
 	wrapped, _, err := recordpseudo.Wrap(committedSource(t, "awscloud"), key, recordpolicy.Policy())
 	if err != nil {
 		t.Fatal(err)
@@ -255,8 +295,8 @@ func TestAWSCorpusShapePreserved(t *testing.T) {
 			paired++
 		}
 	}
-	if total != 23 || paired != 23 || len(rawKeys) != 23 || len(pseudoKeys) != 23 || len(rawGens) != 8 || len(pseudoGens) != 8 {
-		t.Errorf("full facts=%d paired=%d rawKeys=%d pseudoKeys=%d scopes raw=%d pseudo=%d; want 23/23/23/23/8/8", total, paired, len(rawKeys), len(pseudoKeys), len(rawGens), len(pseudoGens))
+	if total != 26 || paired != 26 || len(rawKeys) != 26 || len(pseudoKeys) != 26 || len(rawGens) != 9 || len(pseudoGens) != 9 {
+		t.Errorf("full facts=%d paired=%d rawKeys=%d pseudoKeys=%d scopes raw=%d pseudo=%d; want 26/26/26/26/9/9", total, paired, len(rawKeys), len(pseudoKeys), len(rawGens), len(pseudoGens))
 	}
 	baselineFacts := 0
 	for _, gen := range baselineRawGens {
