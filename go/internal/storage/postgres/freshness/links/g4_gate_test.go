@@ -142,3 +142,40 @@ func hostSnapshot() string {
 	return fmt.Sprintf("cpu=%q loadavg=%q psi_cpu=%q psi_io=%q",
 		model, read("/proc/loadavg"), read("/proc/pressure/cpu"), read("/proc/pressure/io"))
 }
+
+// TestG4ReportGapsNamesEveryEmptyDiagnostic pins the guard the live G4 test
+// runs on the report timedG4Link returns (#9275): an empty report names every
+// missing diagnostic, a populated one names none, and a single empty field is
+// caught on its own, so a refactor that drops one diagnostic cannot stay green.
+func TestG4ReportGapsNamesEveryEmptyDiagnostic(t *testing.T) {
+	populated := func() g4Report {
+		return g4Report{
+			samples:  1,
+			total:    13 * time.Millisecond,
+			control:  make([]time.Duration, g4ControlInserts),
+			settings: "fsync=on synchronous_commit=on shared_buffers=128MB",
+			walDelta: "lsn_bytes=8192",
+			host:     `cpu="n/a" loadavg="n/a" psi_cpu="n/a" psi_io="n/a"`,
+		}
+	}
+	if gaps := g4ReportGaps(populated()); len(gaps) != 0 {
+		t.Fatalf("populated report has gaps: %v", gaps)
+	}
+	if gaps := g4ReportGaps(g4Report{}); len(gaps) != 4 {
+		t.Fatalf("empty report gaps = %v, want control, settings, wal and host", gaps)
+	}
+	for name, mutate := range map[string]func(*g4Report){
+		"control":  func(r *g4Report) { r.control = r.control[:g4ControlInserts-1] },
+		"settings": func(r *g4Report) { r.settings = "" },
+		"wal":      func(r *g4Report) { r.walDelta = "" },
+		"host":     func(r *g4Report) { r.host = "" },
+	} {
+		r := populated()
+		mutate(&r)
+		gaps := g4ReportGaps(r)
+		if len(gaps) != 1 || !strings.Contains(gaps[0], name) {
+			t.Errorf("report with only %s emptied: gaps = %v", name, gaps)
+		}
+	}
+	requireG4ReportPopulated(t, populated())
+}

@@ -314,6 +314,7 @@ FROM generate_series(0, 797) AS s, generate_series(1, 4760) AS k`)
 	result, report := l.timedG4Link(t, func() linksfreshnessstore.LinkResult {
 		return mustLink(t, linksfreshnessstore.NewLinkWriter(l.store), l, "small")
 	})
+	requireG4ReportPopulated(t, report)
 	if result.Kind != linksfreshnessstore.LinkKindIncremental {
 		t.Fatalf("small link = %+v", result)
 	}

@@ -96,3 +96,34 @@ func (l *ledgerDB) timedG4Link(t *testing.T, link func() linksfreshnessstore.Lin
 	report.total, report.phases = result.Duration, result.Phases
 	return result, report
 }
+
+// g4ReportGaps names every diagnostic the G4 report is missing: the
+// g4ControlInserts durable-commit timings, the Postgres settings, the WAL
+// movement and the host snapshot. hostSnapshot reads "n/a" for a missing
+// /proc file rather than "", so a populated report is non-empty on any host.
+func g4ReportGaps(r g4Report) []string {
+	var gaps []string
+	if len(r.control) != g4ControlInserts {
+		gaps = append(gaps, fmt.Sprintf("control has %d timings, want %d", len(r.control), g4ControlInserts))
+	}
+	if r.settings == "" {
+		gaps = append(gaps, "settings is empty")
+	}
+	if r.walDelta == "" {
+		gaps = append(gaps, "wal delta is empty")
+	}
+	if r.host == "" {
+		gaps = append(gaps, "host snapshot is empty")
+	}
+	return gaps
+}
+
+// requireG4ReportPopulated fails the test when timedG4Link returned a report
+// with a diagnostic missing. The failure line is the only place a slow hosted
+// sample is explained (#9275), so an emptied diagnostic must not stay green.
+func requireG4ReportPopulated(t *testing.T, r g4Report) {
+	t.Helper()
+	if gaps := g4ReportGaps(r); len(gaps) > 0 {
+		t.Fatalf("G4 diagnostic report is not populated: %s", strings.Join(gaps, "; "))
+	}
+}
