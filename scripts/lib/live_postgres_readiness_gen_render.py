@@ -20,7 +20,7 @@ FRAGMENT_NAMES = (
 )
 # Committed lexical cuts keep each file's destination stable as enrollment grows.
 FRAGMENT_BOUNDARIES = (
-    "go/internal/storage/postgres/backfill/targeted/outcomes_live_test.go",
+    "go/internal/storage/postgres/backfill/targeted/interleave_live_test.go",
     "go/internal/storage/postgres/"
     "ingestion_reopen_correlation_fingerprint_interleave_live_test.go",
     "go/internal/storage/postgres/successor_guard_recheck_plan_live_test.go",
