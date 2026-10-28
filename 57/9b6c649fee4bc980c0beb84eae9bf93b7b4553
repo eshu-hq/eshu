@@ -1,0 +1,21 @@
+docs/internal/design/9302-ssm-inventory-source.md
+  s_5826901f023244::t_df505b33143f16 26-47
+  s_5826901f023244::t_be721bd735f918 1-25,65-109
+  s_5826901f023244::t_5c86913e7a6e2b 48-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "579b6c649fee4bc980c0beb84eae9bf93b7b4553",
+  "prompts": {},
+  "sessions": {
+    "s_5826901f023244": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a183bd-3250-71f2-9668-435aa2ce8de2",
+        "model": "gpt-6.1-terra"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
