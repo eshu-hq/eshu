@@ -164,6 +164,22 @@ func TestContentWriterReapsStaleLineKeyedDependencyIDForSbt(t *testing.T) {
 		repoID, "build.sbt", "Variable", "org.typelevel:cats-core", 3, freshSbtMetadata,
 	)
 
+	// Pin discriminator carriage in the reap context: the fresh id must
+	// differ from the id minted with the discriminator components (value,
+	// sbt_cross_version) stripped, proving the fresh set carries the
+	// discriminated scheme and not a collapsed one.
+	strippedSbtMetadata := map[string]any{
+		"section":         "libraryDependencies",
+		"config_kind":     "dependency",
+		"package_manager": "sbt",
+	}
+	strippedSbtID := content.CanonicalEntityIDWithMetadata(
+		repoID, "build.sbt", "Variable", "org.typelevel:cats-core", 3, strippedSbtMetadata,
+	)
+	if freshSbtID == strippedSbtID {
+		t.Fatalf("fresh sbt id (%q) equals the discriminator-stripped id; the reap fresh set does not pin discriminator carriage", freshSbtID)
+	}
+
 	entities := []content.EntityRecord{
 		{
 			EntityID:   freshSbtID,

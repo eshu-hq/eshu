@@ -171,10 +171,11 @@ func TestCanonicalEntityIDWithMetadataSbtSharedIdAcrossScalaVersions(t *testing.
 		path   = "build.sbt"
 		name   = "org.typelevel:cats-core"
 	)
+	// sbt_binary_artifact is deliberately absent: the engine emits one
+	// binary version per file, so same-file rows never differ in it, and
+	// the discriminator ignores that key by construction.
 	scala213 := sbtDependencyMetadata("libraryDependencies", "2.10.0", "binary")
-	scala213["sbt_binary_artifact"] = "org.typelevel:cats-core_2.13"
 	scala3 := sbtDependencyMetadata("libraryDependencies", "2.10.0", "binary")
-	scala3["sbt_binary_artifact"] = "org.typelevel:cats-core_3"
 
 	first := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 11, scala213)
 	second := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 40, scala3)
