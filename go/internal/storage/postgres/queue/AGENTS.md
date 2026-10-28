@@ -26,6 +26,11 @@
 - Keep `ComputeRetryDelay`'s overflow guard (the doubling loop breaks on
   `doubled < backoff`) — do not replace it with a direct shift.
 - Never import the parent `postgres` package from here.
+- Keep `ReopenedAtUpsertValue`'s keep branch to the outstanding statuses
+  (`pending`, `retrying`, `claimed`, `running`) (#9320). Each re-drive upsert
+  names `reopened_at` in its own SQL and appends this value, so the parent
+  package's `TestEveryTerminalReopenWriterStampsReopenedAt` guard sees the
+  stamp; the live proof is `TestTerminalReopenWritersStampReopenedAtLive`.
 
 ## Common changes
 

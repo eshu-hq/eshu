@@ -159,9 +159,15 @@ WHERE stage = 'reducer'
 // its edges entirely. The `completed_at IS NOT NULL` guard makes the reported
 // count mean "reopened" rather than "matched", so a second refinalize over the
 // same generations reports zero instead of re-counting its own work.
+//
+// reopened_at takes the transaction's start time (now(); the reset statements
+// carry no timestamp argument) so the shared-projection backlog age counts from
+// the reopen (migration 244, #9320). created_at is left alone: it is the
+// intent's acceptance epoch and pending order key (#7323).
 const reopenSharedIntentsTemplate = `
 UPDATE shared_projection_intents
-SET completed_at = NULL
+SET completed_at = NULL,
+    reopened_at = now()
 WHERE completed_at IS NOT NULL
   AND (scope_id, generation_id) IN (%s)
 `

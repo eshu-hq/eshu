@@ -210,10 +210,13 @@ func TestStatusActiveFactWorkItemsCTEUsesGenerationIndex(t *testing.T) {
 	// class (#7009 arbiter ruling D1): any full scope_generations scan must be
 	// one hashed, sorted, or gathered pass per CTE, never a per-row rescan.
 	// The summary also
-	// reads the shared-projection backlog and the provenance upgrade columns,
-	// which the claim-benchmark schema does not create.
+	// reads the shared-projection backlog (with its #9320 reopen stamp and
+	// age index) and the provenance upgrade columns, which the
+	// claim-benchmark schema does not create.
 	for _, stmt := range []string{
 		MigrationSQL("shared_projection_intents"),
+		MigrationSQL("shared_projection_intent_reopened_at"),
+		MigrationSQL("shared_projection_intents_domain_pending_age_idx"),
 		`ALTER TABLE fact_work_items ADD COLUMN IF NOT EXISTS provenance_edge_identity_upgrade_required BOOLEAN NOT NULL DEFAULT FALSE`,
 		`CREATE TABLE IF NOT EXISTS cross_scope_completion_upgrade_markers (marker_name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL)`,
 	} {

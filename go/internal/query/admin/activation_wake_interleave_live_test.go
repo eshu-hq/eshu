@@ -4,7 +4,7 @@
 package admin_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #7597 200-iteration interleave of the claim-fenced activation wake, a concurrent final Fail, the public admin replay (retried on 40P01) and a claim-time supersede sweep on independent connections: zero 40P01 on the activation, zero lost wakes, every consumer reopened exactly once; about 4 s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #7597 200-iteration interleave of the claim-fenced activation wake, a concurrent final Fail, the public admin replay (retried on 40P01) and a claim-time supersede sweep on independent connections: zero 40P01 on the activation, zero lost wakes, every consumer reopened exactly once, attributed by writer pid through a test-only audit trigger (#9320: both the wake and the admin replay stamp reopened_at); plus a sequential admin replay after a committed wake that must be a no-op; about 6 s locally; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -44,8 +44,72 @@ import (
 // It requires zero 40P01 on the activation (the wake) and zero lost wakes:
 // once A commits, no consumer of the generation is left dead-lettered, and
 // each one is reopened exactly once (the admin replay reported it, or the
-// wake stamped reopened_at; never both, never neither).
+// wake did; never both, never neither). Since #9320 both writers stamp
+// reopened_at, so the stamp no longer says which writer reopened a row. A
+// test-only trigger in the isolated schema records every move into pending
+// with the backend pid of the writer, and each actor owns one connection, so
+// the oracle counts reopens per row and attributes each one by pid, in both
+// directions: a wake after the admin replay and an admin replay after the
+// wake are each a second reopen. The wake has two sites: the activation (A)
+// and B's own wakeAfterProducerTerminalDeadLetter, which reopens the row B
+// just dead-lettered when A committed first.
 func TestActivationWakeInterleaveLive(t *testing.T) {
+	ctx, base, conns, pids := openInterleaveHarness(t)
+
+	const iterations = 200
+	var total interleaveOutcome
+	for i := 0; i < iterations; i++ {
+		total.add(runInterleaveIteration(t, ctx, base, conns, pids, i))
+	}
+	t.Logf("%d iterations: 40P01 activation=%d fail=%d admin=%d claim=%d; admin 40P01 retries=%d; "+
+		"lost wakes=%d; consumers reopened by the wake=%d, by the admin replay=%d",
+		iterations, total.deadlock[0], total.deadlock[1], total.deadlock[2], total.deadlock[3],
+		total.adminRetries, total.lost, total.byWake, total.byAdmin)
+	if total.deadlock[0] != 0 {
+		t.Fatalf("the activation (the wake) hit %d deadlocks", total.deadlock[0])
+	}
+	if total.lost != 0 {
+		t.Fatalf("%d lost wakes", total.lost)
+	}
+}
+
+// TestAdminReplayAfterCommittedWakeIsANoOpLive pins the ordering the race
+// above cannot reach (#9320): there the admin replay runs once, concurrently,
+// and skips a row the wake holds (FOR UPDATE SKIP LOCKED), so it never sees a
+// row the wake already committed. Here the wake commits first; the admin
+// replay must then find nothing, and the pid audit must show one reopen, by
+// the wake. Admitting 'pending' to the replay's status guard turns this red.
+func TestAdminReplayAfterCommittedWakeIsANoOpLive(t *testing.T) {
+	ctx, base, conns, pids := openInterleaveHarness(t)
+	scope, gen := "scope-seq", "gen-seq"
+	dmID, consumer := scope+"-dm", scope+"-wm"
+	seedInterleaveScope(t, ctx, base, scope, gen, gen+"-old", []interleaveRow{
+		{dmID, gen, string(reducer.DomainDeploymentMapping), "pending", "", 0},
+		{consumer, gen, string(reducer.DomainWorkloadMaterialization), "dead_letter", crossrepo.WorkloadMaterializationProducerDeadLetteredFailureClass, 3},
+	})
+	dm := interleaveClaim(t, ctx, interleaveQueue(base, reducer.DomainDeploymentMapping), dmID)
+	if err := postgres.NewRelationshipStore(postgres.SQLDB{DB: conns[0]}).
+		ActivateResolutionGenerationForClaim(ctx, gen, scope, dm.IntentID, *dm.ClaimedAt); err != nil {
+		t.Fatalf("activation: %v", err)
+	}
+	replayed, err := store.NewStore(conns[2]).ReplayFailedWorkItems(ctx, admin.ReplayWorkItemFilter{
+		WorkItemIDs: []string{consumer}, Stage: "reducer", OperatorNote: "after wake #9320", Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("admin replay: %v", err)
+	}
+	wake, adminReopens, other := reopenWriters(t, ctx, base, consumer, pids)
+	if len(replayed) != 0 || wake != 1 || adminReopens != 0 || other != 0 {
+		t.Fatalf("admin replay after a committed wake replayed %d rows; reopens by wake=%d admin=%d other=%d; "+
+			"want no replay and one reopen, by the wake; audit %s", len(replayed), wake, adminReopens, other,
+			reopenAuditTrail(t, ctx, base, consumer))
+	}
+}
+
+// openInterleaveHarness bootstraps an isolated schema with the reopen audit
+// and opens one single-connection handle per actor.
+func openInterleaveHarness(t *testing.T) (context.Context, *sql.DB, []*sql.DB, []int) {
+	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_REDUCER_FAIRNESS_PROOF_DSN"))
 	if dsn == "" {
 		dsn = strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
@@ -63,22 +127,8 @@ func TestActivationWakeInterleaveLive(t *testing.T) {
 	for i := range conns {
 		conns[i] = interleaveConn(t, ctx, dsn, schema, false)
 	}
-
-	const iterations = 200
-	var total interleaveOutcome
-	for i := 0; i < iterations; i++ {
-		total.add(runInterleaveIteration(t, ctx, base, conns, i))
-	}
-	t.Logf("%d iterations: 40P01 activation=%d fail=%d admin=%d claim=%d; admin 40P01 retries=%d; "+
-		"lost wakes=%d; consumers reopened by the wake=%d, by the admin replay=%d",
-		iterations, total.deadlock[0], total.deadlock[1], total.deadlock[2], total.deadlock[3],
-		total.adminRetries, total.lost, total.byWake, total.byAdmin)
-	if total.deadlock[0] != 0 {
-		t.Fatalf("the activation (the wake) hit %d deadlocks", total.deadlock[0])
-	}
-	if total.lost != 0 {
-		t.Fatalf("%d lost wakes", total.lost)
-	}
+	installReopenAudit(t, ctx, base)
+	return ctx, base, conns, interleavePIDs(t, ctx, conns)
 }
 
 // interleaveOutcome counts one iteration's (or the run's) results.
@@ -138,7 +188,7 @@ func isDeadlock(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "40P01"
 }
 
-func runInterleaveIteration(t *testing.T, ctx context.Context, base *sql.DB, conns []*sql.DB, i int) interleaveOutcome {
+func runInterleaveIteration(t *testing.T, ctx context.Context, base *sql.DB, conns []*sql.DB, pids []int, i int) interleaveOutcome {
 	t.Helper()
 	scope, gen, oldGen := fmt.Sprintf("scope-%d", i), fmt.Sprintf("gen-%d", i), fmt.Sprintf("gen-%d-old", i)
 	dmID, c1, c2, c3 := scope+"-dm", scope+"-duc", scope+"-wm", scope+"-duc-old"
@@ -239,17 +289,64 @@ func runInterleaveIteration(t *testing.T, ctx context.Context, base *sql.DB, con
 			continue
 		}
 		admitted := id == c2 && byAdmin
-		if admitted == reopened.Valid {
-			t.Errorf("iteration %d: %s status=%s admin=%v wake=%v; want reopened exactly once", i, id, status, admitted, reopened.Valid)
+		wake, adminReopens, other := reopenWriters(t, ctx, base, id, pids)
+		if other != 0 || wake+adminReopens != 1 || adminReopens == 1 != admitted || !reopened.Valid {
+			t.Errorf("iteration %d: %s status=%s reported by admin=%v; reopens by wake=%d admin=%d other=%d, reopened_at valid=%v; "+
+				"want reopened exactly once, by the writer that reported it, with a stamp; audit %s (actor pids %v)",
+				i, id, status, admitted, wake, adminReopens, other, reopened.Valid, reopenAuditTrail(t, ctx, base, id), pids)
 		}
-		if reopened.Valid {
-			out.byWake++
-		} else {
-			out.byAdmin++
-		}
+		out.byWake += wake
+		out.byAdmin += adminReopens
 	}
 	interleaveExec(t, ctx, base, `DELETE FROM fact_work_items WHERE scope_id = $1`, scope)
+	interleaveExec(t, ctx, base, `DELETE FROM interleave_reopen_audit WHERE work_item_id LIKE $1 || '-%'`, scope)
 	return out
+}
+
+// installReopenAudit adds a test-only trigger to the isolated schema's
+// fact_work_items that records every move into pending, and every rewrite of
+// a pending row that moves its reopen stamp, with the writer's backend pid. A rolled-back writer (an admin replay retried on 40P01) leaves
+// no audit row.
+func installReopenAudit(t *testing.T, ctx context.Context, base *sql.DB) {
+	t.Helper()
+	interleaveExec(t, ctx, base, `CREATE TABLE interleave_reopen_audit (
+ work_item_id TEXT NOT NULL, old_status TEXT NOT NULL, writer_pid INT NOT NULL)`)
+	interleaveExec(t, ctx, base, `CREATE FUNCTION interleave_reopen_audit_row() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO interleave_reopen_audit VALUES (NEW.work_item_id, OLD.status, pg_backend_pid());
+  RETURN NEW;
+END $$`)
+	interleaveExec(t, ctx, base, `CREATE TRIGGER interleave_reopen_audit AFTER UPDATE ON fact_work_items
+ FOR EACH ROW WHEN (NEW.status = 'pending' AND (OLD.status IS DISTINCT FROM 'pending'
+   OR NEW.reopened_at IS DISTINCT FROM OLD.reopened_at))
+ EXECUTE FUNCTION interleave_reopen_audit_row()`)
+}
+
+// interleavePIDs reads the backend pid of each actor's single connection.
+func interleavePIDs(t *testing.T, ctx context.Context, conns []*sql.DB) []int {
+	t.Helper()
+	pids := make([]int, len(conns))
+	for i, conn := range conns {
+		if err := conn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&pids[i]); err != nil {
+			t.Fatalf("actor %d backend pid: %v", i, err)
+		}
+	}
+	return pids
+}
+
+// reopenWriters counts the audited moves of id into pending by the wake (the
+// activation, actor 0, or the final Fail's producer-terminal wake, actor 1),
+// by the admin replay (actor 2), and by any other backend.
+func reopenWriters(t *testing.T, ctx context.Context, base *sql.DB, id string, pids []int) (wake, adminReplay, other int) {
+	t.Helper()
+	if err := base.QueryRowContext(ctx, `SELECT
+  count(*) FILTER (WHERE writer_pid IN ($2, $3)),
+  count(*) FILTER (WHERE writer_pid = $4),
+  count(*) FILTER (WHERE writer_pid NOT IN ($2, $3, $4))
+FROM interleave_reopen_audit WHERE work_item_id = $1`, id, pids[0], pids[1], pids[2]).Scan(&wake, &adminReplay, &other); err != nil {
+		t.Fatalf("read reopen audit for %s: %v", id, err)
+	}
+	return wake, adminReplay, other
 }
 
 func interleaveClaim(t *testing.T, ctx context.Context, q postgres.ReducerQueue, want string) reducercontract.Intent {
@@ -288,4 +385,16 @@ func interleaveConn(t *testing.T, ctx context.Context, dsn, schema string, creat
 		t.Fatalf("search_path: %v", err)
 	}
 	return db
+}
+
+// reopenAuditTrail renders id's audited moves into pending as
+// old_status@writer_pid, for a failure message.
+func reopenAuditTrail(t *testing.T, ctx context.Context, base *sql.DB, id string) string {
+	t.Helper()
+	var trail string
+	if err := base.QueryRowContext(ctx, `SELECT COALESCE(string_agg(old_status || '@' || writer_pid, ', '), 'none')
+FROM interleave_reopen_audit WHERE work_item_id = $1`, id).Scan(&trail); err != nil {
+		t.Fatalf("read reopen audit trail for %s: %v", id, err)
+	}
+	return trail
 }

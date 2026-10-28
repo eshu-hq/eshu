@@ -126,9 +126,13 @@ FOR UPDATE SKIP LOCKED
 // completed_at = NULL, never a delete: the payload is the drain's input).
 // The completed_at IS NOT NULL guard makes the reported count mean
 // "reopened": a row a concurrent drain already re-completed is left alone.
+// It stamps reopened_at ($2, the reopen time; migration 244, #9320) so the
+// shared-projection backlog age counts from the reopen; created_at stays the
+// intent's acceptance epoch and pending order key (#7323).
 const reopenIntentsQuery = `
 UPDATE shared_projection_intents AS intent
-SET completed_at = NULL
+SET completed_at = NULL,
+    reopened_at = $2
 WHERE intent.intent_id = ANY($1)
   AND intent.completed_at IS NOT NULL
 RETURNING intent.intent_id, intent.acceptance_unit_id, intent.source_run_id
@@ -382,7 +386,7 @@ func (s *postgresStore) reopenIntents(
 	for _, row := range locked {
 		lockedIDs = append(lockedIDs, row.IntentID)
 	}
-	rows, err := tx.QueryContext(ctx, reopenIntentsQuery, lockedIDs)
+	rows, err := tx.QueryContext(ctx, reopenIntentsQuery, lockedIDs, s.time())
 	if err != nil {
 		return fmt.Errorf("reopen intents: %w", err)
 	}

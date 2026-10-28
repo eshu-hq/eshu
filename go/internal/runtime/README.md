@@ -354,9 +354,9 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
   started/completed/failed` logs and `eshu_dp_collector_observe_duration_seconds`
   still cover the operations themselves.
 - `eshu_runtime_queue_oldest_outstanding_age_seconds` (age of the oldest
-  outstanding item from `COALESCE(reopened_at, created_at)`; reducer items
-  reopened from `succeeded` restart at the reopen, while dead-letter replays,
-  the poison sweep, and projector re-drives still age from `created_at`, #9320)
+  outstanding item from `COALESCE(reopened_at, created_at)`; every
+  terminal-to-outstanding transition, including dead-letter replays, the
+  poison sweep, and projector re-drives, restarts the age at the reopen, #9320)
   aging means workers
   cannot keep up with ingest rate; investigate worker count and graph backend
   latency before changing pool sizes.

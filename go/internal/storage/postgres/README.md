@@ -991,7 +991,7 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   is reopened at once by its own post-dead-letter check (INFO `own-gate dead
   letter reopened: relationship generation already active`). Both count on
   `eshu_dp_reducer_own_gate_wake_total{site, outcome}`. Operator replays
-  do not stamp `reopened_at`; only the wake does. See
+  stamp `reopened_at` too (#9320), but they do not wake consumers. See
   `docs/internal/evidence/7597-own-gate-producer-terminal.md`.
 - `ErrProjectorClaimRejected` or `ErrReducerClaimRejected` in logs means a
   heartbeat or ack arrived after lease expiry; the original worker must stop and

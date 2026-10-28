@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -121,7 +122,8 @@ const reprojectReopenedCTE = `reopened AS (
             '{reconcile_reopen_count}',
             to_jsonb(COALESCE((fact_work_items.payload ->> 'reconcile_reopen_count')::int, 0) + 1)
         ),
-        updated_at = EXCLUDED.updated_at
+        updated_at = EXCLUDED.updated_at,
+        reopened_at = ` + queuestore.ReopenedAtUpsertValue + `
     WHERE NOT (
         fact_work_items.status IN ('pending', 'retrying')
         OR (

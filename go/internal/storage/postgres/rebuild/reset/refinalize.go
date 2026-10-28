@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
+	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 )
 
 const (
@@ -117,7 +118,8 @@ SET status = 'pending',
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL,
-    updated_at = EXCLUDED.updated_at
+    updated_at = EXCLUDED.updated_at,
+    reopened_at = ` + queuestore.ReopenedAtUpsertValue + `
 RETURNING scope_id
 `
 

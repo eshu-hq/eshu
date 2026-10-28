@@ -444,6 +444,21 @@ tests:
     class: postgres_ci
     reason: "#8294 completion-driven deployable_unit_correlation wake on the full bootstrap schema through the production RelationshipStore: the scope replay floor leaves below-floor succeeded history succeeded while an at-floor item reopens (EXPLAIN of the production statement locks only the at-floor row), a missing fingerprint row reopens, an unchanged fingerprint stays succeeded on a retry wake, a live re-run of UpsertResolved reports Inserted=0 yet the retry wake still reopens and then converges, a running item with a recorded fingerprint keeps its lease with cross_scope_replay_required set so its ACK returns it to pending, and a claimed item with no recorded fingerprint is left unflagged (kill-worker reclaim evidence); isolated schema per subtest from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; about 15 s for the file on local PostgreSQL 18 on 2026-10-19; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reopen_stamp_grace_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9320 PostgreSQL 18.6 readiness-grace proof: a dead-letter replay of an aws_cloud_runtime_drift reducer item anchors CycleStartedAt on the replay so the handler defers while the state scope is pending, and the deferral retry keeps that anchor so the handler commits the degraded verdict once the 30-minute bound passes; real ReducerQueue, RecoveryStore, and handler; about 1-2 s locally in an isolated schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reopen_stamp_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9320 PostgreSQL 18.6 concurrency proof of the reopen stamp on one fact_work_items row: two bounded replayers split 40 dead-letter rows with no row replayed twice, a replay blocked on a poison sweep row lock keeps the sweep stamp, a re-projection blocked on a claimer leaves the live claim alone and one blocked on an Ack stamps from succeeded, and a rolled-back replay leaves no stamp before the retry stamps once; interleavings fixed by pg_blocking_pids; about 1.3 s locally in an isolated schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reopen_stamp_writers_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9320 PostgreSQL 18.6 full-bootstrap proof that every terminal-to-outstanding fact_work_items writer stamps reopened_at: the recovery replay, the bounded dead-letter drain, the poison sweep, the reconcile re-projection, the generation-liveness re-drive, the zombie heal, and the refinalize re-enqueue, each beside an expired claimed or running row that keeps its earlier stamp, plus a refinalize-reopened shared projection intent that ages from the reopen; seven subtests, about 1-2 s locally in an isolated schema"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/repository_catalog_projection_live_test.go
     tag: ~
     class: postgres_ci

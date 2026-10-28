@@ -259,8 +259,8 @@ const defaultActivationWakeLockTimeout = 2 * time.Second
 
 // activationWakeSetClause is the SET list of the #7597 consumer wake: the
 // recovery replay reset list (replayFailedWorkItemsTemplate, kept in lockstep
-// by TestActivationWakeSetClauseMatchesReplayReset) plus reopened_at, so a
-// woken consumer keeps its retry evidence and its elapsed-time readiness
+// by TestActivationWakeSetClauseMatchesReplayReset), reopened_at included, so
+// a woken consumer keeps its retry evidence and its elapsed-time readiness
 // bounds start a fresh window. $1 is the wake timestamp.
 const activationWakeSetClause = `status = 'pending',
         attempt_count = GREATEST(attempt_count, 1),
