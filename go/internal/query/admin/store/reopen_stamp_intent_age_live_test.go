@@ -309,4 +309,41 @@ WHERE intent_id = ANY($1)`, []string{"i-held"}, time.Now().UTC()); err != nil {
 			t.Fatalf("i-held completed=%v reopened_at=%v, want completed with no reopen stamp", completed, stamp)
 		}
 	})
+
+	// The admin reopen picks candidates, then locks and updates them in later
+	// statements. A reset that reopens and commits between the pick and the
+	// lock holds no lock by then, so only the update's completed_at guard
+	// keeps the late reopener from re-stamping the winner's reopen.
+	t.Run("a pick that loses to a committed reopen leaves the row alone", func(t *testing.T) {
+		f.scope(t, "s-late", "g-late")
+		f.intent(t, "i-late", domain, "s-late", "g-late", true)
+		tx, _ := f.holder(t)
+		if n := resetReopen(f.ctx, t, tx, "s-late", "g-late"); n != 1 {
+			t.Fatalf("reset reopened %d intents, want 1", n)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatalf("commit reset: %v", err)
+		}
+		_, stamp := f.state(t, "i-late")
+		rows, err := f.database.QueryContext(f.ctx, reopenIntentsQuery, []string{"i-late"}, time.Now().UTC().Add(time.Hour))
+		if err != nil {
+			t.Fatalf("late reopenIntentsQuery: %v", err)
+		}
+		reopened := 0
+		for rows.Next() {
+			reopened++
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("iterate late reopen rows: %v", err)
+		}
+		if err := rows.Close(); err != nil {
+			t.Fatalf("close late reopen rows: %v", err)
+		}
+		if reopened != 0 {
+			t.Fatalf("late reopen reported %d rows for an already pending intent, want 0", reopened)
+		}
+		if _, again := f.state(t, "i-late"); !stamp.Valid || !again.Time.Equal(stamp.Time) {
+			t.Fatalf("i-late reopened_at moved from %v to %v on a late reopen, want the reset's stamp", stamp, again)
+		}
+	})
 }
