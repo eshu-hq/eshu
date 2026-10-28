@@ -24,6 +24,24 @@ func testedRefsJSON(merge string) string {
 	return `[{"path":"eshu-hq/eshu/.github/workflows/queue-selection.yml@` + merge + `","sha":"` + merge + `","ref":"refs/pull/42/merge"}]`
 }
 
+// testedLocalRefsJSON builds a complete local immutable reference set with no
+// queue stem, the shape post-deletion (#9315) Build Test runs carry.
+func testedLocalRefsJSON(merge string, files ...string) string {
+	parts := make([]string, 0, len(files))
+	for _, file := range files {
+		parts = append(parts, `{"path":"eshu-hq/eshu/.github/workflows/`+file+`@`+merge+`","sha":"`+merge+`","ref":"refs/pull/42/merge"}`)
+	}
+	return `[` + strings.Join(parts, `,`) + `]`
+}
+
+// testedSplitRefsJSON builds a reference set with no queue stem whose entries
+// disagree on the merge SHA: still rejected now that no stem is privileged.
+func testedSplitRefsJSON() string {
+	build := `{"path":"eshu-hq/eshu/.github/workflows/build.yml@` + testedMergeSHA + `","sha":"` + testedMergeSHA + `","ref":"refs/pull/42/merge"}`
+	frontend := `{"path":"eshu-hq/eshu/.github/workflows/frontend.yml@` + testedBaseSHA + `","sha":"` + testedBaseSHA + `","ref":"refs/pull/42/merge"}`
+	return `[` + build + `,` + frontend + `]`
+}
+
 func testedCommitJSON(merge, head string) string {
 	return `{"sha":"` + merge + `","tree":{"sha":"` + testedTreeSHA + `"},"parents":[{"sha":"` + testedBaseSHA + `"},{"sha":"` + head + `"}]}`
 }
@@ -45,6 +63,28 @@ func TestReadTestedInputBindsExactRunAndImmutableMerge(t *testing.T) {
 	}
 }
 
+func TestReadTestedInputBindsRunWithoutQueueSelection(t *testing.T) {
+	t.Parallel()
+	// Regression for PR #9372: queue-selection.yml is deleted, so the pr-plan
+	// binding must accept a complete local immutable reference set with no
+	// queue stem instead of failing with "lacks complete immutable local
+	// workflow references".
+	refs := testedLocalRefsJSON(testedMergeSHA, "build.yml", "frontend.yml")
+	runner := &mappedGHRunner{routes: []mappedGHRoute{
+		{match: "actions/runs/101", output: testedRunJSON(reuseHeadSHA, refs, 2)},
+		{match: "git/commits/" + testedMergeSHA, output: testedCommitJSON(testedMergeSHA, reuseHeadSHA)},
+	}}
+	got, err := readTestedInput(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA, 101, 2)
+	if err != nil || got.MergeSHA != testedMergeSHA || got.MergeTree != testedTreeSHA || got.BaseSHA != testedBaseSHA || got.HeadSHA != reuseHeadSHA || got.RunID != 101 || got.Attempt != 2 {
+		t.Fatalf("queueless tested input = %#v, err=%v", got, err)
+	}
+	for _, args := range runner.calls {
+		if strings.Contains(strings.Join(args, " "), "/git/ref/") {
+			t.Fatalf("read mutable PR ref: %v", args)
+		}
+	}
+}
+
 func TestReadTestedInputRejectsUnboundEvidence(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -57,6 +97,7 @@ func TestReadTestedInputRejectsUnboundEvidence(t *testing.T) {
 		{name: "wrong head", run: testedRunJSON(reuseOldSHA, testedRefsJSON(testedMergeSHA), 1), commit: testedCommitJSON(testedMergeSHA, reuseHeadSHA), attempt: 1},
 		{name: "wrong repo", run: strings.Replace(testedRunJSON(reuseHeadSHA, testedRefsJSON(testedMergeSHA), 1), `"full_name":"eshu-hq/eshu"`, `"full_name":"other/repo"`, 1), commit: testedCommitJSON(testedMergeSHA, reuseHeadSHA), attempt: 1},
 		{name: "missing refs", run: testedRunJSON(reuseHeadSHA, `[]`, 1), commit: testedCommitJSON(testedMergeSHA, reuseHeadSHA), attempt: 1},
+		{name: "mixed merge SHAs without queue stem", run: testedRunJSON(reuseHeadSHA, testedSplitRefsJSON(), 1), commit: testedCommitJSON(testedMergeSHA, reuseHeadSHA), attempt: 1},
 		{name: "wrong parent", run: testedRunJSON(reuseHeadSHA, testedRefsJSON(testedMergeSHA), 1), commit: testedCommitJSON(testedMergeSHA, reuseOldSHA), attempt: 1},
 		{name: "wrong returned sha", run: testedRunJSON(reuseHeadSHA, testedRefsJSON(testedMergeSHA), 1), commit: testedCommitJSON(testedBaseSHA, reuseHeadSHA), attempt: 1},
 	} {

@@ -41,6 +41,36 @@ func TestReadCurrentCalledChecksBindsForkMergeCommit(t *testing.T) {
 	}
 }
 
+func TestReadCurrentCalledChecksBindsRunWithoutQueueSelection(t *testing.T) {
+	t.Parallel()
+	// queue-selection.yml is deleted (#9315), so post-deletion Build Test runs
+	// reference only the remaining called workflows. Binding must accept a
+	// complete local immutable set with no queue stem.
+	refs := `[{"path":"eshu-hq/eshu/.github/workflows/build.yml@` + forkMergeSHA + `","sha":"` + forkMergeSHA + `","ref":"refs/pull/7818/merge"},` +
+		`{"path":"eshu-hq/eshu/.github/workflows/frontend.yml@` + forkMergeSHA + `","sha":"` + forkMergeSHA + `","ref":"refs/pull/7818/merge"}]`
+	runner := &endpointRunner{routes: map[string]string{
+		"actions/runs?":                             `[{"workflow_runs":[{"id":38768895788,"name":"Build Test","path":".github/workflows/test.yml","event":"pull_request","head_sha":"` + forkHeadSHA + `","run_attempt":2,"pull_requests":[ ],"referenced_workflows":` + refs + `}]}]`,
+		"/git/commits/" + forkMergeSHA:              `{"sha":"` + forkMergeSHA + `","parents":[{"sha":"` + forkBaseSHA + `"},{"sha":"` + forkHeadSHA + `"}]}`,
+		"/actions/runs/38768895788/attempts/2/jobs": `[{"jobs":[{"name":"call-frontend / console","status":"completed","conclusion":"failure","run_attempt":2}]}]`,
+	}}
+	checks, err := readCurrentCalledChecks(context.Background(), runner, "eshu-hq/eshu", 7818, forkHeadSHA)
+	if err != nil || len(checks) != 1 || checks[0].Bucket != "fail" || checks[0].RunID != 38768895788 {
+		t.Fatalf("queueless fork current attempt = %#v, err=%v", checks, err)
+	}
+	commitReads := 0
+	for _, call := range runner.calls {
+		if strings.Contains(call, "/git/ref/") {
+			t.Fatalf("read mutable PR ref: %s", call)
+		}
+		if strings.Contains(call, "/git/commits/"+forkMergeSHA) {
+			commitReads++
+		}
+	}
+	if commitReads != 1 {
+		t.Fatalf("immutable merge commit reads = %d, want one", commitReads)
+	}
+}
+
 func TestReadCurrentCalledChecksForkBindingRefusesUntrustedEvidence(t *testing.T) {
 	t.Parallel()
 	queue := `{"path":"eshu-hq/eshu/.github/workflows/queue-selection.yml@` + forkMergeSHA + `","sha":"` + forkMergeSHA + `","ref":"refs/pull/7818/merge"}`
@@ -61,7 +91,7 @@ func TestReadCurrentCalledChecksForkBindingRefusesUntrustedEvidence(t *testing.T
 		{name: "missing association", association: "<missing>"},
 		{name: "null association", association: `null`},
 		{name: "malformed association", association: `{}`},
-		{name: "missing queue selection", refs: `[` + other + `]`},
+		{name: "empty referenced workflows", refs: `[]`},
 		{name: "foreign direct workflow", refs: `[` + strings.Replace(queue, "eshu-hq/eshu/", "foreign/repo/", 1) + `]`},
 		{name: "nested remote workflow", refs: `[` + queue + `,` + strings.Replace(other, "eshu-hq/eshu/.github/workflows/other.yml", "foreign/repo/.github/workflows/nested/other.yml", 1) + `]`},
 		{name: "mixed merge refs", refs: `[` + queue + `,` + strings.Replace(other, "refs/pull/7818/merge", "refs/pull/999/merge", 1) + `]`},
