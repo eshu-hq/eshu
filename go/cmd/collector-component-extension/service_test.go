@@ -158,7 +158,6 @@ func TestScrubHostCredentialEnvRefusesNilProcessRunner(t *testing.T) {
 // value-receiver RunCollector would panic at first claim (review on #9416).
 func TestScrubHostCredentialEnvRefusesNilOCIRunner(t *testing.T) {
 	t.Parallel()
-
 	if _, err := scrubHostCredentialEnv((*extensionhost.OCIRunner)(nil)); err == nil {
 		t.Fatal("scrubHostCredentialEnv(nil OCI runner) error = nil, want startup refusal")
 	}
