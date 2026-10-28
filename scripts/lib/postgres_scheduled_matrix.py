@@ -75,14 +75,24 @@ def verify_aggregate_bundle(aggregate_steps: list[str]) -> None:
     expected_download = {
         "        uses: actions/download-artifact@v4",
         "          pattern: scheduled-proof-streams-*-"
-        "${{ github.run_id }}-${{ github.run_attempt }}",
-        "          path: ${{ runner.temp }}/proof-bundle",
-        "          merge-multiple: true",
+        "${{ github.run_id }}-*",
+        "          path: ${{ runner.temp }}/proof-streams",
+        "          merge-multiple: false",
     }
     if not expected_download.issubset(set(download_step.splitlines())):
         raise ValueError("hosted proof stream download missing")
     if re.search(r"(?m)^\s*if:", download_step):
         raise ValueError("conditional hosted proof stream download")
+    _, assembly_step = named_step(aggregate_steps, "Assemble hosted proof bundle")
+    if not {
+        "        run: |",
+        '          python3 scripts/lib/postgres_scheduled_runner.py \\',
+        '            --assemble-proof-streams "${RUNNER_TEMP}/proof-streams" \\',
+        '            --output-proof-bundle "${RUNNER_TEMP}/proof-bundle"',
+    }.issubset(set(assembly_step.splitlines())):
+        raise ValueError("hosted proof bundle assembly missing")
+    if re.search(r"(?m)^\s*if:", assembly_step):
+        raise ValueError("conditional hosted proof bundle assembly")
     _, bundle_step = named_step(aggregate_steps, "Verify hosted proof bundle")
     expected_bundle = (
         '        run: python3 scripts/lib/postgres_scheduled_runner.py '
@@ -102,7 +112,7 @@ def verify_aggregate_bundle(aggregate_steps: list[str]) -> None:
         "          retention-days: 14",
     } | {
         f"            ${{{{ runner.temp }}}}/proof-bundle/{name}"
-        for name in ("manifest.json", *(f"{group}.jsonl" for group in PACKAGES))
+        for name in ("manifest.json", "artifact_sources.json", *(f"{group}.jsonl" for group in PACKAGES))
     }
     if not artifact_lines.issubset(set(artifact_step.splitlines())):
         raise ValueError("hosted proof artifact retention missing")
@@ -112,7 +122,7 @@ def verify_aggregate_bundle(aggregate_steps: list[str]) -> None:
     )
     expected_uploads = [
         f"            ${{{{ runner.temp }}}}/proof-bundle/{name}"
-        for name in ("manifest.json", *(f"{group}.jsonl" for group in PACKAGES))
+        for name in ("manifest.json", "artifact_sources.json", *(f"{group}.jsonl" for group in PACKAGES))
     ]
     if not uploaded or uploaded.group(1).splitlines() != expected_uploads:
         raise ValueError("hosted proof artifact paths differ from exact bundle")

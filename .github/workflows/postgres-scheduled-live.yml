@@ -81,6 +81,7 @@ jobs:
       - name: Check exact enrollment and negative cases
         run: |
           python3 scripts/test-postgres-scheduled-runner.py
+          python3 scripts/test-postgres-scheduled-rerun.py
           python3 scripts/test-postgres-scheduled-matrix.py
           python3 scripts/test-postgres-scheduled-fragments.py
           python3 scripts/test-postgres-scheduled-ledger-policy.py
@@ -421,9 +422,9 @@ jobs:
     needs: [scheduled-setup, scheduled-freshness-scale, scheduled-freshness-a, scheduled-freshness-b, scheduled-ack, scheduled-bulk]
     runs-on: ubuntu-24.04
     # Bundle assembly. No proof load and no database: 15 min covers checkout,
-    # the six artifact downloads, bundle verification, and retention. The
-    # needs list fails this job when any leg fails, so a partial stream set
-    # can never verify or retain.
+    # the artifact download, exact per-leg assembly, verification, and retention.
+    # The needs list fails this job when any leg fails. Partial job reruns may
+    # reuse same-run streams from prior attempts; missing legs cannot verify.
     timeout-minutes: 15
     steps:
       - name: Check out repository
@@ -433,9 +434,14 @@ jobs:
       - name: Download proof streams
         uses: actions/download-artifact@v4
         with:
-          pattern: scheduled-proof-streams-*-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/proof-bundle
-          merge-multiple: true
+          pattern: scheduled-proof-streams-*-${{ github.run_id }}-*
+          path: ${{ runner.temp }}/proof-streams
+          merge-multiple: false
+      - name: Assemble hosted proof bundle
+        run: |
+          python3 scripts/lib/postgres_scheduled_runner.py \
+            --assemble-proof-streams "${RUNNER_TEMP}/proof-streams" \
+            --output-proof-bundle "${RUNNER_TEMP}/proof-bundle"
       - name: Verify hosted proof bundle
         run: python3 scripts/lib/postgres_scheduled_runner.py --verify-proof-bundle "${RUNNER_TEMP}/proof-bundle"
       - name: Retain hosted proof bundle
@@ -445,6 +451,7 @@ jobs:
           name: postgres-scheduled-proof-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/proof-bundle/manifest.json
+            ${{ runner.temp }}/proof-bundle/artifact_sources.json
             ${{ runner.temp }}/proof-bundle/admin.jsonl
             ${{ runner.temp }}/proof-bundle/completion.jsonl
             ${{ runner.temp }}/proof-bundle/reachability.jsonl

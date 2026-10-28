@@ -121,6 +121,7 @@ JOB_STEPS = {
     "scheduled-aggregate": (
         "Check out repository",
         "Download proof streams",
+        "Assemble hosted proof bundle",
         "Verify hosted proof bundle",
         "Retain hosted proof bundle",
     ),
