@@ -86,7 +86,6 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `e2e-tests.yml` | Blocking Docker end-to-end smoke | Distinct runtime integration proof; retain. |
 | `factschema-diff.yml` | Blocking fact schema compatibility | Distinct compatibility boundary; retain. |
 | `frontend.yml` | Seven blocking frontend gates, advisory SSO/Prettier | Preserve product tests; narrow independent scopes before consolidation. |
-| `generate-bundle-on-demand.yml` | Manual bundle generator | Retirement candidate: installs Python editable root despite no root Python package and Go runtime. Confirm callers before deletion; currently has stale action syntax. |
 | `golden-corpus-gate.yml` | Blocking mirror/Neo4j/differential; advisory NornicDB corpus | Preserve semantic proof; parallel captures and selected queue payload in this change. |
 | `ifa-determinism-gate.yml` | Blocking determinism/dead-letter/fault matrices; advisory mirror | Distinct recovery invariants; retain selected proof. |
 | `live-backend-tests.yml` | Blocking live backends and mirrors | Preserve live integration contracts. |
