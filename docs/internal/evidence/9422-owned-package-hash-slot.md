@@ -85,9 +85,13 @@ when a baseline run times out. No run reached it.
 N is within one sd of S in the same session (+0.136 s). The whole session ran
 about 0.9 s above the shim's run: S itself averaged 14.85 s against 13.93 s,
 with T at 30,669 instead of 30,091 and 2,813,766 scanned index rows instead of
-2,715,673. Against the shim's absolute band (13.7 to 14.1 s, plus 0.5 s) N's
-mean is 0.39 s over, and today's S is 0.25 s over the same bar. The comparison
-that holds the replica's state constant is the interleaved one.
+2,715,673. The shim's band (13.7 to 14.1 s) was a snapshot at T = 30,091 and
+no longer describes today's shipped statement: against that band plus 0.5 s,
+N's mean is 0.39 s over and today's S is 0.25 s over. The acceptance measure is
+the same-session interleaved delta (+0.136 s), which the coordinator accepted
+for ruling D3(a), because it holds the replica's state constant. The
+unmodified scan grew from 2,715,673 to 2,813,766 index rows in about a day;
+that growth is the motivation for #9426.
 
 Plan (EXPLAIN VERBOSE, bucket 997250, 14.41 s): the same index scan and
 Unique to 30,669 distinct targets. `sha256(convert_to(...))` is in the output
