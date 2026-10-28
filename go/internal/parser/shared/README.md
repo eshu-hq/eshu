@@ -264,3 +264,8 @@ avoiding per-node `NamedChildren` slice allocation in repo-scale Go pre-scans.
 ## Related docs
 
 - `docs/public/languages/support-maturity.md`
+
+`SafeVersionSpec` is the shared bounded version-value guard used when the JSON
+parser hands Composer PHP declarations to the runtime fact emitter. Both stages
+apply the same grammar so a rejected credential-shaped value does not enter the
+parser transport or a runtime fact.

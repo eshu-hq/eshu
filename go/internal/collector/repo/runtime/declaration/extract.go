@@ -39,6 +39,10 @@ func Extract(relativePath, body string) (Extraction, bool) {
 		return Extraction{}, false
 	case manifestPackageJSON:
 		return extractManifest(body, func() ([]declaration, int, error) { return extractPackageJSON(body) }), true
+	case manifestComposerJSON:
+		return extractManifest(body, func() ([]declaration, int, error) { return extractComposer(body, false) }), true
+	case manifestComposerLock:
+		return extractManifest(body, func() ([]declaration, int, error) { return extractComposer(body, true) }), true
 	case manifestGoMod:
 		return extractManifest(body, func() ([]declaration, int, error) {
 			declarations, rejected := extractGoMod(body)

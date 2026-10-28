@@ -74,6 +74,18 @@ func Parse(
 	}
 
 	filename := strings.ToLower(filepath.Base(path))
+	if filename == "composer.json" || filename == "composer.lock" {
+		evidence, evidenceErr := composerRuntimeFromDocument(filename, object, normalizedBytes, buildTranslatedNewlineIndex(source, translate))
+		evidence.Digest = composerRuntimeDigest(source)
+		evidence.ByteSize = len(source)
+		if len(source) > composerRuntimeMaxBytes {
+			evidence.Values = nil
+			evidence.Unavailable = true
+		}
+		if evidenceErr == nil {
+			payload["composer_runtime_evidence"] = evidence
+		}
+	}
 
 	// See jsonFilenameNeedsOrderedEntries: only filenames that read
 	// topLevelEntries below pay for the full ordered walk; every other file
@@ -162,7 +174,8 @@ func Parse(
 			payload["variables"] = packageJSONDependencyVariables(object, languageName, topLevelEntries, sourceIndex)
 			payload["functions"] = jsonScriptFunctions(object, languageName, topLevelEntries, sourceIndex)
 		case filename == "composer.json":
-			payload["variables"] = composerManifestDependencyVariables(object, languageName, topLevelEntries, sourceIndex)
+			evidence, _ := payload["composer_runtime_evidence"].(ComposerRuntimeEvidence)
+			payload["variables"] = composerManifestDependencyVariables(object, languageName, topLevelEntries, sourceIndex, evidence)
 		case isTypeScriptConfigFilename(filename):
 			payload["variables"] = tsconfigVariables(object, languageName, topLevelEntries, sourceIndex)
 		}

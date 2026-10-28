@@ -130,12 +130,13 @@ A token that matches none of the version, range or placeholder shapes (for
 example `jruby-9.4.0`) is classified `alias`: a named reference is never
 guessed into numbers.
 
-A `.php-version` file declares the PHP runtime using the `php_version` source kind. Its value passes the manifest credential guard before emission.
+A `.php-version` file declares the PHP runtime using the `php_version`
+source kind. Its value passes the manifest credential guard before emission.
 
 ## Manifest sources
 
-`package.json` and `go.mod` are matched by exact, case-sensitive base name at
-any depth, so a monorepo emits one set of facts per package directory. A copy
+`package.json`, `composer.json`, `composer.lock` and `go.mod` are matched by
+exact, case-sensitive base name at any depth, so a monorepo emits one set of facts per package directory. A copy
 inside `node_modules`, `vendor`, `bower_components` or `jspm_packages` never
 emits: discovery already prunes those directories, and the emitter refuses them
 as well, because a dependency's own `engines` is not this repository's
@@ -147,6 +148,10 @@ a constraint from a pin.
 | `package_json_engines` | `engines.node`, `.npm`, `.yarn`, `.pnpm` | the key |
 | `package_json_volta` | `volta.node`, `.npm`, `.yarn`, `.pnpm` | the key |
 | `package_json_package_manager` | `packageManager` (`name@version`) | the name: `npm`, `pnpm` or `yarn` |
+| `composer_json_require_php` | `composer.json` `require.php` | `php` |
+| `composer_json_platform_php` | `composer.json` `config.platform.php` | `php` |
+| `composer_lock_platform_php` | `composer.lock` `platform.php` | `php` |
+| `composer_lock_platform_overrides_php` | `composer.lock` `platform-overrides.php` | `php` |
 | `go_mod_go` | the `go` directive | `go` |
 | `go_mod_toolchain` | the `toolchain` directive | `go` |
 
@@ -164,10 +169,10 @@ a constraint from a pin.
 
 Rules that keep a manifest read bounded and fail closed:
 
-- Only the five sections above are read. Any other `engines` key (`vscode`,
-  `electron`), a non-string value, a `volta.extends` and every `require`,
-  `replace`, `exclude`, `retract`, `godebug` and `tool` line or `( ... )` block
-  member in `go.mod` never emit.
+- Only the named runtime sections above are read. Any other `engines` key
+  (`vscode`, `electron`), a non-string value, `volta.extends`, non-PHP Composer
+  dependencies, and every `require`, `replace`, `exclude`, `retract`,
+  `godebug` and `tool` line or `( ... )` block member in `go.mod` never emit.
 - A repeated key behaves as `JSON.parse` does: the last `engines`, `volta`,
   `packageManager` or member wins, and only that one emits. A repeated `go` or
   `toolchain` directive makes the file ambiguous (the go tool refuses it), so
@@ -177,7 +182,7 @@ Rules that keep a manifest read bounded and fail closed:
   trailing text, an unquoted key, nested more than 64 levels) emits nothing,
   because the part before the error would pass for the file. `//` and `/* */`
   comments, a byte-order mark and CRLF are accepted.
-- **Credential guard.** The content store keeps these two files under the
+- **Credential guard.** The content store keeps these manifests under the
   `store` policy, so a value that is not a version must not leave the file in a
   fact. A value is emitted only when it is at most 128 bytes of ASCII from the
   version and range grammar, holds no run of 16 or more letters, digits or

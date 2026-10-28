@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -19,8 +20,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/discovery"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/preparse"
 	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/collector/repo/runtime/declaration"
+	parserjson "github.com/eshu-hq/eshu/go/internal/parser/json"
 	"github.com/eshu-hq/eshu/go/internal/parser/scip"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -305,5 +309,42 @@ func (s *GitSource) recordOversizeSkips(ctx context.Context, files []SkippedOver
 			slog.Int64("size_bytes", file.SizeBytes),
 			slog.Int64("cap_bytes", capBytes),
 		)
+	}
+}
+
+// collectComposerRuntimeSnapshot removes private parser transport before file facts persist.
+func collectComposerRuntimeSnapshot(repoPath string, fileSet discovery.RepoFileSet, parsedFiles []map[string]any, snapshot *RepositorySnapshot) {
+	// Remove parser-only Composer evidence before FileData can become a file
+	// fact. Keep only guarded, detached declarations bound to source digest.
+	snapshot.ComposerRuntimeExpected = true
+	snapshot.ComposerRuntime = make(map[string]composerRuntimeSnapshot)
+	for _, parsed := range parsedFiles {
+		evidence, ok := parsed["composer_runtime_evidence"].(parserjson.ComposerRuntimeEvidence)
+		if !ok {
+			continue
+		}
+		delete(parsed, "composer_runtime_evidence")
+		relativePath := model.RepositoryRelativePath(repoPath, model.PayloadPath(parsed, "path"))
+		snapshot.ComposerRuntime[relativePath] = composerRuntimeSnapshot{
+			Extraction: runtimedeclaration.ExtractComposerEvidence(evidence), Digest: evidence.Digest,
+		}
+	}
+
+	for _, file := range fileSet.Files {
+		base := filepath.Base(file.Path)
+		if base != "composer.json" && base != "composer.lock" {
+			continue
+		}
+		relativePath, relErr := filepath.Rel(repoPath, file.Path)
+		if relErr != nil {
+			continue
+		}
+		relativePath = filepath.ToSlash(relativePath)
+		if runtimedeclaration.ClassifyPath(relativePath) != runtimedeclaration.FileManifest {
+			continue
+		}
+		if _, ok := snapshot.ComposerRuntime[relativePath]; !ok {
+			snapshot.ComposerRuntimeUnparsed = append(snapshot.ComposerRuntimeUnparsed, composerRuntimeUnparsed{Path: relativePath, ByteSize: max(0, int(file.Size))})
+		}
 	}
 }

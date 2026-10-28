@@ -21,7 +21,7 @@ const gitRuntimeDeclarationCollectorInstanceID = "git-runtime-declaration"
 // retained memory to the cap times the number of pin files, however large a
 // hostile pin file is.
 //
-// A package.json or go.mod is read when the walk meets it (Manifest is true)
+// A package.json, Composer file, or go.mod is read when the walk meets it (Manifest is true)
 // and keeps only its Extraction. The Extraction owns copies of the few strings
 // it holds (see runtimedeclaration.Extract), so it does not pin the body and a
 // repository with thousands of manifests retains their declarations, not their
@@ -64,6 +64,24 @@ func NoteRuntimeDeclarationCandidate(candidates map[string]Candidate, relativePa
 		}
 		candidates[relativePath] = Candidate{Body: body, ByteSize: len(body)}
 	}
+}
+
+// NoteParsedComposerCandidate stores guarded parser evidence without reading
+// the Composer body again. Empty parsed documents need no candidate.
+func NoteParsedComposerCandidate(candidates map[string]Candidate, relativePath string, extraction runtimedeclaration.Extraction) {
+	if runtimedeclaration.ClassifyPath(relativePath) != runtimedeclaration.FileManifest {
+		return
+	}
+	if extraction.Len() == 0 && !extraction.Skip().Skipped() {
+		return
+	}
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: extraction}
+}
+
+// NoteUnavailableComposerCandidate records a typed skip for a Composer file
+// whose native parser failed or was not run.
+func NoteUnavailableComposerCandidate(candidates map[string]Candidate, relativePath string, byteSize int) {
+	candidates[relativePath] = Candidate{Manifest: true, Extraction: runtimedeclaration.UnavailableComposerExtraction(byteSize)}
 }
 
 // EmitRuntimeDeclarationFactsForCandidates sends one

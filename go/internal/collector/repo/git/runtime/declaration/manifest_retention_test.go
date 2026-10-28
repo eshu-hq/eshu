@@ -76,6 +76,13 @@ func nearCapWorkflow() string {
 	return b.String()
 }
 
+// nearCapComposerJSON keeps a PHP declaration beside a large ignored field.
+func nearCapComposerJSON() string {
+	const prefix = `{"require":{"php":"^8.2"},"padding":"`
+	const suffix = `"}`
+	return prefix + strings.Repeat("x", runtimedeclaration.MaxManifestBytesPerFile-len(prefix)-len(suffix)-64) + suffix
+}
+
 // noteNearCapManifests notes count near-cap manifest files at distinct paths
 // and returns the total body bytes. Every body is local to this call, so the
 // caller holds no reference to one once it returns.
@@ -84,7 +91,7 @@ func nearCapWorkflow() string {
 func noteNearCapManifests(candidates map[string]Candidate, count int) (bodyBytes int) {
 	for i := 0; i < count; i++ {
 		body, name := nearCapPackageJSON(), fmt.Sprintf("m%d/package.json", i)
-		switch i % 4 {
+		switch i % 5 {
 		case 1:
 			body, name = nearCapGoMod(), fmt.Sprintf("m%d/go.mod", i)
 		case 2:
@@ -93,6 +100,8 @@ func noteNearCapManifests(candidates map[string]Candidate, count int) (bodyBytes
 			// The workflow gate admits only .github/workflows/<name>.yml,
 			// so the rotation varies the file name, not the directory.
 			body, name = nearCapWorkflow(), fmt.Sprintf(".github/workflows/ci-%d.yml", i)
+		case 4:
+			body, name = nearCapComposerJSON(), fmt.Sprintf("m%d/composer.json", i)
 		}
 		bodyBytes += len(body)
 		NoteRuntimeDeclarationCandidate(candidates, name, body)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
+	runtimedeclaration "github.com/eshu-hq/eshu/go/internal/collector/repo/runtime/declaration"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -89,6 +90,18 @@ type SelectedRepository struct {
 	Ref string `json:"ref,omitempty"`
 }
 
+// composerRuntimeSnapshot binds a normalized extraction to its parsed source digest.
+type composerRuntimeSnapshot struct {
+	Extraction runtimedeclaration.Extraction
+	Digest     string
+}
+
+// composerRuntimeUnparsed is a discovered Composer file without parser evidence.
+type composerRuntimeUnparsed struct {
+	Path     string
+	ByteSize int
+}
+
 // RepositorySnapshot captures one repository parse snapshot and content transport.
 type RepositorySnapshot struct {
 	RepoPath    string `json:"repo_path"`
@@ -98,11 +111,15 @@ type RepositorySnapshot struct {
 	// HeadCommitSHA is the Git commit the snapshot content reflects (the
 	// checked-out HEAD). It becomes ScopeGeneration.SourceCommitSHA, the durable
 	// baseline a later delta sync diffs against. Empty for non-git snapshots.
-	HeadCommitSHA   string                        `json:"head_commit_sha,omitempty"`
-	ImportsMap      map[string][]string           `json:"imports_map"`
-	FileData        []map[string]any              `json:"file_data"`
-	ContentFiles    []model.ContentFileSnapshot   `json:"content_files"`
-	ContentEntities []model.ContentEntitySnapshot `json:"content_entities"`
+	HeadCommitSHA string              `json:"head_commit_sha,omitempty"`
+	ImportsMap    map[string][]string `json:"imports_map"`
+	FileData      []map[string]any    `json:"file_data"`
+	// ComposerRuntime carries guarded parser evidence only for this live snapshot.
+	ComposerRuntime         map[string]composerRuntimeSnapshot `json:"-"`
+	ComposerRuntimeExpected bool                               `json:"-"`
+	ComposerRuntimeUnparsed []composerRuntimeUnparsed          `json:"-"`
+	ContentFiles            []model.ContentFileSnapshot        `json:"content_files"`
+	ContentEntities         []model.ContentEntitySnapshot      `json:"content_entities"`
 	// GitRefs carries source-observed branch/ref heads for this repository.
 	GitRefs []GitRef `json:"git_refs,omitempty"`
 	// TerraformStateCandidates carries metadata-only repo-local state-file

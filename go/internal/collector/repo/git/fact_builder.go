@@ -244,6 +244,11 @@ func streamFacts(
 	// its definition's policy instead of emitting its raw body (#8833).
 	tally.lookup = contentStoreFallback(snapshot.ContentStoreFallbackRegistry)
 	gitmodulesCandidates, codeownersCandidates, runtimeDeclarationCandidates := map[string]string{}, map[string]string{}, map[string]runtimedeclaration.Candidate{}
+	for _, unparsed := range snapshot.ComposerRuntimeUnparsed {
+		dropped.Store(true)
+		droppedPaths.Note(unparsed.Path)
+		runtimedeclaration.NoteUnavailableComposerCandidate(runtimeDeclarationCandidates, unparsed.Path, unparsed.ByteSize)
+	}
 	if len(snapshot.ContentFileMetas) > 0 {
 		for i, meta := range snapshot.ContentFileMetas {
 			body, err := streamContentBodyReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads indexed repo content file at a path derived from the scan target, not user-supplied input
@@ -263,7 +268,7 @@ func streamFacts(
 			bodyStr := string(body)
 			submodule.NoteSubmoduleCandidate(gitmodulesCandidates, meta.RelativePath, bodyStr)
 			codeowners.NoteCodeownersCandidate(codeownersCandidates, meta.RelativePath, bodyStr)
-			runtimedeclaration.NoteRuntimeDeclarationCandidate(runtimeDeclarationCandidates, meta.RelativePath, bodyStr)
+			noteComposerOrRuntimeCandidate(snapshot, runtimeDeclarationCandidates, meta.RelativePath, bodyStr, dropped, droppedPaths)
 
 			w.Send(gitcontent.ContentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, model.ContentFileSnapshot{
 				RelativePath:    meta.RelativePath,
@@ -310,7 +315,7 @@ func streamFacts(
 			fileSnapshot.Body = tally.storedBody(snapshot.ContentStores, fileSnapshot.RelativePath, fileSnapshot.Body)
 			submodule.NoteSubmoduleCandidate(gitmodulesCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
 			codeowners.NoteCodeownersCandidate(codeownersCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
-			runtimedeclaration.NoteRuntimeDeclarationCandidate(runtimeDeclarationCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
+			noteComposerOrRuntimeCandidate(snapshot, runtimeDeclarationCandidates, fileSnapshot.RelativePath, fileSnapshot.Body, dropped, droppedPaths)
 			w.Send(gitcontent.ContentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileSnapshot))
 			catalog.EmitServiceCatalogFactsForContentFile(w,
 				scopeID,
