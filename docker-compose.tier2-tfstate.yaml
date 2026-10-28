@@ -299,7 +299,7 @@ services:
   # concurrent writers corrupt it, so serialization is structural here,
   # not a slowdown workaround.
   collector-terraform-state-seed-a:
-    # Digest-pinned satellite release (Lane A tag 0.1.0-9288-endpoint.2,
+    # Digest-pinned satellite release (Lane A tag 0.1.0-9288-payload,
     # single-label in-cluster http amendment). ESHU_TFSTATE_SATELLITE_IMAGE
     # overrides the pin.
     image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:4a9464c52f9cc5a50d8f86d60d0e092a0f48e98340475638ff629bd854c0df08}
@@ -407,7 +407,7 @@ services:
         condition: service_completed_successfully
 
   collector-terraform-state-seed-b:
-    # Digest-pinned satellite release (Lane A tag 0.1.0-9288-endpoint.2,
+    # Digest-pinned satellite release (Lane A tag 0.1.0-9288-payload,
     # single-label in-cluster http amendment). ESHU_TFSTATE_SATELLITE_IMAGE
     # overrides the pin.
     image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:4a9464c52f9cc5a50d8f86d60d0e092a0f48e98340475638ff629bd854c0df08}
@@ -517,7 +517,7 @@ services:
         condition: service_completed_successfully
 
   collector-terraform-state-seed-d:
-    # Digest-pinned satellite release (Lane A tag 0.1.0-9288-endpoint.2,
+    # Digest-pinned satellite release (Lane A tag 0.1.0-9288-payload,
     # single-label in-cluster http amendment). ESHU_TFSTATE_SATELLITE_IMAGE
     # overrides the pin.
     image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:4a9464c52f9cc5a50d8f86d60d0e092a0f48e98340475638ff629bd854c0df08}
@@ -627,7 +627,7 @@ services:
         condition: service_completed_successfully
 
   collector-terraform-state-seed-e:
-    # Digest-pinned satellite release (Lane A tag 0.1.0-9288-endpoint.2,
+    # Digest-pinned satellite release (Lane A tag 0.1.0-9288-payload,
     # single-label in-cluster http amendment). ESHU_TFSTATE_SATELLITE_IMAGE
     # overrides the pin.
     image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:4a9464c52f9cc5a50d8f86d60d0e092a0f48e98340475638ff629bd854c0df08}
