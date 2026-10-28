@@ -37,7 +37,7 @@ func readRootFSUnsupportedSnapshot(
 		return Snapshot{}, reader.usage(), false
 	}
 	fields := parseOSRelease(osRelease)
-	distro := firstNonBlankDistro(target.Distro, ospackagevulnerability.Distro(strings.TrimSpace(fields["ID"])))
+	distro := firstNonBlankDistro(target.Distro, ospackagevulnerability.NormalizeDistroID(ospackagevulnerability.Distro(fields["ID"])))
 	manager := target.PackageManager
 	if manager == "" {
 		switch distro {

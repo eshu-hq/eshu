@@ -47,21 +47,22 @@ const (
 
 // Snapshot is the normalized package database evidence extracted from an image.
 type Snapshot struct {
-	Distro             ospackagevulnerability.Distro
-	DistroVersion      string
-	PackageManager     ospackagevulnerability.PackageManager
-	Repositories       []ospackagevulnerability.Repository
-	RPMOriginBindings  []ospackagevulnerability.RPMOriginBinding
-	InstalledDB        []byte
-	Status             []byte
-	ThirdPartyPackages []string
-	SourceURI          string
-	SourceRecordID     string
-	ImageReference     string
-	ImageDigest        string
-	EvidenceSource     EvidenceSource
-	ExtractionReason   string
-	ObservedAt         time.Time
+	Distro              ospackagevulnerability.Distro
+	DistroVersion       string
+	PackageManager      ospackagevulnerability.PackageManager
+	Repositories        []ospackagevulnerability.Repository
+	RPMOriginBindings   []ospackagevulnerability.RPMOriginBinding
+	InstalledDB         []byte
+	RPMDatabaseTooLarge bool
+	Status              []byte
+	ThirdPartyPackages  []string
+	SourceURI           string
+	SourceRecordID      string
+	ImageReference      string
+	ImageDigest         string
+	EvidenceSource      EvidenceSource
+	ExtractionReason    string
+	ObservedAt          time.Time
 }
 
 func (t TargetConfig) validate() (TargetConfig, error) {
@@ -71,7 +72,7 @@ func (t TargetConfig) validate() (TargetConfig, error) {
 	t.SourceRecordID = strings.TrimSpace(t.SourceRecordID)
 	t.ImageReference = strings.TrimSpace(t.ImageReference)
 	t.ImageDigest = strings.TrimSpace(t.ImageDigest)
-	t.Distro = ospackagevulnerability.Distro(strings.TrimSpace(string(t.Distro)))
+	t.Distro = ospackagevulnerability.NormalizeDistroID(t.Distro)
 	t.DistroVersion = strings.TrimSpace(t.DistroVersion)
 	t.PackageManager = ospackagevulnerability.PackageManager(strings.TrimSpace(string(t.PackageManager)))
 	t.LayerPaths = cleanStrings(t.LayerPaths)
@@ -103,7 +104,7 @@ func (t TargetConfig) validate() (TargetConfig, error) {
 
 func validateDistro(distro ospackagevulnerability.Distro) error {
 	switch distro {
-	case "", ospackagevulnerability.DistroAlpine, ospackagevulnerability.DistroDebian, ospackagevulnerability.DistroRedHat, ospackagevulnerability.DistroFedora, ospackagevulnerability.DistroCentOS, ospackagevulnerability.DistroRocky, ospackagevulnerability.DistroAlma, ospackagevulnerability.DistroAmazonLinux:
+	case "", ospackagevulnerability.DistroAlpine, ospackagevulnerability.DistroDebian, ospackagevulnerability.DistroRedHat, ospackagevulnerability.DistroFedora, ospackagevulnerability.DistroCentOS, ospackagevulnerability.DistroRocky, ospackagevulnerability.DistroAlma, ospackagevulnerability.DistroAmazonLinux, ospackagevulnerability.DistroSLES:
 		return nil
 	default:
 		return fmt.Errorf("%w: unsupported distro", errUnsupportedTarget)
