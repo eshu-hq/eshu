@@ -5,6 +5,7 @@ package telemetry
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -17,7 +18,10 @@ import (
 // reader. The read must land in a finite bucket at or below 300 s, not in
 // +Inf, so an operator can see a scan that slows from 60 s to 120 s. The
 // bucket audit table is a copy of the boundaries and cannot catch a change to
-// instruments.go; this test reads the registered instrument.
+// instruments.go; this test reads the registered instrument and pins its
+// bounds to the postgres-query-seconds row of
+// docs/public/observability/telemetry-coverage.md, so dropping or moving any
+// bucket fails here as well as in the coverage gate.
 func TestPostgresQueryDurationCountsAPlannerScanInAFiniteBucket(t *testing.T) {
 	t.Parallel()
 
@@ -50,6 +54,10 @@ func TestPostgresQueryDurationCountsAPlannerScanInAFiniteBucket(t *testing.T) {
 		t.Fatal("eshu_dp_postgres_query_duration_seconds was not exported")
 	}
 	bounds := point.Bounds
+	documented := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}
+	if !slices.Equal(bounds, documented) {
+		t.Fatalf("bounds = %v, want the documented set %v", bounds, documented)
+	}
 	if len(bounds) == 0 || bounds[len(bounds)-1] < 300 {
 		t.Fatalf("top bound = %v, want at least 300 s", bounds)
 	}
