@@ -4,6 +4,7 @@
 package component
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -26,8 +27,80 @@ type ActivationHostClaimScope struct {
 	Kind string `json:"kind,omitempty" yaml:"kind"`
 }
 
-type activationHostConfigFile struct {
-	Host ActivationHostClaimMetadata `json:"host" yaml:"host"`
+type activationRuntimeFile struct {
+	Host ActivationHostClaimMetadata `yaml:"host"`
+	// Config is kept as a raw node so a file whose config block the caller
+	// never needs decodes exactly as it did before the block was read.
+	Config yaml.Node `yaml:"config"`
+}
+
+// ActivationRuntimeFile is what the coordinator reads from one activation
+// config file in a single read: the optional host claim metadata and the
+// activation's config block. The worker reads the same file and hands that
+// config block to the component verbatim; this type never rewrites it.
+type ActivationRuntimeFile struct {
+	// Host is the normalized host claim metadata. It is valid when HasHost is
+	// true.
+	Host ActivationHostClaimMetadata
+	// HasHost reports whether the file declared host claim metadata.
+	HasHost bool
+	config  yaml.Node
+}
+
+// LoadActivationRuntimeFile reads one activation config file once and returns
+// its host claim metadata and its config block, without exposing the config
+// path in returned errors. Other adapter-specific sections are ignored.
+func LoadActivationRuntimeFile(path string) (ActivationRuntimeFile, error) {
+	if strings.TrimSpace(path) == "" {
+		return ActivationRuntimeFile{}, nil
+	}
+	raw, err := os.ReadFile(strings.TrimSpace(path))
+	if err != nil {
+		return ActivationRuntimeFile{}, fmt.Errorf(
+			"read activation config host metadata: %w",
+			sanitizedFileReadError(err),
+		)
+	}
+	var config activationRuntimeFile
+	if err := yaml.Unmarshal(raw, &config); err != nil {
+		return ActivationRuntimeFile{}, fmt.Errorf("decode activation config host metadata: %w", err)
+	}
+	file := ActivationRuntimeFile{config: config.Config}
+	host := config.Host.Normalized()
+	if host.Empty() {
+		return file, nil
+	}
+	if err := host.Validate(); err != nil {
+		return ActivationRuntimeFile{}, err
+	}
+	file.Host = host
+	file.HasHost = true
+	return file, nil
+}
+
+// ConfigJSON returns the activation's config block re-encoded as one JSON
+// object, decoded the way the extension worker decodes it (a YAML mapping into
+// map[string]any). It returns nil when the file has no config block or the
+// block is null, and an error when the block is not a mapping or cannot be
+// encoded as JSON. The coordinator carries the result as an opaque value; this
+// package does not interpret any key inside it.
+func (f ActivationRuntimeFile) ConfigJSON() (json.RawMessage, error) {
+	node := f.config
+	if node.Kind == 0 || (node.Kind == yaml.ScalarNode && node.Tag == "!!null") {
+		return nil, nil
+	}
+	if node.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("activation config config block must be a mapping")
+	}
+	var block map[string]any
+	if err := node.Decode(&block); err != nil {
+		return nil, fmt.Errorf("decode activation config config block: %w", err)
+	}
+	encoded, err := json.Marshal(block)
+	if err != nil {
+		return nil, fmt.Errorf("encode activation config config block: %w", err)
+	}
+	return encoded, nil
 }
 
 // LoadActivationHostClaimMetadata reads the optional host claim metadata from
@@ -35,28 +108,11 @@ type activationHostConfigFile struct {
 // errors. The file may contain other adapter-specific sections; this reader
 // ignores them.
 func LoadActivationHostClaimMetadata(path string) (ActivationHostClaimMetadata, bool, error) {
-	if strings.TrimSpace(path) == "" {
-		return ActivationHostClaimMetadata{}, false, nil
-	}
-	raw, err := os.ReadFile(strings.TrimSpace(path))
+	file, err := LoadActivationRuntimeFile(path)
 	if err != nil {
-		return ActivationHostClaimMetadata{}, false, fmt.Errorf(
-			"read activation config host metadata: %w",
-			sanitizedFileReadError(err),
-		)
-	}
-	var config activationHostConfigFile
-	if err := yaml.Unmarshal(raw, &config); err != nil {
-		return ActivationHostClaimMetadata{}, false, fmt.Errorf("decode activation config host metadata: %w", err)
-	}
-	host := config.Host.Normalized()
-	if host.Empty() {
-		return ActivationHostClaimMetadata{}, false, nil
-	}
-	if err := host.Validate(); err != nil {
 		return ActivationHostClaimMetadata{}, false, err
 	}
-	return host, true, nil
+	return file.Host, file.HasHost, nil
 }
 
 // Normalized returns a copy with whitespace trimmed from all string fields.

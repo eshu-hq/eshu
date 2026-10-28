@@ -31,6 +31,13 @@
   `ControlStore` has a corresponding implementation in
   the Postgres WorkflowControlStore implementation. Changing method
   signatures requires a coordinated storage update.
+- **Activation derive lists are explicit** —
+  `ValidateVulnerabilityIntelligenceDerivationConfiguration` (the activation
+  variant) refuses an enabled derive section with blank `sources` or
+  `ecosystems` as `DeriveListNotExplicitError`, after the shared per-value
+  checks so their text stays the full validator's. Do not move this rule into
+  `ValidateVulnerabilityIntelligenceCollectorConfiguration`: in-tree instances
+  keep their blank-list defaults (#9311).
 - **collectorContracts lookup must be exhaustive** — unknown collector kinds
   return an empty phase list; `ReconcileRunProgress` will treat them as having
   no requirements, which may silently permit premature `complete` transitions.

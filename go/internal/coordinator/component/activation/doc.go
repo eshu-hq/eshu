@@ -15,4 +15,10 @@
 // coordinator child package, so every one of those consumers — coordinator
 // root files and extension alike — can import it without
 // creating an import cycle.
+//
+// Config.ComponentConfig is the one opaque field: the activation's config
+// block as a JSON object, filled by root's readback only for a collector kind
+// whose coordinator plans host-derived scopes (#9311). ParseConfig accepts it
+// absent, null, or as any JSON object and rejects every other JSON value; it
+// never reads a key inside it.
 package activation

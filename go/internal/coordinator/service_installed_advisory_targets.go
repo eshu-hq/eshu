@@ -16,14 +16,10 @@ import (
 
 func (s Service) vulnerabilityInstalledEvidenceTargets(
 	ctx context.Context,
-	instance workflow.CollectorInstance,
+	derivation vulnerability.DerivationConfiguration,
 	observedAt time.Time,
 	interval time.Duration,
 ) ([]workflow.OSPackageAdvisoryTarget, []workflow.SBOMComponentAdvisoryTarget, error) {
-	derivation, err := vulnerabilityInstalledEvidenceDerivationFromConfig(instance.Configuration)
-	if err != nil {
-		return nil, nil, err
-	}
 	if !derivation.Enabled {
 		return nil, nil, nil
 	}

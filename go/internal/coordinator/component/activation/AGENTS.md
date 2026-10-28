@@ -68,6 +68,10 @@ move into the scheduler-owned child), not adjacent scope.
   configured.
 - Normalize and validate an optional `host` claim; clear it when
   normalization yields an empty value instead of failing.
+- Treat `component_config` as opaque: accept absent, `null`, or a JSON
+  object, reject any other JSON value, and never read or validate a key
+  inside it. A component-specific key belongs to that kind's coordinator
+  planner, never to this package (#9311).
 
 ## Common changes and how to scope them
 
@@ -80,6 +84,12 @@ move into the scheduler-owned child), not adjacent scope.
   exclusion check, `governance_audit.go`'s audit identity) for whether it
   needs the new field. Do not add coordinator-specific behavior here even
   if only one consumer needs it — put that logic in the consumer.
+- **A kind needs settings from the activation's config block** → do not add
+  fields to `Config`. Root's readback already carries the block as
+  `ComponentConfig` for the kinds `activationCarriesComponentConfig` names;
+  extend that list and decode the block in the kind-scoped hook
+  (`../../component_extension_service.go`) with the kind's own validator. Keep
+  it out of `RequestedScopeSet` and out of work-item identity.
 
 ## Verification
 

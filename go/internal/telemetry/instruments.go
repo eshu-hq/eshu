@@ -2973,6 +2973,11 @@ type Instruments struct {
 	// that hit max_pages, by provider and endpoint operation
 	// (list_repo_alerts, list_org_alerts).
 	SecurityAlertTruncatedReads metric.Int64Counter
+	// ActivationDerivedScopesPlanned counts #9311 derived scopes the workflow
+	// coordinator plans for a component activation, by collector kind,
+	// collector instance, and ecosystem. Registered by
+	// registerActivationDerivedScopeInstruments.
+	ActivationDerivedScopesPlanned metric.Int64Counter
 	// SecurityAlertOrgFanoutRepositories counts #8805 allowlisted
 	// repositories handled by the org-scope per-repository fan-out, by
 	// provider and the closed outcome set in contract/security_alert.go.
@@ -6083,6 +6088,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerCompletionWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerActivationDerivedScopeInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerComponentExtensionInstruments(meter, inst); err != nil {

@@ -268,6 +268,11 @@ func (c Config) Validate() error {
 		if err := validateScanInterval(instance.Configuration, c.ReconcileInterval); err != nil {
 			return fmt.Errorf("collector instance %q: %w", instance.InstanceID, err)
 		}
+		// instance.Validate skips the derive rules for an activation
+		// document, so a static one is checked here (#9311).
+		if err := checkActivationDocumentDerivation(instance.CollectorKind, instance.Configuration); err != nil {
+			return fmt.Errorf("collector instance %q: %w", instance.InstanceID, err)
+		}
 		if instance.Enabled && instance.ClaimsEnabled && !c.ClaimsEnabled {
 			return fmt.Errorf("collector instance %q enables claims while coordinator claims are disabled", instance.InstanceID)
 		}

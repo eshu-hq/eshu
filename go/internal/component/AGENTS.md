@@ -35,6 +35,12 @@
   only observing installed-manifest loader: call it only for a component that
   is about to run, so the activation counter means "planned to run".
 
+- **The activation config block stays opaque** — `LoadActivationRuntimeFile`
+  reads `host` and `config` in one read and never interprets a key inside
+  `config`. `ConfigJSON` must keep the worker's decoding (YAML mapping into
+  `map[string]any`, then JSON) so the coordinator and the component see the
+  same block, and its errors must not carry the file path (#9311).
+
 - **Registry state is durable** — update `registry.json` atomically and keep
   manifest copies under the component home so offline verification remains
   inspectable.

@@ -156,3 +156,56 @@ func TestComponentExtensionPlannerRejectsUnsupportedSDKProtocol(t *testing.T) {
 		t.Fatalf("PlanComponentExtensionWork() error = %v, want runtime.sdk_protocol rejection", err)
 	}
 }
+
+// TestComponentExtensionPlannerKeepsComponentConfigOutOfRequestedScopeSet
+// proves the opaque component_config block never reaches RequestedScopeSet and
+// does not change the generic work-item identity: the ids hash the config
+// handle, not the block's content (#9311).
+func TestComponentExtensionPlannerKeepsComponentConfigOutOfRequestedScopeSet(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.October, 27, 22, 0, 0, 0, time.UTC)
+	configuration := func(block string) string {
+		raw := `{"schema_version":"eshu.component.instance.v1",` +
+			`"component_id":"dev.eshu.collectors.vulnerability-intelligence","component_version":"0.1.0",` +
+			`"manifest_digest":"sha256:1234","config_handle":"component-config:abcd",` +
+			`"host":{"source_system":"vulnerability_intelligence","scope":{"id":"vuln-intel://cisa/kev","kind":"vulnerability_intelligence"}},` +
+			`"runtime":{"sdk_protocol":"collector-sdk/v1alpha1","adapter":"oci"}`
+		if block != "" {
+			raw += `,"component_config":` + block
+		}
+		return raw + `}`
+	}
+	plan := func(block string) (workflow.Run, []workflow.WorkItem) {
+		t.Helper()
+		run, items, err := WorkPlanner{}.PlanComponentExtensionWork(context.Background(), PlanRequest{
+			Instance: workflow.CollectorInstance{
+				InstanceID: "vuln-intel-activation", CollectorKind: scope.CollectorVulnerabilityIntelligence,
+				Mode: workflow.CollectorModeScheduled, Enabled: true, ClaimsEnabled: true,
+				Configuration: configuration(block),
+				CreatedAt:     observedAt, UpdatedAt: observedAt, LastObservedAt: observedAt,
+			},
+			ObservedAt: observedAt,
+			PlanKey:    "scheduled-20261027T220000Z",
+		})
+		if err != nil {
+			t.Fatalf("PlanComponentExtensionWork() error = %v, want nil", err)
+		}
+		return run, items
+	}
+	withBlock, withItems := plan(`{"derive_from_owned_packages":{"enabled":true,"ecosystems":["npm"]},"marker":"opaque-marker"}`)
+	without, withoutItems := plan("")
+	for _, forbidden := range []string{"component_config", "derive_from", "opaque-marker"} {
+		if strings.Contains(withBlock.RequestedScopeSet, forbidden) {
+			t.Fatalf("RequestedScopeSet = %s, want no %q", withBlock.RequestedScopeSet, forbidden)
+		}
+	}
+	if withBlock.RunID != without.RunID || withItems[0].WorkItemID != withoutItems[0].WorkItemID ||
+		withItems[0].GenerationID != withoutItems[0].GenerationID {
+		t.Fatalf("ids changed with component_config: run %q vs %q, item %q vs %q",
+			withBlock.RunID, without.RunID, withItems[0].WorkItemID, withoutItems[0].WorkItemID)
+	}
+	if withBlock.RequestedScopeSet != without.RequestedScopeSet {
+		t.Fatalf("RequestedScopeSet changed with component_config:\n%s\n%s", withBlock.RequestedScopeSet, without.RequestedScopeSet)
+	}
+}

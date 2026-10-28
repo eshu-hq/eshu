@@ -169,9 +169,11 @@ export ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON='{"mode":"restricted","extension
 docker compose --profile workflow-coordinator up --build workflow-coordinator
 ```
 
-Missing policy denies component-extension claims. In restricted mode, a
-matching component allow rule is required and deny rules win. Broad mode must
-be explicit and cannot include extension-specific rules:
+Missing policy denies component-extension claims. A denied activation also
+gets none of the scopes the coordinator derives for its kind (for example a
+`vulnerability_intelligence` activation's OSV scopes) and no owned-package read.
+In restricted mode, a matching component allow rule is required and deny rules
+win. Broad mode must be explicit and cannot include extension-specific rules:
 
 ```bash
 export ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON='{"mode":"broad"}'

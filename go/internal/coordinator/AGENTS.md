@@ -247,6 +247,30 @@ because schedulers stop at the first error. One predicate enforces it:
 - Blank, unrelated, and in-tree target configuration stay with the in-tree
   planner. Skipping is silent by design: it is a partition, and the generic
   scheduler logs and audits its own egress decisions.
+- A kind that needs host-derived scopes for its activations gets them from a
+  kind-scoped hook, not from a selector: `scheduleActivationDerivedScopes`
+  (`component_extension_service.go`) runs inside `scheduleComponentExtensionWork`,
+  after the egress decision, and admits through
+  `createWorkflowWorkIfNoOpenTargets` (#9311). Today only
+  `vulnerability_intelligence` has one. It decodes the opaque
+  `activation.Config.ComponentConfig` (filled by the readback only for kinds
+  `activationCarriesComponentConfig` names), refuses a host scope kind or
+  source system that is not `vulnerability_intelligence` or a derive section
+  with blank `sources`/`ecosystems` (`reason=derive_lists_not_explicit`). Both
+  refusals live in one pure function, `checkActivationDerivation`.
+  `componentActivationRuntimeConfig` (registry activations) and
+  `Config.Validate` (every desired instance, through
+  `checkActivationDocumentDerivation`, which covers a static
+  `ESHU_COLLECTOR_INSTANCES_JSON` activation document) call it, so an invalid
+  block is a `LoadConfig` error before any durable write on both config
+  paths; the hook calls it again as a
+  backstop, and like every reconcile error a refusal there stops the
+  coordinator (`runReconcile` returns, `Service.Run` exits). Keep the rules in
+  that function; do not fork them per caller. The hook reads targets
+  through the same `vulnerabilityOwnedTargets` and
+  `vulnerabilityInstalledEvidenceTargets` helpers as the in-tree path, which
+  take the decoded derive section. Do not add a second scheduler that selects
+  activations: it would bypass egress and break the partition above.
 
 ## Common changes and how to scope them
 
