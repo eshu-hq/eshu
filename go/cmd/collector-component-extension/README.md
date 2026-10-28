@@ -64,6 +64,20 @@ log line record the request, not the applied delay.
 `TestBuildClaimedServiceRecordsExtensionStatusAndHonorsRetryAfter` proves the
 wiring end to end through the real process runner.
 
+For the `vulnerability_intelligence` kind only, the worker also sets a
+`checkpoint.Recorder` as the extension host's `ClaimOutcomeRecorder` (#9420),
+built on `vulnerabilitystore.NewVulnerabilitySourceStateStore(database)` like the
+retired in-tree command. It writes `vulnerability_source_states` under this
+worker's instance id: the attempt or failure row from each claim outcome and
+the success row after the durable commit, at most two single-row statements per
+claim. `next_retry_at` uses the poll interval and the default attempt budget, so
+it matches the delay `ClaimedService` applies. Writes record the
+`vulnerability_intelligence.source_state_checkpoint` span event; skipped stale
+writes and store failures count on
+`eshu_dp_vulnerability_source_state_stale_writes_skipped_total` and
+`eshu_dp_vulnerability_source_state_write_failures_total` (labels `status`,
+`result`). Every other kind gets no recorder.
+
 ## Gotchas / invariants
 
 - `ESHU_COMPONENT_HOME` is required and must point at the same registry the

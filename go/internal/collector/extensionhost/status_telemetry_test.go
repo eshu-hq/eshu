@@ -47,6 +47,7 @@ func TestNextClaimedReportsOneResultForEveryFinalState(t *testing.T) {
 		result      func(workflow.WorkItem) sdkcollector.Result
 		runnerErr   error
 		recordErr   error
+		outcomeErr  error
 		provider    TokenProvider
 		want        ResultRecord
 		wantRecords int
@@ -178,6 +179,18 @@ func TestNextClaimedReportsOneResultForEveryFinalState(t *testing.T) {
 			wantRecords: 1,
 		},
 		{
+			// #9420: the claim-outcome recorder could not write the attempt
+			// row, so the host fails the completed claim retryable.
+			name:       "source state record failure",
+			outcomeErr: errors.New("postgres unavailable"),
+			result:     func(item workflow.WorkItem) sdkcollector.Result { return completeResult(item, testSDKFact(item)) },
+			want: ResultRecord{
+				CollectorKind: "repo", Origin: ResultOriginHost, State: sdkcollector.ResultRetryable,
+				FailureClass: FailureClassSourceStateRecord,
+			},
+			wantRecords: 1,
+		},
+		{
 			name: "host token mint denial",
 			provider: func(context.Context, workflow.WorkItem) (string, error) {
 				return "", &app.AuthDeniedError{StatusCode: 404}
@@ -202,6 +215,9 @@ func TestNextClaimedReportsOneResultForEveryFinalState(t *testing.T) {
 			source := mustNewSource(t, runner, recorder)
 			if tc.provider != nil {
 				source = mustNewSourceWithProvider(t, runner, recorder, tc.provider, nil)
+			}
+			if tc.outcomeErr != nil {
+				source = mustNewSourceWithOutcomeRecorder(t, runner, recorder, &recordingOutcomeRecorder{outcomeErr: tc.outcomeErr})
 			}
 			collected, _, _ := source.NextClaimed(context.Background(), item)
 			_ = collectFacts(t, collected)

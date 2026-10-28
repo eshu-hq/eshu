@@ -217,6 +217,9 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   retry, terminal-failure, release, and completion path.
 - `ClaimedGenerationCommitObserver` — optional post-commit hook (#5429): fires
   once a claim's commit succeeds, so a source's own progress marker advances only once landed.
+  It also fires once for an unchanged generation after its completion mutation
+  resolves, before the claim completes (#9420), so a source records an
+  unchanged result like a committed one.
 - `FairClaimDispatcher` — applies `workflow.FamilyFairnessScheduler` to a
   bounded candidate set and delegates each selected target to
   `ClaimControlStore.ClaimNextEligible`; empty target lanes are skipped during

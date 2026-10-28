@@ -2142,6 +2142,15 @@ type Instruments struct {
 	// replay still in flight are not counted; they are on the request span.
 	CollectorTerminalFailureAcknowledgements metric.Int64Counter
 
+	// VulnerabilitySourceStateStaleWritesSkipped and
+	// VulnerabilitySourceStateWriteFailures count the extension host's
+	// vulnerability_source_states writes (#9420): writes the monotonic upsert
+	// skipped, and writes the store failed. Labels are status
+	// (freshness_state) and result (terminal_status). Registered by
+	// registerVulnerabilitySourceStateInstruments.
+	VulnerabilitySourceStateStaleWritesSkipped metric.Int64Counter
+	VulnerabilitySourceStateWriteFailures      metric.Int64Counter
+
 	// RuntimeDeclarationQueryDuration measures the graph reads behind the
 	// runtime declaration read surface (#8817) by closed operation (list,
 	// excluded_count, repository_names, context_section) and closed outcome
@@ -6135,6 +6144,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err := registerCollectorTerminalFailureAcknowledgements(meter, inst); err != nil {
 		return nil, err
 	}
+	if err := registerVulnerabilitySourceStateInstruments(meter, inst); err != nil {
+		return nil, err
+	}
 	if err := registerRuntimeDeclarationQuery(meter, inst); err != nil {
 		return nil, err
 	}
@@ -8756,6 +8768,29 @@ func RegisterFilesByLanguageObservableGauge(inst *Instruments, meter metric.Mete
 	)
 	if err != nil {
 		return fmt.Errorf("register FilesByLanguage gauge: %w", err)
+	}
+	return nil
+}
+
+// registerVulnerabilitySourceStateInstruments registers the #9420
+// host-owned vulnerability source-state counters on inst. Both are labelled
+// by status (freshness_state) and result (terminal_status) only. The names
+// are literals so scripts/verify-telemetry-coverage.sh can find them; they
+// equal contract.MetricVulnerabilitySourceStateStaleWritesSkipped and
+// contract.MetricVulnerabilitySourceStateWriteFailures.
+func registerVulnerabilitySourceStateInstruments(meter metric.Meter, inst *Instruments) error {
+	var err error
+	if inst.VulnerabilitySourceStateStaleWritesSkipped, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_source_state_stale_writes_skipped_total",
+		metric.WithDescription("Vulnerability source-state writes the monotonic upsert skipped because a newer claim attempt already owns the row, by status (freshness_state) and result (terminal_status) (#9420)"),
+	); err != nil {
+		return fmt.Errorf("register VulnerabilitySourceStateStaleWritesSkipped counter: %w", err)
+	}
+	if inst.VulnerabilitySourceStateWriteFailures, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_source_state_write_failures_total",
+		metric.WithDescription("Vulnerability source-state writes that failed in the store, by status (freshness_state) and result (terminal_status) (#9420)"),
+	); err != nil {
+		return fmt.Errorf("register VulnerabilitySourceStateWriteFailures counter: %w", err)
 	}
 	return nil
 }

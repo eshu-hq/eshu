@@ -94,17 +94,23 @@ func NewSource(config Config) (*Source, error) {
 		liveGrants:          liveGrants,
 		grantObserver:       config.GrantObserver,
 		maxPages:            config.MaxResultPages,
+		outcomeRecorder:     config.ClaimOutcomeRecorder,
+		pendingOutcomes:     newPendingClaimOutcomes(),
 	}, nil
 }
 
 // NextClaimed runs one extension claim and returns facts for ClaimedService.
-// It reports one ResultRecord per call to a configured ResultRecorder, on
-// every exit path, after the outcome is decided.
+// On every exit path, after the outcome is decided, it reports one
+// ClaimOutcome to a configured ClaimOutcomeRecorder and then one ResultRecord
+// to a configured ResultRecorder, so the ResultRecord reflects a claim the
+// outcome recorder failed.
 func (s *Source) NextClaimed(
 	ctx context.Context,
 	item workflow.WorkItem,
 ) (collector.CollectedGeneration, bool, error) {
+	attemptedAt := s.clock().UTC()
 	collected, ok, result, origin, err := s.nextClaimed(ctx, item)
+	collected, ok, origin, err = s.recordClaimOutcome(ctx, item, attemptedAt, collected, ok, result, origin, err)
 	s.recordResult(ctx, item, result, origin, err)
 	return collected, ok, err
 }

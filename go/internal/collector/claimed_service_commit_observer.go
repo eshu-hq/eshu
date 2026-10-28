@@ -18,8 +18,11 @@ import (
 // progress state (for example ghactionsruntime's cross-cycle run watermark,
 // issue #5429) only AFTER ClaimedService has durably committed the claimed
 // generation's facts. See processClaimed in claimed_service.go for the call
-// site: it fires exactly once, immediately after commitCollected succeeds,
-// before the claim itself is completed.
+// sites: it fires exactly once, immediately after commitCollected succeeds,
+// before the claim itself is completed. An unchanged generation has no fact
+// commit; ClaimedService fires the hook once that generation's completion
+// mutation resolves, before the claim completes, so an unchanged result
+// records progress exactly like a committed one (#9420).
 //
 // This ordering exists because NextClaimed only PRODUCES a generation;
 // ClaimedService commits it afterward (commitCollected), and that commit can
@@ -41,8 +44,8 @@ import (
 // (claimed_service_dead_letter.go).
 type ClaimedGenerationCommitObserver interface {
 	// ObserveClaimedGenerationCommitted is called once per successfully
-	// committed claim cycle, after the durable commit and before claim
-	// completion. item is the SAME workflow.WorkItem NextClaimed received
+	// committed (or unchanged-resolved) claim cycle, after the durable
+	// commit and before claim completion. item is the SAME workflow.WorkItem NextClaimed received
 	// for this cycle, so an implementation can look up whatever per-item
 	// state it stashed during NextClaimed (see
 	// ghactionsruntime.pendingWatermarks for the reference implementation).

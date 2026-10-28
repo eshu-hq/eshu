@@ -39,3 +39,10 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
   request, recorded before `ClaimedService` decides. Never document them as the
   applied or honored delay: `ClaimedService` applies `max(PollInterval,
   request)`, and none once the attempt budget is spent.
+- `Config.ClaimOutcomeRecorder` (#9420) gets exactly one `RecordClaimOutcome`
+  per `NextClaimed` exit, called before `recordResult` so the `ResultRecord`
+  reflects a `source_state_record` failure. Only completed outcomes are
+  stashed, only `ObserveClaimedGenerationCommitted` consumes the stash, and
+  every exit clears the item's entry first. Never write success state before
+  the commit hook, and never let a failure-row write error change a claim's
+  class or terminality.

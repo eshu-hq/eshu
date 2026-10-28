@@ -177,3 +177,48 @@ func TestClaimedServiceCompletesClaimWhenObserverErrors(t *testing.T) {
 		t.Fatalf("terminal fail calls = %d, want %d", got, want)
 	}
 }
+
+// TestClaimedServiceObservesUnchangedResolution pins #9420: an unchanged
+// generation has no fact commit, but ClaimedService resolving it is the
+// durable outcome a source's progress state describes, so the observer fires
+// exactly once, before the claim completes.
+func TestClaimedServiceObservesUnchangedResolution(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.June, 1, 12, 15, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		heartbeat: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
+	}
+	unchanged := CollectedGeneration{Scope: testScope(), Generation: testGeneration(now), Unchanged: true}
+	source := &stubClaimedSourceWithObserver{
+		stubClaimedSource: &stubClaimedSource{collected: unchanged, ok: true},
+	}
+	committer := &stubClaimedCommitter{}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, committer)
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got := committer.claimedCalls; got != 0 {
+		t.Fatalf("commit calls = %d, want 0 for an unchanged generation", got)
+	}
+	if got, want := source.observeCalls, 1; got != want {
+		t.Fatalf("observe calls = %d, want %d", got, want)
+	}
+	if got := source.lastObserved.WorkItemID; got != item.WorkItemID {
+		t.Fatalf("observed work item = %q, want %q", got, item.WorkItemID)
+	}
+	if got, want := store.completeCalls, 1; got != want {
+		t.Fatalf("complete calls = %d, want %d", got, want)
+	}
+}
