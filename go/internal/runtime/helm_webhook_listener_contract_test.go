@@ -59,6 +59,35 @@ webhookListener:
 	}
 }
 
+func TestHelmWebhookListenerRendersIntakeToken(t *testing.T) {
+	t.Parallel()
+
+	valuesPath := filepath.Join(t.TempDir(), "webhook-listener-intake-values.yaml")
+	values := []byte(`
+contentStore:
+  dsn: postgresql://eshu:secret@postgres:5432/eshu
+webhookListener:
+  enabled: true
+  github:
+    enabled: true
+    path: /webhooks/github
+    secretName: eshu-github-webhook
+    secretKey: secret
+  intake:
+    enabled: true
+    secretName: eshu-webhook-intake
+    tokenKey: token
+`)
+	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+		t.Fatalf("write webhook listener values: %v", err)
+	}
+
+	manifests := renderHelmChart(t, "-f", valuesPath)
+	deployment := requireHelmManifest(t, manifests, "Deployment", "eshu-webhook-listener")
+	env := helmEnvByName(requireHelmContainer(t, deployment, "webhook-listener"))
+	assertHelmSecretEnv(t, env, "ESHU_WEBHOOK_INTAKE_TOKEN", "eshu-webhook-intake", "token")
+}
+
 func assertHelmSecretEnv(t *testing.T, env map[string]map[string]any, name, secretName, secretKey string) {
 	t.Helper()
 

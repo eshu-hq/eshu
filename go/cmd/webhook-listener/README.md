@@ -64,13 +64,52 @@ flowchart LR
   `go/internal/webhook/intake`). Requires `ESHU_WEBHOOK_INTAKE_TOKEN`.
 - `ESHU_WEBHOOK_INTAKE_TOKEN` is the bearer secret the listener presents to
   the core intake API. Required whenever `ESHU_WEBHOOK_INTAKE_URL` is set.
+  Set without `ESHU_WEBHOOK_INTAKE_URL`, it mounts the served intake API
+  (`POST /api/v1/webhook/intake/...` backed by this binary's Postgres
+  stores) so a satellite listener has a serving endpoint to submit to.
 
 In intake mode the listener opens no Postgres handle and runs no
 `EnsureSchema`: core retains durable trigger storage and lifecycle, and the
 listener is a verifier/normalizer only. Readiness probes core's `/healthz` —
 a listener that cannot reach core reports not-ready so traffic stays on a
 replica that can hand off. The direct-Postgres path remains the default when
-`ESHU_WEBHOOK_INTAKE_URL` is unset.
+`ESHU_WEBHOOK_INTAKE_URL` is unset. In direct mode with
+`ESHU_WEBHOOK_INTAKE_TOKEN` set, the same binary additionally serves the
+intake API on its combined mux, so `/healthz` and `/readyz` cover the intake
+path on the same port; trigger families without a configured store answer
+503 so the satellite keeps the delivery for redelivery.
+
+### Served intake evidence (#9404)
+
+No-Regression Evidence: baseline `origin/main` (merge `a5252ea`) vs this
+change. `helm template` (helm v3.19.0) of
+`templates/deployment-webhook-listener.yaml` with a provider-enabled values
+file renders byte-identical manifests before and after while `intake` stays
+disabled (default); enabling `intake` adds only the
+`ESHU_WEBHOOK_INTAKE_TOKEN` secretKeyRef env block, with no value inline.
+Go: `go test ./cmd/webhook-listener/ ./internal/webhook/...` green; without
+a token the served mount is absent (`TestServeIntakeDisabledWithoutToken`
+pins 404 on the intake route), and intake (submitter) mode never serves
+(`TestServeIntakeDisabledInIntakeMode`). Extracted-path parity stays 8/8
+green: 7 valid providers store 3 repository + 2 incident + 1 AWS + 1 GCP
+rows, duplicates coalesce with `duplicate_count` 1, oversized bodies 413 at
+the edge, store outage 500 with a healed single-row retry, FIFO claim order,
+bad intake token 500, and Actions exact-replay 202 vs conflicting-identity
+409 with the original row intact. Terminal row counts prove no dual rows and
+no lost deliveries. This is safe because the mount is inert unless
+`ESHU_WEBHOOK_INTAKE_TOKEN` is set, authentication fails closed through
+`intake.NewServerChecked`, and unconfigured families answer 503 so the
+satellite keeps deliveries for redelivery.
+
+Observability Evidence: served-intake outcomes use the intake server's
+structured logs (`intake trigger stored`, `intake request rejected`,
+`intake store failed`, `intake delivery conflict`) with bounded
+route/provider/status/reason fields — Bearer [REDACTED] never appear — on the same
+port covered by the existing `/healthz` and `/readyz` probes
+(`TestServedIntakeSharesAdminProbes`). Provider-side OTEL
+(`eshu_dp_webhook_*`, `webhook.handle`/`webhook.store`) is unchanged; the
+served path adds no metric, verified by
+`scripts/verify-telemetry-coverage.sh` reporting no new stages.
 
 GitHub Actions deliveries require `X-GitHub-Delivery` and a valid GitHub
 HMAC. The listener stores only event, action, repository, run, and optional job

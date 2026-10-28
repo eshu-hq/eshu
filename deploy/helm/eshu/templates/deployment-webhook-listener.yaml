@@ -120,6 +120,13 @@ spec:
                   name: {{ .Values.webhookListener.jira.secretName }}
                   key: {{ .Values.webhookListener.jira.secretKey }}
             {{- end }}
+            {{- if .Values.webhookListener.intake.enabled }}
+            - name: ESHU_WEBHOOK_INTAKE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.webhookListener.intake.secretName }}
+                  key: {{ .Values.webhookListener.intake.tokenKey }}
+            {{- end }}
             {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}
             {{- include "eshu.renderConnectionTuningEnv" .Values.webhookListener.connectionTuning | nindent 12 }}
             {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "webhook-listener") | nindent 12 }}
