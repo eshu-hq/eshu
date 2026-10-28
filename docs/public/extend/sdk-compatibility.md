@@ -88,6 +88,18 @@ extracted NVD provider pin this immutable candidate and must separately prove
 byte parity, pagination, and payload output. Their deployed acceptance remains
 NOT_CHECKED.
 
+`factschema/v0.1.0-rc.10` is published at SDK merge commit
+`f921babcf8dffc9b04d84f3fc412a7cd76580937` through eshu-sdk PR #60. It adds
+the additive optional `collector_instance_id`, `result_count`, and
+`coverage_descriptor` fields on `vulnerability.source_snapshot`. The exact
+version resolved through the public Go proxy, and the proxy origin names the
+same commit; module zip checksum:
+`h1:+8IpD4At2XmaSePQ5FdYi6BFAXQA9a1RRnrAYfMbdcc=`; `go.mod` checksum:
+`h1:GysO1GSvcUYSSl7ydDx34MYRSw4yI2DgADT0twajVXY=`. It is pinned by core
+#9435. Moving the core pin from RC7 changes one `go.mod` line, and `go.sum`
+also moves because the RC10 requirement graph differs from the RC7 graph.
+Reducer, query, and deployed acceptance remain separate proof.
+
 The new module version histories are independent of the original paths'
 `v0.2.0` lines. The migration starts on the initial `v0.1.0` prerelease line,
 so its preferred collector candidate is `collector/v0.1.0-rc.2`;
@@ -125,7 +137,7 @@ round-trip (#8941), reducer/graph behavior, or API/MCP results.
 
 | State | Required evidence | Current recorded status for the new paths |
 | --- | --- | --- |
-| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s and both preferred `v0.1.0-rc.2` modules tagged and proxy verified; historical collector `v0.2.0-rc.1` tagged, with fresh proxy proof pending; `collector/v0.1.0-rc.3`, `factschema/v0.1.0-rc.3`, `factschema/v0.1.0-rc.4`, and `factschema/v0.1.0-rc.5` tagged and proxy verified; `factschema/v0.1.0-rc.6` and `factschema/v0.1.0-rc.7` tagged and proxy verified; `collector/v0.1.0-rc.5` tagged and proxy verified (vault auth-role metadata allow-list, eshu-hq/eshu#8869); core consumer qualification and deployed acceptance pending |
+| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | First RC1s and both preferred `v0.1.0-rc.2` modules tagged and proxy verified; historical collector `v0.2.0-rc.1` tagged, with fresh proxy proof pending; `collector/v0.1.0-rc.3`, `factschema/v0.1.0-rc.3`, `factschema/v0.1.0-rc.4`, and `factschema/v0.1.0-rc.5` tagged and proxy verified; `factschema/v0.1.0-rc.6`, `factschema/v0.1.0-rc.7`, and `factschema/v0.1.0-rc.10` tagged and proxy verified; `collector/v0.1.0-rc.5` tagged and proxy verified (vault auth-role metadata allow-list, eshu-hq/eshu#8869); core consumer qualification and deployed acceptance pending |
 | Qualified consumer/core pair | Exact new module pins, contract and runtime proof against a named core version, including grant-aware conformance for reserved fact kinds | No pair fully qualified yet. Core PR #9111 pins `collector/v0.1.0-rc.3` + `factschema/v0.1.0-rc.5`; qualification proof pending CI green and the pair gates |
 | Deployed accepted pair | Matching deployment, reducer, graph, API/MCP, retry, operator, and rollback proof | No deployment accepted |
 

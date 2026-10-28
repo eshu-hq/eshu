@@ -13,7 +13,7 @@ no recorded pin. Newer tags MUST NOT be substituted without that reviewed
 update):
 
 - `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.5`
-- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7`
+- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.10`
 
 Pin history: proxy-verified 2026-10-24 at collector/factschema
 `v0.1.0-rc.1`; in-tree moved to standalone modules at collector `rc.3` +
@@ -25,7 +25,9 @@ availability), to factschema `rc.7` with main (proxy-verified
 and to collector `rc.5` for the vault auth-role metadata allowlist
 (`token_ttl_seconds`, `token_policy_count`,
 `token_policy_name_fingerprints`; eshu-hq/eshu#8869, proxy-verified
-2026-10-28 via `go mod download`).
+2026-10-28 via `go mod download`), and to factschema `rc.10` for the
+`vulnerability.source_snapshot` NVD coverage fields (eshu-hq/eshu#9435,
+proxy-verified 2026-10-28).
 The extracted port
 (`eshu-collector-sbom-attestation` main, observed 2026-10-27) still builds
 at collector/factschema `v0.1.0-rc.2` — that drift is open until the port
