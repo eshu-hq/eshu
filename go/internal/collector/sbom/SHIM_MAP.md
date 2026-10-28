@@ -12,7 +12,7 @@ fails on version drift in either direction and on built SDK modules with
 no recorded pin. Newer tags MUST NOT be substituted without that reviewed
 update):
 
-- `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.4`
+- `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.5`
 - `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7`
 
 Pin history: proxy-verified 2026-10-24 at collector/factschema
@@ -20,8 +20,12 @@ Pin history: proxy-verified 2026-10-24 at collector/factschema
 factschema `rc.4` via `686ad9c269`, to factschema `rc.5` via `d103071673`,
 to factschema `rc.6` via `df21acbf30` (#9252, records RC6/RC7 proxy
 availability), to factschema `rc.7` with main (proxy-verified
-2026-10-27 via `go mod download`), and to collector `rc.4` for the
-`env_from_secret` allowlist (eshu-hq/eshu#9327, proxy-verified 2026-10-28).
+2026-10-27 via `go mod download`), to collector `rc.4` for the
+`env_from_secret` allowlist (eshu-hq/eshu#9327, proxy-verified 2026-10-28),
+and to collector `rc.5` for the vault auth-role metadata allowlist
+(`token_ttl_seconds`, `token_policy_count`,
+`token_policy_name_fingerprints`; eshu-hq/eshu#8869, proxy-verified
+2026-10-28 via `go mod download`).
 The extracted port
 (`eshu-collector-sbom-attestation` main, observed 2026-10-27) still builds
 at collector/factschema `v0.1.0-rc.2` — that drift is open until the port
