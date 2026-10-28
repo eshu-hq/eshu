@@ -64,7 +64,7 @@ or first-use cost; the job score charges those build costs once (#9348).
 Before #9348 the splitter charged cold, first-use, and test prices to every
 row, so a row could fail on compile time the clock never sees. The row budget
 is 675 s, 75% of the clock. Measured over 17 green five-shard main runs, the
-repeat residual has a median of 11.5 s (n=161) while a shard's first
+repeat residual has a median of 11.5 s (n=157) while a shard's first
 `./internal/storage/postgres` row pays 336 to 655 s of build before its first
 test. Rows predicted at 150 s or more ran at a measured/predicted test-time
 ratio of p50 1.00, p95 1.16, p99 1.26, and max 1.33 (n=188), so a 675 s row

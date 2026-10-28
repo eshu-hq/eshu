@@ -76,11 +76,15 @@ class RowClockAdmissionTest(unittest.TestCase):
 
     def test_job_score_charges_build_once_with_the_new_row_count(self) -> None:
         # Four 150 s tests fit one row at 610 s; the old admission charged
-        # 660 s per test and cut four rows, adding three repeat prices.
-        for count, rows_expected in ((4, 1), (6, 2)):
-            with self.subTest(count=count):
+        # 660 s per test and cut four rows, adding three repeat prices. The
+        # 165 s and 167 s cases sit on the 675 s boundary (cold 10, repeat 10):
+        # 660 + 10 = 670 fits one row, 668 + 10 = 678 does not, so the job
+        # score row count cannot drift from the runner's split_rows.
+        cases = ((4, 150.0, 1), (6, 150.0, 2), (4, 165.0, 1), (4, 167.0, 2))
+        for count, seconds, rows_expected in cases:
+            with self.subTest(count=count, seconds=seconds):
                 runs = [f"./p|Test{index}Live" for index in range(count)]
-                weights = model({run: 150.0 for run in runs}, ["./p"])
+                weights = model({run: seconds for run in runs}, ["./p"])
                 rows = v2.split_rows(runs, weights)
                 self.assertEqual(len(rows), rows_expected)
                 self.assertEqual([run for row in rows for run in row], runs)
@@ -88,7 +92,8 @@ class RowClockAdmissionTest(unittest.TestCase):
                                     for row in rows))
                 self.assertEqual(v2.Scorer(runs, weights).row_count(0, count),
                                  rows_expected)
-                hand = 0 + 100 + count * 1500 + 5000 + (rows_expected - 1) * 100
+                hand = (0 + 100 + round(count * seconds * 10) + 5000
+                        + (rows_expected - 1) * 100)
                 self.assertEqual(v2.segment_cost_tenths(runs, weights), hand)
 
     def test_planted_800_s_lone_test_trips_the_live_gate(self) -> None:
