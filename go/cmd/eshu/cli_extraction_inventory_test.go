@@ -80,6 +80,43 @@ func TestExtractionInventoryRecordsContracts(t *testing.T) {
 	}
 }
 
+// TestExtractionInventoryAppliesArbiterRuling8874 pins the recorded arbiter
+// ruling for #8874: neo4j/install extract, graph/watch/w stay in core with
+// local-host, and demo splits its command from its Compose assets. If the
+// inventory is reverted to the pre-ruling DECIDE rows, each assertion names
+// the row that regressed.
+func TestExtractionInventoryAppliesArbiterRuling8874(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("cli_extraction_inventory.md")
+	if err != nil {
+		t.Fatalf("ReadFile(cli_extraction_inventory.md) error = %v", err)
+	}
+	doc := string(raw)
+
+	for _, name := range []string{"graph", "install", "neo4j", "watch", "w", "demo", "n"} {
+		if strings.Contains(inventoryRow(doc, name), "DECIDE") {
+			t.Fatalf("%s row still DECIDE after the arbiter ruling", name)
+		}
+	}
+
+	for _, name := range []string{"install", "neo4j", "n"} {
+		if row := inventoryRow(doc, name); !strings.Contains(row, "EXTRACT") {
+			t.Fatalf("%s row = %q, want EXTRACT per the arbiter ruling", name, row)
+		}
+	}
+
+	for _, name := range []string{"graph", "watch", "w"} {
+		if row := inventoryRow(doc, name); !strings.Contains(row, "RETAIN") {
+			t.Fatalf("%s row = %q, want core RETAIN with local-host per the arbiter ruling", name, row)
+		}
+	}
+
+	if row := inventoryRow(doc, "demo"); !strings.Contains(row, "#8871") {
+		t.Fatalf("demo row = %q, want the #8871 asset/matrix split per the arbiter ruling", row)
+	}
+}
+
 func inventoryRow(doc, name string) string {
 	for _, line := range strings.Split(doc, "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "| `"+name+"`") {

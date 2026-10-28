@@ -29,7 +29,7 @@ survives) · **DECIDE** (needs an owner ruling before the move).
 | `component` | EXTRACT | User surface moves as clients: `grant`, `revoke-grant`, `grants`, `schema-versions`, `diagnostics`, `inventory`, `index` call core admission contracts; `install`, `verify`, `conform`, `init`, `inspect`, `list`, `enable`, `disable`, `uninstall` target extension-host contracts. Trust/execution backend itself is `eshu-extension-host`, not this CLI. |
 | `config` | EXTRACT | Local config UX (`db`, `reset`, `set`, `show`, `validate` against the central env registry). |
 | `delete` / `rm` | STUB | Removed stubs pointing at admin deletion flows (which stay). |
-| `demo` | EXTRACT | Credential-free onboarding stack (`up`, `status`, `down`); own Compose project, no provider credentials. Compose-matrix overlap with #8871 to confirm. |
+| `demo` | EXTRACT | Split per the arbiter ruling: the command (`up`, `status`, `down` plus `demo-benchmark`, a clean API/MCP client showcasing CLI UX) moves to `eshu-cli`; the Compose assets (`docker-compose.demo.yaml` and fragments), the question manifest pin, and the tested CLI↔Compose↔core-image version triple move to `eshu-deploy` under #8871 (compatibility matrix). `ESHU_DEMO_COMPOSE_FILE` stays the cross-repo seam. |
 | `demo-benchmark` | EXTRACT | Offline envelope scorer, pairs with `demo`. |
 | `docs` | EXTRACT | `verify` reads docs truth sources; no writes. |
 | `doctor` | EXTRACT | Diagnostics reporter; reads config and service health. |
@@ -41,14 +41,14 @@ survives) · **DECIDE** (needs an owner ruling before the move).
 | `first-run-benchmark` | EXTRACT | Offline envelope scorer, pairs with `first-run`. |
 | `finalize` | STUB | Deprecated removed stub; recovery is Go ingester owned. |
 | `freshness` | EXTRACT | Read-only generation-lifecycle client (`changed-since`, `generations`, `service-changed-since`). |
-| `graph` | DECIDE | Local backend sidecar lifecycle (`logs`, `start`, `status`, `stop`, `upgrade`). User-typed but deployment-adjacent; owner to rule `eshu-cli` vs `eshu-deploy` (#8871). |
+| `graph` | RETAIN | Local backend sidecar lifecycle (`logs`, `start`, `status`, `stop`, `upgrade`). RUNTIME launcher retained in core with `local-host`/`localsupervisor` per the arbiter ruling: `start` re-execs `local-host watch`, the supervisor owns core schema/embedded Postgres/child processes, and the owner record is not a cross-repo contract yet. Not `eshu-deploy`; not yet an `eshu-cli` client. |
 | `help` | EXTRACT | Cobra help; mechanical. |
 | `hosted-onboard` | EXTRACT | Team onboarding client against the hosted service contract. |
 | `hosted-setup` | EXTRACT | First-connection flow client; no local state writes beyond config. |
 | `i` | EXTRACT | Shortcut for `index`. |
 | `index` | EXTRACT | User indexing entrypoint over supported intake contracts. |
 | `index-status` | EXTRACT | Read-only checkpoint status client. |
-| `install` | DECIDE | Local backend tooling install (`nornicdb`, neo4j); same owner question as `graph`. |
+| `install` | EXTRACT | Local backend tooling install (`nornicdb`) with `graphinstall`. User-facing install workflow per the arbiter ruling; no core implementation handle. Conditions: `eshu-cli` implements its own version reader, the managed-home path/binary name/version-probe protocol is a recorded cross-repo filesystem contract, the supported CLI↔core-host pair enters the #8871 matrix, and the fail-closed source policy (`--sha256` required for remote sources, `--full` reserved) moves unchanged. |
 | `investigation` | EXTRACT | Evidence-packet export client (`export`: json, md, html). |
 | `list` / `ls` | EXTRACT | Read-only repository listing clients. |
 | `local-host` | RUNTIME | Hidden re-exec target for `graph start`, `watch`, `mcp start`; internal plumbing, follows the supervisor. Never user-typed. |
@@ -56,7 +56,7 @@ survives) · **DECIDE** (needs an owner ruling before the move).
 | `map` | EXTRACT | Bounded neighborhood client; exit codes via `entityMapExitCode`. |
 | `mcp` | EXTRACT / RUNTIME | `setup` (IDE integration) and `tools` move to `eshu-cli`. `start` launches the MCP runtime; follows `eshu-mcp` (#8873). |
 | `n` | EXTRACT | Shortcut for `neo4j setup`; follows the `neo4j` ruling. |
-| `neo4j` | DECIDE | Local database configuration; same owner question as `graph`. |
+| `neo4j` | EXTRACT | Connection-guidance text pointing at `eshu config set`; touches no database, filesystem lifecycle, or deployment asset. Splitting it from `config` would strand a verb whose help names a command in the other binary. |
 | `playbooks` | EXTRACT | Deterministic playbook list/resolve client. |
 | `query` | EXTRACT | Core read-path client. |
 | `report` | EXTRACT | Offline operator-digest renderer (`capture`, `validate`); no graph access by design. |
@@ -68,8 +68,8 @@ survives) · **DECIDE** (needs an owner ruling before the move).
 | `unwatch` | STUB | Removed stub; watcher lifecycle is ingester-runtime owned. |
 | `version` | EXTRACT | Prints `buildinfo.AppVersion()`; mechanical. |
 | `vuln-scan` | EXTRACT | Vulnerability evidence client (`provider-parity`, `repo`); aggregate-only output preserved. |
-| `w` | EXTRACT | Shortcut for `watch`. |
-| `watch` | EXTRACT | User-facing change-watch flow over supported contracts. |
+| `w` | RETAIN | Shortcut for `watch`; same treatment as `graph` until the versioned `local-host` entrypoint exists. |
+| `watch` | RETAIN | Same treatment as `graph` per the arbiter ruling: re-execs `local-host watch` exactly like `graph start`, so extracting it while `local-host` stays RUNTIME ships a broken command. |
 | `watching` | STUB | Removed stub; watcher lifecycle is ingester-runtime owned. |
 | `workspace` | EXTRACT | `status`/`watch` move as clients. `index`/`plan`/`sync` are STUBs pointing at `index`/`admin reindex`. |
 
@@ -129,7 +129,7 @@ against the registry. Inventory: `ESHU_SERVICE_URL`, `ESHU_API_KEY`,
 1. Seed from this inventory: `go/cmd/eshu` EXTRACT/STUB files plus the
    `go/internal/cli` families they own (admin excluded), `client.go` and the
    envelope MIME, `output.go`, `contract.go` exit table, and the env-registry
-   dependency. RUNTIME launchers stay out; DECIDE items wait for the ruling.
+   dependency. RUNTIME launchers stay out; the `graph`/`install`/`neo4j`/`watch`/`demo` rulings are applied above, so no DECIDE row remains.
 2. Keep `package main` plus the cobra tree intact so `--help`, `--json`
    envelopes, and exit codes 0–6 are byte-identical on day one; repoint
    imports from `go/internal/...` to the destination module or the published
@@ -144,8 +144,10 @@ against the registry. Inventory: `ESHU_SERVICE_URL`, `ESHU_API_KEY`,
 
 ## Open questions (owner rulings needed)
 
-- `graph` / `install` / `neo4j` local-backend lifecycle: `eshu-cli` or
-  `eshu-deploy` (#8871)?
-- `demo` Compose project vs the #8871 compatibility matrix: overlap or split?
 - Oldest/newest supported core↔CLI version pairs and credential handling for
   the independently released CLI (acceptance criteria still NOT_CHECKED).
+- Distribution of the demo Compose overlay and manifest to an installed
+  `eshu-cli` outside a checkout (embed, pinned fetch, or deploy-repo
+  checkout), to be decided in the #8871/#8874 execution.
+- Name, versioning, and discovery of the future core `local-host` entrypoint
+  that would let `graph`/`watch` verbs appear in `eshu-cli`.
