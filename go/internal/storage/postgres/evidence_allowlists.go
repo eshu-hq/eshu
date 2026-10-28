@@ -4,11 +4,12 @@
 package postgres
 
 // awsCloudInventoryAttributeAllowlist is the closed image/version allowlist
-// for aws_resource attributes (issue #5449). It surfaces the strongest
-// deployed-code signals the AWS collector already observes -- an ECS task's
-// running container image and digest plus its owning task definition, and a
-// Lambda function's container image URI/digest, code version, code_sha256, and
-// package_type -- while dropping every other AWS attribute key (cluster_arn,
+// for aws_resource attributes (issues #5449 and #9298). It surfaces AWS
+// runtime and patch-level fields the collector observes -- an ECS task's
+// running container image and digest plus its owning task definition; a
+// Lambda function's image URI/digest, code version, code_sha256, package_type,
+// and runtime; EKS platform, nodegroup release and add-on versions; and EC2
+// instance AMI id -- while dropping every other AWS attribute key (cluster_arn,
 // role_arn, kms_key_arn, network_interfaces, environment, vpc_config, and any
 // key not named here). package_type is the bounded Lambda packaging
 // discriminator ("Zip"/"Image") the readback uses to attach the #5454
