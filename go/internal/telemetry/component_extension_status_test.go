@@ -198,6 +198,32 @@ func TestComponentExtensionStatusRecorderAdmitsRefinedFailureClass(t *testing.T)
 	}
 }
 
+// TestComponentExtensionStatusRecorderFailureClassLengthBound pins the label
+// pattern edge: a 96-character class is admitted as its own label and the first
+// 97-character class folds to other, so widening the bound by one fails here
+// (eshu-hq/eshu#9289).
+func TestComponentExtensionStatusRecorderFailureClassLengthBound(t *testing.T) {
+	t.Parallel()
+
+	recorder, reader := newExtensionStatusRecorder(t)
+	ctx := context.Background()
+	atBound := "a." + strings.Repeat("b", 94)
+	pastBound := "a." + strings.Repeat("b", 95)
+	if len(atBound) != 96 || len(pastBound) != 97 {
+		t.Fatalf("fixture lengths = %d, %d, want 96, 97", len(atBound), len(pastBound))
+	}
+	recorder.RecordResult(ctx, "security_alert", "terminal", atBound, 0)
+	recorder.RecordResult(ctx, "security_alert", "terminal", pastBound, 0)
+
+	results := sumByAttrs(t, collectExtension(t, reader)[contract.MetricComponentExtensionResults])
+	if got := results["collector_kind=security_alert,failure_class="+atBound+",state=terminal,"]; got != 1 {
+		t.Fatalf("results = %v, want the 96-character class admitted", results)
+	}
+	if got := results["collector_kind=security_alert,failure_class=other,state=terminal,"]; got != 1 {
+		t.Fatalf("results = %v, want the 97-character class folded to other", results)
+	}
+}
+
 // TestComponentExtensionStatusRecorderNilSafe proves a recorder built without
 // instruments, and a nil recorder, record nothing and do not panic.
 func TestComponentExtensionStatusRecorderNilSafe(t *testing.T) {
