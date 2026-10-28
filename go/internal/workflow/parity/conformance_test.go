@@ -28,13 +28,11 @@ import (
 
 // scenario is one named differential case. It must seed, exercise, and
 // drain identically on any Backend, recording only comparable outcomes.
-// Most scenarios compare with Outcome.Equal; a scenario with an
-// arbiter-tracked known divergence sets compare to pin the exact pair
-// instead of forcing equality.
+// Every scenario compares with Outcome.Equal: a divergence is a finding
+// to fix behind a tracking issue, never a comparator leniency (#9428).
 type scenario struct {
-	name    string
-	run     func(s *Suite, ctx context.Context, backend Backend) *Outcome
-	compare func(t *testing.T, name string, inTree, satellite *Outcome)
+	name string
+	run  func(s *Suite, ctx context.Context, backend Backend) *Outcome
 }
 
 func emptyQueueScenario(s *Suite, ctx context.Context, backend Backend) *Outcome {
@@ -183,7 +181,7 @@ func sliceOne() []scenario {
 		{name: "stale-fence", run: staleFenceScenario},
 		{name: "lease-reaper", run: leaseReaperScenario},
 		{name: "fail-dispositions", run: failDispositionsScenario},
-		{name: "duplicate-replay", run: duplicateReplayScenario, compare: compareDuplicateReplay},
+		{name: "duplicate-replay", run: duplicateReplayScenario},
 		{name: "starvation-bound", run: starvationBoundScenario},
 	}
 }
@@ -209,46 +207,9 @@ func TestParityConformance(t *testing.T) {
 			suiteB := NewSuite(t, sc.name)
 			suiteB.Now = suiteA.Now
 			outB := sc.run(suiteB, ctx, satellite)
-			if sc.compare != nil {
-				sc.compare(t, sc.name, outA, outB)
-			} else {
-				outA.Equal(t, sc.name, outB)
-			}
+			outA.Equal(t, sc.name, outB)
 			ResetSatellite(t, satelliteDSN)
 		})
-	}
-}
-
-// compareDuplicateReplay pins the arbiter-tracked replay divergence
-// (#9428): an identical second Complete is rejected by the in-tree store
-// and accepted by the satellite, by design on the satellite side
-// (TestAmbiguousTimeoutReplay). Every other event must match exactly,
-// and the divergent pair must read exactly rejected/ok: drift on either
-// side fails loudly until #9428 closes with a ruling.
-func compareDuplicateReplay(t *testing.T, name string, inTree, satellite *Outcome) {
-	t.Helper()
-	wantEvents := []string{
-		"heartbeat-1=ok", "heartbeat-2=ok", "complete-1=ok",
-		"complete-2=rejected", "drained=true",
-	}
-	if len(inTree.Events) != len(wantEvents) {
-		t.Fatalf("%s: in-tree events=%v, want %v", name, inTree.Events, wantEvents)
-	}
-	for i, want := range wantEvents {
-		if inTree.Events[i] != want {
-			t.Fatalf("%s: in-tree event %d=%q, want %q (texts=%v)",
-				name, i, inTree.Events[i], want, inTree.Texts)
-		}
-	}
-	wantSatellite := []string{
-		"heartbeat-1=ok", "heartbeat-2=ok", "complete-1=ok",
-		"complete-2=ok", "drained=true",
-	}
-	for i, want := range wantSatellite {
-		if satellite.Events[i] != want {
-			t.Fatalf("%s: satellite event %d=%q, want %q (texts=%v)",
-				name, i, satellite.Events[i], want, satellite.Texts)
-		}
 	}
 }
 

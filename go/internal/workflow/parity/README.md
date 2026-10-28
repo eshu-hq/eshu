@@ -41,8 +41,11 @@ Throughput numbers log per leg for the dark-deployment no-regression baseline.
 
 ## Known divergences
 
-- Identical-replay `CompleteClaim`: in-tree rejects, satellite accepts
-  (tracked in [#9428](https://github.com/eshu-hq/eshu/issues/9428); the
-  comparator pins the exact pair).
+- None on the claim path: an identical replay of an already-applied
+  terminal mutation (complete, release, fail-retryable, fail-terminal)
+  acks on both legs, a heartbeat after the complete stays rejected on
+  both legs, and a replay after a reclaim stays rejected on both legs
+  ([#9428](https://github.com/eshu-hq/eshu/issues/9428), strict
+  `Outcome.Equal` since the replay-ack alignment).
 - Commit pin: in-tree has none (`TestParityPinGap`); pin survival is
   proven on the satellite leg only.

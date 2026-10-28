@@ -5,6 +5,9 @@ package parity
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // Conformance slice 2b: fail dispositions and duplicate delivery.
@@ -52,21 +55,79 @@ func failDispositionsScenario(s *Suite, ctx context.Context, backend Backend) *O
 }
 
 // duplicateReplayScenario proves idempotent handling of ambiguous-timeout
-// replays: identical mutations repeat without corrupting state, and a
-// second complete of a finished epoch is rejected on both legs.
+// replays across every terminal mutation (#9428, SATELLITE HOLDS): an
+// identical replay of an already-applied complete, release, fail-retryable,
+// or fail-terminal epoch acks on both legs, while a heartbeat after the
+// complete and a replay after a reclaim stay rejected on both legs.
+//
+// The scenario claims four epochs up front and binds one op per epoch by
+// claim order, never by item identity: rotation order is an implementation
+// detail the protocol does not pin, and no event records an item id, so the
+// record is identical whatever order the leg picks. Each phase leaves its
+// item completed or failed-terminal, so every reclaim below meets exactly
+// one pending item.
 func duplicateReplayScenario(s *Suite, ctx context.Context, backend Backend) *Outcome {
 	out := &Outcome{}
 	s.SeedRun(ctx, backend)
-	s.SeedItems(ctx, backend, 1)
-	item, claim, issued, err := backend.ClaimNextEligible(ctx, s.Selector("owner-a", s.RunID+"-claim-1"), s.Now, s.Lease)
-	if err != nil || !issued {
-		s.T.Fatalf("%s: claim: issued=%v err=%v", backend.Name(), issued, err)
+	s.SeedItems(ctx, backend, 4)
+	epochs := make([]workflow.ClaimMutation, 4)
+	for i := range epochs {
+		item, claim, issued, err := backend.ClaimNextEligible(
+			ctx, s.Selector("owner-a", fmt.Sprintf("%s-claim-%d", s.RunID, i)), s.Now, s.Lease)
+		if err != nil || !issued {
+			s.T.Fatalf("%s: claim %d: issued=%v err=%v", backend.Name(), i, issued, err)
+		}
+		epochs[i] = s.Mutation(item.WorkItemID, claim.ClaimID, claim.FencingToken, claim.OwnerID)
 	}
-	mutation := s.Mutation(item.WorkItemID, claim.ClaimID, claim.FencingToken, claim.OwnerID)
-	out.Call("heartbeat-1", backend.HeartbeatClaim(ctx, mutation))
-	out.Call("heartbeat-2", backend.HeartbeatClaim(ctx, mutation))
-	out.Call("complete-1", backend.CompleteClaim(ctx, mutation))
-	out.Call("complete-2", backend.CompleteClaim(ctx, mutation))
+
+	// Complete: live heartbeats replay ok, the identical second complete
+	// acks the committed epoch, and a heartbeat after it stays rejected.
+	out.Call("heartbeat-1", backend.HeartbeatClaim(ctx, epochs[0]))
+	out.Call("heartbeat-2", backend.HeartbeatClaim(ctx, epochs[0]))
+	out.Call("complete-1", backend.CompleteClaim(ctx, epochs[0]))
+	out.Call("complete-2", backend.CompleteClaim(ctx, epochs[0]))
+	out.Call("heartbeat-after-complete", backend.HeartbeatClaim(ctx, epochs[0]))
+
+	// Release: the identical second release acks the released epoch. The
+	// item is pending again, so reclaim it (the only pending item) and
+	// complete the successor epoch to drain it.
+	out.Call("release-1", backend.ReleaseClaim(ctx, epochs[1]))
+	out.Call("release-2", backend.ReleaseClaim(ctx, epochs[1]))
+	released, releasedClaim, issued, err := backend.ClaimNextEligible(
+		ctx, s.Selector("owner-a", s.RunID+"-claim-release-reclaim"), s.Now, s.Lease)
+	out.Record("release-reclaim issued=%v err=%s", issued, Classify(err))
+	if err != nil || !issued {
+		s.T.Fatalf("%s: release reclaim: issued=%v err=%v", backend.Name(), issued, err)
+	}
+	out.Call("complete-after-release", backend.CompleteClaim(ctx, s.Mutation(
+		released.WorkItemID, releasedClaim.ClaimID, releasedClaim.FencingToken, releasedClaim.OwnerID)))
+
+	// Fail-retryable: the identical second failure acks the failed epoch.
+	// Reclaim the pending item, prove the pre-reclaim epoch is stale now,
+	// and complete the successor epoch to drain it.
+	retryable := epochs[2]
+	retryable.FailureClass = "collect_failure"
+	retryable.FailureMessage = "synthetic probe failure"
+	out.Call("fail-retryable-1", backend.FailClaimRetryable(ctx, retryable))
+	out.Call("fail-retryable-2", backend.FailClaimRetryable(ctx, retryable))
+	retried, retriedClaim, issued, err := backend.ClaimNextEligible(
+		ctx, s.Selector("owner-a", s.RunID+"-claim-retryable-reclaim"), s.Now, s.Lease)
+	out.Record("retryable-reclaim issued=%v err=%s", issued, Classify(err))
+	if err != nil || !issued {
+		s.T.Fatalf("%s: retryable reclaim: issued=%v err=%v", backend.Name(), issued, err)
+	}
+	out.Call("fail-retryable-replay-after-reclaim", backend.FailClaimRetryable(ctx, retryable))
+	out.Call("complete-after-retryable", backend.CompleteClaim(ctx, s.Mutation(
+		retried.WorkItemID, retriedClaim.ClaimID, retriedClaim.FencingToken, retriedClaim.OwnerID)))
+
+	// Fail-terminal: the identical second failure acks the parked epoch.
+	// The item is failed-terminal, so nothing reclaims it.
+	terminal := epochs[3]
+	terminal.FailureClass = "collect_failure"
+	terminal.FailureMessage = "synthetic terminal failure"
+	out.Call("fail-terminal-1", backend.FailClaimTerminal(ctx, terminal))
+	out.Call("fail-terminal-2", backend.FailClaimTerminal(ctx, terminal))
+
 	drainScenario(s, ctx, backend, out)
 	return out
 }

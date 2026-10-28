@@ -17,9 +17,11 @@
   queue is idle at scenario end. `ClaimNext` selects globally, so an
   undrained scenario contaminates the next one.
 - **Only codes and durable values compare** — message text is recorded
-  for diagnosis but never compared. A known divergence needs a
-  scenario-specific comparator pinning the exact pair plus a tracking
-  issue (see `compareDuplicateReplay` and #9428); never loosen `Equal`.
+  for diagnosis but never compared. Every scenario compares with strict
+  `Outcome.Equal`: identical terminal replays ack on both legs since the
+  #9428 alignment, so no comparator leniency remains. A new suspected
+  divergence is a finding (file an issue and fail loudly); never loosen
+  `Equal`.
 - **Satellite leg runs dark or local only** — local flip container or
   a dark deployment with synthetic IDs plus cleanup. Never point the suite at
   an authoritative deployment and never replay live claims.
