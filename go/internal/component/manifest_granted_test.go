@@ -162,3 +162,25 @@ func TestLoadGrantedManifestKeepsIdentityErrors(t *testing.T) {
 		t.Fatalf("code = %q, want %q", got, ErrorCodeInvalidManifest)
 	}
 }
+
+// TestLoadGrantedManifestAtUsesEvaluationTime pins the grant snapshot to the
+// supplied instant, including the exclusive expiry boundary.
+func TestLoadGrantedManifestAtUsesEvaluationTime(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.October, 28, 0, 0, 0, 0, time.UTC)
+	grant := baseGrantForDecisions()
+	grant.ExpiresAt = now
+	registry := NewRegistry(t.TempDir())
+	if err := registry.RecordGrant(grant); err != nil {
+		t.Fatalf("RecordGrant() error = %v", err)
+	}
+	path := grantedLoadManifestPath(t, "aws_resource")
+	_, grants, err := registry.LoadGrantedManifestAt(path, now.Add(-time.Nanosecond))
+	if err != nil || len(grants) != 1 {
+		t.Fatalf("LoadGrantedManifestAt(before expiry) = grants %+v, error %v; want live snapshot", grants, err)
+	}
+	_, grants, err = registry.LoadGrantedManifestAt(path, now)
+	if ErrorCodeOf(err) != ErrorCodeInvalidManifest || len(grants) != 0 {
+		t.Fatalf("LoadGrantedManifestAt(at expiry) = grants %+v, error %v; want fail-closed", grants, err)
+	}
+}

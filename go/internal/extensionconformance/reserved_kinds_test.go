@@ -6,62 +6,36 @@ package extensionconformance
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// TestReservedFactKindsUnreservesOnlyDeclaredKinds pins the grant boundary of
-// the conformance harness: the kinds a loaded manifest declares are the kinds a
-// live producer grant covers, so those and only those leave the reserved set.
-// Every other core-owned kind must stay reserved, or a component could emit a
-// core kind its grant never named and still pass conformance.
-func TestReservedFactKindsUnreservesOnlyDeclaredKinds(t *testing.T) {
+// TestTrustedCoreFactsKeepsExactGrantTuples proves authorization cannot be
+// assembled from a grant for one collector and a different grant's version.
+func TestTrustedCoreFactsKeepsExactGrantTuples(t *testing.T) {
 	t.Parallel()
-
-	core := facts.CoreFactKinds()
-	if len(core) < 4 {
-		t.Fatalf("CoreFactKinds() = %d kinds, want at least 4 for this test", len(core))
+	now := time.Date(2026, time.October, 28, 0, 0, 0, 0, time.UTC)
+	manifest := component.Manifest{}
+	manifest.Metadata.ID = "dev.example.collector.docs"
+	manifest.Metadata.Version = "0.1.0"
+	manifest.Spec.CollectorKinds = []string{"docs", "other"}
+	manifest.Spec.EmittedFacts = []component.FactFamily{{Kind: "documentation_section", SchemaVersions: []string{"1.0.0", "1.1.0"}}}
+	grants := []component.ProducerGrant{
+		{ProducerID: manifest.Metadata.ID, Version: manifest.Metadata.Version, Kind: "documentation_section", Scope: "docs", SchemaVersions: []string{"1.0.0"}, ExpiresAt: now.Add(time.Hour)},
+		{ProducerID: manifest.Metadata.ID, Version: manifest.Metadata.Version, Kind: "documentation_section", Scope: "other", SchemaVersions: []string{"1.1.0"}, ExpiresAt: now.Add(time.Hour)},
 	}
-	granted, alsoGranted, undeclared := core[0], core[1], core[2]
-
-	tests := []struct {
-		name     string
-		declared []string
-		want     []string
-	}{
-		{name: "no declared kinds reserves every core kind", declared: nil, want: core},
-		{name: "a namespaced kind reserves every core kind", declared: []string{"dev.example.record"}, want: core},
-		{name: "one declared core kind is un-reserved", declared: []string{granted}, want: without(core, granted)},
-		{name: "two declared core kinds are un-reserved", declared: []string{granted, alsoGranted}, want: without(core, granted, alsoGranted)},
-		{name: "surrounding whitespace on a declared kind still matches it", declared: []string{"  " + granted + " "}, want: without(core, granted)},
+	context := trustedCoreFacts(manifest, grants, now)
+	if context == nil || len(context.Facts) != 1 {
+		t.Fatalf("trustedCoreFacts() = %#v, want one authorization", context)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			var manifest component.Manifest
-			for _, kind := range tt.declared {
-				manifest.Spec.EmittedFacts = append(manifest.Spec.EmittedFacts, component.FactFamily{Kind: kind})
-			}
-			got := reservedFactKinds(manifest)
-			if !slices.Equal(got, tt.want) {
-				t.Fatalf("reservedFactKinds() = %v, want %v", got, tt.want)
-			}
-			if !slices.Contains(got, undeclared) {
-				t.Fatalf("reservedFactKinds() dropped the undeclared core kind %q", undeclared)
-			}
-		})
+	emissions := context.Facts[0].Emissions
+	if len(emissions) != 2 || emissions[0].CollectorKind != "docs" || !slices.Equal(emissions[0].SchemaVersions, []string{"1.0.0"}) ||
+		emissions[1].CollectorKind != "other" || !slices.Equal(emissions[1].SchemaVersions, []string{"1.1.0"}) {
+		t.Fatalf("emissions = %#v, want exact independent tuples", emissions)
 	}
-}
-
-// without returns kinds minus the listed kinds, leaving the input untouched.
-func without(kinds []string, drop ...string) []string {
-	out := make([]string, 0, len(kinds))
-	for _, kind := range kinds {
-		if !slices.Contains(drop, kind) {
-			out = append(out, kind)
-		}
+	if !slices.Contains(facts.CoreFactKinds(), "documentation_section") {
+		t.Fatal("documentation_section missing from full reserved inventory")
 	}
-	return out
 }

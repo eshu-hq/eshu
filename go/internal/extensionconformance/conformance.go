@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	sdkcollector "github.com/eshu-hq/eshu-sdk/collector"
 	conformance "github.com/eshu-hq/eshu-sdk/collector/conformance"
@@ -90,7 +91,11 @@ func Run(ctx context.Context, req Request) (Report, error) {
 		ctx = context.Background()
 	}
 
-	manifest, _, err := component.NewRegistry(req.ComponentHome).LoadGrantedManifest(req.ManifestPath)
+	now := time.Now().UTC()
+	manifest, grants, err := component.NewRegistry(req.ComponentHome).LoadGrantedManifestAt(req.ManifestPath, now)
+	if err == nil {
+		err = validateDeclaredCoreSchemaVersions(manifest)
+	}
 	if err != nil {
 		report := Report{
 			SchemaVersion: conformance.SchemaVersion,
@@ -125,12 +130,14 @@ func Run(ctx context.Context, req Request) (Report, error) {
 		fixtures = append(fixtures, result)
 	}
 
+	coreFacts := trustedCoreFacts(manifest, grants, now)
 	report := conformance.Run(conformance.Request{
 		Manifest:          manifestToPublic(manifest),
 		Fixtures:          fixtures,
 		Mode:              req.Mode,
-		ReservedFactKinds: reservedFactKinds(manifest),
-		PayloadSchemas:    payloadSchemasForManifest(manifest),
+		CoreFacts:         coreFacts,
+		ReservedFactKinds: facts.CoreFactKinds(),
+		PayloadSchemas:    payloadSchemasForManifest(manifest, coreFacts),
 	})
 	if len(readFindings) > 0 {
 		report.Findings = append(readFindings, report.Findings...)
@@ -143,24 +150,62 @@ func Run(ctx context.Context, req Request) (Report, error) {
 	return report, nil
 }
 
-// reservedFactKinds returns the core-owned fact kinds the public harness must
-// refuse a component to claim. The manifest already loaded against the
-// registry's producer grants, so every core-owned kind it still declares is a
-// kind a live grant covers for its declared schema versions; those are the
-// only kinds exempted. All other core-owned kinds stay reserved.
-func reservedFactKinds(manifest component.Manifest) []string {
-	granted := make(map[string]struct{}, len(manifest.Spec.EmittedFacts))
+// validateDeclaredCoreSchemaVersions prevents a producer grant from making a
+// version pass conformance that core's fact admission would later reject.
+func validateDeclaredCoreSchemaVersions(manifest component.Manifest) error {
 	for _, fact := range manifest.Spec.EmittedFacts {
-		granted[strings.TrimSpace(fact.Kind)] = struct{}{}
-	}
-	reserved := facts.CoreFactKinds()
-	kept := make([]string, 0, len(reserved))
-	for _, kind := range reserved {
-		if _, isGranted := granted[kind]; !isGranted {
-			kept = append(kept, kind)
+		if !facts.IsCoreFactKind(fact.Kind) {
+			continue
+		}
+		for _, version := range fact.SchemaVersions {
+			if err := facts.ValidateSchemaVersion(fact.Kind, version); err != nil {
+				return err
+			}
 		}
 	}
-	return kept
+	return nil
+}
+
+// trustedCoreFacts builds exact collector/schema tuples from the same grant
+// snapshot and evaluation time used to admit the manifest. A declaration alone
+// never creates authorization; each tuple must pass the runtime grant policy.
+func trustedCoreFacts(manifest component.Manifest, grants []component.ProducerGrant, now time.Time) *conformance.CoreFactContext {
+	var authorizations []conformance.CoreFactAuthorization
+	for _, fact := range manifest.Spec.EmittedFacts {
+		if !facts.IsCoreFactKind(fact.Kind) {
+			continue
+		}
+		entry, ok := facts.FactKindRegistryEntryFor(fact.Kind)
+		if !ok {
+			// The SDK rejects missing coverage for a reserved declaration.
+			continue
+		}
+		auth := conformance.CoreFactAuthorization{Kind: fact.Kind, ReducerPhases: []string{entry.ReducerDomain}}
+		if entry.PayloadSchema != "" {
+			auth.PayloadSchemaRef = entry.Kind
+		}
+		for _, collectorKind := range manifest.Spec.CollectorKinds {
+			emission := conformance.CoreFactEmission{CollectorKind: collectorKind}
+			for _, version := range fact.SchemaVersions {
+				if component.AuthorizesEmission(grants, manifest.Metadata.ID, manifest.Metadata.Version,
+					fact.Kind, version, []string{collectorKind}, now) {
+					emission.SchemaVersions = append(emission.SchemaVersions, version)
+				}
+			}
+			if len(emission.SchemaVersions) > 0 {
+				auth.Emissions = append(auth.Emissions, emission)
+			}
+		}
+		authorizations = append(authorizations, auth)
+	}
+	if len(authorizations) == 0 {
+		return nil
+	}
+	return &conformance.CoreFactContext{
+		ComponentID:      manifest.Metadata.ID,
+		ComponentVersion: manifest.Metadata.Version,
+		Facts:            authorizations,
+	}
 }
 
 func normalizeReportMode(mode Mode) Mode {
@@ -230,13 +275,23 @@ func manifestToPublic(manifest component.Manifest) conformance.Manifest {
 	}
 }
 
-func payloadSchemasForManifest(manifest component.Manifest) map[string]json.RawMessage {
+func payloadSchemasForManifest(manifest component.Manifest, coreFacts *conformance.CoreFactContext) map[string]json.RawMessage {
 	var schemas map[string]json.RawMessage
+	trustedRefs := make(map[string]string)
+	if coreFacts != nil {
+		for _, auth := range coreFacts.Facts {
+			trustedRefs[auth.Kind] = auth.PayloadSchemaRef
+		}
+	}
 	for _, fact := range manifest.Spec.EmittedFacts {
-		if strings.TrimSpace(fact.PayloadSchemaRef) == "" {
+		ref := fact.PayloadSchemaRef
+		if trustedRefs[fact.Kind] != "" {
+			ref = trustedRefs[fact.Kind]
+		}
+		if strings.TrimSpace(ref) == "" {
 			continue
 		}
-		raw, ok := fixturepack.SchemaFor(fact.PayloadSchemaRef)
+		raw, ok := fixturepack.SchemaFor(ref)
 		if !ok {
 			continue
 		}
