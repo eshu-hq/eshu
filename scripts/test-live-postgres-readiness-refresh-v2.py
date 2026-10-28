@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 from pathlib import Path
 import sys
@@ -258,7 +260,10 @@ class RefreshV2Cases(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "repeat"):
             self.fit()
 
-    def test_rejects_changed_runner_image_version(self) -> None:
+    def test_accepts_mixed_runner_image_version_and_reports_it(self) -> None:
+        # Hosted images roll weekly over several days, so one run mixes image
+        # versions. The version is reported, never gated, and never priced.
+        uniform = self.fit()
         # Runner logs put a provisioner Version before the actual Image Version.
         for source in self.sources:
             for number in range(1, 5):
@@ -267,7 +272,36 @@ class RefreshV2Cases(unittest.TestCase):
                                 + path.read_text())
         path = self.sources[0] / "shard1.log"
         path.write_text(path.read_text().replace("Version: 20261012.334.1",
-                                                "Version: 20261013.334.1"))
+                                                "Version: 20261025.353.1"))
+        self.assertEqual(self.fit(), uniform)
+        output = self.root / "weights.v2.json"
+        argv = ["refresh", "--schema-version", "2", "--out", str(output)]
+        argv.extend(f"--sample={source.name}={source}" for source in self.sources)
+        stdout = io.StringIO()
+        with mock.patch.object(cli_refresh.sys, "argv", argv), \
+                contextlib.redirect_stdout(stdout):
+            self.assertEqual(cli_refresh.main(), 0)
+        self.assertEqual(json.loads(output.read_text()), uniform)
+        self.assertIn(
+            "weights refresh v2: runner image ubuntu-24.04 versions "
+            "run 100 shard1=20261025.353.1 shard2=20261012.334.1 "
+            "shard3=20261012.334.1 shard4=20261012.334.1; "
+            "run 101 shard1=20261012.334.1 shard2=20261012.334.1 "
+            "shard3=20261012.334.1 shard4=20261012.334.1; "
+            "distinct 20261012.334.1, 20261025.353.1\n",
+            stdout.getvalue())
+
+    def test_rejects_changed_runner_image_name(self) -> None:
+        path = self.sources[0] / "shard1.log"
+        path.write_text(path.read_text().replace("Image: ubuntu-24.04",
+                                                "Image: ubuntu-22.04"))
+        with self.assertRaisesRegex(ValueError, "profile"):
+            self.fit()
+
+    def test_rejects_changed_postgres_digest(self) -> None:
+        path = self.sources[1] / "shard3.log"
+        path.write_text(path.read_text().replace("sha256:" + "c" * 64,
+                                                "sha256:" + "d" * 64))
         with self.assertRaisesRegex(ValueError, "profile"):
             self.fit()
 

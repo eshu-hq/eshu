@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 import datetime as dt
 from pathlib import Path
 import re
@@ -30,23 +31,53 @@ def _time(value: str) -> dt.datetime:
     return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def _profile(log: str) -> tuple[str, ...]:
-    """Require an explicit comparable runner, toolchain, and pinned database."""
+@dataclass(frozen=True)
+class ImageProvenance:
+    """Runner image versions seen per source run and shard.
+
+    Attributes:
+        name: The one runner image name every source shard ran on.
+        versions: Image version by run ID, then by shard number.
+    """
+
+    name: str
+    versions: dict[str, dict[int, str]]
+
+    def line(self) -> str:
+        """Render one stdout line for the refit PR body and evidence note."""
+        runs = "; ".join(
+            f"run {run} " + " ".join(f"shard{number}={version}"
+                                     for number, version in sorted(shards.items()))
+            for run, shards in self.versions.items())
+        distinct = ", ".join(sorted({version for shards in self.versions.values()
+                                     for version in shards.values()}))
+        return (f"weights refresh v2: runner image {self.name} versions {runs}; "
+                f"distinct {distinct}")
+
+
+def _profile(log: str) -> tuple[tuple[str, ...], str]:
+    """Return the gated runner profile and the reported image version.
+
+    The gate is (image name, Go version, Postgres digest). The image version
+    is provenance only: hosted runners roll versions weekly over several days
+    and cannot be pinned, and the version is never used in pricing (#9411).
+    """
     image = IMAGE_VERSION_RE.search(log)
     if image is None:
         raise ValueError("source log lacks runner image version profile")
-    profile: list[str] = [image.group(1), image.group(2)]
+    profile: list[str] = [image.group(1)]
     for pattern in PROFILE_RE:
         match = pattern.search(log)
         if match is None:
             raise ValueError("source log lacks image, Go, or Postgres profile")
         profile.append(match.group(1))
-    return tuple(profile)
+    return tuple(profile), image.group(2)
 
 
 def _parse_shard(log: str, number: int, total: int) -> tuple[
-        list[str], list[tuple[str, str, float]], tuple[str, ...], list[frozenset[str]]]:
-    """Return ordered tests and classified row residuals from one proof step."""
+        list[str], list[tuple[str, str, float]], tuple[tuple[str, ...], str],
+        list[frozenset[str]]]:
+    """Return ordered tests, classified row residuals, and the runner profile."""
     profile = _profile(log)
     previous: dt.datetime | None = None
     block: list[tuple[str, float]] = []
@@ -123,9 +154,29 @@ def build_document(sources: list[Path], root: Path) -> dict[str, object]:
         ValueError: A source is incomplete, incompatible, or cannot identify a
             cold/repeat category.
     """
+    return fit_with_provenance(sources, root)[0]
+
+
+def fit_with_provenance(sources: list[Path], root: Path) -> tuple[
+        dict[str, object], ImageProvenance]:
+    """Fit a v2 document and report the runner image versions it accepted.
+
+    Args:
+        sources: Directories named by run ID, each with run/jobs JSON and shard logs.
+        root: Git checkout containing the source commit objects.
+
+    Returns:
+        The validated v2 document (as from build_document) and the image
+        provenance seen across every shard of every source.
+
+    Raises:
+        ValueError: A source is incomplete, incompatible, or cannot identify a
+            cold/repeat category.
+    """
     if len(sources) < 2:
         raise ValueError("v2 fit needs at least two complete main runs")
     source_runs: list[str] = []
+    image_versions: dict[str, dict[int, str]] = {}
     expected_plan: list[str] | None = None
     expected_profile: tuple[str, ...] | None = None
     expected_count: int | None = None
@@ -146,12 +197,13 @@ def build_document(sources: list[Path], root: Path) -> dict[str, object]:
         observed: list[str] = []
         row_packages: list[str] = []
         for number, log in sorted(logs.items()):
-            tests, rows, profile, row_members = _parse_shard(log, number, len(logs))
+            tests, rows, (profile, version), row_members = _parse_shard(log, number, len(logs))
             if row_members != expected_rows[number]:
                 raise ValueError(f"source shard {number} row selected test set differs from source weights")
             if expected_profile is not None and profile != expected_profile:
-                raise ValueError("source image, Go, or Postgres profile differs")
+                raise ValueError("source image name, Go, or Postgres profile differs")
             expected_profile = profile
+            image_versions.setdefault(run_id, {})[number] = version
             observed.extend(tests)
             for package, kind, residual in rows:
                 row_packages.append(package)
@@ -199,7 +251,9 @@ def build_document(sources: list[Path], root: Path) -> dict[str, object]:
         "test_seconds": tests,
     }
     v2.weights_from_json(document)
-    return document
+    if expected_profile is None:
+        raise ValueError("source runs have no shard profile")
+    return document, ImageProvenance(expected_profile[0], image_versions)
 
 
 def _collect_test_values(log: str, expected: list[str], values: dict[str, list[float]]) -> None:
