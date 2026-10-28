@@ -13,13 +13,14 @@ import (
 
 // Q1 replay-ack alignment (#9428, ruling 6476206689 SATELLITE HOLDS): an
 // identical replay of an already-applied terminal mutation (matching
-// claim+fencing+owner, unmoved item fencing) returns nil instead of
-// ErrWorkflowClaimRejected. Heartbeat never acks post-terminal. Everything
+// claim+fencing+owner+item binding, unmoved item fencing) returns nil instead
+// of ErrWorkflowClaimRejected. Heartbeat never acks post-terminal. Everything
 // else stays rejected.
 //
 // These unit tests pin the classification contract against the scripted fake:
-// zero-row mutation, then PK reads of workflow_claims (status/fencing/owner)
-// and workflow_work_items (status, NULL-safe current_fencing_token).
+// zero-row mutation, then PK reads of workflow_claims
+// (status/fencing/owner/work_item_id) and workflow_work_items (status,
+// NULL-safe current_fencing_token).
 
 func replayAckMutation(op string) ClaimMutation {
 	mutation := ClaimMutation{
@@ -39,12 +40,20 @@ func replayAckMutation(op string) ClaimMutation {
 }
 
 // replayAckStore stages a zero-row mutation followed by one claim PK row and
-// one work-item PK row, the exact read shape the classifier uses.
+// one work-item PK row, the exact read shape the classifier uses. The staged
+// claim epoch belongs to item-1.
 func replayAckStore(claimStatus string, claimFence sql.NullInt64, itemStatus string, itemFence sql.NullInt64) (*WorkflowControlStore, *fakeExecQueryer) {
+	return replayAckStoreForClaimItem(claimStatus, claimFence, "item-1", itemStatus, itemFence)
+}
+
+// replayAckStoreForClaimItem stages the same shape with the claim epoch bound
+// to an explicit work item, so crossed-pair replays can stage a claim bound
+// elsewhere than the mutated item.
+func replayAckStoreForClaimItem(claimStatus string, claimFence sql.NullInt64, claimWorkItemID string, itemStatus string, itemFence sql.NullInt64) (*WorkflowControlStore, *fakeExecQueryer) {
 	db := &fakeExecQueryer{
 		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 0}},
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{claimStatus, claimFence, "collector-pod-1"}}},
+			{rows: [][]any{{claimStatus, claimFence, "collector-pod-1", claimWorkItemID}}},
 			{rows: [][]any{{itemStatus, itemFence}}},
 		},
 	}
@@ -156,13 +165,30 @@ func TestWorkflowControlStoreReplayAckRejectsWrongOwner(t *testing.T) {
 	db := &fakeExecQueryer{
 		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 0}},
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"completed", fence, "collector-pod-other"}}},
+			{rows: [][]any{{"completed", fence, "collector-pod-other", "item-1"}}},
 			{rows: [][]any{{"completed", fence}}},
 		},
 	}
 	store := NewWorkflowControlStore(db)
 	if err := replayAckApply(t, store, "complete", replayAckMutation("complete")); err != ErrWorkflowClaimRejected {
 		t.Fatalf("wrong-owner replay error = %v, want ErrWorkflowClaimRejected", err)
+	}
+}
+
+func TestWorkflowControlStoreReplayAckRejectsCrossedClaimItemPair(t *testing.T) {
+	t.Parallel()
+
+	// claim-1 committed completed on item-1, and item-2 rests completed with
+	// the same fencing token. A CompleteClaim naming claim-1/item-2 matches
+	// zero rows (every terminal mutation joins claim.work_item_id to
+	// item.work_item_id) and must stay rejected: the stored epoch is not an
+	// identical replay of the (claim-1, item-2) pair.
+	fence := sql.NullInt64{Int64: 7, Valid: true}
+	store, _ := replayAckStoreForClaimItem("completed", fence, "item-1", "completed", fence)
+	mutation := replayAckMutation("complete")
+	mutation.WorkItemID = "item-2"
+	if err := replayAckApply(t, store, "complete", mutation); err != ErrWorkflowClaimRejected {
+		t.Fatalf("crossed-pair replay error = %v, want ErrWorkflowClaimRejected", err)
 	}
 }
 

@@ -54,7 +54,7 @@ func (op claimMutationOp) terminalStatuses() (workflow.ClaimStatus, workflow.Wor
 // a replay must answer from the stored epoch alone — grant visibility at
 // replay time must neither ack a foreign epoch nor hide a committed one.
 const (
-	replayAckClaimQuery = `SELECT status, fencing_token, owner_id FROM workflow_claims WHERE claim_id = $1`
+	replayAckClaimQuery = `SELECT status, fencing_token, owner_id, work_item_id FROM workflow_claims WHERE claim_id = $1`
 	replayAckItemQuery  = `SELECT status, current_fencing_token FROM workflow_work_items WHERE work_item_id = $1`
 )
 
@@ -82,22 +82,27 @@ func (s *WorkflowControlStore) classifyClaimMutationResult(
 
 // classifyZeroRowClaimMutation returns nil when the zero-row mutation is an
 // identical replay of an already-applied terminal epoch: the claim row exists
-// with matching fencing and owner in the op's terminal status, and the work
-// item still carries the mutation's fencing token in the op's terminal status.
-// Everything else stays ErrWorkflowClaimRejected.
+// with matching fencing and owner in the op's terminal status, the claim row
+// is bound to the mutation's work item, and the work item still carries the
+// mutation's fencing token in the op's terminal status. Everything else stays
+// ErrWorkflowClaimRejected.
 //
 // False-ack impossibility: nil requires the claim row to already rest in the
 // op's terminal status, which only the op's own mutation statement writes, and
 // that statement writes the claim and item rows atomically in one statement —
 // a committed terminal claim always pairs with its terminal item state, so the
-// two reads cannot straddle a torn commit. A successor epoch can only move the
-// item fencing forward (claim issuance bumps the token monotonically), which
-// breaks the item-fencing equality, and it leaves the claim row in its own
-// terminal status, which breaks the status equality for any other op. A
-// concurrent identical replay racing this read already committed the same
-// terminal state, so acking it double-applies nothing: the mutation matched
-// zero rows precisely because the state is already there. Expired epochs never
-// match an op terminal status, and heartbeats never reach this classifier.
+// two reads cannot straddle a torn commit. The stored claim work_item_id must
+// equal the mutation's work item: every mutation statement joins
+// claim.work_item_id to item.work_item_id, so a crossed claim/item pair
+// matches zero rows and only an identical-pair replay may ack. A successor
+// epoch can only move the item fencing forward (claim issuance bumps the token
+// monotonically), which breaks the item-fencing equality, and it leaves the
+// claim row in its own terminal status, which breaks the status equality for
+// any other op. A concurrent identical replay racing this read already
+// committed the same terminal state, so acking it double-applies nothing: the
+// mutation matched zero rows precisely because the state is already there.
+// Expired epochs never match an op terminal status, and heartbeats never reach
+// this classifier.
 func (s *WorkflowControlStore) classifyZeroRowClaimMutation(
 	ctx context.Context,
 	op claimMutationOp,
@@ -107,7 +112,7 @@ func (s *WorkflowControlStore) classifyZeroRowClaimMutation(
 	if !ok {
 		return ErrWorkflowClaimRejected
 	}
-	claimStatus, claimFence, claimOwner, found, err := s.readReplayClaimEpoch(ctx, mutation.ClaimID)
+	claimStatus, claimFence, claimOwner, claimWorkItemID, found, err := s.readReplayClaimEpoch(ctx, mutation.ClaimID)
 	if err != nil {
 		return err
 	}
@@ -117,7 +122,8 @@ func (s *WorkflowControlStore) classifyZeroRowClaimMutation(
 	if claimStatus != string(wantClaimStatus) ||
 		!claimFence.Valid ||
 		claimFence.Int64 != mutation.FencingToken ||
-		claimOwner != mutation.OwnerID {
+		claimOwner != mutation.OwnerID ||
+		claimWorkItemID != mutation.WorkItemID {
 		return ErrWorkflowClaimRejected
 	}
 	itemStatus, itemFence, found, err := s.readReplayItemEpoch(ctx, mutation.WorkItemID)
@@ -136,29 +142,29 @@ func (s *WorkflowControlStore) classifyZeroRowClaimMutation(
 }
 
 // readReplayClaimEpoch reads one claim epoch by primary key: status, fencing,
-// and owner. A read or scan failure surfaces loudly; only a missing epoch is
-// a rejection, never a masked store error.
-func (s *WorkflowControlStore) readReplayClaimEpoch(ctx context.Context, claimID string) (string, sql.NullInt64, string, bool, error) {
+// owner, and the bound work item id. A read or scan failure surfaces loudly;
+// only a missing epoch is a rejection, never a masked store error.
+func (s *WorkflowControlStore) readReplayClaimEpoch(ctx context.Context, claimID string) (string, sql.NullInt64, string, string, bool, error) {
 	rows, err := s.database.QueryContext(ctx, replayAckClaimQuery, claimID)
 	if err != nil {
-		return "", sql.NullInt64{}, "", false, fmt.Errorf("read replayed workflow claim: %w", err)
+		return "", sql.NullInt64{}, "", "", false, fmt.Errorf("read replayed workflow claim: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return "", sql.NullInt64{}, "", false, fmt.Errorf("read replayed workflow claim: %w", err)
+			return "", sql.NullInt64{}, "", "", false, fmt.Errorf("read replayed workflow claim: %w", err)
 		}
-		return "", sql.NullInt64{}, "", false, nil
+		return "", sql.NullInt64{}, "", "", false, nil
 	}
-	var status, owner string
+	var status, owner, workItemID string
 	var fence sql.NullInt64
-	if err := rows.Scan(&status, &fence, &owner); err != nil {
-		return "", sql.NullInt64{}, "", false, fmt.Errorf("scan replayed workflow claim: %w", err)
+	if err := rows.Scan(&status, &fence, &owner, &workItemID); err != nil {
+		return "", sql.NullInt64{}, "", "", false, fmt.Errorf("scan replayed workflow claim: %w", err)
 	}
 	if err := rows.Err(); err != nil {
-		return "", sql.NullInt64{}, "", false, fmt.Errorf("read replayed workflow claim: %w", err)
+		return "", sql.NullInt64{}, "", "", false, fmt.Errorf("read replayed workflow claim: %w", err)
 	}
-	return status, fence, owner, true, nil
+	return status, fence, owner, workItemID, true, nil
 }
 
 // readReplayItemEpoch reads one work item by primary key: status and the

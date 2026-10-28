@@ -15,9 +15,11 @@ rejected.
 `workflow_control_helpers.go` threads a `claimMutationOp` through
 `execClaimMutation`, `execCompleteClaimMutation`, and
 `execTerminalClaimMutation`. On zero rows affected, terminal ops classify via
-two single-row primary-key reads — `workflow_claims` (status, fencing, owner)
-then `workflow_work_items` (status, NULL-safe `current_fencing_token`) — and
-return nil only when the epoch exists with matching fencing and owner, the
+two single-row primary-key reads — `workflow_claims` (status, fencing, owner,
+work_item_id) then `workflow_work_items` (status, NULL-safe
+`current_fencing_token`) — and return nil only when the epoch exists with
+matching fencing and owner, the stored claim is bound to the mutation's work
+item (crossed claim/item pairs stay rejected), the
 item fencing equals the mutation token, and both statuses equal the op's
 terminal pair (complete: completed/completed; release: released/pending;
 fail-retryable: failed_retryable/pending; fail-terminal:
@@ -30,7 +32,9 @@ it committed, and a replay answers from the stored epoch alone.
 Nil requires the claim row to already rest in the op's terminal status, which
 only the op's own mutation statement writes, and that statement writes the
 claim and item rows atomically in one statement, so the two reads cannot
-straddle a torn commit. A successor epoch only moves the item fencing forward
+straddle a torn commit. The stored claim `work_item_id` must equal the
+mutation's work item — every mutation statement joins `claim.work_item_id` to
+`item.work_item_id`, so only an identical-pair replay may ack. A successor epoch only moves the item fencing forward
 (claim issuance bumps the token monotonically), breaking the item-fencing
 equality; it leaves the claim row in its own terminal status, breaking any
 other op's status equality. A concurrent identical replay racing the read
