@@ -213,6 +213,71 @@ owner's exact-truth verdict on the replayed generation plus the API/MCP truth
 read on the extracted path, followed by independent review and the in-tree
 removal in a later step.
 
+## API/MCP truth-read surface (code-inspected 2026-10-28)
+
+Base for this section: `origin/main` at `f0be504100`. Read-only code
+inspection only: no API/MCP server was reachable from this host (`curl`
+to `localhost:8080/healthz` and `localhost:3000/healthz` both returned
+`000`), so every live scoped read below stays `NOT_CHECKED`, owned by
+later cutover steps with QA EKS access.
+
+- HTTP read surface EXISTS (5 scope-anchored routes,
+  `go/internal/query/secrets/handler.go`):
+  `GET /api/v0/secrets-iam/identity-trust-chains`,
+  `/privilege-posture-observations`, `/secret-access-paths`,
+  `/posture-gaps`, `/posture-summary`. The summary is a counts-only
+  `GROUP BY` over `fact_records` joined to the active generation and
+  requires `scope_id`
+  (`go/internal/query/secrets/summary.go`, `SummarizeSecretsIAMPosture`). The raw-fact delta
+  surface also EXISTS: `GET /api/v0/freshness/changed-since` with
+  `scope_id`, diffing durable `fact_records` keyed by
+  (`scope_id`, `generation_id`, `stable_fact_key`)
+  (`go/internal/query/freshness/changed_since.go`).
+- MCP read path EXISTS (5 tools,
+  `go/internal/mcp/access/posture/tools.go`):
+  `list_secrets_iam_identity_trust_chains`,
+  `list_secrets_iam_privilege_posture_observations`,
+  `list_secrets_iam_secret_access_paths`,
+  `list_secrets_iam_posture_gaps`, `count_secrets_iam_posture`
+  (requires `scope_id`; route mapping in
+  `go/internal/mcp/access/posture/routes.go`:
+  `count_secrets_iam_posture` maps to
+  `GET /api/v0/secrets-iam/posture-summary?scope_id=`). Raw-fact MCP
+  tools also exist: `get_changed_since`, `get_generation_lifecycle`
+  (`go/internal/mcp/freshness/tools.go`; dispatch in
+  `go/internal/mcp/dispatch_freshness.go`).
+- Kind names `vault_secret` / `vault_lease` DO NOT EXIST: a
+  word-boundary search over `go/`, `specs/`, and `sdk/` returns zero
+  matches (only the distinct `vault_secret_engine_mount` kind and the
+  `vault_secret_handle` enum value in
+  `go/internal/semanticprofile/config.go`). The vault-live
+  vocabulary stays the seven kinds in Fact kinds above.
+- Registry wiring versus ledger note: all seven vault kinds are
+  registered with `ReducerDomain: secrets_iam_trust_chain`,
+  `ProjectionHook: secrets_iam_graph_projection`,
+  `ReadSurface: GET /api/v0/secrets-iam/posture-summary`,
+  `TruthProfile: provider_gated`
+  (`go/internal/facts/fact_kind_registry.generated.go`). The
+  kind-disclosure ledger still carries the 2026-07-21 round-2 note of
+  zero real-consumer signal for four of the seven kinds
+  (`vault_auth_mount`, `vault_identity_alias`, `vault_identity_entity`,
+  `vault_secret_engine_mount`)
+  (`go/internal/mcp/kind_disclosure_ledger.go`); `vault_auth_role`,
+  `vault_acl_policy`, and `vault_kv_metadata` have no ledger entry. Reconciling
+  the ledger with the current registry wiring is owned by a later
+  step, not this record. Per-fact vault values are not exposed on
+  API/MCP: only the posture-summary counts rollup and the
+  changed-since delta reference the scope.
+- No secret values were touched: this section rests on code reads and
+  the `curl 000` probes above. Redaction holds by construction
+  (HMAC-fingerprinted names/paths; KV `/data/` reads rejected in
+  `vaultapi`).
+
+This section does NOT declare production acceptance: acceptance needs
+the owner's exact-truth verdict on the replayed generation plus the
+live API/MCP scoped reads on the extracted path, followed by
+independent review and the in-tree removal in a later step.
+
 ## TDD and focused proof
 
 `go/cmd/collector-vault-live/extraction_census_test.go` was written first and
