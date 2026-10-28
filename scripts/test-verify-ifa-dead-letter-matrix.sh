@@ -298,7 +298,7 @@ fi
 rm -f "${diagnostic_probe}"
 # The presence of the producer check cannot rescue an `|| true` bypass.
 diagnostic_probe="$(mktemp)"
-sed "/- name: Upload dead-letter-matrix diagnostics/{n;s/(failure() \&\& steps.dead_letter_matrix.outcome == 'failure')/(true || (failure() \&\& steps.dead_letter_matrix.outcome == 'failure'))/;}" \
+sed "/- name: Upload dead-letter-matrix diagnostics/{n;s/failure() \&\& steps.dead_letter_matrix.outcome == 'failure'/true || (failure() \&\& steps.dead_letter_matrix.outcome == 'failure')/;}" \
 	"${workflow}" >"${diagnostic_probe}"
 if (
 	assert_diagnostic_guard 'Upload dead-letter-matrix diagnostics' dead_letter_matrix dead-letter-matrix "${diagnostic_probe}"

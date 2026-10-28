@@ -306,7 +306,14 @@ path = sys.argv[1]
 c = open(path).read()
 pat = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
 assert len(pat.findall(c)) == 2, "one every plus one some line expected"
-c = pat.sub("", c, count=1)
+open(path, "w").write(pat.sub("", c, count=1))
+PYS
+# Split across two heredocs: one 590-byte body exceeds the 512-byte
+# heredoc budget (#5074); the file mutation below is byte-identical.
+python3 - "${tmp}/.github/workflows/test.yml" <<'PYS'
+import re, sys
+path = sys.argv[1]
+c = open(path).read()
 m = re.search(r"(?m)^  changes:\n(.*?)(?=^  \S)", c, re.DOTALL)
 assert m, "changes job missing"
 job = m.group(1)

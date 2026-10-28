@@ -83,7 +83,7 @@ jobs:
         if: ${{ failure() }}
         run: bash scripts/ci/compose.sh -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml -- logs --tail=200 || true
       - name: Upload determinism-matrix diagnostics
-        if: ${{ failure() && steps.determinism_matrix.outcome == 'failure' }}
+        if: failure() && steps.determinism_matrix.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: ifa-determinism-matrix-attempt-${{ github.run_attempt }}-failure
@@ -124,7 +124,7 @@ jobs:
         if: ${{ failure() }}
         run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml -- logs --tail=200 || true
       - name: Upload dead-letter-matrix diagnostics
-        if: ${{ failure() && steps.dead_letter_matrix.outcome == 'failure' }}
+        if: failure() && steps.dead_letter_matrix.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: ifa-dead-letter-matrix-attempt-${{ github.run_attempt }}-failure
@@ -172,10 +172,10 @@ jobs:
           IFA_FAULT_SHARD: ${{ matrix.shard }}
         run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/8"
       - name: Verify fault-injection diagnostic completeness
-        if: ${{ failure() && steps.fault_matrix.outcome == 'failure' }}
+        if: failure() && steps.fault_matrix.outcome == 'failure'
         run: bash scripts/ci/verify-ifa-fault-diagnostics-complete.sh
       - name: Upload fault-injection diagnostics
-        if: ${{ failure() && steps.fault_matrix.outcome == 'failure' }}
+        if: failure() && steps.fault_matrix.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: ifa-fault-injection-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}-failure

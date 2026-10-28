@@ -176,7 +176,7 @@ jobs:
   differential:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'differential')) && (always()) }}
     name: differential nornicdb vs neo4j
-    needs: [differential-capture]
+    needs: differential-capture
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

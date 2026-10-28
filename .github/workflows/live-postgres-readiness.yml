@@ -361,7 +361,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Stop disposable physical standby
-        if: ${{ always() }}
+        if: always()
         run: bash scripts/ci/live-postgres-standby-fixture.sh stop '${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'
 
   live-postgres-readiness:

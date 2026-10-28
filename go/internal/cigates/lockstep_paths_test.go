@@ -85,7 +85,6 @@ var probePaths = []string{
 // unclassified site fails the discovery test.
 var allowedUnresolvedReads = map[string]string{
 	"go/cmd/bootstrap-index/wiring_tfstate_resolvers_scan_test.go|path":                                                                   "own-package .go source via readOwnPackageSource (code)",
-	"go/cmd/ci-gates/queue_snapshot_workflow_test.go|path":                                                                                ".github/workflows file (code, not docs-set)",
 	"go/cmd/eshu/vuln_scan_fixture_corpus_parser_test.go|path":                                                                            "testdata/vuln_scan_repo_fixtures corpus (code)",
 	"go/cmd/eshu/vuln_scan_supply_chain_demo_test.go|package-lock.json":                                                                   "examples/supply-chain-demo fixture (code)",
 	"go/cmd/eshu/vuln_scan_supply_chain_demo_test.go|package.json":                                                                        "examples/supply-chain-demo fixture (code)",
