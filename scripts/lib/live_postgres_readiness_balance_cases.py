@@ -185,8 +185,12 @@ class BalanceContractTest(unittest.TestCase):
         # The fleet got faster (weighted shards predict ~1260 s, naive worst
         # 1638 s), so 10x25 s no longer overflows the naive 1800 s cap
         # (1769 s). Plant 12 to restore the bite; the weighted cut still
-        # absorbs them at 1357 s against the 1440 s budget.
-        inserted = slow_runs(12, package=self.plan[position].split("|")[0])
+        # absorbs them at 1357 s against the 1440 s budget. The fleet then
+        # grew heavier (new enrolled proofs), so 12x25 s overflows even the
+        # weighted cut (1442.1 s). Plant 11: the naive worst still overflows
+        # the cap (2063.4 s) and the weighted cut absorbs them at 1434.0 s.
+        # The 1440 s budget itself never moves for a seed.
+        inserted = slow_runs(11, package=self.plan[position].split("|")[0])
         plan = [*self.plan[:position], *inserted, *self.plan[position:]]
         weights = with_slow(self.weights, inserted)
         naive = self.job_seconds(plan, weights, naive_count_bounds(len(plan)))
