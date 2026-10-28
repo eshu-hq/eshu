@@ -7,9 +7,11 @@
 // eshu-hq/eshu-deploy under issue #8871, and the contract tests that keep
 // the census honest while the assets still live in-tree.
 //
-// The census record is docs/internal/evidence/8871-eshu-deploy-census.md.
-// The tests assert it against the tree so the record cannot drift silently
-// when a family moves before extraction. Schema-bootstrap and repair
-// implementation (go/cmd/bootstrap-data-plane) stays core-owned per the
-// approved ecosystem migration plan; the chart Job that invokes it moves.
+// The census record is docs/internal/evidence/8871-eshu-deploy-census.md
+// and the deploy contract is
+// docs/internal/evidence/8871-eshu-deploy-contract.md. The tests assert
+// both against the tree so neither record can drift silently before the
+// cutover. Schema-bootstrap and repair implementation
+// (go/cmd/bootstrap-data-plane) stays core-owned per the approved
+// ecosystem migration plan; the chart Job that invokes it moves.
 package deploy
