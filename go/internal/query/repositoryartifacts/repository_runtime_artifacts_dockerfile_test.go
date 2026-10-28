@@ -118,3 +118,25 @@ func TestBuildRepositoryRuntimeArtifactsCarriesDockerfileArgDefaultMarkers(t *te
 		t.Fatalf("base_ref_arg_defaults_omitted = %#v, want true for 18 unresolved names", many["base_ref_arg_defaults_omitted"])
 	}
 }
+
+func TestBuildRepositoryRuntimeArtifactsCarriesInstallEvidence(t *testing.T) {
+	t.Parallel()
+	got := BuildRepositoryRuntimeArtifacts([]querycontract.FileContent{{
+		RelativePath: "services/web/Dockerfile", ArtifactType: "dockerfile",
+		Content: "FROM php:8.2-apache AS web\nRUN a2enmod php8.2 && apt-get install -y libxml2=2.1\n",
+	}})
+	rows := got["deployment_artifacts"].([]map[string]any)
+	if len(rows) != 1 {
+		t.Fatalf("rows = %#v", rows)
+	}
+	installs, ok := rows[0]["installs"].([]map[string]any)
+	if !ok || len(installs) != 2 {
+		t.Fatalf("installs = %#v", rows[0]["installs"])
+	}
+	if installs[0]["manager"] != "a2enmod" || installs[0]["name"] != "php8.2" {
+		t.Fatalf("first install = %#v", installs[0])
+	}
+	if installs[1]["manager"] != "apt-get" || installs[1]["name"] != "libxml2" || installs[1]["version"] != "2.1" {
+		t.Fatalf("second install = %#v", installs[1])
+	}
+}

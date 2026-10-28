@@ -4,7 +4,6 @@
 package dockerfile
 
 import (
-	"bufio"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -13,11 +12,14 @@ import (
 
 // Metadata is the Dockerfile runtime evidence extracted from source text.
 type Metadata struct {
-	Stages []Stage
-	Ports  []Port
-	Args   []Arg
-	Envs   []Env
-	Labels []Label
+	Stages             []Stage
+	Ports              []Port
+	Args               []Arg
+	Envs               []Env
+	Labels             []Label
+	Installs           []Install
+	Unparsed           []UnparsedCommand
+	DroppedCredentials int
 }
 
 // Stage records a Dockerfile FROM stage and the runtime fields attached to it.
@@ -99,11 +101,13 @@ type instruction struct {
 // expected by the parent parser payload.
 func RuntimeMetadata(sourceText string) Metadata {
 	metadata := Metadata{
-		Stages: []Stage{},
-		Ports:  []Port{},
-		Args:   []Arg{},
-		Envs:   []Env{},
-		Labels: []Label{},
+		Stages:   []Stage{},
+		Ports:    []Port{},
+		Args:     []Arg{},
+		Envs:     []Env{},
+		Labels:   []Label{},
+		Installs: []Install{},
+		Unparsed: []UnparsedCommand{},
 	}
 
 	escape := dockerfileEscapeRune(sourceText)
@@ -111,6 +115,7 @@ func RuntimeMetadata(sourceText string) Metadata {
 	var currentStage *Stage
 	stageIndex := 0
 	resolver := newBaseRefResolver()
+	installVars := make(map[string]string)
 	for _, item := range instructions {
 		switch item.keyword {
 		case "FROM":
@@ -124,12 +129,29 @@ func RuntimeMetadata(sourceText string) Metadata {
 			if currentStage == nil {
 				for _, decl := range decls {
 					resolver.declare(decl)
+					if decl.hasDefault {
+						installVars[decl.name] = decl.value
+					}
 				}
 			} else {
 				noteStageArgDefaults(currentStage, decls)
+				for _, decl := range decls {
+					if decl.hasDefault {
+						installVars[decl.name] = decl.value
+					}
+				}
 			}
 		case "ENV":
-			metadata.Envs = append(metadata.Envs, parseEnvs(item, currentStage, escape)...)
+			envRows := parseEnvs(item, currentStage, escape)
+			metadata.Envs = append(metadata.Envs, envRows...)
+			for _, row := range envRows {
+				installVars[row.Name] = row.Value
+			}
+		case "RUN", "ADD":
+			installs, unparsed, dropped := parseInstallInstruction(item, stageName(currentStage), installVars)
+			metadata.Installs = append(metadata.Installs, installs...)
+			metadata.Unparsed = append(metadata.Unparsed, unparsed...)
+			metadata.DroppedCredentials += dropped
 		case "EXPOSE":
 			metadata.Ports = append(metadata.Ports, parsePorts(item, currentStage)...)
 		case "LABEL":
@@ -161,65 +183,17 @@ func RuntimeMetadata(sourceText string) Metadata {
 // relationship callers.
 func (m Metadata) Map() map[string]any {
 	return map[string]any{
-		"modules":           []map[string]any{},
-		"module_inclusions": []map[string]any{},
-		"dockerfile_stages": labelsToMaps(m.Stages, stageMap),
-		"dockerfile_ports":  labelsToMaps(m.Ports, portMap),
-		"dockerfile_args":   labelsToMaps(m.Args, argMap),
-		"dockerfile_envs":   labelsToMaps(m.Envs, envMap),
-		"dockerfile_labels": labelsToMaps(m.Labels, labelMap),
+		"modules":                        []map[string]any{},
+		"module_inclusions":              []map[string]any{},
+		"dockerfile_stages":              labelsToMaps(m.Stages, stageMap),
+		"dockerfile_ports":               labelsToMaps(m.Ports, portMap),
+		"dockerfile_args":                labelsToMaps(m.Args, argMap),
+		"dockerfile_envs":                labelsToMaps(m.Envs, envMap),
+		"dockerfile_labels":              labelsToMaps(m.Labels, labelMap),
+		"dockerfile_installs":            labelsToMaps(m.Installs, installMap),
+		"dockerfile_unparsed":            labelsToMaps(m.Unparsed, unparsedMap),
+		"dockerfile_dropped_credentials": m.DroppedCredentials,
 	}
-}
-
-func instructionsFromSource(source string, escape rune) []instruction {
-	scanner := bufio.NewScanner(strings.NewReader(source))
-	instructions := make([]instruction, 0)
-	escapeText := string(escape)
-	var (
-		buffer    strings.Builder
-		startLine int
-		line      int
-	)
-
-	flush := func() {
-		raw := strings.TrimSpace(buffer.String())
-		buffer.Reset()
-		if raw == "" || strings.HasPrefix(raw, "#") {
-			return
-		}
-		parts := strings.Fields(raw)
-		if len(parts) == 0 {
-			return
-		}
-		keyword := strings.ToUpper(parts[0])
-		value := strings.TrimSpace(strings.TrimPrefix(raw, parts[0]))
-		instructions = append(instructions, instruction{keyword: keyword, line: startLine, value: value})
-	}
-
-	for scanner.Scan() {
-		line++
-		text := scanner.Text()
-		trimmed := strings.TrimSpace(text)
-		if trimmed == "" && buffer.Len() == 0 {
-			continue
-		}
-		if strings.HasPrefix(trimmed, "#") && buffer.Len() == 0 {
-			continue
-		}
-		if buffer.Len() == 0 {
-			startLine = line
-		} else {
-			buffer.WriteByte(' ')
-		}
-		trimmedText := strings.TrimSpace(text)
-		buffer.WriteString(strings.TrimSpace(strings.TrimSuffix(text, escapeText)))
-		if strings.HasSuffix(trimmedText, escapeText) {
-			continue
-		}
-		flush()
-	}
-	flush()
-	return instructions
 }
 
 func parseStage(item instruction, stageIndex int, escape rune, resolver *baseRefResolver) Stage {

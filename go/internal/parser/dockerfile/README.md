@@ -16,7 +16,7 @@ and the exported compatibility wrapper used by query and relationship code.
 ## Exported surface
 
 The godoc contract is in doc.go. Current exports are Metadata, Stage, Arg, Env,
-Port, Label, RuntimeMetadata, and Metadata.Map. The Stage type carries
+Port, Label, Install, UnparsedCommand, RuntimeMetadata, and Metadata.Map. The Stage type carries
 BaseRefTemplate, UnresolvedArgs, ArgDefaults, ArgDefaultsTruncated, and
 ArgDefaultsOmitted for the FROM substitution evidence above.
 
@@ -228,3 +228,25 @@ relationship packages still consume `parser.ExtractDockerfileRuntimeMetadata`.
 ## Related docs
 
 - docs/public/languages/support-maturity.md
+
+### RUN and ADD install declarations (#9303)
+
+`RuntimeMetadata` records recognized source declarations in `Installs` and in
+`dockerfile_installs` payload rows (`manager`, `name`, optional pinned `version`,
+`line_number`, `stage`). `a2enmod` and `docker-php-ext-*` use the same row
+contract; PHP configuration readers consume these rows instead of parsing
+Dockerfile commands again. An install row says only that source declared an
+install, not that the built image contains it.
+
+The bounded scanner accepts package managers, PHP extension commands, and
+HTTP(S) downloads from RUN or ADD without executing shell. `dockerfile_unparsed`
+records a line and reason without keeping command text when tokenization or
+variable expansion fails. `dockerfile_dropped_credentials` counts rejected
+credential-bearing URLs. Download rows retain host and path only. Repository
+artifact readers expose the same rows per Dockerfile stage. Parent parser
+file-parse timing remains the operator signal; this package adds no metric.
+
+No-Regression Evidence: the parser retains source order for install rows and
+leaves existing stage, port, ARG, ENV and label buckets unchanged. Focused
+parser and repository-artifact tests cover install forms, stage binding,
+variable substitution, malformed commands, and credential drops.
