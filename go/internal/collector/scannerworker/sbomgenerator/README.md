@@ -168,6 +168,35 @@ and spans from `internal/telemetry`. The `Inventory.ResourceUsage` field feeds
 instrument, span, log key, queue, reducer lane, graph write, or runtime
 configuration knob.
 
+No-Regression Evidence: the #9407 satellite-identity wiring (sanitized
+claim-scope URI plus per-fact snapshot records on every sbom fact;
+planner-owned `scanner_worker` claim identity on os_package `source_ref`)
+adds no hot-loop work. Throwaway `BenchmarkIdentityWiringSBOMAnalyze`
+(fixed 40-component inventory plus one warning, 43 facts per claim) and
+`BenchmarkIdentityWiringEnvelopes` (fixed 60-package inventory plus one
+warning, 61 facts) ran on linux/arm64 go1.26.6 at baseline `53151ef2fb`
+and after, `-benchtime=1s -count=3`, probes under `/tmp`, worktrees clean.
+
+SBOM analyze: 325,167-327,193 ns/op, 382,450-382,471 B/op, 4,622
+allocs/op before; 334,746-337,784 ns/op, 382,819-382,824 B/op, 4,626
+allocs/op after. Os-package envelopes: 355,114-359,382 ns/op,
+383,338-383,341 B/op, 5,527 allocs/op before; 354,396-358,054 ns/op,
+383,327-383,340 B/op, 5,527 allocs/op after — identical. The SBOM delta is
++~11 us per 43-fact claim (+~3% time, +0.1% bytes, +4 allocs); a first cut
+that recomputed the component StableID per fact measured +20%/+885 allocs
+and was reworked to reuse the computed component ID before commit. A CPU
+profile of the after run shows the same runtime map/reflect/JSON dominance
+with no new hotspot. Safe because analyzer claims run under minute-scale
+timeouts, fact ceilings are unchanged (`TestMaxFactsContractUnchanged`
+still pins 50,000), and the paging bound is unchanged
+(`TestAnalyzerPagedProjectionParity` still splits identically).
+
+No-Observability-Change: the new source-ref fields add no metric, label,
+span, or log key. Envelope counts and the scanner-worker
+claim/retry/dead-letter signals are unchanged;
+`TestAnalyzerSDKAdmissionEnforced` proves host admission with identical
+kinds, stable keys, generations, and scopes.
+
 Resource Contract Evidence: the analyzer enforces the same
 `max_files`, `max_input_bytes`, and `max_facts` from
 `scannerworker.DefaultResourceLimits(AnalyzerSBOMGeneration)` as the rest

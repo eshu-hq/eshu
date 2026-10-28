@@ -94,6 +94,7 @@ func (a *componentWarningAggregator) facts(
 	input scannerworker.ClaimInput,
 	observedAt time.Time,
 	documentID string,
+	sourceURI string,
 ) []facts.Envelope {
 	if len(a.groups) == 0 {
 		return nil
@@ -107,7 +108,7 @@ func (a *componentWarningAggregator) facts(
 	})
 	out := make([]facts.Envelope, 0, len(groups))
 	for _, group := range groups {
-		out = append(out, newComponentWarningFact(input, observedAt, documentID, group))
+		out = append(out, newComponentWarningFact(input, observedAt, documentID, group, sourceURI))
 	}
 	return out
 }
@@ -117,6 +118,7 @@ func newComponentWarningFact(
 	observedAt time.Time,
 	documentID string,
 	group *componentWarningGroup,
+	sourceURI string,
 ) facts.Envelope {
 	warningKey := group.key.stableKey()
 	payload := map[string]any{
@@ -143,7 +145,8 @@ func newComponentWarningFact(
 		"reason":        WarningReasonComponentMissingIdentity,
 		"warning_key":   warningKey,
 	})
-	return newEnvelope(input, observedAt, chain.SBOMWarningFactKind, stableKey, payload)
+	record := warningRecordID(documentID, WarningReasonComponentMissingIdentity) + "#" + strings.TrimSpace(warningKey)
+	return newEnvelope(input, observedAt, chain.SBOMWarningFactKind, stableKey, sourceURI, record, payload)
 }
 
 func addWarningPayloadString(payload map[string]any, key string, value string) {

@@ -414,34 +414,28 @@ func TestAnalyzerPagedProjectionParity(t *testing.T) {
 	}
 }
 
-// TestAnalyzerSDKAdmissionGaps pins the exact satellite-contract gaps that
-// still block host admission per analyzer. Each is fail-closed with a named
-// reason, and each names its unblock path (TODO Refs #9385):
+// TestAnalyzerSDKAdmissionEnforced proves the #9407 identity wiring is
+// enforced: every analyzer's real paged output is admitted by the host — the
+// fail-closed gaps are gone, and admitted facts carry the identical kinds,
+// stable keys, generations, and scopes as the in-tree output:
 //
-//   - sbomgenerator: envelopes carry no source_ref.uri/record_id; the
-//     inventory has no URI-shaped source identity to project, so the port
-//     must add one before a component can validate.
-//   - imageanalyzer/osruntime: vulnerability.os_package facts carry
-//     source_system "os_package_vulnerability" while production scanner
-//     claims carry "scanner_worker" (coordinator planner); the port must
-//     resolve the source identity with the reducer owners before a
-//     component can validate. The image analysis/warning identity fix for
-//     uri/record already landed; only the os_package source_system remains.
-func TestAnalyzerSDKAdmissionGaps(t *testing.T) {
+//   - sbomgenerator: every fact projects the sanitized claim scope as
+//     source_ref.uri with per-fact snapshot records.
+//   - imageanalyzer/osruntime: vulnerability.os_package facts keep the
+//     analyzer collector kind but carry the planner-owned scanner_worker
+//     claim identity the SDK contract admits.
+func TestAnalyzerSDKAdmissionEnforced(t *testing.T) {
 	t.Parallel()
 
-	cases := map[string]struct {
-		kind    scannerworker.AnalyzerKind
-		wantErr string
-	}{
-		"sbomgenerator": {scannerworker.AnalyzerSBOMGeneration, `fact "sbom.document" source_ref.uri is required`},
-		"imageanalyzer": {scannerworker.AnalyzerImageUnpacking, `source_ref.source_system "os_package_vulnerability" does not match claim source_system "scanner_worker"`},
-		"osruntime":     {scannerworker.AnalyzerOSPackageExtraction, `source_ref.source_system "os_package_vulnerability" does not match claim source_system "scanner_worker"`},
+	kinds := map[string]scannerworker.AnalyzerKind{
+		"sbomgenerator": scannerworker.AnalyzerSBOMGeneration,
+		"imageanalyzer": scannerworker.AnalyzerImageUnpacking,
+		"osruntime":     scannerworker.AnalyzerOSPackageExtraction,
 	}
-	for name, tc := range cases {
-		item, input := parityClaimInput(t, tc.kind)
+	for name, kind := range kinds {
+		item, input := parityClaimInput(t, kind)
 		var output scannerworker.FactOutput
-		switch tc.kind {
+		switch kind {
 		case scannerworker.AnalyzerSBOMGeneration:
 			output = paritySBOMOutput(t, item, input)
 		case scannerworker.AnalyzerImageUnpacking:
@@ -451,13 +445,30 @@ func TestAnalyzerSDKAdmissionGaps(t *testing.T) {
 		}
 		calls := splitParityOutput(t, name, item, output)
 		source := paritySource(t, item, name, calls)
-		_, ok, err := source.NextClaimed(context.Background(), item)
-		if err == nil || ok {
-			t.Fatalf("%s: NextClaimed() ok=%t error=%v, want fail-closed gap", name, ok, err)
+		collected, ok, err := source.NextClaimed(context.Background(), item)
+		if err != nil || !ok {
+			t.Fatalf("%s: NextClaimed() ok=%t error=%v, want enforced admission", name, ok, err)
 		}
-		if !strings.Contains(err.Error(), tc.wantErr) {
-			t.Fatalf("%s: NextClaimed() error = %v, want containing %q", name, err, tc.wantErr)
+		var admitted []string
+		for envelope := range collected.Facts {
+			admitted = append(admitted, envelope.FactKind+"\x00"+envelope.StableFactKey+
+				"\x00"+envelope.ScopeID+"\x00"+envelope.GenerationID)
 		}
-		t.Logf("%s: admission gap pinned: %s", name, tc.wantErr)
+		if collected.FactStreamErr != nil {
+			if err := collected.FactStreamErr(); err != nil {
+				t.Fatalf("%s: FactStreamErr() = %v, want nil", name, err)
+			}
+		}
+		if len(admitted) != len(output.Facts) {
+			t.Fatalf("%s: admitted %d facts, want %d", name, len(admitted), len(output.Facts))
+		}
+		for i, envelope := range output.Facts {
+			want := envelope.FactKind + "\x00" + envelope.StableFactKey +
+				"\x00" + envelope.ScopeID + "\x00" + envelope.GenerationID
+			if admitted[i] != want {
+				t.Fatalf("%s: admitted facts[%d] identity changed:\n got %q\nwant %q", name, i, admitted[i], want)
+			}
+		}
+		t.Logf("%s: admission enforced, facts=%d pages=%d", name, len(admitted), len(calls))
 	}
 }

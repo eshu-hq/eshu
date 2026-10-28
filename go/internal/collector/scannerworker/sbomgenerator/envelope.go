@@ -12,11 +12,45 @@ import (
 
 	"github.com/eshu-hq/eshu-sdk/factschema"
 	sbomv1 "github.com/eshu-hq/eshu-sdk/factschema/sbom/v1"
+	"github.com/eshu-hq/eshu/go/internal/collector/ospackagevulnerability"
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
+
+// scopeSourceURI resolves the satellite source identity for one claim (#9407).
+// The SBOM inventory carries no URI and the claim target carries only a
+// privacy-safe locator hash, so the sanitized claim scope — the only
+// URI-shaped, non-local identity in the claim path — is projected. Scopes are
+// already persisted plaintext in fact records and stable keys, so this adds
+// no new exposure. An empty result means the scope sanitizes to nothing and
+// the caller must fail closed: emitting uri-less facts would only die later
+// at SDK admission.
+func scopeSourceURI(input scannerworker.ClaimInput) (string, error) {
+	uri := ospackagevulnerability.SanitizeURL(strings.TrimSpace(input.Target.ScopeID))
+	if uri == "" {
+		return "", fmt.Errorf("sbomgenerator: claim scope carries no projectable source URI")
+	}
+	return uri, nil
+}
+
+func firstNonBlank(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+// warningRecordID names the document-scoped record for one warning reason.
+// Records carry provenance, not uniqueness — the stable key already
+// disambiguates warnings — so reason-qualified document identity is enough,
+// and it stays non-empty for every reason the analyzer emits.
+func warningRecordID(documentID, reason string) string {
+	return strings.TrimSpace(documentID) + "#" + strings.TrimSpace(reason)
+}
 
 var subjectDigestPattern = regexp.MustCompile(`^sha256:[0-9a-fA-F]{64}$`)
 
@@ -29,7 +63,7 @@ type documentInput struct {
 	warningCount   int
 }
 
-func newDocumentFact(input scannerworker.ClaimInput, observedAt time.Time, doc documentInput) facts.Envelope {
+func newDocumentFact(input scannerworker.ClaimInput, observedAt time.Time, doc documentInput, sourceURI, sourceRecordID string) facts.Envelope {
 	payload := map[string]any{
 		"document_id":           doc.documentID,
 		"document_digest":       "",
@@ -81,7 +115,7 @@ func newDocumentFact(input scannerworker.ClaimInput, observedAt time.Time, doc d
 		"scope_id":       input.Target.ScopeID,
 		"subject_digest": strings.TrimSpace(doc.subjectDigest),
 	})
-	return newEnvelope(input, observedAt, chain.SBOMDocumentFactKind, stableKey, payload)
+	return newEnvelope(input, observedAt, chain.SBOMDocumentFactKind, stableKey, sourceURI, sourceRecordID, payload)
 }
 
 func newComponentFact(
@@ -91,6 +125,7 @@ func newComponentFact(
 	comp Component,
 	identity string,
 	usedIdentities map[string]struct{},
+	sourceURI string,
 ) (facts.Envelope, bool) {
 	// Dedup on the canonical identity (lowercased purl or name@version) so
 	// inventories that report the same package under different casing or with
@@ -102,6 +137,9 @@ func newComponentFact(
 	}
 	usedIdentities[identity] = struct{}{}
 	componentID := newComponentID(documentID, identity)
+	// The record reuses the already-computed component ID as the last
+	// resort so the common bom_ref/purl cases cost no extra hashing.
+	sourceRecordID := firstNonBlank(comp.BomRef, comp.PURL, componentID)
 	stableKey := facts.StableID(chain.SBOMComponentFactKind, map[string]any{
 		"component_id":  componentID,
 		"document_id":   documentID,
@@ -167,7 +205,7 @@ func newComponentFact(
 			CorrelationAnchors: uniqueSorted([]string{purl, bomRef, strings.TrimSpace(comp.Ecosystem), strings.TrimSpace(comp.LockfilePath)}),
 		})
 	})
-	return newEnvelope(input, observedAt, chain.SBOMComponentFactKind, stableKey, payload), true
+	return newEnvelope(input, observedAt, chain.SBOMComponentFactKind, stableKey, sourceURI, sourceRecordID, payload), true
 }
 
 func newWarningFact(
@@ -176,6 +214,7 @@ func newWarningFact(
 	documentID string,
 	reason string,
 	summary string,
+	sourceURI, sourceRecordID string,
 ) facts.Envelope {
 	payload := map[string]any{
 		"document_id": documentID,
@@ -195,7 +234,7 @@ func newWarningFact(
 		"reason":        reason,
 		"summary":       summary,
 	})
-	return newEnvelope(input, observedAt, chain.SBOMWarningFactKind, stableKey, payload)
+	return newEnvelope(input, observedAt, chain.SBOMWarningFactKind, stableKey, sourceURI, sourceRecordID, payload)
 }
 
 func newWarningFactWithEvidence(
@@ -203,6 +242,7 @@ func newWarningFactWithEvidence(
 	observedAt time.Time,
 	documentID string,
 	warning Warning,
+	sourceURI, sourceRecordID string,
 ) facts.Envelope {
 	reason := strings.TrimSpace(warning.Reason)
 	summary := strings.TrimSpace(warning.Summary)
@@ -246,7 +286,7 @@ func newWarningFactWithEvidence(
 		"reason":            reason,
 		"summary":           summary,
 	})
-	return newEnvelope(input, observedAt, chain.SBOMWarningFactKind, stableKey, payload)
+	return newEnvelope(input, observedAt, chain.SBOMWarningFactKind, stableKey, sourceURI, sourceRecordID, payload)
 }
 
 func newEnvelope(
@@ -254,6 +294,7 @@ func newEnvelope(
 	observedAt time.Time,
 	factKind string,
 	stableKey string,
+	sourceURI, sourceRecordID string,
 	payload map[string]any,
 ) facts.Envelope {
 	schemaVersion, _ := chain.SBOMAttestationSchemaVersion(factKind)
@@ -270,10 +311,12 @@ func newEnvelope(
 		ObservedAt:       observedAt,
 		Payload:          payload,
 		SourceRef: facts.Ref{
-			SourceSystem: string(scope.CollectorScannerWorker),
-			ScopeID:      input.Target.ScopeID,
-			GenerationID: input.GenerationID,
-			FactKey:      stableKey,
+			SourceSystem:   string(scope.CollectorScannerWorker),
+			ScopeID:        input.Target.ScopeID,
+			GenerationID:   input.GenerationID,
+			FactKey:        stableKey,
+			SourceURI:      sourceURI,
+			SourceRecordID: sourceRecordID,
 		},
 	}
 }

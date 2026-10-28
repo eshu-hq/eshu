@@ -230,6 +230,18 @@ func classifySourceError(err error) error {
 
 func (a Analyzer) buildFacts(input scannerworker.ClaimInput, inventory Inventory) ([]facts.Envelope, int, int, error) {
 	observedAt := a.observedAt(input)
+	// Satellite source identity resolves once per claim (#9407): every
+	// emitted fact shares the sanitized claim-scope URI. A scope that
+	// sanitizes to nothing cannot produce admissible facts, so the claim
+	// dead-letters terminally instead of emitting uri-less envelopes.
+	sourceURI, err := scopeSourceURI(input)
+	if err != nil {
+		return nil, 0, 0, scannerworker.NewTerminalAnalyzerFailure(
+			scannerworker.FailureClassUnsupportedTarget,
+			scannerworker.ResourceUsage{},
+			err,
+		)
+	}
 	subjectDigest, subjectWarning := normalizeSubjectDigest(inventory.SubjectDigest)
 	specVersion := inventory.SpecVersion
 	if specVersion == "" {
@@ -266,7 +278,7 @@ func (a Analyzer) buildFacts(input scannerworker.ClaimInput, inventory Inventory
 			}
 			continue
 		}
-		fact, ok := newComponentFact(input, observedAt, documentID, comp, identity, usedIdentities)
+		fact, ok := newComponentFact(input, observedAt, documentID, comp, identity, usedIdentities, sourceURI)
 		if !ok {
 			componentWarnings.addDuplicateIdentity(idx, comp, identity, tool)
 			if componentFactUpperBound(len(componentFacts), componentWarnings.factCount(), inventoryWarningFacts, subjectWarningFacts) > input.Limits.MaxFacts {
@@ -289,20 +301,27 @@ func (a Analyzer) buildFacts(input scannerworker.ClaimInput, inventory Inventory
 		}
 	}
 
-	warningFacts = append(warningFacts, componentWarnings.facts(input, observedAt, documentID)...)
+	warningFacts = append(warningFacts, componentWarnings.facts(input, observedAt, documentID, sourceURI)...)
 	for _, warning := range inventory.Warnings {
 		if strings.TrimSpace(warning.Reason) == "" {
 			continue
 		}
-		warningFacts = append(warningFacts, newWarningFactWithEvidence(input, observedAt, documentID, warning))
+		warningFacts = append(warningFacts, newWarningFactWithEvidence(input, observedAt, documentID, warning,
+			sourceURI, warningRecordID(documentID, warning.Reason)))
 	}
 	if subjectWarning != "" {
-		warningFacts = append(warningFacts, newWarningFact(input, observedAt, documentID, subjectWarning, subjectWarningSummary(subjectWarning, inventory.SubjectDigest)))
+		warningFacts = append(warningFacts, newWarningFact(input, observedAt, documentID, subjectWarning, subjectWarningSummary(subjectWarning, inventory.SubjectDigest),
+			sourceURI, warningRecordID(documentID, subjectWarning)))
 	}
 	if emittedComponents == 0 {
-		warningFacts = append(warningFacts, newWarningFact(input, observedAt, documentID, WarningReasonNoComponentsFound, "sbom generator returned zero usable components"))
+		warningFacts = append(warningFacts, newWarningFact(input, observedAt, documentID, WarningReasonNoComponentsFound, "sbom generator returned zero usable components",
+			sourceURI, warningRecordID(documentID, WarningReasonNoComponentsFound)))
 	}
 
+	// The document record is the snapshot identity when the inventory names
+	// a subject; without one the document itself is the only stable record,
+	// which keeps the fact admissible instead of failing the whole claim on
+	// record_id.
 	docFact := newDocumentFact(input, observedAt, documentInput{
 		documentID:     documentID,
 		subjectDigest:  subjectDigest,
@@ -310,7 +329,7 @@ func (a Analyzer) buildFacts(input scannerworker.ClaimInput, inventory Inventory
 		tool:           tool,
 		componentCount: len(componentFacts),
 		warningCount:   len(warningFacts),
-	})
+	}, sourceURI, firstNonBlank(subjectDigest, documentID))
 
 	all := make([]facts.Envelope, 0, 1+len(componentFacts)+len(warningFacts))
 	all = append(all, docFact)
