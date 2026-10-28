@@ -163,11 +163,15 @@ yq e -n '.name = "callee" | .on.workflow_call = null | .jobs.inner = {"runs-on":
 yq e -i '.jobs.call = {"uses": "./.github/workflows/fixture-callee.yml"}' "${d}/.github/workflows/verify-agent-hygiene.yml"
 expect_green reusable-callee-of-a-non-queue-workflow-keeps-the-login-rule "${d}"
 
-# --- the real queue-path workflows: a planted Docker Hub image must fail ---------
+# --- the committed contention-gate workflow is off the queue path (no ---------
+# --- merge_group/pull_request trigger since the merge-queue cleanup), so a -----
+# --- planted Docker Hub image must fail under the login rule instead: the ------
+# --- verifier never reaches the login check for a queue-path job, so this ------
+# --- string also proves the job is not queue-path (still fail-closed). ---------
 d="$(new_case real-reducer-contention-workflow)"
 cp "${repo_root}/.github/workflows/reducer-contention-gate.yml" "${d}/.github/workflows/reducer-contention-gate.yml"
 yq e -i '.jobs.contention-gate.services.postgres.image = "postgres:18-alpine"' "${d}/.github/workflows/reducer-contention-gate.yml"
-expect_red committed-queue-workflow-with-a-planted-hub-image "${d}" 'reducer-contention-gate.yml:contention-gate: queue-path job'
+expect_red committed-queue-workflow-with-a-planted-hub-image "${d}" 'reducer-contention-gate.yml:contention-gate: service postgres (postgres:18-alpine) pulls from Docker Hub at job init without credentials'
 
 d="$(new_case explain-lists-queue-path)"
 if out="$(ESHU_DOCKERHUB_LOGIN_ROOT="${d}" ESHU_DOCKERHUB_LOGIN_EXPLAIN=1 bash "${verifier}" 2>&1)" && [[ "${out}" == *'queue-path: '*' workflow file(s) are on the queue path'* ]]; then
