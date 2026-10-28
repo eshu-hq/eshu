@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	vaultcollector "github.com/eshu-hq/eshu/go/internal/collector/vaultlive"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -45,8 +44,10 @@ func TestWorkPlannerPreservesVaultLivePlanningContract(t *testing.T) {
 		if got, want := item.AcceptanceUnitID, wantScopes[index]; got != want {
 			t.Fatalf("items[%d].AcceptanceUnitID = %q, want %q", index, got, want)
 		}
-		if item.SourceSystem != vaultcollector.CollectorKind {
-			t.Fatalf("items[%d].SourceSystem = %q, want %q", index, item.SourceSystem, vaultcollector.CollectorKind)
+		// The literal pins the extracted collector's kind string: the
+		// coordinator must stamp it without importing the collector package.
+		if item.SourceSystem != "vault_live" {
+			t.Fatalf("items[%d].SourceSystem = %q, want %q", index, item.SourceSystem, "vault_live")
 		}
 		if !strings.HasPrefix(item.GenerationID, "vault_live:") || item.GenerationID != item.SourceRunID {
 			t.Fatalf("items[%d] generation/source_run = %q/%q", index, item.GenerationID, item.SourceRunID)
@@ -169,9 +170,51 @@ func testPlanRequest() PlanRequest {
 
 func mustVaultScopeID(t *testing.T, clusterID, namespace string) string {
 	t.Helper()
-	scopeID, err := vaultcollector.VaultScopeID(clusterID, namespace)
+	scopeID, err := vaultLiveScopeID(clusterID, namespace)
 	if err != nil {
-		t.Fatalf("VaultScopeID(%q, %q) error = %v", clusterID, namespace, err)
+		t.Fatalf("vaultLiveScopeID(%q, %q) error = %v", clusterID, namespace, err)
 	}
 	return scopeID
+}
+
+// TestVaultLiveScopeIDsMatchCollectorContract pins the coordinator's scope
+// identities to the values the in-tree collector produced before the
+// decoupling, so a later deletion of the collector package cannot silently
+// change planned scope ids.
+func TestVaultLiveScopeIDsMatchCollectorContract(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		clusterID string
+		namespace string
+		want      string
+	}{
+		{
+			clusterID: "vault-a",
+			namespace: "admin",
+			want:      "vault_live:de7d9d02c426ac00c84465828dc7cd1050bc6dc39bc5bcdddada8405fee3c754",
+		},
+		{
+			clusterID: "vault-z",
+			namespace: "team-z",
+			want:      "vault_live:0c8c6cbb83f0dce3da89c88b9bfe2eb8264b54789cd570bdb67295d7fe7164d3",
+		},
+		{
+			clusterID: "vault-a",
+			namespace: "team-a",
+			want:      "vault_live:1131537d9df8e3f984de9275a5a1245c8bb5b5a3ca8a2b2939766d771434307d",
+		},
+	}
+	for _, tc := range cases {
+		got, err := vaultLiveScopeID(tc.clusterID, tc.namespace)
+		if err != nil {
+			t.Fatalf("vaultLiveScopeID(%q, %q) error = %v", tc.clusterID, tc.namespace, err)
+		}
+		if got != tc.want {
+			t.Fatalf("vaultLiveScopeID(%q, %q) = %q, want collector-contract %q", tc.clusterID, tc.namespace, got, tc.want)
+		}
+	}
+	if _, err := vaultLiveScopeID("  ", "admin"); err == nil {
+		t.Fatal("vaultLiveScopeID blank cluster: want error")
+	}
 }

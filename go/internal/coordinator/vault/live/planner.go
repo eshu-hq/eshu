@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	vaultcollector "github.com/eshu-hq/eshu/go/internal/collector/vaultlive"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/contract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -161,7 +160,7 @@ func vaultLiveRequestedScopeSet(
 		Targets:             make([]requestedTarget, 0, len(targets)),
 	}
 	for _, target := range targets {
-		scopeID, err := vaultcollector.VaultScopeID(target.VaultClusterID, target.Namespace)
+		scopeID, err := vaultLiveScopeID(target.VaultClusterID, target.Namespace)
 		if err != nil {
 			continue
 		}
@@ -187,7 +186,7 @@ func vaultLiveWorkItem(
 	planKey string,
 	observedAt time.Time,
 ) (workflow.WorkItem, error) {
-	scopeID, err := vaultcollector.VaultScopeID(target.VaultClusterID, target.Namespace)
+	scopeID, err := vaultLiveScopeID(target.VaultClusterID, target.Namespace)
 	if err != nil {
 		return workflow.WorkItem{}, err
 	}
@@ -201,7 +200,7 @@ func vaultLiveWorkItem(
 		RunID:               runID,
 		CollectorKind:       scope.CollectorVaultLive,
 		CollectorInstanceID: strings.TrimSpace(instance.InstanceID),
-		SourceSystem:        vaultcollector.CollectorKind,
+		SourceSystem:        vaultLiveSourceSystem,
 		ScopeID:             scopeID,
 		AcceptanceUnitID:    scopeID,
 		SourceRunID:         generationID,
