@@ -130,6 +130,8 @@ A token that matches none of the version, range or placeholder shapes (for
 example `jruby-9.4.0`) is classified `alias`: a named reference is never
 guessed into numbers.
 
+A `.php-version` file declares the PHP runtime using the `php_version` source kind. Its value passes the manifest credential guard before emission.
+
 ## Manifest sources
 
 `package.json` and `go.mod` are matched by exact, case-sensitive base name at

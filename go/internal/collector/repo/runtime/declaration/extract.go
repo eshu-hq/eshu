@@ -67,6 +67,21 @@ func extractPinFile(sourceKind, body string) Extraction {
 	case total > MaxTokensPerFile:
 		return Extraction{skip: Skip{Reason: SkipReasonTokenCap, ByteSize: len(body), TokenCount: total}}
 	}
+	if sourceKind == sourceKindPHPVersion {
+		kept := declarations[:0]
+		rejected := 0
+		for _, d := range declarations {
+			if !safeSpec(d.rawSpec) {
+				rejected++
+				continue
+			}
+			kept = append(kept, d)
+		}
+		if rejected > 0 {
+			return Extraction{sourceKind: sourceKind, declarations: kept, skip: Skip{Reason: SkipReasonValueRejected, ByteSize: len(body), Rejected: rejected}}
+		}
+		declarations = kept
+	}
 	return Extraction{sourceKind: sourceKind, declarations: declarations}
 }
 

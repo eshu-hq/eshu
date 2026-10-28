@@ -263,7 +263,7 @@ func defaultDefinitions() []Definition {
 			// path rule in LookupByPath, since its base name is too generic.
 			ExactNames: []string{
 				"Puppetfile", "Berksfile",
-				".nvmrc", ".node-version", ".tool-versions", ".python-version",
+				".nvmrc", ".node-version", ".tool-versions", ".python-version", ".php-version",
 				".ruby-version", ".java-version", ".go-version", ".sdkmanrc",
 				".swift-version", ".terraform-version",
 				"rust-toolchain", "rust-toolchain.toml",

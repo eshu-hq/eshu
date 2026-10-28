@@ -36,6 +36,7 @@ func TestSnapshotRepositoryEmitsARuntimeDeclarationForEveryAdmittedPinName(t *te
 		"rust-toolchain":      {"1.75.0\n", "rust_toolchain", "rust"},
 		"rust-toolchain.toml": {"[toolchain]\nchannel = \"1.78.0\"\n", "rust_toolchain", "rust"},
 		".swift-version":      {"5.9\n", "swift_version", "swift"},
+		".php-version":        {"8.3.12\n", "php_version", "php"},
 	}
 
 	registry := parser.DefaultRegistry()
