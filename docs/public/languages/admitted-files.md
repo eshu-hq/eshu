@@ -99,7 +99,7 @@ export would bypass it.
 
 | Policy | What is stored | Use it for |
 | --- | --- | --- |
-| `store` | The body, verbatim. This is the default for every definition except `.npmrc` and `gradle-wrapper.properties`. | Source and configuration files that hold no credentials. |
+| `store` | The body, verbatim. This is the default for definitions without an explicit content-store policy. | Source and configuration files that hold no credentials. |
 | `metadata` | A `content_files` row with an empty body. The path stays in the repository tree, file counts, language inventory, and coverage. The row is never a tombstone. | Files that can hold credentials where the registry URLs or version pins matter more than the text. |
 | `redact` | The body with credential values replaced in place. The `marker` mode writes `REDACTED_<finding_kind>`, for example `npmAuthToken: REDACTED_api_token`. The `skeleton` mode keeps structure, keys, and values whose shape cannot carry a credential, and writes `REDACTED_value` or `REDACTED_<finding_kind>` for every other value. | `marker`: closed-schema files where every credential key is known. `skeleton`: open-schema files such as `*.tfvars`, where a key name does not say whether the value is secret. |
 
@@ -233,11 +233,11 @@ they are. A registry that binds no non-store policy keeps today's fingerprint.
 
 ### Which files use each policy
 
-Four definitions bind a policy other than `store`, recorded in the
-[credential-file design record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8813-credential-file-exposure.md).
-Each credential file has its own parser definition, so the policy never reaches
-other `.tf`, `.hcl`, `.yaml`, `.yml`, or `.ini` files. Every other definition
-uses `store`.
+Five definitions bind a policy other than `store`. The first four are recorded
+in the [credential-file design record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8813-credential-file-exposure.md);
+`runtime.txt` was added for Python runtime declarations (#9308). Each file has
+its own parser definition, so the policy never reaches other `.tf`, `.hcl`,
+`.yaml`, `.yml`, or `.ini` files. Every other definition uses `store`.
 
 | File | Definition | Policy | Mode |
 | --- | --- | --- | --- |
@@ -245,6 +245,7 @@ uses `store`.
 | `*.tfvars`, `*.tfvars.json` | `tfvars` (hcl engine) | `redact` | `skeleton` (#8833) |
 | `.npmrc` | `npmrc` | `metadata` | none (#8978) |
 | `gradle-wrapper.properties` | `gradle_wrapper` | `metadata` | none (#8822) |
+| `runtime.txt` | `runtime_txt` | `metadata` | none (#9308) |
 | `gradle.properties`, `nuget.config` | none | `metadata`, if a later record admits them | none |
 
 The hcl engine parses a `.tfvars.json` body via `ParseJSON` since #9048,

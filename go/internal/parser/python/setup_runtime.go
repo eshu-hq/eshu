@@ -50,6 +50,8 @@ func pythonSetupRuntimeEvidence(root *tree_sitter.Node, source []byte) pythondep
 			bindSetupModuleImport(&child, source, modules, direct)
 		case "import_from_statement":
 			bindSetupDirectImport(&child, source, modules, direct)
+		case "delete_statement":
+			invalidateSetupTargets(&child, source, modules, direct)
 		case "expression_statement":
 			expression := pythonFirstNamedChild(&child)
 			if expression == nil {
@@ -57,11 +59,7 @@ func pythonSetupRuntimeEvidence(root *tree_sitter.Node, source []byte) pythondep
 			}
 			switch expression.Kind() {
 			case "assignment", "augmented_assignment", "annotated_assignment":
-				left := expression.ChildByFieldName("left")
-				if left != nil && left.Kind() == "identifier" {
-					delete(direct, nodeText(left, source))
-					delete(modules, nodeText(left, source))
-				}
+				invalidateSetupTargets(expression.ChildByFieldName("left"), source, modules, direct)
 			case "call":
 				if !boundSetupCall(expression, source, modules, direct) {
 					continue
@@ -86,6 +84,13 @@ func pythonSetupRuntimeEvidence(root *tree_sitter.Node, source []byte) pythondep
 			name := nodeText(child.ChildByFieldName("name"), source)
 			delete(direct, name)
 			delete(modules, name)
+		case "comment":
+			// Comments do not alter a binding.
+		default:
+			// A conditional, loop, try, or other statement can rebind an
+			// imported name. Its later value is not statically proven here.
+			clear(direct)
+			clear(modules)
 		}
 	}
 	if evidence.TokenCount > shared.RuntimeVersionTokenCap {
@@ -124,6 +129,11 @@ func bindSetupModuleImport(node *tree_sitter.Node, source []byte, modules, direc
 func bindSetupDirectImport(node *tree_sitter.Node, source []byte, modules, direct map[string]bool) {
 	module := nodeText(node.ChildByFieldName("module_name"), source)
 	for i := uint(0); i < node.ChildCount(); i++ {
+		if node.Child(i).Kind() == "wildcard_import" {
+			clear(modules)
+			clear(direct)
+			return
+		}
 		if node.FieldNameForChild(uint32(i)) != "name" {
 			continue
 		}
@@ -140,6 +150,27 @@ func bindSetupDirectImport(node *tree_sitter.Node, source []byte, modules, direc
 		}
 		delete(modules, alias)
 		direct[alias] = name == "setup" && (module == "setuptools" || module == "distutils.core")
+	}
+}
+
+// invalidateSetupTargets removes bindings that an assignment or deletion may
+// write. Destructuring targets are walked as a whole so a tuple cannot retain
+// a trusted setup import after one of its elements overwrites that name.
+func invalidateSetupTargets(node *tree_sitter.Node, source []byte, modules, direct map[string]bool) {
+	if node == nil {
+		return
+	}
+	if node.Kind() == "identifier" {
+		name := nodeText(node, source)
+		delete(direct, name)
+		delete(modules, name)
+		return
+	}
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		invalidateSetupTargets(&child, source, modules, direct)
 	}
 }
 

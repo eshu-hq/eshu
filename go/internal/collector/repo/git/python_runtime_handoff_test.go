@@ -181,6 +181,14 @@ func TestPythonRuntimeBareCRDigestBindsOriginalRevision(t *testing.T) {
 			if collected.Generation.PreparseIdentityDropped != nil && collected.Generation.PreparseIdentityDropped.Load() {
 				t.Fatal("unchanged bare-CR input requested retry")
 			}
+			writeCollectorTestFile(t, filepath.Join(repoRoot, tc.path), strings.Replace(tc.body, "3.12", "3.13", 1))
+			changed := buildStreamingGeneration(repoRoot, testCollectorRepositoryMetadata(repoRoot), "run-python-cr-changed", observed, snapshot, false, "")
+			if got := decodeDeclarationList(t, drainFactChannel(changed.Facts)); len(got) != 0 {
+				t.Fatalf("changed bare-CR input emitted stale declarations: %+v", got)
+			}
+			if changed.Generation.PreparseIdentityDropped == nil || !changed.Generation.PreparseIdentityDropped.Load() {
+				t.Fatal("changed bare-CR input did not request retry")
+			}
 		})
 	}
 }
