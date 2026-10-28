@@ -292,3 +292,23 @@ numeric representation. The existing process and OCI adapter errors, bounded
 SDK statuses, claim failure classes, and collector fact evidence remain the
 operator signals; the focused tests prove accepted results reach the claimed
 source without a new status or failure path.
+
+Satellite Env Scrub No-Regression Evidence: the per-claim child-env filter
+walks the inherited host environment once (tens of entries) plus the
+configured ScrubEnv names (three App credential variables), keeping every
+entry whose name is not an exact scrubbed match; explicit Env entries append
+afterwards unchanged. No storage, queue, lease, graph, or network path is
+touched, and the OCI adapter (explicit env only) is not modified.
+`go test -count=1` and `-race` pass for `internal/collector/extensionhost`
+and `cmd/collector-component-extension`, including end-to-end tests that
+exec a real child and assert the scrubbed name is absent from its
+environment, passthrough entries survive, and explicit Env overrides.
+Behavior is byte-identical except for the three withheld credential names,
+which no satellite legitimately reads: the host injects the minted token
+over stdio.
+
+Satellite Env Scrub No-Observability-Change: the filter emits no metric,
+span, log, or status of its own. Operator signals are unchanged: claim
+failure classes, bounded SDK statuses, and existing collector fact evidence.
+A satellite missing an expected variable fails through its own existing
+result and error path, not a new one.

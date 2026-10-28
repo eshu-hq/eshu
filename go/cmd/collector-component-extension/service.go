@@ -25,6 +25,35 @@ import (
 
 var fallbackClaimSequence uint64
 
+// scrubHostCredentialEnv withholds the host's GitHub App credential variables
+// from a process-adapter satellite child, which otherwise inherits the whole
+// host environment including the App private key (eshu-hq/eshu#9256, epic
+// #9182 AC1). The satellite needs none of these names: the host injects the
+// minted token per claim over stdio, and the static path uses token_env
+// names, never these. Scrubbing is unconditional — it also covers partial
+// configuration where the provider stays nil but the key is still present.
+// OCI-adapter runners already forward only explicit env, so only process
+// runners are touched. Explicit runner Env entries still apply afterwards,
+// so operator intent wins.
+func scrubHostCredentialEnv(runner extensionhost.Runner) extensionhost.Runner {
+	// RunCollector has a value receiver, so both extensionhost.ProcessRunner
+	// and *extensionhost.ProcessRunner satisfy Runner; the scrub must cover
+	// both shapes. Runners of any other type pass through only because every
+	// non-process runner today (the OCI adapter) forwards explicit env and
+	// never inherits the host environment — a new inheriting runner type
+	// must add its case here.
+	switch process := runner.(type) {
+	case extensionhost.ProcessRunner:
+		process.ScrubEnv = append(process.ScrubEnv, envGitHubAppID, envGitHubAppPrivateKey, envGitHubAppInstallations)
+		return process
+	case *extensionhost.ProcessRunner:
+		process.ScrubEnv = append(process.ScrubEnv, envGitHubAppID, envGitHubAppPrivateKey, envGitHubAppInstallations)
+		return process
+	default:
+		return runner
+	}
+}
+
 func buildClaimedService(
 	database db.ExecQueryer,
 	getenv func(string) string,
@@ -55,7 +84,7 @@ func buildClaimedService(
 		ScopeKind:           config.ScopeKind,
 		ConfigHandle:        config.ConfigHandle,
 		Config:              config.ExtensionConfig,
-		Runner:              config.Runner,
+		Runner:              scrubHostCredentialEnv(config.Runner),
 		// StatusTelemetry turns the extension's SDK status rows into the
 		// eshu_dp_component_extension_* instruments and one bounded log
 		// line per claim result (#8908); an extracted collector emits no
