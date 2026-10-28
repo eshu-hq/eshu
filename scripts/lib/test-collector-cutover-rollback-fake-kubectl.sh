@@ -65,6 +65,13 @@ rollout)
 		fi
 		printf 'deployment "%s" successfully rolled out\n' "${target}"
 	else
+		# An activations-mode collector is re-seeded from the ConfigMap on every
+		# pod start: a restart reinstalls whatever the ConfigMap still holds,
+		# undoing any pod-local registry write. Marker reseed_on_restart models
+		# that by restoring the activations file from seed_activations.
+		if [[ -e "${state}/reseed_on_restart" && -f "${state}/seed_activations" ]]; then
+			cp "${state}/seed_activations" "${state}/activations"
+		fi
 		printf 'deployment.apps/%s restarted\n' "${target}"
 	fi
 	;;
@@ -111,6 +118,18 @@ get)
 			[[ ! -e "${state}/intree_status_pods" ]] || live="$(cat "${state}/intree_status_pods")"
 			if ((live > 0)); then printf '%s|%s\n' "${count}" "${live}"; else printf '%s|\n' "${count}"; fi
 		fi
+		;;
+	configmap/*)
+		name="${2#configmap/}"
+		if [[ -e "${state}/configmap_missing" ]]; then
+			printf 'Error from server (NotFound): configmaps "%s" not found\n' "${name}" >&2
+			exit 1
+		fi
+		if [[ -e "${state}/configmap_fail" ]]; then
+			printf 'Error from server (InternalError): etcdserver: request timed out\n' >&2
+			exit 1
+		fi
+		cat "${state}/configmap_entries"
 		;;
 	*)
 		printf 'fake kubectl: unsupported get %s\n' "$*" >&2

@@ -22,6 +22,7 @@
 #
 # Dependencies are injected through the environment so tests can stub them:
 #   ROLLBACK_ESHU_BIN (eshu)  ROLLBACK_KUBECTL_BIN (kubectl)  ROLLBACK_PSQL_BIN (psql)  ROLLBACK_HELM_BIN (helm)
+#   ROLLBACK_GIT_BIN (git, activations mode only: reads the removal commit)
 # psql reads its connection from the standard libpq environment (PGHOST,
 # PGUSER, PGDATABASE, PGPASSFILE, ...). No secret is ever passed on a command
 # line or printed. Hung calls are bounded: PGCONNECT_TIMEOUT (default 10 seconds)
@@ -40,6 +41,7 @@ ROLLBACK_ESHU_BIN="${ROLLBACK_ESHU_BIN:-eshu}"
 ROLLBACK_KUBECTL_BIN="${ROLLBACK_KUBECTL_BIN:-kubectl}"
 ROLLBACK_PSQL_BIN="${ROLLBACK_PSQL_BIN:-psql}"
 ROLLBACK_HELM_BIN="${ROLLBACK_HELM_BIN:-helm}"
+ROLLBACK_GIT_BIN="${ROLLBACK_GIT_BIN:-git}"
 ROLLBACK_KUBECTL_REQUEST_TIMEOUT="${ROLLBACK_KUBECTL_REQUEST_TIMEOUT:-30s}"
 ROLLBACK_CLOCK_SKEW_SECONDS="${ROLLBACK_CLOCK_SKEW_SECONDS:-30}"
 # A libpq connect that hangs would outlive every wait_until deadline.
@@ -107,6 +109,10 @@ helm_release=""
 helm_chart=""
 restore_values=""
 restore_by_gitops="false"
+activations_mode="false"
+removal_commit=""
+gitops_repo=""
+activations_configmap=""
 assume_yes="false"
 baseline_file=""
 capture_file=""
@@ -177,6 +183,11 @@ parse_args() {
 			shift
 			continue
 			;;
+		--activations-mode)
+			activations_mode="true"
+			shift
+			continue
+			;;
 		esac
 		need_value "$@"
 		case "$1" in
@@ -189,6 +200,9 @@ parse_args() {
 		--producer-id) producer_id="$2" ;;
 		--grant-kind) grant_kinds+=("$2") ;;
 		--grant-scope) grant_scope="$2" ;;
+		--removal-commit) removal_commit="$2" ;;
+		--gitops-repo) gitops_repo="$2" ;;
+		--activations-configmap) activations_configmap="$2" ;;
 		--namespace) namespace="$2" ;;
 		--worker-deployment) worker_deployment="$2" ;;
 		--coordinator-deployment) coordinator_deployment="$2" ;;
@@ -268,6 +282,37 @@ check_seconds() {
 	[[ "$value" =~ ^[0-9]+$ ]] || die "$EX_USAGE" "$name must be whole seconds: '$value'"
 }
 
+# check_activations_options validates the GitOps proof options. In this mode the
+# removal commit is the durable act that replaces steps 1 and 3, and the restore
+# is its git revert plus a sync, so the commit, a checkout holding it, and the
+# GitOps restore flag are all required.
+check_activations_options() {
+	# verify never restores, so it needs the GitOps proof but not the restore flag.
+	if [[ "$subcommand" != "verify" ]]; then
+		[[ "$restore_by_gitops" == "true" ]] ||
+			die "$EX_USAGE" "--activations-mode needs --restore-applied-by-gitops: the restore is a git revert of the removal commit plus a sync, never helm"
+	fi
+	[[ -n "$removal_commit" ]] ||
+		die "$EX_USAGE" "--activations-mode needs --removal-commit SHA: the GitOps commit that deleted the activation entry"
+	[[ "$removal_commit" =~ ^[0-9a-fA-F]{7,64}$ ]] ||
+		die "$EX_USAGE" "--removal-commit must be a commit SHA (7 to 64 hex characters): '$removal_commit'"
+	[[ -n "$gitops_repo" ]] ||
+		die "$EX_USAGE" "--activations-mode needs --gitops-repo DIR: a local checkout holding the removal commit"
+	[[ -d "$gitops_repo" ]] ||
+		die "$EX_USAGE" "--gitops-repo is not a directory: '$gitops_repo'"
+	if [[ -z "$activations_configmap" ]]; then
+		activations_configmap="eshu-component-activations"
+	fi
+	check_token "--activations-configmap" "$activations_configmap"
+}
+
+# reject_activations_options fails when a GitOps proof option is passed without
+# the mode that reads it: silently ignoring it would prove nothing.
+reject_activations_options() {
+	[[ -z "$removal_commit$gitops_repo$activations_configmap" ]] ||
+		die "$EX_USAGE" "--removal-commit, --gitops-repo, and --activations-configmap need --activations-mode"
+}
+
 validate() {
 	check_token "--collector-kind" "$collector_kind"
 	check_list "--external-instance" "$external_instances"
@@ -293,6 +338,15 @@ validate() {
 	[[ "$from_step" =~ ^[1-6]$ ]] || die "$EX_USAGE" "--from-step must be 1 to 6"
 	[[ "$through_step" =~ ^[1-6]$ ]] || die "$EX_USAGE" "--through-step must be 1 to 6"
 	((from_step <= through_step)) || die "$EX_USAGE" "--from-step must not exceed --through-step"
+	# A capture reads only fact truth, so like the direct mode it needs no proof
+	# options; every other subcommand in the mode needs the GitOps proof.
+	if [[ "$subcommand" == "verify" && -n "$capture_file" && "$activations_mode" == "true" ]]; then
+		: # nothing to check: capture reads only the truth query
+	elif [[ "$activations_mode" == "true" ]]; then
+		check_activations_options
+	else
+		reject_activations_options
+	fi
 	if [[ "$subcommand" == "verify" ]]; then
 		# verify's cluster and registry checks are optional; check what was given.
 		local optional
@@ -378,6 +432,17 @@ build_revoke() { # fact kind
 }
 build_grants() {
 	CMD=("$ROLLBACK_ESHU_BIN" component grants --producer "$producer_id" --component-home "$component_home")
+}
+# build_git_show_removal reads the GitOps removal commit. `plan` prints it and
+# step 1G executes it, so the printed plan cannot drift from what runs.
+build_git_show_removal() {
+	CMD=("$ROLLBACK_GIT_BIN" -C "$gitops_repo" show "$removal_commit")
+}
+# build_activations_configmap reads the live activations ConfigMap the
+# seed/reconcile init containers reinstall from on every pod start.
+build_activations_configmap() {
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" get "configmap/${activations_configmap}" -o json
+		"--request-timeout=${ROLLBACK_KUBECTL_REQUEST_TIMEOUT}")
 }
 build_helm_restore() {
 	CMD=("$ROLLBACK_HELM_BIN" upgrade "$helm_release" "$helm_chart" --namespace "$namespace" --reuse-values -f "$restore_values")

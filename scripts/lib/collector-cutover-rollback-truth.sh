@@ -193,7 +193,16 @@ do_verify() { # step
 	if [[ -n "$component_home" && -n "$component_id" && ${#grant_kinds[@]} -gt 0 ]]; then
 		[[ -n "$producer_id" ]] || producer_id="$component_id"
 		[[ -n "$grant_scope" ]] || grant_scope="$collector_kind"
-		if grants_revoked; then
+		# In activations mode zero grant rows are the proof (guarded by the
+		# registry and the removal-commit diff inside grants_absent), because
+		# the removal deleted the grant source instead of revoking it.
+		if [[ "$activations_mode" == "true" ]]; then
+			if grants_absent; then
+				evidence "$step" "no external producer grants remain (removal ${removal_commit})"
+			else
+				refuse "$step" "$GRANT_NOTE"
+			fi
+		elif grants_revoked; then
 			evidence "$step" "external producer grants are revoked"
 		else
 			refuse "$step" "$GRANT_NOTE"

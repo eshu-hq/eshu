@@ -96,7 +96,40 @@ wait_until() { # timeout-seconds fn
 
 # --- steps ----------------------------------------------------------------------------------
 
+# step_1_gitops is the activations-mode replacement for step 1. The GitOps
+# removal commit, merged and synced by the operator, is the durable act; this
+# step never runs `component disable`, because on this topology that is a
+# pod-local write the next pod start undoes. It proves the removal instead, and
+# it scales and restarts nothing: the sync already rolled the workloads.
+step_1_gitops() {
+	step_header 1 "stop new claims for the external producer (activations/GitOps mode)"
+	printf 'The removal commit %s in %s replaced the disable. This step proves it; it disables nothing.\n' \
+		"$removal_commit" "$gitops_repo"
+	build_git_show_removal
+	exec_cmd
+	if [[ "$XRC" -ne 0 ]]; then
+		step_failed 1 "reading the removal commit failed with exit ${XRC}; nothing after it was run"
+	fi
+	# The registry, not the caller's list, says whether new claims are stopped.
+	# A mistyped instance ID is absent from the removal diff while the real one
+	# still runs, so refuse here, before anything is waited on.
+	if ! registry_clear; then
+		[[ "$REGISTRY_COUNT" != "unknown" ]] || step_failed 1 "$REGISTRY_NOTE"
+		refuse 1 "$REGISTRY_NOTE"
+	fi
+	if ! activations_configmap_clear; then
+		refuse 1 "$CONFIGMAP_NOTE"
+	fi
+	confirm_step1_gitops || step_failed 1 "$GITOPS_CONFIRM_NOTE"
+	evidence 1 "removal=${removal_commit} worker_pods=0 component_activations=0 coordinator='${GITOPS_CONFIRM_NOTE}'"
+	step_ok 1
+}
+
 step_1() {
+	if [[ "$activations_mode" == "true" ]]; then
+		step_1_gitops
+		return 0
+	fi
 	step_header 1 "stop new claims for the external producer"
 	local instance disabled=""
 	local -a externals
@@ -160,7 +193,29 @@ step_2() {
 	step_ok 2
 }
 
+# step_3_gitops is the activations-mode replacement for step 3. No
+# `revoke-grant` is executed: the removal deleted the grant source, so zero
+# grant rows ARE the proof, guarded by the registry and the removal-commit diff
+# so a mistyped producer ID cannot read as revoked.
+step_3_gitops() {
+	step_header 3 "prove the external producer grants are gone (activations/GitOps mode)"
+	gate_step1 3
+	gate_step2 3
+	build_grants
+	show_cmd
+	if ! grants_absent; then
+		step_failed 3 "${GRANT_NOTE} after the GitOps removal"
+	fi
+	printf '%s\n' "$GRANT_ROWS" | sed 's/^/    /'
+	evidence 3 "no grants remain for ${producer_id}@${component_version}; removal ${removal_commit} deletes the activation"
+	step_ok 3
+}
+
 step_3() {
+	if [[ "$activations_mode" == "true" ]]; then
+		step_3_gitops
+		return 0
+	fi
 	step_header 3 "revoke the external producer grant"
 	gate_step1 3
 	gate_step2 3

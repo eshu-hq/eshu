@@ -94,6 +94,13 @@ grants)
 		esac
 		shift 2
 	done
+	# Like the real RunGrants, an empty listing prints "no producer grants",
+	# not an empty output.
+	if [[ ! -s "${state}/grants" ]] || ! awk -F'|' -v want="${producer}" 'want == "" || $1 == want { found = 1; exit 0 } END { exit !found }' \
+		"${state}/grants"; then
+		printf 'no producer grants\n'
+		exit 0
+	fi
 	awk -F'|' -v want="${producer}" '
 		want == "" || $1 == want {
 			printf "%s\t%s\t%s\tscope=%s\tschemas=1.0.0\texpires=2027-01-01T00:00:00Z\trevoked=%s\n", $1, $2, $3, $4, $5

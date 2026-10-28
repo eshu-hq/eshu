@@ -146,6 +146,138 @@ grants_revoked() {
 	return 0
 }
 
+# --- activations/GitOps mode predicates ------------------------------------------
+#
+# On an activations-mode topology the component registry is pod-local and
+# re-seeded from the activations ConfigMap on every pod start, so a disable or
+# revoke-grant is a file-local write the next start undoes. The GitOps removal
+# commit is the durable act; these predicates prove it instead of mutating.
+
+# REMOVAL_SHOW holds the removal commit text; REMOVAL_NOTE explains a failure.
+REMOVAL_SHOW=""
+REMOVAL_NOTE=""
+read_removal_commit() {
+	build_git_show_removal
+	quiet_cmd
+	REMOVAL_SHOW="$XOUT"
+	if [[ "$XRC" -ne 0 ]]; then
+		REMOVAL_NOTE="reading the removal commit ${removal_commit} failed with exit ${XRC}: ${XOUT}"
+		return 1
+	fi
+	REMOVAL_NOTE=""
+	return 0
+}
+
+# removal_deletes_activation is true when the removal commit exists and its
+# diff mentions every external instance. A mistyped instance ID is absent from
+# the diff, so it must not read as removed.
+removal_deletes_activation() {
+	read_removal_commit || return 1
+	local instance
+	local -a externals
+	IFS=, read -r -a externals <<<"$external_instances"
+	for instance in "${externals[@]}"; do
+		if [[ "$REMOVAL_SHOW" != *"$instance"* ]]; then
+			REMOVAL_NOTE="the removal commit ${removal_commit} does not mention instance ${instance}; the instance ID may be mistyped or the commit may be the wrong one"
+			return 1
+		fi
+	done
+	return 0
+}
+
+# CONFIGMAP_NOTE explains a ConfigMap proof failure.
+CONFIGMAP_NOTE=""
+# activations_configmap_clear is true when the live activations ConfigMap no
+# longer mentions any external instance. An unreadable ConfigMap is unknown,
+# never clear: the seed source must be readable to prove the removal synced. A
+# shared substring refuses fail-closed; name entries distinctly.
+activations_configmap_clear() {
+	build_activations_configmap
+	quiet_cmd
+	if [[ "$XRC" -ne 0 ]]; then
+		CONFIGMAP_NOTE="reading configmap/${activations_configmap} failed with exit ${XRC}: ${XOUT}"
+		return 1
+	fi
+	local instance
+	local -a externals
+	IFS=, read -r -a externals <<<"$external_instances"
+	for instance in "${externals[@]}"; do
+		if [[ "$XOUT" == *"$instance"* ]]; then
+			CONFIGMAP_NOTE="configmap/${activations_configmap} still mentions instance ${instance}; the GitOps removal has not synced"
+			return 1
+		fi
+	done
+	CONFIGMAP_NOTE=""
+	return 0
+}
+
+# grants_absent is the activations-mode step 3 proof: no grant row remains for
+# the producer, the component has no enabled activation, and the removal commit
+# diff shows the activation deleted. Zero rows alone prove nothing: a mistyped
+# producer ID also reads zero rows, so the registry and the diff guard it.
+grants_absent() {
+	build_grants
+	quiet_cmd
+	GRANT_ROWS="$XOUT"
+	if [[ "$XRC" -ne 0 ]]; then
+		GRANT_NOTE="listing grants failed with exit ${XRC}"
+		return 1
+	fi
+	# The CLI prints "no producer grants" instead of an empty listing when
+	# nothing remains (RunGrants in go/internal/cli/component/grants.go), so
+	# only a tab-separated row counts as a remaining row. A future message that
+	# contains a tab refuses fail-closed.
+	if [[ -n "$(printf '%s\n' "$XOUT" | awk -F'\t' 'NF > 1 { print }')" ]]; then
+		GRANT_NOTE="grant rows still exist for producer ${producer_id}"
+		return 1
+	fi
+	if ! registry_clear; then
+		GRANT_NOTE="grants read zero rows but ${REGISTRY_NOTE}"
+		return 1
+	fi
+	if ! removal_deletes_activation; then
+		GRANT_NOTE="grants read zero rows but ${REMOVAL_NOTE}"
+		return 1
+	fi
+	return 0
+}
+
+# GITOPS_CONFIRM_NOTE explains a step 1G proof failure.
+GITOPS_CONFIRM_NOTE=""
+# confirm_step1_gitops returns 0 when the GitOps removal provably stopped new
+# claims: the removal commit deletes the activation, the registry and the live
+# ConfigMap no longer carry it, the worker is stopped, and the post-sync
+# coordinator rollout completed. Nothing here writes.
+confirm_step1_gitops() {
+	if ! removal_deletes_activation; then
+		GITOPS_CONFIRM_NOTE="$REMOVAL_NOTE"
+		return 1
+	fi
+	if ! registry_clear; then
+		GITOPS_CONFIRM_NOTE="$REGISTRY_NOTE"
+		return 1
+	fi
+	if ! activations_configmap_clear; then
+		GITOPS_CONFIRM_NOTE="$CONFIGMAP_NOTE"
+		return 1
+	fi
+	build_worker_pods
+	show_cmd
+	if ! wait_until "$step_timeout" worker_pods_gone; then
+		GITOPS_CONFIRM_NOTE="the worker is not confirmed stopped after ${step_timeout}s${POD_NOTE:+ ($POD_NOTE)}"
+		return 1
+	fi
+	build_coordinator_status
+	show_cmd
+	quiet_cmd
+	if [[ "$XRC" -ne 0 ]]; then
+		GITOPS_CONFIRM_NOTE="coordinator deployment/${coordinator_deployment} rollout did not complete: ${XOUT}"
+		return 1
+	fi
+	GITOPS_CONFIRM_NOTE="${XOUT}"
+	return 0
+}
+
 # in_tree_rolled_out is true when the restored Deployment finished rolling out.
 in_tree_rolled_out() {
 	build_in_tree_status
@@ -206,6 +338,11 @@ confirm_step1() {
 }
 
 gate_step1() { # for-step
+	if [[ "$activations_mode" == "true" ]]; then
+		printf 'GATE before step %s: step 1G (GitOps removal proved) must be confirmed\n' "$1"
+		confirm_step1_gitops || refuse "$1" "step 1 is not confirmed: ${GITOPS_CONFIRM_NOTE}. Do not wait for a drain while the external producer can still claim."
+		return 0
+	fi
 	printf 'GATE before step %s: step 1 (new claims stopped) must be confirmed\n' "$1"
 	confirm_step1 || refuse "$1" "step 1 is not confirmed: ${CONFIRM_NOTE}. Do not wait for a drain while the external producer can still claim."
 }
@@ -223,6 +360,15 @@ gate_step2() { # for-step
 # in-tree producer is restored, so an in-tree producer that GitOps restored too
 # early (claiming beside a live external one) is caught here, not at step 6.
 gate_step3() { # for-step
+	if [[ "$activations_mode" == "true" ]]; then
+		printf 'GATE before step %s: no grant may remain for the external producer\n' "$1"
+		if ! grants_absent; then
+			refuse "$1" "${GRANT_NOTE}. The GitOps removal must delete the activation (step 1G) before restoring the in-tree producer."
+		fi
+		printf '  no grant rows remain for %s\n' "$producer_id"
+		check_authority "$1"
+		return 0
+	fi
 	printf 'GATE before step %s: the external producer grants must be revoked\n' "$1"
 	if ! grants_revoked; then
 		refuse "$1" "${GRANT_NOTE}. Revoke the external producer grant (step 3) before restoring the in-tree producer."
