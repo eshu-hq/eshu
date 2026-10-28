@@ -1072,8 +1072,9 @@ Each documented bucket set maps a short name to the exact boundary values in `go
 | retention-duration-seconds | 0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900 |
 | retention-batch-count | 1, 2, 4, 8, 16, 32, 64, 100 |
 | retention-age-seconds | 3600, 21600, 43200, 86400, 259200, 604800, 1209600, 2592000, 7776000 |
-| postgres-query-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5 |
-| canonical-phase-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5 |
+| postgres-query-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300 |
+| file-parse-and-live-query-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5 |
+| canonical-phase-seconds, code-call-edge-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5 |
 | acceptance-lookup-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
 | shared-projection-processing-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60 |
 | collector-stage-seconds | 0.005, 0.025, 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
@@ -1084,7 +1085,6 @@ Each documented bucket set maps a short name to the exact boundary values in `go
 | batch-claim-count | 1, 4, 8, 16, 32, 64, 128 |
 | neo4j-batch-count | 1, 10, 50, 100, 250, 500, 1000 |
 | shared-edge-statement-count | 1, 2, 4, 8, 16, 32, 64, 128 |
-| code-call-edge-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5 |
 | cross-repo-resolution-seconds | 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
 | bootstrap-phase-seconds | 1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600 |
 | workflow-claim-run-seconds | 0.1, 0.5, 1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800 |
