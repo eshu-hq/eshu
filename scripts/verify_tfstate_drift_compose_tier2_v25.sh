@@ -31,17 +31,17 @@
 #       ESHU_TIER2_V25_REPOS_DIR pointing at repos_gen2 so the next ingest
 #       sees the gen-2 .tf files.
 #     - Flip the collector-instance claims_enabled toggles:
-#       gen1 -> false, gen2 -> true; recreate workflow-coordinator and
-#       both collector containers so the new env takes effect.
+#       gen1 -> false, gen2 -> true; recreate workflow-coordinator so the
+#       new static JSON takes effect. The extension workers keep running:
+#       both satellite activations stay claims-enabled in the registry and
+#       each worker leases whatever the coordinator plans.
 #
 #   Pass 2
 #     - bootstrap-index Pass 2 collects repos_gen2 (gen-1 scope_generations
 #       rows are marked superseded; new active gen-2 rows are published).
 #     - Coordinator plans fresh terraform_state work items against the
-#       gen-2 instance (the per-RunID idempotency built by
-#       terraformStateRunID in
-#       go/internal/coordinator/planner/tfstate/planner.go is scoped to one
-#       instance, so gen-2's RunID is distinct from gen-1's).
+#       gen-2 instance (the extension RunID carries the instance id, so
+#       gen-2's RunID is distinct from gen-1's).
 #     - collector-gen2 claims and drains; emits the serial=2 snapshot for
 #       bucket C and the empty serial=2 snapshot for bucket F.
 #     - Phase 3.5 runs again. The prior-state query finds gen-1's serial=1
@@ -201,26 +201,29 @@ configure_ports() {
     assign_port ESHU_RESOLUTION_ENGINE_METRICS_PORT "${ESHU_RESOLUTION_ENGINE_METRICS_PORT:-51466}"
     assign_port ESHU_WORKFLOW_COORDINATOR_HTTP_PORT "${ESHU_WORKFLOW_COORDINATOR_HTTP_PORT:-58082}"
     assign_port ESHU_WORKFLOW_COORDINATOR_METRICS_PORT "${ESHU_WORKFLOW_COORDINATOR_METRICS_PORT:-51469}"
-    assign_port ESHU_COLLECTOR_TFSTATE_GEN1_METRICS_PORT "${ESHU_COLLECTOR_TFSTATE_GEN1_METRICS_PORT:-51470}"
-    assign_port ESHU_COLLECTOR_TFSTATE_GEN2_METRICS_PORT "${ESHU_COLLECTOR_TFSTATE_GEN2_METRICS_PORT:-51471}"
+    assign_port ESHU_COLLECTOR_TFSTATE_GEN1_C_METRICS_PORT "${ESHU_COLLECTOR_TFSTATE_GEN1_C_METRICS_PORT:-51470}"
+    assign_port ESHU_COLLECTOR_TFSTATE_GEN1_F_METRICS_PORT "${ESHU_COLLECTOR_TFSTATE_GEN1_F_METRICS_PORT:-51471}"
+    assign_port ESHU_COLLECTOR_TFSTATE_GEN2_C_METRICS_PORT "${ESHU_COLLECTOR_TFSTATE_GEN2_C_METRICS_PORT:-51472}"
+    assign_port ESHU_COLLECTOR_TFSTATE_GEN2_F_METRICS_PORT "${ESHU_COLLECTOR_TFSTATE_GEN2_F_METRICS_PORT:-51473}"
     assign_port MINIO_PORT "${MINIO_PORT:-59000}"
     assign_port MINIO_CONSOLE_PORT "${MINIO_CONSOLE_PORT:-59001}"
 }
 
 # v25_dump_v25_specific_failure_logs covers the v2.5-only services the shared
 # tier2_dump_failure_logs helper misses. tier2_dump_failure_logs iterates a
-# static service list (minio, minio-init, collector-terraform-state, ...) that
-# does not match the v2.5 overlay's suffixed service names
-# (minio-init-gen1, minio-init-gen2, collector-terraform-state-gen1,
-# collector-terraform-state-gen2). Without this helper, a Pass 2 failure
-# would emit empty log sections for both collector instances and both minio
-# loaders, leaving the operator without the evidence needed to debug.
+# static service list (minio, minio-init, collector-terraform-state-{a,b,d,e},
+# ...) that does not match the v2.5 overlay's per-(generation, bucket) service
+# names. Without this helper, a Pass 2 failure would emit empty log sections
+# for the collector workers, leaving the operator without the evidence needed
+# to debug.
 v25_dump_v25_specific_failure_logs() {
     local services=(
         "minio-init-gen1"
         "minio-init-gen2"
-        "collector-terraform-state-gen1"
-        "collector-terraform-state-gen2"
+        "collector-terraform-state-gen1-c"
+        "collector-terraform-state-gen1-f"
+        "collector-terraform-state-gen2-c"
+        "collector-terraform-state-gen2-f"
     )
     for service in "${services[@]}"; do
         echo "----- logs for ${service} (tail 80) -----"
@@ -256,13 +259,6 @@ trap cleanup EXIT INT TERM
 
 cd "$REPO_ROOT"
 
-echo "==> Computing canonical repository IDs for v2.5 fixture repos"
-ESHU_TIER2_V25_REPO_C_ID="$(compute_repo_id drift-c-tf-config)"
-ESHU_TIER2_V25_REPO_F_ID="$(compute_repo_id drift-f-tf-config)"
-export ESHU_TIER2_V25_REPO_C_ID ESHU_TIER2_V25_REPO_F_ID
-echo "  bucket C repo_id: $ESHU_TIER2_V25_REPO_C_ID"
-echo "  bucket F repo_id: $ESHU_TIER2_V25_REPO_F_ID"
-
 echo "==> Configuring host port assignments"
 configure_ports
 
@@ -276,10 +272,21 @@ echo "==> Pass 1: bringing up v2.5 compose stack with gen-1 fixtures"
     postgres nornicdb db-migrate workspace-setup \
     minio minio-init-gen1 \
     bootstrap-index \
+    projector \
     resolution-engine \
+    collector-terraform-state-seed-gen1-c \
+    collector-terraform-state-reconcile-gen1-c \
+    collector-terraform-state-seed-gen1-f \
+    collector-terraform-state-reconcile-gen1-f \
+    collector-terraform-state-seed-gen2-c \
+    collector-terraform-state-reconcile-gen2-c \
+    collector-terraform-state-seed-gen2-f \
+    collector-terraform-state-reconcile-gen2-f \
     workflow-coordinator \
-    collector-terraform-state-gen1 \
-    collector-terraform-state-gen2 \
+    collector-terraform-state-gen1-c \
+    collector-terraform-state-gen1-f \
+    collector-terraform-state-gen2-c \
+    collector-terraform-state-gen2-f \
     eshu
 
 echo "==> Waiting for db-migrate to complete"
@@ -329,10 +336,11 @@ export ESHU_TIER2_V25_REPOS_DIR="./tests/fixtures/tfstate_drift_tier2/v25/repos_
 export ESHU_TIER2_V25_GEN1_CLAIMS=false
 export ESHU_TIER2_V25_GEN2_CLAIMS=true
 
-# Force recreate the affected services so the new env vars and bind mounts
-# take effect. workflow-coordinator must restart so the new
-# ESHU_COLLECTOR_INSTANCES_JSON gets parsed; both collectors must restart so
-# the new claims_enabled flag takes effect.
+# Force recreate the coordinator so the new ESHU_COLLECTOR_INSTANCES_JSON
+# gets parsed and planning moves from the gen-1 to the gen-2 satellite
+# activation. The extension workers keep running: they lease whatever the
+# coordinator plans, and both activations stay claims-enabled in the shared
+# registry for the whole run (Pass 1 idles gen2, Pass 2 idles gen1).
 #
 # bootstrap-index is intentionally NOT in this list. The Pass 1 bootstrap-
 # index container has already exited; the `run --rm bootstrap-index` Pass 2
@@ -348,9 +356,7 @@ export ESHU_TIER2_V25_GEN2_CLAIMS=true
 # concurrent writer must not be stopped purely to silence a MERGE race.
 "${COMPOSE_CMD[@]}" up -d --force-recreate --no-deps \
     resolution-engine eshu \
-    workflow-coordinator \
-    collector-terraform-state-gen1 \
-    collector-terraform-state-gen2
+    workflow-coordinator
 
 echo "==> Pass 2: re-running bootstrap-index against gen-2 repos"
 # bootstrap-index defaults to min(NumCPU, 8) projection workers. With the

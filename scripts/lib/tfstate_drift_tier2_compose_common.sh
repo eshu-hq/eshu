@@ -135,7 +135,9 @@ tier2_wait_for_terraform_state_work_drained() {
 				 FROM workflow_work_items
 				 WHERE collector_kind='terraform_state'
 				 ORDER BY status, work_item_id;" >&2 || true
-			"${COMPOSE_CMD[@]}" logs --tail=200 collector-terraform-state >&2 || true
+			for worker in collector-terraform-state-a collector-terraform-state-b collector-terraform-state-d collector-terraform-state-e; do
+				"${COMPOSE_CMD[@]}" logs --tail=200 "$worker" >&2 || true
+			done
 			return 1
 		fi
 		if [[ "$active" == "0" && -n "$completed" && "$completed" -ge "$minimum_completed" ]]; then
@@ -145,7 +147,9 @@ tier2_wait_for_terraform_state_work_drained() {
 		sleep 3
 	done
 	echo "Timed out waiting for terraform_state work items to drain (active=$active completed=$completed terminal=$terminal)" >&2
-	"${COMPOSE_CMD[@]}" logs --tail=200 collector-terraform-state >&2 || true
+	for worker in collector-terraform-state-a collector-terraform-state-b collector-terraform-state-d collector-terraform-state-e; do
+		"${COMPOSE_CMD[@]}" logs --tail=200 "$worker" >&2 || true
+	done
 	return 1
 }
 
@@ -191,7 +195,7 @@ tier2_assert_terraform_state_resource_facts() {
 # Dump diagnostic info from every Tier-2 service when a failure trap fires.
 # Called from the verifier's cleanup function on non-zero exit.
 tier2_dump_failure_logs() {
-	local services="minio minio-init collector-terraform-state workflow-coordinator bootstrap-index resolution-engine ingester eshu"
+	local services="minio minio-init collector-terraform-state-a collector-terraform-state-b collector-terraform-state-d collector-terraform-state-e workflow-coordinator bootstrap-index projector resolution-engine ingester eshu"
 	for service in $services; do
 		echo "----- logs for $service (tail 80) -----"
 		"${COMPOSE_CMD[@]}" logs --tail=80 --no-color "$service" 2>&1 || true

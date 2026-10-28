@@ -10,8 +10,15 @@
 #   bootstrap-index -> Git collector parses fixture .tf files into
 #     terraform_backends facts
 #   workflow-coordinator (active mode) -> plans terraform_state work items
-#   collector-terraform-state -> claims items, reads .tfstate from minio over
-#     the AWS SDK, emits terraform_state_snapshot/_resource facts
+#     for the satellite activation instance
+#   collector-terraform-state-seed-*/-reconcile-* -> seed the satellite
+#     binary and manifest into the shared component home, grant/install/
+#     enable one terraform-state activation per bucket with that bucket's
+#     MinIO discovery and state_snapshot scope
+#   collector-terraform-state-{a,b,d,e} (component-extension workers) ->
+#     each leases its bucket's items and runs the satellite per claim over
+#     AWS_S3_ENDPOINT=http://minio:9000, emitting
+#     terraform_state_snapshot/_resource facts on the bucket scope
 #   bootstrap-index (rerun) -> Phase 3.5 enqueues config_state_drift intents
 #   resolution-engine -> drift handler increments counters and logs
 #
@@ -185,14 +192,26 @@ cd "$REPO_ROOT"
 echo "==> Configuring host port assignments"
 configure_ports
 
-echo "==> Bringing up Tier-2 compose stack (minio + collector + coordinator + base)"
+echo "==> Bringing up Tier-2 compose stack (minio + seed/reconcile/workers + coordinator + base)"
 "${COMPOSE_CMD[@]}" up --build -d \
 	postgres nornicdb db-migrate workspace-setup \
 	minio minio-init \
 	bootstrap-index \
+	projector \
 	resolution-engine \
+	collector-terraform-state-seed-a \
+	collector-terraform-state-reconcile-a \
+	collector-terraform-state-seed-b \
+	collector-terraform-state-reconcile-b \
+	collector-terraform-state-seed-d \
+	collector-terraform-state-reconcile-d \
+	collector-terraform-state-seed-e \
+	collector-terraform-state-reconcile-e \
 	workflow-coordinator \
-	collector-terraform-state \
+	collector-terraform-state-a \
+	collector-terraform-state-b \
+	collector-terraform-state-d \
+	collector-terraform-state-e \
 	eshu
 
 echo "==> Waiting for db-migrate to complete"
@@ -207,8 +226,8 @@ eshu_compose_wait_for_named_exit_tier2 "bootstrap-index" 240
 echo "==> Asserting Git collector emitted terraform_backends facts (>=4 expected: A, B, D-a, D-b, E)"
 tier2_assert_terraform_backend_facts 4 60
 
-echo "==> Asserting workflow-coordinator planned terraform_state work items (>=3 for distinct backends A, B, E)"
-tier2_wait_for_terraform_state_work_items 3 180
+echo "==> Asserting workflow-coordinator planned terraform_state work items (one per per-bucket instance: A, B, D, E)"
+tier2_wait_for_terraform_state_work_items 4 180
 
 echo "==> Waiting for collector-terraform-state to drain work items"
 tier2_wait_for_terraform_state_work_drained 240

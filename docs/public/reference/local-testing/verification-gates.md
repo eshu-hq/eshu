@@ -281,8 +281,8 @@ ESHU_TFSTATE_DRIFT_PROOF_OUT=/tmp/eshu-tfstate-drift-compose-$(date +%Y-%m-%d).m
 The tier-2 and v2.5 collector end-to-end proofs
 (`verify_tfstate_drift_compose_tier2.sh`,
 `verify_tfstate_drift_compose_tier2_v25.sh`) run the extracted
-terraform-state satellite image (pinned by digest in the overlay,
-`ESHU_TFSTATE_SATELLITE_IMAGE` to override) against MinIO with
+terraform-state satellite image (pinned by digest in the overlay, which
+accepts an image override for proof builds) against MinIO with
 `AWS_S3_ENDPOINT=http://minio:9000`. Tier 1 (handcrafted facts through
 the same reducer drift handler) remains the fast local gate; treat
 collector end-to-end drift as proven only on a green tier-2/v25 run

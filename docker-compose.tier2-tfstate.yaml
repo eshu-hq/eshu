@@ -25,41 +25,133 @@
 #   the server release on different cadences; pin separately.
 
 x-collector-instances: &tier2_collector_instances
-  # The local_repos entries are the canonical repository IDs the Git
-  # collector emits for filesystem-mode repos, NOT the folder names. The
-  # canonical ID is `repository:r_<first 8 hex chars of sha1(localPath)>` and
-  # `localPath` resolves to `/data/repos/<folder>` inside the container, so
-  # the hashes here are stable for this fixture layout. Recompute with
-  # `printf '/data/repos/<folder>' | sha1sum | head -c8` if the in-container
-  # repo path or fixture folder names change.
+  # The terraform-state collector is extracted: each bucket gets its own
+  # instance carrying that bucket's satellite activation document (generic
+  # component-extension scheduler owns all four; the in-tree tfstate planner
+  # never sees them). One claim collects exactly one bucket so every
+  # emitted fact carries the bucket's state_snapshot scope
+  # (state_snapshot:<backend>:<locator hash> per scope/tfstate.go), which
+  # Phase 3.5 needs to enqueue per-bucket drift intents. The satellite
+  # binary, manifest, grants, activation files, and registry entries the
+  # workers need live in the shared component home, populated by the
+  # collector-terraform-state-seed-* and -reconcile-* services below.
   #
-  # The match keys live in two queries the drift wire reads through:
-  #   - `terraformStateGitReadinessQuery` keys off `payload->>'repo_id'`
-  #   - `listTerraformBackendFactsQuery` keys off `payload->>'repo_id'`
+  # manifest_digest is sha256 of the seeded manifest.yaml from the pinned
+  # satellite image; each config_handle is
+  # component.ActivationConfigHandle("dev.eshu.collector.terraform-state",
+  # "0.1.0", activation{instance_id, config_path}) rendered by
+  # facts.StableID. Recompute them when the satellite pin changes.
   ESHU_COLLECTOR_INSTANCES_JSON: |
     [
       {
-        "instance_id": "tier2-terraform-state",
+        "instance_id": "tier2-terraform-state-a",
         "collector_kind": "terraform_state",
         "mode": "continuous",
         "enabled": true,
         "claims_enabled": true,
         "bootstrap": true,
         "configuration": {
-          "discovery": {
-            "graph": true,
-            "local_repos": [
-              "repository:r_0c292281",
-              "repository:r_cf466301",
-              "repository:r_610552d1",
-              "repository:r_4eedc49a",
-              "repository:r_126e93d3"
-            ]
+          "host": {
+            "source_system": "terraform_state",
+            "scope": {
+              "id": "state_snapshot:s3:92d2c3373ab7c1558170b1e20861a7aa3d53cbfde6545bc408b9972960d8af0f",
+              "kind": "state_snapshot"
+            }
+          },
+          "schema_version": "eshu.component.instance.v1",
+          "component_id": "dev.eshu.collector.terraform-state",
+          "component_version": "0.1.0",
+          "publisher": "eshu-hq",
+          "manifest_digest": "eac3c9dad51a73d2df4576fa1580f7867a199f193846b0ca88360228dc6ace85",
+          "config_handle": "component-config:20e09b670b70ddf9afca34e33dbf3d6657d9d53b03d02ca02497ed9d337359d7",
+          "runtime": {
+            "sdk_protocol": "collector-sdk/v1alpha1",
+            "adapter": "process"
+          }
+        }
+      },
+      {
+        "instance_id": "tier2-terraform-state-b",
+        "collector_kind": "terraform_state",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": true,
+        "bootstrap": true,
+        "configuration": {
+          "host": {
+            "source_system": "terraform_state",
+            "scope": {
+              "id": "state_snapshot:s3:0d25ca7f523acde9ee9afe3156e65992a34cbe3ec5ba7dd69db280f110aa1b01",
+              "kind": "state_snapshot"
+            }
+          },
+          "schema_version": "eshu.component.instance.v1",
+          "component_id": "dev.eshu.collector.terraform-state",
+          "component_version": "0.1.0",
+          "publisher": "eshu-hq",
+          "manifest_digest": "eac3c9dad51a73d2df4576fa1580f7867a199f193846b0ca88360228dc6ace85",
+          "config_handle": "component-config:f7228fa29cb812e1c38d6200258955716f9d675e9167d64b545ce5556bd3e",
+          "runtime": {
+            "sdk_protocol": "collector-sdk/v1alpha1",
+            "adapter": "process"
+          }
+        }
+      },
+      {
+        "instance_id": "tier2-terraform-state-d",
+        "collector_kind": "terraform_state",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": true,
+        "bootstrap": true,
+        "configuration": {
+          "host": {
+            "source_system": "terraform_state",
+            "scope": {
+              "id": "state_snapshot:s3:6815f7e3d49f4ed59c5975f9698aa1f9f7a52c0c8c8d4281f9da7c15cfc38c21",
+              "kind": "state_snapshot"
+            }
+          },
+          "schema_version": "eshu.component.instance.v1",
+          "component_id": "dev.eshu.collector.terraform-state",
+          "component_version": "0.1.0",
+          "publisher": "eshu-hq",
+          "manifest_digest": "eac3c9dad51a73d2df4576fa1580f7867a199f193846b0ca88360228dc6ace85",
+          "config_handle": "component-config:34ada9782da28539a0b7247ce956c73600bb95bef1f5ba21f943cb755ea7e7d",
+          "runtime": {
+            "sdk_protocol": "collector-sdk/v1alpha1",
+            "adapter": "process"
+          }
+        }
+      },
+      {
+        "instance_id": "tier2-terraform-state-e",
+        "collector_kind": "terraform_state",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": true,
+        "bootstrap": true,
+        "configuration": {
+          "host": {
+            "source_system": "terraform_state",
+            "scope": {
+              "id": "state_snapshot:s3:864eae7a3a2ae00d807f7566102a24b8b9910341f9d05f426d0501d5d2ce5cc9",
+              "kind": "state_snapshot"
+            }
+          },
+          "schema_version": "eshu.component.instance.v1",
+          "component_id": "dev.eshu.collector.terraform-state",
+          "component_version": "0.1.0",
+          "publisher": "eshu-hq",
+          "manifest_digest": "eac3c9dad51a73d2df4576fa1580f7867a199f193846b0ca88360228dc6ace85",
+          "config_handle": "component-config:6929558882c1fbb9eef2ab95311b96574f6f32cd07b1794f3aaa00e1a1ad43ee",
+          "runtime": {
+            "sdk_protocol": "collector-sdk/v1alpha1",
+            "adapter": "process"
           }
         }
       }
     ]
-
 services:
   bootstrap-index:
     volumes:
@@ -182,31 +274,98 @@ services:
       ESHU_PROMETHEUS_METRICS_PORT: "9464"
       ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: active
       ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED: "true"
+      # Hosted extension egress fails closed without an explicit allow rule.
+      # This restricted policy allows the terraform-state satellite
+      # component (all per-bucket instances this overlay enables).
+      ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON: >-
+        {"mode":"restricted","extensions":[{"component_id":"dev.eshu.collector.terraform-state","collector_kind":"terraform_state","decision":"allow"}]}
       <<: *tier2_collector_instances
     depends_on:
       db-migrate:
         condition: service_completed_successfully
+      collector-terraform-state-reconcile-a:
+        condition: service_completed_successfully
+      collector-terraform-state-reconcile-b:
+        condition: service_completed_successfully
+      collector-terraform-state-reconcile-d:
+        condition: service_completed_successfully
+      collector-terraform-state-reconcile-e:
+        condition: service_completed_successfully
 
-  collector-terraform-state:
-    # eshu-hq/eshu#9288 revival: in-tree eshu-collector-terraform-state is
-    # removed; this service runs the terraform-state satellite image pinned
-    # by digest (Lane A tag 0.1.0-9288-endpoint.2, single-label in-cluster
-    # http amendment). ESHU_TFSTATE_SATELLITE_IMAGE overrides the pin.
+  # One-shot seed/reconcile pairs plus one component-extension worker per
+  # bucket (a/b/d/e): one claim collects exactly one bucket so every
+  # emitted fact carries that bucket's state_snapshot scope. The reconciles
+  # chain a->b->d->e on purpose: they share one registry file and
+  # concurrent writers corrupt it, so serialization is structural here,
+  # not a slowdown workaround.
+  collector-terraform-state-seed-a:
+    # Digest-pinned satellite release (Lane A tag 0.1.0-9288-endpoint.2,
+    # single-label in-cluster http amendment). ESHU_TFSTATE_SATELLITE_IMAGE
+    # overrides the pin.
     image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9}
-    # The collector exits on any work-item failure (open-state error, AWS
-    # transient error, etc.); restart it so the workflow-coordinator can
-    # re-lease the failed work item against a fresh process.
+    restart: "no"
+    user: "0:0"
+    # Override the image's `--sdk-stdio` entrypoint: the seed subcommand
+    # takes the collector binary itself as argv[0].
+    entrypoint: ["/usr/local/bin/collector"]
+    command: ["seed", "--dest", "/data/.eshu/components/runtime/tier2-terraform-state-a", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9"]
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  collector-terraform-state-reconcile-a:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    user: "0:0"
+    healthcheck:
+      disable: true
+    entrypoint: ["/bin/sh", "/usr/local/bin/tfstate-drift-tier2-reconcile.sh"]
+    environment:
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      INSTANCE_ID: tier2-terraform-state-a
+      TFSTATE_SEED_BUCKETS: "eshu-drift-a"
+      TFSTATE_SCOPE_PREFIX: tier2
+      TFSTATE_HOST_SCOPE_ID: state_snapshot:s3:92d2c3373ab7c1558170b1e20861a7aa3d53cbfde6545bc408b9972960d8af0f
+      AWS_S3_ENDPOINT: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./scripts/tfstate_drift_tier2_reconcile.sh:/usr/local/bin/tfstate-drift-tier2-reconcile.sh:ro
+    depends_on:
+      collector-terraform-state-seed-a:
+        condition: service_completed_successfully
+
+  collector-terraform-state-a:
+    # eshu-hq/eshu#9288 revival: the terraform-state producer is extracted,
+    # so the Eshu host image runs the component-extension worker here; the
+    # collector binary and manifest arrive from the digest-pinned satellite
+    # seed image via the seed and reconcile services above. The worker
+    # leases terraform_state work items the coordinator plans for the
+    # tier2-terraform-state-a instance and runs the satellite per claim through the
+    # process adapter. One instance per bucket keeps every emitted fact on
+    # the bucket's state_snapshot scope, which Phase 3.5 needs.
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: on-failure
     ports:
-      - "${ESHU_COLLECTOR_TFSTATE_METRICS_PORT:-31470}:9464"
+      - "${ESHU_COLLECTOR_TFSTATE_METRICS_PORT_a:-31470}:9464"
     environment:
-      ESHU_GRAPH_BACKEND: nornicdb
-      DEFAULT_DATABASE: nornic
-      ESHU_NEO4J_DATABASE: nornic
-      NEO4J_DATABASE: nornic
-      NEO4J_URI: bolt://nornicdb:7687
-      NEO4J_USERNAME: neo4j
-      NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
       ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
       ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
       ESHU_HOME: /tmp/.eshu
@@ -214,34 +373,16 @@ services:
       ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
       ESHU_PROMETHEUS_METRICS_ENABLED: "true"
       ESHU_PROMETHEUS_METRICS_PORT: "9464"
-      ESHU_TFSTATE_COLLECTOR_INSTANCE_ID: tier2-terraform-state
-      ESHU_TFSTATE_COLLECTOR_OWNER_ID: tier2-worker
-      ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL: 2s
-      ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL: 60s
-      ESHU_TFSTATE_COLLECTOR_HEARTBEAT: 10s
-      ESHU_TFSTATE_REDACTION_KEY: tier2-tfstate-drift-redaction-key-32b
-      # `ESHU_TFSTATE_REDACTION_RULESET_VERSION` is mandatory. The collector
-      # fails fast at startup when this is blank because `redact.RuleSet`
-      # fails closed on empty versions — every scalar attribute would be
-      # redacted and every composite attribute would be dropped, which
-      # silently breaks downstream attribute_drift (bucket E) detection on
-      # `acl`, `versioning.enabled`, and `sse_algorithm` keys. The Tier-2
-      # fixture intentionally relies on those keys remaining classifiable.
-      ESHU_TFSTATE_REDACTION_RULESET_VERSION: tier2-tfstate-schema-v1
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
-      AWS_REGION: us-east-1
-      AWS_DEFAULT_REGION: us-east-1
-      # Satellite operator S3 endpoint (Lane A AWS_S3_ENDPOINT): the trust
-      # gate accepts http://minio:9000 as a single-label in-cluster name.
-      # AWS_ENDPOINT_URL_S3 stays for SDK-shaped clients that honor it.
-      AWS_S3_ENDPOINT: http://minio:9000
-      AWS_ENDPOINT_URL_S3: http://minio:9000
-      # Bypass any host-injected HTTP proxy for compose-internal DNS names.
-      # The AWS SDK Go v2 respects HTTP_PROXY/HTTPS_PROXY/ALL_PROXY/NO_PROXY,
-      # and a developer-host proxy (e.g. OrbStack's proxyproxy.orb.internal)
-      # cannot route to docker DNS names. Clear every variant the SDK or its
-      # transport may pick up.
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.collector.terraform-state
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: tier2-terraform-state-a
+      ESHU_COMPONENT_COLLECTOR_OWNER_ID: tier2-worker-a
+      ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL: 2s
+      ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL: 60s
+      ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL: 10s
       no_proxy: "*"
       NO_PROXY: "*"
       HTTP_PROXY: ""
@@ -250,9 +391,347 @@ services:
       https_proxy: ""
       ALL_PROXY: ""
       all_proxy: ""
-      <<: *tier2_collector_instances
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    command: ["/usr/local/bin/eshu-collector-component-extension"]
     depends_on:
       db-migrate:
         condition: service_completed_successfully
       minio-init:
+        condition: service_completed_successfully
+      collector-terraform-state-reconcile-a:
+        condition: service_completed_successfully
+
+  collector-terraform-state-seed-b:
+    # Digest-pinned satellite release (Lane A tag 0.1.0-9288-endpoint.2,
+    # single-label in-cluster http amendment). ESHU_TFSTATE_SATELLITE_IMAGE
+    # overrides the pin.
+    image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9}
+    restart: "no"
+    user: "0:0"
+    # Override the image's `--sdk-stdio` entrypoint: the seed subcommand
+    # takes the collector binary itself as argv[0].
+    entrypoint: ["/usr/local/bin/collector"]
+    command: ["seed", "--dest", "/data/.eshu/components/runtime/tier2-terraform-state-b", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9"]
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  collector-terraform-state-reconcile-b:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    user: "0:0"
+    healthcheck:
+      disable: true
+    entrypoint: ["/bin/sh", "/usr/local/bin/tfstate-drift-tier2-reconcile.sh"]
+    environment:
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      INSTANCE_ID: tier2-terraform-state-b
+      TFSTATE_SEED_BUCKETS: "eshu-drift-b"
+      TFSTATE_SCOPE_PREFIX: tier2
+      TFSTATE_HOST_SCOPE_ID: state_snapshot:s3:0d25ca7f523acde9ee9afe3156e65992a34cbe3ec5ba7dd69db280f110aa1b01
+      AWS_S3_ENDPOINT: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./scripts/tfstate_drift_tier2_reconcile.sh:/usr/local/bin/tfstate-drift-tier2-reconcile.sh:ro
+    depends_on:
+      collector-terraform-state-seed-b:
+        condition: service_completed_successfully
+      collector-terraform-state-reconcile-a:
+        condition: service_completed_successfully
+
+  collector-terraform-state-b:
+    # eshu-hq/eshu#9288 revival: the terraform-state producer is extracted,
+    # so the Eshu host image runs the component-extension worker here; the
+    # collector binary and manifest arrive from the digest-pinned satellite
+    # seed image via the seed and reconcile services above. The worker
+    # leases terraform_state work items the coordinator plans for the
+    # tier2-terraform-state-b instance and runs the satellite per claim through the
+    # process adapter. One instance per bucket keeps every emitted fact on
+    # the bucket's state_snapshot scope, which Phase 3.5 needs.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    ports:
+      - "${ESHU_COLLECTOR_TFSTATE_METRICS_PORT_b:-31471}:9464"
+    environment:
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.collector.terraform-state
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: tier2-terraform-state-b
+      ESHU_COMPONENT_COLLECTOR_OWNER_ID: tier2-worker-b
+      ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL: 2s
+      ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL: 60s
+      ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL: 10s
+      no_proxy: "*"
+      NO_PROXY: "*"
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    command: ["/usr/local/bin/eshu-collector-component-extension"]
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+      collector-terraform-state-reconcile-b:
+        condition: service_completed_successfully
+
+  collector-terraform-state-seed-d:
+    # Digest-pinned satellite release (Lane A tag 0.1.0-9288-endpoint.2,
+    # single-label in-cluster http amendment). ESHU_TFSTATE_SATELLITE_IMAGE
+    # overrides the pin.
+    image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9}
+    restart: "no"
+    user: "0:0"
+    # Override the image's `--sdk-stdio` entrypoint: the seed subcommand
+    # takes the collector binary itself as argv[0].
+    entrypoint: ["/usr/local/bin/collector"]
+    command: ["seed", "--dest", "/data/.eshu/components/runtime/tier2-terraform-state-d", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9"]
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  collector-terraform-state-reconcile-d:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    user: "0:0"
+    healthcheck:
+      disable: true
+    entrypoint: ["/bin/sh", "/usr/local/bin/tfstate-drift-tier2-reconcile.sh"]
+    environment:
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      INSTANCE_ID: tier2-terraform-state-d
+      TFSTATE_SEED_BUCKETS: "eshu-drift-d"
+      TFSTATE_SCOPE_PREFIX: tier2
+      TFSTATE_HOST_SCOPE_ID: state_snapshot:s3:6815f7e3d49f4ed59c5975f9698aa1f9f7a52c0c8c8d4281f9da7c15cfc38c21
+      AWS_S3_ENDPOINT: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./scripts/tfstate_drift_tier2_reconcile.sh:/usr/local/bin/tfstate-drift-tier2-reconcile.sh:ro
+    depends_on:
+      collector-terraform-state-seed-d:
+        condition: service_completed_successfully
+      collector-terraform-state-reconcile-b:
+        condition: service_completed_successfully
+
+  collector-terraform-state-d:
+    # eshu-hq/eshu#9288 revival: the terraform-state producer is extracted,
+    # so the Eshu host image runs the component-extension worker here; the
+    # collector binary and manifest arrive from the digest-pinned satellite
+    # seed image via the seed and reconcile services above. The worker
+    # leases terraform_state work items the coordinator plans for the
+    # tier2-terraform-state-d instance and runs the satellite per claim through the
+    # process adapter. One instance per bucket keeps every emitted fact on
+    # the bucket's state_snapshot scope, which Phase 3.5 needs.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    ports:
+      - "${ESHU_COLLECTOR_TFSTATE_METRICS_PORT_d:-31472}:9464"
+    environment:
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.collector.terraform-state
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: tier2-terraform-state-d
+      ESHU_COMPONENT_COLLECTOR_OWNER_ID: tier2-worker-d
+      ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL: 2s
+      ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL: 60s
+      ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL: 10s
+      no_proxy: "*"
+      NO_PROXY: "*"
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    command: ["/usr/local/bin/eshu-collector-component-extension"]
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+      collector-terraform-state-reconcile-d:
+        condition: service_completed_successfully
+
+  collector-terraform-state-seed-e:
+    # Digest-pinned satellite release (Lane A tag 0.1.0-9288-endpoint.2,
+    # single-label in-cluster http amendment). ESHU_TFSTATE_SATELLITE_IMAGE
+    # overrides the pin.
+    image: ${ESHU_TFSTATE_SATELLITE_IMAGE:-ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9}
+    restart: "no"
+    user: "0:0"
+    # Override the image's `--sdk-stdio` entrypoint: the seed subcommand
+    # takes the collector binary itself as argv[0].
+    entrypoint: ["/usr/local/bin/collector"]
+    command: ["seed", "--dest", "/data/.eshu/components/runtime/tier2-terraform-state-e", "--image-ref", "ghcr.io/eshu-hq/eshu-collector-terraform-state@sha256:36b51cee5abe3f7734cbcaeb79a005165a3a9694bd3a62a562799668583dd8e9"]
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  collector-terraform-state-reconcile-e:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    user: "0:0"
+    healthcheck:
+      disable: true
+    entrypoint: ["/bin/sh", "/usr/local/bin/tfstate-drift-tier2-reconcile.sh"]
+    environment:
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      INSTANCE_ID: tier2-terraform-state-e
+      TFSTATE_SEED_BUCKETS: "eshu-drift-e"
+      TFSTATE_SCOPE_PREFIX: tier2
+      TFSTATE_HOST_SCOPE_ID: state_snapshot:s3:864eae7a3a2ae00d807f7566102a24b8b9910341f9d05f426d0501d5d2ce5cc9
+      AWS_S3_ENDPOINT: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./scripts/tfstate_drift_tier2_reconcile.sh:/usr/local/bin/tfstate-drift-tier2-reconcile.sh:ro
+    depends_on:
+      collector-terraform-state-seed-e:
+        condition: service_completed_successfully
+      collector-terraform-state-reconcile-d:
+        condition: service_completed_successfully
+
+  collector-terraform-state-e:
+    # eshu-hq/eshu#9288 revival: the terraform-state producer is extracted,
+    # so the Eshu host image runs the component-extension worker here; the
+    # collector binary and manifest arrive from the digest-pinned satellite
+    # seed image via the seed and reconcile services above. The worker
+    # leases terraform_state work items the coordinator plans for the
+    # tier2-terraform-state-e instance and runs the satellite per claim through the
+    # process adapter. One instance per bucket keeps every emitted fact on
+    # the bucket's state_snapshot scope, which Phase 3.5 needs.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    ports:
+      - "${ESHU_COLLECTOR_TFSTATE_METRICS_PORT_e:-31473}:9464"
+    environment:
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.collector.terraform-state
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: tier2-terraform-state-e
+      ESHU_COMPONENT_COLLECTOR_OWNER_ID: tier2-worker-e
+      ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL: 2s
+      ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL: 60s
+      ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL: 10s
+      no_proxy: "*"
+      NO_PROXY: "*"
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    command: ["/usr/local/bin/eshu-collector-component-extension"]
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+      collector-terraform-state-reconcile-e:
         condition: service_completed_successfully
