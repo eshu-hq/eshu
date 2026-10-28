@@ -33,6 +33,7 @@ var contractSourceFamilies = []string{
 	"deploy/argocd",
 	"docs/public/deploy/kubernetes/runtime-parity-matrix.md",
 	"scripts/ci/push-helm-chart.sh",
+	"scripts/ci/promote-moving-tags.sh",
 }
 
 // contractRecordMustName lists strings the contract record must contain:
@@ -46,7 +47,9 @@ var contractRecordMustName = []string{
 	"schemaBootstrap",
 	"go/cmd/bootstrap-data-plane",
 	"eshu-bootstrap-data-plane",
+	"docker-publish.yml",
 	"promote-moving-tags",
+	"scripts/ci/promote-moving-tags.sh",
 	"compatibility matrix",
 	"## Compatibility matrix",
 	"oldest",
@@ -129,20 +132,62 @@ func TestExtractionContractPinsImageIdentities(t *testing.T) {
 	if repo != "ghcr.io/eshu-hq/eshu" || tag != "v0.0.3-pre-release-18" {
 		t.Fatalf("core image defaults are %s:%s; the contract pins ghcr.io/eshu-hq/eshu:v0.0.3-pre-release-18", repo, tag)
 	}
-	for _, want := range []string{
-		"ghcr.io/eshu-hq/eshu",
-		"v0.0.3-pre-release-18",
-		"eshu-collector-loki@sha256:",
-		"eshu-collector-tempo@sha256:",
-		"nornicdb-amd64-cpu",
-	} {
-		if !strings.Contains(string(raw), want) {
-			t.Errorf("values.yaml no longer carries %q; update the defaults or the contract record", want)
-		}
-		if !strings.Contains(text, want) {
-			t.Errorf("contract record %s no longer states %q; update the record", contractRecordRel, want)
+	if !strings.Contains(text, "ghcr.io/eshu-hq/eshu") || !strings.Contains(text, "v0.0.3-pre-release-18") {
+		t.Errorf("contract record %s no longer states the core image repo and tag; update the record", contractRecordRel)
+	}
+	satellites := bundledCollectorRefs(t, collectImageRefs(doc, "$"))
+	if len(satellites) == 0 {
+		t.Fatal("values.yaml has no digest-pinned eshu-collector-* refs; the bundled-collector defaults moved without review")
+	}
+	for _, ref := range satellites {
+		if !strings.Contains(text, ref) {
+			t.Errorf("contract record %s no longer carries the full satellite ref %s; a rotated digest must fail here, not pass on a prefix",
+				contractRecordRel, ref)
 		}
 	}
+	nornicdbRef := nornicDBRefOfValues(t, doc)
+	if !strings.Contains(text, nornicdbRef) {
+		t.Errorf("contract record %s no longer carries the full NornicDB ref %s; a rotated stream or digest must fail here",
+			contractRecordRel, nornicdbRef)
+	}
+}
+
+// bundledCollectorRefs returns the full single-string image refs of the
+// digest-pinned bundled collectors: eshu-collector-* refs that carry a
+// digest. Documentation placeholders (example registries) never match,
+// and a newly bundled collector is covered the moment its default lands.
+func bundledCollectorRefs(t *testing.T, refs []imageRef) []string {
+	t.Helper()
+	var out []string
+	for _, ref := range refs {
+		if !ref.single || !strings.Contains(ref.ref, "eshu-collector-") {
+			continue
+		}
+		if !ref.pinned {
+			t.Errorf("bundled collector ref %q at %s carries no digest; immutable artifacts require one", ref.ref, ref.where)
+			continue
+		}
+		out = append(out, ref.ref)
+	}
+	return out
+}
+
+// nornicDBRefOfValues builds the full NornicDB image ref the chart
+// defaults carry (repository plus the stream-and-digest tag) so the
+// contract pins the exact backend identity, not the stream name alone.
+func nornicDBRefOfValues(t *testing.T, doc map[string]any) string {
+	t.Helper()
+	backend, _ := doc["nornicdb"].(map[string]any)
+	image, _ := backend["image"].(map[string]any)
+	repo, _ := image["repository"].(string)
+	tag, _ := image["tag"].(string)
+	if repo == "" || tag == "" {
+		t.Fatal("values.yaml nornicdb.image names no repository/tag; the backend default moved without review")
+	}
+	if !strings.Contains(tag, "@sha256:") {
+		t.Errorf("values.yaml nornicdb tag %q carries no digest; immutable artifacts require one", tag)
+	}
+	return repo + ":" + tag
 }
 
 // TestExtractionContractCoreOwnsBootstrap pins the migration-plan
@@ -174,6 +219,15 @@ func TestExtractionContractCoreOwnsBootstrap(t *testing.T) {
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("contract record %s no longer states the core-owned boundary %q; update the record", contractRecordRel, want)
+		}
+	}
+	for _, f := range []string{
+		"scripts/ci/push-helm-chart.sh",
+		"scripts/ci/promote-moving-tags.sh",
+		".github/workflows/docker-publish.yml",
+	} {
+		if _, err := os.Stat(filepath.Join(root, f)); err != nil {
+			t.Errorf("release-automation file %s is gone: %v", f, err)
 		}
 	}
 	schemaRaw, err := os.ReadFile(filepath.Join(root, "deploy/helm/eshu/values.schema.json"))

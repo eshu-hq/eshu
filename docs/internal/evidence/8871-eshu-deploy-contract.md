@@ -2,7 +2,7 @@
 
 ## Scope
 
-Base: `origin/main` at `a5252ea478`. Builds on the merged step-1
+Base: `origin/main` at `da1dc3b70f`. Builds on the merged step-1
 census (#9356): that record inventories the assets, this record is the
 versioned deploy contract `eshu-deploy` publishes on day one.
 
@@ -32,8 +32,9 @@ and repair implementation stays core-owned).
 - Operability: the parity baseline
   `docs/public/deploy/kubernetes/runtime-parity-matrix.md` (superseded by
   the matrix below as the published cross-repository contract) and the
-  release automation (`docker-publish.yml`,
-  `scripts/ci/push-helm-chart.sh` with its `promote-moving-tags` lane).
+  release automation (`docker-publish.yml` with its `promote-moving-tags`
+  lane implemented by `scripts/ci/promote-moving-tags.sh`; chart push via
+  `scripts/ci/push-helm-chart.sh`).
 
 ## Version basis
 
@@ -46,8 +47,9 @@ bundled collectors stay digest-pinned in the defaults:
 
 - `ghcr.io/eshu-hq/eshu-collector-loki@sha256:12eac89e7abd2988529c6f2854ba63293b5507502630764c3f6b8ffc7e3bf84d`
 - `ghcr.io/eshu-hq/eshu-collector-tempo@sha256:0230e174284bb7a9831babac9b9927be05df02e8620c20e448e91dbb1ac2ecac`
-- NornicDB default `ghcr.io/eshu-hq/nornicdb-amd64-cpu`
-  (`fix-500-e022384c` stream with digest).
+- NornicDB default
+  `ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1`
+  (`fix-500-e022384c` stream, digest-pinned).
 
 Moving tags promote only through release automation
 (`promote-moving-tags`); the extracted repository must keep that rule
@@ -80,7 +82,7 @@ the range only with tested pairs recorded here.
 | Tempo collector (digest-pinned) | `sha256:0230e174…` | `sha256:0230e174…` |
 | Postgres | `postgres:18-alpine` | `postgres:18-alpine` |
 | Neo4j (compose default) | `neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f` | `neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f` |
-| NornicDB (`nornicdb-amd64-cpu`) | `fix-500-e022384c` stream | `fix-500-e022384c` stream |
+| NornicDB (`nornicdb-amd64-cpu`) | `fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1` | `fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1` |
 
 Credential handling: ArgoCD overlays carry secret-reference examples
 only, no credential material; claim-driven collectors mount redaction
