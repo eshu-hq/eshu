@@ -143,7 +143,7 @@ const componentInitGoModTemplate = `module {{.ModulePath}}
 
 go 1.26.0
 
-require github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3
+require github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.4
 
 // For local SDK development from an Eshu checkout, run:
 // go mod edit -replace github.com/eshu-hq/eshu-sdk/collector=/path/to/eshu-sdk/collector
