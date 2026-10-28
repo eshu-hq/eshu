@@ -65,6 +65,8 @@ def assemble_proof_bundle(
             raise ValueError(f"future proof artifact attempt: {artifact.name}")
         if not artifact.is_dir():
             raise ValueError(f"proof artifact is not a directory: {artifact.name}")
+        # Unreachable hardening, not load-bearing: hosted artifact names embed
+        # leg, run ID, and attempt, so two directories cannot share all three.
         if leg in selected and selected[leg][0] == attempt:
             raise ValueError(f"duplicate proof artifact: {artifact.name}")
         if leg not in selected or attempt > selected[leg][0]:

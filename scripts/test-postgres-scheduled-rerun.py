@@ -210,6 +210,21 @@ class ScheduledRerunTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "bulk"):
                 MODULE.assemble_proof_bundle(downloads, bundle, "123", 1)
 
+    def test_setup_manifest_must_match_selected_setup_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            downloads, bundle = root / "downloads", root / "bundle"
+            downloads.mkdir()
+            for leg in LEG_FILES:
+                seed_artifact(downloads, leg, "123", 1)
+            setup = downloads / "scheduled-proof-streams-setup-123-1"
+            (setup / "manifest.json").write_text(
+                json.dumps({"run_id": "123", "run_attempt": 2}),
+                encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "manifest differs"):
+                MODULE.assemble_proof_bundle(downloads, bundle, "123", 2)
+            self.assertFalse(bundle.exists())
+
     def test_prior_attempt_manifest_still_requires_exact_run_and_head(self) -> None:
         inventory = MODULE.load_inventory()
         manifest = MODULE.build_manifest(
