@@ -82,6 +82,7 @@ var lockstepDocsPaths = []string{
 	"docs/public/reference/searchbench-evidence/issue-421-rerank-protocol-evaluation-v1.json",
 	"docs/public/run-locally/docker-compose.md",
 	"go/cmd/README.md",
+	"go/cmd/api/CUTOVER_OWNERSHIP.md",
 	"go/cmd/audit-preflight/testdata/codegraphcontext-already-tracked.md",
 	"go/cmd/audit-preflight/testdata/gitnexus-missing.md",
 	"go/cmd/audit-preflight/testdata/graphify-foundation-exists.md",

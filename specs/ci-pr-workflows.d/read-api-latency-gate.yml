@@ -49,6 +49,7 @@ workflows:
   # are markdown. Appended last so they win over the exclusion above
   # (last match wins); keep sorted, mirror specs/ci-docs-lockstep-paths.txt.
   - go/cmd/README.md
+  - go/cmd/api/CUTOVER_OWNERSHIP.md
   - go/cmd/audit-preflight/testdata/codegraphcontext-already-tracked.md
   - go/cmd/audit-preflight/testdata/gitnexus-missing.md
   - go/cmd/audit-preflight/testdata/graphify-foundation-exists.md
