@@ -56,6 +56,9 @@ type CollectedGeneration struct {
 	// through a committer implementing StateClaimedCommitter; the unclaimed
 	// Service refuses a generation that sets it instead of dropping the state.
 	StateWriter GenerationStateWriter
+	// ExtensionOutcome is the validated SDK result persisted with claim
+	// completion, including an unchanged generation.
+	ExtensionOutcome *workflow.ExtensionOutcome
 }
 
 // FactCount returns the best available fact count as max(atomic streamed count,

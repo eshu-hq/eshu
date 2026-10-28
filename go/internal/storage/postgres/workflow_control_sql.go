@@ -190,7 +190,10 @@ SET status = 'completed',
     last_failure_message = NULL,
     last_failure_operation = NULL,
     last_failure_status_code = NULL,
-    last_failure_terminal = NULL
+    last_failure_terminal = NULL,
+    extension_result_state = $11,
+    extension_partial = $12,
+    extension_warning_count = $13
 FROM candidate
 WHERE item.work_item_id = candidate.work_item_id
   AND EXISTS (SELECT 1 FROM updated_claim)

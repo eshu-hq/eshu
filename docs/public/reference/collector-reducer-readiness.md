@@ -9,6 +9,13 @@ state.
 A collector is not production-ready just because its binary exists. The
 deployment path must also prove bounded collection, durable facts, reducer
 drain, and operator-visible status.
+
+For component extensions, the operator status and collector-readiness views
+fold the newest completed SDK result for each scope of an enabled,
+registered extension instance into instance health. A
+partial result remains visible until a later clean completion of that scope;
+unchanged results can also clear or report partial health. This is a claim
+outcome, not proof that downstream reducer or graph work has drained.
 For credential-free collector extraction and replay authoring, use
 [Cassette and Replay Proof](cassette-replay.md); that proof can establish
 deterministic fact and read-shape behavior, but it does not replace the live

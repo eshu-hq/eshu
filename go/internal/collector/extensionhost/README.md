@@ -316,6 +316,13 @@ result and error path, not a new one.
 
 ## Claim outcomes and host-owned source state (#9420)
 
+Every validated complete, partial, or unchanged SDK result also carries a
+bounded completion summary (state, partial flag, warning count). The host
+writes it only in the fenced `CompleteClaim` mutation, so an uncommitted or
+stale claim cannot publish completed health. The operator read selects the
+newest completed result per scope of each enabled, registered extension
+instance; a clean result supersedes a prior partial.
+
 `Config.ClaimOutcomeRecorder` is an optional seam for durable state the host
 owns on behalf of an extension; the extension never sees it, so no storage
 handle crosses the stdio boundary. `cmd/collector-component-extension` sets it

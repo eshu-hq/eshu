@@ -151,13 +151,15 @@ import (
 // DML half, #7961 split).
 // #9227 adds 243_vulnerability_source_state_packages.sql: the package keys a
 // derived vulnerability source target queried, joined by readiness.
-const goldenBootstrapDefinitionsDigest = "db6c8f80de2a3ed9cf91756092b78ea40b26358a431ece3ab8d2c14277f90ac6"
+// #9297 adds 240_workflow_extension_outcome.sql and
+// 241_workflow_extension_outcome_latest_idx.sql for fenced SDK outcome status.
+const goldenBootstrapDefinitionsDigest = "ceaaed59a36483606e7e8e257bb16be37c374794ddb03f62a74579e5718f27e1"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 258
+const goldenBootstrapDefinitionsCount = 260
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

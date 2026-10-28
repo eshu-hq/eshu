@@ -175,6 +175,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		AWSFreshness:                   cloud.CloneAWSFreshnessSnapshot(raw.AWSFreshness),
 		InfraInventory:                 cloneInfraInventorySnapshot(raw.InfraInventory),
 		VulnerabilitySources:           collector.CloneVulnerabilitySourceStates(raw.VulnerabilitySources),
+		ExtensionOutcomes:              collector.CloneExtensionOutcomes(raw.ExtensionOutcomes),
 		SemanticExtraction:             semantic.NormalizeExtractionStatus(raw.SemanticExtraction),
 		AnswerNarration:                normalizeAnswerNarrationStatus(raw.AnswerNarration),
 		ActiveWorkSource:               raw.ActiveWorkSource,
@@ -432,6 +433,7 @@ func (r Report) CollectorEvidence() collector.Evidence {
 		AWSScans:             r.AWSCloudScans,
 		VulnerabilitySources: r.VulnerabilitySources,
 		FactEvidence:         r.CollectorFactEvidence,
+		ExtensionOutcomes:    r.ExtensionOutcomes,
 	}
 	if r.Coordinator != nil {
 		evidence.Instances = r.Coordinator.CollectorInstances

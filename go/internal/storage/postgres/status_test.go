@@ -202,14 +202,15 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	// 27 round trips: the five active-work reads are one statement (#6794),
-	// the infra read model state is one more (#6793), and the repository
-	// selection counts read is one more (#8454). The #8803 terminal-failure
+	// 28 round trips: the five active-work reads are one statement (#6794),
+	// the infra read model state is one more (#6793), the repository
+	// selection counts read is one more (#8454), and the completed extension
+	// outcome aggregate is one read. The #8803 terminal-failure
 	// read adds one more only when an enabled collector instance exists; this
 	// fixture has none (TestReadCoordinatorSnapshotIncludesTerminalFailures
 	// pins the read when one does).
-	if len(queryer.queries) != 27 {
-		t.Fatalf("QueryContext() call count = %d, want 27", len(queryer.queries))
+	if len(queryer.queries) != 28 {
+		t.Fatalf("QueryContext() call count = %d, want 28", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",

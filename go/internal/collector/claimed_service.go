@@ -272,6 +272,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	}
 	if collected.Unchanged {
 		completeMutation, err := s.resolvedCompletionMutation(mutation, collected)
+		completeMutation.ExtensionOutcome = collected.ExtensionOutcome
 		if err != nil {
 			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
 			if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", "identity_mismatch", true, err)); failErr != nil {
@@ -333,6 +334,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	// Successful commit: record per-collector fact volume before completing.
 	s.recordClaimFactsEmitted(ctx, item, collected)
 	completeMutation, err := s.resolvedCompletionMutation(mutation, collected)
+	completeMutation.ExtensionOutcome = collected.ExtensionOutcome
 	if err != nil {
 		runOutcome = telemetry.CollectorRunOutcomeFailTerminal
 		if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", "identity_mismatch", true, err)); failErr != nil {

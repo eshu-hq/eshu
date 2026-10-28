@@ -186,6 +186,11 @@ func (s *Source) resolveResult(
 	item workflow.WorkItem,
 	result sdkcollector.Result,
 ) (collector.CollectedGeneration, bool, error) {
+	completion := &workflow.ExtensionOutcome{State: string(result.State), Partial: result.State == sdkcollector.ResultPartial}
+	for _, status := range result.Statuses {
+		completion.Partial = completion.Partial || status.Partial
+		completion.WarningCount += status.WarningCount
+	}
 	switch result.State {
 	case sdkcollector.ResultRetryable:
 		return collector.CollectedGeneration{}, false, extensionFailure{
@@ -202,10 +207,13 @@ func (s *Source) resolveResult(
 	case sdkcollector.ResultUnchanged:
 		collected := s.collectedGeneration(item, result, nil)
 		collected.Unchanged = true
+		collected.ExtensionOutcome = completion
 		return collected, true, nil
 	default:
 		envelopes := s.envelopesForResult(item, result)
-		return s.collectedGeneration(item, result, envelopes), true, nil
+		collected := s.collectedGeneration(item, result, envelopes)
+		collected.ExtensionOutcome = completion
+		return collected, true, nil
 	}
 }
 
