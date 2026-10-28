@@ -88,8 +88,14 @@ func TestListOwnedPackageDependencyTargetsSlotWindowStatsLive(t *testing.T) {
 	if _, err := db.ExecContext(ctx, slotLiveFixture(slotLiveMajorityTargets, slotLiveMinorityTargets)); err != nil {
 		t.Fatalf("seed owned-package slot fixture: %v", err)
 	}
+	// A dependency fact with no version: sha256 of a NULL key is NULL, so
+	// without the COALESCE in the slot key this target would sit in no slot
+	// and the slot sizes below would sum to T-1.
+	if _, err := db.ExecContext(ctx, slotLiveInsertNullVersion); err != nil {
+		t.Fatalf("seed NULL-version target: %v", err)
+	}
 	store := NewFactStore(SQLDB{DB: db})
-	total := int64(slotLiveMajorityTargets + slotLiveMinorityTargets)
+	total := int64(slotLiveMajorityTargets + slotLiveMinorityTargets + 1)
 	wantP := workflow.OwnedPackageTargetSlotCount(total, slotLiveTargetLimit)
 
 	seen := map[string]int64{}
@@ -320,4 +326,22 @@ VALUES ('npm-' || $1, 'scope-slot', 'gen-slot', 'content_entity', 'stable-npm-' 
             'package_manager', 'npm',
             'value', '1.0.0',
             'lockfile', 'true')))
+`
+
+// slotLiveInsertNullVersion adds one npm dependency fact whose metadata has
+// no value key, so its version reads as NULL.
+const slotLiveInsertNullVersion = `
+INSERT INTO fact_records
+    (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, collector_kind,
+     source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+VALUES ('npm-null-version', 'scope-slot', 'gen-slot', 'content_entity', 'stable-npm-null-version', 'git',
+    'git', 'npm-null-version', '2026-10-28T12:00:00Z', now(), FALSE,
+    jsonb_build_object(
+        'entity_type', 'Variable',
+        'entity_name', 'pkg-null-version',
+        'repo_id', 'scope-slot',
+        'entity_metadata', jsonb_build_object(
+            'config_kind', 'dependency',
+            'package_manager', 'npm',
+            'lockfile', 'false')))
 `
